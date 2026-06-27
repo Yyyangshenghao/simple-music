@@ -68,7 +68,7 @@ Mineradio-Next/
 ├── package.json
 ├── tsconfig.json            # 渲染层 + 共享
 ├── tsconfig.node.json       # 主进程 / server / vite 配置
-├── electron-vite.config.ts
+├── electron.vite.config.ts
 ├── .gitignore
 ├── electron/main.ts         # 最小空窗口
 ├── electron/preload/index.ts
@@ -154,7 +154,7 @@ git commit -m "chore: init package.json and dependencies"
 ### Task 0.2：TypeScript 与 electron-vite 配置
 
 **Files:**
-- Create: `tsconfig.json`, `tsconfig.node.json`, `electron-vite.config.ts`, `.gitignore`
+- Create: `tsconfig.json`, `tsconfig.node.json`, `electron.vite.config.ts`, `.gitignore`
 
 **Interfaces:**
 - Produces: 三个构建目标（main / preload / renderer）+ 路径别名 `@renderer` → `src`。
@@ -184,7 +184,7 @@ dist/
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["electron/**/*", "server/**/*", "electron-vite.config.ts"]
+  "include": ["electron/**/*", "server/**/*", "electron.vite.config.ts"]
 }
 ```
 
@@ -210,7 +210,7 @@ dist/
 }
 ```
 
-- [ ] **Step 4：写 `electron-vite.config.ts`**
+- [ ] **Step 4：写 `electron.vite.config.ts`**
 
 ```ts
 import { defineConfig } from 'electron-vite'
@@ -251,7 +251,7 @@ export default defineConfig({
 - [ ] **Step 5：提交**
 
 ```bash
-git add tsconfig.json tsconfig.node.json electron-vite.config.ts .gitignore
+git add tsconfig.json tsconfig.node.json electron.vite.config.ts .gitignore
 git commit -m "chore: add typescript and electron-vite config"
 ```
 
