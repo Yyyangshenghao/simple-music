@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react'
+import { useDesktopBridge } from './hooks/useDesktopBridge'
+import { useAudio } from './hooks/useAudio'
+import { useWindowStore } from './stores/window'
+import { useSettingsStore } from './stores/settings'
 
 export default function App() {
   const [port, setPort] = useState<number | null>(null)
+  const isMaximized = useWindowStore((s) => s.isMaximized)
+
+  useDesktopBridge()
+  useAudio()
 
   useEffect(() => {
     setPort(window.desktop?.serverPort ?? null)
+    useSettingsStore.getState().loadFromLocal()
   }, [])
 
   return (
@@ -20,7 +29,7 @@ export default function App() {
     >
       <h1 style={{ margin: 0, fontWeight: 600, letterSpacing: 2 }}>Mineradio-Next</h1>
       <p style={{ opacity: 0.6, fontSize: 13 }}>
-        渲染层骨架就绪 · API 端口 {port ?? '...'}
+        渲染层基础就绪 · API 端口 {port ?? '...'} · 窗口{isMaximized ? '已最大化' : '正常'}
       </p>
       <button
         className="no-drag"
