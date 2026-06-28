@@ -40,5 +40,62 @@
     "@vitejs/plugin-react": "^4.3.0",
     "tsx": "^4.16.0",
     "vitest": "^2.0.0"
+  },
+  "mineradio": {
+    "update": {
+      "provider": "github",
+      "owner": "XxHuberrr",
+      "repo": "Mineradio",
+      "preview": true,
+      "preferMirrors": true,
+      "mirrors": [
+        "https://gh.llkk.cc/",
+        "https://ghfast.top/",
+        "https://gh-proxy.com/"
+      ]
+    }
+  },
+  "build": {
+    "appId": "com.mineradio.desktop",
+    "productName": "Mineradio",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "build/icon.ico",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Mineradio-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mineradio"
+    }
   }
 }
