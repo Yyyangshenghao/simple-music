@@ -14,7 +14,7 @@ import {
   type LoginInfo,
   type MappedPodcastRadio,
 } from '../lib/netease-client'
-import { analyzeBeatmap } from '../lib/beatmap-stub'
+import { analyzePodcastDjStream, analyzePodcastDjIntro } from '../lib/dj-analyzer'
 
 // ---------- 播客数据映射 ----------
 function mapPodcastProgram(program: unknown, fallbackRadio: unknown): Record<string, unknown> {
@@ -339,9 +339,17 @@ export const podcastRoutes: RouteHandler = async (req, res, url, ctx: ServerCont
       console.log('[PodcastDjBeatmap] start', Math.round(durationSec || 0) + 's')
       const started = Date.now()
       const introSec = Math.max(0, Number(url.searchParams.get('intro') || 0) || 0)
-      // DJ 节拍分析占位：真实算法将在后续接入 dj-analyzer。
-      const map = await analyzeBeatmap(audioUrl, { durationSec, introSec, userAgent: UA })
-      console.log('[PodcastDjBeatmap] done ms:', Date.now() - started)
+      const map = introSec
+        ? await analyzePodcastDjIntro(audioUrl, { durationSec, introSec, userAgent: UA })
+        : await analyzePodcastDjStream(audioUrl, { durationSec, userAgent: UA })
+      console.log(
+        '[PodcastDjBeatmap] done beats:',
+        map.visualBeatCount || 0,
+        'ms:',
+        Date.now() - started,
+        'decode:',
+        map.decode || {}
+      )
       sendJson(res, { ok: true, map })
     } catch (err) {
       console.error('[PodcastDjBeatmap]', err)
