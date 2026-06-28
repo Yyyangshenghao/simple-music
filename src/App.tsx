@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useAudio } from './hooks/useAudio'
+import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
+import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useSettingsStore } from './stores/settings'
 import { usePlaylistStore } from './stores/playlist'
 import { WindowChrome } from './components/Layout/WindowChrome'
@@ -19,6 +21,8 @@ export default function App() {
 
   useDesktopBridge()
   useAudio()
+  useDesktopLyricsSync()
+  useWallpaperSync()
 
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()
