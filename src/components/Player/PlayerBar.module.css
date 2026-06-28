@@ -1,0 +1,110 @@
+.bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(360px, 2fr) minmax(220px, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.left {
+  min-width: 0;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn:active {
+  transform: scale(0.94);
+}
+
+.playBtn {
+  width: 46px;
+  height: 46px;
+  background: var(--accent, #6ea8ff);
+  color: #0b1220;
+  box-shadow: 0 6px 18px rgba(110, 168, 255, 0.45);
+}
+
+.playBtn:hover {
+  background: var(--accent, #6ea8ff);
+  color: #0b1220;
+  filter: brightness(1.08);
+}
+
+.playBtn[data-loading='true'] {
+  opacity: 0.7;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.progressSlider {
+  flex: 1;
+}
+
+.time {
+  flex-shrink: 0;
+  min-width: 40px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  max-width: 160px;
+}
+
+.volumeIcon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.6);
+  display: inline-flex;
+}
+
+.volumeSlider {
+  flex: 1;
+}

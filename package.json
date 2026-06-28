@@ -1,0 +1,101 @@
+{
+  "name": "mineradio-next",
+  "productName": "Mineradio",
+  "version": "2.0.0",
+  "description": "沉浸式音乐播放器（TypeScript + React 重写版）",
+  "author": "Mineradio",
+  "main": "out/main/index.js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac",
+    "server:dev": "tsx server/index.ts"
+  },
+  "dependencies": {
+    "NeteaseCloudMusicApi": "^4.32.0",
+    "mpg123-decoder": "^1.0.3",
+    "gsap": "^3.15.0",
+    "zustand": "^4.5.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "three": "^0.169.0",
+    "@react-three/fiber": "^8.17.0",
+    "@react-three/drei": "^9.114.0"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-vite": "^2.3.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^5.4.0",
+    "typescript": "^5.5.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.169.0",
+    "@types/node": "^20.14.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tsx": "^4.16.0",
+    "vitest": "^2.0.0"
+  },
+  "mineradio": {
+    "update": {
+      "provider": "github",
+      "owner": "XxHuberrr",
+      "repo": "Mineradio",
+      "preview": true,
+      "preferMirrors": true,
+      "mirrors": [
+        "https://gh.llkk.cc/",
+        "https://ghfast.top/",
+        "https://gh-proxy.com/"
+      ]
+    }
+  },
+  "build": {
+    "appId": "com.mineradio.desktop",
+    "productName": "Mineradio",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "build/icon.ico",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Mineradio-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mineradio"
+    }
+  }
+}
