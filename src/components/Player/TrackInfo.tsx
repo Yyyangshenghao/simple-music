@@ -14,7 +14,7 @@ export function TrackInfo({ onCoverClick }: TrackInfoProps) {
   return (
     <div className={styles.info}>
       <div
-        className={`${styles.cover}${onCoverClick ? ` ${styles.clickable}` : ''} no-drag`}
+        className={`${styles.cover} no-drag`}
         onClick={onCoverClick}
         role={onCoverClick ? 'button' : undefined}
         tabIndex={onCoverClick ? 0 : undefined}
@@ -26,6 +26,7 @@ export function TrackInfo({ onCoverClick }: TrackInfoProps) {
             : undefined
         }
         aria-label={onCoverClick ? '查看歌词' : undefined}
+        style={onCoverClick ? { cursor: 'pointer' } : undefined}
       >
         {track?.cover ? (
           <img className={styles.coverImg} src={track.cover} alt={track.name} draggable={false} />
@@ -33,11 +34,6 @@ export function TrackInfo({ onCoverClick }: TrackInfoProps) {
           <span className={styles.coverPlaceholder} aria-hidden="true">
             ♪
           </span>
-        )}
-        {onCoverClick && (
-          <div className={styles.coverOverlay} aria-hidden="true">
-            <span className={styles.coverOverlayText}>歌词</span>
-          </div>
         )}
       </div>
       <div className={styles.meta}>
