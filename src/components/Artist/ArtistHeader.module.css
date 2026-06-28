@@ -1,0 +1,54 @@
+.header {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 50%, var(--artist-bg, #10141e) 0%, var(--sm-bg-base) 100%);
+  transition: background 600ms var(--sm-ease-in-out);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 100%;
+  padding: 32px 48px;
+}
+
+.avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+}
+
+.info { display: flex; flex-direction: column; gap: 6px; }
+
+.name { font-size: 32px; font-weight: 800; color: var(--sm-text-primary); margin: 0; }
+
+.meta { font-size: 14px; color: var(--sm-text-secondary); margin: 0; }
+
+.playAll {
+  margin-top: 4px;
+  align-self: flex-start;
+  padding: 8px 20px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 150ms;
+}
+
+.playAll:hover { opacity: 0.88; }

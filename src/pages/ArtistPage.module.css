@@ -1,0 +1,38 @@
+.page { height: 100%; overflow-y: auto; }
+
+.back {
+  display: block;
+  background: none;
+  border: none;
+  color: var(--sm-accent);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 12px 24px;
+}
+
+.subTabs {
+  display: flex;
+  gap: 4px;
+  padding: 16px 24px 0;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border-bottom: 1px solid var(--sm-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.subTab {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--sm-text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+
+.subTab.active { color: var(--sm-accent); border-bottom-color: var(--sm-accent); }
+
+.trackList { padding: 8px; }
