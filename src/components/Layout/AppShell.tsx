@@ -10,6 +10,8 @@ const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ de
 export function AppShell() {
   const view = useNavigationStore((s) => s.currentView)
 
+  const viewKey = typeof view === 'string' ? view : `${view.type}-${String(view.id)}`
+
   const renderPage = () => {
     if (view === 'explore') return <ExplorePage />
     if (view === 'library') return <LibraryPage />
@@ -23,7 +25,9 @@ export function AppShell() {
   return (
     <div className={styles.shell}>
       <Suspense fallback={<div className={styles.loading} />}>
-        {renderPage()}
+        <div key={viewKey} className={styles.pageEnter}>
+          {renderPage()}
+        </div>
       </Suspense>
     </div>
   )

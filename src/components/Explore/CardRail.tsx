@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 import styles from './CardRail.module.css'
 
 interface CardRailProps {
@@ -7,8 +8,9 @@ interface CardRailProps {
 }
 
 export function CardRail({ title, children }: CardRailProps) {
+  const ref = useScrollReveal<HTMLElement>()
   return (
-    <section className={styles.section}>
+    <section className={styles.section} ref={ref}>
       <h2 className={styles.title}>{title}</h2>
       <div
         className={styles.rail}
