@@ -1,0 +1,23 @@
+.section { margin-bottom: 32px; }
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sm-text-primary);
+  margin: 0 0 16px;
+  padding: 0 24px;
+}
+
+.rail {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 4px 24px 12px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* 两端渐隐 */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+}
+
+.rail::-webkit-scrollbar { display: none; }

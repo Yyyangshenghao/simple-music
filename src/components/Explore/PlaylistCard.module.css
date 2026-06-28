@@ -1,0 +1,42 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 160px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--sm-text-primary);
+  text-align: left;
+  padding: 0;
+}
+
+.coverWrap {
+  width: 160px;
+  height: 160px;
+  border-radius: var(--sm-radius-card);
+  overflow: hidden;
+  transition: transform 200ms var(--sm-ease-out), box-shadow 200ms;
+}
+
+.card:hover .coverWrap {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--sm-shadow);
+}
+
+.cover { width: 100%; height: 100%; object-fit: cover; }
+
+.coverFallback { width: 100%; height: 100%; background: var(--sm-bg-elevated); }
+
+.name {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 160px;
+}
+
+.meta { margin: 0; font-size: 11px; color: var(--sm-text-secondary); }
