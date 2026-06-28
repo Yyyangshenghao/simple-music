@@ -559,6 +559,32 @@ export async function requireLogin(
 }
 
 // ---------- 业务: 搜索 ----------
+
+export interface ArtistSearchResult {
+  id: unknown
+  name: string
+  avatar: string
+  musicSize: number
+}
+
+export async function handleArtistSearch(keywords: string, limit: number, cookie: string): Promise<ArtistSearchResult[]> {
+  console.log('[ArtistSearch]', keywords, 'limit:', limit)
+  const result = await call('cloudsearch', { keywords, limit, type: 100, cookie })
+  const artists = asArr(asObj(asObj(result.body).result).artists)
+  return artists
+    .map((a) => {
+      const obj = asObj(a)
+      return {
+        id: obj.id,
+        name: asStr(obj.name),
+        avatar: asStr(obj.picUrl || obj.img1v1Url),
+        musicSize: asNum(obj.musicSize || obj.songSize || 0),
+      }
+    })
+    .filter((a) => a.name)
+    .slice(0, Math.max(1, Math.min(limit, 5)))
+}
+
 export async function handleSearch(keywords: string, limit: number, cookie: string): Promise<MappedSong[]> {
   console.log('[Search]', keywords, 'limit:', limit)
   const result = await call('cloudsearch', { keywords, limit, cookie })
@@ -675,6 +701,44 @@ export async function handleSongUrl(
     fee: lastData && lastData.fee,
     error: lastError ? lastError.message : undefined,
     requestedQuality,
+  }
+}
+
+export interface MappedArtistDetail {
+  id: unknown
+  name: string
+  avatar: string
+  musicSize: number
+  songNum: number
+  source: 'netease'
+}
+
+export function mapArtistDetail(raw: unknown): MappedArtistDetail {
+  const a = asObj(raw)
+  const basic = asObj(a.artist || a)
+  return {
+    id: basic.id ?? basic.artistId,
+    name: asStr(basic.name),
+    avatar: asStr(basic.picUrl || basic.img1v1Url || basic.avatar || ''),
+    musicSize: asNum(basic.musicSize),
+    songNum: asNum(basic.songNum || basic.musicSize),
+    source: 'netease',
+  }
+}
+
+export function mapAlbum(raw: unknown): MappedPlaylist {
+  const a = asObj(raw)
+  return {
+    id: a.id,
+    name: asStr(a.name),
+    cover: asStr(a.picUrl || a.coverImgUrl || ''),
+    trackCount: asNum(a.size || a.trackCount),
+    playCount: 0,
+    creator: '',
+    tag: '专辑',
+    source: 'netease',
+    type: 'album',
+    provider: 'netease',
   }
 }
 

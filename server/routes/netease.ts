@@ -19,9 +19,14 @@ import {
   getLoginInfo,
   requireLogin,
   handleSearch,
+  handleArtistSearch,
   handleSongUrl,
   handleDiscoverHome,
   mapSongRecord,
+  mapArtists,
+  mapDiscoverPlaylist,
+  mapArtistDetail,
+  mapAlbum,
   audioProxyHeadersFor,
   audioContentTypeForUrl,
   type LoginInfo,
@@ -74,6 +79,135 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[Search]', err)
       sendJson(res, { error: (err as Error).message, songs: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Banner ----------
+  if (pn === '/api/netease/banner') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const resp = await call('banner', { type: 0, cookie })
+      const banners = asArr(asObj(resp.body).banners || []).slice(0, 5).map((b) => {
+        const item = asObj(b)
+        const song = asObj(item.song || {})
+        return {
+          id: item.bannerId || item.targetId,
+          title: asStr(item.typeTitle || song.name || ''),
+          subtitle: asStr(song.name ? mapArtists(asArr(song.ar || [])).map((a) => a.name).join('、') : ''),
+          cover: asStr(item.pic || item.imageUrl || ''),
+          track: song.id ? mapSongRecord(song) : undefined,
+        }
+      })
+      sendJson(res, { banners })
+    } catch (err) {
+      console.error('[Banner]', err)
+      sendJson(res, { banners: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Recommend Playlists ----------
+  if (pn === '/api/netease/recommend/playlists') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const [personalized, recommend] = await Promise.allSettled([
+        call('personalized', { limit: 8, cookie, timestamp: Date.now() }),
+        call('recommend_resource', { cookie, timestamp: Date.now() }),
+      ])
+      const fromPersonalized = personalized.status === 'fulfilled'
+        ? asArr(asObj(personalized.value.body).result || []).map((pl) => mapDiscoverPlaylist(pl, '推荐歌单')).filter((pl) => pl.id && pl.name).slice(0, 8)
+        : []
+      const fromRecommend = recommend.status === 'fulfilled'
+        ? asArr(asObj(asObj(recommend.value.body).recommend || recommend.value.body).recommend || asObj(recommend.value.body).data || []).map((pl) => mapDiscoverPlaylist(pl, '私人推荐')).filter((pl) => pl.id && pl.name).slice(0, 6)
+        : []
+      const seen = new Set<unknown>()
+      const playlists = [...fromPersonalized, ...fromRecommend].filter((pl) => { if (seen.has(pl.id)) return false; seen.add(pl.id); return true })
+      sendJson(res, { playlists })
+    } catch (err) {
+      console.error('[RecommendPlaylists]', err)
+      sendJson(res, { playlists: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Recommend Songs ----------
+  if (pn === '/api/netease/recommend/songs') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const resp = await call('recommend_songs', { cookie, timestamp: Date.now() })
+      const body = asObj(resp.body)
+      const data = asObj(body.data)
+      const raw = data.dailySongs || data.recommend || body.recommend
+      const songs = asArr(raw).map(mapSongRecord).filter((s) => s.id && s.name).slice(0, 20)
+      sendJson(res, { songs })
+    } catch (err) {
+      console.error('[RecommendSongs]', err)
+      sendJson(res, { songs: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Artist Detail ----------
+  if (pn === '/api/netease/artist/detail') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const id = url.searchParams.get('id') || ''
+      const resp = await call('artist_detail', { id, cookie })
+      const body = asObj(resp.body)
+      const raw = asObj(body.data || body).artist || asObj(body.data || body)
+      sendJson(res, { artist: mapArtistDetail(raw) })
+    } catch (err) {
+      console.error('[ArtistDetail]', err)
+      sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- Artist Songs ----------
+  if (pn === '/api/netease/artist/songs') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const id = url.searchParams.get('id') || ''
+      const limit = parseInt(url.searchParams.get('limit') || '50')
+      const resp = await call('artist_songs', { id, limit, offset: 0, cookie })
+      const body = asObj(resp.body)
+      const songs = asArr(body.songs || body.data || []).map(mapSongRecord).filter((s) => s.id && s.name)
+      sendJson(res, { songs })
+    } catch (err) {
+      console.error('[ArtistSongs]', err)
+      sendJson(res, { songs: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Artist Albums ----------
+  if (pn === '/api/netease/artist/albums') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const id = url.searchParams.get('id') || ''
+      const limit = parseInt(url.searchParams.get('limit') || '20')
+      const resp = await call('artist_album', { id, limit, offset: 0, cookie })
+      const body = asObj(resp.body)
+      const albums = asArr(body.hotAlbums || body.albums || []).map(mapAlbum).filter((a) => a.id && a.name)
+      sendJson(res, { albums })
+    } catch (err) {
+      console.error('[ArtistAlbums]', err)
+      sendJson(res, { albums: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- 歌手搜索 ----------
+  if (pn === '/api/search/artists') {
+    try {
+      const kw = url.searchParams.get('keywords') || ''
+      const limit = Math.max(1, Math.min(5, parseInt(url.searchParams.get('limit') || '3', 10) || 3))
+      const artists = await handleArtistSearch(kw, limit, getCookie(ctx, 'netease'))
+      sendJson(res, { artists })
+    } catch (err) {
+      console.error('[ArtistSearch]', err)
+      sendJson(res, { error: (err as Error).message, artists: [] }, 500)
     }
     return true
   }
@@ -461,6 +595,38 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[Lyric]', err)
       sendJson(res, { error: (err as Error).message, lyric: '' }, 500)
+    }
+    return true
+  }
+
+  // ---------- 封面图片代理（解决跨域采样限制） ----------
+  if (pn === '/proxy/cover') {
+    try {
+      const targetUrl = url.searchParams.get('url')
+      if (!targetUrl) {
+        res.writeHead(400)
+        res.end('Missing url param')
+        return true
+      }
+      const r = await fetch(targetUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Mineradio)' }
+      })
+      if (!r.ok) {
+        res.writeHead(r.status)
+        res.end(`Upstream error: ${r.status}`)
+        return true
+      }
+      const contentType = r.headers.get('content-type') || 'image/jpeg'
+      const buffer = Buffer.from(await r.arrayBuffer())
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*',
+      })
+      res.end(buffer)
+    } catch (err) {
+      res.writeHead(500)
+      res.end((err as Error).message)
     }
     return true
   }
