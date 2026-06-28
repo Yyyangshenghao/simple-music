@@ -1,51 +1,60 @@
 import { useEffect, useState } from 'react'
+import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useAudio } from './hooks/useAudio'
-import { useWindowStore } from './stores/window'
 import { useSettingsStore } from './stores/settings'
+import { usePlaylistStore } from './stores/playlist'
+import { WindowChrome } from './components/Layout/WindowChrome'
+import { TitleBar } from './components/Layout/TitleBar'
+import { Scene } from './components/Visualizer/Scene'
+import { StageLyrics } from './components/Lyrics/StageLyrics'
+import { ShelfScene } from './components/Shelf/ShelfScene'
+import { SearchBar } from './components/Search/SearchBar'
+import { PlayerBar } from './components/Player/PlayerBar'
+import { SettingsPanel } from './components/Settings/SettingsPanel'
 
 export default function App() {
-  const [port, setPort] = useState<number | null>(null)
-  const isMaximized = useWindowStore((s) => s.isMaximized)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const toggleShelf = usePlaylistStore((s) => s.toggleShelf)
 
   useDesktopBridge()
   useAudio()
 
   useEffect(() => {
-    setPort(window.desktop?.serverPort ?? null)
     useSettingsStore.getState().loadFromLocal()
   }, [])
 
   return (
-    <div
-      style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12
-      }}
-    >
-      <h1 style={{ margin: 0, fontWeight: 600, letterSpacing: 2 }}>Mineradio-Next</h1>
-      <p style={{ opacity: 0.6, fontSize: 13 }}>
-        渲染层基础就绪 · API 端口 {port ?? '...'} · 窗口{isMaximized ? '已最大化' : '正常'}
-      </p>
-      <button
-        className="no-drag"
-        style={{
-          marginTop: 8,
-          padding: '6px 16px',
-          borderRadius: 8,
-          border: '1px solid rgba(255,255,255,0.18)',
-          background: 'rgba(255,255,255,0.06)',
-          color: '#e8ecf2',
-          cursor: 'pointer'
-        }}
-        onClick={() => window.desktop?.minimize()}
-      >
-        最小化（测试 IPC）
-      </button>
-    </div>
+    <WindowChrome>
+      <div className={styles.root}>
+        {/* 背景可视化层 */}
+        <Scene />
+
+        {/* 交互层 */}
+        <div className={styles.content}>
+          <TitleBar />
+
+          <div className={styles.topRow}>
+            <SearchBar />
+            <div className={styles.spacer} />
+            <button className={styles.iconBtn} onClick={() => toggleShelf()}>
+              歌单架
+            </button>
+            <button className={styles.iconBtn} onClick={() => setSettingsOpen(true)}>
+              设置
+            </button>
+          </div>
+
+          <div className={styles.stage}>
+            <StageLyrics />
+            <ShelfScene />
+          </div>
+
+          <PlayerBar />
+        </div>
+
+        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </div>
+    </WindowChrome>
   )
 }
