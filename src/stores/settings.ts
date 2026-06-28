@@ -11,6 +11,9 @@ interface PersistedSettings {
   shelfMergeCollections: boolean
   liveBackgroundKeep: boolean
   lyricsPanelMode: 'lyrics' | '3d'
+  activeSource: 'netease' | 'qq'
+  themeMode: 'auto' | 'light' | 'dark'
+  audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -23,6 +26,9 @@ interface SettingsStore extends PersistedSettings {
   setShelfMergeCollections(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: 'lyrics' | '3d'): void
+  setActiveSource(s: 'netease' | 'qq'): void
+  setThemeMode(m: 'auto' | 'light' | 'dark'): void
+  setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -37,6 +43,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   shelfMergeCollections: false,
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
+  activeSource: 'netease',
+  themeMode: 'auto',
+  audioQuality: 'lossless',
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -64,11 +73,23 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsPanelMode: mode })
     get().saveToLocal()
   },
+  setActiveSource(s) {
+    set({ activeSource: s })
+    get().saveToLocal()
+  },
+  setThemeMode(m) {
+    set({ themeMode: m })
+    get().saveToLocal()
+  },
+  setAudioQuality(q) {
+    set({ audioQuality: q })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -84,6 +105,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
+        activeSource: data.activeSource ?? 'netease',
+        themeMode: data.themeMode ?? 'auto',
+        audioQuality: data.audioQuality ?? 'lossless',
       })
     } catch {
       /* ignore malformed */
