@@ -1,0 +1,50 @@
+.stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.scroll {
+  position: relative;
+  width: 100%;
+  max-width: 92vw;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 1) 82%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 1) 82%,
+    transparent 100%
+  );
+}
+
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* 首尾留白，保证第一行/最后一行也能滚动到正中。 */
+.pad {
+  height: 40%;
+  flex-shrink: 0;
+}
+
+.empty {
+  font-family: var(--font-sans, 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.4);
+}

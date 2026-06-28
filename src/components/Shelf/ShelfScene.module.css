@@ -1,0 +1,155 @@
+.root {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 28px;
+  z-index: 20;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.modeSeg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modeBtn {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.modeBtn:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.modeActive {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 3D 透视：让卡片产生纵深层叠感。 */
+  perspective: 1400px;
+  perspective-origin: 50% 30%;
+}
+
+.viewport::-webkit-scrollbar {
+  width: 4px;
+}
+
+.viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.empty {
+  padding: 64px 0;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.scene {
+  position: relative;
+  transform-style: preserve-3d;
+  padding: 24px 8px;
+}
+
+/* 静态镜头：正视书架，无整体倾斜。 */
+.static .grid {
+  transform: none;
+}
+
+/* 动态镜头：整体微倾，营造"俯视书架"的舞台感。 */
+.dynamic .grid {
+  transform: rotateX(8deg) rotateY(-12deg);
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 22px 18px;
+  transform-style: preserve-3d;
+  transform-origin: 50% 40%;
+}
+
+.slot {
+  transform-style: preserve-3d;
+  /* 入场逐张错峰浮现（--i 由组件按索引注入）。 */
+  animation: rise 0.45s both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 动态镜头下：卡片立体上浮 + hover 抽出。 */
+.dynamic .slot {
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.dynamic .slot:hover {
+  transform: translateZ(60px) translateY(-6px) rotateY(6deg);
+  z-index: 5;
+}
+
+.static .slot:hover {
+  transform: translateY(-4px);
+  transition: transform 0.25s ease;
+}
+
+/* 架板：卡片下方一道暖色搁板，呼应原视觉的书架感。 */
+.board {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(244, 210, 138, 0.18),
+    rgba(244, 210, 138, 0.04)
+  );
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateZ(-40px);
+  pointer-events: none;
+}

@@ -1,0 +1,14 @@
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 12px 16px;
+  pointer-events: none;
+}
+
+.panel {
+  pointer-events: auto;
+  padding: 12px 20px;
+}

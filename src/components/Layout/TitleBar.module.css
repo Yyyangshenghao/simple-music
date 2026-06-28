@@ -1,0 +1,67 @@
+.titleBar {
+  position: relative;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 12px 0 18px;
+  background: transparent;
+  user-select: none;
+}
+
+/* macOS：为系统交通灯按钮留出左侧空间 */
+.macOS {
+  padding-left: 78px;
+}
+
+.brand {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(224, 250, 255, 0.74);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(4, 8, 10, 0.42);
+  color: rgba(224, 250, 255, 0.7);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+/* 关闭按钮：危险态红色高亮 */
+.close:hover {
+  background: rgba(255, 83, 103, 0.16);
+  border-color: rgba(255, 83, 103, 0.4);
+  color: #fff;
+}

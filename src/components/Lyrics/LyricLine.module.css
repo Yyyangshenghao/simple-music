@@ -1,0 +1,57 @@
+.line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.42);
+  opacity: 0.6;
+  transform: scale(0.92);
+  transform-origin: center;
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.16, 0.84, 0.32, 1.02),
+    color 0.45s ease, filter 0.45s ease;
+  will-change: transform, opacity, filter;
+}
+
+.main {
+  font-family: var(--font-sans, 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-weight: 700;
+  font-size: clamp(20px, 2.6vw, 34px);
+  letter-spacing: 1.5px;
+  line-height: 1.35;
+}
+
+.translation {
+  font-weight: 500;
+  font-size: clamp(13px, 1.5vw, 18px);
+  letter-spacing: 1px;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.active {
+  opacity: 1;
+  transform: scale(1.06);
+  color: #fff;
+  filter: drop-shadow(0 4px 22px rgba(143, 233, 255, 0.3));
+}
+
+.active .main {
+  background: linear-gradient(
+    180deg,
+    rgba(246, 253, 255, 1) 0%,
+    rgba(168, 246, 255, 1) 55%,
+    rgba(126, 205, 255, 1) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 14px rgba(168, 246, 255, 0.38), 0 0 36px rgba(143, 233, 255, 0.3),
+    0 0 80px rgba(115, 167, 255, 0.16);
+}
+
+.active .translation {
+  color: rgba(214, 240, 255, 0.92);
+  opacity: 1;
+}
