@@ -16,7 +16,7 @@ interface ArtistPageProps {
   source: 'netease' | 'qq'
 }
 
-export function ArtistPage({ id }: ArtistPageProps) {
+export function ArtistPage({ id, source: _source }: ArtistPageProps) {
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
