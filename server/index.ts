@@ -32,6 +32,16 @@ export function startServer(
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      // CORS：dev 下渲染层(localhost:5173)与 API server 不同源，需放行；
+      // prod 下 file:// origin 为 null 同样需要 *。
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204)
+        res.end()
+        return
+      }
       try {
         for (const handler of chain) {
           if (await handler(req, res, url, ctx)) return
