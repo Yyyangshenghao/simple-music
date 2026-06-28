@@ -9,6 +9,16 @@ export interface Artist {
   name: string
 }
 
+export interface ArtistInfo {
+  id: unknown
+  mid?: string
+  name: string
+  avatar: string
+  musicSize?: number
+  songNum?: number
+  source: MusicSource
+}
+
 export interface Track {
   provider: MusicSource
   source: MusicSource
@@ -158,3 +168,26 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 export type ShelfMode = 'dynamic' | 'static'
+
+/** 逐字歌词中的单个字/词 token。startMs 是相对于该行起始时间的毫秒偏移。 */
+export interface WordToken {
+  text: string
+  startMs: number
+}
+
+/** 含逐字时序的歌词行（来自 YRC 解析或均分估算）。 */
+export interface WordLyricLine {
+  time: number
+  durationMs: number
+  words: WordToken[]
+  translationText?: string
+}
+
+export interface Banner {
+  id: string | number
+  title: string
+  subtitle?: string
+  cover: string
+  track?: Track
+  playlist?: Playlist
+}
