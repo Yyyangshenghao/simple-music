@@ -1,67 +1,88 @@
-.titleBar {
+.bar {
   position: relative;
-  z-index: 500;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 44px;
-  padding: 0 12px 0 18px;
-  background: transparent;
-  user-select: none;
+  height: 48px;
+  padding: 0 12px;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border-bottom: 1px solid var(--sm-border);
+  flex-shrink: 0;
+  z-index: 100;
 }
 
-/* macOS：为系统交通灯按钮留出左侧空间 */
-.macOS {
-  padding-left: 78px;
+/* macOS traffic lights 占位（约 72px） */
+.trafficLights {
+  width: 72px;
+  height: 12px;
+  flex-shrink: 0;
 }
 
-.brand {
-  min-width: 0;
-  overflow: hidden;
-  color: rgba(224, 250, 255, 0.74);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+.left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: absolute;
+  left: 12px;
+}
+
+/* 绝对居中，不受左右影响 */
+.tabs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  padding: 3px;
+}
+
+.tab {
+  padding: 5px 16px;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  border: none;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 180ms var(--sm-ease-out), color 180ms;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
-.controls {
+.tab:hover { color: var(--sm-text-primary); }
+
+.tab.active {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+
+.right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  position: absolute;
+  right: 12px;
 }
 
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.avatar {
   width: 30px;
   height: 30px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  background: rgba(4, 8, 10, 0.42);
-  color: rgba(224, 250, 255, 0.7);
+  border-radius: 50%;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border: 1px solid var(--sm-border);
+  color: var(--sm-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition: background 150ms;
 }
 
-.button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  transform: translateY(-1px);
-}
-
-.button:active {
-  transform: translateY(0);
-}
-
-/* 关闭按钮：危险态红色高亮 */
-.close:hover {
-  background: rgba(255, 83, 103, 0.16);
-  border-color: rgba(255, 83, 103, 0.4);
-  color: #fff;
-}
+.avatar:hover { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }

@@ -1,79 +1,51 @@
+import { useNavigationStore } from '../../stores/navigation'
+import type { AppView } from '../../stores/navigation'
+import { SearchPill } from './SearchPill'
+import { SourceSwitcher } from './SourceSwitcher'
 import styles from './TitleBar.module.css'
 
-/**
- * 无边框窗口顶栏。
- * - 顶栏整体可拖拽（依赖全局 `.desktop-shell` 的 `-webkit-app-region: drag`），
- *   交互按钮通过 `className="no-drag"` 标记为不可拖拽。
- * - macOS 下系统自带「红绿灯」交通灯按钮负责最小化 / 全屏 / 关闭，
- *   因此隐藏这里自绘的窗口控制按钮，并在左侧留出交通灯的空间，
- *   仅保留应用名。非 macOS（Windows/Linux）则展示自绘三按钮。
- */
-export function TitleBar() {
-  const isMacOS = window.desktop?.platform === 'darwin'
+const TABS: { view: AppView; label: string }[] = [
+  { view: 'explore', label: '探索' },
+  { view: 'library', label: '我的库' },
+  { view: 'settings', label: '设置' },
+]
 
-  const handleMinimize = (): void => {
-    void window.desktop?.minimize()
-  }
-  const handleToggleFullscreen = (): void => {
-    void window.desktop?.toggleFullscreen()
-  }
-  const handleClose = (): void => {
-    void window.desktop?.close()
-  }
+export function TitleBar() {
+  const currentView = useNavigationStore((s) => s.currentView)
+  const navigateTo = useNavigationStore((s) => s.navigateTo)
+
+  const activeTab = typeof currentView === 'string' ? currentView : null
 
   return (
-    <div className={`${styles.titleBar}${isMacOS ? ` ${styles.macOS}` : ''}`}>
-      <div className={styles.brand}>SimpleMusic</div>
+    <header className={`${styles.bar} desktop-shell`}>
+      {/* 左侧：traffic lights 占位 + 搜索 */}
+      <div className={styles.left}>
+        <div className={styles.trafficLights} aria-hidden="true" />
+        <SearchPill />
+      </div>
 
-      {/* macOS 使用系统交通灯，不渲染自绘按钮 */}
-      {!isMacOS && (
-        <div className={styles.controls}>
+      {/* 中间：标签导航（绝对居中） */}
+      <nav className={styles.tabs} aria-label="主导航">
+        {TABS.map(({ view, label }) => (
           <button
-            type="button"
-            className={`no-drag ${styles.button}`}
-            aria-label="最小化"
-            title="最小化"
-            onClick={handleMinimize}
+            key={String(view)}
+            className={`${styles.tab} no-drag ${activeTab === view ? styles.active : ''}`}
+            onClick={() => navigateTo(view)}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
+            {label}
           </button>
+        ))}
+      </nav>
 
-          <button
-            type="button"
-            className={`no-drag ${styles.button}`}
-            aria-label="切换全屏"
-            title="切换全屏"
-            onClick={handleToggleFullscreen}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none">
-              <rect
-                x="2.3"
-                y="2.3"
-                width="7.4"
-                height="7.4"
-                rx="1.4"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            className={`no-drag ${styles.button} ${styles.close}`}
-            aria-label="关闭"
-            title="关闭"
-            onClick={handleClose}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              <line x1="9" y1="3" x2="3" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
+      {/* 右侧：音源切换 + 头像 */}
+      <div className={styles.right}>
+        <SourceSwitcher />
+        <button className={`${styles.avatar} no-drag`} aria-label="账户">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v1h20v-1c0-3.3-6.7-5-10-5z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
   )
 }
