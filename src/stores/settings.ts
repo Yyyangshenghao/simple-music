@@ -3,13 +3,14 @@ import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
 import type { FxArchive } from '../types/domain'
 
-const STORAGE_KEY = 'mineradio-settings'
+const STORAGE_KEY = 'simplemusic-settings'
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
   shelfShowPodcasts: boolean
   shelfMergeCollections: boolean
   liveBackgroundKeep: boolean
+  lyricsPanelMode: 'lyrics' | '3d'
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -21,6 +22,7 @@ interface SettingsStore extends PersistedSettings {
   setShelfShowPodcasts(v: boolean): void
   setShelfMergeCollections(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
+  setLyricsPanelMode(mode: 'lyrics' | '3d'): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -34,6 +36,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   shelfShowPodcasts: true,
   shelfMergeCollections: false,
   liveBackgroundKeep: false,
+  lyricsPanelMode: 'lyrics',
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -57,11 +60,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ liveBackgroundKeep: v })
     get().saveToLocal()
   },
+  setLyricsPanelMode(mode) {
+    set({ lyricsPanelMode: mode })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -75,14 +82,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         hotkeys: data.hotkeys ?? [],
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
-        liveBackgroundKeep: data.liveBackgroundKeep ?? false
+        liveBackgroundKeep: data.liveBackgroundKeep ?? false,
+        lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
       })
     } catch {
       /* ignore malformed */
     }
   },
 
-  exportArchive(name = 'Mineradio 存档') {
+  exportArchive(name = 'SimpleMusic 存档') {
     return JSON.stringify(useVisualStore.getState().saveArchive(name), null, 2)
   },
 

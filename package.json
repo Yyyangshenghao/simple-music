@@ -1,9 +1,9 @@
 {
-  "name": "mineradio-next",
-  "productName": "Mineradio",
-  "version": "2.0.0",
-  "description": "沉浸式音乐播放器（TypeScript + React 重写版）",
-  "author": "Mineradio",
+  "name": "simplemusic",
+  "productName": "SimpleMusic",
+  "version": "1.0.0",
+  "description": "简约音乐播放器",
+  "author": "Yangshenghao",
   "main": "out/main/index.js",
   "private": true,
   "type": "module",
@@ -56,8 +56,8 @@
     }
   },
   "build": {
-    "appId": "com.mineradio.desktop",
-    "productName": "Mineradio",
+    "appId": "com.simplemusic.desktop",
+    "productName": "SimpleMusic",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -87,7 +87,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "Mineradio-${version}-Setup.${ext}"
+      "artifactName": "SimpleMusic-${version}-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -95,7 +95,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mineradio"
+      "shortcutName": "SimpleMusic"
     }
   }
 }

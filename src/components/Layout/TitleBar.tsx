@@ -23,7 +23,7 @@ export function TitleBar() {
 
   return (
     <div className={`${styles.titleBar}${isMacOS ? ` ${styles.macOS}` : ''}`}>
-      <div className={styles.brand}>Mineradio</div>
+      <div className={styles.brand}>SimpleMusic</div>
 
       {/* macOS 使用系统交通灯，不渲染自绘按钮 */}
       {!isMacOS && (
