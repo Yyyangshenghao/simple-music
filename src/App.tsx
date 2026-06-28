@@ -6,21 +6,14 @@ import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useSettingsStore } from './stores/settings'
-import { usePlaylistStore } from './stores/playlist'
-import { useVisualStore } from './stores/visual'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TitleBar } from './components/Layout/TitleBar'
-import { LyricsPanel } from './components/Lyrics/LyricsPanel'
-import { ShelfScene } from './components/Shelf/ShelfScene'
-import { SearchBar } from './components/Search/SearchBar'
+import { AppShell } from './components/Layout/AppShell'
 import { PlayerBar } from './components/Player/PlayerBar'
-import { SettingsPanel } from './components/Settings/SettingsPanel'
+import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 
 export default function App() {
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [lyricsOpen, setLyricsOpen] = useState(false)
-  const toggleShelf = usePlaylistStore((s) => s.toggleShelf)
-  const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
 
   useDesktopBridge()
   useAudio()
@@ -30,9 +23,6 @@ export default function App() {
 
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()
-  }, [])
-
-  useEffect(() => {
     const sync = () => {
       const mode = useSettingsStore.getState().themeMode
       const root = document.documentElement
@@ -46,32 +36,9 @@ export default function App() {
   return (
     <WindowChrome>
       <div className={styles.root}>
-        {/* 背景色层 */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, background: backgroundColor || '#04060c' }} />
-
-        {/* 交互层 */}
-        <div className={styles.content}>
-          <TitleBar />
-
-          <div className={styles.topRow}>
-            <SearchBar />
-            <div className={styles.spacer} />
-            <button className={styles.iconBtn} onClick={() => toggleShelf()}>
-              歌单架
-            </button>
-            <button className={styles.iconBtn} onClick={() => setSettingsOpen(true)}>
-              设置
-            </button>
-          </div>
-
-          <div className={styles.stage}>
-            <ShelfScene />
-          </div>
-
-          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
-        </div>
-
-        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <TitleBar />
+        <AppShell />
+        <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
         <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
       </div>
     </WindowChrome>

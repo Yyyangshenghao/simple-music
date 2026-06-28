@@ -1,51 +1,8 @@
 .root {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-}
-
-.content {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  pointer-events: none;
-}
-
-/* 让交互层接收事件；纯展示背景层不拦截 */
-.content > * {
-  pointer-events: auto;
-}
-
-.topRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.iconBtn {
-  -webkit-app-region: no-drag;
-  padding: 6px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: #e8ecf2;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.iconBtn:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.stage {
-  flex: 1;
+  height: 100%;
   position: relative;
-  min-height: 0;
+  overflow: hidden;
+  background: var(--sm-bg-base);
 }
