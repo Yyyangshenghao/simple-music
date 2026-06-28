@@ -1,0 +1,34 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #e8ecf2;
+  /* 透明窗口下给一层不透明底色，保证可见；后续可视化层会覆盖在其上。 */
+  background: radial-gradient(circle at 30% 20%, #14203a 0%, #070b14 60%, #04060c 100%);
+  overflow: hidden;
+}
+
+/* 无边框窗口：默认整窗可拖拽，交互元素需单独标记 no-drag。 */
+.desktop-shell {
+  -webkit-app-region: drag;
+}
+
+button,
+input,
+a,
+.no-drag {
+  -webkit-app-region: no-drag;
+}
