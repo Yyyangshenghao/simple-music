@@ -1,0 +1,54 @@
+/* src/components/Layout/LeftStrip.module.css */
+.strip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  flex-shrink: 0;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border-right: 1px solid var(--sm-border);
+  z-index: 200;
+  overflow: visible;
+}
+
+/* macOS traffic lights 占位：48px 高拖拽区 */
+.dragArea {
+  width: 100%;
+  height: 48px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+/* 图标区域：居中排列图标 */
+.icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  flex: 1;
+  width: 100%;
+  overflow: visible;
+}
+
+/* 底部图标区 */
+.bottomIcons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  width: 100%;
+  overflow: visible;
+}
+
+/* 模块容器：position:relative，panel 从这里 absolute 定位 */
+.moduleWrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+}
