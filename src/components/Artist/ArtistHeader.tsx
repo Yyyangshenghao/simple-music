@@ -1,20 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ArtistInfo } from '../../types/domain'
+import { extractColor } from '../../lib/extract-color'
 import styles from './ArtistHeader.module.css'
-
-function extractColor(img: HTMLImageElement): string {
-  try {
-    const canvas = document.createElement('canvas')
-    canvas.width = 16; canvas.height = 16
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return '#10141e'
-    ctx.drawImage(img, 0, 0, 16, 16)
-    const d = ctx.getImageData(4, 4, 8, 8).data
-    let r = 0, g = 0, b = 0, n = 0
-    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i+1]; b += d[i+2]; n++ }
-    return `rgb(${Math.round(r/n)},${Math.round(g/n)},${Math.round(b/n)})`
-  } catch { return '#10141e' }
-}
 
 interface ArtistHeaderProps {
   artist: ArtistInfo

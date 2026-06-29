@@ -34,6 +34,10 @@ export function SearchPill() {
   }, [])
 
   useEffect(() => {
+    return () => { gsap.killTweensOf(pillRef.current) }
+  }, [])
+
+  useEffect(() => {
     if (!dropOpen) return
     const handler = (e: MouseEvent) => {
       if (pillRef.current && !pillRef.current.contains(e.target as Node)) {

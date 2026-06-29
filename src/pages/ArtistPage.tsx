@@ -9,7 +9,7 @@ import { CardRail } from '../components/Explore/CardRail'
 import type { ArtistInfo, Track, Playlist } from '../types/domain'
 import styles from './ArtistPage.module.css'
 
-type ArtistTab = 'songs' | 'albums'
+type ArtistTab = 'songs' | 'albums' | 'similar'
 
 interface ArtistPageProps {
   id: unknown
@@ -46,13 +46,13 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
       <div className={styles.subTabs}>
-        {(['songs', 'albums'] as ArtistTab[]).map((t) => (
+        {(['songs', 'albums', 'similar'] as ArtistTab[]).map((t) => (
           <button
             key={t}
             className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ songs: '热门单曲', albums: '专辑' }[t]}
+            {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
           </button>
         ))}
       </div>
@@ -71,6 +71,12 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
             <PlaylistCard key={String(a.id) + i} playlist={a} onClick={() => {}} />
           ))}
         </CardRail>
+      )}
+
+      {tab === 'similar' && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sm-text-secondary)' }}>
+          相似歌手功能即将上线
+        </div>
       )}
     </div>
   )

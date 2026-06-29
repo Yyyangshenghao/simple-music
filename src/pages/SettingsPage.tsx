@@ -1,4 +1,5 @@
 import { useSettingsStore } from '../stores/settings'
+import { useVisualStore } from '../stores/visual'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -12,6 +13,9 @@ export function SettingsPage() {
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
+  const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
+  const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
+  const updateFx = useVisualStore((s) => s.updateFx)
 
   return (
     <div className={styles.page}>
@@ -76,6 +80,32 @@ export function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>桌面歌词</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>启用桌面歌词</span>
+          <button
+            className={`${styles.seg} no-drag ${desktopLyrics ? styles.segActive : ''}`}
+            onClick={() => updateFx({ desktopLyrics: !desktopLyrics })}
+          >
+            {desktopLyrics ? '开' : '关'}
+          </button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>字体大小</span>
+          <input
+            type="range"
+            min={12}
+            max={48}
+            step={2}
+            value={desktopLyricsSize}
+            onChange={(e) => updateFx({ desktopLyricsSize: Number(e.target.value) })}
+            className="no-drag"
+          />
+          <span className={styles.rowValue}>{desktopLyricsSize}px</span>
         </div>
       </section>
 
