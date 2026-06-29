@@ -1,0 +1,39 @@
+/* src/components/Layout/modules/NavModule.module.css */
+.seed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: none;
+  border: none;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.seed:hover,
+.seed.active {
+  color: var(--sm-text-primary);
+  background: var(--sm-bg-overlay);
+  transform: scale(1.15);
+}
+
+.panel {
+  position: absolute;
+  left: 52px;
+  top: 0;
+  width: 220px;
+  height: 168px; /* 3 items × 56px */
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border: 1px solid var(--sm-border);
+  border-radius: 14px;
+  box-shadow: var(--sm-shadow);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: left center;
+}
