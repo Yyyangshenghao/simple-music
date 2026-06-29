@@ -1,0 +1,136 @@
+/* src/components/Layout/modules/SearchModule.module.css */
+.seed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: none;
+  border: none;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, transform 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.seed:hover {
+  color: var(--sm-text-primary);
+  background: var(--sm-bg-overlay);
+  transform: scale(1.15);
+}
+
+.panel {
+  position: absolute;
+  left: 52px;
+  top: 0;
+  width: 300px;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--sm-blur);
+  border: 1px solid var(--sm-border);
+  border-radius: 14px;
+  box-shadow: var(--sm-shadow);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: left center;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--sm-text-primary);
+  font-size: 14px;
+  -webkit-app-region: no-drag;
+}
+
+.input::placeholder {
+  color: var(--sm-text-secondary);
+}
+
+.results {
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.hint {
+  padding: 12px 16px;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+}
+
+.sectionLabel {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sm-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.songRow,
+.artistRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.songRow:hover,
+.artistRow:hover {
+  background: var(--sm-bg-overlay);
+}
+
+.cover,
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatar {
+  border-radius: 50%;
+}
+
+.songInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.songName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.songArtist {
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
