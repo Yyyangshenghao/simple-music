@@ -59,6 +59,6 @@
 
 .actionBtn:hover {
   background: var(--sm-accent);
-  color: #fff;
+  color: var(--sm-text-on-accent);
   border-color: transparent;
 }
