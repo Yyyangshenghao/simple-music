@@ -25,7 +25,7 @@ export function FlowingMenu({
   textColor = 'var(--sm-text-primary)',
   bgColor = 'transparent',
   marqueeBgColor = 'var(--sm-accent)',
-  marqueeTextColor = '#fff',
+  marqueeTextColor = 'var(--sm-text-on-accent)',
   borderColor = 'var(--sm-border)',
 }: FlowingMenuProps) {
   return (

@@ -1,5 +1,5 @@
 // src/components/Layout/modules/useHoverPanel.ts
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import gsap from 'gsap'
 import type { RefObject } from 'react'
 import { ANIM } from '../../../lib/animation'
@@ -13,6 +13,7 @@ interface HoverPanelResult {
   triggerProps: {
     onMouseEnter: () => void
     onMouseLeave: () => void
+    onClick: () => void
   }
   /** 绑定到展开 panel 的事件 props */
   panelProps: {
@@ -28,6 +29,13 @@ export function useHoverPanel(
   const hideDelay = opts.hideDelay ?? 150
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visible = useRef(false)
+
+  // 初始化时将 panel 设为 inert，防止键盘 Tab 聚焦到隐藏元素
+  useEffect(() => {
+    if (panelRef.current) {
+      ;(panelRef.current as HTMLElement & { inert: boolean }).inert = true
+    }
+  }, [panelRef])
 
   const showPanel = useCallback(() => {
     if (hideTimer.current) {
@@ -47,6 +55,11 @@ export function useHoverPanel(
         pointerEvents: 'auto',
         duration: ANIM.DURATION_ENTER,
         ease: ANIM.EASE_ENTER,
+        onStart: () => {
+          if (panelRef.current) {
+            ;(panelRef.current as HTMLElement & { inert: boolean }).inert = false
+          }
+        },
       }
     )
   }, [panelRef])
@@ -63,6 +76,11 @@ export function useHoverPanel(
         pointerEvents: 'none',
         duration: ANIM.DURATION_LEAVE,
         ease: ANIM.EASE_LEAVE,
+        onComplete: () => {
+          if (panelRef.current) {
+            ;(panelRef.current as HTMLElement & { inert: boolean }).inert = true
+          }
+        },
       })
     }, hideDelay)
   }, [panelRef, hideDelay])
@@ -74,10 +92,19 @@ export function useHoverPanel(
     }
   }, [])
 
+  const togglePanel = useCallback(() => {
+    if (visible.current) {
+      scheduleHide()
+    } else {
+      showPanel()
+    }
+  }, [showPanel, scheduleHide])
+
   return {
     triggerProps: {
       onMouseEnter: showPanel,
       onMouseLeave: scheduleHide,
+      onClick: togglePanel,
     },
     panelProps: {
       onMouseEnter: cancelHide,
