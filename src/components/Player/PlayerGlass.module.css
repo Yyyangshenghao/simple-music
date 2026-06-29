@@ -1,14 +1,11 @@
 .dock {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  padding: 12px 16px;
+  padding: 10px 16px;
   pointer-events: none;
+  flex-shrink: 0;
 }
 
 .panel {
   pointer-events: auto;
+  -webkit-app-region: no-drag;
   padding: 12px 20px;
 }
