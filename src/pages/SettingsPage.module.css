@@ -9,7 +9,8 @@
 
 .group {
   background: var(--sm-bg-elevated);
-  backdrop-filter: var(--sm-blur);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-card);
   margin-bottom: 16px;

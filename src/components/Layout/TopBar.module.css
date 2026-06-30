@@ -4,8 +4,8 @@
   height: 44px;
   flex-shrink: 0;
   padding: 0 12px 0 80px;
-  background: var(--sm-bg-elevated);
-  border-bottom: 1px solid var(--sm-border);
+  background: transparent;
+  border-bottom: none;
   position: relative;
   z-index: 100;
   -webkit-app-region: drag;
@@ -71,8 +71,21 @@
 }
 
 .tabActive {
-  color: var(--sm-accent);
+  color: var(--sm-text-primary);
   font-weight: 600;
+  position: relative;
+}
+
+.tabActive::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--sm-accent);
 }
 
 /* ---- Right ---- */
@@ -103,7 +116,7 @@
 
 .searchForm:focus-within {
   width: 240px;
-  border-color: var(--sm-accent);
+  border-color: var(--glass-border-card);
 }
 
 .searchIcon {

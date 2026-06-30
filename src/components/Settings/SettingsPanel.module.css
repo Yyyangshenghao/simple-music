@@ -6,8 +6,8 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: var(--glass-blur-modal);
+  -webkit-backdrop-filter: var(--glass-blur-modal);
   animation: fade 0.18s ease;
 }
 

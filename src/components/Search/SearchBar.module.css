@@ -14,8 +14,8 @@
   border-radius: 22px;
   background: rgba(18, 26, 44, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(34px) saturate(140%);
-  -webkit-backdrop-filter: blur(34px) saturate(140%);
+  backdrop-filter: var(--glass-blur-card) saturate(130%);
+  -webkit-backdrop-filter: var(--glass-blur-card) saturate(130%);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   transition: border-color 0.28s, box-shadow 0.28s;
 }

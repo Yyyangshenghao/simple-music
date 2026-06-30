@@ -2,15 +2,17 @@
   flex: 1;
   overflow: hidden;
   position: relative;
+  -webkit-app-region: no-drag;
 }
 
 .loading {
   width: 100%;
   height: 100%;
-  background: var(--sm-bg-base);
+  background: #0c0c0c;
 }
 
 .pageEnter {
+  height: 100%;
   animation: pageEnter 220ms var(--sm-ease-out) forwards;
 }
 

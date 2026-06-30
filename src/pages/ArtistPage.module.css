@@ -15,7 +15,8 @@
   gap: 4px;
   padding: 16px 24px 0;
   background: var(--sm-bg-elevated);
-  backdrop-filter: var(--sm-blur);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
   border-bottom: 1px solid var(--sm-border);
   position: sticky;
   top: 0;
