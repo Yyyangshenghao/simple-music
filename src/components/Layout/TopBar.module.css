@@ -1,9 +1,9 @@
 .bar {
   display: flex;
   align-items: center;
-  height: 44px;
+  height: 52px;
   flex-shrink: 0;
-  padding: 0 12px 0 80px;
+  padding: 0 12px 0 88px;
   background: transparent;
   border-bottom: none;
   position: relative;
@@ -23,8 +23,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
+  margin-left: 8px;
   border: none;
   background: transparent;
   color: var(--sm-text-secondary);
@@ -54,40 +55,6 @@
   -webkit-app-region: no-drag;
 }
 
-.tab {
-  padding: 5px 14px;
-  border: none;
-  background: transparent;
-  color: var(--sm-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-}
-
-.tab:hover {
-  color: var(--sm-text-primary);
-}
-
-.tabActive {
-  color: var(--sm-text-primary);
-  font-weight: 600;
-  position: relative;
-}
-
-.tabActive::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 16px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--sm-accent);
-}
-
 /* ---- Right ---- */
 .right {
   display: flex;
@@ -106,16 +73,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--sm-bg-base);
+  background: var(--glass-bg-base);
   border: 1px solid var(--sm-border);
   border-radius: 8px;
   padding: 5px 10px;
-  width: 180px;
-  transition: width 0.2s var(--sm-ease-out), border-color 0.15s;
+  width: 88px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: width 0.35s var(--sm-ease-out), border-color 0.15s;
 }
 
-.searchForm:focus-within {
-  width: 240px;
+.searchExpanded {
+  width: 260px;
+  cursor: text;
   border-color: var(--glass-border-card);
 }
 
@@ -135,6 +105,13 @@
 
 .searchInput::placeholder {
   color: var(--sm-text-secondary);
+}
+
+.searchPlaceholder {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  user-select: none;
 }
 
 .searchDropdown {
