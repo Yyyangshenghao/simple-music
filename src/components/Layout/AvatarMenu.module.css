@@ -1,0 +1,159 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--sm-bg-overlay);
+  border: 1px solid var(--sm-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  z-index: 500;
+  overflow: hidden;
+  padding: 6px 0;
+}
+
+.section {
+  padding: 8px 12px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-secondary);
+  margin-bottom: 8px;
+}
+
+.sourceRow {
+  display: flex;
+  gap: 6px;
+}
+
+.sourceBtn {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sourceBtnActive {
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  border-color: var(--sm-accent);
+}
+
+.divider {
+  height: 1px;
+  background: var(--sm-border);
+  margin: 4px 0;
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 16px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.menuRow:hover {
+  background: var(--sm-bg-elevated);
+}
+
+.chevron {
+  transition: transform 0.2s;
+  color: var(--sm-text-secondary);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.accountSection {
+  padding: 4px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.accountInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.platform {
+  font-size: 12px;
+  color: var(--sm-text-primary);
+}
+
+.loginState {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+}
+
+.loggedIn {
+  color: #34c759;
+}
+
+.ghostBtn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.ghostBtn:hover:not(:disabled) {
+  background: var(--sm-bg-elevated);
+}
+
+.primaryBtn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.primaryBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
