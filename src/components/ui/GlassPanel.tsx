@@ -1,16 +1,19 @@
 import type { CSSProperties, ReactNode } from 'react'
 import styles from './GlassPanel.module.css'
 
+type GlassLevel = 'base' | 'card' | 'modal'
+
 interface GlassPanelProps {
   children?: ReactNode
   className?: string
   style?: CSSProperties
+  level?: GlassLevel
 }
 
-/** 毛玻璃容器：统一的半透明面板底。 */
-export function GlassPanel({ children, className, style }: GlassPanelProps) {
+export function GlassPanel({ children, className, style, level = 'base' }: GlassPanelProps) {
+  const cls = [styles.panel, styles[level], className].filter(Boolean).join(' ')
   return (
-    <div className={`${styles.panel}${className ? ` ${className}` : ''}`} style={style}>
+    <div className={cls} style={style}>
       {children}
     </div>
   )

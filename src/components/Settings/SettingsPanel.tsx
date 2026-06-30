@@ -37,7 +37,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div className={`${styles.dialog} no-drag`} onClick={(e) => e.stopPropagation()}>
-        <GlassPanel className={styles.panel}>
+        <GlassPanel level="modal" className={styles.panel}>
           <header className={styles.header}>
             <h2 className={styles.title}>设置</h2>
             <button type="button" className={styles.close} aria-label="关闭" title="关闭" onClick={onClose}>

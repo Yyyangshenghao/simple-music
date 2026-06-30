@@ -1,8 +1,27 @@
 .panel {
-  background: rgba(18, 26, 44, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border-base);
+}
+
+.base {
+  background: var(--glass-bg-base);
+  backdrop-filter: var(--glass-blur-base) saturate(120%);
+  -webkit-backdrop-filter: var(--glass-blur-base) saturate(120%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
+}
+
+.card {
+  background: var(--glass-bg-card);
+  border-color: var(--glass-border-card);
+  backdrop-filter: var(--glass-blur-card) saturate(130%);
+  -webkit-backdrop-filter: var(--glass-blur-card) saturate(130%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.modal {
+  background: var(--glass-bg-modal);
+  border-color: var(--glass-border-modal);
+  backdrop-filter: var(--glass-blur-modal) saturate(110%);
+  -webkit-backdrop-filter: var(--glass-blur-modal) saturate(110%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.50);
 }

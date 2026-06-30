@@ -64,7 +64,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
 
   return (
     <div className={styles.overlay}>
-      <GlassPanel className={styles.panel}>
+      <GlassPanel level="card" className={styles.panel}>
         <header className={styles.header}>
           {playlist.cover ? (
             <img className={styles.cover} src={playlist.cover} alt="" />
