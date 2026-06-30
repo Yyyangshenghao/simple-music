@@ -72,7 +72,7 @@
 }
 
 .active {
-  background: var(--accent, #6ea8ff);
+  background: var(--sm-accent);
   border-color: transparent;
   color: #fff;
 }

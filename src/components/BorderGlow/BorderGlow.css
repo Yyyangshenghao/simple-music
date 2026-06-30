@@ -85,7 +85,7 @@
     radial-gradient(ellipse at 33% 66%, black 5%, transparent 40%),
     conic-gradient(from var(--cursor-angle) at center, transparent 5%, black 15%, black 85%, transparent 95%);
 
-  mask-composite: subtract, add, add, add, add, add;
+  mask-composite: subtract, add, add, add, add, add, add;
   opacity: calc(var(--fill-opacity, 0.35) * (var(--edge-proximity) - var(--color-sensitivity)) / (100 - var(--color-sensitivity)));
   mix-blend-mode: soft-light;
 }

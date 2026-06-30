@@ -41,7 +41,7 @@
 }
 
 .input:focus {
-  border-color: var(--accent, #6ea8ff);
+  border-color: var(--sm-accent);
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -101,7 +101,7 @@
 
 .apply {
   border-color: transparent;
-  background: var(--accent, #6ea8ff);
+  background: var(--sm-accent);
   color: #fff;
 }
 

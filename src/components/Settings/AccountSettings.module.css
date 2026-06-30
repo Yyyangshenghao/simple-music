@@ -62,7 +62,7 @@
 
 .primary {
   border: 0;
-  background: var(--accent, #6ea8ff);
+  background: var(--sm-accent);
   color: #fff;
 }
 

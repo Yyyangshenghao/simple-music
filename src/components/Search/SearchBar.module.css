@@ -12,7 +12,7 @@
   height: 52px;
   padding: 0 8px 0 18px;
   border-radius: 22px;
-  background: rgba(18, 26, 44, 0.55);
+  background: rgba(16, 16, 16, 0.60);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: var(--glass-blur-card) saturate(130%);
   -webkit-backdrop-filter: var(--glass-blur-card) saturate(130%);
@@ -53,8 +53,8 @@
   padding: 0 18px;
   border: 0;
   border-radius: 18px;
-  background: var(--accent, #6ea8ff);
-  color: #0b1220;
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
