@@ -51,7 +51,10 @@ export function TopBar() {
   function handleSearchBlur() {
     setTimeout(() => {
       setSearchFocused(false)
-      if (!keyword) setIsExpanded(false)
+      if (!keyword) {
+        clearSearch()
+        setIsExpanded(false)
+      }
     }, 150)
   }
 
@@ -112,6 +115,14 @@ export function TopBar() {
           <div
             className={`${styles.searchForm} ${isExpanded ? styles.searchExpanded : ''}`}
             onClick={handleSearchClick}
+            tabIndex={isExpanded ? -1 : 0}
+            role="search"
+            onKeyDown={(e) => {
+              if (!isExpanded && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault()
+                handleSearchClick()
+              }
+            }}
           >
             <svg
               className={styles.searchIcon}
