@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMusicService } from '../hooks/useMusicService'
 import { usePlaylistStore } from '../stores/playlist'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
-import { TrackRow } from '../components/Explore/TrackRow'
+import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
 import type { Playlist, Track } from '../types/domain'
 import styles from './LibraryPage.module.css'
 
@@ -12,6 +12,11 @@ export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [detail, setDetail] = useState<{ playlist: Playlist; tracks: Track[] } | null>(null)
+  const [loadingId, setLoadingId] = useState<unknown>(null)
+
+  // 渐变遮罩状态
+  const [topOpacity, setTopOpacity] = useState(0)
+  const [bottomOpacity, setBottomOpacity] = useState(0)
 
   const service = useMusicService()
   const playlistsFromStore = usePlaylistStore((s) => s.playlists)
@@ -24,17 +29,30 @@ export function LibraryPage() {
   }, [playlistsFromStore])
 
   async function openPlaylist(playlist: Playlist) {
-    const tracks = await service.getPlaylistDetail(playlist.id)
-    setDetail({ playlist, tracks })
+    setLoadingId(playlist.id)
+    try {
+      const tracks = await service.getPlaylistDetail(playlist.id)
+      setDetail({ playlist, tracks })
+    } finally {
+      setLoadingId(null)
+    }
   }
 
   function playTrack(list: Track[], index: number) {
     usePlaylistStore.getState().setQueue(list, index)
   }
 
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
+    setTopOpacity(Math.min(scrollTop / 50, 1))
+    const bottomDistance = scrollHeight - (scrollTop + clientHeight)
+    setBottomOpacity(scrollHeight <= clientHeight ? 0 : Math.min(bottomDistance / 50, 1))
+  }, [])
+
   if (detail) {
     return (
-      <div className={styles.page}>
+      <div className={styles.page} onScroll={handleScroll}>
+        <div className="topGradient" style={{ opacity: topOpacity }} />
         <div className={styles.detailHeader}>
           <button className={`${styles.backBtn} no-drag`} onClick={() => setDetail(null)}>← 返回</button>
           <div className={styles.detailMeta}>
@@ -49,9 +67,10 @@ export function LibraryPage() {
         </div>
         <div className={styles.trackList}>
           {detail.tracks.map((t, i) => (
-            <TrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} />
+            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} />
           ))}
         </div>
+        <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       </div>
     )
   }
@@ -76,7 +95,11 @@ export function LibraryPage() {
       {tab === 'playlists' && (
         <div className={styles.grid}>
           {playlists.map((pl, i) => (
-            <PlaylistCard key={String(pl.id) + i} playlist={pl} onClick={() => void openPlaylist(pl)} />
+            <PlaylistCard
+              key={String(pl.id) + i}
+              playlist={pl}
+              onClick={() => { if (!loadingId) void openPlaylist(pl) }}
+            />
           ))}
         </div>
       )}

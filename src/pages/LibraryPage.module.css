@@ -1,4 +1,5 @@
 .page {
+  position: relative;
   height: 100%;
   overflow-y: auto;
   padding: 24px 24px 80px;
