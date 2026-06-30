@@ -1,17 +1,11 @@
-import { useState, useRef } from 'react'
-import type { FormEvent } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigationStore } from '../../stores/navigation'
-import type { AppView } from '../../stores/navigation'
 import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
+import GooeyNav from './GooeyNav'
 import styles from './TopBar.module.css'
-
-const NAV_TABS: { view: AppView; label: string }[] = [
-  { view: 'explore', label: '探索' },
-  { view: 'library', label: '我的库' },
-]
 
 export function TopBar() {
   const currentView = useNavigationStore((s) => s.currentView)
@@ -25,9 +19,14 @@ export function TopBar() {
   const [loading, setLoading] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const service = useMusicService()
+
+  useEffect(() => {
+    if (isExpanded) inputRef.current?.focus()
+  }, [isExpanded])
 
   async function runSearch() {
     const q = keyword.trim()
@@ -45,9 +44,15 @@ export function TopBar() {
     }
   }
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    void runSearch()
+  function handleSearchClick() {
+    if (!isExpanded) setIsExpanded(true)
+  }
+
+  function handleSearchBlur() {
+    setTimeout(() => {
+      setSearchFocused(false)
+      if (!keyword) setIsExpanded(false)
+    }, 150)
   }
 
   function clearSearch() {
@@ -69,7 +74,7 @@ export function TopBar() {
   }
 
   const hasResults = songs.length > 0 || artists.length > 0
-  const showDropdown = searchFocused && (keyword.length > 0 || loading || hasResults)
+  const showDropdown = isExpanded && searchFocused && (keyword.length > 0 || loading || hasResults)
 
   return (
     <div className={styles.bar}>
@@ -81,42 +86,63 @@ export function TopBar() {
           disabled={history.length === 0}
           aria-label="后退"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
       </div>
 
-      {/* Center: 导航 Tab（绝对居中） */}
+      {/* Center: GooeyNav（绝对居中） */}
       <div className={styles.center}>
-        {NAV_TABS.map((tab) => (
-          <button
-            key={tab.view as string}
-            className={`${styles.tab} ${currentView === tab.view ? styles.tabActive : ''}`}
-            onClick={() => navigateTo(tab.view)}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <GooeyNav
+          items={[
+            { label: '探索', href: '#' },
+            { label: '我的库', href: '#' },
+          ]}
+          activeIndex={currentView === 'library' ? 1 : 0}
+          onSelect={(i) => navigateTo(i === 0 ? 'explore' : 'library')}
+          particleCount={12}
+          colors={[1, 1, 2, 1, 2, 1]}
+        />
       </div>
 
       {/* Right: 搜索框 + 头像 */}
       <div className={styles.right}>
         <div className={styles.searchWrap}>
-          <form className={styles.searchForm} onSubmit={handleSubmit}>
-            <svg className={styles.searchIcon} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          <div
+            className={`${styles.searchForm} ${isExpanded ? styles.searchExpanded : ''}`}
+            onClick={handleSearchClick}
+          >
+            <svg
+              className={styles.searchIcon}
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
-            <input
-              ref={inputRef}
-              className={styles.searchInput}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              placeholder="搜索歌曲、歌手…"
-            />
-          </form>
+            {isExpanded ? (
+              <input
+                ref={inputRef}
+                className={styles.searchInput}
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={handleSearchBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); void runSearch() }
+                }}
+                placeholder="搜索歌曲、歌手…"
+              />
+            ) : (
+              <span className={styles.searchPlaceholder}>搜索…</span>
+            )}
+          </div>
 
           {showDropdown && (
             <div className={styles.searchDropdown}>
