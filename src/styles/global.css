@@ -16,7 +16,7 @@ html, body, #root {
 body {
   font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--sm-text-primary);
-  background: var(--sm-bg-base);
+  background: #0c0c0c;
   overflow: hidden;
   transition: background 350ms var(--sm-ease-in-out), color 200ms var(--sm-ease-in-out);
 }
