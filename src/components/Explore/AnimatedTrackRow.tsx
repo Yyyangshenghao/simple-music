@@ -13,7 +13,7 @@ interface AnimatedTrackRowProps {
 
 export function AnimatedTrackRow({ track, index, onPlay, delay = 0.1 }: AnimatedTrackRowProps) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { amount: 0.5, once: false })
+  const inView = useInView(ref, { amount: 0.1, once: true })
 
   return (
     <motion.div
