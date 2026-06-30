@@ -23,7 +23,7 @@ export function Scene({ className }: SceneProps) {
         opacity: typeof backgroundOpacity === 'number' ? backgroundOpacity : 1
       }}
     >
-      <Canvas camera={{ position: [0, 0, 14], fov: 60 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
+      <Canvas camera={{ position: [0, 0, 14], fov: 60 }} dpr={[1, 1.5]} gl={{ antialias: false, alpha: true }}>
         <CinemaCamera />
         <ParticleCloud />
       </Canvas>
