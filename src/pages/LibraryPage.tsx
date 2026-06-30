@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMusicService } from '../hooks/useMusicService'
+import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
@@ -14,9 +15,7 @@ export function LibraryPage() {
   const [detail, setDetail] = useState<{ playlist: Playlist; tracks: Track[] } | null>(null)
   const [loadingId, setLoadingId] = useState<unknown>(null)
 
-  // 渐变遮罩状态
-  const [topOpacity, setTopOpacity] = useState(0)
-  const [bottomOpacity, setBottomOpacity] = useState(0)
+  const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
   const service = useMusicService()
   const playlistsFromStore = usePlaylistStore((s) => s.playlists)
@@ -42,19 +41,12 @@ export function LibraryPage() {
     usePlaylistStore.getState().setQueue(list, index)
   }
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
-    setTopOpacity(Math.min(scrollTop / 50, 1))
-    const bottomDistance = scrollHeight - (scrollTop + clientHeight)
-    setBottomOpacity(scrollHeight <= clientHeight ? 0 : Math.min(bottomDistance / 50, 1))
-  }, [])
-
   if (detail) {
     return (
       <div className={styles.page} onScroll={handleScroll}>
         <div className="topGradient" style={{ opacity: topOpacity }} />
         <div className={styles.detailHeader}>
-          <button className={`${styles.backBtn} no-drag`} onClick={() => setDetail(null)}>← 返回</button>
+          <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null) }}>← 返回</button>
           <div className={styles.detailMeta}>
             {detail.playlist.cover && (
               <img className={styles.detailCover} src={detail.playlist.cover} alt="" />
@@ -67,7 +59,7 @@ export function LibraryPage() {
         </div>
         <div className={styles.trackList}>
           {detail.tracks.map((t, i) => (
-            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} />
+            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={i * 0.05} />
           ))}
         </div>
         <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
