@@ -34,6 +34,7 @@ const api = {
   exitFullscreenWindowed: (): Promise<void> => ipcRenderer.invoke('window:exit-fullscreen-windowed'),
   getState: (): Promise<WindowState> => ipcRenderer.invoke('window:get-state'),
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+  maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   onStateChange: (cb: (s: WindowState) => void) => on<WindowState>('window:state-changed', cb),
 
   // 登录

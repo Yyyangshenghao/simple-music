@@ -20,4 +20,9 @@ export function registerWindowIpc(): void {
   ipcMain.handle('window:close', () => {
     getMainWindow()?.close()
   })
+  ipcMain.handle('window:maximize', () => {
+    const win = getMainWindow()
+    if (win?.isMaximized()) win.unmaximize()
+    else win?.maximize()
+  })
 }
