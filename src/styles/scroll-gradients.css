@@ -1,0 +1,42 @@
+/* 页面滚动容器内的渐变遮罩。配合 position: sticky 使用，
+   通过 height:0 + 伪元素 absolute 实现不占流的覆盖层。 */
+
+.topGradient {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.topGradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: linear-gradient(to bottom, var(--sm-bg-base), transparent);
+  pointer-events: none;
+}
+
+.bottomGradient {
+  position: sticky;
+  bottom: 0;
+  height: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.bottomGradient::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(to top, var(--sm-bg-base), transparent);
+  pointer-events: none;
+}
