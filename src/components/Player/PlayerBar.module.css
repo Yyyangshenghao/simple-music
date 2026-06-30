@@ -37,8 +37,9 @@
 }
 
 .btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
 }
 
 .btn:active {
@@ -48,15 +49,17 @@
 .playBtn {
   width: 46px;
   height: 46px;
-  background: var(--accent, #6ea8ff);
-  color: #0b1220;
-  box-shadow: 0 6px 18px rgba(110, 168, 255, 0.45);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0c0c0c;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20);
+  border: 1px solid rgba(255, 255, 255, 0.20);
 }
 
 .playBtn:hover {
-  background: var(--accent, #6ea8ff);
-  color: #0b1220;
-  filter: brightness(1.08);
+  background: #ffffff;
+  color: #0c0c0c;
+  filter: none;
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.40), 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .playBtn[data-loading='true'] {

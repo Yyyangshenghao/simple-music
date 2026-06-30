@@ -6,9 +6,7 @@
   font-size: 13px;
 }
 
-.label {
-  opacity: 0.82;
-}
+.label { opacity: 0.82; }
 
 .track {
   position: relative;
@@ -16,15 +14,13 @@
   height: 22px;
   border-radius: 999px;
   border: none;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   cursor: pointer;
   transition: background 0.2s ease;
   padding: 0;
 }
 
-.on {
-  background: var(--accent, #6ea8ff);
-}
+.on { background: rgba(255, 255, 255, 0.88); }
 
 .thumb {
   position: absolute;
@@ -35,10 +31,12 @@
   border-radius: 50%;
   background: #fff;
   transition: transform 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.30);
 }
 
 .on .thumb {
   transform: translateX(18px);
+  background: #1a1a1a;
 }
 
 .disabled {

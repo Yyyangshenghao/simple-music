@@ -21,7 +21,7 @@
 }
 
 .bar:focus-within {
-  border-color: var(--accent, #6ea8ff);
+  border-color: var(--sm-accent);
   box-shadow: 0 12px 44px rgba(0, 0, 0, 0.42);
 }
 
