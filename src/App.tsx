@@ -7,8 +7,8 @@ import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useSettingsStore } from './stores/settings'
 import { WindowChrome } from './components/Layout/WindowChrome'
+import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
-import { LeftStrip } from './components/Layout/LeftStrip'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 
@@ -36,10 +36,8 @@ export default function App() {
   return (
     <WindowChrome>
       <div className={styles.root}>
-        <div className={styles.content}>
-          <LeftStrip />
-          <AppShell />
-        </div>
+        <TopBar />
+        <AppShell />
         <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
         <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
       </div>
