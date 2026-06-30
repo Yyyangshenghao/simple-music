@@ -40,3 +40,8 @@
 }
 
 .meta { margin: 0; font-size: 11px; color: var(--sm-text-secondary); }
+
+.glowWrap {
+  width: 160px;
+  flex-shrink: 0;
+}

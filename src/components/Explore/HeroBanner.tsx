@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { BorderGlow } from '../BorderGlow/BorderGlow'
 import type { Banner } from '../../types/domain'
 import { usePlaylistStore } from '../../stores/playlist'
 import { extractColor } from '../../lib/extract-color'
@@ -35,41 +36,43 @@ export function HeroBanner({ banners }: HeroBannerProps) {
   if (!current) return null
 
   return (
-    <div
-      className={styles.hero}
-      style={{ '--hero-bg': bgColor } as React.CSSProperties}
-    >
-      <div className={styles.bg} />
-      <div className={styles.content}>
-        <img
-          ref={imgRef}
-          className={styles.cover}
-          src={current.cover}
-          alt=""
-          crossOrigin="anonymous"
-          onLoad={onImgLoad}
-        />
-        <div className={styles.text}>
-          <h1 className={styles.title}>{current.title}</h1>
-          {current.subtitle && <p className={styles.subtitle}>{current.subtitle}</p>}
-          {current.track && (
-            <button className={`${styles.playBtn} no-drag`} onClick={play}>
-              ▶ 立即播放
-            </button>
-          )}
+    <BorderGlow borderRadius={0} glowRadius={60} glowIntensity={0.5} edgeSensitivity={20}>
+      <div
+        className={styles.hero}
+        style={{ '--hero-bg': bgColor } as React.CSSProperties}
+      >
+        <div className={styles.bg} />
+        <div className={styles.content}>
+          <img
+            ref={imgRef}
+            className={styles.cover}
+            src={current.cover}
+            alt=""
+            crossOrigin="anonymous"
+            onLoad={onImgLoad}
+          />
+          <div className={styles.text}>
+            <h1 className={styles.title}>{current.title}</h1>
+            {current.subtitle && <p className={styles.subtitle}>{current.subtitle}</p>}
+            {current.track && (
+              <button className={`${styles.playBtn} no-drag`} onClick={play}>
+                ▶ 立即播放
+              </button>
+            )}
+          </div>
         </div>
+        {banners.length > 1 && (
+          <div className={styles.dots}>
+            {banners.map((_, i) => (
+              <button
+                key={i}
+                className={`${styles.dot} no-drag ${i === idx ? styles.dotActive : ''}`}
+                onClick={() => setIdx(i)}
+              />
+            ))}
+          </div>
+        )}
       </div>
-      {banners.length > 1 && (
-        <div className={styles.dots}>
-          {banners.map((_, i) => (
-            <button
-              key={i}
-              className={`${styles.dot} no-drag ${i === idx ? styles.dotActive : ''}`}
-              onClick={() => setIdx(i)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </BorderGlow>
   )
 }
