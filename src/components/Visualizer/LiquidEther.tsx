@@ -2,6 +2,36 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import styles from './LiquidEther.module.css';
 
+function makePaletteTexture(stops: string[]): THREE.DataTexture {
+  let arr: string[];
+  if (Array.isArray(stops) && stops.length > 0) {
+    if (stops.length === 1) {
+      arr = [stops[0], stops[0]];
+    } else {
+      arr = stops;
+    }
+  } else {
+    arr = ['#ffffff', '#ffffff'];
+  }
+  const w = arr.length;
+  const data = new Uint8Array(w * 4);
+  for (let i = 0; i < w; i++) {
+    const c = new THREE.Color(arr[i]);
+    data[i * 4 + 0] = Math.round(c.r * 255);
+    data[i * 4 + 1] = Math.round(c.g * 255);
+    data[i * 4 + 2] = Math.round(c.b * 255);
+    data[i * 4 + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, w, 1, THREE.RGBAFormat);
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 interface LiquidEtherProps {
   mouseForce?: number;
   cursorSize?: number;
@@ -53,41 +83,12 @@ export default function LiquidEther({
   const intersectionObserverRef = useRef<IntersectionObserver | null>(null);
   const isVisibleRef = useRef(true);
   const resizeRafRef = useRef<number | null>(null);
+  const colorsRef = useRef<string[]>(colors);
 
   useEffect(() => {
     if (!mountRef.current) return;
 
-    function makePaletteTexture(stops: string[]) {
-      let arr: string[];
-      if (Array.isArray(stops) && stops.length > 0) {
-        if (stops.length === 1) {
-          arr = [stops[0], stops[0]];
-        } else {
-          arr = stops;
-        }
-      } else {
-        arr = ['#ffffff', '#ffffff'];
-      }
-      const w = arr.length;
-      const data = new Uint8Array(w * 4);
-      for (let i = 0; i < w; i++) {
-        const c = new THREE.Color(arr[i]);
-        data[i * 4 + 0] = Math.round(c.r * 255);
-        data[i * 4 + 1] = Math.round(c.g * 255);
-        data[i * 4 + 2] = Math.round(c.b * 255);
-        data[i * 4 + 3] = 255;
-      }
-      const tex = new THREE.DataTexture(data, w, 1, THREE.RGBAFormat);
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.generateMipmaps = false;
-      tex.needsUpdate = true;
-      return tex;
-    }
-
-    const paletteTex = makePaletteTexture(colors);
+    const paletteTex = makePaletteTexture(colorsRef.current);
     const bgVec4 = new THREE.Vector4(0, 0, 0, 0); // always transparent
 
     class CommonClass {
@@ -1218,6 +1219,7 @@ export default function LiquidEther({
       }
       webglRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colors/autoSpeed/autoIntensity 走热更新路径，不重建模拟
   }, [
     BFECC,
     cursorSize,
@@ -1229,14 +1231,42 @@ export default function LiquidEther({
     mouseForce,
     resolution,
     viscous,
-    colors,
     autoDemo,
-    autoSpeed,
-    autoIntensity,
     takeoverDuration,
     autoResumeDelay,
     autoRampDuration
   ]);
+
+  // colors 变化：补间旧→新调色板并热替换 palette uniform，避免重建整个模拟
+  useEffect(() => {
+    const from = colorsRef.current;
+    const to = colors;
+    colorsRef.current = colors;
+    const webgl = webglRef.current;
+    const mesh = webgl?.output?.output as THREE.Mesh | undefined;
+    const mat = mesh?.material as THREE.RawShaderMaterial | undefined;
+    const uniform = mat?.uniforms?.palette as { value: THREE.DataTexture } | undefined;
+    if (!uniform || from === to) return;
+
+    const n = Math.max(from.length, to.length);
+    const fromC = Array.from({ length: n }, (_, i) => new THREE.Color(from[i % from.length]));
+    const toC = Array.from({ length: n }, (_, i) => new THREE.Color(to[i % to.length]));
+    const start = performance.now();
+    const DURATION = 800;
+    let raf = 0;
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / DURATION);
+      const mixed = fromC.map((c, i) => `#${c.clone().lerp(toC[i], t).getHexString()}`);
+      const tex = makePaletteTexture(mixed);
+      const old = uniform.value;
+      uniform.value = tex;
+      old?.dispose?.();
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [colors]);
 
   useEffect(() => {
     const webgl = webglRef.current;
