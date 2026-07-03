@@ -13,8 +13,8 @@ export class QQMusicService implements MusicService {
   async getNewSongs(): Promise<Track[]> { return [] }
 
   async getPlaylistDetail(id: unknown): Promise<Track[]> {
-    const res = await api.get<{ songs: Track[] }>('/api/qq/playlist/detail', { id: id as string | number })
-    return res.songs ?? []
+    const res = await api.get<{ tracks: Track[] }>('/api/qq/playlist/tracks', { id: id as string | number })
+    return res.tracks ?? []
   }
 
   async searchTracks(keyword: string): Promise<Track[]> {

@@ -19,8 +19,8 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async getPlaylistDetail(id: unknown): Promise<Track[]> {
-    const res = await api.get<{ songs: Track[] }>('/api/playlist/detail', { id: id as string | number })
-    return res.songs ?? []
+    const res = await api.get<{ tracks: Track[] }>('/api/playlist/tracks', { id: id as string | number })
+    return res.tracks ?? []
   }
 
   async searchTracks(keyword: string): Promise<Track[]> {
