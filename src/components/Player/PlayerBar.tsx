@@ -1,6 +1,7 @@
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { Slider } from '../ui/Slider'
+import { ElasticSlider } from '../ui/ElasticSlider'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
 import { QualityBadge } from './QualityBadge'
@@ -47,8 +48,12 @@ function PauseIcon() {
   )
 }
 
+interface PlayerBarProps {
+  onOpenLyrics?: () => void
+}
+
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar() {
+export function PlayerBar({ onOpenLyrics }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const position = usePlayerStore((s) => s.position)
   const duration = usePlayerStore((s) => s.duration)
@@ -66,7 +71,7 @@ export function PlayerBar() {
     <PlayerGlass>
       <div className={styles.bar}>
         <div className={styles.left}>
-          <TrackInfo />
+          <TrackInfo onCoverClick={onOpenLyrics} />
         </div>
 
         <div className={styles.center}>
@@ -105,18 +110,25 @@ export function PlayerBar() {
 
         <div className={styles.right}>
           <div className={styles.volume}>
-            <span className={styles.volumeIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M3 9v6h4l5 5V4L7 9zM16 8.5a4 4 0 0 1 0 7v-7z" />
-              </svg>
-            </span>
-            <Slider
-              className={styles.volumeSlider}
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={setVolume}
+            <ElasticSlider
+              leftIcon={
+                <span className={styles.volumeIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M3 9v6h4l5 5V4L7 9z" />
+                  </svg>
+                </span>
+              }
+              rightIcon={
+                <span className={styles.volumeIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M3 9v6h4l5 5V4L7 9zM16 8.5a4 4 0 0 1 0 7v-7zM19 6a9 9 0 0 1 0 12v-2a7 7 0 0 0 0-8z" />
+                  </svg>
+                </span>
+              }
+              defaultValue={Math.round(volume * 100)}
+              startingValue={0}
+              maxValue={100}
+              onChange={(v) => setVolume(v / 100)}
             />
           </div>
           <QualityBadge />

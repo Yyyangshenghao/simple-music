@@ -1,0 +1,61 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.wrapper {
+  display: flex;
+  width: 100%;
+  touch-action: none;
+  user-select: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.root {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-grow: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  align-items: center;
+  padding: 0.75rem 0;
+}
+
+.root:active {
+  cursor: grabbing;
+}
+
+.trackWrapper {
+  display: flex;
+  flex-grow: 1;
+}
+
+.track {
+  position: relative;
+  height: 100%;
+  flex-grow: 1;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.range {
+  position: absolute;
+  height: 100%;
+  background-color: var(--sm-accent, rgba(255, 255, 255, 0.78));
+  border-radius: 9999px;
+}
+
+.icon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.6);
+  display: inline-flex;
+  align-items: center;
+}
