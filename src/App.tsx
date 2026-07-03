@@ -5,6 +5,7 @@ import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
+import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useSettingsStore } from './stores/settings'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
@@ -20,6 +21,7 @@ export default function App() {
   useDesktopLyricsSync()
   useWallpaperSync()
   useLyricsFetch()
+  useAmbientPalette()
 
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()
