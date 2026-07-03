@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
+import { motion } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
 import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
 import GooeyNav from './GooeyNav'
+import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 
 export function TopBar() {
@@ -83,16 +85,19 @@ export function TopBar() {
     <div className={styles.bar}>
       {/* Left: traffic lights 留白 + 后退按钮 */}
       <div className={styles.left}>
-        <button
+        <motion.button
           className={styles.backBtn}
           onClick={goBack}
           disabled={history.length === 0}
           aria-label="后退"
+          whileTap={tapScale}
+          whileHover={{ scale: 1.06 }}
+          transition={springSnappy}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
             <path d="M15 18l-6-6 6-6" />
           </svg>
-        </button>
+        </motion.button>
       </div>
 
       {/* Center: GooeyNav（绝对居中） */}

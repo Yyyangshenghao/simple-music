@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import { useSettingsStore } from '../../stores/settings'
 import { useNavigationStore } from '../../stores/navigation'
 import { api } from '../../lib/api'
 import type { LoginResult } from '../../types/ipc'
+import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './AvatarMenu.module.css'
 
 const SOURCES = [
@@ -96,13 +98,15 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
           <div className={styles.sectionLabel}>音乐来源</div>
           <div className={styles.sourceRow}>
             {SOURCES.map((s) => (
-              <button
+              <motion.button
                 key={s.key}
                 className={`${styles.sourceBtn} ${activeSource === s.key ? styles.sourceBtnActive : ''}`}
                 onClick={() => setActiveSource(s.key)}
+                whileTap={tapScale}
+                transition={springSnappy}
               >
                 {s.label}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -110,7 +114,12 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.divider} />
 
         {/* 账号设置（inline 展开） */}
-        <button className={styles.menuRow} onClick={() => setAccountOpen((v) => !v)}>
+        <motion.button
+          className={styles.menuRow}
+          onClick={() => setAccountOpen((v) => !v)}
+          whileTap={tapScale}
+          transition={springSnappy}
+        >
           <span>账号设置</span>
           <svg
             className={`${styles.chevron} ${accountOpen ? styles.chevronOpen : ''}`}
@@ -119,7 +128,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
-        </button>
+        </motion.button>
 
         {accountOpen && (
           <div className={styles.accountSection}>

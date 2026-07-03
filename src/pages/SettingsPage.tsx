@@ -1,5 +1,7 @@
+import { motion } from 'motion/react'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
+import { springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -39,13 +41,15 @@ export function SettingsPage() {
           <span className={styles.rowLabel}>主题模式</span>
           <div className={styles.segControl}>
             {(['auto', 'light', 'dark'] as ThemeMode[]).map((m) => (
-              <button
+              <motion.button
                 key={m}
                 className={`${styles.seg} no-drag ${themeMode === m ? styles.segActive : ''}`}
                 onClick={() => setThemeMode(m)}
+                whileTap={tapScale}
+                transition={springSnappy}
               >
                 {{ auto: '自动', light: '浅色', dark: '深色' }[m]}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -57,13 +61,15 @@ export function SettingsPage() {
           <span className={styles.rowLabel}>音源</span>
           <div className={styles.segControl}>
             {(['netease', 'qq'] as const).map((s) => (
-              <button
+              <motion.button
                 key={s}
                 className={`${styles.seg} no-drag ${activeSource === s ? styles.segActive : ''}`}
                 onClick={() => setActiveSource(s)}
+                whileTap={tapScale}
+                transition={springSnappy}
               >
                 {{ netease: '网易云', qq: 'QQ 音乐' }[s]}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -71,13 +77,15 @@ export function SettingsPage() {
           <span className={styles.rowLabel}>音质偏好</span>
           <div className={styles.segControl}>
             {(['standard', 'higher', 'exhigh', 'lossless'] as AudioQuality[]).map((q) => (
-              <button
+              <motion.button
                 key={q}
                 className={`${styles.seg} no-drag ${audioQuality === q ? styles.segActive : ''}`}
                 onClick={() => setAudioQuality(q)}
+                whileTap={tapScale}
+                transition={springSnappy}
               >
                 {{ standard: '标准', higher: '高品质', exhigh: '极高', lossless: '无损' }[q]}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
