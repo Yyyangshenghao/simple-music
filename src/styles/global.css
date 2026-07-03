@@ -4,6 +4,14 @@
   color-scheme: light dark;
 }
 
+/* 氛围色切换（切歌取色）时约 800ms 平滑过渡 */
+html {
+  transition:
+    --ambient-1 800ms var(--sm-ease-in-out),
+    --ambient-2 800ms var(--sm-ease-in-out),
+    --ambient-3 800ms var(--sm-ease-in-out);
+}
+
 * {
   box-sizing: border-box;
 }

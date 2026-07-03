@@ -1,3 +1,8 @@
+/* ── 氛围色注册（@property 使 CSS 变量可平滑过渡）── */
+@property --ambient-1 { syntax: '<color>'; inherits: true; initial-value: #5227ff; }
+@property --ambient-2 { syntax: '<color>'; inherits: true; initial-value: #ff9ffc; }
+@property --ambient-3 { syntax: '<color>'; inherits: true; initial-value: #b497cf; }
+
 /* ── 深色模式（主） ── */
 :root {
   --sm-bg-base:        #0c0c0c;
@@ -26,6 +31,15 @@
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
+
+  /* 氛围光效（封面取色驱动，useAmbientPalette 动态覆盖） */
+  --ambient-1: #5227ff;
+  --ambient-2: #ff9ffc;
+  --ambient-3: #b497cf;
+  --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 28%, transparent);
+  --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
+               0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
+  --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
 }
 
 /* ── 浅色模式 ── */
@@ -47,6 +61,11 @@
     --glass-border-base: rgba(0, 0, 0, 0.08);
     --glass-border-card: rgba(0, 0, 0, 0.10);
     --glass-border-modal:rgba(0, 0, 0, 0.06);
+
+    /* 浅色模式：辉光减半，避免刺眼 */
+    --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
+    --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 18%, transparent),
+                 0 0 24px color-mix(in srgb, var(--ambient-1) 15%, transparent);
   }
 }
 
@@ -68,6 +87,11 @@
   --glass-border-base: rgba(0, 0, 0, 0.08);
   --glass-border-card: rgba(0, 0, 0, 0.10);
   --glass-border-modal:rgba(0, 0, 0, 0.06);
+
+  /* 浅色模式：辉光减半，避免刺眼 */
+  --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
+  --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 18%, transparent),
+               0 0 24px color-mix(in srgb, var(--ambient-1) 15%, transparent);
 }
 
 [data-theme="dark"] {
@@ -87,6 +111,15 @@
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
+
+  /* 氛围光效（封面取色驱动，useAmbientPalette 动态覆盖） */
+  --ambient-1: #5227ff;
+  --ambient-2: #ff9ffc;
+  --ambient-3: #b497cf;
+  --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 28%, transparent);
+  --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
+               0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
+  --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
 }
 
 /* ── 无障碍：去除动画 ── */
