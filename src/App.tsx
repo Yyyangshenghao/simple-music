@@ -15,6 +15,7 @@ import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
+  const lyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
 
   useDesktopBridge()
   useAudio()
@@ -39,7 +40,7 @@ export default function App() {
     <WindowChrome>
       <div className={styles.root}>
         <TopBar />
-        <AppShell />
+        <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
         <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
         <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
       </div>
