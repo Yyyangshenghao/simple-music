@@ -12,6 +12,7 @@ import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
+import { ClickSpark } from './components/ui/ClickSpark'
 
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
@@ -43,6 +44,7 @@ export default function App() {
         <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
         <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
         <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
+        <ClickSpark />
       </div>
     </WindowChrome>
   )
