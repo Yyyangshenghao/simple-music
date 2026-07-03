@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { useNavigationStore } from '../../stores/navigation'
+import LiquidEther from '../Visualizer/LiquidEther'
 import styles from './AppShell.module.css'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
@@ -24,6 +25,18 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
+      <div className={styles.background}>
+        <LiquidEther
+          colors={['#5227FF', '#FF9FFC', '#B497CF']}
+          mouseForce={12}
+          cursorSize={80}
+          resolution={0.4}
+          autoDemo={true}
+          autoSpeed={0.3}
+          autoIntensity={1.4}
+          autoResumeDelay={2000}
+        />
+      </div>
       <Suspense fallback={<div className={styles.loading} />}>
         <div key={viewKey} className={styles.pageEnter}>
           {renderPage()}
