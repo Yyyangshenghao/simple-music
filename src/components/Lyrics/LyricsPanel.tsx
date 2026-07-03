@@ -5,9 +5,9 @@ import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { LyricLine } from './LyricLine'
-import { KtvLine } from './KtvLine' // will be available after merge (Agent C)
-import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud' // will be available after merge (Agent B)
-import { CinemaCamera } from '../Visualizer/CinemaCamera' // will be available after merge (Agent B)
+import { KtvLine } from './KtvLine'
+import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
+import { CinemaCamera } from '../Visualizer/CinemaCamera'
 import styles from './LyricsPanel.module.css'
 
 interface LyricsPanelProps {
@@ -180,7 +180,7 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
             gl={{ antialias: false, alpha: true }}
             style={{ background: backgroundColor || '#04060c' }}
           >
-            <CinemaCamera mode="mouse" />
+            <CinemaCamera />
             <CoverParticleCloud coverUrl={track?.cover} />
           </Canvas>
 

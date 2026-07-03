@@ -1,4 +1,4 @@
-import type { LyricLine } from '../types/domain'
+import type { LyricLine, WordToken, WordLyricLine } from '../types/domain'
 
 const TIME_TAG = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/g
 
@@ -48,5 +48,57 @@ export function alignTranslation(main: LyricLine[], translation: LyricLine[]): L
       }
     }
     return { time: line.time, text: best && bestDiff <= tol ? best.text : '' }
+  })
+}
+
+/**
+ * 解析网易 YRC（逐字歌词）格式。
+ * 行格式：[startMs,durationMs]{"c":[{"tx":"字","t":offsetMs},…]}
+ * 返回 WordLyricLine[]，按时间排序。
+ */
+export function parseYrc(text: string): WordLyricLine[] {
+  if (!text) return []
+  const lines: WordLyricLine[] = []
+  for (const raw of String(text).split(/\r?\n/)) {
+    const headerMatch = raw.match(/^\[(\d+),(\d+)\](.*)$/)
+    if (!headerMatch) continue
+    const startMs = parseInt(headerMatch[1], 10)
+    const durationMs = parseInt(headerMatch[2], 10)
+    let jsonStr = headerMatch[3].trim()
+    if (!jsonStr) continue
+    try {
+      const obj = JSON.parse(jsonStr) as { c?: Array<{ tx: string; t: number }> }
+      const chars = obj.c ?? []
+      if (!chars.length) continue
+      const words: WordToken[] = chars
+        .filter((c) => c.tx && c.tx.trim())
+        .map((c) => ({ text: c.tx, startMs: c.t ?? 0 }))
+      if (words.length) {
+        lines.push({ time: startMs / 1000, durationMs, words })
+      }
+    } catch {
+      // 忽略 JSON 解析错误
+    }
+  }
+  lines.sort((a, b) => a.time - b.time)
+  return lines
+}
+
+/**
+ * 当没有 YRC 数据时，用 LRC 行列表估算逐字时序（均分行时长到每个字符）。
+ * lines 是已排序的 LyricLine[]。
+ */
+export function estimateWordTiming(lines: LyricLine[]): WordLyricLine[] {
+  return lines.map((line, i) => {
+    const nextTime = lines[i + 1]?.time ?? line.time + 4
+    const durationMs = Math.max(500, (nextTime - line.time) * 1000)
+    const chars = [...line.text]
+    if (!chars.length) return { time: line.time, durationMs, words: [] }
+    const perChar = durationMs / chars.length
+    const words: WordToken[] = chars.map((ch, j) => ({
+      text: ch,
+      startMs: Math.round(j * perChar),
+    }))
+    return { time: line.time, durationMs, words }
   })
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LyricLine, LyricLayout } from '../types/domain'
+import type { LyricLine, LyricLayout, WordLyricLine } from '../types/domain'
 
 const DEFAULT_LAYOUT: LyricLayout = {
   scale: 1,
@@ -17,10 +17,14 @@ interface LyricsStore {
   translation: LyricLine[]
   layout: LyricLayout
   desktopLyricsEnabled: boolean
+  wordLines: WordLyricLine[]
+  currentCharProgress: number  // 0–1，当前行内逐字进度
   setLines(lines: LyricLine[], translation?: LyricLine[]): void
   tick(position: number): void
   updateLayout(partial: Partial<LyricLayout>): void
   setDesktopLyricsEnabled(enabled: boolean): void
+  setWordLines(wordLines: WordLyricLine[]): void
+  tickProgress(position: number): void
 }
 
 function indexForPosition(lines: LyricLine[], position: number): number {
@@ -38,14 +42,24 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
   translation: [],
   layout: { ...DEFAULT_LAYOUT },
   desktopLyricsEnabled: false,
+  wordLines: [],
+  currentCharProgress: 0,
 
   setLines(lines, translation = []) {
     set({ lines, translation, currentIndex: -1 })
   },
 
   tick(position) {
-    const next = indexForPosition(get().lines, position)
-    if (next !== get().currentIndex) set({ currentIndex: next })
+    const { lines, wordLines, currentIndex } = get()
+    const next = indexForPosition(lines, position)
+    if (next !== currentIndex) set({ currentIndex: next })
+    // 更新逐字进度
+    if (next >= 0 && next < wordLines.length) {
+      const line = wordLines[next]
+      const elapsed = (position - line.time) * 1000
+      const progress = Math.min(1, Math.max(0, elapsed / (line.durationMs || 1)))
+      set({ currentCharProgress: progress })
+    }
   },
 
   updateLayout(partial) {
@@ -54,5 +68,21 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
 
   setDesktopLyricsEnabled(enabled) {
     set({ desktopLyricsEnabled: enabled })
-  }
+  },
+
+  setWordLines(wordLines) {
+    set({ wordLines })
+  },
+
+  tickProgress(position) {
+    const { wordLines, currentIndex } = get()
+    if (currentIndex < 0 || currentIndex >= wordLines.length) {
+      set({ currentCharProgress: 0 })
+      return
+    }
+    const line = wordLines[currentIndex]
+    const elapsed = (position - line.time) * 1000
+    const progress = Math.min(1, Math.max(0, elapsed / (line.durationMs || 1)))
+    set({ currentCharProgress: progress })
+  },
 }))

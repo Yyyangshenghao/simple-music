@@ -177,8 +177,8 @@ export interface WordToken {
 
 /** 含逐字时序的歌词行（来自 YRC 解析或均分估算）。 */
 export interface WordLyricLine {
-  time: number
-  durationMs: number
+  time: number           // 行起始时间（秒），与 LyricLine.time 对齐
+  durationMs: number     // 行持续时长（毫秒）
   words: WordToken[]
   translationText?: string
 }
