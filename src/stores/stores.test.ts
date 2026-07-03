@@ -79,3 +79,15 @@ describe('settings export/import', () => {
     expect(useSettingsStore.getState().liveBackgroundKeep).toBe(true)
   })
 })
+
+describe('ambient store', () => {
+  it('setPalette 更新调色板，resetPalette 回到默认霞光色', async () => {
+    const { useAmbientStore } = await import('./ambient')
+    const { DEFAULT_PALETTE } = await import('../lib/extract-color')
+    expect(useAmbientStore.getState().palette).toEqual(DEFAULT_PALETTE)
+    useAmbientStore.getState().setPalette(['#112233', '#445566', '#778899'])
+    expect(useAmbientStore.getState().palette).toEqual(['#112233', '#445566', '#778899'])
+    useAmbientStore.getState().resetPalette()
+    expect(useAmbientStore.getState().palette).toEqual(DEFAULT_PALETTE)
+  })
+})
