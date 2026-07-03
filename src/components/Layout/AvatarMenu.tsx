@@ -165,9 +165,14 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.divider} />
 
         {/* 设置 */}
-        <button className={styles.menuRow} onClick={openSettings}>
+        <motion.button
+          className={styles.menuRow}
+          onClick={openSettings}
+          whileTap={tapScale}
+          transition={springSnappy}
+        >
           设置
-        </button>
+        </motion.button>
       </div>
     </>
   )
