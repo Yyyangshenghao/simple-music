@@ -103,6 +103,9 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
             />
           )}
 
+          {/* 氛围霞光舞台：两团氛围色缓慢漂移，跟切歌变色 */}
+          <div className={styles.auroraStage} aria-hidden="true" />
+
           <div className={styles.coverSection}>
             <div className={styles.coverWrap}>
               {track?.cover ? (

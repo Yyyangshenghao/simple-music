@@ -232,6 +232,24 @@
   pointer-events: none;
 }
 
+/* 氛围霞光舞台（lyrics 模式）：跟随 --ambient-* 切歌变色 */
+.auroraStage {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  background:
+    radial-gradient(45% 55% at 18% 25%, color-mix(in srgb, var(--ambient-1) 26%, transparent), transparent 70%),
+    radial-gradient(50% 60% at 82% 75%, color-mix(in srgb, var(--ambient-2) 20%, transparent), transparent 70%);
+  filter: blur(60px);
+  animation: stageDrift 30s ease-in-out infinite alternate;
+  z-index: 0;
+}
+
+@keyframes stageDrift {
+  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  to   { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+}
+
 /* 模式切换 Segmented Control */
 .modeSwitch {
   display: flex;

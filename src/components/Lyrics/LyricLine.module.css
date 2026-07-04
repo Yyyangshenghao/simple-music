@@ -48,7 +48,7 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 0 14px rgba(168, 246, 255, 0.38), 0 0 36px rgba(143, 233, 255, 0.3),
-    0 0 80px rgba(115, 167, 255, 0.16);
+    0 0 80px rgba(115, 167, 255, 0.16), 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent);
 }
 
 .active .translation {

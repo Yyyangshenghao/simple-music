@@ -8,6 +8,7 @@
 
 .active {
   transform: scale(1.04);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent);
 }
 
 .dim {
