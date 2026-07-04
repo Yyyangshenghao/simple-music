@@ -7,6 +7,7 @@ import { CardRail } from '../components/Explore/CardRail'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
 import { RevealItem } from '../components/ui/RevealItem'
+import { GradientText } from '../components/ui/GradientText'
 import type { Banner, Playlist, Track } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
@@ -51,7 +52,7 @@ export function ExplorePage() {
               <img className={styles.detailCover} src={detail.playlist.cover} alt="" />
             )}
             <div>
-              <h1 className={styles.detailTitle}>{detail.playlist.name}</h1>
+              <h1 className={styles.detailTitle}><GradientText>{detail.playlist.name}</GradientText></h1>
               <p className={styles.detailSub}>{detail.tracks.length} 首</p>
             </div>
           </div>
@@ -87,7 +88,7 @@ export function ExplorePage() {
 
       {songs.length > 0 && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>今日推荐</h2>
+          <h2 className={styles.sectionTitle}><GradientText>今日推荐</GradientText></h2>
           <div className={styles.trackList}>
             {songs.map((s, i) => (
               <AnimatedTrackRow key={String(s.id) + i} track={s} index={i} onPlay={() => playTrack(songs, i)} delay={i * 0.05} />

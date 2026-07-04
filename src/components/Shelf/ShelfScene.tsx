@@ -4,6 +4,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { ShelfCard } from './ShelfCard'
 import { ShelfDetail } from './ShelfDetail'
 import { RevealItem } from '../ui/RevealItem'
+import { GradientText } from '../ui/GradientText'
 import type { Playlist } from '../../types/domain'
 import styles from './ShelfScene.module.css'
 
@@ -43,7 +44,7 @@ export function ShelfScene() {
   return (
     <div className={styles.root}>
       <header className={styles.toolbar}>
-        <h2 className={styles.heading}>我的歌单架</h2>
+        <h2 className={styles.heading}><GradientText>我的歌单架</GradientText></h2>
         <div className={styles.modeSeg}>
           <button
             type="button"

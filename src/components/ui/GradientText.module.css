@@ -1,0 +1,13 @@
+.gradient {
+  background: var(--ambient-gradient);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradientFlow 8s ease-in-out infinite alternate;
+}
+
+@keyframes gradientFlow {
+  from { background-position: 0% 50%; }
+  to   { background-position: 100% 50%; }
+}

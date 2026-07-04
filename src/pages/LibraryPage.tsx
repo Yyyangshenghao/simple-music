@@ -4,6 +4,7 @@ import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
+import { GradientText } from '../components/ui/GradientText'
 import type { Playlist, Track } from '../types/domain'
 import styles from './LibraryPage.module.css'
 
@@ -52,7 +53,7 @@ export function LibraryPage() {
               <img className={styles.detailCover} src={detail.playlist.cover} alt="" />
             )}
             <div>
-              <h1 className={styles.detailTitle}>{detail.playlist.name}</h1>
+              <h1 className={styles.detailTitle}><GradientText>{detail.playlist.name}</GradientText></h1>
               <p className={styles.detailSub}>{detail.tracks.length} 首</p>
             </div>
           </div>
@@ -70,7 +71,7 @@ export function LibraryPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.pageTitle}>我的库</h1>
+        <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
           {(['playlists', 'favorites', 'recent'] as SubTab[]).map((t) => (
             <button
