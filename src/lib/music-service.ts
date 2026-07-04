@@ -12,4 +12,13 @@ export interface MusicService {
   getArtistAlbums(id: unknown): Promise<Playlist[]>
   getTrackUrl(track: Track): Promise<string>
   getLyrics(track: Track): Promise<LyricLine[]>
+  /** 每日歌曲推荐（网易专属；未实现的音源不渲染每日推荐卡）。 */
+  getDailySongs?(): Promise<Track[]>
+  /** 私人雷达歌单（网易专属；null = 不可用，隐藏卡片）。 */
+  getRadarPlaylist?(): Promise<RadarPlaylist | null>
+}
+
+export interface RadarPlaylist {
+  playlist: Playlist
+  tracks: Track[]
 }

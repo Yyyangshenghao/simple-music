@@ -50,6 +50,7 @@ export interface Playlist {
   playCount: number
   creator: string
   tag?: string
+  description?: string
   tracks?: Track[]
 }
 
