@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import { motion, useMotionValue, useSpring, useTransform } from 'motion/react'
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'motion/react'
 import { springGentle, gentleSpringValues } from '../../lib/motion-presets'
 import styles from './TiltCard.module.css'
 
@@ -10,9 +10,6 @@ interface TiltCardProps {
   /** 最大倾斜角（度），默认 8。 */
   maxTilt?: number
 }
-
-const REDUCED_MOTION =
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
  * 3D 倾斜追光卡片：鼠标位置驱动 rotateX/rotateY（弹簧平滑），
@@ -27,6 +24,8 @@ export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
   const sy = useSpring(py, gentleSpringValues)
   const rotateY = useTransform(sx, [0, 1], [-maxTilt, maxTilt])
   const rotateX = useTransform(sy, [0, 1], [maxTilt, -maxTilt])
+  // 运行时响应系统「减弱动态」切换
+  const reducedMotion = useReducedMotion()
 
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     const el = ref.current
@@ -52,8 +51,8 @@ export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
       whileHover={{ y: -4, scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
       transition={springGentle}
-      onPointerMove={REDUCED_MOTION ? undefined : onPointerMove}
-      onPointerLeave={REDUCED_MOTION ? undefined : onPointerLeave}
+      onPointerMove={reducedMotion ? undefined : onPointerMove}
+      onPointerLeave={reducedMotion ? undefined : onPointerLeave}
     >
       {children}
       <div className={styles.spotlight} aria-hidden="true" />

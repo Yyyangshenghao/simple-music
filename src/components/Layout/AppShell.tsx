@@ -1,11 +1,11 @@
-import { lazy, Suspense } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { AnimatePresence, motion, useMotionValueEvent, useSpring } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { usePlayerStore } from '../../stores/player'
-import { springGentle } from '../../lib/motion-presets'
+import { gentleSpringValues, springGentle } from '../../lib/motion-presets'
 import LiquidEther from '../Visualizer/LiquidEther'
 import styles from './AppShell.module.css'
 
@@ -33,6 +33,25 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const playing = usePlayerStore((s) => s.status === 'playing')
 
+  // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
+  const playSpring = useSpring(playing ? 1 : 0, gentleSpringValues)
+  const [playAmount, setPlayAmount] = useState(playing ? 1 : 0)
+  useEffect(() => {
+    playSpring.set(playing ? 1 : 0)
+  }, [playing, playSpring])
+  useMotionValueEvent(playSpring, 'change', (v) => setPlayAmount(v))
+
+  // 空闲预热 lazy 页面 chunk：首次切页转场不再被模块加载打断
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void import('../../pages/ExplorePage')
+      void import('../../pages/LibraryPage')
+      void import('../../pages/SettingsPage')
+      void import('../../pages/ArtistPage')
+    }, 2000)
+    return () => window.clearTimeout(t)
+  }, [])
+
   const viewKey = typeof view === 'string' ? view : `${view.type}-${String(view.id)}`
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
@@ -59,8 +78,8 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
             cursorSize={80}
             resolution={performanceMode === 'balanced' ? 0.4 : 0.5}
             autoDemo={true}
-            autoSpeed={playing ? 0.45 : 0.25}
-            autoIntensity={playing ? 1.8 : 1.2}
+            autoSpeed={0.25 + 0.2 * playAmount}
+            autoIntensity={1.2 + 0.6 * playAmount}
             autoResumeDelay={2000}
           />
         )}
