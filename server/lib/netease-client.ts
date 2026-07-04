@@ -211,6 +211,7 @@ export interface MappedPlaylist {
   playCount: number
   creator: string
   tag: string
+  description: string
 }
 export function mapDiscoverPlaylist(playlist: unknown, tag?: string): MappedPlaylist {
   const pl = asObj(playlist)
@@ -228,6 +229,7 @@ export function mapDiscoverPlaylist(playlist: unknown, tag?: string): MappedPlay
     playCount: asNum(pl.playCount || pl.playcount),
     creator: asStr(creator.nickname || creator.name),
     tag: tag || asStr(pl.alg),
+    description: asStr(pl.copywriter || pl.description),
   }
 }
 
@@ -736,6 +738,7 @@ export function mapAlbum(raw: unknown): MappedPlaylist {
     playCount: 0,
     creator: '',
     tag: '专辑',
+    description: asStr(a.description),
     source: 'netease',
     type: 'album',
     provider: 'netease',

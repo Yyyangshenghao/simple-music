@@ -32,6 +32,9 @@ import {
   type LoginInfo,
 } from '../lib/netease-client'
 
+/** 「私人雷达」官方共享歌单 id（社区通行做法：带登录 cookie 请求即返回个人化的每日 35 首）。 */
+const RADAR_PLAYLIST_ID = '3136952023'
+
 /** 兼容原 readRequestBody：优先 JSON，失败回退 urlencoded。 */
 async function readRequestBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const raw = await readBody(req)
@@ -107,22 +110,14 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // ---------- Recommend Playlists ----------
+  // ---------- Recommend Playlists（Stack 池子：单源 personalized，一次 30 个） ----------
   if (pn === '/api/netease/recommend/playlists') {
     try {
       const cookie = getCookie(ctx, 'netease')
-      const [personalized, recommend] = await Promise.allSettled([
-        call('personalized', { limit: 8, cookie, timestamp: Date.now() }),
-        call('recommend_resource', { cookie, timestamp: Date.now() }),
-      ])
-      const fromPersonalized = personalized.status === 'fulfilled'
-        ? asArr(asObj(personalized.value.body).result || []).map((pl) => mapDiscoverPlaylist(pl, '推荐歌单')).filter((pl) => pl.id && pl.name).slice(0, 8)
-        : []
-      const fromRecommend = recommend.status === 'fulfilled'
-        ? asArr(asObj(asObj(recommend.value.body).recommend || recommend.value.body).recommend || asObj(recommend.value.body).data || []).map((pl) => mapDiscoverPlaylist(pl, '私人推荐')).filter((pl) => pl.id && pl.name).slice(0, 6)
-        : []
-      const seen = new Set<unknown>()
-      const playlists = [...fromPersonalized, ...fromRecommend].filter((pl) => { if (seen.has(pl.id)) return false; seen.add(pl.id); return true })
+      const resp = await call('personalized', { limit: 30, cookie, timestamp: Date.now() })
+      const playlists = asArr(asObj(resp.body).result || [])
+        .map((pl) => mapDiscoverPlaylist(pl, '推荐歌单'))
+        .filter((pl) => pl.id && pl.name)
       sendJson(res, { playlists })
     } catch (err) {
       console.error('[RecommendPlaylists]', err)
@@ -144,6 +139,30 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[RecommendSongs]', err)
       sendJson(res, { songs: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- 私人雷达 ----------
+  if (pn === '/api/netease/radar') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      if (!cookie) {
+        sendJson(res, { playlist: null, tracks: [] })
+        return true
+      }
+      const resp = await call('playlist_detail', { id: RADAR_PLAYLIST_ID, cookie, timestamp: Date.now() })
+      const raw = asObj(asObj(resp.body).playlist)
+      const tracks = asArr(raw.tracks).map(mapSongRecord).filter((s) => s.id && s.name)
+      const playlist = mapDiscoverPlaylist(raw, '私人雷达')
+      if (!playlist.id || tracks.length === 0) {
+        sendJson(res, { playlist: null, tracks: [] })
+        return true
+      }
+      sendJson(res, { playlist, tracks })
+    } catch (err) {
+      console.error('[Radar]', err)
+      sendJson(res, { playlist: null, tracks: [] }, 500)
     }
     return true
   }
