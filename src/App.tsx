@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { MotionConfig } from 'motion/react'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useAudio } from './hooks/useAudio'
@@ -38,14 +39,16 @@ export default function App() {
   }, [])
 
   return (
-    <WindowChrome>
-      <div className={styles.root}>
-        <TopBar />
-        <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
-        <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
-        <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
-        <ClickSpark />
-      </div>
-    </WindowChrome>
+    <MotionConfig reducedMotion="user">
+      <WindowChrome>
+        <div className={styles.root}>
+          <TopBar />
+          <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
+          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
+          <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
+          <ClickSpark />
+        </div>
+      </WindowChrome>
+    </MotionConfig>
   )
 }

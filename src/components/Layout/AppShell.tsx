@@ -1,8 +1,11 @@
 import { lazy, Suspense } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import type { Variants } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { usePlayerStore } from '../../stores/player'
+import { springGentle } from '../../lib/motion-presets'
 import LiquidEther from '../Visualizer/LiquidEther'
 import styles from './AppShell.module.css'
 
@@ -11,6 +14,13 @@ const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ 
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
 
+/** 纵深转场：新页从纵深浮上（scale 1.03→1），旧页缩小下沉；x 按 push/pop 反向。 */
+const pageVariants: Variants = {
+  enter: (dir: 1 | -1) => ({ opacity: 0, scale: 1.03, x: 24 * dir, y: 8 }),
+  center: { opacity: 1, scale: 1, x: 0, y: 0 },
+  exit: (dir: 1 | -1) => ({ opacity: 0, scale: 0.97, x: -24 * dir }),
+}
+
 interface AppShellProps {
   /** 为 true 时隐藏背景层(如歌词页 3D 模式打开,保证同屏只有一个全屏 WebGL)。 */
   backgroundHidden?: boolean
@@ -18,11 +28,13 @@ interface AppShellProps {
 
 export function AppShell({ backgroundHidden }: AppShellProps) {
   const view = useNavigationStore((s) => s.currentView)
+  const lastAction = useNavigationStore((s) => s.lastAction)
   const palette = useAmbientStore((s) => s.palette)
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const playing = usePlayerStore((s) => s.status === 'playing')
 
   const viewKey = typeof view === 'string' ? view : `${view.type}-${String(view.id)}`
+  const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
   const renderPage = () => {
     if (view === 'explore') return <ExplorePage />
@@ -54,9 +66,20 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
         )}
       </div>
       <Suspense fallback={<div className={styles.loading} />}>
-        <div key={viewKey} className={styles.pageEnter}>
-          {renderPage()}
-        </div>
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <motion.div
+            key={viewKey}
+            className={styles.page}
+            custom={dir}
+            variants={pageVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={springGentle}
+          >
+            {renderPage()}
+          </motion.div>
+        </AnimatePresence>
       </Suspense>
     </div>
   )

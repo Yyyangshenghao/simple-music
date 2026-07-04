@@ -34,14 +34,8 @@
   background: #0c0c0c;
 }
 
-.pageEnter {
+.page {
   height: 100%;
   position: relative;
   z-index: 1;
-  animation: pageEnter 220ms var(--sm-ease-out) forwards;
-}
-
-@keyframes pageEnter {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
