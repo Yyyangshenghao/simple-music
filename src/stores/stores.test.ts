@@ -91,3 +91,21 @@ describe('ambient store', () => {
     expect(useAmbientStore.getState().palette).toEqual(DEFAULT_PALETTE)
   })
 })
+
+describe('navigation store direction', () => {
+  it('navigateTo 置 push，goBack 置 pop，空 history 时 goBack 不变', async () => {
+    const { useNavigationStore } = await import('./navigation')
+    useNavigationStore.setState({ currentView: 'explore', history: [], lastAction: 'push' })
+    expect(useNavigationStore.getState().lastAction).toBe('push')
+    useNavigationStore.getState().navigateTo('library')
+    expect(useNavigationStore.getState().lastAction).toBe('push')
+    useNavigationStore.getState().goBack()
+    expect(useNavigationStore.getState().lastAction).toBe('pop')
+    expect(useNavigationStore.getState().currentView).toBe('explore')
+    // history 已空：goBack 无效果，方向不变
+    useNavigationStore.getState().navigateTo('settings')
+    useNavigationStore.setState({ history: [] })
+    useNavigationStore.getState().goBack()
+    expect(useNavigationStore.getState().lastAction).toBe('push')
+  })
+})
