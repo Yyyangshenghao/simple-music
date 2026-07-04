@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
@@ -8,6 +9,7 @@ import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
 import { RevealItem } from '../components/ui/RevealItem'
 import { GradientText } from '../components/ui/GradientText'
+import { fadeRise, springGentle } from '../lib/motion-presets'
 import type { Banner, Playlist, Track } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
@@ -49,19 +51,25 @@ export function ExplorePage() {
           <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null) }}>← 返回</button>
           <div className={styles.detailMeta}>
             {detail.playlist.cover && (
-              <img className={styles.detailCover} src={detail.playlist.cover} alt="" />
+              <motion.img
+                className={styles.detailCover}
+                src={detail.playlist.cover}
+                alt=""
+                layoutId={`explore-cover-${String(detail.playlist.id)}`}
+                transition={springGentle}
+              />
             )}
-            <div>
+            <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
               <h1 className={styles.detailTitle}><GradientText>{detail.playlist.name}</GradientText></h1>
               <p className={styles.detailSub}>{detail.tracks.length} 首</p>
-            </div>
+            </motion.div>
           </div>
         </div>
-        <div className={styles.trackList}>
+        <motion.div className={styles.trackList} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
           {detail.tracks.map((t, i) => (
             <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={i * 0.05} />
           ))}
-        </div>
+        </motion.div>
         <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       </div>
     )
@@ -80,6 +88,7 @@ export function ExplorePage() {
               <PlaylistCard
                 playlist={pl}
                 onClick={() => { if (!loadingId) void openPlaylist(pl) }}
+                layoutId={`explore-cover-${String(pl.id)}`}
               />
             </RevealItem>
           ))}

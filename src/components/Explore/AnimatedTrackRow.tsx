@@ -21,7 +21,7 @@ export function AnimatedTrackRow({ track, index, onPlay, delay = 0.1 }: Animated
       className={styles.wrapper}
       initial={{ scale: 0.7, opacity: 0 }}
       animate={inView ? { scale: 1, opacity: 1 } : { scale: 0.7, opacity: 0 }}
-      transition={{ duration: 0.2, delay }}
+      transition={{ duration: 0.2, delay: Math.min(delay, 0.4) }}
     >
       <TrackRow track={track} index={index} onPlay={onPlay} />
     </motion.div>
