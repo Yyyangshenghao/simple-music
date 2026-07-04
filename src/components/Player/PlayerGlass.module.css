@@ -9,6 +9,9 @@
   pointer-events: auto;
   -webkit-app-region: no-drag;
   padding: 12px 20px;
+  /* 确保面板内容绘制在音频辉光之上 */
+  position: relative;
+  z-index: 1;
 }
 
 /* 音频响应辉光：opacity 由 --audio-energy（useAudioEnergy 每帧写入）驱动 */
