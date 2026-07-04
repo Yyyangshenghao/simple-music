@@ -6,6 +6,7 @@ import { HeroBanner } from '../components/Explore/HeroBanner'
 import { CardRail } from '../components/Explore/CardRail'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
+import { RevealItem } from '../components/ui/RevealItem'
 import type { Banner, Playlist, Track } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
@@ -74,11 +75,12 @@ export function ExplorePage() {
       {playlists.length > 0 && (
         <CardRail title="推荐歌单">
           {playlists.map((pl, i) => (
-            <PlaylistCard
-              key={String(pl.id) + i}
-              playlist={pl}
-              onClick={() => { if (!loadingId) void openPlaylist(pl) }}
-            />
+            <RevealItem key={String(pl.id) + i} delay={i * 0.04}>
+              <PlaylistCard
+                playlist={pl}
+                onClick={() => { if (!loadingId) void openPlaylist(pl) }}
+              />
+            </RevealItem>
           ))}
         </CardRail>
       )}

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { ShelfCard } from './ShelfCard'
 import { ShelfDetail } from './ShelfDetail'
+import { RevealItem } from '../ui/RevealItem'
 import type { Playlist } from '../../types/domain'
 import styles from './ShelfScene.module.css'
 
@@ -77,7 +78,9 @@ export function ShelfScene() {
                   className={styles.slot}
                   style={{ '--i': index } as CSSProperties}
                 >
-                  <ShelfCard playlist={playlist} onOpen={() => handleOpen(playlist)} />
+                  <RevealItem delay={index * 0.04}>
+                    <ShelfCard playlist={playlist} onOpen={() => handleOpen(playlist)} />
+                  </RevealItem>
                 </div>
               ))}
             </div>
