@@ -31,7 +31,6 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
   const translation = useLyricsStore((s) => s.translation)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const wordLines = useLyricsStore((s) => s.wordLines)           // added by Agent A
-  const currentCharProgress = useLyricsStore((s) => s.currentCharProgress) // added by Agent A
   const mode = useSettingsStore((s) => s.lyricsPanelMode)        // added by Agent A
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
@@ -139,19 +138,18 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
                 const isActive = i === currentIndex
                 const wordLine = wordLines[i]
 
-                if (isActive && wordLine) {
+                // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
+                // 字号一致，激活态只靠 scale/亮度区分
+                if (wordLine) {
                   return (
-                    <div
-                      key={`${line.time}-${i}`}
-                      data-line={i}
-                      className={styles.ktvLineWrap}
-                      style={{ fontSize: '26px', fontWeight: 700 }}
-                    >
+                    <div key={`${line.time}-${i}`} data-line={i} className={styles.ktvLineWrap}>
                       <KtvLine
                         words={wordLine.words}
                         lineDurationMs={wordLine.durationMs}
-                        progress={currentCharProgress}
-                        active={true}
+                        lineStartMs={wordLine.time * 1000}
+                        active={isActive}
+                        dim={!isActive}
+                        past={i < currentIndex}
                         translationText={translation[i]?.text || undefined}
                       />
                     </div>
@@ -163,7 +161,7 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
                     <LyricLine
                       text={line.text}
                       translation={translation[i]?.text || undefined}
-                      active={false}
+                      active={isActive}
                     />
                   </div>
                 )
@@ -194,7 +192,7 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
                 <KtvLine
                   words={currentWordLine.words}
                   lineDurationMs={currentWordLine.durationMs}
-                  progress={currentCharProgress}
+                  lineStartMs={currentWordLine.time * 1000}
                   active={true}
                   translationText={translation[currentIndex]?.text || undefined}
                 />
@@ -207,7 +205,7 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
                 <KtvLine
                   words={nextWordLine.words}
                   lineDurationMs={nextWordLine.durationMs}
-                  progress={0}
+                  lineStartMs={nextWordLine.time * 1000}
                   active={false}
                   dim={false}
                   translationText={nextTranslation || undefined}

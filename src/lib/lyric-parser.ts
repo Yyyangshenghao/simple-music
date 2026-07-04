@@ -53,31 +53,36 @@ export function alignTranslation(main: LyricLine[], translation: LyricLine[]): L
 
 /**
  * 解析网易 YRC（逐字歌词）格式。
- * 行格式：[startMs,durationMs]{"c":[{"tx":"字","t":offsetMs},…]}
+ * 歌词行格式：[行起始Ms,行时长Ms](字绝对起始Ms,字时长Ms,0)字(…)字…
+ *   - 字的起始时间是歌曲内绝对毫秒，这里转换为相对行起始的偏移；
+ *   - token 可能是多字词（如英文单词），文本原样保留（含空格，用于排版）。
+ * 开头若干行是 {"t":…,"c":[…]} 形式的 JSON 元信息（作词/作曲等），没有
+ * [start,dur] 头，直接跳过。
  * 返回 WordLyricLine[]，按时间排序。
  */
 export function parseYrc(text: string): WordLyricLine[] {
   if (!text) return []
   const lines: WordLyricLine[] = []
+  const WORD_TOKEN = /\((\d+),(\d+),-?\d+\)([^(]*)/g
   for (const raw of String(text).split(/\r?\n/)) {
     const headerMatch = raw.match(/^\[(\d+),(\d+)\](.*)$/)
     if (!headerMatch) continue
-    const startMs = parseInt(headerMatch[1], 10)
+    const lineStartMs = parseInt(headerMatch[1], 10)
     const durationMs = parseInt(headerMatch[2], 10)
-    let jsonStr = headerMatch[3].trim()
-    if (!jsonStr) continue
-    try {
-      const obj = JSON.parse(jsonStr) as { c?: Array<{ tx: string; t: number }> }
-      const chars = obj.c ?? []
-      if (!chars.length) continue
-      const words: WordToken[] = chars
-        .filter((c) => c.tx && c.tx.trim())
-        .map((c) => ({ text: c.tx, startMs: c.t ?? 0 }))
-      if (words.length) {
-        lines.push({ time: startMs / 1000, durationMs, words })
-      }
-    } catch {
-      // 忽略 JSON 解析错误
+    const words: WordToken[] = []
+    let m: RegExpExecArray | null
+    WORD_TOKEN.lastIndex = 0
+    while ((m = WORD_TOKEN.exec(headerMatch[3]))) {
+      const tx = m[3]
+      if (!tx || !tx.trim()) continue
+      words.push({
+        text: tx,
+        startMs: Math.max(0, parseInt(m[1], 10) - lineStartMs),
+        durationMs: parseInt(m[2], 10),
+      })
+    }
+    if (words.length) {
+      lines.push({ time: lineStartMs / 1000, durationMs, words })
     }
   }
   lines.sort((a, b) => a.time - b.time)

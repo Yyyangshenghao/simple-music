@@ -2,10 +2,13 @@
 .panel {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /* 盖过 TopBar(100),同时低于悬浮播放栏和设置面板 */
+  z-index: 200;
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* 底部给悬浮播放栏(PlayerGlass dock ≈120px)留出空间,背景层不受影响 */
+  padding-bottom: 124px;
   background: var(--glass-bg-modal);
   backdrop-filter: var(--glass-blur-modal);
   -webkit-backdrop-filter: var(--glass-blur-modal);
@@ -26,10 +29,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 24px 0;
+  /* 顶部留出 macOS 红绿灯区域(约 40px),按钮不与其重叠 */
+  padding: 44px 28px 0;
   flex-shrink: 0;
   position: relative;
   z-index: 2;
+  /* TopBar 隐藏后,由歌词头部承担窗口拖拽区 */
+  -webkit-app-region: drag;
 }
 
 /* Pill close button */
@@ -282,9 +288,12 @@
   color: #fff;
 }
 
-/* KTV 行包裹（纯歌词模式的当前行） */
+/* KTV 行包裹（纯歌词模式的所有行）：字号统一，激活态靠 scale/亮度区分 */
 .ktvLineWrap {
   padding: 4px 0;
+  font-size: clamp(20px, 2.6vw, 34px);
+  font-weight: 700;
+  letter-spacing: 1.5px;
 }
 
 /* ===== 3D 模式 ===== */

@@ -38,7 +38,12 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
     return () => window.clearTimeout(t)
   }, [])
 
-  const viewKey = typeof view === 'string' ? view : `${view.type}-${String(view.id)}`
+  // 歌单详情复用宿主页(探索/我的库)的 key:同一组件实例内切换,
+  // 封面 layoutId 共享元素动画不被页面级转场打断
+  const viewKey =
+    typeof view === 'string' ? view
+    : view.type === 'playlist' ? view.from
+    : `${view.type}-${String(view.id)}`
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
   const renderPage = () => {
@@ -47,6 +52,9 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
     if (view === 'settings') return <SettingsPage />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} />
+    }
+    if (typeof view === 'object' && view.type === 'playlist') {
+      return view.from === 'library' ? <LibraryPage /> : <ExplorePage />
     }
     return <ExplorePage />
   }

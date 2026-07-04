@@ -1,19 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'motion/react'
-import { useNavigationStore } from '../../stores/navigation'
+import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
-import GooeyNav from './GooeyNav'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 
-export function TopBar() {
+const NAV_ITEMS: { label: string; view: AppView }[] = [
+  { label: '探索', view: 'explore' },
+  { label: '我的库', view: 'library' },
+]
+
+interface TopBarProps {
+  /** 歌词面板打开时隐藏顶栏 */
+  hidden?: boolean
+}
+
+export function TopBar({ hidden = false }: TopBarProps) {
   const currentView = useNavigationStore((s) => s.currentView)
   const history = useNavigationStore((s) => s.history)
+  const future = useNavigationStore((s) => s.future)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
   const goBack = useNavigationStore((s) => s.goBack)
+  const goForward = useNavigationStore((s) => s.goForward)
 
   const [keyword, setKeyword] = useState('')
   const [songs, setSongs] = useState<Track[]>([])
@@ -82,36 +93,68 @@ export function TopBar() {
   const showDropdown = isExpanded && searchFocused && (keyword.length > 0 || loading || hasResults)
 
   return (
-    <div className={styles.bar}>
-      {/* Left: traffic lights 留白 + 后退按钮 */}
+    <div className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}`}>
+      {/* Left: traffic lights 留白 + 后退/前进胶囊组 */}
       <div className={styles.left}>
-        <motion.button
-          className={styles.backBtn}
-          onClick={goBack}
-          disabled={history.length === 0}
-          aria-label="后退"
-          whileTap={tapScale}
-          whileHover={{ scale: 1.06 }}
-          transition={springSnappy}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </motion.button>
+        <div className={styles.navGroup}>
+          <motion.button
+            className={styles.navBtn}
+            onClick={goBack}
+            disabled={history.length === 0}
+            aria-label="后退"
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </motion.button>
+          <span className={styles.navDivider} aria-hidden="true" />
+          <motion.button
+            className={styles.navBtn}
+            onClick={goForward}
+            disabled={future.length === 0}
+            aria-label="前进"
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </motion.button>
+        </div>
       </div>
 
-      {/* Center: GooeyNav（绝对居中） */}
+      {/* Center: 滑动胶囊导航（绝对居中） */}
       <div className={styles.center}>
-        <GooeyNav
-          items={[
-            { label: '探索', href: '#' },
-            { label: '我的库', href: '#' },
-          ]}
-          activeIndex={currentView === 'library' ? 1 : 0}
-          onSelect={(i) => navigateTo(i === 0 ? 'explore' : 'library')}
-          particleCount={12}
-          colors={[1, 1, 2, 1, 2, 1]}
-        />
+        <nav className={styles.segNav} aria-label="主导航">
+          {NAV_ITEMS.map((item) => {
+            // 歌单详情归属其来源 tab；其余非「我的库」视图（设置/歌手）默认落在探索
+            const section =
+              typeof currentView === 'object' && currentView.type === 'playlist'
+                ? currentView.from
+                : currentView
+            const active = section === item.view
+              || (item.view === 'explore' && section !== 'library')
+            return (
+              <button
+                key={item.label}
+                className={`${styles.segItem}${active ? ` ${styles.segActive}` : ''}`}
+                onClick={() => { if (currentView !== item.view) navigateTo(item.view) }}
+                aria-current={active ? 'page' : undefined}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="topbar-seg-pill"
+                    className={styles.segPill}
+                    transition={springSnappy}
+                  />
+                )}
+                <span className={styles.segLabel}>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
       </div>
 
       {/* Right: 搜索框 + 头像 */}
@@ -131,8 +174,8 @@ export function TopBar() {
           >
             <svg
               className={styles.searchIcon}
-              width="13"
-              height="13"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -196,15 +239,20 @@ export function TopBar() {
         </div>
 
         <div className={styles.avatarWrap}>
-          <button
+          <motion.button
             className={styles.avatarBtn}
             onClick={() => setAvatarMenuOpen((v) => !v)}
             aria-label="账户菜单"
+            whileTap={tapScale}
+            transition={springSnappy}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v1h20v-1c0-3.3-6.7-5-10-5z" />
-            </svg>
-          </button>
+            <span className={styles.avatarInner}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
+              </svg>
+            </span>
+          </motion.button>
           {avatarMenuOpen && (
             <AvatarMenu onClose={() => setAvatarMenuOpen(false)} />
           )}

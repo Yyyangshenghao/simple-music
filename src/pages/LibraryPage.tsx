@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
+import { useNavigationStore } from '../stores/navigation'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
 import { GradientText } from '../components/ui/GradientText'
@@ -15,8 +16,14 @@ type SubTab = 'playlists' | 'favorites' | 'recent'
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
   const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [detail, setDetail] = useState<{ playlist: Playlist; tracks: Track[] } | null>(null)
   const [loadingId, setLoadingId] = useState<unknown>(null)
+
+  // 歌单详情提升到导航 store：顶栏前进/后退可穿越
+  const currentView = useNavigationStore((s) => s.currentView)
+  const detail =
+    typeof currentView === 'object' && currentView.type === 'playlist' && currentView.from === 'library'
+      ? currentView
+      : null
 
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
@@ -34,11 +41,17 @@ export function LibraryPage() {
     setLoadingId(playlist.id)
     try {
       const tracks = await service.getPlaylistDetail(playlist.id)
-      setDetail({ playlist, tracks })
+      useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'library', playlist, tracks })
     } finally {
       setLoadingId(null)
     }
   }
+
+  // 详情开合的所有路径（页内返回键、顶栏前进/后退）都重置滚动渐变遮罩
+  useEffect(() => {
+    setTopOpacity(0)
+    setBottomOpacity(0)
+  }, [detail, setTopOpacity, setBottomOpacity])
 
   function playTrack(list: Track[], index: number) {
     usePlaylistStore.getState().setQueue(list, index)
@@ -49,7 +62,7 @@ export function LibraryPage() {
       <div className={styles.page} onScroll={handleScroll}>
         <div className="topGradient" style={{ opacity: topOpacity }} />
         <div className={styles.detailHeader}>
-          <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null) }}>← 返回</button>
+          <button className={`${styles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}>← 返回</button>
           <div className={styles.detailMeta}>
             {detail.playlist.cover && (
               <motion.img

@@ -21,3 +21,9 @@
 }
 
 .rail::-webkit-scrollbar { display: none; }
+
+/* 横滑轨道里的卡片固定宽度，防止被压缩 */
+.rail > * {
+  width: 168px;
+  flex-shrink: 0;
+}

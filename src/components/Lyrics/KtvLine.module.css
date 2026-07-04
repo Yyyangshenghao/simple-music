@@ -3,16 +3,21 @@
   flex-direction: column;
   align-items: center;
   padding: 6px 16px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform-origin: center;
+  transition: opacity 0.55s ease, filter 0.55s ease,
+    transform 0.55s cubic-bezier(0.22, 0.9, 0.32, 1.02);
+  will-change: transform, opacity;
 }
 
 .active {
-  transform: scale(1.04);
+  transform: scale(1.06);
   text-shadow: 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent);
 }
 
 .dim {
-  opacity: 0.32;
+  opacity: 0.36;
+  transform: scale(0.92);
+  filter: blur(0.6px);
 }
 
 /* 字符容器 */
@@ -28,23 +33,37 @@
 .char {
   font-size: inherit;
   font-weight: inherit;
-  /* 渐变：左侧已亮（白色），右侧未亮（暗色） */
+  /* YRC 英文 token 自带尾随空格，保留它保证词间距 */
+  white-space: pre;
+  /* 点亮进度：行容器每帧更新 --elapsed（行内已播毫秒），
+     每个字按自身时间窗 [--ws, --ws + --wd] 计算 0–1 进度 */
+  --p: clamp(0, (var(--elapsed, 0) - var(--ws, 0)) / var(--wd, 1), 1);
+  /* 亮/暗两段之间留 24% 羽化带：扫过时是柔和的亮度过渡而不是硬边 */
   background: linear-gradient(
     to right,
-    rgba(255, 255, 255, 1) calc(var(--char-progress, 0) * 100%),
-    rgba(255, 255, 255, 0.35) calc(var(--char-progress, 0) * 100%)
+    rgba(255, 255, 255, 1) calc((var(--p) * 124 - 24) * 1%),
+    rgba(255, 255, 255, 0.35) calc(var(--p) * 124 * 1%)
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  /* 平滑过渡 */
-  transition: background 0.06s linear;
+}
+
+/* 非当前行不参与扫光：默认全亮（已唱过的行、3D 下一行预览），
+   还没唱到的暗行（dim 且非 past）全暗 */
+.line:not(.active) .char {
+  --p: 1;
+}
+
+.dim:not(.past) .char {
+  --p: 0;
 }
 
 /* 翻译行 */
 .translation {
-  font-size: 13px;
+  font-size: clamp(13px, 1.5vw, 18px);
+  font-weight: 500;
   color: rgba(255, 255, 255, 0.45);
   margin-top: 4px;
   text-align: center;

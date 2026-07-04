@@ -42,7 +42,7 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div className={styles.root}>
-          <TopBar />
+          <TopBar hidden={lyricsOpen} />
           <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
           <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
           <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />

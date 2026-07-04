@@ -173,6 +173,7 @@ export type ShelfMode = 'dynamic' | 'static'
 export interface WordToken {
   text: string
   startMs: number
+  durationMs?: number   // 该字的精确时长（来自 YRC；估算数据无此字段）
 }
 
 /** 含逐字时序的歌词行（来自 YRC 解析或均分估算）。 */

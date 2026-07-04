@@ -108,4 +108,28 @@ describe('navigation store direction', () => {
     useNavigationStore.getState().goBack()
     expect(useNavigationStore.getState().lastAction).toBe('push')
   })
+
+  it('goBack 填充 future，goForward 沿 future 前进，navigateTo 清空 future', async () => {
+    const { useNavigationStore } = await import('./navigation')
+    useNavigationStore.setState({ currentView: 'explore', history: [], future: [], lastAction: 'push' })
+    useNavigationStore.getState().navigateTo('library')
+    useNavigationStore.getState().navigateTo('settings')
+
+    useNavigationStore.getState().goBack()
+    useNavigationStore.getState().goBack()
+    expect(useNavigationStore.getState().currentView).toBe('explore')
+    expect(useNavigationStore.getState().future).toEqual(['library', 'settings'])
+
+    useNavigationStore.getState().goForward()
+    expect(useNavigationStore.getState().currentView).toBe('library')
+    expect(useNavigationStore.getState().lastAction).toBe('push')
+    expect(useNavigationStore.getState().history).toEqual(['explore'])
+
+    // 新导航清空 future
+    useNavigationStore.getState().navigateTo('explore')
+    expect(useNavigationStore.getState().future).toEqual([])
+    // future 已空：goForward 无效果
+    useNavigationStore.getState().goForward()
+    expect(useNavigationStore.getState().currentView).toBe('explore')
+  })
 })

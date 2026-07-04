@@ -9,6 +9,13 @@
   position: relative;
   z-index: 100;
   -webkit-app-region: drag;
+  transition: opacity 0.3s ease;
+}
+
+/* 歌词面板打开时整条隐藏,交互一并禁用 */
+.barHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ---- Left ---- */
@@ -19,29 +26,50 @@
   -webkit-app-region: no-drag;
 }
 
-.backBtn {
+/* 后退/前进胶囊组 */
+.navGroup {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin-left: 8px;
+  padding: 0 2px;
+  background: var(--glass-bg-base);
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+}
+
+.navBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin-left: 8px;
+  width: 30px;
+  height: 26px;
   border: none;
   background: transparent;
   color: var(--sm-text-secondary);
-  border-radius: 6px;
+  border-radius: var(--sm-radius-pill);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
-.backBtn:hover:not(:disabled) {
-  background: var(--sm-border);
+.navBtn:hover:not(:disabled) {
+  background: var(--sm-bg-overlay);
   color: var(--sm-text-primary);
 }
 
-.backBtn:disabled {
-  opacity: 0.3;
+.navBtn:disabled {
+  opacity: 0.28;
   cursor: default;
+}
+
+.navDivider {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--sm-border);
+  flex-shrink: 0;
 }
 
 /* ---- Center ---- */
@@ -53,6 +81,62 @@
   left: 50%;
   transform: translateX(-50%);
   -webkit-app-region: no-drag;
+}
+
+/* 滑动胶囊导航 */
+.segNav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--glass-bg-base);
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+}
+
+.segItem {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 5px 16px;
+  border-radius: var(--sm-radius-pill);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.segItem:focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 1px;
+}
+
+.segPill {
+  position: absolute;
+  inset: 0;
+  background: var(--sm-accent);
+  border-radius: var(--sm-radius-pill);
+  box-shadow: 0 2px 14px color-mix(in srgb, var(--ambient-1) 40%, transparent);
+}
+
+.segLabel {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  transition: color 0.2s var(--sm-ease-out);
+}
+
+.segItem:hover .segLabel {
+  color: var(--sm-text-primary);
+}
+
+.segActive .segLabel {
+  color: var(--sm-text-on-accent);
+  font-weight: 600;
 }
 
 /* ---- Right ---- */
@@ -72,26 +156,42 @@
 .searchForm {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 32px;
   background: var(--glass-bg-base);
-  border: 1px solid var(--sm-border);
-  border-radius: 8px;
-  padding: 5px 10px;
-  width: 88px;
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  padding: 0 12px;
+  width: 92px;
   overflow: hidden;
   cursor: pointer;
-  transition: width 0.35s var(--sm-ease-out), border-color 0.15s;
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  transition: width 0.35s var(--sm-ease-out), border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.searchForm:hover:not(.searchExpanded) {
+  background: var(--glass-bg-card);
+  border-color: var(--glass-border-card);
+}
+
+.searchForm:hover:not(.searchExpanded) .searchIcon,
+.searchForm:hover:not(.searchExpanded) .searchPlaceholder {
+  color: var(--sm-text-primary);
 }
 
 .searchExpanded {
   width: 260px;
   cursor: text;
-  border-color: var(--glass-border-card);
+  border-color: color-mix(in srgb, var(--ambient-2) 45%, var(--glass-border-card));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ambient-1) 14%, transparent);
 }
 
 .searchIcon {
   flex-shrink: 0;
   color: var(--sm-text-secondary);
+  transition: color 0.2s;
 }
 
 .searchInput {
@@ -112,6 +212,7 @@
   color: var(--sm-text-secondary);
   white-space: nowrap;
   user-select: none;
+  transition: color 0.2s;
 }
 
 .searchDropdown {
@@ -202,21 +303,40 @@
   position: relative;
 }
 
+/* 氛围渐变描边圆钮（颜色随封面取色流动） */
 .avatarBtn {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--sm-border);
-  background: var(--sm-bg-base);
-  color: var(--sm-text-secondary);
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  border: none;
+  background: var(--ambient-gradient);
   border-radius: 50%;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: box-shadow 0.25s var(--sm-ease-out);
 }
 
 .avatarBtn:hover {
-  background: var(--sm-bg-elevated);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--ambient-1) 45%, transparent);
+}
+
+.avatarBtn:focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 2px;
+}
+
+.avatarInner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--sm-bg-base);
+  color: var(--sm-text-secondary);
+  transition: color 0.15s;
+}
+
+.avatarBtn:hover .avatarInner {
   color: var(--sm-text-primary);
 }

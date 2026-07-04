@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
+import { useNavigationStore } from '../stores/navigation'
 import { HeroBanner } from '../components/Explore/HeroBanner'
 import { CardRail } from '../components/Explore/CardRail'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
@@ -18,10 +19,16 @@ export function ExplorePage() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [songs, setSongs] = useState<Track[]>([])
-  const [detail, setDetail] = useState<{ playlist: Playlist; tracks: Track[] } | null>(null)
   const [loadingId, setLoadingId] = useState<unknown>(null)
   // 入场 stagger 只在首次展示列表时播放；从详情返回时跳过，保证共享元素飞回干净
   const [revealPlayed, setRevealPlayed] = useState(false)
+
+  // 歌单详情提升到导航 store：顶栏前进/后退可穿越
+  const currentView = useNavigationStore((s) => s.currentView)
+  const detail =
+    typeof currentView === 'object' && currentView.type === 'playlist' && currentView.from === 'explore'
+      ? currentView
+      : null
 
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
@@ -31,6 +38,13 @@ export function ExplorePage() {
     void service.getNewSongs().then(setSongs).catch(() => {})
   }, [service])
 
+  // 详情开合的所有路径（页内返回键、顶栏前进/后退）都重置滚动渐变遮罩
+  useEffect(() => {
+    setTopOpacity(0)
+    setBottomOpacity(0)
+    if (detail) setRevealPlayed(true)
+  }, [detail, setTopOpacity, setBottomOpacity])
+
   function playTrack(list: Track[], index: number) {
     usePlaylistStore.getState().setQueue(list, index)
   }
@@ -39,7 +53,7 @@ export function ExplorePage() {
     setLoadingId(pl.id)
     try {
       const tracks = await service.getPlaylistDetail(pl.id)
-      setDetail({ playlist: pl, tracks })
+      useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: pl, tracks })
     } finally {
       setLoadingId(null)
     }
@@ -50,7 +64,7 @@ export function ExplorePage() {
       <div className={styles.page} onScroll={handleScroll}>
         <div className="topGradient" style={{ opacity: topOpacity }} />
         <div className={styles.detailHeader}>
-          <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null); setRevealPlayed(true) }}>← 返回</button>
+          <button className={`${styles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}>← 返回</button>
           <div className={styles.detailMeta}>
             {detail.playlist.cover && (
               <motion.img

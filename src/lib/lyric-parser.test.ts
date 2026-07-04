@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -22,6 +22,37 @@ describe('parseLrc', () => {
 
   it('handles single-digit fraction as tenths', () => {
     expect(parseLrc('[01:02.5]x')).toEqual([{ time: 62.5, text: 'x' }])
+  })
+})
+
+describe('parseYrc', () => {
+  it('parses real yrc lines: absolute word start converted to line-relative offset', () => {
+    const yrc = [
+      '{"t":0,"c":[{"tx":"作词: "},{"tx":"某人"}]}',
+      '[1000,2000](1000,300,0)你(1300,700,0)好(2000,1000,0)世界',
+    ].join('\n')
+    expect(parseYrc(yrc)).toEqual([
+      {
+        time: 1,
+        durationMs: 2000,
+        words: [
+          { text: '你', startMs: 0, durationMs: 300 },
+          { text: '好', startMs: 300, durationMs: 700 },
+          { text: '世界', startMs: 1000, durationMs: 1000 },
+        ],
+      },
+    ])
+  })
+
+  it('keeps multi-char english tokens with trailing spaces', () => {
+    const yrc = '[100,900](100,300,0)EAS (400,300,0)MUSIC (700,300,0)LTD'
+    const [line] = parseYrc(yrc)
+    expect(line.words.map((w) => w.text)).toEqual(['EAS ', 'MUSIC ', 'LTD'])
+    expect(line.words[1]).toEqual({ text: 'MUSIC ', startMs: 300, durationMs: 300 })
+  })
+
+  it('skips whitespace-only tokens and lines without words', () => {
+    expect(parseYrc('[0,500](0,250,0) (250,250,0)\n[500,500]')).toEqual([])
   })
 })
 

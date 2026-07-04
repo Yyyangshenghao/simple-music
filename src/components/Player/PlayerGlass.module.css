@@ -3,6 +3,8 @@
   pointer-events: none;
   flex-shrink: 0;
   position: relative;
+  /* 悬浮于歌词面板(200)之上,歌词全屏时播放栏仍可用 */
+  z-index: 210;
   /* 能量归零时辉光渐熄而非瞬灭 */
   transition: --audio-energy 0.35s ease;
 }
