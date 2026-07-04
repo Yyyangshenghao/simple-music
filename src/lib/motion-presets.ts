@@ -3,8 +3,11 @@ import type { Transition, Variants } from 'motion/react'
 /** 快速回弹弹簧：按钮按压、小控件。 */
 export const springSnappy: Transition = { type: 'spring', stiffness: 480, damping: 30, mass: 0.7 }
 
+/** springGentle 的原始参数（供 useSpring 等需要 SpringOptions 的 API 使用）。 */
+export const gentleSpringValues = { stiffness: 220, damping: 26, mass: 1 }
+
 /** 柔和弹簧：卡片上浮、面板入场。 */
-export const springGentle: Transition = { type: 'spring', stiffness: 220, damping: 26, mass: 1 }
+export const springGentle: Transition = { type: 'spring', ...gentleSpringValues }
 
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }

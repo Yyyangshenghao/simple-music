@@ -1,0 +1,29 @@
+.tilt {
+  position: relative;
+  border-radius: var(--sm-radius-card);
+  transform-style: preserve-3d;
+  transition: box-shadow 240ms var(--sm-ease-out);
+}
+
+.tilt:hover {
+  box-shadow: var(--glow-soft);
+}
+
+/* 追光光斑：跟随 --spot-x/--spot-y，hover 淡入 */
+.spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms var(--sm-ease-out);
+  background: radial-gradient(
+    180px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    color-mix(in srgb, var(--ambient-2) 18%, transparent),
+    transparent 70%
+  );
+}
+
+.tilt:hover .spotlight {
+  opacity: 1;
+}
