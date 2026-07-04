@@ -26,6 +26,7 @@ export function ExplorePage() {
   const [radar, setRadar] = useState<RadarPlaylist | null>(null)
   const [preview, setPreview] = useState<Playlist | null>(null)
   const refilling = useRef(false)
+  const loadSession = useRef(0)
 
   // 歌单详情提升到导航 store：顶栏前进/后退可穿越
   const currentView = useNavigationStore((s) => s.currentView)
@@ -37,24 +38,31 @@ export function ExplorePage() {
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
   useEffect(() => {
+    // 音源切换后丢弃在途响应，避免旧源数据混入新源状态
+    const session = ++loadSession.current
     setPool(EMPTY_POOL)
     setPoolLoaded(false)
     setDailySongs([])
     setRadar(null)
     void service.getRecommendPlaylists()
-      .then((pls) => setPool(createPool(pls)))
+      .then((pls) => { if (loadSession.current === session) setPool(createPool(pls)) })
       .catch(() => {})
-      .finally(() => setPoolLoaded(true))
-    void service.getDailySongs?.().then(setDailySongs).catch(() => {})
-    void service.getRadarPlaylist?.().then(setRadar).catch(() => {})
+      .finally(() => { if (loadSession.current === session) setPoolLoaded(true) })
+    void service.getDailySongs?.()
+      .then((songs) => { if (loadSession.current === session) setDailySongs(songs) })
+      .catch(() => {})
+    void service.getRadarPlaylist?.()
+      .then((r) => { if (loadSession.current === session) setRadar(r) })
+      .catch(() => {})
   }, [service])
 
   // 池子见底时带新 timestamp 补一批（id 去重；全重复时由 swipeTop 回收循环）
   useEffect(() => {
     if (pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
     refilling.current = true
+    const session = loadSession.current
     service.getRecommendPlaylists()
-      .then((pls) => setPool((p) => refill(p, pls, (x) => x.id)))
+      .then((pls) => { if (loadSession.current === session) setPool((p) => refill(p, pls, (x) => x.id)) })
       .catch(() => {})
       .finally(() => { refilling.current = false })
   }, [pool, service])

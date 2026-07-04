@@ -115,9 +115,15 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const cookie = getCookie(ctx, 'netease')
       const resp = await call('personalized', { limit: 30, cookie, timestamp: Date.now() })
-      const playlists = asArr(asObj(resp.body).result || [])
+      const mapped = asArr(asObj(resp.body).result || [])
         .map((pl) => mapDiscoverPlaylist(pl, '推荐歌单'))
         .filter((pl) => pl.id && pl.name)
+      const seen = new Set<unknown>()
+      const playlists = mapped.filter((pl) => {
+        if (seen.has(pl.id)) return false
+        seen.add(pl.id)
+        return true
+      })
       sendJson(res, { playlists })
     } catch (err) {
       console.error('[RecommendPlaylists]', err)
