@@ -1,21 +1,11 @@
 import { api } from './api'
 import type { MusicService, RadarPlaylist } from './music-service'
-import type { Banner, Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
+import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class NeteaseMusicService implements MusicService {
-  async getRecommendBanners(): Promise<Banner[]> {
-    const res = await api.get<{ banners: Banner[] }>('/api/netease/banner')
-    return res.banners ?? []
-  }
-
   async getRecommendPlaylists(): Promise<Playlist[]> {
     const res = await api.get<{ playlists: Playlist[] }>('/api/netease/recommend/playlists')
     return res.playlists ?? []
-  }
-
-  async getNewSongs(): Promise<Track[]> {
-    const res = await api.get<{ songs: Track[] }>('/api/netease/recommend/songs')
-    return res.songs ?? []
   }
 
   async getPlaylistDetail(id: unknown): Promise<Track[]> {

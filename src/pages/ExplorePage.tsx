@@ -1,27 +1,31 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
-import { HeroBanner } from '../components/Explore/HeroBanner'
-import { CardRail } from '../components/Explore/CardRail'
-import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
-import { RevealItem } from '../components/ui/RevealItem'
+import { HeroCard } from '../components/Explore/HeroCard'
+import { RecentRail } from '../components/Explore/RecentRail'
+import { Stack } from '../components/Explore/Stack'
+import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { GradientText } from '../components/ui/GradientText'
 import { fadeRise, springGentle } from '../lib/motion-presets'
-import type { Banner, Playlist, Track } from '../types/domain'
+import { createPool, needsRefill, refill, swipeTop, type StackPoolState } from '../lib/stack-pool'
+import type { RadarPlaylist } from '../lib/music-service'
+import type { Playlist, Track } from '../types/domain'
 import styles from './ExplorePage.module.css'
+
+const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
 
 export function ExplorePage() {
   const service = useMusicService()
-  const [banners, setBanners] = useState<Banner[]>([])
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [songs, setSongs] = useState<Track[]>([])
-  const [loadingId, setLoadingId] = useState<unknown>(null)
-  // 入场 stagger 只在首次展示列表时播放；从详情返回时跳过，保证共享元素飞回干净
-  const [revealPlayed, setRevealPlayed] = useState(false)
+  const [pool, setPool] = useState(EMPTY_POOL)
+  const [poolLoaded, setPoolLoaded] = useState(false)
+  const [dailySongs, setDailySongs] = useState<Track[]>([])
+  const [radar, setRadar] = useState<RadarPlaylist | null>(null)
+  const [preview, setPreview] = useState<Playlist | null>(null)
+  const refilling = useRef(false)
 
   // 歌单详情提升到导航 store：顶栏前进/后退可穿越
   const currentView = useNavigationStore((s) => s.currentView)
@@ -33,30 +37,59 @@ export function ExplorePage() {
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
   useEffect(() => {
-    void service.getRecommendBanners().then(setBanners).catch(() => {})
-    void service.getRecommendPlaylists().then(setPlaylists).catch(() => {})
-    void service.getNewSongs().then(setSongs).catch(() => {})
+    setPool(EMPTY_POOL)
+    setPoolLoaded(false)
+    setDailySongs([])
+    setRadar(null)
+    void service.getRecommendPlaylists()
+      .then((pls) => setPool(createPool(pls)))
+      .catch(() => {})
+      .finally(() => setPoolLoaded(true))
+    void service.getDailySongs?.().then(setDailySongs).catch(() => {})
+    void service.getRadarPlaylist?.().then(setRadar).catch(() => {})
   }, [service])
+
+  // 池子见底时带新 timestamp 补一批（id 去重；全重复时由 swipeTop 回收循环）
+  useEffect(() => {
+    if (pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
+    refilling.current = true
+    service.getRecommendPlaylists()
+      .then((pls) => setPool((p) => refill(p, pls, (x) => x.id)))
+      .catch(() => {})
+      .finally(() => { refilling.current = false })
+  }, [pool, service])
 
   // 详情开合的所有路径（页内返回键、顶栏前进/后退）都重置滚动渐变遮罩
   useEffect(() => {
     setTopOpacity(0)
     setBottomOpacity(0)
-    if (detail) setRevealPlayed(true)
   }, [detail, setTopOpacity, setBottomOpacity])
+
+  const handleSwipe = useCallback(() => setPool((p) => swipeTop(p)), [])
 
   function playTrack(list: Track[], index: number) {
     usePlaylistStore.getState().setQueue(list, index)
   }
 
-  async function openPlaylist(pl: Playlist) {
-    setLoadingId(pl.id)
-    try {
-      const tracks = await service.getPlaylistDetail(pl.id)
-      useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: pl, tracks })
-    } finally {
-      setLoadingId(null)
+  function openDaily() {
+    if (dailySongs.length === 0) return
+    const pl: Playlist = {
+      provider: 'netease',
+      source: 'netease',
+      type: 'playlist',
+      id: 'netease-daily-songs',
+      name: '每日推荐',
+      cover: dailySongs[0]?.cover ?? '',
+      trackCount: dailySongs.length,
+      playCount: 0,
+      creator: '',
     }
+    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: pl, tracks: dailySongs })
+  }
+
+  function openRadar() {
+    if (!radar) return
+    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: radar.playlist, tracks: radar.tracks })
   }
 
   if (detail) {
@@ -91,38 +124,70 @@ export function ExplorePage() {
     )
   }
 
+  const top = pool.hand.length > 0 ? pool.hand[pool.hand.length - 1] : null
+  const hasSideCards = dailySongs.length > 0 || radar !== null
+
   return (
     <div className={styles.page} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
 
-      {banners.length > 0 && <HeroBanner banners={banners} />}
-
-      {playlists.length > 0 && (
-        <CardRail title="推荐歌单">
-          {playlists.map((pl, i) => (
-            <RevealItem key={String(pl.id) + i} delay={Math.min(i, 8) * 0.04} disabled={revealPlayed}>
-              <PlaylistCard
-                playlist={pl}
-                onClick={() => { if (!loadingId) void openPlaylist(pl) }}
-                layoutId={`explore-cover-${String(pl.id)}`}
+      <motion.section className={styles.hero} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
+        {hasSideCards && (
+          <div className={styles.heroCards}>
+            {dailySongs.length > 0 && (
+              <HeroCard
+                title="每日推荐"
+                subtitle={`${dailySongs.length} 首 · 每天更新`}
+                cover={dailySongs[0]?.cover}
+                badge={<span>{new Date().getDate()}</span>}
+                layoutId="explore-cover-netease-daily-songs"
+                onClick={openDaily}
               />
-            </RevealItem>
-          ))}
-        </CardRail>
-      )}
-
-      {songs.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}><GradientText>今日推荐</GradientText></h2>
-          <div className={styles.trackList}>
-            {songs.map((s, i) => (
-              <AnimatedTrackRow key={String(s.id) + i} track={s} index={i} onPlay={() => playTrack(songs, i)} delay={i * 0.05} />
-            ))}
+            )}
+            {radar && (
+              <HeroCard
+                title="私人雷达"
+                subtitle={`${radar.tracks.length} 首 · 根据你的口味`}
+                cover={radar.playlist.cover}
+                layoutId={`explore-cover-${String(radar.playlist.id)}`}
+                onClick={openRadar}
+              />
+            )}
           </div>
-        </section>
-      )}
+        )}
+
+        {pool.hand.length > 0 && (
+          <div className={styles.stage}>
+            <Stack cards={pool.hand} onSwipe={handleSwipe} onCardClick={setPreview} />
+            {top && (
+              <div className={styles.topInfo}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={String(top.id)}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <p className={styles.topName}>{top.name}</p>
+                    {top.description && <p className={styles.topDesc}>{top.description}</p>}
+                  </motion.div>
+                </AnimatePresence>
+                <p className={styles.topHint}>拖拽换一张 · 点击看曲目</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {poolLoaded && pool.hand.length === 0 && !hasSideCards && (
+          <p className={styles.empty}>暂时没有推荐内容</p>
+        )}
+      </motion.section>
+
+      {service.getDailySongs && <RecentRail />}
 
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
+      <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
     </div>
   )
 }

@@ -1,9 +1,7 @@
-import type { Track, Playlist, LyricLine, ArtistInfo, Banner } from '../types/domain'
+import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export interface MusicService {
-  getRecommendBanners(): Promise<Banner[]>
   getRecommendPlaylists(): Promise<Playlist[]>
-  getNewSongs(): Promise<Track[]>
   getPlaylistDetail(id: unknown): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>

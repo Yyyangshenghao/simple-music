@@ -1,16 +1,12 @@
 import { api } from './api'
 import type { MusicService } from './music-service'
-import type { Banner, Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
+import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class QQMusicService implements MusicService {
-  async getRecommendBanners(): Promise<Banner[]> { return [] }
-
   async getRecommendPlaylists(): Promise<Playlist[]> {
     const res = await api.get<{ playlists: Playlist[] }>('/api/qq/playlists/discover')
     return res.playlists ?? []
   }
-
-  async getNewSongs(): Promise<Track[]> { return [] }
 
   async getPlaylistDetail(id: unknown): Promise<Track[]> {
     const res = await api.get<{ tracks: Track[] }>('/api/qq/playlist/tracks', { id: id as string | number })

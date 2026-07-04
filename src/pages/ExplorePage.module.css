@@ -41,3 +41,58 @@
 
 .detailTitle { font-size: 22px; font-weight: 700; margin: 0 0 4px; color: var(--sm-text-primary); }
 .detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 0; }
+
+/* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台） ---------- */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-height: 300px;
+  padding: 16px 24px 8px;
+}
+
+.heroCards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.topInfo { width: 170px; }
+
+.topName {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sm-text-primary);
+}
+
+.topDesc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sm-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.topHint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  opacity: 0.7;
+}
+
+.empty {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--sm-text-secondary);
+}
