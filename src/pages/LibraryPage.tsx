@@ -68,7 +68,7 @@ export function LibraryPage() {
         </div>
         <motion.div className={styles.trackList} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
           {detail.tracks.map((t, i) => (
-            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={i * 0.05} />
+            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={0.15 + i * 0.05} />
           ))}
         </motion.div>
         <div className="bottomGradient" style={{ opacity: bottomOpacity }} />

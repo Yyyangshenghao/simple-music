@@ -20,6 +20,8 @@ export function ExplorePage() {
   const [songs, setSongs] = useState<Track[]>([])
   const [detail, setDetail] = useState<{ playlist: Playlist; tracks: Track[] } | null>(null)
   const [loadingId, setLoadingId] = useState<unknown>(null)
+  // 入场 stagger 只在首次展示列表时播放；从详情返回时跳过，保证共享元素飞回干净
+  const [revealPlayed, setRevealPlayed] = useState(false)
 
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
@@ -48,7 +50,7 @@ export function ExplorePage() {
       <div className={styles.page} onScroll={handleScroll}>
         <div className="topGradient" style={{ opacity: topOpacity }} />
         <div className={styles.detailHeader}>
-          <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null) }}>← 返回</button>
+          <button className={`${styles.backBtn} no-drag`} onClick={() => { setTopOpacity(0); setBottomOpacity(0); setDetail(null); setRevealPlayed(true) }}>← 返回</button>
           <div className={styles.detailMeta}>
             {detail.playlist.cover && (
               <motion.img
@@ -67,7 +69,7 @@ export function ExplorePage() {
         </div>
         <motion.div className={styles.trackList} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
           {detail.tracks.map((t, i) => (
-            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={i * 0.05} />
+            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={0.15 + i * 0.05} />
           ))}
         </motion.div>
         <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
@@ -84,7 +86,7 @@ export function ExplorePage() {
       {playlists.length > 0 && (
         <CardRail title="推荐歌单">
           {playlists.map((pl, i) => (
-            <RevealItem key={String(pl.id) + i} delay={Math.min(i, 8) * 0.04}>
+            <RevealItem key={String(pl.id) + i} delay={Math.min(i, 8) * 0.04} disabled={revealPlayed}>
               <PlaylistCard
                 playlist={pl}
                 onClick={() => { if (!loadingId) void openPlaylist(pl) }}
