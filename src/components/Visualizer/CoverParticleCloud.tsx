@@ -5,6 +5,7 @@ import { useVisualStore } from '../../stores/visual'
 import { usePlayerStore } from '../../stores/player'
 import { api } from '../../lib/api'
 import { generateShape } from './presets/shapes'
+import { bassEnergyFrom } from '../../lib/audio-energy'
 import type { PerformanceMode } from '../../types/domain'
 
 const COUNT_BY_MODE: Record<PerformanceMode, number> = {
@@ -16,12 +17,7 @@ const COUNT_BY_MODE: Record<PerformanceMode, number> = {
 
 function bassEnergy(): number {
   const engine = usePlayerStore.getState()._engine()
-  const data = engine.getFrequencyData()
-  if (!data.length) return 0
-  const n = Math.min(16, data.length)
-  let sum = 0
-  for (let i = 0; i < n; i++) sum += data[i]
-  return sum / n / 255
+  return bassEnergyFrom(engine.getFrequencyData())
 }
 
 interface CoverParticleCloudProps {

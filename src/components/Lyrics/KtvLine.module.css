@@ -49,4 +49,6 @@
   margin-top: 4px;
   text-align: center;
   letter-spacing: 0.3px;
+  /* 光晕只属于主歌词行 */
+  text-shadow: none;
 }

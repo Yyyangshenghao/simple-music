@@ -2,6 +2,7 @@
 @property --ambient-1 { syntax: '<color>'; inherits: true; initial-value: #5227ff; }
 @property --ambient-2 { syntax: '<color>'; inherits: true; initial-value: #ff9ffc; }
 @property --ambient-3 { syntax: '<color>'; inherits: true; initial-value: #b497cf; }
+@property --audio-energy { syntax: '<number>'; inherits: true; initial-value: 0; }
 
 /* ── 深色模式（主） ── */
 :root {

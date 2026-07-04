@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'motion/react'
 import { springGentle, gentleSpringValues } from '../../lib/motion-presets'
@@ -26,6 +26,14 @@ export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
   const rotateX = useTransform(sy, [0, 1], [maxTilt, -maxTilt])
   // 运行时响应系统「减弱动态」切换
   const reducedMotion = useReducedMotion()
+
+  // 切换减弱动态时复位姿态，避免卡在倾斜状态
+  useEffect(() => {
+    if (reducedMotion) {
+      px.set(0.5)
+      py.set(0.5)
+    }
+  }, [reducedMotion, px, py])
 
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     const el = ref.current

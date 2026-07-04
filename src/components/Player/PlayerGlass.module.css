@@ -3,6 +3,8 @@
   pointer-events: none;
   flex-shrink: 0;
   position: relative;
+  /* 能量归零时辉光渐熄而非瞬灭 */
+  transition: --audio-energy 0.35s ease;
 }
 
 .panel {
