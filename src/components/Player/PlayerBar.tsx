@@ -1,5 +1,7 @@
+import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
+import { tapScale, springSnappy } from '../../lib/motion-presets'
 import { Slider } from '../ui/Slider'
 import { ElasticSlider } from '../ui/ElasticSlider'
 import { PlayerGlass } from './PlayerGlass'
@@ -76,22 +78,24 @@ export function PlayerBar({ onOpenLyrics }: PlayerBarProps) {
 
         <div className={styles.center}>
           <div className={styles.buttons}>
-            <button type="button" className={`${styles.btn} no-drag`} onClick={prev} title="上一首" aria-label="上一首">
+            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={prev} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
               <PrevIcon />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               type="button"
               className={`${styles.btn} ${styles.playBtn} no-drag`}
               onClick={toggle}
               title={isPlaying ? '暂停' : '播放'}
               aria-label={isPlaying ? '暂停' : '播放'}
               data-loading={isLoading}
+              whileTap={tapScale}
+              transition={springSnappy}
             >
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
-            </button>
-            <button type="button" className={`${styles.btn} no-drag`} onClick={next} title="下一首" aria-label="下一首">
+            </motion.button>
+            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={next} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
               <NextIcon />
-            </button>
+            </motion.button>
           </div>
 
           <div className={styles.progress}>

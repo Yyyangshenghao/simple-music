@@ -2,10 +2,27 @@
   padding: 10px 16px;
   pointer-events: none;
   flex-shrink: 0;
+  position: relative;
 }
 
 .panel {
   pointer-events: auto;
   -webkit-app-region: no-drag;
   padding: 12px 20px;
+}
+
+/* 音频响应辉光：opacity 由 --audio-energy（useAudioEnergy 每帧写入）驱动 */
+.glow {
+  position: absolute;
+  inset: 4px 24px 2px;
+  border-radius: 24px;
+  pointer-events: none;
+  background: radial-gradient(
+    60% 100% at 50% 100%,
+    color-mix(in srgb, var(--ambient-1) 45%, transparent),
+    color-mix(in srgb, var(--ambient-2) 25%, transparent) 55%,
+    transparent 80%
+  );
+  filter: blur(24px);
+  opacity: calc(var(--audio-energy, 0) * 0.85);
 }
