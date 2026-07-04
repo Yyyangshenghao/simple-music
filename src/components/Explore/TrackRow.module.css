@@ -81,6 +81,7 @@
   border-radius: 1px;
   background: var(--ambient-1);
   animation: eqBounce 0.9s ease-in-out infinite;
+  transform-origin: 50% 100%;
 }
 
 .eq i:nth-child(1) { height: 60%; animation-delay: 0s; }

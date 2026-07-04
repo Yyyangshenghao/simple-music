@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { ShelfCard } from './ShelfCard'
 import { ShelfDetail } from './ShelfDetail'
@@ -77,9 +76,8 @@ export function ShelfScene() {
                 <div
                   key={`${String(playlist.id)}-${index}`}
                   className={styles.slot}
-                  style={{ '--i': index } as CSSProperties}
                 >
-                  <RevealItem delay={index * 0.04}>
+                  <RevealItem delay={Math.min(index, 8) * 0.04}>
                     <ShelfCard playlist={playlist} onOpen={() => handleOpen(playlist)} />
                   </RevealItem>
                 </div>

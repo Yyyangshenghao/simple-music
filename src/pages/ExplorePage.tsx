@@ -76,7 +76,7 @@ export function ExplorePage() {
       {playlists.length > 0 && (
         <CardRail title="推荐歌单">
           {playlists.map((pl, i) => (
-            <RevealItem key={String(pl.id) + i} delay={i * 0.04}>
+            <RevealItem key={String(pl.id) + i} delay={Math.min(i, 8) * 0.04}>
               <PlaylistCard
                 playlist={pl}
                 onClick={() => { if (!loadingId) void openPlaylist(pl) }}

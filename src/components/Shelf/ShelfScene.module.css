@@ -105,35 +105,6 @@
 
 .slot {
   transform-style: preserve-3d;
-  /* 入场逐张错峰浮现（--i 由组件按索引注入）。 */
-  animation: rise 0.45s both;
-  animation-delay: calc(var(--i, 0) * 40ms);
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 动态镜头下：卡片立体上浮 + hover 抽出。 */
-.dynamic .slot {
-  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-.dynamic .slot:hover {
-  transform: translateZ(60px) translateY(-6px) rotateY(6deg);
-  z-index: 5;
-}
-
-.static .slot:hover {
-  transform: translateY(-4px);
-  transition: transform 0.25s ease;
 }
 
 /* 架板：卡片下方一道暖色搁板，呼应原视觉的书架感。 */
