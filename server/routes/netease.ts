@@ -783,7 +783,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const ids = (url.searchParams.get('ids') || '')
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)
+        .filter((s) => /^\d+$/.test(s))
         .slice(0, 200)
       if (!ids.length) {
         sendJson(res, { error: 'Missing ids', tracks: [] }, 400)
