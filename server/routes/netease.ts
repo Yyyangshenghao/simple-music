@@ -820,6 +820,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
       let trackIds: string[] = []
       let tracks: ReturnType<typeof mapSongRecord>[] = []
+      let upstreamError: string | null = null
 
       // 1) playlist_detail:meta + 完整 trackIds(快,不受 500 限制)
       if (has('playlist_detail')) {
@@ -836,6 +837,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             .map((t) => asStr(asObj(t).id))
             .filter(Boolean)
         } catch (err) {
+          upstreamError = (err as Error).message
           console.warn('[PlaylistTracks] playlist_detail failed:', (err as Error).message)
         }
       }
@@ -849,6 +851,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           const byId = new Map(songs.map((t) => [String(t.id), t]))
           tracks = head.map((tid) => byId.get(tid)).filter((t): t is ReturnType<typeof mapSongRecord> => !!t)
         } catch (err) {
+          upstreamError = (err as Error).message
           console.warn('[PlaylistTracks] song_detail failed:', (err as Error).message)
         }
       }
@@ -860,14 +863,25 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           const ab = asObj(all.body)
           const rawTracks = Array.isArray(ab.songs) ? ab.songs : asArr(ab.tracks)
           tracks = rawTracks.map(mapSongRecord).filter((t) => t.id)
-          if (!trackIds.length) trackIds = tracks.map((t) => asStr(t.id))
         } catch (err) {
+          upstreamError = (err as Error).message
           console.warn('[PlaylistTracks] playlist_track_all fallback failed:', (err as Error).message)
         }
       }
 
-      if (!trackIds.length) trackIds = tracks.map((t) => asStr(t.id))
-      if (!playlistMeta.trackCount) playlistMeta.trackCount = trackIds.length
+      // 三路上游全部失败:返回 500,与真实空歌单区分
+      if (!trackIds.length && !tracks.length && upstreamError) {
+        sendJson(res, { error: upstreamError, playlist: playlistMeta, trackIds: [], tracks: [] }, 500)
+        return true
+      }
+
+      if (!trackIds.length && tracks.length) {
+        // trackIds 从 tracks 推导(fallback 路径,≤500):trackCount 同步对齐,避免与 detail 残留值矛盾
+        trackIds = tracks.map((t) => asStr(t.id))
+        playlistMeta.trackCount = trackIds.length
+      } else if (!playlistMeta.trackCount) {
+        playlistMeta.trackCount = trackIds.length
+      }
       sendJson(res, { playlist: playlistMeta, trackIds, tracks })
     } catch (err) {
       console.error('[PlaylistTracks]', err)
