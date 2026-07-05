@@ -1192,7 +1192,7 @@ export default function LiquidEther({
       if (resizeRafRef.current) cancelAnimationFrame(resizeRafRef.current);
       resizeRafRef.current = requestAnimationFrame(() => {
         if (!webglRef.current) return;
-        webglRef.current.resize();
+        webglRef.current._resize();
       });
     });
     ro.observe(container);

@@ -7,14 +7,45 @@
   margin: 0 0 12px;
 }
 
-.row { display: flex; gap: 12px; }
+.row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border) transparent;
+}
 
-.placeholder {
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 92px;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cover {
   width: 92px;
   height: 92px;
   border-radius: 14px;
-  border: 1.5px dashed var(--sm-border);
-  opacity: 0.45;
+  object-fit: cover;
+  background: var(--sm-bg-elevated);
+  transition: transform 0.2s ease;
 }
 
-.hint { font-size: 12px; color: var(--sm-text-secondary); margin: 10px 0 0; }
+.card:hover .cover { transform: scale(1.04); }
+
+.name {
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card:hover .name { color: var(--sm-text-primary); }

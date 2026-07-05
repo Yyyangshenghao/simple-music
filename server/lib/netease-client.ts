@@ -360,6 +360,7 @@ const NETEASE_QUALITY_CANDIDATES: QualityCandidate[] = [
   { level: 'hires', br: 1999000, label: '高清臻音' },
   { level: 'lossless', br: 1411000, label: '无损' },
   { level: 'exhigh', br: 999000, label: '极高' },
+  { level: 'higher', br: 192000, label: '较高' },
   { level: 'standard', br: 128000, label: '标准' },
 ]
 export function normalizeQualityPreference(value: unknown): string {
@@ -368,6 +369,7 @@ export function normalizeQualityPreference(value: unknown): string {
   if (['hires', 'hi-res', 'highres', 'zhenyin', 'spatial'].includes(raw)) return 'hires'
   if (['lossless', 'flac', 'sq'].includes(raw)) return 'lossless'
   if (['exhigh', 'high', '320', '320k', 'hq'].includes(raw)) return 'exhigh'
+  if (['higher', 'medium', '192', '192k'].includes(raw)) return 'higher'
   if (['standard', 'normal', '128', '128k', 'std'].includes(raw)) return 'standard'
   return 'hires'
 }

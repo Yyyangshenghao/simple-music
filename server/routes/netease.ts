@@ -110,13 +110,17 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // ---------- Recommend Playlists（Stack 池子：单源 personalized，一次 30 个） ----------
+  // ---------- Recommend Playlists（Stack 池子：page 0 = personalized，page >= 1 = 歌单广场热门分页，可无限翻页） ----------
   if (pn === '/api/netease/recommend/playlists') {
     try {
       const cookie = getCookie(ctx, 'netease')
-      const resp = await call('personalized', { limit: 30, cookie, timestamp: Date.now() })
-      const mapped = asArr(asObj(resp.body).result || [])
-        .map((pl) => mapDiscoverPlaylist(pl, '推荐歌单'))
+      const page = Math.max(0, Math.trunc(asNum(url.searchParams.get('page'))))
+      const resp = page === 0
+        ? await call('personalized', { limit: 30, cookie, timestamp: Date.now() })
+        : await call('top_playlist', { order: 'hot', limit: 30, offset: (page - 1) * 30, cookie, timestamp: Date.now() })
+      const body = asObj(resp.body)
+      const mapped = asArr(body.result || body.playlists || [])
+        .map((pl) => mapDiscoverPlaylist(pl, page === 0 ? '推荐歌单' : '热门歌单'))
         .filter((pl) => pl.id && pl.name)
       const seen = new Set<unknown>()
       const playlists = mapped.filter((pl) => {
@@ -169,6 +173,33 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[Radar]', err)
       sendJson(res, { playlist: null, tracks: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- 最近播放歌单（账号级播放记录，需登录 cookie） ----------
+  if (pn === '/api/netease/recent/playlists') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      if (!cookie) {
+        sendJson(res, { playlists: [] })
+        return true
+      }
+      const resp = await call('record_recent_playlist', { limit: 12, cookie, timestamp: Date.now() })
+      const list = asArr(asObj(asObj(resp.body).data).list)
+      const seen = new Set<unknown>()
+      const playlists = list
+        .map((item) => mapDiscoverPlaylist(asObj(item).data, '最近播放'))
+        .filter((pl) => pl.id && pl.name)
+        .filter((pl) => {
+          if (seen.has(pl.id)) return false
+          seen.add(pl.id)
+          return true
+        })
+      sendJson(res, { playlists })
+    } catch (err) {
+      console.error('[RecentPlaylists]', err)
+      sendJson(res, { playlists: [] }, 500)
     }
     return true
   }

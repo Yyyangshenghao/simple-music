@@ -371,7 +371,8 @@ function normalizeQualityPreference(value: unknown): string {
   if (['jymaster', 'master', 'studio', 'svip'].includes(raw)) return 'jymaster'
   if (['hires', 'hi-res', 'highres', 'zhenyin', 'spatial'].includes(raw)) return 'hires'
   if (['lossless', 'flac', 'sq'].includes(raw)) return 'lossless'
-  if (['exhigh', 'high', '320', '320k', 'hq'].includes(raw)) return 'exhigh'
+  // QQ 无 192k 档，较高归入 320k
+  if (['exhigh', 'high', 'higher', 'medium', '192', '192k', '320', '320k', 'hq'].includes(raw)) return 'exhigh'
   if (['standard', 'normal', '128', '128k', 'std'].includes(raw)) return 'standard'
   return 'hires'
 }

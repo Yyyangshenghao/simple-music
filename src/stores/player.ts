@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
 import { api } from '../lib/api'
+import { useSettingsStore } from './settings'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
 interface SongUrlResponse {
@@ -45,7 +46,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     position: 0,
     duration: 0,
     volume: 0.8,
-    quality: 'exhigh',
+    quality: useSettingsStore.getState().audioQuality,
     source: 'netease',
 
     play() {
@@ -68,7 +69,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       set({ volume: v })
     },
     setQuality(q) {
-      set({ quality: q })
+      // 音质以 settings 为单一来源（含持久化），经下方订阅回流到本 store
+      useSettingsStore.getState().setAudioQuality(q)
     },
 
     async loadTrack(track) {
@@ -99,5 +101,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     _engine: ensureEngine
+  }
+})
+
+// settings.audioQuality 变化时（含启动后 loadFromLocal 回填）同步到播放器
+useSettingsStore.subscribe((s) => {
+  if (s.audioQuality !== usePlayerStore.getState().quality) {
+    usePlayerStore.setState({ quality: s.audioQuality })
   }
 })

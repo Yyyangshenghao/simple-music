@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useNavigationStore } from '../../stores/navigation'
 import { springGentle } from '../../lib/motion-presets'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
@@ -11,7 +12,7 @@ interface PlaylistPreviewModalProps {
   onClose(): void
 }
 
-/** Stack 顶卡的小卡预览：简介 + 可滚动曲目，不跳详情页。 */
+/** 歌单小卡预览：简介 + 可滚动曲目，可播放全部或进入完整详情页。 */
 export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModalProps) {
   const service = useMusicService()
   const [tracks, setTracks] = useState<Track[]>([])
@@ -47,6 +48,12 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
     usePlaylistStore.getState().setQueue(tracks, index)
   }
 
+  function openDetail() {
+    if (!playlist || tracks.length === 0) return
+    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist, tracks })
+    onClose()
+  }
+
   return (
     <AnimatePresence>
       {playlist && (
@@ -77,6 +84,7 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
             </div>
             <div className={styles.actions}>
               <button className={styles.playAll} onClick={playAll} disabled={tracks.length === 0}>▶ 播放全部</button>
+              <button className={styles.openBtn} onClick={openDetail} disabled={tracks.length === 0}>进入歌单</button>
               <span className={styles.count}>{loading ? '加载中…' : `${tracks.length} 首`}</span>
             </div>
             <div className={styles.list}>

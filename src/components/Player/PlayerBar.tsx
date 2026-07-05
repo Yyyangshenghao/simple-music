@@ -7,6 +7,7 @@ import { ElasticSlider } from '../ui/ElasticSlider'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
 import { QualityBadge } from './QualityBadge'
+import { QueuePanel } from './QueuePanel'
 import styles from './PlayerBar.module.css'
 
 /** 秒数格式化为 mm:ss；非有限值归零。 */
@@ -135,6 +136,7 @@ export function PlayerBar({ onOpenLyrics }: PlayerBarProps) {
               onChange={(v) => setVolume(v / 100)}
             />
           </div>
+          <QueuePanel />
           <QualityBadge />
         </div>
       </div>

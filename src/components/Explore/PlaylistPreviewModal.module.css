@@ -73,6 +73,19 @@
 
 .playAll:disabled { opacity: 0.5; cursor: default; }
 
+.openBtn {
+  border: 1px solid var(--sm-border);
+  cursor: pointer;
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: var(--sm-radius-pill);
+}
+
+.openBtn:disabled { opacity: 0.5; cursor: default; }
+
 .count { font-size: 12px; color: var(--sm-text-secondary); }
 
 .list {

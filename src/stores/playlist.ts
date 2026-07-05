@@ -18,6 +18,7 @@ interface PlaylistStore {
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number): void
   addToQueue(track: Track): void
+  playAt(index: number): void
   next(): void
   prev(): void
   toggleShelf(): void
@@ -53,6 +54,13 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
   addToQueue(track) {
     set((s) => ({ queue: [...s.queue, track] }))
+  },
+
+  playAt(index) {
+    const track = get().queue[index]
+    if (!track) return
+    set({ queueIndex: index })
+    void usePlayerStore.getState().loadTrack(track)
   },
 
   next() {

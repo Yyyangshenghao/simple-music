@@ -24,6 +24,18 @@ export function swipeTop<T>(state: StackPoolState<T>): StackPoolState<T> {
   return { hand: [recycled, ...rest], reserve: [], discarded: remaining }
 }
 
+/** 换一叠：整手弃掉（顶卡先弃，与 swipeTop 弃序一致），从池子抽新手牌；池子不足时回收最早弃掉的卡补齐。 */
+export function redeal<T>(state: StackPoolState<T>, handSize = 5): StackPoolState<T> {
+  const discarded = [...state.discarded, ...[...state.hand].reverse()]
+  const reserve = [...state.reserve]
+  const drawn: T[] = []
+  while (drawn.length < handSize && (reserve.length > 0 || discarded.length > 0)) {
+    drawn.push(reserve.length > 0 ? reserve.shift()! : discarded.shift()!)
+  }
+  // 先抽到的是顶卡，reverse 放到末位（渲染顺序后者在上层）
+  return { hand: drawn.reverse(), reserve, discarded }
+}
+
 export function refill<T>(state: StackPoolState<T>, incoming: T[], getId: (t: T) => unknown): StackPoolState<T> {
   const seen = new Set([...state.hand, ...state.reserve, ...state.discarded].map(getId))
   const fresh: T[] = []

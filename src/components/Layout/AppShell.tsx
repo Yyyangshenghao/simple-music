@@ -62,22 +62,24 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
   return (
     <div className={styles.shell}>
       <AmbientBackground hidden={backgroundHidden} />
-      <Suspense fallback={<div className={styles.loading} />}>
-        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div
-            key={viewKey}
-            className={styles.page}
-            custom={dir}
-            variants={pageVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={springGentle}
-          >
+      {/* Suspense 必须在 motion.div 内:lazy 页首挂载的挂起若发生在 AnimatePresence
+          子节点层,会打断旧页 exit,旧页永久滞留盖住新页(首次导航跳转失效) */}
+      <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+        <motion.div
+          key={viewKey}
+          className={styles.page}
+          custom={dir}
+          variants={pageVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={springGentle}
+        >
+          <Suspense fallback={<div className={styles.loading} />}>
             {renderPage()}
-          </motion.div>
-        </AnimatePresence>
-      </Suspense>
+          </Suspense>
+        </motion.div>
+      </AnimatePresence>
     </div>
   )
 }

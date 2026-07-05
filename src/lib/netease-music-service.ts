@@ -3,8 +3,8 @@ import type { MusicService, RadarPlaylist } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class NeteaseMusicService implements MusicService {
-  async getRecommendPlaylists(): Promise<Playlist[]> {
-    const res = await api.get<{ playlists: Playlist[] }>('/api/netease/recommend/playlists')
+  async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/netease/recommend/playlists', { page })
     return res.playlists ?? []
   }
 
@@ -51,6 +51,11 @@ export class NeteaseMusicService implements MusicService {
   async getDailySongs(): Promise<Track[]> {
     const res = await api.get<{ songs: Track[] }>('/api/netease/recommend/songs')
     return res.songs ?? []
+  }
+
+  async getRecentPlaylists(): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/netease/recent/playlists')
+    return res.playlists ?? []
   }
 
   async getRadarPlaylist(): Promise<RadarPlaylist | null> {

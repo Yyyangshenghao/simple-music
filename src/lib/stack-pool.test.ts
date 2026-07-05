@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPool, needsRefill, refill, swipeTop } from './stack-pool'
+import { createPool, needsRefill, redeal, refill, swipeTop } from './stack-pool'
 
 const ids = (arr: { id: number }[]) => arr.map((x) => x.id)
 const items = (...ns: number[]) => ns.map((id) => ({ id }))
@@ -39,6 +39,26 @@ describe('swipeTop', () => {
   it('空手牌是 no-op', () => {
     const empty = { hand: [], reserve: [], discarded: [] }
     expect(swipeTop(empty)).toBe(empty)
+  })
+})
+
+describe('redeal', () => {
+  it('整手弃掉，从池子抽 handSize 张新手牌（先抽者是顶卡=末位）', () => {
+    const pool = createPool(items(1, 2, 3, 4, 5, 6, 7, 8), 3) // hand=[3,2,1] reserve=[4..8]
+    const next = redeal(pool, 3)
+    expect(ids(next.hand)).toEqual([6, 5, 4])
+    expect(ids(next.reserve)).toEqual([7, 8])
+    expect(ids(next.discarded)).toEqual([1, 2, 3]) // 顶卡 1 先弃，与 swipeTop 弃序一致
+  })
+
+  it('池子不足时回收最早弃掉的卡补齐', () => {
+    let pool = createPool(items(1, 2, 3, 4), 3) // hand=[3,2,1] reserve=[4]
+    pool = swipeTop(pool) // 弃 1，补 4 → hand=[4,3,2] discarded=[1]
+    const next = redeal(pool, 3)
+    // reserve 空，弃牌堆=[1, 2,3,4(整手弃入)]，抽 1/2/3
+    expect(ids(next.hand)).toEqual([3, 2, 1])
+    expect(ids(next.discarded)).toEqual([4])
+    expect(next.reserve).toEqual([])
   })
 })
 

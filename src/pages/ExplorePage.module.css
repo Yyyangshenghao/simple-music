@@ -64,7 +64,8 @@
   gap: 24px;
 }
 
-.topInfo { width: 170px; }
+/* margin-left 让文字避开叠图杂乱角旋转后凸出的卡片边角 */
+.topInfo { width: 170px; margin-left: 26px; }
 
 .topName {
   margin: 0 0 6px;
@@ -89,6 +90,23 @@
   font-size: 11px;
   color: var(--sm-text-secondary);
   opacity: 0.7;
+}
+
+.redealBtn {
+  margin-top: 12px;
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.redealBtn:hover {
+  color: var(--sm-accent);
+  border-color: var(--sm-accent);
 }
 
 .empty {
