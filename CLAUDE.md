@@ -45,4 +45,5 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **样式用 CSS Modules**(`*.module.css` 与组件同目录),主题切换靠 `data-theme` 属性 + tokens.css 变量。
 - **设置持久化**在 localStorage key `simplemusic-settings`(settings store);FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
 - **`Track`/`Playlist` 的 `id` 类型是 `unknown`**(两个音源 id 形态不同,QQ 还有 mid),比较/拼 URL 前先 `String()`。
+- **跨音源数据取 service 用 `serviceFor(数据.source)`**(`src/lib/service-registry.ts`),不要用全局 activeSource 的 `useMusicService()`:导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存(终审曾抓到此 Critical)。
 - 网易私人雷达是固定歌单 id `3136952023` + 登录 cookie(`/api/netease/radar`);每日推荐/雷达为网易专属,`MusicService` 中是可选方法,未实现的音源不渲染对应卡片。
