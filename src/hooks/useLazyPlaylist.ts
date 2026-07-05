@@ -3,7 +3,7 @@
 // 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源丢弃在途响应。
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { useMusicService } from './useMusicService'
+import { serviceFor } from '../lib/service-registry'
 import { TRACK_WINDOW, windowIndicesFor, windowSpan, buildQueue } from '../lib/lazy-window'
 import type { Playlist, Track } from '../types/domain'
 
@@ -42,7 +42,10 @@ function markPrefixWindows(e: LazyEntry, prefixLen: number): void {
 }
 
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
-  const service = useMusicService()
+  // 必须绑定歌单自身的 source,不能用全局 activeSource:
+  // 切换音源后仍留在旧歌单页/预览弹窗时,用错 service 会请求错音源接口,
+  // 拿到空结果却仍按下面的逻辑落缓存,造成骨架永久占位且无法自愈。
+  const service = serviceFor(playlist.source)
   const key = `${playlist.source}:${String(playlist.id)}`
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
@@ -50,6 +53,15 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
 
   if (!cache.has(key)) {
     cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
+  } else if (initialTracks?.length) {
+    // 每日推荐/雷达等 key 固定但内容会变(例如跨天刷新):对比首尾曲目 id 与长度判断是否过期,
+    // 过期则用新 initialTracks 重新播种。seededEntry 是纯内存同步操作,幂等,在渲染阶段调用是安全的。
+    const entry = cache.get(key)!
+    const stale =
+      entry.trackIds.length !== initialTracks.length ||
+      String(entry.trackIds[0]) !== String(initialTracks[0].id) ||
+      String(entry.trackIds[entry.trackIds.length - 1]) !== String(initialTracks[initialTracks.length - 1].id)
+    if (stale) cache.set(key, seededEntry(initialTracks))
   }
 
   useEffect(() => {
@@ -93,7 +105,9 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
             for (let i = span.start; i < span.end; i++) {
               e.tracks[i] = byId.get(String(e.trackIds[i])) ?? e.tracks[i]
             }
-            e.loadedWindows.add(w)
+            // 只有真正拿到数据才标记已加载:service 绑错音源等情况会返回空数组,
+            // 若仍标记 loaded,该窗口将永久停留在骨架态,滚动重试也无法触发重拉。
+            if (fetched.length > 0) e.loadedWindows.add(w)
             if (sessionRef.current === session) bump()
           })
           .catch(() => {
