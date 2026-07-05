@@ -6,8 +6,8 @@ export type AppView =
   | 'library'
   | 'settings'
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' }
-  /** 歌单详情：携带已拉取的曲目，前进/后退时无需重新请求。 */
-  | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks: Track[] }
+  /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
+  | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks?: Track[] }
 
 interface NavigationStore {
   currentView: AppView

@@ -2,14 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
-import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
-import { AnimatedTrackRow } from '../components/Explore/AnimatedTrackRow'
 import { HeroCard } from '../components/Explore/HeroCard'
 import { RecentRail } from '../components/Explore/RecentRail'
 import { Stack } from '../components/Explore/Stack'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
-import { GradientText } from '../components/ui/GradientText'
+import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { fadeRise, springGentle } from '../lib/motion-presets'
 import { createPool, needsRefill, redeal, refill, swipeTop, type StackPoolState } from '../lib/stack-pool'
 import type { RadarPlaylist } from '../lib/music-service'
@@ -94,10 +92,6 @@ export function ExplorePage() {
     setPool((p) => redeal(p))
   }, [])
 
-  function playTrack(list: Track[], index: number) {
-    usePlaylistStore.getState().setQueue(list, index)
-  }
-
   function openDaily() {
     if (dailySongs.length === 0) return
     const pl: Playlist = {
@@ -120,35 +114,7 @@ export function ExplorePage() {
   }
 
   if (detail) {
-    return (
-      <div className={styles.page} onScroll={handleScroll}>
-        <div className="topGradient" style={{ opacity: topOpacity }} />
-        <div className={styles.detailHeader}>
-          <button className={`${styles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}>← 返回</button>
-          <div className={styles.detailMeta}>
-            {detail.playlist.cover && (
-              <motion.img
-                className={styles.detailCover}
-                src={detail.playlist.cover}
-                alt=""
-                layoutId={`explore-cover-${String(detail.playlist.id)}`}
-                transition={springGentle}
-              />
-            )}
-            <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-              <h1 className={styles.detailTitle}><GradientText>{detail.playlist.name}</GradientText></h1>
-              <p className={styles.detailSub}>{detail.tracks.length} 首</p>
-            </motion.div>
-          </div>
-        </div>
-        <motion.div className={styles.trackList} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-          {detail.tracks.map((t, i) => (
-            <AnimatedTrackRow key={String(t.id) + i} track={t} index={i} onPlay={() => playTrack(detail.tracks, i)} delay={0.15 + i * 0.05} />
-          ))}
-        </motion.div>
-        <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
-      </div>
-    )
+    return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="explore-cover" />
   }
 
   const top = pool.hand.length > 0 ? pool.hand[pool.hand.length - 1] : null
