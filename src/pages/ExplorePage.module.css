@@ -17,31 +17,6 @@
   padding: 0 24px;
 }
 
-.trackList { padding: 0 8px; }
-
-.detailHeader { margin: 0 24px 24px; }
-
-.backBtn {
-  background: none;
-  border: none;
-  color: var(--sm-accent);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0 0 12px;
-}
-
-.detailMeta { display: flex; align-items: center; gap: 20px; }
-
-.detailCover {
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
-  object-fit: cover;
-}
-
-.detailTitle { font-size: 22px; font-weight: 700; margin: 0 0 4px; color: var(--sm-text-primary); }
-.detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 0; }
-
 /* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台） ---------- */
 .hero {
   display: flex;

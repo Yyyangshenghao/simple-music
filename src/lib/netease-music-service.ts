@@ -8,11 +8,6 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists ?? []
   }
 
-  async getPlaylistDetail(id: unknown): Promise<Track[]> {
-    const res = await api.get<{ tracks: Track[] }>('/api/playlist/tracks', { id: id as string | number })
-    return res.tracks ?? []
-  }
-
   async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
     const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
     const tracks = res.tracks ?? []
