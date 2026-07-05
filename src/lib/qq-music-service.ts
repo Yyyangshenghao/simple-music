@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { MusicService } from './music-service'
+import type { MusicService, PlaylistSkeleton } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class QQMusicService implements MusicService {
@@ -11,6 +11,18 @@ export class QQMusicService implements MusicService {
   async getPlaylistDetail(id: unknown): Promise<Track[]> {
     const res = await api.get<{ tracks: Track[] }>('/api/qq/playlist/tracks', { id: id as string | number })
     return res.tracks ?? []
+  }
+
+  async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
+    const res = await api.get<{ tracks: Track[] }>('/api/qq/playlist/tracks', { id: id as string | number })
+    const tracks = res.tracks ?? []
+    // QQ 一次全量返回,骨架即全部曲目,无未加载窗口
+    return { trackIds: tracks.map((t) => t.id), tracks }
+  }
+
+  async getTracksByIds(): Promise<Track[]> {
+    // QQ skeleton 全量返回,不存在 pending 窗口;仅为接口完整性
+    return []
   }
 
   async searchTracks(keyword: string): Promise<Track[]> {

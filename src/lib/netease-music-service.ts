@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { MusicService, RadarPlaylist } from './music-service'
+import type { MusicService, RadarPlaylist, PlaylistSkeleton } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class NeteaseMusicService implements MusicService {
@@ -11,6 +11,25 @@ export class NeteaseMusicService implements MusicService {
   async getPlaylistDetail(id: unknown): Promise<Track[]> {
     const res = await api.get<{ tracks: Track[] }>('/api/playlist/tracks', { id: id as string | number })
     return res.tracks ?? []
+  }
+
+  async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
+    const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
+    const tracks = res.tracks ?? []
+    const trackIds = res.trackIds?.length ? res.trackIds : tracks.map((t) => t.id)
+    return { trackIds, tracks }
+  }
+
+  async getTracksByIds(ids: unknown[]): Promise<Track[]> {
+    if (ids.length === 0) return []
+    const out: Track[] = []
+    // 服务端单批上限 200
+    for (let i = 0; i < ids.length; i += 200) {
+      const batch = ids.slice(i, i + 200)
+      const res = await api.get<{ tracks: Track[] }>('/api/song/detail', { ids: batch.map(String).join(',') })
+      out.push(...(res.tracks ?? []))
+    }
+    return out
   }
 
   async searchTracks(keyword: string): Promise<Track[]> {
