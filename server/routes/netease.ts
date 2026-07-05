@@ -777,6 +777,32 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 按 id 批量补曲目详情(歌单懒加载窗口用) ----------
+  if (pn === '/api/song/detail') {
+    try {
+      const ids = (url.searchParams.get('ids') || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 200)
+      if (!ids.length) {
+        sendJson(res, { error: 'Missing ids', tracks: [] }, 400)
+        return true
+      }
+      const cookie = getCookie(ctx, 'netease')
+      const detail = await call('song_detail', { ids: ids.join(','), cookie, timestamp: Date.now() })
+      const songs = asArr(asObj(detail.body).songs).map(mapSongRecord).filter((t) => t.id)
+      // song_detail 不保证返回顺序,按请求 ids 顺序重排
+      const byId = new Map(songs.map((t) => [String(t.id), t]))
+      const tracks = ids.map((id) => byId.get(id)).filter(Boolean)
+      sendJson(res, { tracks })
+    } catch (err) {
+      console.error('[SongDetail]', err)
+      sendJson(res, { error: (err as Error).message, tracks: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- 歌单曲目详情 ----------
   if (pn === '/api/playlist/tracks') {
     try {
