@@ -803,12 +803,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // ---------- 歌单曲目详情 ----------
+  // ---------- 歌单曲目详情:全量 trackIds + 前 100 首详情(懒加载骨架) ----------
   if (pn === '/api/playlist/tracks') {
     try {
       const id = url.searchParams.get('id')
       if (!id) {
-        sendJson(res, { error: 'Missing playlist id', tracks: [] }, 400)
+        sendJson(res, { error: 'Missing playlist id', trackIds: [], tracks: [] }, 400)
         return true
       }
       const cookie = getCookie(ctx, 'netease')
@@ -818,36 +818,60 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         cover: '',
         trackCount: 0,
       }
-      let rawTracks: unknown[] = []
+      let trackIds: string[] = []
+      let tracks: ReturnType<typeof mapSongRecord>[] = []
 
-      if (has('playlist_track_all')) {
+      // 1) playlist_detail:meta + 完整 trackIds(快,不受 500 限制)
+      if (has('playlist_detail')) {
+        try {
+          const detail = await call('playlist_detail', { id, s: 0, cookie, timestamp: Date.now() })
+          const pl = asObj(asObj(detail.body).playlist)
+          playlistMeta = {
+            id: pl.id || id,
+            name: asStr(pl.name),
+            cover: asStr(pl.coverImgUrl),
+            trackCount: asNum(pl.trackCount),
+          }
+          trackIds = asArr(pl.trackIds)
+            .map((t) => asStr(asObj(t).id))
+            .filter(Boolean)
+        } catch (err) {
+          console.warn('[PlaylistTracks] playlist_detail failed:', (err as Error).message)
+        }
+      }
+
+      // 2) song_detail 补前 100 首详情
+      if (trackIds.length && has('song_detail')) {
+        try {
+          const head = trackIds.slice(0, 100)
+          const detail = await call('song_detail', { ids: head.join(','), cookie, timestamp: Date.now() })
+          const songs = asArr(asObj(detail.body).songs).map(mapSongRecord).filter((t) => t.id)
+          const byId = new Map(songs.map((t) => [String(t.id), t]))
+          tracks = head.map((tid) => byId.get(tid)).filter((t): t is ReturnType<typeof mapSongRecord> => !!t)
+        } catch (err) {
+          console.warn('[PlaylistTracks] song_detail failed:', (err as Error).message)
+        }
+      }
+
+      // 3) fallback:playlist_track_all 旧逻辑(limit 500),trackIds 从结果推导
+      if (!tracks.length && has('playlist_track_all')) {
         try {
           const all = await call('playlist_track_all', { id, limit: 500, offset: 0, cookie, timestamp: Date.now() })
           const ab = asObj(all.body)
-          rawTracks = Array.isArray(ab.songs) ? ab.songs : asArr(ab.tracks)
+          const rawTracks = Array.isArray(ab.songs) ? ab.songs : asArr(ab.tracks)
+          tracks = rawTracks.map(mapSongRecord).filter((t) => t.id)
+          if (!trackIds.length) trackIds = tracks.map((t) => asStr(t.id))
         } catch (err) {
-          console.warn('[PlaylistTracks] playlist_track_all failed, fallback to detail:', (err as Error).message)
+          console.warn('[PlaylistTracks] playlist_track_all fallback failed:', (err as Error).message)
         }
       }
 
-      if (!rawTracks.length && has('playlist_detail')) {
-        const detail = await call('playlist_detail', { id, s: 0, cookie, timestamp: Date.now() })
-        const pl = asObj(asObj(detail.body).playlist)
-        playlistMeta = {
-          id: pl.id || id,
-          name: asStr(pl.name),
-          cover: asStr(pl.coverImgUrl),
-          trackCount: asNum(pl.trackCount),
-        }
-        rawTracks = asArr(pl.tracks)
-      }
-
-      const tracks = rawTracks.map(mapSongRecord).filter((t) => t.id)
-      if (!playlistMeta.trackCount) playlistMeta.trackCount = tracks.length
-      sendJson(res, { playlist: playlistMeta, tracks })
+      if (!trackIds.length) trackIds = tracks.map((t) => asStr(t.id))
+      if (!playlistMeta.trackCount) playlistMeta.trackCount = trackIds.length
+      sendJson(res, { playlist: playlistMeta, trackIds, tracks })
     } catch (err) {
       console.error('[PlaylistTracks]', err)
-      sendJson(res, { error: (err as Error).message, tracks: [] }, 500)
+      sendJson(res, { error: (err as Error).message, trackIds: [], tracks: [] }, 500)
     }
     return true
   }
