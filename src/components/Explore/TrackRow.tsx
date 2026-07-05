@@ -8,6 +8,14 @@ interface TrackRowProps {
   onPlay(): void
 }
 
+function formatDuration(ms: number | undefined): string {
+  if (!ms || ms <= 0) return ''
+  const total = Math.round(ms / 1000)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
 function EqIndicator({ paused }: { paused: boolean }) {
   return (
@@ -42,7 +50,7 @@ export function TrackRow({ track, index, onPlay }: TrackRowProps) {
         <span className={styles.artist}>{track.artist}</span>
       </div>
       <span className={styles.duration}>
-        {track.duration ? `${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}` : ''}
+        {formatDuration(track.duration)}
       </span>
     </button>
   )
