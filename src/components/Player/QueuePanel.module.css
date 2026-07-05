@@ -146,3 +146,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* pending 占位曲目:详情未补到,显示 shimmer 双行 */
+.rowSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 2px 0;
+}
+
+.rowSkeleton i {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+  background: var(--sm-bg-elevated);
+  animation: queueSkeletonPulse 1.4s var(--sm-ease-in-out) infinite;
+}
+
+.rowSkeleton i:first-child { width: 55%; }
+.rowSkeleton i:last-child { width: 32%; height: 7px; animation-delay: 0.2s; }
+
+@keyframes queueSkeletonPulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}

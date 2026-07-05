@@ -96,8 +96,17 @@ export function QueuePanel() {
                       )}
                     </span>
                     <span className={styles.rowText}>
-                      <span className={styles.rowName}>{t.name}</span>
-                      <span className={styles.rowArtist}>{t.artist}</span>
+                      {t.pending ? (
+                        <span className={styles.rowSkeleton} aria-hidden="true">
+                          <i />
+                          <i />
+                        </span>
+                      ) : (
+                        <>
+                          <span className={styles.rowName}>{t.name}</span>
+                          <span className={styles.rowArtist}>{t.artist}</span>
+                        </>
+                      )}
                     </span>
                   </button>
                 )
