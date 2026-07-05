@@ -67,7 +67,7 @@ getTracksByIds(ids: unknown[]): Promise<Track[]>
 - 暴露 `onRangeChange(start, end)` 回调,驱动懒加载窗口。
 - 未加载行渲染骨架占位(shimmer 用现有 tokens.css 变量,不写魔法数值)。
 - LibraryPage 与 ExplorePage 的详情 JSX 高度重复,抽为共用 `PlaylistDetailView` 组件,VirtualList 只落一处;PreviewModal 曲目列表同样受益。
-- `AnimatedTrackRow` 入场 delay 改按视口内相对索引计算,而非全列表绝对索引。
+- 虚拟列表中的行随滚动反复挂载/卸载,逐行入场动画会造成滚动闪动:详情页改为直接用 `TrackRow`(列表容器保留 fadeRise 入场),`AnimatedTrackRow` 迁移后无使用方,删除。
 
 ### 5. 队列与播放
 
