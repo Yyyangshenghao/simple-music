@@ -20,6 +20,8 @@ export class AudioEngine {
   private analyser: AnalyserNode | null = null
   private freq: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(0))
   private cbs: AudioEngineCallbacks
+  /** load 指定的起播位置;元数据就绪后再应用(过早设 currentTime 会被忽略)。 */
+  private pendingSeek: number | null = null
 
   constructor(cbs: AudioEngineCallbacks = {}) {
     this.cbs = cbs
@@ -44,6 +46,12 @@ export class AudioEngine {
       if (!a.ended) this.cbs.onStatus?.('paused')
     })
     a.addEventListener('waiting', () => this.cbs.onStatus?.('loading'))
+    a.addEventListener('loadedmetadata', () => {
+      if (this.pendingSeek != null) {
+        a.currentTime = this.pendingSeek
+        this.pendingSeek = null
+      }
+    })
   }
 
   private ensureContext(): void {
@@ -59,12 +67,18 @@ export class AudioEngine {
     this.analyser.connect(this.ctx.destination)
   }
 
-  /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）。 */
-  load(upstreamUrl: string): void {
+  /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数。 */
+  load(upstreamUrl: string, startAt?: number): void {
     this.cbs.onStatus?.('loading')
+    this.pendingSeek = startAt && startAt > 0 ? startAt : null
     const src = /^https?:\/\//i.test(upstreamUrl) ? api.url('/api/audio', { url: upstreamUrl }) : upstreamUrl
     this.audio.src = src
     this.audio.load()
+  }
+
+  /** 是否已加载过音频源(重启恢复态为 false,播放前需重新 load)。 */
+  get hasSource(): boolean {
+    return !!this.audio.src
   }
 
   async play(): Promise<void> {

@@ -22,7 +22,7 @@ interface PlayerStore {
   seek(seconds: number): void
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
-  loadTrack(track: Track): Promise<void>
+  loadTrack(track: Track, opts?: { startAt?: number }): Promise<void>
   _engine(): AudioEngine
 }
 
@@ -60,7 +60,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     source: 'netease',
 
     play() {
-      void ensureEngine().play()
+      const eng = ensureEngine()
+      // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
+      const { currentTrack, position } = get()
+      if (!eng.hasSource && currentTrack) {
+        void get().loadTrack(currentTrack, { startAt: position })
+        return
+      }
+      void eng.play()
     },
     pause() {
       ensureEngine().pause()
@@ -83,9 +90,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       useSettingsStore.getState().setAudioQuality(q)
     },
 
-    async loadTrack(track) {
+    async loadTrack(track, opts) {
       const eng = ensureEngine()
-      set({ currentTrack: track, source: track.source, status: 'loading', position: 0, duration: track.duration ?? 0 })
+      const startAt = opts?.startAt ?? 0
+      // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
+      set({ currentTrack: track, source: track.source, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000 })
       let url = track.url
       if (!url) {
         const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
@@ -105,7 +114,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         set({ status: 'idle' })
         return
       }
-      eng.load(url)
+      eng.load(url, startAt)
       eng.setVolume(get().volume)
       void eng.play()
     },

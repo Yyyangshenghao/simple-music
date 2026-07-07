@@ -18,7 +18,8 @@
 
 ### 2. 播放状态持久化(重启恢复)
 
-- [ ] 现状:队列、当前曲目、进度、音量均不落盘,重启全丢;settings store 已有持久化模式可仿照。
+- [x] 已完成:`src/lib/playback-persistence.ts` 落 `simplemusic-playback`(队列剥 URL,超配额降级占位);恢复为暂停态,`player.play()` 检测引擎无源按断点重载(engine `load(url, startAt)` 元数据就绪后 seek);进度 5s 节流 + 暂停/切队列/beforeunload 落盘。
+- ~~现状:队列、当前曲目、进度、音量均不落盘,重启全丢。~~
 - 要点:
   - 新 localStorage key(如 `simplemusic-playback`):queue(Track 序列化)+ queueIndex + 进度 + volume。
   - 写入节流(如进度每 5s / 暂停时写);启动时恢复为**暂停态**,不自动播放。
