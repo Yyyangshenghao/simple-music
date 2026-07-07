@@ -28,6 +28,13 @@ interface PlayerStore {
 
 let engine: AudioEngine | null = null
 
+// 自然播完的后续走序（切下一首/单曲重播）由 playlist store 决定;
+// 用注册回调解耦,避免 player → playlist 反向导入成环。
+let onTrackEnded: (() => void) | null = null
+export function registerTrackEndedHandler(cb: () => void): void {
+  onTrackEnded = cb
+}
+
 export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
@@ -35,7 +42,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       onPosition: (s) => set({ position: s }),
       onDuration: (d) => set({ duration: d }),
       onStatus: (status) => set({ status }),
-      onEnded: () => set({ status: 'paused', position: 0 })
+      onEnded: () => {
+        set({ status: 'paused', position: 0 })
+        onTrackEnded?.()
+      }
     })
     return engine
   }

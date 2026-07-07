@@ -171,6 +171,8 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 export type ShelfMode = 'dynamic' | 'static'
+/** 播放模式：列表循环 / 随机 / 单曲循环。 */
+export type PlayMode = 'order' | 'shuffle' | 'one'
 
 /** 逐字歌词中的单个字/词 token。startMs 是相对于该行起始时间的毫秒偏移。 */
 export interface WordToken {

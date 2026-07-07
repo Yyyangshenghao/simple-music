@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
-import type { FxArchive } from '../types/domain'
+import type { FxArchive, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
 
@@ -14,6 +14,7 @@ interface PersistedSettings {
   activeSource: 'netease' | 'qq'
   themeMode: 'auto' | 'light' | 'dark'
   audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
+  playMode: PlayMode
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -29,6 +30,7 @@ interface SettingsStore extends PersistedSettings {
   setActiveSource(s: 'netease' | 'qq'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
+  setPlayMode(m: PlayMode): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -46,6 +48,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   activeSource: 'netease',
   themeMode: 'auto',
   audioQuality: 'lossless',
+  playMode: 'order',
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -85,11 +88,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ audioQuality: q })
     get().saveToLocal()
   },
+  setPlayMode(m) {
+    set({ playMode: m })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality, playMode } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality, playMode }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -108,6 +115,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         activeSource: data.activeSource ?? 'netease',
         themeMode: data.themeMode ?? 'auto',
         audioQuality: data.audioQuality ?? 'lossless',
+        playMode: data.playMode ?? 'order',
       })
     } catch {
       /* ignore malformed */

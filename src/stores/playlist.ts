@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
-import { usePlayerStore } from './player'
+import { usePlayerStore, registerTrackEndedHandler } from './player'
+import { useSettingsStore } from './settings'
 import { serviceFor } from '../lib/service-registry'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
 
@@ -19,11 +20,23 @@ async function resolvePending(track: Track): Promise<Track> {
   return { ...track, pending: false, name: track.name || '未知曲目' }
 }
 
+/** Fisher-Yates 洗牌出 [0, n) 的随机排列。 */
+function shuffledIndices(n: number): number[] {
+  const order = Array.from({ length: n }, (_, i) => i)
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  return order
+}
+
 interface PlaylistStore {
   playlists: Playlist[]
   currentPlaylist: Playlist | null
   queue: Track[]
   queueIndex: number
+  /** 随机模式的洗牌排列(队列下标序列);长度与 queue 不一致时懒重建。 */
+  shuffleOrder: number[]
   shelfVisible: boolean
   shelfMode: ShelfMode
   loadUserPlaylists(): Promise<void>
@@ -33,8 +46,30 @@ interface PlaylistStore {
   playAt(index: number): void
   next(): void
   prev(): void
+  /** 自然播完的走序:单曲循环原地重播,其余同 next()。 */
+  handleTrackEnded(): void
   toggleShelf(): void
   setShelfMode(mode: ShelfMode): void
+}
+
+/** 按播放模式算 next/prev 的目标下标;随机模式沿洗牌排列循环走,长度失配时懒重建。 */
+function stepIndex(
+  s: Pick<PlaylistStore, 'queue' | 'queueIndex' | 'shuffleOrder'>,
+  set: (partial: Partial<PlaylistStore>) => void,
+  dir: 1 | -1
+): number {
+  const len = s.queue.length
+  if (!len) return -1
+  if (useSettingsStore.getState().playMode !== 'shuffle') {
+    return (s.queueIndex + dir + len) % len
+  }
+  let order = s.shuffleOrder
+  if (order.length !== len) {
+    order = shuffledIndices(len)
+    set({ shuffleOrder: order })
+  }
+  const pos = order.indexOf(s.queueIndex)
+  return order[(pos + dir + len) % len]
 }
 
 export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
@@ -42,6 +77,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   currentPlaylist: null,
   queue: [],
   queueIndex: -1,
+  shuffleOrder: [],
   shelfVisible: false,
   shelfMode: 'dynamic',
 
@@ -59,7 +95,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   setQueue(tracks, startIndex = 0) {
-    set({ queue: tracks, queueIndex: -1 })
+    set({ queue: tracks, queueIndex: -1, shuffleOrder: shuffledIndices(tracks.length) })
     if (tracks.length) get().playAt(startIndex)
   },
 
@@ -87,15 +123,22 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   next() {
-    const { queue, queueIndex } = get()
-    if (!queue.length) return
-    get().playAt((queueIndex + 1) % queue.length)
+    get().playAt(stepIndex(get(), set, +1))
   },
 
   prev() {
-    const { queue, queueIndex } = get()
-    if (!queue.length) return
-    get().playAt((queueIndex - 1 + queue.length) % queue.length)
+    get().playAt(stepIndex(get(), set, -1))
+  },
+
+  handleTrackEnded() {
+    if (useSettingsStore.getState().playMode === 'one') {
+      const player = usePlayerStore.getState()
+      if (!player.currentTrack) return
+      player.seek(0)
+      player.play()
+      return
+    }
+    get().next()
   },
 
   toggleShelf() {
@@ -106,3 +149,6 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     set({ shelfMode: mode })
   }
 }))
+
+// 自然播完后的走序(列表循环/随机切下一首,单曲循环原地重播)
+registerTrackEndedHandler(() => usePlaylistStore.getState().handleTrackEnded())

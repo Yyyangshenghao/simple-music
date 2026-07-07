@@ -1,7 +1,9 @@
 import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useSettingsStore } from '../../stores/settings'
 import { tapScale, springSnappy } from '../../lib/motion-presets'
+import type { PlayMode } from '../../types/domain'
 import { Slider } from '../ui/Slider'
 import { ElasticSlider } from '../ui/ElasticSlider'
 import { PlayerGlass } from './PlayerGlass'
@@ -51,6 +53,64 @@ function PauseIcon() {
   )
 }
 
+function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </svg>
+  )
+}
+
+function RepeatOneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      <path d="M11 10h2v5" strokeWidth="2.2" />
+    </svg>
+  )
+}
+
+function ShuffleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 3h5v5" />
+      <path d="M4 20L21 3" />
+      <path d="M21 16v5h-5" />
+      <path d="M15 15l6 6" />
+      <path d="M4 4l5 5" />
+    </svg>
+  )
+}
+
+const MODE_CYCLE: Record<PlayMode, PlayMode> = { order: 'shuffle', shuffle: 'one', one: 'order' }
+const MODE_LABEL: Record<PlayMode, string> = { order: '列表循环', shuffle: '随机播放', one: '单曲循环' }
+
+/** 播放模式切换按钮:列表循环 → 随机 → 单曲循环 循环切换,模式持久化在 settings。 */
+function PlayModeButton() {
+  const playMode = useSettingsStore((s) => s.playMode)
+  const label = MODE_LABEL[playMode]
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.modeBtn} no-drag`}
+      data-mode={playMode}
+      onClick={() => useSettingsStore.getState().setPlayMode(MODE_CYCLE[playMode])}
+      title={label}
+      aria-label={`播放模式:${label}`}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      {playMode === 'shuffle' ? <ShuffleIcon /> : playMode === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
+    </motion.button>
+  )
+}
+
 interface PlayerBarProps {
   onOpenLyrics?: () => void
 }
@@ -79,6 +139,7 @@ export function PlayerBar({ onOpenLyrics }: PlayerBarProps) {
 
         <div className={styles.center}>
           <div className={styles.buttons}>
+            <PlayModeButton />
             <motion.button type="button" className={`${styles.btn} no-drag`} onClick={prev} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
               <PrevIcon />
             </motion.button>

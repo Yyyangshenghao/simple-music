@@ -133,3 +133,89 @@ describe('navigation store direction', () => {
     expect(useNavigationStore.getState().currentView).toBe('explore')
   })
 })
+
+describe('playlist 播放模式走序', () => {
+  async function setup(n = 4) {
+    const { usePlaylistStore } = await import('./playlist')
+    const { usePlayerStore } = await import('./player')
+    const loadTrack = vi.fn(async () => {})
+    usePlayerStore.setState({ loadTrack })
+    const tracks = Array.from({ length: n }, (_, i) => ({
+      provider: 'netease' as const,
+      source: 'netease' as const,
+      type: 'song',
+      id: i,
+      name: `t${i}`,
+      artist: '',
+      artists: []
+    }))
+    usePlaylistStore.setState({ queue: tracks, queueIndex: 0, shuffleOrder: [] })
+    return { usePlaylistStore, usePlayerStore, loadTrack }
+  }
+
+  it('列表循环:next 顺序推进并回绕', async () => {
+    const { usePlaylistStore } = await setup(3)
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queueIndex).toBe(1)
+    usePlaylistStore.getState().next()
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    usePlaylistStore.getState().prev()
+    expect(usePlaylistStore.getState().queueIndex).toBe(2)
+  })
+
+  it('随机:一轮 next 恰好遍历每首一次,prev 可回溯', async () => {
+    const { usePlaylistStore } = await setup(5)
+    useSettingsStore.setState({ playMode: 'shuffle' })
+    const visited = [usePlaylistStore.getState().queueIndex]
+    for (let i = 0; i < 4; i++) {
+      usePlaylistStore.getState().next()
+      visited.push(usePlaylistStore.getState().queueIndex)
+    }
+    expect(new Set(visited).size).toBe(5)
+    const last = visited[visited.length - 1]
+    const secondLast = visited[visited.length - 2]
+    expect(last).not.toBe(secondLast)
+    usePlaylistStore.getState().prev()
+    expect(usePlaylistStore.getState().queueIndex).toBe(secondLast)
+  })
+
+  it('单曲循环:自然播完原地重播,不切换曲目', async () => {
+    const { usePlaylistStore, usePlayerStore, loadTrack } = await setup(3)
+    useSettingsStore.setState({ playMode: 'one' })
+    const seek = vi.fn()
+    const play = vi.fn()
+    usePlayerStore.setState({ seek, play, currentTrack: usePlaylistStore.getState().queue[0] })
+    usePlaylistStore.getState().handleTrackEnded()
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    expect(seek).toHaveBeenCalledWith(0)
+    expect(play).toHaveBeenCalled()
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it('列表循环:自然播完切下一首', async () => {
+    const { usePlaylistStore, loadTrack } = await setup(3)
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.getState().handleTrackEnded()
+    expect(usePlaylistStore.getState().queueIndex).toBe(1)
+    expect(loadTrack).toHaveBeenCalled()
+  })
+
+  it('空队列 next/prev 不动作', async () => {
+    const { usePlaylistStore, loadTrack } = await setup(0)
+    usePlaylistStore.setState({ queueIndex: -1 })
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.getState().next()
+    usePlaylistStore.getState().prev()
+    expect(usePlaylistStore.getState().queueIndex).toBe(-1)
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it('playMode 持久化进 settings 存档', () => {
+    useSettingsStore.getState().setPlayMode('shuffle')
+    useSettingsStore.setState({ playMode: 'order' })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().playMode).toBe('shuffle')
+  })
+})

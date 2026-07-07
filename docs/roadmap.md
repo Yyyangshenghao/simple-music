@@ -7,7 +7,8 @@
 
 ### 1. 播放模式:顺序 / 单曲循环 / 随机
 
-- [ ] 现状:`src/stores/playlist.ts` 的 `next()/prev()` 只有顺序循环取模,无模式概念;PlayerBar 无切换按钮。
+- [x] 已完成:playMode 落 settings 持久化;playlist store `stepIndex` 按模式走序(随机=洗牌排列可回溯);player `ended` 经注册回调接入(顺带修复自然播完不自动切歌);PlayerBar 加模式按钮。
+- ~~现状:`src/stores/playlist.ts` 的 `next()/prev()` 只有顺序循环取模,无模式概念;PlayerBar 无切换按钮。~~
 - 要点:
   - playlist store 加 `playMode: 'order' | 'one' | 'shuffle'`,`next()`(含自然播完触发)按模式取下一首;随机建议洗牌序列而非纯随机,保证 prev 可回溯、不重复。
   - `AudioEngine` 的 `ended` 回调链按模式分流(单曲循环直接 seek 0 重播,不走 next)。

@@ -46,6 +46,19 @@
   transform: scale(0.94);
 }
 
+/* 播放模式按钮:默认(列表循环)弱化,随机/单曲循环时点亮 */
+.modeBtn {
+  width: 32px;
+  height: 32px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.modeBtn[data-mode='shuffle'],
+.modeBtn[data-mode='one'] {
+  color: var(--sm-accent);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
+}
+
 .playBtn {
   width: 46px;
   height: 46px;
