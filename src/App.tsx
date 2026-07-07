@@ -9,6 +9,7 @@ import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useSettingsStore } from './stores/settings'
 import { initPlaybackPersistence } from './lib/playback-persistence'
+import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
@@ -30,6 +31,7 @@ export default function App() {
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()
     initPlaybackPersistence()
+    initMediaSession()
     const sync = () => {
       const mode = useSettingsStore.getState().themeMode
       const root = document.documentElement

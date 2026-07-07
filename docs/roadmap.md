@@ -29,7 +29,8 @@
 
 ### 3. 系统媒体集成(Media Session)
 
-- [ ] 现状:全项目无 `navigator.mediaSession`,系统媒体键、macOS 控制中心、耳机线控均不可用;仅有自定义全局热键(`electron/modules/hotkey-manager.ts`)。
+- [x] 已完成:`src/lib/media-session.ts` 挂 metadata + play/pause/next/prev/seekto handler,`setPositionState` 1s 节流同步;App 启动初始化。注意:用户若在热键设置里显式绑定媒体键(globalShortcut)会抢占系统路由,属预期。
+- ~~现状:全项目无 `navigator.mediaSession`。~~
 - 要点:
   - 渲染层挂 `navigator.mediaSession`:metadata(标题/歌手/封面)+ play/pause/next/prev/seek handler,接 player/playlist store。
   - `setPositionState` 同步进度;切曲/暂停时更新 playbackState。
