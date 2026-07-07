@@ -20,6 +20,12 @@ export interface MusicService {
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>
+  /** 红心/取消红心（可选;未实现的音源不渲染红心按钮）。resolve true 表示服务端成功。 */
+  likeTrack?(track: Track, like: boolean): Promise<boolean>
+  /** 批量查询红心状态,key 为 String(id)（可选,需登录）。 */
+  checkLiked?(ids: unknown[]): Promise<Record<string, boolean>>
+  /** "我喜欢的音乐"歌单（可选;null = 未登录或不可用）。 */
+  getLikedPlaylist?(): Promise<Playlist | null>
 }
 
 export interface RadarPlaylist {

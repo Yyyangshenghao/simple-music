@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
+import { useSettingsStore } from '../stores/settings'
+import { useMusicService } from '../hooks/useMusicService'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
@@ -69,13 +71,52 @@ export function LibraryPage() {
         </div>
       )}
 
-      {tab === 'favorites' && (
-        <div className={styles.emptyHint}>
-          <p>收藏功能即将上线</p>
-        </div>
-      )}
+      {tab === 'favorites' && <FavoritesTab onOpen={openPlaylist} />}
 
       {tab === 'recent' && <RecentPlaysList />}
+    </div>
+  )
+}
+
+/** 收藏 tab:展示"我喜欢的音乐"歌单入口(音源需支持且已登录),点击进懒加载详情页。 */
+function FavoritesTab({ onOpen }: { onOpen(playlist: Playlist): void }) {
+  const service = useMusicService()
+  const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
+  const activeSource = useSettingsStore((s) => s.activeSource)
+  const [playlist, setPlaylist] = useState<Playlist | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const supported = typeof service.getLikedPlaylist === 'function'
+  const loggedIn = activeSource !== 'netease' || neteaseLoggedIn
+
+  useEffect(() => {
+    if (!supported || !loggedIn) return
+    let stale = false
+    setLoading(true)
+    service
+      .getLikedPlaylist!()
+      .then((pl) => {
+        if (!stale) setPlaylist(pl)
+      })
+      .catch(() => {
+        if (!stale) setPlaylist(null)
+      })
+      .finally(() => {
+        if (!stale) setLoading(false)
+      })
+    return () => {
+      stale = true
+    }
+  }, [service, supported, loggedIn])
+
+  if (!supported) return <div className={styles.emptyHint}><p>当前音源暂不支持收藏</p></div>
+  if (!loggedIn) return <div className={styles.emptyHint}><p>登录网易云账号后可查看收藏</p></div>
+  if (loading && !playlist) return <div className={styles.emptyHint}><p>加载中…</p></div>
+  if (!playlist) return <div className={styles.emptyHint}><p>没有找到收藏歌单</p></div>
+
+  return (
+    <div className={styles.grid}>
+      <PlaylistCard playlist={playlist} onClick={() => onOpen(playlist)} layoutId={`library-cover-${String(playlist.id)}`} />
     </div>
   )
 }

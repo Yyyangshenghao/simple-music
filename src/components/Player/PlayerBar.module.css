@@ -59,6 +59,18 @@
   filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
 }
 
+/* 红心按钮:点亮时暖红,与整体玻璃风格保持低饱和 */
+.likeBtn {
+  width: 32px;
+  height: 32px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.likeBtn[data-liked='true'] {
+  color: #ff6b81;
+  filter: drop-shadow(0 0 6px rgba(255, 107, 129, 0.45));
+}
+
 .playBtn {
   width: 46px;
   height: 46px;

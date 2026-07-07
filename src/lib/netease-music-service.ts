@@ -72,6 +72,28 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists ?? []
   }
 
+  async likeTrack(track: Track, like: boolean): Promise<boolean> {
+    const res = await api.get<{ code?: number; liked?: boolean }>('/api/song/like', {
+      id: String(track.id),
+      like: String(like)
+    })
+    return res.code === 200
+  }
+
+  async checkLiked(ids: unknown[]): Promise<Record<string, boolean>> {
+    if (!ids.length) return {}
+    const res = await api.get<{ liked?: Record<string, boolean> }>('/api/song/like/check', {
+      ids: ids.map(String).join(',')
+    })
+    return res.liked ?? {}
+  }
+
+  /** 网易约定:用户歌单列表首个为"我喜欢的音乐"。 */
+  async getLikedPlaylist(): Promise<Playlist | null> {
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/user/playlists')
+    return res.playlists?.[0] ?? null
+  }
+
   async getRadarPlaylist(): Promise<RadarPlaylist | null> {
     const res = await api.get<{ playlist: Playlist | null; tracks: Track[] }>('/api/netease/radar')
     if (!res.playlist || !res.tracks?.length) return null

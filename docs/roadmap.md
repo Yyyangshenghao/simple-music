@@ -48,7 +48,8 @@
 
 ### 5. 收藏 tab 接通
 
-- [ ] 现状:tab 占位。服务端网易已有 `/api/song/like`、`/api/song/like/check`、`/api/playlist/create`、`/api/playlist/add-song`,渲染层未接。
+- [x] 已完成:`MusicService` 加可选 `likeTrack/checkLiked/getLikedPlaylist`(网易实现,QQ 自动隐藏);`likes` store 乐观更新失败回滚;PlayerBar 红心按钮;收藏 tab 显示"我喜欢的音乐"卡片进懒加载详情。TrackRow 逐行红心暂未做(交互密度待定)。
+- ~~现状:tab 占位。~~
 - 要点:
   - `MusicService` 加可选方法(likeTrack / getLikedTracks),网易先行,QQ 未实现则隐藏入口(沿用每日推荐的可选方法模式)。
   - PlayerBar / TrackRow 加红心按钮;收藏 tab 即"我喜欢的音乐"歌单(网易首个自建歌单),复用 `PlaylistDetailView` 懒加载。
