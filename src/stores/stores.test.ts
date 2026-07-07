@@ -219,3 +219,40 @@ describe('playlist 播放模式走序', () => {
     expect(useSettingsStore.getState().playMode).toBe('shuffle')
   })
 })
+
+describe('recent plays store', () => {
+  it('record 去重置顶并截断上限;播放加载时自动记录', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {}
+    })
+    const { useRecentPlaysStore } = await import('./recent')
+    const { usePlayerStore } = await import('./player')
+    const mk = (i: number) => ({
+      provider: 'netease' as const,
+      source: 'netease' as const,
+      type: 'song',
+      id: i,
+      name: `t${i}`,
+      artist: '',
+      artists: [],
+      url: 'http://tmp'
+    })
+    useRecentPlaysStore.setState({ items: [] })
+    useRecentPlaysStore.getState().record(mk(1))
+    useRecentPlaysStore.getState().record(mk(2))
+    useRecentPlaysStore.getState().record(mk(1))
+    const items = useRecentPlaysStore.getState().items
+    expect(items.length).toBe(2)
+    expect(String(items[0].track.id)).toBe('1')
+    expect(items[0].track.url).toBeUndefined() // 落盘剥 URL
+
+    // 播放新曲目(currentTrack + loading 同时置入)触发记录
+    usePlayerStore.setState({ currentTrack: mk(9), status: 'loading' })
+    expect(String(useRecentPlaysStore.getState().items[0].track.id)).toBe('9')
+    // 恢复态(paused)不记录
+    usePlayerStore.setState({ currentTrack: mk(8), status: 'paused' })
+    expect(String(useRecentPlaysStore.getState().items[0].track.id)).toBe('9')
+  })
+})

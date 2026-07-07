@@ -41,7 +41,8 @@
 
 ### 4. 最近播放(本地记录)
 
-- [ ] 现状:`LibraryPage` 的"最近播放" tab 是"即将上线"占位。账号级最近歌单已有(`getRecentPlaylists`,网易专属),缺的是**本地曲目级**播放历史。
+- [x] 已完成:`src/stores/recent.ts` 订阅 player(currentTrack+loading 置入时记录,恢复态不记),200 条去重落 localStorage;Library tab 列表复用 TrackRow,点击整单入队从该曲播起,附清空按钮。
+- ~~现状:"最近播放" tab 占位。~~
 - 要点:本地 localStorage 记录(track + 播放时间,上限 ~200 条去重),播放时写入;不依赖登录、跨音源可用;tab 内列表复用 `TrackRow`。
 - 完成标准:播放过的歌按时间倒序出现在 tab 中,点击可重播;重启保留。
 

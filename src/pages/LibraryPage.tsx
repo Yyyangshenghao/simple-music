@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
+import { useRecentPlaysStore } from '../stores/recent'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
+import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
 import type { Playlist } from '../types/domain'
 import styles from './LibraryPage.module.css'
@@ -73,11 +75,44 @@ export function LibraryPage() {
         </div>
       )}
 
-      {tab === 'recent' && (
-        <div className={styles.emptyHint}>
-          <p>最近播放功能即将上线</p>
-        </div>
-      )}
+      {tab === 'recent' && <RecentPlaysList />}
+    </div>
+  )
+}
+
+/** 本地播放历史列表:点击整单入队从该曲播起。 */
+function RecentPlaysList() {
+  const items = useRecentPlaysStore((s) => s.items)
+
+  if (!items.length) {
+    return (
+      <div className={styles.emptyHint}>
+        <p>还没有播放记录,去探索页听点什么吧</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.trackList}>
+      <div className={styles.trackListToolbar}>
+        <span className={styles.trackListCount}>{items.length} 首</span>
+        <button className={`${styles.clearBtn} no-drag`} onClick={() => useRecentPlaysStore.getState().clear()}>
+          清空记录
+        </button>
+      </div>
+      {items.map((it, i) => (
+        <TrackRow
+          key={`${String(it.track.id)}-${it.playedAt}`}
+          track={it.track}
+          index={i}
+          onPlay={() =>
+            usePlaylistStore.getState().setQueue(
+              items.map((r) => r.track),
+              i
+            )
+          }
+        />
+      ))}
     </div>
   )
 }

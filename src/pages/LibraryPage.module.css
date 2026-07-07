@@ -53,3 +53,38 @@
   color: var(--sm-text-secondary);
   font-size: 14px;
 }
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 920px;
+}
+
+.trackListToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 8px;
+}
+
+.trackListCount {
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+}
+
+.clearBtn {
+  border: none;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--sm-radius-pill);
+  transition: background 150ms, color 150ms;
+}
+
+.clearBtn:hover {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+}
