@@ -4,3 +4,12 @@ dist/
 *.log
 .DS_Store
 .superpowers/
+
+# 本地 AI 工具产物(不入库)
+.claude/
+.claude-flow/
+.swarm/
+.mcp.json
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db

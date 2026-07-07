@@ -11,7 +11,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
-import { fadeRise, springGentle } from '../../lib/motion-presets'
+import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
 
@@ -55,55 +55,77 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   return (
     <div className={styles.page} ref={pageRef} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
-      <div className={styles.detailHeader}>
-        <button className={`${styles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}>
-          ← 返回
-        </button>
-        <div className={styles.detailMeta}>
-          {playlist.cover && (
-            <motion.img
-              className={styles.detailCover}
-              src={playlist.cover}
-              alt=""
-              layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
-              transition={springGentle}
+      <div className={styles.inner}>
+        <div className={styles.detailHeader}>
+          <motion.button
+            className={`${styles.backBtn} no-drag`}
+            onClick={() => useNavigationStore.getState().goBack()}
+            aria-label="返回上一页"
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            <svg
+              className={styles.backIcon}
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span>返回</span>
+          </motion.button>
+          <div className={styles.detailMeta}>
+            {playlist.cover && (
+              <motion.img
+                className={styles.detailCover}
+                src={playlist.cover}
+                alt=""
+                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
+                transition={springGentle}
+              />
+            )}
+            <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+              <h1 className={styles.detailTitle}>
+                <GradientText>{playlist.name}</GradientText>
+              </h1>
+              <p className={styles.detailSub}>{loading ? '加载中…' : `${total} 首`}</p>
+            </motion.div>
+          </div>
+        </div>
+        {error ? (
+          <div className={styles.errorHint}>
+            <p>歌单加载失败</p>
+            <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
+              重试
+            </button>
+          </div>
+        ) : (
+          <motion.div
+            className={styles.trackList}
+            variants={fadeRise}
+            initial="hidden"
+            animate="visible"
+            transition={{ ...springGentle, delay: 0.15 }}
+          >
+            <VirtualList
+              total={total}
+              rowHeight={TRACK_ROW_HEIGHT}
+              scrollRef={pageRef}
+              onRangeChange={ensureRange}
+              renderRow={(i) => {
+                const t = tracks[i]
+                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(i)} /> : <SkeletonTrackRow index={i} />
+              }}
             />
-          )}
-          <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-            <h1 className={styles.detailTitle}>
-              <GradientText>{playlist.name}</GradientText>
-            </h1>
-            <p className={styles.detailSub}>{loading ? '加载中…' : `${total} 首`}</p>
           </motion.div>
-        </div>
+        )}
       </div>
-      {error ? (
-        <div className={styles.errorHint}>
-          <p>歌单加载失败</p>
-          <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
-            重试
-          </button>
-        </div>
-      ) : (
-        <motion.div
-          className={styles.trackList}
-          variants={fadeRise}
-          initial="hidden"
-          animate="visible"
-          transition={{ ...springGentle, delay: 0.15 }}
-        >
-          <VirtualList
-            total={total}
-            rowHeight={TRACK_ROW_HEIGHT}
-            scrollRef={pageRef}
-            onRangeChange={ensureRange}
-            renderRow={(i) => {
-              const t = tracks[i]
-              return t ? <TrackRow track={t} index={i} onPlay={() => playAt(i)} /> : <SkeletonTrackRow index={i} />
-            }}
-          />
-        </motion.div>
-      )}
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
     </div>
   )
