@@ -23,6 +23,8 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const qqLoggedIn = useSettingsStore((s) => s.qqLoggedIn)
   const setNeteaseLoggedIn = useSettingsStore((s) => s.setNeteaseLoggedIn)
   const setQQLoggedIn = useSettingsStore((s) => s.setQQLoggedIn)
+  const setNeteaseProfile = useSettingsStore((s) => s.setNeteaseProfile)
+  const setQQProfile = useSettingsStore((s) => s.setQQProfile)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
 
   const [accountOpen, setAccountOpen] = useState(false)
@@ -34,8 +36,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
       try {
         const r = (await window.desktop?.openNeteaseLogin()) as LoginResult | undefined
         if (r?.ok && r.cookie) {
-          await api.post('/api/login/cookie', { cookie: r.cookie })
+          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/login/cookie', { cookie: r.cookie })
           setNeteaseLoggedIn(true)
+          setNeteaseProfile(info.avatar || '', info.nickname || '')
         }
       } finally {
         setBusy(false)
@@ -62,8 +65,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
       try {
         const r = (await window.desktop?.openQQLogin()) as LoginResult | undefined
         if (r?.ok && r.cookie) {
-          await api.post('/api/qq/login/cookie', { cookie: r.cookie })
+          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/qq/login/cookie', { cookie: r.cookie })
           setQQLoggedIn(true)
+          setQQProfile(info.avatar || '', info.nickname || '')
         }
       } finally {
         setBusy(false)

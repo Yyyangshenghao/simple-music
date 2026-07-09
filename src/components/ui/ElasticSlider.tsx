@@ -2,7 +2,8 @@ import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } fr
 import { useEffect, useRef, useState } from 'react'
 import styles from './ElasticSlider.module.css'
 
-const MAX_OVERFLOW = 50
+const MAX_OVERFLOW = 10
+const HOVER_SCALE = 1.08
 
 interface ElasticSliderProps {
   defaultValue?: number
@@ -134,19 +135,19 @@ function Slider({
   return (
     <>
       <motion.div
-        onHoverStart={() => animate(scale, 1.2)}
+        onHoverStart={() => animate(scale, HOVER_SCALE)}
         onHoverEnd={() => animate(scale, 1)}
-        onTouchStart={() => animate(scale, 1.2)}
+        onTouchStart={() => animate(scale, HOVER_SCALE)}
         onTouchEnd={() => animate(scale, 1)}
         style={{
           scale,
-          opacity: useTransform(scale, [1, 1.2], [0.7, 1])
+          opacity: useTransform(scale, [1, HOVER_SCALE], [0.7, 1])
         }}
         className={styles.wrapper}
       >
         <motion.div
           animate={{
-            scale: region === 'left' ? [1, 1.4, 1] : 1,
+            scale: region === 'left' ? [1, 1.15, 1] : 1,
             transition: { duration: 0.25 }
           }}
           style={{
@@ -182,9 +183,9 @@ function Slider({
                 }
                 return 'right'
               }),
-              height: useTransform(scale, [1, 1.2], [4, 8]),
-              marginTop: useTransform(scale, [1, 1.2], [0, -2]),
-              marginBottom: useTransform(scale, [1, 1.2], [0, -2])
+              height: useTransform(scale, [1, HOVER_SCALE], [4, 6]),
+              marginTop: useTransform(scale, [1, HOVER_SCALE], [0, -1]),
+              marginBottom: useTransform(scale, [1, HOVER_SCALE], [0, -1])
             }}
             className={styles.trackWrapper}
           >
@@ -196,7 +197,7 @@ function Slider({
 
         <motion.div
           animate={{
-            scale: region === 'right' ? [1, 1.4, 1] : 1,
+            scale: region === 'right' ? [1, 1.15, 1] : 1,
             transition: { duration: 0.25 }
           }}
           style={{

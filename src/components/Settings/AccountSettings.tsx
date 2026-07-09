@@ -13,6 +13,8 @@ export function AccountSettings() {
   const qqLoggedIn = useSettingsStore((s) => s.qqLoggedIn)
   const setNeteaseLoggedIn = useSettingsStore((s) => s.setNeteaseLoggedIn)
   const setQQLoggedIn = useSettingsStore((s) => s.setQQLoggedIn)
+  const setNeteaseProfile = useSettingsStore((s) => s.setNeteaseProfile)
+  const setQQProfile = useSettingsStore((s) => s.setQQProfile)
 
   const [busy, setBusy] = useState(false)
   const [wallpaper, setWallpaper] = useState(false)
@@ -25,8 +27,9 @@ export function AccountSettings() {
       try {
         const r = (await window.desktop?.openNeteaseLogin()) as LoginResult | undefined
         if (r?.ok && r.cookie) {
-          await api.post('/api/login/cookie', { cookie: r.cookie })
+          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/login/cookie', { cookie: r.cookie })
           setNeteaseLoggedIn(true)
+          setNeteaseProfile(info.avatar || '', info.nickname || '')
         }
       } finally {
         setBusy(false)
@@ -53,8 +56,9 @@ export function AccountSettings() {
       try {
         const r = (await window.desktop?.openQQLogin()) as LoginResult | undefined
         if (r?.ok && r.cookie) {
-          await api.post('/api/qq/login/cookie', { cookie: r.cookie })
+          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/qq/login/cookie', { cookie: r.cookie })
           setQQLoggedIn(true)
+          setQQProfile(info.avatar || '', info.nickname || '')
         }
       } finally {
         setBusy(false)

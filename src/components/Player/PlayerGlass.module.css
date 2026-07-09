@@ -6,7 +6,18 @@
   /* 悬浮于歌词面板(200)之上,歌词全屏时播放栏仍可用 */
   z-index: 210;
   /* 能量归零时辉光渐熄而非瞬灭 */
-  transition: --audio-energy 0.35s ease;
+  transition: --audio-energy 0.35s ease, opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 沉浸模式:淡出下沉,占位不变避免布局跳动 */
+.dock.hidden {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.dock.hidden .panel {
+  pointer-events: none;
 }
 
 .panel {

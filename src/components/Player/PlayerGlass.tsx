@@ -6,15 +6,17 @@ import styles from './PlayerGlass.module.css'
 
 interface PlayerGlassProps {
   children?: ReactNode
+  /** 沉浸模式:整体淡出并禁用交互,布局占位不变 */
+  hidden?: boolean
 }
 
 /** 播放栏外层毛玻璃容器，固定在视口底部；播放时底部氛围辉光随低频能量呼吸。 */
-export function PlayerGlass({ children }: PlayerGlassProps) {
+export function PlayerGlass({ children, hidden }: PlayerGlassProps) {
   const dockRef = useRef<HTMLDivElement>(null)
   useAudioEnergy(dockRef)
 
   return (
-    <div className={styles.dock} ref={dockRef}>
+    <div className={`${styles.dock}${hidden ? ` ${styles.hidden}` : ''}`} ref={dockRef}>
       <div className={styles.glow} aria-hidden="true" />
       <GlassPanel className={styles.panel}>{children}</GlassPanel>
     </div>

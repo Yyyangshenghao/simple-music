@@ -35,9 +35,10 @@ interface KtvLineProps {
   dim?: boolean            // 非当前行（过去/未来）时为 true
   past?: boolean           // 已唱过的行：字保持点亮，仅整行淡出
   translationText?: string
+  alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
 }
 
-export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText }: KtvLineProps) {
+export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, alignLeft }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past,
       active ? styles.active : '',
       dim ? styles.dim : '',
       past ? styles.past : '',
+      alignLeft ? styles.alignLeft : '',
     ].filter(Boolean).join(' ')}>
       <div className={styles.words} ref={wordsRef}>
         {words.map((word, i) => {

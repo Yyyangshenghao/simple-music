@@ -58,10 +58,5 @@
   text-overflow: ellipsis;
   text-align: left;
   font-family: inherit;
-  transition: color 150ms;
   cursor: default;
-}
-
-.artist:hover {
-  color: var(--sm-accent);
 }

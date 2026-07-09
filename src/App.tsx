@@ -7,12 +7,15 @@ import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
+import { useIdleHide } from './hooks/useIdleHide'
+import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
+import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { ClickSpark } from './components/ui/ClickSpark'
@@ -20,8 +23,11 @@ import { ClickSpark } from './components/ui/ClickSpark'
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const lyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
+  // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
+  const controlsHidden = useIdleHide(lyricsOpen)
 
   useDesktopBridge()
+  useLoginStatusSync()
   useAudio()
   useDesktopLyricsSync()
   useWallpaperSync()
@@ -46,10 +52,11 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div className={styles.root}>
+          <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
-          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} />
-          <LyricsPanel open={lyricsOpen} onClose={() => setLyricsOpen(false)} />
+          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />
+          <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
         </div>
       </WindowChrome>

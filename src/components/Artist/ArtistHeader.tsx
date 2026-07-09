@@ -1,6 +1,4 @@
-import { useRef, useState } from 'react'
 import type { ArtistInfo } from '../../types/domain'
-import { extractColor } from '../../lib/extract-color'
 import styles from './ArtistHeader.module.css'
 
 interface ArtistHeaderProps {
@@ -9,22 +7,11 @@ interface ArtistHeaderProps {
 }
 
 export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
-  const [bgColor, setBgColor] = useState('#10141e')
-  const imgRef = useRef<HTMLImageElement>(null)
-
   return (
-    <div className={styles.header} style={{ '--artist-bg': bgColor } as React.CSSProperties}>
-      <div className={styles.bg} />
+    <div className={styles.header}>
       <div className={styles.content}>
         {artist.avatar && (
-          <img
-            ref={imgRef}
-            className={styles.avatar}
-            src={artist.avatar}
-            alt=""
-            crossOrigin="anonymous"
-            onLoad={() => { if (imgRef.current) setBgColor(extractColor(imgRef.current)) }}
-          />
+          <img className={styles.avatar} src={artist.avatar} alt="" />
         )}
         <div className={styles.info}>
           <h1 className={styles.name}>{artist.name}</h1>

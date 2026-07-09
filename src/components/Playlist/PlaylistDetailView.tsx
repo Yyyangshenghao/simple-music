@@ -8,6 +8,7 @@ import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useBackdropStore } from '../../stores/backdrop'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
@@ -47,6 +48,12 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     setTopOpacity(0)
     setBottomOpacity(0)
   }, [playlist, setTopOpacity, setBottomOpacity])
+
+  // 歌单封面模糊后作为全局背景(铺满整个应用);离开详情页时清空
+  useEffect(() => {
+    useBackdropStore.getState().setCover(playlist.cover)
+    return () => useBackdropStore.getState().setCover(null)
+  }, [playlist.cover])
 
   function playAt(index: number) {
     usePlaylistStore.getState().setQueue(makeQueue(), index)

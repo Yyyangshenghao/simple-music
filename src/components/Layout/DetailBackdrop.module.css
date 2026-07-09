@@ -1,0 +1,24 @@
+/* 铺满 App 根节点(TopBar 之下也含在内),不受各页面自身滚动容器的 overflow 裁切影响 */
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.layer {
+  position: absolute;
+  inset: -4%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(24px) brightness(0.55) saturate(1.2);
+  transform: scale(1.06);
+}
+
+/* 暗色叠层,保证前景文字在任意封面色调下都有足够对比度,同时不糊到看不出封面本身 */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 40%, rgba(0, 0, 0, 0.5) 100%);
+}

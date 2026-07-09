@@ -5,13 +5,6 @@
   flex-shrink: 0;
 }
 
-.bg {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 20% 50%, var(--artist-bg, #10141e) 0%, var(--sm-bg-base) 100%);
-  transition: background 600ms var(--sm-ease-in-out);
-}
-
 .content {
   position: relative;
   z-index: 1;
@@ -38,12 +31,12 @@
 .meta { font-size: 14px; color: var(--sm-text-secondary); margin: 0; }
 
 .playAll {
-  margin-top: 4px;
+  margin-top: 14px;
   align-self: flex-start;
   padding: 8px 20px;
   border-radius: var(--sm-radius-pill);
   background: var(--sm-accent);
-  color: #fff;
+  color: var(--sm-text-on-accent);
   border: none;
   font-size: 13px;
   font-weight: 600;

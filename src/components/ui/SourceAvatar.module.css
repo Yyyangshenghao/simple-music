@@ -1,0 +1,37 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--brand-glow);
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--sm-bg-base);
+  border: 1.5px solid var(--sm-bg-base);
+}
+
+.badgeLogo {
+  width: 100%;
+  height: 100%;
+}

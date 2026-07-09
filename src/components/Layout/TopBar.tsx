@@ -3,8 +3,11 @@ import { motion } from 'motion/react'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useSettingsStore } from '../../stores/settings'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
+import { SourceAvatar } from '../ui/SourceAvatar'
+import { SOURCE_BRAND } from '../../lib/source-brand'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 
@@ -35,27 +38,48 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchSeq = useRef(0)
   const service = useMusicService()
+
+  const activeSource = useSettingsStore((s) => s.activeSource)
+  const neteaseAvatar = useSettingsStore((s) => s.neteaseAvatar)
+  const qqAvatar = useSettingsStore((s) => s.qqAvatar)
+  const currentAvatar = activeSource === 'netease' ? neteaseAvatar : qqAvatar
 
   useEffect(() => {
     if (isExpanded) inputRef.current?.focus()
   }, [isExpanded])
 
-  async function runSearch() {
-    const q = keyword.trim()
-    if (!q || loading) return
+  async function runSearch(q: string) {
+    if (!q) return
+    const seq = ++searchSeq.current
     setLoading(true)
     try {
       const [s, a] = await Promise.allSettled([
         service.searchTracks(q),
         service.searchArtists(q),
       ])
+      if (seq !== searchSeq.current) return
       setSongs(s.status === 'fulfilled' ? s.value : [])
       setArtists(a.status === 'fulfilled' ? a.value : [])
     } finally {
-      setLoading(false)
+      if (seq === searchSeq.current) setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const q = keyword.trim()
+    if (!q) {
+      searchSeq.current++
+      setSongs([])
+      setArtists([])
+      setLoading(false)
+      return
+    }
+    const timer = setTimeout(() => { void runSearch(q) }, 250)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyword])
 
   function handleSearchClick() {
     if (!isExpanded) setIsExpanded(true)
@@ -72,6 +96,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   function clearSearch() {
+    searchSeq.current++
     setKeyword('')
     setSongs([])
     setArtists([])
@@ -194,7 +219,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 onFocus={() => setSearchFocused(true)}
                 onBlur={handleSearchBlur}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); void runSearch() }
+                  if (e.key === 'Enter') { e.preventDefault(); void runSearch(keyword.trim()) }
                 }}
                 placeholder="搜索歌曲、歌手…"
               />
@@ -242,15 +267,12 @@ export function TopBar({ hidden = false }: TopBarProps) {
           <motion.button
             className={styles.avatarBtn}
             onClick={() => setAvatarMenuOpen((v) => !v)}
-            aria-label="账户菜单"
+            aria-label={`账户菜单 - 当前音源 ${SOURCE_BRAND[activeSource].label}`}
             whileTap={tapScale}
             transition={springSnappy}
           >
             <span className={styles.avatarInner}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
-              </svg>
+              <SourceAvatar source={activeSource} avatarUrl={currentAvatar} />
             </span>
           </motion.button>
           {avatarMenuOpen && (

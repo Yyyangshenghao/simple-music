@@ -55,3 +55,10 @@
   color: rgba(214, 240, 255, 0.92);
   opacity: 1;
 }
+
+/* 左对齐变体(歌词页左右布局):放大从左侧锚点展开,不横移 */
+.alignLeft {
+  align-items: flex-start;
+  text-align: left;
+  transform-origin: left center;
+}

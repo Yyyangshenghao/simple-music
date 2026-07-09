@@ -10,8 +10,9 @@ interface SliderProps {
   className?: string
 }
 
-/** 受控滑块。range input 包一层标签与数值显示。 */
+/** 受控滑块。range input 包一层标签与数值显示,轨道按当前值分色(已播放/已选 vs 未播放)。 */
 export function Slider({ value, min = 0, max = 1, step = 0.01, label, onChange, className }: SliderProps) {
+  const percent = max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0
   return (
     <label className={`${styles.wrap} no-drag${className ? ` ${className}` : ''}`}>
       {label != null && (
@@ -28,6 +29,7 @@ export function Slider({ value, min = 0, max = 1, step = 0.01, label, onChange, 
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        style={{ '--sm-slider-percent': `${percent}%` } as React.CSSProperties}
       />
     </label>
   )

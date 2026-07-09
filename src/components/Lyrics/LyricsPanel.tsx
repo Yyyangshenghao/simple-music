@@ -6,12 +6,15 @@ import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
+import { ArtistLinks } from '../ui/ArtistLinks'
 import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
 import { CinemaCamera } from '../Visualizer/CinemaCamera'
 import styles from './LyricsPanel.module.css'
 
 interface LyricsPanelProps {
   open: boolean
+  /** 沉浸模式:淡出 header 控件并隐藏鼠标指针 */
+  controlsHidden?: boolean
   onClose: () => void
 }
 
@@ -24,9 +27,8 @@ function ChevronDown() {
   )
 }
 
-export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
+export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
   const track = usePlayerStore((s) => s.currentTrack)
-  const status = usePlayerStore((s) => s.status)
   const lines = useLyricsStore((s) => s.lines)
   const translation = useLyricsStore((s) => s.translation)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
@@ -36,7 +38,6 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
 
   const scrollRef = useRef<HTMLDivElement>(null)
-  const isPlaying = status === 'playing'
 
   // 平滑滚动到当前行（仅纯歌词模式）
   useEffect(() => {
@@ -66,8 +67,8 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
   const nextTranslation = currentIndex >= 0 ? translation[currentIndex + 1]?.text : undefined
 
   return (
-    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}`}>
-      {/* Header：始终显示 */}
+    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}`}>
+      {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
           <span className={styles.closeBtnIcon}><ChevronDown /></span>
@@ -105,11 +106,12 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
           {/* 氛围霞光舞台：两团氛围色缓慢漂移，跟切歌变色 */}
           <div className={styles.auroraStage} aria-hidden="true" />
 
-          <div className={styles.coverSection}>
-            <div className={styles.coverWrap}>
+          {/* Apple Music 式左右分栏:左侧封面+信息,右侧歌词 */}
+          <div className={styles.splitLayout}>
+            <div className={styles.coverSection}>
               {track?.cover ? (
                 <img
-                  className={`${styles.coverArt}${isPlaying ? ` ${styles.spinning}` : ''}`}
+                  className={styles.coverArt}
                   src={track.cover}
                   alt={track.name}
                   draggable={false}
@@ -117,58 +119,63 @@ export function LyricsPanel({ open, onClose }: LyricsPanelProps) {
               ) : (
                 <div className={styles.coverPlaceholder} aria-hidden="true">♪</div>
               )}
-              <div className={styles.vinylHole} aria-hidden="true" />
-            </div>
-            <div className={styles.trackMeta}>
-              <div className={styles.trackName} title={track?.name}>
-                {track?.name ?? '未在播放'}
+              <div className={styles.trackMeta}>
+                <div className={styles.trackName} title={track?.name}>
+                  {track?.name ?? '未在播放'}
+                </div>
+                <ArtistLinks
+                  className={styles.artistName}
+                  artists={track?.artists}
+                  fallback={track?.artist ?? '—'}
+                  source={track?.source ?? 'netease'}
+                  onBeforeNavigate={onClose}
+                />
               </div>
-              <div className={styles.artistName} title={track?.artist}>
-                {track?.artist ?? '—'}
-              </div>
             </div>
-          </div>
 
-          {lines.length === 0 ? (
-            <div className={styles.empty}>暂无歌词</div>
-          ) : (
-            <div className={styles.lyricsScroll} ref={scrollRef}>
-              <div className={styles.lyricsPad} aria-hidden="true" />
-              {lines.map((line, i) => {
-                const isActive = i === currentIndex
-                const wordLine = wordLines[i]
+            {lines.length === 0 ? (
+              <div className={styles.empty}>暂无歌词</div>
+            ) : (
+              <div className={styles.lyricsScroll} ref={scrollRef}>
+                <div className={styles.lyricsPad} aria-hidden="true" />
+                {lines.map((line, i) => {
+                  const isActive = i === currentIndex
+                  const wordLine = wordLines[i]
 
-                // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
-                // 字号一致，激活态只靠 scale/亮度区分
-                if (wordLine) {
+                  // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
+                  // 字号一致，激活态只靠 scale/亮度区分
+                  if (wordLine) {
+                    return (
+                      <div key={`${line.time}-${i}`} data-line={i} className={styles.ktvLineWrap}>
+                        <KtvLine
+                          words={wordLine.words}
+                          lineDurationMs={wordLine.durationMs}
+                          lineStartMs={wordLine.time * 1000}
+                          active={isActive}
+                          dim={!isActive}
+                          past={i < currentIndex}
+                          translationText={translation[i]?.text || undefined}
+                          alignLeft
+                        />
+                      </div>
+                    )
+                  }
+
                   return (
-                    <div key={`${line.time}-${i}`} data-line={i} className={styles.ktvLineWrap}>
-                      <KtvLine
-                        words={wordLine.words}
-                        lineDurationMs={wordLine.durationMs}
-                        lineStartMs={wordLine.time * 1000}
+                    <div key={`${line.time}-${i}`} data-line={i}>
+                      <LyricLine
+                        text={line.text}
+                        translation={translation[i]?.text || undefined}
                         active={isActive}
-                        dim={!isActive}
-                        past={i < currentIndex}
-                        translationText={translation[i]?.text || undefined}
+                        alignLeft
                       />
                     </div>
                   )
-                }
-
-                return (
-                  <div key={`${line.time}-${i}`} data-line={i}>
-                    <LyricLine
-                      text={line.text}
-                      translation={translation[i]?.text || undefined}
-                      active={isActive}
-                    />
-                  </div>
-                )
-              })}
-              <div className={styles.lyricsPad} aria-hidden="true" />
-            </div>
-          )}
+                })}
+                <div className={styles.lyricsPad} aria-hidden="true" />
+              </div>
+            )}
+          </div>
         </>
       )}
 

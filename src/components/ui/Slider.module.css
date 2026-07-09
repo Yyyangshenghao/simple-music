@@ -20,12 +20,17 @@
 }
 
 .range {
+  --sm-slider-percent: 0%;
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: linear-gradient(
+    to right,
+    var(--sm-accent) var(--sm-slider-percent),
+    rgba(255, 255, 255, 0.14) var(--sm-slider-percent)
+  );
   cursor: pointer;
 }
 

@@ -20,9 +20,15 @@ interface PersistedSettings {
 interface SettingsStore extends PersistedSettings {
   neteaseLoggedIn: boolean
   qqLoggedIn: boolean
+  neteaseAvatar: string
+  neteaseNickname: string
+  qqAvatar: string
+  qqNickname: string
   setHotkeys(hotkeys: HotkeyBinding[]): void
   setNeteaseLoggedIn(v: boolean): void
   setQQLoggedIn(v: boolean): void
+  setNeteaseProfile(avatar: string, nickname: string): void
+  setQQProfile(avatar: string, nickname: string): void
   setShelfShowPodcasts(v: boolean): void
   setShelfMergeCollections(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
@@ -41,6 +47,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   hotkeys: [],
   neteaseLoggedIn: false,
   qqLoggedIn: false,
+  neteaseAvatar: '',
+  neteaseNickname: '',
+  qqAvatar: '',
+  qqNickname: '',
   shelfShowPodcasts: true,
   shelfMergeCollections: false,
   liveBackgroundKeep: false,
@@ -55,10 +65,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   setNeteaseLoggedIn(v) {
-    set({ neteaseLoggedIn: v })
+    set(v ? { neteaseLoggedIn: v } : { neteaseLoggedIn: v, neteaseAvatar: '', neteaseNickname: '' })
   },
   setQQLoggedIn(v) {
-    set({ qqLoggedIn: v })
+    set(v ? { qqLoggedIn: v } : { qqLoggedIn: v, qqAvatar: '', qqNickname: '' })
+  },
+  setNeteaseProfile(avatar, nickname) {
+    set({ neteaseAvatar: avatar, neteaseNickname: nickname })
+  },
+  setQQProfile(avatar, nickname) {
+    set({ qqAvatar: avatar, qqNickname: nickname })
   },
   setShelfShowPodcasts(v) {
     set({ shelfShowPodcasts: v })

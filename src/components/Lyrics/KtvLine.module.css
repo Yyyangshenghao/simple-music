@@ -60,6 +60,20 @@
   --p: 0;
 }
 
+/* 左对齐变体(歌词页左右布局):放大从左侧锚点展开,不横移 */
+.alignLeft {
+  align-items: flex-start;
+  transform-origin: left center;
+}
+
+.alignLeft .words {
+  justify-content: flex-start;
+}
+
+.alignLeft .translation {
+  text-align: left;
+}
+
 /* 翻译行 */
 .translation {
   font-size: clamp(13px, 1.5vw, 18px);
