@@ -866,6 +866,45 @@ export async function handleQQRecommendFeed(cookie: string, page: number): Promi
   return { provider: 'qq', playlists }
 }
 
+export async function handleQQRecommendSongs(cookie: string): Promise<Record<string, unknown>> {
+  const info = await getQQLoginInfo(cookie)
+  if (!info.loggedIn) return { provider: 'qq', songs: [] }
+  const seen = new Set<string>()
+  const songs: Record<string, unknown>[] = []
+  for (let i = 0; i < 4 && songs.length < 20; i++) {
+    let json: Record<string, unknown>
+    try {
+      json = rec(
+        await qqMusicRequest(cookie, {
+          comm: { ct: 24, cv: 0 },
+          radio: {
+            module: 'music.radioProxy.MbTrackRadioSvr',
+            method: 'get_radio_track',
+            param: {},
+          },
+        })
+      )
+    } catch (e) {
+      console.warn('[QQRecommendSongs] batch failed:', (e as Error).message)
+      break
+    }
+    const block = rec(json.radio)
+    const data = rec(block.data)
+    const rawList =
+      [data.track, data.songList, data.vec_song, data.tracks].map(arr).find((list) => list.length) || []
+    if (rawList.length === 0) break
+    for (const raw of rawList) {
+      const song = mapQQPlaylistTrack(raw)
+      const key = str(song.mid) || str(song.id)
+      if (!key || seen.has(key) || !song.name) continue
+      seen.add(key)
+      songs.push(song)
+      if (songs.length >= 20) break
+    }
+  }
+  return { provider: 'qq', songs }
+}
+
 export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', tracks: [] }

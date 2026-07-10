@@ -9,6 +9,7 @@ import {
   handleQQUserPlaylists,
   handleQQRadarSong,
   handleQQRecommendFeed,
+  handleQQRecommendSongs,
   handleQQPlaylistTracks,
   handleQQArtistDetail,
   handleQQSongComments,
@@ -169,6 +170,17 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQRecommendFeed]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, playlists: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/recommend/songs') {
+    try {
+      const data = await handleQQRecommendSongs(getCookie(ctx, 'qq'))
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQRecommendSongs]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, songs: [] }, 500)
     }
     return true
   }
