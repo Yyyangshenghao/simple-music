@@ -14,9 +14,9 @@ export interface MusicService {
   getArtistAlbums(id: unknown): Promise<Playlist[]>
   getTrackUrl(track: Track): Promise<string>
   getLyrics(track: Track): Promise<LyricLine[]>
-  /** 每日歌曲推荐（网易专属；未实现的音源不渲染每日推荐卡）。 */
+  /** 每日/猜你喜欢曲目推荐（可选；未实现的音源不渲染该卡片）。 */
   getDailySongs?(): Promise<Track[]>
-  /** 私人雷达歌单（网易专属；null = 不可用，隐藏卡片）。 */
+  /** 私人雷达歌单（可选；null = 不可用，隐藏卡片）。 */
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>

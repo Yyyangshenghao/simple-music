@@ -1,10 +1,10 @@
 import { api } from './api'
-import type { MusicService, PlaylistSkeleton } from './music-service'
+import type { MusicService, PlaylistSkeleton, RadarPlaylist } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class QQMusicService implements MusicService {
-  async getRecommendPlaylists(): Promise<Playlist[]> {
-    const res = await api.get<{ playlists: Playlist[] }>('/api/qq/playlists/discover')
+  async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/qq/recommend/playlists', { page })
     return res.playlists ?? []
   }
 
@@ -53,5 +53,16 @@ export class QQMusicService implements MusicService {
   async getLyrics(track: Track): Promise<LyricLine[]> {
     const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', { id: track.id as string | number, mid: track.mid as string | undefined })
     return res.lines ?? []
+  }
+
+  async getDailySongs(): Promise<Track[]> {
+    const res = await api.get<{ songs: Track[] }>('/api/qq/recommend/songs')
+    return res.songs ?? []
+  }
+
+  async getRadarPlaylist(): Promise<RadarPlaylist | null> {
+    const res = await api.get<{ playlist: Playlist | null; tracks: Track[] }>('/api/qq/radar')
+    if (!res.playlist || !res.tracks?.length) return null
+    return { playlist: res.playlist, tracks: res.tracks }
   }
 }
