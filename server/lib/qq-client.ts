@@ -840,6 +840,32 @@ export async function handleQQRadarSong(cookie: string): Promise<Record<string, 
   return { provider: 'qq', playlist, tracks }
 }
 
+export async function handleQQRecommendFeed(cookie: string, page: number): Promise<Record<string, unknown>> {
+  const from = Math.max(0, page) * 20
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: { ct: 24, cv: 0 },
+      feed: {
+        module: 'music.playlist.PlaylistSquare',
+        method: 'GetRecommendFeed',
+        param: { From: from, Size: 20 },
+      },
+    })
+  )
+  const block = rec(json.feed)
+  const data = rec(block.data)
+  const rawList =
+    [data.content, data.List, data.v_playlist, data.playlist, data.disslist].map(arr).find((list) => list.length) ||
+    []
+  const playlists = rawList
+    .map((item) => {
+      const r = rec(item)
+      return mapQQPlaylist(r.playlist || r.diss_info || r.content || r, 'discover')
+    })
+    .filter((pl) => pl.id && pl.name)
+  return { provider: 'qq', playlists }
+}
+
 export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', tracks: [] }
