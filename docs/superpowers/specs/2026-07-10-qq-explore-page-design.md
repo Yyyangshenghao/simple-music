@@ -27,7 +27,7 @@
 
 **`server/lib/qq-client.ts`** 新增三个 handler,风格与现有 `handleQQUserPlaylists`/`handleQQArtistSongs` 一致(`qqMusicRequest` 统一信封、`rec`/`arr`/`str`/`numOf` 防御式取值、未登录/空数据走兜底分支而不抛错):
 
-- `handleQQRadarSong(cookie, page)`:
+- `handleQQRadarSong(cookie)`(无分页,单次调用,与路由/客户端签名一致):
   - 先查 `getQQLoginInfo`,未登录直接返回 `{ provider:'qq', playlist:null, tracks:[] }`(与网易 `/api/netease/radar` 同构)。
   - 调 `music.recommend.TrackRelationServer/GetRadarSong`,取曲目列表(复用 `mapQQTrack` 映射单曲字段)。
   - 上游只给曲目、没有歌单实体,服务端合成一个轻量 playlist 壳:`{ provider:'qq', id:'qq-radar', name:'私人雷达', cover: <首曲专辑封面>, trackCount, creator:'QQ 音乐' }`。
