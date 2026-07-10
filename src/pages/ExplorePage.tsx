@@ -94,12 +94,13 @@ export function ExplorePage() {
 
   function openDaily() {
     if (dailySongs.length === 0) return
+    const src = dailySongs[0].source
     const pl: Playlist = {
-      provider: 'netease',
-      source: 'netease',
+      provider: src,
+      source: src,
       type: 'playlist',
-      id: 'netease-daily-songs',
-      name: '每日推荐',
+      id: `${src}-daily-songs`,
+      name: src === 'qq' ? '猜你喜欢' : '每日推荐',
       cover: dailySongs[0]?.cover ?? '',
       trackCount: dailySongs.length,
       playCount: 0,
@@ -129,11 +130,15 @@ export function ExplorePage() {
           <div className={styles.heroCards}>
             {dailySongs.length > 0 && (
               <HeroCard
-                title="每日推荐"
-                subtitle={`${dailySongs.length} 首 · 每天更新`}
+                title={dailySongs[0].source === 'qq' ? '猜你喜欢' : '每日推荐'}
+                subtitle={
+                  dailySongs[0].source === 'qq'
+                    ? `${dailySongs.length} 首 · 根据你的口味`
+                    : `${dailySongs.length} 首 · 每天更新`
+                }
                 cover={dailySongs[0]?.cover}
-                badge={<span>{new Date().getDate()}</span>}
-                layoutId="explore-cover-netease-daily-songs"
+                badge={dailySongs[0].source === 'qq' ? undefined : <span>{new Date().getDate()}</span>}
+                layoutId={`explore-cover-${dailySongs[0].source}-daily-songs`}
                 onClick={openDaily}
               />
             )}
