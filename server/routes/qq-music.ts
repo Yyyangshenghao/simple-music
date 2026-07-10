@@ -7,6 +7,7 @@ import {
   handleQQLyric,
   getQQLoginInfo,
   handleQQUserPlaylists,
+  handleQQRadarSong,
   handleQQPlaylistTracks,
   handleQQArtistDetail,
   handleQQSongComments,
@@ -144,6 +145,17 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQUserPlaylists]', err)
       sendJson(res, { provider: 'qq', loggedIn: false, error: (err as Error).message, playlists: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/radar') {
+    try {
+      const data = await handleQQRadarSong(getCookie(ctx, 'qq'))
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQRadar]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, playlist: null, tracks: [] }, 500)
     }
     return true
   }

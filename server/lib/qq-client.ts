@@ -807,6 +807,39 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
   return { loggedIn: true, provider: 'qq', userId: uin, playlists }
 }
 
+export async function handleQQRadarSong(cookie: string): Promise<Record<string, unknown>> {
+  const info = await getQQLoginInfo(cookie)
+  if (!info.loggedIn) return { provider: 'qq', playlist: null, tracks: [] }
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: { ct: 24, cv: 0 },
+      radar: {
+        module: 'music.recommend.TrackRelationServer',
+        method: 'GetRadarSong',
+        param: { Page: 1 },
+      },
+    })
+  )
+  const block = rec(json.radar)
+  const data = rec(block.data)
+  const rawList =
+    [data.songList, data.vec_song, data.tracks, data.List, data.data].map(arr).find((list) => list.length) || []
+  const tracks = rawList.map(mapQQPlaylistTrack).filter((s) => s.name && (s.mid || s.id))
+  if (tracks.length === 0) return { provider: 'qq', playlist: null, tracks: [] }
+  const playlist = {
+    provider: 'qq',
+    source: 'qq',
+    type: 'playlist',
+    id: 'qq-radar',
+    name: '私人雷达',
+    cover: str(tracks[0].cover),
+    trackCount: tracks.length,
+    playCount: 0,
+    creator: 'QQ 音乐',
+  }
+  return { provider: 'qq', playlist, tracks }
+}
+
 export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', tracks: [] }
