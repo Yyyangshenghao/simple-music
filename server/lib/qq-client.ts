@@ -227,6 +227,21 @@ export function qqCookiePlaybackKey(obj: CookieMap): string {
   return obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.wxskey || ''
 }
 
+/** 个性化接口(雷达/猜你喜欢等)的鉴权 comm 块,与 handleQQSongUrl 的 vkey 请求同构:带 uin+authst,ct 随是否有票据切换。 */
+function qqAuthComm(cookie: string): { uin: string; format: string; ct: number; cv: number; authst?: string } {
+  const cookieObj = parseCookieString(cookie)
+  const uin = qqCookieUin(cookieObj) || '0'
+  const musicKey = qqCookieMusicKey(cookieObj)
+  const comm: { uin: string; format: string; ct: number; cv: number; authst?: string } = {
+    uin,
+    format: 'json',
+    ct: musicKey ? 19 : 24,
+    cv: 0,
+  }
+  if (musicKey) comm.authst = musicKey
+  return comm
+}
+
 function decodeQQCookieValue(value: unknown): string {
   try {
     return decodeURIComponent(String(value || '').replace(/\+/g, '%20')).trim()
@@ -811,14 +826,18 @@ export async function handleQQRadarSong(cookie: string): Promise<Record<string, 
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn) return { provider: 'qq', playlist: null, tracks: [] }
   const json = rec(
-    await qqMusicRequest(cookie, {
-      comm: { ct: 24, cv: 0 },
-      radar: {
-        module: 'music.recommend.TrackRelationServer',
-        method: 'GetRadarSong',
-        param: { Page: 1 },
+    await qqMusicRequest(
+      cookie,
+      {
+        comm: qqAuthComm(cookie),
+        radar: {
+          module: 'music.recommend.TrackRelationServer',
+          method: 'GetRadarSong',
+          param: { Page: 1 },
+        },
       },
-    })
+      { cookie: true }
+    )
   )
   const block = rec(json.radar)
   const data = rec(block.data)
@@ -875,14 +894,18 @@ export async function handleQQRecommendSongs(cookie: string): Promise<Record<str
     let json: Record<string, unknown>
     try {
       json = rec(
-        await qqMusicRequest(cookie, {
-          comm: { ct: 24, cv: 0 },
-          radio: {
-            module: 'music.radioProxy.MbTrackRadioSvr',
-            method: 'get_radio_track',
-            param: {},
+        await qqMusicRequest(
+          cookie,
+          {
+            comm: qqAuthComm(cookie),
+            radio: {
+              module: 'music.radioProxy.MbTrackRadioSvr',
+              method: 'get_radio_track',
+              param: {},
+            },
           },
-        })
+          { cookie: true }
+        )
       )
     } catch (e) {
       console.warn('[QQRecommendSongs] batch failed:', (e as Error).message)
