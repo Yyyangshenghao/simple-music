@@ -9,6 +9,7 @@ import styles from './AppShell.module.css'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
+const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
 
@@ -34,6 +35,7 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
     const t = window.setTimeout(() => {
       void import('../../pages/ExplorePage')
       void import('../../pages/LibraryPage')
+      void import('../../pages/RoamPage')
       void import('../../pages/SettingsPage')
       void import('../../pages/ArtistPage')
     }, 2000)
@@ -51,6 +53,7 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
   const renderPage = () => {
     if (view === 'explore') return <ExplorePage />
     if (view === 'library') return <LibraryPage />
+    if (view === 'roam') return <RoamPage />
     if (view === 'settings') return <SettingsPage />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} />

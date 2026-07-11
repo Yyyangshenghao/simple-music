@@ -14,6 +14,7 @@ import styles from './TopBar.module.css'
 const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '探索', view: 'explore' },
   { label: '我的库', view: 'library' },
+  { label: '漫游', view: 'roam' },
 ]
 
 interface TopBarProps {
@@ -154,13 +155,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
       <div className={styles.center}>
         <nav className={styles.segNav} aria-label="主导航">
           {NAV_ITEMS.map((item) => {
-            // 歌单详情归属其来源 tab；其余非「我的库」视图（设置/歌手）默认落在探索
+            // 歌单详情归属其来源 tab；其余非「我的库」/「漫游」视图（设置/歌手）默认落在探索
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
                 : currentView
             const active = section === item.view
-              || (item.view === 'explore' && section !== 'library')
+              || (item.view === 'explore' && section !== 'library' && section !== 'roam')
             return (
               <button
                 key={item.label}

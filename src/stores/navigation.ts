@@ -4,6 +4,7 @@ import type { Playlist, Track } from '../types/domain'
 export type AppView =
   | 'explore'
   | 'library'
+  | 'roam'
   | 'settings'
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' }
   /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
