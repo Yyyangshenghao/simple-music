@@ -12,6 +12,9 @@ import {
   handleQQRecommendSongs,
   handleQQPlaylistTracks,
   handleQQArtistDetail,
+  handleQQArtistSearch,
+  handleQQArtistSongs,
+  handleQQArtistAlbums,
   handleQQSongComments,
   normalizeQQCookieInput,
   parseCookieString,
@@ -55,6 +58,19 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQSearch]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, songs: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/search/artists') {
+    try {
+      const kw = url.searchParams.get('keywords') || ''
+      const limit = Math.max(1, Math.min(10, parseInt(url.searchParams.get('limit') || '5', 10) || 5))
+      const artists = await handleQQArtistSearch(getCookie(ctx, 'qq'), kw, limit)
+      sendJson(res, { provider: 'qq', artists })
+    } catch (err) {
+      console.error('[QQArtistSearch]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, artists: [] }, 500)
     }
     return true
   }
@@ -210,6 +226,34 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQArtistDetail]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, artist: null, songs: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/artist/songs') {
+    try {
+      const mid = url.searchParams.get('id') || url.searchParams.get('mid') || url.searchParams.get('singermid') || ''
+      const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '30', 10) || 30))
+      const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0)
+      const data = await handleQQArtistSongs(getCookie(ctx, 'qq'), mid, limit, offset)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQArtistSongs]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, songs: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/artist/albums') {
+    try {
+      const mid = url.searchParams.get('id') || url.searchParams.get('mid') || url.searchParams.get('singermid') || ''
+      const limit = Math.max(1, Math.min(80, parseInt(url.searchParams.get('limit') || '30', 10) || 30))
+      const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0)
+      const data = await handleQQArtistAlbums(getCookie(ctx, 'qq'), mid, limit, offset)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQArtistAlbums]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, albums: [] }, 500)
     }
     return true
   }

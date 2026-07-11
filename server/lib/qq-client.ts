@@ -1111,6 +1111,139 @@ export async function handleQQArtistDetail(
   }
 }
 
+// ---------- 业务: 歌手搜索 / 歌手歌曲 / 歌手专辑 ----------
+
+interface QQArtistSearchResult {
+  provider: 'qq'
+  id: unknown
+  mid: string
+  name: string
+  avatar: string
+  musicSize: number
+}
+
+export async function handleQQArtistSearch(
+  cookie: string,
+  keywords: string,
+  limit: number
+): Promise<QQArtistSearchResult[]> {
+  const kw = String(keywords || '').trim()
+  if (!kw) return []
+  const num = Math.max(1, Math.min(limit || 5, 10))
+  // 该模块要求信封 key 与 module 同名(且不能带顶层 comm),与本文件其余接口的 req_1/自定义 key 约定不同,已实测确认。
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      'music.search.SearchCgiService': {
+        module: 'music.search.SearchCgiService',
+        method: 'DoSearchForQQMusicDesktop',
+        param: { search_type: 1, query: kw, page_num: 1, num_per_page: num },
+      },
+    })
+  )
+  const block = rec(json['music.search.SearchCgiService'])
+  const list = arr(rec(rec(rec(block.data).body).singer).list)
+  return list
+    .map((raw) => {
+      const s = rec(raw)
+      const mid = str(s.singerMID || s.singermid)
+      return {
+        provider: 'qq' as const,
+        id: mid,
+        mid,
+        name: str(s.singerName),
+        avatar: str(s.singerPic) || qqSingerAvatar(mid, 300),
+        musicSize: numOf(s.songNum),
+      }
+    })
+    .filter((a) => a.name && a.mid)
+}
+
+export async function handleQQArtistSongs(
+  cookie: string,
+  mid: string,
+  limit: number,
+  offset: number
+): Promise<Record<string, unknown>> {
+  const singerMid = String(mid || '').trim()
+  if (!singerMid) return { provider: 'qq', error: 'MISSING_SINGER_MID', songs: [] }
+  const num = Math.max(1, Math.min(100, limit || 30))
+  const begin = Math.max(0, offset || 0)
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: { ct: 24, cv: 0 },
+      singerSongList: {
+        module: 'musichall.song_list_server',
+        method: 'GetSingerSongList',
+        param: { singerMid, order: 1, begin, num },
+      },
+    })
+  )
+  const block = rec(json.singerSongList)
+  if (!json.singerSongList || Number(block.code || 0) !== 0) {
+    return {
+      provider: 'qq',
+      error: str(block.message || block.msg) || 'QQ_ARTIST_SONGS_FAILED',
+      songs: [],
+    }
+  }
+  const data = rec(block.data)
+  const songs = arr(data.songList)
+    .map((raw) => mapQQTrack(rec(raw).songInfo, {}))
+    .filter((s) => s && s.name && (s.mid || s.id))
+  return { provider: 'qq', total: numOf(data.totalNum) || songs.length, songs }
+}
+
+function mapQQAlbum(raw: unknown): Record<string, unknown> {
+  const a = rec(raw)
+  const albumMid = str(a.albumMid)
+  return {
+    provider: 'qq',
+    source: 'qq',
+    type: 'album',
+    id: albumMid,
+    name: str(a.albumName),
+    cover: qqAlbumCover(albumMid, 300),
+    trackCount: numOf(a.totalNum),
+    playCount: 0,
+    creator: str(a.singerName),
+    tag: '专辑',
+    description: str(a.albumTranName),
+  }
+}
+
+export async function handleQQArtistAlbums(
+  cookie: string,
+  mid: string,
+  limit: number,
+  offset: number
+): Promise<Record<string, unknown>> {
+  const singerMid = String(mid || '').trim()
+  if (!singerMid) return { provider: 'qq', error: 'MISSING_SINGER_MID', albums: [] }
+  const num = Math.max(1, Math.min(80, limit || 30))
+  const begin = Math.max(0, offset || 0)
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: { ct: 24, cv: 0 },
+      singerAlbum: {
+        module: 'music.musichallAlbum.AlbumListServer',
+        method: 'GetAlbumList',
+        param: { singerMid, order: 1, begin, num },
+      },
+    })
+  )
+  const block = rec(json.singerAlbum)
+  if (!json.singerAlbum || Number(block.code || 0) !== 0) {
+    return {
+      provider: 'qq',
+      error: str(block.message || block.msg) || 'QQ_ARTIST_ALBUMS_FAILED',
+      albums: [],
+    }
+  }
+  const data = rec(block.data)
+  const albums = arr(data.albumList).map(mapQQAlbum).filter((a) => a.id && a.name)
+  return { provider: 'qq', albums }
+}
+
 export async function handleQQSearch(
   cookie: string,
   keywords: string,
