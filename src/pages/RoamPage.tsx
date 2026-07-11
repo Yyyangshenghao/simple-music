@@ -15,7 +15,6 @@ import styles from './RoamPage.module.css'
 export function RoamPage() {
   const service = useMusicService()
   const activeSource = useSettingsStore((s) => s.activeSource)
-  const prevSourceRef = useRef(activeSource)
   const playlist = useRoamStore((s) => s.playlist)
   const selectedArtists = useRoamStore((s) => s.selectedArtists)
   const mode = useRoamStore((s) => s.mode)
@@ -33,13 +32,15 @@ export function RoamPage() {
 
   const { topOpacity, bottomOpacity, handleScroll } = useScrollGradient()
 
-  // 运行时切换音源：不仅要清空进行中的选歌手态,当天生成的歌单(source 与新音源不匹配)也要立即过期,
-  // 而非等到下次冷启动校验。用 ref 区分“首次挂载”与“真正切换”，避免清掉冷启动刚恢复的同音源歌单。
+  // 音源切换后,已生成的歌单/进行中的选歌手若属于旧音源,一律视为过期清空——直接比对存量数据自带的
+  // source 字段而非记录“上次挂载时的音源”,这样即使切源发生在 RoamPage 未挂载期间(如在别的页面用
+  // 头像菜单切源),重新挂载时也能在这次 effect 里侦测到不匹配并清空,不会让旧音源数据带着挂载。
   useEffect(() => {
-    if (prevSourceRef.current !== activeSource) {
-      useRoamStore.getState().reset()
-      prevSourceRef.current = activeSource
-    }
+    const s = useRoamStore.getState()
+    const stale =
+      (s.playlist && s.playlist.source !== activeSource) ||
+      s.selectedArtists.some((a) => a.source !== activeSource)
+    if (stale) useRoamStore.getState().reset()
     setKeyword('')
     setResults([])
   }, [activeSource])
