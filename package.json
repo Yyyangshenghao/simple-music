@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "简约音乐播放器",
   "author": "yshAM",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "https://github.com/Yyyangshenghao/simple-music.git"
@@ -96,10 +96,15 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "build/icon.ico",
-      "artifactName": "SimpleMusic-${version}-Setup.${ext}"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -107,7 +112,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SimpleMusic"
+      "shortcutName": "SimpleMusic",
+      "artifactName": "SimpleMusic-${version}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "SimpleMusic-${version}-portable.${ext}"
     }
   }
 }
