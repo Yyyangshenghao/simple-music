@@ -382,12 +382,24 @@ interface GithubAsset {
 function asGithubAssets(value: unknown): GithubAsset[] {
   return Array.isArray(value) ? (value as GithubAsset[]) : []
 }
-function pickReleaseAsset(assets: unknown): UpdateAsset | null {
+/**
+ * 按当前机器的平台/架构挑选 release 资源。这个 server 是内嵌在用户自己的 Electron 主进程里跑的，
+ * process.platform/arch 就是用户的真实平台——如果不按平台过滤，遇到 release 里 exe 排在前面
+ * （或干脆没有平台匹配项）时会把别的平台的安装包发下去（例如给 mac 用户发 windows 的 portable.exe）。
+ * 找不到匹配当前平台的资源时返回 null，交给上游 UPDATE_ASSET_MISSING 分支处理，而不是回退到任意资源。
+ */
+export function pickReleaseAsset(assets: unknown): UpdateAsset | null {
   const list = asGithubAssets(assets)
+  const find = (re: RegExp) => list.find((a) => re.test((a && a.name) || ''))
   const preferred =
-    list.find((a) => /\.(exe|msi)$/i.test((a && a.name) || '')) ||
-    list.find((a) => /\.(zip|7z)$/i.test((a && a.name) || '')) ||
-    list[0]
+    process.platform === 'darwin'
+      ? find(new RegExp(`${process.arch}.*\\.dmg$`, 'i')) || find(/\.dmg$/i)
+      : process.platform === 'win32'
+        ? find(/-Setup\.exe$/i) ||
+          list.find((a) => /\.exe$/i.test((a && a.name) || '') && !/portable/i.test((a && a.name) || '')) ||
+          find(/\.msi$/i) ||
+          find(/\.exe$/i)
+        : find(/\.(zip|7z|AppImage|deb|rpm)$/i)
   if (!preferred) return null
   const digest = assetDigestInfo(preferred as unknown as Record<string, unknown>)
   const candidates = uniqueDownloadCandidates(preferred.browser_download_url || '')
