@@ -1,0 +1,142 @@
+/* padding 必须放内层 .inner,不能放 .page(否则顶/底渐变遮罩悬空压出暗边,见 PlaylistDetailView.module.css 教训) */
+.page {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border) transparent;
+}
+
+.inner { padding: 24px 24px 80px; max-width: 640px; margin: 0 auto; }
+
+.title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+.subtitle { font-size: 13px; color: var(--sm-text-secondary); margin: 0 0 24px; }
+
+.searchBox { margin-bottom: 12px; }
+
+.searchInput {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--sm-text-primary);
+  background: var(--glass-bg-base);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--sm-accent);
+}
+
+.hint { font-size: 13px; color: var(--sm-text-secondary); margin: 8px 0; }
+
+.resultList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.artistRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--sm-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.artistRow:hover:not(:disabled) { background: var(--sm-bg-elevated); }
+
+.artistRowDisabled { opacity: 0.35; cursor: not-allowed; }
+
+.artistAvatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.artistName { flex: 1; font-size: 14px; }
+.artistCheck { font-size: 12px; color: var(--sm-accent); }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 14px;
+  font-size: 13px;
+  color: var(--sm-text-primary);
+  background: var(--sm-bg-elevated);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chipRemove:hover { background: var(--sm-bg-elevated); color: var(--sm-text-primary); }
+
+.modeRow { margin-bottom: 24px; }
+
+.generateBtn {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sm-text-on-accent);
+  background: var(--sm-accent);
+  border: none;
+  border-radius: var(--sm-radius-pill);
+  cursor: pointer;
+}
+
+.generateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.resultHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.resetBtn {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  background: var(--glass-bg-base);
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  cursor: pointer;
+}
+
+.resetBtn:hover { color: var(--sm-text-primary); background: var(--glass-bg-card); }
+
+.trackList { display: flex; flex-direction: column; }
