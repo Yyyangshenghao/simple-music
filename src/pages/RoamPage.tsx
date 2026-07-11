@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
+import { useSettingsStore } from '../stores/settings'
 import { useRoamStore, MAX_ARTISTS } from '../stores/roam'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
@@ -13,6 +14,8 @@ import styles from './RoamPage.module.css'
 
 export function RoamPage() {
   const service = useMusicService()
+  const activeSource = useSettingsStore((s) => s.activeSource)
+  const prevSourceRef = useRef(activeSource)
   const playlist = useRoamStore((s) => s.playlist)
   const selectedArtists = useRoamStore((s) => s.selectedArtists)
   const mode = useRoamStore((s) => s.mode)
@@ -30,12 +33,16 @@ export function RoamPage() {
 
   const { topOpacity, bottomOpacity, handleScroll } = useScrollGradient()
 
-  // 音源切换后清空进行中的选歌手态：已选歌手 id 属于旧音源，混进新音源会取错曲库
+  // 运行时切换音源：不仅要清空进行中的选歌手态,当天生成的歌单(source 与新音源不匹配)也要立即过期,
+  // 而非等到下次冷启动校验。用 ref 区分“首次挂载”与“真正切换”，避免清掉冷启动刚恢复的同音源歌单。
   useEffect(() => {
-    useRoamStore.setState({ selectedArtists: [] })
+    if (prevSourceRef.current !== activeSource) {
+      useRoamStore.getState().reset()
+      prevSourceRef.current = activeSource
+    }
     setKeyword('')
     setResults([])
-  }, [service])
+  }, [activeSource])
 
   useEffect(() => {
     const q = keyword.trim()
