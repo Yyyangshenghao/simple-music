@@ -35,7 +35,11 @@ jobs:
 
       - run: npm test
 
-      - run: npm run ${{ matrix.script }}
+      # package.json 里的 repository 字段会让 electron-builder 在 CI(CI=true)下自动推断
+      # GitHub publish 目标并尝试联网发布，没传 --publish 也一样，缺 GH_TOKEN 就直接报错退出。
+      # 这里显式关掉自动发布：只在本 job 里产出本地安装包，真正发布交给下面单独的 publish job，
+      # 避免两个 matrix job 各自抢着建 release 造成竞态。
+      - run: npm run ${{ matrix.script }} -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
