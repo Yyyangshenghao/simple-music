@@ -106,9 +106,14 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async getPlaylistWithDescription(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null> {
-    const res = await api.get<{ playlist?: PlaylistMeta | null; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
-    if (!res.playlist || !res.playlist.id) return null
-    return { playlist: res.playlist, tracks: res.tracks ?? [] }
+    try {
+      const res = await api.get<{ playlist?: PlaylistMeta | null; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
+      if (!res.playlist || !res.playlist.id) return null
+      return { playlist: res.playlist, tracks: res.tracks ?? [] }
+    } catch {
+      // 歌单被删除时上游返回非 200(request() 因此 throw),按"未找到"处理,让调用方安全地清缓存/新建
+      return null
+    }
   }
 
   async createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }> {
