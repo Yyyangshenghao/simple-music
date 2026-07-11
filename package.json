@@ -20,6 +20,8 @@
     "test": "vitest run",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
+    "release:win": "npm run build && electron-builder --win --publish always",
+    "release:mac": "npm run build && electron-builder --mac --publish always",
     "server:dev": "tsx server/index.ts"
   },
   "dependencies": {
@@ -65,6 +67,11 @@
   "build": {
     "appId": "com.simplemusic.desktop",
     "productName": "SimpleMusic",
+    "publish": {
+      "provider": "github",
+      "owner": "Yyyangshenghao",
+      "repo": "simple-music"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "build"
