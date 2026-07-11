@@ -11,7 +11,7 @@ import crypto from 'node:crypto'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
-// 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 mineradio 字段。
+// 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
 import pkgJson from '../../package.json' with { type: 'json' }
 
 // ---------- package.json / 更新配置 ----------
@@ -34,11 +34,11 @@ interface PackageJson {
   productName?: string
   version?: string
   repository?: PackageRepository | string
-  mineradio?: { update?: PackageUpdateField }
+  simplemusic?: { update?: PackageUpdateField }
 }
 
 const APP_PACKAGE = pkgJson as unknown as PackageJson
-const APP_VERSION = process.env.MINERADIO_VERSION || APP_PACKAGE.version || '0.9.11'
+const APP_VERSION = process.env.SIMPLEMUSIC_VERSION || APP_PACKAGE.version || '0.9.11'
 
 export interface UpdateConfig {
   provider: string
@@ -67,7 +67,7 @@ function parseUpdateMirrorList(value: unknown): string[] {
 }
 
 function readUpdateMirrors(local: PackageUpdateField): string[] {
-  const envMirrors = process.env.MINERADIO_UPDATE_MIRRORS || process.env.MINERADIO_UPDATE_MIRROR || ''
+  const envMirrors = process.env.SIMPLEMUSIC_UPDATE_MIRRORS || process.env.SIMPLEMUSIC_UPDATE_MIRROR || ''
   const raw = envMirrors
     ? parseUpdateMirrorList(envMirrors)
     : parseUpdateMirrorList(local.mirrors || local.downloadMirrors || [])
@@ -85,7 +85,7 @@ function readUpdateMirrors(local: PackageUpdateField): string[] {
 }
 
 function readUpdateConfig(pkg: PackageJson): UpdateConfig {
-  const local = (pkg && pkg.mineradio && pkg.mineradio.update) || {}
+  const local = (pkg && pkg.simplemusic && pkg.simplemusic.update) || {}
   const repoFromPkg =
     pkg && pkg.repository
       ? typeof pkg.repository === 'string'
@@ -93,15 +93,15 @@ function readUpdateConfig(pkg: PackageJson): UpdateConfig {
         : pkg.repository.url
       : ''
   const repoHint =
-    process.env.MINERADIO_UPDATE_REPOSITORY ||
+    process.env.SIMPLEMUSIC_UPDATE_REPOSITORY ||
     process.env.GITHUB_REPOSITORY ||
     local.repository ||
     local.github ||
     repoFromPkg ||
     ''
   const parsed = parseGitHubRepository(repoHint)
-  const owner = process.env.MINERADIO_UPDATE_OWNER || local.owner || parsed?.owner || ''
-  const repo = process.env.MINERADIO_UPDATE_REPO || local.repo || parsed?.repo || ''
+  const owner = process.env.SIMPLEMUSIC_UPDATE_OWNER || local.owner || parsed?.owner || ''
+  const repo = process.env.SIMPLEMUSIC_UPDATE_REPO || local.repo || parsed?.repo || ''
   return {
     provider: local.provider || 'github',
     owner,
@@ -111,9 +111,9 @@ function readUpdateConfig(pkg: PackageJson): UpdateConfig {
     preferMirrors: local.preferMirrors !== false,
     mirrors: readUpdateMirrors(local),
     manifest:
-      process.env.MINERADIO_UPDATE_MANIFEST ||
-      process.env.MINERADIO_UPDATE_MANIFEST_URL ||
-      process.env.MINERADIO_UPDATE_MANIFEST_FILE ||
+      process.env.SIMPLEMUSIC_UPDATE_MANIFEST ||
+      process.env.SIMPLEMUSIC_UPDATE_MANIFEST_URL ||
+      process.env.SIMPLEMUSIC_UPDATE_MANIFEST_FILE ||
       '',
   }
 }
@@ -121,8 +121,8 @@ function readUpdateConfig(pkg: PackageJson): UpdateConfig {
 export const UPDATE_CONFIG: UpdateConfig = readUpdateConfig(APP_PACKAGE)
 
 export const APP_INFO = {
-  name: APP_PACKAGE.name || 'mineradio',
-  productName: APP_PACKAGE.productName || 'Mineradio',
+  name: APP_PACKAGE.name || 'simplemusic',
+  productName: APP_PACKAGE.productName || 'SimpleMusic',
   version: APP_VERSION,
 }
 
@@ -131,10 +131,10 @@ const UPDATE_FALLBACK_NOTES = ['电影镜头节奏更松', '音源失败自动�
 
 // 下载目录落到 ctx.userDataDir 下，不硬编码绝对路径。
 function updateWorkDir(ctx: ServerContext): string {
-  return process.env.MINERADIO_UPDATE_DIR || path.join(ctx.userDataDir, 'updates')
+  return process.env.SIMPLEMUSIC_UPDATE_DIR || path.join(ctx.userDataDir, 'updates')
 }
 function updateDownloadDir(ctx: ServerContext): string {
-  return process.env.MINERADIO_UPDATE_DOWNLOAD_DIR || path.join(updateWorkDir(ctx), 'downloads')
+  return process.env.SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR || path.join(updateWorkDir(ctx), 'downloads')
 }
 
 // ---------- 类型定义 ----------
@@ -483,7 +483,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
           name:
             String(patchRec.name || '') ||
             updateAssetNameFromUrl(patchRec.downloadUrl) ||
-            `Mineradio-${APP_VERSION}→${latestVersion}.patch.json`,
+            `SimpleMusic-${APP_VERSION}→${latestVersion}.patch.json`,
           size: Number(patchRec.size || 0) || 0,
           contentType: String(patchRec.contentType || patchRec.content_type || 'application/json'),
           downloadUrl: String(patchRec.downloadUrl),
@@ -503,7 +503,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
         : UPDATE_FALLBACK_NOTES
   const assetInfo: UpdateAsset | null = downloadUrl
     ? {
-        name: String(asset.name || '') || updateAssetNameFromUrl(downloadUrl) || `Mineradio-${latestVersion}-Setup.exe`,
+        name: String(asset.name || '') || updateAssetNameFromUrl(downloadUrl) || `SimpleMusic-${latestVersion}-Setup.exe`,
         size: Number(asset.size || 0) || 0,
         contentType: String(asset.contentType || asset.content_type || ''),
         downloadUrl,
@@ -521,7 +521,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
     latestVersion,
     release: {
       tagName: String(release.tagName || release.tag_name || data.tagName || 'v' + latestVersion),
-      name: String(release.name || data.name || 'Mineradio v' + latestVersion),
+      name: String(release.name || data.name || 'Simple Music v' + latestVersion),
       version: latestVersion,
       publishedAt: String(release.publishedAt || release.published_at || data.publishedAt || ''),
       htmlUrl: String(release.htmlUrl || release.html_url || data.htmlUrl || ''),
@@ -539,7 +539,7 @@ async function readUpdateManifest(ref: string): Promise<unknown> {
   const value = String(ref || '').trim()
   if (!value) throw new Error('UPDATE_MANIFEST_MISSING')
   if (/^https?:\/\//i.test(value)) {
-    const resp = await fetch(value, { headers: { 'User-Agent': `Mineradio/${APP_VERSION}` } })
+    const resp = await fetch(value, { headers: { 'User-Agent': `SimpleMusic/${APP_VERSION}` } })
     if (!resp.ok) throw new Error('Update manifest ' + resp.status)
     return resp.json()
   }
@@ -567,7 +567,7 @@ export function localUpdateFallback(reason?: string, opts?: { configured?: boole
     latestVersion: APP_VERSION,
     release: {
       tagName: 'v' + APP_VERSION,
-      name: 'Mineradio v' + APP_VERSION,
+      name: 'Simple Music v' + APP_VERSION,
       version: APP_VERSION,
       htmlUrl: '',
       downloadUrl: '',
@@ -658,7 +658,7 @@ async function fetchTextFromCandidates(
     try {
       const resp = await fetchWithTimeout(
         candidate.url,
-        { headers: { 'User-Agent': `Mineradio/${APP_VERSION}` } },
+        { headers: { 'User-Agent': `SimpleMusic/${APP_VERSION}` } },
         timeoutMs || 6500
       )
       if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status)
@@ -690,7 +690,7 @@ function githubReleaseDownloadUrl(version: string, fileName: string): string {
 }
 function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
   const latestVersion = normalizeVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION
-  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `Mineradio-${latestVersion}-Setup.exe`
+  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `SimpleMusic-${latestVersion}-Setup.exe`
   const sha512 = normalizeDigest(yamlScalar(text, 'sha512'), 'sha512')
   const size = Number(yamlScalar(text, 'size') || 0) || 0
   const releaseDate = yamlScalar(text, 'releaseDate')
@@ -713,7 +713,7 @@ function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
     latestVersion,
     release: {
       tagName: 'v' + latestVersion,
-      name: 'Mineradio v' + latestVersion,
+      name: 'Simple Music v' + latestVersion,
       version: latestVersion,
       publishedAt: releaseDate,
       htmlUrl: `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases/tag/v${latestVersion}`,
@@ -751,7 +751,7 @@ export async function fetchLatestUpdateInfo(): Promise<UpdateInfo> {
   try {
     const resp = await fetch(apiUrl, {
       signal: controller.signal,
-      headers: { 'User-Agent': `Mineradio/${APP_VERSION}`, Accept: 'application/vnd.github+json' },
+      headers: { 'User-Agent': `SimpleMusic/${APP_VERSION}`, Accept: 'application/vnd.github+json' },
     })
     if (!resp.ok) {
       try {
@@ -773,7 +773,7 @@ export async function fetchLatestUpdateInfo(): Promise<UpdateInfo> {
       latestVersion,
       release: {
         tagName: String(data.tag_name || 'v' + latestVersion),
-        name: String(data.name || 'Mineradio v' + latestVersion),
+        name: String(data.name || 'Simple Music v' + latestVersion),
         version: latestVersion,
         publishedAt: String(data.published_at || ''),
         htmlUrl: String(data.html_url || ''),
@@ -887,13 +887,13 @@ function trimUpdateJobs(): void {
 }
 
 function safeUpdateFileName(name: unknown, version: string): string {
-  const raw = String(name || '').trim() || `Mineradio-${version || APP_VERSION}.exe`
+  const raw = String(name || '').trim() || `SimpleMusic-${version || APP_VERSION}.exe`
   const cleaned = raw
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160)
-  return cleaned || `Mineradio-${version || APP_VERSION}.exe`
+  return cleaned || `SimpleMusic-${version || APP_VERSION}.exe`
 }
 
 function reuseVerifiedInstallerJob(opts: {
@@ -1005,7 +1005,7 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
       prepareUpdateJobAttempt(job, candidate, i, candidates.length)
       job.message = job.total ? '正在下载完整安装包' : '正在下载完整安装包，等待服务器返回大小'
 
-      const resp = await fetchWithTimeout(candidate.url, { headers: { 'User-Agent': `Mineradio/${APP_VERSION}` } }, 14000)
+      const resp = await fetchWithTimeout(candidate.url, { headers: { 'User-Agent': `SimpleMusic/${APP_VERSION}` } }, 14000)
       if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status)
       if (!resp.body) throw updateError('UPDATE_EMPTY_BODY', 'Download response has no body')
 
@@ -1160,7 +1160,7 @@ function normalizePatchPayload(payload: unknown): { from: string; to: string; fi
   const data = asRecord(payload)
   if (!payload || typeof payload !== 'object') throw new Error('INVALID_PATCH_PAYLOAD')
   const type = String(data.type || data.kind || '')
-  if (type && type !== 'mineradio-resource-patch') throw new Error('UNSUPPORTED_PATCH_TYPE')
+  if (type && type !== 'simplemusic-resource-patch') throw new Error('UNSUPPORTED_PATCH_TYPE')
   const from = normalizeVersion(data.from || data.baseVersion || '')
   const to = normalizeVersion(data.to || data.version || data.targetVersion || '')
   const files = Array.isArray(data.files) ? (data.files as unknown[]) : []
@@ -1193,7 +1193,7 @@ async function downloadPatchBufferFromCandidate(
   job.progress = 0
   job.updatedAt = Date.now()
 
-  const resp = await fetchWithTimeout(candidate.url, { headers: { 'User-Agent': `Mineradio/${APP_VERSION}` } }, 12000)
+  const resp = await fetchWithTimeout(candidate.url, { headers: { 'User-Agent': `SimpleMusic/${APP_VERSION}` } }, 12000)
   if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status)
   if (!resp.body) throw updateError('PATCH_EMPTY_BODY', 'Patch response has no body')
 

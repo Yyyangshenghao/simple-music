@@ -714,7 +714,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       const r = await fetch(targetUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Mineradio)' }
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SimpleMusic)' }
       })
       if (!r.ok) {
         res.writeHead(r.status)

@@ -17,7 +17,7 @@
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
-- **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `mineradio.update` 字段(GitHub Release + 国内镜像列表)
+- **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `simplemusic.update` 字段(GitHub Release + 国内镜像列表)
 
 ## lib 辅助
 

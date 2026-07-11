@@ -10,8 +10,8 @@ import { positionDesktopLyricsWindow, positionWallpaperWindow, closeOverlays } f
 import { unregisterHotkeys } from './modules/hotkey-manager'
 import { registerIpc } from './ipc'
 
-const APP_NAME = 'Mineradio'
-const APP_USER_MODEL_ID = 'com.mineradio.desktop'
+const APP_NAME = 'Simple Music'
+const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
 
 // Chromium 性能开关（ANGLE 后端按平台选择）。
 const performanceSwitches: Array<[string, string?]> = [

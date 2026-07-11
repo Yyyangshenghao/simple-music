@@ -26,7 +26,7 @@ describe('cookie store', () => {
 
 describe('beatmap cache dir', () => {
   it('lives under userData and is not the hardcoded D: path', () => {
-    delete process.env.MINERADIO_BEAT_CACHE_DIR
+    delete process.env.SIMPLEMUSIC_BEAT_CACHE_DIR
     const dir = getBeatmapCacheDir(ctx)
     expect(dir.startsWith(ctx.userDataDir)).toBe(true)
     expect(dir).not.toContain('MineradioCache')

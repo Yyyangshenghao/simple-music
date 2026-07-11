@@ -48,7 +48,7 @@ export const useVisualStore = create<VisualStore>((set, get) => ({
   saveArchive(name) {
     const now = Date.now()
     return {
-      type: 'mineradio-fx-archive',
+      type: 'simplemusic-fx-archive',
       schema: (defaultArchive as FxArchive).schema,
       exportedAt: now,
       name,

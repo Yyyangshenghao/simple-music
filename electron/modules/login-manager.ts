@@ -1,9 +1,9 @@
 import { BrowserWindow, session, shell, type Session, type Cookie } from 'electron'
 import type { LoginResult, OkResult } from '../../src/types/ipc'
 
-const NETEASE_LOGIN_PARTITION = 'persist:mineradio-netease-login'
+const NETEASE_LOGIN_PARTITION = 'persist:simplemusic-netease-login'
 const NETEASE_LOGIN_URL = 'https://music.163.com/#/login'
-const QQ_LOGIN_PARTITION = 'persist:mineradio-qqmusic-login'
+const QQ_LOGIN_PARTITION = 'persist:simplemusic-qqmusic-login'
 const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile'
 
 const QQ_COOKIE_PRIORITY = [

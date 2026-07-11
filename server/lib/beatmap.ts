@@ -29,7 +29,7 @@ export interface BeatMapCacheEntry {
  * 缓存目录信息。替代原项目硬编码的 `D:\\MineradioCache\\beatmaps`：
  * 现在统一走 `getBeatmapCacheDir(ctx)`（默认 userData 下的 beatmaps 目录）。
  * 仍保留原有「C 盘禁用 / 目标盘不可用」的判定逻辑，以兼容用户通过
- * MINERADIO_BEAT_CACHE_DIR 指向 Windows 盘符的场景。
+ * SIMPLEMUSIC_BEAT_CACHE_DIR 指向 Windows 盘符的场景。
  */
 export function beatCacheRootInfo(ctx: ServerContext): BeatCacheRootInfo {
   const dir = resolve(getBeatmapCacheDir(ctx))

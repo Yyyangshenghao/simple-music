@@ -3,7 +3,13 @@
   "productName": "SimpleMusic",
   "version": "1.0.0",
   "description": "简约音乐播放器",
-  "author": "Yangshenghao",
+  "author": "yshAM",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yyyangshenghao/simple-music.git"
+  },
+  "homepage": "https://github.com/Yyyangshenghao/simple-music",
   "main": "out/main/index.js",
   "private": true,
   "type": "module",
@@ -42,11 +48,11 @@
     "vite": "^5.4.0",
     "vitest": "^2.0.0"
   },
-  "mineradio": {
+  "simplemusic": {
     "update": {
       "provider": "github",
-      "owner": "XxHuberrr",
-      "repo": "Mineradio",
+      "owner": "Yyyangshenghao",
+      "repo": "simple-music",
       "preview": true,
       "preferMirrors": true,
       "mirrors": [

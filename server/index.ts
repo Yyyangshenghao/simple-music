@@ -26,7 +26,7 @@ export function startServer(
   partial: Partial<ServerContext> = {}
 ): Promise<{ port: number; close(): void }> {
   const ctx: ServerContext = {
-    userDataDir: partial.userDataDir ?? join(tmpdir(), 'mineradio-next'),
+    userDataDir: partial.userDataDir ?? join(tmpdir(), 'simplemusic'),
     port: partial.port ?? 0
   }
   return new Promise((resolve) => {

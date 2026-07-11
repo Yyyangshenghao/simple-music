@@ -63,7 +63,7 @@ export function VisualSettings() {
 
   const handleExport = (): void => {
     const text = useSettingsStore.getState().exportArchive('我的预设')
-    void (window.desktop?.exportJson({ defaultName: 'mineradio-fx.json', text }) as
+    void (window.desktop?.exportJson({ defaultName: 'simplemusic-fx.json', text }) as
       | Promise<FileResult>
       | undefined)
   }

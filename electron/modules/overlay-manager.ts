@@ -163,7 +163,7 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
     focusable: false,
     skipTaskbar: true,
     show: false,
-    title: 'Mineradio Desktop Lyrics',
+    title: 'Simple Music Desktop Lyrics',
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
   })
   try {
@@ -242,7 +242,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     focusable: false,
     skipTaskbar: true,
     show: false,
-    title: 'Mineradio Wallpaper',
+    title: 'Simple Music Wallpaper',
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
   })
   wallpaperWindow.setIgnoreMouseEvents(true, { forward: true })

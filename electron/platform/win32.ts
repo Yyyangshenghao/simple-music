@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path'
 import { app, shell } from 'electron'
 import type { PlatformAdapter, ShortcutResult } from './index'
 
-const APP_NAME = 'Mineradio'
-const APP_USER_MODEL_ID = 'com.mineradio.desktop'
+const APP_NAME = 'Simple Music'
+const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
 const appIconIco = () => join(app.getAppPath(), 'build', 'icon.ico')
 
 let mousePoller: ChildProcess | null = null
@@ -20,13 +20,13 @@ $ErrorActionPreference = "SilentlyContinue"
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-public class MineradioMousePoll {
+public class SimpleMusicMousePoll {
   [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
 }
 "@
 $prev = $false
 while ($true) {
-  $down = (([MineradioMousePoll]::GetAsyncKeyState(4) -band 0x8000) -ne 0)
+  $down = (([SimpleMusicMousePoll]::GetAsyncKeyState(4) -band 0x8000) -ne 0)
   if ($down -and -not $prev) {
     [Console]::Out.WriteLine("MMB")
     [Console]::Out.Flush()
@@ -75,11 +75,11 @@ while ($true) {
   attachWallpaperToDesktop(hwnd: string): void {
     const script = `
 $ErrorActionPreference = "Stop"
-if (-not ("MineradioNativeWin" -as [type])) {
+if (-not ("SimpleMusicNativeWin" -as [type])) {
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-public class MineradioNativeWin {
+public class SimpleMusicNativeWin {
   public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
   [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
   [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);
@@ -90,23 +90,23 @@ public class MineradioNativeWin {
 }
 "@
 }
-$progman = [MineradioNativeWin]::FindWindow("Progman", $null)
+$progman = [SimpleMusicNativeWin]::FindWindow("Progman", $null)
 $result = [IntPtr]::Zero
-[MineradioNativeWin]::SendMessageTimeout($progman, 0x052C, [IntPtr]::Zero, [IntPtr]::Zero, 0, 1000, [ref]$result) | Out-Null
+[SimpleMusicNativeWin]::SendMessageTimeout($progman, 0x052C, [IntPtr]::Zero, [IntPtr]::Zero, 0, 1000, [ref]$result) | Out-Null
 $script:workerw = [IntPtr]::Zero
-$enum = [MineradioNativeWin+EnumWindowsProc]{
+$enum = [SimpleMusicNativeWin+EnumWindowsProc]{
   param([IntPtr]$top, [IntPtr]$param)
-  $shell = [MineradioNativeWin]::FindWindowEx($top, [IntPtr]::Zero, "SHELLDLL_DefView", $null)
+  $shell = [SimpleMusicNativeWin]::FindWindowEx($top, [IntPtr]::Zero, "SHELLDLL_DefView", $null)
   if ($shell -ne [IntPtr]::Zero) {
-    $script:workerw = [MineradioNativeWin]::FindWindowEx([IntPtr]::Zero, $top, "WorkerW", $null)
+    $script:workerw = [SimpleMusicNativeWin]::FindWindowEx([IntPtr]::Zero, $top, "WorkerW", $null)
   }
   return $true
 }
-[MineradioNativeWin]::EnumWindows($enum, [IntPtr]::Zero) | Out-Null
+[SimpleMusicNativeWin]::EnumWindows($enum, [IntPtr]::Zero) | Out-Null
 if ($script:workerw -eq [IntPtr]::Zero) { $script:workerw = $progman }
 $target = [IntPtr]::new([Int64]${hwnd})
-[MineradioNativeWin]::SetParent($target, $script:workerw) | Out-Null
-[MineradioNativeWin]::SetWindowPos($target, [IntPtr]::Zero, 0, 0, 0, 0, 0x0013) | Out-Null
+[SimpleMusicNativeWin]::SetParent($target, $script:workerw) | Out-Null
+[SimpleMusicNativeWin]::SetWindowPos($target, [IntPtr]::Zero, 0, 0, 0, 0, 0x0013) | Out-Null
 `
     execFile(
       'powershell.exe',
@@ -119,8 +119,8 @@ $target = [IntPtr]::new([Int64]${hwnd})
   },
 
   ensureDesktopShortcut(): ShortcutResult {
-    if (process.env.MINERADIO_NO_DESKTOP_SHORTCUT === '1') return { ok: false, skipped: true }
-    if (!app.isPackaged && process.env.MINERADIO_CREATE_DESKTOP_SHORTCUT !== '1') {
+    if (process.env.SIMPLEMUSIC_NO_DESKTOP_SHORTCUT === '1') return { ok: false, skipped: true }
+    if (!app.isPackaged && process.env.SIMPLEMUSIC_CREATE_DESKTOP_SHORTCUT !== '1') {
       return { ok: false, skipped: true }
     }
     try {
@@ -131,7 +131,7 @@ $target = [IntPtr]::new([Int64]${hwnd})
         target,
         cwd: dirname(target),
         args: '',
-        description: 'Mineradio desktop music player',
+        description: 'Simple Music desktop music player',
         icon,
         iconIndex: 0,
         appUserModelId: APP_USER_MODEL_ID

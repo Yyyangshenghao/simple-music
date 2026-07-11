@@ -26,7 +26,7 @@ export function clearCookie(ctx: ServerContext, s: Source): void {
  * 默认落在 userData 下，跨平台兼容；保留环境变量覆盖以兼容原行为。
  */
 export function getBeatmapCacheDir(ctx: ServerContext): string {
-  const dir = process.env.MINERADIO_BEAT_CACHE_DIR || join(ctx.userDataDir, 'beatmaps')
+  const dir = process.env.SIMPLEMUSIC_BEAT_CACHE_DIR || join(ctx.userDataDir, 'beatmaps')
   mkdirSync(dir, { recursive: true })
   return dir
 }

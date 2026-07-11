@@ -2,7 +2,7 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import type { WindowState, DisplayBounds } from '../../src/types/ipc'
 
-const APP_NAME = 'Mineradio'
+const APP_NAME = 'Simple Music'
 const WINDOWED_ASPECT = 16 / 9
 const WINDOWED_SCALE = 3 / 4
 const WINDOWED_MARGIN = 32
@@ -216,7 +216,7 @@ export function createMainWindow(serverPort: number): BrowserWindow {
       nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: false,
-      additionalArguments: [`--mineradio-server-port=${serverPort}`]
+      additionalArguments: [`--simplemusic-server-port=${serverPort}`]
     }
   })
 

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Mineradio-Next(包名 simplemusic)是一个 Electron 桌面音乐播放器:React 渲染层 + 主进程内嵌 Node HTTP API server,音源支持网易云音乐与 QQ 音乐。UI 与代码注释以中文为主。
+Simple Music(包名 simplemusic,作者 yshAM)是一个 Electron 桌面音乐播放器:React 渲染层 + 主进程内嵌 Node HTTP API server,音源支持网易云音乐与 QQ 音乐。UI 与代码注释以中文为主。
 
 ## 常用命令
 
@@ -23,7 +23,7 @@ npm run build:mac      # 打包 mac(build:win 同理)
 四个顶层模块,两套 tsconfig 隔离:
 
 - **`electron/`** — 主进程(窗口/悬浮窗/热键/登录管理 + IPC + preload)。tsconfig.node.json。
-- **`server/`** — 内嵌 HTTP API server(`/api/*`),被主进程 `server-host.ts` 内嵌启动(端口随机,经 preload 参数 `--mineradio-server-port` 注入渲染层),也可独立运行。tsconfig.node.json。
+- **`server/`** — 内嵌 HTTP API server(`/api/*`),被主进程 `server-host.ts` 内嵌启动(端口随机,经 preload 参数 `--simplemusic-server-port` 注入渲染层),也可独立运行。tsconfig.node.json。
 - **`src/`** — React 渲染层(zustand stores + hooks + lib + components/pages)。tsconfig.json,别名 `@renderer/*`。
 - **`overlays/`** — 两个独立悬浮窗渲染入口(桌面歌词、动态壁纸),复用 `src/` 组件,经 `electron/preload/overlay.ts` 通信。
 

@@ -13,7 +13,7 @@ import type {
 } from '../../src/types/ipc'
 
 function readServerPort(): number {
-  const arg = process.argv.find((a) => a.startsWith('--mineradio-server-port='))
+  const arg = process.argv.find((a) => a.startsWith('--simplemusic-server-port='))
   return arg ? Number(arg.split('=')[1]) || 0 : 0
 }
 

@@ -8,9 +8,9 @@
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸两个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
-- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:mineradio-netease-login` / QQ `persist:mineradio-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
+- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
 - `platform/` — 平台能力接口(`getPlatform()`):win32 完整实现(快捷方式等),darwin/其它降级。
-- `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort + 各 IPC 封装)。serverPort 经启动参数 `--mineradio-server-port=` 传入。
+- `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入。
 - `preload/overlay.ts` — 悬浮窗桥:`window.desktopOverlay`。
 - `ipc/` — 按域拆分注册,`ipc/index.ts` 统一 `registerIpc()`。
 

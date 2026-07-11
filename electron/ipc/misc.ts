@@ -21,9 +21,9 @@ export function registerMiscIpc(): void {
   ipcMain.handle('file:export-json', async (_e, payload: ExportPayload = {}): Promise<FileResult> => {
     try {
       const owner = getMainWindow() ?? undefined
-      const defaultName = String(payload.defaultName ?? 'mineradio-export.json').replace(/[\\/:*?"<>|]+/g, '-')
+      const defaultName = String(payload.defaultName ?? 'simplemusic-export.json').replace(/[\\/:*?"<>|]+/g, '-')
       const result = await dialog.showSaveDialog(owner!, {
-        title: '导出 Mineradio 存档',
+        title: '导出 Simple Music 存档',
         defaultPath: defaultName.toLowerCase().endsWith('.json') ? defaultName : `${defaultName}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
@@ -40,7 +40,7 @@ export function registerMiscIpc(): void {
     try {
       const owner = getMainWindow() ?? undefined
       const result = await dialog.showOpenDialog(owner!, {
-        title: '导入 Mineradio 存档',
+        title: '导入 Simple Music 存档',
         properties: ['openFile'],
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
