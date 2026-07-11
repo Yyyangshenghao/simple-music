@@ -19,6 +19,7 @@ import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { ClickSpark } from './components/ui/ClickSpark'
+import { Toast } from './components/ui/Toast'
 
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
@@ -58,6 +59,7 @@ export default function App() {
           <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
+          <Toast />
         </div>
       </WindowChrome>
     </MotionConfig>

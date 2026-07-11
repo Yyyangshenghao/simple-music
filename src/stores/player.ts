@@ -2,11 +2,20 @@ import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
 import { api } from '../lib/api'
 import { useSettingsStore } from './settings'
+import { useToastStore } from './toast'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
+
+interface PlaybackRestriction {
+  message: string
+}
 
 interface SongUrlResponse {
   url?: string
+  restriction?: PlaybackRestriction
+  message?: string
 }
+
+const FALLBACK_UNPLAYABLE_MESSAGE = '这首歌暂时无法播放，可以换一首试试'
 
 interface PlayerStore {
   status: PlaybackStatus
@@ -100,13 +109,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
         const params =
           track.source === 'qq'
-            ? { mid: String(track.mid ?? track.id ?? ''), quality: get().quality }
+            ? { mid: String(track.mid ?? track.id ?? ''), quality: get().quality, fee: String(track.fee ?? '') }
             : { id: String(track.id ?? ''), quality: get().quality }
         try {
           const res = await api.get<SongUrlResponse>(path, params)
           url = res.url
+          if (!url) {
+            useToastStore.getState().show(res.restriction?.message || res.message || FALLBACK_UNPLAYABLE_MESSAGE)
+          }
         } catch {
           set({ status: 'idle' })
+          useToastStore.getState().show(FALLBACK_UNPLAYABLE_MESSAGE)
           return
         }
       }

@@ -1,0 +1,25 @@
+.root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 104px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.card {
+  max-width: min(480px, calc(100vw - 48px));
+  padding: 10px 18px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--glass-bg-modal);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  border: 1px solid var(--glass-border-modal);
+  box-shadow: var(--sm-shadow);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}

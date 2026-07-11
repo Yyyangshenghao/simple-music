@@ -80,7 +80,8 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
       const mid = url.searchParams.get('mid') || url.searchParams.get('id') || ''
       const mediaMid = url.searchParams.get('mediaMid') || url.searchParams.get('media_mid') || ''
       const quality = url.searchParams.get('quality') || ''
-      const info = await handleQQSongUrl(getCookie(ctx, 'qq'), mid, mediaMid, quality)
+      const fee = url.searchParams.get('fee') || ''
+      const info = await handleQQSongUrl(getCookie(ctx, 'qq'), mid, mediaMid, quality, fee)
       sendJson(res, info)
     } catch (err) {
       console.error('[QQSongUrl]', err)

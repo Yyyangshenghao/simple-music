@@ -319,7 +319,8 @@ interface QQPlaybackSession {
 
 function classifyQQPlaybackRestriction(
   info: unknown,
-  session: QQPlaybackSession | boolean
+  session: QQPlaybackSession | boolean,
+  feeHint?: boolean
 ): PlaybackRestriction {
   const sessionObj = typeof session === 'object' ? session : { hasSession: !!session, hasPlaybackKey: !!session }
   const hasSession = !!sessionObj.hasSession
@@ -344,6 +345,15 @@ function classifyQQPlaybackRestriction(
       'QQ 音乐当前只拿到了网页登录状态，还缺少播放授权，请重新打开官方 QQ 音乐登录窗口完成授权',
       'login',
       { code, rawMessage: rawMsg, missingPlaybackKey: true }
+    )
+  }
+  if (code === 104003 && feeHint) {
+    return playbackRestriction(
+      'qq',
+      'paid_required',
+      'QQ 音乐显示这首歌是付费/会员曲目，需要开通会员或购买后才能播放，也可以换一首或切到网易云源',
+      'upgrade',
+      { code, rawMessage: rawMsg }
     )
   }
   if (code === 104003) {
@@ -1276,8 +1286,10 @@ export async function handleQQSongUrl(
   cookie: string,
   mid: string,
   mediaMid: string,
-  qualityPreference: string
+  qualityPreference: string,
+  feeHint?: unknown
 ): Promise<Record<string, unknown>> {
+  const isFeeSong = feeHint === true || feeHint === '1' || Number(feeHint) === 1
   const songmid = String(mid || '').trim()
   if (!songmid) return { provider: 'qq', url: '', error: 'MISSING_MID', message: 'Missing QQ song mid' }
   const guid = String(10000000 + Math.floor(Math.random() * 90000000))
@@ -1350,10 +1362,14 @@ export async function handleQQSongUrl(
       requestedQuality,
     }
   }
-  const restriction = classifyQQPlaybackRestriction(info, {
-    hasSession: !!(uin && musicKey),
-    hasPlaybackKey: !!(uin && playbackKey),
-  })
+  const restriction = classifyQQPlaybackRestriction(
+    info,
+    {
+      hasSession: !!(uin && musicKey),
+      hasPlaybackKey: !!(uin && playbackKey),
+    },
+    isFeeSong
+  )
   return {
     provider: 'qq',
     url: '',
