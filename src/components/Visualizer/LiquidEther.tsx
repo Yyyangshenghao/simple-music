@@ -1050,6 +1050,9 @@ export default function LiquidEther({
       autoDriver!: AutoDriver;
       lastUserInteraction: number;
       running = false;
+      // 窗口失焦（切到别的 App/窗口）时也要暂停：否则即使被完全挡住，全屏流体模拟仍会一直满帧跑，
+      // 是 Electron 端风扇狂转的主因之一（Chromium 的 backgroundThrottling 在本项目里被全局关闭了）。
+      focused = typeof document !== 'undefined' ? document.hasFocus() : true;
 
       constructor(props: WebGLManager['props']) {
         this.props = props;
@@ -1071,6 +1074,8 @@ export default function LiquidEther({
         this.init();
         window.addEventListener('resize', this._resize);
         document.addEventListener('visibilitychange', this._onVisibility);
+        window.addEventListener('blur', this._onBlur);
+        window.addEventListener('focus', this._onFocus);
         this.running = false;
       }
       _resize = () => {
@@ -1081,9 +1086,17 @@ export default function LiquidEther({
         const hidden = document.hidden;
         if (hidden) {
           this.pause();
-        } else if (isVisibleRef.current) {
+        } else if (isVisibleRef.current && this.focused) {
           this.start();
         }
+      };
+      _onBlur = () => {
+        this.focused = false;
+        this.pause();
+      };
+      _onFocus = () => {
+        this.focused = true;
+        if (!document.hidden && isVisibleRef.current) this.start();
       };
       init() {
         this.props.$wrapper.prepend(Common.renderer!.domElement);
@@ -1116,6 +1129,8 @@ export default function LiquidEther({
         try {
           window.removeEventListener('resize', this._resize);
           document.removeEventListener('visibilitychange', this._onVisibility);
+          window.removeEventListener('blur', this._onBlur);
+          window.removeEventListener('focus', this._onFocus);
           Mouse.dispose();
           if (Common.renderer) {
             const canvas = Common.renderer.domElement;
@@ -1167,7 +1182,7 @@ export default function LiquidEther({
     };
     applyOptionsFromProps();
 
-    webgl.start();
+    if (webgl.focused) webgl.start();
 
     // IntersectionObserver to pause rendering when not visible
     const io = new IntersectionObserver(
@@ -1176,7 +1191,7 @@ export default function LiquidEther({
         const isVisible = entry.isIntersecting && entry.intersectionRatio > 0;
         isVisibleRef.current = isVisible;
         if (!webglRef.current) return;
-        if (isVisible && !document.hidden) {
+        if (isVisible && !document.hidden && webglRef.current.focused) {
           webglRef.current.start();
         } else {
           webglRef.current.pause();

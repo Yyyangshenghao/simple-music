@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
@@ -49,6 +49,27 @@ async function readRequestBody(req: IncomingMessage): Promise<Record<string, unk
       out[k] = v
     })
     return out
+  }
+}
+
+/** 把上游 fetch 响应体转发到 res：客户端断开（切歌/关闭请求）时取消上游读取，写入背压时等 drain，避免残留下载把内存吃满。 */
+export async function pipeReaderToResponse(reader: ReadableStreamDefaultReader<Uint8Array>, res: ServerResponse): Promise<void> {
+  let aborted = false
+  const onClose = () => {
+    aborted = true
+    void reader.cancel().catch(() => {})
+  }
+  res.once('close', onClose)
+  try {
+    while (!aborted) {
+      const c = await reader.read()
+      if (c.done) break
+      if (!res.write(c.value)) {
+        await new Promise<void>((resolve) => res.once('drain', resolve))
+      }
+    }
+  } finally {
+    res.off('close', onClose)
   }
 }
 
@@ -962,13 +983,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       if (cl) hdr['Content-Length'] = cl
       res.writeHead(resp.status, hdr)
       const reader = resp.body?.getReader()
-      if (reader) {
-        for (;;) {
-          const c = await reader.read()
-          if (c.done) break
-          res.write(c.value)
-        }
-      }
+      if (reader) await pipeReaderToResponse(reader, res)
       res.end()
     } catch (err) {
       console.error('[Cover]', err)
@@ -1001,13 +1016,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       if (cr) out['Content-Range'] = cr
       res.writeHead(up.status, out)
       const reader = up.body?.getReader()
-      if (reader) {
-        for (;;) {
-          const c = await reader.read()
-          if (c.done) break
-          res.write(c.value)
-        }
-      }
+      if (reader) await pipeReaderToResponse(reader, res)
       res.end()
     } catch (err) {
       console.error('[Audio]', err)
