@@ -447,6 +447,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           creator: asStr(asObj(pl.creator).nickname),
           subscribed: !!pl.subscribed,
           specialType: asNum(pl.specialType),
+          description: asStr(pl.description),
         }
       })
       sendJson(res, { loggedIn: true, userId: info.userId, playlists: list })
@@ -612,6 +613,54 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       sendJson(res, { loggedIn: true, pid, id, success: true, code: finalCode, body: finalBody, attempts })
     } catch (err) {
       console.error('[PlaylistAddSong]', err)
+      sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- 更新歌单简介(漫游功能写"水印+日期+歌手名单"用) ----------
+  if (pn === '/api/playlist/desc/update') {
+    try {
+      const info = await requireLogin(res, ctx, sendJson)
+      if (!info) return true
+      const cookie = getCookie(ctx, 'netease')
+      const body = req.method === 'POST' ? await readRequestBody(req) : {}
+      const id = body.id || url.searchParams.get('id')
+      const desc = body.desc !== undefined ? String(body.desc) : (url.searchParams.get('desc') || '')
+      if (!id) {
+        sendJson(res, { error: 'Missing playlist id' }, 400)
+        return true
+      }
+      const r = await call('playlist_desc_update', { id, desc, cookie, timestamp: Date.now() })
+      const code = normalizeApiCode(r)
+      const success = code === 200
+      sendJson(res, { loggedIn: true, success, code, body: r.body || r }, success ? 200 : 409)
+    } catch (err) {
+      console.error('[PlaylistDescUpdate]', err)
+      sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- 从歌单批量删除曲目(漫游功能"清空重塞"用) ----------
+  if (pn === '/api/playlist/remove-songs') {
+    try {
+      const info = await requireLogin(res, ctx, sendJson)
+      if (!info) return true
+      const cookie = getCookie(ctx, 'netease')
+      const body = req.method === 'POST' ? await readRequestBody(req) : {}
+      const pid = body.pid || url.searchParams.get('pid')
+      const ids = body.ids || url.searchParams.get('ids')
+      if (!pid || !ids) {
+        sendJson(res, { error: 'Missing playlist id or song ids' }, 400)
+        return true
+      }
+      const r = await call('playlist_tracks', { op: 'del', pid, tracks: String(ids), cookie, timestamp: Date.now() })
+      const code = normalizeApiCode(r)
+      const success = code === 200 && !asObj(r.body || r).error
+      sendJson(res, { loggedIn: true, pid, success, code, body: r.body || r }, success ? 200 : (code === 401 ? 401 : 409))
+    } catch (err) {
+      console.error('[PlaylistRemoveSongs]', err)
       sendJson(res, { error: (err as Error).message }, 500)
     }
     return true
@@ -812,11 +861,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       const cookie = getCookie(ctx, 'netease')
-      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number } = {
+      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string } = {
         id,
         name: '',
         cover: '',
         trackCount: 0,
+        description: '',
       }
       let trackIds: string[] = []
       let tracks: ReturnType<typeof mapSongRecord>[] = []
@@ -832,6 +882,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             name: asStr(pl.name),
             cover: asStr(pl.coverImgUrl),
             trackCount: asNum(pl.trackCount),
+            description: asStr(pl.description),
           }
           trackIds = asArr(pl.trackIds)
             .map((t) => asStr(asObj(t).id))
