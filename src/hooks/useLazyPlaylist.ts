@@ -18,6 +18,22 @@ interface LazyEntry {
 
 const cache = new Map<string, LazyEntry>()
 
+/** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。 */
+const MAX_CACHED_PLAYLISTS = 8
+
+/** LRU:活跃 key 移到 Map 末位(最新),超上限时从最旧开始淘汰其他歌单。 */
+function touchAndEvict(key: string): void {
+  const e = cache.get(key)
+  if (e) {
+    cache.delete(key)
+    cache.set(key, e)
+  }
+  for (const k of cache.keys()) {
+    if (cache.size <= MAX_CACHED_PLAYLISTS) break
+    if (k !== key) cache.delete(k)
+  }
+}
+
 function emptyEntry(): LazyEntry {
   return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Set(), skeletonLoaded: false, error: false }
 }
@@ -63,6 +79,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       String(entry.trackIds[entry.trackIds.length - 1]) !== String(initialTracks[initialTracks.length - 1].id)
     if (stale) cache.set(key, seededEntry(initialTracks))
   }
+  touchAndEvict(key)
 
   useEffect(() => {
     sessionRef.current += 1

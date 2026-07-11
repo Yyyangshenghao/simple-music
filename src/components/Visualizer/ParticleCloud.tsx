@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
@@ -40,6 +40,9 @@ export function ParticleCloud() {
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return g
   }, [positions])
+
+  // 换预设/性能档时 points 不卸载,r3f 不会替我们释放旧 geometry 的 GPU buffer
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame((_, delta) => {
     const fx = useVisualStore.getState().fx

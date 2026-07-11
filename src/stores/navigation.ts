@@ -22,6 +22,9 @@ interface NavigationStore {
   goForward(): void
 }
 
+/** 历史栈上限:playlist 视图可能内嵌全量 tracks(每日推荐/雷达),不设限会随浏览无限涨内存。 */
+const MAX_HISTORY = 50
+
 export const useNavigationStore = create<NavigationStore>((set, get) => ({
   currentView: 'explore',
   history: [],
@@ -29,7 +32,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   lastAction: 'push',
 
   navigateTo(view) {
-    set((s) => ({ currentView: view, history: [...s.history, s.currentView], future: [], lastAction: 'push' }))
+    set((s) => ({ currentView: view, history: [...s.history, s.currentView].slice(-MAX_HISTORY), future: [], lastAction: 'push' }))
   },
 
   goBack() {
@@ -51,7 +54,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     set({
       currentView: next,
       future: future.slice(1),
-      history: [...history, currentView],
+      history: [...history, currentView].slice(-MAX_HISTORY),
       lastAction: 'push',
     })
   },

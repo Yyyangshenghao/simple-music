@@ -128,6 +128,13 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
       sampledRef.current = buildFallback(maxCount)
       dirtyRef.current = true
     }
+
+    // 切歌/卸载时取消在途加载:防止旧封面回调晚到覆盖新采样,也断开对 img 的引用
+    return () => {
+      img.onload = null
+      img.onerror = null
+      img.src = ''
+    }
   }, [proxyUrl, maxCount])
 
   // 初始 fallback（组件挂载时）
@@ -138,26 +145,34 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     }
   }, [maxCount])
 
-  // 构建 geometry（只在 dirty 时更新）
+  // 构建 geometry（属性只分配一次，useFrame 里原地写入，避免每次切歌新建 GPU buffer）
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry()
-    // 先用 fallback 初始化，useFrame 里会在 dirty 时重建
     const fallback = buildFallback(maxCount)
-    g.setAttribute('position', new THREE.BufferAttribute(fallback.positions.slice(), 3))
-    g.setAttribute('color', new THREE.BufferAttribute(fallback.colors.slice(), 3))
+    g.setAttribute('position', new THREE.BufferAttribute(fallback.positions, 3))
+    g.setAttribute('color', new THREE.BufferAttribute(fallback.colors, 3))
     return g
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])  // 只创建一次，后续在 useFrame 里动态更新
+  }, [maxCount])
+
+  // 性能档切换/卸载时释放旧 geometry 的 GPU buffer
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame((_, delta) => {
-    // 如果采样结果更新了，重建 geometry 属性
+    // 如果采样结果更新了，原地覆写属性数据（粒子数恒为 maxCount，长度总是匹配）
     if (dirtyRef.current && sampledRef.current) {
       dirtyRef.current = false
       const { positions, colors } = sampledRef.current
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions.slice(), 3))
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors.slice(), 3))
-      geometry.attributes.position.needsUpdate = true
-      geometry.attributes.color.needsUpdate = true
+      const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute
+      const colAttr = geometry.getAttribute('color') as THREE.BufferAttribute
+      if (posAttr.array.length === positions.length && colAttr.array.length === colors.length) {
+        ;(posAttr.array as Float32Array).set(positions)
+        ;(colAttr.array as Float32Array).set(colors)
+        posAttr.needsUpdate = true
+        colAttr.needsUpdate = true
+      } else {
+        // 采样结果与 geometry 粒子数短暂失配（性能档切换瞬间）:留 dirty 待新采样落地
+        dirtyRef.current = true
+      }
     }
 
     const energy = bassEnergy()

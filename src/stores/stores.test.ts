@@ -132,6 +132,15 @@ describe('navigation store direction', () => {
     useNavigationStore.getState().goForward()
     expect(useNavigationStore.getState().currentView).toBe('explore')
   })
+
+  it('history 有上限：超限后丢最早的，避免内嵌 tracks 的视图无限堆积', async () => {
+    const { useNavigationStore } = await import('./navigation')
+    useNavigationStore.setState({ currentView: 'explore', history: [], future: [], lastAction: 'push' })
+    for (let i = 0; i < 80; i++) {
+      useNavigationStore.getState().navigateTo(i % 2 === 0 ? 'library' : 'settings')
+    }
+    expect(useNavigationStore.getState().history.length).toBeLessThanOrEqual(50)
+  })
 })
 
 describe('playlist 播放模式走序', () => {
