@@ -151,7 +151,11 @@ export function RoamPage() {
       <div className={styles.inner}>
         <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
           <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
-          <p className={styles.subtitle}>挑几位今天想听的歌手,生成一份临时歌单,当天听,不写进你的平台歌单</p>
+          <p className={styles.subtitle}>
+            {activeSource === 'netease'
+              ? '挑几位今天想听的歌手,生成一份「每日漫游」歌单,写进你的网易云账号(隐私歌单),当天可反复听'
+              : '挑几位今天想听的歌手,生成一份临时歌单,当天听,不写进你的平台歌单'}
+          </p>
         </motion.div>
 
         <div className={styles.searchBox}>
