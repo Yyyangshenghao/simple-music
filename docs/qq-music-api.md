@@ -23,9 +23,9 @@
 | `POST /api/qq/login/cookie` | 保存用户手动粘贴的 cookie | body `cookie` | — | 校验含 `uin`+票据后写入,否则 400 | 已用 |
 | `POST /api/qq/logout` | 清除 cookie | — | — | `{ ok:true }` | 已用 |
 | `GET /api/qq/user/playlists` | 我创建+收藏的歌单 | — | `fcg_user_created_diss`(创建)+ `fcg_get_profile_order_asset.fcg`(收藏) | 过滤 QQ 空间背景音乐歌单,"我喜欢"置顶 | 已用 |
-| `GET /api/qq/radar` | 私人雷达 | — | `music.recommend.TrackRelationServer/GetRadarSong` | `{ playlist, tracks }`;未登录或空结果返回 `playlist:null` | 已用 |
-| `GET /api/qq/recommend/playlists` | 推荐歌单(真分页) | `page`(0 起) | `music.playlist.PlaylistSquare/GetRecommendFeed` | `{ playlists }`;`page` 映射 `From=page*20,Size=20` | 已用 |
-| `GET /api/qq/recommend/songs` | 猜你喜欢 | — | `music.radioProxy.MbTrackRadioSvr/get_radio_track` | `{ songs }`;服务端循环最多 4 次按 mid 去重凑够 20 首 | 已用 |
+| `GET /api/qq/radar` | 私人雷达 | — | `music.recommend.TrackRelationServer/GetRadarSong` | `{ playlist, tracks }`;未登录或空结果返回 `playlist:null`。**已实测**:返回体是 `data.VecSongs`(数组项包一层 `{Track:{...}}`),`Page` 为真分页(`Page:1` 仅 1 首种子曲,`Page:2+` 每页约 10 首,`data.HasMore` 标记),服务端循环最多 4 页凑够 30 首 | 已用 |
+| `GET /api/qq/recommend/playlists` | 推荐歌单(真分页) | `page`(0 起) | `music.playlist.PlaylistSquare/GetRecommendFeed` | `{ playlists }`;`page` 映射 `From=page*20,Size=20`。**已实测**:数组在 `data.List`,每项是三层嵌套 `{Playlist:{basic:{tid,title,cover:{medium_url,...},creator:{nick,...},song_cnt,play_cnt}}}`,专用 `mapQQFeedPlaylist` 映射(不复用通用 `mapQQPlaylist`,字段形状不兼容) | 已用 |
+| `GET /api/qq/recommend/songs` | 猜你喜欢 | — | `music.radioProxy.MbTrackRadioSvr/get_radio_track` | `{ songs }`;服务端循环最多 4 次按 mid 去重凑够 20 首。**已实测**:数组在 `data.tracks`(命中既有候选),每项是扁平结构(`mid`/`name`/`singer`/`album`/`interval`/`file`/`pay` 直接在顶层),与 `mapQQPlaylistTrack` 现有解析天然兼容,无需额外映射 | 已用 |
 | `GET /api/qq/playlist/tracks` | 歌单全量曲目 | `id`(disstid) | `qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg` | 一次性返回全部曲目(无分页窗口) | 已用 |
 | `GET /api/qq/artist/detail` | 歌手详情+热门曲目 | `mid`、`limit`(10~80) | `music.web_singer_info_svr/get_singer_detail_info` | `{ artist, songs, total }` | 已用 |
 | `GET /api/qq/search/artists` | 搜索歌手 | `keywords`、`limit`(1~10) | `music.search.SearchCgiService/DoSearchForQQMusicDesktop`(`search_type:1`) | `{ artists: [{id,mid,name,avatar,musicSize}] }`;该模块信封 key 须与 module 同名且不能带顶层 `comm`,已实测确认 | 已用 |
