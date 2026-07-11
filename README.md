@@ -28,6 +28,16 @@ npm run build:mac        # 打包 macOS（build:win 同理）
 
 更多架构与模块说明见 [`CLAUDE.md`](./CLAUDE.md) 与 [`docs/modules/`](./docs/modules/)。
 
+## 鸣谢
+
+- [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)（MIT，Binaryify）—— 网易云音乐接口封装，作为直接依赖使用。
+- QQ 音乐接口部分在实现与文档整理时参考、交叉核对了以下开源逆向项目（均未直接引入代码，接口来源见 [`docs/qq-music-api.md`](./docs/qq-music-api.md)）：
+  - [l-1124/QQMusicApi](https://github.com/l-1124/QQMusicApi)（Python）
+  - [copws/qq-music-api](https://github.com/copws/qq-music-api)（JS）
+  - [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)（Node.js）
+
+以上项目均为非官方逆向实现，QQ 音乐、网易云音乐无面向个人开发者的公开 OpenAPI，相关接口存在随上游改版失效的风险。
+
 ## License
 
 [MIT](./LICENSE) © yshAM
