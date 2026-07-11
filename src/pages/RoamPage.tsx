@@ -24,6 +24,8 @@ export function RoamPage() {
   const setMode = useRoamStore((s) => s.setMode)
   const generate = useRoamStore((s) => s.generate)
   const reset = useRoamStore((s) => s.reset)
+  const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
+  const loading = useRoamStore((s) => s.loading)
 
   const [keyword, setKeyword] = useState('')
   const [results, setResults] = useState<ArtistInfo[]>([])
@@ -33,7 +35,7 @@ export function RoamPage() {
   const { topOpacity, bottomOpacity, handleScroll } = useScrollGradient()
 
   // 音源切换后,已生成的歌单/进行中的选歌手若属于旧音源,一律视为过期清空——直接比对存量数据自带的
-  // source 字段而非记录“上次挂载时的音源”,这样即使切源发生在 RoamPage 未挂载期间(如在别的页面用
+  // source 字段而非记录”上次挂载时的音源”,这样即使切源发生在 RoamPage 未挂载期间(如在别的页面用
   // 头像菜单切源),重新挂载时也能在这次 effect 里侦测到不匹配并清空,不会让旧音源数据带着挂载。
   useEffect(() => {
     const s = useRoamStore.getState()
@@ -44,6 +46,12 @@ export function RoamPage() {
     setKeyword('')
     setResults([])
   }, [activeSource])
+
+  // 网易云:挂载/切回网易云时核实账号里是否已有可复用的「每日漫游」真实歌单
+  useEffect(() => {
+    if (activeSource !== 'netease' || !neteaseLoggedIn) return
+    void useRoamStore.getState().ensureNeteaseHydrated(service)
+  }, [activeSource, neteaseLoggedIn, service])
 
   useEffect(() => {
     const q = keyword.trim()
@@ -71,6 +79,28 @@ export function RoamPage() {
   function playAt(index: number) {
     if (!playlist) return
     usePlaylistStore.getState().setQueue(playlist.tracks, index)
+  }
+
+  if (activeSource === 'netease' && !neteaseLoggedIn) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.inner}>
+          <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
+          <p className={styles.subtitle}>登录网易云账号后才能使用「漫游」</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (activeSource === 'netease' && loading && !playlist) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.inner}>
+          <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
+          <p className={styles.subtitle}>正在核实账号里的漫游歌单…</p>
+        </div>
+      </div>
+    )
   }
 
   if (playlist) {
