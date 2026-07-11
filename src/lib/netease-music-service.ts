@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { MusicService, RadarPlaylist, PlaylistSkeleton } from './music-service'
+import type { MusicService, RadarPlaylist, PlaylistSkeleton, PlaylistMeta } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class NeteaseMusicService implements MusicService {
@@ -98,5 +98,41 @@ export class NeteaseMusicService implements MusicService {
     const res = await api.get<{ playlist: Playlist | null; tracks: Track[] }>('/api/netease/radar')
     if (!res.playlist || !res.tracks?.length) return null
     return { playlist: res.playlist, tracks: res.tracks }
+  }
+
+  async findUserPlaylistsByName(name: string): Promise<PlaylistMeta[]> {
+    const res = await api.get<{ playlists?: PlaylistMeta[] }>('/api/user/playlists')
+    return (res.playlists ?? []).filter((p) => p.name === name)
+  }
+
+  async getPlaylistWithDescription(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null> {
+    const res = await api.get<{ playlist?: PlaylistMeta | null; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
+    if (!res.playlist || !res.playlist.id) return null
+    return { playlist: res.playlist, tracks: res.tracks ?? [] }
+  }
+
+  async createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }> {
+    const res = await api.post<{ playlist?: { id?: unknown } }>('/api/playlist/create', {
+      name,
+      privacy: opts.private ? '10' : '0',
+    })
+    const id = res.playlist?.id
+    if (id === undefined || id === null) throw new Error('CREATE_PLAYLIST_FAILED')
+    return { id }
+  }
+
+  async replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean> {
+    if (currentTrackIds.length > 0) {
+      await api.post('/api/playlist/remove-songs', { pid: playlistId, ids: currentTrackIds.map(String).join(',') })
+    }
+    if (newTrackIds.length > 0) {
+      await api.post('/api/playlist/add-song', { pid: playlistId, ids: newTrackIds.map(String).join(',') })
+    }
+    return true
+  }
+
+  async updatePlaylistDescription(playlistId: unknown, description: string): Promise<boolean> {
+    await api.post('/api/playlist/desc/update', { id: playlistId, desc: description })
+    return true
   }
 }

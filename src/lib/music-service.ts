@@ -26,6 +26,16 @@ export interface MusicService {
   checkLiked?(ids: unknown[]): Promise<Record<string, boolean>>
   /** "我喜欢的音乐"歌单（可选;null = 未登录或不可用）。 */
   getLikedPlaylist?(): Promise<Playlist | null>
+  /** 按名字列出账号歌单候选项（可选;仅网易实现,漫游功能用于识别归属;含 description 供调用方按业务规则筛选,如水印校验）。 */
+  findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
+  /** 按 id 取歌单当前 meta(含 description)+ 全部曲目（可选;仅网易实现）。找不到返回 null。 */
+  getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
+  /** 建歌单,返回新歌单 id（可选;仅网易实现）。 */
+  createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
+  /** 清空歌单当前曲目并替换为新的一批（可选;仅网易实现）。 */
+  replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
+  /** 覆盖歌单简介（可选;仅网易实现）。 */
+  updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
 }
 
 export interface RadarPlaylist {
@@ -36,4 +46,11 @@ export interface RadarPlaylist {
 export interface PlaylistSkeleton {
   trackIds: unknown[]
   tracks: Track[]
+}
+
+/** 漫游功能用的轻量歌单 meta——只包含实际会用到的字段,不是完整的 Playlist。 */
+export interface PlaylistMeta {
+  id: unknown
+  name: string
+  description: string
 }
