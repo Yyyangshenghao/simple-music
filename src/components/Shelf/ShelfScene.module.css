@@ -20,7 +20,7 @@
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 1px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--sm-text-primary);
 }
 
 .modeSeg {
@@ -28,8 +28,8 @@
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sm-fill-subtle);
+  border: 1px solid var(--sm-border);
 }
 
 .modeBtn {
@@ -37,19 +37,19 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--sm-accent-warm);
   font-size: 12px;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
 }
 
 .modeBtn:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--sm-text-primary);
 }
 
 .modeActive {
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--sm-fill-active);
+  color: var(--sm-text-primary);
 }
 
 .viewport {
@@ -67,7 +67,7 @@
 }
 
 .viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--sm-border-strong);
   border-radius: 2px;
 }
 
@@ -75,7 +75,7 @@
   padding: 64px 0;
   text-align: center;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sm-text-secondary);
 }
 
 .scene {

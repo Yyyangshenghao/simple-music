@@ -15,7 +15,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  opacity: 0.6;
+  color: var(--sm-accent-warm);
 }
 
 .sliders {
@@ -32,10 +32,10 @@
 
 .preset {
   aspect-ratio: 1;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--sm-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-base);
+  color: var(--sm-accent-warm);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -43,7 +43,7 @@
 }
 
 .preset:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg-card);
 }
 
 .segment {
@@ -51,7 +51,7 @@
   gap: 6px;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-bg-base);
 }
 
 .segBtn {
@@ -60,7 +60,7 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--sm-accent-warm);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -68,13 +68,13 @@
 }
 
 .segBtn:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--sm-text-primary);
 }
 
 .active {
   background: var(--sm-accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--sm-text-on-accent);
 }
 
 .actions {
@@ -85,9 +85,9 @@
 .action {
   flex: 1;
   padding: 10px 0;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--sm-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-bg-base);
   color: inherit;
   font: inherit;
   font-size: 13px;
@@ -96,5 +96,5 @@
 }
 
 .action:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--sm-bg-overlay);
 }

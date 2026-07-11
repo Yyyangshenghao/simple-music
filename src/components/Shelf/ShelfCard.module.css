@@ -31,7 +31,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--sm-fill-subtle);
 }
 
 /* 书脊：左缘一道暗带，强化"立在架上"的体积感。 */
@@ -80,12 +80,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--sm-text-primary);
 }
 
 .count {
   font-size: 10px;
   font-weight: 300;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sm-text-secondary);
   font-variant-numeric: tabular-nums;
 }

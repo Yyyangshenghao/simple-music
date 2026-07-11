@@ -15,7 +15,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  opacity: 0.6;
+  color: var(--sm-accent-warm);
 }
 
 .account {
@@ -24,9 +24,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--sm-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-bg-base);
 }
 
 .meta {
@@ -42,11 +42,11 @@
 
 .state {
   font-size: 11px;
-  opacity: 0.5;
+  color: var(--sm-text-secondary);
 }
 
 .online {
-  color: #7fdca4;
+  color: var(--sm-color-success);
   opacity: 1;
 }
 
@@ -63,7 +63,7 @@
 .primary {
   border: 0;
   background: var(--sm-accent);
-  color: #fff;
+  color: var(--sm-text-on-accent);
 }
 
 .primary:hover:not(:disabled) {
@@ -71,13 +71,13 @@
 }
 
 .ghost {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--sm-border-strong);
   background: transparent;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--sm-accent-warm);
 }
 
 .ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg-card);
 }
 
 .primary:disabled,
@@ -96,6 +96,6 @@
 
 .note {
   font-size: 11px;
-  opacity: 0.45;
+  color: var(--sm-text-muted);
   white-space: nowrap;
 }

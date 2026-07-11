@@ -12,7 +12,7 @@
 }
 
 .list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--sm-border-strong);
   border-radius: 2px;
 }
 
@@ -33,7 +33,7 @@
 }
 
 .item:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--sm-fill-hover);
 }
 
 .cover {
@@ -42,7 +42,7 @@
   flex-shrink: 0;
   border-radius: 6px;
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg-base);
 }
 
 .info {
@@ -59,7 +59,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--sm-text-primary);
 }
 
 .artist {
@@ -68,12 +68,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sm-text-secondary);
 }
 
 .duration {
   flex-shrink: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--sm-text-secondary);
 }

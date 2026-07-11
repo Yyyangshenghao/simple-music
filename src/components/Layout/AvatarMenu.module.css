@@ -121,7 +121,7 @@
 }
 
 .loggedIn {
-  color: #34c759;
+  color: var(--sm-color-success);
 }
 
 .ghostBtn {

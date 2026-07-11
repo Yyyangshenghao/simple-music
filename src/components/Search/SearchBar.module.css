@@ -32,6 +32,8 @@
   border: none;
   background: none;
   outline: none;
+  /* .bar 背景固定深色(rgba(16,16,16,.6)),不随主题切换,故此处不用会随浅色主题变黑的
+     --sm-text-* token,始终保持浅色文字 */
   color: #fff;
   font: inherit;
   font-size: 13.5px;
@@ -81,5 +83,5 @@
   text-align: center;
   font-size: 12px;
   letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--sm-text-secondary);
 }

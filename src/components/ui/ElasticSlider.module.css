@@ -43,7 +43,7 @@
   flex-grow: 1;
   overflow: hidden;
   border-radius: 9999px;
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: var(--sm-fill-active);
 }
 
 .range {
@@ -55,7 +55,7 @@
 
 .icon {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--sm-accent-warm);
   display: inline-flex;
   align-items: center;
 }

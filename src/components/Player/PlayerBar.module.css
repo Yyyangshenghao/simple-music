@@ -31,14 +31,14 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--sm-accent-warm);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
 .btn:hover {
-  color: rgba(255, 255, 255, 0.95);
-  background: rgba(255, 255, 255, 0.10);
+  color: var(--sm-text-primary);
+  background: var(--sm-fill-hover);
   border-radius: 50%;
 }
 
@@ -50,41 +50,41 @@
 .modeBtn {
   width: 32px;
   height: 32px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--sm-accent-warm);
 }
 
 .modeBtn[data-mode='shuffle'],
 .modeBtn[data-mode='one'] {
   color: var(--sm-accent);
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-accent) 35%, transparent));
 }
 
 /* 红心按钮:点亮时暖红,与整体玻璃风格保持低饱和 */
 .likeBtn {
   width: 32px;
   height: 32px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--sm-accent-warm);
 }
 
 .likeBtn[data-liked='true'] {
-  color: #ff6b81;
-  filter: drop-shadow(0 0 6px rgba(255, 107, 129, 0.45));
+  color: var(--sm-color-like);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-color-like) 45%, transparent));
 }
 
 .playBtn {
   width: 46px;
   height: 46px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0c0c0c;
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20);
-  border: 1px solid rgba(255, 255, 255, 0.20);
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--sm-accent) 30%, transparent), 0 4px 12px rgba(0, 0, 0, 0.20);
+  border: 1px solid color-mix(in srgb, var(--sm-accent) 20%, transparent);
 }
 
 .playBtn:hover {
-  background: #ffffff;
-  color: #0c0c0c;
-  filter: none;
-  box-shadow: 0 0 22px rgba(255, 255, 255, 0.40), 0 4px 14px rgba(0, 0, 0, 0.25);
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  filter: brightness(1.08);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--sm-accent) 40%, transparent), 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .playBtn[data-loading='true'] {
@@ -106,7 +106,7 @@
   flex-shrink: 0;
   min-width: 40px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--sm-accent-warm);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -130,7 +130,7 @@
 
 .volumeIcon {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--sm-accent-warm);
   display: inline-flex;
 }
 

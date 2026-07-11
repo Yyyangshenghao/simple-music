@@ -15,7 +15,7 @@
 
 .empty {
   font-size: 13px;
-  opacity: 0.5;
+  color: var(--sm-text-secondary);
   padding: 12px 0;
   text-align: center;
 }
@@ -30,9 +30,9 @@
 .input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--sm-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg-base);
   color: inherit;
   font: inherit;
   font-size: 13px;
@@ -42,7 +42,7 @@
 
 .input:focus {
   border-color: var(--sm-accent);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg-card);
 }
 
 .status {
@@ -52,11 +52,11 @@
 }
 
 .ok {
-  color: #7fdca4;
+  color: var(--sm-color-success);
 }
 
 .fail {
-  color: #ff8b8b;
+  color: var(--sm-color-danger);
 }
 
 .remove {
@@ -64,8 +64,8 @@
   height: 26px;
   border: 0;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg-base);
+  color: var(--sm-accent-warm);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
@@ -86,8 +86,8 @@
   flex: 1;
   padding: 10px 0;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--sm-border);
+  background: var(--glass-bg-base);
   color: inherit;
   font: inherit;
   font-size: 13px;
@@ -96,13 +96,13 @@
 }
 
 .add:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--sm-bg-overlay);
 }
 
 .apply {
   border-color: transparent;
   background: var(--sm-accent);
-  color: #fff;
+  color: var(--sm-text-on-accent);
 }
 
 .apply:hover {

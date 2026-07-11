@@ -9,7 +9,9 @@
   align-items: center;
   /* 底部给悬浮播放栏(PlayerGlass dock ≈120px)留出空间,背景层不受影响 */
   padding-bottom: 124px;
-  background: var(--glass-bg-modal);
+  /* 沉浸式歌词舞台常年深色(封面模糊景/3D 星场/无封面兜底皆是深底),不随主题切换,
+     保证 header/模式切换等硬编码白字在任何状态下都有对比度 */
+  background: rgba(0, 0, 0, 0.55);
   backdrop-filter: var(--glass-blur-modal);
   -webkit-backdrop-filter: var(--glass-blur-modal);
   -webkit-app-region: no-drag;
@@ -115,8 +117,8 @@
 
 /* 大圆角方形封面(Apple Music 风格,不旋转,做得更夸张一些) */
 .coverArt {
-  width: clamp(260px, 32vw, 440px);
-  height: clamp(260px, 32vw, 440px);
+  width: clamp(280px, 34vw, 460px);
+  height: clamp(280px, 34vw, 460px);
   border-radius: 22px;
   object-fit: cover;
   display: block;
@@ -124,11 +126,12 @@
     0 0 0 1px rgba(255, 255, 255, 0.06),
     0 0 72px rgba(143, 233, 255, 0.16),
     0 32px 80px rgba(0, 0, 0, 0.62);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .coverPlaceholder {
-  width: clamp(260px, 32vw, 440px);
-  height: clamp(260px, 32vw, 440px);
+  width: clamp(280px, 34vw, 460px);
+  height: clamp(280px, 34vw, 460px);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -138,6 +141,7 @@
   font-size: 52px;
   color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Track name + artist */
@@ -147,6 +151,18 @@
   align-items: center;
   gap: 6px;
   max-width: 100%;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 沉浸态:控件隐去时封面与歌曲信息等比放大,控件重新出现时同一 transition 缩回 */
+.panel.immersive .coverArt,
+.panel.immersive .coverPlaceholder {
+  transform: scale(1.08);
+}
+
+.panel.immersive .trackMeta {
+  /* translateY 写在 scale 前面,保证下移量是固定像素,不随放大倍数被放大,呼应封面外扩的观感 */
+  transform: translateY(14px) scale(1.04);
 }
 
 .trackName {

@@ -2,9 +2,9 @@
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--sm-border-strong);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -13,13 +13,13 @@
 }
 
 .badge:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.32);
-  color: #fff;
+  background: var(--sm-fill-hover);
+  border-color: var(--sm-border-strong);
+  color: var(--sm-text-primary);
 }
 
 .badge[data-quality='lossless'] {
-  border-color: rgba(244, 210, 138, 0.5);
-  background: rgba(244, 210, 138, 0.12);
-  color: #f4d28a;
+  border-color: color-mix(in srgb, var(--sm-color-gold) 50%, transparent);
+  background: color-mix(in srgb, var(--sm-color-gold) 12%, transparent);
+  color: var(--sm-color-gold);
 }

@@ -12,10 +12,10 @@
   font-size: 12px;
 }
 
-.label { opacity: 0.78; }
+.label { color: var(--sm-accent-warm); }
 
 .value {
-  opacity: 0.5;
+  color: var(--sm-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -29,7 +29,7 @@
   background: linear-gradient(
     to right,
     var(--sm-accent) var(--sm-slider-percent),
-    rgba(255, 255, 255, 0.14) var(--sm-slider-percent)
+    var(--sm-fill-active) var(--sm-slider-percent)
   );
   cursor: pointer;
 }
@@ -41,5 +41,5 @@
   height: 13px;
   border-radius: 50%;
   background: var(--sm-accent);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.50);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--sm-accent) 50%, transparent);
 }

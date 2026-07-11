@@ -46,5 +46,5 @@
   font-size: clamp(16px, 2vw, 22px);
   font-weight: 600;
   letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sm-text-secondary);
 }

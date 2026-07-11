@@ -14,13 +14,13 @@
   height: 22px;
   border-radius: 999px;
   border: none;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--sm-bg-overlay);
   cursor: pointer;
   transition: background 0.2s ease;
   padding: 0;
 }
 
-.on { background: rgba(255, 255, 255, 0.88); }
+.on { background: var(--sm-accent); }
 
 .thumb {
   position: absolute;
@@ -29,7 +29,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--sm-accent);
   transition: transform 0.2s ease;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.30);
 }
