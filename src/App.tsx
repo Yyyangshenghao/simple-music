@@ -10,6 +10,7 @@ import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
+import { useUpdateStore } from './stores/update'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
@@ -20,6 +21,7 @@ import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { ClickSpark } from './components/ui/ClickSpark'
 import { Toast } from './components/ui/Toast'
+import { UpdateBanner } from './components/Update/UpdateBanner'
 
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
@@ -49,6 +51,10 @@ export default function App() {
     return useSettingsStore.subscribe(sync)
   }, [])
 
+  useEffect(() => {
+    void useUpdateStore.getState().checkForUpdate()
+  }, [])
+
   return (
     <MotionConfig reducedMotion="user">
       <WindowChrome>
@@ -60,6 +66,7 @@ export default function App() {
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
           <Toast />
+          <UpdateBanner />
         </div>
       </WindowChrome>
     </MotionConfig>

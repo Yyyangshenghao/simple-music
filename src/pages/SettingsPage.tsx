@@ -1,6 +1,7 @@
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
+import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './SettingsPage.module.css'
 
@@ -18,6 +19,24 @@ export function SettingsPage() {
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
   const updateFx = useVisualStore((s) => s.updateFx)
+
+  const updateInfo = useUpdateStore((s) => s.info)
+  const checking = useUpdateStore((s) => s.checking)
+  const downloading = useUpdateStore((s) => s.downloading)
+  const job = useUpdateStore((s) => s.job)
+  const checkForUpdate = useUpdateStore((s) => s.checkForUpdate)
+  const startDownload = useUpdateStore((s) => s.startDownload)
+  const openInstaller = useUpdateStore((s) => s.openInstaller)
+
+  const currentVersion = updateInfo?.currentVersion || '1.0.0'
+  const ready = job?.status === 'ready'
+  const updateStatusText = checking
+    ? '检查中…'
+    : updateInfo?.updateAvailable
+      ? `发现新版本 v${updateInfo.release.version}`
+      : updateInfo
+        ? '已是最新版本'
+        : '尚未检查'
 
   return (
     <div className={styles.page}>
@@ -120,8 +139,26 @@ export function SettingsPage() {
       <section className={styles.group}>
         <h2 className={styles.groupTitle}>关于</h2>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>SimpleMusic</span>
-          <span className={styles.rowValue}>v1.0.0</span>
+          <span className={styles.rowLabel}>Simple Music</span>
+          <span className={styles.rowValue}>v{currentVersion}</span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>{updateStatusText}</span>
+          {ready ? (
+            <button className={`${styles.seg} no-drag`} onClick={() => void openInstaller()}>
+              立即安装
+            </button>
+          ) : downloading ? (
+            <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
+          ) : updateInfo?.updateAvailable ? (
+            <button className={`${styles.seg} no-drag`} onClick={() => void startDownload()}>
+              下载更新
+            </button>
+          ) : (
+            <button className={`${styles.seg} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
+              检查更新
+            </button>
+          )}
         </div>
       </section>
     </div>

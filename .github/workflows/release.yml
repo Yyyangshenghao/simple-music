@@ -15,9 +15,11 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            script: release:mac
+            script: build:mac
+            artifact: dist-mac
           - os: windows-latest
-            script: release:win
+            script: build:win
+            artifact: dist-win
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -34,5 +36,34 @@ jobs:
       - run: npm test
 
       - run: npm run ${{ matrix.script }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest*.yml
+          if-no-files-found: error
+
+  # 两个平台各自只上传构建产物为 artifact，不在 matrix 里直接 --publish：
+  # 并行的两个 job 同时 publish 会各自建一个 draft release（找不到彼此刚建的那个），
+  # 导致同一个 tag 拆成两个不完整的 draft。改为等两边都构建完，
+  # 由这个单独 job 统一创建一个 release 并把所有产物传上去。
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Simple Music ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          files: release-assets/**
