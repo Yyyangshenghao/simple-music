@@ -529,6 +529,28 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
   }
 }
 
+/** GetRecommendFeed 返回的歌单是嵌套结构(item.Playlist.basic,封面/创建者也是对象),与其余接口的扁平字段不同源,单独映射。 */
+function mapQQFeedPlaylist(raw: unknown): Record<string, unknown> {
+  const item = rec(raw)
+  const pl = rec(item.Playlist || item.playlist || item)
+  const basic = rec(pl.basic || pl)
+  const cover = rec(basic.cover)
+  const creator = rec(basic.creator)
+  const id = basic.tid || basic.dirid || basic.id
+  return {
+    provider: 'qq',
+    source: 'qq',
+    id: id ? String(id) : '',
+    name: str(basic.title || basic.name),
+    cover: str(cover.medium_url || cover.big_url || cover.default_url || cover.small_url) || str(basic.cover),
+    trackCount: numOf(basic.song_cnt || basic.songnum),
+    playCount: numOf(basic.play_cnt || basic.listen_num),
+    creator: str(creator.nick || creator.name) || 'QQ 音乐',
+    subscribed: false,
+    specialType: 0,
+  }
+}
+
 function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
   const r = rec(raw)
   const track = r.songid || r.songmid || r.mid || r.name ? r : rec(r.track_info || r.songInfo || r.songinfo || r.song)
@@ -825,25 +847,48 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
 export async function handleQQRadarSong(cookie: string): Promise<Record<string, unknown>> {
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn) return { provider: 'qq', playlist: null, tracks: [] }
-  const json = rec(
-    await qqMusicRequest(
-      cookie,
-      {
-        comm: qqAuthComm(cookie),
-        radar: {
-          module: 'music.recommend.TrackRelationServer',
-          method: 'GetRadarSong',
-          param: { Page: 1 },
-        },
-      },
-      { cookie: true }
-    )
-  )
-  const block = rec(json.radar)
-  const data = rec(block.data)
-  const rawList =
-    [data.songList, data.vec_song, data.tracks, data.List, data.data].map(arr).find((list) => list.length) || []
-  const tracks = rawList.map(mapQQPlaylistTrack).filter((s) => s.name && (s.mid || s.id))
+  const comm = qqAuthComm(cookie)
+  const seen = new Set<string>()
+  const tracks: Record<string, unknown>[] = []
+  // 上游按 Page 增量分页(Page1 仅 1 首"种子曲",Page2+ 每页约 10 首),循环凑够一份完整雷达歌单。
+  for (let page = 1; page <= 4 && tracks.length < 30; page++) {
+    let json: Record<string, unknown>
+    try {
+      json = rec(
+        await qqMusicRequest(
+          cookie,
+          {
+            comm,
+            radar: {
+              module: 'music.recommend.TrackRelationServer',
+              method: 'GetRadarSong',
+              param: { Page: page },
+            },
+          },
+          { cookie: true }
+        )
+      )
+    } catch (e) {
+      console.warn('[QQRadar] batch failed:', (e as Error).message)
+      break
+    }
+    const block = rec(json.radar)
+    const data = rec(block.data)
+    const rawList =
+      [data.VecSongs, data.songList, data.vec_song, data.tracks, data.List, data.data]
+        .map(arr)
+        .find((list) => list.length) || []
+    if (rawList.length === 0) break
+    for (const raw of rawList) {
+      const song = mapQQPlaylistTrack(rec(raw).Track || raw)
+      const key = str(song.mid) || str(song.id)
+      if (!key || seen.has(key) || !song.name) continue
+      seen.add(key)
+      tracks.push(song)
+      if (tracks.length >= 30) break
+    }
+    if (!data.HasMore) break
+  }
   if (tracks.length === 0) return { provider: 'qq', playlist: null, tracks: [] }
   const playlist = {
     provider: 'qq',
@@ -876,12 +921,7 @@ export async function handleQQRecommendFeed(cookie: string, page: number): Promi
   const rawList =
     [data.content, data.List, data.v_playlist, data.playlist, data.disslist].map(arr).find((list) => list.length) ||
     []
-  const playlists = rawList
-    .map((item) => {
-      const r = rec(item)
-      return mapQQPlaylist(r.playlist || r.diss_info || r.content || r, 'discover')
-    })
-    .filter((pl) => pl.id && pl.name)
+  const playlists = rawList.map(mapQQFeedPlaylist).filter((pl) => pl.id && pl.name)
   return { provider: 'qq', playlists }
 }
 
