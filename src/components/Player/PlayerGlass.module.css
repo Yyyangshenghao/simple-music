@@ -5,8 +5,10 @@
   position: relative;
   /* 悬浮于歌词面板(200)之上,歌词全屏时播放栏仍可用 */
   z-index: 210;
-  /* 能量归零时辉光渐熄而非瞬灭 */
-  transition: --audio-energy 0.35s ease, opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+  /* 不要给 --audio-energy 挂 transition:它每帧被 JS 改写,注册属性的过渡会每帧
+     催生一个新过渡对象(60/s × 0.35s 存活),播放期间渲染进程内存以 ~13MB/s 增长;
+     能量归零的渐熄改由 useAudioEnergy 停表时用 rAF 衰减实现 */
+  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 

@@ -16,8 +16,21 @@ export function useAudioEnergy(ref: RefObject<HTMLElement | null>): void {
     const el = ref.current
     if (!el) return
     if (!playing || eco) {
-      el.style.setProperty('--audio-energy', '0')
-      return
+      // 渐熄:按帧衰减到 0(约 0.35s),替代 CSS transition——每帧改值的注册属性
+      // 挂 transition 会每帧催生新过渡对象,导致播放期间内存持续增长
+      let raf = 0
+      let v = parseFloat(el.style.getPropertyValue('--audio-energy')) || 0
+      const decay = () => {
+        v *= 0.86
+        if (v < 0.01) {
+          el.style.setProperty('--audio-energy', '0')
+          return
+        }
+        el.style.setProperty('--audio-energy', v.toFixed(3))
+        raf = requestAnimationFrame(decay)
+      }
+      raf = requestAnimationFrame(decay)
+      return () => cancelAnimationFrame(raf)
     }
     let raf = 0
     let energy = 0

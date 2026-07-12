@@ -2,7 +2,8 @@
 @property --ambient-1 { syntax: '<color>'; inherits: true; initial-value: #5227ff; }
 @property --ambient-2 { syntax: '<color>'; inherits: true; initial-value: #ff9ffc; }
 @property --ambient-3 { syntax: '<color>'; inherits: true; initial-value: #b497cf; }
-@property --audio-energy { syntax: '<number>'; inherits: true; initial-value: 0; }
+/* inherits 必须为 false:该变量每帧被 JS 改写(useAudioEnergy),若可继承会让持有元素整个子树每帧重算样式 */
+@property --audio-energy { syntax: '<number>'; inherits: false; initial-value: 0; }
 
 /* ── 深色模式（主） ── */
 :root {

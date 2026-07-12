@@ -4,13 +4,9 @@
   color-scheme: light dark;
 }
 
-/* 氛围色切换（切歌取色）时约 800ms 平滑过渡 */
-html {
-  transition:
-    --ambient-1 800ms var(--sm-ease-in-out),
-    --ambient-2 800ms var(--sm-ease-in-out),
-    --ambient-3 800ms var(--sm-ease-in-out);
-}
+/* 氛围色切换的平滑过渡由 useAmbientPalette 的 JS 分步补间实现。
+   不要在根元素上给 --ambient-* 挂 CSS transition:它们是全文档继承的注册属性,
+   根上过渡的每一帧都会让整个文档重算样式,每次切歌瞬间产生上百 MB Blink 堆垃圾。 */
 
 * {
   box-sizing: border-box;
