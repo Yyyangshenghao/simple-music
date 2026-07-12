@@ -227,6 +227,27 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           {/* 效果切换器（3D 场景内浮动） */}
           <EffectSwitcher hidden={controlsHidden} />
 
+          {/* 曲目信息卡（左下角,沉浸模式淡出） */}
+          <div className={`${styles.trackChip}${controlsHidden ? ` ${styles.trackChipHidden}` : ''} no-drag`}>
+            {track?.cover ? (
+              <img className={styles.trackChipCover} src={track.cover} alt="" draggable={false} />
+            ) : (
+              <div className={`${styles.trackChipCover} ${styles.trackChipCoverPlaceholder}`} aria-hidden="true">♪</div>
+            )}
+            <div className={styles.trackChipMeta}>
+              <div className={styles.trackChipName} title={track?.name}>
+                {track?.name ?? '未在播放'}
+              </div>
+              <ArtistLinks
+                className={styles.trackChipArtist}
+                artists={track?.artists}
+                fallback={track?.artist ?? '—'}
+                source={track?.source ?? 'netease'}
+                onBeforeNavigate={onClose}
+              />
+            </div>
+          </div>
+
           {/* 歌词叠加层：当前行 + 下一行 */}
           <div className={styles.lyricsOverlay}>
             <AnimatePresence mode="popLayout" initial={false}>
