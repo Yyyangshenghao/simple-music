@@ -29,6 +29,7 @@
 - `electron/preload/index.ts`(修改)— `openUpdateInstaller` 重命名为 `installUpdate`。
 - `src/stores/update.ts`(修改)— `openInstaller` 重命名为 `installUpdate`,新增 `installing` 状态。
 - `src/pages/SettingsPage.tsx`(修改)— "立即安装"按钮改为"重启并安装",接 `installing` 状态。
+- `src/components/Update/UpdateBanner.tsx`(修改,Task 4 审查阶段发现原计划遗漏)— 顶部更新提示条,同样的按钮文案/禁用处理。
 - `docs/modules/electron-main.md`(修改)— 同步新模块 + 重命名后的 IPC 通道名。
 
 ---
@@ -432,10 +433,13 @@ git commit -m "feat: preload/store 同步改名为 installUpdate 并跟踪安装
 
 ---
 
-### Task 5: 设置页按钮改造
+### Task 5: 设置页 + 顶部更新提示条按钮改造
+
+> **计划修正(Task 4 审查阶段发现):** 原计划只看到了 `SettingsPage.tsx` 这一个更新入口,漏掉了 `src/components/Update/UpdateBanner.tsx`(顶部横幅,检测到新版本时出现,同样有一个"立即安装"按钮走 `installUpdate`)。Task 4 实现时为了让 typecheck 通过,已经把这个文件里的方法调用从 `openInstaller` 顺手改名成了 `installUpdate`(否则会编译报错),但还没加 `installing` 状态的文案/禁用处理 —— 这部分补在这个任务里。
 
 **Files:**
 - Modify: `src/pages/SettingsPage.tsx`
+- Modify: `src/components/Update/UpdateBanner.tsx`
 
 **Interfaces:**
 - Consumes: Task 4 的 `useUpdateStore` 的 `installing`、`installUpdate`
@@ -475,20 +479,62 @@ git commit -m "feat: preload/store 同步改名为 installUpdate 并跟踪安装
             </button>
 ```
 
-- [ ] **Step 3: 本地跑起来看一眼**
+- [ ] **Step 3: 改顶部更新提示条(UpdateBanner)**
 
-Run: `npm run dev`,打开设置页,确认"关于"分组按钮文案是"重启并安装"(此时没有可安装的更新包,`ready` 为 false,看不到这个按钮属正常;可以临时把 `ready` 硬编码成 `true` 肉眼确认文案和样式,改完记得撤销)。
+`src/components/Update/UpdateBanner.tsx` 里,加读取 `installing`(Task 4 已经把方法调用从 `openInstaller` 改成了 `installUpdate`,这一步只补文案和禁用状态):
 
-- [ ] **Step 4: typecheck + 现有测试**
+```typescript
+  const installing = useUpdateStore((s) => s.installing)
+```
+
+放在 `const installUpdate = useUpdateStore((s) => s.installUpdate)` 后面。
+
+把:
+
+```typescript
+  const actionLabel = ready ? '立即安装' : downloading ? `下载中 ${job?.progress ?? 0}%` : errored ? '重试下载' : '下载更新'
+```
+
+改成:
+
+```typescript
+  const actionLabel = ready
+    ? installing
+      ? '正在安装…'
+      : '重启并安装'
+    : downloading
+      ? `下载中 ${job?.progress ?? 0}%`
+      : errored
+        ? '重试下载'
+        : '下载更新'
+```
+
+把按钮的 `disabled` 属性:
+
+```typescript
+                disabled={downloading && !ready && !errored}
+```
+
+改成:
+
+```typescript
+                disabled={(downloading && !ready && !errored) || installing}
+```
+
+- [ ] **Step 4: 本地跑起来看一眼**
+
+Run: `npm run dev`,打开设置页,确认"关于"分组按钮文案是"重启并安装"(此时没有可安装的更新包,`ready` 为 false,看不到这个按钮属正常;可以临时把 `ready` 硬编码成 `true` 肉眼确认文案和样式,改完记得撤销)。同样方式确认顶部 `UpdateBanner` 的按钮文案和禁用状态。
+
+- [ ] **Step 5: typecheck + 现有测试**
 
 Run: `npm run typecheck && npm test`
 Expected: 全部通过
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/pages/SettingsPage.tsx
-git commit -m "feat: 设置页更新按钮改为重启并安装"
+git add src/pages/SettingsPage.tsx src/components/Update/UpdateBanner.tsx
+git commit -m "feat: 设置页与更新提示条按钮改为重启并安装"
 ```
 
 ---
