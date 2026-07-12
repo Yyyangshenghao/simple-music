@@ -12,6 +12,9 @@ import type {
   OkResult
 } from '../../src/types/ipc'
 
+// 必须与 server/lib/update.ts 的 updateWorkDir() 同源：那边支持 SIMPLEMUSIC_UPDATE_DIR
+// 等环境变量覆盖下载目录，这里没有跟着读——生产默认路径下两者一致，但手动指定下载目录
+// 调试/测试时，安装包会落在这里校验不到的地方，app:install-update 会稳定返回 INVALID_UPDATE_PATH。
 function getUpdateDownloadDir(): string {
   return join(app.getPath('userData'), 'updates')
 }
