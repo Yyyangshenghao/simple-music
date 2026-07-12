@@ -10,7 +10,7 @@ export function UpdateBanner() {
   const downloading = useUpdateStore((s) => s.downloading)
   const dismissedVersion = useUpdateStore((s) => s.dismissedVersion)
   const startDownload = useUpdateStore((s) => s.startDownload)
-  const openInstaller = useUpdateStore((s) => s.openInstaller)
+  const installUpdate = useUpdateStore((s) => s.installUpdate)
   const dismiss = useUpdateStore((s) => s.dismiss)
 
   const visible = !!info?.updateAvailable && info.release.version !== dismissedVersion && !!window.desktop?.isDesktop
@@ -21,7 +21,7 @@ export function UpdateBanner() {
   const actionLabel = ready ? '立即安装' : downloading ? `下载中 ${job?.progress ?? 0}%` : errored ? '重试下载' : '下载更新'
 
   const handleAction = (): void => {
-    if (ready) void openInstaller()
+    if (ready) void installUpdate()
     else void startDownload()
   }
 

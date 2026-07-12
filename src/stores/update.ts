@@ -60,9 +60,10 @@ interface UpdateStore {
   dismissedVersion: string
   job: DownloadJob | null
   downloading: boolean
+  installing: boolean
   checkForUpdate(): Promise<void>
   startDownload(): Promise<void>
-  openInstaller(): Promise<void>
+  installUpdate(): Promise<void>
   dismiss(): void
 }
 
@@ -80,6 +81,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   dismissedVersion: typeof window !== 'undefined' ? localStorage.getItem(DISMISS_KEY) || '' : '',
   job: null,
   downloading: false,
+  installing: false,
 
   async checkForUpdate() {
     if (get().checking) return
@@ -124,10 +126,17 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     }
   },
 
-  async openInstaller() {
+  async installUpdate() {
     const filePath = get().job?.filePath
-    if (!filePath) return
-    await window.desktop?.openUpdateInstaller(filePath)
+    if (!filePath || get().installing) return
+    set({ installing: true })
+    try {
+      const result = await window.desktop?.installUpdate(filePath)
+      // 成功时应用即将退出重启，不需要复位 installing；只有失败才复位让用户能重试
+      if (result && !result.ok) set({ installing: false })
+    } catch {
+      set({ installing: false })
+    }
   },
 
   dismiss() {

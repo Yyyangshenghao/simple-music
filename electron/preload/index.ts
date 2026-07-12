@@ -66,7 +66,7 @@ const api = {
   exportJson: (payload: ExportPayload): Promise<FileResult> => ipcRenderer.invoke('file:export-json', payload),
   importJson: (): Promise<ImportResult> => ipcRenderer.invoke('file:import-json'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
-  openUpdateInstaller: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:open-update', { filePath })
+  installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })
 }
 
 contextBridge.exposeInMainWorld('desktop', api)
