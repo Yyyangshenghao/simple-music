@@ -171,7 +171,7 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 /** 歌词面板 3D 模式下的视觉效果类型 */
-export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d'
+export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
 export type ShelfMode = 'dynamic' | 'static'
 /** 播放模式：列表循环 / 随机 / 单曲循环。 */
 export type PlayMode = 'order' | 'shuffle' | 'one'

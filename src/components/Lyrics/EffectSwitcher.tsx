@@ -43,6 +43,23 @@ const EFFECTS: EffectInfo[] = [
         <rect x="14.8" y="10" width="2.2" height="8" rx="0.5" />
       </svg>
     )
+  },
+  {
+    id: 'speaker-particles',
+    label: '音箱沙粒',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="10" cy="10" r="8" />
+        <circle cx="7" cy="8" r="1" />
+        <circle cx="13" cy="7" r="0.8" />
+        <circle cx="9" cy="12" r="0.7" />
+        <circle cx="14" cy="11" r="0.9" />
+        <circle cx="6" cy="13" r="0.6" />
+        <circle cx="11" cy="9" r="0.7" />
+        <circle cx="8" cy="15" r="0.5" />
+      </svg>
+    )
   }
 ]
 

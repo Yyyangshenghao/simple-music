@@ -9,6 +9,7 @@ import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
 import { Waveform3D } from '../Visualizer/Waveform3D'
+import { SpeakerParticles } from '../Visualizer/SpeakerParticles'
 import { CinemaCamera } from '../Visualizer/CinemaCamera'
 import { EffectSwitcher } from './EffectSwitcher'
 import type { Lyrics3dEffect } from '../../types/domain'
@@ -44,7 +45,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 3D 效果组件查找表
   const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
     'cover-cloud': CoverParticleCloud,
-    'waveform-3d': Waveform3D
+    'waveform-3d': Waveform3D,
+    'speaker-particles': SpeakerParticles
   }
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
