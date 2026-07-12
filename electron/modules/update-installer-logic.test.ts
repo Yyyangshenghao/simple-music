@@ -41,4 +41,26 @@ describe('buildMacSwapScript', () => {
     expect(script).toContain('DMG="/tmp/SimpleMusic-1.2.0.dmg"')
     expect(script).toContain('APP_PATH="/Applications/SimpleMusic.app"')
   })
+
+  it('挂载/复制/备份失败时也通过 fail() 重启旧版本，而不是被 set -e 静默杀死', () => {
+    const failFnIndex = script.indexOf('fail()')
+    const hdiutilIndex = script.indexOf('hdiutil attach')
+    const dittoIndex = script.indexOf('ditto ')
+    const backupMvIndex = script.indexOf('mv "$APP_PATH" "$OLD_BACKUP"')
+
+    // fail() 辅助函数必须在所有风险命令之前定义
+    expect(failFnIndex).toBeGreaterThan(-1)
+    expect(failFnIndex).toBeLessThan(hdiutilIndex)
+
+    // 每个风险命令都显式路由到 fail()，而不是依赖 set -e 隐式退出
+    expect(script).toContain(
+      'hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_DIR" || fail "HDIUTIL_ATTACH_FAILED"'
+    )
+    expect(script).toContain('ditto "$SRC_APP" "$NEW_APP" || fail "DITTO_FAILED"')
+    expect(script).toContain('mv "$APP_PATH" "$OLD_BACKUP" || fail "BACKUP_MOVE_FAILED"')
+
+    // 三个 fail() 调用按脚本执行顺序出现
+    expect(dittoIndex).toBeGreaterThan(hdiutilIndex)
+    expect(backupMvIndex).toBeGreaterThan(dittoIndex)
+  })
 })

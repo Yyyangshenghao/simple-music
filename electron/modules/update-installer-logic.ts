@@ -21,29 +21,32 @@ export function buildMacSwapScript(options: MacSwapScriptOptions): string {
   const { dmgPath, appPath, logPath } = options
   return `#!/bin/bash
 exec > "${logPath}" 2>&1
-set -e
 DMG="${dmgPath}"
 APP_PATH="${appPath}"
 MOUNT_DIR=$(mktemp -d)
-cleanup() { hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || true; }
+cleanup() { hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null || true; rmdir "$MOUNT_DIR" 2>/dev/null || true; }
 trap cleanup EXIT
 
-hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_DIR"
-SRC_APP=$(find "$MOUNT_DIR" -maxdepth 1 -name "*.app" | head -n1)
-if [ -z "$SRC_APP" ]; then
-  echo "SRC_APP_NOT_FOUND"
-  open "$APP_PATH"
+fail() {
+  echo "$1"
+  open "$APP_PATH" 2>/dev/null || true
   exit 1
-fi
+}
+
+hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_DIR" || fail "HDIUTIL_ATTACH_FAILED"
+
+SRC_APP=$(find "$MOUNT_DIR" -maxdepth 1 -name "*.app" | head -n1)
+if [ -z "$SRC_APP" ]; then fail "SRC_APP_NOT_FOUND"; fi
 
 NEW_APP="$APP_PATH.new"
 rm -rf "$NEW_APP"
-ditto "$SRC_APP" "$NEW_APP"
+ditto "$SRC_APP" "$NEW_APP" || fail "DITTO_FAILED"
 xattr -dr com.apple.quarantine "$NEW_APP" 2>/dev/null || true
 
 OLD_BACKUP="$APP_PATH.old"
 rm -rf "$OLD_BACKUP"
-mv "$APP_PATH" "$OLD_BACKUP"
+mv "$APP_PATH" "$OLD_BACKUP" || fail "BACKUP_MOVE_FAILED"
+
 if mv "$NEW_APP" "$APP_PATH"; then
   rm -rf "$OLD_BACKUP"
   open "$APP_PATH"
