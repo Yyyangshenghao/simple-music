@@ -366,11 +366,12 @@
 }
 
 .overlayCurrentLine {
-  font-size: 28px;
+  font-size: clamp(24px, 3vw, 38px);
   font-weight: 700;
   text-align: center;
   width: 100%;
   max-width: 700px;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55);
 }
 
 .overlayNextLine {

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
+import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
+import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
@@ -78,6 +80,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const currentWordLine = currentIndex >= 0 ? wordLines[currentIndex] : undefined
   const nextWordLine = currentIndex >= 0 ? wordLines[currentIndex + 1] : undefined
   const nextTranslation = currentIndex >= 0 ? translation[currentIndex + 1]?.text : undefined
+
+  // 纯 LRC 行数据
+  const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
+  const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
 
   return (
     <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}`}>
@@ -213,29 +219,52 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           {/* 歌词叠加层：当前行 + 下一行 */}
           <div className={styles.lyricsOverlay}>
-            {currentWordLine ? (
-              <div className={styles.overlayCurrentLine}>
-                <KtvLine
-                  words={currentWordLine.words}
-                  lineDurationMs={currentWordLine.durationMs}
-                  lineStartMs={currentWordLine.time * 1000}
-                  active={true}
-                  translationText={translation[currentIndex]?.text || undefined}
-                />
-              </div>
-            ) : (
-              <div className={styles.overlayPlaceholder}>—</div>
-            )}
-            {nextWordLine && (
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={currentIndex}
+                className={styles.overlayCurrentLine}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={springGentle}
+              >
+                {currentWordLine ? (
+                  <KtvLine
+                    words={currentWordLine.words}
+                    lineDurationMs={currentWordLine.durationMs}
+                    lineStartMs={currentWordLine.time * 1000}
+                    active={true}
+                    translationText={translation[currentIndex]?.text || undefined}
+                  />
+                ) : currentPlainLine ? (
+                  <LyricLine
+                    text={currentPlainLine.text}
+                    translation={translation[currentIndex]?.text || undefined}
+                    active={true}
+                  />
+                ) : (
+                  <div className={styles.overlayPlaceholder}>—</div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+            {(nextWordLine || nextPlainLine) && (
               <div className={styles.overlayNextLine}>
-                <KtvLine
-                  words={nextWordLine.words}
-                  lineDurationMs={nextWordLine.durationMs}
-                  lineStartMs={nextWordLine.time * 1000}
-                  active={false}
-                  dim={false}
-                  translationText={nextTranslation || undefined}
-                />
+                {nextWordLine ? (
+                  <KtvLine
+                    words={nextWordLine.words}
+                    lineDurationMs={nextWordLine.durationMs}
+                    lineStartMs={nextWordLine.time * 1000}
+                    active={false}
+                    dim={false}
+                    translationText={nextTranslation || undefined}
+                  />
+                ) : (
+                  <LyricLine
+                    text={nextPlainLine!.text}
+                    translation={nextTranslation || undefined}
+                    active={false}
+                  />
+                )}
               </div>
             )}
           </div>
