@@ -1,0 +1,63 @@
+/* Floating pill bar for effect switching, overlaid on 3D scene */
+.switcher {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--glass-bg-card);
+  border: 1px solid var(--glass-border-card);
+  border-radius: var(--sm-radius-pill);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
+}
+
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  padding: 0;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.btn:active {
+  transform: scale(0.92);
+}
+
+.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.active:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
