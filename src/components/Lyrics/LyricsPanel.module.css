@@ -330,6 +330,14 @@
   pointer-events: none;
 }
 
+/* 切换 3D 效果时的整幕淡入过渡层 */
+.effectFade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 /* 3D 场景容器：全出血铺满面板（header 与悬浮播放栏之后） */
 .scene3d {
   position: absolute;

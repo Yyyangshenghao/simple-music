@@ -214,6 +214,16 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <div className={styles.sceneTopFade} aria-hidden="true" />
           <div className={styles.sceneVignette} aria-hidden="true" />
 
+          <motion.div
+            key={lyrics3dEffect}
+            className={styles.effectFade}
+            style={{ background: backgroundColor || '#04060c' }}
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            aria-hidden="true"
+          />
+
           {/* 效果切换器（3D 场景内浮动） */}
           <EffectSwitcher hidden={controlsHidden} />
 

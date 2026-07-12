@@ -24,9 +24,8 @@
 }
 
 .btn {
-  width: 34px;
   height: 34px;
-  border-radius: 50%;
+  border-radius: var(--sm-radius-pill);
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.5);
@@ -34,8 +33,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
-  padding: 0;
+  gap: 6px;
+  padding: 0 8px;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
 .btn:hover {
@@ -43,18 +43,23 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-.btn:active {
-  transform: scale(0.92);
-}
-
 .active {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
+  padding: 0 14px 0 10px;
+  box-shadow: var(--glow-ring);
 }
 
 .active:hover {
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
+}
+
+.label {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
 }
 
 .icon {

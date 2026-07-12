@@ -1,5 +1,5 @@
-import { motion } from 'motion/react'
-import { springSnappy, springGentle } from '../../lib/motion-presets'
+import { AnimatePresence, motion } from 'motion/react'
+import { springSnappy, springGentle, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
 import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './EffectSwitcher.module.css'
@@ -78,23 +78,35 @@ export function EffectSwitcher({ hidden }: EffectSwitcherProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={springGentle}
     >
-      {EFFECTS.map((eff) => (
-        <button
-          key={eff.id}
-          className={`${styles.btn}${active === eff.id ? ` ${styles.active}` : ''}`}
-          onClick={() => setEffect(eff.id)}
-          title={eff.label}
-          aria-label={eff.label}
-        >
-          <motion.span
-            className={styles.icon}
-            whileTap={{ scale: 0.88 }}
+      {EFFECTS.map((eff) => {
+        const isActive = active === eff.id
+        return (
+          <motion.button
+            key={eff.id}
+            layout
+            className={`${styles.btn}${isActive ? ` ${styles.active}` : ''}`}
+            onClick={() => setEffect(eff.id)}
+            title={eff.label}
+            aria-label={eff.label}
+            whileTap={tapScale}
             transition={springSnappy}
           >
-            {eff.icon}
-          </motion.span>
-        </button>
-      ))}
+            <span className={styles.icon}>{eff.icon}</span>
+            <AnimatePresence initial={false}>
+              {isActive && (
+                <motion.span
+                  className={styles.label}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, transition: { duration: 0.18, delay: 0.08 } }}
+                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                >
+                  {eff.label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        )
+      })}
     </motion.div>
   )
 }
