@@ -228,7 +228,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <EffectSwitcher hidden={controlsHidden} />
 
           {/* 曲目信息卡（左下角,沉浸模式淡出） */}
-          <div className={`${styles.trackChip}${controlsHidden ? ` ${styles.trackChipHidden}` : ''} no-drag`}>
+          <div
+            className={`${styles.trackChip}${controlsHidden ? ` ${styles.trackChipHidden}` : ''} no-drag`}
+            role="group"
+            aria-label="当前曲目"
+          >
             {track?.cover ? (
               <img className={styles.trackChipCover} src={track.cover} alt="" draggable={false} />
             ) : (
@@ -272,6 +276,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     text={currentPlainLine.text}
                     translation={translation[currentIndex]?.text || undefined}
                     active={true}
+                    overlay
                   />
                 ) : (
                   <div className={styles.overlayPlaceholder}>—</div>
@@ -294,6 +299,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     text={nextPlainLine!.text}
                     translation={nextTranslation || undefined}
                     active={false}
+                    overlay
                   />
                 )}
               </div>

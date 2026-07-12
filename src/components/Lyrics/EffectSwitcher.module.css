@@ -8,8 +8,9 @@
   display: flex;
   gap: 6px;
   padding: 5px 10px;
-  background: var(--glass-bg-card);
-  border: 1px solid var(--glass-border-card);
+  /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--sm-radius-pill);
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);

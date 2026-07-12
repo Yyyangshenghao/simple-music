@@ -62,3 +62,13 @@
   text-align: left;
   transform-origin: left center;
 }
+
+/* 3D 叠加层模式:字号/透明度由外层容器(.overlayCurrentLine/.overlayNextLine)控制,
+   不再自带 clamp 字号与非 active 半透明,避免覆盖外层设定或与之叠乘 */
+.overlay .main {
+  font-size: inherit;
+}
+
+.overlay:not(.active) {
+  opacity: 1;
+}

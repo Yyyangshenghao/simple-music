@@ -74,6 +74,7 @@ export function EffectSwitcher({ hidden }: EffectSwitcherProps) {
   return (
     <motion.div
       className={`${styles.switcher}${hidden ? ` ${styles.hidden}` : ''}`}
+      layout
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springGentle}

@@ -6,13 +6,16 @@ interface LyricLineProps {
   active: boolean
   /** 左对齐(歌词页左右布局的右栏);默认居中(3D 叠加层) */
   alignLeft?: boolean
+  /** 3D 叠加层模式:字号继承外层容器(`.overlayCurrentLine`/`.overlayNextLine`),
+   * 不再自压透明度,避免与叠加层自身的 opacity 叠乘 */
+  overlay?: boolean
 }
 
 /** 单行舞台歌词：active 行高亮放大发光，非 active 半透明。 */
-export function LyricLine({ text, translation, active, alignLeft }: LyricLineProps) {
+export function LyricLine({ text, translation, active, alignLeft, overlay }: LyricLineProps) {
   return (
     <div
-      className={`${styles.line}${active ? ` ${styles.active}` : ''}${alignLeft ? ` ${styles.alignLeft}` : ''}`}
+      className={`${styles.line}${active ? ` ${styles.active}` : ''}${alignLeft ? ` ${styles.alignLeft}` : ''}${overlay ? ` ${styles.overlay}` : ''}`}
       data-active={active}
       aria-current={active ? 'true' : undefined}
     >

@@ -357,7 +357,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 32px 48px 148px;
+  padding: 32px 48px 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -449,8 +449,9 @@
   gap: 12px;
   padding: 10px 16px 10px 10px;
   max-width: min(320px, 34vw);
-  background: var(--glass-bg-card);
-  border: 1px solid var(--glass-border-card);
+  /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
