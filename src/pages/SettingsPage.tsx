@@ -26,7 +26,8 @@ export function SettingsPage() {
   const job = useUpdateStore((s) => s.job)
   const checkForUpdate = useUpdateStore((s) => s.checkForUpdate)
   const startDownload = useUpdateStore((s) => s.startDownload)
-  const openInstaller = useUpdateStore((s) => s.openInstaller)
+  const installing = useUpdateStore((s) => s.installing)
+  const installUpdate = useUpdateStore((s) => s.installUpdate)
 
   const currentVersion = updateInfo?.currentVersion || '1.0.0'
   const ready = job?.status === 'ready'
@@ -145,8 +146,8 @@ export function SettingsPage() {
         <div className={styles.row}>
           <span className={styles.rowLabel}>{updateStatusText}</span>
           {ready ? (
-            <button className={`${styles.seg} no-drag`} onClick={() => void openInstaller()}>
-              立即安装
+            <button className={`${styles.seg} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
+              {installing ? '正在安装…' : '重启并安装'}
             </button>
           ) : downloading ? (
             <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
