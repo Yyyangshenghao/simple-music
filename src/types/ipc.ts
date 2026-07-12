@@ -128,7 +128,7 @@ export interface IpcChannels {
   'file:import-json': { req: void; res: ImportResult }
 
   'app:restart': { req: void; res: OkResult }
-  'app:open-update': { req: { filePath: string }; res: OkResult }
+  'app:install-update': { req: { filePath: string }; res: OkResult }
 }
 
 export interface IpcEvents {

@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { resolve, sep, join } from 'node:path'
 import { getMainWindow } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
+import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
 import type {
   HotkeyBinding,
   ExportPayload,
@@ -62,16 +63,30 @@ export function registerMiscIpc(): void {
     }
   })
 
-  ipcMain.handle('app:open-update', async (_e, arg: { filePath: string }): Promise<OkResult> => {
+  ipcMain.handle('app:install-update', async (_e, arg: { filePath: string }): Promise<OkResult> => {
     try {
       const target = resolve(String(arg?.filePath ?? ''))
       const updateDir = resolve(getUpdateDownloadDir())
       if (!target || !target.startsWith(updateDir + sep)) return { ok: false, error: 'INVALID_UPDATE_PATH' }
       if (!existsSync(target)) return { ok: false, error: 'UPDATE_FILE_MISSING' }
+
+      if (process.platform === 'win32') {
+        const result = await installUpdateWindows(target)
+        if (!result.ok) return result
+        app.exit(0)
+        return { ok: true }
+      }
+      if (process.platform === 'darwin') {
+        const result = installUpdateMac(target)
+        if (!result.ok) return result
+        app.exit(0)
+        return { ok: true }
+      }
+      // 其它平台没有对应的打包产物，保留旧行为兜底
       const error = await shell.openPath(target)
       return error ? { ok: false, error } : { ok: true }
     } catch (e) {
-      return { ok: false, error: (e as Error).message || 'OPEN_UPDATE_FAILED' }
+      return { ok: false, error: (e as Error).message || 'INSTALL_UPDATE_FAILED' }
     }
   })
 }
