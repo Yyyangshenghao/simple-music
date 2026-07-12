@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
-import type { FxArchive, PlayMode } from '../types/domain'
+import type { FxArchive, Lyrics3dEffect, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
 
@@ -11,6 +11,7 @@ interface PersistedSettings {
   shelfMergeCollections: boolean
   liveBackgroundKeep: boolean
   lyricsPanelMode: 'lyrics' | '3d'
+  lyrics3dEffect: Lyrics3dEffect
   activeSource: 'netease' | 'qq'
   themeMode: 'auto' | 'light' | 'dark'
   audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
@@ -33,6 +34,7 @@ interface SettingsStore extends PersistedSettings {
   setShelfMergeCollections(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: 'lyrics' | '3d'): void
+  setLyrics3dEffect(effect: Lyrics3dEffect): void
   setActiveSource(s: 'netease' | 'qq'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
@@ -55,6 +57,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   shelfMergeCollections: false,
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
+  lyrics3dEffect: 'cover-cloud',
   activeSource: 'netease',
   themeMode: 'auto',
   audioQuality: 'lossless',
@@ -92,6 +95,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsPanelMode: mode })
     get().saveToLocal()
   },
+  setLyrics3dEffect(effect) {
+    set({ lyrics3dEffect: effect })
+    get().saveToLocal()
+  },
   setActiveSource(s) {
     set({ activeSource: s })
     get().saveToLocal()
@@ -111,8 +118,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality, playMode } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, activeSource, themeMode, audioQuality, playMode }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, activeSource, themeMode, audioQuality, playMode } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, activeSource, themeMode, audioQuality, playMode }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -128,6 +135,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
+        lyrics3dEffect: data.lyrics3dEffect ?? 'cover-cloud',
         activeSource: data.activeSource ?? 'netease',
         themeMode: data.themeMode ?? 'auto',
         audioQuality: data.audioQuality ?? 'lossless',

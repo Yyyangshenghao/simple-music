@@ -8,7 +8,10 @@ import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
+import { Waveform3D } from '../Visualizer/Waveform3D'
 import { CinemaCamera } from '../Visualizer/CinemaCamera'
+import { EffectSwitcher } from './EffectSwitcher'
+import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './LyricsPanel.module.css'
 
 interface LyricsPanelProps {
@@ -36,6 +39,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const mode = useSettingsStore((s) => s.lyricsPanelMode)        // added by Agent A
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
+  const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
+
+  // 3D 效果组件查找表
+  const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
+    'cover-cloud': CoverParticleCloud,
+    'waveform-3d': Waveform3D
+  }
+  const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -189,8 +200,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             style={{ background: backgroundColor || '#04060c' }}
           >
             <CinemaCamera />
-            <CoverParticleCloud coverUrl={track?.cover} />
+            <EffectComponent coverUrl={track?.cover} />
           </Canvas>
+
+          {/* 效果切换器（3D 场景内浮动） */}
+          <EffectSwitcher hidden={controlsHidden} />
 
           {/* 歌词叠加层：当前行 + 下一行 */}
           <div className={styles.lyricsOverlay}>
