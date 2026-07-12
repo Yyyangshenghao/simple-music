@@ -1,9 +1,8 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
 import { usePlayerStore } from '../../stores/player'
-import { bassEnergyFrom } from '../../lib/audio-energy'
 import type { PerformanceMode } from '../../types/domain'
 
 /**
@@ -21,11 +20,6 @@ const COUNT_BY_MODE: Record<PerformanceMode, number> = {
 
 // 存储每粒子的 Y 速度
 // 因为 THREE.Points 不支持 custom attributes 给 PointsMaterial，我们用独立数组
-
-function bassEnergy(): number {
-  const engine = usePlayerStore.getState()._engine()
-  return bassEnergyFrom(engine.getFrequencyData())
-}
 
 /** 从频谱取平均能量（全频段），与 audio-visualizer 的 getAverageFrequency 语义一致 */
 function avgFrequency(): number {
@@ -71,6 +65,9 @@ export function SpeakerParticles() {
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return g
   }, [positions])
+
+  // 性能档切换/卸载时释放旧 geometry 的 GPU buffer（geometry 以 prop 传入，r3f 不会自动 dispose）
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame((_, delta) => {
     const freq = avgFrequency()

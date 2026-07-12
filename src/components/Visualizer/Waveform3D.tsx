@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
@@ -11,11 +11,6 @@ const VERTICES_BY_MODE: Record<PerformanceMode, number> = {
   balanced: 192,
   high: 256,
   ultra: 320
-}
-
-function bassEnergy(): number {
-  const engine = usePlayerStore.getState()._engine()
-  return bassEnergyFrom(engine.getFrequencyData())
 }
 
 export function Waveform3D() {
@@ -53,12 +48,16 @@ export function Waveform3D() {
     return g
   }, [n])
 
+  // 性能档切换/卸载时释放旧 geometry 的 GPU buffer（geometry 以 prop 传入，r3f 不会自动 dispose）
+  useEffect(() => () => lowGeo.dispose(), [lowGeo])
+  useEffect(() => () => highGeo.dispose(), [highGeo])
+
   const hueRef = useRef(Math.random())
 
   useFrame((_, delta) => {
     const engine = usePlayerStore.getState()._engine()
     const freqData = engine.getFrequencyData()
-    const energy = bassEnergy()
+    const energy = bassEnergyFrom(freqData)
 
     hueRef.current += delta * (0.08 + energy * 0.12)
 

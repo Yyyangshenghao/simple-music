@@ -31,6 +31,13 @@ function ChevronDown() {
   )
 }
 
+// 3D 效果组件查找表
+const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
+  'cover-cloud': CoverParticleCloud,
+  'waveform-3d': Waveform3D,
+  'speaker-particles': SpeakerParticles
+}
+
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
@@ -41,13 +48,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
-
-  // 3D 效果组件查找表
-  const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
-    'cover-cloud': CoverParticleCloud,
-    'waveform-3d': Waveform3D,
-    'speaker-particles': SpeakerParticles
-  }
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
   const scrollRef = useRef<HTMLDivElement>(null)
