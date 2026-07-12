@@ -9,6 +9,7 @@
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸两个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
 - `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
+- `modules/update-installer.ts` + `update-installer-logic.ts` — 静默安装更新包:Windows 走 NSIS `/S --force-run` 静默安装,macOS 用 `hdiutil` 挂载 dmg 原地替换 `.app`(未签名,做不了 Squirrel.Mac,失败会自动回滚到旧版本);后者是纯逻辑,前者是 Electron 胶水代码。
 - `platform/` — 平台能力接口(`getPlatform()`):win32 完整实现(快捷方式等),darwin/其它降级。
 - `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入。
 - `preload/overlay.ts` — 悬浮窗桥:`window.desktopOverlay`。
@@ -21,7 +22,7 @@
 - `overlay:lyrics-*`(歌词悬浮窗自身)— close / move-by / set-dragging / set-lock / set-hot-bounds / set-pointer-capture
 - `wallpaper:*` — set-enabled / update
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
-- `hotkeys:configure`;`app:restart` / `app:open-update`;`file:export-json` / `file:import-json`(FX 存档导入导出)
+- `hotkeys:configure`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json`(FX 存档导入导出)
 
 主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`,以及悬浮窗的 lyrics/wallpaper state 转发。
 
