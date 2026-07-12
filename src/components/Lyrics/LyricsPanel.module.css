@@ -309,12 +309,31 @@
 
 /* ===== 3D 模式 ===== */
 
-/* 3D 场景容器：占满 header 以下所有空间 */
+/* 顶部渐变：保证悬浮 header 控件在亮色粒子上可读 */
+.sceneTopFade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 140px;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(4, 6, 12, 0.66) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* 四周暗角：让 3D 场景与面板边缘融合 */
+.sceneVignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(4, 6, 12, 0.5) 100%);
+  pointer-events: none;
+}
+
+/* 3D 场景容器：全出血铺满面板（header 与悬浮播放栏之后） */
 .scene3d {
-  flex: 1;
-  position: relative;
-  min-height: 0;
-  width: 100%;
+  position: absolute;
+  inset: 0;
 }
 
 .scene3d canvas {
@@ -330,7 +349,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 32px 48px 48px;
+  padding: 32px 48px 148px;
   display: flex;
   flex-direction: column;
   align-items: center;

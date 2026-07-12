@@ -205,6 +205,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <EffectComponent coverUrl={track?.cover} />
           </Canvas>
 
+          <div className={styles.sceneTopFade} aria-hidden="true" />
+          <div className={styles.sceneVignette} aria-hidden="true" />
+
           {/* 效果切换器（3D 场景内浮动） */}
           <EffectSwitcher hidden={controlsHidden} />
 

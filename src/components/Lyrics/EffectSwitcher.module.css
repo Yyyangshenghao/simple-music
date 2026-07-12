@@ -1,7 +1,7 @@
 /* Floating pill bar for effect switching, overlaid on 3D scene */
 .switcher {
   position: absolute;
-  top: 16px;
+  top: 104px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
@@ -15,6 +15,7 @@
   -webkit-backdrop-filter: var(--glass-blur-card);
   transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 
 .hidden {
