@@ -7,7 +7,7 @@ import { useBackdropStore } from '../stores/backdrop'
 import { ArtistHeader } from '../components/Artist/ArtistHeader'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
-import { CardRail } from '../components/Explore/CardRail'
+import { ScrollArea } from '../components/ui/ScrollArea'
 import { tapScale, springSnappy } from '../lib/motion-presets'
 import type { ArtistInfo, Track, Playlist } from '../types/domain'
 import styles from './ArtistPage.module.css'
@@ -24,6 +24,7 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
   const [tab, setTab] = useState<ArtistTab>('songs')
+  const [scrolled, setScrolled] = useState(false)
   const service = useMusicService()
   const goBack = useNavigationStore((s) => s.goBack)
 
@@ -49,7 +50,7 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
   }
 
   return (
-    <div className={styles.page}>
+    <ScrollArea className={styles.page} onScrolledChange={setScrolled}>
       <motion.button
         className={`${styles.back} no-drag`}
         onClick={goBack}
@@ -76,7 +77,7 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
 
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
-      <div className={styles.subTabs}>
+      <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
         {(['songs', 'albums', 'similar'] as ArtistTab[]).map((t) => (
           <button
             key={t}
@@ -97,11 +98,11 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
       )}
 
       {tab === 'albums' && albums.length > 0 && (
-        <CardRail title="">
+        <div className={styles.albumGrid}>
           {albums.map((a, i) => (
             <PlaylistCard key={String(a.id) + i} playlist={a} onClick={() => {}} />
           ))}
-        </CardRail>
+        </div>
       )}
 
       {tab === 'similar' && (
@@ -109,6 +110,6 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
           相似歌手功能即将上线
         </div>
       )}
-    </div>
+    </ScrollArea>
   )
 }

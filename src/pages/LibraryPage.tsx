@@ -8,6 +8,7 @@ import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
+import { ScrollArea } from '../components/ui/ScrollArea'
 import type { Playlist } from '../types/domain'
 import styles from './LibraryPage.module.css'
 
@@ -42,7 +43,7 @@ export function LibraryPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <ScrollArea className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
@@ -74,7 +75,7 @@ export function LibraryPage() {
       {tab === 'favorites' && <FavoritesTab onOpen={openPlaylist} />}
 
       {tab === 'recent' && <RecentPlaysList />}
-    </div>
+    </ScrollArea>
   )
 }
 

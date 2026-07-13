@@ -1,0 +1,38 @@
+.root {
+  position: relative;
+  height: 100%;
+}
+
+.viewport {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.track {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 3px;
+  width: 6px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.track.visible {
+  opacity: 1;
+}
+
+.thumb {
+  width: 100%;
+  border-radius: 3px;
+  background: var(--sm-text-secondary);
+  opacity: 0.6;
+}
