@@ -8,6 +8,7 @@ import { useRoamStore, MAX_ARTISTS } from '../stores/roam'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
 import { GradientText } from '../components/ui/GradientText'
+import { CloseIcon } from '../components/ui/CloseIcon'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import type { ArtistInfo } from '../types/domain'
 import styles from './RoamPage.module.css'
@@ -200,7 +201,7 @@ export function RoamPage() {
                   onClick={() => removeArtist(artist.id)}
                   aria-label={`移除 ${artist.name}`}
                 >
-                  ×
+                  <CloseIcon size={12} />
                 </button>
               </span>
             ))}

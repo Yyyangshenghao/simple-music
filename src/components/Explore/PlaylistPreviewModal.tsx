@@ -4,6 +4,7 @@ import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useNavigationStore } from '../../stores/navigation'
 import { springGentle } from '../../lib/motion-presets'
+import { CloseIcon } from '../ui/CloseIcon'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
 
@@ -49,7 +50,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
           <h3 className={styles.name}>{playlist.name}</h3>
           {playlist.description && <p className={styles.desc}>{playlist.description}</p>}
         </div>
-        <button className={styles.closeBtn} onClick={onClose} aria-label="关闭">✕</button>
+        <button className={styles.closeBtn} onClick={onClose} aria-label="关闭"><CloseIcon size={14} /></button>
       </div>
       <div className={styles.actions}>
         <button className={styles.playAll} onClick={playAll} disabled={total === 0}>▶ 播放全部</button>

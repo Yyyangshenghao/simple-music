@@ -1,7 +1,7 @@
 .badge {
   flex-shrink: 0;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   border: 1px solid var(--sm-border-strong);
   background: var(--sm-fill-subtle);
   color: var(--sm-text-primary);

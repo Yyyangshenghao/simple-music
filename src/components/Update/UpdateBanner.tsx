@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useUpdateStore } from '../../stores/update'
-import { springGentle, tapScale } from '../../lib/motion-presets'
+import { springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
+import { CloseIcon } from '../ui/CloseIcon'
 import styles from './UpdateBanner.module.css'
 
 /** 顶部更新提示条：检测到新版本时出现，下载/安装走 job 状态机，用户可关闭并记住该版本不再提示。 */
@@ -59,13 +60,13 @@ export function UpdateBanner() {
                 className={styles.actionBtn}
                 onClick={handleAction}
                 whileTap={tapScale}
-                transition={springGentle}
+                transition={springSnappy}
                 disabled={(downloading && !ready && !errored) || installing}
               >
                 {actionLabel}
               </motion.button>
               <button className={styles.dismissBtn} onClick={dismiss} aria-label="关闭更新提示">
-                ×
+                <CloseIcon size={14} />
               </button>
             </div>
           </motion.div>

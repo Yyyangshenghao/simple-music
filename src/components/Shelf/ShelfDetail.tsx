@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { usePlaylistStore } from '../../stores/playlist'
 import { GlassPanel } from '../ui/GlassPanel'
+import { CloseIcon } from '../ui/CloseIcon'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './ShelfDetail.module.css'
 
@@ -85,7 +86,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
             onClick={onClose}
             aria-label="关闭"
           >
-            ✕
+            <CloseIcon size={16} />
           </button>
         </header>
 
