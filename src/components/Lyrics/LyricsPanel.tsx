@@ -79,12 +79,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 当前行的逐字数据
   const currentWordLine = currentIndex >= 0 ? wordLines[currentIndex] : undefined
-  const nextWordLine = currentIndex >= 0 ? wordLines[currentIndex + 1] : undefined
-  const nextTranslation = currentIndex >= 0 ? translation[currentIndex + 1]?.text : undefined
 
   // 纯 LRC 行数据
   const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
-  const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
 
   return (
     <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}`}>
@@ -201,12 +198,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
       {/* ===== 3D 粒子模式 ===== */}
       {mode === '3d' && open && (
-        <div className={styles.scene3d}>
+        <div
+          className={`${styles.scene3d} ${styles.scene3dGlow}`}
+          style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
+        >
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
             dpr={[1, 1.25]}
             gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
-            style={{ background: backgroundColor || '#04060c' }}
           >
             <CinemaCamera />
             <EffectComponent coverUrl={track?.cover} />
@@ -217,8 +216,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           <motion.div
             key={lyrics3dEffect}
-            className={styles.effectFade}
-            style={{ background: backgroundColor || '#04060c' }}
+            className={`${styles.effectFade} ${styles.scene3dGlow}`}
+            style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -253,18 +252,17 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             </div>
           </div>
 
-          {/* 歌词叠加层：当前行 + 下一行；模糊度可在设置里调节，最低即完全透明 */}
-          <div
-            className={styles.lyricsOverlay}
-            style={{
-              '--overlay-op1': overlayBlur * 0.72,
-              '--overlay-op2': overlayBlur * 0.3
-            } as React.CSSProperties}
-          >
+          {/* 歌词叠加层：居中大字 + 玻璃卡片；卡片模糊/背景强度可在设置里调节，最低即完全透明 */}
+          <div className={styles.lyricsOverlay}>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={currentIndex}
                 className={styles.overlayCurrentLine}
+                style={{
+                  '--overlay-blur': `${overlayBlur * 26}px`,
+                  '--overlay-bg': overlayBlur * 0.46,
+                  '--overlay-shadow': overlayBlur * 0.4
+                } as React.CSSProperties}
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -290,27 +288,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 )}
               </motion.div>
             </AnimatePresence>
-            {(nextWordLine || nextPlainLine) && (
-              <div className={styles.overlayNextLine}>
-                {nextWordLine ? (
-                  <KtvLine
-                    words={nextWordLine.words}
-                    lineDurationMs={nextWordLine.durationMs}
-                    lineStartMs={nextWordLine.time * 1000}
-                    active={false}
-                    dim={false}
-                    translationText={nextTranslation || undefined}
-                  />
-                ) : (
-                  <LyricLine
-                    text={nextPlainLine!.text}
-                    translation={nextTranslation || undefined}
-                    active={false}
-                    overlay
-                  />
-                )}
-              </div>
-            )}
           </div>
         </div>
       )}
