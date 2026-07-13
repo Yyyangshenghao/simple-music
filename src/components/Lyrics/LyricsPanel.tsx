@@ -78,12 +78,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 当前行的逐字数据
   const currentWordLine = currentIndex >= 0 ? wordLines[currentIndex] : undefined
-  const nextWordLine = currentIndex >= 0 ? wordLines[currentIndex + 1] : undefined
-  const nextTranslation = currentIndex >= 0 ? translation[currentIndex + 1]?.text : undefined
 
   // 纯 LRC 行数据
   const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
-  const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
 
   return (
     <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}`}>
@@ -200,12 +197,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
       {/* ===== 3D 粒子模式 ===== */}
       {mode === '3d' && open && (
-        <div className={styles.scene3d}>
+        <div
+          className={`${styles.scene3d} ${styles.scene3dGlow}`}
+          style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
+        >
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
             dpr={[1, 1.5]}
             gl={{ antialias: false, alpha: true }}
-            style={{ background: backgroundColor || '#04060c' }}
           >
             <CinemaCamera />
             <EffectComponent coverUrl={track?.cover} />
@@ -216,8 +215,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           <motion.div
             key={lyrics3dEffect}
-            className={styles.effectFade}
-            style={{ background: backgroundColor || '#04060c' }}
+            className={`${styles.effectFade} ${styles.scene3dGlow}`}
+            style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -283,27 +282,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 )}
               </motion.div>
             </AnimatePresence>
-            {(nextWordLine || nextPlainLine) && (
-              <div className={styles.overlayNextLine}>
-                {nextWordLine ? (
-                  <KtvLine
-                    words={nextWordLine.words}
-                    lineDurationMs={nextWordLine.durationMs}
-                    lineStartMs={nextWordLine.time * 1000}
-                    active={false}
-                    dim={false}
-                    translationText={nextTranslation || undefined}
-                  />
-                ) : (
-                  <LyricLine
-                    text={nextPlainLine!.text}
-                    translation={nextTranslation || undefined}
-                    active={false}
-                    overlay
-                  />
-                )}
-              </div>
-            )}
           </div>
         </div>
       )}
