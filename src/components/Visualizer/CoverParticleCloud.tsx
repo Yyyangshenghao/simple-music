@@ -14,11 +14,13 @@ import type { PerformanceMode } from '../../types/domain'
  * CinemaCamera 在 cover-cloud 生效时会让位，见 CinemaCamera.tsx。
  */
 
+// 粒子数 = gridSize²，是这个场景 GPU 开销的主要来源（两层点云叠加渲染）。
+// 档位下调过一轮：balanced 从 130→104（粒子数降至 ~64%），其余同比例收紧。
 const GRID_SIZE_BY_MODE: Record<PerformanceMode, number> = {
-  eco: 96,
-  balanced: 130,
-  high: 160,
-  ultra: 190
+  eco: 72,
+  balanced: 104,
+  high: 128,
+  ultra: 152
 }
 
 const SPACING = 0.5

@@ -11,11 +11,13 @@ import type { PerformanceMode } from '../../types/domain'
  * 飞到边界后中心重生，像扬声器振膜上的沙粒被声波震得跳动。
  */
 
+// 每颗粒子每帧都在 JS 里做重力/踢飞/重生运算（无法搬上 GPU），是纯 CPU 开销；
+// 原档位在中低端机上会掉帧，整体下调约 40%。
 const COUNT_BY_MODE: Record<PerformanceMode, number> = {
-  eco: 30000,
-  balanced: 60000,
-  high: 100000,
-  ultra: 160000
+  eco: 16000,
+  balanced: 32000,
+  high: 55000,
+  ultra: 90000
 }
 
 // 存储每粒子的 Y 速度

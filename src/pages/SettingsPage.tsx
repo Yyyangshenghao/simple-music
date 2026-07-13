@@ -16,6 +16,8 @@ export function SettingsPage() {
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
+  const lyricsOverlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
+  const setLyricsOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
   const updateFx = useVisualStore((s) => s.updateFx)
@@ -108,6 +110,23 @@ export function SettingsPage() {
               </motion.button>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>3D 歌词</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>底部模糊度</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={lyricsOverlayBlur}
+            onChange={(e) => setLyricsOverlayBlur(Number(e.target.value))}
+            className="no-drag"
+          />
+          <span className={styles.rowValue}>{Math.round(lyricsOverlayBlur * 100)}%</span>
         </div>
       </section>
 

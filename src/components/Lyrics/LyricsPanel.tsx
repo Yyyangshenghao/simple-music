@@ -50,6 +50,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
+  const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -203,8 +204,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         <div className={styles.scene3d}>
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
-            dpr={[1, 1.5]}
-            gl={{ antialias: false, alpha: true }}
+            dpr={[1, 1.25]}
+            gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
             style={{ background: backgroundColor || '#04060c' }}
           >
             <CinemaCamera />
@@ -252,8 +253,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             </div>
           </div>
 
-          {/* 歌词叠加层：当前行 + 下一行 */}
-          <div className={styles.lyricsOverlay}>
+          {/* 歌词叠加层：当前行 + 下一行；模糊度可在设置里调节，最低即完全透明 */}
+          <div
+            className={styles.lyricsOverlay}
+            style={{
+              '--overlay-op1': overlayBlur * 0.72,
+              '--overlay-op2': overlayBlur * 0.3
+            } as React.CSSProperties}
+          >
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={currentIndex}
