@@ -29,6 +29,9 @@
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
   --sm-text-on-accent: #0c0c0c;
 
+  /* 字体:用户可在设置里自定义,留空则用此默认系统字体栈 */
+  --sm-font-sans:      -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
   /* 语义色（状态文字/图标，深色模式用柔和亮色，浅色模式需换深色版本才够对比度） */
   --sm-color-success:  #7fdca4;
   --sm-color-danger:   #ff8b8b;

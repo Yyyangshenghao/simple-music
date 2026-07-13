@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
@@ -11,6 +12,28 @@ type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
 export function SettingsPage() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const fontFamily = useSettingsStore((s) => s.fontFamily)
+  const setFontFamily = useSettingsStore((s) => s.setFontFamily)
+  const [fontDraft, setFontDraft] = useState(fontFamily)
+  const fontDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // store 中的字体被外部改变时（如导入存档）同步草稿
+  useEffect(() => {
+    setFontDraft(fontFamily)
+  }, [fontFamily])
+
+  const handleFontChange = (value: string): void => {
+    setFontDraft(value)
+    if (fontDebounce.current) clearTimeout(fontDebounce.current)
+    fontDebounce.current = setTimeout(() => setFontFamily(value), 300)
+  }
+
+  const handleFontReset = (): void => {
+    if (fontDebounce.current) clearTimeout(fontDebounce.current)
+    setFontDraft('')
+    setFontFamily('')
+  }
+
   const activeSource = useSettingsStore((s) => s.activeSource)
   const setActiveSource = useSettingsStore((s) => s.setActiveSource)
   const audioQuality = useSettingsStore((s) => s.audioQuality)
@@ -73,6 +96,20 @@ export function SettingsPage() {
                 {{ auto: '自动', light: '浅色', dark: '深色' }[m]}
               </motion.button>
             ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>字体</span>
+          <div className={styles.fontRow}>
+            <input
+              className={`${styles.fontInput} no-drag`}
+              value={fontDraft}
+              onChange={(e) => handleFontChange(e.target.value)}
+              placeholder="系统默认"
+            />
+            <button type="button" className={`${styles.seg} no-drag`} onClick={handleFontReset}>
+              重置
+            </button>
           </div>
         </div>
       </section>

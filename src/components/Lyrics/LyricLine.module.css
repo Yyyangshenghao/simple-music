@@ -15,7 +15,7 @@
 }
 
 .main {
-  font-family: var(--font-sans, 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-family: var(--sm-font-sans);
   font-weight: 700;
   font-size: clamp(20px, 2.6vw, 34px);
   letter-spacing: 1.5px;

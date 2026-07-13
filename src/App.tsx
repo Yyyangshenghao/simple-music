@@ -42,10 +42,12 @@ export default function App() {
     initPlaybackPersistence()
     initMediaSession()
     const sync = () => {
-      const mode = useSettingsStore.getState().themeMode
+      const { themeMode, fontFamily } = useSettingsStore.getState()
       const root = document.documentElement
-      if (mode === 'auto') root.removeAttribute('data-theme')
-      else root.setAttribute('data-theme', mode)
+      if (themeMode === 'auto') root.removeAttribute('data-theme')
+      else root.setAttribute('data-theme', themeMode)
+      if (fontFamily.trim()) root.style.setProperty('--sm-font-sans', fontFamily)
+      else root.style.removeProperty('--sm-font-sans')
     }
     sync()
     return useSettingsStore.subscribe(sync)

@@ -68,3 +68,27 @@
 
 .seg:hover { color: var(--sm-text-primary); }
 .seg.segActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+
+.fontRow {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fontInput {
+  width: 160px;
+  padding: 4px 10px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-base);
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fontInput:focus {
+  border-color: var(--sm-accent);
+  background: var(--sm-bg-overlay);
+}

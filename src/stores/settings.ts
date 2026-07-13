@@ -18,6 +18,8 @@ interface PersistedSettings {
   themeMode: 'auto' | 'light' | 'dark'
   audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
   playMode: PlayMode
+  /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
+  fontFamily: string
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -42,6 +44,7 @@ interface SettingsStore extends PersistedSettings {
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
   setPlayMode(m: PlayMode): void
+  setFontFamily(f: string): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -66,6 +69,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   themeMode: 'auto',
   audioQuality: 'lossless',
   playMode: 'order',
+  fontFamily: '',
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -123,11 +127,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ playMode: m })
     get().saveToLocal()
   },
+  setFontFamily(f) {
+    set({ fontFamily: f })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode, fontFamily } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode, fontFamily }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -149,6 +157,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         themeMode: data.themeMode ?? 'auto',
         audioQuality: data.audioQuality ?? 'lossless',
         playMode: data.playMode ?? 'order',
+        fontFamily: data.fontFamily ?? '',
       })
     } catch {
       /* ignore malformed */

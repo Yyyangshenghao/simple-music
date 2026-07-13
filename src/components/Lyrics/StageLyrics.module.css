@@ -42,7 +42,7 @@
 }
 
 .empty {
-  font-family: var(--font-sans, 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-family: var(--sm-font-sans);
   font-size: clamp(16px, 2vw, 22px);
   font-weight: 600;
   letter-spacing: 2px;
