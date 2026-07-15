@@ -12,8 +12,9 @@ interface ElasticSliderProps {
   className?: string
   isStepped?: boolean
   stepSize?: number
-  leftIcon?: React.ReactNode
-  rightIcon?: React.ReactNode
+  /** 传 null 显式隐藏该侧图标(用于外部已提供独立的图标/按钮时);不传则用默认图标。 */
+  leftIcon?: React.ReactNode | null
+  rightIcon?: React.ReactNode | null
   onChange?: (value: number) => void
 }
 
@@ -154,7 +155,7 @@ function Slider({
             x: useTransform(() => (region === 'left' ? -overflow.get() / scale.get() : 0))
           }}
         >
-          {leftIcon ?? defaultLeftIcon}
+          {leftIcon === null ? null : (leftIcon ?? defaultLeftIcon)}
         </motion.div>
 
         <div
@@ -204,7 +205,7 @@ function Slider({
             x: useTransform(() => (region === 'right' ? overflow.get() / scale.get() : 0))
           }}
         >
-          {rightIcon ?? defaultRightIcon}
+          {rightIcon === null ? null : (rightIcon ?? defaultRightIcon)}
         </motion.div>
       </motion.div>
     </>

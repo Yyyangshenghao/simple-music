@@ -12,6 +12,9 @@ export const springGentle: Transition = { type: 'spring', ...gentleSpringValues 
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }
 
+/** 图标切换快速淡入淡出（AnimatePresence 内的小图标 crossfade，如播放/暂停、音量档位）。 */
+export const iconSwap: Transition = { duration: 0.1, ease: 'easeOut' }
+
 /** 入场：淡入上移（配 initial="hidden" animate="visible"）。 */
 export const fadeRise: Variants = {
   hidden: { opacity: 0, y: 14 },

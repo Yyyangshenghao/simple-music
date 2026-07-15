@@ -6,6 +6,9 @@
 }
 
 .left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -40,10 +43,18 @@
   color: var(--sm-text-primary);
   background: var(--sm-fill-hover);
   border-radius: 50%;
+  transform: translateY(-1px);
 }
 
 .btn:active {
   transform: scale(0.94);
+}
+
+.playIconWrap,
+.volumeIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 播放模式按钮:默认(列表循环)弱化,随机/单曲循环时点亮 */
@@ -63,6 +74,7 @@
 .likeBtn {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   color: var(--sm-accent-warm);
 }
 
@@ -115,25 +127,35 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 20px;
+  gap: 14px;
 }
 
-.volume {
+/* 音量按钮:与右侧其余控件同一 36px 主级尺寸对齐 */
+.volumeBtn {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.volumeGroup {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 6px;
   min-width: 0;
   flex: 1;
-  max-width: 170px;
+  max-width: 168px;
   isolation: isolate;
-}
-
-.volumeIcon {
-  flex-shrink: 0;
-  color: var(--sm-accent-warm);
-  display: inline-flex;
 }
 
 .volumeSlider {
   flex: 1;
+  min-width: 0;
+}
+
+/* 分隔线:把「音量」与「队列/音质」两组功能在视觉上分开 */
+.divider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--sm-border);
 }

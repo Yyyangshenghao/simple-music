@@ -1,10 +1,10 @@
-import { useEffect } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useRef } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
-import { tapScale, springSnappy } from '../../lib/motion-presets'
+import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { Slider } from '../ui/Slider'
 import { ElasticSlider } from '../ui/ElasticSlider'
@@ -87,6 +87,71 @@ function ShuffleIcon() {
       <path d="M15 15l6 6" />
       <path d="M4 4l5 5" />
     </svg>
+  )
+}
+
+/** 音量图标:喇叭主体常驻不跳变,音波弧线与静音斜线按音量档位各自淡入淡出。 */
+function VolumeIcon({ level }: { level: 'mute' | 'low' | 'high' }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 5V4L7 9z" fill="currentColor" />
+      <motion.path
+        d="M16 8.5a4 4 0 0 1 0 7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+        style={{ transformOrigin: '14px 12px' }}
+        animate={{ opacity: level === 'mute' ? 0 : 1, scale: level === 'mute' ? 0.6 : 1 }}
+        transition={iconSwap}
+      />
+      <motion.path
+        d="M19 6a9 9 0 0 1 0 12"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+        style={{ transformOrigin: '17px 12px' }}
+        animate={{ opacity: level === 'high' ? 1 : 0, scale: level === 'high' ? 1 : 0.6 }}
+        transition={iconSwap}
+      />
+      <motion.path
+        d="M15.5 9.5l5 5m0-5l-5 5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+        style={{ transformOrigin: '18px 12px' }}
+        animate={{ opacity: level === 'mute' ? 1 : 0, scale: level === 'mute' ? 1 : 0.6 }}
+        transition={iconSwap}
+      />
+    </svg>
+  )
+}
+
+/** 音量按钮:静音切换,图标随音量档位淡入淡出。 */
+function VolumeButton() {
+  const volume = usePlayerStore((s) => s.volume)
+  const setVolume = usePlayerStore((s) => s.setVolume)
+  const lastVolumeRef = useRef(volume > 0 ? volume : 0.8)
+  if (volume > 0) lastVolumeRef.current = volume
+
+  const level = volume <= 0 ? 'mute' : volume < 0.5 ? 'low' : 'high'
+
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.volumeBtn} no-drag`}
+      onClick={() => setVolume(volume > 0 ? 0 : lastVolumeRef.current)}
+      title={volume > 0 ? '静音' : '取消静音'}
+      aria-label={volume > 0 ? '静音' : '取消静音'}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <span className={styles.volumeIconWrap}>
+        <VolumeIcon level={level} />
+      </span>
+    </motion.button>
   )
 }
 
@@ -186,6 +251,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
       <div className={styles.bar}>
         <div className={styles.left}>
           <TrackInfo onCoverClick={onOpenLyrics} />
+          <LikeButton />
         </div>
 
         <div className={styles.center}>
@@ -204,7 +270,18 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
               whileTap={tapScale}
               transition={springSnappy}
             >
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={isPlaying ? 'pause' : 'play'}
+                  className={styles.playIconWrap}
+                  initial={{ opacity: 0, scale: 0.6, rotate: -20 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.6, rotate: 20 }}
+                  transition={iconSwap}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                </motion.span>
+              </AnimatePresence>
             </motion.button>
             <motion.button type="button" className={`${styles.btn} no-drag`} onClick={next} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
               <NextIcon />
@@ -226,29 +303,19 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
         </div>
 
         <div className={styles.right}>
-          <LikeButton />
-          <div className={styles.volume}>
+          <div className={styles.volumeGroup}>
+            <VolumeButton />
             <ElasticSlider
-              leftIcon={
-                <span className={styles.volumeIcon} aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M3 9v6h4l5 5V4L7 9z" />
-                  </svg>
-                </span>
-              }
-              rightIcon={
-                <span className={styles.volumeIcon} aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M3 9v6h4l5 5V4L7 9zM16 8.5a4 4 0 0 1 0 7v-7zM19 6a9 9 0 0 1 0 12v-2a7 7 0 0 0 0-8z" />
-                  </svg>
-                </span>
-              }
+              className={styles.volumeSlider}
+              leftIcon={null}
+              rightIcon={null}
               defaultValue={Math.round(volume * 100)}
               startingValue={0}
               maxValue={100}
               onChange={(v) => setVolume(v / 100)}
             />
           </div>
+          <span className={styles.divider} aria-hidden="true" />
           <QueuePanel />
           <QualityBadge />
         </div>

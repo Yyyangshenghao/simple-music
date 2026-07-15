@@ -7,7 +7,7 @@ import styles from './QueuePanel.module.css'
 
 function QueueIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true">
       <path d="M3 6h13v2H3zM3 11h13v2H3zM3 16h9v2H3zM19 6v8.35A3.5 3.5 0 1 0 21 17.5V8h2V6z" />
     </svg>
   )
