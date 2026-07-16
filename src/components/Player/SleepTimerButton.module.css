@@ -1,0 +1,142 @@
+.root {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.toggleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--sm-radius-pill);
+  background: transparent;
+  color: var(--sm-accent-warm);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.toggleBtn:hover {
+  color: var(--sm-text-primary);
+  background: var(--sm-fill-hover);
+  transform: translateY(-1px);
+}
+
+.toggleBtn:active {
+  transform: scale(0.94);
+}
+
+.toggleBtn[data-active='true'] {
+  color: var(--sm-accent);
+  background: var(--sm-fill-hover);
+}
+
+.countdown {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 240px;
+  padding: 14px 14px 12px;
+  /* 父级 GlassPanel 已有 backdrop-filter,子级无法再模糊页面背景,须用高不透明底色 */
+  background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-card);
+  box-shadow: var(--sm-shadow);
+  backdrop-filter: var(--sm-blur);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--sm-text-primary);
+}
+
+.status {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.preset {
+  height: 32px;
+  border: 1px solid var(--sm-border);
+  border-radius: 10px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.preset:hover {
+  background: var(--sm-fill-hover);
+  border-color: var(--sm-border-strong);
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.optionRow:hover {
+  background: var(--sm-bg-elevated);
+}
+
+.optionRow[data-on='true'] .optionState {
+  color: var(--sm-accent);
+}
+
+.optionState {
+  font-weight: 600;
+}
+
+.cancelBtn {
+  height: 32px;
+  border: 1px solid var(--sm-border);
+  border-radius: 10px;
+  background: none;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cancelBtn:hover {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}

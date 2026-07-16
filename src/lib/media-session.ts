@@ -20,13 +20,13 @@ function updateMetadata(track: Track | null): void {
 }
 
 function syncPositionState(): void {
-  const { position, duration, status } = usePlayerStore.getState()
+  const { position, duration, status, rate } = usePlayerStore.getState()
   if (!Number.isFinite(duration) || duration <= 0) return
   try {
     navigator.mediaSession.setPositionState({
       duration,
       position: Math.min(Math.max(position, 0), duration),
-      playbackRate: 1
+      playbackRate: rate
     })
   } catch {
     /* 参数瞬时越界(切歌间隙)时忽略 */

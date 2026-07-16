@@ -19,12 +19,15 @@ interface PlayerStore {
   source: MusicSource
   /** 跨音源兜底生效时,实际出声的音源(与 currentTrack.source 不同);正常播放为 null。 */
   fallbackSource: MusicSource | null
+  /** 播放速度(保留音高),不持久化,重启回 1。 */
+  rate: number
   play(): void
   pause(): void
   toggle(): void
   seek(seconds: number): void
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
+  setRate(r: number): void
   loadTrack(track: Track, opts?: { startAt?: number }): Promise<void>
   _engine(): AudioEngine
 }
@@ -41,6 +44,12 @@ export function registerTrackEndedHandler(cb: () => void): void {
 // loadTrack 会话计数:兜底搜索/URL 解析都是异步窗口,期间用户切歌要丢弃过期结果
 let loadSession = 0
 
+// 睡眠定时器「播完当前曲再停」:置位后自然播完不走 next,改调该回调(由 sleep-timer store 注册)
+let stopAfterCurrentCb: (() => void) | null = null
+export function setStopAfterCurrent(cb: (() => void) | null): void {
+  stopAfterCurrentCb = cb
+}
+
 export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
@@ -50,7 +59,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       onStatus: (status) => set({ status }),
       onEnded: () => {
         set({ status: 'paused', position: 0 })
-        onTrackEnded?.()
+        if (stopAfterCurrentCb) {
+          const cb = stopAfterCurrentCb
+          stopAfterCurrentCb = null
+          cb()
+        } else {
+          onTrackEnded?.()
+        }
       }
     })
     return engine
@@ -65,6 +80,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     quality: useSettingsStore.getState().audioQuality,
     source: 'netease',
     fallbackSource: null,
+    rate: 1,
 
     play() {
       const eng = ensureEngine()
@@ -95,6 +111,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     setQuality(q) {
       // 音质以 settings 为单一来源（含持久化），经下方订阅回流到本 store
       useSettingsStore.getState().setAudioQuality(q)
+    },
+    setRate(r) {
+      ensureEngine().setPlaybackRate(r)
+      set({ rate: r })
     },
 
     async loadTrack(track, opts) {

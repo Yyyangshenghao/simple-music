@@ -13,15 +13,21 @@ export interface AudioEngineCallbacks {
  * 渲染层音频引擎：单个 HTMLAudioElement 走 /api/audio 代理播放，
  * 通过 Web Audio AnalyserNode 暴露频谱给可视化层（对齐 index.html 实现）。
  */
+/** 淡入淡出时长(秒);gain 包络挂在 analyser 之后,不影响频谱/能量读数。 */
+const FADE_SEC = 0.25
+
 export class AudioEngine {
   private audio: HTMLAudioElement
   private ctx: AudioContext | null = null
   private source: MediaElementAudioSourceNode | null = null
   private analyser: AnalyserNode | null = null
+  private gain: GainNode | null = null
   private freq: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(0))
   private cbs: AudioEngineCallbacks
   /** load 指定的起播位置;元数据就绪后再应用(过早设 currentTime 会被忽略)。 */
   private pendingSeek: number | null = null
+  /** 淡出后真正暂停元素的定时器;play/load 需取消,避免淡出期间恢复播放又被暂停。 */
+  private pauseTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(cbs: AudioEngineCallbacks = {}) {
     this.cbs = cbs
@@ -41,7 +47,11 @@ export class AudioEngine {
       this.cbs.onStatus?.('paused')
       this.cbs.onEnded?.()
     })
-    a.addEventListener('playing', () => this.cbs.onStatus?.('playing'))
+    a.addEventListener('playing', () => {
+      // 起播/恢复统一在此淡入:load 时 gain 已归零,出声瞬间从 0 拉起
+      this.rampGain(1, FADE_SEC)
+      this.cbs.onStatus?.('playing')
+    })
     a.addEventListener('pause', () => {
       if (!a.ended) this.cbs.onStatus?.('paused')
     })
@@ -63,12 +73,34 @@ export class AudioEngine {
     this.analyser = this.ctx.createAnalyser()
     this.analyser.fftSize = 2048
     this.freq = new Uint8Array(new ArrayBuffer(this.analyser.frequencyBinCount))
+    this.gain = this.ctx.createGain()
     this.source.connect(this.analyser)
-    this.analyser.connect(this.ctx.destination)
+    this.analyser.connect(this.gain)
+    this.gain.connect(this.ctx.destination)
+  }
+
+  /** gain 包络淡变;无 Web Audio(ctx 未建立)时静默跳过,播放走直连不做淡变。 */
+  private rampGain(target: number, seconds: number): void {
+    if (!this.ctx || !this.gain) return
+    const t = this.ctx.currentTime
+    const g = this.gain.gain
+    g.cancelScheduledValues(t)
+    g.setValueAtTime(g.value, t)
+    g.linearRampToValueAtTime(target, t + seconds)
+  }
+
+  private clearPauseTimer(): void {
+    if (this.pauseTimer != null) {
+      clearTimeout(this.pauseTimer)
+      this.pauseTimer = null
+    }
   }
 
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数。 */
   load(upstreamUrl: string, startAt?: number): void {
+    this.clearPauseTimer()
+    // 新曲从静音起步,出声时经 playing 事件淡入
+    this.rampGain(0, 0)
     this.cbs.onStatus?.('loading')
     this.pendingSeek = startAt && startAt > 0 ? startAt : null
     const src = /^https?:\/\//i.test(upstreamUrl) ? api.url('/api/audio', { url: upstreamUrl }) : upstreamUrl
@@ -82,13 +114,37 @@ export class AudioEngine {
   }
 
   async play(): Promise<void> {
+    this.clearPauseTimer()
     this.ensureContext()
     if (this.ctx?.state === 'suspended') await this.ctx.resume()
+    // 淡出进行中被恢复:元素未暂停不会再发 playing 事件,这里直接拉回
+    if (!this.audio.paused) {
+      this.rampGain(1, FADE_SEC)
+      this.cbs.onStatus?.('playing')
+    }
     await this.audio.play()
   }
 
   pause(): void {
-    this.audio.pause()
+    // 无 Web Audio 或本就暂停:直接暂停,不做包络
+    if (!this.ctx || !this.gain || this.audio.paused) {
+      this.audio.pause()
+      return
+    }
+    this.rampGain(0, FADE_SEC)
+    // UI 立即进入暂停态,元素在淡出完成后才真正暂停
+    this.cbs.onStatus?.('paused')
+    this.clearPauseTimer()
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = null
+      this.audio.pause()
+    }, FADE_SEC * 1000)
+  }
+
+  /** 播放速度(保留音高);defaultPlaybackRate 一并设置,换曲加载后仍生效。 */
+  setPlaybackRate(rate: number): void {
+    this.audio.defaultPlaybackRate = rate
+    this.audio.playbackRate = rate
   }
 
   seek(seconds: number): void {
@@ -114,10 +170,12 @@ export class AudioEngine {
   }
 
   destroy(): void {
+    this.clearPauseTimer()
     this.audio.pause()
     this.audio.src = ''
     this.source?.disconnect()
     this.analyser?.disconnect()
+    this.gain?.disconnect()
     void this.ctx?.close()
     this.ctx = null
   }
