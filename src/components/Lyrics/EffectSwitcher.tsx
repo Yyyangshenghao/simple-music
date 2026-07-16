@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
-import { springSnappy, springGentle, tapScale } from '../../lib/motion-presets'
+import { motion } from 'motion/react'
+import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
 import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './EffectSwitcher.module.css'
@@ -64,50 +64,45 @@ const EFFECTS: EffectInfo[] = [
 ]
 
 interface EffectSwitcherProps {
-  hidden?: boolean
+  onClose: () => void
 }
 
-export function EffectSwitcher({ hidden }: EffectSwitcherProps) {
+/** 3D 按钮下拉菜单:选择封面粒子云/3D 频谱环/音箱沙粒三种效果 */
+export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
   const active = useSettingsStore((s) => s.lyrics3dEffect)
   const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
 
   return (
-    <motion.div
-      className={`${styles.switcher}${hidden ? ` ${styles.hidden}` : ''}`}
-      layout
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springGentle}
-    >
-      {EFFECTS.map((eff) => {
-        const isActive = active === eff.id
-        return (
-          <motion.button
-            key={eff.id}
-            layout
-            className={`${styles.btn}${isActive ? ` ${styles.active}` : ''}`}
-            onClick={() => setEffect(eff.id)}
-            title={eff.label}
-            aria-label={eff.label}
-            whileTap={tapScale}
-            transition={springSnappy}
-          >
-            <span className={styles.icon}>{eff.icon}</span>
-            <AnimatePresence initial={false}>
-              {isActive && (
-                <motion.span
-                  className={styles.label}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1, transition: { duration: 0.18, delay: 0.08 } }}
-                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                >
-                  {eff.label}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.button>
-        )
-      })}
-    </motion.div>
+    <>
+      <div className={`${styles.backdrop} no-drag`} onClick={onClose} />
+      <motion.div
+        className={`${styles.menu} no-drag`}
+        role="menu"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springSnappy}
+      >
+        {EFFECTS.map((eff) => {
+          const isActive = active === eff.id
+          return (
+            <motion.button
+              key={eff.id}
+              role="menuitemradio"
+              aria-checked={isActive}
+              className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
+              onClick={() => {
+                setEffect(eff.id)
+                onClose()
+              }}
+              whileTap={tapScale}
+              transition={springSnappy}
+            >
+              <span className={styles.icon}>{eff.icon}</span>
+              <span className={styles.label}>{eff.label}</span>
+            </motion.button>
+          )
+        })}
+      </motion.div>
+    </>
   )
 }

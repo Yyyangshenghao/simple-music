@@ -32,13 +32,19 @@ export function useAudioEnergy(ref: RefObject<HTMLElement | null>): void {
       raf = requestAnimationFrame(decay)
       return () => cancelAnimationFrame(raf)
     }
+    // 辉光是低频模糊效果,30fps 足够;每帧做频谱拷贝+样式写入在 120Hz 屏上纯属浪费。
+    // backgroundThrottling 全局关闭,窗口隐藏时 rAF 照跑,故 document.hidden 时跳过工作。
+    const FRAME_MS = 1000 / 30
     let raf = 0
     let energy = 0
-    const tick = () => {
+    let last = 0
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick)
+      if (now - last < FRAME_MS - 1 || document.hidden) return
+      last = now
       const data = usePlayerStore.getState()._engine().getFrequencyData()
       energy = smoothEnergy(energy, bassEnergyFrom(data))
       el.style.setProperty('--audio-energy', energy.toFixed(3))
-      raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
+import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import type { PerformanceMode } from '../../types/domain'
 
@@ -37,7 +38,13 @@ export function SpeakerParticles() {
   const pointsRef = useRef<THREE.Points>(null)
   const matRef = useRef<THREE.PointsMaterial>(null)
   const performanceMode = useVisualStore((s) => s.performanceMode)
-  const count = COUNT_BY_MODE[performanceMode]
+  // 粒子数随数量倍率缩放,变化时重建 geometry;此效果为纯 CPU 逐粒子运算,上限收紧
+  const countScale = useSettingsStore((s) => s.lyrics3d.particleCount)
+  const count = THREE.MathUtils.clamp(
+    Math.round(COUNT_BY_MODE[performanceMode] * countScale),
+    4000,
+    180000
+  )
 
   const radius = 5
   const maxKickForce = 12
@@ -72,10 +79,11 @@ export function SpeakerParticles() {
   useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame((_, delta) => {
+    const params = useSettingsStore.getState().lyrics3d
     const freq = avgFrequency()
     // 归一化频率影响（0~1），与原始项目阈值对齐
     const freqInfluence = Math.min(Math.max(freq / 180, 0), 1)
-    const currentKickStrength = maxKickForce * freqInfluence
+    const currentKickStrength = maxKickForce * params.motionIntensity * freqInfluence
     const kickThreshold = 0.01
 
     const posAttr = geometry.attributes.position as THREE.BufferAttribute
@@ -120,7 +128,7 @@ export function SpeakerParticles() {
         const dist = Math.sqrt(distSq)
         const nx = x / dist
         const nz = z / dist
-        const currentExpansionSpeed = expansionSpeed * freqInfluence
+        const currentExpansionSpeed = expansionSpeed * params.motionIntensity * freqInfluence
         posArr[xIdx] += nx * currentExpansionSpeed * delta
         posArr[zIdx] += nz * currentExpansionSpeed * delta
       }
@@ -134,10 +142,15 @@ export function SpeakerParticles() {
       pointsRef.current.rotation.x = -0.35 // 微微倾斜，露出深度
     }
 
-    // 动态颜色随频率变化
+    // 动态颜色随频率变化;亮度/大小按设置倍率缩放,亮度上限 0.95 防过曝
     if (matRef.current) {
       const hue = 0.55 + freqInfluence * 0.15
-      matRef.current.color.setHSL(hue % 1, 0.7, 0.45 + freqInfluence * 0.35)
+      matRef.current.color.setHSL(
+        hue % 1,
+        0.7,
+        Math.min(0.95, (0.45 + freqInfluence * 0.35) * params.particleBrightness)
+      )
+      matRef.current.size = 0.025 * params.particleSize
     }
   })
 

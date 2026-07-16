@@ -1,9 +1,24 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
-import type { FxArchive, Lyrics3dEffect, PlayMode } from '../types/domain'
+import type { FxArchive, Lyrics3dEffect, Lyrics3dParams, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
+
+/** 3D 歌词参数默认值,倍率类均为 1 即历史硬编码行为。 */
+export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
+  particleCount: 1,
+  particleSize: 1,
+  particleBrightness: 1,
+  glowStrength: 1,
+  motionIntensity: 1,
+  rippleCount: 6,
+  rippleSensitivity: 0.5,
+  rippleDuration: 0.55,
+  // 默认钳 60:ProMotion 屏不限帧会跑 120fps,GPU 负载翻倍但视觉收益极小
+  fpsCap: 60,
+  renderScale: 1.25
+}
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
@@ -14,6 +29,8 @@ interface PersistedSettings {
   lyrics3dEffect: Lyrics3dEffect
   /** 3D 歌词底部叠加层的模糊/背景强度，0=完全透明（无背景），1=最强毛玻璃。 */
   lyricsOverlayBlur: number
+  /** 3D 歌词场景可调参数(粒子/波纹/帧率等)。 */
+  lyrics3d: Lyrics3dParams
   activeSource: 'netease' | 'qq'
   themeMode: 'auto' | 'light' | 'dark'
   audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
@@ -40,6 +57,8 @@ interface SettingsStore extends PersistedSettings {
   setLyricsPanelMode(mode: 'lyrics' | '3d'): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
   setLyricsOverlayBlur(v: number): void
+  setLyrics3dParams(patch: Partial<Lyrics3dParams>): void
+  resetLyrics3dParams(): void
   setActiveSource(s: 'netease' | 'qq'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
@@ -65,6 +84,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsPanelMode: 'lyrics',
   lyrics3dEffect: 'cover-cloud',
   lyricsOverlayBlur: 0.4,
+  lyrics3d: { ...DEFAULT_LYRICS_3D },
   activeSource: 'netease',
   themeMode: 'auto',
   audioQuality: 'lossless',
@@ -111,6 +131,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsOverlayBlur: Math.max(0, Math.min(1, v)) })
     get().saveToLocal()
   },
+  setLyrics3dParams(patch) {
+    set({ lyrics3d: { ...get().lyrics3d, ...patch } })
+    get().saveToLocal()
+  },
+  resetLyrics3dParams() {
+    set({ lyrics3d: { ...DEFAULT_LYRICS_3D } })
+    get().saveToLocal()
+  },
   setActiveSource(s) {
     set({ activeSource: s })
     get().saveToLocal()
@@ -134,8 +162,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode, fontFamily } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, activeSource, themeMode, audioQuality, playMode, fontFamily }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -153,6 +181,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
         lyrics3dEffect: data.lyrics3dEffect ?? 'cover-cloud',
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
+        // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
+        lyrics3d: { ...DEFAULT_LYRICS_3D, ...data.lyrics3d },
         activeSource: data.activeSource ?? 'netease',
         themeMode: data.themeMode ?? 'auto',
         audioQuality: data.audioQuality ?? 'lossless',

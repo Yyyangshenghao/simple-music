@@ -4,12 +4,149 @@ import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
+import type { Lyrics3dEffect, Lyrics3dParams } from '../types/domain'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
+type SettingsTab = 'general' | 'lyrics3d'
+
+/** 通用滑杆行:label + range + 格式化后的当前值。 */
+function SliderRow({ label, min, max, step, value, format, onChange }: {
+  label: string
+  min: number
+  max: number
+  step: number
+  value: number
+  format: (v: number) => string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className={styles.row}>
+      <span className={styles.rowLabel}>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="no-drag"
+      />
+      <span className={styles.rowValue}>{format(value)}</span>
+    </div>
+  )
+}
+
+const EFFECT_LABELS: Record<Lyrics3dEffect, string> = {
+  'cover-cloud': '封面粒子云',
+  'waveform-3d': '3D 频谱环',
+  'speaker-particles': '音箱沙粒'
+}
+
+const FPS_OPTIONS = [0, 60, 45, 30, 24]
+
+/** 3D 歌词标签页:效果选择 + 粒子/波纹/性能参数,实时生效并持久化。 */
+function Lyrics3dSettings() {
+  const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
+  const setLyrics3dEffect = useSettingsStore((s) => s.setLyrics3dEffect)
+  const params = useSettingsStore((s) => s.lyrics3d)
+  const setParams = useSettingsStore((s) => s.setLyrics3dParams)
+  const resetParams = useSettingsStore((s) => s.resetLyrics3dParams)
+  const lyricsOverlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
+  const setLyricsOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
+
+  const patch = (key: keyof Lyrics3dParams) => (v: number) => setParams({ [key]: v })
+  const percent = (v: number): string => `${Math.round(v * 100)}%`
+
+  return (
+    <>
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>效果</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>3D 效果</span>
+          <div className={styles.segControl}>
+            {(Object.keys(EFFECT_LABELS) as Lyrics3dEffect[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${lyrics3dEffect === id ? styles.segActive : ''}`}
+                onClick={() => setLyrics3dEffect(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {EFFECT_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>粒子</h2>
+        <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
+          value={params.particleCount} format={percent} onChange={patch('particleCount')} />
+        <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
+          value={params.particleSize} format={percent} onChange={patch('particleSize')} />
+        <SliderRow label="粒子亮度" min={0.3} max={2} step={0.05}
+          value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
+        <SliderRow label="辉光强度" min={0} max={2} step={0.05}
+          value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
+        <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
+          value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>鼓点波纹（封面粒子云）</h2>
+        <SliderRow label="波纹数量" min={1} max={6} step={1}
+          value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+        <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
+          value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
+        <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
+          value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>性能</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>帧率上限</span>
+          <div className={styles.segControl}>
+            {FPS_OPTIONS.map((fps) => (
+              <motion.button
+                key={fps}
+                className={`${styles.seg} no-drag ${params.fpsCap === fps ? styles.segActive : ''}`}
+                onClick={() => setParams({ fpsCap: fps })}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {fps === 0 ? '不限' : fps}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        <SliderRow label="渲染分辨率" min={0.75} max={2} step={0.05}
+          value={params.renderScale} format={(v) => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>歌词叠加层</h2>
+        <SliderRow label="底部模糊度" min={0} max={1} step={0.01}
+          value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
+      </section>
+
+      <section className={styles.group}>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>恢复全部 3D 参数为默认值</span>
+          <button className={`${styles.seg} no-drag`} onClick={resetParams}>
+            恢复默认
+          </button>
+        </div>
+      </section>
+    </>
+  )
+}
 
 export function SettingsPage() {
+  const [tab, setTab] = useState<SettingsTab>('general')
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
@@ -39,8 +176,6 @@ export function SettingsPage() {
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
-  const lyricsOverlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
-  const setLyricsOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
   const updateFx = useVisualStore((s) => s.updateFx)
@@ -68,6 +203,24 @@ export function SettingsPage() {
     <div className={styles.page}>
       <h1 className={styles.title}>设置</h1>
 
+      {/* 标签页导航:通用 / 3D 歌词 */}
+      <div className={styles.tabBar}>
+        {([['general', '通用'], ['lyrics3d', '3D 歌词']] as [SettingsTab, string][]).map(([id, label]) => (
+          <motion.button
+            key={id}
+            className={`${styles.tab} no-drag ${tab === id ? styles.tabActive : ''}`}
+            onClick={() => setTab(id)}
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            {label}
+          </motion.button>
+        ))}
+      </div>
+
+      {tab === 'lyrics3d' && <Lyrics3dSettings />}
+
+      {tab === 'general' && (<>
       <section className={styles.group}>
         <h2 className={styles.groupTitle}>账户</h2>
         <div className={styles.row}>
@@ -151,23 +304,6 @@ export function SettingsPage() {
       </section>
 
       <section className={styles.group}>
-        <h2 className={styles.groupTitle}>3D 歌词</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>底部模糊度</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={lyricsOverlayBlur}
-            onChange={(e) => setLyricsOverlayBlur(Number(e.target.value))}
-            className="no-drag"
-          />
-          <span className={styles.rowValue}>{Math.round(lyricsOverlayBlur * 100)}%</span>
-        </div>
-      </section>
-
-      <section className={styles.group}>
         <h2 className={styles.groupTitle}>桌面歌词</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>启用桌面歌词</span>
@@ -218,6 +354,7 @@ export function SettingsPage() {
           )}
         </div>
       </section>
+      </>)}
     </div>
   )
 }

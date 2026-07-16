@@ -37,6 +37,12 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
           mouseForce={12}
           cursorSize={80}
           resolution={performanceMode === 'balanced' ? 0.4 : 0.5}
+          // 氛围背景是缓慢漂移的模糊流体,16 次 Poisson 迭代与 30fps 观感无差,
+          // 相比默认 32 次@刷新率(ProMotion 下 120fps)GPU 负载降约一个数量级
+          iterationsPoisson={16}
+          fpsCap={playing ? 30 : 20}
+          // 交互提帧:鼠标划过流体时临时升到 60fps 保证跟手,静置 2 秒回落省电
+          interactFpsCap={60}
           autoDemo={true}
           autoSpeed={0.25 + 0.2 * playAmount}
           autoIntensity={1.2 + 0.6 * playAmount}

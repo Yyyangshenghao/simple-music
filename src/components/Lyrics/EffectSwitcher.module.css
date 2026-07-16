@@ -1,70 +1,71 @@
-/* Floating pill bar for effect switching, overlaid on 3D scene */
-.switcher {
+/* 全屏背景,点击外部区域收起下拉 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+/* 下拉菜单本体,挂在 3D 按钮下方 */
+.menu {
   position: absolute;
-  top: 104px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 301;
+  min-width: 190px;
   display: flex;
-  gap: 6px;
-  padding: 5px 10px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
   /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 26, 32, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--sm-radius-pill);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
-  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
-  -webkit-app-region: no-drag;
 }
 
-.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.btn {
-  height: 34px;
-  border-radius: var(--sm-radius-pill);
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
+.item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-align: left;
+  cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;
 }
 
-.btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
+.item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.active {
-  background: rgba(255, 255, 255, 0.18);
+.itemActive {
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
-  padding: 0 14px 0 10px;
   box-shadow: var(--glow-ring);
 }
 
-.active:hover {
-  background: rgba(255, 255, 255, 0.22);
+.itemActive:hover {
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
-}
-
-.label {
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
 }
 
 .icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.label {
+  white-space: nowrap;
 }

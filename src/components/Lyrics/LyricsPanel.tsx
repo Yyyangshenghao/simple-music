@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
+import { useWindowActive } from '../../hooks/useWindowActive'
 import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
@@ -13,6 +14,7 @@ import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
 import { Waveform3D } from '../Visualizer/Waveform3D'
 import { SpeakerParticles } from '../Visualizer/SpeakerParticles'
 import { CinemaCamera } from '../Visualizer/CinemaCamera'
+import { FrameLimiter } from '../Visualizer/FrameLimiter'
 import { EffectSwitcher } from './EffectSwitcher'
 import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './LyricsPanel.module.css'
@@ -51,9 +53,21 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
+  const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
+  const renderScale = useSettingsStore((s) => s.lyrics3d.renderScale)
+  // 窗口失活(最小化/切走/失焦)时完全停掉 3D 渲染循环,与背景流体的暂停策略一致
+  const windowActive = useWindowActive()
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
+  // 3D 效果下拉菜单:已处于 3D 模式时再点一次 3D 按钮才展开
+  const [effectMenuOpen, setEffectMenuOpen] = useState(false)
+
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 面板收起时顺带收起效果下拉,避免下次打开残留展开态
+  useEffect(() => {
+    if (!open) setEffectMenuOpen(false)
+  }, [open])
 
   // 平滑滚动到当前行（仅纯歌词模式）
   useEffect(() => {
@@ -96,16 +110,30 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         <div className={`${styles.modeSwitch} no-drag`}>
           <button
             className={`${styles.modeBtn}${mode === 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
-            onClick={() => setMode('lyrics')}
+            onClick={() => {
+              setMode('lyrics')
+              setEffectMenuOpen(false)
+            }}
           >
             歌词
           </button>
-          <button
-            className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
-            onClick={() => setMode('3d')}
-          >
-            3D
-          </button>
+          <div className={styles.modeBtnAnchor}>
+            <button
+              className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
+              onClick={() => {
+                if (mode !== '3d') {
+                  setMode('3d')
+                } else {
+                  setEffectMenuOpen((v) => !v)
+                }
+              }}
+            >
+              3D
+            </button>
+            {effectMenuOpen && mode === '3d' && (
+              <EffectSwitcher onClose={() => setEffectMenuOpen(false)} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -204,9 +232,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         >
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
-            dpr={[1, 1.25]}
+            dpr={renderScale}
+            frameloop={!windowActive ? 'never' : fpsCap > 0 ? 'demand' : 'always'}
             gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
           >
+            <FrameLimiter fps={windowActive ? fpsCap : 0} />
             <CinemaCamera />
             <EffectComponent coverUrl={track?.cover} />
           </Canvas>
@@ -223,34 +253,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             transition={{ duration: 0.5, ease: 'easeOut' }}
             aria-hidden="true"
           />
-
-          {/* 效果切换器（3D 场景内浮动） */}
-          <EffectSwitcher hidden={controlsHidden} />
-
-          {/* 曲目信息卡（左下角,沉浸模式淡出） */}
-          <div
-            className={`${styles.trackChip}${controlsHidden ? ` ${styles.trackChipHidden}` : ''} no-drag`}
-            role="group"
-            aria-label="当前曲目"
-          >
-            {track?.cover ? (
-              <img className={styles.trackChipCover} src={track.cover} alt="" draggable={false} />
-            ) : (
-              <div className={`${styles.trackChipCover} ${styles.trackChipCoverPlaceholder}`} aria-hidden="true">♪</div>
-            )}
-            <div className={styles.trackChipMeta}>
-              <div className={styles.trackChipName} title={track?.name}>
-                {track?.name ?? '未在播放'}
-              </div>
-              <ArtistLinks
-                className={styles.trackChipArtist}
-                artists={track?.artists}
-                fallback={track?.artist ?? '—'}
-                source={track?.source ?? 'netease'}
-                onBeforeNavigate={onClose}
-              />
-            </div>
-          </div>
 
           {/* 歌词叠加层：居中大字 + 玻璃卡片；卡片模糊/背景强度可在设置里调节，最低即完全透明 */}
           <div className={styles.lyricsOverlay}>

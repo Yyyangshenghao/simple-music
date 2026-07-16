@@ -52,6 +52,16 @@ interface LiquidEtherProps {
   takeoverDuration?: number;
   autoResumeDelay?: number;
   autoRampDuration?: number;
+  /** 帧率上限(0=不限,跟随显示器刷新率)。氛围背景 30fps 足够,可大幅降低 GPU 占用。 */
+  fpsCap?: number;
+  /**
+   * 交互提帧:鼠标/触摸交互后的短窗口内改用该帧率上限(0=不限)。
+   * 流体跟手拖尾对帧率极敏感,低帧钳制下划过会明显卡顿;静置超时后回落 fpsCap 省电。
+   * 不传则始终使用 fpsCap。
+   */
+  interactFpsCap?: number;
+  /** 交互提帧的持续窗口(ms),每次交互事件都会刷新计时。 */
+  interactBoostMs?: number;
 }
 
 export default function LiquidEther({
@@ -74,6 +84,9 @@ export default function LiquidEther({
   takeoverDuration = 0.25,
   autoResumeDelay = 1000,
   autoRampDuration = 0.6,
+  fpsCap = 0,
+  interactFpsCap,
+  interactBoostMs = 2000,
 }: LiquidEtherProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +97,13 @@ export default function LiquidEther({
   const isVisibleRef = useRef(true);
   const resizeRafRef = useRef<number | null>(null);
   const colorsRef = useRef<string[]>(colors);
+  // 热更新路径:play/pause 切换帧率上限时不重建整个模拟,渲染循环每帧从 ref 读取
+  const fpsCapRef = useRef(fpsCap);
+  fpsCapRef.current = fpsCap;
+  const interactFpsCapRef = useRef(interactFpsCap);
+  interactFpsCapRef.current = interactFpsCap;
+  const interactBoostMsRef = useRef(interactBoostMs);
+  interactBoostMsRef.current = interactBoostMs;
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -108,9 +128,12 @@ export default function LiquidEther({
 
       init(container: HTMLElement) {
         this.container = container;
-        this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        // 流体输出本身是低频模糊渐变(速度场 FBO 只有 0.4~0.5 倍分辨率),
+        // retina 全 dpr 渲染纯属浪费:钳到 1 可把输出 pass 的像素量砍到 1/4,肉眼无差别。
+        this.pixelRatio = 1;
         this.resize();
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // 全屏四边形不存在几何边缘,MSAA 无收益,关掉省显存带宽
+        this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
         this.renderer.autoClear = false;
         this.renderer.setClearColor(new THREE.Color(0x000000), 0);
         this.renderer.setPixelRatio(this.pixelRatio);
@@ -1108,10 +1131,27 @@ export default function LiquidEther({
         Common.update();
         this.output.update();
       }
+      _lastFrameMs = 0;
       _loop = () => {
         if (!this.running) return;
-        this.render();
+        // 先排下一帧再决定本帧是否跳过,保证循环不断链
         rafRef.current = requestAnimationFrame(this._loop);
+        let cap = fpsCapRef.current;
+        // 交互提帧:交互后的短窗口内改用 interactFpsCap,静置超时自动回落
+        const boost = interactFpsCapRef.current;
+        if (
+          boost !== undefined &&
+          performance.now() - this.lastUserInteraction < interactBoostMsRef.current
+        ) {
+          cap = boost;
+        }
+        if (cap > 0) {
+          const now = performance.now();
+          // -1ms 容差:避免 rAF 时间抖动导致周期性丢帧(如 30fps 变成 28fps)
+          if (now - this._lastFrameMs < 1000 / cap - 1) return;
+          this._lastFrameMs = now;
+        }
+        this.render();
       };
       start() {
         if (this.running) return;

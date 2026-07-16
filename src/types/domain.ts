@@ -173,6 +173,30 @@ export type BackgroundMode = 'auto' | 'keep' | 'release'
 /** 歌词面板 3D 模式下的视觉效果类型 */
 export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
 export type ShelfMode = 'dynamic' | 'static'
+
+/** 3D 歌词模式的可调参数,由设置页「3D 歌词」标签页调节并持久化。 */
+export interface Lyrics3dParams {
+  /** 粒子数量倍率(0.25~2,乘在各效果按性能档取的基础数量上) */
+  particleCount: number
+  /** 粒子大小倍率(0.5~2) */
+  particleSize: number
+  /** 粒子亮度倍率(0.3~2) */
+  particleBrightness: number
+  /** 辉光强度倍率(0~2,封面粒子云的泛光层) */
+  glowStrength: number
+  /** 动效强度倍率(0.2~2,弹跳/踢飞/频谱振幅) */
+  motionIntensity: number
+  /** 同屏最大波纹数(1~6,封面粒子云鼓点涟漪的并发槽位) */
+  rippleCount: number
+  /** 波纹触发灵敏度(0~1,越高鼓点越容易触发涟漪) */
+  rippleSensitivity: number
+  /** 单道波纹扩散时长(秒,0.2~1.5) */
+  rippleDuration: number
+  /** 帧率上限(0=不限制,否则为目标 fps,如 24/30/45/60) */
+  fpsCap: number
+  /** 渲染分辨率倍率(0.75~2,即 Canvas dpr) */
+  renderScale: number
+}
 /** 播放模式：列表循环 / 随机 / 单曲循环。 */
 export type PlayMode = 'order' | 'shuffle' | 'one'
 

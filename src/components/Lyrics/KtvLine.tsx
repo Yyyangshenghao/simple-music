@@ -46,8 +46,10 @@ export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past,
     const engine = usePlayerStore.getState()._engine()
     let raf = 0
     const loop = () => {
-      wordsRef.current?.style.setProperty('--elapsed', (engine.position * 1000 - lineStartMs).toFixed(1))
       raf = requestAnimationFrame(loop)
+      // backgroundThrottling 关闭时窗口隐藏 rAF 照跑,跳过无意义的样式写入
+      if (document.hidden) return
+      wordsRef.current?.style.setProperty('--elapsed', (engine.position * 1000 - lineStartMs).toFixed(1))
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)

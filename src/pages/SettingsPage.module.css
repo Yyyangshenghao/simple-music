@@ -7,6 +7,29 @@
 
 .title { font-size: 24px; font-weight: 700; color: var(--sm-text-primary); margin: 0 0 24px; }
 
+.tabBar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.tab {
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+
+.tab:hover { color: var(--sm-text-primary); }
+.tab.tabActive { color: var(--sm-text-primary); border-bottom-color: var(--sm-accent); }
+
 .group {
   background: var(--sm-bg-elevated);
   backdrop-filter: var(--glass-blur-base);
