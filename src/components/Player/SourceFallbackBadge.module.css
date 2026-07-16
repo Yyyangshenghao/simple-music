@@ -1,0 +1,28 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--sm-radius-pill);
+  border: 1px solid var(--sm-border-strong);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: default;
+}
+
+.badge[data-source='netease'] {
+  border-color: color-mix(in srgb, #d43c33 45%, transparent);
+  background: color-mix(in srgb, #d43c33 10%, transparent);
+  color: color-mix(in srgb, #d43c33 80%, var(--sm-text-primary));
+}
+
+.badge[data-source='qq'] {
+  border-color: color-mix(in srgb, #0daf52 45%, transparent);
+  background: color-mix(in srgb, #0daf52 10%, transparent);
+  color: color-mix(in srgb, #0daf52 80%, var(--sm-text-primary));
+}

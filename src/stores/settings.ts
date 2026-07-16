@@ -37,6 +37,8 @@ interface PersistedSettings {
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
   fontFamily: string
+  /** 当前音源无法播放时,自动去对侧音源搜同曲兜底播放。 */
+  crossSourceFallback: boolean
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -64,6 +66,7 @@ interface SettingsStore extends PersistedSettings {
   setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
+  setCrossSourceFallback(v: boolean): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -90,6 +93,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   audioQuality: 'lossless',
   playMode: 'order',
   fontFamily: '',
+  crossSourceFallback: true,
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -159,11 +163,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ fontFamily: f })
     get().saveToLocal()
   },
+  setCrossSourceFallback(v) {
+    set({ crossSourceFallback: v })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -188,6 +196,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         audioQuality: data.audioQuality ?? 'lossless',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
+        crossSourceFallback: data.crossSourceFallback ?? true,
       })
     } catch {
       /* ignore malformed */

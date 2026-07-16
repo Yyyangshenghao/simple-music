@@ -175,6 +175,8 @@ export function SettingsPage() {
   const setActiveSource = useSettingsStore((s) => s.setActiveSource)
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
+  const crossSourceFallback = useSettingsStore((s) => s.crossSourceFallback)
+  const setCrossSourceFallback = useSettingsStore((s) => s.setCrossSourceFallback)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
@@ -300,6 +302,15 @@ export function SettingsPage() {
               </motion.button>
             ))}
           </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel} title="当前音源放不了(VIP/下架)时,自动去另一音源搜同曲播放">跨音源兜底播放</span>
+          <button
+            className={`${styles.seg} no-drag ${crossSourceFallback ? styles.segActive : ''}`}
+            onClick={() => setCrossSourceFallback(!crossSourceFallback)}
+          >
+            {crossSourceFallback ? '开' : '关'}
+          </button>
         </div>
       </section>
 

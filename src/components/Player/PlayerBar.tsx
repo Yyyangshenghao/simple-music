@@ -11,6 +11,7 @@ import { ElasticSlider } from '../ui/ElasticSlider'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
 import { QualityBadge } from './QualityBadge'
+import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
 import styles from './PlayerBar.module.css'
 
@@ -317,6 +318,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
           </div>
           <span className={styles.divider} aria-hidden="true" />
           <QueuePanel />
+          <SourceFallbackBadge />
           <QualityBadge />
         </div>
       </div>
