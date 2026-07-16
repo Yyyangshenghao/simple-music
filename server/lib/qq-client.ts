@@ -1254,6 +1254,35 @@ export async function handleQQArtistAlbums(
   return { provider: 'qq', albums }
 }
 
+export async function handleQQAlbumSongs(cookie: string, albumMid: string): Promise<Record<string, unknown>> {
+  const mid = String(albumMid || '').trim()
+  if (!mid) return { provider: 'qq', error: 'MISSING_ALBUM_MID', songs: [] }
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: { ct: 24, cv: 0 },
+      albumSongs: {
+        module: 'music.musichallAlbum.AlbumSongList',
+        method: 'GetAlbumSongList',
+        // 专辑曲目一次拉全(专辑规模小,300 足够覆盖合集类)
+        param: { albumMid: mid, begin: 0, num: 300, order: 2 },
+      },
+    })
+  )
+  const block = rec(json.albumSongs)
+  if (!json.albumSongs || Number(block.code || 0) !== 0) {
+    return {
+      provider: 'qq',
+      error: str(block.message || block.msg) || 'QQ_ALBUM_SONGS_FAILED',
+      songs: [],
+    }
+  }
+  const data = rec(block.data)
+  const songs = arr(data.songList)
+    .map((raw) => mapQQTrack(rec(raw).songInfo, {}))
+    .filter((s) => s && s.name && (s.mid || s.id))
+  return { provider: 'qq', total: numOf(data.totalNum) || songs.length, songs }
+}
+
 export async function handleQQSearch(
   cookie: string,
   keywords: string,

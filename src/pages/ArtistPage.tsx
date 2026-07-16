@@ -100,7 +100,11 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
       {tab === 'albums' && albums.length > 0 && (
         <div className={styles.albumGrid}>
           {albums.map((a, i) => (
-            <PlaylistCard key={String(a.id) + i} playlist={a} onClick={() => {}} />
+            <PlaylistCard
+              key={String(a.id) + i}
+              playlist={a}
+              onClick={() => useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: a })}
+            />
           ))}
         </div>
       )}

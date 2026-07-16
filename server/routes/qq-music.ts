@@ -15,6 +15,7 @@ import {
   handleQQArtistSearch,
   handleQQArtistSongs,
   handleQQArtistAlbums,
+  handleQQAlbumSongs,
   handleQQSongComments,
   normalizeQQCookieInput,
   parseCookieString,
@@ -255,6 +256,18 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQArtistAlbums]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, albums: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/album/songs') {
+    try {
+      const mid = url.searchParams.get('id') || url.searchParams.get('mid') || url.searchParams.get('albummid') || ''
+      const data = await handleQQAlbumSongs(getCookie(ctx, 'qq'), mid)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQAlbumSongs]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, songs: [] }, 500)
     }
     return true
   }

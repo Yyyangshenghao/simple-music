@@ -86,6 +86,22 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const session = sessionRef.current
     const e = cache.get(key)
     if (!e || e.skeletonLoaded || e.error) return
+    // 专辑没有歌单骨架接口:一次拉全量曲目直接播种(专辑规模小,无需窗口懒加载)
+    if (playlist.type === 'album') {
+      service
+        .getAlbumTracks(playlist.id)
+        .then((tracks) => {
+          if (sessionRef.current !== session) return
+          cache.set(key, seededEntry(tracks))
+          bump()
+        })
+        .catch(() => {
+          if (sessionRef.current !== session) return
+          e.error = true
+          bump()
+        })
+      return
+    }
     service
       .getPlaylistSkeleton(playlist.id)
       .then((sk) => {

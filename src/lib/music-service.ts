@@ -12,6 +12,8 @@ export interface MusicService {
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
   getArtistAlbums(id: unknown): Promise<Playlist[]>
+  /** 专辑曲目全量拉取(`Playlist.type === 'album'` 的详情页用;专辑规模小,不走懒加载)。 */
+  getAlbumTracks(id: unknown): Promise<Track[]>
   getTrackUrl(track: Track): Promise<string>
   getLyrics(track: Track): Promise<LyricLine[]>
   /** 每日/猜你喜欢曲目推荐（可选；未实现的音源不渲染该卡片）。 */

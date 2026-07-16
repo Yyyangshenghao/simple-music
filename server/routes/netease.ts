@@ -275,6 +275,22 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- Album Songs ----------
+  if (pn === '/api/netease/album/songs') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const id = url.searchParams.get('id') || ''
+      const resp = await call('album', { id, cookie })
+      const body = asObj(resp.body)
+      const songs = asArr(body.songs || []).map(mapSongRecord).filter((s) => s.id && s.name)
+      sendJson(res, { songs })
+    } catch (err) {
+      console.error('[AlbumSongs]', err)
+      sendJson(res, { songs: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- 歌手搜索 ----------
   if (pn === '/api/search/artists') {
     try {

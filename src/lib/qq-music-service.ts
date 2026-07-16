@@ -45,6 +45,11 @@ export class QQMusicService implements MusicService {
     return res.albums ?? []
   }
 
+  async getAlbumTracks(id: unknown): Promise<Track[]> {
+    const res = await api.get<{ songs: Track[] }>('/api/qq/album/songs', { mid: String(id) })
+    return res.songs ?? []
+  }
+
   async getTrackUrl(track: Track): Promise<string> {
     const res = await api.get<{ url: string }>('/api/qq/song/url', { id: track.id as string | number, mid: track.mid as string | undefined })
     return res.url ?? ''
