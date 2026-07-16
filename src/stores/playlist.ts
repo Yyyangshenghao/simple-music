@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { usePlayerStore, registerTrackEndedHandler } from './player'
 import { useSettingsStore } from './settings'
 import { serviceFor } from '../lib/service-registry'
+import { preloadTracks } from '../lib/track-preload'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
 
 interface UserPlaylistsResponse {
@@ -72,6 +73,29 @@ function stepIndex(
   return order[(pos + dir + len) % len]
 }
 
+// 切歌落定 1 秒后预载前/后曲目(URL 预解析 + 封面预热),不与当前曲目起播抢网络;
+// 快速连点只保留最后一次。走序与 next/prev 一致(含随机模式的洗牌排列)。
+let preloadTimer: ReturnType<typeof setTimeout> | null = null
+
+function schedulePreloadNeighbors() {
+  if (preloadTimer) clearTimeout(preloadTimer)
+  preloadTimer = setTimeout(() => {
+    preloadTimer = null
+    const s = usePlaylistStore.getState()
+    if (s.queueIndex < 0 || s.queue.length < 2) return
+    const applyPartial = (p: Partial<PlaylistStore>) => usePlaylistStore.setState(p)
+    const targets: Track[] = []
+    for (const dir of [+1, -1] as const) {
+      const idx = stepIndex(usePlaylistStore.getState(), applyPartial, dir)
+      const t = usePlaylistStore.getState().queue[idx]
+      if (idx !== s.queueIndex && t && !targets.includes(t)) targets.push(t)
+    }
+    if (!targets.length) return
+    const player = usePlayerStore.getState()
+    preloadTracks(targets, player.quality, player.currentTrack)
+  }, 1000)
+}
+
 export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   playlists: [],
   currentPlaylist: null,
@@ -107,6 +131,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     const track = get().queue[index]
     if (!track) return
     set({ queueIndex: index })
+    schedulePreloadNeighbors()
     if (!track.pending) {
       void usePlayerStore.getState().loadTrack(track)
       return
