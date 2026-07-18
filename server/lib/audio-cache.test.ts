@@ -12,6 +12,11 @@ import {
   audioCacheStats,
   clearAudioCache,
   audioCacheDir,
+  getAudioCacheConfig,
+  updateAudioCacheConfig,
+  AUDIO_CACHE_LIMIT_BYTES,
+  AUDIO_CACHE_MIN_LIMIT,
+  AUDIO_CACHE_MAX_LIMIT,
 } from './audio-cache'
 
 describe('isFullStreamRequest', () => {
@@ -104,6 +109,51 @@ describe('磁盘读写(临时目录)', () => {
     expect(stats.files).toBe(2)
     expect(await findCachedAudio(userData, 'k0')).toBeNull()
     expect(await findCachedAudio(userData, 'k3')).not.toBeNull()
+  })
+
+  it('默认配置:userDataDir/audio-cache + 2GB 上限', async () => {
+    const userData = await makeUserDataDir()
+    const config = await getAudioCacheConfig(userData)
+    expect(config.dir).toBe(audioCacheDir(userData))
+    expect(config.limitBytes).toBe(AUDIO_CACHE_LIMIT_BYTES)
+  })
+
+  it('上限钳制到 [256MB, 100GB]', async () => {
+    const userData = await makeUserDataDir()
+    const low = await updateAudioCacheConfig(userData, { limitBytes: 1 })
+    expect(low.ok && low.config.limitBytes).toBe(AUDIO_CACHE_MIN_LIMIT)
+    const high = await updateAudioCacheConfig(userData, { limitBytes: Number.MAX_SAFE_INTEGER })
+    expect(high.ok && high.config.limitBytes).toBe(AUDIO_CACHE_MAX_LIMIT)
+  })
+
+  it('相对路径目录被拒绝', async () => {
+    const userData = await makeUserDataDir()
+    const r = await updateAudioCacheConfig(userData, { dir: 'relative/path' })
+    expect(r).toEqual({ ok: false, error: 'DIR_NOT_ABSOLUTE' })
+  })
+
+  it('切换目录:旧目录缓存清空、新写入落新目录、可恢复默认', async () => {
+    const userData = await makeUserDataDir()
+    const w = await openAudioCacheWriter(userData, 'k')
+    w!.write(new Uint8Array(8))
+    await w!.commit()
+    expect(await findCachedAudio(userData, 'k')).not.toBeNull()
+
+    const newDir = join(userData, 'elsewhere')
+    const r = await updateAudioCacheConfig(userData, { dir: newDir })
+    expect(r.ok).toBe(true)
+    // 旧目录缓存已被清空,新目录没有该 key → 未命中
+    expect(await findCachedAudio(userData, 'k')).toBeNull()
+
+    const w2 = await openAudioCacheWriter(userData, 'k2')
+    w2!.write(new Uint8Array(4))
+    await w2!.commit()
+    const hit = await findCachedAudio(userData, 'k2')
+    expect(hit!.path.startsWith(newDir)).toBe(true)
+    expect((await audioCacheStats(userData)).dir).toBe(newDir)
+
+    const reset = await updateAudioCacheConfig(userData, { dir: '' })
+    expect(reset.ok && reset.config.dir).toBe(audioCacheDir(userData))
   })
 
   it('clearAudioCache 清空 .bin 与 .part', async () => {

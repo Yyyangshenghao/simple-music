@@ -65,6 +65,8 @@ const api = {
   // 文件 / 应用
   exportJson: (payload: ExportPayload): Promise<FileResult> => ipcRenderer.invoke('file:export-json', payload),
   importJson: (): Promise<ImportResult> => ipcRenderer.invoke('file:import-json'),
+  selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
+    ipcRenderer.invoke('file:select-directory', arg ?? {}),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
   installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })
 }

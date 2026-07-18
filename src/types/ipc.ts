@@ -126,6 +126,7 @@ export interface IpcChannels {
 
   'file:export-json': { req: ExportPayload; res: FileResult }
   'file:import-json': { req: void; res: ImportResult }
+  'file:select-directory': { req: { title?: string; defaultPath?: string }; res: FileResult }
 
   'app:restart': { req: void; res: OkResult }
   'app:install-update': { req: { filePath: string }; res: OkResult }

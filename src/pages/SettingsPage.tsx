@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { api } from '../lib/api'
 import { useSettingsStore } from '../stores/settings'
+import { useToastStore } from '../stores/toast'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
@@ -16,6 +17,14 @@ type SettingsTab = 'general' | 'lyrics3d'
 function formatCacheSize(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
   return `${Math.round(bytes / 1024 ** 2)} MB`
+}
+
+const CACHE_LIMIT_PRESETS_GB = [1, 2, 5, 10]
+
+interface AudioCacheConfigInfo {
+  dir: string
+  limitBytes: number
+  defaultDir: string
 }
 
 /** 通用滑杆行:label + range + 格式化后的当前值。 */
@@ -186,21 +195,49 @@ export function SettingsPage() {
   const setCrossSourceFallback = useSettingsStore((s) => s.setCrossSourceFallback)
 
   const [audioCache, setAudioCache] = useState<{ bytes: number; files: number } | null>(null)
+  const [cacheConfig, setCacheConfig] = useState<AudioCacheConfigInfo | null>(null)
   const [clearingCache, setClearingCache] = useState(false)
+  async function refreshCacheInfo(): Promise<void> {
+    try {
+      const [stats, config] = await Promise.all([
+        api.get<{ bytes: number; files: number }>('/api/audio-cache/stats'),
+        api.get<AudioCacheConfigInfo>('/api/audio-cache/config'),
+      ])
+      setAudioCache(stats)
+      setCacheConfig(config)
+    } catch {
+      /* server 未就绪时保持占位 */
+    }
+  }
   useEffect(() => {
-    void api.get<{ bytes: number; files: number }>('/api/audio-cache/stats').then(setAudioCache).catch(() => {})
+    void refreshCacheInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   async function handleClearAudioCache(): Promise<void> {
     setClearingCache(true)
     try {
       await api.get('/api/audio-cache/clear')
-      const stats = await api.get<{ bytes: number; files: number }>('/api/audio-cache/stats')
-      setAudioCache(stats)
+      await refreshCacheInfo()
     } catch {
       /* 失败保留旧值 */
     } finally {
       setClearingCache(false)
     }
+  }
+  async function postCacheConfig(patch: { dir?: string; limitBytes?: number }): Promise<void> {
+    try {
+      await api.post('/api/audio-cache/config', patch)
+    } catch {
+      useToastStore.getState().show('缓存设置失败:目录无效或不可写')
+    }
+    await refreshCacheInfo()
+  }
+  async function handlePickCacheDir(): Promise<void> {
+    const picker = window.desktop?.selectDirectory
+    if (!picker) return
+    const r = await picker({ title: '选择音频缓存文件夹', defaultPath: cacheConfig?.dir })
+    if (!r.ok || !r.filePath) return
+    await postCacheConfig({ dir: r.filePath })
   }
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
@@ -338,7 +375,39 @@ export function SettingsPage() {
           </button>
         </div>
         <div className={styles.row}>
-          <span className={styles.rowLabel} title="已播放的整曲会缓存到磁盘,重复播放不再消耗流量">音频缓存</span>
+          <span className={styles.rowLabel} title="已播放的整曲会缓存到此文件夹,重复播放不再消耗流量;更改后原文件夹里的缓存会被清空">缓存位置</span>
+          <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
+            {cacheConfig?.dir ?? '—'}
+          </span>
+          {!!window.desktop?.selectDirectory && (
+            <button className={`${styles.seg} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
+              更改
+            </button>
+          )}
+          {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
+            <button className={`${styles.seg} no-drag`} onClick={() => void postCacheConfig({ dir: '' })}>
+              恢复默认
+            </button>
+          )}
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>缓存上限</span>
+          <div className={styles.segControl}>
+            {CACHE_LIMIT_PRESETS_GB.map((gb) => (
+              <motion.button
+                key={gb}
+                className={`${styles.seg} no-drag ${cacheConfig?.limitBytes === gb * 1024 ** 3 ? styles.segActive : ''}`}
+                onClick={() => void postCacheConfig({ limitBytes: gb * 1024 ** 3 })}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {gb} GB
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>已用空间</span>
           <span className={styles.rowValue}>
             {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 首` : '—'}
           </span>

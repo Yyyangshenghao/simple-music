@@ -56,6 +56,21 @@ export function registerMiscIpc(): void {
     }
   })
 
+  ipcMain.handle('file:select-directory', async (_e, arg: { title?: string; defaultPath?: string } = {}): Promise<FileResult> => {
+    try {
+      const owner = getMainWindow() ?? undefined
+      const result = await dialog.showOpenDialog(owner!, {
+        title: arg?.title || '选择文件夹',
+        defaultPath: arg?.defaultPath || undefined,
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true }
+      return { ok: true, filePath: result.filePaths[0] }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message || 'SELECT_DIRECTORY_FAILED' }
+    }
+  })
+
   ipcMain.handle('app:restart', async (): Promise<OkResult> => {
     try {
       app.relaunch()

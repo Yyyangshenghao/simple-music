@@ -68,6 +68,17 @@
 
 .rowValue { font-size: 13px; color: var(--sm-text-secondary); }
 
+/* 缓存目录路径:过长时省略头部、保留更有辨识度的尾段(rtl 截断技巧) */
+.pathValue {
+  max-width: 300px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
 .segControl {
   display: flex;
   gap: 2px;

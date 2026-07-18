@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import { promises as fsp } from 'node:fs'
-import { join } from 'node:path'
+import { join, isAbsolute } from 'node:path'
 
 /**
  * 音频磁盘缓存:/api/audio 代理整流下载时落盘,重复播放直接本地文件服务。
@@ -9,12 +9,99 @@ import { join } from 'node:path'
  * - 只缓存"从 0 字节起且上游覆盖完整文件"的整流;拖进度条的中段 Range 只透传不落盘。
  * - 写入先落 .part 临时文件,完整后 rename,不会出现半截缓存被命中。
  * - LRU 以文件 mtime 近似:命中续期,超限从最旧开始淘汰。
+ * - 目录与上限可配,持久化在 userDataDir/audio-cache-config.json(设置页经 /api/audio-cache/config 读写)。
  */
 
-export const AUDIO_CACHE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 2GB
+export const AUDIO_CACHE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 默认 2GB
+export const AUDIO_CACHE_MIN_LIMIT = 256 * 1024 * 1024 // 256MB
+export const AUDIO_CACHE_MAX_LIMIT = 100 * 1024 * 1024 * 1024 // 100GB
 
+const CONFIG_FILE = 'audio-cache-config.json'
+
+export interface AudioCacheConfig {
+  dir: string
+  limitBytes: number
+}
+
+/** 默认缓存目录(未配置时使用;也是设置页"恢复默认"的目标)。 */
 export function audioCacheDir(userDataDir: string): string {
   return join(userDataDir, 'audio-cache')
+}
+
+function clampLimit(n: number): number {
+  return Math.min(AUDIO_CACHE_MAX_LIMIT, Math.max(AUDIO_CACHE_MIN_LIMIT, Math.floor(n)))
+}
+
+let configMemo: { key: string; config: AudioCacheConfig } | null = null
+
+export async function getAudioCacheConfig(userDataDir: string): Promise<AudioCacheConfig> {
+  if (configMemo?.key === userDataDir) return configMemo.config
+  const config: AudioCacheConfig = { dir: audioCacheDir(userDataDir), limitBytes: AUDIO_CACHE_LIMIT_BYTES }
+  try {
+    const raw = JSON.parse(await fsp.readFile(join(userDataDir, CONFIG_FILE), 'utf8')) as Partial<AudioCacheConfig>
+    if (typeof raw.dir === 'string' && isAbsolute(raw.dir)) config.dir = raw.dir
+    if (typeof raw.limitBytes === 'number' && Number.isFinite(raw.limitBytes)) config.limitBytes = clampLimit(raw.limitBytes)
+  } catch {
+    /* 无配置文件或损坏:用默认 */
+  }
+  configMemo = { key: userDataDir, config }
+  return config
+}
+
+/** 探测目录可写:建目录 + 写删探针文件。 */
+async function probeWritable(dir: string): Promise<boolean> {
+  try {
+    await fsp.mkdir(dir, { recursive: true })
+    const probe = join(dir, '.sm-write-probe')
+    await fsp.writeFile(probe, '')
+    await fsp.rm(probe, { force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 更新缓存配置。dir 传空字符串 = 恢复默认目录;目录变更时清空旧目录里的缓存文件(缓存可再生,避免残留占盘)。
+ * limitBytes 会被钳到 [256MB, 100GB];缩小上限立即触发一次淘汰。
+ */
+export async function updateAudioCacheConfig(
+  userDataDir: string,
+  patch: { dir?: string; limitBytes?: number }
+): Promise<{ ok: true; config: AudioCacheConfig } | { ok: false; error: string }> {
+  const current = await getAudioCacheConfig(userDataDir)
+  const next: AudioCacheConfig = { ...current }
+
+  if (patch.limitBytes != null) {
+    if (typeof patch.limitBytes !== 'number' || !Number.isFinite(patch.limitBytes)) {
+      return { ok: false, error: 'INVALID_LIMIT' }
+    }
+    next.limitBytes = clampLimit(patch.limitBytes)
+  }
+
+  if (patch.dir != null) {
+    const dir = String(patch.dir).trim() || audioCacheDir(userDataDir)
+    if (!isAbsolute(dir)) return { ok: false, error: 'DIR_NOT_ABSOLUTE' }
+    if (!(await probeWritable(dir))) return { ok: false, error: 'DIR_NOT_WRITABLE' }
+    next.dir = dir
+  }
+
+  try {
+    await fsp.mkdir(userDataDir, { recursive: true })
+    await fsp.writeFile(join(userDataDir, CONFIG_FILE), JSON.stringify(next, null, 2))
+  } catch {
+    return { ok: false, error: 'CONFIG_SAVE_FAILED' }
+  }
+
+  const oldDir = current.dir
+  configMemo = { key: userDataDir, config: next }
+  if (next.dir !== oldDir) {
+    await clearCacheFilesIn(oldDir)
+  }
+  if (next.limitBytes < current.limitBytes) {
+    await enforceCacheLimit(next.dir, next.limitBytes).catch(() => {})
+  }
+  return { ok: true, config: next }
 }
 
 function fileNameFor(key: string): string {
@@ -51,7 +138,7 @@ export async function findCachedAudio(
   userDataDir: string,
   key: string
 ): Promise<{ path: string; size: number } | null> {
-  const p = join(audioCacheDir(userDataDir), fileNameFor(key))
+  const p = join((await getAudioCacheConfig(userDataDir)).dir, fileNameFor(key))
   try {
     const st = await fsp.stat(p)
     const now = new Date()
@@ -71,7 +158,7 @@ export interface AudioCacheWriter {
 }
 
 export async function openAudioCacheWriter(userDataDir: string, key: string): Promise<AudioCacheWriter | null> {
-  const dir = audioCacheDir(userDataDir)
+  const { dir, limitBytes } = await getAudioCacheConfig(userDataDir)
   const final = join(dir, fileNameFor(key))
   const temp = final + '.part'
   let stream: WriteStream
@@ -97,7 +184,7 @@ export async function openAudioCacheWriter(userDataDir: string, key: string): Pr
       }
       try {
         await fsp.rename(temp, final)
-        await enforceCacheLimit(dir)
+        await enforceCacheLimit(dir, limitBytes)
       } catch {
         await fsp.rm(temp, { force: true }).catch(() => {})
       }
@@ -144,13 +231,16 @@ export async function enforceCacheLimit(dir: string, limit = AUDIO_CACHE_LIMIT_B
   }
 }
 
-export async function audioCacheStats(userDataDir: string): Promise<{ bytes: number; files: number; limit: number }> {
-  const files = await listCacheFiles(audioCacheDir(userDataDir))
-  return { bytes: files.reduce((s, f) => s + f.size, 0), files: files.length, limit: AUDIO_CACHE_LIMIT_BYTES }
+export async function audioCacheStats(
+  userDataDir: string
+): Promise<{ bytes: number; files: number; limit: number; dir: string }> {
+  const { dir, limitBytes } = await getAudioCacheConfig(userDataDir)
+  const files = await listCacheFiles(dir)
+  return { bytes: files.reduce((s, f) => s + f.size, 0), files: files.length, limit: limitBytes, dir }
 }
 
-export async function clearAudioCache(userDataDir: string): Promise<void> {
-  const dir = audioCacheDir(userDataDir)
+/** 清空指定目录下我们产出的缓存文件(.bin/.part),不动目录里的其他内容。 */
+async function clearCacheFilesIn(dir: string): Promise<void> {
   let names: string[]
   try {
     names = await fsp.readdir(dir)
@@ -162,4 +252,8 @@ export async function clearAudioCache(userDataDir: string): Promise<void> {
       .filter((n) => n.endsWith('.bin') || n.endsWith('.part'))
       .map((n) => fsp.rm(join(dir, n), { force: true }).catch(() => {}))
   )
+}
+
+export async function clearAudioCache(userDataDir: string): Promise<void> {
+  await clearCacheFilesIn((await getAudioCacheConfig(userDataDir)).dir)
 }

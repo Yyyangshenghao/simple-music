@@ -11,6 +11,9 @@ import {
   parseByteRange,
   audioCacheStats,
   clearAudioCache,
+  getAudioCacheConfig,
+  updateAudioCacheConfig,
+  audioCacheDir,
 } from '../lib/audio-cache'
 import {
   UA,
@@ -1092,6 +1095,25 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/audio-cache/clear') {
     await clearAudioCache(ctx.userDataDir)
     sendJson(res, { ok: true })
+    return true
+  }
+
+  if (pn === '/api/audio-cache/config') {
+    if (req.method === 'POST') {
+      const body = await readRequestBody(req)
+      const patch: { dir?: string; limitBytes?: number } = {}
+      if (typeof body.dir === 'string') patch.dir = body.dir
+      if (body.limitBytes != null) patch.limitBytes = Number(body.limitBytes)
+      const result = await updateAudioCacheConfig(ctx.userDataDir, patch)
+      if (!result.ok) {
+        sendJson(res, { ok: false, error: result.error }, 400)
+        return true
+      }
+      sendJson(res, { ok: true, ...result.config, defaultDir: audioCacheDir(ctx.userDataDir) })
+      return true
+    }
+    const config = await getAudioCacheConfig(ctx.userDataDir)
+    sendJson(res, { ...config, defaultDir: audioCacheDir(ctx.userDataDir) })
     return true
   }
 
