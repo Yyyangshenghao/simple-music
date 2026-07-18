@@ -31,14 +31,20 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
   const detailBackdropCover = useBackdropStore((s) => s.cover)
 
   // 空闲预热 lazy 页面 chunk：首次切页转场不再被模块加载打断
+  // requestIdleCallback 真正等浏览器空闲才跑，不像定时 setTimeout 会在主线程繁忙时抢占
   useEffect(() => {
-    const t = window.setTimeout(() => {
+    const preheat = () => {
       void import('../../pages/ExplorePage')
       void import('../../pages/LibraryPage')
       void import('../../pages/RoamPage')
       void import('../../pages/SettingsPage')
       void import('../../pages/ArtistPage')
-    }, 2000)
+    }
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(preheat, { timeout: 2000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const t = window.setTimeout(preheat, 2000)
     return () => window.clearTimeout(t)
   }, [])
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
@@ -15,6 +15,22 @@ import type { Playlist, Track } from '../types/domain'
 import styles from './LibraryPage.module.css'
 
 type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
+
+// 不闭包任何组件内状态，可提到模块作用域，引用永久稳定
+function openPlaylist(playlist: Playlist) {
+  useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'library', playlist })
+}
+
+/** 歌单网格单项：onOpen 引用稳定时，网格与该项无关的重渲染（如切 tab、搜索本地音乐）不会波及未变化的卡片。 */
+const PlaylistGridItem = memo(function PlaylistGridItem({ playlist }: { playlist: Playlist }) {
+  return (
+    <PlaylistCard
+      playlist={playlist}
+      onClick={() => openPlaylist(playlist)}
+      layoutId={`library-cover-${String(playlist.id)}`}
+    />
+  )
+})
 
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
@@ -35,10 +51,6 @@ export function LibraryPage() {
       void usePlaylistStore.getState().loadUserPlaylists()
     }
   }, [playlistsFromStore])
-
-  function openPlaylist(playlist: Playlist) {
-    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'library', playlist })
-  }
 
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="library-cover" />
@@ -64,12 +76,7 @@ export function LibraryPage() {
       {tab === 'playlists' && (
         <div className={styles.grid}>
           {playlists.map((pl, i) => (
-            <PlaylistCard
-              key={String(pl.id) + i}
-              playlist={pl}
-              onClick={() => openPlaylist(pl)}
-              layoutId={`library-cover-${String(pl.id)}`}
-            />
+            <PlaylistGridItem key={String(pl.id) + i} playlist={pl} />
           ))}
         </div>
       )}

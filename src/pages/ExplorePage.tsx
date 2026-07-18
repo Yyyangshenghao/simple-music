@@ -92,7 +92,7 @@ export function ExplorePage() {
     setPool((p) => redeal(p))
   }, [])
 
-  function openDaily() {
+  const openDaily = useCallback(() => {
     if (dailySongs.length === 0) return
     const src = dailySongs[0].source
     const pl: Playlist = {
@@ -107,12 +107,14 @@ export function ExplorePage() {
       creator: '',
     }
     useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: pl, tracks: dailySongs })
-  }
+  }, [dailySongs])
 
-  function openRadar() {
+  const openRadar = useCallback(() => {
     if (!radar) return
     useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: radar.playlist, tracks: radar.tracks })
-  }
+  }, [radar])
+
+  const closePreview = useCallback(() => setPreview(null), [])
 
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="explore-cover" />
@@ -196,7 +198,7 @@ export function ExplorePage() {
       {service.getRecentPlaylists && <RecentRail onOpen={setPreview} />}
 
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
-      <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
+      <PlaylistPreviewModal playlist={preview} onClose={closePreview} />
     </div>
   )
 }

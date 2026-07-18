@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { motion } from 'motion/react'
 import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
@@ -12,7 +13,7 @@ interface PlaylistCardProps {
   layoutId?: string
 }
 
-export function PlaylistCard({ playlist, onClick, layoutId }: PlaylistCardProps) {
+export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, layoutId }: PlaylistCardProps) {
   return (
     <TiltCard className={styles.glowWrap}>
       <BorderGlow borderRadius={16}>
@@ -28,4 +29,4 @@ export function PlaylistCard({ playlist, onClick, layoutId }: PlaylistCardProps)
       </BorderGlow>
     </TiltCard>
   )
-}
+})
