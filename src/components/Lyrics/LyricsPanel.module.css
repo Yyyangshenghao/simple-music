@@ -249,7 +249,10 @@
   pointer-events: none;
 }
 
-/* 氛围霞光舞台（lyrics 模式）：跟随 --ambient-* 切歌变色 */
+/* 氛围霞光舞台（lyrics 模式）：跟随 --ambient-* 切歌变色。
+   面板常驻挂载(未打开时只是 translateY(100%) 移出视口),动画不随 open 状态暂停的话
+   会无限期在后台跑——持续 transform 会迫使 .panel 及内部所有 backdrop-filter 元素
+   逐帧重新模糊取样,实测这一项能占满一整个 GPU 进程核心,面板关闭时必须暂停。 */
 .auroraStage {
   position: absolute;
   inset: -10%;
@@ -259,7 +262,12 @@
     radial-gradient(50% 60% at 82% 75%, color-mix(in srgb, var(--ambient-2) 20%, transparent), transparent 70%);
   filter: blur(60px);
   animation: stageDrift 30s ease-in-out infinite alternate;
+  animation-play-state: paused;
   z-index: 0;
+}
+
+.panel.open .auroraStage {
+  animation-play-state: running;
 }
 
 @keyframes stageDrift {
