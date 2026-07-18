@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
-import { createWriteStream, type WriteStream } from 'node:fs'
+import { createWriteStream, createReadStream, type WriteStream } from 'node:fs'
 import { promises as fsp } from 'node:fs'
 import { join, isAbsolute } from 'node:path'
+import type { ServerResponse } from 'node:http'
 
 /**
  * 音频磁盘缓存:/api/audio 代理整流下载时落盘,重复播放直接本地文件服务。
@@ -256,4 +257,39 @@ async function clearCacheFilesIn(dir: string): Promise<void> {
 
 export async function clearAudioCache(userDataDir: string): Promise<void> {
   await clearCacheFilesIn((await getAudioCacheConfig(userDataDir)).dir)
+}
+
+/** 按 Range 服务本地文件(支持 bytes=start-(-end),无效 Range 回 416)。缓存命中/本地音乐播放共用。 */
+export function serveFileWithRange(
+  res: ServerResponse,
+  filePath: string,
+  size: number,
+  range: string,
+  contentType: string
+): void {
+  const base: Record<string, string> = {
+    'Content-Type': contentType,
+    'Access-Control-Allow-Origin': '*',
+    'Accept-Ranges': 'bytes',
+  }
+  const parsed = range ? parseByteRange(range, size) : null
+  if (range && !parsed) {
+    res.writeHead(416, { ...base, 'Content-Range': `bytes */${size}` })
+    res.end()
+    return
+  }
+  let stream: ReturnType<typeof createReadStream>
+  if (parsed) {
+    res.writeHead(206, {
+      ...base,
+      'Content-Range': `bytes ${parsed.start}-${parsed.end}/${size}`,
+      'Content-Length': String(parsed.end - parsed.start + 1),
+    })
+    stream = createReadStream(filePath, { start: parsed.start, end: parsed.end })
+  } else {
+    res.writeHead(200, { ...base, 'Content-Length': String(size) })
+    stream = createReadStream(filePath)
+  }
+  stream.on('error', () => res.end())
+  stream.pipe(res)
 }

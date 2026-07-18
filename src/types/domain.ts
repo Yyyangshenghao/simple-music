@@ -1,7 +1,7 @@
 // 领域类型。Track/Playlist 对齐 server 返回（netease-client.ts 的 mapSongRecord/mapDiscoverPlaylist），
 // FxParams/FxSnapshot 对齐 public/default-user-fx-archive.json 以保证存档互通。
 
-export type MusicSource = 'netease' | 'qq'
+export type MusicSource = 'netease' | 'qq' | 'local'
 export type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
 
 export interface Artist {

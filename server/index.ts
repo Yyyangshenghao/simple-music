@@ -6,6 +6,7 @@ import { neteaseRoutes } from './routes/netease'
 import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
+import { localMusicRoutes } from './routes/local-music'
 import { weatherRoutes } from './routes/weather'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
@@ -17,6 +18,7 @@ const chain: RouteHandler[] = [
   podcastRoutes,
   beatmapRoutes,
   qqRoutes,
+  localMusicRoutes,
   weatherRoutes,
   updateRoutes,
   staticRoutes

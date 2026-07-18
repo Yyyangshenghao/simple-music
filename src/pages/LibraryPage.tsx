@@ -4,15 +4,17 @@ import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
 import { useSettingsStore } from '../stores/settings'
 import { useMusicService } from '../hooks/useMusicService'
+import { useToastStore } from '../stores/toast'
+import { localMusicService } from '../lib/local-music-service'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
 import { ScrollArea } from '../components/ui/ScrollArea'
-import type { Playlist } from '../types/domain'
+import type { Playlist, Track } from '../types/domain'
 import styles from './LibraryPage.module.css'
 
-type SubTab = 'playlists' | 'favorites' | 'recent'
+type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
 
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
@@ -47,13 +49,13 @@ export function LibraryPage() {
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
-          {(['playlists', 'favorites', 'recent'] as SubTab[]).map((t) => (
+          {(['playlists', 'favorites', 'recent', 'local'] as SubTab[]).map((t) => (
             <button
               key={t}
               className={`${styles.subTab} no-drag ${tab === t ? styles.subTabActive : ''}`}
               onClick={() => setTab(t)}
             >
-              {{ playlists: '歌单', favorites: '收藏', recent: '最近播放' }[t]}
+              {{ playlists: '歌单', favorites: '收藏', recent: '最近播放', local: '本地音乐' }[t]}
             </button>
           ))}
         </div>
@@ -75,6 +77,8 @@ export function LibraryPage() {
       {tab === 'favorites' && <FavoritesTab onOpen={openPlaylist} />}
 
       {tab === 'recent' && <RecentPlaysList />}
+
+      {tab === 'local' && <LocalMusicTab />}
     </ScrollArea>
   )
 }
@@ -155,6 +159,96 @@ function RecentPlaysList() {
           }
         />
       ))}
+    </div>
+  )
+}
+
+/** 本地音乐 tab:选文件夹批量导入,扁平列表播放;不接入在线音源的推荐/艺人体系。 */
+function LocalMusicTab() {
+  const [folders, setFolders] = useState<string[]>([])
+  const [tracks, setTracks] = useState<Track[]>([])
+  const [keyword, setKeyword] = useState('')
+  const [scanning, setScanning] = useState(false)
+
+  async function refresh(): Promise<void> {
+    const [f, t] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
+    setFolders(f)
+    setTracks(t)
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  async function handleAddFolder(): Promise<void> {
+    const picker = window.desktop?.selectDirectory
+    if (!picker) return
+    const r = await picker({ title: '选择本地音乐文件夹' })
+    if (!r.ok || !r.filePath) return
+    setScanning(true)
+    try {
+      await localMusicService.addFolder(r.filePath)
+      await refresh()
+    } catch {
+      useToastStore.getState().show('导入失败,请重试')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  async function handleRemoveFolder(folder: string): Promise<void> {
+    await localMusicService.removeFolder(folder)
+    await refresh()
+  }
+
+  const kw = keyword.trim().toLowerCase()
+  const filtered = kw
+    ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
+    : tracks
+
+  return (
+    <div className={styles.trackList}>
+      <div className={styles.trackListToolbar}>
+        <span className={styles.trackListCount}>{tracks.length} 首</span>
+        <div className={styles.toolbarActions}>
+          <input
+            className={styles.searchInput}
+            placeholder="搜索本地音乐"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <button className={`${styles.clearBtn} no-drag`} onClick={() => void handleAddFolder()} disabled={scanning}>
+            {scanning ? '导入中…' : '添加文件夹'}
+          </button>
+        </div>
+      </div>
+
+      {folders.length > 0 && (
+        <div className={styles.folderList}>
+          {folders.map((f) => (
+            <span key={f} className={styles.folderChip}>
+              {f}
+              <button
+                className={`${styles.folderChipRemove} no-drag`}
+                onClick={() => void handleRemoveFolder(f)}
+                aria-label="移除文件夹"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className={styles.emptyHint}>
+          <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
+        </div>
+      ) : (
+        filtered.map((t, i) => (
+          <TrackRow key={String(t.id)} track={t} index={i} onPlay={() => usePlaylistStore.getState().setQueue(filtered, i)} />
+        ))
+      )}
     </div>
   )
 }

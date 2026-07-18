@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createReadStream } from 'node:fs'
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
@@ -8,12 +7,12 @@ import {
   openAudioCacheWriter,
   isFullStreamRequest,
   coversWholeFile,
-  parseByteRange,
   audioCacheStats,
   clearAudioCache,
   getAudioCacheConfig,
   updateAudioCacheConfig,
   audioCacheDir,
+  serveFileWithRange,
 } from '../lib/audio-cache'
 import {
   UA,
@@ -1045,7 +1044,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       if (cacheKey) {
         const hit = await findCachedAudio(ctx.userDataDir, cacheKey)
         if (hit) {
-          serveCachedAudio(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null))
+          serveFileWithRange(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null))
           return true
         }
       }
@@ -1118,33 +1117,4 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   }
 
   return false
-}
-
-/** 缓存命中时的本地文件服务:支持 bytes=start-(-end) Range,无效 Range 回 416。 */
-function serveCachedAudio(res: ServerResponse, filePath: string, size: number, range: string, contentType: string): void {
-  const base: Record<string, string> = {
-    'Content-Type': contentType,
-    'Access-Control-Allow-Origin': '*',
-    'Accept-Ranges': 'bytes',
-  }
-  const parsed = range ? parseByteRange(range, size) : null
-  if (range && !parsed) {
-    res.writeHead(416, { ...base, 'Content-Range': `bytes */${size}` })
-    res.end()
-    return
-  }
-  let stream: ReturnType<typeof createReadStream>
-  if (parsed) {
-    res.writeHead(206, {
-      ...base,
-      'Content-Range': `bytes ${parsed.start}-${parsed.end}/${size}`,
-      'Content-Length': String(parsed.end - parsed.start + 1),
-    })
-    stream = createReadStream(filePath, { start: parsed.start, end: parsed.end })
-  } else {
-    res.writeHead(200, { ...base, 'Content-Length': String(size) })
-    stream = createReadStream(filePath)
-  }
-  stream.on('error', () => res.end())
-  stream.pipe(res)
 }

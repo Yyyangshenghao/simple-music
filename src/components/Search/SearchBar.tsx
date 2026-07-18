@@ -49,7 +49,7 @@ export function SearchBar() {
     setSearched(true)
     updateHistory(pushTerm(history, q))
     const source = usePlayerStore.getState().source
-    const { path, limit } = endpoint(source)
+    const { path, limit } = endpoint(source === 'qq' ? 'qq' : 'netease')
     try {
       const res = await api.get<SearchResponse>(path, { keywords: q, limit })
       setResults(res.songs ?? [])

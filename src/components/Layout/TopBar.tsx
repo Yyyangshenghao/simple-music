@@ -110,6 +110,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   function pickArtist(artist: ArtistInfo) {
+    if (artist.source === 'local') return
     navigateTo({ type: 'artist', id: artist.id, source: artist.source })
     clearSearch()
     inputRef.current?.blur()

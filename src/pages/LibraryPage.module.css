@@ -85,3 +85,47 @@
   background: var(--sm-bg-overlay);
   color: var(--sm-text-primary);
 }
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchInput {
+  padding: 5px 12px;
+  border-radius: var(--sm-radius-pill);
+  border: 1px solid var(--sm-border);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.folderList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.folderChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-overlay);
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+}
+
+.folderChipRemove {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-size: 14px;
+}

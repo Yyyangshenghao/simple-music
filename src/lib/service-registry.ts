@@ -2,6 +2,7 @@
 
 import { NeteaseMusicService } from './netease-music-service'
 import { QQMusicService } from './qq-music-service'
+import { localMusicService } from './local-music-service'
 import type { MusicService } from './music-service'
 import type { MusicSource } from '../types/domain'
 
@@ -9,5 +10,7 @@ export const neteaseService = new NeteaseMusicService()
 export const qqService = new QQMusicService()
 
 export function serviceFor(source: MusicSource): MusicService {
-  return source === 'qq' ? qqService : neteaseService
+  if (source === 'qq') return qqService
+  if (source === 'local') return localMusicService
+  return neteaseService
 }

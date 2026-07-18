@@ -26,7 +26,7 @@ export function ArtistLinks({ artists, fallback, source, className, onBeforeNavi
       {artists.map((a, i) => (
         <span key={`${String(a.id)}-${i}`}>
           {i > 0 && <span className={styles.sep}> / </span>}
-          {a.id != null ? (
+          {a.id != null && source !== 'local' ? (
             <button
               type="button"
               className={`${styles.link} no-drag`}
