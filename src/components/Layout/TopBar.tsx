@@ -119,8 +119,17 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const hasResults = songs.length > 0 || artists.length > 0
   const showDropdown = isExpanded && searchFocused && (keyword.length > 0 || loading || hasResults)
 
+  const platform = window.desktop?.platform
+  const isMac = platform === 'darwin'
+  const isWindows = platform === 'win32'
+
   return (
-    <div className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}`}>
+    <div
+      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
+      onDoubleClick={(e) => {
+        if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
+      }}
+    >
       {/* Left: traffic lights 留白 + 后退/前进胶囊组 */}
       <div className={styles.left}>
         <div className={styles.navGroup}>

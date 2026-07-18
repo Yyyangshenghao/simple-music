@@ -198,13 +198,18 @@ export function createMainWindow(serverPort: number): BrowserWindow {
   windowFullscreenActive = false
 
   const initialBounds = getWindowedBounds(null)
+  // macOS 用原生 hiddenInset + 内嵌交通灯；其余平台没有该 API，改用完全无边框窗口，
+  // 顶栏自绘的最小化/最大化/关闭按钮见 WindowChrome。
+  const platformChrome: Electron.BrowserWindowConstructorOptions =
+    process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } }
+      : { frame: false }
   mainWindow = new BrowserWindow({
     ...initialBounds,
     minWidth: MIN_WINDOWED_WIDTH,
     minHeight: MIN_WINDOWED_HEIGHT,
     show: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 14 },
+    ...platformChrome,
     fullscreen: false,
     backgroundColor: '#0a101c',
     hasShadow: true,

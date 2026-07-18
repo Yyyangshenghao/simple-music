@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { useSpring, useMotionValueEvent } from 'motion/react'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
+import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { gentleSpringValues } from '../../lib/motion-presets'
 import LiquidEther from '../Visualizer/LiquidEther'
-import styles from './AppShell.module.css'
+import styles from './AmbientBackground.module.css'
 
 interface AmbientBackgroundProps {
   /** 为 true 时隐藏背景层（如歌词页 3D 模式打开，保证同屏只有一个全屏 WebGL）。 */
@@ -16,6 +17,7 @@ interface AmbientBackgroundProps {
 export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const palette = useAmbientStore((s) => s.palette)
   const performanceMode = useVisualStore((s) => s.performanceMode)
+  const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
   const playing = usePlayerStore((s) => s.status === 'playing')
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
@@ -29,7 +31,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   return (
     // display:none 时 LiquidEther 内置 IntersectionObserver 自动暂停渲染
     <div className={styles.background} style={hidden ? { display: 'none' } : undefined}>
-      {performanceMode === 'eco' ? (
+      {!bgFluidMotion || performanceMode === 'eco' ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
         <LiquidEther

@@ -2,9 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
-import { useBackdropStore } from '../../stores/backdrop'
 import { springGentle } from '../../lib/motion-presets'
-import { AmbientBackground } from './AmbientBackground'
 import styles from './AppShell.module.css'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
@@ -20,15 +18,9 @@ const pageVariants: Variants = {
   exit: (dir: 1 | -1) => ({ opacity: 0, scale: 0.97, x: -24 * dir }),
 }
 
-interface AppShellProps {
-  /** 为 true 时隐藏背景层(如歌词页 3D 模式打开,保证同屏只有一个全屏 WebGL)。 */
-  backgroundHidden?: boolean
-}
-
-export function AppShell({ backgroundHidden }: AppShellProps) {
+export function AppShell() {
   const view = useNavigationStore((s) => s.currentView)
   const lastAction = useNavigationStore((s) => s.lastAction)
-  const detailBackdropCover = useBackdropStore((s) => s.cover)
 
   // 空闲预热 lazy 页面 chunk：首次切页转场不再被模块加载打断
   // requestIdleCallback 真正等浏览器空闲才跑，不像定时 setTimeout 会在主线程繁忙时抢占
@@ -72,7 +64,6 @@ export function AppShell({ backgroundHidden }: AppShellProps) {
 
   return (
     <div className={styles.shell}>
-      <AmbientBackground hidden={backgroundHidden || !!detailBackdropCover} />
       {/* Suspense 必须在 motion.div 内:lazy 页首挂载的挂起若发生在 AnimatePresence
           子节点层,会打断旧页 exit,旧页永久滞留盖住新页(首次导航跳转失效) */}
       <AnimatePresence mode="popLayout" initial={false} custom={dir}>

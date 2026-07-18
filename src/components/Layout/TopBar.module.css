@@ -3,13 +3,23 @@
   align-items: center;
   height: 52px;
   flex-shrink: 0;
-  padding: 0 12px 0 88px;
+  padding: 0 12px;
   background: transparent;
   border-bottom: none;
   position: relative;
   z-index: 100;
   -webkit-app-region: drag;
   transition: opacity 0.3s ease;
+}
+
+/* macOS 交通灯内嵌在左上角，顶栏内容需相应右移 */
+.barMac {
+  padding-left: 88px;
+}
+
+/* Windows/Linux 无边框窗口，右上角自绘最小化/最大化/关闭按钮占位 */
+.barWin {
+  padding-right: 140px;
 }
 
 /* 歌词面板打开时整条隐藏,交互一并禁用 */

@@ -11,11 +11,13 @@ import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
 import { useUpdateStore } from './stores/update'
+import { useBackdropStore } from './stores/backdrop'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
+import { AmbientBackground } from './components/Layout/AmbientBackground'
 import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
@@ -25,9 +27,12 @@ import { UpdateBanner } from './components/Update/UpdateBanner'
 
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
-  const lyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
+  const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
+  const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
+  const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen)
+  const detailBackdropCover = useBackdropStore((s) => s.cover)
 
   useDesktopBridge()
   useLoginStatusSync()
@@ -61,9 +66,10 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div className={styles.root}>
+          <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
-          <AppShell backgroundHidden={lyricsOpen && lyricsMode === '3d'} />
+          <AppShell />
           <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />

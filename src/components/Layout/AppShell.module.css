@@ -5,29 +5,6 @@
   -webkit-app-region: no-drag;
 }
 
-.background {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-/* eco 档:无 WebGL 的 CSS 霞光(引用氛围变量,切歌自动跟色) */
-.auroraFallback {
-  position: absolute;
-  inset: -20%;
-  background:
-    radial-gradient(40% 50% at 20% 30%, color-mix(in srgb, var(--ambient-1) 32%, transparent), transparent 70%),
-    radial-gradient(45% 55% at 80% 25%, color-mix(in srgb, var(--ambient-2) 26%, transparent), transparent 70%),
-    radial-gradient(50% 60% at 55% 85%, color-mix(in srgb, var(--ambient-3) 24%, transparent), transparent 70%);
-  filter: blur(40px);
-  animation: auroraDrift 24s ease-in-out infinite alternate;
-}
-
-@keyframes auroraDrift {
-  from { transform: translate3d(-3%, -2%, 0) rotate(-2deg) scale(1); }
-  to   { transform: translate3d(3%, 2%, 0) rotate(2deg) scale(1.08); }
-}
-
 .loading {
   width: 100%;
   height: 100%;

@@ -11,3 +11,47 @@
 .fullScreen {
   /* 全屏时已铺满整屏，无需额外覆盖 */
 }
+
+/* Windows/Linux 自绘窗口控制：贴右上角，高度与顶栏内其它 32px 控件对齐 */
+.captionButtons {
+  position: absolute;
+  top: 10px;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.captionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.captionBtn:hover {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+}
+
+.captionBtn:active {
+  background: var(--sm-border-strong);
+}
+
+.captionClose:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.captionClose:active {
+  background: #f1707a;
+  color: #fff;
+}
