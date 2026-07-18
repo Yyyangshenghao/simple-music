@@ -96,14 +96,17 @@ export class AudioEngine {
     }
   }
 
-  /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数。 */
-  load(upstreamUrl: string, startAt?: number): void {
+  /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
+   * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
+  load(upstreamUrl: string, startAt?: number, cacheKey?: string): void {
     this.clearPauseTimer()
     // 新曲从静音起步,出声时经 playing 事件淡入
     this.rampGain(0, 0)
     this.cbs.onStatus?.('loading')
     this.pendingSeek = startAt && startAt > 0 ? startAt : null
-    const src = /^https?:\/\//i.test(upstreamUrl) ? api.url('/api/audio', { url: upstreamUrl }) : upstreamUrl
+    const src = /^https?:\/\//i.test(upstreamUrl)
+      ? api.url('/api/audio', cacheKey ? { url: upstreamUrl, cacheKey } : { url: upstreamUrl })
+      : upstreamUrl
     this.audio.src = src
     this.audio.load()
   }

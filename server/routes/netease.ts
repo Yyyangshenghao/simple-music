@@ -1,7 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createReadStream } from 'node:fs'
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
+import {
+  findCachedAudio,
+  openAudioCacheWriter,
+  isFullStreamRequest,
+  coversWholeFile,
+  parseByteRange,
+  audioCacheStats,
+  clearAudioCache,
+} from '../lib/audio-cache'
 import {
   UA,
   call,
@@ -52,8 +62,13 @@ async function readRequestBody(req: IncomingMessage): Promise<Record<string, unk
   }
 }
 
-/** 把上游 fetch 响应体转发到 res：客户端断开（切歌/关闭请求）时取消上游读取，写入背压时等 drain，避免残留下载把内存吃满。 */
-export async function pipeReaderToResponse(reader: ReadableStreamDefaultReader<Uint8Array>, res: ServerResponse): Promise<void> {
+/** 把上游 fetch 响应体转发到 res：客户端断开（切歌/关闭请求）时取消上游读取，写入背压时等 drain，避免残留下载把内存吃满。
+ * onChunk 为可选旁路(音频缓存落盘用);返回是否完整转发到流末尾(false = 客户端提前断开)。 */
+export async function pipeReaderToResponse(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  res: ServerResponse,
+  onChunk?: (chunk: Uint8Array) => void
+): Promise<boolean> {
   let aborted = false
   const onClose = () => {
     aborted = true
@@ -63,11 +78,13 @@ export async function pipeReaderToResponse(reader: ReadableStreamDefaultReader<U
   try {
     while (!aborted) {
       const c = await reader.read()
-      if (c.done) break
+      if (c.done) return !aborted
+      onChunk?.(c.value)
       if (!res.write(c.value)) {
         await new Promise<void>((resolve) => res.once('drain', resolve))
       }
     }
+    return false
   } finally {
     res.off('close', onClose)
   }
@@ -1009,7 +1026,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // ---------- 音频代理 (支持 Range) ----------
+  // ---------- 音频代理 (支持 Range + 磁盘缓存) ----------
   if (pn === '/api/audio') {
     try {
       const audioUrl = url.searchParams.get('url')
@@ -1018,7 +1035,18 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         res.end('Missing url')
         return true
       }
-      const range = req.headers.range || ''
+      const cacheKey = url.searchParams.get('cacheKey') || ''
+      const range = String(req.headers.range || '')
+
+      // 命中磁盘缓存:本地文件直接服务(含 Range),不走上游
+      if (cacheKey) {
+        const hit = await findCachedAudio(ctx.userDataDir, cacheKey)
+        if (hit) {
+          serveCachedAudio(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null))
+          return true
+        }
+      }
+
       const hdr = audioProxyHeadersFor(audioUrl, range)
       const up = await fetch(audioUrl, { headers: hdr })
       const out: Record<string, string> = {
@@ -1030,9 +1058,22 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       if (cl) out['Content-Length'] = cl
       const cr = up.headers.get('content-range')
       if (cr) out['Content-Range'] = cr
+      // 只有"从 0 起且上游覆盖完整文件"的整流才落盘;中段 Range(拖进度条)只透传
+      const writer =
+        cacheKey && up.ok && isFullStreamRequest(range) && coversWholeFile(up.status, cr)
+          ? await openAudioCacheWriter(ctx.userDataDir, cacheKey)
+          : null
       res.writeHead(up.status, out)
       const reader = up.body?.getReader()
-      if (reader) await pipeReaderToResponse(reader, res)
+      if (reader) {
+        const completed = await pipeReaderToResponse(reader, res, writer ? (c) => writer.write(c) : undefined)
+        if (writer) {
+          if (completed) await writer.commit()
+          else writer.abort()
+        }
+      } else {
+        writer?.abort()
+      }
       res.end()
     } catch (err) {
       console.error('[Audio]', err)
@@ -1042,5 +1083,46 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 音频缓存管理 ----------
+  if (pn === '/api/audio-cache/stats') {
+    sendJson(res, await audioCacheStats(ctx.userDataDir))
+    return true
+  }
+
+  if (pn === '/api/audio-cache/clear') {
+    await clearAudioCache(ctx.userDataDir)
+    sendJson(res, { ok: true })
+    return true
+  }
+
   return false
+}
+
+/** 缓存命中时的本地文件服务:支持 bytes=start-(-end) Range,无效 Range 回 416。 */
+function serveCachedAudio(res: ServerResponse, filePath: string, size: number, range: string, contentType: string): void {
+  const base: Record<string, string> = {
+    'Content-Type': contentType,
+    'Access-Control-Allow-Origin': '*',
+    'Accept-Ranges': 'bytes',
+  }
+  const parsed = range ? parseByteRange(range, size) : null
+  if (range && !parsed) {
+    res.writeHead(416, { ...base, 'Content-Range': `bytes */${size}` })
+    res.end()
+    return
+  }
+  let stream: ReturnType<typeof createReadStream>
+  if (parsed) {
+    res.writeHead(206, {
+      ...base,
+      'Content-Range': `bytes ${parsed.start}-${parsed.end}/${size}`,
+      'Content-Length': String(parsed.end - parsed.start + 1),
+    })
+    stream = createReadStream(filePath, { start: parsed.start, end: parsed.end })
+  } else {
+    res.writeHead(200, { ...base, 'Content-Length': String(size) })
+    stream = createReadStream(filePath)
+  }
+  stream.on('error', () => res.end())
+  stream.pipe(res)
 }

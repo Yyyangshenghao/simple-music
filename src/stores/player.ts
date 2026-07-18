@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
-import { getPreloadedUrl, resolveSongUrl } from '../lib/track-preload'
+import { getPreloadedUrl, resolveSongUrl, trackCacheKey } from '../lib/track-preload'
 import { findFallbackTrack } from '../lib/track-fallback'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { useSettingsStore } from './settings'
@@ -125,6 +125,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       set({ currentTrack: track, source: track.source, fallbackSource: null, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000 })
       // 优先级:曲目自带直链 → 预加载缓存(相邻曲目已提前解析) → 现场解析
       let url = track.url ?? getPreloadedUrl(track, get().quality)
+      // 磁盘缓存 key 跟着"实际出声的曲目"走(兜底时是对侧曲目);自带直链的音质未知,不缓存
+      let cacheTrack: Track | null = track.url ? null : track
       let unplayableMessage = FALLBACK_UNPLAYABLE_MESSAGE
       if (!url) {
         try {
@@ -146,6 +148,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
             if (session !== loadSession) return
             if (res.url) {
               url = res.url
+              cacheTrack = fallback
               set({ fallbackSource: fallback.source })
               useToastStore.getState().show(`已从${SOURCE_BRAND[fallback.source].label}换源播放`)
             }
@@ -159,7 +162,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         useToastStore.getState().show(unplayableMessage)
         return
       }
-      eng.load(url, startAt)
+      eng.load(url, startAt, cacheTrack ? trackCacheKey(cacheTrack, get().quality) : undefined)
       eng.setVolume(get().volume)
       void eng.play()
     },

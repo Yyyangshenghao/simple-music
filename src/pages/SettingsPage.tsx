@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
+import { api } from '../lib/api'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
@@ -10,6 +11,12 @@ import styles from './SettingsPage.module.css'
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
 type SettingsTab = 'general' | 'lyrics3d'
+
+/** 字节数格式化为可读体积(MB/GB)。 */
+function formatCacheSize(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  return `${Math.round(bytes / 1024 ** 2)} MB`
+}
 
 /** 通用滑杆行:label + range + 格式化后的当前值。 */
 function SliderRow({ label, min, max, step, value, format, onChange }: {
@@ -177,6 +184,24 @@ export function SettingsPage() {
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const crossSourceFallback = useSettingsStore((s) => s.crossSourceFallback)
   const setCrossSourceFallback = useSettingsStore((s) => s.setCrossSourceFallback)
+
+  const [audioCache, setAudioCache] = useState<{ bytes: number; files: number } | null>(null)
+  const [clearingCache, setClearingCache] = useState(false)
+  useEffect(() => {
+    void api.get<{ bytes: number; files: number }>('/api/audio-cache/stats').then(setAudioCache).catch(() => {})
+  }, [])
+  async function handleClearAudioCache(): Promise<void> {
+    setClearingCache(true)
+    try {
+      await api.get('/api/audio-cache/clear')
+      const stats = await api.get<{ bytes: number; files: number }>('/api/audio-cache/stats')
+      setAudioCache(stats)
+    } catch {
+      /* 失败保留旧值 */
+    } finally {
+      setClearingCache(false)
+    }
+  }
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
@@ -310,6 +335,19 @@ export function SettingsPage() {
             onClick={() => setCrossSourceFallback(!crossSourceFallback)}
           >
             {crossSourceFallback ? '开' : '关'}
+          </button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel} title="已播放的整曲会缓存到磁盘,重复播放不再消耗流量">音频缓存</span>
+          <span className={styles.rowValue}>
+            {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 首` : '—'}
+          </span>
+          <button
+            className={`${styles.seg} no-drag`}
+            disabled={clearingCache || !audioCache || audioCache.bytes === 0}
+            onClick={() => void handleClearAudioCache()}
+          >
+            {clearingCache ? '清理中…' : '清空'}
           </button>
         </div>
       </section>

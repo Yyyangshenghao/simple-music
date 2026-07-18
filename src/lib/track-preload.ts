@@ -42,6 +42,11 @@ function trackKey(track: Track, quality: AudioQuality): string {
   return `${track.source}:${String(track.mid ?? track.id ?? '')}:${quality}`
 }
 
+/** 音频磁盘缓存 key(server 侧 /api/audio 落盘用),与预加载 key 同构。 */
+export function trackCacheKey(track: Track, quality: AudioQuality): string {
+  return trackKey(track, quality)
+}
+
 /** 取预解析好的播放 URL;过期或未命中返回 undefined(调用方走正常解析)。 */
 export function getPreloadedUrl(
   track: Track,

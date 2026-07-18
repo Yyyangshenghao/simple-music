@@ -10,10 +10,11 @@
 
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
-  - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`(固定歌单 id 3136952023 + 登录 cookie)、`/api/netease/banner`、`/api/netease/artist/{detail,songs,albums}`
+  - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`(固定歌单 id 3136952023 + 登录 cookie)、`/api/netease/banner`、`/api/netease/artist/{detail,songs,albums}`、`/api/netease/album/songs`(专辑曲目全量)
   - 通用(带 source 参数分流或网易默认):`/api/search`、`/api/search/artists`、`/api/song/url`、`/api/lyric`、`/api/playlist/tracks`、`/api/user/playlists`、`/api/playlist/{create,add-song}`、`/api/song/{like,like/check,comments}`、`/api/artist/detail`
-  - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口)、`/api/cover`(封面图代理)
-- **`routes/qq-music.ts`**(`lib/qq-client.ts`,自参考项目移植的上游请求封装):`/api/qq/{search,song/url,lyric,playlist/tracks,user/playlists,artist/detail,song/comments,login/*,logout}`
+  - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
+  - 音频缓存管理:`/api/audio-cache/{stats,clear}`(整流下载落盘 userDataDir/audio-cache,2GB LRU;拖进度条的中段 Range 只透传不落盘)
+- **`routes/qq-music.ts`**(`lib/qq-client.ts`,自参考项目移植的上游请求封装):`/api/qq/{search,song/url,lyric,playlist/tracks,user/playlists,artist/detail,artist/albums,album/songs,song/comments,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
@@ -21,7 +22,7 @@
 
 ## lib 辅助
 
-`http.ts`(sendJson/sendError 等,有测试)、`cookie.ts`(cookie 序列化/解析,有测试)。
+`http.ts`(sendJson/sendError 等,有测试)、`cookie.ts`(cookie 序列化/解析,有测试)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU,有测试)。
 
 ## 约定
 
