@@ -48,8 +48,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const translation = useLyricsStore((s) => s.translation)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const wordLines = useLyricsStore((s) => s.wordLines)           // added by Agent A
-  const mode = useSettingsStore((s) => s.lyricsPanelMode)        // added by Agent A
+  const storedMode = useSettingsStore((s) => s.lyricsPanelMode)  // added by Agent A
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
+  const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
+  // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
+  const mode = lyrics3dEnabled ? storedMode : 'lyrics'
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
@@ -120,6 +123,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <div className={styles.modeBtnAnchor}>
             <button
               className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
+              disabled={!lyrics3dEnabled}
+              title={lyrics3dEnabled ? undefined : '已在设置的性能选项中关闭 3D 歌词'}
               onClick={() => {
                 if (mode !== '3d') {
                   setMode('3d')

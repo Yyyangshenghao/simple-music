@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useSettingsStore } from '../../stores/settings'
 
 interface Spark {
   x: number
@@ -15,9 +16,10 @@ const SPARK_SIZE = 8
 /** 全局点击火花：单个全屏 canvas 覆盖层，颜色取 --ambient-1，reduced-motion 时禁用。 */
 export function ClickSpark() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const enabled = useSettingsStore((s) => s.performance.clickSparkEffect)
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!enabled || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -90,7 +92,7 @@ export function ClickSpark() {
       window.removeEventListener('resize', resize)
       cancelAnimationFrame(raf)
     }
-  }, [])
+  }, [enabled])
 
   return (
     <canvas

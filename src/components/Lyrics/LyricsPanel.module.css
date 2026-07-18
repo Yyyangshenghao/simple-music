@@ -294,6 +294,15 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.modeBtn:disabled {
+  color: rgba(255, 255, 255, 0.25);
+  cursor: not-allowed;
+}
+
+.modeBtn:disabled:hover {
+  color: rgba(255, 255, 255, 0.25);
+}
+
 .modeBtnActive {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;

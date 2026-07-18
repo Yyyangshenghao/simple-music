@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { api } from '../lib/api'
-import { useSettingsStore } from '../stores/settings'
+import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { useToastStore } from '../stores/toast'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
-import type { Lyrics3dEffect, Lyrics3dParams } from '../types/domain'
+import { Switch } from '../components/ui/Switch'
+import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/domain'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -61,6 +62,29 @@ const EFFECT_LABELS: Record<Lyrics3dEffect, string> = {
 }
 
 const FPS_OPTIONS = [0, 60, 45, 30, 24]
+
+const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
+  standard: '标准',
+  simple: '简单模式',
+  minimal: '极简模式',
+}
+
+const PERFORMANCE_FLAG_LABELS: { key: keyof PerformanceFlags; label: string; hint: string }[] = [
+  { key: 'bgFluidMotion', label: '背景跟手流体动效', hint: '关闭后氛围背景改用静态渐变,不再跟随鼠标' },
+  { key: 'lyrics3dEnabled', label: '3D 歌词模式', hint: '关闭后歌词页只保留纯文字滚动,3D 按钮禁用' },
+  { key: 'cardTiltEffect', label: '卡片跟光 3D 倾斜', hint: '歌单/推荐卡片跟随鼠标倾斜追光' },
+  { key: 'clickSparkEffect', label: '点击火花特效', hint: '' },
+  { key: 'gradientTextMotion', label: '标题流光呼吸动画', hint: '' },
+]
+
+/** 当前开关组合与某预设完全一致时返回该预设 id,否则返回 null(自定义组合,不高亮任何预设)。 */
+function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | null {
+  for (const id of Object.keys(PERFORMANCE_PRESETS) as PerformancePreset[]) {
+    const preset = PERFORMANCE_PRESETS[id]
+    if ((Object.keys(preset) as (keyof PerformanceFlags)[]).every((k) => preset[k] === flags[k])) return id
+  }
+  return null
+}
 
 /** 3D 歌词标签页:效果选择 + 粒子/波纹/性能参数,实时生效并持久化。 */
 function Lyrics3dSettings() {
@@ -193,6 +217,10 @@ export function SettingsPage() {
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const crossSourceFallback = useSettingsStore((s) => s.crossSourceFallback)
   const setCrossSourceFallback = useSettingsStore((s) => s.setCrossSourceFallback)
+  const performance = useSettingsStore((s) => s.performance)
+  const setPerformance = useSettingsStore((s) => s.setPerformance)
+  const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
+  const activePerformancePreset = matchPerformancePreset(performance)
 
   const [audioCache, setAudioCache] = useState<{ bytes: number; files: number } | null>(null)
   const [cacheConfig, setCacheConfig] = useState<AudioCacheConfigInfo | null>(null)
@@ -332,6 +360,39 @@ export function SettingsPage() {
       </section>
 
       <section className={styles.group}>
+        <h2 className={styles.groupTitle}>性能</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>预设</span>
+          <div className={styles.segControl}>
+            {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
+                onClick={() => applyPerformancePreset(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {PERFORMANCE_PRESET_LABELS[id]}
+              </motion.button>
+            ))}
+            {/* 当前开关组合不匹配任何预设时的只读指示态:下面 5 个开关已实时存档,这里仅是展示 */}
+            <span
+              className={`${styles.seg} ${styles.segCustom} ${activePerformancePreset === null ? styles.segActive : ''}`}
+              title="单独调整下面任意开关后,组合不再对应某个预设,但改动会照常保存"
+            >
+              自定义
+            </span>
+          </div>
+        </div>
+        {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
+          <div className={styles.row} key={key}>
+            <span className={styles.rowLabel} title={hint || undefined}>{label}</span>
+            <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+          </div>
+        ))}
+      </section>
+
+      <section className={styles.group}>
         <h2 className={styles.groupTitle}>音乐</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>音源</span>
@@ -367,12 +428,7 @@ export function SettingsPage() {
         </div>
         <div className={styles.row}>
           <span className={styles.rowLabel} title="当前音源放不了(VIP/下架)时,自动去另一音源搜同曲播放">跨音源兜底播放</span>
-          <button
-            className={`${styles.seg} no-drag ${crossSourceFallback ? styles.segActive : ''}`}
-            onClick={() => setCrossSourceFallback(!crossSourceFallback)}
-          >
-            {crossSourceFallback ? '开' : '关'}
-          </button>
+          <Switch checked={crossSourceFallback} onChange={setCrossSourceFallback} aria-label="跨音源兜底播放" />
         </div>
         <div className={styles.row}>
           <span className={styles.rowLabel} title="已播放的整曲会缓存到此文件夹,重复播放不再消耗流量;更改后原文件夹里的缓存会被清空">缓存位置</span>
@@ -425,12 +481,7 @@ export function SettingsPage() {
         <h2 className={styles.groupTitle}>桌面歌词</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>启用桌面歌词</span>
-          <button
-            className={`${styles.seg} no-drag ${desktopLyrics ? styles.segActive : ''}`}
-            onClick={() => updateFx({ desktopLyrics: !desktopLyrics })}
-          >
-            {desktopLyrics ? '开' : '关'}
-          </button>
+          <Switch checked={desktopLyrics} onChange={(v) => updateFx({ desktopLyrics: v })} aria-label="启用桌面歌词" />
         </div>
         <div className={styles.row}>
           <span className={styles.rowLabel}>字体大小</span>

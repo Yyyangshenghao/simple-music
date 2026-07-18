@@ -12,6 +12,11 @@
   to   { background-position: 100% 50%; }
 }
 
+.gradient.static {
+  animation: none;
+  background-position: 0% 50%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gradient {
     animation: none;

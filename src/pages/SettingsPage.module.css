@@ -103,6 +103,11 @@
 .seg:hover { color: var(--sm-text-primary); }
 .seg.segActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
 
+/* 只读指示态(如"自定义"预设标签):不可点,不响应 hover */
+.segCustom { cursor: default; }
+.segCustom:hover { color: var(--sm-text-secondary); }
+.segCustom.segActive:hover { color: var(--sm-text-primary); }
+
 .fontRow {
   display: flex;
   gap: 8px;

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
-import type { FxArchive, Lyrics3dEffect, Lyrics3dParams, PlayMode } from '../types/domain'
+import type { FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
 
@@ -18,6 +18,24 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
   // 默认钳 60:ProMotion 屏不限帧会跑 120fps,GPU 负载翻倍但视觉收益极小
   fpsCap: 60,
   renderScale: 1.25
+}
+
+export const DEFAULT_PERFORMANCE: PerformanceFlags = {
+  bgFluidMotion: true,
+  lyrics3dEnabled: true,
+  cardTiltEffect: true,
+  clickSparkEffect: true,
+  gradientTextMotion: true,
+}
+
+export type PerformancePreset = 'standard' | 'simple' | 'minimal'
+
+/** 设置页「性能」预设:标准=不关任何效果;简单=关掉两项开销最大的(背景流体/3D歌词);
+ *  极简=在简单基础上把其余装饰性交互(卡片跟光/点击火花/流光文字)一并关掉。 */
+export const PERFORMANCE_PRESETS: Record<PerformancePreset, PerformanceFlags> = {
+  standard: { bgFluidMotion: true, lyrics3dEnabled: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true },
+  simple: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true },
+  minimal: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false },
 }
 
 interface PersistedSettings {
@@ -39,6 +57,8 @@ interface PersistedSettings {
   fontFamily: string
   /** 当前音源无法播放时,自动去对侧音源搜同曲兜底播放。 */
   crossSourceFallback: boolean
+  /** 各项性能开关,详见 PerformanceFlags。 */
+  performance: PerformanceFlags
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -67,6 +87,8 @@ interface SettingsStore extends PersistedSettings {
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
   setCrossSourceFallback(v: boolean): void
+  setPerformance(patch: Partial<PerformanceFlags>): void
+  applyPerformancePreset(preset: PerformancePreset): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -94,6 +116,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   playMode: 'order',
   fontFamily: '',
   crossSourceFallback: true,
+  performance: { ...DEFAULT_PERFORMANCE },
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -167,11 +190,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ crossSourceFallback: v })
     get().saveToLocal()
   },
+  setPerformance(patch) {
+    set({ performance: { ...get().performance, ...patch } })
+    get().saveToLocal()
+  },
+  applyPerformancePreset(preset) {
+    set({ performance: { ...PERFORMANCE_PRESETS[preset] } })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -197,6 +228,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
         crossSourceFallback: data.crossSourceFallback ?? true,
+        // 与默认值合并:旧存档没有 performance 字段或新增了开关时取默认,保证升级后字段完整
+        performance: { ...DEFAULT_PERFORMANCE, ...data.performance },
       })
     } catch {
       /* ignore malformed */

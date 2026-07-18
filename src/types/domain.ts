@@ -170,6 +170,20 @@ export interface FxArchive {
 
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
+
+/** 单项性能开关,设置页「性能」预设(标准/简单/极简)本质是这组开关的批量赋值。 */
+export interface PerformanceFlags {
+  /** 氛围背景 LiquidEther 跟手流体效果,关闭后退化为静态渐变。 */
+  bgFluidMotion: boolean
+  /** 歌词页 3D 模式(封面粒子云等)整体可用性,关闭后歌词页只剩纯文字滚动。 */
+  lyrics3dEnabled: boolean
+  /** 卡片跟随鼠标的 3D 倾斜追光(TiltCard)。 */
+  cardTiltEffect: boolean
+  /** 点击火花特效。 */
+  clickSparkEffect: boolean
+  /** 标题流光渐变呼吸动画。 */
+  gradientTextMotion: boolean
+}
 /** 歌词面板 3D 模式下的视觉效果类型 */
 export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
 export type ShelfMode = 'dynamic' | 'static'
