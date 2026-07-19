@@ -130,6 +130,18 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const windowActive = useWindowActive()
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
 
+  // 面板常驻挂载,关闭时仅 translateY(100%) 移出视口——若内容照常渲染,
+  // 激活行 KtvLine 的 rAF 扫光、封面模糊层、数百行歌词节点会在后台空转。
+  // 关闭后等收起过渡(0.42s)结束再卸载内容;打开时渲染期同步挂载,
+  // 保证依赖 scrollRef 容器的定位 effect 在同一次提交后就能拿到 DOM
+  const [contentMounted, setContentMounted] = useState(open)
+  if (open && !contentMounted) setContentMounted(true)
+  useEffect(() => {
+    if (open) return
+    const timer = setTimeout(() => setContentMounted(false), 460)
+    return () => clearTimeout(timer)
+  }, [open])
+
   // 3D 效果下拉菜单:已处于 3D 模式时再点一次 3D 按钮才展开
   const [effectMenuOpen, setEffectMenuOpen] = useState(false)
 
@@ -197,8 +209,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       container.removeEventListener('touchmove', onUserScroll)
       clearResumeTimer()
     }
-    // lines.length 影响滚动容器是否渲染(空歌词是 .empty 占位),变化时需重新挂监听
-  }, [mode, lines.length])
+    // lines.length 影响滚动容器是否渲染(空歌词是 .empty 占位),变化时需重新挂监听;
+    // contentMounted 变化意味着容器刚重建,同样要重挂
+  }, [mode, lines.length, contentMounted])
 
   // 切歌后新歌词就位时立即回到开头,不等第一句激活才跳(那之前 currentIndex 是 -1,上面的 effect 不动)
   useEffect(() => {
@@ -237,8 +250,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 纯 LRC 行数据
   const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
 
+  // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
+  // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
+  const backdropOccluded = contentMounted && ((mode === 'lyrics' && !!track?.cover) || mode === '3d')
+
   return (
-    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}`}>
+    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
@@ -280,8 +297,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
       </div>
 
-      {/* ===== 纯歌词模式 ===== */}
-      {mode === 'lyrics' && (
+      {/* ===== 纯歌词模式 =====(关闭并收起完成后卸载,不在后台空转) */}
+      {mode === 'lyrics' && contentMounted && (
         <>
           {/* 封面模糊背景 */}
           {track?.cover && (
@@ -346,7 +363,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                           words={wordLine.words}
                           lineDurationMs={wordLine.durationMs}
                           lineStartMs={wordLine.time * 1000}
-                          active={isActive}
+                          active={isActive && open}
                           dim={!isActive}
                           past={i < currentIndex}
                           translationText={showTranslation ? translation[i]?.text || undefined : undefined}

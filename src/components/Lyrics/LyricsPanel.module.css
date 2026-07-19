@@ -25,6 +25,18 @@
   pointer-events: auto;
 }
 
+/* 有封面的纯歌词模式/3D 场景时,全屏 modal 级 backdrop-filter 的取样结果
+   几乎被内容遮挡,却仍让 GPU 逐帧模糊整个视口——按需关掉。
+   底色同时改为不透明:blurBg 的 filter 模糊会把边缘一大圈羽化成半透明
+   (约 2-3 倍模糊半径),半透明底色会让底下的页面在这些区域透出残影,
+   这是 v1.6.0 起就有的问题,此前被 backdrop 模糊糊住不易察觉。
+   仅无封面兜底态保留玻璃模糊 */
+.panel.noBackdrop {
+  background: #0a0b12;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* 沉浸模式:隐藏鼠标指针,header 控件淡出(布局占位不变) */
 .panel.immersive {
   cursor: none;
@@ -306,15 +318,23 @@
 
 /* ===== 新增样式 ===== */
 
-/* 封面模糊背景（纯歌词模式） */
+/* 封面模糊背景（纯歌词模式）。
+   小尺寸渲染 + transform 放大:filter 面只有视口 1/16,重模糊在放大后观感等价
+   blur(60px) 全屏——KtvLine 扫光每帧损伤画面时,全屏 filter 面会被迫逐帧
+   重新执行模糊,实测占歌词页 GPU 大头,缩面积是把这份开销砍到 1/16 */
 .blurBg {
   position: absolute;
-  inset: 0;
+  /* 负外扩 5%,放大 4.4 后覆盖 -5%~105%,模糊边缘的透明羽化留在视口外 */
+  top: -5%;
+  left: -5%;
+  width: 25%;
+  height: 25%;
   z-index: 0;
   background-size: cover;
   background-position: center;
-  filter: blur(60px) brightness(0.28) saturate(1.4);
-  transform: scale(1.1);
+  filter: blur(15px) brightness(0.28) saturate(1.4);
+  transform: scale(4.4);
+  transform-origin: 0 0;
   pointer-events: none;
 }
 
@@ -326,10 +346,11 @@
   position: absolute;
   inset: -10%;
   pointer-events: none;
+  /* 不用 filter blur:与 .auroraFallback 同理,渐变加中间停靠点自柔化。
+     全屏 filter 面会随 KtvLine 扫光的逐帧损伤被迫反复重模糊(实测 ~40% 歌词页 GPU) */
   background:
-    radial-gradient(45% 55% at 18% 25%, color-mix(in srgb, var(--ambient-1) 26%, transparent), transparent 70%),
-    radial-gradient(50% 60% at 82% 75%, color-mix(in srgb, var(--ambient-2) 20%, transparent), transparent 70%);
-  filter: blur(60px);
+    radial-gradient(45% 55% at 18% 25%, color-mix(in srgb, var(--ambient-1) 24%, transparent) 0%, color-mix(in srgb, var(--ambient-1) 9%, transparent) 48%, transparent 78%),
+    radial-gradient(50% 60% at 82% 75%, color-mix(in srgb, var(--ambient-2) 18%, transparent) 0%, color-mix(in srgb, var(--ambient-2) 7%, transparent) 48%, transparent 78%);
   animation: stageDrift 30s ease-in-out infinite alternate;
   animation-play-state: paused;
   z-index: 0;

@@ -195,6 +195,9 @@ export interface PerformanceFlags {
   clickSparkEffect: boolean
   /** 标题流光渐变呼吸动画。 */
   gradientTextMotion: boolean
+  /** 播放栏底部随低频能量呼吸的氛围辉光。辉光垫在毛玻璃面板后方,
+   *  每次能量变化都会迫使面板 backdrop-filter 重新取样,是播放期间的持续 GPU 负载。 */
+  audioGlowEffect: boolean
 }
 /** 歌词面板 3D 模式下的视觉效果类型 */
 export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'

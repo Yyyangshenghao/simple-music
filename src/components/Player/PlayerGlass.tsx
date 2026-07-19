@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useAudioEnergy } from '../../hooks/useAudioEnergy'
+import { useSettingsStore } from '../../stores/settings'
 import { GlassPanel } from '../ui/GlassPanel'
 import styles from './PlayerGlass.module.css'
 
@@ -15,12 +16,15 @@ export function PlayerGlass({ children, hidden }: PlayerGlassProps) {
   // --audio-energy 每帧改写:必须直接写在唯一消费它的 glow 元素上。
   // 之前写在 dock 上靠继承传给 glow,整个播放栏子树每帧全量样式重算,
   // Blink 堆垃圾以数十 MB/s 产生且 V8 GC 很少触发,内存随播放无限涨。
+  // 辉光垫在玻璃面板后方,30fps 的能量呼吸会迫使面板 backdrop-filter 持续重取样,
+  // 极简模式(audioGlowEffect=false)整个元素不渲染,归零这份 GPU 常驻负载
+  const glowEnabled = useSettingsStore((s) => s.performance.audioGlowEffect)
   const glowRef = useRef<HTMLDivElement>(null)
-  useAudioEnergy(glowRef)
+  useAudioEnergy(glowRef, glowEnabled)
 
   return (
     <div className={`${styles.dock}${hidden ? ` ${styles.hidden}` : ''}`}>
-      <div className={styles.glow} aria-hidden="true" ref={glowRef} />
+      {glowEnabled && <div className={styles.glow} aria-hidden="true" ref={glowRef} />}
       <GlassPanel className={styles.panel}>{children}</GlassPanel>
     </div>
   )

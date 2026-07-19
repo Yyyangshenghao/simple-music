@@ -4,9 +4,10 @@
   align-items: center;
   padding: 6px 16px;
   transform-origin: center;
+  /* 不加 will-change:歌词行可达数百个,常驻提升为合成层会撑爆层树与显存;
+     切行过渡时由 transition 临时提升即可 */
   transition: opacity 0.55s ease, filter 0.55s ease,
     transform 0.55s cubic-bezier(0.22, 0.9, 0.32, 1.02);
-  will-change: transform, opacity;
 }
 
 .active {

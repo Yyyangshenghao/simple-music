@@ -17,7 +17,7 @@
  * 外层容器需要设置 font-size（active 行建议 26–30px，非 active 行 18–20px）。
  */
 
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { usePlayerStore } from '../../stores/player'
 import { useLyricsStore } from '../../stores/lyrics'
 import styles from './KtvLine.module.css'
@@ -40,17 +40,22 @@ interface KtvLineProps {
   alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
 }
 
-export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
+export const KtvLine = memo(function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!active) return
     const engine = usePlayerStore.getState()._engine()
+    // 扫光是宽羽化带的亮度渐变,60fps 已过采样;ProMotion 屏不限帧会跑 120fps,
+    // 每帧触发整行 char 的样式重算+渐变重绘,纯属浪费
+    const FRAME_MS = 1000 / 60
     let raf = 0
-    const loop = () => {
+    let last = 0
+    const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
       // backgroundThrottling 关闭时窗口隐藏 rAF 照跑,跳过无意义的样式写入
-      if (document.hidden) return
+      if (now - last < FRAME_MS - 1 || document.hidden) return
+      last = now
       // 叠加用户设置的歌词时间偏移,与行索引判定(lyrics store tick)保持同一基准
       const offsetSec = useLyricsStore.getState().offsetSec
       wordsRef.current?.style.setProperty('--elapsed', ((engine.position + offsetSec) * 1000 - lineStartMs).toFixed(1))
@@ -90,4 +95,4 @@ export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past,
       )}
     </div>
   )
-}
+})

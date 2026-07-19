@@ -9,9 +9,9 @@
   opacity: 0.6;
   transform: scale(0.92);
   transform-origin: center;
+  /* 不加 will-change:歌词行数量大,常驻合成层代价远高于切行时的临时提升 */
   transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.16, 0.84, 0.32, 1.02),
     color 0.45s ease, filter 0.45s ease;
-  will-change: transform, opacity, filter;
 }
 
 .main {

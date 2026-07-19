@@ -26,6 +26,7 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   cardTiltEffect: true,
   clickSparkEffect: true,
   gradientTextMotion: true,
+  audioGlowEffect: true,
 }
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
@@ -33,9 +34,9 @@ export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 /** 设置页「性能」预设:标准=不关任何效果;简单=关掉两项开销最大的(背景流体/3D歌词);
  *  极简=在简单基础上把其余装饰性交互(卡片跟光/点击火花/流光文字)一并关掉。 */
 export const PERFORMANCE_PRESETS: Record<PerformancePreset, PerformanceFlags> = {
-  standard: { bgFluidMotion: true, lyrics3dEnabled: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true },
-  simple: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true },
-  minimal: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false },
+  standard: { bgFluidMotion: true, lyrics3dEnabled: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  simple: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  minimal: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
 
 interface PersistedSettings {
@@ -255,8 +256,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
         crossSourceFallback: data.crossSourceFallback ?? true,
-        // 与默认值合并:旧存档没有 performance 字段或新增了开关时取默认,保证升级后字段完整
-        performance: { ...DEFAULT_PERFORMANCE, ...data.performance },
+        // 与默认值合并:旧存档没有 performance 字段或新增了开关时取默认,保证升级后字段完整。
+        // audioGlowEffect 是后加的开关:旧存档没有它时跟随 gradientTextMotion 推断——
+        // 关掉了流光呼吸(极简/自定义省电组合)的用户,默认也不要音频辉光
+        performance: (() => {
+          // 旧存档字段可能不全,按 Partial 处理
+          const stored = data.performance as Partial<PerformanceFlags> | undefined
+          return {
+            ...DEFAULT_PERFORMANCE,
+            ...(stored && stored.audioGlowEffect === undefined
+              ? { audioGlowEffect: stored.gradientTextMotion ?? true }
+              : null),
+            ...stored,
+          }
+        })(),
       })
     } catch {
       /* ignore malformed */

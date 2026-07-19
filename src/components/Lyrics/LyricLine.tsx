@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import styles from './LyricLine.module.css'
 
 interface LyricLineProps {
@@ -14,7 +15,7 @@ interface LyricLineProps {
 }
 
 /** 单行舞台歌词：active 行高亮放大发光，非 active 半透明。 */
-export function LyricLine({ text, translation, roma, active, alignLeft, overlay }: LyricLineProps) {
+export const LyricLine = memo(function LyricLine({ text, translation, roma, active, alignLeft, overlay }: LyricLineProps) {
   return (
     <div
       className={`${styles.line}${active ? ` ${styles.active}` : ''}${alignLeft ? ` ${styles.alignLeft}` : ''}${overlay ? ` ${styles.overlay}` : ''}`}
@@ -26,4 +27,4 @@ export function LyricLine({ text, translation, roma, active, alignLeft, overlay 
       {translation ? <span className={styles.translation}>{translation}</span> : null}
     </div>
   )
-}
+})

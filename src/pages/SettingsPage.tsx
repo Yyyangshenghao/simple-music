@@ -75,6 +75,7 @@ const PERFORMANCE_FLAG_LABELS: { key: keyof PerformanceFlags; label: string; hin
   { key: 'cardTiltEffect', label: '卡片跟光 3D 倾斜', hint: '歌单/推荐卡片跟随鼠标倾斜追光' },
   { key: 'clickSparkEffect', label: '点击火花特效', hint: '' },
   { key: 'gradientTextMotion', label: '标题流光呼吸动画', hint: '' },
+  { key: 'audioGlowEffect', label: '播放栏音频辉光', hint: '播放时随低频呼吸的底部辉光,关闭可降低持续 GPU 占用' },
 ]
 
 /** 当前开关组合与某预设完全一致时返回该预设 id,否则返回 null(自定义组合,不高亮任何预设)。 */
