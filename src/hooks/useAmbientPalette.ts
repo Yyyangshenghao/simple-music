@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { usePlayerStore } from '../stores/player'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
 import { api } from '../lib/api'
-import { extractPalette, DEFAULT_PALETTE } from '../lib/extract-color'
+import { extractPalette, extractLuma, DEFAULT_PALETTE } from '../lib/extract-color'
 
 function setAmbientVars(colors: string[]): void {
   const root = document.documentElement
@@ -65,6 +65,7 @@ export function useAmbientPalette(): void {
   useEffect(() => {
     if (!cover) {
       applyPalette([...DEFAULT_PALETTE])
+      useAmbientStore.getState().setCoverLuma(0)
       return
     }
     let cancelled = false
@@ -72,10 +73,14 @@ export function useAmbientPalette(): void {
     img.crossOrigin = 'anonymous'
     img.src = api.url('/proxy/cover', { url: cover })
     img.onload = () => {
-      if (!cancelled) applyPalette(extractPalette(img))
+      if (cancelled) return
+      applyPalette(extractPalette(img))
+      useAmbientStore.getState().setCoverLuma(extractLuma(img))
     }
     img.onerror = () => {
-      if (!cancelled) applyPalette([...DEFAULT_PALETTE])
+      if (cancelled) return
+      applyPalette([...DEFAULT_PALETTE])
+      useAmbientStore.getState().setCoverLuma(0)
     }
     // 切歌竞态：只认最新封面的结果
     return () => {

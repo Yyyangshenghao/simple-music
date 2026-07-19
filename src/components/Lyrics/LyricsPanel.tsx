@@ -7,6 +7,7 @@ import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
+import { useAmbientStore } from '../../stores/ambient'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -129,6 +130,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 窗口失活(最小化/切走/失焦)时完全停掉 3D 渲染循环,与背景流体的暂停策略一致
   const windowActive = useWindowActive()
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
+  // 浅色封面判定:仅 cover-cloud 会把封面铺满背景,其他 3D 效果底色恒深,保持白字。
+  // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
+  const coverLuma = useAmbientStore((s) => s.coverLuma)
+  const lightCover = lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65
 
   // 面板常驻挂载,关闭时仅 translateY(100%) 移出视口——若内容照常渲染,
   // 激活行 KtvLine 的 rAF 扫光、封面模糊层、数百行歌词节点会在后台空转。
@@ -524,7 +529,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           />
 
           {/* 歌词叠加层：居中大字 + 玻璃卡片；卡片模糊/背景强度可在设置里调节，最低即完全透明 */}
-          <div className={styles.lyricsOverlay}>
+          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={currentIndex}

@@ -658,6 +658,30 @@
   color: rgba(255, 255, 255, 0.2);
 }
 
+/* 浅色封面(平均亮度高)时:cover-cloud 粒子墙整体偏白,白字看不清,
+   叠加层文字整体翻转为深色;变量默认值(白色系)定义在 KtvLine/LyricLine 各自的 module 里 */
+.lyricsOverlay.lightCover {
+  --lyric-fill-hi: rgba(12, 14, 20, 0.96);
+  --lyric-fill-lo: rgba(12, 14, 20, 0.34);
+  --lyric-roma: rgba(12, 14, 20, 0.52);
+  --lyric-trans: rgba(12, 14, 20, 0.62);
+  --lyric-active-color: #0a0c12;
+  --lyric-active-fill: linear-gradient(180deg, rgba(34, 38, 48, 1) 0%, rgba(8, 10, 16, 1) 100%);
+  --lyric-active-glow: 0 0 16px rgba(255, 255, 255, 0.55), 0 0 42px rgba(255, 255, 255, 0.3);
+  --lyric-active-drop: drop-shadow(0 4px 22px rgba(255, 255, 255, 0.35));
+  --lyric-trans-active: rgba(16, 20, 28, 0.9);
+}
+
+.lyricsOverlay.lightCover .overlayCurrentLine {
+  color: rgba(10, 12, 18, 0.96);
+  background: rgba(250, 251, 254, var(--overlay-bg));
+  text-shadow: 0 2px 20px rgba(255, 255, 255, 0.6);
+}
+
+.lyricsOverlay.lightCover .overlayPlaceholder {
+  color: rgba(10, 12, 18, 0.32);
+}
+
 /* 窄窗口兜底:回退为上下布局,封面缩小 */
 @media (max-width: 900px) {
   .splitLayout {

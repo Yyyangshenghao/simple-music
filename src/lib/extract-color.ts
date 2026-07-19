@@ -15,6 +15,32 @@ export function extractColor(img: HTMLImageElement): string {
   }
 }
 
+/** RGBA 像素数组的平均相对亮度(0-1),Rec.709 加权。 */
+export function lumaFromPixels(data: Uint8ClampedArray | number[]): number {
+  let sum = 0
+  const px = data.length / 4
+  if (px === 0) return 0
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]
+  }
+  return sum / px / 255
+}
+
+/** 从已加载的图片提取平均亮度(16×16 采样),用于判断浅色封面;异常回退 0(按深色处理)。 */
+export function extractLuma(img: HTMLImageElement): number {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = 16
+    canvas.height = 16
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return 0
+    ctx.drawImage(img, 0, 0, 16, 16)
+    return lumaFromPixels(ctx.getImageData(0, 0, 16, 16).data)
+  } catch {
+    return 0
+  }
+}
+
 /** 默认霞光调色板（无封面/提取失败时使用），与 LiquidEther 初始色一致。 */
 export const DEFAULT_PALETTE: [string, string, string] = ['#5227ff', '#ff9ffc', '#b497cf']
 

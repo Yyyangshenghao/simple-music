@@ -12,7 +12,7 @@
 
 .active {
   transform: scale(1.06);
-  text-shadow: 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent);
+  text-shadow: var(--lyric-active-glow, 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent));
 }
 
 .dim {
@@ -39,11 +39,12 @@
   /* 点亮进度：行容器每帧更新 --elapsed（行内已播毫秒），
      每个字按自身时间窗 [--ws, --ws + --wd] 计算 0–1 进度 */
   --p: clamp(0, (var(--elapsed, 0) - var(--ws, 0)) / var(--wd, 1), 1);
-  /* 亮/暗两段之间留 24% 羽化带：扫过时是柔和的亮度过渡而不是硬边 */
+  /* 亮/暗两段之间留 24% 羽化带：扫过时是柔和的亮度过渡而不是硬边;
+     颜色经变量暴露,浅色封面的 3D 叠加层会覆盖为深色(见 LyricsPanel .lightCover) */
   background: linear-gradient(
     to right,
-    rgba(255, 255, 255, 1) calc((var(--p) * 124 - 24) * 1%),
-    rgba(255, 255, 255, 0.35) calc(var(--p) * 124 * 1%)
+    var(--lyric-fill-hi, rgba(255, 255, 255, 1)) calc((var(--p) * 124 - 24) * 1%),
+    var(--lyric-fill-lo, rgba(255, 255, 255, 0.35)) calc(var(--p) * 124 * 1%)
   );
   -webkit-background-clip: text;
   background-clip: text;
@@ -79,7 +80,7 @@
 .roma {
   font-size: calc(clamp(12px, 1.3vw, 16px) * var(--lyrics-font-scale, 1));
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--lyric-roma, rgba(255, 255, 255, 0.38));
   margin-top: 2px;
   text-align: center;
   letter-spacing: 0.4px;
@@ -94,7 +95,7 @@
 .translation {
   font-size: calc(clamp(13px, 1.5vw, 18px) * var(--lyrics-font-scale, 1));
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--lyric-trans, rgba(255, 255, 255, 0.45));
   margin-top: 4px;
   text-align: center;
   letter-spacing: 0.3px;

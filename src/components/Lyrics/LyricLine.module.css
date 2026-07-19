@@ -39,29 +39,36 @@
   opacity: 0.6;
 }
 
+/* 高亮态颜色经变量暴露,浅色封面的 3D 叠加层会覆盖为深色(见 LyricsPanel .lightCover) */
 .active {
   opacity: 1;
   transform: scale(1.06);
-  color: #fff;
-  filter: drop-shadow(0 4px 22px rgba(143, 233, 255, 0.3));
+  color: var(--lyric-active-color, #fff);
+  filter: var(--lyric-active-drop, drop-shadow(0 4px 22px rgba(143, 233, 255, 0.3)));
 }
 
 .active .main {
-  background: linear-gradient(
-    180deg,
-    rgba(246, 253, 255, 1) 0%,
-    rgba(168, 246, 255, 1) 55%,
-    rgba(126, 205, 255, 1) 100%
+  background: var(
+    --lyric-active-fill,
+    linear-gradient(
+      180deg,
+      rgba(246, 253, 255, 1) 0%,
+      rgba(168, 246, 255, 1) 55%,
+      rgba(126, 205, 255, 1) 100%
+    )
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 14px rgba(168, 246, 255, 0.38), 0 0 36px rgba(143, 233, 255, 0.3),
-    0 0 80px rgba(115, 167, 255, 0.16), 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent);
+  text-shadow: var(
+    --lyric-active-glow,
+    0 0 14px rgba(168, 246, 255, 0.38), 0 0 36px rgba(143, 233, 255, 0.3),
+    0 0 80px rgba(115, 167, 255, 0.16), 0 0 24px color-mix(in srgb, var(--ambient-2) 55%, transparent)
+  );
 }
 
 .active .translation {
-  color: rgba(214, 240, 255, 0.92);
+  color: var(--lyric-trans-active, rgba(214, 240, 255, 0.92));
   opacity: 1;
 }
 
