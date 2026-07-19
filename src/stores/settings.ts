@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import type { HotkeyBinding } from '../types/ipc'
-import type { FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
+import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
 
@@ -49,9 +49,15 @@ interface PersistedSettings {
   lyricsOverlayBlur: number
   /** 3D 歌词场景可调参数(粒子/波纹/帧率等)。 */
   lyrics3d: Lyrics3dParams
+  /** 纯歌词模式字号缩放倍率,1 为默认,范围 0.7–1.5。 */
+  lyricsFontScale: number
+  /** 纯歌词模式是否显示翻译行(有翻译数据时)。 */
+  lyricsShowTranslation: boolean
+  /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
+  lyricsShowRoma: boolean
   activeSource: 'netease' | 'qq'
   themeMode: 'auto' | 'light' | 'dark'
-  audioQuality: 'standard' | 'higher' | 'exhigh' | 'lossless'
+  audioQuality: AudioQuality
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
   fontFamily: string
@@ -81,9 +87,12 @@ interface SettingsStore extends PersistedSettings {
   setLyricsOverlayBlur(v: number): void
   setLyrics3dParams(patch: Partial<Lyrics3dParams>): void
   resetLyrics3dParams(): void
+  setLyricsFontScale(v: number): void
+  setLyricsShowTranslation(v: boolean): void
+  setLyricsShowRoma(v: boolean): void
   setActiveSource(s: 'netease' | 'qq'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
-  setAudioQuality(q: 'standard' | 'higher' | 'exhigh' | 'lossless'): void
+  setAudioQuality(q: AudioQuality): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
   setCrossSourceFallback(v: boolean): void
@@ -110,9 +119,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyrics3dEffect: 'cover-cloud',
   lyricsOverlayBlur: 0.4,
   lyrics3d: { ...DEFAULT_LYRICS_3D },
+  lyricsFontScale: 1,
+  lyricsShowTranslation: true,
+  lyricsShowRoma: true,
   activeSource: 'netease',
   themeMode: 'auto',
-  audioQuality: 'lossless',
+  audioQuality: 'max',
   playMode: 'order',
   fontFamily: '',
   crossSourceFallback: true,
@@ -166,6 +178,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyrics3d: { ...DEFAULT_LYRICS_3D } })
     get().saveToLocal()
   },
+  setLyricsFontScale(v) {
+    set({ lyricsFontScale: Math.max(0.7, Math.min(1.5, v)) })
+    get().saveToLocal()
+  },
+  setLyricsShowTranslation(v) {
+    set({ lyricsShowTranslation: v })
+    get().saveToLocal()
+  },
+  setLyricsShowRoma(v) {
+    set({ lyricsShowRoma: v })
+    get().saveToLocal()
+  },
   setActiveSource(s) {
     set({ activeSource: s })
     get().saveToLocal()
@@ -201,8 +225,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -222,9 +246,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
         // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
         lyrics3d: { ...DEFAULT_LYRICS_3D, ...data.lyrics3d },
+        lyricsFontScale: data.lyricsFontScale ?? 1,
+        lyricsShowTranslation: data.lyricsShowTranslation ?? true,
+        lyricsShowRoma: data.lyricsShowRoma ?? true,
         activeSource: data.activeSource ?? 'netease',
         themeMode: data.themeMode ?? 'auto',
-        audioQuality: data.audioQuality ?? 'lossless',
+        audioQuality: data.audioQuality ?? 'max',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
         crossSourceFallback: data.crossSourceFallback ?? true,

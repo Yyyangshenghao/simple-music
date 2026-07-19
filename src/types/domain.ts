@@ -2,7 +2,19 @@
 // FxParams/FxSnapshot 对齐 public/default-user-fx-archive.json 以保证存档互通。
 
 export type MusicSource = 'netease' | 'qq' | 'local'
-export type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
+// max = 不锁档位,服务端按每首歌实际可得的最高档(母带/Hi-Res/无损…)逐级回退;
+// jymaster/sky/jyeffect/hires 为网易专属档,aac 为 QQ 专属兜底档,经音质弹层按单曲真实可得档选中
+export type AudioQuality =
+  | 'standard'
+  | 'higher'
+  | 'exhigh'
+  | 'lossless'
+  | 'hires'
+  | 'jyeffect'
+  | 'sky'
+  | 'jymaster'
+  | 'aac'
+  | 'max'
 
 export interface Artist {
   id: unknown

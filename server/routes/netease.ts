@@ -33,6 +33,7 @@ import {
   handleSearch,
   handleArtistSearch,
   handleSongUrl,
+  handleSongQualities,
   handleDiscoverHome,
   mapSongRecord,
   mapArtists,
@@ -343,6 +344,20 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[SongUrl]', err)
       sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- 歌曲可用音质档 ----------
+  if (pn === '/api/song/qualities') {
+    try {
+      const sid = url.searchParams.get('id') || ''
+      const loginInfo = await getLoginInfo(ctx)
+      const info = await handleSongQualities(sid, loginInfo, getCookie(ctx, 'netease'))
+      sendJson(res, info)
+    } catch (err) {
+      console.error('[SongQualities]', err)
+      sendJson(res, { error: (err as Error).message, qualities: [] }, 500)
     }
     return true
   }

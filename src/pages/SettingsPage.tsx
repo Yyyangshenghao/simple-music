@@ -11,7 +11,7 @@ import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
-type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless'
+type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
 type SettingsTab = 'general' | 'lyrics3d'
 
 /** 字节数格式化为可读体积(MB/GB)。 */
@@ -414,15 +414,16 @@ export function SettingsPage() {
         <div className={styles.row}>
           <span className={styles.rowLabel}>音质偏好</span>
           <div className={styles.segControl}>
-            {(['standard', 'higher', 'exhigh', 'lossless'] as AudioQuality[]).map((q) => (
+            {(['standard', 'higher', 'exhigh', 'lossless', 'max'] as AudioQuality[]).map((q) => (
               <motion.button
                 key={q}
                 className={`${styles.seg} no-drag ${audioQuality === q ? styles.segActive : ''}`}
                 onClick={() => setAudioQuality(q)}
                 whileTap={tapScale}
                 transition={springSnappy}
+                title={q === 'max' ? '按每首歌实际可得的最高音质播放(母带/Hi-Res/无损…逐级回退)' : undefined}
               >
-                {{ standard: '标准', higher: '高品质', exhigh: '极高', lossless: '无损' }[q]}
+                {{ standard: '标准', higher: '高品质', exhigh: '极高', lossless: '无损', max: '最高' }[q]}
               </motion.button>
             ))}
           </div>

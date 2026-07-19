@@ -357,6 +357,9 @@ interface QualityCandidate {
 }
 const NETEASE_QUALITY_CANDIDATES: QualityCandidate[] = [
   { level: 'jymaster', br: 1999000, label: '超清母带', svip: true },
+  // sky/jyeffect 是音效变体档(码率高于 hires):无母带的歌请求 jymaster 时上游常降级返回 jyeffect
+  { level: 'sky', br: 1999000, label: '沉浸环绕声', svip: true },
+  { level: 'jyeffect', br: 1999000, label: '鲸云音效' },
   { level: 'hires', br: 1999000, label: '高清臻音' },
   { level: 'lossless', br: 1411000, label: '无损' },
   { level: 'exhigh', br: 999000, label: '极高' },
@@ -365,12 +368,17 @@ const NETEASE_QUALITY_CANDIDATES: QualityCandidate[] = [
 ]
 export function normalizeQualityPreference(value: unknown): string {
   const raw = String(value || '').toLowerCase().trim()
+  // max = 逐首歌取实际可得的最高档;candidates 里无此 level,findIndex 落空后从头(母带)开始整链回退
+  if (['max', 'best', 'highest', 'auto'].includes(raw)) return 'max'
   if (['jymaster', 'master', 'studio', 'svip'].includes(raw)) return 'jymaster'
+  if (['sky', 'surround'].includes(raw)) return 'sky'
+  if (['jyeffect', 'effect'].includes(raw)) return 'jyeffect'
   if (['hires', 'hi-res', 'highres', 'zhenyin', 'spatial'].includes(raw)) return 'hires'
   if (['lossless', 'flac', 'sq'].includes(raw)) return 'lossless'
   if (['exhigh', 'high', '320', '320k', 'hq'].includes(raw)) return 'exhigh'
   if (['higher', 'medium', '192', '192k'].includes(raw)) return 'higher'
-  if (['standard', 'normal', '128', '128k', 'std'].includes(raw)) return 'standard'
+  // aac 是 QQ 侧的兜底档,网易无对应 level,跨音源沿用偏好时归入标准
+  if (['standard', 'normal', '128', '128k', 'std', 'aac'].includes(raw)) return 'standard'
   return 'hires'
 }
 function qualityCandidatesFrom(target: string, candidates: QualityCandidate[]): QualityCandidate[] {
@@ -662,14 +670,17 @@ export async function handleSongUrl(
       if (Object.keys(d).length) lastData = d
       const url = d.url
       const freeTrial = d.freeTrialInfo
-      console.log('[SongUrl]', q.level, '->', url ? 'OK' : 'no url', freeTrial ? '(TRIAL)' : '')
+      // 上游对不存在的档位会降级返回,按响应里的真实 level 打标签,避免"请求母带实得音效/臻音"却标成母带
+      const actualLevel = asStr(d.level) || q.level
+      const actualMeta = NETEASE_QUALITY_CANDIDATES.find((c) => c.level === actualLevel)
+      console.log('[SongUrl]', q.level, '->', url ? `OK (${actualLevel})` : 'no url', freeTrial ? '(TRIAL)' : '')
       if (url && !freeTrial) {
         return {
           url: asStr(url),
           trial: false,
           playable: true,
-          level: q.level,
-          quality: q.label,
+          level: actualLevel,
+          quality: actualMeta?.label ?? q.label,
           br: d.br,
           requestedQuality,
         }
@@ -679,8 +690,8 @@ export async function handleSongUrl(
           url: asStr(url),
           trial: true,
           playable: true,
-          level: q.level,
-          quality: q.label,
+          level: actualLevel,
+          quality: actualMeta?.label ?? q.label,
           br: d.br,
           requestedQuality,
           trialInfo: freeTrial,
@@ -706,6 +717,53 @@ export async function handleSongUrl(
     error: lastError ? lastError.message : undefined,
     requestedQuality,
   }
+}
+
+export interface SongQualityOption {
+  level: string
+  label: string
+  br: number
+}
+
+/**
+ * 探测单曲实际可得的音质档:从最高候选档起顺序走阶——上游对不存在的档位会降级返回,
+ * "请求档 ≠ 返回档"即请求档不存在,且返回档就是其下一个真实档,可直接跳到再下一档继续。
+ * 必须顺序发请求:上游对同曲并发取链会去重/降级,并行探测会漏掉母带档(实测)。
+ * 试听片段不算可得。
+ */
+export async function handleSongQualities(
+  id: string,
+  loginInfo: LoginInfo,
+  cookie: string
+): Promise<{ qualities: SongQualityOption[] }> {
+  const svipReady = hasNeteaseSvip(loginInfo)
+  const candidates = NETEASE_QUALITY_CANDIDATES.filter((q) => !q.svip || svipReady)
+  const qualities: SongQualityOption[] = []
+  let i = 0
+  while (i < candidates.length) {
+    const q = candidates[i]
+    try {
+      const result = await call('song_url_v1', { id, level: q.level, cookie })
+      const d = asObj(asArr(asObj(result.body).data)[0])
+      if (d.url && !d.freeTrialInfo) {
+        const actual = String(d.level || q.level)
+        const idx = candidates.findIndex((c) => c.level === actual)
+        if (idx >= 0) {
+          if (!qualities.some((item) => item.level === actual)) {
+            qualities.push({ level: actual, label: candidates[idx].label, br: Number(d.br) || 0 })
+          }
+          // 防上游返回高于请求档导致回跳死循环:游标只前进
+          i = Math.max(i + 1, idx + 1)
+          continue
+        }
+        // 未知档(如 dolby 等设备鉴权变体)不列入选单,继续探测下一档
+      }
+    } catch {
+      /* 单档探测失败按不可得处理,继续走下一档 */
+    }
+    i += 1
+  }
+  return { qualities }
 }
 
 export interface MappedArtistDetail {

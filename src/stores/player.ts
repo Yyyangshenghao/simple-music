@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
-import { getPreloadedUrl, resolveSongUrl, trackCacheKey } from '../lib/track-preload'
+import { getPreloadedUrl, getPreloadedQuality, resolveSongUrl, trackCacheKey } from '../lib/track-preload'
 import { findFallbackTrack } from '../lib/track-fallback'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { useSettingsStore } from './settings'
@@ -16,6 +16,8 @@ interface PlayerStore {
   duration: number
   volume: number
   quality: AudioQuality
+  /** 实际出声的档位标签(服务端返回,如"超清母带");直链/未知时为 null。 */
+  currentQuality: string | null
   source: MusicSource
   /** 跨音源兜底生效时,实际出声的音源(与 currentTrack.source 不同);正常播放为 null。 */
   fallbackSource: MusicSource | null
@@ -78,6 +80,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     duration: 0,
     volume: 0.8,
     quality: useSettingsStore.getState().audioQuality,
+    currentQuality: null,
     source: 'netease',
     fallbackSource: null,
     rate: 1,
@@ -122,9 +125,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
-      set({ currentTrack: track, source: track.source, fallbackSource: null, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000 })
+      set({ currentTrack: track, source: track.source, fallbackSource: null, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000, currentQuality: null })
       // 优先级:曲目自带直链 → 预加载缓存(相邻曲目已提前解析) → 现场解析
       let url = track.url ?? getPreloadedUrl(track, get().quality)
+      let qualityLabel: string | null = track.url ? null : (getPreloadedQuality(track, get().quality) ?? null)
       // 磁盘缓存 key 跟着"实际出声的曲目"走(兜底时是对侧曲目);自带直链的音质未知,不缓存
       let cacheTrack: Track | null = track.url ? null : track
       let unplayableMessage = FALLBACK_UNPLAYABLE_MESSAGE
@@ -133,6 +137,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           const res = await resolveSongUrl(track, get().quality)
           if (session !== loadSession) return
           url = res.url
+          qualityLabel = res.quality ?? null
           if (!url) unplayableMessage = res.restriction?.message || res.message || FALLBACK_UNPLAYABLE_MESSAGE
         } catch {
           if (session !== loadSession) return
@@ -148,6 +153,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
             if (session !== loadSession) return
             if (res.url) {
               url = res.url
+              qualityLabel = res.quality ?? null
               cacheTrack = fallback
               set({ fallbackSource: fallback.source })
               useToastStore.getState().show(`已从${SOURCE_BRAND[fallback.source].label}换源播放`)
@@ -162,6 +168,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         useToastStore.getState().show(unplayableMessage)
         return
       }
+      set({ currentQuality: qualityLabel })
       eng.load(url, startAt, cacheTrack ? trackCacheKey(cacheTrack, get().quality) : undefined)
       eng.setVolume(get().volume)
       void eng.play()
@@ -171,9 +178,15 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   }
 })
 
-// settings.audioQuality 变化时（含启动后 loadFromLocal 回填）同步到播放器
+// settings.audioQuality 变化时（含启动后 loadFromLocal 回填）同步到播放器;
+// 若此刻有流媒体曲目正在出声,以新档位就地重载替换当前流(保住进度)。
+// 仅限 playing/loading:idle(含启动回填时的恢复态)与 paused 不能被动开播。
 useSettingsStore.subscribe((s) => {
   if (s.audioQuality !== usePlayerStore.getState().quality) {
     usePlayerStore.setState({ quality: s.audioQuality })
+    const st = usePlayerStore.getState()
+    if (st.currentTrack && !st.currentTrack.url && (st.status === 'playing' || st.status === 'loading')) {
+      void st.loadTrack(st.currentTrack, { startAt: st.position })
+    }
   }
 })

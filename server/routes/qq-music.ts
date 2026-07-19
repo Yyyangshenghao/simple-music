@@ -4,6 +4,7 @@ import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import {
   handleQQSearch,
   handleQQSongUrl,
+  handleQQSongQualities,
   handleQQLyric,
   getQQLoginInfo,
   handleQQUserPlaylists,
@@ -87,6 +88,19 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQSongUrl]', err)
       sendJson(res, { provider: 'qq', url: '', playable: false, error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/song/qualities') {
+    try {
+      const mid = url.searchParams.get('mid') || url.searchParams.get('id') || ''
+      const mediaMid = url.searchParams.get('mediaMid') || url.searchParams.get('media_mid') || ''
+      const info = await handleQQSongQualities(getCookie(ctx, 'qq'), mid, mediaMid)
+      sendJson(res, info)
+    } catch (err) {
+      console.error('[QQSongQualities]', err)
+      sendJson(res, { qualities: [], error: (err as Error).message }, 500)
     }
     return true
   }

@@ -393,12 +393,15 @@ function classifyQQPlaybackRestriction(
 
 function normalizeQualityPreference(value: unknown): string {
   const raw = String(value || '').toLowerCase().trim()
+  // max = 逐首歌取实际可得的最高档;candidates 里无此 level,findIndex 落空后从头(Hi-Res)开始整链回退
+  if (['max', 'best', 'highest', 'auto'].includes(raw)) return 'max'
   if (['jymaster', 'master', 'studio', 'svip'].includes(raw)) return 'jymaster'
   if (['hires', 'hi-res', 'highres', 'zhenyin', 'spatial'].includes(raw)) return 'hires'
   if (['lossless', 'flac', 'sq'].includes(raw)) return 'lossless'
   // QQ 无 192k 档，较高归入 320k
   if (['exhigh', 'high', 'higher', 'medium', '192', '192k', '320', '320k', 'hq'].includes(raw)) return 'exhigh'
   if (['standard', 'normal', '128', '128k', 'std'].includes(raw)) return 'standard'
+  if (['aac', 'm4a', 'c400'].includes(raw)) return 'aac'
   return 'hires'
 }
 
@@ -1414,6 +1417,66 @@ export async function handleQQSongUrl(
     tried: fileCandidates.map((item) => item.label + ' · ' + item.filename),
     requestedQuality,
   }
+}
+
+/**
+ * 探测单曲实际可得的音质档:一次 vkey 请求带上全部候选 filename,
+ * 有 purl 的档即真实存在(游客/无 VIP 时上游只对可播档发 purl)。
+ */
+export async function handleQQSongQualities(
+  cookie: string,
+  mid: string,
+  mediaMid: string
+): Promise<{ qualities: { level: string; label: string }[] }> {
+  const songmid = String(mid || '').trim()
+  if (!songmid) return { qualities: [] }
+  const guid = String(10000000 + Math.floor(Math.random() * 90000000))
+  const cookieObj = parseCookieString(cookie)
+  const uin = qqCookieUin(cookieObj) || '0'
+  const musicKey = qqCookieMusicKey(cookieObj)
+  const fileMediaMid = String(mediaMid || '').trim()
+  const mediaIds: string[] = []
+  if (fileMediaMid) mediaIds.push(fileMediaMid)
+  if (!mediaIds.includes(songmid)) mediaIds.push(songmid)
+  const fileCandidates = mediaIds.flatMap((mediaId) =>
+    QQ_QUALITY_CANDIDATE_TEMPLATES.map((item) => ({ ...item, filename: item.prefix + mediaId + item.ext }))
+  )
+  const filenames = fileCandidates.map((item) => item.filename)
+  const param = {
+    guid,
+    songmid: filenames.map(() => songmid),
+    songtype: filenames.map(() => 0),
+    uin,
+    loginflag: 1,
+    platform: '20',
+    filename: filenames,
+  }
+  const comm: { uin: string; format: string; ct: number; cv: number; authst?: string } = {
+    uin,
+    format: 'json',
+    ct: musicKey ? 19 : 24,
+    cv: 0,
+  }
+  if (musicKey) comm.authst = musicKey
+  const json = rec(
+    await qqMusicRequest(
+      cookie,
+      { comm, req_0: { module: 'vkey.GetVkeyServer', method: 'CgiGetVkey', param } },
+      { cookie: true }
+    )
+  )
+  const infos = arr(rec(rec(json.req_0).data).midurlinfo)
+  const okFiles = new Set(
+    infos.filter((item) => rec(item).purl).map((item) => str(rec(item).filename))
+  )
+  const seen = new Set<string>()
+  const qualities: { level: string; label: string }[] = []
+  for (const c of fileCandidates) {
+    if (!okFiles.has(c.filename) || seen.has(c.level)) continue
+    seen.add(c.level)
+    qualities.push({ level: c.level, label: c.label })
+  }
+  return { qualities }
 }
 
 export async function handleQQSongComments(

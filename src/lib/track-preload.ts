@@ -11,6 +11,8 @@ import type { AudioQuality, Track } from '../types/domain'
 
 export interface SongUrlResponse {
   url?: string
+  /** 实际取到的档位标签(如"超清母带"/"无损"),用于播放条展示。 */
+  quality?: string
   restriction?: { message: string }
   message?: string
 }
@@ -30,6 +32,7 @@ const URL_TTL_MS = 5 * 60 * 1000
 
 interface CachedUrl {
   url: string
+  quality?: string
   expiresAt: number
 }
 
@@ -47,12 +50,7 @@ export function trackCacheKey(track: Track, quality: AudioQuality): string {
   return trackKey(track, quality)
 }
 
-/** 取预解析好的播放 URL;过期或未命中返回 undefined(调用方走正常解析)。 */
-export function getPreloadedUrl(
-  track: Track,
-  quality: AudioQuality,
-  now = Date.now()
-): string | undefined {
+function getFreshHit(track: Track, quality: AudioQuality, now: number): CachedUrl | undefined {
   const key = trackKey(track, quality)
   const hit = urlCache.get(key)
   if (!hit) return undefined
@@ -60,7 +58,25 @@ export function getPreloadedUrl(
     urlCache.delete(key)
     return undefined
   }
-  return hit.url
+  return hit
+}
+
+/** 取预解析好的播放 URL;过期或未命中返回 undefined(调用方走正常解析)。 */
+export function getPreloadedUrl(
+  track: Track,
+  quality: AudioQuality,
+  now = Date.now()
+): string | undefined {
+  return getFreshHit(track, quality, now)?.url
+}
+
+/** 取预解析结果的实际档位标签(与 getPreloadedUrl 同一条缓存)。 */
+export function getPreloadedQuality(
+  track: Track,
+  quality: AudioQuality,
+  now = Date.now()
+): string | undefined {
+  return getFreshHit(track, quality, now)?.quality
 }
 
 /** 预加载给定曲目(通常是前/后曲目)的播放 URL 与封面;失败静默,播放时会重试并提示。 */
@@ -98,7 +114,7 @@ export function preloadTracks(
     void resolveSongUrl(track, quality)
       .then((res) => {
         if (res.url && latestKeep.has(key)) {
-          urlCache.set(key, { url: res.url, expiresAt: Date.now() + URL_TTL_MS })
+          urlCache.set(key, { url: res.url, quality: res.quality, expiresAt: Date.now() + URL_TTL_MS })
         }
       })
       .catch(() => {
