@@ -74,9 +74,24 @@
   text-align: left;
 }
 
+/* 罗马音注音行:比翻译更轻,紧贴主歌词 */
+.roma {
+  font-size: calc(clamp(12px, 1.3vw, 16px) * var(--lyrics-font-scale, 1));
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.38);
+  margin-top: 2px;
+  text-align: center;
+  letter-spacing: 0.4px;
+  text-shadow: none;
+}
+
+.alignLeft .roma {
+  text-align: left;
+}
+
 /* 翻译行 */
 .translation {
-  font-size: clamp(13px, 1.5vw, 18px);
+  font-size: calc(clamp(13px, 1.5vw, 18px) * var(--lyrics-font-scale, 1));
   font-weight: 500;
   color: rgba(255, 255, 255, 0.45);
   margin-top: 4px;

@@ -90,22 +90,26 @@
   transform: translateY(2px);
 }
 
-/* Apple Music 式左右分栏容器(纯歌词模式) */
+/* Apple Music 式左右分栏容器(纯歌词模式)。
+   整体左移:右侧留出悬停控制栏(.sideRail 84px)的位置,歌词列因此更宽 */
 .splitLayout {
   flex: 1;
   width: 100%;
   min-height: 0;
   display: flex;
   align-items: stretch;
-  gap: 4.5vw;
-  padding: 12px 4vw 0 7vw;
+  gap: 3.5vw;
+  padding: 12px calc(1.5vw + 84px) 0 4.5vw;
   position: relative;
   z-index: 1;
 }
 
-/* 左栏:封面 + 歌曲信息,垂直居中(更大的左栏占比,压给右侧歌词更多右移空间) */
+/* 左栏:封面 + 歌曲信息,垂直居中 */
 .coverSection {
-  width: 43%;
+  /* 封面尺寸单一出处:封面图/占位框/歌名宽度都引用它。
+     56vh 上限保证矮窗口下封面+歌名仍在 header 与播放栏之间放得下 */
+  --lyrics-cover-size: clamp(230px, min(28vw, 56vh), 420px);
+  width: 38%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -117,8 +121,8 @@
 
 /* 大圆角方形封面(Apple Music 风格,不旋转) */
 .coverArt {
-  width: clamp(200px, 24vw, 320px);
-  height: clamp(200px, 24vw, 320px);
+  width: min(var(--lyrics-cover-size), 100%);
+  aspect-ratio: 1;
   border-radius: 18px;
   object-fit: cover;
   display: block;
@@ -130,8 +134,8 @@
 }
 
 .coverPlaceholder {
-  width: clamp(200px, 24vw, 320px);
-  height: clamp(200px, 24vw, 320px);
+  width: min(var(--lyrics-cover-size), 100%);
+  aspect-ratio: 1;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -162,19 +166,67 @@
 
 .panel.immersive .trackMeta {
   /* translateY 写在 scale 前面,保证下移量是固定像素,不随放大倍数被放大,呼应封面外扩的观感 */
-  transform: translateY(14px) scale(1.04);
+  transform: translateY(14px) scale(1.06);
 }
 
 .trackName {
-  font-size: 24px;
+  font-size: clamp(25px, 1.9vw, 31px);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.94);
   text-align: center;
   letter-spacing: 0.2px;
-  max-width: clamp(200px, 24vw, 320px);
+  max-width: min(var(--lyrics-cover-size), 100%);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.trackNameInner {
+  display: inline-block;
+}
+
+/* 溢出时左对齐起步,两端渐隐,文字来回滚动展示全名 */
+.trackNameScrolling {
+  text-align: left;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+
+/* 面板常驻挂载,与 .auroraStage 同理:默认暂停,打开时才跑,避免后台空转 */
+.trackNameScrolling .trackNameInner {
+  animation: trackNameMarquee var(--marquee-duration, 8s) ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.panel.open .trackNameScrolling .trackNameInner {
+  animation-play-state: running;
+}
+
+/* 首尾各停留一小段再折返,避免一直移动看不清 */
+@keyframes trackNameMarquee {
+  0%, 14% {
+    transform: translateX(0);
+  }
+  86%, 100% {
+    transform: translateX(calc(-1 * var(--marquee-dist, 0px)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trackNameScrolling .trackNameInner {
+    animation: none;
+  }
 }
 
 .artistName {
@@ -182,7 +234,7 @@
   border: none;
   background: none;
   padding: 0;
-  font-size: 14px;
+  font-size: clamp(14px, 1vw, 16px);
   color: rgba(255, 255, 255, 0.44);
   text-align: center;
   letter-spacing: 0.5px;
@@ -215,6 +267,23 @@
 
 .lyricsScroll::-webkit-scrollbar {
   display: none;
+}
+
+/* 激活行从左锚点 scale(1.06) 放大,满宽行放大后右端会超出容器被裁掉尾字;
+   给每行右侧预留 7% 余量(0.93 × 1.06 ≈ 0.986),换行提前发生,放大后仍在容器内 */
+.lyricsScroll [data-line] {
+  padding-right: 7%;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+/* 跳转能力只在浏览态(用户滚动过)开放:此时才有悬停高亮与手型光标 */
+.lyricsScroll.browsing [data-line] {
+  cursor: pointer;
+}
+
+.lyricsScroll.browsing [data-line]:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .lyricsPad {
@@ -322,10 +391,156 @@
   display: flex;
 }
 
+/* ===== 右缘悬停控制栏(纯歌词模式) =====
+   纵向避开顶部 header(模式切换)与底部悬浮播放栏,不挡它们的点击 */
+.sideRail {
+  position: absolute;
+  top: 120px;
+  bottom: 124px;
+  right: 0;
+  width: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.sideRailInner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.sideRail:hover .sideRailInner,
+.sideRailPinned .sideRailInner {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* 沉浸模式下与 header 一同隐去 */
+.panel.immersive .sideRail {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.railBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.railBtn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.railBtnActive {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* 齿轮按钮的浮层定位锚点 */
+.railPopAnchor {
+  position: relative;
+}
+
+/* 歌词设置浮层:字号 + 快慢 */
+.lyricsSettingsPop {
+  position: absolute;
+  right: calc(100% + 14px);
+  bottom: -6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 14, 22, 0.72);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.popRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.popLabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.popBtns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.popValue {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* 浮层内的小按钮(字号/快慢步进) */
+.textCtrlBtn {
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  letter-spacing: 0.3px;
+}
+
+.textCtrlBtn:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.textCtrlBtn:disabled {
+  color: rgba(255, 255, 255, 0.25);
+  cursor: not-allowed;
+}
+
+.textCtrlBtn:disabled:hover {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.textCtrlBtnActive {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
 /* KTV 行包裹（纯歌词模式的所有行）：字号统一，激活态靠 scale/亮度区分 */
 .ktvLineWrap {
   padding: 4px 0;
-  font-size: clamp(20px, 2.6vw, 34px);
+  font-size: calc(clamp(20px, 2.6vw, 34px) * var(--lyrics-font-scale, 1));
   font-weight: 700;
   letter-spacing: 1.5px;
 }

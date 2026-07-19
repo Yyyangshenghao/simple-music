@@ -8,12 +8,14 @@ import type { Track, LyricLine as LyricLineType, WordLyricLine as WordLyricLineT
 interface LyricsResult {
   main: LyricLineType[]
   aligned: LyricLineType[]
+  roma: LyricLineType[]
   wordLines: WordLyricLineType[]
 }
 
 interface NeteaseLyricResponse {
   lyric?: string
   tlyric?: string
+  romalrc?: string
   yrc?: string
   error?: string
 }
@@ -21,10 +23,11 @@ interface NeteaseLyricResponse {
 interface QQLyricResponse {
   lyric?: string
   tlyric?: string
+  roma?: string
   error?: string
 }
 
-const empty: LyricsResult = { main: [], aligned: [], wordLines: [] }
+const empty: LyricsResult = { main: [], aligned: [], roma: [], wordLines: [] }
 
 async function fetchLyrics(track: Track): Promise<LyricsResult> {
   try {
@@ -32,14 +35,17 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
       const rec = await api.get<NeteaseLyricResponse>('/api/lyric', { id: String(track.id) })
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
+      const romaText = typeof rec.romalrc === 'string' ? rec.romalrc : ''
       const yrcText = typeof rec.yrc === 'string' ? rec.yrc : ''
       if (!mainText) return empty
       const main = parseLrc(mainText)
       const trans = transText ? parseLrc(transText) : []
+      const roma = romaText ? parseLrc(romaText) : []
       const wordLines = yrcText ? parseYrc(yrcText) : estimateWordTiming(main)
       return {
         main,
         aligned: trans.length ? alignTranslation(main, trans) : [],
+        roma: roma.length ? alignTranslation(main, roma) : [],
         wordLines,
       }
     }
@@ -50,12 +56,16 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
       const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id })
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
+      const romaText = typeof rec.roma === 'string' ? rec.roma : ''
       if (!mainText) return empty
       const main = parseLrc(mainText)
       const trans = transText ? parseLrc(transText) : []
+      // QQ 的 roma 可能是 QRC 等非 LRC 格式,parseLrc 解析不出时间标签时得到空数组,静默降级
+      const roma = romaText ? parseLrc(romaText) : []
       return {
         main,
         aligned: trans.length ? alignTranslation(main, trans) : [],
+        roma: roma.length ? alignTranslation(main, roma) : [],
         wordLines: estimateWordTiming(main),
       }
     }
@@ -82,10 +92,9 @@ export function useLyricsFetch(): void {
 
     let cancelled = false
 
-    fetchLyrics(currentTrack).then(({ main, aligned, wordLines }) => {
+    fetchLyrics(currentTrack).then(({ main, aligned, roma, wordLines }) => {
       if (cancelled) return
-      if (aligned.length) useLyricsStore.getState().setLines(main, aligned)
-      else useLyricsStore.getState().setLines(main)
+      useLyricsStore.getState().setLines(main, aligned, roma)
       useLyricsStore.getState().setWordLines(wordLines)
     })
 

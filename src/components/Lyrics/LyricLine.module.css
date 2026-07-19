@@ -17,17 +17,26 @@
 .main {
   font-family: var(--sm-font-sans);
   font-weight: 700;
-  font-size: clamp(20px, 2.6vw, 34px);
+  font-size: calc(clamp(20px, 2.6vw, 34px) * var(--lyrics-font-scale, 1));
   letter-spacing: 1.5px;
   line-height: 1.35;
 }
 
 .translation {
   font-weight: 500;
-  font-size: clamp(13px, 1.5vw, 18px);
+  font-size: calc(clamp(13px, 1.5vw, 18px) * var(--lyrics-font-scale, 1));
   letter-spacing: 1px;
   color: inherit;
   opacity: 0.8;
+}
+
+/* 罗马音注音行:比翻译更轻,紧贴主歌词 */
+.roma {
+  font-weight: 500;
+  font-size: calc(clamp(12px, 1.3vw, 16px) * var(--lyrics-font-scale, 1));
+  letter-spacing: 0.4px;
+  color: inherit;
+  opacity: 0.6;
 }
 
 .active {

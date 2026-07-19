@@ -765,6 +765,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       sendJson(res, {
         lyric: asStr(asObj(body.lrc).lyric),
         tlyric: asStr(asObj(body.tlyric).lyric),
+        romalrc: asStr(asObj(body.romalrc).lyric),
         yrc: asStr(asObj(body.yrc).lyric),
         source,
       })

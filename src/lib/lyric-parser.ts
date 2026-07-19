@@ -90,20 +90,33 @@ export function parseYrc(text: string): WordLyricLine[] {
 }
 
 /**
- * 当没有 YRC 数据时，用 LRC 行列表估算逐字时序（均分行时长到每个字符）。
+ * 把一行歌词切成 KTV token:拉丁字母/数字连写的词(含随后的空格与紧跟的标点)
+ * 作为整体,其余字符(CJK、假名等)逐字。每个 token 渲染为一个不可拆分的 span,
+ * 保证英文换行发生在词间空格处而不是单词中间。
+ */
+export function tokenizeForTiming(text: string): string[] {
+  return text.match(/[\p{Script=Latin}\p{Number}'’\-.,!?;:()&]+\s*|\s+|./gu) ?? []
+}
+
+/**
+ * 当没有 YRC 数据时，用 LRC 行列表估算逐字时序。
+ * 行时长按 token 字符数加权均分(英文整词是一个 token)。
  * lines 是已排序的 LyricLine[]。
  */
 export function estimateWordTiming(lines: LyricLine[]): WordLyricLine[] {
   return lines.map((line, i) => {
     const nextTime = lines[i + 1]?.time ?? line.time + 4
     const durationMs = Math.max(500, (nextTime - line.time) * 1000)
-    const chars = [...line.text]
-    if (!chars.length) return { time: line.time, durationMs, words: [] }
-    const perChar = durationMs / chars.length
-    const words: WordToken[] = chars.map((ch, j) => ({
-      text: ch,
-      startMs: Math.round(j * perChar),
-    }))
+    const tokens = tokenizeForTiming(line.text)
+    if (!tokens.length) return { time: line.time, durationMs, words: [] }
+    const totalChars = tokens.reduce((n, t) => n + t.length, 0)
+    const perChar = durationMs / totalChars
+    let elapsed = 0
+    const words: WordToken[] = tokens.map((t) => {
+      const token = { text: t, startMs: Math.round(elapsed) }
+      elapsed += t.length * perChar
+      return token
+    })
     return { time: line.time, durationMs, words }
   })
 }

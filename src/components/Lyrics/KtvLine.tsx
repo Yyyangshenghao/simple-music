@@ -19,6 +19,7 @@
 
 import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '../../stores/player'
+import { useLyricsStore } from '../../stores/lyrics'
 import styles from './KtvLine.module.css'
 
 interface WordToken {
@@ -35,10 +36,11 @@ interface KtvLineProps {
   dim?: boolean            // 非当前行（过去/未来）时为 true
   past?: boolean           // 已唱过的行：字保持点亮，仅整行淡出
   translationText?: string
+  romaText?: string        // 罗马音注音行,显示在主歌词与翻译之间
   alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
 }
 
-export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, alignLeft }: KtvLineProps) {
+export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -49,7 +51,9 @@ export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past,
       raf = requestAnimationFrame(loop)
       // backgroundThrottling 关闭时窗口隐藏 rAF 照跑,跳过无意义的样式写入
       if (document.hidden) return
-      wordsRef.current?.style.setProperty('--elapsed', (engine.position * 1000 - lineStartMs).toFixed(1))
+      // 叠加用户设置的歌词时间偏移,与行索引判定(lyrics store tick)保持同一基准
+      const offsetSec = useLyricsStore.getState().offsetSec
+      wordsRef.current?.style.setProperty('--elapsed', ((engine.position + offsetSec) * 1000 - lineStartMs).toFixed(1))
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
@@ -78,6 +82,9 @@ export function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past,
           )
         })}
       </div>
+      {romaText && (
+        <div className={styles.roma}>{romaText}</div>
+      )}
       {translationText && (
         <div className={styles.translation}>{translationText}</div>
       )}

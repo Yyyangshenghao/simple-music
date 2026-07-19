@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -53,6 +53,39 @@ describe('parseYrc', () => {
 
   it('skips whitespace-only tokens and lines without words', () => {
     expect(parseYrc('[0,500](0,250,0) (250,250,0)\n[500,500]')).toEqual([])
+  })
+})
+
+describe('tokenizeForTiming', () => {
+  it('keeps latin words whole (with trailing space) so flex wrap breaks at spaces', () => {
+    expect(tokenizeForTiming("Don't stop me now")).toEqual(["Don't ", 'stop ', 'me ', 'now'])
+  })
+
+  it('splits CJK per character', () => {
+    expect(tokenizeForTiming('你好世界')).toEqual(['你', '好', '世', '界'])
+  })
+
+  it('handles mixed CJK and latin', () => {
+    expect(tokenizeForTiming('唱 hello 吧')).toEqual(['唱', ' ', 'hello ', '吧'])
+  })
+})
+
+describe('estimateWordTiming', () => {
+  it('distributes line duration by token char count, monotonically increasing', () => {
+    const [line] = estimateWordTiming([
+      { time: 0, text: 'go home' },
+      { time: 2, text: 'x' },
+    ])
+    expect(line.durationMs).toBe(2000)
+    expect(line.words.map((w) => w.text)).toEqual(['go ', 'home'])
+    expect(line.words[0].startMs).toBe(0)
+    // 'go ' 占 3/7 行时长
+    expect(line.words[1].startMs).toBe(Math.round((3 / 7) * 2000))
+  })
+
+  it('returns empty words for empty text', () => {
+    const [line] = estimateWordTiming([{ time: 0, text: '' }])
+    expect(line.words).toEqual([])
   })
 })
 
