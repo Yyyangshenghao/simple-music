@@ -131,8 +131,10 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     if (!filePath || get().installing) return
     set({ installing: true })
     try {
+      // win32：静默装完自动重启；darwin：弹出 dmg 安装器后应用自行退出，
+      // 剩下的拖拽替换由用户在 Finder 里手动完成。两种情况都会导致应用退出，
+      // 不需要复位 installing；只有失败才复位让用户能重试。
       const result = await window.desktop?.installUpdate(filePath)
-      // 成功时应用即将退出重启，不需要复位 installing；只有失败才复位让用户能重试
       if (result && !result.ok) set({ installing: false })
     } catch {
       set({ installing: false })

@@ -1,17 +1,10 @@
 // electron/modules/update-installer.ts
-import { app } from 'electron'
-import { spawn, execFileSync } from 'node:child_process'
-import fs from 'node:fs'
-import path from 'node:path'
-import { resolveMacAppBundlePath, buildMacSwapScript } from './update-installer-logic'
+import { shell } from 'electron'
+import { spawn } from 'node:child_process'
 
 export interface InstallResult {
   ok: boolean
   error?: string
-}
-
-function updateWorkDir(): string {
-  return path.join(app.getPath('userData'), 'updates')
 }
 
 // ---------- Windows：spawn NSIS 安装包做静默更新 ----------
@@ -37,50 +30,12 @@ export function installUpdateWindows(installerPath: string): Promise<InstallResu
   })
 }
 
-// ---------- macOS：先挂载校验一次，确认能装了再退出应用 ----------
-// 不做这一步预检的话，一旦 hdiutil attach 失败（磁盘空间、权限等），
-// 应用已经退出但安装没有真正发生，用户会以为软件消失了。
-function preflightMacDmg(dmgPath: string): InstallResult {
-  const mountDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'simplemusic-update-'))
-  try {
-    execFileSync('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountDir], {
-      stdio: 'ignore',
-    })
-    const hasApp = fs.readdirSync(mountDir).some((name) => name.endsWith('.app'))
-    if (!hasApp) return { ok: false, error: 'DMG_APP_NOT_FOUND' }
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message || 'DMG_MOUNT_FAILED' }
-  } finally {
-    try {
-      execFileSync('hdiutil', ['detach', mountDir, '-quiet'], { stdio: 'ignore' })
-    } catch {
-      /* ignore */
-    }
-    try {
-      fs.rmdirSync(mountDir)
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-export function installUpdateMac(dmgPath: string): InstallResult {
-  const appPath = resolveMacAppBundlePath(app.getPath('exe'))
-  if (!appPath) return { ok: false, error: 'APP_BUNDLE_NOT_FOUND' }
-
-  const preflight = preflightMacDmg(dmgPath)
-  if (!preflight.ok) return preflight
-
-  const dir = updateWorkDir()
-  fs.mkdirSync(dir, { recursive: true })
-  const scriptPath = path.join(dir, 'mac-install.sh')
-  const logPath = path.join(dir, 'install.log')
-  fs.writeFileSync(scriptPath, buildMacSwapScript({ dmgPath, appPath, logPath }), { mode: 0o755 })
-
-  // detached 脱离主进程生命周期，主进程 app.exit(0) 之后这段脚本继续跑完剩下的
-  // 挂载 → 原子替换 → 重启新版本；失败会在脚本内部回滚到旧版本，见 Task 1 的 buildMacSwapScript。
-  const child = spawn('/bin/bash', [scriptPath], { detached: true, stdio: 'ignore' })
-  child.unref()
-  return { ok: true }
+// ---------- macOS：没有签名证书，做不了 Squirrel.Mac 式的原地静默替换 ----------
+// 早期版本用 hdiutil 挂载 + ditto/mv 脚本在后台自己换目录，但失败路径很难做到万无一失
+// （权限不足、进程被中断都可能把 .app.new 留在 /Applications 里）。改成直接把 dmg 交给
+// Finder：`open` 一个 dmg 就是挂载卷 + 弹出标准的"拖到 Applications"安装器窗口，
+// 替换动作完全由系统和用户完成，主进程不再插手，也就没有半途而废的状态。
+export async function installUpdateMac(dmgPath: string): Promise<InstallResult> {
+  const error = await shell.openPath(dmgPath)
+  return error ? { ok: false, error } : { ok: true }
 }

@@ -95,7 +95,7 @@ export function registerMiscIpc(): void {
         return { ok: true }
       }
       if (process.platform === 'darwin') {
-        const result = installUpdateMac(target)
+        const result = await installUpdateMac(target)
         if (!result.ok) return result
         app.exit(0)
         return { ok: true }

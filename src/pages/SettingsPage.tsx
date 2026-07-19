@@ -283,6 +283,7 @@ export function SettingsPage() {
 
   const currentVersion = updateInfo?.currentVersion || '1.0.0'
   const ready = job?.status === 'ready'
+  const isMacUpdate = window.desktop?.platform === 'darwin'
   const updateStatusText = checking
     ? '检查中…'
     : updateInfo?.updateAvailable
@@ -508,7 +509,13 @@ export function SettingsPage() {
           <span className={styles.rowLabel}>{updateStatusText}</span>
           {ready ? (
             <button className={`${styles.seg} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
-              {installing ? '正在安装…' : '重启并安装'}
+              {installing
+                ? isMacUpdate
+                  ? '正在打开安装包…'
+                  : '正在安装…'
+                : isMacUpdate
+                  ? '打开安装包'
+                  : '重启并安装'}
             </button>
           ) : downloading ? (
             <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
