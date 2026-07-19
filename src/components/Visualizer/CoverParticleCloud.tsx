@@ -1,217 +1,294 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer, ToneMapping } from '@react-three/postprocessing'
-import { ToneMappingMode } from 'postprocessing'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { api } from '../../lib/api'
 import { bandEnergiesFrom } from '../../lib/audio-energy'
+import { buildEdgeDepthData } from '../../lib/cover-edge'
 import type { PerformanceMode } from '../../types/domain'
 
 /**
- * 封面粒子云：把封面像素铺成一面正对相机的密集网格粒子墙，GLSL shader 按
- * 7 个频段驱动逐粒子沿 Z 轴朝镜头弹跳（低频在中心/高频在外圈），叠加鼓点
- * 涟漪扩散与辉光。相机由本组件自己接管（固定机位 + 轻摇晃），
- * CinemaCamera 在 cover-cloud 生效时会让位，见 CinemaCamera.tsx。
- *
- * 渲染管线分两档：
- * - eco/balanced：单 draw call 点云，辉光内嵌在 sprite 里（安静时点径收缩到
- *   实心核大小，光晕区零填充开销）。
- * - high/ultra：同一 draw call 只画实心核，辉光交给 postprocessing 的半分辨率
- *   mipmap Bloom + ACES 色调映射（开销随分辨率走，不随粒子数涨）。
+ * 封面粒子云(SILK):移植自原版 Mineradio-MacOS 的 preset 0 丝绸效果。
+ * 与旧实现(烘焙颜色属性 + 径向分频弹跳)的关键差异:
+ * - 颜色在 shader 里直接采样封面纹理,切歌时新旧封面 520ms 交叉渐变;
+ * - 位移 = 三层 simplex 噪声场(bass 呼吸/mid 丝绸波/treble 微闪),整体像布料起伏;
+ * - 鼓点涟漪 = 中心隆起 + 扩散环,带淡入淡出包络,2s 生命周期,12 道并发,
+ *   bass 上升沿在 3×3 九宫格随机爆 2-3 个点;
+ * - 封面经 box blur+Sobel 生成边缘/深度纹理(cover-edge.ts),边缘粒子增亮放大、
+ *   背景按前景 mask 压暗,轮廓更立体;
+ * - 片元用柔和点精灵纹理,亮粒子加暗描边/暗粒子加亮描边(可读性),
+ *   自发光在片元内完成,无独立辉光 pass/后期管线;
+ * - 鼠标悬停把附近粒子朝镜头推起。
+ * 相机仍由本组件接管(固定机位 + 轻摇晃),CinemaCamera 让位。
  */
 
-// 粒子数 = gridSize²，是这个场景 GPU 开销的主要来源。
-// 档位下调过一轮：balanced 从 130→104（粒子数降至 ~64%），其余同比例收紧。
-const GRID_SIZE_BY_MODE: Record<PerformanceMode, number> = {
-  eco: 72,
-  balanced: 104,
-  high: 128,
-  ultra: 152
+const PLANE_SIZE = 4.8
+const FOV = 45
+const RIPPLE_MAX = 12
+const COVER_TEX_SIZE = 384
+const EDGE_TEX_SIZE = 256
+const RIPPLE_COOLDOWN = 0.32
+const COLOR_MIX_MS = 520
+const FRAME_INTERVAL_MS = 1000 / 30
+
+// 网格每边粒子数按性能档取原版的档位上限(原版默认档 118)
+const GRID_CAP_BY_MODE: Record<PerformanceMode, number> = {
+  eco: 88,
+  balanced: 118,
+  high: 148,
+  ultra: 183
 }
 
-const SPACING = 0.5
-const FOV = 60
-// shader 数组 uniform 的槽位上限;实际同屏并发数由设置 lyrics3d.rippleCount 决定(≤该值)
-const RIPPLE_COUNT = 6
-const BEAT_MIN_INTERVAL = 0.1
-const FRAME_INTERVAL_MS = 1000 / 30
-const BASE_DOT_SCALE = 0.3
-const BASE_HALO_DOT_SCALE = 0.82
+// 涟漪爆点的 3×3 九宫格中心(原版 initRippleRegions)
+const RIPPLE_REGIONS: Array<[number, number]> = []
+for (let ry = 0; ry < 3; ry++) {
+  for (let rx = 0; rx < 3; rx++) {
+    RIPPLE_REGIONS.push([(rx / 2 - 0.5) * PLANE_SIZE * 0.72, (ry / 2 - 0.5) * PLANE_SIZE * 0.72])
+  }
+}
 
 const particleVertexShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uSubBass;
-  uniform float uBass;
-  uniform float uLowMid;
-  uniform float uMid;
-  uniform float uHighMid;
-  uniform float uPresence;
-  uniform float uAir;
-  uniform float uEnergy;
-  uniform float uGridHalf;
-  uniform float uSpacing;
-  uniform float uFocal;
-  uniform float uDotScale;
-  uniform float uHaloScale;
-  uniform float uSpriteHalo;
-  uniform float uLiftScale;
+  uniform float uTime, uBass, uMid, uTreble, uBeat, uEnergy;
+  uniform float uIntensity, uPointScale, uColorBoost, uBgFade, uUserBright;
+  uniform float uHasCover, uHasDepth, uEdgeEnabled;
+  uniform float uMouseActive, uPixel, uColorMixT;
+  uniform sampler2D uCoverTex, uPrevCoverTex, uEdgeTex, uRippleTex;
+  uniform int uRippleCount;
+  uniform vec2 uMouseXY;
 
-  #define RIPPLE_COUNT 6
-  uniform float uRippleTime[RIPPLE_COUNT];
-  uniform float uRippleStrength[RIPPLE_COUNT];
-  uniform vec2 uRippleCenter[RIPPLE_COUNT];
-  uniform float uRippleBlast[RIPPLE_COUNT];
-
-  attribute vec3 aColor;
-  attribute float aBrightness;
-  attribute float aRandom;
+  attribute float aRand;
 
   varying vec3 vColor;
-  varying float vLift;
-  varying float vCoreFrac;
-  varying float vHalo;
+  varying float vBright, vRipple, vEdgeBoost, vSourceLum;
+
+  // ---- simplex noise (ashima) ----
+  vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+  vec4 mod289v(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+  vec4 perm(vec4 x){return mod289v(((x*34.0)+1.0)*x);}
+  float snoise(vec3 v){
+    const vec2 C=vec2(1.0/6.0,1.0/3.0);
+    const vec4 D=vec4(0.0,0.5,1.0,2.0);
+    vec3 i=floor(v+dot(v,C.yyy));
+    vec3 x0=v-i+dot(i,C.xxx);
+    vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g;
+    vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+    vec3 x1=x0-i1+C.xxx;
+    vec3 x2=x0-i2+C.yyy;
+    vec3 x3=x0-D.yyy;
+    i=mod289(i);
+    vec4 p=perm(perm(perm(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+    float n_=0.142857142857;
+    vec3 ns=n_*D.wyz-D.xzx;
+    vec4 j=p-49.0*floor(p*ns.z*ns.z);
+    vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+    vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy;
+    vec4 h=1.0-abs(x)-abs(y);
+    vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+    vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0;
+    vec4 sh=-step(h,vec4(0.0));
+    vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+    vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+    vec4 norm=inversesqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+    p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+    vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+    m=m*m;
+    return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+  }
+
+  vec2 safeCoverUv(vec2 p) {
+    return clamp(p, vec2(0.0012), vec2(0.9988));
+  }
+
+  // 涟漪场:每道 = 中心高斯隆起(随年龄变宽变矮) + 扩散环,fadeIn/fadeOut 包络
+  float rippleSumAt(vec2 p, out float maxAmp) {
+    float sum = 0.0; maxAmp = 0.0;
+    for (int ri = 0; ri < ${RIPPLE_MAX}; ri++) {
+      if (ri >= uRippleCount) break;
+      float vCoord = (float(ri) + 0.5) / ${RIPPLE_MAX}.0;
+      vec4 rd = texture2D(uRippleTex, vec2(0.5, vCoord));
+      float age = rd.z; float str = rd.w;
+      if (str < 0.005 || age < 0.0 || age > 2.0) continue;
+      float dist = length(p - rd.xy);
+      float lifeN = age / 2.0;
+      float fadeIn  = smoothstep(0.0, 0.06, age);
+      float fadeOut = 1.0 - smoothstep(0.7, 1.0, lifeN);
+      float env = fadeIn * fadeOut;
+      float bulgeW = 0.55 + age * 0.80;
+      float bulge  = exp(-dist*dist / (2.0 * bulgeW * bulgeW)) * (1.0 - smoothstep(0.0, 0.55, lifeN));
+      float waveR  = age * 2.10;
+      float ringW  = 0.40 + age * 0.22;
+      float ring   = exp(-pow((dist - waveR) / ringW, 2.0));
+      float local  = (bulge * 2.4 + ring * 1.30) * env * str;
+      sum += local;
+      maxAmp = max(maxAmp, abs(local));
+    }
+    return sum;
+  }
 
   void main() {
-    vColor = aColor;
+    float t = uTime;
+    vec2 sampleUv = safeCoverUv(uv);
+
+    // 切歌颜色渐变:新旧封面纹理插值
+    vec3 newCol = texture2D(uCoverTex, sampleUv).rgb;
+    vec3 prevCol = texture2D(uPrevCoverTex, sampleUv).rgb;
+    vec3 coverColor = mix(prevCol, newCol, clamp(uColorMixT, 0.0, 1.0));
+    vec4 edge = texture2D(uEdgeTex, sampleUv);
+    float edgeVal = edge.g;
+    float fgMask  = edge.b;
+
+    vec3 defaultColor = mix(
+      vec3(0.36, 0.28, 0.72),
+      mix(vec3(0.85, 0.55, 0.95), vec3(0.45, 0.78, 0.95), uv.x),
+      uv.y
+    );
+    vColor = mix(defaultColor, coverColor, uHasCover);
+
+    // 律动强度倍数(设置滑块默认 1 → 原版默认 uIntensity 0.85 → K≈1.36)
+    float K = uIntensity * 1.6;
 
     vec3 pos = position;
-    float centerDist = length(pos.xy);
-    float normDist = clamp(centerDist / uGridHalf, 0.0, 1.0);
+    float maxRippleAmp = 0.0;
+    float rippleZ = rippleSumAt(pos.xy, maxRippleAmp);
 
-    // 静态浮雕：亮像素微微凸向镜头，让平面封面带一层立体起伏
-    pos.z += (aBrightness - 0.45) * 2.6;
+    // 丝绸噪声场:mid 双八度波浪(带慢变空间 mask)+ treble 高频微闪 + bass 低频呼吸
+    float midN = snoise(vec3(pos.x*1.4, pos.y*1.4, t*0.55)) * 0.6
+               + snoise(vec3(pos.x*2.8+5.0, pos.y*2.8-3.0, t*0.85)) * 0.4;
+    float midMask = 0.55 + 0.45 * snoise(vec3(pos.x*0.4, pos.y*0.4, t*0.18));
+    float midDisp = midN * uMid * 0.55 * midMask * K;
 
-    // 径向分频：中心吃低频、外圈吃高频，让弹跳在画面上有空间层次
-    float innerRegion = smoothstep(0.6, 0.0, normDist);
-    float midRegion = smoothstep(0.0, 0.5, normDist) * smoothstep(1.0, 0.45, normDist);
-    float outerRegion = smoothstep(0.45, 1.0, normDist);
+    float trebleJ = snoise(vec3(pos.x*6.5, pos.y*6.5, t*3.5 + aRand*4.0)) * uTreble * 0.18 * K;
+    float bassBreath = snoise(vec3(pos.x*0.35, pos.y*0.35, t*0.4)) * uBass * 0.42 * K;
 
-    float lift = 0.0;
-    lift += (uSubBass + uBass) * innerRegion * 11.0;
-    lift += (uLowMid + uMid) * midRegion * 9.0;
-    lift += (uHighMid + uPresence + uAir) * outerRegion * 7.5;
+    pos.z = rippleZ * 1.30 + midDisp + trebleJ + bassBreath;
 
-    // 连贯波场：相位由空间位置而非随机数决定，相邻粒子同步起伏；
-    // 两组斜向行波叠加出缓慢的干涉图样，整体像一块随音乐呼吸的布，
-    // 取代原先每粒子随机相位的高频微抖（视觉上"各跳各的"很混乱）
-    float w1 = sin(uTime * 2.6 + pos.x * 0.20 + pos.y * 0.12);
-    float w2 = sin(uTime * 1.9 - pos.y * 0.17 + pos.x * 0.07);
-    lift += (w1 + w2) * 0.5 * uEnergy * 4.0;
-    lift += sin(uTime * 1.2 + centerDist * 0.10) * 0.35;
-
-    // 越亮的像素弹得越高，暗部保留底噪
-    lift *= 0.5 + aBrightness * 0.8;
-
-    // 鼓点涟漪：每道环从各自的随机爆点向外扩散，多点并发
-    float ringWidth = uGridHalf * 0.12;
-    float rippleEnv = 0.0;
-    vec2 flyDir = vec2(0.0);
-    float blast = 0.0;
-    for (int r = 0; r < RIPPLE_COUNT; r++) {
-      vec2 toCenter = pos.xy - uRippleCenter[r];
-      float dist = length(toCenter);
-      float rad = uRippleTime[r] * (uGridHalf / 0.45);
-      float ring = exp(-pow((dist - rad) / ringWidth, 2.0)) * uRippleStrength[r];
-      lift += ring * 6.5;
-      if (ring > rippleEnv) {
-        rippleEnv = ring;
-        flyDir = dist > 0.001 ? toCenter / dist : vec2(0.0);
-        blast = uRippleBlast[r];
+    // 鼠标悬停:附近粒子朝镜头推起
+    if (uMouseActive > 0.5) {
+      float md = length(pos.xy - uMouseXY);
+      if (md < 1.0) {
+        float push = (1.0 - md) * (1.0 - md);
+        pos.z += push * 0.55;
       }
     }
 
-    // 粒子飞出：强鼓点触发命中粒子短暂飞散，环移走后自然回落
-    float flyThreshold = mix(0.85, 0.5, blast);
-    float flySelect = step(flyThreshold, aRandom);
-    float fly = rippleEnv * flySelect;
-    pos.xy += flyDir * fly * mix(7.0, 16.0, blast) * uLiftScale;
-    lift += fly * (5.0 + blast * 6.0);
+    // 边缘增亮与可读性:近黑粒子不提亮(维持画面暗部)
+    float edgeBoost = uEdgeEnabled * edgeVal;
+    vSourceLum = dot(max(vColor, vec3(0.0)), vec3(0.299, 0.587, 0.114));
+    float blackParticleGuard = 1.0 - smoothstep(0.025, 0.115, vSourceLum);
+    vEdgeBoost = edgeBoost * (1.0 - blackParticleGuard);
+    vColor = pow(max(vColor, vec3(0.0)), vec3(1.0 / max(0.35, uColorBoost)));
+    float edgeColorMix = edgeBoost * 0.50 * (1.0 - blackParticleGuard);
+    vColor = mix(vColor, vColor + vec3(0.20), edgeColorMix);
 
-    // 动效强度倍率:统一缩放弹跳/涟漪/飞散的位移幅度
-    lift *= uLiftScale;
-    pos.z += lift;
-    vLift = lift;
+    vBright = 0.82 + maxRippleAmp * 0.55 + uBass * 0.10 + edgeBoost * 0.30 + uEnergy * 0.05;
+    // 背景压暗:前景 mask 之外按 uBgFade 变暗,突出封面主体
+    if (uHasDepth > 0.5) {
+      vBright *= mix(1.0, 0.55, uBgFade * (1.0 - fgMask));
+    }
+    vBright *= uUserBright;
+    vRipple = clamp(maxRippleAmp * 1.5, 0.0, 1.0);
 
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-
-    // 点尺寸 = 网格间距投影 * 圆点缩放（<1 留出间隙）* 音频涨缩
-    float audioBoost = 1.0 + (uSubBass + uBass) * 0.4 + uEnergy * 0.2;
-    // sprite 内嵌辉光(uSpriteHalo=1 时生效):lift 小的粒子点径收缩到实心核
-    // 大小,光晕区零填充;lift 大时 sprite 扩张出光晕环带,由片元画核+晕两层
-    float haloVis = smoothstep(0.35, 1.4, lift) * uSpriteHalo;
-    float dotScale = max(mix(uDotScale, uHaloScale, haloVis), 1e-4);
-    vHalo = haloVis;
-    vCoreFrac = 0.5 * uDotScale / dotScale;
-    gl_PointSize = (uSpacing * uFocal / -mvPosition.z) * dotScale * audioBoost;
+    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+    float depthSize = 36.0 / max(0.5, -mvPos.z);
+    float audioBoost = 1.0 + maxRippleAmp * 0.7 + edgeBoost * 0.55 + uBeat * 0.30;
+    float sz = clamp(depthSize * audioBoost, 1.05, 4.95);
+    gl_PointSize = sz * uPixel * uPointScale;
+    gl_Position = projectionMatrix * mvPos;
   }
 `
 
 const particleFragmentShader = /* glsl */ `
-  uniform float uBrightness;
-  uniform float uGlow;
-  uniform float uSrgbDecode;
+  uniform sampler2D uDotTex;
+  uniform float uBloomStrength;
 
   varying vec3 vColor;
-  varying float vLift;
-  varying float vCoreFrac;
-  varying float vHalo;
+  varying float vBright, vRipple, vEdgeBoost, vSourceLum;
 
   void main() {
-    float d = length(gl_PointCoord - vec2(0.5));
-    if (d > 0.5) discard;
+    vec4 tex = texture2D(uDotTex, gl_PointCoord);
+    if (tex.a < 0.02) discard;
+    vec3 col = vColor * vBright;
+    col = mix(col, col * 1.3 + vec3(0.05), vEdgeBoost * 0.35);
+    col = mix(col, col * 1.2, vRipple * 0.4);
 
-    // 后期 Bloom 管线按线性色彩空间处理,把 sRGB 采样色解码为线性,
-    // composer 末端统一编码回 sRGB;sprite 辉光路径(uSrgbDecode=0)保持原值直出
-    vec3 base = mix(vColor, pow(vColor, vec3(2.2)), uSrgbDecode);
+    // 可读性描边:亮粒子加暗环、暗粒子加亮环(近黑源色除外),封面细节不糊
+    float keepBlack = 1.0 - smoothstep(0.025, 0.115, vSourceLum);
+    float nonBlack = 1.0 - keepBlack;
+    float dotDist = length(gl_PointCoord - vec2(0.5)) * 2.0;
+    float readableRim = smoothstep(0.44, 0.94, dotDist) * (1.0 - smoothstep(0.94, 1.08, dotDist)) * tex.a;
+    float outLum = dot(col, vec3(0.299, 0.587, 0.114));
+    float lightParticle = smoothstep(0.50, 0.82, outLum) * nonBlack;
+    float darkParticle = (1.0 - smoothstep(0.20, 0.50, outLum)) * nonBlack;
+    col = mix(col, vec3(0.0), readableRim * lightParticle * 0.38);
+    col = mix(col, vec3(1.0), readableRim * darkParticle * 0.20);
+    col = clamp(col, vec3(0.0), vec3(1.6));
 
-    float liftC = clamp(vLift, 0.0, 8.0);
-    float core = smoothstep(vCoreFrac, vCoreFrac * 0.72, d);
-    vec3 coreCol = base * uBrightness * (1.0 + liftC * 0.05);
-
-    float glow = liftC * 0.09;
-    float haloA = smoothstep(0.5, 0.0, d) * vHalo * glow * 0.4 * uGlow;
-    vec3 haloCol = base * (0.45 + glow) * uBrightness;
-
-    // 预乘输出 + (ONE, ONE_MINUS_SRC_ALPHA):实心核遮挡背景,光晕纯加光,
-    // 一次混合等价于旧版"普通混合主层 + 加法混合辉光层"两个 draw call
-    gl_FragColor = vec4(coreCol * core + haloCol * haloA, core);
+    // 自发光在片元内完成(原版为省 GPU 移除了独立辉光 pass)
+    float bloomContrib = vBright * vBright * uBloomStrength * 0.04;
+    col += col * bloomContrib;
+    gl_FragColor = vec4(col, tex.a);
   }
 `
 
+/** 柔和圆点精灵(干净圆点带衰减缘,无外圈 glow) */
+function makeDotTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas')
+  cv.width = cv.height = 64
+  const ctx = cv.getContext('2d')!
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 31)
+  g.addColorStop(0.0, 'rgba(255,255,255,0.96)')
+  g.addColorStop(0.42, 'rgba(255,255,255,0.78)')
+  g.addColorStop(0.72, 'rgba(255,255,255,0.22)')
+  g.addColorStop(1.0, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 64)
+  const tex = new THREE.CanvasTexture(cv)
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  return tex
+}
+
+/** N×N 粒子铺满 PLANE_SIZE 的 XY 平面,颜色靠 uv 采样封面纹理,无烘焙色属性 */
 function buildGeometry(gridSize: number): THREE.BufferGeometry {
   const count = gridSize * gridSize
   const positions = new Float32Array(count * 3)
-  // 颜色/亮度用 uint8 归一化属性,显存与上传带宽为 float32 的 1/4
-  const colors = new Uint8Array(count * 3)
-  const brightness = new Uint8Array(count)
+  const uvs = new Float32Array(count * 2)
   const randoms = new Float32Array(count)
-  const half = (gridSize * SPACING) / 2
-
   let i = 0
-  for (let gx = 0; gx < gridSize; gx++) {
-    for (let gy = 0; gy < gridSize; gy++) {
-      positions[i * 3] = gx * SPACING - half
-      positions[i * 3 + 1] = gy * SPACING - half
+  for (let gy = 0; gy < gridSize; gy++) {
+    for (let gx = 0; gx < gridSize; gx++) {
+      positions[i * 3] = (gx / (gridSize - 1) - 0.5) * PLANE_SIZE
+      positions[i * 3 + 1] = (gy / (gridSize - 1) - 0.5) * PLANE_SIZE
       positions[i * 3 + 2] = 0
-      colors[i * 3] = 31
-      colors[i * 3 + 1] = 33
-      colors[i * 3 + 2] = 43
-      brightness[i] = 38
+      uvs[i * 2] = (gx + 0.5) / gridSize
+      uvs[i * 2 + 1] = (gy + 0.5) / gridSize
       randoms[i] = Math.random()
       i++
     }
   }
-
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3, true))
-  geometry.setAttribute('aBrightness', new THREE.BufferAttribute(brightness, 1, true))
-  geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1))
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  geometry.setAttribute('aRand', new THREE.BufferAttribute(randoms, 1))
   return geometry
+}
+
+function makeCoverCanvas(): HTMLCanvasElement {
+  const cv = document.createElement('canvas')
+  cv.width = cv.height = COVER_TEX_SIZE
+  const ctx = cv.getContext('2d')!
+  ctx.fillStyle = '#1c1c28'
+  ctx.fillRect(0, 0, COVER_TEX_SIZE, COVER_TEX_SIZE)
+  return cv
+}
+
+interface RippleState {
+  x: number
+  y: number
+  start: number
+  str: number
 }
 
 interface CoverParticleCloudProps {
@@ -220,181 +297,225 @@ interface CoverParticleCloudProps {
 
 export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const performanceMode = useVisualStore((s) => s.performanceMode)
-  const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   // 粒子数量倍率作用于总粒子数(gridSize²),故对 gridSize 开平方;变化时重建 geometry
   const countScale = useSettingsStore((s) => s.lyrics3d.particleCount)
-  const gridSize = THREE.MathUtils.clamp(
-    Math.round(GRID_SIZE_BY_MODE[performanceMode] * Math.sqrt(countScale)),
-    24,
-    216
-  )
+  const gridSize =
+    THREE.MathUtils.clamp(
+      Math.round(GRID_CAP_BY_MODE[performanceMode] * Math.sqrt(countScale)),
+      48,
+      216
+    ) | 1 // 奇数网格让中心正好有一颗粒子(原版约定)
   const throttle = performanceMode === 'eco' || performanceMode === 'balanced'
-  const glowStrength = useSettingsStore((s) => s.lyrics3d.glowStrength)
-  const glowDisabled = glowStrength <= 0.01
-  // high/ultra 走真 Bloom 后期管线;eco/balanced(或辉光关闭)走 sprite 内嵌辉光
-  const postBloom = !throttle && !glowDisabled
 
-  const tiltGroupRef = useRef<THREE.Group>(null)
-  const spinGroupRef = useRef<THREE.Group>(null)
+  const swayGroupRef = useRef<THREE.Group>(null)
+  const mousePlaneRef = useRef<THREE.Mesh>(null)
+  const mouseLocal = useRef(new THREE.Vector3())
 
-  const prevBassRef = useRef(0)
-  const lastBeatRef = useRef(-99)
+  const ripplesRef = useRef<RippleState[]>(
+    Array.from({ length: RIPPLE_MAX }, () => ({ x: 0, y: 0, start: -100, str: 0 }))
+  )
   const rippleSlotRef = useRef(0)
-  const rippleStartsRef = useRef(new Float32Array(RIPPLE_COUNT).fill(-99))
-  const ripplePeakRef = useRef(new Float32Array(RIPPLE_COUNT))
+  const bassAboveRef = useRef(false)
+  const lastRippleAtRef = useRef(-10)
+  const beatEnvRef = useRef(0)
+  const colorMixStartRef = useRef(-1)
   const lastFrameTimeRef = useRef(0)
 
   const proxyUrl = coverUrl ? api.url('/proxy/cover', { url: coverUrl }) : undefined
 
-  // geometry 只在性能档切换时重建，卸载/切档时释放 GPU buffer
   const geometry = useMemo(() => buildGeometry(gridSize), [gridSize])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  const uniforms = useMemo(() => {
-    const half = (gridSize * SPACING) / 2
-    return {
+  // 纹理集:封面/上一张封面(CanvasTexture,切歌时互换内容)、边缘/深度(DataTexture,
+  // 避开 canvas putImageData 的低 alpha 预乘精度损失)、涟漪数据(1×12 float)、点精灵
+  const textures = useMemo(() => {
+    const coverTex = new THREE.CanvasTexture(makeCoverCanvas())
+    coverTex.minFilter = THREE.LinearFilter
+    coverTex.magFilter = THREE.LinearFilter
+    coverTex.wrapS = coverTex.wrapT = THREE.ClampToEdgeWrapping
+    const prevCoverTex = new THREE.CanvasTexture(makeCoverCanvas())
+    prevCoverTex.minFilter = THREE.LinearFilter
+    prevCoverTex.magFilter = THREE.LinearFilter
+    prevCoverTex.wrapS = prevCoverTex.wrapT = THREE.ClampToEdgeWrapping
+
+    const edgeTex = new THREE.DataTexture(
+      new Uint8Array(EDGE_TEX_SIZE * EDGE_TEX_SIZE * 4),
+      EDGE_TEX_SIZE,
+      EDGE_TEX_SIZE,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType
+    )
+    edgeTex.minFilter = THREE.LinearFilter
+    edgeTex.magFilter = THREE.LinearFilter
+    edgeTex.needsUpdate = true
+
+    const rippleTex = new THREE.DataTexture(
+      new Float32Array(RIPPLE_MAX * 4),
+      1,
+      RIPPLE_MAX,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    )
+    rippleTex.minFilter = THREE.NearestFilter
+    rippleTex.magFilter = THREE.NearestFilter
+    rippleTex.needsUpdate = true
+
+    const dotTex = makeDotTexture()
+    return { coverTex, prevCoverTex, edgeTex, rippleTex, dotTex }
+  }, [])
+  useEffect(
+    () => () => {
+      textures.coverTex.dispose()
+      textures.prevCoverTex.dispose()
+      textures.edgeTex.dispose()
+      textures.rippleTex.dispose()
+      textures.dotTex.dispose()
+    },
+    [textures]
+  )
+
+  const uniforms = useMemo(
+    () => ({
       uTime: { value: 0 },
-      uSubBass: { value: 0 },
       uBass: { value: 0 },
-      uLowMid: { value: 0 },
       uMid: { value: 0 },
-      uHighMid: { value: 0 },
-      uPresence: { value: 0 },
-      uAir: { value: 0 },
+      uTreble: { value: 0 },
+      uBeat: { value: 0 },
       uEnergy: { value: 0 },
-      uGridHalf: { value: half },
-      uSpacing: { value: SPACING },
-      uFocal: { value: 1000 },
-      uDotScale: { value: BASE_DOT_SCALE },
-      uHaloScale: { value: BASE_HALO_DOT_SCALE },
-      uSpriteHalo: { value: 1 },
-      uLiftScale: { value: 1 },
-      uBrightness: { value: 1 },
-      uGlow: { value: 1 },
-      uSrgbDecode: { value: 0 },
-      uRippleTime: { value: new Float32Array(RIPPLE_COUNT).fill(99) },
-      uRippleStrength: { value: new Float32Array(RIPPLE_COUNT) },
-      uRippleCenter: {
-        value: Array.from({ length: RIPPLE_COUNT }, () => new THREE.Vector2(9999, 9999))
-      },
-      uRippleBlast: { value: new Float32Array(RIPPLE_COUNT) }
-    }
-  }, [gridSize])
+      uIntensity: { value: 0.85 },
+      uPointScale: { value: 1 },
+      uColorBoost: { value: 1.1 },
+      uBgFade: { value: 0.2 },
+      uUserBright: { value: 1 },
+      uBloomStrength: { value: 0.62 },
+      uHasCover: { value: 0 },
+      uHasDepth: { value: 0 },
+      uEdgeEnabled: { value: 1 },
+      uMouseActive: { value: 0 },
+      uMouseXY: { value: new THREE.Vector2(-999, -999) },
+      uPixel: { value: 1 },
+      uColorMixT: { value: 1 },
+      uCoverTex: { value: textures.coverTex },
+      uPrevCoverTex: { value: textures.prevCoverTex },
+      uEdgeTex: { value: textures.edgeTex },
+      uRippleTex: { value: textures.rippleTex },
+      uRippleCount: { value: 0 },
+      uDotTex: { value: textures.dotTex }
+    }),
+    [textures]
+  )
 
-  // 渲染管线切换只动 uniform,不重建材质/geometry
-  useEffect(() => {
-    uniforms.uSpriteHalo.value = postBloom || glowDisabled ? 0 : 1
-    uniforms.uSrgbDecode.value = postBloom ? 1 : 0
-  }, [postBloom, glowDisabled, uniforms])
-
-  // gl_PointSize 以物理像素计,焦距只在画布尺寸/dpr 变化时更新,不必每帧读 DOM
-  const size = useThree((s) => s.size)
+  // gl_PointSize 以物理像素计
   const dpr = useThree((s) => s.viewport.dpr)
   useEffect(() => {
-    uniforms.uFocal.value = (size.height * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(FOV) / 2))
-  }, [size.height, dpr, uniforms])
+    uniforms.uPixel.value = dpr
+  }, [dpr, uniforms])
 
-  // 后期管线需要不透明的场景底色:透明画布经 Bloom 合成会丢 alpha 变黑,
-  // 用与外层 div 相同的底色填充 scene.background,视觉无缝
-  const scene = useThree((s) => s.scene)
+  // 全局相机 fov 是 60(其他 3D 效果共用),本效果接管期间改为更平的 45,卸载还原
+  const camera = useThree((s) => s.camera)
   useEffect(() => {
-    if (!postBloom) return
-    const prev = scene.background
-    scene.background = new THREE.Color(backgroundColor || '#05060c')
+    if (!(camera instanceof THREE.PerspectiveCamera)) return
+    const prevFov = camera.fov
+    camera.fov = FOV
+    camera.updateProjectionMatrix()
     return () => {
-      scene.background = prev
+      camera.fov = prevFov
+      camera.updateProjectionMatrix()
     }
-  }, [postBloom, backgroundColor, scene])
+  }, [camera])
 
-  // 性能档切换重建网格时，涟漪/节拍状态一并复位，避免旧涟漪在新网格上突然出现
-  useEffect(() => {
-    rippleSlotRef.current = 0
-    prevBassRef.current = 0
-    lastBeatRef.current = -99
-    rippleStartsRef.current.fill(-99)
-    ripplePeakRef.current.fill(0)
-  }, [gridSize])
-
-  // 采样封面像素一次性写入 aColor/aBrightness:最大网格 216²≈4.7 万像素的
-  // 循环 <1ms,GPU 全量上传也只发生一次,同步写完即换,切歌无可见扫描过程。
-  // (曾用 requestIdleCallback 分帧写入,但渲染负载高时每块要等满 100ms 超时,
-  // 切歌变成持续半秒以上的可见列扫描,反而更糟)
+  // 封面加载:旧封面拷入 prev 纹理 → 新封面写入主纹理并起 520ms 交叉渐变,
+  // 同时经 box blur+Sobel 重建边缘/深度纹理(行序翻转:DataTexture 不做 flipY)
   useEffect(() => {
     if (!proxyUrl) return
-
-    const n = gridSize
-    const sampleCanvas = document.createElement('canvas')
-    sampleCanvas.width = n
-    sampleCanvas.height = n
-    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true })
-    if (!sampleCtx) return
-
     let disposed = false
-
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       if (disposed) return
-      sampleCtx.clearRect(0, 0, n, n)
+      const coverCanvas = textures.coverTex.image as HTMLCanvasElement
+      const prevCanvas = textures.prevCoverTex.image as HTMLCanvasElement
+      const prevCtx = prevCanvas.getContext('2d')
+      const ctx = coverCanvas.getContext('2d')
+      if (!ctx || !prevCtx) return
+      prevCtx.drawImage(coverCanvas, 0, 0)
       try {
-        sampleCtx.drawImage(img, 0, 0, n, n)
+        ctx.drawImage(img, 0, 0, COVER_TEX_SIZE, COVER_TEX_SIZE)
       } catch {
         return
       }
-      let pixels: Uint8ClampedArray
-      try {
-        pixels = sampleCtx.getImageData(0, 0, n, n).data
-      } catch {
-        return
-      }
+      textures.coverTex.needsUpdate = true
+      textures.prevCoverTex.needsUpdate = true
+      // 首张封面直接显示,后续切歌走交叉渐变
+      colorMixStartRef.current = uniforms.uHasCover.value > 0.5 ? performance.now() : -1
+      uniforms.uColorMixT.value = uniforms.uHasCover.value > 0.5 ? 0 : 1
+      uniforms.uHasCover.value = 1
 
-      const colorAttr = geometry.getAttribute('aColor') as THREE.BufferAttribute
-      const brightAttr = geometry.getAttribute('aBrightness') as THREE.BufferAttribute
-      const colorArr = colorAttr.array as Uint8Array
-      const brightArr = brightAttr.array as Uint8Array
-      for (let gx = 0; gx < n; gx++) {
-        for (let gy = 0; gy < n; gy++) {
-          const i = gx * n + gy
-          const p = ((n - 1 - gy) * n + gx) * 4
-          const r = pixels[p]
-          const g = pixels[p + 1]
-          const b = pixels[p + 2]
-          colorArr[i * 3] = r
-          colorArr[i * 3 + 1] = g
-          colorArr[i * 3 + 2] = b
-          brightArr[i] = (r + g + b) / 3
+      try {
+        const sample = document.createElement('canvas')
+        sample.width = sample.height = EDGE_TEX_SIZE
+        const sctx = sample.getContext('2d', { willReadFrequently: true })
+        if (sctx) {
+          sctx.drawImage(img, 0, 0, EDGE_TEX_SIZE, EDGE_TEX_SIZE)
+          const src = sctx.getImageData(0, 0, EDGE_TEX_SIZE, EDGE_TEX_SIZE).data
+          const data = buildEdgeDepthData(src, EDGE_TEX_SIZE, EDGE_TEX_SIZE)
+          const dst = textures.edgeTex.image.data as Uint8Array
+          const rowBytes = EDGE_TEX_SIZE * 4
+          for (let y = 0; y < EDGE_TEX_SIZE; y++) {
+            const srcOff = (EDGE_TEX_SIZE - 1 - y) * rowBytes
+            dst.set(data.subarray(srcOff, srcOff + rowBytes), y * rowBytes)
+          }
+          textures.edgeTex.needsUpdate = true
+          uniforms.uHasDepth.value = 1
         }
+      } catch {
+        // 跨域污染等无法读取像素:保留上一张的边缘纹理
       }
-      colorAttr.needsUpdate = true
-      brightAttr.needsUpdate = true
     }
     img.src = proxyUrl
-
-    // 切歌/卸载时废弃在途图片加载，防止旧封面回调晚到覆盖新采样
     return () => {
       disposed = true
       img.onload = null
       img.src = ''
     }
-  }, [proxyUrl, gridSize, geometry])
+  }, [proxyUrl, textures, uniforms])
 
-  useFrame((state) => {
-    // 固定机位正对粒子墙（随网格半宽自适应距离），相机由本组件接管
-    const half = (gridSize * SPACING) / 2
-    const dist = half / Math.tan(THREE.MathUtils.degToRad(FOV) / 2)
-    state.camera.position.set(0, 0, dist * 1.12)
+  const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
+    const plane = mousePlaneRef.current
+    if (!plane) return
+    plane.worldToLocal(mouseLocal.current.copy(e.point))
+    uniforms.uMouseXY.value.set(mouseLocal.current.x, mouseLocal.current.y)
+    uniforms.uMouseActive.value = 1
+  }
+  const onPointerOut = () => {
+    uniforms.uMouseActive.value = 0
+    uniforms.uMouseXY.value.set(-999, -999)
+  }
+
+  useFrame((state, delta) => {
+    // 固定机位正对粒子墙,相机由本组件接管
+    const dist = (PLANE_SIZE / 2 / Math.tan(THREE.MathUtils.degToRad(FOV) / 2)) * 1.12
+    state.camera.position.set(0, 0, dist)
     state.camera.lookAt(0, 0, 0)
 
     const t = state.clock.getElapsedTime()
+    uniforms.uTime.value = t
 
-    // 正面小幅摇晃：绕 X/Y/Z 轻微摆动，非整圈旋转，保持封面正对镜头可辨识
-    if (spinGroupRef.current) {
-      spinGroupRef.current.rotation.x = Math.sin(t * 0.5) * 0.06
-      spinGroupRef.current.rotation.y = Math.cos(t * 0.4) * 0.07
-      spinGroupRef.current.rotation.z = Math.sin(t * 0.3) * 0.02
+    // 正面小幅摇晃:非整圈旋转,保持封面正对镜头可辨识
+    if (swayGroupRef.current) {
+      swayGroupRef.current.rotation.x = Math.sin(t * 0.5) * 0.04
+      swayGroupRef.current.rotation.y = Math.cos(t * 0.4) * 0.05
+      swayGroupRef.current.rotation.z = Math.sin(t * 0.3) * 0.015
     }
 
-    // 仅 eco/balanced 档节流：跳过本帧的频段计算/涟漪推进/uniform 写入
+    // 切歌交叉渐变推进
+    if (colorMixStartRef.current >= 0) {
+      const p = (performance.now() - colorMixStartRef.current) / COLOR_MIX_MS
+      uniforms.uColorMixT.value = THREE.MathUtils.smoothstep(p, 0, 1)
+      if (p >= 1) colorMixStartRef.current = -1
+    }
+
+    // 仅 eco/balanced 档节流:跳过本帧的频段计算/节拍检测/涟漪推进
     if (throttle) {
       const nowMs = performance.now()
       if (nowMs - lastFrameTimeRef.current < FRAME_INTERVAL_MS) return
@@ -402,86 +523,84 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     }
 
     const params = useSettingsStore.getState().lyrics3d
-
-    uniforms.uTime.value = t
-    uniforms.uDotScale.value = BASE_DOT_SCALE * params.particleSize
-    uniforms.uHaloScale.value = BASE_HALO_DOT_SCALE * params.particleSize
-    uniforms.uLiftScale.value = params.motionIntensity
-    uniforms.uBrightness.value = params.particleBrightness
-    uniforms.uGlow.value = params.glowStrength
+    uniforms.uPointScale.value = params.particleSize
+    uniforms.uUserBright.value = params.particleBrightness
+    uniforms.uBloomStrength.value = 0.62 * params.glowStrength
+    uniforms.uIntensity.value = 0.85 * params.motionIntensity
 
     const engine = usePlayerStore.getState()._engine()
     const bands = bandEnergiesFrom(engine.getFrequencyData())
-    uniforms.uSubBass.value = bands.subBass
-    uniforms.uBass.value = bands.bass
-    uniforms.uLowMid.value = bands.lowMid
-    uniforms.uMid.value = bands.mid
-    uniforms.uHighMid.value = bands.highMid
-    uniforms.uPresence.value = bands.presence
-    uniforms.uAir.value = bands.air
+    const bassSum = bands.subBass + bands.bass
+    uniforms.uBass.value = bassSum * 0.5
+    uniforms.uMid.value = (bands.lowMid + bands.mid) * 0.5
+    uniforms.uTreble.value = (bands.highMid + bands.presence + bands.air) / 3
     uniforms.uEnergy.value = bands.energy
 
-    // 鼓点上升沿检测：低频突破阈值且与上次间隔足够时，触发一道新涟漪。
+    // 节拍包络:鼓点瞬间 1,随后指数衰减,驱动点径涨缩
+    beatEnvRef.current = Math.max(0, beatEnvRef.current - delta * 3.5)
+    uniforms.uBeat.value = beatEnvRef.current
+
+    // bass 上升沿(带迟滞)触发涟漪:九宫格随机挑 2-3 个爆点。
     // 阈值随灵敏度线性下降:灵敏度 0.5 时为历史默认 0.38
     const beatThreshold = 0.58 - 0.4 * params.rippleSensitivity
-    const activeRipples = THREE.MathUtils.clamp(Math.round(params.rippleCount), 1, RIPPLE_COUNT)
-    const bass = bands.subBass + bands.bass
-    if (
-      bass > beatThreshold &&
-      prevBassRef.current <= beatThreshold &&
-      t - lastBeatRef.current > BEAT_MIN_INTERVAL
-    ) {
-      const slot = rippleSlotRef.current % activeRipples
-      rippleStartsRef.current[slot] = t
-      const center = uniforms.uRippleCenter.value[slot]
-      center.set((Math.random() * 2 - 1) * half * 0.55, (Math.random() * 2 - 1) * half * 0.55)
-      ripplePeakRef.current[slot] = THREE.MathUtils.clamp((bass - beatThreshold) / 1.2, 0.65, 1.0)
-      uniforms.uRippleBlast.value[slot] = THREE.MathUtils.clamp((bass - 1.0) / 0.8, 0, 1)
-      rippleSlotRef.current = (slot + 1) % activeRipples
-      lastBeatRef.current = t
+    const isHit = bassSum > beatThreshold && !bassAboveRef.current
+    bassAboveRef.current = bassSum > beatThreshold * 0.75
+    if (isHit && t - lastRippleAtRef.current > RIPPLE_COOLDOWN) {
+      lastRippleAtRef.current = t
+      beatEnvRef.current = 1
+      const burst = 2 + (Math.random() < 0.5 ? 0 : 1)
+      const count = THREE.MathUtils.clamp(Math.round((params.rippleCount / 6) * burst), 1, 4)
+      const used = new Set<number>()
+      for (let k = 0; k < count; k++) {
+        let idx = Math.floor(Math.random() * 9)
+        for (let tries = 0; used.has(idx) && tries < 12; tries++) idx = Math.floor(Math.random() * 9)
+        used.add(idx)
+        const [rx, ry] = RIPPLE_REGIONS[idx]
+        const slot = ripplesRef.current[rippleSlotRef.current]
+        slot.x = rx + (Math.random() - 0.5) * 0.7
+        slot.y = ry + (Math.random() - 0.5) * 0.7
+        slot.start = t
+        slot.str = 0.65 + uniforms.uBass.value * 1.4 + Math.random() * 0.25
+        rippleSlotRef.current = (rippleSlotRef.current + 1) % RIPPLE_MAX
+      }
     }
-    prevBassRef.current = bass
 
-    // 涟漪推进：每个槽位按自身鼓点时刻计算扩散秒数，强度线性衰减
-    const rippleTimeArr = uniforms.uRippleTime.value
-    const rippleStrengthArr = uniforms.uRippleStrength.value
-    for (let k = 0; k < RIPPLE_COUNT; k++) {
-      const age = t - rippleStartsRef.current[k]
-      rippleTimeArr[k] = age
-      rippleStrengthArr[k] = ripplePeakRef.current[k] * Math.max(0, 1 - age / params.rippleDuration)
+    // 涟漪推进:年龄写入数据纹理;时长滑块缩放年龄流速(默认 0.55 → 原版 2s 生命)
+    const ageScale = 0.55 / THREE.MathUtils.clamp(params.rippleDuration, 0.15, 2)
+    const data = textures.rippleTex.image.data as unknown as Float32Array
+    let active = 0
+    for (let i = 0; i < RIPPLE_MAX; i++) {
+      const r = ripplesRef.current[i]
+      const age = (t - r.start) * ageScale
+      if (r.str > 0.005 && age > 2.0) r.str = 0
+      if (r.str > 0.005) active = i + 1
+      const off = i * 4
+      data[off] = r.x
+      data[off + 1] = r.y
+      data[off + 2] = age
+      data[off + 3] = r.str
     }
+    textures.rippleTex.needsUpdate = true
+    uniforms.uRippleCount.value = active
   })
 
   return (
-    <group ref={tiltGroupRef}>
-      <group ref={spinGroupRef}>
-        <points geometry={geometry}>
-          <shaderMaterial
-            vertexShader={particleVertexShader}
-            fragmentShader={particleFragmentShader}
-            uniforms={uniforms}
-            transparent
-            depthWrite={false}
-            depthTest={false}
-            blending={THREE.CustomBlending}
-            blendEquation={THREE.AddEquation}
-            blendSrc={THREE.OneFactor}
-            blendDst={THREE.OneMinusSrcAlphaFactor}
-          />
-        </points>
-      </group>
-      {postBloom && (
-        <EffectComposer multisampling={0}>
-          <Bloom
-            mipmapBlur
-            intensity={glowStrength * 0.9}
-            luminanceThreshold={0.32}
-            luminanceSmoothing={0.25}
-            radius={0.75}
-          />
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        </EffectComposer>
-      )}
+    <group ref={swayGroupRef}>
+      <points geometry={geometry}>
+        <shaderMaterial
+          vertexShader={particleVertexShader}
+          fragmentShader={particleFragmentShader}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+          depthTest={false}
+        />
+      </points>
+      {/* 不可见的鼠标拾取面:与粒子同组同姿态,拾取坐标即粒子局部坐标 */}
+      <mesh ref={mousePlaneRef} onPointerMove={onPointerMove} onPointerOut={onPointerOut}>
+        <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
     </group>
   )
 }
