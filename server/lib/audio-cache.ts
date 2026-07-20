@@ -271,6 +271,8 @@ export function serveFileWithRange(
     'Content-Type': contentType,
     'Access-Control-Allow-Origin': '*',
     'Accept-Ranges': 'bytes',
+    // 音频已有本地文件/audio-cache,禁止 Chromium 磁盘缓存再存一份
+    'Cache-Control': 'no-store',
   }
   const parsed = range ? parseByteRange(range, size) : null
   if (range && !parsed) {

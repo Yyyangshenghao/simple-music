@@ -1071,6 +1071,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         'Content-Type': audioContentTypeForUrl(audioUrl, up.headers.get('content-type')),
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
+        // 音频落盘由 audio-cache 负责,禁止 Chromium 磁盘缓存再存一份
+        'Cache-Control': 'no-store',
       }
       const cl = up.headers.get('content-length')
       if (cl) out['Content-Length'] = cl

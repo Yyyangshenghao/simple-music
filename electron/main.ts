@@ -21,7 +21,9 @@ const performanceSwitches: Array<[string, string?]> = [
   ['enable-zero-copy'],
   ['disable-background-timer-throttling'],
   ['disable-renderer-backgrounding'],
-  ['disable-backgrounding-occluded-windows']
+  ['disable-backgrounding-occluded-windows'],
+  // Chromium 磁盘缓存上限 100MB(主要缓存封面图;音频响应已 no-store)
+  ['disk-cache-size', String(100 * 1024 * 1024)]
 ]
 const angle = process.platform === 'win32' ? 'd3d11' : process.platform === 'darwin' ? 'metal' : null
 if (angle) performanceSwitches.push(['use-angle', angle])
