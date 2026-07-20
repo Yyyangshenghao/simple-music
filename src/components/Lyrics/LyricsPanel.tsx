@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
-import { useWindowActive } from '../../hooks/useWindowActive'
 import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
@@ -17,6 +16,7 @@ import { SpeakerParticles } from '../Visualizer/SpeakerParticles'
 import { CinemaCamera } from '../Visualizer/CinemaCamera'
 import { FrameLimiter } from '../Visualizer/FrameLimiter'
 import { EffectSwitcher } from './EffectSwitcher'
+import { StageLyrics3D } from './StageLyrics3D'
 import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './LyricsPanel.module.css'
 
@@ -125,10 +125,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
+  const stageLyricsOn = useSettingsStore((s) => s.lyricsStage3d)
   const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
   const renderScale = useSettingsStore((s) => s.lyrics3d.renderScale)
-  // 窗口失活(最小化/切走/失焦)时完全停掉 3D 渲染循环,与背景流体的暂停策略一致
-  const windowActive = useWindowActive()
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
   // 浅色封面判定:仅 cover-cloud 会把封面铺满背景,其他 3D 效果底色恒深,保持白字。
   // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
@@ -507,12 +506,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
             dpr={renderScale}
-            frameloop={!windowActive ? 'never' : fpsCap > 0 ? 'demand' : 'always'}
+            frameloop={fpsCap > 0 ? 'demand' : 'always'}
             gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
           >
-            <FrameLimiter fps={windowActive ? fpsCap : 0} />
+            <FrameLimiter fps={fpsCap} />
             <CinemaCamera />
             <EffectComponent coverUrl={track?.cover} />
+            {stageLyricsOn && <StageLyrics3D />}
           </Canvas>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
@@ -528,7 +528,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             aria-hidden="true"
           />
 
-          {/* 歌词叠加层：居中大字 + 玻璃卡片；卡片模糊/背景强度可在设置里调节，最低即完全透明 */}
+          {/* 歌词叠加层(舞台歌词关闭时的回退形态):居中大字 + 玻璃卡片 */}
+          {!stageLyricsOn && (
           <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
@@ -565,6 +566,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
               </motion.div>
             </AnimatePresence>
           </div>
+          )}
         </div>
       )}
     </div>

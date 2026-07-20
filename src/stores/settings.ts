@@ -48,6 +48,8 @@ interface PersistedSettings {
   lyrics3dEffect: Lyrics3dEffect
   /** 3D 歌词底部叠加层的模糊/背景强度，0=完全透明（无背景），1=最强毛玻璃。 */
   lyricsOverlayBlur: number
+  /** 3D 模式歌词形态:true=场景内舞台歌词(移植自原版 Mineradio),false=DOM 叠加层。 */
+  lyricsStage3d: boolean
   /** 3D 歌词场景可调参数(粒子/波纹/帧率等)。 */
   lyrics3d: Lyrics3dParams
   /** 纯歌词模式字号缩放倍率,1 为默认,范围 0.7–1.5。 */
@@ -86,6 +88,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsPanelMode(mode: 'lyrics' | '3d'): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
   setLyricsOverlayBlur(v: number): void
+  setLyricsStage3d(v: boolean): void
   setLyrics3dParams(patch: Partial<Lyrics3dParams>): void
   resetLyrics3dParams(): void
   setLyricsFontScale(v: number): void
@@ -119,6 +122,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsPanelMode: 'lyrics',
   lyrics3dEffect: 'cover-cloud',
   lyricsOverlayBlur: 0.4,
+  lyricsStage3d: true,
   lyrics3d: { ...DEFAULT_LYRICS_3D },
   lyricsFontScale: 1,
   lyricsShowTranslation: true,
@@ -169,6 +173,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setLyricsOverlayBlur(v) {
     set({ lyricsOverlayBlur: Math.max(0, Math.min(1, v)) })
+    get().saveToLocal()
+  },
+  setLyricsStage3d(v) {
+    set({ lyricsStage3d: v })
     get().saveToLocal()
   },
   setLyrics3dParams(patch) {
@@ -226,8 +234,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -245,6 +253,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
         lyrics3dEffect: data.lyrics3dEffect ?? 'cover-cloud',
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
+        lyricsStage3d: data.lyricsStage3d ?? true,
         // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
         lyrics3d: { ...DEFAULT_LYRICS_3D, ...data.lyrics3d },
         lyricsFontScale: data.lyricsFontScale ?? 1,

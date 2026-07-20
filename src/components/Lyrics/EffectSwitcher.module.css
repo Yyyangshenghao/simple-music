@@ -48,6 +48,13 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* 效果单选与舞台歌词开关之间的分隔线 */
+.divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .itemActive {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;

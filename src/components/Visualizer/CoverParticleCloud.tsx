@@ -5,8 +5,9 @@ import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { api } from '../../lib/api'
-import { bandEnergiesFrom } from '../../lib/audio-energy'
+import { bandEnergiesFrom, smoothEnergy } from '../../lib/audio-energy'
 import { buildEdgeDepthData } from '../../lib/cover-edge'
+import { getDotSpriteTexture } from '../../lib/dot-texture'
 import type { PerformanceMode } from '../../types/domain'
 
 /**
@@ -232,24 +233,6 @@ const particleFragmentShader = /* glsl */ `
   }
 `
 
-/** 柔和圆点精灵(干净圆点带衰减缘,无外圈 glow) */
-function makeDotTexture(): THREE.CanvasTexture {
-  const cv = document.createElement('canvas')
-  cv.width = cv.height = 64
-  const ctx = cv.getContext('2d')!
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 31)
-  g.addColorStop(0.0, 'rgba(255,255,255,0.96)')
-  g.addColorStop(0.42, 'rgba(255,255,255,0.78)')
-  g.addColorStop(0.72, 'rgba(255,255,255,0.22)')
-  g.addColorStop(1.0, 'rgba(255,255,255,0)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, 64, 64)
-  const tex = new THREE.CanvasTexture(cv)
-  tex.minFilter = THREE.LinearFilter
-  tex.magFilter = THREE.LinearFilter
-  return tex
-}
-
 /** N×N 粒子铺满 PLANE_SIZE 的 XY 平面,颜色靠 uv 采样封面纹理,无烘焙色属性 */
 function buildGeometry(gridSize: number): THREE.BufferGeometry {
   const count = gridSize * gridSize
@@ -320,6 +303,10 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const beatEnvRef = useRef(0)
   const colorMixStartRef = useRef(-1)
   const lastFrameTimeRef = useRef(0)
+  const bassSmoothRef = useRef(0)
+  const midSmoothRef = useRef(0)
+  const trebleSmoothRef = useRef(0)
+  const energySmoothRef = useRef(0)
 
   const proxyUrl = coverUrl ? api.url('/proxy/cover', { url: coverUrl }) : undefined
 
@@ -360,16 +347,16 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     rippleTex.magFilter = THREE.NearestFilter
     rippleTex.needsUpdate = true
 
-    const dotTex = makeDotTexture()
+    const dotTex = getDotSpriteTexture()
     return { coverTex, prevCoverTex, edgeTex, rippleTex, dotTex }
   }, [])
   useEffect(
     () => () => {
+      // dotTex 是模块级共享缓存,不随组件卸载 dispose
       textures.coverTex.dispose()
       textures.prevCoverTex.dispose()
       textures.edgeTex.dispose()
       textures.rippleTex.dispose()
-      textures.dotTex.dispose()
     },
     [textures]
   )
@@ -530,11 +517,20 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
 
     const engine = usePlayerStore.getState()._engine()
     const bands = bandEnergiesFrom(engine.getFrequencyData())
+    // 静音→播放瞬间频谱是阶跃(gain 淡入包络不影响 analyser 读数),原始值直接
+    // 驱动位移场会导致整面粒子在起播那一刻大幅度抖动,故做指数平滑(升快降慢)
     const bassSum = bands.subBass + bands.bass
-    uniforms.uBass.value = bassSum * 0.5
-    uniforms.uMid.value = (bands.lowMid + bands.mid) * 0.5
-    uniforms.uTreble.value = (bands.highMid + bands.presence + bands.air) / 3
-    uniforms.uEnergy.value = bands.energy
+    bassSmoothRef.current = smoothEnergy(bassSmoothRef.current, bassSum * 0.5)
+    midSmoothRef.current = smoothEnergy(midSmoothRef.current, (bands.lowMid + bands.mid) * 0.5)
+    trebleSmoothRef.current = smoothEnergy(
+      trebleSmoothRef.current,
+      (bands.highMid + bands.presence + bands.air) / 3
+    )
+    energySmoothRef.current = smoothEnergy(energySmoothRef.current, bands.energy)
+    uniforms.uBass.value = bassSmoothRef.current
+    uniforms.uMid.value = midSmoothRef.current
+    uniforms.uTreble.value = trebleSmoothRef.current
+    uniforms.uEnergy.value = energySmoothRef.current
 
     // 节拍包络:鼓点瞬间 1,随后指数衰减,驱动点径涨缩
     beatEnvRef.current = Math.max(0, beatEnvRef.current - delta * 3.5)

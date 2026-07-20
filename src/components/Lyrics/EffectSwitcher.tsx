@@ -67,10 +67,12 @@ interface EffectSwitcherProps {
   onClose: () => void
 }
 
-/** 3D 按钮下拉菜单:选择封面粒子云/3D 频谱环/音箱沙粒三种效果 */
+/** 3D 按钮下拉菜单:选择封面粒子云/3D 频谱环/音箱沙粒三种效果,底部附舞台歌词开关 */
 export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
   const active = useSettingsStore((s) => s.lyrics3dEffect)
   const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
+  const stage3d = useSettingsStore((s) => s.lyricsStage3d)
+  const setStage3d = useSettingsStore((s) => s.setLyricsStage3d)
 
   return (
     <>
@@ -102,6 +104,28 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
             </motion.button>
           )
         })}
+        <div className={styles.divider} aria-hidden="true" />
+        <motion.button
+          role="menuitemcheckbox"
+          aria-checked={stage3d}
+          className={`${styles.item}${stage3d ? ` ${styles.itemActive}` : ''}`}
+          title="开:歌词悬浮在 3D 场景内;关:传统底部叠加歌词"
+          onClick={() => setStage3d(!stage3d)}
+          whileTap={tapScale}
+          transition={springSnappy}
+        >
+          <span className={styles.icon}>
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+              strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 14 L10 17 L17 14" />
+              <path d="M3 10 L10 13 L17 10" />
+              <path d="M5 6.5 H15" />
+              <circle cx="3" cy="6.5" r="0.8" />
+              <circle cx="17" cy="6.5" r="0.8" />
+            </svg>
+          </span>
+          <span className={styles.label}>舞台歌词</span>
+        </motion.button>
       </motion.div>
     </>
   )
