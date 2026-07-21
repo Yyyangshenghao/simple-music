@@ -7,9 +7,10 @@ import { useBackdropStore } from '../stores/backdrop'
 import { ArtistHeader } from '../components/Artist/ArtistHeader'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
+import { ArtistPill } from '../components/Explore/ArtistPill'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { tapScale, springSnappy } from '../lib/motion-presets'
-import type { ArtistInfo, Track, Playlist } from '../types/domain'
+import type { ArtistInfo, MusicSource, Track, Playlist } from '../types/domain'
 import styles from './ArtistPage.module.css'
 
 type ArtistTab = 'songs' | 'albums' | 'similar'
@@ -23,17 +24,35 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
+  const [similar, setSimilar] = useState<ArtistInfo[]>([])
+  const [similarLoaded, setSimilarLoaded] = useState(false)
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
   const service = useMusicService()
   const goBack = useNavigationStore((s) => s.goBack)
+  const navigateTo = useNavigationStore((s) => s.navigateTo)
 
   useEffect(() => {
-    setArtist(null); setSongs([]); setAlbums([])
+    setArtist(null); setSongs([]); setAlbums([]); setSimilar([]); setSimilarLoaded(false)
     void service.getArtistDetail(id).then(setArtist).catch(() => {})
     void service.getArtistSongs(id).then(setSongs).catch(() => {})
     void service.getArtistAlbums(id).then(setAlbums).catch(() => {})
+    if (service.getSimilarArtists) {
+      void service.getSimilarArtists(id)
+        .then((list) => setSimilar(list))
+        .catch(() => {})
+        .finally(() => setSimilarLoaded(true))
+    } else {
+      setSimilarLoaded(true)
+    }
   }, [id, service])
+
+  function openArtist(nextId: unknown, source: MusicSource) {
+    if (source !== 'netease' && source !== 'qq') return
+    navigateTo({ type: 'artist', id: nextId, source })
+  }
+
+  const tabs: ArtistTab[] = service.getSimilarArtists ? ['songs', 'albums', 'similar'] : ['songs', 'albums']
 
   // 歌手头像模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
@@ -78,7 +97,7 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
       <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
-        {(['songs', 'albums', 'similar'] as ArtistTab[]).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
@@ -110,8 +129,13 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
       )}
 
       {tab === 'similar' && (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--sm-text-secondary)' }}>
-          相似歌手功能即将上线
+        <div className={styles.similarGrid}>
+          {similar.map((a, i) => (
+            <ArtistPill key={String(a.id) + i} artist={a} onClick={() => openArtist(a.id, a.source)} />
+          ))}
+          {similarLoaded && similar.length === 0 && (
+            <p className={styles.similarEmpty}>暂无相似歌手数据</p>
+          )}
         </div>
       )}
     </ScrollArea>

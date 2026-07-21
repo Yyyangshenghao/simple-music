@@ -52,6 +52,16 @@ export class NeteaseMusicService implements MusicService {
     return res.albums ?? []
   }
 
+  async getSimilarArtists(id: unknown): Promise<ArtistInfo[]> {
+    const res = await api.get<{ artists: ArtistInfo[] }>('/api/netease/artist/similar', { id: id as string | number })
+    return (res.artists ?? []).map((a) => ({ ...a, source: 'netease' as const }))
+  }
+
+  async getListeningRanking(): Promise<Track[]> {
+    const res = await api.get<{ songs: Track[] }>('/api/netease/record')
+    return res.songs ?? []
+  }
+
   async getAlbumTracks(id: unknown): Promise<Track[]> {
     const res = await api.get<{ songs: Track[] }>('/api/netease/album/songs', { id: String(id) })
     return res.songs ?? []

@@ -11,6 +11,10 @@ export interface MusicService {
   searchArtists(keyword: string): Promise<ArtistInfo[]>
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
+  /** 相似歌手（可选；未实现的音源不渲染相似歌手胶囊）。 */
+  getSimilarArtists?(id: unknown): Promise<ArtistInfo[]>
+  /** 近一周听歌排行（可选；网易专属，用于漫游页猜测常听歌手）。 */
+  getListeningRanking?(): Promise<Track[]>
   getArtistAlbums(id: unknown): Promise<Playlist[]>
   /** 专辑曲目全量拉取(`Playlist.type === 'album'` 的详情页用;专辑规模小,不走懒加载)。 */
   getAlbumTracks(id: unknown): Promise<Track[]>

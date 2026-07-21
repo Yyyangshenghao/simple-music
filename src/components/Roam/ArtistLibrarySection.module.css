@@ -1,0 +1,160 @@
+.card {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  border: 1px solid var(--glass-border-card);
+  border-radius: var(--sm-radius-card);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+}
+
+.stepBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--sm-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepBtn:hover:not(:disabled) { background: var(--sm-bg-elevated); }
+.stepBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.stepCount { min-width: 40px; text-align: center; }
+
+.removeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+
+.removeBtn:hover { background: var(--sm-bg-elevated); color: var(--sm-text-primary); }
+
+.hint { font-size: 12px; color: var(--sm-text-secondary); margin: 10px 2px 0; }
+
+.trackList { margin-top: 8px; }
+
+.trackRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: 8px;
+}
+
+.trackRow:hover { background: var(--sm-bg-elevated); }
+
+.trackName {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackDuration { font-size: 12px; color: var(--sm-text-secondary); flex-shrink: 0; }
+
+.trackRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.trackRow:hover .trackRemove { opacity: 1; }
+.trackRemove:hover { background: var(--sm-border); color: var(--sm-text-primary); }
+
+.addSection { margin-top: 8px; }
+
+.addToggle {
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--sm-accent);
+  cursor: pointer;
+}
+
+.addToggle:hover { text-decoration: underline; }
+
+.addList {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.addRow:hover { background: var(--sm-bg-elevated); color: var(--sm-text-primary); }
+.addRow .trackName { color: inherit; }
+
+.addPlus { font-size: 14px; color: var(--sm-accent); flex-shrink: 0; }

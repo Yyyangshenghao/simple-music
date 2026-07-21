@@ -1,10 +1,43 @@
 import { create } from 'zustand'
 import { serviceFor } from '../lib/service-registry'
 import { useSettingsStore } from './settings'
-import { buildRoamTracks, pickArtistTracks, type RoamMode } from '../lib/roam-selection'
+import {
+  buildRoamTracks,
+  computeDefaultSongCount,
+  pickAdditionalTracks,
+  pickArtistTracks,
+  shuffle,
+  type RoamMode,
+} from '../lib/roam-selection'
 import { buildRoamDescription, parseRoamDescription } from '../lib/roam-description'
+import { rankArtistsByFrequency } from '../lib/artist-affinity'
 import type { MusicService } from '../lib/music-service'
 import type { ArtistInfo, MusicSource, Track } from '../types/domain'
+
+/** 猜你喜欢歌手用的种子曲目池:红心歌单 + 近一周听歌排行(均可选,QQ 未实现时直接空数组)。 */
+async function fetchLikedTracks(service: MusicService): Promise<Track[]> {
+  if (!service.getLikedPlaylist) return []
+  try {
+    const pl = await service.getLikedPlaylist()
+    if (!pl) return []
+    const sk = await service.getPlaylistSkeleton(pl.id)
+    return sk.tracks ?? []
+  } catch {
+    return []
+  }
+}
+
+async function fetchRankingTracks(service: MusicService): Promise<Track[]> {
+  if (!service.getListeningRanking) return []
+  try {
+    return await service.getListeningRanking()
+  } catch {
+    return []
+  }
+}
+
+/** 猜歌手无限流的过期守卫:音源切换/clearSuggestions 时自增,异步回调落地前核对,避免旧音源结果写进新会话。 */
+let suggestionsSession = 0
 
 /**
  * 「漫游」歌单:
@@ -16,7 +49,19 @@ import type { ArtistInfo, MusicSource, Track } from '../types/domain'
 const STORAGE_KEY = 'simplemusic-roam-playlist'
 const NETEASE_PLAYLIST_ID_KEY = 'simplemusic-roam-playlist-id-netease'
 const NETEASE_PLAYLIST_NAME = '每日漫游'
-export const MAX_ARTISTS = 5
+/** 策展式选歌手,上限比原先「盲选自动生成」时代更宽松,但仍要防止歌单过度臃肿。 */
+export const MAX_ARTISTS = 12
+export const MAX_SONGS_PER_ARTIST = 30
+
+/** 已选入的一位歌手：曲库池(懒加载一次)+ 当前已选曲目(可手动增删)+ 目标首数(驱动步进器增量填充)。 */
+export interface RoamArtistEntry {
+  artist: ArtistInfo
+  pool: Track[]
+  tracks: Track[]
+  count: number
+  /** 曲库池异步拉取中。 */
+  loading: boolean
+}
 
 export interface RoamPlaylist {
   date: string
@@ -71,7 +116,7 @@ function clearCachedNeteasePlaylistId(): void {
 
 interface RoamStore {
   playlist: RoamPlaylist | null
-  selectedArtists: ArtistInfo[]
+  entries: RoamArtistEntry[]
   mode: RoamMode
   generating: boolean
   /** 网易云真实歌单异步核实中(打开页面时可能要拉网络)。 */
@@ -80,33 +125,113 @@ interface RoamStore {
   neteasePlaylistId: unknown
   /** 本次挂载/音源会话是否已尝试过网易云真实歌单核实(避免重复请求)。 */
   neteaseHydrated: boolean
-  addArtist(artist: ArtistInfo): void
+  /**
+   * 选歌手画布确认时调用:整体替换已选歌手列表。已在 entries 里的歌手保留原有曲库池/已选曲目/首数
+   * (不重新拉取,避免重开画布追加一位就把之前手动增删的曲目全冲掉);新加入的按人数摊算默认首数
+   * (见 computeDefaultSongCount)异步拉曲库池。超过 MAX_ARTISTS 的部分丢弃。
+   */
+  confirmArtists(artists: ArtistInfo[]): void
   removeArtist(id: unknown): void
+  /** 调整某位歌手的目标首数:调大从曲库池补(跳过已选),调小从尾部裁,不影响其他歌手。 */
+  setArtistCount(id: unknown, count: number): void
+  /** 从该歌手曲库池里手动加入一首指定曲目(已存在则忽略)。 */
+  addTrack(id: unknown, track: Track): void
+  /** 从该歌手已选曲目里移除一首(与 count 解耦,不会自动补位)。 */
+  removeTrack(id: unknown, trackId: unknown): void
   setMode(mode: RoamMode): void
   generate(): Promise<void>
   reset(): void
   /** 网易云专属:核实账号里是否已有可复用的「每日漫游」真实歌单,核实结果写入 playlist/neteasePlaylistId。QQ(service 未实现相关方法)直接 no-op。 */
   ensureNeteaseHydrated(service: MusicService): Promise<void>
+
+  /** 猜你喜欢的歌手(无限流建议列表)。 */
+  suggestions: ArtistInfo[]
+  suggestionsLoaded: boolean
+  suggestionsLoading: boolean
+  /** 首次拉取种子建议(红心+听歌排行统计出的常听歌手);已加载/加载中则 no-op。 */
+  loadSuggestions(service: MusicService): Promise<void>
+  /** 音源切换等场景清空建议列表,下次 loadSuggestions 会重新拉取。 */
+  clearSuggestions(): void
 }
 
 export const useRoamStore = create<RoamStore>((set, get) => ({
   playlist: loadValidPlaylist(),
-  selectedArtists: [],
+  entries: [],
   mode: 'hot',
   generating: false,
   loading: false,
   neteasePlaylistId: null,
   neteaseHydrated: false,
+  suggestions: [],
+  suggestionsLoaded: false,
+  suggestionsLoading: false,
 
-  addArtist(artist) {
-    const { selectedArtists } = get()
-    if (selectedArtists.length >= MAX_ARTISTS) return
-    if (selectedArtists.some((a) => String(a.id) === String(artist.id))) return
-    set({ selectedArtists: [...selectedArtists, artist] })
+  confirmArtists(artists) {
+    const capped = artists.slice(0, MAX_ARTISTS)
+    const defaultCount = computeDefaultSongCount(capped.length)
+    set((s) => {
+      const byId = new Map(s.entries.map((e) => [String(e.artist.id), e]))
+      return {
+        entries: capped.map(
+          (artist) => byId.get(String(artist.id)) ?? { artist, pool: [], tracks: [], count: defaultCount, loading: true }
+        )
+      }
+    })
+
+    for (const entry of get().entries) {
+      if (!entry.loading || entry.pool.length > 0) continue // 复用已有的,跳过重新拉取
+      const artist = entry.artist
+      serviceFor(artist.source)
+        .getArtistSongs(artist.id)
+        .then((pool) => {
+          set((s) => ({
+            entries: s.entries.map((e) =>
+              String(e.artist.id) === String(artist.id)
+                ? { ...e, pool, tracks: pickArtistTracks(pool, s.mode, e.count), loading: false }
+                : e
+            )
+          }))
+        })
+        .catch(() => {
+          set((s) => ({
+            entries: s.entries.map((e) => (String(e.artist.id) === String(artist.id) ? { ...e, loading: false } : e))
+          }))
+        })
+    }
   },
 
   removeArtist(id) {
-    set((s) => ({ selectedArtists: s.selectedArtists.filter((a) => String(a.id) !== String(id)) }))
+    set((s) => ({ entries: s.entries.filter((e) => String(e.artist.id) !== String(id)) }))
+  },
+
+  setArtistCount(id, rawCount) {
+    const count = Math.max(1, Math.min(MAX_SONGS_PER_ARTIST, Math.round(rawCount)))
+    set((s) => ({
+      entries: s.entries.map((e) => {
+        if (String(e.artist.id) !== String(id)) return e
+        if (count <= e.tracks.length) return { ...e, count, tracks: e.tracks.slice(0, count) }
+        const additional = pickAdditionalTracks(e.pool, e.tracks, s.mode, count - e.tracks.length)
+        return { ...e, count, tracks: [...e.tracks, ...additional] }
+      })
+    }))
+  },
+
+  addTrack(id, track) {
+    set((s) => ({
+      entries: s.entries.map((e) => {
+        if (String(e.artist.id) !== String(id)) return e
+        if (e.tracks.some((t) => String(t.id) === String(track.id))) return e
+        return { ...e, tracks: [...e.tracks, track] }
+      })
+    }))
+  },
+
+  removeTrack(id, trackId) {
+    set((s) => ({
+      entries: s.entries.map((e) =>
+        String(e.artist.id) === String(id) ? { ...e, tracks: e.tracks.filter((t) => String(t.id) !== String(trackId)) } : e
+      )
+    }))
   },
 
   setMode(mode) {
@@ -159,23 +284,13 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
   },
 
   async generate() {
-    const { selectedArtists, mode } = get()
-    if (selectedArtists.length === 0) return
+    const { entries, mode } = get()
+    if (entries.length === 0) return
     set({ generating: true })
     const source = useSettingsStore.getState().activeSource
     const service = serviceFor(source)
-    const picks = await Promise.all(
-      selectedArtists.map(async (artist) => {
-        try {
-          const pool = await service.getArtistSongs(artist.id)
-          return pickArtistTracks(pool, mode)
-        } catch {
-          return []
-        }
-      })
-    )
-    const tracks = buildRoamTracks(picks)
-    const artists = selectedArtists.map((a) => ({ name: a.name }))
+    const tracks = buildRoamTracks(entries.map((e) => e.tracks))
+    const artists = entries.map((e) => ({ name: e.artist.name }))
     const date = todayKey()
 
     if (service.createPlaylist) {
@@ -205,17 +320,17 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
           playlist: { date, source, mode, artists, tracks },
           neteasePlaylistId: id,
           generating: false,
-          selectedArtists: [],
+          entries: [],
         })
       } catch {
-        set({ generating: false }) // 失败:留在选歌手态,不清 selectedArtists,方便重试
+        set({ generating: false }) // 失败:留在选歌手态,不清 entries,方便重试
       }
       return
     }
 
     // QQ / 本地路径,逻辑不变
     const playlist: RoamPlaylist = { date, source, mode, artists, tracks }
-    set({ playlist, generating: false, selectedArtists: [] })
+    set({ playlist, generating: false, entries: [] })
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(playlist))
@@ -226,7 +341,37 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
   },
 
   reset() {
-    set({ playlist: null, selectedArtists: [], mode: 'hot', loading: false, neteaseHydrated: false })
+    set({ playlist: null, entries: [], mode: 'hot', loading: false, neteaseHydrated: false })
     if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY)
+  },
+
+  async loadSuggestions(service) {
+    if (get().suggestionsLoaded || get().suggestionsLoading) return
+    if (!service.getLikedPlaylist && !service.getListeningRanking) {
+      set({ suggestionsLoaded: true })
+      return
+    }
+    set({ suggestionsLoading: true })
+    const session = ++suggestionsSession
+    try {
+      const [liked, ranking] = await Promise.all([fetchLikedTracks(service), fetchRankingTracks(service)])
+      if (suggestionsSession !== session) return
+      const top = rankArtistsByFrequency([liked, ranking], 16)
+      if (top.length === 0) {
+        set({ suggestionsLoaded: true, suggestionsLoading: false })
+        return
+      }
+      const details = await Promise.all(top.map((a) => service.getArtistDetail(a.id).catch(() => null)))
+      if (suggestionsSession !== session) return
+      const hydrated = shuffle(details.filter((a): a is ArtistInfo => !!a))
+      set({ suggestions: hydrated, suggestionsLoaded: true, suggestionsLoading: false })
+    } catch {
+      if (suggestionsSession === session) set({ suggestionsLoaded: true, suggestionsLoading: false })
+    }
+  },
+
+  clearSuggestions() {
+    suggestionsSession++
+    set({ suggestions: [], suggestionsLoaded: false, suggestionsLoading: false })
   }
 }))

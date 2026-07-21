@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { shuffle, pickArtistTracks, buildRoamTracks } from './roam-selection'
+import { shuffle, pickArtistTracks, buildRoamTracks, computeDefaultSongCount } from './roam-selection'
 import type { Track } from '../types/domain'
 
 function mkTrack(artistId: number, i: number): Track {
@@ -64,6 +64,23 @@ describe('pickArtistTracks', () => {
   it('random 模式曲库不足 10 首时返回全池洗牌结果', () => {
     const pool = Array.from({ length: 4 }, (_, i) => mkTrack(1, i))
     expect(pickArtistTracks(pool, 'random')).toHaveLength(4)
+  })
+})
+
+describe('computeDefaultSongCount', () => {
+  it('按目标总数(60)摊,人少则每人首数多', () => {
+    expect(computeDefaultSongCount(1)).toBe(15) // 60 夹到上限 15
+    expect(computeDefaultSongCount(6)).toBe(10) // 60/6=10
+    expect(computeDefaultSongCount(12)).toBe(5) // 60/12=5
+  })
+
+  it('人数很多时夹在下限 5', () => {
+    expect(computeDefaultSongCount(20)).toBe(5)
+  })
+
+  it('0 或负数按默认 10 处理', () => {
+    expect(computeDefaultSongCount(0)).toBe(10)
+    expect(computeDefaultSongCount(-1)).toBe(10)
   })
 })
 

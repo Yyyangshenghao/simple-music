@@ -245,6 +245,28 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 听歌排行(近一周) ----------
+  if (pn === '/api/netease/record') {
+    try {
+      const info = await getLoginInfo(ctx)
+      if (!info.loggedIn || !info.userId) {
+        sendJson(res, { songs: [] })
+        return true
+      }
+      const cookie = getCookie(ctx, 'netease')
+      const resp = await call('user_record', { uid: info.userId, type: 1, cookie, timestamp: Date.now() })
+      const body = asObj(resp.body)
+      const songs = asArr(body.weekData || body.allData || [])
+        .map((item) => mapSongRecord(asObj(item).song))
+        .filter((s) => s.id && s.name)
+      sendJson(res, { songs })
+    } catch (err) {
+      console.error('[UserRecord]', err)
+      sendJson(res, { songs: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- Artist Detail ----------
   if (pn === '/api/netease/artist/detail') {
     try {
@@ -291,6 +313,24 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[ArtistAlbums]', err)
       sendJson(res, { albums: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- Artist Similar ----------
+  if (pn === '/api/netease/artist/similar') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const id = url.searchParams.get('id') || ''
+      const resp = await call('simi_artist', { id, cookie })
+      const body = asObj(resp.body)
+      const artists = asArr(body.artists || body.data || [])
+        .map(mapArtistDetail)
+        .filter((a) => a.id && a.name)
+      sendJson(res, { artists })
+    } catch (err) {
+      console.error('[ArtistSimilar]', err)
+      sendJson(res, { artists: [] }, 500)
     }
     return true
   }

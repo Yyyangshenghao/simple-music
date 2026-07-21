@@ -93,3 +93,16 @@
   gap: 24px;
   padding: 16px 24px;
 }
+
+.similarGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 12px;
+  padding: 16px 24px;
+}
+
+.similarEmpty {
+  color: var(--sm-text-secondary);
+  font-size: 14px;
+  padding: 24px 0;
+}

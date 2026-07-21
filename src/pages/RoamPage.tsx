@@ -1,51 +1,51 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
-import { useRoamStore, MAX_ARTISTS } from '../stores/roam'
+import { useRoamStore } from '../stores/roam'
+import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
+import { ArtistLibrarySection } from '../components/Roam/ArtistLibrarySection'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
 import { GradientText } from '../components/ui/GradientText'
-import { CloseIcon } from '../components/ui/CloseIcon'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
-import type { ArtistInfo } from '../types/domain'
 import styles from './RoamPage.module.css'
 
 export function RoamPage() {
   const service = useMusicService()
   const activeSource = useSettingsStore((s) => s.activeSource)
   const playlist = useRoamStore((s) => s.playlist)
-  const selectedArtists = useRoamStore((s) => s.selectedArtists)
+  const entries = useRoamStore((s) => s.entries)
   const mode = useRoamStore((s) => s.mode)
   const generating = useRoamStore((s) => s.generating)
-  const addArtist = useRoamStore((s) => s.addArtist)
-  const removeArtist = useRoamStore((s) => s.removeArtist)
+  const confirmArtists = useRoamStore((s) => s.confirmArtists)
   const setMode = useRoamStore((s) => s.setMode)
   const generate = useRoamStore((s) => s.generate)
   const reset = useRoamStore((s) => s.reset)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const loading = useRoamStore((s) => s.loading)
 
-  const [keyword, setKeyword] = useState('')
-  const [results, setResults] = useState<ArtistInfo[]>([])
-  const [searching, setSearching] = useState(false)
-  const searchSeq = useRef(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const { topOpacity, bottomOpacity, handleScroll } = useScrollGradient()
+
+  const totalTracks = entries.reduce((n, e) => n + e.tracks.length, 0)
+  const anyLoading = entries.some((e) => e.loading)
 
   // 音源切换后,已生成的歌单/进行中的选歌手若属于旧音源,一律视为过期清空——直接比对存量数据自带的
   // source 字段而非记录”上次挂载时的音源”,这样即使切源发生在 RoamPage 未挂载期间(如在别的页面用
   // 头像菜单切源),重新挂载时也能在这次 effect 里侦测到不匹配并清空,不会让旧音源数据带着挂载。
+  // 建议无限流同理是源绑定的(相似歌手/常听排行都按当前音源拉取),一并清空重新种子。
   useEffect(() => {
     const s = useRoamStore.getState()
     const stale =
       (s.playlist && s.playlist.source !== activeSource) ||
-      s.selectedArtists.some((a) => a.source !== activeSource)
+      s.entries.some((e) => e.artist.source !== activeSource)
     if (stale) useRoamStore.getState().reset()
-    setKeyword('')
-    setResults([])
+    useRoamStore.getState().clearSuggestions()
+    setPickerOpen(false)
   }, [activeSource])
 
   // 网易云:挂载/切回网易云时核实账号里是否已有可复用的「每日漫游」真实歌单
@@ -54,32 +54,14 @@ export function RoamPage() {
     void useRoamStore.getState().ensureNeteaseHydrated(service)
   }, [activeSource, neteaseLoggedIn, service])
 
-  useEffect(() => {
-    const q = keyword.trim()
-    if (!q) {
-      searchSeq.current++
-      setResults([])
-      setSearching(false)
-      return
-    }
-    const seq = ++searchSeq.current
-    setSearching(true)
-    const timer = setTimeout(() => {
-      service.searchArtists(q)
-        .then((artists) => { if (seq === searchSeq.current) setResults(artists) })
-        .catch(() => { if (seq === searchSeq.current) setResults([]) })
-        .finally(() => { if (seq === searchSeq.current) setSearching(false) })
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [keyword, service])
-
-  function isSelected(artist: ArtistInfo): boolean {
-    return selectedArtists.some((a) => String(a.id) === String(artist.id))
-  }
-
   function playAt(index: number) {
     if (!playlist) return
     usePlaylistStore.getState().setQueue(playlist.tracks, index)
+  }
+
+  function handleConfirmArtists(artists: Parameters<typeof confirmArtists>[0]) {
+    confirmArtists(artists)
+    setPickerOpen(false)
   }
 
   if (activeSource === 'netease' && !neteaseLoggedIn) {
@@ -159,69 +141,53 @@ export function RoamPage() {
           </p>
         </motion.div>
 
-        <div className={styles.searchBox}>
-          <input
-            className={`${styles.searchInput} no-drag`}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索歌手…"
-          />
-        </div>
+        {entries.length === 0 ? (
+          <motion.button
+            className={`${styles.pickBtn} no-drag`}
+            onClick={() => setPickerOpen(true)}
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            选择歌手
+          </motion.button>
+        ) : (
+          <>
+            <div className={styles.entriesHeader}>
+              <Toggle checked={mode === 'random'} onChange={(v) => setMode(v ? 'random' : 'hot')} label="随机模式(影响后续新增首数时的选取)" />
+              <button className={`${styles.editArtistsBtn} no-drag`} onClick={() => setPickerOpen(true)}>
+                + 编辑歌手(已选 {entries.length} 位)
+              </button>
+            </div>
 
-        {searching && <p className={styles.hint}>搜索中…</p>}
+            <div className={styles.library}>
+              {entries.map((entry) => (
+                <ArtistLibrarySection key={String(entry.artist.id)} entry={entry} />
+              ))}
+            </div>
 
-        {results.length > 0 && (
-          <div className={styles.resultList}>
-            {results.map((artist, i) => {
-              const selected = isSelected(artist)
-              const disabled = !selected && selectedArtists.length >= MAX_ARTISTS
-              return (
-                <button
-                  key={`${artist.source}-${String(artist.id)}-${i}`}
-                  className={`${styles.artistRow} no-drag${disabled ? ` ${styles.artistRowDisabled}` : ''}`}
-                  disabled={disabled}
-                  onClick={() => (selected ? removeArtist(artist.id) : addArtist(artist))}
-                >
-                  {artist.avatar && <img className={styles.artistAvatar} src={artist.avatar} alt="" loading="lazy" />}
-                  <span className={styles.artistName}>{artist.name}</span>
-                  {selected && <span className={styles.artistCheck}>已选</span>}
-                </button>
-              )
-            })}
-          </div>
+            <motion.button
+              className={`${styles.generateBtn} no-drag`}
+              disabled={totalTracks === 0 || generating || anyLoading}
+              onClick={() => { void generate() }}
+              whileTap={tapScale}
+              transition={springSnappy}
+            >
+              {generating ? '生成中…' : anyLoading ? '曲库加载中…' : `生成漫游歌单(${totalTracks} 首)`}
+            </motion.button>
+          </>
         )}
-
-        {selectedArtists.length > 0 && (
-          <div className={styles.chips}>
-            {selectedArtists.map((artist) => (
-              <span key={String(artist.id)} className={styles.chip}>
-                {artist.name}
-                <button
-                  className={`${styles.chipRemove} no-drag`}
-                  onClick={() => removeArtist(artist.id)}
-                  aria-label={`移除 ${artist.name}`}
-                >
-                  <CloseIcon size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className={styles.modeRow}>
-          <Toggle checked={mode === 'random'} onChange={(v) => setMode(v ? 'random' : 'hot')} label="随机模式" />
-        </div>
-
-        <motion.button
-          className={`${styles.generateBtn} no-drag`}
-          disabled={selectedArtists.length === 0 || generating}
-          onClick={() => { void generate() }}
-          whileTap={tapScale}
-          transition={springSnappy}
-        >
-          {generating ? '生成中…' : '生成漫游歌单'}
-        </motion.button>
       </div>
+      <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
+
+      <AnimatePresence>
+        {pickerOpen && (
+          <ArtistPickerOverlay
+            initialSelected={entries.map((e) => e.artist)}
+            onConfirm={handleConfirmArtists}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

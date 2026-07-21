@@ -65,64 +65,135 @@ vi.mock('./settings', () => ({
   useSettingsStore: { getState: () => ({ activeSource: 'netease' }) }
 }))
 
-import { useRoamStore, MAX_ARTISTS } from './roam'
+import { useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'
+
+/** confirmArtists 内部异步拉取曲库池,flush 两轮微任务让 getArtistSongs.then(...) 的 set 落地。 */
+async function flush() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+function mkEntry(artistId: number, overrides: Partial<RoamArtistEntry> = {}): RoamArtistEntry {
+  const pool = POOLS[String(artistId)] ?? []
+  return {
+    artist: mkArtist(artistId),
+    pool,
+    tracks: pool.slice(0, 10),
+    count: 10,
+    loading: false,
+    ...overrides,
+  }
+}
 
 describe('roam store', () => {
   beforeEach(() => {
     currentService = localOnlyService
-    useRoamStore.setState({ playlist: null, selectedArtists: [], mode: 'hot', generating: false })
+    useRoamStore.setState({ playlist: null, entries: [], mode: 'hot', generating: false })
     getArtistSongs.mockClear()
     getArtistSongs.mockImplementation(async (id: unknown) => POOLS[String(id)] ?? [])
   })
 
-  it('addArtist 去重且上限 MAX_ARTISTS 位', () => {
-    const { addArtist } = useRoamStore.getState()
-    for (let i = 0; i < MAX_ARTISTS + 1; i++) addArtist(mkArtist(i))
-    addArtist(mkArtist(0)) // 重复,不应再次加入
-    expect(useRoamStore.getState().selectedArtists).toHaveLength(MAX_ARTISTS)
+  it('confirmArtists 整体设定已选歌手,超过 MAX_ARTISTS 的丢弃', () => {
+    const many = Array.from({ length: MAX_ARTISTS + 3 }, (_, i) => mkArtist(i))
+    useRoamStore.getState().confirmArtists(many)
+    expect(useRoamStore.getState().entries).toHaveLength(MAX_ARTISTS)
+  })
+
+  it('confirmArtists 拉取新歌手曲库,首数按人数摊算(2 位→15 首上限,曲库不足则全量)', async () => {
+    useRoamStore.getState().confirmArtists([mkArtist(1), mkArtist(2)])
+    expect(useRoamStore.getState().entries.every((e) => e.loading)).toBe(true)
+    await flush()
+    const entries = useRoamStore.getState().entries
+    expect(entries[0].tracks).toHaveLength(15)
+    expect(entries[1].tracks).toHaveLength(3)
+    expect(entries.every((e) => !e.loading)).toBe(true)
+  })
+
+  it('confirmArtists 曲库拉取失败:该歌手曲目为空,不影响其他歌手', async () => {
+    getArtistSongs.mockImplementationOnce(async () => { throw new Error('boom') })
+    useRoamStore.getState().confirmArtists([mkArtist(1), mkArtist(2)])
+    await flush()
+    const entries = useRoamStore.getState().entries
+    expect(entries[0].tracks).toEqual([])
+    expect(entries[0].loading).toBe(false)
+    expect(entries[1].tracks).toHaveLength(3)
+  })
+
+  it('confirmArtists 重新确认时保留已有歌手的曲库池与手动编辑结果,不重新拉取', async () => {
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: [POOLS['1'][0]], count: 1 })] })
+    useRoamStore.getState().confirmArtists([mkArtist(1), mkArtist(2)])
+    await flush()
+    const entries = useRoamStore.getState().entries
+    expect(entries[0].tracks).toEqual([POOLS['1'][0]]) // 未被 15 首默认值冲掉
+    const fetchedIds = getArtistSongs.mock.calls.map((c) => c[0])
+    expect(fetchedIds).not.toContain(1) // 已有的没有重新拉取
+    expect(fetchedIds).toContain(2)
   })
 
   it('removeArtist 按 id 移除', () => {
-    const { addArtist, removeArtist } = useRoamStore.getState()
-    addArtist(mkArtist(1))
-    addArtist(mkArtist(2))
-    removeArtist(1)
-    expect(useRoamStore.getState().selectedArtists.map((a) => a.id)).toEqual([2])
+    useRoamStore.getState().confirmArtists([mkArtist(1), mkArtist(2)])
+    useRoamStore.getState().removeArtist(1)
+    expect(useRoamStore.getState().entries.map((e) => e.artist.id)).toEqual([2])
   })
 
-  it('generate 按 hot 模式取每人前 10 首并汇总,曲库不足按实际数量', async () => {
-    useRoamStore.setState({ selectedArtists: [mkArtist(1), mkArtist(2)], mode: 'hot' })
+  it('setArtistCount 调大:从曲库池补齐,跳过已选的,不超过 MAX_SONGS_PER_ARTIST', () => {
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: POOLS['1'].slice(0, 4), count: 4 })] })
+    useRoamStore.getState().setArtistCount(1, 8)
+    const entry = useRoamStore.getState().entries[0]
+    expect(entry.tracks).toHaveLength(8)
+    expect(entry.tracks.slice(0, 4)).toEqual(POOLS['1'].slice(0, 4))
+    expect(new Set(entry.tracks.map((t) => t.id)).size).toBe(8)
+
+    useRoamStore.getState().setArtistCount(1, 999)
+    expect(useRoamStore.getState().entries[0].count).toBe(MAX_SONGS_PER_ARTIST)
+  })
+
+  it('setArtistCount 调小:从尾部裁剪', () => {
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: POOLS['1'].slice(0, 10), count: 10 })] })
+    useRoamStore.getState().setArtistCount(1, 3)
+    const entry = useRoamStore.getState().entries[0]
+    expect(entry.tracks).toEqual(POOLS['1'].slice(0, 3))
+  })
+
+  it('addTrack/removeTrack 手动编辑已选曲目,与 count 解耦', () => {
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: POOLS['1'].slice(0, 2), count: 2 })] })
+    const extra = POOLS['1'][5]
+    useRoamStore.getState().addTrack(1, extra)
+    let entry = useRoamStore.getState().entries[0]
+    expect(entry.tracks).toHaveLength(3)
+    expect(entry.count).toBe(2) // count 不受手动新增影响
+
+    useRoamStore.getState().addTrack(1, extra) // 重复加入应忽略
+    expect(useRoamStore.getState().entries[0].tracks).toHaveLength(3)
+
+    useRoamStore.getState().removeTrack(1, POOLS['1'][0].id)
+    entry = useRoamStore.getState().entries[0]
+    expect(entry.tracks.map((t) => t.id)).toEqual([POOLS['1'][1].id, extra.id])
+  })
+
+  it('generate 汇总所有 entries 已选曲目并清空 entries', async () => {
+    useRoamStore.setState({
+      entries: [mkEntry(1, { tracks: POOLS['1'].slice(0, 10) }), mkEntry(2, { tracks: POOLS['2'] })],
+      mode: 'hot',
+    })
     await useRoamStore.getState().generate()
-    const { playlist } = useRoamStore.getState()
+    const { playlist, entries } = useRoamStore.getState()
     expect(playlist).not.toBeNull()
-    expect(playlist!.tracks).toHaveLength(13) // 10 + 3
-    expect(getArtistSongs).toHaveBeenCalledTimes(2)
-  })
-
-  it('generate 后清空 selectedArtists,可重新选歌手', async () => {
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot' })
-    await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().selectedArtists).toEqual([])
-  })
-
-  it('单个歌手请求失败不阻断其余歌手', async () => {
-    getArtistSongs.mockImplementationOnce(async () => { throw new Error('boom') })
-    useRoamStore.setState({ selectedArtists: [mkArtist(1), mkArtist(2)], mode: 'hot' })
-    await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().playlist!.tracks).toHaveLength(3)
+    expect(playlist!.tracks).toHaveLength(13)
+    expect(entries).toEqual([])
   })
 
   it('未选歌手时 generate 是 no-op', async () => {
     await useRoamStore.getState().generate()
     expect(useRoamStore.getState().playlist).toBeNull()
-    expect(getArtistSongs).not.toHaveBeenCalled()
   })
 
-  it('reset 清空 playlist,回到选歌手态', async () => {
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot' })
+  it('reset 清空 playlist 与 entries,回到选歌手态', async () => {
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot' })
     await useRoamStore.getState().generate()
     useRoamStore.getState().reset()
     expect(useRoamStore.getState().playlist).toBeNull()
+    expect(useRoamStore.getState().entries).toEqual([])
   })
 })
 
@@ -131,7 +202,7 @@ describe('roam store — 网易云真实歌单分支', () => {
     currentService = neteaseRealService
     useRoamStore.setState({
       playlist: null,
-      selectedArtists: [],
+      entries: [],
       mode: 'hot',
       generating: false,
       loading: false,
@@ -200,15 +271,15 @@ describe('roam store — 网易云真实歌单分支', () => {
   })
 
   it('generate:无可复用歌单 → 新建 + 加曲目 + 写简介', async () => {
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot', neteasePlaylistId: null })
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
     await useRoamStore.getState().generate()
     expect(createPlaylist).toHaveBeenCalledWith('每日漫游', { private: true })
     expect(replacePlaylistTracks).toHaveBeenCalledWith('new-pid', [], expect.any(Array))
     expect(updatePlaylistDescription).toHaveBeenCalledWith('new-pid', expect.stringContaining('Simple Music'))
-    const { playlist, neteasePlaylistId, selectedArtists } = useRoamStore.getState()
+    const { playlist, neteasePlaylistId, entries } = useRoamStore.getState()
     expect(neteasePlaylistId).toBe('new-pid')
     expect(playlist!.tracks).toHaveLength(10)
-    expect(selectedArtists).toEqual([])
+    expect(entries).toEqual([])
   })
 
   it('generate:已有可复用歌单(neteasePlaylistId 命中)→ 不新建,清空旧曲目再加新的', async () => {
@@ -216,7 +287,7 @@ describe('roam store — 网易云真实歌单分支', () => {
       playlist: mkNeteasePlaylist({ id: 'pid-1' }),
       tracks: [mkTrack(9, 0), mkTrack(9, 1)],
     })
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot', neteasePlaylistId: 'pid-1' })
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: 'pid-1' })
     await useRoamStore.getState().generate()
     expect(createPlaylist).not.toHaveBeenCalled()
     expect(replacePlaylistTracks).toHaveBeenCalledWith('pid-1', ['9-0', '9-1'], expect.any(Array))
@@ -224,17 +295,17 @@ describe('roam store — 网易云真实歌单分支', () => {
 
   it('generate:缓存的 neteasePlaylistId 已失效(查无歌单)→ 走新建', async () => {
     getPlaylistWithDescription.mockResolvedValueOnce(null)
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot', neteasePlaylistId: 'stale-pid' })
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: 'stale-pid' })
     await useRoamStore.getState().generate()
     expect(createPlaylist).toHaveBeenCalled()
   })
 
-  it('generate:任一步抛错 → generating 回 false,selectedArtists 不清空', async () => {
+  it('generate:任一步抛错 → generating 回 false,entries 不清空', async () => {
     replacePlaylistTracks.mockRejectedValueOnce(new Error('boom'))
-    useRoamStore.setState({ selectedArtists: [mkArtist(1)], mode: 'hot', neteasePlaylistId: null })
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
     await useRoamStore.getState().generate()
     expect(useRoamStore.getState().generating).toBe(false)
-    expect(useRoamStore.getState().selectedArtists).toHaveLength(1)
+    expect(useRoamStore.getState().entries).toHaveLength(1)
     expect(useRoamStore.getState().playlist).toBeNull()
   })
 })

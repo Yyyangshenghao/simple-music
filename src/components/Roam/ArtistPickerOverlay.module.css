@@ -1,0 +1,233 @@
+/* 整块禁止原生文字/图片选中:画布上密密麻麻的头像图片,鼠标按住拖动平移时如果不禁掉,
+   会触发浏览器原生的拖拽选中,出现整屏头像被"全选"高亮的视觉 bug,还会因为绘制选区拖慢交互。 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: var(--sm-bg-base);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 1px solid var(--sm-border);
+  border-radius: 50%;
+  background: var(--glass-bg-base);
+  color: var(--sm-text-primary);
+  cursor: pointer;
+}
+
+.closeBtn:hover { background: var(--sm-bg-elevated); }
+
+.title {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.searchWrap { position: relative; flex: 1; max-width: 360px; margin-left: auto; }
+
+.searchInput {
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--sm-text-primary);
+  background: var(--glass-bg-base);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  box-sizing: border-box;
+  user-select: text; /* 输入框本身要能正常选字编辑,不受 .overlay 的全局禁选影响 */
+  -webkit-user-select: text;
+}
+
+.searchInput:focus { outline: none; border-color: var(--sm-accent); }
+
+.searchDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  border: 1px solid var(--glass-border-card);
+  border-radius: var(--sm-radius-card);
+  box-shadow: var(--sm-shadow);
+  z-index: 10;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-primary);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.searchRow:hover { background: var(--sm-bg-elevated); }
+
+.searchAvatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+
+.hint { font-size: 12px; color: var(--sm-text-secondary); padding: 6px 10px; margin: 0; }
+
+.canvasScroll {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  cursor: grab;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border) transparent;
+}
+
+.canvasScroll:active { cursor: grabbing; }
+
+.canvasInner {
+  position: relative;
+  background-image: radial-gradient(var(--sm-border) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.edgeLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* transform 由仿真 tick 直接写 DOM(translate(x,y)),这一层不能再放 CSS transform/motion 动画,
+   否则会跟 JS 写入的 style.transform 互相覆盖——居中偏移挪到 .nodeCenter,缩放动画挪到内层 motion.div。 */
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.nodeCenter {
+  transform: translate(-50%, -50%);
+}
+
+.expandingDot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sm-accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.emptyHint {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+}
+
+.dock {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--sm-border);
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+}
+
+.dockList {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dockList::-webkit-scrollbar { display: none; }
+
+.dockHint { font-size: 13px; color: var(--sm-text-secondary); }
+
+.dockChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 8px 4px 4px;
+  font-size: 12px;
+  color: var(--sm-text-primary);
+  background: var(--sm-bg-elevated);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  white-space: nowrap;
+}
+
+.dockAvatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+
+.dockRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+
+.dockRemove:hover { background: var(--sm-border); color: var(--sm-text-primary); }
+
+.confirmBtn {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sm-text-on-accent);
+  background: var(--sm-accent);
+  border: none;
+  border-radius: var(--sm-radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.confirmBtn:disabled { opacity: 0.4; cursor: not-allowed; }
