@@ -996,13 +996,67 @@ function ensureMirrorCanBeVerified(job: UpdateJob, candidate: DownloadCandidate)
   throw updateError('MIRROR_HASH_MISSING', 'Mirror download skipped because no digest is available')
 }
 
+// ---------- 线路测速（下载前探测，挑最快的排到前面） ----------
+// 只探测一个小 Range，不是完整测速：目的是过滤掉慢/连不上的镜像，而不是精确测吞吐量。
+// 探测本身失败不影响最终结果——全部超时/出错时原样返回，交给下载阶段已有的“失败即切换下一条”兜底。
+const MIRROR_PROBE_RANGE_BYTES = 131072
+const MIRROR_PROBE_TIMEOUT_MS = 4000
+async function probeCandidateLatency(candidate: DownloadCandidate, timeoutMs: number): Promise<number> {
+  const start = Date.now()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const resp = await fetch(candidate.url, {
+      headers: {
+        'User-Agent': `SimpleMusic/${APP_VERSION}`,
+        Range: `bytes=0-${MIRROR_PROBE_RANGE_BYTES - 1}`,
+      },
+      signal: controller.signal,
+    })
+    if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status)
+    if (resp.body) {
+      const reader = resp.body.getReader()
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+      }
+    }
+    return Date.now() - start
+  } catch {
+    return Number.POSITIVE_INFINITY
+  } finally {
+    clearTimeout(timer)
+  }
+}
+export async function reorderCandidatesBySpeed(
+  candidates: DownloadCandidate[],
+  timeoutMs: number = MIRROR_PROBE_TIMEOUT_MS
+): Promise<DownloadCandidate[]> {
+  if (!Array.isArray(candidates) || candidates.length <= 1) return candidates
+  const measured = await Promise.all(
+    candidates.map(async (candidate, index) => ({
+      candidate,
+      index,
+      ms: await probeCandidateLatency(candidate, timeoutMs),
+    }))
+  )
+  if (measured.every((m) => !Number.isFinite(m.ms))) return candidates
+  return measured.sort((a, b) => a.ms - b.ms || a.index - b.index).map((m) => m.candidate)
+}
+
 // ---------- 安装包下载（多线路 + 校验） ----------
 async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
   const tmpPath = job.filePath + '.download'
-  const candidates =
+  let candidates =
     Array.isArray(job.downloadCandidates) && job.downloadCandidates.length
       ? job.downloadCandidates
       : uniqueDownloadCandidates(job.downloadUrl || '')
+  if (candidates.length > 1) {
+    job.message = '正在测速，选择最快线路'
+    job.updatedAt = Date.now()
+    candidates = await reorderCandidatesBySpeed(candidates)
+    job.downloadCandidates = candidates
+  }
   const failures: FailedAttempt[] = []
   fs.mkdirSync(job.downloadDir, { recursive: true })
   for (let i = 0; i < candidates.length; i++) {
