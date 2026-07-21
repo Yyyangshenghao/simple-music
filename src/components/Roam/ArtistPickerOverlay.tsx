@@ -6,13 +6,17 @@ import { useRoamStore, MAX_ARTISTS } from '../../stores/roam'
 import {
   createArtistGraphSimulation,
   getLinkForce,
+  getCollideForce,
   jitterNear,
+  NODE_COLLIDE_RADIUS,
+  SELECTED_COLLIDE_RADIUS,
   type GraphSimNode,
   type GraphSimLink,
 } from '../../lib/artist-graph-sim'
 import { ArtistPill } from '../Explore/ArtistPill'
+import { sizedImage } from '../../lib/image-size'
 import { CloseIcon } from '../ui/CloseIcon'
-import { springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
+import { springBouncy, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import type { Simulation } from 'd3-force'
 import type { MusicService } from '../../lib/music-service'
 import type { ArtistInfo } from '../../types/domain'
@@ -51,6 +55,20 @@ function randomChildCount(): number {
   return 4 + Math.floor(Math.random() * 3)
 }
 
+/** 连线的弯曲方向/幅度按子节点 id 哈希固定,同一条线不会因重渲染换边抖动。 */
+function edgeBend(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return (h & 1 ? 1 : -1) * 0.16
+}
+
+/** 父→子的二次贝塞尔弧线:直线连线在节点密集时容易叠成一团"电线",各自向固定一侧弯一点,交叉处彼此错开。 */
+function edgePathD(sx: number, sy: number, tx: number, ty: number, bend: number): string {
+  const mx = (sx + tx) / 2
+  const my = (sy + ty) / 2
+  return `M ${sx} ${sy} Q ${mx - (ty - sy) * bend} ${my + (tx - sx) * bend} ${tx} ${ty}`
+}
+
 interface ArtistGraphNodeContentProps {
   meta: NodeMeta
   disabled: boolean
@@ -64,11 +82,13 @@ interface ArtistGraphNodeContentProps {
  * 越选越卡的根源之一。
  */
 const ArtistGraphNodeContent = memo(function ArtistGraphNodeContent({ meta, disabled, onToggle }: ArtistGraphNodeContentProps) {
+  // 相似歌手节点要有"从父头像里生出来"的观感:出生位置紧贴父节点中心(见 growChildren 的小抖动),
+  // 缩放从接近 0 起步 + 低阻尼 Q 弹弹簧带明显过冲;种子节点没有"出生自谁"的语义,保持利落入场。
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.3 }}
+      initial={{ opacity: 0, scale: meta.parentId ? 0.05 : 0.3 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ ...springSnappy, delay: meta.parentId ? meta.spawnIndex * 0.06 : 0 }}
+      transition={meta.parentId ? { ...springBouncy, delay: meta.spawnIndex * 0.05 } : springSnappy}
     >
       <ArtistPill
         artist={meta.artist}
@@ -120,32 +140,53 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
   const simNodesRef = useRef<GraphSimNode[]>([])
   const simLinksRef = useRef<GraphSimLink<GraphSimNode>[]>([])
   const nodeElRefs = useRef(new Map<string, HTMLDivElement>())
-  const lineElRefs = useRef(new Map<string, SVGLineElement>())
+  const lineElRefs = useRef(new Map<string, SVGPathElement>())
+  /** 当前选中 id 集合的命令式镜像:碰撞力的 radius 访问器要在 setState 落地前就读到最新选中态。 */
+  const selectedSetRef = useRef(new Set<string>())
 
   // 力导向仿真:整个组件生命周期只建一次,tick 时直接写 DOM(不触发 React 渲染)。
+  // 收敛尾声大部分节点位移趋近于 0,靠 lastWritten 位置对比把静止节点的 DOM 写入整个跳过——
+  // 一次 style.transform 写入本身不贵,但几十上百个节点 × 60fps 的样式重算/合成更新累加起来可观。
   useEffect(() => {
+    const lastWritten = new Map<string, { x: number; y: number }>()
+    const moved = new Set<string>()
     const sim = createArtistGraphSimulation<GraphSimNode>([], [])
     sim.on('tick', () => {
+      moved.clear()
       for (const n of simNodesRef.current) {
         n.x = clamp(n.x ?? CENTER.x, PAD, CANVAS_W - PAD)
         n.y = clamp(n.y ?? CENTER.y, PAD, CANVAS_H - PAD)
+        const last = lastWritten.get(n.id)
+        if (last && Math.abs(last.x - n.x) < 0.1 && Math.abs(last.y - n.y) < 0.1) continue
+        moved.add(n.id)
         const el = nodeElRefs.current.get(n.id)
-        if (el) el.style.transform = `translate(${n.x}px, ${n.y}px)`
+        if (el) {
+          el.style.transform = `translate(${n.x}px, ${n.y}px)`
+          lastWritten.set(n.id, { x: n.x, y: n.y })
+        }
       }
       for (const link of simLinksRef.current) {
         const source = link.source as GraphSimNode
         const target = link.target as GraphSimNode
+        if (!moved.has(source.id) && !moved.has(target.id)) continue
         const line = lineElRefs.current.get(target.id)
         if (line && typeof source.x === 'number' && typeof target.x === 'number') {
-          line.setAttribute('x1', String(source.x))
-          line.setAttribute('y1', String(source.y))
-          line.setAttribute('x2', String(target.x))
-          line.setAttribute('y2', String(target.y))
+          line.setAttribute('d', edgePathD(source.x, source.y!, target.x, target.y!, edgeBend(target.id)))
         }
       }
     })
+    // 碰撞半径按选中态区分:选中头像放大+发光,占位也放大一圈,邻居被推得更开。
+    getCollideForce(sim).radius((n) => (selectedSetRef.current.has(n.id) ? SELECTED_COLLIDE_RADIUS : NODE_COLLIDE_RADIUS))
     simRef.current = sim
     return () => { sim.stop() }
+  }, [])
+
+  /** 选中态变化后重设碰撞半径(d3 内部缓存半径数组,重设 radius 触发重算)并小幅加热,让占位大小实时生效。 */
+  const reheatCollide = useCallback(() => {
+    const sim = simRef.current
+    if (!sim) return
+    getCollideForce(sim).radius((n) => (selectedSetRef.current.has(n.id) ? SELECTED_COLLIDE_RADIUS : NODE_COLLIDE_RADIUS))
+    sim.alpha(0.35).restart()
   }, [])
 
   useEffect(() => {
@@ -158,6 +199,8 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     if (seededRef.current || !suggestionsLoaded) return
     seededRef.current = true
     const selectedIds = new Set(initialSelected.map((a) => String(a.id)))
+    selectedSetRef.current = new Set(selectedIds)
+    reheatCollide()
     const candidates = suggestions.filter((a) => !selectedIds.has(String(a.id))).slice(0, 14)
     const all = [...initialSelected, ...candidates]
     if (all.length === 0) return
@@ -216,8 +259,9 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
    *  加上更快的 alphaDecay,节点越滚越多时每次生长的仿真开销也不会跟着线性膨胀太多。 */
   const growChildren = useCallback((parentId: string, artists: ArtistInfo[]) => {
     const parentSim = simNodesRef.current.find((n) => n.id === parentId) ?? CENTER
+    // 抖动半径压到很小:出生点几乎与父节点重合,配合缩放从 0 弹出的入场动画,看起来是"从父头像里生出来"再被碰撞力顶开。
     const childSimNodes: GraphSimNode[] = artists.map((artist) => {
-      const p = jitterNear(parentSim, 16)
+      const p = jitterNear(parentSim, 8)
       return { id: String(artist.id), x: p.x, y: p.y }
     })
     simNodesRef.current = [...simNodesRef.current, ...childSimNodes]
@@ -232,13 +276,18 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     }
   }, [])
 
-  const expandNode = useCallback(async (nodeId: string) => {
+  // artist 由调用方直接传入而不是从 nodeMetasRef 里查:搜索落新节点的场景 setNodeMetas 尚未落地,
+  // ref 里还查不到这个节点,曾因此导致"搜索选中的歌手不会生长相似歌手"。
+  const expandNode = useCallback(async (nodeId: string, artist: ArtistInfo) => {
     const meta = nodeMetasRef.current.find((n) => n.id === nodeId)
-    if (!meta || meta.expanded || meta.expanding || !serviceRef.current.getSimilarArtists) return
+    if (meta && (meta.expanded || meta.expanding)) return
+    if (!serviceRef.current.getSimilarArtists) return
     setNodeMetas((list) => list.map((n) => (n.id === nodeId ? { ...n, expanding: true } : n)))
     try {
-      const similar = await serviceRef.current.getSimilarArtists!(meta.artist.id)
+      const similar = await serviceRef.current.getSimilarArtists!(artist.id)
       const knownIds = new Set(nodeMetasRef.current.map((n) => n.id))
+      knownIds.add(nodeId) // 搜索新落的节点可能还没进 ref,防止相似列表里混着自己
+
       const fresh = similar.filter((a) => !knownIds.has(String(a.id))).slice(0, randomChildCount())
       growChildren(nodeId, fresh)
       setNodeMetas((list) => [
@@ -255,15 +304,19 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
   /** 点选一个已存在节点。 */
   const toggleNode = useCallback((meta: NodeMeta) => {
     if (meta.selected) {
+      selectedSetRef.current.delete(meta.id)
       setSelectedOrder((order) => order.filter((id) => id !== meta.id))
       setNodeMetas((list) => list.map((n) => (n.id === meta.id ? { ...n, selected: false } : n)))
+      reheatCollide()
       return
     }
     if (selectedOrderRef.current.length >= MAX_ARTISTS) return
+    selectedSetRef.current.add(meta.id)
     setSelectedOrder((order) => [...order, meta.id])
     setNodeMetas((list) => list.map((n) => (n.id === meta.id ? { ...n, selected: true } : n)))
-    void expandNode(meta.id)
-  }, [expandNode])
+    reheatCollide()
+    void expandNode(meta.id, meta.artist)
+  }, [expandNode, reheatCollide])
 
   /** 搜索命中一位歌手:已在画布上就直接选中,否则先落一个新节点(在画布中心附近)再选中+生长。 */
   const pickFromSearch = useCallback((artist: ArtistInfo) => {
@@ -276,12 +329,13 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
       const p = jitterNear(CENTER, 80)
       simNodesRef.current = [...simNodesRef.current, { id, x: p.x, y: p.y }]
       simRef.current?.nodes(simNodesRef.current)
-      simRef.current?.alpha(0.5).restart()
+      selectedSetRef.current.add(id)
+      reheatCollide()
 
       const meta: NodeMeta = { id, artist, selected: true, expanded: false, expanding: false, parentId: null, spawnIndex: 0 }
       setNodeMetas((list) => [...list, meta])
       setSelectedOrder((order) => [...order, id])
-      void expandNode(id)
+      void expandNode(id, artist)
     }
     setKeyword('')
     setSearchResults([])
@@ -290,7 +344,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
         behavior: 'smooth', block: 'center', inline: 'center'
       })
     })
-  }, [toggleNode, expandNode])
+  }, [toggleNode, expandNode, reheatCollide])
 
   // 拖拽平移画布:必须 preventDefault + 配合 CSS user-select:none(见 module.css .overlay),
   // 否则鼠标在密密麻麻的头像图片上按住拖动会触发浏览器原生的图片/文字拖拽选中,
@@ -312,6 +366,20 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     dragRef.current = null
   }, [])
 
+  /** 回到节点群中心:画布 3600×2600,平移探索后容易迷失,一键滚回所有节点的质心。 */
+  const recenterCanvas = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const nodes = simNodesRef.current
+    let cx = CENTER.x
+    let cy = CENTER.y
+    if (nodes.length > 0) {
+      cx = nodes.reduce((s, n) => s + (n.x ?? CENTER.x), 0) / nodes.length
+      cy = nodes.reduce((s, n) => s + (n.y ?? CENTER.y), 0) / nodes.length
+    }
+    el.scrollTo({ left: cx - el.clientWidth / 2, top: cy - el.clientHeight / 2, behavior: 'smooth' })
+  }, [])
+
   function confirm() {
     const artists = selectedOrder
       .map((id) => nodeMetas.find((n) => n.id === id)?.artist)
@@ -330,7 +398,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     if (n && typeof n.x === 'number') el.style.transform = `translate(${n.x}px, ${n.y}px)`
   }, [])
 
-  const registerLineEl = useCallback((childId: string, el: SVGLineElement | null) => {
+  const registerLineEl = useCallback((childId: string, el: SVGPathElement | null) => {
     if (!el) {
       lineElRefs.current.delete(childId)
       return
@@ -341,10 +409,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
       const source = link.source as GraphSimNode
       const target = link.target as GraphSimNode
       if (typeof source.x === 'number' && typeof target.x === 'number') {
-        el.setAttribute('x1', String(source.x))
-        el.setAttribute('y1', String(source.y))
-        el.setAttribute('x2', String(target.x))
-        el.setAttribute('y2', String(target.y))
+        el.setAttribute('d', edgePathD(source.x, source.y!, target.x, target.y!, edgeBend(childId)))
       }
     }
   }, [])
@@ -366,9 +431,15 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
       transition={springGentle}
     >
       <div className={styles.header}>
-        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="关闭选歌手">
+        <motion.button
+          className={`${styles.closeBtn} no-drag`}
+          onClick={onClose}
+          aria-label="关闭选歌手"
+          whileTap={tapScale}
+          transition={springSnappy}
+        >
           <CloseIcon size={16} />
-        </button>
+        </motion.button>
         <h2 className={styles.title}>选择歌手</h2>
         <div className={styles.searchWrap}>
           <input
@@ -386,7 +457,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
                   className={`${styles.searchRow} no-drag`}
                   onClick={() => pickFromSearch(artist)}
                 >
-                  {artist.avatar && <img className={styles.searchAvatar} src={artist.avatar} alt="" loading="lazy" draggable={false} />}
+                  {artist.avatar && <img className={styles.searchAvatar} src={sizedImage(artist.avatar, 52)} alt="" loading="lazy" decoding="async" draggable={false} />}
                   <span>{artist.name}</span>
                 </button>
               ))}
@@ -406,13 +477,25 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
         <div className={styles.canvasInner} style={{ width: CANVAS_W, height: CANVAS_H }}>
           <svg className={styles.edgeLayer} width={CANVAS_W} height={CANVAS_H}>
             {nodeMetas.filter((n) => n.parentId).map((n) => (
-              <line
+              <path
                 key={n.id}
                 ref={(el) => registerLineEl(n.id, el)}
-                stroke="var(--sm-border-strong)" strokeWidth={1.5}
+                className={styles.edge}
               />
             ))}
           </svg>
+
+          {!suggestionsLoaded && (
+            <div className={styles.analyzing} style={{ left: CENTER.x, top: CENTER.y }}>
+              <div className={styles.analyzingRings}>
+                <span className={styles.analyzingRing} />
+                <span className={styles.analyzingRing} />
+                <span className={styles.analyzingRing} />
+                <span className={styles.analyzingCore} />
+              </div>
+              <p className={styles.analyzingText}>正在分析你的听歌偏好…</p>
+            </div>
+          )}
 
           {nodeMetas.length === 0 && suggestionsLoaded && (
             <p className={styles.emptyHint} style={{ left: CENTER.x, top: CENTER.y }}>
@@ -424,7 +507,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
             <div
               key={meta.id}
               ref={(el) => registerNodeEl(meta.id, el)}
-              className={styles.node}
+              className={meta.selected ? `${styles.node} ${styles.nodeSelected}` : styles.node}
               data-node-id={meta.id}
             >
               <div className={styles.nodeCenter}>
@@ -435,12 +518,27 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
         </div>
       </div>
 
+      <motion.button
+        className={`${styles.recenterBtn} no-drag`}
+        onClick={recenterCanvas}
+        aria-label="回到节点中心"
+        title="回到节点中心"
+        whileTap={tapScale}
+        transition={springSnappy}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+          <circle cx="8" cy="8" r="5.6" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M8 0.6v2.2M8 13.2v2.2M0.6 8h2.2M13.2 8h2.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      </motion.button>
+
       <div className={styles.dock}>
         <div className={styles.dockList}>
           {selectedArtists.length === 0 && <span className={styles.dockHint}>还没选歌手</span>}
           {selectedArtists.map((n) => (
             <span key={n.id} className={styles.dockChip}>
-              {n.artist.avatar && <img className={styles.dockAvatar} src={n.artist.avatar} alt="" loading="lazy" draggable={false} />}
+              {n.artist.avatar && <img className={styles.dockAvatar} src={sizedImage(n.artist.avatar, 44)} alt="" loading="lazy" decoding="async" draggable={false} />}
               {n.artist.name}
               <button
                 className={`${styles.dockRemove} no-drag`}
@@ -452,6 +550,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
             </span>
           ))}
         </div>
+        {atCap && <span className={styles.capHint}>已达 {MAX_ARTISTS} 位上限</span>}
         <motion.button
           className={`${styles.confirmBtn} no-drag`}
           disabled={selectedArtists.length === 0}

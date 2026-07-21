@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useRoamStore, MAX_SONGS_PER_ARTIST } from '../../stores/roam'
 import type { RoamArtistEntry } from '../../stores/roam'
+import { sizedImage } from '../../lib/image-size'
 import { CloseIcon } from '../ui/CloseIcon'
 import styles from './ArtistLibrarySection.module.css'
 
@@ -31,7 +32,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        {artist.avatar && <img className={styles.avatar} src={artist.avatar} alt="" loading="lazy" />}
+        {artist.avatar && <img className={styles.avatar} src={sizedImage(artist.avatar, 64)} alt="" loading="lazy" decoding="async" />}
         <span className={styles.name}>{artist.name}</span>
         <div className={styles.stepper}>
           <button

@@ -16,7 +16,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 24px;
+  /* 顶部留出 macOS 红绿灯区域(约 40px),关闭按钮不与其重叠,做法与 LyricsPanel 一致 */
+  padding: 44px 24px 16px;
   border-bottom: 1px solid var(--sm-border);
 }
 
@@ -24,17 +25,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-  border: 1px solid var(--sm-border);
+  border: 1px solid var(--glass-border-base);
   border-radius: 50%;
   background: var(--glass-bg-base);
-  color: var(--sm-text-primary);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  color: var(--sm-text-secondary);
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.closeBtn:hover { background: var(--sm-bg-elevated); }
+.closeBtn:hover {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+  border-color: var(--glass-border-card);
+  box-shadow: var(--glow-soft);
+}
 
 .title {
   flex-shrink: 0;
@@ -113,8 +122,11 @@
 
 .canvasInner {
   position: relative;
-  background-image: radial-gradient(var(--sm-border) 1px, transparent 1px);
-  background-size: 28px 28px;
+  /* 点阵网格之上叠一层以画布中心为原点的微弱环境光晕,给巨幅画布一个视觉锚点(纯静态背景,无动画开销) */
+  background-image:
+    radial-gradient(1400px 1000px at 50% 50%, color-mix(in srgb, var(--ambient-1) 8%, transparent), transparent 70%),
+    radial-gradient(var(--sm-border) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
 }
 
 .edgeLayer {
@@ -124,12 +136,29 @@
   pointer-events: none;
 }
 
+/* 弧线连线(二次贝塞尔,弯向按子节点 id 固定):压低存在感,密集时不至于叠成一团"电线" */
+.edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--sm-accent) 30%, var(--sm-border-strong));
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
 /* transform 由仿真 tick 直接写 DOM(translate(x,y)),这一层不能再放 CSS transform/motion 动画,
-   否则会跟 JS 写入的 style.transform 互相覆盖——居中偏移挪到 .nodeCenter,缩放动画挪到内层 motion.div。 */
+   否则会跟 JS 写入的 style.transform 互相覆盖——居中偏移挪到 .nodeCenter,缩放动画挪到内层 motion.div。
+   will-change 把每个节点提升为独立合成层:仿真收敛期间几十上百个节点 60fps 连续位移,没有自己的层时
+   每帧都在巨幅画布上重绘头像图片的脏矩形,是"选得越多越卡"的主要绘制开销;层化后位移仅走合成器。 */
 .node {
   position: absolute;
   top: 0;
   left: 0;
+  will-change: transform;
+}
+
+/* 选中节点浮到未选节点之上:放大 + 发光后与邻居短暂交叠时,保证选中者视觉完整 */
+.nodeSelected {
+  z-index: 2;
 }
 
 .nodeCenter {
@@ -156,6 +185,104 @@
   position: absolute;
   transform: translate(-50%, -50%);
   font-size: 14px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+}
+
+/* 播种前的分析等待态:同心圆向外扩散暗示"正在探测/生成图谱",呼应力导向画布本身的主题 */
+.analyzing {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.analyzingRings {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.analyzingRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--sm-accent) 55%, transparent);
+  animation: analyzingPulse 2.4s ease-out infinite;
+}
+
+.analyzingRing:nth-child(2) { animation-delay: 0.8s; }
+.analyzingRing:nth-child(3) { animation-delay: 1.6s; }
+
+.analyzingCore {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--sm-accent);
+  box-shadow: var(--glow-soft);
+  animation: analyzingCorePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes analyzingPulse {
+  0% { transform: scale(0.25); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes analyzingCorePulse {
+  0%, 100% { opacity: 0.7; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.analyzingText {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  animation: analyzingTextFade 1.8s ease-in-out infinite;
+}
+
+@keyframes analyzingTextFade {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* 悬浮在画布右下角(dock 之上),一键滚回节点群质心 */
+.recenterBtn {
+  position: absolute;
+  right: 22px;
+  bottom: 88px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--glass-border-base);
+  border-radius: 50%;
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.recenterBtn:hover {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+  border-color: var(--glass-border-card);
+  box-shadow: var(--glow-soft);
+}
+
+.capHint {
+  flex-shrink: 0;
+  font-size: 12px;
   color: var(--sm-text-secondary);
   white-space: nowrap;
 }

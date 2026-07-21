@@ -11,6 +11,11 @@
   cursor: pointer;
 }
 
+.avatarWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .avatar,
 .avatarFallback {
   width: 76px;
@@ -34,10 +39,37 @@
 .pill:hover .avatar,
 .pill:hover .avatarFallback { transform: scale(1.05); }
 
+/* 选中态:强化发光描边 + 放大,靠色彩/尺寸双重信号让选中一眼可辨——徽标是最终兜底,
+   不依赖颜色感知。 */
 .pill.selected .avatar,
 .pill.selected .avatarFallback {
-  border-color: var(--sm-border-strong);
-  box-shadow: var(--glow-ring);
+  border-color: color-mix(in srgb, var(--ambient-2) 65%, var(--sm-accent));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ambient-2) 60%, transparent),
+    0 0 26px 2px color-mix(in srgb, var(--ambient-1) 60%, transparent);
+  transform: scale(1.18);
+}
+
+.selectedBadge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  border: 2px solid var(--sm-bg-base);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ambient-1) 55%, transparent);
+}
+
+.pill.sm .selectedBadge {
+  width: 17px;
+  height: 17px;
+  border-width: 1.5px;
 }
 
 .name {

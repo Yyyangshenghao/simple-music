@@ -9,6 +9,9 @@ export const gentleSpringValues = { stiffness: 220, damping: 26, mass: 1 }
 /** 柔和弹簧：卡片上浮、面板入场。 */
 export const springGentle: Transition = { type: 'spring', ...gentleSpringValues }
 
+/** Q 弹弹簧：低阻尼、带明显过冲回弹,用于「从无到有蹦出来」的诞生类动画(如画布相似歌手节点弹出)。 */
+export const springBouncy: Transition = { type: 'spring', stiffness: 420, damping: 15, mass: 0.9 }
+
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }
 

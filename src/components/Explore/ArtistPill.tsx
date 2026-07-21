@@ -1,6 +1,8 @@
 import { forwardRef, type MouseEvent } from 'react'
 import { motion } from 'motion/react'
 import { tapScale, springSnappy } from '../../lib/motion-presets'
+import { sizedImage } from '../../lib/image-size'
+import { CheckIcon } from '../ui/CheckIcon'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPill.module.css'
 
@@ -27,9 +29,16 @@ export const ArtistPill = forwardRef<HTMLButtonElement, ArtistPillProps>(functio
       transition={springSnappy}
       title={artist.name}
     >
-      {artist.avatar
-        ? <img className={styles.avatar} src={artist.avatar} alt="" loading="lazy" draggable={false} />
-        : <div className={styles.avatarFallback}>{artist.name.slice(0, 1)}</div>}
+      <span className={styles.avatarWrap}>
+        {artist.avatar
+          ? <img className={styles.avatar} src={sizedImage(artist.avatar, size === 'sm' ? 112 : 152)} alt="" loading="lazy" decoding="async" draggable={false} />
+          : <div className={styles.avatarFallback}>{artist.name.slice(0, 1)}</div>}
+        {selected && (
+          <span className={styles.selectedBadge} aria-hidden="true">
+            <CheckIcon size={size === 'sm' ? 9 : 11} />
+          </span>
+        )}
+      </span>
       <span className={styles.name}>{artist.name}</span>
     </motion.button>
   )
