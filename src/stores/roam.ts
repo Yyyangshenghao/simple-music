@@ -71,7 +71,7 @@ export interface RoamPlaylist {
   tracks: Track[]
 }
 
-function todayKey(): string {
+export function todayKey(): string {
   const d = new Date()
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -79,14 +79,17 @@ function todayKey(): string {
   return `${y}-${m}-${day}`
 }
 
-/** 读取 QQ 本地存档;日期不是今天或音源与当前 activeSource 不符则视为过期,返回 null。 */
+/**
+ * 读取 QQ 本地存档;音源与当前 activeSource 不符则返回 null。
+ * 日期过期不再丢弃——上一份漫游歌单保留可继续播放,直到用户主动「重新选择」或重新生成覆盖。
+ */
 function loadValidPlaylist(): RoamPlaylist | null {
   if (typeof localStorage === 'undefined') return null
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw) as RoamPlaylist
-    if (!data?.tracks || data.date !== todayKey() || data.source !== useSettingsStore.getState().activeSource) {
+    if (!data?.tracks || data.source !== useSettingsStore.getState().activeSource) {
       return null
     }
     return data
@@ -264,7 +267,9 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
       }
       set({ neteasePlaylistId: id })
       const parsed = parseRoamDescription(found.playlist.description)
-      if (parsed && parsed.date === todayKey()) {
+      if (parsed) {
+        // 日期是否今天都展示这份歌单(过期的上一份仍可继续播放,直到用户重选/重新生成覆盖);
+        // parsed.date 仍写入 playlist.date,仅用于页面区分「今日漫游」还是「上次漫游」文案。
         set({
           playlist: {
             date: parsed.date,
@@ -276,7 +281,7 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
           loading: false,
         })
       } else {
-        set({ loading: false }) // 简介过期/解不出来,留在选歌手态;neteasePlaylistId 已缓存,生成时复用
+        set({ loading: false }) // 简介解不出来,留在选歌手态;neteasePlaylistId 已缓存,生成时复用
       }
     } catch {
       set({ loading: false })

@@ -255,13 +255,16 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(playlist!.tracks).toHaveLength(1)
   })
 
-  it('ensureNeteaseHydrated:命中歌单但简介日期不是今天 → 留在选歌手态,但缓存 id 供生成时复用', async () => {
+  it('ensureNeteaseHydrated:命中歌单但简介日期不是今天 → 仍展示这份过期歌单(可继续听),缓存 id', async () => {
     const pl = mkNeteasePlaylist({ id: 'pid-9', description: 'Simple Music · 2000-01-01 · 周杰伦' })
     findUserPlaylistsByName.mockResolvedValue([pl])
-    getPlaylistWithDescription.mockResolvedValue({ playlist: pl, tracks: [] })
+    getPlaylistWithDescription.mockResolvedValue({ playlist: pl, tracks: [mkTrack(1, 0)] })
     await useRoamStore.getState().ensureNeteaseHydrated(neteaseRealService as unknown as MusicService)
-    expect(useRoamStore.getState().playlist).toBeNull()
-    expect(useRoamStore.getState().neteasePlaylistId).toBe('pid-9')
+    const { playlist, neteasePlaylistId } = useRoamStore.getState()
+    expect(neteasePlaylistId).toBe('pid-9')
+    expect(playlist).not.toBeNull()
+    expect(playlist!.date).toBe('2000-01-01')
+    expect(playlist!.tracks).toHaveLength(1)
   })
 
   it('ensureNeteaseHydrated:重复调用只请求一次(neteaseHydrated 守卫)', async () => {

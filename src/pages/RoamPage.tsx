@@ -4,7 +4,7 @@ import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
-import { useRoamStore } from '../stores/roam'
+import { todayKey, useRoamStore } from '../stores/roam'
 import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
 import { ArtistLibrarySection } from '../components/Roam/ArtistLibrarySection'
 import { TrackRow } from '../components/Explore/TrackRow'
@@ -99,8 +99,13 @@ export function RoamPage() {
             transition={springGentle}
           >
             <div>
-              <h1 className={styles.title}><GradientText>今日漫游</GradientText></h1>
-              <p className={styles.subtitle}>{playlist.artists.length} 位歌手 · {playlist.tracks.length} 首</p>
+              <h1 className={styles.title}>
+                <GradientText>{playlist.date === todayKey() ? '今日漫游' : '上次漫游'}</GradientText>
+              </h1>
+              <p className={styles.subtitle}>
+                {playlist.date === todayKey() ? null : `${playlist.date} · `}
+                {playlist.artists.length} 位歌手 · {playlist.tracks.length} 首
+              </p>
             </div>
             <motion.button
               className={`${styles.resetBtn} no-drag`}
