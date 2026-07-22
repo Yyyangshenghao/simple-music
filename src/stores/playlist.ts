@@ -4,11 +4,7 @@ import { usePlayerStore, registerTrackEndedHandler } from './player'
 import { useSettingsStore } from './settings'
 import { serviceFor } from '../lib/service-registry'
 import { preloadTracks } from '../lib/track-preload'
-import type { Playlist, Track, ShelfMode } from '../types/domain'
-
-interface UserPlaylistsResponse {
-  playlists?: Playlist[]
-}
+import type { MusicSource, Playlist, Track, ShelfMode } from '../types/domain'
 
 /** pending 占位曲目:先按 id 补详情;失败则去掉 pending 标记凭 id 兜底直接播(网易播放 URL 只需 id)。 */
 async function resolvePending(track: Track): Promise<Track> {
@@ -33,6 +29,8 @@ function shuffledIndices(n: number): number[] {
 
 interface PlaylistStore {
   playlists: Playlist[]
+  /** playlists 属于哪个音源;与当前 activeSource 不符时 UI 需重拉。 */
+  playlistsSource: MusicSource | null
   currentPlaylist: Playlist | null
   queue: Track[]
   queueIndex: number
@@ -98,6 +96,7 @@ function schedulePreloadNeighbors() {
 
 export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   playlists: [],
+  playlistsSource: null,
   currentPlaylist: null,
   queue: [],
   queueIndex: -1,
@@ -105,12 +104,24 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   shelfVisible: false,
   shelfMode: 'dynamic',
 
+  // 曾写死网易端点(/api/user/playlists),QQ 音源下「我的库→歌单」显示的是网易歌单，
+  // 而 QQ 自己的 /api/qq/user/playlists 从未被调用。改为按当前音源取 service，
+  // 并记下归属音源，供 UI 判断切源后需要重拉。
   async loadUserPlaylists() {
+    const source = useSettingsStore.getState().activeSource
+    const service = serviceFor(source)
+    if (!service.getUserPlaylists) {
+      set({ playlists: [], playlistsSource: source })
+      return
+    }
     try {
-      const res = await api.get<UserPlaylistsResponse>('/api/user/playlists')
-      set({ playlists: res.playlists ?? [] })
+      const playlists = await service.getUserPlaylists()
+      // 等待期间用户切了音源:丢弃这批结果，避免把 A 源的歌单挂在 B 源下
+      if (useSettingsStore.getState().activeSource !== source) return
+      set({ playlists, playlistsSource: source })
     } catch {
-      set({ playlists: [] })
+      if (useSettingsStore.getState().activeSource !== source) return
+      set({ playlists: [], playlistsSource: source })
     }
   },
 

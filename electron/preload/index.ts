@@ -5,6 +5,7 @@ import type {
   OkResult,
   LyricsPayload,
   WallpaperPayload,
+  MiniPlayerPayload,
   HotkeyBinding,
   HotkeyResult,
   ExportPayload,
@@ -56,6 +57,13 @@ const api = {
   setWallpaperEnabled: (enabled: boolean, payload?: WallpaperPayload): Promise<OkResult> =>
     ipcRenderer.invoke('wallpaper:set-enabled', { enabled, payload }),
   updateWallpaper: (payload: WallpaperPayload): Promise<OkResult> => ipcRenderer.invoke('wallpaper:update', payload),
+
+  // 迷你播放条
+  setMiniPlayerEnabled: (enabled: boolean, width?: number): Promise<OkResult> =>
+    ipcRenderer.invoke('miniplayer:set-enabled', { enabled, width }),
+  updateMiniPlayer: (payload: MiniPlayerPayload): Promise<OkResult> => ipcRenderer.invoke('miniplayer:update', payload),
+  onMiniPlayerControl: (cb: (p: { action: string; value?: number }) => void) => on('miniplayer:control', cb),
+  onMiniPlayerWidthChanged: (cb: (p: { width: number }) => void) => on('miniplayer:width-changed', cb),
 
   // 快捷键
   configureHotkeys: (bindings: HotkeyBinding[]): Promise<HotkeyResult> =>

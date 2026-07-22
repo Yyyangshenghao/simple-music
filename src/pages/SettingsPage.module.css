@@ -51,6 +51,16 @@
   border-bottom: 1px solid var(--sm-border);
 }
 
+/* 分组说明文字:位于标题下方,解释该组设置的入口或用法 */
+.groupHint {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sm-text-secondary);
+  border-bottom: 1px solid var(--sm-border);
+}
+
 .row {
   display: flex;
   align-items: center;

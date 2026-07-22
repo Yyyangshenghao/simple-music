@@ -103,7 +103,7 @@ export function preloadTracks(
 
     if (track.cover && !coverCache.has(track.cover) && typeof Image !== 'undefined') {
       const img = new Image()
-      img.src = api.url('/proxy/cover', { url: track.cover })
+      img.src = api.coverImage(track.cover)
       coverCache.set(track.cover, img)
     }
 

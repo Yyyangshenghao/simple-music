@@ -11,6 +11,7 @@ import { weatherRoutes } from './routes/weather'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { sendError } from './lib/http'
+import { isAllowedOrigin } from './lib/security'
 
 // 静态路由放最后兜底（总是返回 true）；API 路由在前，未命中返回 false 继续匹配。
 const chain: RouteHandler[] = [
@@ -39,6 +40,12 @@ export function startServer(
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+      // ACAO 为 * 意味着任何网页只要猜到端口就能读本地 API（扫盘、拿文件路径、
+      // 借音频代理访问内网）。按 Origin 拒绝非渲染层来源，预检一并挡掉。
+      if (!isAllowedOrigin(req.headers.origin)) {
+        sendError(res, 403, 'Forbidden origin')
+        return
+      }
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
         res.end()

@@ -308,7 +308,7 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const trebleSmoothRef = useRef(0)
   const energySmoothRef = useRef(0)
 
-  const proxyUrl = coverUrl ? api.url('/proxy/cover', { url: coverUrl }) : undefined
+  const proxyUrl = coverUrl ? api.coverImage(coverUrl) : undefined
 
   const geometry = useMemo(() => buildGeometry(gridSize), [gridSize])
   useEffect(() => () => geometry.dispose(), [geometry])

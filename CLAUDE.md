@@ -48,3 +48,5 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **`Track`/`Playlist` 的 `id` 类型是 `unknown`**(两个音源 id 形态不同,QQ 还有 mid),比较/拼 URL 前先 `String()`。
 - **跨音源数据取 service 用 `serviceFor(数据.source)`**(`src/lib/service-registry.ts`),不要用全局 activeSource 的 `useMusicService()`:导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存(终审曾抓到此 Critical)。
 - 网易私人雷达是固定歌单 id `3136952023` + 登录 cookie(`/api/netease/radar`);每日推荐/雷达为网易专属,`MusicService` 中是可选方法,未实现的音源不渲染对应卡片。
+- **已指向本地 API 的 URL 不要再套代理端点**:本地音乐的 `url`/`cover` 是 `http://127.0.0.1:<port>/api/local/*`,长得像 http 上游但其实是我们自己。往 `/api/audio`、`/proxy/cover` 里塞会被 server 的 SSRF 防护(`server/lib/security.ts`)按回环地址 400 掉 —— 本地音乐直接放不出声/没封面。判定用 `isLocalApiUrl()`,取封面统一走 `api.coverImage()`(见 `src/lib/api.ts`)。
+- **新增音源分支时别漏 `local`**:`MusicSource` 是三值(`netease`/`qq`/`local`),但 `settings.activeSource` 只有前两个。按 `track.source`/`track.provider` 分支的地方(歌词管线、音质、红心、预加载)必须显式处理 local,`else` 兜底到网易会静默出错 —— 本地歌词就曾因 `useLyricsFetch` 只有网易/QQ 两个分支而永远不显示。

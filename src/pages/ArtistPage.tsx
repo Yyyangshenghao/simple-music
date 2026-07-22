@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { useMusicService } from '../hooks/useMusicService'
+import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
@@ -20,7 +20,7 @@ interface ArtistPageProps {
   source: 'netease' | 'qq'
 }
 
-export function ArtistPage({ id, source: _source }: ArtistPageProps) {
+export function ArtistPage({ id, source }: ArtistPageProps) {
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
@@ -28,28 +28,34 @@ export function ArtistPage({ id, source: _source }: ArtistPageProps) {
   const [similarLoaded, setSimilarLoaded] = useState(false)
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
-  const service = useMusicService()
+  // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
+  // 切换音源后回退的历史条目），用全局 activeSource 会把 netease 的 id 拿去查 QQ。
+  const service = useMemo(() => serviceFor(source), [source])
   const goBack = useNavigationStore((s) => s.goBack)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
 
   useEffect(() => {
+    // 快速连点歌手时，先发的请求可能后返回；用 cancelled 丢弃过期响应
+    let cancelled = false
     setArtist(null); setSongs([]); setAlbums([]); setSimilar([]); setSimilarLoaded(false)
-    void service.getArtistDetail(id).then(setArtist).catch(() => {})
-    void service.getArtistSongs(id).then(setSongs).catch(() => {})
-    void service.getArtistAlbums(id).then(setAlbums).catch(() => {})
+    void service.getArtistDetail(id).then((v) => { if (!cancelled) setArtist(v) }).catch(() => {})
+    void service.getArtistSongs(id).then((v) => { if (!cancelled) setSongs(v) }).catch(() => {})
+    void service.getArtistAlbums(id).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
     if (service.getSimilarArtists) {
       void service.getSimilarArtists(id)
-        .then((list) => setSimilar(list))
+        .then((list) => { if (!cancelled) setSimilar(list) })
         .catch(() => {})
-        .finally(() => setSimilarLoaded(true))
+        .finally(() => { if (!cancelled) setSimilarLoaded(true) })
     } else {
       setSimilarLoaded(true)
     }
+    return () => { cancelled = true }
   }, [id, service])
 
-  function openArtist(nextId: unknown, source: MusicSource) {
-    if (source !== 'netease' && source !== 'qq') return
-    navigateTo({ type: 'artist', id: nextId, source })
+  // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
+  function openArtist(nextId: unknown, nextSource: MusicSource) {
+    if (nextSource !== 'netease' && nextSource !== 'qq') return
+    navigateTo({ type: 'artist', id: nextId, source: nextSource })
   }
 
   const tabs: ArtistTab[] = service.getSimilarArtists ? ['songs', 'albums', 'similar'] : ['songs', 'albums']

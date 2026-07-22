@@ -1,9 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+/** 请求体上限:本地 API 的 POST 都是小 JSON,给 2MB 已经绰绰有余。 */
+export const MAX_BODY_BYTES = 2 * 1024 * 1024
+
+/** 读取请求体。累加前先卡上限,避免超大 body 把整个 body 攒在内存里撑爆进程。 */
 export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = ''
+    let size = 0
     req.on('data', (c) => {
+      size += c.length
+      if (size > MAX_BODY_BYTES) {
+        req.destroy()
+        reject(new Error('BODY_TOO_LARGE'))
+        return
+      }
       data += c
     })
     req.on('end', () => resolve(data))

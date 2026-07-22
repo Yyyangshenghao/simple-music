@@ -5,6 +5,7 @@ import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
+import { useMiniPlayerSync } from './hooks/useMiniPlayerSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
@@ -12,6 +13,7 @@ import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
 import { useUpdateStore } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
+import { useWindowStore } from './stores/window'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
@@ -33,12 +35,16 @@ export default function App() {
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen)
   const detailBackdropCover = useBackdropStore((s) => s.cover)
+  // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
+  // 顶层 hooks 与 AudioEngine 单例不在此子树,音频与迷你条同步照常。
+  const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
   useLoginStatusSync()
   useAudio()
   useDesktopLyricsSync()
   useWallpaperSync()
+  useMiniPlayerSync()
   useLyricsFetch()
   useAmbientPalette()
 
@@ -46,6 +52,11 @@ export default function App() {
     useSettingsStore.getState().loadFromLocal()
     initPlaybackPersistence()
     initMediaSession()
+    // 主进程状态不跨重启保留,迷你播放条开关需要在加载完本地设置后重放一次
+    {
+      const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
+      if (miniPlayerEnabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth)
+    }
     const sync = () => {
       const { themeMode, fontFamily } = useSettingsStore.getState()
       const root = document.documentElement
@@ -61,6 +72,8 @@ export default function App() {
   useEffect(() => {
     void useUpdateStore.getState().checkForUpdate()
   }, [])
+
+  if (!mainVisible) return null
 
   return (
     <MotionConfig reducedMotion="user">

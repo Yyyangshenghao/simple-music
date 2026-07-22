@@ -1,13 +1,14 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { bootServer, shutdownServer } from './server-host'
+import { createMainWindow, scheduleWindowStateSend, getMainWindow } from './modules/window-manager'
 import {
-  createMainWindow,
-  focusMainWindow,
-  scheduleWindowStateSend,
-  getMainWindow
-} from './modules/window-manager'
-import { positionDesktopLyricsWindow, positionWallpaperWindow, closeOverlays } from './modules/overlay-manager'
+  positionDesktopLyricsWindow,
+  positionWallpaperWindow,
+  closeOverlays,
+  returnFromMiniPlayer
+} from './modules/overlay-manager'
 import { unregisterHotkeys } from './modules/hotkey-manager'
+import { createTray, destroyTray } from './modules/tray-manager'
 import { registerIpc } from './ipc'
 
 const APP_NAME = 'Simple Music'
@@ -41,15 +42,15 @@ async function boot(): Promise<void> {
   registerIpc()
   const port = await bootServer()
   createMainWindow(port)
+  createTray()
 }
 
 if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (!focusMainWindow()) {
-      app.whenReady().then(boot).catch((e) => console.error('Second instance restore failed:', e))
-    }
+    if (getMainWindow()) returnFromMiniPlayer()
+    else app.whenReady().then(boot).catch((e) => console.error('Second instance restore failed:', e))
   })
 
   app.whenReady().then(async () => {
@@ -65,7 +66,7 @@ if (!gotLock) {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) boot()
-    else focusMainWindow()
+    else returnFromMiniPlayer()
   })
 
   app.on('window-all-closed', () => {
@@ -75,6 +76,7 @@ if (!gotLock) {
   app.on('before-quit', () => {
     unregisterHotkeys()
     closeOverlays()
+    destroyTray()
     shutdownServer()
   })
 }

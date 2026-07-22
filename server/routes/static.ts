@@ -1,5 +1,5 @@
 import { createReadStream, existsSync, statSync } from 'node:fs'
-import { join, normalize, extname } from 'node:path'
+import { join, normalize, extname, sep } from 'node:path'
 import type { RouteHandler } from '../types'
 
 const MIME: Record<string, string> = {
@@ -46,7 +46,8 @@ export const staticRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   const rel = normalize(pn === '/' ? '/index.html' : pn).replace(/^(\.\.[/\\])+/, '')
   const filePath = join(publicDir, rel)
-  if (!filePath.startsWith(publicDir)) {
+  // 带上分隔符再比,否则同级的 `<userData>/publicXXX` 也会通过前缀检查
+  if (filePath !== publicDir && !filePath.startsWith(publicDir + sep)) {
     res.writeHead(403)
     res.end('Forbidden')
     return true

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useSettingsStore } from '../../stores/settings'
 import { ShelfCard } from './ShelfCard'
 import { ShelfDetail } from './ShelfDetail'
 import { RevealItem } from '../ui/RevealItem'
@@ -16,6 +17,8 @@ import styles from './ShelfScene.module.css'
  */
 export function ShelfScene() {
   const playlists = usePlaylistStore((s) => s.playlists)
+  const playlistsSource = usePlaylistStore((s) => s.playlistsSource)
+  const activeSource = useSettingsStore((s) => s.activeSource)
   const shelfVisible = usePlaylistStore((s) => s.shelfVisible)
   const shelfMode = usePlaylistStore((s) => s.shelfMode)
   const setShelfMode = usePlaylistStore((s) => s.setShelfMode)
@@ -23,11 +26,13 @@ export function ShelfScene() {
 
   const [detail, setDetail] = useState<Playlist | null>(null)
 
+  // 拉取条件看"已拉的是不是当前音源",不能看 length===0:
+  // 未登录/失败时结果恒为空数组,而 store 每次 set 都是新数组引用,会让本 effect 无限重入。
   useEffect(() => {
-    if (shelfVisible && playlists.length === 0) {
+    if (shelfVisible && playlistsSource !== activeSource) {
       void usePlaylistStore.getState().loadUserPlaylists()
     }
-  }, [shelfVisible, playlists.length])
+  }, [shelfVisible, playlistsSource, activeSource])
 
   if (!shelfVisible) return null
 

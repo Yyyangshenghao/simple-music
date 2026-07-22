@@ -1,5 +1,6 @@
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
+import { openExternalSafely } from './safe-open'
 import type { WindowState, DisplayBounds } from '../../src/types/ipc'
 
 const APP_NAME = 'Simple Music'
@@ -28,6 +29,27 @@ export function resolveRendererUrl(entry: string): string {
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (devUrl) return new URL(entry, devUrl.endsWith('/') ? devUrl : `${devUrl}/`).toString()
   return `file://${join(import.meta.dirname, '../renderer', entry)}`
+}
+
+/**
+ * 目标 URL 是否仍在应用内。dev 下渲染层由 vite 提供，同 origin 即站内；
+ * prod 是 file://，限定在打包出的 renderer 目录下，防止导航到磁盘上的其它文件。
+ */
+export function isInAppUrl(target: string, entry = resolveRendererUrl('index.html')): boolean {
+  let url: URL
+  let base: URL
+  try {
+    url = new URL(target)
+    base = new URL(entry)
+  } catch {
+    return false
+  }
+  if (base.protocol === 'file:') {
+    if (url.protocol !== 'file:') return false
+    const dir = base.pathname.slice(0, base.pathname.lastIndexOf('/') + 1)
+    return url.pathname.startsWith(dir)
+  }
+  return url.origin === base.origin
 }
 
 function rectsOverlapOnY(a: Electron.Rectangle, b: Electron.Rectangle): boolean {
@@ -192,6 +214,15 @@ export function focusMainWindow(): boolean {
   return true
 }
 
+/** 隐藏主窗口（迷你播放条互斥 / 退居托盘用）。窗口仍存活，仅不可见。 */
+export function hideMainWindow(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) return false
+  if (!mainWindow.isVisible()) return true
+  mainWindow.hide()
+  sendWindowState(mainWindow)
+  return true
+}
+
 export function createMainWindow(serverPort: number): BrowserWindow {
   mainServerPort = serverPort
   htmlFullscreenActive = false
@@ -226,8 +257,16 @@ export function createMainWindow(serverPort: number): BrowserWindow {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    openExternalSafely(url)
     return { action: 'deny' }
+  })
+
+  // 渲染层不应导航离开应用入口；一旦离开，外部页面就继承了 preload 暴露的 desktop 桥。
+  // 站内导航（hash 路由、dev 下的整页重载）放行，其余交给系统浏览器。
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isInAppUrl(url)) return
+    event.preventDefault()
+    openExternalSafely(url)
   })
 
   mainWindow.webContents.once('did-finish-load', () => sendWindowState(mainWindow))

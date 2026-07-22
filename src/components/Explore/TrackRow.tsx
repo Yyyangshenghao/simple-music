@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../../stores/player'
+import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
 
@@ -6,14 +7,6 @@ interface TrackRowProps {
   track: Track
   index?: number
   onPlay(): void
-}
-
-function formatDuration(ms: number | undefined): string {
-  if (!ms || ms <= 0) return ''
-  const total = Math.round(ms / 1000)
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */

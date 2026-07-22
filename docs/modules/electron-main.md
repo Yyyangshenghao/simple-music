@@ -10,6 +10,7 @@
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
 - `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
 - `modules/update-installer.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS 未签名做不了 Squirrel.Mac 式原地替换,改为 `shell.openPath` 打开下载好的 dmg,弹出系统标准的"拖到 Applications"安装器窗口,替换动作完全交给用户和 Finder,主进程不再插手(早期版本自己写 shell 脚本原地替换,失败时容易在 `/Applications` 留下 `.app.new` 孤儿目录,已弃用)。
+- `modules/safe-open.ts` — 外部链接统一出口 `openExternalSafely()`。`shell.openExternal` 会把 URL 交给系统协议处理器,`file://`、自定义 scheme 能拉起本地程序;而窗口里的链接不都可信(登录窗加载的是音乐平台页面,主窗渲染的歌词/评论/歌手简介来自上游接口),因此只放行 http/https/mailto。主窗还挡了 `will-navigate`:导航离开应用入口就等于把 preload 的 `desktop` 桥交给外部页面。
 - `platform/` — 平台能力接口(`getPlatform()`):win32 完整实现(快捷方式等),darwin/其它降级。
 - `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入。
 - `preload/overlay.ts` — 悬浮窗桥:`window.desktopOverlay`。

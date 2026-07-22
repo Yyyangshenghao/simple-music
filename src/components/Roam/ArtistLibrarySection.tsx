@@ -2,19 +2,12 @@ import { useState } from 'react'
 import { useRoamStore, MAX_SONGS_PER_ARTIST } from '../../stores/roam'
 import type { RoamArtistEntry } from '../../stores/roam'
 import { sizedImage } from '../../lib/image-size'
+import { formatDuration } from '../../lib/format-duration'
 import { CloseIcon } from '../ui/CloseIcon'
 import styles from './ArtistLibrarySection.module.css'
 
 interface ArtistLibrarySectionProps {
   entry: RoamArtistEntry
-}
-
-function formatDuration(ms: number | undefined): string {
-  if (!ms || ms <= 0) return ''
-  const total = Math.round(ms / 1000)
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 /** 「入库」卡片:一位已选歌手 + 已选入的曲目清单,可增减首数、逐曲删除、从曲库池补选。 */

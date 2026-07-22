@@ -27,7 +27,8 @@ export default defineConfig({
         input: {
           index: resolve('index.html'),
           'desktop-lyrics': resolve('overlays/desktop-lyrics/desktop-lyrics.html'),
-          wallpaper: resolve('overlays/wallpaper/wallpaper.html')
+          wallpaper: resolve('overlays/wallpaper/wallpaper.html'),
+          'mini-player': resolve('overlays/mini-player/mini-player.html')
         }
       }
     }

@@ -1,4 +1,5 @@
-import { BrowserWindow, session, shell, type Session, type Cookie } from 'electron'
+import { BrowserWindow, session, type Session, type Cookie } from 'electron'
+import { openExternalSafely } from './safe-open'
 import type { LoginResult, OkResult } from '../../src/types/ipc'
 
 const NETEASE_LOGIN_PARTITION = 'persist:simplemusic-netease-login'
@@ -136,8 +137,10 @@ function runLoginFlow(opts: LoginFlowOptions): Promise<LoginResult> {
         }
       }
       win.webContents.setWindowOpenHandler(({ url }) => {
+        // 登录窗加载的是音乐平台页面，弹窗目标不可信：http(s) 就地导航，
+        // 其余协议交白名单判断，file:// 等能拉起本地程序的一律丢弃。
         if (/^https?:\/\//i.test(url)) win.loadURL(url).catch(() => {})
-        else shell.openExternal(url).catch(() => {})
+        else openExternalSafely(url)
         return { action: 'deny' }
       })
       win.webContents.on('did-finish-load', () => void check())

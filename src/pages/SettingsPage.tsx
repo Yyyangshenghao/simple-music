@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { api } from '../lib/api'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
+import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { Switch } from '../components/ui/Switch'
 import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/domain'
+import type { MiniPlayerAppearance } from '../types/ipc'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -54,6 +56,12 @@ function SliderRow({ label, min, max, step, value, format, onChange }: {
     </div>
   )
 }
+
+const MINI_PLAYER_TINTS: { value: MiniPlayerAppearance['tint']; label: string }[] = [
+  { value: 'cover', label: '跟随封面' },
+  { value: 'dark', label: '深色' },
+  { value: 'light', label: '浅色' }
+]
 
 const EFFECT_LABELS: Record<Lyrics3dEffect, string> = {
   'cover-cloud': '封面粒子云',
@@ -272,6 +280,8 @@ export function SettingsPage() {
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
   const updateFx = useVisualStore((s) => s.updateFx)
+  const miniPlayerAppearance = useSettingsStore((s) => s.miniPlayerAppearance)
+  const setMiniPlayerAppearance = useSettingsStore((s) => s.setMiniPlayerAppearance)
 
   const updateInfo = useUpdateStore((s) => s.info)
   const checking = useUpdateStore((s) => s.checking)
@@ -498,6 +508,62 @@ export function SettingsPage() {
             className="no-drag"
           />
           <span className={styles.rowValue}>{desktopLyricsSize}px</span>
+        </div>
+      </section>
+
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>迷你播放条</h2>
+        <p className={styles.groupHint}>
+          开关在播放栏右侧。悬浮条拖动可移动，拖右边缘可调宽度；加宽到 {MINI_PLAYER_LYRICS_WIDTH}px 以上会展开当前歌词。
+        </p>
+        <SliderRow
+          label="底板不透明度"
+          min={0.15}
+          max={1}
+          step={0.01}
+          value={miniPlayerAppearance.opacity}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => setMiniPlayerAppearance({ opacity: v })}
+        />
+        <SliderRow
+          label="背景模糊"
+          min={0}
+          max={36}
+          step={1}
+          value={miniPlayerAppearance.blur}
+          format={(v) => `${Math.round(v)}px`}
+          onChange={(v) => setMiniPlayerAppearance({ blur: v })}
+        />
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>色调</span>
+          <div className={styles.segControl}>
+            {MINI_PLAYER_TINTS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className={`${styles.seg} ${miniPlayerAppearance.tint === t.value ? styles.segActive : ''}`}
+                onClick={() => setMiniPlayerAppearance({ tint: t.value })}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>显示底边进度条</span>
+          <Switch
+            checked={miniPlayerAppearance.showProgress}
+            onChange={(v) => setMiniPlayerAppearance({ showProgress: v })}
+            aria-label="显示底边进度条"
+          />
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>加宽后显示歌词</span>
+          <Switch
+            checked={miniPlayerAppearance.showLyrics}
+            onChange={(v) => setMiniPlayerAppearance({ showLyrics: v })}
+            aria-label="加宽后显示歌词"
+          />
         </div>
       </section>
 

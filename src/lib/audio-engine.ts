@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, isLocalApiUrl } from './api'
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
@@ -104,9 +104,12 @@ export class AudioEngine {
     this.rampGain(0, 0)
     this.cbs.onStatus?.('loading')
     this.pendingSeek = startAt && startAt > 0 ? startAt : null
-    const src = /^https?:\/\//i.test(upstreamUrl)
-      ? api.url('/api/audio', cacheKey ? { url: upstreamUrl, cacheKey } : { url: upstreamUrl })
-      : upstreamUrl
+    // 本地音乐的 url 已经是我们自己的 /api/local/audio(同样支持 Range),直接播;
+    // 再套一层 /api/audio 既多一跳,也会被 server 的 SSRF 防护按回环地址拦掉。
+    const src =
+      /^https?:\/\//i.test(upstreamUrl) && !isLocalApiUrl(upstreamUrl)
+        ? api.url('/api/audio', cacheKey ? { url: upstreamUrl, cacheKey } : { url: upstreamUrl })
+        : upstreamUrl
     this.audio.src = src
     this.audio.load()
   }

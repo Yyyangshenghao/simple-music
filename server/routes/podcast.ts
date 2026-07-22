@@ -1,5 +1,6 @@
 import type { RouteHandler, ServerContext } from '../types'
 import { sendJson } from '../lib/http'
+import { isSafeUpstreamUrl } from '../lib/security'
 import { getCookie } from '../lib/cookie'
 import {
   UA,
@@ -332,7 +333,7 @@ export const podcastRoutes: RouteHandler = async (req, res, url, ctx: ServerCont
     try {
       const audioUrl = url.searchParams.get('url')
       const durationSec = Math.max(0, Number(url.searchParams.get('duration') || 0) || 0)
-      if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
+      if (!audioUrl || !isSafeUpstreamUrl(audioUrl)) {
         sendJson(res, { error: 'Invalid audio url' }, 400)
         return true
       }

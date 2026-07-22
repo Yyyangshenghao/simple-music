@@ -428,7 +428,7 @@ export function StageLyrics3D() {
         /* 跨域污染等:保留旧调色板 */
       }
     }
-    img.src = api.url('/proxy/cover', { url: coverUrl })
+    img.src = api.coverImage(coverUrl)
     return () => {
       cancelled = true
       img.onload = null

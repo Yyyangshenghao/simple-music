@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
-import type { HotkeyBinding } from '../types/ipc'
+import {
+  DEFAULT_MINI_PLAYER_APPEARANCE,
+  MINI_PLAYER_DEFAULT_WIDTH,
+  MINI_PLAYER_MAX_WIDTH,
+  MINI_PLAYER_MIN_WIDTH
+} from '../lib/mini-player-config'
+import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
 import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-settings'
@@ -68,6 +74,12 @@ interface PersistedSettings {
   crossSourceFallback: boolean
   /** 各项性能开关,详见 PerformanceFlags。 */
   performance: PerformanceFlags
+  /** 迷你悬浮播放条:独立开关,与主窗口显隐无关。 */
+  miniPlayerEnabled: boolean
+  /** 迷你播放条宽度(px),由 overlay 拖拽手柄回传。 */
+  miniPlayerWidth: number
+  /** 迷你播放条外观参数。 */
+  miniPlayerAppearance: MiniPlayerAppearance
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -102,6 +114,9 @@ interface SettingsStore extends PersistedSettings {
   setCrossSourceFallback(v: boolean): void
   setPerformance(patch: Partial<PerformanceFlags>): void
   applyPerformancePreset(preset: PerformancePreset): void
+  setMiniPlayerEnabled(v: boolean): void
+  setMiniPlayerWidth(v: number): void
+  setMiniPlayerAppearance(patch: Partial<MiniPlayerAppearance>): void
   saveToLocal(): void
   loadFromLocal(): void
   exportArchive(name?: string): string
@@ -134,6 +149,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   fontFamily: '',
   crossSourceFallback: true,
   performance: { ...DEFAULT_PERFORMANCE },
+  miniPlayerEnabled: false,
+  miniPlayerWidth: MINI_PLAYER_DEFAULT_WIDTH,
+  miniPlayerAppearance: { ...DEFAULT_MINI_PLAYER_APPEARANCE },
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
@@ -231,11 +249,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ performance: { ...PERFORMANCE_PRESETS[preset] } })
     get().saveToLocal()
   },
+  setMiniPlayerEnabled(v) {
+    set({ miniPlayerEnabled: v })
+    get().saveToLocal()
+  },
+  setMiniPlayerWidth(v) {
+    const width = Math.round(Math.min(MINI_PLAYER_MAX_WIDTH, Math.max(MINI_PLAYER_MIN_WIDTH, v)))
+    if (width === get().miniPlayerWidth) return
+    set({ miniPlayerWidth: width })
+    get().saveToLocal()
+  },
+  setMiniPlayerAppearance(patch) {
+    set({ miniPlayerAppearance: { ...get().miniPlayerAppearance, ...patch } })
+    get().saveToLocal()
+  },
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -279,6 +311,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
             ...stored,
           }
         })(),
+        miniPlayerEnabled: data.miniPlayerEnabled ?? false,
+        miniPlayerWidth: Math.round(
+          Math.min(
+            MINI_PLAYER_MAX_WIDTH,
+            Math.max(MINI_PLAYER_MIN_WIDTH, Number(data.miniPlayerWidth) || MINI_PLAYER_DEFAULT_WIDTH)
+          )
+        ),
+        miniPlayerAppearance: { ...DEFAULT_MINI_PLAYER_APPEARANCE, ...(data.miniPlayerAppearance ?? {}) },
       })
     } catch {
       /* ignore malformed */

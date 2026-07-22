@@ -34,7 +34,6 @@ const PlaylistGridItem = memo(function PlaylistGridItem({ playlist }: { playlist
 
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
 
   // 歌单详情提升到导航 store：顶栏前进/后退可穿越
   const currentView = useNavigationStore((s) => s.currentView)
@@ -43,14 +42,18 @@ export function LibraryPage() {
       ? currentView
       : null
 
-  const playlistsFromStore = usePlaylistStore((s) => s.playlists)
+  const playlists = usePlaylistStore((s) => s.playlists)
+  const playlistsSource = usePlaylistStore((s) => s.playlistsSource)
+  const activeSource = useSettingsStore((s) => s.activeSource)
 
+  // 拉取条件看"已拉的是不是当前音源"，不能看 length===0：
+  // 未登录/拉取失败时结果恒为空数组，而 store 每次 set 都是新数组引用，
+  // 用 length 判断会让本 effect 无限重入，把接口打爆。
   useEffect(() => {
-    setPlaylists(playlistsFromStore)
-    if (playlistsFromStore.length === 0) {
+    if (playlistsSource !== activeSource) {
       void usePlaylistStore.getState().loadUserPlaylists()
     }
-  }, [playlistsFromStore])
+  }, [playlistsSource, activeSource])
 
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="library-cover" />

@@ -103,6 +103,11 @@ export class NeteaseMusicService implements MusicService {
     return res.liked ?? {}
   }
 
+  async getUserPlaylists(): Promise<Playlist[]> {
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/user/playlists')
+    return res.playlists ?? []
+  }
+
   /** 网易约定:用户歌单列表首个为"我喜欢的音乐"。 */
   async getLikedPlaylist(): Promise<Playlist | null> {
     const res = await api.get<{ playlists?: Playlist[] }>('/api/user/playlists')

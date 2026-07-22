@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
+import { isSafeUpstreamUrl } from '../lib/security'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import {
   findCachedAudio,
@@ -117,7 +118,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/search') {
     try {
       const kw = url.searchParams.get('keywords') || ''
-      const limit = parseInt(url.searchParams.get('limit') || '20')
+      const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '20', 10) || 20))
       const songs = await handleSearch(kw, limit, getCookie(ctx, 'netease'))
       sendJson(res, { songs })
     } catch (err) {
@@ -288,7 +289,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const cookie = getCookie(ctx, 'netease')
       const id = url.searchParams.get('id') || ''
-      const limit = parseInt(url.searchParams.get('limit') || '50')
+      const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10) || 50))
       const resp = await call('artist_songs', { id, limit, offset: 0, cookie })
       const body = asObj(resp.body)
       const songs = asArr(body.songs || body.data || []).map(mapSongRecord).filter((s) => s.id && s.name)
@@ -305,7 +306,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const cookie = getCookie(ctx, 'netease')
       const id = url.searchParams.get('id') || ''
-      const limit = parseInt(url.searchParams.get('limit') || '20')
+      const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '20', 10) || 20))
       const resp = await call('artist_album', { id, limit, offset: 0, cookie })
       const body = asObj(resp.body)
       const albums = asArr(body.hotAlbums || body.albums || []).map(mapAlbum).filter((a) => a.id && a.name)
@@ -820,9 +821,9 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/proxy/cover') {
     try {
       const targetUrl = url.searchParams.get('url')
-      if (!targetUrl) {
+      if (!targetUrl || !isSafeUpstreamUrl(targetUrl)) {
         res.writeHead(400)
-        res.end('Missing url param')
+        res.end(targetUrl ? 'Invalid url param' : 'Missing url param')
         return true
       }
       const r = await fetch(targetUrl, {
@@ -1057,7 +1058,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/cover') {
     try {
       const coverUrl = url.searchParams.get('url')
-      if (!coverUrl || !/^https?:\/\//i.test(coverUrl)) {
+      if (!coverUrl || !isSafeUpstreamUrl(coverUrl)) {
         res.writeHead(400, { 'Access-Control-Allow-Origin': '*' })
         res.end('Invalid cover url')
         return true
@@ -1088,9 +1089,11 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/audio') {
     try {
       const audioUrl = url.searchParams.get('url')
-      if (!audioUrl) {
+      // 不校验就 fetch 等于开放代理:调用方能借它读回环/内网服务(SSRF)。
+      // 上游只可能是音乐平台 CDN,限定 http(s) 且非本机/内网。
+      if (!audioUrl || !isSafeUpstreamUrl(audioUrl)) {
         res.writeHead(400)
-        res.end('Missing url')
+        res.end(audioUrl ? 'Invalid url' : 'Missing url')
         return true
       }
       const cacheKey = url.searchParams.get('cacheKey') || ''

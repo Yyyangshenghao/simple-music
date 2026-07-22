@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api'
+import { serviceFor } from '../../lib/service-registry'
 import { usePlaylistStore } from '../../stores/playlist'
 import { GlassPanel } from '../ui/GlassPanel'
 import { CloseIcon } from '../ui/CloseIcon'
+import { formatDuration } from '../../lib/format-duration'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './ShelfDetail.module.css'
 
@@ -22,15 +23,6 @@ function extractTracks(res: unknown): Track[] {
   return []
 }
 
-/** mm:ss 格式化，duration 单位毫秒。 */
-function formatDuration(ms: number | undefined): string {
-  if (!ms || ms <= 0) return '--:--'
-  const total = Math.round(ms / 1000)
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
 /** 歌单详情：拉取曲目列表，点击某曲入队并自动播放。 */
 export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
   const [tracks, setTracks] = useState<Track[]>([])
@@ -41,8 +33,10 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
     let alive = true
     setLoading(true)
     setError(false)
-    api
-      .get<unknown>('/api/playlist/tracks', { id: String(playlist.id) })
+    // 必须按歌单自身的 source 取 service:曾写死 /api/playlist/tracks(网易端点),
+    // QQ 歌单会被当成网易歌单去查,拿到空结果。
+    serviceFor(playlist.source)
+      .getPlaylistSkeleton(playlist.id)
       .then((res) => {
         if (!alive) return
         setTracks(extractTracks(res))
@@ -57,7 +51,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
     return () => {
       alive = false
     }
-  }, [playlist.id])
+  }, [playlist.id, playlist.source])
 
   const handlePick = (index: number): void => {
     usePlaylistStore.getState().setQueue(tracks, index)
@@ -115,7 +109,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
                       </span>
                     </span>
                     <span className={styles.trackDuration}>
-                      {formatDuration(track.duration)}
+                      {formatDuration(track.duration, '--:--')}
                     </span>
                   </button>
                 </li>

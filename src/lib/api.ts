@@ -26,9 +26,32 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+/**
+ * 该 URL 是否已经指向本地 API server 自身(如本地音乐的 /api/local/audio、/api/local/cover)。
+ *
+ * 这类地址**不能**再套 `/api/audio`、`/proxy/cover` 之类的代理端点:既多一跳,
+ * 又会被 server 的 SSRF 防护当成"代理去请求回环地址"直接 400 掉。
+ */
+export function isLocalApiUrl(url: string): boolean {
+  const base = apiBase()
+  return !!base && url.startsWith(base)
+}
+
+/**
+ * 取封面图 URL,供需要 canvas 采样(取色/粒子/舞台歌词)的场景使用。
+ *
+ * 上游平台的封面不带 CORS 头,直接画进 canvas 会污染画布,所以要过 `/proxy/cover`;
+ * 本地音乐的封面本身就是我们自己的 `/api/local/cover`(已带 `ACAO: *`),原样返回。
+ */
+export function coverImageUrl(cover: string): string {
+  if (isLocalApiUrl(cover)) return cover
+  return buildUrl('/proxy/cover', { url: cover })
+}
+
 export const api = {
   base: apiBase,
   url: buildUrl,
+  coverImage: coverImageUrl,
   get<T>(path: string, params?: QueryParams): Promise<T> {
     return request<T>(buildUrl(path, params))
   },

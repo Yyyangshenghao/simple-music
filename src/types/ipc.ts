@@ -57,6 +57,39 @@ export interface WallpaperPayload {
   [key: string]: unknown
 }
 
+/** 迷你播放条外观：全部由主窗口设置页调节，随 payload 下发给 overlay。 */
+export interface MiniPlayerAppearance {
+  /** 底板不透明度 0.15–1。 */
+  opacity: number
+  /** 背景模糊半径 px，0–36。 */
+  blur: number
+  /** 色调：深色 / 浅色 / 跟随封面主色。 */
+  tint: 'dark' | 'light' | 'cover'
+  /** 底边细进度条。 */
+  showProgress: boolean
+  /** 展开态（宽度足够时）显示当前歌词行。 */
+  showLyrics: boolean
+}
+
+/** 迷你播放条 payload：当前曲目展示字段（enable/disable 走独立通道，不混进这里）。 */
+export interface MiniPlayerPayload {
+  trackTitle?: string
+  artistName?: string
+  coverUrl?: string
+  playing?: boolean
+  /** 当前播放进度（秒）。 */
+  position?: number
+  /** 曲目总时长（秒）。 */
+  duration?: number
+  /** 音量 0–1。 */
+  volume?: number
+  /** 当前歌词行，无歌词为空串。 */
+  lyricLine?: string
+  /** 封面主色 hex，tint='cover' 时用作底色。 */
+  accent?: string
+  appearance?: MiniPlayerAppearance
+}
+
 export interface HotkeyBinding {
   action: string
   accelerator: string
@@ -122,6 +155,9 @@ export interface IpcChannels {
   'wallpaper:set-enabled': { req: { enabled: boolean; payload?: WallpaperPayload }; res: OkResult }
   'wallpaper:update': { req: WallpaperPayload; res: OkResult }
 
+  'miniplayer:set-enabled': { req: { enabled: boolean; width?: number }; res: OkResult }
+  'miniplayer:update': { req: MiniPlayerPayload; res: OkResult }
+
   'hotkeys:configure': { req: HotkeyBinding[]; res: HotkeyResult }
 
   'file:export-json': { req: ExportPayload; res: FileResult }
@@ -137,6 +173,9 @@ export interface IpcEvents {
   'lyrics:lock-state-changed': { locked: boolean }
   'lyrics:enabled-state-changed': { enabled: boolean }
   'hotkey:triggered': { action: string }
+  'miniplayer:control': { action: string; value?: number }
+  /** overlay 侧拖拽改宽后回传，主窗口负责持久化。 */
+  'miniplayer:width-changed': { width: number }
 }
 
 // ---------- overlay 窗口内部通道（不属于主契约） ----------
@@ -154,9 +193,16 @@ export interface OverlayChannels {
   'overlay:lyrics-set-lock': { req: { locked: boolean }; res: OkResult }
   'overlay:lyrics-move-by': { req: { dx: number; dy: number }; res: OkResult }
   'overlay:lyrics-close': { req: void; res: OkResult }
+  'overlay:miniplayer-move-by': { req: { dx: number; dy: number }; res: OkResult }
+  'overlay:miniplayer-resize-by': { req: { dx: number }; res: OkResult }
+  'overlay:miniplayer-set-popover': { req: { open: boolean }; res: OkResult }
+  'overlay:miniplayer-control': { req: { action: string; value?: number }; res: OkResult }
+  'overlay:miniplayer-close': { req: void; res: OkResult }
+  'overlay:miniplayer-focus-main': { req: void; res: OkResult }
 }
 
 export interface OverlayEvents {
   'overlay:lyrics-state': LyricsPayload
   'overlay:wallpaper-state': WallpaperPayload
+  'overlay:miniplayer-state': MiniPlayerPayload
 }

@@ -70,4 +70,9 @@ export class QQMusicService implements MusicService {
     if (!res.playlist || !res.tracks?.length) return null
     return { playlist: res.playlist, tracks: res.tracks }
   }
+
+  async getUserPlaylists(): Promise<Playlist[]> {
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/qq/user/playlists')
+    return res.playlists ?? []
+  }
 }

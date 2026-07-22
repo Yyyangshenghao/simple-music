@@ -71,7 +71,7 @@ export function useAmbientPalette(): void {
     let cancelled = false
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.src = api.url('/proxy/cover', { url: cover })
+    img.src = api.coverImage(cover)
     img.onload = () => {
       if (cancelled) return
       applyPalette(extractPalette(img))

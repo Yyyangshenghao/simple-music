@@ -1,8 +1,8 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
-import { getMainWindow, resolveRendererUrl } from './window-manager'
+import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow } from './window-manager'
 import { getPlatform } from '../platform'
-import type { LyricsPayload, WallpaperPayload, HotBounds, OkResult } from '../../src/types/ipc'
+import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
 
 const platform = getPlatform()
 
@@ -17,6 +17,25 @@ let lyricsLastMiddleAt = 0
 
 let wallpaperWindow: BrowserWindow | null = null
 let wallpaperState: WallpaperPayload = {}
+
+let miniPlayerWindow: BrowserWindow | null = null
+let miniPlayerState: MiniPlayerPayload = {}
+let miniPlayerUserBounds: Electron.Rectangle | null = null
+let miniPlayerProgrammaticMove = false
+
+const MINI_PLAYER_MIN_WIDTH = 300
+const MINI_PLAYER_MAX_WIDTH = 760
+const MINI_PLAYER_DEFAULT_WIDTH = 360
+/** 常态高度：64px 条体 + 8px 上下留白（阴影用）。 */
+const MINI_PLAYER_BASE_HEIGHT = 80
+/** 音量弹层展开时的高度；不常驻是因为透明留白区在 OS 层面同样会挡住桌面点击。 */
+const MINI_PLAYER_POPOVER_HEIGHT = 136
+let miniPlayerWidth = MINI_PLAYER_DEFAULT_WIDTH
+let miniPlayerPopoverOpen = false
+
+function miniPlayerHeight(): number {
+  return miniPlayerPopoverOpen ? MINI_PLAYER_POPOVER_HEIGHT : MINI_PLAYER_BASE_HEIGHT
+}
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
   const n = Number(value)
@@ -272,6 +291,194 @@ function closeWallpaperWindow(): void {
   wallpaperWindow = null
 }
 
+// ---------- 迷你播放条 ----------
+function miniPlayerDefaultBounds(): Electron.Rectangle {
+  const area = screen.getPrimaryDisplay().workArea
+  return {
+    x: Math.round(area.x + area.width - miniPlayerWidth - 24),
+    y: Math.round(area.y + area.height - miniPlayerHeight() - 24),
+    width: miniPlayerWidth,
+    height: miniPlayerHeight()
+  }
+}
+
+/** 宽度可调、高度锁死；位置夹在所在显示器内。 */
+function constrainMiniPlayerBounds(bounds: Electron.Rectangle): Electron.Rectangle {
+  const area = screen.getDisplayMatching(bounds).workArea
+  const width = Math.round(clampNumber(bounds.width, MINI_PLAYER_MIN_WIDTH, MINI_PLAYER_MAX_WIDTH, MINI_PLAYER_MIN_WIDTH))
+  const height = miniPlayerHeight()
+  const maxX = area.x + Math.max(0, area.width - width)
+  const maxY = area.y + Math.max(0, area.height - height)
+  return {
+    width,
+    height,
+    x: Math.round(clampNumber(bounds.x, area.x, maxX, area.x)),
+    y: Math.round(clampNumber(bounds.y, area.y, maxY, area.y))
+  }
+}
+
+function setMiniPlayerBounds(bounds: Electron.Rectangle): void {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return
+  const next = constrainMiniPlayerBounds(bounds)
+  miniPlayerProgrammaticMove = true
+  // 非 resizable 窗口在 macOS 上会把 min/max 尺寸钉死在当前值,setBounds 改尺寸会被忽略,故临时放开
+  const cur = miniPlayerWindow.getBounds()
+  const needUnlock = next.width !== cur.width || next.height !== cur.height
+  if (needUnlock) miniPlayerWindow.setResizable(true)
+  miniPlayerWindow.setBounds(next, false)
+  if (needUnlock) miniPlayerWindow.setResizable(false)
+  miniPlayerUserBounds = next
+  miniPlayerWidth = next.width
+  miniPlayerProgrammaticMove = false
+}
+
+function rememberMiniPlayerBounds(): void {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed() || miniPlayerProgrammaticMove) return
+  const b = miniPlayerWindow.getBounds()
+  miniPlayerUserBounds = b
+  if (b.width !== miniPlayerWidth) {
+    miniPlayerWidth = b.width
+    notifyMiniPlayerWidth(b.width)
+  }
+}
+
+/** 宽度回传主窗口持久化；同一宽度不重复通知。 */
+function notifyMiniPlayerWidth(width: number): void {
+  const main = getMainWindow()
+  if (!main || main.isDestroyed()) return
+  main.webContents.send('miniplayer:width-changed', { width })
+}
+
+function sendMiniPlayerState(): void {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return
+  miniPlayerWindow.webContents.send('overlay:miniplayer-state', miniPlayerState)
+}
+
+function createMiniPlayerWindow(): BrowserWindow {
+  if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) return miniPlayerWindow
+
+  const win = new BrowserWindow({
+    ...(miniPlayerUserBounds ? constrainMiniPlayerBounds(miniPlayerUserBounds) : miniPlayerDefaultBounds()),
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    // 尺寸完全由自绘手柄经 setBounds 控制:放开 OS 边缘拖拽会和自绘手柄同帧各改一次宽度，产生抖动
+    resizable: false,
+    movable: true,
+    focusable: false,
+    skipTaskbar: true,
+    show: false,
+    title: 'Simple Music Mini Player',
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+  })
+  miniPlayerWindow = win
+  try {
+    win.setAlwaysOnTop(true, 'screen-saver')
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  } catch (e) {
+    console.warn('Mini player topmost setup skipped:', (e as Error).message)
+  }
+  win.once('ready-to-show', () => {
+    if (win.isDestroyed()) return
+    win.showInactive()
+    sendMiniPlayerState()
+  })
+  win.webContents.once('did-finish-load', sendMiniPlayerState)
+  win.on('closed', () => {
+    if (miniPlayerWindow === win) miniPlayerWindow = null
+  })
+  win.on('moved', rememberMiniPlayerBounds)
+  win.loadURL(resolveRendererUrl('overlays/mini-player/mini-player.html')).catch((e) =>
+    console.warn('Mini player load failed:', (e as Error).message)
+  )
+  return win
+}
+
+function closeMiniPlayerWindow(): void {
+  if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) miniPlayerWindow.close()
+  miniPlayerWindow = null
+  miniPlayerPopoverOpen = false
+}
+
+/** 迷你条与主窗口互斥：开启时把设置开关同步为关（供主进程主动收起迷你时用）。 */
+function notifyRendererMiniOff(): void {
+  const main = getMainWindow()
+  if (main && !main.isDestroyed()) main.webContents.send('miniplayer:control', { action: 'sync-off' })
+}
+
+export function setMiniPlayerEnabled(enabled: boolean, width?: number): OkResult {
+  if (width !== undefined) {
+    miniPlayerWidth = Math.round(clampNumber(width, MINI_PLAYER_MIN_WIDTH, MINI_PLAYER_MAX_WIDTH, MINI_PLAYER_DEFAULT_WIDTH))
+    if (miniPlayerUserBounds) miniPlayerUserBounds = { ...miniPlayerUserBounds, width: miniPlayerWidth }
+  }
+  // 互斥：进入迷你态隐藏主窗口（渲染层据窗口可见性卸载重度可视层降耗），退出时恢复
+  if (enabled) {
+    createMiniPlayerWindow()
+    hideMainWindow()
+  } else {
+    closeMiniPlayerWindow()
+    focusMainWindow()
+  }
+  return { ok: true }
+}
+
+/** 迷你条“回到大播放器”：恢复主窗口 + 关闭迷你条 + 同步设置开关。 */
+export function returnFromMiniPlayer(): OkResult {
+  closeMiniPlayerWindow()
+  notifyRendererMiniOff()
+  focusMainWindow()
+  return { ok: true }
+}
+
+/** 迷你条 X：收起迷你条并退居托盘，主窗口保持隐藏（后台继续播放，经托盘恢复）。 */
+export function hideMiniPlayerToTray(): OkResult {
+  closeMiniPlayerWindow()
+  notifyRendererMiniOff()
+  return { ok: true }
+}
+
+export function updateMiniPlayer(payload: MiniPlayerPayload): OkResult {
+  miniPlayerState = { ...miniPlayerState, ...payload }
+  sendMiniPlayerState()
+  return { ok: true }
+}
+
+export function moveMiniPlayerBy(dx: number, dy: number): OkResult {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
+  const b = miniPlayerWindow.getBounds()
+  setMiniPlayerBounds({ ...b, x: b.x + Math.round(clampNumber(dx, -200, 200, 0)), y: b.y + Math.round(clampNumber(dy, -200, 200, 0)) })
+  return { ok: true }
+}
+
+/** 右边缘手柄拖拽：只改宽度，左上角不动。 */
+export function resizeMiniPlayerBy(dx: number): OkResult {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
+  const b = miniPlayerWindow.getBounds()
+  const before = b.width
+  setMiniPlayerBounds({ ...b, width: b.width + Math.round(clampNumber(dx, -400, 400, 0)) })
+  if (miniPlayerWidth !== before) notifyMiniPlayerWidth(miniPlayerWidth)
+  return { ok: true }
+}
+
+/** 音量弹层开合：窗口向上长高，底边保持不动，避免条体跳位。 */
+export function setMiniPlayerPopover(open: boolean): OkResult {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
+  if (miniPlayerPopoverOpen === open) return { ok: true }
+  const b = miniPlayerWindow.getBounds()
+  const bottom = b.y + b.height
+  miniPlayerPopoverOpen = open
+  setMiniPlayerBounds({ ...b, y: bottom - miniPlayerHeight() })
+  return { ok: true }
+}
+
+export function triggerMiniPlayerControl(action: string, value?: number): OkResult {
+  const main = getMainWindow()
+  if (!main || main.isDestroyed() || !action) return { ok: false, error: 'NO_MAIN_WINDOW' }
+  main.webContents.send('miniplayer:control', { action, value })
+  return { ok: true }
+}
+
 // ---------- 对外 API（供 ipc 调用） ----------
 export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}): OkResult {
   if (enabled) {
@@ -354,4 +561,5 @@ export function updateWallpaper(payload: WallpaperPayload = {}): OkResult {
 export function closeOverlays(): void {
   closeLyricsWindow()
   closeWallpaperWindow()
+  closeMiniPlayerWindow()
 }

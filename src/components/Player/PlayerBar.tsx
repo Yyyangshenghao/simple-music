@@ -158,6 +158,41 @@ function VolumeButton() {
   )
 }
 
+/** 迷你播放条图标:画中画式的小窗示意。 */
+function MiniPlayerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+/** 迷你悬浮播放条开关:切换独立的置顶 overlay 窗口。 */
+function MiniPlayerButton() {
+  const enabled = useSettingsStore((s) => s.miniPlayerEnabled)
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
+      data-active={enabled}
+      onClick={() => {
+        const next = !enabled
+        const { miniPlayerWidth } = useSettingsStore.getState()
+        useSettingsStore.getState().setMiniPlayerEnabled(next)
+        void window.desktop?.setMiniPlayerEnabled(next, miniPlayerWidth)
+      }}
+      title={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
+      aria-label={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
+      aria-pressed={enabled}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <MiniPlayerIcon />
+    </motion.button>
+  )
+}
+
 const MODE_CYCLE: Record<PlayMode, PlayMode> = { order: 'shuffle', shuffle: 'one', one: 'order' }
 const MODE_LABEL: Record<PlayMode, string> = { order: '列表循环', shuffle: '随机播放', one: '单曲循环' }
 
@@ -319,6 +354,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
             />
           </div>
           <span className={styles.divider} aria-hidden="true" />
+          <MiniPlayerButton />
           <SleepTimerButton />
           <QueuePanel />
           <SourceFallbackBadge />

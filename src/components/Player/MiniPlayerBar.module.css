@@ -1,0 +1,326 @@
+/* 迷你播放条:窗口高度固定,条体贴底,上方留白供音量弹层使用。
+   底色/模糊由 --mp-* 变量驱动（设置页可调），前景色随 tint 翻转。 */
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  /* 透明留白区不吃指针事件,否则整块窗口都会挡住桌面点击 */
+  pointer-events: none;
+
+  --mp-fg: rgba(255, 255, 255, 0.96);
+  --mp-fg-dim: rgba(255, 255, 255, 0.58);
+  --mp-hover: rgba(255, 255, 255, 0.14);
+  --mp-line: rgba(255, 255, 255, 0.14);
+}
+
+.root[data-tint='light'] {
+  --mp-fg: rgba(18, 18, 22, 0.94);
+  --mp-fg-dim: rgba(18, 18, 22, 0.55);
+  --mp-hover: rgba(0, 0, 0, 0.08);
+  --mp-line: rgba(0, 0, 0, 0.1);
+}
+
+.bar {
+  position: relative;
+  flex: none;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 0 10px;
+  box-sizing: border-box;
+  border-radius: 20px;
+  background: rgba(var(--mp-base), var(--mp-opacity));
+  backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
+  border: 1px solid var(--mp-line);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--mp-fg);
+  user-select: none;
+  cursor: grab;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.bar:active {
+  cursor: grabbing;
+}
+
+/* ---------- 封面 ---------- */
+.cover {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--mp-hover);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.cover:hover {
+  transform: scale(1.05);
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.coverPlaceholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- 曲目信息 ---------- */
+.info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 展开态把信息区压窄,把富余宽度让给歌词 */
+.bar[data-expanded='true'] .info {
+  flex: 0 1 34%;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mp-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  font-size: 11px;
+  color: var(--mp-fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 歌词（展开态） ---------- */
+.lyricWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  /* 两端羽化,长句被裁时不会硬切 */
+  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+
+.lyric {
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--mp-fg);
+  opacity: 0.86;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  animation: lyricIn 0.32s ease both;
+}
+
+@keyframes lyricIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 0.86;
+    transform: none;
+  }
+}
+
+/* ---------- 控制区 ---------- */
+.controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 8px;
+}
+
+.ctl {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mp-fg);
+  opacity: 0.82;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.ctl:hover:not(:disabled) {
+  background: var(--mp-hover);
+  opacity: 1;
+}
+
+.ctl:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ctl[data-active='true'] {
+  background: var(--mp-hover);
+  opacity: 1;
+}
+
+.ctlPlay {
+  width: 34px;
+  height: 34px;
+  background: var(--mp-hover);
+  opacity: 1;
+}
+
+.ctlClose {
+  width: 24px;
+  height: 24px;
+  opacity: 0.45;
+}
+
+/* ---------- 底边进度条 ---------- */
+.progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 10px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 3px;
+  cursor: pointer;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--mp-line);
+  overflow: hidden;
+  transition: height 0.15s ease;
+}
+
+.progress:hover .progressTrack {
+  height: 4px;
+}
+
+.progressFill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mp-fg);
+  opacity: 0.75;
+  transform-origin: left center;
+  /* 用 transform 推进,避免每秒改宽度触发布局 */
+  transition: transform 0.25s linear;
+}
+
+/* ---------- 右边缘宽度手柄 ---------- */
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+}
+
+.grip {
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--mp-fg);
+  opacity: 0.18;
+  transition: opacity 0.15s ease;
+}
+
+.resizeHandle:hover .grip {
+  opacity: 0.6;
+}
+
+/* ---------- 音量弹层 ---------- */
+.popover {
+  flex: none;
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(var(--mp-base), var(--mp-opacity));
+  backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
+  border: 1px solid var(--mp-line);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--mp-fg);
+  pointer-events: auto;
+  animation: popIn 0.18s ease both;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.volumeSlider {
+  width: 120px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 2px;
+  background: var(--mp-line);
+  cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--mp-fg);
+  border: none;
+}
+
+.volumeValue {
+  min-width: 26px;
+  font-size: 11px;
+  text-align: right;
+  color: var(--mp-fg-dim);
+  font-variant-numeric: tabular-nums;
+}

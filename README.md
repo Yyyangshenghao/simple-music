@@ -34,10 +34,27 @@
 
 ## 功能
 
-- 网易云音乐 / QQ 音乐双音源，登录、搜索、歌单、歌手页、每日推荐/私人雷达（网易专属）
-- 沉浸式 Three.js 可视化场景、桌面歌词悬浮窗、动态壁纸悬浮窗
+**音源与内容**
+
+- 网易云音乐 / QQ 音乐双音源：登录、搜索、歌单、专辑、歌手页、播客
+- 每日推荐 / 私人雷达（网易专属，需登录）
+- 本地音乐：选文件夹扫描，读内嵌标签与封面，同名 `.lrc` 自动作歌词
+- 跨音源兜底：当前音源放不出的曲目自动尝试另一音源
+- 漫游页：以歌手关系图谱为入口滚动式探索，边听边扩展
+
+**播放**
+
+- 音质档位可选（含 `max` 跟随账号最高可用档），单曲可查看实际命中的档位
+- 音频磁盘缓存：整曲播放过一次即落盘，重复播放不再走网络（目录与容量上限可配）
+- 淡入淡出、断点续播、睡眠定时、播放队列
+
+**视觉与桌面集成**
+
+- 沉浸式 Three.js 可视化场景、封面粒子、歌词页 3D 舞台
+- 桌面歌词悬浮窗、动态壁纸悬浮窗
 - 浅色/深色双主题，视觉 FX 参数可调并支持存档导入导出
-- 全局热键、窗口状态同步、跨平台（macOS 优先，Windows 同时支持）
+- 全局热键、窗口状态同步、应用内检查更新（下载前测速选线）
+- 跨平台（macOS 优先，Windows 同时支持）
 
 ## 技术栈
 
@@ -47,12 +64,13 @@ Electron + React 18 + TypeScript + Zustand + electron-vite + Three.js（`@react-
 
 ```bash
 npm install
-npm run dev            # electron-vite 开发模式
-npm run build           # 构建到 out/
-npm run typecheck        # 类型检查
-npm test                # vitest 测试
-npm run build:mac        # 打包 macOS（x64 + arm64 dmg）
-npm run build:win        # 打包 Windows（安装版 + 便携版）
+npm run dev           # electron-vite 开发模式（渲染层 5173，API server 随主进程启动）
+npm run build         # 构建到 out/
+npm run typecheck     # 类型检查（node 侧 + 渲染侧两套 tsconfig）
+npm test              # vitest 测试
+npm run server:dev    # 单独跑内嵌 API server（端口 35530），便于脱离 Electron 调接口
+npm run build:mac     # 打包 macOS（x64 + arm64 dmg）
+npm run build:win     # 打包 Windows（安装版 + 便携版）
 ```
 
 更多架构与模块说明见 [`CLAUDE.md`](./CLAUDE.md) 与 [`docs/modules/`](./docs/modules/)。

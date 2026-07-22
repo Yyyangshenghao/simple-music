@@ -153,6 +153,18 @@
 }
 
 /* 分隔线:把「音量」与「队列/音质」两组功能在视觉上分开 */
+/* 迷你播放条开关:开启时点亮为主色,与睡眠定时/队列按钮同尺寸 */
+.miniPlayerBtn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.miniPlayerBtn[data-active='true'] {
+  color: var(--sm-accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-accent) 35%, transparent));
+}
+
 .divider {
   width: 1px;
   height: 20px;
