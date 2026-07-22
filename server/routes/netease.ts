@@ -178,6 +178,27 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 官方榜单(飙升榜/新歌榜/热歌榜等,榜单本身就是一种歌单,详情复用歌单详情接口) ----------
+  if (pn === '/api/netease/toplist') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      const resp = await call('toplist', { cookie, timestamp: Date.now() })
+      const list = asArr(asObj(resp.body).list)
+      // /toplist 混杂了车机品牌歌单等长尾榜单,按知名度挑一批;找不到任何一个(接口改版)时退化为原始前 8 个兜底
+      const CURATED_NAMES = ['飙升榜', '新歌榜', '原创榜', '热歌榜', 'UK排行榜周榜', '美国Billboard榜', '日本Oricon榜', '网易云韩语榜']
+      let picked = CURATED_NAMES
+        .map((name) => list.find((item) => asStr(asObj(item).name) === name))
+        .filter((item): item is unknown => !!item)
+      if (picked.length === 0) picked = list.slice(0, 8)
+      const playlists = picked.map((pl) => mapDiscoverPlaylist(pl, '排行榜')).filter((pl) => pl.id && pl.name)
+      sendJson(res, { playlists })
+    } catch (err) {
+      console.error('[Toplist]', err)
+      sendJson(res, { playlists: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- Recommend Songs ----------
   if (pn === '/api/netease/recommend/songs') {
     try {
@@ -642,6 +663,33 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[Like]', err)
       sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- 听歌打卡（更新账号"最近播放歌单"/"听歌排行"）----------
+  if (pn === '/api/netease/scrobble') {
+    try {
+      const cookie = getCookie(ctx, 'netease')
+      if (!cookie) {
+        // 未登录静默跳过：这是播放路径上的背景上报，不应该对未登录用户报错
+        sendJson(res, { ok: false })
+        return true
+      }
+      const body = req.method === 'POST' ? await readRequestBody(req) : {}
+      const id = body.id || url.searchParams.get('id')
+      // 无歌单/专辑语境（如搜索结果、单曲循环）时用歌曲自身 id 兜底，仍能计入听歌排行
+      const sourceId = body.sourceId || url.searchParams.get('sourceId') || id
+      const time = Math.max(0, Math.round(Number(body.time ?? url.searchParams.get('time') ?? 0)))
+      if (!id) {
+        sendJson(res, { ok: false, error: 'Missing song id' }, 400)
+        return true
+      }
+      await call('scrobble', { id, sourceid: sourceId, time, cookie, timestamp: Date.now() })
+      sendJson(res, { ok: true })
+    } catch (err) {
+      console.error('[Scrobble]', err)
+      sendJson(res, { ok: false, error: (err as Error).message })
     }
     return true
   }

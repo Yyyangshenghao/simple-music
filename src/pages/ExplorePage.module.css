@@ -9,6 +9,12 @@
 
 .section { margin-bottom: 32px; }
 
+.greeting {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 20px 24px 0;
+}
+
 .sectionTitle {
   font-size: 18px;
   font-weight: 700;
@@ -17,14 +23,22 @@
   padding: 0 24px;
 }
 
-/* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台） ---------- */
+/* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台）+ 右侧个性化快捷入口 ---------- */
+.topRow {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 16px 24px 8px;
+}
+
 .hero {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 28px;
   min-height: 300px;
-  padding: 16px 24px 8px;
 }
 
 .heroCards {

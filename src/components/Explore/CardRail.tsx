@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Children, type ReactNode } from 'react'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
 import { GradientText } from '../ui/GradientText'
 import styles from './CardRail.module.css'
@@ -20,7 +20,8 @@ export function CardRail({ title, children }: CardRailProps) {
           e.currentTarget.scrollLeft += e.deltaY
         }}
       >
-        {children}
+        {/* 用独立包裹层约束宽度，避免和子组件自身的 width:100% 样式打层叠优先级架 */}
+        {Children.map(children, (child) => <div className={styles.item}>{child}</div>)}
       </div>
     </section>
   )

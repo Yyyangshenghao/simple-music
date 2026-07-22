@@ -19,12 +19,12 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
 
   function playAll() {
     if (total === 0) return
-    usePlaylistStore.getState().setQueue(makeQueue(), 0)
+    usePlaylistStore.getState().setQueue(makeQueue(), 0, playlist.id)
     onClose()
   }
 
   function playTrack(index: number) {
-    usePlaylistStore.getState().setQueue(makeQueue(), index)
+    usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
   }
 
   function openDetail() {

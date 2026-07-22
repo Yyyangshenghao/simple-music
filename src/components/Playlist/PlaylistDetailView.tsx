@@ -56,7 +56,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   }, [playlist.cover])
 
   function playAt(index: number) {
-    usePlaylistStore.getState().setQueue(makeQueue(), index)
+    usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
   }
 
   return (

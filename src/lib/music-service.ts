@@ -26,6 +26,9 @@ export interface MusicService {
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>
+  /** 官方榜单(飙升榜/新歌榜/热歌榜等;可选,不含账号数据,未登录也能拿)。榜单本身就是歌单,
+   *  返回值可直接丢进 PlaylistDetailView 复用懒加载详情。 */
+  getToplists?(): Promise<Playlist[]>
   /** 红心/取消红心（可选;未实现的音源不渲染红心按钮）。resolve true 表示服务端成功。 */
   likeTrack?(track: Track, like: boolean): Promise<boolean>
   /** 批量查询红心状态,key 为 String(id)（可选,需登录）。 */
@@ -44,6 +47,9 @@ export interface MusicService {
   replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   /** 覆盖歌单简介（可选;仅网易实现）。 */
   updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
+  /** 听歌打卡上报（可选;仅网易实现）。更新账号端"最近播放歌单"/"听歌排行"等真实数据；
+   *  sourceId 为播放来源的歌单/专辑 id，缺省时上游按歌曲自身 id 兜底。失败静默忽略,不影响播放。 */
+  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
 }
 
 export interface RadarPlaylist {

@@ -54,7 +54,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
   }, [playlist.id, playlist.source])
 
   const handlePick = (index: number): void => {
-    usePlaylistStore.getState().setQueue(tracks, index)
+    usePlaylistStore.getState().setQueue(tracks, index, playlist.id)
   }
 
   return (

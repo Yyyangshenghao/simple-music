@@ -1,0 +1,126 @@
+.panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 22px;
+  border: 1px solid var(--glass-border-card);
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+}
+
+.bar:hover {
+  color: var(--sm-text-primary);
+  border-color: var(--sm-accent);
+}
+
+.bar:hover .playBadge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.iconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ambient-gradient);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.cover,
+.coverFallback {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--sm-bg-elevated);
+  flex-shrink: 0;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--sm-accent);
+  color: var(--sm-bg-elevated);
+  flex-shrink: 0;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.playBadge svg {
+  transform: translateX(1px);
+}
+
+.dots {
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dot,
+.dotActive {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--sm-border-strong);
+  transition: background 0.2s ease, height 0.2s ease;
+}
+
+.dotActive {
+  height: 14px;
+  background: var(--sm-accent);
+}

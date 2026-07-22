@@ -3,11 +3,22 @@ import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
 import { getPreloadedUrl, getPreloadedQuality, resolveSongUrl, trackCacheKey } from '../lib/track-preload'
 import { findFallbackTrack } from '../lib/track-fallback'
 import { SOURCE_BRAND } from '../lib/source-brand'
+import { serviceFor } from '../lib/service-registry'
 import { useSettingsStore } from './settings'
 import { useToastStore } from './toast'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
 const FALLBACK_UNPLAYABLE_MESSAGE = '这首歌暂时无法播放，可以换一首试试'
+
+// 听歌打卡门槛:播满 20 秒或过半(取更短者)才算"真的听了",避免快速切歌也上报打卡
+const SCROBBLE_MIN_SECONDS = 20
+
+/** 切歌前把上一首上报听歌打卡(可选实现,如 QQ/本地无对应接口时静默跳过)。 */
+function maybeScrobble(track: Track | null, contextId: unknown, elapsedSeconds: number, durationSeconds: number): void {
+  if (!track || durationSeconds <= 0) return
+  if (elapsedSeconds < Math.min(SCROBBLE_MIN_SECONDS, durationSeconds * 0.6)) return
+  void serviceFor(track.source).reportPlayback?.(track.id, { sourceId: contextId ?? undefined, seconds: elapsedSeconds })
+}
 
 interface PlayerStore {
   status: PlaybackStatus
@@ -21,6 +32,8 @@ interface PlayerStore {
   source: MusicSource
   /** 跨音源兜底生效时,实际出声的音源(与 currentTrack.source 不同);正常播放为 null。 */
   fallbackSource: MusicSource | null
+  /** 当前曲目的播放语境(来源歌单/专辑 id),随队列传入,供切歌时的听歌打卡上报使用。 */
+  contextId: unknown
   /** 播放速度(保留音高),不持久化,重启回 1。 */
   rate: number
   play(): void
@@ -30,7 +43,7 @@ interface PlayerStore {
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
   setRate(r: number): void
-  loadTrack(track: Track, opts?: { startAt?: number }): Promise<void>
+  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown }): Promise<void>
   _engine(): AudioEngine
 }
 
@@ -83,14 +96,15 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     currentQuality: null,
     source: 'netease',
     fallbackSource: null,
+    contextId: null,
     rate: 1,
 
     play() {
       const eng = ensureEngine()
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
-      const { currentTrack, position } = get()
+      const { currentTrack, position, contextId } = get()
       if (!eng.hasSource && currentTrack) {
-        void get().loadTrack(currentTrack, { startAt: position })
+        void get().loadTrack(currentTrack, { startAt: position, contextId })
         return
       }
       void eng.play()
@@ -124,8 +138,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       const eng = ensureEngine()
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
+      const nextContextId = opts?.contextId ?? null
+      const prev = get()
+      // 真正切歌(而非同曲重载:音质切换/断线恢复)才上报上一首的听歌打卡
+      if (prev.currentTrack && String(prev.currentTrack.id) !== String(track.id)) {
+        maybeScrobble(prev.currentTrack, prev.contextId, prev.position, prev.duration)
+      }
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
-      set({ currentTrack: track, source: track.source, fallbackSource: null, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000, currentQuality: null })
+      set({ currentTrack: track, source: track.source, fallbackSource: null, contextId: nextContextId, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000, currentQuality: null })
       // 优先级:曲目自带直链 → 预加载缓存(相邻曲目已提前解析) → 现场解析
       let url = track.url ?? getPreloadedUrl(track, get().quality)
       let qualityLabel: string | null = track.url ? null : (getPreloadedQuality(track, get().quality) ?? null)
@@ -186,7 +206,7 @@ useSettingsStore.subscribe((s) => {
     usePlayerStore.setState({ quality: s.audioQuality })
     const st = usePlayerStore.getState()
     if (st.currentTrack && !st.currentTrack.url && (st.status === 'playing' || st.status === 'loading')) {
-      void st.loadTrack(st.currentTrack, { startAt: st.position })
+      void st.loadTrack(st.currentTrack, { startAt: st.position, contextId: st.contextId })
     }
   }
 })

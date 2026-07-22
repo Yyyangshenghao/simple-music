@@ -4,10 +4,13 @@ import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { useNavigationStore } from '../stores/navigation'
 import { HeroCard } from '../components/Explore/HeroCard'
+import { QuickAccessRow } from '../components/Explore/QuickAccessRow'
 import { RecentRail } from '../components/Explore/RecentRail'
+import { ToplistRail } from '../components/Explore/ToplistRail'
 import { Stack } from '../components/Explore/Stack'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
+import { GradientText } from '../components/ui/GradientText'
 import { fadeRise, springGentle } from '../lib/motion-presets'
 import { createPool, needsRefill, redeal, refill, swipeTop, type StackPoolState } from '../lib/stack-pool'
 import type { RadarPlaylist } from '../lib/music-service'
@@ -15,6 +18,15 @@ import type { Playlist, Track } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
 const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
+
+/** 按当前时段问候：给首屏加个锚点，不再一进页面就是卡片。 */
+function greeting(): string {
+  const h = new Date().getHours()
+  if (h < 5) return '夜深了'
+  if (h < 12) return '早上好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+}
 
 export function ExplorePage() {
   const service = useMusicService()
@@ -127,75 +139,84 @@ export function ExplorePage() {
     <div className={styles.page} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
 
-      <motion.section className={styles.hero} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
-        {hasSideCards && (
-          <div className={styles.heroCards}>
-            {dailySongs.length > 0 && (
-              <HeroCard
-                title={dailySongs[0].source === 'qq' ? '猜你喜欢' : '每日推荐'}
-                subtitle={
-                  dailySongs[0].source === 'qq'
-                    ? `${dailySongs.length} 首 · 根据你的口味`
-                    : `${dailySongs.length} 首 · 每天更新`
-                }
-                cover={dailySongs[0]?.cover}
-                badge={dailySongs[0].source === 'qq' ? undefined : <span>{new Date().getDate()}</span>}
-                layoutId={`explore-cover-${dailySongs[0].source}-daily-songs`}
-                onClick={openDaily}
-              />
-            )}
-            {radar && (
-              <HeroCard
-                title="私人雷达"
-                subtitle={`${radar.tracks.length} 首 · 根据你的口味`}
-                cover={radar.playlist.cover}
-                layoutId={`explore-cover-${String(radar.playlist.id)}`}
-                onClick={openRadar}
-              />
-            )}
-          </div>
-        )}
+      <motion.h1 className={styles.greeting} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
+        <GradientText>{greeting()}</GradientText>
+      </motion.h1>
 
-        {pool.hand.length > 0 && (
-          <div className={styles.stage}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={dealId}
-                initial={{ x: 90, opacity: 0, rotate: 6 }}
-                animate={{ x: 0, opacity: 1, rotate: 0 }}
-                exit={{ x: -110, opacity: 0, rotate: -8, transition: { duration: 0.22, ease: 'easeIn' } }}
-                transition={springGentle}
-              >
-                <Stack cards={pool.hand} onSwipe={handleSwipe} onCardClick={setPreview} />
-              </motion.div>
-            </AnimatePresence>
-            {top && (
-              <div className={styles.topInfo}>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={String(top.id)}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <p className={styles.topName}>{top.name}</p>
-                    {top.description && <p className={styles.topDesc}>{top.description}</p>}
-                  </motion.div>
-                </AnimatePresence>
-                <p className={styles.topHint}>拖拽换一张 · 点击看曲目</p>
-                <button className={`${styles.redealBtn} no-drag`} onClick={handleRedeal}>↻ 换一叠</button>
-              </div>
-            )}
-          </div>
-        )}
+      <div className={styles.topRow}>
+        <motion.section className={styles.hero} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
+          {hasSideCards && (
+            <div className={styles.heroCards}>
+              {dailySongs.length > 0 && (
+                <HeroCard
+                  title={dailySongs[0].source === 'qq' ? '猜你喜欢' : '每日推荐'}
+                  subtitle={
+                    dailySongs[0].source === 'qq'
+                      ? `${dailySongs.length} 首 · 根据你的口味`
+                      : `${dailySongs.length} 首 · 每天更新`
+                  }
+                  cover={dailySongs[0]?.cover}
+                  badge={dailySongs[0].source === 'qq' ? undefined : <span>{new Date().getDate()}</span>}
+                  layoutId={`explore-cover-${dailySongs[0].source}-daily-songs`}
+                  onClick={openDaily}
+                />
+              )}
+              {radar && (
+                <HeroCard
+                  title="私人雷达"
+                  subtitle={`${radar.tracks.length} 首 · 根据你的口味`}
+                  cover={radar.playlist.cover}
+                  layoutId={`explore-cover-${String(radar.playlist.id)}`}
+                  onClick={openRadar}
+                />
+              )}
+            </div>
+          )}
 
-        {poolLoaded && pool.hand.length === 0 && !hasSideCards && (
-          <p className={styles.empty}>暂时没有推荐内容</p>
-        )}
-      </motion.section>
+          {pool.hand.length > 0 && (
+            <div className={styles.stage}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={dealId}
+                  initial={{ x: 90, opacity: 0, rotate: 6 }}
+                  animate={{ x: 0, opacity: 1, rotate: 0 }}
+                  exit={{ x: -110, opacity: 0, rotate: -8, transition: { duration: 0.22, ease: 'easeIn' } }}
+                  transition={springGentle}
+                >
+                  <Stack cards={pool.hand} onSwipe={handleSwipe} onCardClick={setPreview} />
+                </motion.div>
+              </AnimatePresence>
+              {top && (
+                <div className={styles.topInfo}>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={String(top.id)}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <p className={styles.topName}>{top.name}</p>
+                      {top.description && <p className={styles.topDesc}>{top.description}</p>}
+                    </motion.div>
+                  </AnimatePresence>
+                  <p className={styles.topHint}>拖拽换一张 · 点击看曲目</p>
+                  <button className={`${styles.redealBtn} no-drag`} onClick={handleRedeal}>↻ 换一叠</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {poolLoaded && pool.hand.length === 0 && !hasSideCards && (
+            <p className={styles.empty}>暂时没有推荐内容</p>
+          )}
+        </motion.section>
+
+        <QuickAccessRow />
+      </div>
 
       {service.getRecentPlaylists && <RecentRail onOpen={setPreview} />}
+      <ToplistRail onOpen={setPreview} />
 
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       <PlaylistPreviewModal playlist={preview} onClose={closePreview} />

@@ -34,13 +34,15 @@ interface PlaylistStore {
   currentPlaylist: Playlist | null
   queue: Track[]
   queueIndex: number
+  /** 当前队列的播放语境(来源歌单/专辑 id);供听歌打卡上报用,没有语境(搜索/歌手页)则为 null。 */
+  queueContextId: unknown
   /** 随机模式的洗牌排列(队列下标序列);长度与 queue 不一致时懒重建。 */
   shuffleOrder: number[]
   shelfVisible: boolean
   shelfMode: ShelfMode
   loadUserPlaylists(): Promise<void>
   setCurrentPlaylist(p: Playlist | null): void
-  setQueue(tracks: Track[], startIndex?: number): void
+  setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
   addToQueue(track: Track): void
   playAt(index: number): void
   next(): void
@@ -100,6 +102,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   currentPlaylist: null,
   queue: [],
   queueIndex: -1,
+  queueContextId: null,
   shuffleOrder: [],
   shelfVisible: false,
   shelfMode: 'dynamic',
@@ -129,8 +132,8 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     set({ currentPlaylist: p })
   },
 
-  setQueue(tracks, startIndex = 0) {
-    set({ queue: tracks, queueIndex: -1, shuffleOrder: shuffledIndices(tracks.length) })
+  setQueue(tracks, startIndex = 0, contextId = null) {
+    set({ queue: tracks, queueIndex: -1, queueContextId: contextId, shuffleOrder: shuffledIndices(tracks.length) })
     if (tracks.length) get().playAt(startIndex)
   },
 
@@ -143,8 +146,9 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     if (!track) return
     set({ queueIndex: index })
     schedulePreloadNeighbors()
+    const contextId = get().queueContextId
     if (!track.pending) {
-      void usePlayerStore.getState().loadTrack(track)
+      void usePlayerStore.getState().loadTrack(track, { contextId })
       return
     }
     void resolvePending(track).then((resolved) => {
@@ -154,7 +158,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
       const nextQueue = [...queue]
       nextQueue[index] = resolved
       set({ queue: nextQueue })
-      void usePlayerStore.getState().loadTrack(resolved)
+      void usePlayerStore.getState().loadTrack(resolved, { contextId })
     })
   },
 

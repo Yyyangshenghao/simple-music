@@ -10,8 +10,9 @@
 
 .rail {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 4px 24px 12px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -22,8 +23,11 @@
 
 .rail::-webkit-scrollbar { display: none; }
 
-/* 横滑轨道里的卡片固定宽度，防止被压缩 */
-.rail > * {
-  width: 168px;
+/* 横滑轨道里的卡片固定宽度容器（比网格用的 PlaylistCard 默认尺寸更紧凑，贴近相邻"最近播放"栏的观感）。
+   注意：不能靠 `.rail > *` 直接约束卡片根节点——PlaylistCard 内部 TiltCard 根节点自带
+   `.glowWrap { width: 100% }`（为网格布局设计，填满单元格），两条同优先级规则作用在同一节点上
+   谁赢取决于打包后的 CSS 顺序，实测会被 100% 覆盖导致卡片撑成整条轨道宽——必须用独立包裹层。 */
+.item {
+  width: 128px;
   flex-shrink: 0;
 }

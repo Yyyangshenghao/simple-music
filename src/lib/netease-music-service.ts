@@ -114,6 +114,23 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists?.[0] ?? null
   }
 
+  async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void> {
+    try {
+      await api.post('/api/netease/scrobble', {
+        id: trackId,
+        sourceId: opts.sourceId,
+        time: Math.round(opts.seconds),
+      })
+    } catch {
+      /* 打卡失败不影响播放,静默忽略 */
+    }
+  }
+
+  async getToplists(): Promise<Playlist[]> {
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/netease/toplist')
+    return res.playlists ?? []
+  }
+
   async getRadarPlaylist(): Promise<RadarPlaylist | null> {
     const res = await api.get<{ playlist: Playlist | null; tracks: Track[] }>('/api/netease/radar')
     if (!res.playlist || !res.tracks?.length) return null
