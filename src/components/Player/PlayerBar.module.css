@@ -1,6 +1,7 @@
 .bar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(360px, 2fr) minmax(220px, 1fr);
+  /* 音质/倍速/定时收进「更多」菜单后,左列让出的宽度给右列,音量滑轨才拉得开 */
+  grid-template-columns: minmax(200px, 1fr) minmax(360px, 1.9fr) minmax(270px, 1.2fr);
   align-items: center;
   gap: 24px;
 }
@@ -143,7 +144,7 @@
   gap: 6px;
   min-width: 0;
   flex: 1;
-  max-width: 168px;
+  max-width: 215px;
   isolation: isolate;
 }
 
@@ -152,7 +153,7 @@
   min-width: 0;
 }
 
-/* 分隔线:把「音量」与「队列/音质」两组功能在视觉上分开 */
+/* 分隔线:把「音量」与「迷你播放条/队列/更多」两组功能在视觉上分开 */
 /* 迷你播放条开关:开启时点亮为主色,与睡眠定时/队列按钮同尺寸 */
 .miniPlayerBtn {
   width: 32px;

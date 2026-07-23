@@ -1,5 +1,12 @@
 import { api } from './api'
-import type { MusicService, RadarPlaylist, PlaylistSkeleton, PlaylistMeta } from './music-service'
+import type {
+  MusicService,
+  RadarPlaylist,
+  PlaylistSkeleton,
+  PlaylistMeta,
+  ToplistGroup,
+  ToplistPreviewTrack,
+} from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class NeteaseMusicService implements MusicService {
@@ -126,9 +133,16 @@ export class NeteaseMusicService implements MusicService {
     }
   }
 
-  async getToplists(): Promise<Playlist[]> {
-    const res = await api.get<{ playlists?: Playlist[] }>('/api/netease/toplist')
-    return res.playlists ?? []
+  async getToplists(): Promise<ToplistGroup[]> {
+    const res = await api.get<{ groups?: ToplistGroup[] }>('/api/netease/toplist')
+    return res.groups ?? []
+  }
+
+  async getToplistPreview(id: unknown): Promise<ToplistPreviewTrack[]> {
+    const res = await api.get<{ preview?: ToplistPreviewTrack[] }>(
+      `/api/netease/toplist/preview?id=${encodeURIComponent(String(id))}`
+    )
+    return res.preview ?? []
   }
 
   async getRadarPlaylist(): Promise<RadarPlaylist | null> {

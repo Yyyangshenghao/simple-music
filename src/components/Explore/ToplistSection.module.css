@@ -1,0 +1,45 @@
+/* 与 CardRail 同一套限宽，宽屏下与相邻栏目左右对齐 */
+.section {
+  width: min(var(--sm-rail-max-width), 100%);
+  margin: 0 auto 32px;
+  padding: 0 24px;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sm-text-primary);
+  cursor: pointer;
+}
+
+.chevron {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--sm-text-secondary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.title:hover .chevron {
+  transform: translateX(3px);
+  color: var(--sm-text-primary);
+}
+
+.title:focus-visible {
+  outline: none;
+  box-shadow: var(--glow-ring);
+  border-radius: 8px;
+}
+
+/* 窄窗单列、宽窗双列：卡片窄于 420px 时 Top3 的"曲名 – 歌手"会被截成一堆省略号 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+}

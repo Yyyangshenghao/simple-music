@@ -26,9 +26,11 @@ export interface MusicService {
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>
-  /** 官方榜单(飙升榜/新歌榜/热歌榜等;可选,不含账号数据,未登录也能拿)。榜单本身就是歌单,
-   *  返回值可直接丢进 PlaylistDetailView 复用懒加载详情。 */
-  getToplists?(): Promise<Playlist[]>
+  /** 官方榜单(飙升榜/新歌榜/热歌榜等;可选,不含账号数据,未登录也能拿),按主题分组返回。
+   *  榜单本身就是歌单,entry.playlist 可直接丢进 PlaylistDetailView 复用懒加载详情。 */
+  getToplists?(): Promise<ToplistGroup[]>
+  /** 补拉某个榜单的 Top3 预览(上游只对部分榜单直接返回,其余由卡片进视口后按需补)。 */
+  getToplistPreview?(id: unknown): Promise<ToplistPreviewTrack[]>
   /** 红心/取消红心（可选;未实现的音源不渲染红心按钮）。resolve true 表示服务端成功。 */
   likeTrack?(track: Track, like: boolean): Promise<boolean>
   /** 批量查询红心状态,key 为 String(id)（可选,需登录）。 */
@@ -55,6 +57,25 @@ export interface MusicService {
 export interface RadarPlaylist {
   playlist: Playlist
   tracks: Track[]
+}
+
+/** 榜单卡片上的 Top3 预览行:上游只给曲名+歌手字符串,不是完整 Track(点进详情才拉真曲目)。 */
+export interface ToplistPreviewTrack {
+  name: string
+  artist: string
+}
+
+export interface ToplistEntry {
+  playlist: Playlist
+  /** 上游给的更新节奏文案,如"刚刚更新"/"每周五更新";可能为空。 */
+  updateFrequency: string
+  preview: ToplistPreviewTrack[]
+}
+
+/** 一组同主题榜单(官方榜/曲风榜/语种榜…),分组与顺序由服务端策展。 */
+export interface ToplistGroup {
+  title: string
+  entries: ToplistEntry[]
 }
 
 export interface PlaylistSkeleton {

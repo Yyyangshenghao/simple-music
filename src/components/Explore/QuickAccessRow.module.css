@@ -1,61 +1,114 @@
+/* 面板本身保持透明:一旦这里加 backdrop-filter 就会成为 backdrop root,
+   里面卡片的毛玻璃只能采样到空白,玻璃质感直接失效。玻璃全部下放给卡片自己做。 */
 .panel {
-  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 300px;
+  flex-direction: column;
+  width: 296px;
   flex-shrink: 0;
+  align-self: center;
+  padding: 4px;
 }
 
-.bar {
+.body {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* 叠层舞台:卡片全部绝对定位在中线上,靠 transform 拉开槽位。
+   不做 overflow/mask 裁切 —— 那会额外建 backdrop root,远端卡片本来也已经淡到看不见。 */
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 260px;
+}
+
+/* 中心槽位底下垫一层氛围柔光,让"中间那张"即使在空背景上也有落点 */
+.glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  width: 86%;
+  height: 96px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: radial-gradient(60% 60% at 50% 50%, color-mix(in srgb, var(--ambient-1) 24%, transparent), transparent 72%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.card {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  /* 半个卡高:配合 top:50% 把卡钉在中线,motion 的 y 再从这里往上下推 */
+  margin-top: -38px;
+  height: 76px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 14px 18px;
-  border-radius: 22px;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 20px;
   border: 1px solid var(--glass-border-card);
   background: var(--glass-bg-card);
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   color: var(--sm-text-secondary);
   cursor: pointer;
   text-align: left;
-  overflow: hidden;
+  will-change: transform, opacity;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
 
-.bar:hover {
-  color: var(--sm-text-primary);
-  border-color: var(--sm-accent);
+/* 斜向顶部高光:玻璃卡的"厚度"感基本来自这一层,尤其在深色底上 */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 46%);
+  pointer-events: none;
 }
 
-.bar:hover .playBadge {
-  opacity: 1;
-  transform: scale(1);
+.card[data-glass='1'] {
+  backdrop-filter: var(--glass-blur-card) saturate(150%);
+  -webkit-backdrop-filter: var(--glass-blur-card) saturate(150%);
+}
+
+.card[data-center='1'] {
+  border-color: var(--sm-border-strong);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4), var(--glow-soft);
+}
+
+.card[data-center='1']:hover {
+  background: var(--sm-bg-overlay);
 }
 
 .iconWrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   background: var(--ambient-gradient);
   color: #fff;
   flex-shrink: 0;
 }
 
-.cover,
-.coverFallback {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   object-fit: cover;
   background: var(--sm-bg-elevated);
   flex-shrink: 0;
+  transition: transform 0.25s var(--sm-ease-out);
 }
+
+.card[data-center='1']:hover .cover { transform: scale(1.06); }
 
 .meta {
   display: flex;
@@ -66,61 +119,87 @@
 }
 
 .name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--sm-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hint {
-  font-size: 12px;
   color: var(--sm-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.25s ease;
 }
 
-.playBadge {
+.card[data-center='1'] .name { color: var(--sm-text-primary); }
+
+.hint {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  opacity: 0.75;
+}
+
+.badge,
+.badgeBusy {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--sm-accent);
-  color: var(--sm-bg-elevated);
+  color: var(--sm-text-on-accent);
   flex-shrink: 0;
   opacity: 0;
   transform: scale(0.7);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.2s ease, transform 0.2s var(--sm-ease-out);
 }
 
-.playBadge svg {
-  transform: translateX(1px);
+.badge svg { transform: translateX(1px); }
+
+.card[data-center='1']:hover .badge,
+.badgeBusy {
+  opacity: 1;
+  transform: scale(1);
 }
 
-.dots {
-  position: absolute;
-  right: -14px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.dot,
-.dotActive {
-  width: 4px;
-  height: 4px;
+.spinner {
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--sm-border-strong);
-  transition: background 0.2s ease, height 0.2s ease;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
 }
 
-.dotActive {
-  height: 14px;
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 分格小滚动条:mask 把整条切成等距小格,底轨与滑块共用同一套格子,滑块移动时格线不会跟着晃 */
+.rail {
+  position: relative;
+  width: 4px;
+  flex-shrink: 0;
+  margin: 26px 0;
+  -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 6px, transparent 6px 10px);
+  mask-image: repeating-linear-gradient(to bottom, #000 0 6px, transparent 6px 10px);
+}
+
+.panel:hover .railBase { opacity: 0.75; }
+
+.railBase {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: var(--sm-border-strong);
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.railThumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 2px;
   background: var(--sm-accent);
+  /* 跟着浮点位置走,补一点缓动让它和卡片的弹簧节奏对得上 */
+  transition: top 0.18s var(--sm-ease-out), height 0.2s ease;
 }

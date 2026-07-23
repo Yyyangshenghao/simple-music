@@ -57,6 +57,35 @@ function markPrefixWindows(e: LazyEntry, prefixLen: number): void {
   }
 }
 
+/**
+ * 命令式取整份播放队列:给「不进详情页、点一下直接播」的入口用(探索页快捷入口)。
+ * 与 useLazyPlaylist 共用同一份模块级缓存,同一歌单不会重复拉骨架;失败由调用方 catch。
+ */
+export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
+  // 同样必须绑定歌单自身的 source,不能用全局 activeSource
+  const service = serviceFor(playlist.source)
+  const key = `${playlist.source}:${String(playlist.id)}`
+  let entry = cache.get(key)
+  if (!entry) {
+    entry = emptyEntry()
+    cache.set(key, entry)
+  }
+  touchAndEvict(key)
+  if (!entry.skeletonLoaded) {
+    if (playlist.type === 'album') {
+      entry = seededEntry(await service.getAlbumTracks(playlist.id))
+      cache.set(key, entry)
+    } else {
+      const sk = await service.getPlaylistSkeleton(playlist.id)
+      entry.trackIds = sk.trackIds
+      entry.tracks = sk.trackIds.map((_, i) => sk.tracks[i] ?? null)
+      markPrefixWindows(entry, sk.tracks.length)
+      entry.skeletonLoaded = true
+    }
+  }
+  return buildQueue(entry.trackIds, entry.tracks, playlist.source)
+}
+
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   // 必须绑定歌单自身的 source,不能用全局 activeSource:
   // 切换音源后仍留在旧歌单页/预览弹窗时,用错 service 会请求错音源接口,

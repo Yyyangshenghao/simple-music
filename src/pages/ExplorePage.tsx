@@ -6,7 +6,7 @@ import { useNavigationStore } from '../stores/navigation'
 import { HeroCard } from '../components/Explore/HeroCard'
 import { QuickAccessRow } from '../components/Explore/QuickAccessRow'
 import { RecentRail } from '../components/Explore/RecentRail'
-import { ToplistRail } from '../components/Explore/ToplistRail'
+import { ToplistSection } from '../components/Explore/ToplistSection'
 import { Stack } from '../components/Explore/Stack'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
@@ -216,7 +216,7 @@ export function ExplorePage() {
       </div>
 
       {service.getRecentPlaylists && <RecentRail onOpen={setPreview} />}
-      <ToplistRail onOpen={setPreview} />
+      <ToplistSection onOpen={setPreview} />
 
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       <PlaylistPreviewModal playlist={preview} onClose={closePreview} />

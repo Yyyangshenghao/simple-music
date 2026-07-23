@@ -1,4 +1,8 @@
-.section { margin-bottom: 32px; }
+/* 限宽居中：与「最近播放」同一套宽度，宽屏下两栏左右对齐 */
+.section {
+  width: min(var(--sm-rail-max-width), 100%);
+  margin: 0 auto 32px;
+}
 
 .title {
   font-size: 18px;

@@ -25,6 +25,8 @@
   --sm-blur:           blur(12px);
   --sm-radius-card:    16px;
   --sm-radius-pill:    999px;
+  /* 横滑轨道的内容限宽:宽屏下两侧自动留白居中,避免整栏贴左、与上方居中的英雄区重心打架 */
+  --sm-rail-max-width: 1200px;
   --sm-ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
   --sm-text-on-accent: #0c0c0c;

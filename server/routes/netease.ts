@@ -49,6 +49,11 @@ import {
 /** 「私人雷达」官方共享歌单 id（社区通行做法：带登录 cookie 请求即返回个人化的每日 35 首）。 */
 const RADAR_PLAYLIST_ID = '3136952023'
 
+/** 榜单 Top3 预览缓存:同一榜在探索页/榜单页会被反复渲染,没缓存就每次进页面重打一轮上游。 */
+const toplistPreviewCache = new Map<string, { at: number; preview: { name: string; artist: string }[] }>()
+const TOPLIST_PREVIEW_TTL = 10 * 60 * 1000
+const TOPLIST_PREVIEW_MAX = 120
+
 /** 兼容原 readRequestBody：优先 JSON，失败回退 urlencoded。 */
 async function readRequestBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const raw = await readBody(req)
@@ -178,23 +183,103 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 单个榜单的 Top3 预览(toplist_detail 只给一部分榜单带 tracks,其余由卡片进视口后按需补) ----------
+  if (pn === '/api/netease/toplist/preview') {
+    try {
+      const id = url.searchParams.get('id')
+      if (!id) {
+        sendJson(res, { preview: [] }, 400)
+        return true
+      }
+      const cached = toplistPreviewCache.get(id)
+      if (cached && Date.now() - cached.at < TOPLIST_PREVIEW_TTL) {
+        sendJson(res, { preview: cached.preview })
+        return true
+      }
+      const cookie = getCookie(ctx, 'netease')
+      const resp = await call('playlist_track_all', { id, limit: 3, offset: 0, cookie, timestamp: Date.now() })
+      const preview = asArr(asObj(resp.body).songs).slice(0, 3).map((s) => {
+        const song = asObj(s)
+        return {
+          name: asStr(song.name),
+          artist: asArr(song.ar).map((a) => asStr(asObj(a).name)).filter(Boolean).join('/'),
+        }
+      })
+      // 榜单一天更新几次,缓存足够短就不会过期太久;上限防止长跑进程无界增长
+      if (toplistPreviewCache.size > TOPLIST_PREVIEW_MAX) toplistPreviewCache.clear()
+      toplistPreviewCache.set(id, { at: Date.now(), preview })
+      sendJson(res, { preview })
+    } catch (err) {
+      console.error('[ToplistPreview]', err)
+      sendJson(res, { preview: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- 官方榜单(飙升榜/新歌榜/热歌榜等,榜单本身就是一种歌单,详情复用歌单详情接口) ----------
   if (pn === '/api/netease/toplist') {
     try {
       const cookie = getCookie(ctx, 'netease')
-      const resp = await call('toplist', { cookie, timestamp: Date.now() })
+      // 用 toplist_detail 而非 toplist:同样是 60+ 个榜单,但每条额外带 updateFrequency
+      // 与 tracks 前三首({ first: 曲名, second: 歌手 }),渲染"榜单精选"卡片不必再逐榜拉详情
+      const resp = await call('toplist_detail', { cookie, timestamp: Date.now() })
       const list = asArr(asObj(resp.body).list)
-      // /toplist 混杂了车机品牌歌单等长尾榜单,按知名度挑一批;找不到任何一个(接口改版)时退化为原始前 8 个兜底
-      const CURATED_NAMES = ['飙升榜', '新歌榜', '原创榜', '热歌榜', 'UK排行榜周榜', '美国Billboard榜', '日本Oricon榜', '网易云韩语榜']
-      let picked = CURATED_NAMES
-        .map((name) => list.find((item) => asStr(asObj(item).name) === name))
-        .filter((item): item is unknown => !!item)
-      if (picked.length === 0) picked = list.slice(0, 8)
-      const playlists = picked.map((pl) => mapDiscoverPlaylist(pl, '排行榜')).filter((pl) => pl.id && pl.name)
-      sendJson(res, { playlists })
+      const nameOf = (item: unknown) => asStr(asObj(item).name)
+      // 上游榜名里混着半角/全角空格(如"网易云ACG VOCALOID榜"),去空白后再比,免得策展名单漏匹配
+      const key = (name: string) => name.replace(/\s+/g, '')
+
+      const toEntry = (item: unknown) => {
+        const o = asObj(item)
+        return {
+          playlist: mapDiscoverPlaylist(item, '排行榜'),
+          updateFrequency: asStr(o.updateFrequency),
+          preview: asArr(o.tracks).slice(0, 3).map((t) => {
+            const tr = asObj(t)
+            return { name: asStr(tr.first), artist: asStr(tr.second) }
+          }),
+        }
+      }
+
+      // 上游顺序混乱且混杂长尾,按知名度分组并固定展示顺序;未列名的榜单归入"更多榜单",
+      // 只有明显的品牌/会员/站内业务榜(车机、黑胶VIP、音乐合伙人、直播等)被整体剔除
+      const CURATED_GROUPS: { title: string; names: string[] }[] = [
+        { title: '云音乐官方榜', names: ['飙升榜', '新歌榜', '热歌榜', '原创榜'] },
+        { title: '云村特色榜', names: ['实时热度榜', '潜力爆款榜', '网络热歌榜', '听歌识曲榜', 'KTV唛榜', '潮流风向榜', 'AI歌曲榜'] },
+        { title: '曲风榜', names: ['网易云电音榜', '网易云中文说唱榜', '网易云全球说唱榜', '网易云摇滚榜', '网易云民谣榜', '网易云国风榜', '网易云古典榜', '欧美R&B榜', '中文慢摇DJ榜', 'Beatport全球电子舞曲榜'] },
+        { title: 'ACG 榜', names: ['网易云ACG榜', '网易云ACG动画榜', '网易云ACG游戏榜', '网易云ACG VOCALOID榜'] },
+        { title: '语种 / 海外榜', names: ['网易云欧美热歌榜', '网易云欧美新歌榜', '网易云日语榜', '网易云韩语榜', 'UK排行榜周榜', '美国Billboard榜', '日本Oricon榜', '法国 NRJ Vos Hits 周榜', '俄语榜', '泰语榜', '越南语榜', '俄罗斯top hit流行音乐榜'] },
+      ]
+      const EXCLUDE_KEYWORDS = ['车友', 'LOOK', '音乐合伙人', '黑胶VIP', '星云榜', '喜力', '蛋仔', '赏音榜', '乐夏榜']
+
+      const curatedNames = new Set(CURATED_GROUPS.flatMap((g) => g.names).map(key))
+      const groups = CURATED_GROUPS
+        .map((g) => ({
+          title: g.title,
+          entries: g.names
+            .map((name) => list.find((item) => key(nameOf(item)) === key(name)))
+            .filter((item): item is unknown => !!item)
+            .map(toEntry),
+        }))
+        .filter((g) => g.entries.length > 0)
+
+      const rest = list
+        .filter((item) => {
+          const name = nameOf(item)
+          return name && !curatedNames.has(key(name)) && !EXCLUDE_KEYWORDS.some((kw) => name.includes(kw))
+        })
+        .map(toEntry)
+      if (rest.length > 0) groups.push({ title: '更多榜单', entries: rest })
+
+      // 一条都没匹配上(接口改版/字段变动)时整体退化为上游原始顺序,至少不空栏
+      const safeGroups = groups.length > 0
+        ? groups
+        : [{ title: '排行榜', entries: list.slice(0, 12).map(toEntry) }]
+      for (const g of safeGroups) g.entries = g.entries.filter((e) => e.playlist.id && e.playlist.name)
+
+      sendJson(res, { groups: safeGroups.filter((g) => g.entries.length > 0) })
     } catch (err) {
       console.error('[Toplist]', err)
-      sendJson(res, { playlists: [] }, 500)
+      sendJson(res, { groups: [] }, 500)
     }
     return true
   }
@@ -248,6 +333,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { playlists: [] })
         return true
       }
+      // 多拉一些留去重余量,最后只保留 8 条:这栏是顺手回到刚听过的东西,铺满一屏反而抢了榜单/推荐的注意力
       const resp = await call('record_recent_playlist', { limit: 12, cookie, timestamp: Date.now() })
       const list = asArr(asObj(asObj(resp.body).data).list)
       const seen = new Set<unknown>()
@@ -259,6 +345,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           seen.add(pl.id)
           return true
         })
+        .slice(0, 8)
       sendJson(res, { playlists })
     } catch (err) {
       console.error('[RecentPlaylists]', err)

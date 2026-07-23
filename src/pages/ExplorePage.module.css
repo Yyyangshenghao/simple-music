@@ -9,10 +9,13 @@
 
 .section { margin-bottom: 32px; }
 
+/* 跟着 topRow 一起限宽居中，否则宽屏下问候语会孤零零贴在窗口最左 */
 .greeting {
   font-size: 22px;
   font-weight: 700;
-  margin: 20px 24px 0;
+  width: min(var(--sm-rail-max-width), 100%);
+  margin: 20px auto 0;
+  padding: 0 24px;
 }
 
 .sectionTitle {
@@ -24,10 +27,14 @@
 }
 
 /* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台）+ 右侧个性化快捷入口 ---------- */
+/* 与下方 RecentRail/ToplistSection 同一套限宽：宽屏下整行居中，
+   快捷入口跟着内容列右缘走，而不是被甩到窗口最右边和英雄区隔一大片空白 */
 .topRow {
   display: flex;
   align-items: stretch;
-  gap: 20px;
+  gap: 28px;
+  width: min(var(--sm-rail-max-width), 100%);
+  margin: 0 auto;
   padding: 16px 24px 8px;
 }
 

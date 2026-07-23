@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'motion/react'
 import { useMusicService } from '../../hooks/useMusicService'
-import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
+import { loadPlaylistQueue } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
-import { springSnappy, tapScale } from '../../lib/motion-presets'
+import { springGentle, springSnappy } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './QuickAccessRow.module.css'
 
 function HeartIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
       <path
         d="M8 13.5S2 9.8 2 5.8C2 3.7 3.6 2 5.6 2c1.1 0 2 .5 2.4 1.3C8.4 2.5 9.3 2 10.4 2 12.4 2 14 3.7 14 5.8c0 4-6 7.7-6 7.7z"
         fill="currentColor"
@@ -21,7 +21,7 @@ function HeartIcon() {
 
 function PlayIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
       <path d="M4 2.6c0-.9 1-1.5 1.8-1l7.7 5.4a1.2 1.2 0 0 1 0 2L5.8 14.4c-.8.5-1.8-.1-1.8-1V2.6z" fill="currentColor" />
     </svg>
   )
@@ -31,47 +31,92 @@ interface Item {
   key: string
   name: string
   cover?: string
+  count: number
   isLiked?: boolean
   playlist: Playlist
 }
 
-// items 为空的瞬间(冷启动加载中)也要无条件调用 useLazyPlaylist,满足 hooks 调用顺序规则;
-// 这个 id 不会命中真实歌单,首次失败请求会被 hook 内部 catch 并缓存为 error,之后不会重复请求。
-const EMPTY_PLAYLIST: Playlist = {
-  provider: 'netease',
-  source: 'netease',
-  type: 'playlist',
-  id: '__quick-access-empty__',
-  name: '',
-  cover: '',
-  trackCount: 0,
-  playCount: 0,
-  creator: ''
+/** 一格滚轮(deltaY≈100~120)约等于翻一张;触控板小增量则连续累积,视觉上是流动而非跳格。 */
+const STEP_DELTA = 120
+/** 滚动停下多久后吸附到整数槽位(ms):太短会打断惯性滚动,太长会让停手后悬在半路。 */
+const SNAP_DELAY = 90
+/** 只渲染这个槽位距离内的卡片,更远的已经完全透明,渲染出来纯属浪费。 */
+const VISIBLE = 2.6
+/** 相邻槽位的基础纵向间距(px),实际位移再按距离做二次衰减做出透视堆叠感。 */
+const SLOT_GAP = 62
+/** 超过这个槽位距离就不接受点击,避免误点到几乎看不见的背景卡。 */
+const HIT_RANGE = 1.6
+/** 循环滚动至少要 3 张牌,否则同一张会在多个槽位间来回跳。 */
+const LOOP_MIN = 3
+/** 新卡入场的起飞槽位:太远会在中心留出空档,太近又看不出「滑进来」。 */
+const ENTER_FROM = 1.6
+/** 速度归一化基准(槽位/秒):到这个速度就算「甩到底」,运动模糊与拉伸吃满。 */
+const FULL_SPEED = 16
+/** 速度平滑系数:单次 wheel 事件的瞬时速度抖得厉害,指数平滑一下才不会忽糊忽清。 */
+const SPEED_SMOOTH = 0.45
+/** 满速时的运动模糊上限(px)。 */
+const MOTION_BLUR = 2.4
+/** 满速时卡片的纵向拉伸与槽距扩张:高速像被拉长的胶片,停手回弹成一摞。 */
+const SPEED_STRETCH = 0.12
+const SPEED_SPREAD = 0.16
+/** 中心这个半径内的卡不吃满速度效果:正在看的那张必须始终能读清名字和封面。 */
+const FOCUS_RADIUS = 1.2
+/** 焦点卡最多保留多少比例的运动模糊/拉伸(其余被免掉)。 */
+const FOCUS_RELIEF = 0.85
+
+/** 环形最短距离:把 i - pos 折到 [-n/2, n/2],让卡片走最近的一侧而不是绕整圈。 */
+function wrapDelta(d: number, n: number): number {
+  const x = ((d % n) + n) % n
+  return x > n / 2 ? x - n : x
 }
 
-/** 滚轮切换的一格判定阈值:太小会把触控板惯性滚动的噪音也当成一次切换。 */
-const WHEEL_THRESHOLD = 6
-/** 一次切换的冷却时间:略短于 springSnappy 动画时长,让连续大幅滚动时能更快连续切换。 */
-const WHEEL_COOLDOWN = 220
-
-const slideVariants = {
-  enter: (dir: number) => ({ opacity: 0, y: dir * 26 }),
-  center: { opacity: 1, y: 0 },
-  exit: (dir: number) => ({ opacity: 0, y: -dir * 26 })
+/**
+ * 槽位几何:距离中心越远越小、越淡、间距越挤,叠成一摞有纵深的玻璃卡。
+ * speed 是 0~1 的归一化滚动速度,越快槽距越开、卡越拉长、越糊 —— 速度感全在这里。
+ */
+function slotGeometry(off: number, speed: number) {
+  const a = Math.abs(off)
+  const dir = Math.sign(off)
+  const s = Math.max(0.6, 1 - a * 0.12)
+  // 中心附近豁免:越靠近焦点位吃到的速度效果越少,滚动中也能一直读清中间那张
+  const relief = 1 - FOCUS_RELIEF * Math.max(0, 1 - a / FOCUS_RADIUS)
+  // 低速几乎不糊(指数曲线),只有真的甩起来才明显 —— 慢慢翻的时候要保持锐利
+  const rush = Math.pow(speed, 1.6) * relief
+  // 远处卡本来就有一点景深模糊,和运动模糊叠在同一个 filter 里,避免两处 filter 打架
+  const blur = Math.max(0, (a - 1.2) * 1.6) + rush * MOTION_BLUR
+  return {
+    y: dir * (SLOT_GAP * (1 + speed * SPEED_SPREAD) * a - a * a * 5),
+    scaleX: s,
+    scaleY: s * (1 + rush * SPEED_STRETCH),
+    // 相邻一格内衰减放缓、之后加速淡出:滚到两张卡中间时两边都还够亮,不会整片发灰
+    opacity: a <= 1 ? 1 - a * 0.26 : Math.max(0, 0.74 - (a - 1) * 0.5),
+    filter: blur > 0.02 ? `blur(${blur.toFixed(2)}px)` : 'blur(0px)',
+  }
 }
 
-/** 个性化快捷入口：单条大横幅同一时刻只展示一个歌单，鼠标滚轮按歌单顺序切换，点击直接播放（不进详情页）。 */
+/**
+ * 个性化快捷入口:「我的歌单」叠层轮播 —— 5 个槽位的玻璃卡上下堆叠,中间一张放大且最清晰,
+ * 滚轮连续驱动浮点位置(停手后吸附到整数),歌单数 ≥3 时首尾相接循环。
+ * 点中间卡直接播放整个歌单,点两侧卡把它转到中间。
+ */
 export function QuickAccessRow() {
   const service = useMusicService()
   const activeSource = useSettingsStore((s) => s.activeSource)
   const playlists = usePlaylistStore((s) => s.playlists)
   const playlistsSource = usePlaylistStore((s) => s.playlistsSource)
   const [liked, setLiked] = useState<Playlist | null>(null)
-  const [index, setIndex] = useState(0)
-  const [direction, setDirection] = useState(1)
-  const wheelAccum = useRef(0)
-  const lockedRef = useRef(false)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
+  // pos 是浮点「当前位置」:滚动中可以停在两个槽位之间,插值出连续的缩放/透明度
+  const [pos, setPos] = useState(0)
+  // speed 是 0~1 归一化滚动速度,驱动运动模糊/拉伸/槽距,停手后回到 0
+  const [speed, setSpeed] = useState(0)
+  const posRef = useRef(0)
+  // 上一帧的位置:新入场的卡按「它上一帧该在哪」从边缘飞进来,而不是凭空出现在目标槽位
+  const prevPosRef = useRef(0)
+  const speedRef = useRef(0)
+  const lastTickRef = useRef(0)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const snapTimer = useRef<number | null>(null)
 
   // 「我的库」已有的用户歌单 store：与 LibraryPage 共享同一份数据/加载状态
   useEffect(() => {
@@ -91,91 +136,145 @@ export function QuickAccessRow() {
 
   const items: Item[] = useMemo(() => {
     const list: Item[] = []
-    if (liked) list.push({ key: 'liked', name: '我喜欢的音乐', isLiked: true, playlist: liked })
+    if (liked) {
+      list.push({ key: 'liked', name: '我喜欢的音乐', count: liked.trackCount, isLiked: true, playlist: liked })
+    }
     // 网易"我喜欢的音乐"本就是用户歌单列表第一项,按 id 去重避免重复展示
     const rest = playlists.filter((pl) => !liked || String(pl.id) !== String(liked.id))
-    for (const pl of rest.slice(0, 10)) {
-      list.push({ key: String(pl.id), name: pl.name, cover: pl.cover, playlist: pl })
+    for (const pl of rest) {
+      list.push({ key: String(pl.id), name: pl.name, cover: pl.cover, count: pl.trackCount, playlist: pl })
     }
     return list
   }, [liked, playlists])
 
-  // 用取模兜底,而不是额外 effect 同步:歌单列表变短导致 index 越界时,渲染期直接算出合法下标
-  const safeIndex = items.length ? ((index % items.length) + items.length) % items.length : 0
-  const current = items[safeIndex] ?? null
-  const { total, makeQueue } = useLazyPlaylist(current?.playlist ?? EMPTY_PLAYLIST)
+  const n = items.length
+  const loop = n >= LOOP_MIN
 
-  function step(delta: number) {
-    if (lockedRef.current || items.length < 2) return
-    lockedRef.current = true
-    setDirection(delta)
-    setIndex((i) => i + delta)
-    setTimeout(() => { lockedRef.current = false }, WHEEL_COOLDOWN)
-  }
+  const commit = useCallback((next: number, moving: boolean) => {
+    const now = performance.now()
+    const dt = Math.max(now - lastTickRef.current, 8)
+    const raw = moving ? Math.abs(next - posRef.current) / (dt / 1000) : 0
+    speedRef.current = moving
+      ? speedRef.current * (1 - SPEED_SMOOTH) + Math.min(raw / FULL_SPEED, 1) * SPEED_SMOOTH
+      : 0
+    lastTickRef.current = now
+    prevPosRef.current = posRef.current
+    posRef.current = next
+    setPos(next)
+    setSpeed(speedRef.current)
+  }, [])
 
-  // React 17+ 给 onWheel 挂的是 passive 监听器,e.preventDefault() 会静默失效(控制台报警告),
-  // 导致页面跟着滚轮一起滚、横幅被滚出鼠标位置后再也切不到下一格 —— 必须手动挂非 passive 原生监听器。
+  // 换音源后歌单变少,原位置可能越界:回到第一张
   useEffect(() => {
-    const el = panelRef.current
-    if (!el || items.length < 2) return
-    function onWheel(e: WheelEvent) {
+    if (n > 0 && posRef.current > n - 1) commit(0, false)
+  }, [n, commit])
+
+  // wheel 必须走原生非 passive 监听:React 的合成 wheel 是 passive 的,preventDefault 无效,
+  // 不拦住浏览器默认行为的话滚轮会连带整页一起滚。
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el || n === 0) return
+    const onWheel = (e: WheelEvent) => {
+      // 歌单太少不成环时,滚到头就把滚动力还给页面,免得鼠标停在这里整页划不动
+      if (!loop && ((e.deltaY < 0 && posRef.current <= 0) || (e.deltaY > 0 && posRef.current >= n - 1))) return
       e.preventDefault()
-      // 冷却期内的滚轮事件直接丢弃,不参与累加:否则会把这段滚动力度清零而不触发切换,
-      // 冷却结束后还要重新攒够阈值才动,造成明显的滞后感。
-      if (lockedRef.current) return
-      wheelAccum.current += e.deltaY
-      if (Math.abs(wheelAccum.current) < WHEEL_THRESHOLD) return
-      const dir = wheelAccum.current > 0 ? 1 : -1
-      wheelAccum.current = 0
-      step(dir)
+      const raw = posRef.current + e.deltaY / STEP_DELTA
+      commit(loop ? raw : Math.min(Math.max(raw, 0), n - 1), true)
+      if (snapTimer.current) window.clearTimeout(snapTimer.current)
+      snapTimer.current = window.setTimeout(() => {
+        const t = Math.round(posRef.current)
+        commit(loop ? ((t % n) + n) % n : t, false)
+      }, SNAP_DELAY)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      if (snapTimer.current) window.clearTimeout(snapTimer.current)
+    }
+  }, [commit, loop, n])
 
-  function playCurrent() {
-    if (!current || total === 0) return
-    usePlaylistStore.getState().setQueue(makeQueue(), 0, current.playlist.id)
+  async function play(item: Item) {
+    if (pendingKey) return
+    setPendingKey(item.key)
+    try {
+      const queue = await loadPlaylistQueue(item.playlist)
+      if (queue.length) usePlaylistStore.getState().setQueue(queue, 0, item.playlist.id)
+    } catch {
+      // 拉取失败静默忽略:入口本身不是主路径,详情页里还能重试
+    } finally {
+      setPendingKey(null)
+    }
   }
 
-  if (!current) return null
+  if (n === 0) return null
+
+  const posNorm = ((pos % n) + n) % n
+  const thumbHeight = Math.max(100 / n, 14)
 
   return (
-    <div ref={panelRef} className={`${styles.panel} no-drag`}>
-      <AnimatePresence mode="popLayout" initial={false} custom={direction}>
-        <motion.button
-          key={current.key}
-          className={styles.bar}
-          custom={direction}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={springSnappy}
-          whileHover={{ scale: 1.02 }}
-          whileTap={tapScale}
-          onClick={playCurrent}
-          title={`${current.name} · 点击播放`}
-        >
-          {current.isLiked
-            ? <span className={styles.iconWrap}><HeartIcon /></span>
-            : current.cover
-              ? <img className={styles.cover} src={current.cover} alt="" loading="lazy" />
-              : <span className={styles.coverFallback} />}
-          <span className={styles.meta}>
-            <span className={styles.name}>{current.name}</span>
-            <span className={styles.hint}>{total > 0 ? `${total} 首 · 滚轮切换` : '滚轮切换歌单'}</span>
-          </span>
-          <span className={styles.playBadge}><PlayIcon /></span>
-        </motion.button>
-      </AnimatePresence>
-      {items.length > 1 && (
-        <div className={styles.dots}>
-          {items.map((it, i) => (
-            <span key={it.key} className={i === safeIndex ? styles.dotActive : styles.dot} />
-          ))}
+    <motion.section
+      className={`${styles.panel} no-drag`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springGentle}
+    >
+      <div className={styles.body}>
+        <div className={styles.stage} ref={stageRef}>
+          {items.map((item, i) => {
+            const off = loop ? wrapDelta(i - pos, n) : i - pos
+            const a = Math.abs(off)
+            if (a > VISIBLE) return null
+            // 入场起点取「上一帧的槽位」并夹在可视边缘:快速滚动时卡片是从画面外飞进来的,
+            // 而不是直接闪现在目标位置 —— 这一步才是速度感的来源。
+            const prevOff = loop ? wrapDelta(i - prevPosRef.current, n) : i - prevPosRef.current
+            const enterOff = Math.max(-ENTER_FROM, Math.min(ENTER_FROM, prevOff))
+            const center = a < 0.5
+            const busy = pendingKey === item.key
+            return (
+              <motion.button
+                key={item.key}
+                className={styles.card}
+                data-center={center ? '1' : undefined}
+                // 近处才开毛玻璃:5 层 backdrop-filter 同屏太贵,远处透明度已低到看不出差别
+                data-glass={a < 1.5 ? '1' : undefined}
+                style={{
+                  zIndex: Math.round(100 - a * 20),
+                  pointerEvents: a > HIT_RANGE ? 'none' : 'auto',
+                }}
+                initial={slotGeometry(enterOff, speed)}
+                animate={slotGeometry(off, speed)}
+                transition={springSnappy}
+                tabIndex={a > HIT_RANGE ? -1 : 0}
+                aria-hidden={a > HIT_RANGE || undefined}
+                onClick={() => { if (center) void play(item); else commit(pos + off, false) }}
+                title={center ? `${item.name} · 点击播放` : item.name}
+              >
+                {item.isLiked
+                  ? <span className={styles.iconWrap}><HeartIcon /></span>
+                  : item.cover
+                    ? <img className={styles.cover} src={item.cover} alt="" loading="lazy" />
+                    : <span className={styles.cover} />}
+                <span className={styles.meta}>
+                  <span className={styles.name}>{item.name}</span>
+                  {item.count > 0 && <span className={styles.hint}>{item.count} 首</span>}
+                </span>
+                <span className={busy ? styles.badgeBusy : styles.badge}>
+                  {busy ? <span className={styles.spinner} /> : <PlayIcon />}
+                </span>
+              </motion.button>
+            )
+          })}
+          <span className={styles.glow} aria-hidden="true" />
         </div>
-      )}
-    </div>
+
+        <div className={styles.rail}>
+          <span className={styles.railBase} />
+          <span
+            className={styles.railThumb}
+            style={{ height: `${thumbHeight}%`, top: `${(posNorm / n) * (100 - thumbHeight)}%` }}
+          />
+        </div>
+      </div>
+    </motion.section>
   )
 }

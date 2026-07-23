@@ -10,6 +10,7 @@ const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ 
 const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
+const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
 
 /** 纵深转场：新页从纵深浮上（scale 1.03→1），旧页缩小下沉；x 按 push/pop 反向。 */
 const pageVariants: Variants = {
@@ -31,6 +32,7 @@ export function AppShell() {
       void import('../../pages/RoamPage')
       void import('../../pages/SettingsPage')
       void import('../../pages/ArtistPage')
+      void import('../../pages/ToplistPage')
     }
     if (typeof window.requestIdleCallback === 'function') {
       const id = window.requestIdleCallback(preheat, { timeout: 2000 })
@@ -45,6 +47,7 @@ export function AppShell() {
   const viewKey =
     typeof view === 'string' ? view
     : view.type === 'playlist' ? view.from
+    : view.type === 'toplist' ? 'toplist'
     : `${view.type}-${String(view.id)}`
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
@@ -53,6 +56,7 @@ export function AppShell() {
     if (view === 'library') return <LibraryPage />
     if (view === 'roam') return <RoamPage />
     if (view === 'settings') return <SettingsPage />
+    if (typeof view === 'object' && view.type === 'toplist') return <ToplistPage />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} />
     }

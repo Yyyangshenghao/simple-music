@@ -1,0 +1,195 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--glass-border-card);
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--sm-border-strong);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--glow-ring);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.freq {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--sm-text-muted);
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+/* 封面 + 两层错位薄片,整体占位比封面宽一点，给薄片留出右侧探头的空间 */
+.coverWrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 104px;
+  height: 84px;
+}
+
+.cover,
+.sheetBack,
+.sheetMid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.sheetBack {
+  transform: translate(20px, 8px) scale(0.86);
+  background: var(--sm-text-faint);
+  opacity: 0.35;
+}
+
+.sheetMid {
+  transform: translate(11px, 4px) scale(0.93);
+  background: var(--sm-text-muted);
+  opacity: 0.4;
+}
+
+.cover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.coverFallback {
+  background: var(--sm-bg-elevated);
+}
+
+.playBtn {
+  position: absolute;
+  top: 26px;
+  left: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  padding-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.card:hover .playBtn,
+.playBtn:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.playBtn:hover {
+  transform: scale(1.08);
+}
+
+.list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.rank {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sm-text-muted);
+}
+
+.song {
+  min-width: 0;
+  color: var(--sm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  color: var(--sm-text-secondary);
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+}
+
+/* 补拉 Top3 期间的占位条：呼吸动画比空白更像"正在来"，也避免卡片高度抖动 */
+.skeleton {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--sm-text-faint);
+  opacity: 0.5;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.28; }
+  50% { opacity: 0.55; }
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

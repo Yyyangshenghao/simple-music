@@ -1,4 +1,9 @@
-.rail { margin: 8px 24px 32px; }
+/* 限宽居中：窄窗口时退回铺满，内边距保住原来的 24px 边距 */
+.rail {
+  width: min(var(--sm-rail-max-width), 100%);
+  margin: 8px auto 32px;
+  padding: 0 24px;
+}
 
 .title {
   font-size: 18px;
