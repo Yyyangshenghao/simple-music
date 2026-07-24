@@ -9,7 +9,14 @@ vi.mock('./api', () => ({
   }
 }))
 
-import { preloadTracks, getPreloadedUrl, clearPreloadCaches } from './track-preload'
+import {
+  preloadTracks,
+  getPreloadedUrl,
+  getPreloadedResolution,
+  audioDiskCacheKey,
+  resolveSongUrl,
+  clearPreloadCaches,
+} from './track-preload'
 
 function makeTrack(id: string, extra: Partial<Track> = {}): Track {
   return {
@@ -101,5 +108,58 @@ describe('preloadTracks / getPreloadedUrl', () => {
     preloadTracks([t1], 'standard')
     await flush()
     expect(getPreloadedUrl(t1, 'standard')).toBeUndefined()
+  })
+})
+
+describe('audioDiskCacheKey', () => {
+  it('按实际交付 level 分键(而非请求档),降级不占高档 key', () => {
+    const t = makeTrack('123')
+    // 请求母带但上游降级为无损:key 落在 lossless,与真正的母带 key 区分开
+    expect(audioDiskCacheKey(t, 'lossless')).toBe('netease:123:lossless')
+    expect(audioDiskCacheKey(t, 'jymaster')).toBe('netease:123:jymaster')
+    expect(audioDiskCacheKey(t, 'lossless')).not.toBe(audioDiskCacheKey(t, 'jymaster'))
+  })
+
+  it('QQ 曲目用 mid 组键', () => {
+    const q = makeTrack('0', { source: 'qq', mid: 'abc' } as Partial<Track>)
+    expect(audioDiskCacheKey(q, 'exhigh')).toBe('qq:abc:exhigh')
+  })
+})
+
+describe('getPreloadedResolution', () => {
+  it('透出预解析的 level 与 trial(供 loadTrack 决定缓存 key 与是否落盘)', async () => {
+    apiGet.mockResolvedValue({ url: 'http://cdn/1.mp3', quality: '无损', level: 'lossless', trial: false })
+    const t1 = makeTrack('1')
+    preloadTracks([t1], 'lossless')
+    await flush()
+    expect(getPreloadedResolution(t1, 'lossless')).toEqual({
+      url: 'http://cdn/1.mp3',
+      quality: '无损',
+      level: 'lossless',
+      trial: false,
+    })
+  })
+
+  it('试听片段的 trial 标记被保留', async () => {
+    apiGet.mockResolvedValue({ url: 'http://cdn/trial.mp3', level: 'standard', trial: true })
+    const t1 = makeTrack('1')
+    preloadTracks([t1], 'standard')
+    await flush()
+    expect(getPreloadedResolution(t1, 'standard')?.trial).toBe(true)
+  })
+})
+
+describe('resolveSongUrl', () => {
+  it('把 AbortSignal 透传给底层请求(切歌时可中止在途 fetch)', async () => {
+    apiGet.mockResolvedValue({ url: 'http://cdn/1.mp3' })
+    const ac = new AbortController()
+    await resolveSongUrl(makeTrack('1'), 'standard', ac.signal)
+    expect(apiGet).toHaveBeenCalledWith('/api/song/url', { id: '1', quality: 'standard' }, { signal: ac.signal })
+  })
+
+  it('无 signal 时不带 init', async () => {
+    apiGet.mockResolvedValue({ url: 'http://cdn/1.mp3' })
+    await resolveSongUrl(makeTrack('1'), 'standard')
+    expect(apiGet).toHaveBeenCalledWith('/api/song/url', { id: '1', quality: 'standard' }, undefined)
   })
 })

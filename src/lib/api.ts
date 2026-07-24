@@ -61,8 +61,8 @@ export const api = {
   base: apiBase,
   url: buildUrl,
   coverImage: coverImageUrl,
-  get<T>(path: string, params?: QueryParams): Promise<T> {
-    return request<T>(buildUrl(path, params))
+  get<T>(path: string, params?: QueryParams, init?: { signal?: AbortSignal }): Promise<T> {
+    return request<T>(buildUrl(path, params), init)
   },
   post<T>(path: string, body?: unknown, params?: QueryParams): Promise<T> {
     return request<T>(buildUrl(path, params), {

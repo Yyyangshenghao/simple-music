@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
-import { getPreloadedUrl, getPreloadedQuality, resolveSongUrl, trackCacheKey } from '../lib/track-preload'
+import { getPreloadedResolution, resolveSongUrl, audioDiskCacheKey } from '../lib/track-preload'
 import { findFallbackTrack } from '../lib/track-fallback'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { serviceFor } from '../lib/service-registry'
@@ -58,6 +58,8 @@ export function registerTrackEndedHandler(cb: () => void): void {
 
 // loadTrack 会话计数:兜底搜索/URL 解析都是异步窗口,期间用户切歌要丢弃过期结果
 let loadSession = 0
+// 当前在途的 URL 解析:切歌/重载时中止上一次 fetch,避免快速双击重复拉 URL(结果本就会被 session 丢弃)
+let loadAbort: AbortController | null = null
 
 // 睡眠定时器「播完当前曲再停」:置位后自然播完不走 next,改调该回调(由 sleep-timer store 注册)
 let stopAfterCurrentCb: (() => void) | null = null
@@ -136,6 +138,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
 
     async loadTrack(track, opts) {
       const eng = ensureEngine()
+      // 中止上一次在途解析:双击/连续切歌时不再让废弃的 fetch 跑完
+      loadAbort?.abort()
+      const abort = new AbortController()
+      loadAbort = abort
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const nextContextId = opts?.contextId ?? null
@@ -147,17 +153,23 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
       set({ currentTrack: track, source: track.source, fallbackSource: null, contextId: nextContextId, status: 'loading', position: startAt, duration: (track.duration ?? 0) / 1000, currentQuality: null })
       // 优先级:曲目自带直链 → 预加载缓存(相邻曲目已提前解析) → 现场解析
-      let url = track.url ?? getPreloadedUrl(track, get().quality)
-      let qualityLabel: string | null = track.url ? null : (getPreloadedQuality(track, get().quality) ?? null)
+      const preloaded = track.url ? undefined : getPreloadedResolution(track, get().quality)
+      let url = track.url ?? preloaded?.url
+      let qualityLabel: string | null = track.url ? null : (preloaded?.quality ?? null)
       // 磁盘缓存 key 跟着"实际出声的曲目"走(兜底时是对侧曲目);自带直链的音质未知,不缓存
       let cacheTrack: Track | null = track.url ? null : track
+      // 磁盘缓存按实际交付档位分键 + 试听片段不落盘(否则降级/半截音频会占住高档 key 被固化)
+      let actualLevel: string | undefined = preloaded?.level
+      let isTrial = !!preloaded?.trial
       let unplayableMessage = FALLBACK_UNPLAYABLE_MESSAGE
       if (!url) {
         try {
-          const res = await resolveSongUrl(track, get().quality)
+          const res = await resolveSongUrl(track, get().quality, abort.signal)
           if (session !== loadSession) return
           url = res.url
           qualityLabel = res.quality ?? null
+          actualLevel = res.level
+          isTrial = !!res.trial
           if (!url) unplayableMessage = res.restriction?.message || res.message || FALLBACK_UNPLAYABLE_MESSAGE
         } catch {
           if (session !== loadSession) return
@@ -169,12 +181,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         if (session !== loadSession) return
         if (fallback) {
           try {
-            const res = await resolveSongUrl(fallback, get().quality)
+            const res = await resolveSongUrl(fallback, get().quality, abort.signal)
             if (session !== loadSession) return
             if (res.url) {
               url = res.url
               qualityLabel = res.quality ?? null
               cacheTrack = fallback
+              actualLevel = res.level
+              isTrial = !!res.trial
               set({ fallbackSource: fallback.source })
               useToastStore.getState().show(`已从${SOURCE_BRAND[fallback.source].label}换源播放`)
             }
@@ -189,7 +203,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         return
       }
       set({ currentQuality: qualityLabel })
-      eng.load(url, startAt, cacheTrack ? trackCacheKey(cacheTrack, get().quality) : undefined)
+      // 试听片段跳过磁盘缓存;正常曲目按实际 level 分键(level 缺省退回请求档)
+      const diskCacheKey =
+        cacheTrack && !isTrial ? audioDiskCacheKey(cacheTrack, actualLevel ?? get().quality) : undefined
+      eng.load(url, startAt, diskCacheKey)
       eng.setVolume(get().volume)
       void eng.play()
     },

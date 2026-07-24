@@ -14,18 +14,26 @@ export interface SongUrlResponse {
   url?: string
   /** 实际取到的档位标签(如"超清母带"/"无损"),用于播放条展示。 */
   quality?: string
+  /** 实际交付的档位 level(如 lossless/exhigh);上游对不存在档位会降级,此为真实 level,用于磁盘缓存分键。 */
+  level?: string
+  /** 是否仅为试听片段(非完整文件);true 时不应写盘缓存,否则半截音频会被固化。 */
+  trial?: boolean
   restriction?: { message: string }
   message?: string
 }
 
 /** 解析曲目的可播放上游 URL(按音源拼参数);loadTrack 与预加载共用同一份逻辑。 */
-export function resolveSongUrl(track: Track, quality: AudioQuality): Promise<SongUrlResponse> {
+export function resolveSongUrl(
+  track: Track,
+  quality: AudioQuality,
+  signal?: AbortSignal
+): Promise<SongUrlResponse> {
   const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
   const params =
     track.source === 'qq'
       ? { mid: String(track.mid ?? track.id ?? ''), quality, fee: String(track.fee ?? '') }
       : { id: String(track.id ?? ''), quality }
-  return api.get<SongUrlResponse>(path, params)
+  return api.get<SongUrlResponse>(path, params, signal ? { signal } : undefined)
 }
 
 // 上游播放 URL 有时效(网易 CDN 链约十几分钟过期),只作短期预热,过期即弃
@@ -34,6 +42,8 @@ const URL_TTL_MS = 5 * 60 * 1000
 interface CachedUrl {
   url: string
   quality?: string
+  level?: string
+  trial?: boolean
   expiresAt: number
 }
 
@@ -46,9 +56,13 @@ function trackKey(track: Track, quality: AudioQuality): string {
   return `${track.source}:${String(track.mid ?? track.id ?? '')}:${quality}`
 }
 
-/** 音频磁盘缓存 key(server 侧 /api/audio 落盘用),与预加载 key 同构。 */
-export function trackCacheKey(track: Track, quality: AudioQuality): string {
-  return trackKey(track, quality)
+/**
+ * 音频磁盘缓存 key(server 侧 /api/audio 落盘用):按**实际交付的档位** level 分键,
+ * 而非请求档 —— 请求母带但上游降级返回无损时,要缓存在"无损"key 下,否则降级结果
+ * 会占住母带 key,后续请求母带永远命中到降级音频。level 缺省(如 QQ 未回传)退回请求档。
+ */
+export function audioDiskCacheKey(track: Track, level: string): string {
+  return `${track.source}:${String(track.mid ?? track.id ?? '')}:${level}`
 }
 
 function getFreshHit(track: Track, quality: AudioQuality, now: number): CachedUrl | undefined {
@@ -78,6 +92,24 @@ export function getPreloadedQuality(
   now = Date.now()
 ): string | undefined {
   return getFreshHit(track, quality, now)?.quality
+}
+
+export interface PreloadedResolution {
+  url: string
+  quality?: string
+  level?: string
+  trial?: boolean
+}
+
+/** 取完整的预解析结果(url + 实际档位标签/level + 是否试听),供 loadTrack 决定缓存 key 与是否落盘。 */
+export function getPreloadedResolution(
+  track: Track,
+  quality: AudioQuality,
+  now = Date.now()
+): PreloadedResolution | undefined {
+  const hit = getFreshHit(track, quality, now)
+  if (!hit) return undefined
+  return { url: hit.url, quality: hit.quality, level: hit.level, trial: hit.trial }
 }
 
 /** 预加载给定曲目(通常是前/后曲目)的播放 URL 与封面;失败静默,播放时会重试并提示。 */
@@ -115,7 +147,13 @@ export function preloadTracks(
     void resolveSongUrl(track, quality)
       .then((res) => {
         if (res.url && latestKeep.has(key)) {
-          urlCache.set(key, { url: res.url, quality: res.quality, expiresAt: Date.now() + URL_TTL_MS })
+          urlCache.set(key, {
+            url: res.url,
+            quality: res.quality,
+            level: res.level,
+            trial: res.trial,
+            expiresAt: Date.now() + URL_TTL_MS,
+          })
         }
       })
       .catch(() => {
