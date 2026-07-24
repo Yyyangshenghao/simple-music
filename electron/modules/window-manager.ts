@@ -253,10 +253,10 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
     autoHideMenuBar: true,
     title: APP_NAME,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.mjs'),
+      preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: false,
       additionalArguments: [
         `--simplemusic-server-port=${serverPort}`,

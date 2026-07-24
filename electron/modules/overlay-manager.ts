@@ -57,7 +57,7 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
   return Math.max(min, Math.min(max, n))
 }
 
-const overlayPreload = () => join(import.meta.dirname, '../preload/overlay.mjs')
+const overlayPreload = () => join(import.meta.dirname, '../preload/overlay.cjs')
 
 // ---------- 桌面歌词 ----------
 function lyricsDefaultBounds(payload: LyricsPayload): Electron.Rectangle {
@@ -197,7 +197,7 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Desktop Lyrics',
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
   hardenOverlayWindow(lyricsWindow)
   try {
@@ -277,7 +277,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Wallpaper',
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
   hardenOverlayWindow(wallpaperWindow)
   wallpaperWindow.setIgnoreMouseEvents(true, { forward: true })
@@ -386,7 +386,7 @@ function createMiniPlayerWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
   hardenOverlayWindow(win)
   miniPlayerWindow = win
