@@ -7,6 +7,7 @@ import { springGentle } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
@@ -44,7 +45,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
     >
       <div className={styles.header}>
         {playlist.cover
-          ? <img className={styles.cover} src={playlist.cover} alt="" />
+          ? <img className={styles.cover} src={sizedImage(playlist.cover, 176)} alt="" />
           : <div className={styles.cover} />}
         <div className={styles.meta}>
           <h3 className={styles.name}>{playlist.name}</h3>

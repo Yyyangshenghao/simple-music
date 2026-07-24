@@ -2,6 +2,7 @@ import { usePlayerStore } from '../../stores/player'
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface TrackRowProps {
   track: Track
@@ -37,7 +38,7 @@ export function TrackRow({ track, index, onPlay }: TrackRowProps) {
           ? <EqIndicator paused={!isPlaying} />
           : <span className={styles.index}>{index + 1}</span>
       )}
-      {track.cover && <img className={styles.cover} src={track.cover} alt="" loading="lazy" />}
+      {track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
       <div className={styles.info}>
         <span className={styles.name}>{track.name}</span>
         <span className={styles.artist}>{track.artist}</span>

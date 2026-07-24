@@ -19,6 +19,7 @@ import { EffectSwitcher } from './EffectSwitcher'
 import { StageLyrics3D } from './StageLyrics3D'
 import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './LyricsPanel.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface LyricsPanelProps {
   open: boolean
@@ -321,7 +322,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
               {track?.cover ? (
                 <img
                   className={styles.coverArt}
-                  src={track.cover}
+                  src={sizedImage(track.cover, 840)}
                   alt={track.name}
                   draggable={false}
                 />

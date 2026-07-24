@@ -1,6 +1,7 @@
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './SearchResults.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface SearchResultsProps {
   results: Track[]
@@ -19,7 +20,7 @@ export function SearchResults({ results, onPick }: SearchResultsProps) {
             onClick={() => onPick(index)}
           >
             {track.cover ? (
-              <img className={styles.cover} src={track.cover} alt="" loading="lazy" />
+              <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />
             ) : (
               <span className={styles.cover} aria-hidden="true" />
             )}

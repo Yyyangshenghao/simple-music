@@ -1,5 +1,6 @@
 import { api } from './api'
 import type { AudioQuality, Track } from '../types/domain'
+import { sizedImage } from './image-size'
 
 /**
  * 相邻曲目预加载:提前解析队列中前/后曲目的播放 URL、预热封面图 HTTP 缓存,
@@ -103,7 +104,7 @@ export function preloadTracks(
 
     if (track.cover && !coverCache.has(track.cover) && typeof Image !== 'undefined') {
       const img = new Image()
-      img.src = api.coverImage(track.cover)
+      img.src = sizedImage(track.cover, 128)
       coverCache.set(track.cover, img)
     }
 

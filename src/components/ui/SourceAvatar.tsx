@@ -4,6 +4,7 @@ import { SOURCE_BRAND } from '../../lib/source-brand'
 import { springSnappy } from '../../lib/motion-presets'
 import { NeteaseLogo, QQMusicLogo } from './brand-logos'
 import styles from './SourceAvatar.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface SourceAvatarProps {
   source: MusicSource
@@ -34,7 +35,7 @@ export function SourceAvatar({ source, avatarUrl }: SourceAvatarProps) {
       title={brand.label}
     >
       {avatarUrl ? (
-        <img className={styles.photo} src={avatarUrl} alt="" loading="lazy" />
+        <img className={styles.photo} src={sizedImage(avatarUrl, 88)} alt="" loading="lazy" />
       ) : (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <circle cx="12" cy="8" r="4" />

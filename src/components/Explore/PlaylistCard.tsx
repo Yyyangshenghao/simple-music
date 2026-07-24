@@ -5,6 +5,7 @@ import { TiltCard } from '../ui/TiltCard'
 import { springGentle } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistCard.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface PlaylistCardProps {
   playlist: Playlist
@@ -20,7 +21,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, layo
         <button className={`${styles.card} no-drag`} onClick={onClick}>
           <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
             {playlist.cover
-              ? <img className={styles.cover} src={playlist.cover} alt="" loading="lazy" />
+              ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
               : <div className={styles.coverFallback} />}
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>

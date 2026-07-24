@@ -1,4 +1,4 @@
-/* 与 CardRail 同一套限宽，宽屏下与相邻栏目左右对齐 */
+/* 与探索页其它栏目同一套限宽(--sm-rail-max-width)，宽屏下左右对齐 */
 .section {
   width: min(var(--sm-rail-max-width), 100%);
   margin: 0 auto 32px;

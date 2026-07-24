@@ -3,6 +3,7 @@ import { usePlayerStore } from '../stores/player'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
 import { api } from '../lib/api'
 import { extractPalette, extractLuma, DEFAULT_PALETTE } from '../lib/extract-color'
+import { sizedImage, CANVAS_COVER_PX } from '../lib/image-size'
 
 function setAmbientVars(colors: string[]): void {
   const root = document.documentElement
@@ -71,7 +72,7 @@ export function useAmbientPalette(): void {
     let cancelled = false
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.src = api.coverImage(cover)
+    img.src = api.coverImage(sizedImage(cover, CANVAS_COVER_PX))
     img.onload = () => {
       if (cancelled) return
       applyPalette(extractPalette(img))

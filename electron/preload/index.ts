@@ -18,6 +18,11 @@ function readServerPort(): number {
   return arg ? Number(arg.split('=')[1]) || 0 : 0
 }
 
+function readServerToken(): string {
+  const arg = process.argv.find((a) => a.startsWith('--simplemusic-server-token='))
+  return arg ? arg.slice('--simplemusic-server-token='.length) : ''
+}
+
 function on<T>(channel: string, cb: (payload: T) => void): () => void {
   const listener = (_e: Electron.IpcRendererEvent, payload: T) => cb(payload)
   ipcRenderer.on(channel, listener)
@@ -28,6 +33,7 @@ const api = {
   isDesktop: true,
   platform: process.platform,
   serverPort: readServerPort(),
+  serverToken: readServerToken(),
 
   // 窗口
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),

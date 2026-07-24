@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, session } from 'electron'
 import { bootServer, shutdownServer } from './server-host'
 import { createMainWindow, scheduleWindowStateSend, getMainWindow } from './modules/window-manager'
 import {
@@ -40,8 +40,8 @@ const gotLock = app.requestSingleInstanceLock()
 
 async function boot(): Promise<void> {
   registerIpc()
-  const port = await bootServer()
-  createMainWindow(port)
+  const { port, token } = await bootServer()
+  createMainWindow(port, token)
   createTray()
 }
 
@@ -54,6 +54,11 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    // 播放器不需要摄像头/麦克风/定位/通知等能力,默认全部拒绝,只留窗口全屏与写剪贴板。
+    // Electron 默认是"全部允许",一旦渲染层被注入内容就能直接向系统要这些权限。
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
+    })
     screen.on('display-metrics-changed', () => {
       positionDesktopLyricsWindow()
       positionWallpaperWindow()

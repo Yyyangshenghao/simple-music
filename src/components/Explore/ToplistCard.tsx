@@ -2,7 +2,8 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { loadPlaylistQueue } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
-import { serviceFor } from '../../lib/service-registry'
+import { getCachedToplistPreview, requestToplistPreview } from '../../lib/toplist-cache'
+import { sizedImage } from '../../lib/image-size'
 import { springGentle } from '../../lib/motion-presets'
 import type { ToplistEntry, ToplistPreviewTrack } from '../../lib/music-service'
 import styles from './ToplistCard.module.css'
@@ -13,6 +14,12 @@ function PlayIcon() {
       <path d="M4 2.6c0-.9 1-1.5 1.8-1l7.7 5.4a1.2 1.2 0 0 1 0 2L5.8 14.4c-.8.5-1.8-.1-1.8-1V2.6z" fill="currentColor" />
     </svg>
   )
+}
+
+/** 已知的预览:上游随分组带回来的 > 本地缓存 > 空(待补拉)。 */
+function initialPreview(entry: ToplistEntry): ToplistPreviewTrack[] {
+  if (entry.preview.length > 0) return entry.preview
+  return getCachedToplistPreview(entry.playlist.source, entry.playlist.id) ?? []
 }
 
 interface ToplistCardProps {
@@ -28,35 +35,37 @@ interface ToplistCardProps {
 export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistCardProps) {
   const [loading, setLoading] = useState(false)
   const { playlist, updateFrequency } = entry
-  const [preview, setPreview] = useState<ToplistPreviewTrack[]>(entry.preview)
+  const [preview, setPreview] = useState<ToplistPreviewTrack[]>(() => initialPreview(entry))
   /** 预览是否已有定论：false 时铺骨架行，避免补拉期间卡片先塌成一行又弹回去。 */
-  const [resolved, setResolved] = useState(entry.preview.length > 0)
+  const [resolved, setResolved] = useState(() => initialPreview(entry).length > 0)
   const cardRef = useRef<HTMLElement>(null)
 
-  // 上游只对少数榜单直接给 Top3，其余等卡片进视口再补：一次性替 38 个榜拉预览会把上游打崩
+  // 上游只对少数榜单直接给 Top3。其余走 toplist-cache 的并发池：卡片一挂载就排队后台预取，
+  // 用户滚到下面时通常已经就绪；进视口的卡片再插队到队首，保证看得见的先出。
   useEffect(() => {
-    setPreview(entry.preview)
-    setResolved(entry.preview.length > 0)
-    if (entry.preview.length > 0) return
-    const el = cardRef.current
-    if (!el) return
+    const known = initialPreview(entry)
+    setPreview(known)
+    setResolved(known.length > 0)
+    if (known.length > 0) return
+    const { source, id } = entry.playlist
     let cancelled = false
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e.isIntersecting) return
-        io.disconnect()
-        // 榜单可能来自另一音源(导航历史/缓存)，按数据自身 source 取 service
-        const service = serviceFor(entry.playlist.source)
-        if (!service.getToplistPreview) { setResolved(true); return }
-        service.getToplistPreview(entry.playlist.id)
-          .then((tracks) => { if (!cancelled) setPreview(tracks) })
-          .catch(() => {})
-          .finally(() => { if (!cancelled) setResolved(true) })
-      },
-      { rootMargin: '200px' }
-    )
-    io.observe(el)
-    return () => { cancelled = true; io.disconnect() }
+    const el = cardRef.current
+    const io = el
+      ? new IntersectionObserver(
+          ([e]) => {
+            if (!e.isIntersecting) return
+            io?.disconnect()
+            void requestToplistPreview(source, id, { priority: 'high' })
+          },
+          { rootMargin: '200px' }
+        )
+      : null
+    if (el && io) io.observe(el)
+    requestToplistPreview(source, id)
+      .then((tracks) => { if (!cancelled) setPreview(tracks) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setResolved(true) })
+    return () => { cancelled = true; io?.disconnect() }
   }, [entry])
 
   async function play(e: React.MouseEvent) {
@@ -102,7 +111,7 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
           <span className={styles.sheetBack} />
           <span className={styles.sheetMid} />
           {playlist.cover
-            ? <img className={styles.cover} src={playlist.cover} alt="" loading="lazy" />
+            ? <img className={styles.cover} src={sizedImage(playlist.cover, 168)} alt="" loading="lazy" decoding="async" />
             : <span className={`${styles.cover} ${styles.coverFallback}`} />}
           <button
             className={`${styles.playBtn} no-drag`}

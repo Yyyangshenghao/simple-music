@@ -10,6 +10,7 @@ import { SourceAvatar } from '../ui/SourceAvatar'
 import { SOURCE_BRAND } from '../../lib/source-brand'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '探索', view: 'explore' },
@@ -250,7 +251,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   <div className={styles.searchSection}>歌手</div>
                   {artists.map((a, i) => (
                     <button key={`a-${i}`} className={styles.artistRow} onMouseDown={() => pickArtist(a)}>
-                      {a.avatar && <img className={styles.rowAvatar} src={a.avatar} alt="" loading="lazy" />}
+                      {a.avatar && <img className={styles.rowAvatar} src={sizedImage(a.avatar, 88)} alt="" loading="lazy" />}
                       <span>{a.name}</span>
                     </button>
                   ))}
@@ -261,7 +262,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   {artists.length > 0 && <div className={styles.searchSection}>歌曲</div>}
                   {songs.slice(0, 8).map((s, i) => (
                     <button key={`s-${i}`} className={styles.songRow} onMouseDown={() => pickSong(i)}>
-                      {s.cover && <img className={styles.rowCover} src={s.cover} alt="" loading="lazy" />}
+                      {s.cover && <img className={styles.rowCover} src={sizedImage(s.cover, 88)} alt="" loading="lazy" />}
                       <div className={styles.songInfo}>
                         <span className={styles.songName}>{s.name}</span>
                         <span className={styles.songArtist}>{s.artist}</span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useMusicService } from '../../hooks/useMusicService'
+import { useSettingsStore } from '../../stores/settings'
 import { useNavigationStore } from '../../stores/navigation'
+import { getCachedToplistGroups, loadToplistGroups } from '../../lib/toplist-cache'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
 import { GradientText } from '../ui/GradientText'
 import { ToplistCard } from './ToplistCard'
@@ -18,19 +19,19 @@ const PREVIEW_COUNT = 4
 /** 榜单精选:双列卡片(榜名 + Top3 预览),标题可点进全部榜单页。
  *  可选实现,未实现的音源(QQ)整栏不渲染。 */
 export function ToplistSection({ onOpen }: ToplistSectionProps) {
-  const service = useMusicService()
-  const [groups, setGroups] = useState<ToplistGroup[]>([])
+  const activeSource = useSettingsStore((s) => s.activeSource)
+  const [groups, setGroups] = useState<ToplistGroup[]>(() => getCachedToplistGroups(activeSource) ?? [])
   const ref = useScrollReveal<HTMLElement>()
 
   useEffect(() => {
     // 音源切换时丢弃在途响应
     let cancelled = false
-    setGroups([])
-    service.getToplists?.()
+    setGroups(getCachedToplistGroups(activeSource) ?? [])
+    loadToplistGroups(activeSource)
       .then((gs) => { if (!cancelled) setGroups(gs) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [service])
+  }, [activeSource])
 
   const entries = groups.flatMap((g) => g.entries).slice(0, PREVIEW_COUNT)
   if (entries.length === 0) return null

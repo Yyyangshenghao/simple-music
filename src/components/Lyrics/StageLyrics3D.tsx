@@ -16,6 +16,7 @@ import {
   invalidateLyricFontCache
 } from './stage-lyric-textures'
 import type { LyricLine as LyricLineData, WordLyricLine } from '../../types/domain'
+import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
 
 /**
  * 3D 舞台歌词(移植自 Mineradio-MacOS 的 stageLyrics 系统):歌词以四层结构
@@ -428,7 +429,7 @@ export function StageLyrics3D() {
         /* 跨域污染等:保留旧调色板 */
       }
     }
-    img.src = api.coverImage(coverUrl)
+    img.src = api.coverImage(sizedImage(coverUrl, CANVAS_COVER_PX))
     return () => {
       cancelled = true
       img.onload = null

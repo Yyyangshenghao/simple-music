@@ -177,6 +177,41 @@
   --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
 }
 
+/* ── 减少透明度 / 降低视觉特效 ──
+   开启后玻璃层去模糊 + 底色提到近乎不透明。核心动机：探索页同屏十余个 backdrop-filter
+   叠在全屏动态流体背景上，背景每帧变化会逼玻璃层逐帧重取样模糊，是 GPU 占用大头。
+   仅把 --glass-blur-* 置 0 不够——不少玻璃层写成 `var(--glass-blur-*) saturate(120%)`，
+   saturate() 本身仍会每帧重取样，故再用一条兜底规则把 backdrop-filter 整体关掉。
+   放文件末尾：与 data-theme 单属性选择器同特异性时靠后者胜出。 */
+[data-reduce-transparency="1"] {
+  --glass-blur-base:  blur(0);
+  --glass-blur-card:  blur(0);
+  --glass-blur-modal: blur(0);
+  --sm-blur:          blur(0);
+  /* 深色（含手动 dark 与 auto 跟随系统深色）：底色提到近乎不透明，补偿失去的模糊背景 */
+  --glass-bg-base:    rgba(22, 22, 22, 0.88);
+  --glass-bg-card:    rgba(28, 28, 28, 0.92);
+  --glass-bg-modal:   rgba(14, 14, 14, 0.95);
+}
+[data-reduce-transparency="1"][data-theme="light"] {
+  --glass-bg-base:    rgba(244, 244, 244, 0.92);
+  --glass-bg-card:    rgba(250, 250, 250, 0.95);
+  --glass-bg-modal:   rgba(238, 238, 238, 0.97);
+}
+@media (prefers-color-scheme: light) {
+  /* auto 主题跟随系统浅色时（无 data-theme 属性）也要用浅色不透明底 */
+  :root[data-reduce-transparency="1"]:not([data-theme]) {
+    --glass-bg-base:  rgba(244, 244, 244, 0.92);
+    --glass-bg-card:  rgba(250, 250, 250, 0.95);
+    --glass-bg-modal: rgba(238, 238, 238, 0.97);
+  }
+}
+/* 兜底：彻底关掉 backdrop-filter，消除 saturate()/blur() 的逐帧重取样成本 */
+[data-reduce-transparency="1"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* ── 无障碍：去除动画 ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

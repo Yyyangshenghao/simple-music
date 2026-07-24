@@ -13,6 +13,7 @@ import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
+import { sizedImage } from '../../lib/image-size'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
 
@@ -91,7 +92,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             {playlist.cover && (
               <motion.img
                 className={styles.detailCover}
-                src={playlist.cover}
+                src={sizedImage(playlist.cover, 176)}
                 alt=""
                 layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
                 transition={springGentle}

@@ -14,6 +14,12 @@ export default defineConfig({
         input: {
           index: resolve('electron/preload/index.ts'),
           overlay: resolve('electron/preload/overlay.ts')
+        },
+        // 沙盒化 preload(sandbox:true)在纯 JS 环境运行,不支持 ESM import,
+        // 故强制输出 CommonJS(.cjs);electron 依旧走 require('electron')。
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs'
         }
       }
     }

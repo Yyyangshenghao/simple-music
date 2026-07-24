@@ -15,13 +15,31 @@
  * 注意:主机名黑名单挡不住 DNS rebinding(域名解析到内网 IP)。彻底修需要在
  * 连接建立后校验对端 IP,代价远高于收益 —— 音频代理的上游只会是音乐平台 CDN,
  * 这里的主机名级拦截已覆盖现实攻击面。
+ *
+ * 3. isAllowedToken —— Origin 校验挡得住跨源 fetch/XHR,但 `Origin: null`/无 Origin
+ *    (本地 html 文件、非浏览器程序)仍能调用。主进程启动时生成随机 token 随端口注入
+ *    渲染层,server 对每个请求校验;浏览器网页拿不到注入的 argv/token,由此收口。
  */
 
-/** 渲染层来源:prod 为 file://(Origin 头是字符串 "null"),dev 为 vite 本地服务。 */
-export function isAllowedOrigin(origin: string | undefined): boolean {
+import { timingSafeEqual } from 'node:crypto'
+
+/**
+ * 渲染层来源:prod 为 file://(Origin 头是字符串 "null"),dev 为 vite 本地服务。
+ *
+ * `allowLocalhost` 只在开发时该为 true:放行 localhost 意味着本机跑着的任意其他
+ * 网页(别的项目的开发服务器、本地工具的 web 界面,以及它们身上的 XSS)都能读
+ * `/api/local/tracks` 拿到音乐文件绝对路径、经 `/api/local/audio` 把文件流走。
+ * 打包后的应用渲染层只会是 file://,不需要这个口子。
+ */
+export function isAllowedOrigin(origin: string | undefined, allowLocalhost = true): boolean {
   // 无 Origin:非浏览器调用(curl / 原生请求)或不跨源的资源加载,读不到跨源响应体
   if (!origin) return true
   if (origin === 'null') return true
+  // Chromium 从 file:// 页面发出的带 CORS 的请求(crossOrigin 图片、canvas 取色用的
+  // /proxy/cover)带的是 `Origin: file://`,不是规范里的 "null" —— 漏掉它会把渲染层
+  // 自己的封面取色/粒子纹理请求 403 掉(表现:霞光与粒子恒为默认紫色)。
+  if (origin === 'file://') return true
+  if (!allowLocalhost) return false
   try {
     const { protocol, hostname } = new URL(origin)
     if (protocol !== 'http:' && protocol !== 'https:') return false
@@ -63,6 +81,29 @@ function isPrivateHost(hostname: string): boolean {
   if (a === 192 && b === 168) return true
   if (a === 100 && b >= 64 && b <= 127) return true // CGNAT
   return false
+}
+
+/** 常量时间比较,避免按前缀逐字符早退泄露 token 长度/内容。 */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
+}
+
+/**
+ * 请求携带的 token 是否有效。
+ * - expected 缺省(独立 `server:dev`、纯前端调试、测试未注入)时一律放行,
+ *   与 isAllowedOrigin 的"无 Origin 放行"同思路,保证这些场景零改动可用。
+ * - expected 存在时,provided 必须逐字节相等才放行。
+ */
+export function isAllowedToken(
+  expected: string | undefined,
+  provided: string | null | undefined
+): boolean {
+  if (!expected) return true
+  if (!provided) return false
+  return safeEqual(provided, expected)
 }
 
 /** 代理上游是否可请求:必须是 http(s),且不指向本机 / 内网。 */
