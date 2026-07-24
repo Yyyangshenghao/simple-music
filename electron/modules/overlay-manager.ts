@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
-import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow } from './window-manager'
+import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
+import { openExternalSafely } from './safe-open'
 import { getPlatform } from '../platform'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
 
@@ -32,6 +33,19 @@ const MINI_PLAYER_BASE_HEIGHT = 80
 const MINI_PLAYER_POPOVER_HEIGHT = 136
 let miniPlayerWidth = MINI_PLAYER_DEFAULT_WIDTH
 let miniPlayerPopoverOpen = false
+
+/** 悬浮窗同样挂着 preload 桥,导航离开入口页就等于把桥交给外部页面:与主窗口用同一套防护。 */
+function hardenOverlayWindow(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalSafely(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isInAppUrl(url)) return
+    event.preventDefault()
+    openExternalSafely(url)
+  })
+}
 
 function miniPlayerHeight(): number {
   return miniPlayerPopoverOpen ? MINI_PLAYER_POPOVER_HEIGHT : MINI_PLAYER_BASE_HEIGHT
@@ -185,6 +199,7 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
     title: 'Simple Music Desktop Lyrics',
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
   })
+  hardenOverlayWindow(lyricsWindow)
   try {
     lyricsWindow.setAlwaysOnTop(true, 'screen-saver')
     lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -264,6 +279,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     title: 'Simple Music Wallpaper',
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
   })
+  hardenOverlayWindow(wallpaperWindow)
   wallpaperWindow.setIgnoreMouseEvents(true, { forward: true })
   wallpaperWindow.once('ready-to-show', () => {
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) return
@@ -372,6 +388,7 @@ function createMiniPlayerWindow(): BrowserWindow {
     title: 'Simple Music Mini Player',
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
   })
+  hardenOverlayWindow(win)
   miniPlayerWindow = win
   try {
     win.setAlwaysOnTop(true, 'screen-saver')

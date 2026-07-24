@@ -9,6 +9,7 @@ import { bandEnergiesFrom, smoothEnergy } from '../../lib/audio-energy'
 import { buildEdgeDepthData } from '../../lib/cover-edge'
 import { getDotSpriteTexture } from '../../lib/dot-texture'
 import type { PerformanceMode } from '../../types/domain'
+import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
 
 /**
  * 封面粒子云(SILK):移植自原版 Mineradio-MacOS 的 preset 0 丝绸效果。
@@ -308,7 +309,7 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const trebleSmoothRef = useRef(0)
   const energySmoothRef = useRef(0)
 
-  const proxyUrl = coverUrl ? api.coverImage(coverUrl) : undefined
+  const proxyUrl = coverUrl ? api.coverImage(sizedImage(coverUrl, CANVAS_COVER_PX)) : undefined
 
   const geometry = useMemo(() => buildGeometry(gridSize), [gridSize])
   useEffect(() => () => geometry.dispose(), [geometry])

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMusicService } from '../../hooks/useMusicService'
 import type { Playlist } from '../../types/domain'
 import styles from './RecentRail.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface RecentRailProps {
   /** 点击卡片打开歌单预览小卡（复用 Stack 顶卡的预览弹窗）。 */
@@ -32,7 +33,7 @@ export function RecentRail({ onOpen }: RecentRailProps) {
         {playlists.map((pl) => (
           <button key={String(pl.id)} className={`${styles.card} no-drag`} onClick={() => onOpen(pl)} title={pl.name}>
             {pl.cover
-              ? <img className={styles.cover} src={pl.cover} alt="" loading="lazy" />
+              ? <img className={styles.cover} src={sizedImage(pl.cover, 200)} alt="" loading="lazy" />
               : <div className={styles.cover} />}
             <span className={styles.name}>{pl.name}</span>
           </button>

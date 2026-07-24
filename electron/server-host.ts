@@ -6,7 +6,11 @@ let handle: { port: number; close(): void } | null = null
 /** 在主进程内嵌启动 API server，注入 userData 路径。返回监听端口。 */
 export async function bootServer(): Promise<number> {
   if (handle) return handle.port
-  handle = await startServer({ userDataDir: app.getPath('userData') })
+  handle = await startServer({
+    userDataDir: app.getPath('userData'),
+    // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
+    allowLocalhostOrigins: !app.isPackaged
+  })
   return handle.port
 }
 

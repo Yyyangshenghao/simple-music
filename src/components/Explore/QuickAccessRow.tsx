@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { springGentle, springSnappy } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './QuickAccessRow.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 function HeartIcon() {
   return (
@@ -252,7 +253,7 @@ export function QuickAccessRow() {
                 {item.isLiked
                   ? <span className={styles.iconWrap}><HeartIcon /></span>
                   : item.cover
-                    ? <img className={styles.cover} src={item.cover} alt="" loading="lazy" />
+                    ? <img className={styles.cover} src={sizedImage(item.cover, 112)} alt="" loading="lazy" />
                     : <span className={styles.cover} />}
                 <span className={styles.meta}>
                   <span className={styles.name}>{item.name}</span>

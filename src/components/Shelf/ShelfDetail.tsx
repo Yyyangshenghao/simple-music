@@ -6,6 +6,7 @@ import { CloseIcon } from '../ui/CloseIcon'
 import { formatDuration } from '../../lib/format-duration'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './ShelfDetail.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface ShelfDetailProps {
   playlist: Playlist
@@ -62,7 +63,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
       <GlassPanel level="card" className={styles.panel}>
         <header className={styles.header}>
           {playlist.cover ? (
-            <img className={styles.cover} src={playlist.cover} alt="" />
+            <img className={styles.cover} src={sizedImage(playlist.cover, 128)} alt="" />
           ) : (
             <span className={styles.cover} aria-hidden="true" />
           )}

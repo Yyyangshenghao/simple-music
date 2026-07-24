@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { useMusicService } from '../hooks/useMusicService'
+import { useSettingsStore } from '../stores/settings'
 import { useNavigationStore } from '../stores/navigation'
+import { getCachedToplistGroups, loadToplistGroups } from '../lib/toplist-cache'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { ToplistCard } from '../components/Explore/ToplistCard'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
@@ -14,22 +15,24 @@ import styles from './ToplistPage.module.css'
 /** 全部榜单:服务端按主题分组(官方榜/云村特色/曲风/ACG/语种海外/更多),每组一片网格。
  *  卡片交互与探索页「榜单精选」完全一致(点开预览、封面钮直接播放整榜)。 */
 export function ToplistPage() {
-  const service = useMusicService()
+  const activeSource = useSettingsStore((s) => s.activeSource)
   const goBack = useNavigationStore((s) => s.goBack)
-  const [groups, setGroups] = useState<ToplistGroup[]>([])
-  const [loading, setLoading] = useState(true)
+  // 探索页「榜单精选」刚拉过的话直接命中缓存,点进来就是完整网格(卡片随即开始后台预取各自的 Top3)
+  const [groups, setGroups] = useState<ToplistGroup[]>(() => getCachedToplistGroups(activeSource) ?? [])
+  const [loading, setLoading] = useState(() => !getCachedToplistGroups(activeSource))
   const [preview, setPreview] = useState<Playlist | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setGroups([])
-    service.getToplists?.()
+    const cached = getCachedToplistGroups(activeSource)
+    setGroups(cached ?? [])
+    setLoading(!cached)
+    loadToplistGroups(activeSource)
       .then((gs) => { if (!cancelled) setGroups(gs) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [service])
+  }, [activeSource])
 
   return (
     <ScrollArea className={styles.page}>

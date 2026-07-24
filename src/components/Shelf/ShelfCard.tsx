@@ -2,6 +2,7 @@ import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
 import type { Playlist } from '../../types/domain'
 import styles from './ShelfCard.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface ShelfCardProps {
   playlist: Playlist
@@ -21,7 +22,7 @@ export function ShelfCard({ playlist, onOpen }: ShelfCardProps) {
         >
           <span className={styles.coverWrap}>
             {playlist.cover ? (
-              <img className={styles.cover} src={playlist.cover} alt="" loading="lazy" />
+              <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
             ) : (
               <span className={styles.cover} aria-hidden="true" />
             )}

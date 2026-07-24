@@ -4,6 +4,7 @@ import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
 import { springGentle } from '../../lib/motion-presets'
 import styles from './HeroCard.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface HeroCardProps {
   title: string
@@ -23,7 +24,7 @@ export function HeroCard({ title, subtitle, cover, badge, layoutId, onClick }: H
         <button className={`${styles.card} no-drag`} onClick={onClick}>
           <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
             {cover
-              ? <img className={styles.cover} src={cover} alt="" loading="lazy" />
+              ? <img className={styles.cover} src={sizedImage(cover, 320)} alt="" loading="lazy" />
               : <div className={styles.coverFallback} />}
           </motion.div>
           <div className={styles.scrim} />

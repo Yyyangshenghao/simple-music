@@ -7,6 +7,9 @@ describe('isAllowedOrigin', () => {
     expect(isAllowedOrigin('null')).toBe(true)
     expect(isAllowedOrigin('http://localhost:5173')).toBe(true)
     expect(isAllowedOrigin('http://127.0.0.1:35530')).toBe(true)
+    // Chromium 对 file:// 页面发出的 CORS 请求给的是 "file://" 而不是 "null"
+    expect(isAllowedOrigin('file://')).toBe(true)
+    expect(isAllowedOrigin('file://', false)).toBe(true)
   })
 
   it('无 Origin 头放行(非浏览器调用 / 不跨源加载)', () => {
@@ -20,6 +23,13 @@ describe('isAllowedOrigin', () => {
     // 前缀混淆:localhost.evil.com 不是 localhost
     expect(isAllowedOrigin('http://localhost.evil.example')).toBe(false)
     expect(isAllowedOrigin('not-a-url')).toBe(false)
+  })
+
+  it('严格模式(打包应用)只认 file:// 的 null,本机其他网页一律拒绝', () => {
+    expect(isAllowedOrigin('null', false)).toBe(true)
+    expect(isAllowedOrigin(undefined, false)).toBe(true)
+    expect(isAllowedOrigin('http://localhost:5173', false)).toBe(false)
+    expect(isAllowedOrigin('http://127.0.0.1:3000', false)).toBe(false)
   })
 })
 

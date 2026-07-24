@@ -4,6 +4,7 @@ import { motion, useMotionValue, useReducedMotion, useTransform } from 'motion/r
 import type { PanInfo } from 'motion/react'
 import type { Playlist } from '../../types/domain'
 import styles from './Stack.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 /** 拖拽甩卡阈值（px），超过即视为把顶卡甩出。 */
 const SENSITIVITY = 170
@@ -90,7 +91,7 @@ export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
               transition={reduced ? { duration: 0.2 } : { type: 'spring', stiffness: 260, damping: 20 }}
             >
               {pl.cover
-                ? <img className={styles.cover} src={pl.cover} alt="" draggable={false} loading="lazy" />
+                ? <img className={styles.cover} src={sizedImage(pl.cover, 520)} alt="" draggable={false} loading="lazy" />
                 : <div className={styles.coverFallback} />}
               <div className={styles.nameOverlay}>{pl.name}</div>
             </motion.div>

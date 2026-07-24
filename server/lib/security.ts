@@ -17,11 +17,23 @@
  * 这里的主机名级拦截已覆盖现实攻击面。
  */
 
-/** 渲染层来源:prod 为 file://(Origin 头是字符串 "null"),dev 为 vite 本地服务。 */
-export function isAllowedOrigin(origin: string | undefined): boolean {
+/**
+ * 渲染层来源:prod 为 file://(Origin 头是字符串 "null"),dev 为 vite 本地服务。
+ *
+ * `allowLocalhost` 只在开发时该为 true:放行 localhost 意味着本机跑着的任意其他
+ * 网页(别的项目的开发服务器、本地工具的 web 界面,以及它们身上的 XSS)都能读
+ * `/api/local/tracks` 拿到音乐文件绝对路径、经 `/api/local/audio` 把文件流走。
+ * 打包后的应用渲染层只会是 file://,不需要这个口子。
+ */
+export function isAllowedOrigin(origin: string | undefined, allowLocalhost = true): boolean {
   // 无 Origin:非浏览器调用(curl / 原生请求)或不跨源的资源加载,读不到跨源响应体
   if (!origin) return true
   if (origin === 'null') return true
+  // Chromium 从 file:// 页面发出的带 CORS 的请求(crossOrigin 图片、canvas 取色用的
+  // /proxy/cover)带的是 `Origin: file://`,不是规范里的 "null" —— 漏掉它会把渲染层
+  // 自己的封面取色/粒子纹理请求 403 掉(表现:霞光与粒子恒为默认紫色)。
+  if (origin === 'file://') return true
+  if (!allowLocalhost) return false
   try {
     const { protocol, hostname } = new URL(origin)
     if (protocol !== 'http:' && protocol !== 'https:') return false

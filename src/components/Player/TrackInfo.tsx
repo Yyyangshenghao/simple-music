@@ -1,6 +1,7 @@
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import styles from './TrackInfo.module.css'
+import { sizedImage } from '../../lib/image-size'
 
 interface TrackInfoProps {
   onCoverClick?: () => void
@@ -28,7 +29,7 @@ export function TrackInfo({ onCoverClick }: TrackInfoProps) {
         style={onCoverClick ? { cursor: 'pointer' } : undefined}
       >
         {track?.cover ? (
-          <img className={styles.coverImg} src={track.cover} alt={track.name} draggable={false} />
+          <img className={styles.coverImg} src={sizedImage(track.cover, 128)} alt={track.name} draggable={false} />
         ) : (
           <span className={styles.coverPlaceholder} aria-hidden="true">
             ♪
