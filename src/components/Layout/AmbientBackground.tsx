@@ -18,6 +18,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const palette = useAmbientStore((s) => s.palette)
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
+  const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
   const playing = usePlayerStore((s) => s.status === 'playing')
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
@@ -31,7 +32,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   return (
     // display:none 时 LiquidEther 内置 IntersectionObserver 自动暂停渲染
     <div className={styles.background} style={hidden ? { display: 'none' } : undefined}>
-      {!bgFluidMotion || performanceMode === 'eco' ? (
+      {!bgFluidMotion || reduceTransparency || performanceMode === 'eco' ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
         <LiquidEther

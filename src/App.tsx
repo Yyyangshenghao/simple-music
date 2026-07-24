@@ -58,12 +58,15 @@ export default function App() {
       if (miniPlayerEnabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth)
     }
     const sync = () => {
-      const { themeMode, fontFamily } = useSettingsStore.getState()
+      const { themeMode, fontFamily, performance } = useSettingsStore.getState()
       const root = document.documentElement
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
       if (fontFamily.trim()) root.style.setProperty('--sm-font-sans', fontFamily)
       else root.style.removeProperty('--sm-font-sans')
+      // 减少透明度:tokens.css 用属性选择器把玻璃层降为无模糊/高不透明
+      if (performance.reduceTransparency) root.setAttribute('data-reduce-transparency', '1')
+      else root.removeAttribute('data-reduce-transparency')
     }
     sync()
     return useSettingsStore.subscribe(sync)

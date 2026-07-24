@@ -33,6 +33,7 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   clickSparkEffect: true,
   gradientTextMotion: true,
   audioGlowEffect: true,
+  reduceTransparency: false,
 }
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
@@ -40,9 +41,9 @@ export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 /** 设置页「性能」预设:标准=不关任何效果;简单=关掉两项开销最大的(背景流体/3D歌词);
  *  极简=在简单基础上把其余装饰性交互(卡片跟光/点击火花/流光文字)一并关掉。 */
 export const PERFORMANCE_PRESETS: Record<PerformancePreset, PerformanceFlags> = {
-  standard: { bgFluidMotion: true, lyrics3dEnabled: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  simple: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  minimal: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false, audioGlowEffect: false },
+  standard: { bgFluidMotion: true, lyrics3dEnabled: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true, reduceTransparency: false },
+  simple: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true, reduceTransparency: false },
+  minimal: { bgFluidMotion: false, lyrics3dEnabled: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false, audioGlowEffect: false, reduceTransparency: true },
 }
 
 interface PersistedSettings {
