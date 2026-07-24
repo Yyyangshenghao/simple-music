@@ -15,7 +15,13 @@
  * 注意:主机名黑名单挡不住 DNS rebinding(域名解析到内网 IP)。彻底修需要在
  * 连接建立后校验对端 IP,代价远高于收益 —— 音频代理的上游只会是音乐平台 CDN,
  * 这里的主机名级拦截已覆盖现实攻击面。
+ *
+ * 3. isAllowedToken —— Origin 校验挡得住跨源 fetch/XHR,但 `Origin: null`/无 Origin
+ *    (本地 html 文件、非浏览器程序)仍能调用。主进程启动时生成随机 token 随端口注入
+ *    渲染层,server 对每个请求校验;浏览器网页拿不到注入的 argv/token,由此收口。
  */
+
+import { timingSafeEqual } from 'node:crypto'
 
 /**
  * 渲染层来源:prod 为 file://(Origin 头是字符串 "null"),dev 为 vite 本地服务。
@@ -75,6 +81,29 @@ function isPrivateHost(hostname: string): boolean {
   if (a === 192 && b === 168) return true
   if (a === 100 && b >= 64 && b <= 127) return true // CGNAT
   return false
+}
+
+/** 常量时间比较,避免按前缀逐字符早退泄露 token 长度/内容。 */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
+}
+
+/**
+ * 请求携带的 token 是否有效。
+ * - expected 缺省(独立 `server:dev`、纯前端调试、测试未注入)时一律放行,
+ *   与 isAllowedOrigin 的"无 Origin 放行"同思路,保证这些场景零改动可用。
+ * - expected 存在时,provided 必须逐字节相等才放行。
+ */
+export function isAllowedToken(
+  expected: string | undefined,
+  provided: string | null | undefined
+): boolean {
+  if (!expected) return true
+  if (!provided) return false
+  return safeEqual(provided, expected)
 }
 
 /** 代理上游是否可请求:必须是 http(s),且不指向本机 / 内网。 */

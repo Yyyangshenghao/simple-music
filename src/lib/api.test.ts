@@ -5,6 +5,10 @@ function stubPort(port?: number): void {
   vi.stubGlobal('window', { desktop: port === undefined ? {} : { serverPort: port } })
 }
 
+function stubPortToken(port: number, token: string): void {
+  vi.stubGlobal('window', { desktop: { serverPort: port, serverToken: token } })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -25,6 +29,13 @@ describe('api.url', () => {
   it('falls back to relative path when no port', () => {
     stubPort()
     expect(api.url('/api/y', { z: 2 })).toBe('/api/y?z=2')
+  })
+
+  it('注入 token 时作为 query 参数附加', () => {
+    stubPortToken(40000, 'tok123')
+    expect(api.url('/api/search', { keywords: 'hi' })).toBe(
+      'http://127.0.0.1:40000/api/search?keywords=hi&token=tok123'
+    )
   })
 })
 
@@ -87,5 +98,15 @@ describe('api.coverImage', () => {
   it('无端口(纯前端回退)时仍走相对路径代理', () => {
     stubPort()
     expect(api.coverImage('https://x/y.jpg')).toContain('/proxy/cover')
+  })
+
+  it('带 token 的本地封面仍判为本地、不套代理(token 不破坏 isLocalApiUrl)', () => {
+    stubPortToken(40000, 'tok123')
+    // 本地封面由 api.url 构造，天然带 token
+    const local = api.url('/api/local/cover', { id: 'abc' })
+    expect(local).toContain('token=tok123')
+    expect(isLocalApiUrl(local)).toBe(true)
+    expect(api.coverImage(local)).toBe(local)
+    expect(api.coverImage(local)).not.toContain('/proxy/cover')
   })
 })

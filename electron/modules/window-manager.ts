@@ -12,6 +12,7 @@ const MIN_WINDOWED_HEIGHT = 540
 
 let mainWindow: BrowserWindow | null = null
 let mainServerPort = 0
+let mainServerToken = ''
 let htmlFullscreenActive = false
 let windowFullscreenActive = false
 let stateTimer: NodeJS.Timeout | null = null
@@ -22,6 +23,10 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getServerPort(): number {
   return mainServerPort
+}
+
+export function getServerToken(): string {
+  return mainServerToken
 }
 
 /** 解析渲染层入口 URL：dev 走 vite，prod 走打包文件。 */
@@ -223,8 +228,9 @@ export function hideMainWindow(): boolean {
   return true
 }
 
-export function createMainWindow(serverPort: number): BrowserWindow {
+export function createMainWindow(serverPort: number, serverToken = ''): BrowserWindow {
   mainServerPort = serverPort
+  mainServerToken = serverToken
   htmlFullscreenActive = false
   windowFullscreenActive = false
 
@@ -252,7 +258,10 @@ export function createMainWindow(serverPort: number): BrowserWindow {
       nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: false,
-      additionalArguments: [`--simplemusic-server-port=${serverPort}`]
+      additionalArguments: [
+        `--simplemusic-server-port=${serverPort}`,
+        `--simplemusic-server-token=${serverToken}`
+      ]
     }
   })
 

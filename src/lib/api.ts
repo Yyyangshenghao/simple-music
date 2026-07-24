@@ -6,6 +6,11 @@ export function apiBase(): string {
   return port ? `http://127.0.0.1:${port}` : ''
 }
 
+/** 主进程随端口注入的一次性访问 token；未注入(纯前端/独立 server)时为空，server 侧对应放行。 */
+function apiToken(): string | undefined {
+  return typeof window !== 'undefined' ? window.desktop?.serverToken : undefined
+}
+
 export type QueryParams = Record<string, string | number | boolean | undefined | null>
 
 function buildUrl(path: string, params?: QueryParams): string {
@@ -16,6 +21,10 @@ function buildUrl(path: string, params?: QueryParams): string {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
     }
   }
+  // token 走 query：<audio src>/<img src> 直连只能这样带；fetch/get/post 复用同一构造。
+  // 本地音乐的 url/cover 也经此拼出，token 一并落到 query，不影响 isLocalApiUrl 的 startsWith 判定。
+  const token = apiToken()
+  if (token) url.searchParams.set('token', token)
   // 同源回退时只保留 path + search，避免写死 host。
   return base ? url.toString() : `${url.pathname}${url.search}`
 }

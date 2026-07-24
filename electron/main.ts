@@ -40,8 +40,8 @@ const gotLock = app.requestSingleInstanceLock()
 
 async function boot(): Promise<void> {
   registerIpc()
-  const port = await bootServer()
-  createMainWindow(port)
+  const { port, token } = await bootServer()
+  createMainWindow(port, token)
   createTray()
 }
 

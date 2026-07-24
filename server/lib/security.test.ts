@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isAllowedOrigin, isSafeUpstreamUrl } from './security'
+import { isAllowedOrigin, isAllowedToken, isSafeUpstreamUrl } from './security'
 
 describe('isAllowedOrigin', () => {
   it('放行渲染层来源', () => {
@@ -30,6 +30,30 @@ describe('isAllowedOrigin', () => {
     expect(isAllowedOrigin(undefined, false)).toBe(true)
     expect(isAllowedOrigin('http://localhost:5173', false)).toBe(false)
     expect(isAllowedOrigin('http://127.0.0.1:3000', false)).toBe(false)
+  })
+})
+
+describe('isAllowedToken', () => {
+  const TOKEN = 'a'.repeat(64)
+
+  it('未配置 expected 时一律放行(独立 server / dev / 测试)', () => {
+    expect(isAllowedToken(undefined, undefined)).toBe(true)
+    expect(isAllowedToken(undefined, 'whatever')).toBe(true)
+    expect(isAllowedToken('', 'whatever')).toBe(true)
+  })
+
+  it('token 完全一致才放行', () => {
+    expect(isAllowedToken(TOKEN, TOKEN)).toBe(true)
+  })
+
+  it('拒绝缺失 / 错误 / 长度不符的 token', () => {
+    expect(isAllowedToken(TOKEN, undefined)).toBe(false)
+    expect(isAllowedToken(TOKEN, null)).toBe(false)
+    expect(isAllowedToken(TOKEN, '')).toBe(false)
+    expect(isAllowedToken(TOKEN, 'b'.repeat(64))).toBe(false)
+    // 长度不同不会抛错(timingSafeEqual 要求等长,已先行拦掉)
+    expect(isAllowedToken(TOKEN, TOKEN.slice(0, 32))).toBe(false)
+    expect(isAllowedToken(TOKEN, TOKEN + 'x')).toBe(false)
   })
 })
 

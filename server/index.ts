@@ -11,7 +11,7 @@ import { weatherRoutes } from './routes/weather'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { sendError } from './lib/http'
-import { isAllowedOrigin } from './lib/security'
+import { isAllowedOrigin, isAllowedToken } from './lib/security'
 
 // 静态路由放最后兜底（总是返回 true）；API 路由在前，未命中返回 false 继续匹配。
 const chain: RouteHandler[] = [
@@ -32,7 +32,8 @@ export function startServer(
     userDataDir: partial.userDataDir ?? join(tmpdir(), 'simplemusic'),
     port: partial.port ?? 0,
     // 独立跑(npm run server:dev)与 electron dev 默认放行 localhost;打包应用由主进程传 false
-    allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true
+    allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,
+    token: partial.token
   }
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
@@ -58,6 +59,15 @@ export function startServer(
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
         res.end()
+        return
+      }
+      // 一次性 token 校验。<audio>/<img> 直连只能走 query,fetch/XHR 两者皆可 —— 两处都收。
+      // ctx.token 缺省(独立 server / dev)时 isAllowedToken 放行。预检 OPTIONS 已在上方放行。
+      const headerToken = req.headers['x-simplemusic-token']
+      const provided =
+        url.searchParams.get('token') ?? (Array.isArray(headerToken) ? headerToken[0] : headerToken)
+      if (!isAllowedToken(ctx.token, provided)) {
+        sendError(res, 401, 'Invalid token')
         return
       }
       try {
