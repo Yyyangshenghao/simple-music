@@ -48,6 +48,17 @@ function seededEntry(tracks: Track[]): LazyEntry {
   return e
 }
 
+/**
+ * 把前缀详情批次按 id 对齐到 trackIds 顺序。
+ * song_detail 会跳过下架/缺失曲目,按下标对齐(tracks[i])会让缺歌之后的整段错位一行、
+ * 展示成别的曲目;按 id 对齐则缺失处留 null(渲染成占位行),与 ensureRange 的窗口补详情一致。
+ */
+function alignTracksByIds(trackIds: unknown[], details: Track[]): (Track | null)[] {
+  if (details.length === 0) return trackIds.map(() => null)
+  const byId = new Map(details.map((t) => [String(t.id), t]))
+  return trackIds.map((id) => byId.get(String(id)) ?? null)
+}
+
 /** 骨架回来后标记已被前缀详情覆盖的完整窗口。 */
 function markPrefixWindows(e: LazyEntry, prefixLen: number): void {
   const fullWindows = Math.floor(prefixLen / TRACK_WINDOW)
@@ -78,7 +89,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
     } else {
       const sk = await service.getPlaylistSkeleton(playlist.id)
       entry.trackIds = sk.trackIds
-      entry.tracks = sk.trackIds.map((_, i) => sk.tracks[i] ?? null)
+      entry.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
       markPrefixWindows(entry, sk.tracks.length)
       entry.skeletonLoaded = true
     }
@@ -136,7 +147,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       .then((sk) => {
         if (sessionRef.current !== session) return
         e.trackIds = sk.trackIds
-        e.tracks = sk.trackIds.map((_, i) => sk.tracks[i] ?? null)
+        e.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
         markPrefixWindows(e, sk.tracks.length)
         e.skeletonLoaded = true
         bump()
