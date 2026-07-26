@@ -18,8 +18,9 @@ interface LazyEntry {
 
 const cache = new Map<string, LazyEntry>()
 
-/** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。 */
-const MAX_CACHED_PLAYLISTS = 8
+/** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。
+ *  4 份已够覆盖「详情页↔预览弹窗↔顶栏前进后退」的往返;再多只是堆内存。 */
+const MAX_CACHED_PLAYLISTS = 4
 
 /** LRU:活跃 key 移到 Map 末位(最新),超上限时从最旧开始淘汰其他歌单。 */
 function touchAndEvict(key: string): void {

@@ -197,7 +197,8 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Desktop Lyrics',
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
+    // 歌词窗置顶常驻可见,不会被节流;不再给后台豁免,锁屏/显示器关闭时按默认节流降耗
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
   hardenOverlayWindow(lyricsWindow)
   try {
@@ -277,6 +278,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Wallpaper',
+    // 壁纸贴桌面底层,被其他窗口完全遮挡是常态,必须关闭后台节流否则动画被节流停摆
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
   hardenOverlayWindow(wallpaperWindow)
@@ -386,7 +388,8 @@ function createMiniPlayerWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
+    // 迷你条置顶常驻可见,不会被节流;不再给后台豁免
+    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
   hardenOverlayWindow(win)
   miniPlayerWindow = win

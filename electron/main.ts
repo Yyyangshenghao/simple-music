@@ -15,16 +15,17 @@ const APP_NAME = 'Simple Music'
 const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
 
 // Chromium 性能开关（ANGLE 后端按平台选择）。
+// 不再全局禁用后台节流(disable-*-backgrounding 系列):窗口隐藏/被遮挡后接受 Chromium
+// 默认的定时器节流与进程降权,降低后台内存与 CPU;音频走独立 media 管线不受影响。
+// 个别窗口按需单独豁免:主窗口 backgroundThrottling:false(window-manager,保证迷你条
+// 1Hz 进度同步与播放稳定)、壁纸窗口同设(overlay-manager,贴桌面底层被遮挡是常态)。
 const performanceSwitches: Array<[string, string?]> = [
   ['autoplay-policy', 'no-user-gesture-required'],
   ['ignore-gpu-blocklist'],
   ['enable-gpu-rasterization'],
   ['enable-zero-copy'],
-  ['disable-background-timer-throttling'],
-  ['disable-renderer-backgrounding'],
-  ['disable-backgrounding-occluded-windows'],
-  // Chromium 磁盘缓存上限 100MB(主要缓存封面图;音频响应已 no-store)
-  ['disk-cache-size', String(100 * 1024 * 1024)]
+  // Chromium 磁盘缓存上限 50MB(主要缓存封面图;音频响应已 no-store)
+  ['disk-cache-size', String(50 * 1024 * 1024)]
 ]
 const angle = process.platform === 'win32' ? 'd3d11' : process.platform === 'darwin' ? 'metal' : null
 if (angle) performanceSwitches.push(['use-angle', angle])
