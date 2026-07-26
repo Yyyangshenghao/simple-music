@@ -161,9 +161,12 @@ export class NeteaseMusicService implements MusicService {
       const res = await api.get<{ playlist?: PlaylistMeta | null; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
       if (!res.playlist || !res.playlist.id) return null
       return { playlist: res.playlist, tracks: res.tracks ?? [] }
-    } catch {
-      // 歌单被删除时上游返回非 200(request() 因此 throw),按"未找到"处理,让调用方安全地清缓存/新建
-      return null
+    } catch (err) {
+      // 只有"歌单确实不存在"(server 判上游 404)才按未找到处理,让调用方清缓存/新建;
+      // 超时/网络抖动等必须抛给上层 —— 误判成"被删"会往账号里再建一个同名孤儿歌单
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg === 'HTTP 404') return null
+      throw err
     }
   }
 

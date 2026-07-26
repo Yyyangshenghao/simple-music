@@ -152,6 +152,18 @@ export function normalizeApiMessage(payload: unknown): string {
   )
 }
 
+/**
+ * 上游抛错是否为"资源不存在"(歌单被删等)。
+ * 供路由把"查无"与"上游瞬时故障"区分成 404/500:调用方据此决定
+ * 清缓存/新建(404)还是把错误抛给用户(500),避免一次网络抖动被误判成
+ * "歌单没了"而往账号里再建一个同名单孤儿歌单。
+ */
+export function isUpstreamNotFoundError(err: unknown): boolean {
+  if (normalizeApiCode(err) === 404) return true
+  const text = normalizeApiMessage(err) || (err instanceof Error ? err.message : asStr(err))
+  return /404|歌单不存在|无此歌单|没有此歌单|not\s*found/i.test(text)
+}
+
 // ---------- 业务: 数据映射 ----------
 export interface MappedArtist {
   id: unknown

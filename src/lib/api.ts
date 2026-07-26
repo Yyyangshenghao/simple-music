@@ -29,10 +29,39 @@ function buildUrl(path: string, params?: QueryParams): string {
   return base ? url.toString() : `${url.pathname}${url.search}`
 }
 
-async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, init)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return (await res.json()) as T
+/**
+ * 全局兜底超时(ms)。上游平台偶有"不报错也不返回"的连接停滞(Windows 代理软件/IPv6 环境尤甚),
+ * 整条链路原本无任何超时,一次停滞就能把漫游生成这类多步流程永远卡在"生成中…"。
+ * 已知合法的慢端点(音质探测串行多档、清大缓存)由调用方传 timeoutMs 单独放宽,
+ * 默认值不为它们妥协;业务侧若要更早放弃,传自己的 signal 接管(中止按原始错误抛,不误报成超时)。
+ */
+const DEFAULT_TIMEOUT_MS = 30_000
+
+async function request<T>(input: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchInit } = init ?? {}
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  const callerSignal = init?.signal
+  const onCallerAbort = () => controller.abort()
+  if (callerSignal) {
+    if (callerSignal.aborted) onCallerAbort()
+    else callerSignal.addEventListener('abort', onCallerAbort, { once: true })
+  }
+  try {
+    const res = await fetch(input, { ...fetchInit, signal: controller.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as T
+  } catch (err) {
+    if (timedOut) throw new Error('REQUEST_TIMEOUT')
+    throw err
+  } finally {
+    clearTimeout(timer)
+    callerSignal?.removeEventListener('abort', onCallerAbort)
+  }
 }
 
 /**
@@ -61,14 +90,15 @@ export const api = {
   base: apiBase,
   url: buildUrl,
   coverImage: coverImageUrl,
-  get<T>(path: string, params?: QueryParams, init?: { signal?: AbortSignal }): Promise<T> {
+  get<T>(path: string, params?: QueryParams, init?: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> {
     return request<T>(buildUrl(path, params), init)
   },
-  post<T>(path: string, body?: unknown, params?: QueryParams): Promise<T> {
+  post<T>(path: string, body?: unknown, params?: QueryParams, init?: { timeoutMs?: number }): Promise<T> {
     return request<T>(buildUrl(path, params), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      ...init
     })
   }
 }

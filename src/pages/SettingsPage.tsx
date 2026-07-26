@@ -254,7 +254,8 @@ export function SettingsPage() {
   async function handleClearAudioCache(): Promise<void> {
     setClearingCache(true)
     try {
-      await api.get('/api/audio-cache/clear')
+      // 服务端递归删整个缓存目录,缓存极大/磁盘慢时可能超过全局兜底 30s,单独放宽
+      await api.get('/api/audio-cache/clear', undefined, { timeoutMs: 120_000 })
       await refreshCacheInfo()
     } catch {
       /* 失败保留旧值 */

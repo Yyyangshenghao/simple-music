@@ -28,6 +28,7 @@ import {
   readCookieFromResponse,
   normalizeApiCode,
   normalizeApiMessage,
+  isUpstreamNotFoundError,
   normalizeLoginInfo,
   getLoginInfo,
   requireLogin,
@@ -1119,6 +1120,9 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       let trackIds: string[] = []
       let tracks: ReturnType<typeof mapSongRecord>[] = []
       let upstreamError: string | null = null
+      // playlist_detail 的原始错误对象:用于区分"歌单查无"(404 给调用方清缓存/新建)
+      // 与"上游瞬时故障"(500 给调用方抛错展示),避免网络抖动被误判成歌单被删
+      let detailErr: unknown = null
 
       // 1) playlist_detail:meta + 完整 trackIds(快,不受 500 限制)
       if (has('playlist_detail')) {
@@ -1136,6 +1140,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             .map((t) => asStr(asObj(t).id))
             .filter(Boolean)
         } catch (err) {
+          detailErr = err
           upstreamError = (err as Error).message
           console.warn('[PlaylistTracks] playlist_detail failed:', (err as Error).message)
         }
@@ -1168,9 +1173,13 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         }
       }
 
-      // 三路上游全部失败:返回 500,与真实空歌单区分
+      // 三路上游全部失败:歌单真不存在返回 404(调用方按"被删"处理),其余故障返回 500(调用方抛错)
       if (!trackIds.length && !tracks.length && upstreamError) {
-        sendJson(res, { error: upstreamError, playlist: playlistMeta, trackIds: [], tracks: [] }, 500)
+        if (detailErr && isUpstreamNotFoundError(detailErr)) {
+          sendJson(res, { error: 'PLAYLIST_NOT_FOUND', playlist: playlistMeta, trackIds: [], tracks: [] }, 404)
+        } else {
+          sendJson(res, { error: upstreamError, playlist: playlistMeta, trackIds: [], tracks: [] }, 500)
+        }
         return true
       }
 

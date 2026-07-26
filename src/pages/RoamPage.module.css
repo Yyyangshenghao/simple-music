@@ -63,6 +63,12 @@
 
 .generateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.error {
+  margin: 0 2px 10px;
+  font-size: 13px;
+  color: var(--sm-color-danger);
+}
+
 .resultHeader {
   display: flex;
   align-items: flex-start;

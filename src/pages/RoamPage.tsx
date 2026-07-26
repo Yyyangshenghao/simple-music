@@ -26,6 +26,7 @@ export function RoamPage() {
   const reset = useRoamStore((s) => s.reset)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const loading = useRoamStore((s) => s.loading)
+  const error = useRoamStore((s) => s.error)
 
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -170,6 +171,7 @@ export function RoamPage() {
               ))}
             </div>
 
+            {error && <p className={styles.error}>{error}</p>}
             <motion.button
               className={`${styles.generateBtn} no-drag`}
               disabled={totalTracks === 0 || generating || anyLoading}

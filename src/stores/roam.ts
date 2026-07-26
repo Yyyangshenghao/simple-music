@@ -39,6 +39,9 @@ async function fetchRankingTracks(service: MusicService): Promise<Track[]> {
 /** 猜歌手无限流的过期守卫:音源切换/clearSuggestions 时自增,异步回调落地前核对,避免旧音源结果写进新会话。 */
 let suggestionsSession = 0
 
+/** generate 的过期守卫:reset(含切音源)/重选歌手时自增;在途生成迟到落地前核对,避免拿旧音源结果冲掉新会话。 */
+let generateSession = 0
+
 /**
  * 「漫游」歌单:
  * - QQ 音乐:纯本地 localStorage 临时歌单,仅当天有效,不回写账号(逻辑不变)。
@@ -61,6 +64,8 @@ export interface RoamArtistEntry {
   count: number
   /** 曲库池异步拉取中。 */
   loading: boolean
+  /** 曲库池拉取失败(卡片上展示「加载失败/重试」,否则空曲库与失败无法区分,生成按钮静默禁用成死局)。 */
+  loadFailed: boolean
 }
 
 export interface RoamPlaylist {
@@ -117,11 +122,21 @@ function clearCachedNeteasePlaylistId(): void {
   localStorage.removeItem(NETEASE_PLAYLIST_ID_KEY)
 }
 
+/** generate 失败原因归一为用户可读文案(原先整段 catch 静默,失败对用户完全不可见)。 */
+function describeGenerateError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('HTTP 401')) return '网易云登录已失效,请重新登录后再试'
+  if (msg === 'REQUEST_TIMEOUT') return '网络请求超时,请检查网络后重试'
+  return `生成失败:${msg}`
+}
+
 interface RoamStore {
   playlist: RoamPlaylist | null
   entries: RoamArtistEntry[]
   mode: RoamMode
   generating: boolean
+  /** generate 最近一次失败原因(页面展示);成功/重试/重选歌手时清空。 */
+  error: string | null
   /** 网易云真实歌单异步核实中(打开页面时可能要拉网络)。 */
   loading: boolean
   /** 网易云「每日漫游」歌单的真实 id(不存在时为 null)。仅当次会话内存态,持久化在 NETEASE_PLAYLIST_ID_KEY。 */
@@ -135,6 +150,8 @@ interface RoamStore {
    */
   confirmArtists(artists: ArtistInfo[]): void
   removeArtist(id: unknown): void
+  /** 曲库池拉取失败后重新拉取该歌手的曲库(卡片「重试」按钮)。 */
+  retryArtistPool(id: unknown): void
   /** 调整某位歌手的目标首数:调大从曲库池补(跳过已选),调小从尾部裁,不影响其他歌手。 */
   setArtistCount(id: unknown, count: number): void
   /** 从该歌手曲库池里手动加入一首指定曲目(已存在则忽略)。 */
@@ -157,11 +174,35 @@ interface RoamStore {
   clearSuggestions(): void
 }
 
-export const useRoamStore = create<RoamStore>((set, get) => ({
+export const useRoamStore = create<RoamStore>((set, get) => {
+  /** 拉取一位歌手的曲库池并落盘;confirmArtists 与 retryArtistPool 共用。调用方需先把对应 entry 置为 loading。 */
+  function loadPool(artist: ArtistInfo) {
+    serviceFor(artist.source)
+      .getArtistSongs(artist.id)
+      .then((pool) => {
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            String(e.artist.id) === String(artist.id)
+              ? { ...e, pool, tracks: pickArtistTracks(pool, s.mode, e.count), loading: false, loadFailed: false }
+              : e
+          )
+        }))
+      })
+      .catch(() => {
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            String(e.artist.id) === String(artist.id) ? { ...e, loading: false, loadFailed: true } : e
+          )
+        }))
+      })
+  }
+
+  return {
   playlist: loadValidPlaylist(),
   entries: [],
   mode: 'hot',
   generating: false,
+  error: null,
   loading: false,
   neteasePlaylistId: null,
   neteaseHydrated: false,
@@ -172,39 +213,38 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
   confirmArtists(artists) {
     const capped = artists.slice(0, MAX_ARTISTS)
     const defaultCount = computeDefaultSongCount(capped.length)
+    generateSession++ // 歌手名单变了,在途 generate 的结果作废
     set((s) => {
       const byId = new Map(s.entries.map((e) => [String(e.artist.id), e]))
+      // 复用的 loadFailed entry 趁这次确认自动重试,不用用户逐张卡片点「重试」
+      const failedIds = new Set(s.entries.filter((e) => e.loadFailed && e.pool.length === 0).map((e) => String(e.artist.id)))
       return {
-        entries: capped.map(
-          (artist) => byId.get(String(artist.id)) ?? { artist, pool: [], tracks: [], count: defaultCount, loading: true }
-        )
+        error: null,
+        entries: capped.map((artist) => {
+          const existing = byId.get(String(artist.id))
+          if (existing && failedIds.has(String(artist.id))) return { ...existing, loading: true, loadFailed: false }
+          return existing ?? { artist, pool: [], tracks: [], count: defaultCount, loading: true, loadFailed: false }
+        })
       }
     })
 
     for (const entry of get().entries) {
       if (!entry.loading || entry.pool.length > 0) continue // 复用已有的,跳过重新拉取
-      const artist = entry.artist
-      serviceFor(artist.source)
-        .getArtistSongs(artist.id)
-        .then((pool) => {
-          set((s) => ({
-            entries: s.entries.map((e) =>
-              String(e.artist.id) === String(artist.id)
-                ? { ...e, pool, tracks: pickArtistTracks(pool, s.mode, e.count), loading: false }
-                : e
-            )
-          }))
-        })
-        .catch(() => {
-          set((s) => ({
-            entries: s.entries.map((e) => (String(e.artist.id) === String(artist.id) ? { ...e, loading: false } : e))
-          }))
-        })
+      loadPool(entry.artist)
     }
   },
 
   removeArtist(id) {
     set((s) => ({ entries: s.entries.filter((e) => String(e.artist.id) !== String(id)) }))
+  },
+
+  retryArtistPool(id) {
+    const entry = get().entries.find((e) => String(e.artist.id) === String(id))
+    if (!entry || entry.loading) return
+    set((s) => ({
+      entries: s.entries.map((e) => (String(e.artist.id) === String(id) ? { ...e, loading: true, loadFailed: false } : e))
+    }))
+    loadPool(entry.artist)
   },
 
   setArtistCount(id, rawCount) {
@@ -291,7 +331,8 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
   async generate() {
     const { entries, mode } = get()
     if (entries.length === 0) return
-    set({ generating: true })
+    const session = generateSession
+    set({ generating: true, error: null })
     const source = useSettingsStore.getState().activeSource
     const service = serviceFor(source)
     const tracks = buildRoamTracks(entries.map((e) => e.tracks))
@@ -320,6 +361,8 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
           id,
           buildRoamDescription(date, artists.map((a) => a.name))
         )
+        // 写回已成功,但期间用户切音源/重选了歌手:这份旧会话结果直接丢弃,不冲掉新会话
+        if (generateSession !== session) return
         saveCachedNeteasePlaylistId(id)
         set({
           playlist: { date, source, mode, artists, tracks },
@@ -327,14 +370,21 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
           generating: false,
           entries: [],
         })
-      } catch {
-        set({ generating: false }) // 失败:留在选歌手态,不清 entries,方便重试
+      } catch (err) {
+        if (generateSession !== session) return // 旧会话的失败不往新会话页面弹错误
+        const raw = err instanceof Error ? err.message : String(err)
+        // 401 = 服务端判定登录态已失效:同步清掉渲染层标记,顶栏/漫游页立即回到未登录态,
+        // 而不是继续"界面显示已登录、写操作全部失效"的错位
+        if (raw.includes('HTTP 401')) useSettingsStore.getState().setNeteaseLoggedIn(false)
+        // 失败:留在选歌手态,不清 entries,方便重试;错误上页面,不再静默
+        set({ generating: false, error: describeGenerateError(err) })
       }
       return
     }
 
     // QQ / 本地路径,逻辑不变
     const playlist: RoamPlaylist = { date, source, mode, artists, tracks }
+    if (generateSession !== session) return
     set({ playlist, generating: false, entries: [] })
     if (typeof localStorage !== 'undefined') {
       try {
@@ -346,7 +396,9 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
   },
 
   reset() {
-    set({ playlist: null, entries: [], mode: 'hot', loading: false, neteaseHydrated: false })
+    // generating 一并复位:生成请求卡死时切音源会触发本方法,若不清 generating,漫游页将永远卡在「生成中…」
+    generateSession++ // 在途 generate 的结果作废,迟到落地时守卫会丢弃
+    set({ playlist: null, entries: [], mode: 'hot', generating: false, error: null, loading: false, neteaseHydrated: false })
     if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY)
   },
 
@@ -379,4 +431,5 @@ export const useRoamStore = create<RoamStore>((set, get) => ({
     suggestionsSession++
     set({ suggestions: [], suggestionsLoaded: false, suggestionsLoading: false })
   }
-}))
+  }
+})

@@ -61,8 +61,10 @@ vi.mock('../lib/service-registry', () => ({
   serviceFor: () => currentService
 }))
 
+const setNeteaseLoggedIn = vi.fn()
+
 vi.mock('./settings', () => ({
-  useSettingsStore: { getState: () => ({ activeSource: 'netease' }) }
+  useSettingsStore: { getState: () => ({ activeSource: 'netease', setNeteaseLoggedIn }) }
 }))
 
 import { useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'
@@ -81,6 +83,7 @@ function mkEntry(artistId: number, overrides: Partial<RoamArtistEntry> = {}): Ro
     tracks: pool.slice(0, 10),
     count: 10,
     loading: false,
+    loadFailed: false,
     ...overrides,
   }
 }
@@ -88,8 +91,9 @@ function mkEntry(artistId: number, overrides: Partial<RoamArtistEntry> = {}): Ro
 describe('roam store', () => {
   beforeEach(() => {
     currentService = localOnlyService
-    useRoamStore.setState({ playlist: null, entries: [], mode: 'hot', generating: false })
+    useRoamStore.setState({ playlist: null, entries: [], mode: 'hot', generating: false, error: null })
     getArtistSongs.mockClear()
+    setNeteaseLoggedIn.mockClear()
     getArtistSongs.mockImplementation(async (id: unknown) => POOLS[String(id)] ?? [])
   })
 
@@ -109,14 +113,58 @@ describe('roam store', () => {
     expect(entries.every((e) => !e.loading)).toBe(true)
   })
 
-  it('confirmArtists 曲库拉取失败:该歌手曲目为空,不影响其他歌手', async () => {
+  it('confirmArtists 曲库拉取失败:该歌手曲目为空并标记 loadFailed,不影响其他歌手', async () => {
     getArtistSongs.mockImplementationOnce(async () => { throw new Error('boom') })
     useRoamStore.getState().confirmArtists([mkArtist(1), mkArtist(2)])
     await flush()
     const entries = useRoamStore.getState().entries
     expect(entries[0].tracks).toEqual([])
     expect(entries[0].loading).toBe(false)
+    expect(entries[0].loadFailed).toBe(true)
     expect(entries[1].tracks).toHaveLength(3)
+    expect(entries[1].loadFailed).toBe(false)
+  })
+
+  it('retryArtistPool 重新拉取失败歌手的曲库,成功后清 loadFailed 并按目标首数选曲', async () => {
+    getArtistSongs.mockImplementationOnce(async () => { throw new Error('boom') })
+    useRoamStore.getState().confirmArtists([mkArtist(1)])
+    await flush()
+    expect(useRoamStore.getState().entries[0].loadFailed).toBe(true)
+
+    useRoamStore.getState().retryArtistPool(1)
+    expect(useRoamStore.getState().entries[0].loading).toBe(true)
+    await flush()
+    const entry = useRoamStore.getState().entries[0]
+    expect(entry.loadFailed).toBe(false)
+    expect(entry.loading).toBe(false)
+    expect(entry.tracks).toHaveLength(15) // 1 位歌手摊算默认首数=15
+  })
+
+  it('retryArtistPool 守卫:加载中不重发请求;entry 已移除则 no-op', async () => {
+    let releasePool: (v: Track[]) => void = () => {}
+    getArtistSongs.mockImplementationOnce(() => new Promise<Track[]>((r) => { releasePool = r }))
+    useRoamStore.getState().confirmArtists([mkArtist(1)]) // 第 1 次拉取挂起中
+    useRoamStore.getState().retryArtistPool(1) // loading 中 → no-op
+    expect(getArtistSongs).toHaveBeenCalledTimes(1)
+    releasePool(POOLS['1'])
+    await flush()
+
+    useRoamStore.getState().removeArtist(1)
+    useRoamStore.getState().retryArtistPool(1) // 已移除 → no-op
+    expect(getArtistSongs).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirmArtists 重新确认同一批歌手时自动重试 loadFailed 的 entry', async () => {
+    getArtistSongs.mockImplementationOnce(async () => { throw new Error('boom') })
+    useRoamStore.getState().confirmArtists([mkArtist(1)])
+    await flush()
+    expect(useRoamStore.getState().entries[0].loadFailed).toBe(true)
+
+    useRoamStore.getState().confirmArtists([mkArtist(1)]) // 不用手点卡片重试
+    await flush()
+    const entry = useRoamStore.getState().entries[0]
+    expect(entry.loadFailed).toBe(false)
+    expect(entry.tracks).toHaveLength(15)
   })
 
   it('confirmArtists 重新确认时保留已有歌手的曲库池与手动编辑结果,不重新拉取', async () => {
@@ -195,6 +243,13 @@ describe('roam store', () => {
     expect(useRoamStore.getState().playlist).toBeNull()
     expect(useRoamStore.getState().entries).toEqual([])
   })
+
+  it('reset 一并清掉 generating 与 error:生成卡死时切音源触发 reset 后仍能恢复可用', () => {
+    useRoamStore.setState({ generating: true, error: '生成失败:boom' })
+    useRoamStore.getState().reset()
+    expect(useRoamStore.getState().generating).toBe(false)
+    expect(useRoamStore.getState().error).toBeNull()
+  })
 })
 
 describe('roam store — 网易云真实歌单分支', () => {
@@ -205,6 +260,7 @@ describe('roam store — 网易云真实歌单分支', () => {
       entries: [],
       mode: 'hot',
       generating: false,
+      error: null,
       loading: false,
       neteasePlaylistId: null,
       neteaseHydrated: false,
@@ -310,5 +366,47 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(useRoamStore.getState().generating).toBe(false)
     expect(useRoamStore.getState().entries).toHaveLength(1)
     expect(useRoamStore.getState().playlist).toBeNull()
+  })
+
+  it('generate:失败原因写入 error 供页面展示,不再静默', async () => {
+    replacePlaylistTracks.mockRejectedValueOnce(new Error('boom'))
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+    await useRoamStore.getState().generate()
+    expect(useRoamStore.getState().error).toBe('生成失败:boom')
+  })
+
+  it('generate:401 归一为登录失效文案;重试时清空旧 error', async () => {
+    replacePlaylistTracks.mockRejectedValueOnce(new Error('HTTP 401'))
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+    await useRoamStore.getState().generate()
+    expect(useRoamStore.getState().error).toBe('网易云登录已失效,请重新登录后再试')
+
+    await useRoamStore.getState().generate() // 重试成功
+    expect(useRoamStore.getState().error).toBeNull()
+    expect(useRoamStore.getState().playlist).not.toBeNull()
+  })
+
+  it('generate:401 同步清掉渲染层登录标记,消除"显示已登录但写操作全失效"的错位', async () => {
+    replacePlaylistTracks.mockRejectedValueOnce(new Error('HTTP 401'))
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+    await useRoamStore.getState().generate()
+    expect(setNeteaseLoggedIn).toHaveBeenCalledWith(false)
+  })
+
+  it('generate 在途时 reset(切音源)→ 迟到的成功结果丢弃,不冲掉新会话', async () => {
+    let releaseReplace: (v: boolean) => void = () => {}
+    replacePlaylistTracks.mockImplementationOnce(() => new Promise<boolean>((r) => { releaseReplace = r }))
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+    const pending = useRoamStore.getState().generate()
+    await vi.waitFor(() => expect(replacePlaylistTracks).toHaveBeenCalled()) // 等它走到 replace 挂起点
+    useRoamStore.getState().reset() // 模拟切音源触发的 stale 清空
+    useRoamStore.getState().confirmArtists([mkArtist(2)]) // 新会话已重选歌手
+
+    releaseReplace(true)
+    await pending
+    const s = useRoamStore.getState()
+    expect(s.playlist).toBeNull() // 旧音源的生成结果被丢弃
+    expect(s.entries).toHaveLength(1) // 新会话的 entries 未被清空
+    expect(s.entries[0].artist.id).toBe(2)
   })
 })

@@ -13,12 +13,13 @@ interface ArtistLibrarySectionProps {
 /** 「入库」卡片:一位已选歌手 + 已选入的曲目清单,可增减首数、逐曲删除、从曲库池补选。 */
 export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
   const removeArtist = useRoamStore((s) => s.removeArtist)
+  const retryArtistPool = useRoamStore((s) => s.retryArtistPool)
   const setArtistCount = useRoamStore((s) => s.setArtistCount)
   const addTrack = useRoamStore((s) => s.addTrack)
   const removeTrack = useRoamStore((s) => s.removeTrack)
   const [expanded, setExpanded] = useState(false)
 
-  const { artist, tracks, pool, loading } = entry
+  const { artist, tracks, pool, loading, loadFailed } = entry
   const includedIds = new Set(tracks.map((t) => String(t.id)))
   const addable = pool.filter((t) => !includedIds.has(String(t.id)))
 
@@ -55,7 +56,16 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
         </button>
       </div>
 
-      {!loading && (
+      {!loading && loadFailed && (
+        <p className={styles.hint}>
+          曲库加载失败
+          <button className={`${styles.retryLink} no-drag`} onClick={() => retryArtistPool(artist.id)}>
+            重试
+          </button>
+        </p>
+      )}
+
+      {!loading && !loadFailed && (
         <div className={styles.trackList}>
           {tracks.map((t) => (
             <div key={String(t.id)} className={styles.trackRow}>

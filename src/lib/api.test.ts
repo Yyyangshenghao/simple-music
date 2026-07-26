@@ -54,6 +54,78 @@ describe('api.get', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
     await expect(api.get('/api/x')).rejects.toThrow('HTTP 500')
   })
+
+  // 漫游生成「点了卡在生成中没反应」的根因兜底:上游停滞不返回时,整条链路原先会永远挂起。
+  it('请求超过兜底超时(30s)被中止并抛 REQUEST_TIMEOUT', async () => {
+    stubPort(40000)
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const pending = expect(api.get('/api/slow')).rejects.toThrow('REQUEST_TIMEOUT')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('调用方 signal 主动中止按原始错误透传,不误报成超时', async () => {
+    stubPort(40000)
+    const ac = new AbortController()
+    const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted by caller')))
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = api.get('/api/x', undefined, { signal: ac.signal })
+    ac.abort()
+    await expect(pending).rejects.toThrow('aborted by caller')
+  })
+
+  it('调用方传入已中止的 signal:立即按原始错误拒绝(不挂到超时)', async () => {
+    stubPort(40000)
+    const ac = new AbortController()
+    ac.abort()
+    const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new Error('aborted by caller'))
+          return
+        }
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted by caller')))
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(api.get('/api/x', undefined, { signal: ac.signal })).rejects.toThrow('aborted by caller')
+  })
+
+  it('响应头已到达但 body 读取挂起,同样被兜底超时中止', async () => {
+    stubPort(40000)
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+          })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const pending = expect(api.get('/api/slow-body')).rejects.toThrow('REQUEST_TIMEOUT')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('isLocalApiUrl', () => {
