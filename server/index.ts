@@ -49,13 +49,6 @@ export function startServer(
         sendError(res, 403, 'Forbidden origin')
         return
       }
-      // 写操作额外要求带 Origin:浏览器里的 fetch/XHR/表单一定带,`<img>`/`<audio>`
-      // 这类不带 Origin 的跨源加载则再也触发不了扫盘、移除歌单等副作用。
-      // 只在打包应用上收紧,免得挡掉开发时的 curl 调试。
-      if (!ctx.allowLocalhostOrigins && req.method === 'POST' && !req.headers.origin) {
-        sendError(res, 403, 'Forbidden origin')
-        return
-      }
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
         res.end()
