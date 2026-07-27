@@ -2,7 +2,9 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  /* 必须高于 QuickAccessRow 卡片的内联 z-index(最高 100,见 QuickAccessRow.tsx 的
+     Math.round(100 - a * 20)),否则中心那张快捷入口卡会穿透遮罩、不被模糊,显得凸显在旁边 */
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;
