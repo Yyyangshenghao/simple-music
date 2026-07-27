@@ -16,7 +16,7 @@ Mineradio-Next/
 │   │   └── misc.ts            #   热键配置、JSON 导入导出对话框、app:restart / app:install-update
 │   ├── modules/
 │   │   ├── window-manager.ts  #   主窗口创建（无边框 16:9）、WindowState 计算与推送、dev/prod URL 解析
-│   │   ├── overlay-manager.ts #   桌面歌词/壁纸两个 BrowserWindow 的生命周期、定位、状态缓存转发、鼠标穿透
+│   │   ├── overlay-manager.ts #   桌面歌词/壁纸/迷你播放条三个 BrowserWindow 的生命周期、定位、状态缓存转发、鼠标穿透
 │   │   ├── hotkey-manager.ts  #   globalShortcut 注册/冲突上报，触发后发 hotkey:triggered
 │   │   ├── login-manager.ts   #   独立登录窗口（session 分区），轮询抓 cookie 组装 Cookie 头
 │   │   ├── update-installer.ts        # Windows NSIS 静默安装 / macOS dmg 挂载替换（Electron 胶水）
@@ -65,12 +65,13 @@ Mineradio-Next/
 │
 ├── overlays/                  # 悬浮窗渲染入口（多页构建，见 electron.vite.config.ts renderer.input）
 │   ├── desktop-lyrics/        # index.tsx + desktop-lyrics.html：渲染 DesktopLyrics，处理拖动/穿透
-│   └── wallpaper/             # index.tsx + wallpaper.html：渲染 Visualizer/Scene，自带独立 visual store
+│   ├── wallpaper/             # index.tsx + wallpaper.html：渲染 Visualizer/Scene，自带独立 visual store
+│   └── mini-player/           # index.tsx + mini-player.html + mini-player.css：渲染 MiniPlayerBar（与主窗互斥，自带宽度手柄）
 │
 ├── public/                    # 静态资源（default-user-fx-archive.json 为存档格式互通基准）
 ├── build/                     # 打包资源（icon.ico / icon.icns）
-├── docs/                      # 本文档体系（索引见 docs/README.md）
-├── electron.vite.config.ts    # main/preload/renderer 三段构建配置（renderer 多页：index + 两个 overlay）
+├── docs/                      # 本文档体系（入口：项目梳理-2026-07.md / architecture.md）
+├── electron.vite.config.ts    # main/preload/renderer 三段构建配置（renderer 多页：index + 三个 overlay）
 ├── tsconfig.json / tsconfig.node.json
 ├── package.json               # scripts、electron-builder build 配置、simplemusic.update 更新源配置
 ├── CLAUDE.md                  # AI 协作指南（架构速览 + 易踩坑约定）
@@ -91,5 +92,5 @@ Mineradio-Next/
 ## 历史文档
 
 - `docs/specs/`、`docs/superpowers/{specs,plans}/`：按日期命名的各次改版设计/计划文档，是理解历史意图的一手资料（只增不改）。
-- `docs/roadmap.md`：功能路线图，完成项就地勾掉并补落地说明。
+- `docs/roadmap.md`：功能路线图（**已过时,停在 2026-07-07**，顶部已加指引转向 `项目梳理-2026-07.md`，保留作历史记录）。
 - `docs/netease-music-api.md`、`docs/qq-music-api.md`：上游接口逆向笔记（接口来源、参数、坑）。

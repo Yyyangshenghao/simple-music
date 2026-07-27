@@ -8,9 +8,10 @@
 
 ## 安全边界(`lib/security.ts`)
 
-只监听 `127.0.0.1` **不等于**只有本应用能访问 —— 用户浏览器里的任意网页也在本机,端口随机但从 JS 扫一遍临时端口段是秒级的事。两道防护都在这里,新增端点/代理时别绕过:
+只监听 `127.0.0.1` **不等于**只有本应用能访问 —— 用户浏览器里的任意网页也在本机,端口随机但从 JS 扫一遍临时端口段是秒级的事。三道防护都在这里,新增端点/代理时别绕过:
 
-- **`isAllowedOrigin`(入口统一拦截)**:响应带 `Access-Control-Allow-Origin: *`,若不校验来源,恶意网页可 fetch `/api/local/scan` 扫全盘、经 `/api/local/tracks` 拿到音乐文件绝对路径再从 `/api/local/audio` 流走。现按 `Origin` 头拒绝非渲染层来源(放行:无 Origin、`null`(prod file://)、localhost/127.0.0.1(dev vite)),预检一并挡掉。
+- **`isAllowedOrigin`(入口统一拦截)**:响应带 `Access-Control-Allow-Origin: *`,若不校验来源,恶意网页可 fetch `/api/local/scan` 扫全盘、经 `/api/local/tracks` 拿到音乐文件绝对路径再从 `/api/local/audio` 流走。现按 `Origin` 头拒绝非渲染层来源(放行:无 Origin、`null`(prod file://)、localhost/127.0.0.1(dev vite)),预检一并挡掉。打包应用不再放行 `http://localhost:*`(本机其他网页/其 XSS 曾可读本地路径),dev 仍放行。
+- **`isAllowedToken`(2026-07-24 加,2026-07-27 文档补录)**:Origin 校验挡不住"同源无 Origin"的跨应用调用,真正收口靠一次性 token。主进程 `randomBytes(32)` 生成 token 持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 注入渲染层,`api.ts` 统一带进 query,server `isAllowedToken(ctx.token, query.token)` 校验,覆盖所有端点与 `<audio src>`/`<img src>` 直连地址。缺省(独立 server / dev / 测试未注入)时放行。打包应用强制校验。
 - **`isSafeUpstreamUrl`(所有对外代理必须调用)**:代理端点若原样 fetch 调用方给的 url 就是一个开放代理,可被用来读内网/回环服务(SSRF)。`/api/audio`、`/api/cover`、`/proxy/cover`、`/api/podcast/dj-beatmap` 均已限定 http(s) 且非本机/内网网段。
 - 已知残留:主机名黑名单挡不住 DNS rebinding。彻底修需在连接建立后校验对端 IP,代价远高于收益(上游只会是音乐平台 CDN)。
 
@@ -31,7 +32,7 @@
 
 ## lib 辅助
 
-`http.ts`(sendJson/sendError 等,有测试)、`cookie.ts`(cookie 序列化/解析,有测试)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU,有测试)、`security.ts`(来源校验 + 代理上游校验,有测试)、`local-library.ts`(本地音乐索引;音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。
+`http.ts`(sendJson/sendError 等,有测试)、`cookie.ts`(cookie 序列化/解析,有测试)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU,有测试)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`,均有测试)、`local-library.ts`(本地音乐索引;音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。
 
 ## 约定
 

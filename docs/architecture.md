@@ -1,7 +1,7 @@
 # 架构总览
 
 > 本文是全项目的顶层设计文档：进程模型、模块划分、数据流、启动时序与贯穿全项目的设计决策。
-> 各模块内部细节见 [modules/](modules/) 下的分册；播放、算法、视觉等横切系统见 [playback-system.md](playback-system.md)、[algorithms.md](algorithms.md)、[visuals-and-shaders.md](visuals-and-shaders.md)。
+> 各模块内部细节见 [modules/](modules/) 下的分册；播放系统见 [playback-system.md](playback-system.md)。上游接口逆向笔记见 [netease-music-api.md](netease-music-api.md)、[qq-music-api.md](qq-music-api.md)。
 
 Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器：React 渲染层 + 主进程内嵌的 Node HTTP API server，音源支持网易云音乐与 QQ 音乐。项目起点是对 [Mineradio](https://github.com/XxHuberrr/Mineradio)（GPL-3.0）的移植式重写——整体架构已完全重写为 electron-vite + TypeScript，但部分算法/上游接口逻辑（dj-analyzer、win32 桌面注入、部分 server 路由）是"忠实移植"，行为对齐优先于重构（源码中标注了"移植自参考项目"的位置改动前需先确认上游语义）。
 
@@ -12,10 +12,10 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 │  electron/main.ts                                                   │
 │  ├─ server-host.ts ──► 内嵌 HTTP API server（server/，127.0.0.1 随机端口）│
 │  ├─ modules/window-manager.ts ──► 主窗口（无边框，16:9）               │
-│  ├─ modules/overlay-manager.ts ──► 桌面歌词窗 + 壁纸窗（两个独立渲染进程）│
+│  ├─ modules/overlay-manager.ts ──► 桌面歌词/壁纸/迷你播放条窗（三个独立渲染进程）│
 │  ├─ modules/hotkey-manager.ts（globalShortcut）                       │
 │  ├─ modules/login-manager.ts（独立登录窗口，session 分区抓 cookie）      │
-│  ├─ modules/update-installer.ts（NSIS 静默安装 / mac dmg 原地替换）     │
+│  ├─ modules/update-installer.ts（NSIS 静默安装 / mac 打开 dmg 交用户拖装）│
 │  └─ ipc/*（contextBridge 通道，类型契约在 src/types/ipc.ts）            │
 └──────────────────────────────────────────────────────────────────────┘
         │ IPC（控制类）                    │ HTTP /api/*（数据类）
@@ -46,7 +46,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 | `electron/` | 主进程 | 窗口/悬浮窗/热键/登录/更新安装 + IPC + preload 桥 | [modules/electron-main.md](modules/electron-main.md) |
 | `server/` | 主进程内嵌（可独立） | `/api/*` 全部数据端点、上游音源封装、音频代理与缓存、更新检查/下载、DJ 锁拍、天气电台 | [modules/server.md](modules/server.md) |
 | `src/` | 主窗口渲染进程 | React UI：stores（zustand）/hooks/lib/components/pages | [modules/renderer.md](modules/renderer.md) |
-| `overlays/` | 两个独立渲染进程 | 桌面歌词、动态壁纸入口（复用 `src/` 组件与 store） | [modules/overlays.md](modules/overlays.md) |
+| `overlays/` | 三个独立渲染进程 | 桌面歌词、动态壁纸、迷你播放条入口（复用 `src/` 组件与 store） | [modules/overlays.md](modules/overlays.md) |
 
 ## 3. 启动时序
 
@@ -100,13 +100,13 @@ player.loadTrack(track)
 
 ### 4.3 控制类通信（IPC）
 
-窗口控制、桌面歌词/壁纸开关与状态推送、登录窗口、热键、文件对话框、更新安装走 IPC；payload 类型统一定义在 `src/types/ipc.ts`，渲染层只经 preload 桥（`window.desktop` / `window.desktopOverlay`）调用，从不裸用 `ipcRenderer`。通道全表见 [data-flow-and-ipc.md](data-flow-and-ipc.md)。
+窗口控制、桌面歌词/壁纸开关与状态推送、登录窗口、热键、文件对话框、更新安装走 IPC；payload 类型统一定义在 `src/types/ipc.ts`，渲染层只经 preload 桥（`window.desktop` / `window.desktopOverlay`）调用，从不裸用 `ipcRenderer`。通道全表见 [modules/electron-main.md](modules/electron-main.md)。
 
 ## 5. 渲染层状态架构
 
 - **zustand 单文件单 store**，无全局 Provider；store 之间用 `getState()` 直接互调，环形依赖用注册回调解耦（player 播完 → playlist 走序，经 `registerTrackEndedHandler` 注入，避免 player→playlist 反向 import 成环）。
 - **导航是自研的**（`stores/navigation.ts`）：`AppView` 联合类型 + history/future 双栈（上限 50 防内嵌全量 tracks 的 playlist 视图涨内存），没有引 react-router——视图形态少、需要携带对象参数（playlist 详情带已拉取的 tracks 避免重复请求）、转场方向（push/pop）要喂给 motion。
-- **持久化分层**：设置类走 `simplemusic-settings`（settings store 手动 save/load）；播放态走 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）；其余各自独立 key（最近播放/搜索历史/漫游/更新忽略版本），全表见 [configuration.md](configuration.md)。
+- **持久化分层**：设置类走 `simplemusic-settings`（settings store 手动 save/load）；播放态走 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）；其余各自独立 key（最近播放/搜索历史/漫游/更新忽略版本）。
 - **异步竞态守卫是全项目模式**：任何"响应回来时上下文可能已变"的异步加载，都用会话计数 ref（`loadSession`/`sessionRef`/`searchSeq`）判断响应是否过期后丢弃。player.loadTrack、ExplorePage、useLazyPlaylist、RoamPage 搜索、封面取色均如此；新加异步 setter 沿用该模式。
 
 ## 6. 视觉体系速览
@@ -115,7 +115,7 @@ player.loadTrack(track)
 - 动效统一引用 `src/lib/motion-presets.ts`（springSnappy/springGentle/tapScale/fadeRise/iconSwap），禁止散落魔法数值。
 - 样式用 CSS Modules（`*.module.css` 与组件同目录）；主题切换靠 `<html data-theme>` + tokens 变量，`auto` 模式移除属性交给 `prefers-color-scheme`。
 - **全屏 WebGL 同屏只跑一个**（单个窗口内）：氛围背景 LiquidEther 与歌词页 3D 场景互斥（歌词 3D 打开时 `AppShell backgroundHidden` 把背景 `display:none`，LiquidEther 靠 IntersectionObserver 自动暂停）。
-- 深入解析（流体模拟管线、GLSL、性能档位）见 [visuals-and-shaders.md](visuals-and-shaders.md)。
+- 深入解析（流体模拟管线、GLSL、性能档位）见 `docs/superpowers/specs/` 下各期设计文档。
 
 ## 7. 验证方式
 
