@@ -14,6 +14,8 @@ interface LazyEntry {
   inflightWindows: Set<number>
   skeletonLoaded: boolean
   error: boolean
+  /** 骨架加载完成时间戳,用于 TTL 过期判断。 */
+  ts: number
 }
 
 const cache = new Map<string, LazyEntry>()
@@ -21,6 +23,11 @@ const cache = new Map<string, LazyEntry>()
 /** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。
  *  4 份已够覆盖「详情页↔预览弹窗↔顶栏前进后退」的往返;再多只是堆内存。 */
 const MAX_CACHED_PLAYLISTS = 4
+
+/** 缓存 TTL:骨架加载完成超过此时长的 entry 视为过期,下次访问丢弃重拉。
+ *  让长时间会话内歌单的外部改动(加歌/删歌/改序)能反映,而非永久占着旧骨架。
+ *  仅对骨架已加载的 entry 判断:还在加载或出错的没东西可过期。 */
+const CACHE_TTL_MS = 10 * 60 * 1000
 
 /** LRU:活跃 key 移到 Map 末位(最新),超上限时从最旧开始淘汰其他歌单。 */
 function touchAndEvict(key: string): void {
@@ -36,7 +43,7 @@ function touchAndEvict(key: string): void {
 }
 
 function emptyEntry(): LazyEntry {
-  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Set(), skeletonLoaded: false, error: false }
+  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Set(), skeletonLoaded: false, error: false, ts: 0 }
 }
 
 /** 每日推荐/雷达等已全量在手的场景:直接落缓存,不发任何请求。 */
@@ -46,7 +53,14 @@ function seededEntry(tracks: Track[]): LazyEntry {
   e.tracks = [...tracks]
   for (let w = 0; w * TRACK_WINDOW < tracks.length; w++) e.loadedWindows.add(w)
   e.skeletonLoaded = true
+  e.ts = Date.now()
   return e
+}
+
+/** 访问前清理过期 entry(TTL)。 */
+function evictIfStale(key: string): void {
+  const e = cache.get(key)
+  if (e && e.skeletonLoaded && Date.now() - e.ts > CACHE_TTL_MS) cache.delete(key)
 }
 
 /**
@@ -77,6 +91,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
   // 同样必须绑定歌单自身的 source,不能用全局 activeSource
   const service = serviceFor(playlist.source)
   const key = `${playlist.source}:${String(playlist.id)}`
+  evictIfStale(key)
   let entry = cache.get(key)
   if (!entry) {
     entry = emptyEntry()
@@ -93,6 +108,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
       entry.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
       markPrefixWindows(entry, sk.tracks.length)
       entry.skeletonLoaded = true
+      entry.ts = Date.now()
     }
   }
   return buildQueue(entry.trackIds, entry.tracks, playlist.source)
@@ -108,6 +124,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   const [retryTick, setRetryTick] = useState(0)
   const sessionRef = useRef(0)
 
+  evictIfStale(key)
   if (!cache.has(key)) {
     cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
   } else if (initialTracks?.length) {
@@ -151,6 +168,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
         e.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
         markPrefixWindows(e, sk.tracks.length)
         e.skeletonLoaded = true
+        e.ts = Date.now()
         bump()
       })
       .catch(() => {

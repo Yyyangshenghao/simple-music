@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
@@ -12,6 +12,7 @@ import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import type { Playlist, Track } from '../types/domain'
+import type { MutableRefObject } from 'react'
 import styles from './LibraryPage.module.css'
 
 type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
@@ -28,6 +29,27 @@ const PlaylistGridItem = memo(function PlaylistGridItem({ playlist }: { playlist
       playlist={playlist}
       onClick={() => openPlaylist(playlist)}
       layoutId={`library-cover-${String(playlist.id)}`}
+    />
+  )
+})
+
+/** 队列行：onPlay 通过 ref 取最新队列 + 行内 index，引用永久稳定，
+ *  父级因搜索/切 tab 等无关重渲染时，track/index 未变的行不再重建 vnode。
+ *  queueRef.current 在父级每次渲染时刷新为最新队列数组。 */
+const QueuedTrackRow = memo(function QueuedTrackRow({
+  track,
+  index,
+  queueRef,
+}: {
+  track: Track
+  index: number
+  queueRef: MutableRefObject<Track[]>
+}) {
+  return (
+    <TrackRow
+      track={track}
+      index={index}
+      onPlay={() => usePlaylistStore.getState().setQueue(queueRef.current, index)}
     />
   )
 })
@@ -139,6 +161,8 @@ function FavoritesTab({ onOpen }: { onOpen(playlist: Playlist): void }) {
 /** 本地播放历史列表:点击整单入队从该曲播起。 */
 function RecentPlaysList() {
   const items = useRecentPlaysStore((s) => s.items)
+  const queueRef = useRef<Track[]>([])
+  queueRef.current = items.map((r) => r.track)
 
   if (!items.length) {
     return (
@@ -157,16 +181,11 @@ function RecentPlaysList() {
         </button>
       </div>
       {items.map((it, i) => (
-        <TrackRow
+        <QueuedTrackRow
           key={`${String(it.track.id)}-${it.playedAt}`}
           track={it.track}
           index={i}
-          onPlay={() =>
-            usePlaylistStore.getState().setQueue(
-              items.map((r) => r.track),
-              i
-            )
-          }
+          queueRef={queueRef}
         />
       ))}
     </div>
@@ -215,6 +234,8 @@ function LocalMusicTab() {
   const filtered = kw
     ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
     : tracks
+  const queueRef = useRef<Track[]>([])
+  queueRef.current = filtered
 
   return (
     <div className={styles.trackList}>
@@ -256,7 +277,7 @@ function LocalMusicTab() {
         </div>
       ) : (
         filtered.map((t, i) => (
-          <TrackRow key={String(t.id)} track={t} index={i} onPlay={() => usePlaylistStore.getState().setQueue(filtered, i)} />
+          <QueuedTrackRow key={String(t.id)} track={t} index={i} queueRef={queueRef} />
         ))
       )}
     </div>

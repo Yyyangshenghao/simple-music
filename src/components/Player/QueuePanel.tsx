@@ -3,7 +3,11 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
+import { VirtualList } from '../ui/VirtualList'
 import styles from './QueuePanel.module.css'
+
+/** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
+const ROW_HEIGHT = 48
 
 function QueueIcon() {
   return (
@@ -21,7 +25,7 @@ export function QueuePanel() {
   const playAt = usePlaylistStore((s) => s.playAt)
   const isPlaying = usePlayerStore((s) => s.status === 'playing')
   const rootRef = useRef<HTMLDivElement>(null)
-  const currentRowRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   // Esc 关闭 + 点击弹层/按钮之外关闭
   useEffect(() => {
@@ -41,9 +45,14 @@ export function QueuePanel() {
   }, [open])
 
   // 打开时把当前曲目滚到可视区中间
+  // VirtualList 只渲染可视区行,不可见行不在 DOM,scrollIntoView 失效,
+  // 改为直接计算滚动容器 scrollTop 定位到当前曲目居中
   useEffect(() => {
-    if (open) currentRowRef.current?.scrollIntoView({ block: 'center' })
-  }, [open])
+    if (!open || !listRef.current || queue.length === 0) return
+    const el = listRef.current
+    const target = queueIndex * ROW_HEIGHT + ROW_HEIGHT / 2 - el.clientHeight / 2
+    el.scrollTop = Math.max(0, target)
+  }, [open, queueIndex, queue.length])
 
   return (
     <div className={styles.root} ref={rootRef}>
@@ -74,43 +83,51 @@ export function QueuePanel() {
               <span className={styles.title}>播放队列</span>
               <span className={styles.count}>{queue.length} 首</span>
             </div>
-            <div className={styles.list}>
-              {queue.length === 0 && <div className={styles.empty}>队列为空</div>}
-              {queue.map((t, i) => {
-                const isCurrent = i === queueIndex
-                return (
-                  <button
-                    key={`${String(t.id)}-${i}`}
-                    ref={isCurrent ? currentRowRef : undefined}
-                    className={styles.row}
-                    data-current={isCurrent}
-                    onClick={() => {
-                      if (!isCurrent) playAt(i)
-                    }}
-                  >
-                    <span className={styles.index}>
-                      {isCurrent ? (
-                        <span className={styles.playingDot} data-playing={isPlaying} aria-hidden="true" />
-                      ) : (
-                        i + 1
-                      )}
-                    </span>
-                    <span className={styles.rowText}>
-                      {t.pending ? (
-                        <span className={styles.rowSkeleton} aria-hidden="true">
-                          <i />
-                          <i />
+            <div className={styles.list} ref={listRef}>
+              {queue.length === 0 ? (
+                <div className={styles.empty}>队列为空</div>
+              ) : (
+                <VirtualList
+                  total={queue.length}
+                  rowHeight={ROW_HEIGHT}
+                  scrollRef={listRef}
+                  renderRow={(i) => {
+                    const t = queue[i]
+                    const isCurrent = i === queueIndex
+                    return (
+                      <button
+                        type="button"
+                        className={styles.row}
+                        data-current={isCurrent}
+                        onClick={() => {
+                          if (!isCurrent) playAt(i)
+                        }}
+                      >
+                        <span className={styles.index}>
+                          {isCurrent ? (
+                            <span className={styles.playingDot} data-playing={isPlaying} aria-hidden="true" />
+                          ) : (
+                            i + 1
+                          )}
                         </span>
-                      ) : (
-                        <>
-                          <span className={styles.rowName}>{t.name}</span>
-                          <span className={styles.rowArtist}>{t.artist}</span>
-                        </>
-                      )}
-                    </span>
-                  </button>
-                )
-              })}
+                        <span className={styles.rowText}>
+                          {t.pending ? (
+                            <span className={styles.rowSkeleton} aria-hidden="true">
+                              <i />
+                              <i />
+                            </span>
+                          ) : (
+                            <>
+                              <span className={styles.rowName}>{t.name}</span>
+                              <span className={styles.rowArtist}>{t.artist}</span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    )
+                  }}
+                />
+              )}
             </div>
           </motion.div>
         )}
