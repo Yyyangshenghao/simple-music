@@ -16,6 +16,73 @@ const TRIM_LIKED_KEYS = 1000
 const FAIL_COOLDOWN_MS = 60_000
 const failedCooldown = new Map<string, number>()
 
+/** 批量合并:ensureChecked 收集视口内曲目,按 source 分组一次性 checkLiked(多 ids),
+ *  避免逐行红心对每首网易曲目各发一个请求(列表 50 首就 50 个 HTTP)。
+ *  debounce 窗口内收集,到期一次 flush;同一 key 多次 await(滚动重复挂载)共用 resolve。 */
+const BATCH_DELAY_MS = 200
+interface PendingEntry {
+  track: Track
+  resolvers: Array<() => void>
+}
+let pending = new Map<string, PendingEntry>()
+let batchTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleBatch(): void {
+  if (batchTimer) return
+  batchTimer = setTimeout(() => {
+    batchTimer = null
+    void flushBatch()
+  }, BATCH_DELAY_MS)
+}
+
+/** 取出 pending 一次 flush:已知/冷却中的直接 resolve,其余按 source 分组各发一次 checkLiked。 */
+async function flushBatch(): Promise<void> {
+  const batch = pending
+  pending = new Map()
+  const state = useLikesStore.getState()
+  const now = Date.now()
+  const bySource = new Map<Track['source'], PendingEntry[]>()
+  for (const [key, p] of batch) {
+    if (key in state.likedByKey || (failedCooldown.get(key) ?? 0) > now) {
+      p.resolvers.forEach((r) => r())
+      continue
+    }
+    const arr = bySource.get(p.track.source)
+    if (arr) arr.push(p)
+    else bySource.set(p.track.source, [p])
+  }
+  if (!bySource.size) return
+  await Promise.all(
+    [...bySource.entries()].map(async ([source, items]) => {
+      const svc = serviceFor(source)
+      if (!svc.checkLiked) {
+        items.forEach((p) => p.resolvers.forEach((r) => r()))
+        return
+      }
+      try {
+        const res = await svc.checkLiked(items.map((p) => p.track.id))
+        useLikesStore.setState((s) => {
+          let map = s.likedByKey
+          for (const p of items) map = withLike(map, keyOf(p.track), !!res[String(p.track.id)])
+          return { likedByKey: map }
+        })
+        for (const p of items) {
+          failedCooldown.delete(keyOf(p.track))
+          p.resolvers.forEach((r) => r())
+        }
+      } catch {
+        for (const p of items) {
+          failedCooldown.set(keyOf(p.track), now + FAIL_COOLDOWN_MS)
+          p.resolvers.forEach((r) => r())
+        }
+        if (failedCooldown.size > MAX_LIKED_KEYS) {
+          for (const [k, e] of failedCooldown) if (e <= now) failedCooldown.delete(k)
+        }
+      }
+    })
+  )
+}
+
 function keyOf(track: Track): string {
   return `${track.source}:${String(track.id)}`
 }
@@ -52,28 +119,29 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     return typeof serviceFor(track.source).likeTrack === 'function'
   },
 
-  async ensureChecked(track) {
+  ensureChecked(track) {
+    // 批量合并:不立即发请求,收集进 pending,debounce 窗口到期按 source 分组一次 flush。
+    // 已知 / 冷却中 / 音源不支持:立即 resolve 不入队。
     const key = keyOf(track)
-    if (key in get().likedByKey) return
-    // 冷却中(上次失败未到期)不重查,避免滚动时对上游反复发失败请求
-    const now = Date.now()
-    const exp = failedCooldown.get(key)
-    if (exp && exp > now) return
-    const svc = serviceFor(track.source)
-    if (!svc.checkLiked) return
-    try {
-      const res = await svc.checkLiked([track.id])
-      const liked = !!res[String(track.id)]
-      set((s) => ({ likedByKey: withLike(s.likedByKey, key, liked) }))
-      failedCooldown.delete(key)
-    } catch {
-      /* 未登录/网络失败:记冷却,保持未知(不写 likedByKey),滚动期间不重试 */
-      failedCooldown.set(key, now + FAIL_COOLDOWN_MS)
-      // 顺手清理过期项,避免 Map 无界增长
-      if (failedCooldown.size > MAX_LIKED_KEYS) {
-        for (const [k, e] of failedCooldown) if (e <= now) failedCooldown.delete(k)
+    return new Promise<void>((resolve) => {
+      if (key in get().likedByKey) {
+        resolve()
+        return
       }
-    }
+      const now = Date.now()
+      if ((failedCooldown.get(key) ?? 0) > now) {
+        resolve()
+        return
+      }
+      if (!serviceFor(track.source).checkLiked) {
+        resolve()
+        return
+      }
+      const p = pending.get(key)
+      if (p) p.resolvers.push(resolve)
+      else pending.set(key, { track, resolvers: [resolve] })
+      scheduleBatch()
+    })
   },
 
   async toggleLike(track) {

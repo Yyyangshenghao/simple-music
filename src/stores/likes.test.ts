@@ -30,6 +30,19 @@ describe('likes store', () => {
     expect(checkLiked).toHaveBeenCalledTimes(1)
   })
 
+  it('批量合并:同窗口多首曲目只发一次 checkLiked(多 ids)', async () => {
+    const t1 = mk(1)
+    const t2 = mk(2)
+    const t3 = mk(3)
+    const ps = [t1, t2, t3].map((t) => useLikesStore.getState().ensureChecked(t))
+    await Promise.all(ps)
+    expect(checkLiked).toHaveBeenCalledTimes(1)
+    expect(checkLiked).toHaveBeenCalledWith([1, 2, 3])
+    // mock 返回 { '1': true },其余未命中为 false
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(t1)]).toBe(true)
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(t2)]).toBe(false)
+  })
+
   it('toggleLike 乐观更新,服务端失败回滚', async () => {
     const t = mk(2)
     await useLikesStore.getState().toggleLike(t)
