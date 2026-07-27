@@ -10,6 +10,12 @@ import type { Track } from '../types/domain'
 const MAX_LIKED_KEYS = 5000
 const TRIM_LIKED_KEYS = 1000
 
+/** ensureChecked 失败后的冷却时长:期间该曲目不重查,避免逐行红心在虚拟列表滚动时
+ *  对上游反复发同样的失败请求(上游 500/限流时尤其会刷屏)。冷却到期后重进视口可再试,
+ *  给登录恢复 / 上游恢复后补查的机会。 */
+const FAIL_COOLDOWN_MS = 60_000
+const failedCooldown = new Map<string, number>()
+
 function keyOf(track: Track): string {
   return `${track.source}:${String(track.id)}`
 }
@@ -49,14 +55,24 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
   async ensureChecked(track) {
     const key = keyOf(track)
     if (key in get().likedByKey) return
+    // 冷却中(上次失败未到期)不重查,避免滚动时对上游反复发失败请求
+    const now = Date.now()
+    const exp = failedCooldown.get(key)
+    if (exp && exp > now) return
     const svc = serviceFor(track.source)
     if (!svc.checkLiked) return
     try {
       const res = await svc.checkLiked([track.id])
       const liked = !!res[String(track.id)]
       set((s) => ({ likedByKey: withLike(s.likedByKey, key, liked) }))
+      failedCooldown.delete(key)
     } catch {
-      /* 未登录/网络失败:保持未知,不写缓存 */
+      /* 未登录/网络失败:记冷却,保持未知(不写 likedByKey),滚动期间不重试 */
+      failedCooldown.set(key, now + FAIL_COOLDOWN_MS)
+      // 顺手清理过期项,避免 Map 无界增长
+      if (failedCooldown.size > MAX_LIKED_KEYS) {
+        for (const [k, e] of failedCooldown) if (e <= now) failedCooldown.delete(k)
+      }
     }
   },
 
