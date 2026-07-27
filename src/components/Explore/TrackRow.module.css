@@ -46,6 +46,30 @@
 
 .duration { font-size: 12px; color: var(--sm-text-secondary); flex-shrink: 0; }
 
+/* 逐行红心:整行 hover 才显形,已红心常驻点亮;嵌在行 button 内,用 span 避免 button 嵌套 */
+.likeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--sm-accent-warm);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms var(--sm-ease-out), color 120ms, background 120ms;
+}
+.row:hover .likeBtn { opacity: 0.75; }
+.likeBtn:hover { opacity: 1; background: var(--sm-fill-hover); }
+.likeBtn[data-liked='true'] {
+  opacity: 1;
+  color: var(--sm-color-like);
+}
+.likeBtn[data-liked='true']:hover {
+  background: color-mix(in srgb, var(--sm-color-like) 12%, transparent);
+}
+
 /* hover 左缘氛围色 accent 条 */
 .row::before {
   content: '';
