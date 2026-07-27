@@ -129,3 +129,79 @@
   line-height: 1;
   font-size: 14px;
 }
+
+/* 本地音乐视图切换:平铺/艺人/专辑 */
+.viewSwitch {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--sm-bg-elevated);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  padding: 2px;
+}
+
+.viewSwitchBtn {
+  padding: 4px 12px;
+  border: none;
+  background: none;
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.viewSwitchBtn:hover { color: var(--sm-text-primary); }
+.viewSwitchBtn.viewSwitchActive {
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+}
+
+/* 分组折叠视图:艺人/专辑分组头 + 曲目列表 */
+.groupSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.groupHeader:hover { background: var(--sm-bg-elevated); }
+
+.groupArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  color: var(--sm-text-secondary);
+  font-size: 10px;
+  transition: transform 160ms var(--sm-ease-out);
+}
+
+.groupArrow[data-collapsed='false'] { transform: rotate(90deg); }
+
+.groupTitle {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.groupCount {
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}

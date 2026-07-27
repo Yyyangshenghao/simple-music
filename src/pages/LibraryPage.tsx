@@ -17,6 +17,73 @@ import styles from './LibraryPage.module.css'
 
 type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
 
+/** 本地音乐列表视图:平铺 / 按艺人分组 / 按专辑分组。 */
+type LocalViewMode = 'flat' | 'artist' | 'album'
+
+/** 按艺人或专辑对 filtered 分组,保留每首曲目在 filtered 中的全局下标(供入队 playAt 用)。 */
+function groupTracks(
+  tracks: Track[],
+  mode: LocalViewMode
+): [string, { track: Track; index: number }[]][] {
+  const keyFn = mode === 'artist' ? (t: Track) => t.artist || '未知艺人' : (t: Track) => t.album || '未知专辑'
+  const map = new Map<string, { track: Track; index: number }[]>()
+  tracks.forEach((track, index) => {
+    const k = keyFn(track)
+    const arr = map.get(k)
+    if (arr) arr.push({ track, index })
+    else map.set(k, [{ track, index }])
+  })
+  return [...map]
+}
+
+/** 分组折叠视图:默认全展开,点头部收起/展开。 */
+function LocalGroupedView({
+  filtered,
+  queueRef,
+  mode,
+}: {
+  filtered: Track[]
+  queueRef: MutableRefObject<Track[]>
+  mode: LocalViewMode
+}) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const groups = groupTracks(filtered, mode)
+  return (
+    <>
+      {groups.map(([key, items]) => {
+        const isCollapsed = collapsed.has(key)
+        return (
+          <div className={styles.groupSection} key={key}>
+            <button
+              type="button"
+              className={`${styles.groupHeader} no-drag`}
+              aria-expanded={!isCollapsed}
+              onClick={() =>
+                setCollapsed((s) => {
+                  const next = new Set(s)
+                  if (next.has(key)) next.delete(key)
+                  else next.add(key)
+                  return next
+                })
+              }
+            >
+              <span className={styles.groupArrow} data-collapsed={isCollapsed} aria-hidden="true">
+                ▸
+              </span>
+              <span className={styles.groupTitle}>{key}</span>
+              <span className={styles.groupCount}>{items.length} 首</span>
+            </button>
+            {!isCollapsed &&
+              items.map(({ track, index }) => (
+                <QueuedTrackRow key={String(track.id)} track={track} index={index} queueRef={queueRef} />
+              ))}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 // 不闭包任何组件内状态，可提到模块作用域，引用永久稳定
 function openPlaylist(playlist: Playlist) {
   useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'library', playlist })
@@ -198,6 +265,7 @@ function LocalMusicTab() {
   const [tracks, setTracks] = useState<Track[]>([])
   const [keyword, setKeyword] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [viewMode, setViewMode] = useState<LocalViewMode>('flat')
 
   async function refresh(): Promise<void> {
     const [f, t] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
@@ -248,6 +316,20 @@ function LocalMusicTab() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
+          <div className={styles.viewSwitch} role="tablist" aria-label="列表视图">
+            {(['flat', 'artist', 'album'] as LocalViewMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === m}
+                className={`${styles.viewSwitchBtn} no-drag${viewMode === m ? ` ${styles.viewSwitchActive}` : ''}`}
+                onClick={() => setViewMode(m)}
+              >
+                {{ flat: '列表', artist: '艺人', album: '专辑' }[m]}
+              </button>
+            ))}
+          </div>
           <button className={`${styles.clearBtn} no-drag`} onClick={() => void handleAddFolder()} disabled={scanning}>
             {scanning ? '导入中…' : '添加文件夹'}
           </button>
@@ -275,10 +357,12 @@ function LocalMusicTab() {
         <div className={styles.emptyHint}>
           <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
         </div>
-      ) : (
+      ) : viewMode === 'flat' ? (
         filtered.map((t, i) => (
           <QueuedTrackRow key={String(t.id)} track={t} index={i} queueRef={queueRef} />
         ))
+      ) : (
+        <LocalGroupedView filtered={filtered} queueRef={queueRef} mode={viewMode} />
       )}
     </div>
   )
