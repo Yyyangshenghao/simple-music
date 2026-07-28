@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Canvas } from '@react-three/fiber'
 import { motion } from 'motion/react'
 import { tapScale } from '../../lib/motion-presets'
 import { useShuangeStore } from '../../stores/shuange'
@@ -24,7 +25,11 @@ export function ShuangeCard() {
 
   return (
     <motion.div className={styles.card} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className={styles.bg}><CoverParticleCloud coverUrl={track?.cover} /></div>
+      <div className={styles.bg}>
+        <Canvas camera={{ position: [0, 0, 14], fov: 60 }} dpr={[1, 2]} gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}>
+          <CoverParticleCloud coverUrl={track?.cover} />
+        </Canvas>
+      </div>
       <div className={styles.scrim} />
       <div className={styles.body}>
         <div className={styles.meta}>
