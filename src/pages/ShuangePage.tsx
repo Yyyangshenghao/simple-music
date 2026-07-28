@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ShuangeCard } from '../components/Shuange/ShuangeCard'
 import { useShuangeStore } from '../stores/shuange'
@@ -9,19 +9,23 @@ import { useNavigationStore } from '../stores/navigation'
 import styles from './ShuangePage.module.css'
 
 export function ShuangePage() {
-  const enter = useShuangeStore((s) => s.enter)
   const active = useShuangeStore((s) => s.active)
   const loading = useShuangeStore((s) => s.loading)
   const error = useShuangeStore((s) => s.error)
   useShuangePlayer()
 
+  // mount 进一次、unmount leave 一次。不能依赖 [active] —— 否则 enter 同步置 active=true
+  // 后 effect 重跑、cleanup 调 leave() 翻回 false、body 再 enter() → 无限循环。
+  const enterOnce = useRef(false)
   useEffect(() => {
-    if (!active) void enter()
+    if (!enterOnce.current) {
+      enterOnce.current = true
+      if (!useShuangeStore.getState().active) void useShuangeStore.getState().enter()
+    }
     return () => {
-      // 离开页面时若仍 active,交还播放器
       if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
     }
-  }, [active, enter])
+  }, [])
 
   useEffect(() => {
     if (!active) return
