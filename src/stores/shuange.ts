@@ -147,6 +147,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
   },
 
   playFullCurrent() {
+    ++shuangeSession // 作废在途 loadIndex/enter/next,防止覆盖整曲播放
     const { feed, index } = get()
     const rest = feed.slice(index)
     if (!rest.length) return
@@ -177,6 +178,16 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     }
   },
 }))
+
+// 切音源 → 刷歌页重置 feed(spec 八边界明文要求)
+// 动态 import 避免初始化期循环依赖(与 enter 内同)
+void import('./settings').then(({ useSettingsStore }) => {
+  useSettingsStore.subscribe((s, prev) => {
+    if (s.activeSource !== prev?.activeSource && useShuangeStore.getState().active) {
+      void useShuangeStore.getState().enter()
+    }
+  })
+})
 
 // feed 补充:拉个性化歌单 → 取首个骨架追加曲目
 async function appendMoreFeed(get: () => ShuangeStore, set: (p: Partial<ShuangeStore>) => void): Promise<void> {

@@ -5,6 +5,7 @@ import { useShuangeStore } from '../stores/shuange'
 import { useShuangePlayer } from '../hooks/useShuangePlayer'
 import { usePlayerStore } from '../stores/player'
 import { useLikesStore } from '../stores/likes'
+import { useNavigationStore } from '../stores/navigation'
 import styles from './ShuangePage.module.css'
 
 export function ShuangePage() {
@@ -30,7 +31,10 @@ export function ShuangePage() {
       if (e.key === 'ArrowDown') { e.preventDefault(); void st.next() }
       else if (e.key === 'ArrowUp') { e.preventDefault(); void st.prev() }
       else if (e.key === ' ') { e.preventDefault(); player.toggle() }
-      else if (e.key === 'Escape') { st.leave() }
+      else if (e.key === 'Escape') {
+        st.leave()
+        useNavigationStore.getState().navigateTo('explore')
+      }
       else if (e.key === 'f' || e.key === 'F') { st.playFullCurrent() }
       else if ((e.key === 'l' || e.key === 'L') && player.currentTrack) {
         const likes = useLikesStore.getState()

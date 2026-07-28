@@ -63,7 +63,7 @@ vi.mock('./navigation', () => ({
   useNavigationStore: { getState: () => ({ navigateTo }) },
 }))
 vi.mock('./settings', () => ({
-  useSettingsStore: { getState: () => ({ activeSource: 'netease' }) },
+  useSettingsStore: { getState: () => ({ activeSource: 'netease' }), subscribe: () => () => {} },
 }))
 
 import { useShuangeStore, __resetOffsetCache } from './shuange'
