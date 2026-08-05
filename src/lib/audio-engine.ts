@@ -154,7 +154,12 @@ export class AudioEngine {
   }
 
   seek(seconds: number): void {
-    this.audio.currentTime = Math.max(0, seconds)
+    const target = Math.max(0, seconds)
+    if (this.audio.readyState === 0) {
+      this.pendingSeek = target
+      return
+    }
+    this.audio.currentTime = target
   }
 
   setVolume(v: number): void {

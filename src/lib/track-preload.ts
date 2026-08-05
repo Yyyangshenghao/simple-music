@@ -7,7 +7,7 @@ import { sizedImage } from './image-size'
  * 切歌时省掉 URL 解析 RTT(起播延迟的大头)与封面网络等待。
  *
  * 内存纪律:每次 preloadTracks 即一个批次,缓存里不属于本批次(±当前曲目)的
- * 条目立即清除——URL 缓存最多同时保留 3 条字符串,封面最多 3 个 Image 引用。
+ * 条目立即清除；离开窗口的封面主动断开 src，在途 URL 请求主动 abort。
  */
 
 export interface SongUrlResponse {
@@ -49,8 +49,14 @@ interface CachedUrl {
 
 const urlCache = new Map<string, CachedUrl>()
 const coverCache = new Map<string, HTMLImageElement>()
+const urlPreloads = new Map<string, AbortController>()
 // 最近一个批次的保留集:在途请求晚到时若已不在窗口内,直接丢弃不入缓存
 let latestKeep = new Set<string>()
+
+export interface TrackPreloadOptions {
+  /** 必须与实际渲染请求一致，否则浏览器图片缓存无法命中。 */
+  coverPx?: number
+}
 
 function trackKey(track: Track, quality: AudioQuality): string {
   return `${track.source}:${String(track.mid ?? track.id ?? '')}:${quality}`
@@ -116,35 +122,59 @@ export function getPreloadedResolution(
 export function preloadTracks(
   tracks: Track[],
   quality: AudioQuality,
-  currentTrack?: Track | null
+  currentTrack?: Track | null,
+  options: TrackPreloadOptions = {}
 ): void {
+  const coverPx = options.coverPx ?? 128
+  const windowTracks = currentTrack ? [currentTrack, ...tracks] : tracks
   const keep = new Set<string>()
   const keepCovers = new Set<string>()
-  for (const t of currentTrack ? [currentTrack, ...tracks] : tracks) {
+  for (const t of windowTracks) {
     keep.add(trackKey(t, quality))
-    if (typeof t.cover === 'string') keepCovers.add(t.cover)
+    if (typeof t.cover === 'string') keepCovers.add(sizedImage(t.cover, coverPx))
   }
   latestKeep = keep
 
   // 先清出窗口的旧条目,再发新预取
   for (const k of urlCache.keys()) if (!keep.has(k)) urlCache.delete(k)
-  for (const k of coverCache.keys()) if (!keepCovers.has(k)) coverCache.delete(k)
+  for (const [k, controller] of urlPreloads) {
+    if (!keep.has(k)) {
+      controller.abort()
+      urlPreloads.delete(k)
+    }
+  }
+  for (const [k, img] of coverCache) {
+    if (!keepCovers.has(k)) {
+      img.onload = null
+      img.onerror = null
+      img.src = ''
+      coverCache.delete(k)
+    }
+  }
 
-  for (const track of tracks) {
+  for (const track of windowTracks) {
     // 占位曲目缺 mid/cover 等详情,等 playAt 补全后的下个批次再预载
     if (track.pending) continue
 
-    if (track.cover && !coverCache.has(track.cover) && typeof Image !== 'undefined') {
+    const coverUrl = track.cover ? sizedImage(track.cover, coverPx) : ''
+    if (coverUrl && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
       const img = new Image()
-      img.src = sizedImage(track.cover, 128)
-      coverCache.set(track.cover, img)
+      img.decoding = 'async'
+      img.src = coverUrl
+      coverCache.set(coverUrl, img)
     }
+  }
 
+  for (const track of tracks) {
+    if (track.pending) continue
     if (track.url) continue
     const key = trackKey(track, quality)
     const hit = urlCache.get(key)
     if (hit && hit.expiresAt > Date.now()) continue
-    void resolveSongUrl(track, quality)
+    if (urlPreloads.has(key)) continue
+    const controller = new AbortController()
+    urlPreloads.set(key, controller)
+    void resolveSongUrl(track, quality, controller.signal)
       .then((res) => {
         if (res.url && latestKeep.has(key)) {
           urlCache.set(key, {
@@ -159,12 +189,22 @@ export function preloadTracks(
       .catch(() => {
         /* 预加载失败静默 */
       })
+      .finally(() => {
+        if (urlPreloads.get(key) === controller) urlPreloads.delete(key)
+      })
   }
 }
 
 /** 清空全部预加载缓存(测试/切换登录态用)。 */
 export function clearPreloadCaches(): void {
+  for (const controller of urlPreloads.values()) controller.abort()
+  for (const img of coverCache.values()) {
+    img.onload = null
+    img.onerror = null
+    img.src = ''
+  }
   urlCache.clear()
   coverCache.clear()
+  urlPreloads.clear()
   latestKeep = new Set()
 }

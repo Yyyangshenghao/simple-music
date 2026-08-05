@@ -115,6 +115,71 @@ describe('pipeReaderToResponse（/api/audio、/api/cover 代理转发 —— 切
     expect(writes).toBe(CHUNKS)
   })
 
+  it('背压期间客户端断开时立即结束，不会永远等待不会到来的 drain', async () => {
+    const upstream = makeUpstreamStream(100, 64 * 1024)
+    const emitter = new EventEmitter()
+    let writes = 0
+    const res = {
+      write: (_chunk: Uint8Array) => {
+        writes++
+        if (writes === 2) {
+          setImmediate(() => emitter.emit('close'))
+          return false
+        }
+        return true
+      },
+      once: emitter.once.bind(emitter),
+      off: emitter.off.bind(emitter),
+    } as unknown as ServerResponse
+
+    const result = await Promise.race([
+      pipeReaderToResponse(upstream.reader, res),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 100)),
+    ])
+
+    expect(result).toBe(false)
+    expect(upstream.wasCancelled()).toBe(true)
+  })
+
+  it('res.write 同步触发 close 时也不会错过关闭事件', async () => {
+    const upstream = makeUpstreamStream(20, 1024)
+    const emitter = new EventEmitter()
+    const res = {
+      write: (_chunk: Uint8Array) => {
+        emitter.emit('close')
+        return false
+      },
+      once: emitter.once.bind(emitter),
+      off: emitter.off.bind(emitter),
+    } as unknown as ServerResponse
+
+    const result = await Promise.race([
+      pipeReaderToResponse(upstream.reader, res),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 100)),
+    ])
+
+    expect(result).toBe(false)
+  })
+
+  it('异步缓存写入等待期间断开后，不会继续向已关闭响应写数据', async () => {
+    const upstream = makeUpstreamStream(20, 1024)
+    const emitter = new EventEmitter()
+    let writes = 0
+    const res = {
+      write: (_chunk: Uint8Array) => { writes++; return true },
+      once: emitter.once.bind(emitter),
+      off: emitter.off.bind(emitter),
+    } as unknown as ServerResponse
+
+    const completed = await pipeReaderToResponse(upstream.reader, res, async () => {
+      emitter.emit('close')
+      await Promise.resolve()
+    })
+
+    expect(completed).toBe(false)
+    expect(writes).toBe(0)
+  })
+
   it('连续模拟 50 次切歌：不会有上游流残留未取消（对应真实场景下内存不再随切歌单调上涨）', async () => {
     const ITERATIONS = 50
     const CHUNKS_PER_SONG = 2000 // 若未取消，单首歌会持续读到 2000 块

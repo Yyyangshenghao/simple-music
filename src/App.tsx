@@ -84,11 +84,11 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div className={styles.root}>
-          <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover || currentView === 'shuange'} />
+          <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />
-          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />
+          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
           <Toast />

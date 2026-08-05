@@ -86,6 +86,10 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
   }
 }
 
+function lyricTrackKey(track: Track): string {
+  return `${track.source}:${String(track.id)}`
+}
+
 export function useLyricsFetch(): void {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const trackRef = useRef<Track | null>(null)
@@ -95,15 +99,18 @@ export function useLyricsFetch(): void {
     trackRef.current = currentTrack
 
     if (!currentTrack) {
-      useLyricsStore.getState().setLines([])
-      useLyricsStore.getState().setWordLines([])
+      useLyricsStore.setState({ trackKey: null, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
       return
     }
+
+    const key = lyricTrackKey(currentTrack)
+    // currentTrack 在 URL 解析前就会同步切换；先标记归属并清空，避免新歌卡片闪出上一首歌词。
+    useLyricsStore.setState({ trackKey: key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
 
     let cancelled = false
 
     fetchLyrics(currentTrack).then(({ main, aligned, roma, wordLines }) => {
-      if (cancelled) return
+      if (cancelled || useLyricsStore.getState().trackKey !== key) return
       useLyricsStore.getState().setLines(main, aligned, roma)
       useLyricsStore.getState().setWordLines(wordLines)
     })

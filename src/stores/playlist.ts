@@ -92,6 +92,8 @@ function schedulePreloadNeighbors() {
     }
     if (!targets.length) return
     const player = usePlayerStore.getState()
+    // 离开普通队列进入刷歌后，旧的延时任务不能覆盖刷歌刚建立的相邻预加载窗口。
+    if (String(player.contextId ?? '').startsWith('shuange:')) return
     preloadTracks(targets, player.quality, player.currentTrack)
   }, 1000)
 }

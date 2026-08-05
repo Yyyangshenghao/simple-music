@@ -127,7 +127,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
   return (
     <div
-      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
+      className={`${styles.bar}${currentView === 'shuange' ? ` ${styles.barShuange}` : ''}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
       onDoubleClick={(e) => {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}

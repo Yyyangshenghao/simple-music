@@ -151,7 +151,7 @@ export async function findCachedAudio(
 }
 
 export interface AudioCacheWriter {
-  write(chunk: Uint8Array): void
+  write(chunk: Uint8Array): Promise<void>
   /** 整流转发完成后调用:关流、rename 为正式缓存、执行 LRU 淘汰。 */
   commit(): Promise<void>
   /** 中途断开(切歌)时调用:丢弃临时文件。 */
@@ -174,8 +174,19 @@ export async function openAudioCacheWriter(userDataDir: string, key: string): Pr
     failed = true
   })
   return {
-    write(chunk) {
-      if (!failed) stream.write(chunk)
+    async write(chunk) {
+      if (failed || stream.write(chunk)) return
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          stream.off('drain', finish)
+          stream.off('close', finish)
+          stream.off('error', finish)
+          resolve()
+        }
+        stream.once('drain', finish)
+        stream.once('close', finish)
+        stream.once('error', finish)
+      })
     },
     async commit() {
       await new Promise<void>((resolve) => stream.end(resolve))

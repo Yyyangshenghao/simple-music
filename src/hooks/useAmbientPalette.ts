@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { usePlayerStore } from '../stores/player'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
+import { useNavigationStore } from '../stores/navigation'
 import { api } from '../lib/api'
 import { extractPalette, extractLuma, DEFAULT_PALETTE } from '../lib/extract-color'
 import { sizedImage, CANVAS_COVER_PX } from '../lib/image-size'
@@ -62,8 +63,15 @@ function applyPalette(palette: AmbientPalette): void {
 /** 监听当前歌曲封面，提取霞光调色板并广播到全局（store + CSS 变量）。挂在 App 顶层。 */
 export function useAmbientPalette(): void {
   const cover = usePlayerStore((s) => s.currentTrack?.cover)
+  const currentView = useNavigationStore((s) => s.currentView)
 
   useEffect(() => {
+    // 刷歌卡片自身已用封面营造背景；切歌时反复取色 + 12 次根变量更新会与滑动动画争抢主线程。
+    if (currentView === 'shuange') {
+      if (tweenTimer) clearInterval(tweenTimer)
+      tweenTimer = null
+      return
+    }
     if (!cover) {
       applyPalette([...DEFAULT_PALETTE])
       useAmbientStore.getState().setCoverLuma(0)
@@ -86,6 +94,9 @@ export function useAmbientPalette(): void {
     // 切歌竞态：只认最新封面的结果
     return () => {
       cancelled = true
+      img.onload = null
+      img.onerror = null
+      img.src = ''
     }
-  }, [cover])
+  }, [cover, currentView])
 }

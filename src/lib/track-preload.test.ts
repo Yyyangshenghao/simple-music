@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Track } from '../types/domain'
 
 const apiGet = vi.fn()
@@ -38,6 +38,11 @@ async function flush(): Promise<void> {
 beforeEach(() => {
   clearPreloadCaches()
   apiGet.mockReset()
+})
+
+afterEach(() => {
+  clearPreloadCaches()
+  vi.unstubAllGlobals()
 })
 
 describe('preloadTracks / getPreloadedUrl', () => {
@@ -92,6 +97,44 @@ describe('preloadTracks / getPreloadedUrl', () => {
     await flush()
     expect(getPreloadedUrl(t1, 'standard')).toBeUndefined()
     expect(getPreloadedUrl(t2, 'standard')).toBe('http://cdn/2.mp3')
+  })
+
+  it('窗口滑动时会中止已经滑出的 URL 预取', async () => {
+    let staleSignal: AbortSignal | undefined
+    apiGet
+      .mockImplementationOnce((_path, _params, init?: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+        staleSignal = init?.signal
+        staleSignal?.addEventListener('abort', () => reject(new Error('aborted')))
+      }))
+      .mockResolvedValueOnce({ url: 'http://cdn/2.mp3' })
+
+    preloadTracks([makeTrack('1')], 'standard')
+    preloadTracks([makeTrack('2')], 'standard')
+    await flush()
+
+    expect(staleSignal?.aborted).toBe(true)
+  })
+
+  it('按界面实际尺寸预载封面，并主动释放滑出窗口的图片引用', () => {
+    const images: Array<{ src: string }> = []
+    class FakeImage {
+      decoding = 'auto'
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      private value = ''
+      constructor() { images.push(this) }
+      get src() { return this.value }
+      set src(value: string) { this.value = value }
+    }
+    vi.stubGlobal('Image', FakeImage)
+    const first = makeTrack('1', { cover: 'https://p.music.126.net/first.jpg', url: 'direct:1' })
+    const second = makeTrack('2', { cover: 'https://p.music.126.net/second.jpg', url: 'direct:2' })
+
+    preloadTracks([first], 'standard', null, { coverPx: 768 })
+    expect(images[0].src).toContain('param=768y768')
+
+    preloadTracks([second], 'standard', null, { coverPx: 768 })
+    expect(images[0].src).toBe('')
   })
 
   it('pending 占位与自带直链的曲目不发解析请求', async () => {

@@ -77,7 +77,7 @@ async function readRequestBody(req: IncomingMessage): Promise<Record<string, unk
 export async function pipeReaderToResponse(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   res: ServerResponse,
-  onChunk?: (chunk: Uint8Array) => void
+  onChunk?: (chunk: Uint8Array) => void | Promise<void>
 ): Promise<boolean> {
   let aborted = false
   const onClose = () => {
@@ -87,11 +87,30 @@ export async function pipeReaderToResponse(
   res.once('close', onClose)
   try {
     while (!aborted) {
-      const c = await reader.read()
+      let c: ReadableStreamReadResult<Uint8Array>
+      try {
+        c = await reader.read()
+      } catch (error) {
+        if (aborted) return false
+        throw error
+      }
       if (c.done) return !aborted
-      onChunk?.(c.value)
+      await onChunk?.(c.value)
+      if (aborted || res.destroyed) return false
       if (!res.write(c.value)) {
-        await new Promise<void>((resolve) => res.once('drain', resolve))
+        if (aborted || res.destroyed) return false
+        const canContinue = await new Promise<boolean>((resolve) => {
+          const finish = (value: boolean) => {
+            res.off('drain', onDrain)
+            res.off('close', onClosed)
+            resolve(value)
+          }
+          const onDrain = () => finish(true)
+          const onClosed = () => finish(false)
+          res.once('drain', onDrain)
+          res.once('close', onClosed)
+        })
+        if (!canContinue) return false
       }
     }
     return false
