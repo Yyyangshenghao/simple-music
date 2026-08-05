@@ -11,6 +11,7 @@ const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ defaul
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
 const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
+const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 
 /** 纵深转场：新页从纵深浮上（scale 1.03→1），旧页缩小下沉；x 按 push/pop 反向。 */
 const pageVariants: Variants = {
@@ -33,6 +34,7 @@ export function AppShell() {
       void import('../../pages/SettingsPage')
       void import('../../pages/ArtistPage')
       void import('../../pages/ToplistPage')
+      void import('../../pages/ShuangePage')
     }
     if (typeof window.requestIdleCallback === 'function') {
       const id = window.requestIdleCallback(preheat, { timeout: 2000 })
@@ -55,6 +57,7 @@ export function AppShell() {
     if (view === 'explore') return <ExplorePage />
     if (view === 'library') return <LibraryPage />
     if (view === 'roam') return <RoamPage />
+    if (view === 'shuange') return <ShuangePage />
     if (view === 'settings') return <SettingsPage />
     if (typeof view === 'object' && view.type === 'toplist') return <ToplistPage />
     if (typeof view === 'object' && view.type === 'artist') {

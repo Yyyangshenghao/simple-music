@@ -16,6 +16,7 @@ const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '探索', view: 'explore' },
   { label: '我的库', view: 'library' },
   { label: '漫游', view: 'roam' },
+  { label: '刷歌', view: 'shuange' },
 ]
 
 interface TopBarProps {
@@ -126,7 +127,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
   return (
     <div
-      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
+      className={`${styles.bar}${currentView === 'shuange' ? ` ${styles.barShuange}` : ''}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
       onDoubleClick={(e) => {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}
@@ -172,7 +173,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 ? currentView.from
                 : currentView
             const active = section === item.view
-              || (item.view === 'explore' && section !== 'library' && section !== 'roam')
+              || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange')
             return (
               <button
                 key={item.label}

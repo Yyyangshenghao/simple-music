@@ -56,6 +56,15 @@ export function registerTrackEndedHandler(cb: () => void): void {
   onTrackEnded = cb
 }
 
+// 特殊播放模式可在自然结束时优先接管走序；返回 true 表示已处理，不再落到普通队列。
+let onTrackEndedInterceptor: (() => boolean) | null = null
+export function registerTrackEndedInterceptor(cb: () => boolean): () => void {
+  onTrackEndedInterceptor = cb
+  return () => {
+    if (onTrackEndedInterceptor === cb) onTrackEndedInterceptor = null
+  }
+}
+
 // loadTrack 会话计数:兜底搜索/URL 解析都是异步窗口,期间用户切歌要丢弃过期结果
 let loadSession = 0
 // 当前在途的 URL 解析:切歌/重载时中止上一次 fetch,避免快速双击重复拉 URL(结果本就会被 session 丢弃)
@@ -75,14 +84,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       onDuration: (d) => set({ duration: d }),
       onStatus: (status) => set({ status }),
       onEnded: () => {
-        set({ status: 'paused', position: 0 })
         if (stopAfterCurrentCb) {
+          set({ status: 'paused', position: 0 })
           const cb = stopAfterCurrentCb
           stopAfterCurrentCb = null
           cb()
-        } else {
-          onTrackEnded?.()
+          return
         }
+        if (onTrackEndedInterceptor?.()) return
+        set({ status: 'paused', position: 0 })
+        onTrackEnded?.()
       }
     })
     return engine

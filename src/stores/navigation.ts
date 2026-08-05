@@ -5,6 +5,7 @@ export type AppView =
   | 'explore'
   | 'library'
   | 'roam'
+  | 'shuange'
   | 'settings'
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */

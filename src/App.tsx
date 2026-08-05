@@ -13,6 +13,7 @@ import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
 import { useUpdateStore } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
+import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
@@ -35,6 +36,7 @@ export default function App() {
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen)
   const detailBackdropCover = useBackdropStore((s) => s.cover)
+  const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
   // 顶层 hooks 与 AudioEngine 单例不在此子树,音频与迷你条同步照常。
   const mainVisible = useWindowStore((s) => s.isVisible)
@@ -86,7 +88,7 @@ export default function App() {
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />
-          <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />
+          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
           <Toast />
