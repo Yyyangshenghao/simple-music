@@ -1,25 +1,33 @@
 .gradient {
   background: var(--ambient-gradient);
   background-size: 200% 100%;
+  background-position: 50% 50%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: gradientFlow 8s ease-in-out infinite alternate;
+  /* background-position 会让 background-clip:text 每帧重新栅格化；
+     opacity 改为低频离散更新，保留呼吸感且不按显示刷新率持续合成。 */
+  animation: gradientBreathe 8s steps(8, end) infinite alternate;
+  will-change: opacity;
 }
 
-@keyframes gradientFlow {
-  from { background-position: 0% 50%; }
-  to   { background-position: 100% 50%; }
+@keyframes gradientBreathe {
+  from { opacity: 0.78; }
+  to   { opacity: 1; }
 }
 
 .gradient.static {
   animation: none;
   background-position: 0% 50%;
+  opacity: 1;
+  will-change: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gradient {
     animation: none;
     background-position: 0% 50%;
+    opacity: 1;
+    will-change: auto;
   }
 }
