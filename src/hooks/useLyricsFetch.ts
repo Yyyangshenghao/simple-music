@@ -5,6 +5,7 @@ import { useProviderStore } from '../stores/providers'
 import { isProviderId } from '../providers/types'
 import { api } from '../lib/api'
 import { localMusicService } from '../lib/local-music-service'
+import { qqLyricIdentifiers } from '../lib/qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, estimateWordTiming } from '../lib/lyric-parser'
 import type { Track, LyricLine as LyricLineType, WordLyricLine as WordLyricLineType } from '../types/domain'
 
@@ -54,8 +55,7 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
     }
 
     if (track.provider === 'qq') {
-      const mid = String(track.songmid || track.mid || '')
-      const id = String(track.qqId || '')
+      const { mid, id } = qqLyricIdentifiers(track)
       const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id })
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''

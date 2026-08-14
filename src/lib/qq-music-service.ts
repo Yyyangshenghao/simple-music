@@ -1,4 +1,5 @@
 import { api } from './api'
+import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import type { MusicService, PlaylistSkeleton, RadarPlaylist } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
@@ -56,7 +57,7 @@ export class QQMusicService implements MusicService {
   }
 
   async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', { id: track.qqId as string | number | undefined, mid: track.mid as string | undefined })
+    const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', qqLyricIdentifiers(track))
     return res.lines ?? []
   }
 
