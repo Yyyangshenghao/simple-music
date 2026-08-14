@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
+import { useSettingsStore } from '../../stores/settings'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
+import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
 import { SourceBadge } from '../ui/SourceBadge'
 import styles from './QueuePanel.module.css'
@@ -23,10 +25,16 @@ export function QueuePanel() {
   const [open, setOpen] = useState(false)
   const queue = usePlaylistStore((s) => s.queue)
   const queueIndex = usePlaylistStore((s) => s.queueIndex)
+  const shuffleOrder = usePlaylistStore((s) => s.shuffleOrder)
   const playAt = usePlaylistStore((s) => s.playAt)
+  const playMode = useSettingsStore((s) => s.playMode)
   const isPlaying = usePlayerStore((s) => s.status === 'playing')
   const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const display = useMemo(
+    () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
+    [playMode, queue.length, queueIndex, shuffleOrder]
+  )
 
   // Esc 关闭 + 点击弹层/按钮之外关闭
   useEffect(() => {
@@ -51,9 +59,9 @@ export function QueuePanel() {
   useEffect(() => {
     if (!open || !listRef.current || queue.length === 0) return
     const el = listRef.current
-    const target = queueIndex * ROW_HEIGHT + ROW_HEIGHT / 2 - el.clientHeight / 2
+    const target = display.currentDisplayIndex * ROW_HEIGHT + ROW_HEIGHT / 2 - el.clientHeight / 2
     el.scrollTop = Math.max(0, target)
-  }, [open, queueIndex, queue.length])
+  }, [display.currentDisplayIndex, display.indices.length, open])
 
   return (
     <div className={styles.root} ref={rootRef}>
@@ -89,19 +97,20 @@ export function QueuePanel() {
                 <div className={styles.empty}>队列为空</div>
               ) : (
                 <VirtualList
-                  total={queue.length}
+                  total={display.indices.length}
                   rowHeight={ROW_HEIGHT}
                   scrollRef={listRef}
                   renderRow={(i) => {
-                    const t = queue[i]
-                    const isCurrent = i === queueIndex
+                    const originalIndex = display.indices[i]
+                    const t = queue[originalIndex]
+                    const isCurrent = originalIndex === queueIndex
                     return (
                       <button
                         type="button"
                         className={styles.row}
                         data-current={isCurrent}
                         onClick={() => {
-                          if (!isCurrent) playAt(i)
+                          if (!isCurrent) playAt(originalIndex)
                         }}
                       >
                         <span className={styles.index}>

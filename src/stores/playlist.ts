@@ -153,7 +153,12 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   addToQueue(track) {
-    set((s) => ({ queue: [...s.queue, track] }))
+    set((s) => ({
+      queue: [...s.queue, track],
+      shuffleOrder: s.shuffleOrder.length === s.queue.length
+        ? [...s.shuffleOrder, s.queue.length]
+        : shuffledIndices(s.queue.length + 1),
+    }))
   },
 
   playAt(index) {

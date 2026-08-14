@@ -198,6 +198,18 @@ describe('playlist 播放模式走序', () => {
     expect(usePlaylistStore.getState().queueIndex).toBe(secondLast)
   })
 
+  it('随机队列新增歌曲时保留现有排列并补入新下标', async () => {
+    const { usePlaylistStore } = await setup(3)
+    usePlaylistStore.setState({ shuffleOrder: [2, 0, 1] })
+    usePlaylistStore.getState().addToQueue({
+      provider: 'netease', source: 'netease', type: 'song', id: 3,
+      name: 't3', artist: '', artists: [],
+    })
+
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([2, 0, 1, 3])
+    expect(usePlaylistStore.getState().queue).toHaveLength(4)
+  })
+
   it('单曲循环:自然播完原地重播,不切换曲目', async () => {
     const { usePlaylistStore, usePlayerStore, loadTrack } = await setup(3)
     useSettingsStore.setState({ playMode: 'one' })
