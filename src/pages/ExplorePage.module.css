@@ -7,106 +7,53 @@
   scrollbar-color: var(--sm-border) transparent;
 }
 
-.section { margin-bottom: 32px; }
+.intro {
+  position: relative;
+  width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
+  margin: 30px auto 8px;
+}
 
-/* 跟着 topRow 一起限宽居中，否则宽屏下问候语会孤零零贴在窗口最左 */
+.kicker {
+  margin: 0 0 8px;
+  color: var(--sm-text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
 .greeting {
-  font-size: 22px;
-  font-weight: 700;
-  width: min(var(--sm-rail-max-width), 100%);
-  margin: 20px auto 0;
-  padding: 0 24px;
-}
-
-.sectionTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--sm-text-primary);
-  margin: 0 0 12px;
-  padding: 0 24px;
-}
-
-/* ---------- 英雄区（方案 A：常驻卡列 + Stack 舞台）+ 右侧个性化快捷入口 ---------- */
-/* 与下方 RecentRail/ToplistSection 同一套限宽：宽屏下整行居中，
-   快捷入口跟着内容列右缘走，而不是被甩到窗口最右边和英雄区隔一大片空白 */
-.topRow {
-  display: flex;
-  align-items: stretch;
-  gap: 28px;
-  width: min(var(--sm-rail-max-width), 100%);
-  margin: 0 auto;
-  padding: 16px 24px 8px;
-}
-
-.hero {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 28px;
-  min-height: 300px;
-}
-
-.heroCards {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.stage {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-/* margin-left 让文字避开叠图杂乱角旋转后凸出的卡片边角 */
-.topInfo { width: 170px; margin-left: 26px; }
-
-.topName {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--sm-text-primary);
-}
-
-.topDesc {
   margin: 0;
+  font-size: clamp(28px, 4.4vw, 48px);
+  font-weight: 780;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.summary {
+  margin: 12px 0 0;
+  color: var(--sm-text-secondary);
   font-size: 12px;
-  line-height: 1.5;
-  color: var(--sm-text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
-.topHint {
-  margin: 10px 0 0;
-  font-size: 11px;
-  color: var(--sm-text-secondary);
-  opacity: 0.7;
-}
-
-.redealBtn {
-  margin-top: 12px;
-  padding: 5px 14px;
-  font-size: 12px;
-  border-radius: 999px;
-  border: 1px solid var(--sm-border);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-secondary);
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.redealBtn:hover {
-  color: var(--sm-accent);
-  border-color: var(--sm-accent);
-}
-
-.empty {
-  padding: 48px 0;
+.noProviders {
+  width: min(620px, calc(100% - (var(--sm-page-gutter) * 2)));
+  margin: 64px auto;
+  padding: 42px;
+  border: 1px dashed var(--sm-border);
+  border-radius: 22px;
   text-align: center;
   color: var(--sm-text-secondary);
+  background: var(--glass-bg-base);
 }
+
+.noProviders button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  cursor: pointer;
+}
+
+.bottomSpace { height: 88px; }

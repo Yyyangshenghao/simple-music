@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { sizedImage } from './image-size'
+import { normalizeImageUrl, sizedImage } from './image-size'
+
+describe('normalizeImageUrl', () => {
+  it('拒绝 QQ 接口返回的相对查询串占位值', () => {
+    expect(normalizeImageUrl('?n=1')).toBe('')
+  })
+
+  it('补全协议相对图片地址', () => {
+    expect(normalizeImageUrl('//y.gtimg.cn/music/photo_new/cover.jpg'))
+      .toBe('https://y.gtimg.cn/music/photo_new/cover.jpg')
+  })
+})
 
 describe('sizedImage', () => {
   it('网易图床追加 param 缩图参数', () => {
@@ -12,6 +23,11 @@ describe('sizedImage', () => {
     expect(sizedImage('https://p2.music.126.net/abc.jpg?param=1800y1800', 90)).toBe(
       'https://p2.music.126.net/abc.jpg?param=90y90'
     )
+  })
+
+  it('保留网易云已带缩略图和水印处理链的地址', () => {
+    const url = 'http://p1.music.126.net/example/cover.jpg?imageView=1&thumbnail=800y800&enlarge=1%7Cwatermark&type=1'
+    expect(sizedImage(url, 512)).toBe(url)
   })
 
   it('QQ photo_new 就近向上改写尺寸档位', () => {

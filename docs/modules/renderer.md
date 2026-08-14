@@ -13,7 +13,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `player.ts` | 播放状态/进度/音量/音质;懒创建 `AudioEngine` 单例;`loadTrack` 解析 URL 并播放 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
 | `navigation.ts` | 页面路由(`AppView` 联合类型:explore/library/settings/artist/playlist);playlist 视图携带已拉取曲目避免重复请求;记录 lastAction 供转场方向 |
-| `settings.ts` | 用户设置,localStorage key `simplemusic-settings`;含 activeSource(音源)、热键、主题、歌词面板模式、reduce-transparency(减少透明度:同时关流体背景 + 玻璃 blur,降 GPU) |
+| `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、歌词面板模式、reduce-transparency 等，不再保存互斥音源 |
+| `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |
 | `lyrics.ts` | 歌词行 + 当前行 tick(由播放进度驱动)+ 3D 歌词布局 |
@@ -27,7 +28,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useDesktopLyricsSync` / `useWallpaperSync` — 把当前歌词/可视化状态经 IPC 推给悬浮窗。
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
-- `useMusicService` — 按 `settings.activeSource` 返回 Netease/QQ service 单例(组件取数据的唯一入口)。
+- `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollGradient` / `useScrollReveal` — 滚动渐隐边缘 / 入场 stagger。
 
 ## lib
@@ -43,7 +44,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## components / pages
 
-页面:`ExplorePage`(常驻方卡 + Stack 卡片堆 + RecentRail 占位)、`LibraryPage`(Shelf 3D 书架)、`ArtistPage`、`SettingsPage`。组件按域分目录:`Layout/`(WindowChrome 无边框窗口、TopBar、AppShell 转场、AmbientBackground)、`Player/`、`Lyrics/`(LyricsPanel 全屏歌词、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics 供悬浮窗复用)、`Explore/`、`Search/`、`Shelf/`、`Visualizer/`(three.js 场景与预设)、`ui/`(通用小组件)。
+页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(当前内容平台的歌单与收藏)、`ArtistPage`、`SettingsPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。组件按域分目录:`Layout/`(WindowChrome 无边框窗口、TopBar、AppShell 转场、AmbientBackground)、`Player/`、`Lyrics/`(LyricsPanel 全屏歌词、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics 供悬浮窗复用)、`Explore/`、`Search/`、`Shelf/`、`Visualizer/`(three.js 场景与预设)、`ui/`(通用小组件)。
 
 样式:CSS Modules 与组件同目录;设计 token 全部在 `src/styles/tokens.css`(`--sm-*` 基础、`--glass-*` 玻璃层级、`--ambient-*` 氛围色、`--audio-energy`),经 `@property` 注册可平滑过渡。`reduce-transparency` 开关(见 settings store)经 `App.tsx` 写 `data-reduce-transparency` 属性,tokens.css 内对应分支把玻璃 blur 降为纯色底、流体背景退化为静态霞光。
 
@@ -51,5 +52,5 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 - 封面共享元素转场依赖 layoutId 约定 `explore-cover-*` / `library-cover-*`。
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
-- 异步加载要用会话计数 ref 丢弃过期响应(参考 ExplorePage `loadSession`)。
+- 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。

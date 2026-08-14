@@ -18,6 +18,20 @@ export const CANVAS_COVER_PX = 384
 /** QQ photo_new 支持的尺寸档位(就近向上取)。 */
 const QQ_SIZES = [90, 150, 300, 500, 800]
 
+/** 统一过滤上游的缺图占位值，避免相对查询串被浏览器解析成当前页面。 */
+export function normalizeImageUrl(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const raw = value.trim()
+  if (!raw) return ''
+  const normalized = raw.startsWith('//') ? `https:${raw}` : raw
+  try {
+    const protocol = new URL(normalized).protocol
+    return ['http:', 'https:', 'data:', 'blob:'].includes(protocol) ? normalized : ''
+  } catch {
+    return ''
+  }
+}
+
 export function sizedImage(url: string, px: number): string {
   if (!url || px <= 0) return url
   let u: URL
@@ -28,6 +42,10 @@ export function sizedImage(url: string, px: number): string {
   }
   const host = u.hostname
   if (host.endsWith('.music.126.net') || host.endsWith('.music.127.net')) {
+    // 用户歌单封面可能已经带 imageView/thumbnail/watermark 处理链。
+    // 这类地址再混入 param 会被网易图床判为非法请求并返回 400，必须保留原链路。
+    const hasImageProcessChain = Array.from(u.searchParams.keys()).some((key) => key !== 'param')
+    if (hasImageProcessChain) return url
     const size = Math.round(px)
     u.searchParams.set('param', `${size}y${size}`)
     return u.toString()

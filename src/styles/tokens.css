@@ -25,8 +25,11 @@
   --sm-blur:           blur(12px);
   --sm-radius-card:    16px;
   --sm-radius-pill:    999px;
-  /* 横滑轨道的内容限宽:宽屏下两侧自动留白居中,避免整栏贴左、与上方居中的英雄区重心打架 */
-  --sm-rail-max-width: 1200px;
+  /* 页面宽度体系:宽窗口提高信息密度,同时保留统一边距和阅读重心。 */
+  --sm-content-max-width: 1440px;
+  --sm-reading-max-width: 960px;
+  --sm-page-gutter: clamp(20px, 3vw, 48px);
+  --sm-rail-max-width: var(--sm-content-max-width);
   --sm-ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
   --sm-text-on-accent: #0c0c0c;

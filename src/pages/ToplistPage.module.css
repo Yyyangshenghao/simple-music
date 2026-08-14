@@ -7,7 +7,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 12px 0 0 24px;
+  margin: 12px 0 0 max(var(--sm-page-gutter), calc((100% - var(--sm-content-max-width)) / 2));
   padding: 6px 14px 6px 10px;
   font-size: 13px;
   font-weight: 500;
@@ -35,17 +35,20 @@
 }
 
 .heading {
-  width: min(var(--sm-rail-max-width), 100%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
   margin: 16px auto 24px;
-  padding: 0 24px;
+  padding: 0;
   font-size: 26px;
   font-weight: 700;
 }
 
 .group {
-  width: min(var(--sm-rail-max-width), 100%);
+  width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
   margin: 0 auto 32px;
-  padding: 0 24px;
+  padding: 0;
 }
 
 .groupTitle {
@@ -68,3 +71,4 @@
   font-size: 14px;
   color: var(--sm-text-secondary);
 }
+.sourceLabel { color: var(--sm-text-secondary); font-size: 12px; font-weight: 600; }

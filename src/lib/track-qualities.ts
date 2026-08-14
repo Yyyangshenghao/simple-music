@@ -18,7 +18,10 @@ export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]>
     track.source === 'qq'
       ? api.get<{ qualities?: TrackQualityOption[] }>(
           '/api/qq/song/qualities',
-          { mid: String(track.mid ?? track.id ?? '') },
+          {
+            mid: String(track.mid ?? track.id ?? ''),
+            mediaMid: String(track.mediaMid ?? ''),
+          },
           { timeoutMs: 60_000 }
         )
       : api.get<{ qualities?: TrackQualityOption[] }>(

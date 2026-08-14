@@ -3,7 +3,7 @@
 > 从「点击一首歌」到「扬声器出声」的全链路设计文档：URL 解析、跨音源兜底、音频引擎、
 > 代理与磁盘缓存、队列走序、预加载、持久化、睡眠定时器、系统媒体集成。
 > 相关代码：`src/stores/player.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
-> `src/lib/track-preload.ts`、`src/lib/track-fallback.ts`、`src/lib/playback-persistence.ts`、
+> `src/lib/playback-resolver.ts`、`src/lib/track-match.ts`、`src/lib/track-preload.ts`、`src/lib/playback-persistence.ts`、
 > `server/routes/netease.ts`（/api/audio）、`server/lib/audio-cache.ts`。
 
 ## 1. 全链路总览
@@ -11,13 +11,14 @@
 ```
 用户点击曲目
   → playlist.setQueue(tracks, index) / playAt(index)      # 队列与走序
-  → player.loadTrack(track)                               # URL 解析(带会话计数防竞态)
-      1. track.url 自带直链？直接用(不缓存,音质未知)
-      2. getPreloadedUrl()      # 相邻曲目预加载缓存命中(5min TTL)
-      3. resolveSongUrl()       # GET /api/song/url 或 /api/qq/song/url
-      4. 都拿不到且开了 crossSourceFallback → findFallbackTrack() 对侧音源搜同曲兜底
-      5. 仍无 URL → status=idle + toast(restriction.message 或通用文案)
+  → player.loadTrack(track)                               # 创建可取消的播放会话
+      1. track.url / getPreloadedResolution() 命中时先作为首候选
+      2. PlaybackResolver 按手动软优先 → 原源优先 → playbackOrder 生成 N 音源顺序
+      3. 跨源前由 track-match 保守评分并读取正/负缓存
+      4. provider.playback.resolve() 返回同平台有序音质/地址候选
+      5. URL 为空继续解析；URL 非空但媒体 error 回到解析器尝试下一候选
   → AudioEngine.load(upstreamUrl, startAt, cacheKey)
+  → canplay：提交 resolvedTrack / actualSource / resolution；error：继续同源或跨源降级
   → <audio src="/api/audio?url=<上游CDN>&cacheKey=source:id:quality">
       server: 磁盘缓存命中→本地文件服务(含 Range);未命中→透传上游,整流旁路落盘
   → HTMLAudioElement → MediaElementSource → AnalyserNode → GainNode → destination
@@ -34,10 +35,11 @@
 | 字段 | 说明 |
 |---|---|
 | `status` | `idle / loading / playing / paused`，由引擎事件回写 |
-| `currentTrack` | UI 展示用元数据；兜底换源时**仍是原曲目**（见 fallbackSource） |
+| `currentTrack` | 内容来源的 UI 元数据；跨源播放时仍保持原曲目 |
 | `position` / `duration` | 秒（注意 `Track.duration` 是毫秒，loadTrack 里 `/1000` 换算） |
 | `quality` | 以 settings store 为单一事实来源，经 `subscribe` 回流（`setQuality` 只是转调 settings） |
-| `fallbackSource` | 跨音源兜底生效时"实际出声的音源"，正常播放为 null；PlayerBar 用它显示换源角标 |
+| `resolvedTrack` / `actualSource` | 媒体进入 canplay 后提交的实际曲目与平台；加载候选期间为 null |
+| `resolution` / `playbackAttempts` | 当前解析结果与 match / resolve / media-load 诊断链 |
 | `rate` | 播放速度（保留音高），**不持久化**，重启回 1 |
 
 **两处解耦回调**（都是为了避免反向 import 成环）：
@@ -45,7 +47,7 @@
 - `registerTrackEndedHandler(cb)`：自然播完后的走序由 playlist store 决定（player 不知道队列存在）。playlist.ts 底部注册。
 - `setStopAfterCurrent(cb)`：睡眠定时器「播完当前曲再停」的一次性闸门。置位后 `onEnded` 不走 next，改调该回调并自动清除。
 
-**loadTrack 的竞态守卫**：模块级 `loadSession` 计数器，每次 loadTrack 自增并快照。URL 解析、兜底搜索、兜底再解析每个 await 之后都检查 `session !== loadSession` 即丢弃——快速切歌时在途的旧解析结果绝不会覆盖新曲目。这是全项目异步竞态模式的代表实现。
+**loadTrack 的竞态守卫**：模块级 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
 
 **恢复态起播**：重启后 restorePlayback 只回填元数据（引擎无源）。`play()` 检测 `!eng.hasSource && currentTrack` 时转调 `loadTrack(currentTrack, { startAt: position })` 按断点重新解析加载——URL 有时效，持久化里从不存 URL。
 
@@ -72,30 +74,35 @@ MediaElementSource → AnalyserNode(fftSize 2048) → GainNode → destination
 - `pendingSeek`：断点续播的起始位置存起来，`loadedmetadata` 后才写 `currentTime`（元数据就绪前设置会被浏览器忽略）。
 - `setPlaybackRate` 同时设 `defaultPlaybackRate`，换曲加载后倍速仍生效。
 - `load()` 只对 `http(s)` URL 包代理；本地/blob URL 原样直用。
+- `canplay` 通知 player 提交实际来源；媒体 `error`（含 URL 非空但加载/解码失败）携带 `loadId` 回流解析器。
+- `clearSource()` 在候选耗尽时清空元素地址，避免失败后 `play()` 重试旧源。
 - `crossOrigin='anonymous'`：MediaElementSource 读跨域音频需要 CORS（代理端已放行）。
 
 ## 4. URL 解析与音质阶梯
 
-`resolveSongUrl(track, quality)`（`src/lib/track-preload.ts`）按音源分流：
+provider 兼容适配器内部仍复用 `resolveSongUrl(track, quality)`（`src/lib/track-preload.ts`）按音源分流：
 
 - 网易：`GET /api/song/url?id=&quality=`
-- QQ：`GET /api/qq/song/url?mid=&quality=&fee=`（QQ 主键是 mid；fee 用于服务端提前判断付费墙）
+- QQ：`GET /api/qq/song/url?mid=&mediaMid=&quality=&fee=`（mid 标识歌曲，mediaMid 标识真实音频文件；fee 用于服务端提前判断付费墙）
 
 **服务端音质阶梯**（`server/lib/netease-client.ts`）：请求音质从 `NETEASE_QUALITY_CANDIDATES` 表（jymaster → hires → lossless → exhigh → higher → standard）中定位起点，**逐级降级尝试**直到拿到可播 URL。`normalizeQualityPreference` 容忍多种别名（flac/sq/320/hq…）。
 
+QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把每个文件展开为多个 `sip` 地址候选。网易首次 URL 仍由服务端内部降级；若该地址媒体失败，渲染层再按真实可用音质逐档解析。解析器默认最多记录 24 次尝试，同一会话不重复 URL。
+
 **播放限制分类**（`classifyNeteasePlaybackRestriction`）：全级降完仍无 URL 时，按登录态 + `fee` + `code` + `freeTrialInfo` 归类为结构化的 `PlaybackRestriction`（login_required / trial_only / vip_required / paid_required / copyright_unavailable / url_unavailable），每类带中文 message 和建议 action（login/upgrade/purchase/switch_source）。渲染层 toast 直接用这个 message——**"放不了"时用户看到的是具体原因，不是笼统报错**。
 
-## 5. 跨音源兜底（`src/lib/track-fallback.ts`）
+## 5. N 音源匹配与降级（`src/lib/playback-resolver.ts`、`src/lib/track-match.ts`）
 
-当前音源解析不出 URL（VIP 付费墙/灰色下架）且 `settings.crossSourceFallback` 开启时，去对侧音源搜同曲顶上。UI 仍展示原曲目元数据，只有 `fallbackSource` 标记 + toast 提示换源。
+只允许“已登录、已明确启用”的平台进入来源顺序。`multiSourceFallback=false` 时只尝试最终顺序的第一个平台；手动“本次优先”是软优先，当前平台耗尽后仍可继续降级。
 
-**同曲判定（三条全过才算）**：
+**同曲判定**：
 
-1. 标题归一化后全等——归一化 = 小写 + 全角括号转半角 + 去全部空白（CJK 曲名「歌名 (Live)」空格差异由此抹平）；
-2. 艺人集合有交集——优先 `artists` 数组，退化到 `artist` 字符串按 `/、,，&` 拆分；
-3. 时长差 ≤ 3000ms——任一侧缺时长则跳过此条（宁可放行，标题+艺人已较强）。
+1. NFKC、大小写、全半角括号、标点和空白统一；
+2. 基础标题相同，主要艺人有交集（艺人名末尾的括注别名不参与比较），Live/伴奏/Remix/翻唱/重制/不插电/Demo 版本标签集合一致；
+3. 两边都有时长时差值不得超过 3000ms；
+4. ISRC、完整标题、艺人、时长和专辑加权，达到 80 分才自动匹配。
 
-候选按搜索相关性排序，取**第一个**匹配（不是最优匹配——上游排序已经是相关性信号）。磁盘缓存 key 跟着兜底曲目走（`cacheTrack = fallback`），缓存的是实际出声的音频。
+匹配缓存与 URL 缓存独立：成功 30 天、未命中 24 小时，保存目标 ID、分数和去除临时 URL 的曲目快照。磁盘缓存 key 始终跟实际候选的 `source:id:quality` 走；试听和自带直链不缓存。
 
 ## 6. 队列与走序（`src/stores/playlist.ts`）
 
@@ -131,11 +138,12 @@ URL TTL 5 分钟——网易 CDN 链约十几分钟过期，只作短期预热�
 
 ## 9. 播放持久化（`src/lib/playback-persistence.ts`）
 
-localStorage key `simplemusic-playback`：队列（剥掉时效 URL）+ queueIndex + 进度（秒）+ 音量。
+localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉时效 URL）+ queueIndex + 进度（秒）+ 音量。
 
 - **落盘时机**（合并调度，已有更早的待写任务则跳过）：暂停瞬间立即写、音量 800ms、播放中进度最多每 5s、队列变化 500ms、`beforeunload` 兜底。
 - **配额降级**：整队列 JSON 超配额时，降级为占位曲目（仅 id/name/mid 等必需字段，`pending: true`），恢复后播到再补详情。
-- **恢复为暂停态**：不解析 URL、不自动播；`shuffleOrder` 置空（随机排列不持久化，播放时懒重建）。
+- **兼容与校验**：可读取 1.x 无 schema 存档；未知 schema 不恢复。坏条目会被过滤，并按原始对象重新定位当前曲，避免过滤后下标错位。
+- **恢复为暂停态**：混合平台队列保留实体来源，不解析 URL、不自动播；`actualSource` 清空，`shuffleOrder` 置空。用户再次播放时才按当时参与平台创建新解析会话，因此恢复阶段不会访问已禁用或尚未核实登录态的平台。
 - `initPlaybackPersistence()` 幂等（防 React StrictMode 双跑）。
 
 ## 10. 睡眠定时器（`src/stores/sleep-timer.ts`）
@@ -150,8 +158,8 @@ localStorage key `simplemusic-playback`：队列（剥掉时效 URL）+ queueInd
 
 ## 12. 改动检查清单
 
-- 改 `loadTrack` 内任何异步步骤：每个 await 后补 `session !== loadSession` 检查。
-- 新增"曲目可播性"分支：restriction message 走 toast，别吞成通用文案。
+- 改解析器内任何异步步骤：同时检查 `AbortSignal`、当前平台参与状态和有限尝试数。
+- 新增媒体候选：必须等 `canplay` 后再提交 `actualSource`，`error` 必须能回到当前解析会话。
 - 改 AudioEngine 节点图：Analyser 必须在 Gain 之前；`pauseTimer` 的取消路径别漏。
-- 改缓存 key 构成：渲染层 `trackCacheKey` 与预加载 `trackKey` 同构，两处同步。
+- 改缓存 key 构成：使用实际解析曲目的 source/id/quality；不要把跨平台音频写进内容来源的 key。
 - 涉及播放行为的改动 typecheck/test 不够，需 `npm run dev` 实测（淡入淡出、断点续播、兜底换源都是运行时行为）。

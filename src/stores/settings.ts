@@ -9,7 +9,7 @@ import {
 import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
 import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
 
-const STORAGE_KEY = 'simplemusic-settings'
+export const SETTINGS_STORAGE_KEY = 'simplemusic-settings'
 
 /** 3D 歌词参数默认值,倍率类均为 1 即历史硬编码行为。 */
 export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
@@ -65,14 +65,11 @@ interface PersistedSettings {
   lyricsShowTranslation: boolean
   /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
   lyricsShowRoma: boolean
-  activeSource: 'netease' | 'qq'
   themeMode: 'auto' | 'light' | 'dark'
   audioQuality: AudioQuality
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
   fontFamily: string
-  /** 当前音源无法播放时,自动去对侧音源搜同曲兜底播放。 */
-  crossSourceFallback: boolean
   /** 各项性能开关,详见 PerformanceFlags。 */
   performance: PerformanceFlags
   /** 迷你悬浮播放条:独立开关,与主窗口显隐无关。 */
@@ -107,12 +104,10 @@ interface SettingsStore extends PersistedSettings {
   setLyricsFontScale(v: number): void
   setLyricsShowTranslation(v: boolean): void
   setLyricsShowRoma(v: boolean): void
-  setActiveSource(s: 'netease' | 'qq'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAudioQuality(q: AudioQuality): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
-  setCrossSourceFallback(v: boolean): void
   setPerformance(patch: Partial<PerformanceFlags>): void
   applyPerformancePreset(preset: PerformancePreset): void
   setMiniPlayerEnabled(v: boolean): void
@@ -143,12 +138,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsFontScale: 1,
   lyricsShowTranslation: true,
   lyricsShowRoma: true,
-  activeSource: 'netease',
   themeMode: 'auto',
   audioQuality: 'max',
   playMode: 'order',
   fontFamily: '',
-  crossSourceFallback: true,
   performance: { ...DEFAULT_PERFORMANCE },
   miniPlayerEnabled: false,
   miniPlayerWidth: MINI_PLAYER_DEFAULT_WIDTH,
@@ -218,10 +211,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsShowRoma: v })
     get().saveToLocal()
   },
-  setActiveSource(s) {
-    set({ activeSource: s })
-    get().saveToLocal()
-  },
   setThemeMode(m) {
     set({ themeMode: m })
     get().saveToLocal()
@@ -236,10 +225,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setFontFamily(f) {
     set({ fontFamily: f })
-    get().saveToLocal()
-  },
-  setCrossSourceFallback(v) {
-    set({ crossSourceFallback: v })
     get().saveToLocal()
   },
   setPerformance(patch) {
@@ -267,14 +252,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, activeSource, themeMode, audioQuality, playMode, fontFamily, crossSourceFallback, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
   loadFromLocal() {
     if (typeof localStorage === 'undefined') return
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (!raw) return
     try {
       const data = JSON.parse(raw) as Partial<PersistedSettings>
@@ -292,12 +277,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsFontScale: data.lyricsFontScale ?? 1,
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
-        activeSource: data.activeSource ?? 'netease',
         themeMode: data.themeMode ?? 'auto',
         audioQuality: data.audioQuality ?? 'max',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
-        crossSourceFallback: data.crossSourceFallback ?? true,
         // 与默认值合并:旧存档没有 performance 字段或新增了开关时取默认,保证升级后字段完整。
         // audioGlowEffect 是后加的开关:旧存档没有它时跟随 gradientTextMotion 推断——
         // 关掉了流光呼吸(极简/自定义省电组合)的用户,默认也不要音频辉光

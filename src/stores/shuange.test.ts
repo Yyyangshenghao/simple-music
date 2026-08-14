@@ -86,7 +86,8 @@ vi.mock('./navigation', () => ({
   useNavigationStore: { getState: () => ({ navigateTo }) },
 }))
 vi.mock('./settings', () => ({
-  useSettingsStore: { getState: () => ({ activeSource: 'netease' }), subscribe: () => () => {} },
+  SETTINGS_STORAGE_KEY: 'simplemusic-settings-test',
+  useSettingsStore: { getState: () => ({}), subscribe: () => () => {} },
 }))
 
 import {
@@ -95,6 +96,7 @@ import {
   stashShuangeCandidates,
 } from '../lib/shuange-recommendation'
 import { useShuangeStore, __resetOffsetCache } from './shuange'
+import { useProviderStore } from './providers'
 import type { Track } from '../types/domain'
 
 function mkTrack(id: string, durMs = 180_000): Track {
@@ -110,6 +112,8 @@ function emitPlayer(status: typeof mockStatus, position: number): void {
 
 describe('shuange store', () => {
   beforeEach(() => {
+    if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
+    useShuangeStore.setState({ active: false, feed: [], index: -1, direction: 1, offset: null, loading: false, error: null })
     mockCurrentTrack = null
     mockPosition = 0
     mockVolume = 0.8
@@ -128,7 +132,13 @@ describe('shuange store', () => {
     getLikedPlaylist.mockReset()
     __resetOffsetCache()
     __resetShuangeRecommendationProfile()
-    useShuangeStore.setState({ active: false, feed: [], index: -1, direction: 1, offset: null, loading: false, error: null })
+    useProviderStore.setState({
+      byId: {
+        netease: { enabled: true, auth: 'authenticated' },
+        qq: { enabled: true, auth: 'authenticated' },
+      },
+      playbackOrder: ['netease', 'qq'],
+    })
   })
 
   it('enter 拉首屏并 loadIndex(0) 调 loadTrack 带 startAt', async () => {
@@ -142,6 +152,21 @@ describe('shuange store', () => {
     const [track, opts] = loadTrack.mock.calls[0]
     expect(track).toBe(s.feed[0])
     expect(opts?.startAt).toBeGreaterThanOrEqual(0)
+  })
+
+  it('全部在线平台停用时不再请求任何在线平台', async () => {
+    useProviderStore.setState({
+      byId: {
+        netease: { enabled: false, auth: 'anonymous' },
+        qq: { enabled: false, auth: 'anonymous' },
+      },
+      playbackOrder: [],
+    })
+
+    await useShuangeStore.getState().enter()
+
+    expect(getDailySongs).not.toHaveBeenCalled()
+    expect(useShuangeStore.getState().error).toBe('请先启用至少一个音乐平台')
   })
 
   it('进入时优先避开上次刚曝光的歌曲', async () => {

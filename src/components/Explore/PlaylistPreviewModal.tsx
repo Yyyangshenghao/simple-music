@@ -5,9 +5,11 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useNavigationStore } from '../../stores/navigation'
 import { springGentle } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
+import { SourceBadge } from '../ui/SourceBadge'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
@@ -17,6 +19,7 @@ interface PlaylistPreviewModalProps {
 /** 面板内容：拆出来保证 useLazyPlaylist 拿到非空 playlist（与详情页共用缓存，进详情零请求）。 */
 function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): void }) {
   const { total, tracks, loading, makeQueue } = useLazyPlaylist(playlist)
+  const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
   function playAll() {
     if (total === 0) return
@@ -44,11 +47,12 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
       onClick={(e) => e.stopPropagation()}
     >
       <div className={styles.header}>
-        {playlist.cover
-          ? <img className={styles.cover} src={sizedImage(playlist.cover, 176)} alt="" />
-          : <div className={styles.cover} />}
+        {displayCover
+          ? <img className={styles.cover} src={sizedImage(displayCover, 176)} alt="" />
+          : <PlaylistCoverFallback className={styles.cover} name={playlist.name} source={playlist.source} />}
         <div className={styles.meta}>
           <h3 className={styles.name}>{playlist.name}</h3>
+          <SourceBadge source={playlist.source} reveal />
           {playlist.description && <p className={styles.desc}>{playlist.description}</p>}
         </div>
         <button className={styles.closeBtn} onClick={onClose} aria-label="关闭"><CloseIcon size={14} /></button>
@@ -68,6 +72,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
                 <span className={styles.rowName}>{t.name}</span>
                 <span className={styles.rowArtist}>{t.artist}</span>
               </span>
+              <SourceBadge source={t.source} compact />
             </button>
           ) : null
         )}

@@ -4,11 +4,13 @@ import type { Track } from '../types/domain'
 
 /** 播放状态持久化:队列/当前曲/进度/音量落 localStorage,重启恢复为暂停态断点续播。 */
 
-const STORAGE_KEY = 'simplemusic-playback'
+export const PLAYBACK_STORAGE_KEY = 'simplemusic-playback'
+export const PLAYBACK_STORAGE_SCHEMA = 2
 /** 播放中进度落盘的最小间隔。 */
 const POSITION_SAVE_MS = 5000
 
 interface PersistedPlayback {
+  schema: typeof PLAYBACK_STORAGE_SCHEMA
   queue: Track[]
   queueIndex: number
   /** 秒。 */
@@ -44,13 +46,19 @@ export function savePlayback(): void {
   if (typeof localStorage === 'undefined') return
   const { queue, queueIndex } = usePlaylistStore.getState()
   const { position, volume } = usePlayerStore.getState()
-  const data: PersistedPlayback = { queue: queue.map(stripUrl), queueIndex, position, volume }
+  const data: PersistedPlayback = {
+    schema: PLAYBACK_STORAGE_SCHEMA,
+    queue: queue.map(stripUrl),
+    queueIndex,
+    position,
+    volume,
+  }
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify(data))
   } catch {
     // 超出配额:降级为占位曲目(仅 id 等必需字段),恢复后播到再补详情
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, queue: queue.map(toPlaceholder) }))
+      localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify({ ...data, queue: queue.map(toPlaceholder) }))
     } catch {
       /* 仍失败则放弃本次落盘 */
     }
@@ -59,7 +67,7 @@ export function savePlayback(): void {
 
 export function restorePlayback(): void {
   if (typeof localStorage === 'undefined') return
-  const raw = localStorage.getItem(STORAGE_KEY)
+  const raw = localStorage.getItem(PLAYBACK_STORAGE_KEY)
   if (!raw) return
   let data: Partial<PersistedPlayback>
   try {
@@ -67,19 +75,43 @@ export function restorePlayback(): void {
   } catch {
     return
   }
-  const volume = typeof data.volume === 'number' ? Math.max(0, Math.min(1, data.volume)) : null
+  if (data.schema !== undefined && data.schema !== PLAYBACK_STORAGE_SCHEMA) return
+  const volume = typeof data.volume === 'number' && Number.isFinite(data.volume)
+    ? Math.max(0, Math.min(1, data.volume))
+    : null
   if (volume != null) usePlayerStore.setState({ volume })
 
-  const queue = Array.isArray(data.queue) ? data.queue : []
-  const queueIndex = typeof data.queueIndex === 'number' ? data.queueIndex : -1
+  const rawQueue = Array.isArray(data.queue) ? data.queue : []
+  const rawQueueIndex = typeof data.queueIndex === 'number' && Number.isInteger(data.queueIndex)
+    ? data.queueIndex
+    : -1
+  const rawTrack = rawQueue[rawQueueIndex]
+  const queue = rawQueue.filter((track): track is Track => {
+    if (!track || typeof track !== 'object') return false
+    if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'local') return false
+    return track.provider === track.source
+      && track.id !== undefined
+      && track.id !== null
+      && typeof track.type === 'string'
+      && typeof track.name === 'string'
+      && typeof track.artist === 'string'
+      && Array.isArray(track.artists)
+  })
+  const queueIndex = queue.indexOf(rawTrack as Track)
   const track = queue[queueIndex]
   if (!track) return
-  usePlaylistStore.setState({ queue, queueIndex, shuffleOrder: [] })
+  usePlaylistStore.setState({ queue, queueIndex, queueContextId: null, shuffleOrder: [] })
   const position = typeof data.position === 'number' && data.position > 0 ? data.position : 0
   // 恢复为暂停态:不解析 URL 不自动播;点播放时 player.play() 检测到引擎无源,按断点重新加载
   usePlayerStore.setState({
     currentTrack: track,
     source: track.source,
+    actualSource: null,
+    resolvedTrack: null,
+    resolution: null,
+    playbackAttempts: [],
+    currentQuality: null,
+    contextId: null,
     status: 'paused',
     position,
     duration: (track.duration ?? 0) / 1000

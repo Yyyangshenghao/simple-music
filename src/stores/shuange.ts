@@ -5,6 +5,7 @@ import { usePlayerStore } from './player'
 import { usePlaylistStore } from './playlist'
 import { useNavigationStore } from './navigation'
 import { likeKeyOf, useLikesStore } from './likes'
+import { useProviderStore } from './providers'
 import { preloadTracks } from '../lib/track-preload'
 import {
   recordShuangeExposure,
@@ -15,6 +16,7 @@ import {
 } from '../lib/shuange-recommendation'
 import type { MusicService } from '../lib/music-service'
 import type { MusicSource, Playlist, Track } from '../types/domain'
+import type { ProviderId } from '../providers/types'
 
 const OFFSET_CACHE_MAX = 200
 const HIGHLIGHT_WAIT_MS = 90
@@ -220,14 +222,17 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     if (!get().active) snapshot = takeSnapshot()
     set({ active: true, feed: [], index: -1, direction: 1, offset: null, loading: true, error: null })
     try {
-      const { useSettingsStore } = await import('./settings')
       if (my !== shuangeSession) return
-      const svc = serviceFor(useSettingsStore.getState().activeSource)
-      const source = useSettingsStore.getState().activeSource
+      const providerState = useProviderStore.getState()
+      const source = providerState.playbackOrder.find((id) =>
+        providerState.byId[id].enabled && providerState.byId[id].auth === 'authenticated'
+      )
+      if (!source) throw new Error('请先启用至少一个音乐平台')
+      const svc = serviceFor(source)
       // 新进入刷歌页从个性化页重新暖池；同一会话中的“换一批”不会重置这个游标。
       nextRecommendPage[source] = 0
       candidateRefills.delete(source)
-      const songs = await takeOrRefillCandidateBatch(svc, CANDIDATE_BATCH_SIZE)
+      const songs = await takeOrRefillCandidateBatch(svc, source, CANDIDATE_BATCH_SIZE)
       if (my !== shuangeSession) return
       if (!songs.length) {
         set({ loading: false, error: '暂时没有推荐内容,稍后再来' })
@@ -235,8 +240,8 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
       }
       set({ feed: songs, index: -1, loading: false, error: null })
       await get().loadIndex(0)
-      void hydrateShuangeTaste(svc)
-      if (feedId === feedSession && get().active) void refillCandidatePool(svc, false)
+      void hydrateShuangeTaste(svc, source)
+      if (feedId === feedSession && get().active) void refillCandidatePool(svc, source, false)
     } catch (e) {
       if (my !== shuangeSession) return
       set({ loading: false, error: (e as Error)?.message || '加载失败' })
@@ -250,9 +255,13 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     recordCurrentListen(get())
     set({ loading: true, error: null })
     try {
-      const { useSettingsStore } = await import('./settings')
-      const svc = serviceFor(useSettingsStore.getState().activeSource)
-      const songs = await takeOrRefillCandidateBatch(svc, CANDIDATE_BATCH_SIZE)
+      const providerState = useProviderStore.getState()
+      const source = providerState.playbackOrder.find((id) =>
+        providerState.byId[id].enabled && providerState.byId[id].auth === 'authenticated'
+      )
+      if (!source) throw new Error('请先启用至少一个音乐平台')
+      const svc = serviceFor(source)
+      const songs = await takeOrRefillCandidateBatch(svc, source, CANDIDATE_BATCH_SIZE)
       if (my !== shuangeSession) return
       if (!songs.length) {
         set({ loading: false, error: '暂时没有新的推荐内容,稍后再来' })
@@ -260,7 +269,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
       }
       set({ feed: songs, index: -1, direction: 1, offset: null, loading: false, error: null })
       await get().loadIndex(0)
-      if (feedId === feedSession && get().active) void refillCandidatePool(svc, false)
+      if (feedId === feedSession && get().active) void refillCandidatePool(svc, source, false)
     } catch (e) {
       if (my !== shuangeSession) return
       set({ loading: false, error: (e as Error)?.message || '加载失败' })
@@ -400,14 +409,11 @@ usePlayerStore.subscribe((player) => {
   )
 })
 
-// 切音源 → 刷歌页重置 feed(spec 八边界明文要求)
-// 动态 import 避免初始化期循环依赖(与 enter 内同)
-void import('./settings').then(({ useSettingsStore }) => {
-  useSettingsStore.subscribe((s, prev) => {
-    if (s.activeSource !== prev?.activeSource && useShuangeStore.getState().active) {
-      void useShuangeStore.getState().enter()
-    }
-  })
+// 首选启用音源变化 → 刷歌页重置 feed。
+useProviderStore.subscribe((state, previous) => {
+  if (state.playbackOrder[0] !== previous.playbackOrder[0] && useShuangeStore.getState().active) {
+    void useShuangeStore.getState().enter()
+  }
 })
 
 // feed 补充优先消费本地候选池；只有库存不足时才等待网络补货。
@@ -428,9 +434,13 @@ async function fetchAndAppendMoreFeed(
   set: (p: Partial<ShuangeStore>) => void
 ): Promise<void> {
   try {
-    const { useSettingsStore } = await import('./settings')
-    const svc = serviceFor(useSettingsStore.getState().activeSource)
-    const candidates = await takeOrRefillCandidateBatch(svc, CANDIDATE_BATCH_SIZE)
+    const providerState = useProviderStore.getState()
+    const source = providerState.playbackOrder.find((providerId) =>
+      providerState.byId[providerId].enabled && providerState.byId[providerId].auth === 'authenticated'
+    )
+    if (!source) return
+    const svc = serviceFor(source)
+    const candidates = await takeOrRefillCandidateBatch(svc, source, CANDIDATE_BATCH_SIZE)
     if (id !== feedSession || !get().active) return
     const current = get().feed
     const known = new Set(current.map(cacheKey))
@@ -488,9 +498,7 @@ async function fetchFeedCandidates(svc: MusicService, page: number, includeRadar
   }
 }
 
-async function hydrateShuangeTaste(svc: MusicService): Promise<void> {
-  const { useSettingsStore } = await import('./settings')
-  const source = useSettingsStore.getState().activeSource
+async function hydrateShuangeTaste(svc: MusicService, source: ProviderId): Promise<void> {
   const pending = tasteHydrations.get(source)
   if (pending) return pending
   const task = (async () => {
@@ -516,19 +524,23 @@ async function hydrateShuangeTaste(svc: MusicService): Promise<void> {
   return task
 }
 
-async function takeOrRefillCandidateBatch(svc: MusicService, count: number): Promise<Track[]> {
-  const { useSettingsStore } = await import('./settings')
-  const source = useSettingsStore.getState().activeSource
+async function takeOrRefillCandidateBatch(
+  svc: MusicService,
+  source: ProviderId,
+  count: number
+): Promise<Track[]> {
   let batch = takeShuangeCandidateBatch(source, count)
   if (batch.length >= count) return batch
-  await refillCandidatePool(svc, true)
+  await refillCandidatePool(svc, source, true)
   batch = [...batch, ...takeShuangeCandidateBatch(source, count - batch.length)]
   return batch
 }
 
-async function refillCandidatePool(svc: MusicService, includeDaily: boolean): Promise<void> {
-  const { useSettingsStore } = await import('./settings')
-  const source = useSettingsStore.getState().activeSource
+async function refillCandidatePool(
+  svc: MusicService,
+  source: ProviderId,
+  includeDaily: boolean
+): Promise<void> {
   const pending = candidateRefills.get(source)
   if (pending) return pending
   const page = nextRecommendPage[source] ?? 0

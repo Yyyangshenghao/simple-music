@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const getToplistPreview = vi.fn()
 const getToplists = vi.fn()
+let providerParticipating = true
 vi.mock('./service-registry', () => ({
   serviceFor: () => ({
     getToplistPreview: (id: unknown) => getToplistPreview(id),
     getToplists: () => getToplists(),
   }),
+}))
+vi.mock('../stores/providers', () => ({
+  isProviderParticipating: () => providerParticipating,
 }))
 
 import {
@@ -33,6 +37,7 @@ beforeEach(() => {
   clearToplistCaches()
   getToplistPreview.mockReset()
   getToplists.mockReset()
+  providerParticipating = true
 })
 
 describe('requestToplistPreview', () => {
@@ -98,6 +103,19 @@ describe('requestToplistPreview', () => {
     gate.resolve([{ name: 'c', artist: 'z' }])
     expect(await a).toEqual(await b)
   })
+
+  it('平台停用后跳过仍在排队的预取任务', async () => {
+    const gates = Array.from({ length: 6 }, () => deferred<{ name: string; artist: string }[]>())
+    getToplistPreview.mockImplementation((id: unknown) => gates[Number(id)].promise)
+    const all = Array.from({ length: 6 }, (_, i) => requestToplistPreview('netease', i))
+    await flush()
+    expect(getToplistPreview).toHaveBeenCalledTimes(4)
+
+    providerParticipating = false
+    for (const gate of gates.slice(0, 4)) gate.resolve([])
+    await Promise.all(all)
+    expect(getToplistPreview).toHaveBeenCalledTimes(4)
+  })
 })
 
 describe('loadToplistGroups', () => {
@@ -111,6 +129,33 @@ describe('loadToplistGroups', () => {
 
     await loadToplistGroups('netease')
     expect(getToplists).toHaveBeenCalledTimes(1)
+  })
+
+  it('按请求音源补齐榜单实体来源', async () => {
+    getToplists.mockResolvedValue([{
+      title: '官方榜',
+      entries: [{
+        playlist: {
+          provider: undefined,
+          source: undefined,
+          type: 'playlist',
+          id: 1,
+          name: '热歌榜',
+          cover: '',
+          trackCount: 0,
+          playCount: 0,
+          creator: '',
+        },
+        updateFrequency: '',
+        preview: [],
+      }],
+    }])
+
+    const groups = await loadToplistGroups('qq')
+    expect(groups[0].entries[0].playlist).toEqual(expect.objectContaining({
+      provider: 'qq',
+      source: 'qq',
+    }))
   })
 
   it('并发调用共用一次在途请求,失败不写缓存', async () => {

@@ -5,6 +5,8 @@
   padding: 0 24px;
 }
 
+.embedded { width: 100%; margin: 24px 0 4px; padding: 0; }
+
 .title {
   font-size: 18px;
   font-weight: 700;
@@ -22,6 +24,7 @@
 }
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -33,6 +36,8 @@
   cursor: pointer;
   text-align: left;
 }
+
+.sourceBadge { position: absolute; top: 6px; left: 6px; z-index: 1; }
 
 .cover {
   width: 92px;

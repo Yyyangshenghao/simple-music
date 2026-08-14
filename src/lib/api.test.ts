@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { api, isLocalApiUrl } from './api'
+import { api, isLocalApiUrl, registerApiProviderAuthFailureHandler } from './api'
 
 function stubPort(port?: number): void {
   vi.stubGlobal('window', { desktop: port === undefined ? {} : { serverPort: port } })
@@ -53,6 +53,27 @@ describe('api.get', () => {
     stubPort(40000)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
     await expect(api.get('/api/x')).rejects.toThrow('HTTP 500')
+  })
+
+  it('平台接口 401/403 统一通知来源，非平台本地接口不误报', async () => {
+    stubPort(40000)
+    const onFailure = vi.fn()
+    const dispose = registerApiProviderAuthFailureHandler(onFailure)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+      .mockResolvedValueOnce({ ok: false, status: 403 })
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await expect(api.get('/api/song/like/check')).rejects.toThrow('HTTP 401')
+      await expect(api.get('/api/qq/user/playlists')).rejects.toThrow('HTTP 403')
+      await expect(api.get('/api/local/audio')).rejects.toThrow('HTTP 401')
+      expect(onFailure).toHaveBeenCalledTimes(2)
+      expect(onFailure).toHaveBeenNthCalledWith(1, 'netease', 401)
+      expect(onFailure).toHaveBeenNthCalledWith(2, 'qq', 403)
+    } finally {
+      dispose()
+    }
   })
 
   // 漫游生成「点了卡在生成中没反应」的根因兜底:上游停滞不返回时,整条链路原先会永远挂起。

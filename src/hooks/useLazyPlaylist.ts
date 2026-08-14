@@ -6,6 +6,8 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { serviceFor } from '../lib/service-registry'
 import { TRACK_WINDOW, windowIndicesFor, windowSpan, buildQueue } from '../lib/lazy-window'
 import type { Playlist, Track } from '../types/domain'
+import { isProviderId } from '../providers/types'
+import { isProviderParticipating, useProviderStore } from '../stores/providers'
 
 interface LazyEntry {
   trackIds: unknown[]
@@ -88,7 +90,10 @@ function markPrefixWindows(e: LazyEntry, prefixLen: number): void {
  * 与 useLazyPlaylist 共用同一份模块级缓存,同一歌单不会重复拉骨架;失败由调用方 catch。
  */
 export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
-  // 同样必须绑定歌单自身的 source,不能用全局 activeSource
+  if (isProviderId(playlist.source) && !isProviderParticipating(playlist.source)) {
+    throw new Error('该平台未登录或未启用')
+  }
+  // 同样必须绑定歌单自身的 source，不能用其他平台的 service。
   const service = serviceFor(playlist.source)
   const key = `${playlist.source}:${String(playlist.id)}`
   evictIfStale(key)
@@ -115,10 +120,14 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
 }
 
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
-  // 必须绑定歌单自身的 source,不能用全局 activeSource:
+  // 必须绑定歌单自身的 source：
   // 切换音源后仍留在旧歌单页/预览弹窗时,用错 service 会请求错音源接口,
   // 拿到空结果却仍按下面的逻辑落缓存,造成骨架永久占位且无法自愈。
   const service = serviceFor(playlist.source)
+  const available = useProviderStore((state) =>
+    !isProviderId(playlist.source)
+      || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated')
+  )
   const key = `${playlist.source}:${String(playlist.id)}`
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
@@ -143,7 +152,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     sessionRef.current += 1
     const session = sessionRef.current
     const e = cache.get(key)
-    if (!e || e.skeletonLoaded || e.error) return
+    if (!available || !e || e.skeletonLoaded || e.error) return
     // 专辑没有歌单骨架接口:一次拉全量曲目直接播种(专辑规模小,无需窗口懒加载)
     if (playlist.type === 'album') {
       service
@@ -177,10 +186,11 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
         bump()
       })
     // playlist.id 已编码进 key;retryTick 触发重拉
-  }, [key, service, retryTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [available, key, service, retryTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureRange = useCallback(
     (start: number, end: number) => {
+      if (!available) return
       const e = cache.get(key)
       if (!e || !e.skeletonLoaded) return
       const total = e.trackIds.length
@@ -208,7 +218,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
           })
       }
     },
-    [key, service]
+    [available, key, service]
   )
 
   const entry = cache.get(key)!
@@ -216,7 +226,8 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     total: entry.trackIds.length,
     tracks: entry.tracks,
     loading: !entry.skeletonLoaded && !entry.error,
-    error: entry.error,
+    error: entry.error || !available,
+    available,
     ensureRange,
     makeQueue: () => buildQueue(entry.trackIds, entry.tracks, playlist.source),
     retry: () => {

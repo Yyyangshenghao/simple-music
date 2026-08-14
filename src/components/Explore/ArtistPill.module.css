@@ -66,6 +66,13 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--ambient-1) 55%, transparent);
 }
 
+.sourceBadge {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  z-index: 2;
+}
+
 .pill.sm .selectedBadge {
   width: 17px;
   height: 17px;

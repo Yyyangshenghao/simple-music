@@ -12,6 +12,8 @@ import { useBackdropStore } from '../../stores/backdrop'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
+import { SourceBadge } from '../ui/SourceBadge'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
 import type { Playlist, Track } from '../../types/domain'
@@ -23,7 +25,7 @@ export const TRACK_ROW_HEIGHT = 56
 interface PlaylistDetailViewProps {
   playlist: Playlist
   initialTracks?: Track[]
-  layoutIdPrefix: 'explore-cover' | 'library-cover'
+  layoutIdPrefix: string
 }
 
 function SkeletonTrackRow({ index }: { index: number }) {
@@ -42,7 +44,13 @@ function SkeletonTrackRow({ index }: { index: number }) {
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
   const pageRef = useRef<HTMLDivElement>(null)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
-  const { total, tracks, loading, error, ensureRange, makeQueue, retry } = useLazyPlaylist(playlist, initialTracks)
+  const { total, tracks, loading, error, available, ensureRange, makeQueue, retry } = useLazyPlaylist(playlist, initialTracks)
+  const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
+
+  // 平台一旦停止参与，立即退出其详情页；避免保留来源标识、重试按钮等失效交互。
+  useEffect(() => {
+    if (!available) useNavigationStore.getState().goBack()
+  }, [available])
 
   // 进入/切换详情时重置滚动渐变遮罩
   useEffect(() => {
@@ -52,13 +60,15 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
 
   // 歌单封面模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
-    useBackdropStore.getState().setCover(playlist.cover)
+    useBackdropStore.getState().setCover(displayCover)
     return () => useBackdropStore.getState().setCover(null)
-  }, [playlist.cover])
+  }, [displayCover])
 
   function playAt(index: number) {
     usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
   }
+
+  if (!available) return null
 
   return (
     <div className={styles.page} ref={pageRef} onScroll={handleScroll}>
@@ -89,19 +99,28 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             <span>返回</span>
           </motion.button>
           <div className={styles.detailMeta}>
-            {playlist.cover && (
+            {displayCover ? (
               <motion.img
                 className={styles.detailCover}
-                src={sizedImage(playlist.cover, 176)}
+                src={sizedImage(displayCover, 176)}
                 alt=""
                 layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
                 transition={springGentle}
               />
+            ) : (
+              <motion.div
+                className={styles.detailCover}
+                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
+                transition={springGentle}
+              >
+                <PlaylistCoverFallback name={playlist.name} source={playlist.source} />
+              </motion.div>
             )}
             <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
               <h1 className={styles.detailTitle}>
                 <GradientText>{playlist.name}</GradientText>
               </h1>
+              <SourceBadge source={playlist.source} reveal />
               <p className={styles.detailSub}>{loading ? '加载中…' : `${total} 首`}</p>
             </motion.div>
           </div>

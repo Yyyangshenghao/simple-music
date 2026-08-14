@@ -2,12 +2,18 @@ import { create } from 'zustand'
 import { api } from '../lib/api'
 import { usePlayerStore, registerTrackEndedHandler } from './player'
 import { useSettingsStore } from './settings'
+import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
 import { preloadTracks } from '../lib/track-preload'
-import type { MusicSource, Playlist, Track, ShelfMode } from '../types/domain'
+import { isProviderId } from '../providers/types'
+import type { ProviderId } from '../providers/types'
+import type { Playlist, Track, ShelfMode } from '../types/domain'
 
 /** pending 占位曲目:先按 id 补详情;失败则去掉 pending 标记凭 id 兜底直接播(网易播放 URL 只需 id)。 */
 async function resolvePending(track: Track): Promise<Track> {
+  if (isProviderId(track.source) && !isProviderParticipating(track.source)) {
+    return { ...track, pending: false, name: track.name || '未知曲目' }
+  }
   try {
     const [full] = await serviceFor(track.source).getTracksByIds([track.id])
     if (full) return full
@@ -29,8 +35,8 @@ function shuffledIndices(n: number): number[] {
 
 interface PlaylistStore {
   playlists: Playlist[]
-  /** playlists 属于哪个音源;与当前 activeSource 不符时 UI 需重拉。 */
-  playlistsSource: MusicSource | null
+  /** 这批用户歌单属于哪个平台；平台入口切换后 UI 需显式重拉。 */
+  playlistsSource: ProviderId | null
   currentPlaylist: Playlist | null
   queue: Track[]
   queueIndex: number
@@ -40,7 +46,7 @@ interface PlaylistStore {
   shuffleOrder: number[]
   shelfVisible: boolean
   shelfMode: ShelfMode
-  loadUserPlaylists(): Promise<void>
+  loadUserPlaylists(source: ProviderId): Promise<void>
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
   addToQueue(track: Track): void
@@ -76,6 +82,7 @@ function stepIndex(
 // 切歌落定 1 秒后预载前/后曲目(URL 预解析 + 封面预热),不与当前曲目起播抢网络;
 // 快速连点只保留最后一次。走序与 next/prev 一致(含随机模式的洗牌排列)。
 let preloadTimer: ReturnType<typeof setTimeout> | null = null
+let userPlaylistsSession = 0
 
 function schedulePreloadNeighbors() {
   if (preloadTimer) clearTimeout(preloadTimer)
@@ -88,7 +95,12 @@ function schedulePreloadNeighbors() {
     for (const dir of [+1, -1] as const) {
       const idx = stepIndex(usePlaylistStore.getState(), applyPartial, dir)
       const t = usePlaylistStore.getState().queue[idx]
-      if (idx !== s.queueIndex && t && !targets.includes(t)) targets.push(t)
+      if (
+        idx !== s.queueIndex
+        && t
+        && (!isProviderId(t.source) || isProviderParticipating(t.source))
+        && !targets.includes(t)
+      ) targets.push(t)
     }
     if (!targets.length) return
     const player = usePlayerStore.getState()
@@ -109,11 +121,13 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   shelfVisible: false,
   shelfMode: 'dynamic',
 
-  // 曾写死网易端点(/api/user/playlists),QQ 音源下「我的库→歌单」显示的是网易歌单，
-  // 而 QQ 自己的 /api/qq/user/playlists 从未被调用。改为按当前音源取 service，
-  // 并记下归属音源，供 UI 判断切源后需要重拉。
-  async loadUserPlaylists() {
-    const source = useSettingsStore.getState().activeSource
+  async loadUserPlaylists(source) {
+    const session = ++userPlaylistsSession
+    const providerState = useProviderStore.getState().byId[source]
+    if (!providerState.enabled || providerState.auth !== 'authenticated') {
+      set({ playlists: [], playlistsSource: source })
+      return
+    }
     const service = serviceFor(source)
     if (!service.getUserPlaylists) {
       set({ playlists: [], playlistsSource: source })
@@ -121,11 +135,10 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     }
     try {
       const playlists = await service.getUserPlaylists()
-      // 等待期间用户切了音源:丢弃这批结果，避免把 A 源的歌单挂在 B 源下
-      if (useSettingsStore.getState().activeSource !== source) return
+      if (session !== userPlaylistsSession || !isProviderParticipating(source)) return
       set({ playlists, playlistsSource: source })
     } catch {
-      if (useSettingsStore.getState().activeSource !== source) return
+      if (session !== userPlaylistsSession) return
       set({ playlists: [], playlistsSource: source })
     }
   },
@@ -146,6 +159,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   playAt(index) {
     const track = get().queue[index]
     if (!track) return
+    if (isProviderId(track.source) && !isProviderParticipating(track.source)) return
     set({ queueIndex: index })
     schedulePreloadNeighbors()
     const contextId = get().queueContextId

@@ -1,13 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion } from 'motion/react'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
-import { useMusicService } from '../../hooks/useMusicService'
 import { usePlaylistStore } from '../../stores/playlist'
-import { useSettingsStore } from '../../stores/settings'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
-import { SourceAvatar } from '../ui/SourceAvatar'
-import { SOURCE_BRAND } from '../../lib/source-brand'
+import { SourceBadge } from '../ui/SourceBadge'
+import { providerFor } from '../../providers/registry'
+import { PROVIDER_IDS, type ProviderId } from '../../providers/types'
+import { useProviderStore } from '../../stores/providers'
+import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 import { sizedImage } from '../../lib/image-size'
@@ -18,6 +19,11 @@ const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '漫游', view: 'roam' },
   { label: '刷歌', view: 'shuange' },
 ]
+
+interface SearchPayload {
+  songs: Track[]
+  artists: ArtistInfo[]
+}
 
 interface TopBarProps {
   /** 歌词面板打开时隐藏顶栏 */
@@ -33,21 +39,20 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const goForward = useNavigationStore((s) => s.goForward)
 
   const [keyword, setKeyword] = useState('')
-  const [songs, setSongs] = useState<Track[]>([])
-  const [artists, setArtists] = useState<ArtistInfo[]>([])
-  const [loading, setLoading] = useState(false)
+  const [searchResults, setSearchResults] = useState<Partial<Record<ProviderId, ProviderResult<SearchPayload>>>>({})
   const [searchFocused, setSearchFocused] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
-  const service = useMusicService()
-
-  const activeSource = useSettingsStore((s) => s.activeSource)
-  const neteaseAvatar = useSettingsStore((s) => s.neteaseAvatar)
-  const qqAvatar = useSettingsStore((s) => s.qqAvatar)
-  const currentAvatar = activeSource === 'netease' ? neteaseAvatar : qqAvatar
+  const enabledSignature = useProviderStore((state) =>
+    PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
+  )
+  const enabledSources = useMemo(
+    () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
+    [enabledSignature]
+  )
 
   useEffect(() => {
     if (isExpanded) inputRef.current?.focus()
@@ -56,33 +61,44 @@ export function TopBar({ hidden = false }: TopBarProps) {
   async function runSearch(q: string) {
     if (!q) return
     const seq = ++searchSeq.current
-    setLoading(true)
-    try {
-      const [s, a] = await Promise.allSettled([
-        service.searchTracks(q),
-        service.searchArtists(q),
-      ])
-      if (seq !== searchSeq.current) return
-      setSongs(s.status === 'fulfilled' ? s.value : [])
-      setArtists(a.status === 'fulfilled' ? a.value : [])
-    } finally {
-      if (seq === searchSeq.current) setLoading(false)
-    }
+    setSearchResults({})
+    await runProviderTasks(
+      enabledSources,
+      async (source) => {
+        const provider = providerFor(source)
+        const [songs, artists] = await Promise.all([
+          provider.catalog.searchTracks(q),
+          provider.catalog.searchArtists(q),
+        ])
+        return { songs, artists }
+      },
+      {
+        isEnabled: (source) => {
+          const state = useProviderStore.getState().byId[source]
+          return state.enabled && state.auth === 'authenticated'
+        },
+        isEmpty: (result) => result.songs.length === 0 && result.artists.length === 0,
+        onUpdate: (result) => {
+          if (seq !== searchSeq.current) return
+          setSearchResults((current) => ({ ...current, [result.source]: result }))
+        },
+      }
+    )
   }
 
   useEffect(() => {
+    // 输入或启用平台变化时立即让上一批请求过期，避免 250ms 防抖窗口内落入旧结果。
+    searchSeq.current++
     const q = keyword.trim()
     if (!q) {
       searchSeq.current++
-      setSongs([])
-      setArtists([])
-      setLoading(false)
+      setSearchResults({})
       return
     }
     const timer = setTimeout(() => { void runSearch(q) }, 250)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword])
+  }, [keyword, enabledSignature])
 
   function handleSearchClick() {
     if (!isExpanded) setIsExpanded(true)
@@ -101,12 +117,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
   function clearSearch() {
     searchSeq.current++
     setKeyword('')
-    setSongs([])
-    setArtists([])
+    setSearchResults({})
   }
 
-  function pickSong(index: number) {
-    usePlaylistStore.getState().setQueue(songs, index)
+  function pickSong(track: Track) {
+    const songs = enabledSources.flatMap((source) => searchResults[source]?.data?.songs ?? [])
+    const index = songs.findIndex((item) => item.source === track.source && String(item.id) === String(track.id))
+    usePlaylistStore.getState().setQueue(songs, Math.max(index, 0))
     clearSearch()
     inputRef.current?.blur()
   }
@@ -118,7 +135,16 @@ export function TopBar({ hidden = false }: TopBarProps) {
     inputRef.current?.blur()
   }
 
-  const hasResults = songs.length > 0 || artists.length > 0
+  const loading = enabledSources.some((source) => searchResults[source]?.status === 'loading')
+  const hasResults = enabledSources.some((source) => {
+    const data = searchResults[source]?.data
+    return !!data && (data.songs.length > 0 || data.artists.length > 0)
+  })
+  const finished = enabledSources.length === 0
+    || enabledSources.every((source) => {
+      const status = searchResults[source]?.status
+      return status === 'ready' || status === 'empty' || status === 'error'
+    })
   const showDropdown = isExpanded && searchFocused && (keyword.length > 0 || loading || hasResults)
 
   const platform = window.desktop?.platform
@@ -244,34 +270,61 @@ export function TopBar({ hidden = false }: TopBarProps) {
           {showDropdown && (
             <div className={styles.searchDropdown}>
               {loading && <p className={styles.searchHint}>搜索中…</p>}
-              {!loading && keyword.length > 0 && !hasResults && (
+              {finished && keyword.length > 0 && !hasResults && (
                 <p className={styles.searchHint}>无结果</p>
               )}
-              {!loading && artists.length > 0 && (
-                <div>
-                  <div className={styles.searchSection}>歌手</div>
-                  {artists.map((a, i) => (
-                    <button key={`a-${i}`} className={styles.artistRow} onMouseDown={() => pickArtist(a)}>
-                      {a.avatar && <img className={styles.rowAvatar} src={sizedImage(a.avatar, 88)} alt="" loading="lazy" />}
-                      <span>{a.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {!loading && songs.length > 0 && (
-                <div>
-                  {artists.length > 0 && <div className={styles.searchSection}>歌曲</div>}
-                  {songs.slice(0, 8).map((s, i) => (
-                    <button key={`s-${i}`} className={styles.songRow} onMouseDown={() => pickSong(i)}>
-                      {s.cover && <img className={styles.rowCover} src={sizedImage(s.cover, 88)} alt="" loading="lazy" />}
-                      <div className={styles.songInfo}>
-                        <span className={styles.songName}>{s.name}</span>
-                        <span className={styles.songArtist}>{s.artist}</span>
+              {enabledSources.map((source) => {
+                const result = searchResults[source]
+                if (!result || result.status === 'loading') return null
+                if (result.status === 'error') {
+                  return (
+                    <div className={styles.searchProvider} key={source}>
+                      <div className={styles.providerHeader}>
+                        <strong>{providerFor(source).descriptor.label}</strong>
+                        <SourceBadge source={source} reveal />
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                      <p className={styles.providerError}>{result.error?.message}</p>
+                    </div>
+                  )
+                }
+                if (!result.data || result.status === 'empty') return null
+                const { artists, songs } = result.data
+                return (
+                  <div className={styles.searchProvider} key={source}>
+                    <div className={styles.providerHeader}>
+                      <strong>{providerFor(source).descriptor.label}</strong>
+                      <SourceBadge source={source} reveal />
+                    </div>
+                    {artists.length > 0 && (
+                      <div>
+                        <div className={styles.searchSection}>歌手</div>
+                        {artists.slice(0, 4).map((artist) => (
+                          <button key={`${artist.source}:${String(artist.id)}`} className={styles.artistRow} onMouseDown={() => pickArtist(artist)}>
+                            {artist.avatar && <img className={styles.rowAvatar} src={sizedImage(artist.avatar, 88)} alt="" loading="lazy" />}
+                            <span>{artist.name}</span>
+                            <SourceBadge source={artist.source} compact />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {songs.length > 0 && (
+                      <div>
+                        <div className={styles.searchSection}>歌曲</div>
+                        {songs.slice(0, 6).map((song) => (
+                          <button key={`${song.source}:${String(song.id)}`} className={styles.songRow} onMouseDown={() => pickSong(song)}>
+                            {song.cover && <img className={styles.rowCover} src={sizedImage(song.cover, 88)} alt="" loading="lazy" />}
+                            <div className={styles.songInfo}>
+                              <span className={styles.songName}>{song.name}</span>
+                              <span className={styles.songArtist}>{song.artist}</span>
+                            </div>
+                            <SourceBadge source={song.source} compact />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -280,12 +333,15 @@ export function TopBar({ hidden = false }: TopBarProps) {
           <motion.button
             className={styles.avatarBtn}
             onClick={() => setAvatarMenuOpen((v) => !v)}
-            aria-label={`账户菜单 - 当前音源 ${SOURCE_BRAND[activeSource].label}`}
+            aria-label={`音源与账号，已启用 ${enabledSources.length} 个平台`}
             whileTap={tapScale}
             transition={springSnappy}
           >
             <span className={styles.avatarInner}>
-              <SourceAvatar source={activeSource} avatarUrl={currentAvatar} />
+              <svg className={styles.accountGlyph} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
+              </svg>
             </span>
           </motion.button>
           {avatarMenuOpen && (

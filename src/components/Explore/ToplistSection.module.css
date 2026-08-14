@@ -5,6 +5,8 @@
   padding: 0 24px;
 }
 
+.embedded { width: 100%; margin: 24px 0 4px; padding: 0; }
+
 .title {
   display: inline-flex;
   align-items: center;

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { motion, Reorder, useDragControls } from 'motion/react'
 import { api } from '../lib/api'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
@@ -7,7 +7,12 @@ import { useToastStore } from '../stores/toast'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
+import { playbackStrategySummary } from '../lib/playback-preference-display'
 import { Switch } from '../components/ui/Switch'
+import { SourceBadge } from '../components/ui/SourceBadge'
+import { listProviders } from '../providers/registry'
+import { useProviderStore } from '../stores/providers'
+import type { ProviderId } from '../providers/types'
 import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance } from '../types/ipc'
 import styles from './SettingsPage.module.css'
@@ -30,6 +35,118 @@ interface AudioCacheConfigInfo {
   defaultDir: string
 }
 
+function enabledLabel(enabled: boolean): string {
+  return enabled ? '停用' : '启用'
+}
+
+function providerLabel(source: ProviderId): string {
+  return listProviders().find((provider) => provider.descriptor.id === source)?.descriptor.label ?? source
+}
+
+function PlaybackOrderItem({
+  source,
+  index,
+  total,
+  followOrigin,
+  onMove,
+}: {
+  source: ProviderId
+  index: number
+  total: number
+  followOrigin: boolean
+  onMove: (source: ProviderId, direction: -1 | 1) => void
+}) {
+  const dragControls = useDragControls()
+  const label = providerLabel(source)
+  const role = total === 1
+    ? '唯一音源'
+    : followOrigin
+      ? `补位 ${index + 1}`
+      : index === 0 ? '首选' : `备用 ${index}`
+
+  return (
+    <Reorder.Item
+      value={source}
+      className={styles.playbackOrderItem}
+      dragListener={false}
+      dragControls={dragControls}
+      layout
+    >
+      <span className={styles.playbackOrderRank}>{index + 1}</span>
+      <SourceBadge source={source} compact reveal />
+      <span className={styles.playbackOrderName}>{label}</span>
+      <span className={styles.playbackOrderRole}>{role}</span>
+      {total > 1 && (
+        <button
+          type="button"
+          className={`${styles.playbackOrderHandle} no-drag`}
+          aria-label={`拖动${label}调整顺序，或按 Alt 加上下箭头移动`}
+          title="拖动排序 · Alt + ↑/↓"
+          onPointerDown={(event) => dragControls.start(event)}
+          onKeyDown={(event) => {
+            if (!event.altKey) return
+            if (event.key === 'ArrowUp' && index > 0) {
+              event.preventDefault()
+              onMove(source, -1)
+            }
+            if (event.key === 'ArrowDown' && index < total - 1) {
+              event.preventDefault()
+              onMove(source, 1)
+            }
+          }}
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
+    </Reorder.Item>
+  )
+}
+
+function PlaybackOrderEditor({
+  order,
+  followOrigin,
+  emptyMessage,
+  onChange,
+}: {
+  order: ProviderId[]
+  followOrigin: boolean
+  emptyMessage: string
+  onChange: (order: ProviderId[]) => void
+}) {
+  const moveSource = (source: ProviderId, direction: -1 | 1): void => {
+    const from = order.indexOf(source)
+    const to = from + direction
+    if (from < 0 || to < 0 || to >= order.length) return
+    const next = [...order]
+    ;[next[from], next[to]] = [next[to], next[from]]
+    onChange(next)
+  }
+
+  if (order.length === 0) {
+    return <div className={styles.playbackOrderEmpty}>{emptyMessage}</div>
+  }
+
+  return (
+    <Reorder.Group
+      axis="y"
+      values={order}
+      onReorder={onChange}
+      className={styles.playbackOrderList}
+    >
+      {order.map((source, index) => (
+        <PlaybackOrderItem
+          key={source}
+          source={source}
+          index={index}
+          total={order.length}
+          followOrigin={followOrigin}
+          onMove={moveSource}
+        />
+      ))}
+    </Reorder.Group>
+  )
+}
+
 /** 通用滑杆行:label + range + 格式化后的当前值。 */
 function SliderRow({ label, min, max, step, value, format, onChange }: {
   label: string
@@ -40,15 +157,19 @@ function SliderRow({ label, min, max, step, value, format, onChange }: {
   format: (v: number) => string
   onChange: (v: number) => void
 }) {
+  const inputId = useId()
+
   return (
     <div className={styles.row}>
-      <span className={styles.rowLabel}>{label}</span>
+      <label className={styles.rowLabel} htmlFor={inputId}>{label}</label>
       <input
+        id={inputId}
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
+        aria-valuetext={format(value)}
         onChange={(e) => onChange(Number(e.target.value))}
         className="no-drag"
       />
@@ -110,8 +231,8 @@ function Lyrics3dSettings() {
   const percent = (v: number): string => `${Math.round(v * 100)}%`
 
   return (
-    <>
-      <section className={styles.group}>
+    <div className={styles.lyricsGrid}>
+      <section className={`${styles.group} ${styles.lyricsEffectGroup}`}>
         <h2 className={styles.groupTitle}>效果</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>3D 效果</span>
@@ -131,31 +252,7 @@ function Lyrics3dSettings() {
         </div>
       </section>
 
-      <section className={styles.group}>
-        <h2 className={styles.groupTitle}>粒子</h2>
-        <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
-          value={params.particleCount} format={percent} onChange={patch('particleCount')} />
-        <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
-          value={params.particleSize} format={percent} onChange={patch('particleSize')} />
-        <SliderRow label="粒子亮度" min={0.3} max={2} step={0.05}
-          value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
-        <SliderRow label="辉光强度" min={0} max={2} step={0.05}
-          value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
-        <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
-          value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
-      </section>
-
-      <section className={styles.group}>
-        <h2 className={styles.groupTitle}>鼓点波纹（封面粒子云）</h2>
-        <SliderRow label="波纹数量" min={1} max={6} step={1}
-          value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
-        <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
-          value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
-        <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
-          value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-      </section>
-
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.lyricsPerformanceGroup}`}>
         <h2 className={styles.groupTitle}>性能</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>帧率上限</span>
@@ -177,13 +274,37 @@ function Lyrics3dSettings() {
           value={params.renderScale} format={(v) => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.lyricsRippleGroup}`}>
+        <h2 className={styles.groupTitle}>鼓点波纹（封面粒子云）</h2>
+        <SliderRow label="波纹数量" min={1} max={6} step={1}
+          value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+        <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
+          value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
+        <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
+          value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+      </section>
+
+      <section className={`${styles.group} ${styles.lyricsParticleGroup}`}>
+        <h2 className={styles.groupTitle}>粒子</h2>
+        <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
+          value={params.particleCount} format={percent} onChange={patch('particleCount')} />
+        <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
+          value={params.particleSize} format={percent} onChange={patch('particleSize')} />
+        <SliderRow label="粒子亮度" min={0.3} max={2} step={0.05}
+          value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
+        <SliderRow label="辉光强度" min={0} max={2} step={0.05}
+          value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
+        <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
+          value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
+      </section>
+
+      <section className={`${styles.group} ${styles.lyricsOverlayGroup}`}>
         <h2 className={styles.groupTitle}>歌词叠加层</h2>
         <SliderRow label="底部模糊度" min={0} max={1} step={0.01}
           value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.lyricsResetGroup}`}>
         <div className={styles.row}>
           <span className={styles.rowLabel}>恢复全部 3D 参数为默认值</span>
           <button className={`${styles.seg} no-drag`} onClick={resetParams}>
@@ -191,7 +312,7 @@ function Lyrics3dSettings() {
           </button>
         </div>
       </section>
-    </>
+    </div>
   )
 }
 
@@ -221,12 +342,25 @@ export function SettingsPage() {
     setFontFamily('')
   }
 
-  const activeSource = useSettingsStore((s) => s.activeSource)
-  const setActiveSource = useSettingsStore((s) => s.setActiveSource)
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
-  const crossSourceFallback = useSettingsStore((s) => s.crossSourceFallback)
-  const setCrossSourceFallback = useSettingsStore((s) => s.setCrossSourceFallback)
+  const providerState = useProviderStore((s) => s.byId)
+  const playbackOrder = useProviderStore((s) => s.playbackOrder)
+  const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
+  const multiSourceFallback = useProviderStore((s) => s.multiSourceFallback)
+  const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
+  const setProviderEnabled = useProviderStore((s) => s.setEnabled)
+  const setPlaybackOrder = useProviderStore((s) => s.setPlaybackOrder)
+  const setPreferOriginSource = useProviderStore((s) => s.setPreferOriginSource)
+  const setMultiSourceFallback = useProviderStore((s) => s.setMultiSourceFallback)
+  const setSourceBadgeMode = useProviderStore((s) => s.setSourceBadgeMode)
+  const participatingPlaybackOrder = playbackOrder.filter((source) => (
+    providerState[source].enabled && providerState[source].auth === 'authenticated'
+  ))
+  const playbackAuthPending = playbackOrder.some((source) => (
+    providerState[source].enabled && providerState[source].auth === 'unknown'
+  ))
+  const visiblePlaybackOrder = playbackAuthPending ? [] : participatingPlaybackOrder
   const performance = useSettingsStore((s) => s.performance)
   const setPerformance = useSettingsStore((s) => s.setPerformance)
   const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
@@ -278,7 +412,6 @@ export function SettingsPage() {
     if (!r.ok || !r.filePath) return
     await postCacheConfig({ dir: r.filePath })
   }
-  const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
   const updateFx = useVisualStore((s) => s.updateFx)
@@ -307,40 +440,107 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>设置</h1>
-
-      {/* 标签页导航:通用 / 3D 歌词 */}
-      <div className={styles.tabBar}>
-        {([['general', '通用'], ['lyrics3d', '3D 歌词']] as [SettingsTab, string][]).map(([id, label]) => (
-          <motion.button
-            key={id}
-            className={`${styles.tab} no-drag ${tab === id ? styles.tabActive : ''}`}
-            onClick={() => setTab(id)}
-            whileTap={tapScale}
-            transition={springSnappy}
-          >
-            {label}
-          </motion.button>
-        ))}
-      </div>
-
-      {tab === 'lyrics3d' && <Lyrics3dSettings />}
-
-      {tab === 'general' && (<>
-      <section className={styles.group}>
-        <h2 className={styles.groupTitle}>账户</h2>
-        <div className={styles.row}>
-          <div className={styles.rowIcon}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v1h20v-1c0-3.3-6.7-5-10-5z"/>
-            </svg>
+      <div className={styles.shell}>
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <span className={styles.eyebrow}>CONTROL CENTER</span>
+            <h1 className={styles.title}>设置</h1>
+            <p className={styles.lede}>把音源、播放与视觉体验调整成你习惯的样子。</p>
           </div>
-          <span className={styles.rowLabel}>{neteaseLoggedIn ? '已登录网易云' : '未登录'}</span>
-        </div>
+
+          {/* 标签页导航:通用 / 3D 歌词 */}
+          <div className={styles.tabBar} role="tablist" aria-label="设置分类">
+            {([['general', '通用'], ['lyrics3d', '3D 歌词']] as [SettingsTab, string][]).map(([id, label]) => (
+              <motion.button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                aria-controls={`settings-panel-${id}`}
+                id={`settings-tab-${id}`}
+                tabIndex={tab === id ? 0 : -1}
+                className={`${styles.tab} no-drag ${tab === id ? styles.tabActive : ''}`}
+                onClick={() => setTab(id)}
+                onKeyDown={(event) => {
+                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                  event.preventDefault()
+                  const nextTab = event.key === 'Home'
+                    ? 'general'
+                    : event.key === 'End'
+                      ? 'lyrics3d'
+                      : id === 'general' ? 'lyrics3d' : 'general'
+                  setTab(nextTab)
+                  document.getElementById(`settings-tab-${nextTab}`)?.focus()
+                }}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {label}
+              </motion.button>
+            ))}
+          </div>
+        </header>
+
+        {tab === 'lyrics3d' && (
+          <div id="settings-panel-lyrics3d" role="tabpanel" aria-labelledby="settings-tab-lyrics3d">
+            <Lyrics3dSettings />
+          </div>
+        )}
+
+        {tab === 'general' && (<div
+          id="settings-panel-general"
+          role="tabpanel"
+          aria-labelledby="settings-tab-general"
+          className={styles.settingsGrid}
+        >
+      <section className={`${styles.group} ${styles.accountsGroup}`}>
+        <h2 className={styles.groupTitle}>音源与账户</h2>
+        <p className={styles.groupHint}>平台必须先登录，再由你明确启用；退出登录后会立即停止参与内容与播放。</p>
+        {listProviders().map((provider) => {
+          const runtime = providerState[provider.descriptor.id]
+          return (
+            <div className={styles.providerRow} key={provider.descriptor.id}>
+              <SourceBadge source={provider.descriptor.id} reveal />
+              <div className={styles.providerAccount}>
+                <span>{provider.descriptor.label}</span>
+                <small>
+                  {runtime.auth === 'authenticated'
+                    ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
+                    : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
+                </small>
+              </div>
+              <Switch
+                checked={runtime.auth === 'authenticated' && runtime.enabled}
+                disabled={runtime.auth !== 'authenticated'}
+                onChange={(enabled) => setProviderEnabled(provider.descriptor.id, enabled)}
+                aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled)}${provider.descriptor.label}`}
+              />
+            </div>
+          )
+        })}
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.appearanceGroup}`}>
         <h2 className={styles.groupTitle}>外观</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>来源标识</span>
+          <div className={styles.segControl}>
+            {(['always', 'dynamic', 'hidden'] as const).map((mode) => (
+              <motion.button
+                key={mode}
+                className={`${styles.seg} no-drag ${sourceBadgeMode === mode ? styles.segActive : ''}`}
+                onClick={() => setSourceBadgeMode(mode)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {{ always: '常显', dynamic: '动态', hidden: '隐藏' }[mode]}
+              </motion.button>
+            ))}
+          </div>
+          <span className={styles.rowValue}>
+            {sourceBadgeMode === 'dynamic' ? '悬停或聚焦时显示' : sourceBadgeMode === 'hidden' ? '不显示实体来源' : '始终显示'}
+          </span>
+        </div>
         <div className={styles.row}>
           <span className={styles.rowLabel}>主题模式</span>
           <div className={styles.segControl}>
@@ -358,9 +558,10 @@ export function SettingsPage() {
           </div>
         </div>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>字体</span>
+          <label className={styles.rowLabel} htmlFor="settings-font-family">字体</label>
           <div className={styles.fontRow}>
             <input
+              id="settings-font-family"
               className={`${styles.fontInput} no-drag`}
               value={fontDraft}
               onChange={(e) => handleFontChange(e.target.value)}
@@ -373,55 +574,120 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className={styles.group}>
-        <h2 className={styles.groupTitle}>性能</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>预设</span>
-          <div className={styles.segControl}>
-            {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
-                onClick={() => applyPerformancePreset(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {PERFORMANCE_PRESET_LABELS[id]}
-              </motion.button>
-            ))}
-            {/* 当前开关组合不匹配任何预设时的只读指示态:下面 5 个开关已实时存档,这里仅是展示 */}
-            <span
-              className={`${styles.seg} ${styles.segCustom} ${activePerformancePreset === null ? styles.segActive : ''}`}
-              title="单独调整下面任意开关后,组合不再对应某个预设,但改动会照常保存"
-            >
-              自定义
-            </span>
-          </div>
-        </div>
-        {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
-          <div className={styles.row} key={key}>
-            <span className={styles.rowLabel} title={hint || undefined}>{label}</span>
-            <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
-          </div>
-        ))}
-      </section>
-
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.musicGroup}`}>
         <h2 className={styles.groupTitle}>音乐</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>音源</span>
-          <div className={styles.segControl}>
-            {(['netease', 'qq'] as const).map((s) => (
-              <motion.button
-                key={s}
-                className={`${styles.seg} no-drag ${activeSource === s ? styles.segActive : ''}`}
-                onClick={() => setActiveSource(s)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {{ netease: '网易云', qq: 'QQ 音乐' }[s]}
-              </motion.button>
-            ))}
+        <div className={styles.playbackStrategyRow}>
+          <div className={styles.playbackStrategy}>
+            <div className={styles.playbackStrategyHeading}>
+              <div>
+                <span className={styles.playbackStrategyKicker}>播放接力</span>
+                <strong>决定歌曲默认从哪里开始播放</strong>
+              </div>
+              <span className={styles.playbackProviderCount}>
+                {playbackAuthPending ? '正在核实' : `${participatingPlaybackOrder.length} 个平台`}
+              </span>
+            </div>
+
+            {visiblePlaybackOrder.length > 1 ? (
+              <div className={styles.playbackModeBlock}>
+                <span className={styles.playbackFieldLabel}>起播方式</span>
+                <div className={styles.playbackModeControl} role="radiogroup" aria-label="起播方式">
+                  <motion.button
+                    type="button"
+                    role="radio"
+                    aria-checked={preferOriginSource}
+                    tabIndex={preferOriginSource ? 0 : -1}
+                    className={`${styles.playbackModeButton} no-drag ${preferOriginSource ? styles.playbackModeButtonActive : ''}`}
+                    onClick={() => setPreferOriginSource(true)}
+                    onKeyDown={(event) => {
+                      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+                      event.preventDefault()
+                      const keepCurrent = event.key === 'Home'
+                      setPreferOriginSource(keepCurrent)
+                      if (!keepCurrent) {
+                        ;(event.currentTarget.nextElementSibling as HTMLElement | null)?.focus()
+                      }
+                    }}
+                    whileTap={tapScale}
+                    transition={springSnappy}
+                  >
+                    跟随歌曲来源
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    role="radio"
+                    aria-checked={!preferOriginSource}
+                    tabIndex={!preferOriginSource ? 0 : -1}
+                    className={`${styles.playbackModeButton} no-drag ${!preferOriginSource ? styles.playbackModeButtonActive : ''}`}
+                    onClick={() => setPreferOriginSource(false)}
+                    onKeyDown={(event) => {
+                      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+                      event.preventDefault()
+                      const keepCurrent = event.key === 'End'
+                      setPreferOriginSource(!keepCurrent)
+                      if (!keepCurrent) {
+                        ;(event.currentTarget.previousElementSibling as HTMLElement | null)?.focus()
+                      }
+                    }}
+                    whileTap={tapScale}
+                    transition={springSnappy}
+                  >
+                    固定播放顺序
+                  </motion.button>
+                </div>
+                <span className={styles.playbackModeHint}>
+                  {preferOriginSource
+                    ? '未指定“本次优先”时，歌曲所属平台已启用就先用它；否则从下方顺序开始。'
+                    : '未指定“本次优先”时，所有歌曲都从下方第 1 个平台开始。'}
+                </span>
+              </div>
+            ) : visiblePlaybackOrder.length === 1 ? (
+              <div className={styles.playbackSingleProviderHint}>当前只有一个已启用平台，无需设置接力方式。</div>
+            ) : null}
+
+            <div className={styles.playbackRulePreview} aria-live="polite">
+              <span>全局规则</span>
+              <strong>
+                {playbackStrategySummary(
+                  visiblePlaybackOrder.map(providerLabel),
+                  preferOriginSource,
+                  multiSourceFallback
+                )}
+              </strong>
+            </div>
+
+            <div className={styles.playbackOrderBlock}>
+              <div className={styles.playbackOrderHeading}>
+                <span>
+                  {visiblePlaybackOrder.length <= 1
+                    ? '当前音源'
+                    : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
+                </span>
+                {visiblePlaybackOrder.length > 1 && <small>拖动排序 · 键盘可用 Alt + ↑/↓</small>}
+              </div>
+              <PlaybackOrderEditor
+                order={visiblePlaybackOrder}
+                followOrigin={preferOriginSource}
+                emptyMessage={playbackAuthPending ? '正在核实平台账号状态…' : '先在“音源与账户”中启用一个平台'}
+                onChange={setPlaybackOrder}
+              />
+            </div>
+
+            {visiblePlaybackOrder.length > 1 && <div className={styles.playbackFallbackRow}>
+              <div>
+                <strong>播放失败后自动换源</strong>
+                <small>
+                  {multiSourceFallback
+                    ? '当前平台没有版权、会员受限或地址失效时，继续接力。'
+                    : '关闭后只在当前平台内部降低音质，不再切换平台。'}
+                </small>
+              </div>
+              <Switch
+                checked={multiSourceFallback}
+                onChange={setMultiSourceFallback}
+                aria-label="播放失败后自动换源"
+              />
+            </div>}
           </div>
         </div>
         <div className={styles.row}>
@@ -440,10 +706,6 @@ export function SettingsPage() {
               </motion.button>
             ))}
           </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel} title="当前音源放不了(VIP/下架)时,自动去另一音源搜同曲播放">跨音源兜底播放</span>
-          <Switch checked={crossSourceFallback} onChange={setCrossSourceFallback} aria-label="跨音源兜底播放" />
         </div>
         <div className={styles.row}>
           <span className={styles.rowLabel} title="已播放的整曲会缓存到此文件夹,重复播放不再消耗流量;更改后原文件夹里的缓存会被清空">缓存位置</span>
@@ -492,20 +754,55 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.performanceGroup}`}>
+        <h2 className={styles.groupTitle}>性能</h2>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>预设</span>
+          <div className={styles.segControl}>
+            {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
+                onClick={() => applyPerformancePreset(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {PERFORMANCE_PRESET_LABELS[id]}
+              </motion.button>
+            ))}
+            {/* 当前开关组合不匹配任何预设时的只读指示态:下面 5 个开关已实时存档,这里仅是展示 */}
+            <span
+              className={`${styles.seg} ${styles.segCustom} ${activePerformancePreset === null ? styles.segActive : ''}`}
+              title="单独调整下面任意开关后,组合不再对应某个预设,但改动会照常保存"
+            >
+              自定义
+            </span>
+          </div>
+        </div>
+        {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
+          <div className={styles.row} key={key}>
+            <span className={styles.rowLabel} title={hint || undefined}>{label}</span>
+            <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+          </div>
+        ))}
+      </section>
+
+      <section className={`${styles.group} ${styles.desktopLyricsGroup}`}>
         <h2 className={styles.groupTitle}>桌面歌词</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>启用桌面歌词</span>
           <Switch checked={desktopLyrics} onChange={(v) => updateFx({ desktopLyrics: v })} aria-label="启用桌面歌词" />
         </div>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>字体大小</span>
+          <label className={styles.rowLabel} htmlFor="settings-desktop-lyrics-size">字体大小</label>
           <input
+            id="settings-desktop-lyrics-size"
             type="range"
             min={12}
             max={48}
             step={2}
             value={desktopLyricsSize}
+            aria-valuetext={`${desktopLyricsSize}px`}
             onChange={(e) => updateFx({ desktopLyricsSize: Number(e.target.value) })}
             className="no-drag"
           />
@@ -513,7 +810,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.miniPlayerGroup}`}>
         <h2 className={styles.groupTitle}>迷你播放条</h2>
         <p className={styles.groupHint}>
           开关在播放栏右侧。悬浮条拖动可移动，拖右边缘可调宽度；加宽到 {MINI_PLAYER_LYRICS_WIDTH}px 以上会展开当前歌词。
@@ -569,7 +866,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className={styles.group}>
+      <section className={`${styles.group} ${styles.aboutGroup}`}>
         <h2 className={styles.groupTitle}>关于</h2>
         <div className={styles.row}>
           <span className={styles.rowLabel}>Simple Music</span>
@@ -600,7 +897,8 @@ export function SettingsPage() {
           )}
         </div>
       </section>
-      </>)}
+      </div>)}
+      </div>
     </div>
   )
 }

@@ -96,6 +96,27 @@
   gap: 6px;
 }
 
+.sourceFacts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 7px 10px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+}
+
+.sourceFactValue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--sm-text-primary);
+  font-weight: 600;
+}
+
 /* 倍速五档等分一行,避免 flex-wrap 换出孤零零的一个 */
 .rateChips {
   display: grid;

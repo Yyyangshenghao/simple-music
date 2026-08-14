@@ -7,6 +7,10 @@ export interface AudioEngineCallbacks {
   onDuration?: (seconds: number) => void
   onEnded?: () => void
   onStatus?: (status: PlaybackStatus) => void
+  /** 当前候选已进入浏览器可播放态；解析器此时才提交实际音源。 */
+  onCanPlay?: (loadId: number) => void
+  /** URL 非空但媒体加载/解码失败，交回解析器尝试下一候选。 */
+  onError?: (reason: string | undefined, loadId: number) => void
 }
 
 /**
@@ -28,6 +32,8 @@ export class AudioEngine {
   private pendingSeek: number | null = null
   /** 淡出后真正暂停元素的定时器;play/load 需取消,避免淡出期间恢复播放又被暂停。 */
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
+  /** 每次 load/clearSource 递增，用于上层拒绝上一地址迟到的媒体事件。 */
+  private loadId = 0
 
   constructor(cbs: AudioEngineCallbacks = {}) {
     this.cbs = cbs
@@ -56,6 +62,11 @@ export class AudioEngine {
       if (!a.ended) this.cbs.onStatus?.('paused')
     })
     a.addEventListener('waiting', () => this.cbs.onStatus?.('loading'))
+    a.addEventListener('canplay', () => this.cbs.onCanPlay?.(this.loadId))
+    a.addEventListener('error', () => {
+      const code = a.error?.code
+      this.cbs.onError?.(code ? `MEDIA_ERR_${code}` : 'MEDIA_LOAD_ERROR', this.loadId)
+    })
     a.addEventListener('loadedmetadata', () => {
       if (this.pendingSeek != null) {
         a.currentTime = this.pendingSeek
@@ -98,8 +109,9 @@ export class AudioEngine {
 
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
    * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
-  load(upstreamUrl: string, startAt?: number, cacheKey?: string): void {
+  load(upstreamUrl: string, startAt?: number, cacheKey?: string): number {
     this.clearPauseTimer()
+    const loadId = ++this.loadId
     // 新曲从静音起步,出声时经 playing 事件淡入
     this.rampGain(0, 0)
     this.cbs.onStatus?.('loading')
@@ -112,11 +124,21 @@ export class AudioEngine {
         : upstreamUrl
     this.audio.src = src
     this.audio.load()
+    return loadId
   }
 
   /** 是否已加载过音频源(重启恢复态为 false,播放前需重新 load)。 */
   get hasSource(): boolean {
     return !!this.audio.src
+  }
+
+  clearSource(): void {
+    this.clearPauseTimer()
+    this.loadId++
+    this.audio.pause()
+    this.audio.removeAttribute('src')
+    this.audio.load()
+    this.pendingSeek = null
   }
 
   async play(): Promise<void> {

@@ -1,0 +1,42 @@
+.rail { width: 100%; margin-top: 24px; }
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 16px; }
+.header span { color: var(--sm-text-secondary); font-size: 10px; }
+
+.row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 148px;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 1px 1px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border) transparent;
+}
+
+.card { width: 148px; }
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px dashed var(--sm-border);
+  border-radius: 12px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+}
+
+.error button {
+  border: none;
+  background: transparent;
+  color: var(--sm-accent);
+  cursor: pointer;
+}

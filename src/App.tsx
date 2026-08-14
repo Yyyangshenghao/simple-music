@@ -11,6 +11,8 @@ import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
+import { initProviderStore } from './stores/providers'
+import { initProviderAuthFailureSync } from './stores/provider-auth'
 import { useUpdateStore } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
 import { useNavigationStore } from './stores/navigation'
@@ -20,6 +22,7 @@ import { initMediaSession } from './lib/media-session'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
+import { GlobalContentProviderDock } from './components/Layout/GlobalContentProviderDock'
 import { AmbientBackground } from './components/Layout/AmbientBackground'
 import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
@@ -52,6 +55,8 @@ export default function App() {
 
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()
+    const stopProviderStore = initProviderStore()
+    const stopProviderAuthFailureSync = initProviderAuthFailureSync()
     initPlaybackPersistence()
     initMediaSession()
     // 主进程状态不跨重启保留,迷你播放条开关需要在加载完本地设置后重放一次
@@ -71,7 +76,12 @@ export default function App() {
       else root.removeAttribute('data-reduce-transparency')
     }
     sync()
-    return useSettingsStore.subscribe(sync)
+    const stopSettingsSync = useSettingsStore.subscribe(sync)
+    return () => {
+      stopSettingsSync()
+      stopProviderAuthFailureSync()
+      stopProviderStore()
+    }
   }, [])
 
   useEffect(() => {
@@ -88,6 +98,7 @@ export default function App() {
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />
+          <GlobalContentProviderDock />
           {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />

@@ -6,6 +6,8 @@ import { springGentle } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistCard.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { SourceBadge } from '../ui/SourceBadge'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 
 interface PlaylistCardProps {
   playlist: Playlist
@@ -22,7 +24,8 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, layo
           <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
             {playlist.cover
               ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
-              : <div className={styles.coverFallback} />}
+              : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
+            <SourceBadge source={playlist.source} className={styles.sourceBadge} />
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>
           <p className={styles.meta}>{playlist.trackCount} 首</p>

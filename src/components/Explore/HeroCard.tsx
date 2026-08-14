@@ -5,11 +5,14 @@ import { TiltCard } from '../ui/TiltCard'
 import { springGentle } from '../../lib/motion-presets'
 import styles from './HeroCard.module.css'
 import { sizedImage } from '../../lib/image-size'
+import type { MusicSource } from '../../types/domain'
+import { SourceBadge } from '../ui/SourceBadge'
 
 interface HeroCardProps {
   title: string
   subtitle: string
   cover?: string
+  source: MusicSource
   /** 左上角徽标（每日推荐的日历数字）。 */
   badge?: ReactNode
   /** 传入时封面参与共享元素转场（与详情页头部封面同 ID）。 */
@@ -17,7 +20,7 @@ interface HeroCardProps {
   onClick(): void
 }
 
-export function HeroCard({ title, subtitle, cover, badge, layoutId, onClick }: HeroCardProps) {
+export function HeroCard({ title, subtitle, cover, source, badge, layoutId, onClick }: HeroCardProps) {
   return (
     <TiltCard className={styles.wrap}>
       <BorderGlow borderRadius={16}>
@@ -28,6 +31,7 @@ export function HeroCard({ title, subtitle, cover, badge, layoutId, onClick }: H
               : <div className={styles.coverFallback} />}
           </motion.div>
           <div className={styles.scrim} />
+          <SourceBadge source={source} className={styles.sourceBadge} />
           {badge && <div className={styles.badge}>{badge}</div>}
           <div className={styles.text}>
             <p className={styles.title}>{title}</p>

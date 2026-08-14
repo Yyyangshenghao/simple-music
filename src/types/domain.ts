@@ -1,7 +1,9 @@
 // 领域类型。Track/Playlist 对齐 server 返回（netease-client.ts 的 mapSongRecord/mapDiscoverPlaylist），
 // FxParams/FxSnapshot 对齐 public/default-user-fx-archive.json 以保证存档互通。
 
-export type MusicSource = 'netease' | 'qq' | 'local'
+export const ONLINE_MUSIC_SOURCES = ['netease', 'qq'] as const
+export type OnlineMusicSource = (typeof ONLINE_MUSIC_SOURCES)[number]
+export type MusicSource = OnlineMusicSource | 'local'
 // max = 不锁档位,服务端按每首歌实际可得的最高档(母带/Hi-Res/无损…)逐级回退;
 // jymaster/sky/jyeffect/hires 为网易专属档,aac 为 QQ 专属兜底档,经音质弹层按单曲真实可得档选中
 export type AudioQuality =

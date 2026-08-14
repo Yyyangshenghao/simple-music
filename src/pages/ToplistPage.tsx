@@ -1,38 +1,51 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { useSettingsStore } from '../stores/settings'
 import { useNavigationStore } from '../stores/navigation'
 import { getCachedToplistGroups, loadToplistGroups } from '../lib/toplist-cache'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { ToplistCard } from '../components/Explore/ToplistCard'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { GradientText } from '../components/ui/GradientText'
+import { SourceBadge } from '../components/ui/SourceBadge'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import type { ToplistGroup } from '../lib/music-service'
 import type { Playlist } from '../types/domain'
 import styles from './ToplistPage.module.css'
+import { providerFor } from '../providers/registry'
+import { useProviderStore } from '../stores/providers'
 
 /** 全部榜单:服务端按主题分组(官方榜/云村特色/曲风/ACG/语种海外/更多),每组一片网格。
  *  卡片交互与探索页「榜单精选」完全一致(点开预览、封面钮直接播放整榜)。 */
 export function ToplistPage() {
-  const activeSource = useSettingsStore((s) => s.activeSource)
+  const currentView = useNavigationStore((s) => s.currentView)
+  const source = typeof currentView === 'object' && currentView.type === 'toplist'
+    ? currentView.source
+    : 'netease'
   const goBack = useNavigationStore((s) => s.goBack)
   // 探索页「榜单精选」刚拉过的话直接命中缓存,点进来就是完整网格(卡片随即开始后台预取各自的 Top3)
-  const [groups, setGroups] = useState<ToplistGroup[]>(() => getCachedToplistGroups(activeSource) ?? [])
-  const [loading, setLoading] = useState(() => !getCachedToplistGroups(activeSource))
+  const [groups, setGroups] = useState<ToplistGroup[]>(() => getCachedToplistGroups(source) ?? [])
+  const [loading, setLoading] = useState(() => !getCachedToplistGroups(source))
   const [preview, setPreview] = useState<Playlist | null>(null)
+  const participating = useProviderStore((state) =>
+    state.byId[source].enabled && state.byId[source].auth === 'authenticated'
+  )
 
   useEffect(() => {
     let cancelled = false
-    const cached = getCachedToplistGroups(activeSource)
+    if (!participating) {
+      setGroups([])
+      setLoading(false)
+      return () => { cancelled = true }
+    }
+    const cached = getCachedToplistGroups(source)
     setGroups(cached ?? [])
     setLoading(!cached)
-    loadToplistGroups(activeSource)
+    loadToplistGroups(source)
       .then((gs) => { if (!cancelled) setGroups(gs) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [activeSource])
+  }, [participating, source])
 
   return (
     <ScrollArea className={styles.page}>
@@ -61,6 +74,8 @@ export function ToplistPage() {
 
       <motion.h1 className={styles.heading} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
         <GradientText>榜单精选</GradientText>
+        <SourceBadge source={source} reveal />
+        {participating && <span className={styles.sourceLabel}>{providerFor(source).descriptor.label}</span>}
       </motion.h1>
 
       {groups.map((group) => (
@@ -69,7 +84,7 @@ export function ToplistPage() {
           <div className={styles.grid}>
             {group.entries.map((entry) => (
               <ToplistCard
-                key={String(entry.playlist.id)}
+                key={`${entry.playlist.source}:${String(entry.playlist.id)}`}
                 entry={entry}
                 onOpen={() => setPreview(entry.playlist)}
               />
@@ -78,7 +93,9 @@ export function ToplistPage() {
         </section>
       ))}
 
-      {!loading && groups.length === 0 && <p className={styles.empty}>暂时拿不到榜单</p>}
+      {!loading && groups.length === 0 && (
+        <p className={styles.empty}>{participating ? '暂时拿不到榜单' : '该平台未登录或未启用'}</p>
+      )}
 
       <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
     </ScrollArea>

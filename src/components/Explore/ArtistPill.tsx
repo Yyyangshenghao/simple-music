@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { tapScale, springSnappy } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
 import { CheckIcon } from '../ui/CheckIcon'
+import { SourceBadge } from '../ui/SourceBadge'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPill.module.css'
 
@@ -38,6 +39,7 @@ export const ArtistPill = forwardRef<HTMLButtonElement, ArtistPillProps>(functio
             <CheckIcon size={size === 'sm' ? 9 : 11} />
           </span>
         )}
+        <SourceBadge source={artist.source} compact className={styles.sourceBadge} />
       </span>
       <span className={styles.name}>{artist.name}</span>
     </motion.button>

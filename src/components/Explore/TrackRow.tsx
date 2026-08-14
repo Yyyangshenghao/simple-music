@@ -7,6 +7,7 @@ import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
+import { SourceBadge } from '../ui/SourceBadge'
 
 interface TrackRowProps {
   track: Track
@@ -56,7 +57,10 @@ export function TrackRow({ track, index, onPlay }: TrackRowProps) {
       {track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
       <div className={styles.info}>
         <span className={styles.name}>{track.name}</span>
-        <span className={styles.artist}>{track.artist}</span>
+        <span className={styles.artistLine}>
+          <span className={styles.artist}>{track.artist}</span>
+          <SourceBadge source={track.source} compact />
+        </span>
       </div>
       <span className={styles.duration}>
         {formatDuration(track.duration)}

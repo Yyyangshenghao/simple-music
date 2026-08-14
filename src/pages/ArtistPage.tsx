@@ -12,6 +12,7 @@ import { ScrollArea } from '../components/ui/ScrollArea'
 import { tapScale, springSnappy } from '../lib/motion-presets'
 import type { ArtistInfo, MusicSource, Track, Playlist } from '../types/domain'
 import styles from './ArtistPage.module.css'
+import { useProviderStore } from '../stores/providers'
 
 type ArtistTab = 'songs' | 'albums' | 'similar'
 
@@ -29,8 +30,11 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
-  // 切换音源后回退的历史条目），用全局 activeSource 会把 netease 的 id 拿去查 QQ。
+  // 跨平台导航留下的历史条目也必须按实体自身 source 查询，避免把网易 id 发给 QQ。
   const service = useMemo(() => serviceFor(source), [source])
+  const participating = useProviderStore((state) =>
+    state.byId[source].enabled && state.byId[source].auth === 'authenticated'
+  )
   const goBack = useNavigationStore((s) => s.goBack)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
 
@@ -38,6 +42,10 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
     // 快速连点歌手时，先发的请求可能后返回；用 cancelled 丢弃过期响应
     let cancelled = false
     setArtist(null); setSongs([]); setAlbums([]); setSimilar([]); setSimilarLoaded(false)
+    if (!participating) {
+      setSimilarLoaded(true)
+      return () => { cancelled = true }
+    }
     void service.getArtistDetail(id).then((v) => { if (!cancelled) setArtist(v) }).catch(() => {})
     void service.getArtistSongs(id).then((v) => { if (!cancelled) setSongs(v) }).catch(() => {})
     void service.getArtistAlbums(id).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
@@ -50,7 +58,7 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
       setSimilarLoaded(true)
     }
     return () => { cancelled = true }
-  }, [id, service])
+  }, [id, participating, service])
 
   // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
   function openArtist(nextId: unknown, nextSource: MusicSource) {

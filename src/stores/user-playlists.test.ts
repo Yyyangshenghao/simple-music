@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { usePlaylistStore } from './playlist'
-import { useSettingsStore } from './settings'
+import { useProviderStore } from './providers'
 import { neteaseService, qqService } from '../lib/service-registry'
 import type { Playlist } from '../types/domain'
 
@@ -16,18 +16,24 @@ function pl(name: string, source: 'netease' | 'qq'): Playlist {
   } as Playlist
 }
 
-describe('loadUserPlaylists 按当前音源取歌单', () => {
+describe('loadUserPlaylists 按显式平台取歌单', () => {
   beforeEach(() => {
     usePlaylistStore.setState({ playlists: [], playlistsSource: null })
+    useProviderStore.setState((state) => ({
+      byId: {
+        netease: { ...state.byId.netease, enabled: true, auth: 'authenticated' },
+        qq: { ...state.byId.qq, enabled: true, auth: 'authenticated' },
+      },
+      playbackOrder: ['netease', 'qq'],
+    }))
     vi.restoreAllMocks()
   })
 
   it('网易音源走网易 service', async () => {
-    useSettingsStore.setState({ activeSource: 'netease' })
     const ne = vi.spyOn(neteaseService, 'getUserPlaylists').mockResolvedValue([pl('网易歌单', 'netease')])
     const qq = vi.spyOn(qqService, 'getUserPlaylists').mockResolvedValue([])
 
-    await usePlaylistStore.getState().loadUserPlaylists()
+    await usePlaylistStore.getState().loadUserPlaylists('netease')
 
     expect(ne).toHaveBeenCalled()
     expect(qq).not.toHaveBeenCalled()
@@ -36,11 +42,10 @@ describe('loadUserPlaylists 按当前音源取歌单', () => {
   })
 
   it('QQ 音源走 QQ service,不再回落到网易', async () => {
-    useSettingsStore.setState({ activeSource: 'qq' })
     const ne = vi.spyOn(neteaseService, 'getUserPlaylists').mockResolvedValue([pl('网易歌单', 'netease')])
     const qq = vi.spyOn(qqService, 'getUserPlaylists').mockResolvedValue([pl('QQ歌单', 'qq')])
 
-    await usePlaylistStore.getState().loadUserPlaylists()
+    await usePlaylistStore.getState().loadUserPlaylists('qq')
 
     expect(qq).toHaveBeenCalled()
     expect(ne).not.toHaveBeenCalled()
@@ -49,25 +54,27 @@ describe('loadUserPlaylists 按当前音源取歌单', () => {
   })
 
   it('拉取失败时清空并标记音源(避免调用方按 length 无限重拉)', async () => {
-    useSettingsStore.setState({ activeSource: 'netease' })
     vi.spyOn(neteaseService, 'getUserPlaylists').mockRejectedValue(new Error('未登录'))
 
-    await usePlaylistStore.getState().loadUserPlaylists()
+    await usePlaylistStore.getState().loadUserPlaylists('netease')
 
     expect(usePlaylistStore.getState().playlists).toEqual([])
     expect(usePlaylistStore.getState().playlistsSource).toBe('netease')
   })
 
-  it('等待期间切了音源:丢弃过期结果,不把 A 源歌单挂到 B 源下', async () => {
-    useSettingsStore.setState({ activeSource: 'netease' })
-    vi.spyOn(neteaseService, 'getUserPlaylists').mockImplementation(async () => {
-      useSettingsStore.setState({ activeSource: 'qq' }) // 在途中切源
-      return [pl('网易歌单', 'netease')]
-    })
+  it('等待期间切换平台：丢弃晚到结果，不把 A 平台歌单挂到 B 平台下', async () => {
+    let resolveNetease: (value: Playlist[]) => void = () => {}
+    vi.spyOn(neteaseService, 'getUserPlaylists').mockImplementation(() => (
+      new Promise<Playlist[]>((resolve) => { resolveNetease = resolve })
+    ))
+    vi.spyOn(qqService, 'getUserPlaylists').mockResolvedValue([pl('QQ歌单', 'qq')])
 
-    await usePlaylistStore.getState().loadUserPlaylists()
+    const first = usePlaylistStore.getState().loadUserPlaylists('netease')
+    await usePlaylistStore.getState().loadUserPlaylists('qq')
+    resolveNetease([pl('网易歌单', 'netease')])
+    await first
 
-    expect(usePlaylistStore.getState().playlists).toEqual([])
-    expect(usePlaylistStore.getState().playlistsSource).toBeNull()
+    expect(usePlaylistStore.getState().playlists.map((p) => p.name)).toEqual(['QQ歌单'])
+    expect(usePlaylistStore.getState().playlistsSource).toBe('qq')
   })
 })

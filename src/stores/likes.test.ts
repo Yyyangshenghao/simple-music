@@ -9,6 +9,8 @@ vi.mock('../lib/service-registry', () => ({
 }))
 
 import { useLikesStore, likeKeyOf } from './likes'
+import { useProviderStore } from './providers'
+import { useSettingsStore } from './settings'
 
 function mk(i: number): Track {
   return { provider: 'netease', source: 'netease', type: 'song', id: i, name: `t${i}`, artist: '', artists: [] }
@@ -16,7 +18,15 @@ function mk(i: number): Track {
 
 describe('likes store', () => {
   beforeEach(() => {
+    useProviderStore.setState({
+      byId: {
+        netease: { enabled: true, auth: 'authenticated' },
+        qq: { enabled: false, auth: 'anonymous' },
+      },
+      playbackOrder: ['netease'],
+    })
     useLikesStore.setState({ likedByKey: {} })
+    useSettingsStore.setState({ neteaseLoggedIn: true })
     likeTrack.mockClear()
     checkLiked.mockClear()
     likeTrack.mockResolvedValue(true)
@@ -53,5 +63,16 @@ describe('likes store', () => {
     await useLikesStore.getState().toggleLike(t)
     // 取消红心失败:回滚为仍然红心
     expect(useLikesStore.getState().likedByKey[likeKeyOf(t)]).toBe(true)
+  })
+
+  it('红心接口鉴权失效时回滚并停用对应平台', async () => {
+    const t = mk(3)
+    likeTrack.mockRejectedValueOnce(new Error('HTTP 401'))
+
+    await useLikesStore.getState().toggleLike(t)
+
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(t)]).toBe(false)
+    expect(useSettingsStore.getState().neteaseLoggedIn).toBe(false)
+    expect(useProviderStore.getState().byId.netease).toMatchObject({ enabled: false, auth: 'expired' })
   })
 })

@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
+import { useProviderStore } from '../../stores/providers'
+import { isProviderId } from '../../providers/types'
+import { SOURCE_BRAND } from '../../lib/source-brand'
 import { fetchTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
+import { SourceBadge } from '../ui/SourceBadge'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -39,25 +43,95 @@ function formatCountdown(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
+function PlaybackSourceSection() {
+  const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const actualSource = usePlayerStore((s) => s.actualSource)
+  const status = usePlayerStore((s) => s.status)
+  const preferSourceOnce = usePlayerStore((s) => s.preferSourceOnce)
+  const byId = useProviderStore((s) => s.byId)
+  const playbackOrder = useProviderStore((s) => s.playbackOrder)
+  const participants = playbackOrder.filter((source) => {
+    const state = byId[source]
+    return state.enabled && state.auth === 'authenticated'
+  })
+  const originVisible = !isProviderId(currentTrack?.source)
+    || participants.includes(currentTrack.source)
+  if (!currentTrack) return null
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionTitle}>播放来源</span>
+        <span className={styles.sectionStatus}>{status === 'loading' ? '正在解析…' : '本次播放'}</span>
+      </div>
+      <div className={styles.sourceFacts}>
+        <span>内容来自</span>
+        <span className={styles.sourceFactValue}>
+          {originVisible ? (
+            <>
+              <SourceBadge source={currentTrack.source} reveal />
+              {SOURCE_BRAND[currentTrack.source].label}
+            </>
+          ) : '当前不可用'}
+        </span>
+        <span>实际播放</span>
+        <span className={styles.sourceFactValue}>
+          {actualSource ? (
+            <>
+              <SourceBadge source={actualSource} reveal />
+              {SOURCE_BRAND[actualSource].label}
+            </>
+          ) : '尚未确定'}
+        </span>
+      </div>
+      {isProviderId(currentTrack.source) && participants.length > 0 && (
+        <div className={styles.chips}>
+          {participants.map((source) => (
+            <button
+              key={source}
+              type="button"
+              className={styles.chip}
+              data-on={actualSource === source}
+              onClick={() => preferSourceOnce(source)}
+              title={`当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`}
+            >
+              本次优先 {SOURCE_BRAND[source].label}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /** 音质分区:面板打开时探测当前曲目真实可得的档位,选中即切偏好并热重载。 */
 function QualitySection({ open }: { open: boolean }) {
   const quality = usePlayerStore((s) => s.quality)
   const setQuality = usePlayerStore((s) => s.setQuality)
   const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const resolvedTrack = usePlayerStore((s) => s.resolvedTrack)
   const currentQuality = usePlayerStore((s) => s.currentQuality)
+  const qualityTrack = resolvedTrack ?? currentTrack
+  const currentSourceParticipating = useProviderStore((state) => {
+    if (!qualityTrack || !isProviderId(qualityTrack.source)) return true
+    const source = state.byId[qualityTrack.source]
+    return source.enabled && source.auth === 'authenticated'
+  })
   // null = 检测中;[] = 无可选档(本地音乐/探测失败)
   const [options, setOptions] = useState<TrackQualityOption[] | null>(null)
   const fetchSession = useRef(0)
 
-  const trackKey = currentTrack ? `${currentTrack.source}:${String(currentTrack.mid ?? currentTrack.id ?? '')}` : ''
+  const trackKey = qualityTrack ? `${qualityTrack.source}:${String(qualityTrack.mid ?? qualityTrack.id ?? '')}` : ''
 
   // 打开或换曲时探测;晚到的过期响应丢弃
   useEffect(() => {
     if (!open) return
     const session = ++fetchSession.current
     setOptions(null)
-    const track = usePlayerStore.getState().currentTrack
-    if (!track) {
+    const player = usePlayerStore.getState()
+    const track = player.resolvedTrack ?? player.currentTrack
+    if (!track || !currentSourceParticipating) {
       setOptions([])
       return
     }
@@ -68,7 +142,7 @@ function QualitySection({ open }: { open: boolean }) {
       .catch(() => {
         if (session === fetchSession.current) setOptions([])
       })
-  }, [open, trackKey])
+  }, [currentSourceParticipating, open, trackKey])
 
   return (
     <section className={styles.section}>
@@ -234,6 +308,7 @@ export function MoreMenu() {
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={springGentle}
           >
+            <PlaybackSourceSection />
             <QualitySection open={open} />
             <RateSection />
             <SleepSection />

@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { serviceFor } from '../lib/service-registry'
 import { useSettingsStore } from './settings'
+import { isProviderParticipating } from './providers'
+import { expireProviderAccount } from './provider-auth'
 import {
   buildRoamTracks,
   computeDefaultSongCount,
@@ -12,7 +14,8 @@ import {
 import { buildRoamDescription, parseRoamDescription } from '../lib/roam-description'
 import { rankArtistsByFrequency } from '../lib/artist-affinity'
 import type { MusicService } from '../lib/music-service'
-import type { ArtistInfo, MusicSource, Track } from '../types/domain'
+import type { ArtistInfo, Track } from '../types/domain'
+import type { ProviderId } from '../providers/types'
 
 /** 猜你喜欢歌手用的种子曲目池:红心歌单 + 近一周听歌排行(均可选,QQ 未实现时直接空数组)。 */
 async function fetchLikedTracks(service: MusicService): Promise<Track[]> {
@@ -42,6 +45,9 @@ let suggestionsSession = 0
 /** generate 的过期守卫:reset(含切音源)/重选歌手时自增;在途生成迟到落地前核对,避免拿旧音源结果冲掉新会话。 */
 let generateSession = 0
 
+/** 网易云漫游歌单水合会话；切换候选范围或重置时作废迟到响应。 */
+let hydrationSession = 0
+
 /**
  * 「漫游」歌单:
  * - QQ 音乐:纯本地 localStorage 临时歌单,仅当天有效,不回写账号(逻辑不变)。
@@ -70,7 +76,7 @@ export interface RoamArtistEntry {
 
 export interface RoamPlaylist {
   date: string
-  source: MusicSource
+  source: ProviderId | 'mixed'
   mode: RoamMode
   artists: { name: string }[]
   tracks: Track[]
@@ -85,7 +91,7 @@ export function todayKey(): string {
 }
 
 /**
- * 读取 QQ 本地存档;音源与当前 activeSource 不符则返回 null。
+ * 读取本地漫游存档。混合音源和 QQ 结果都只保存在应用本地。
  * 日期过期不再丢弃——上一份漫游歌单保留可继续播放,直到用户主动「重新选择」或重新生成覆盖。
  */
 function loadValidPlaylist(): RoamPlaylist | null {
@@ -94,9 +100,7 @@ function loadValidPlaylist(): RoamPlaylist | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw) as RoamPlaylist
-    if (!data?.tracks || data.source !== useSettingsStore.getState().activeSource) {
-      return null
-    }
+    if (!data?.tracks) return null
     return data
   } catch {
     return null
@@ -134,6 +138,7 @@ interface RoamStore {
   playlist: RoamPlaylist | null
   entries: RoamArtistEntry[]
   mode: RoamMode
+  scope: 'all' | ProviderId
   generating: boolean
   /** generate 最近一次失败原因(页面展示);成功/重试/重选歌手时清空。 */
   error: string | null
@@ -149,16 +154,17 @@ interface RoamStore {
    * (见 computeDefaultSongCount)异步拉曲库池。超过 MAX_ARTISTS 的部分丢弃。
    */
   confirmArtists(artists: ArtistInfo[]): void
-  removeArtist(id: unknown): void
+  removeArtist(id: unknown, source?: ProviderId): void
   /** 曲库池拉取失败后重新拉取该歌手的曲库(卡片「重试」按钮)。 */
-  retryArtistPool(id: unknown): void
+  retryArtistPool(id: unknown, source?: ProviderId): void
   /** 调整某位歌手的目标首数:调大从曲库池补(跳过已选),调小从尾部裁,不影响其他歌手。 */
-  setArtistCount(id: unknown, count: number): void
+  setArtistCount(id: unknown, count: number, source?: ProviderId): void
   /** 从该歌手曲库池里手动加入一首指定曲目(已存在则忽略)。 */
-  addTrack(id: unknown, track: Track): void
+  addTrack(id: unknown, track: Track, source?: ProviderId): void
   /** 从该歌手已选曲目里移除一首(与 count 解耦,不会自动补位)。 */
-  removeTrack(id: unknown, trackId: unknown): void
+  removeTrack(id: unknown, trackId: unknown, source?: ProviderId): void
   setMode(mode: RoamMode): void
+  setScope(scope: 'all' | ProviderId): void
   generate(): Promise<void>
   reset(): void
   /** 网易云专属:核实账号里是否已有可复用的「每日漫游」真实歌单,核实结果写入 playlist/neteasePlaylistId。QQ(service 未实现相关方法)直接 no-op。 */
@@ -169,20 +175,30 @@ interface RoamStore {
   suggestionsLoaded: boolean
   suggestionsLoading: boolean
   /** 首次拉取种子建议(红心+听歌排行统计出的常听歌手);已加载/加载中则 no-op。 */
-  loadSuggestions(service: MusicService): Promise<void>
+  loadSuggestions(sources: ProviderId[]): Promise<void>
   /** 音源切换等场景清空建议列表,下次 loadSuggestions 会重新拉取。 */
   clearSuggestions(): void
 }
 
 export const useRoamStore = create<RoamStore>((set, get) => {
+  const sameArtist = (entry: RoamArtistEntry, id: unknown, source?: ProviderId): boolean =>
+    String(entry.artist.id) === String(id) && (!source || entry.artist.source === source)
+
   /** 拉取一位歌手的曲库池并落盘;confirmArtists 与 retryArtistPool 共用。调用方需先把对应 entry 置为 loading。 */
   function loadPool(artist: ArtistInfo) {
+    if (artist.source !== 'local' && !isProviderParticipating(artist.source)) {
+      const providerSource = artist.source
+      set((s) => ({
+        entries: s.entries.filter((entry) => !sameArtist(entry, artist.id, providerSource)),
+      }))
+      return
+    }
     serviceFor(artist.source)
       .getArtistSongs(artist.id)
       .then((pool) => {
         set((s) => ({
           entries: s.entries.map((e) =>
-            String(e.artist.id) === String(artist.id)
+            sameArtist(e, artist.id, artist.source === 'local' ? undefined : artist.source)
               ? { ...e, pool, tracks: pickArtistTracks(pool, s.mode, e.count), loading: false, loadFailed: false }
               : e
           )
@@ -191,7 +207,9 @@ export const useRoamStore = create<RoamStore>((set, get) => {
       .catch(() => {
         set((s) => ({
           entries: s.entries.map((e) =>
-            String(e.artist.id) === String(artist.id) ? { ...e, loading: false, loadFailed: true } : e
+            sameArtist(e, artist.id, artist.source === 'local' ? undefined : artist.source)
+              ? { ...e, loading: false, loadFailed: true }
+              : e
           )
         }))
       })
@@ -201,6 +219,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
   playlist: loadValidPlaylist(),
   entries: [],
   mode: 'hot',
+  scope: 'all',
   generating: false,
   error: null,
   loading: false,
@@ -215,14 +234,17 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     const defaultCount = computeDefaultSongCount(capped.length)
     generateSession++ // 歌手名单变了,在途 generate 的结果作废
     set((s) => {
-      const byId = new Map(s.entries.map((e) => [String(e.artist.id), e]))
+      const byId = new Map(s.entries.map((e) => [`${e.artist.source}:${String(e.artist.id)}`, e]))
       // 复用的 loadFailed entry 趁这次确认自动重试,不用用户逐张卡片点「重试」
-      const failedIds = new Set(s.entries.filter((e) => e.loadFailed && e.pool.length === 0).map((e) => String(e.artist.id)))
+      const failedIds = new Set(s.entries
+        .filter((e) => e.loadFailed && e.pool.length === 0)
+        .map((e) => `${e.artist.source}:${String(e.artist.id)}`))
       return {
         error: null,
         entries: capped.map((artist) => {
-          const existing = byId.get(String(artist.id))
-          if (existing && failedIds.has(String(artist.id))) return { ...existing, loading: true, loadFailed: false }
+          const key = `${artist.source}:${String(artist.id)}`
+          const existing = byId.get(key)
+          if (existing && failedIds.has(key)) return { ...existing, loading: true, loadFailed: false }
           return existing ?? { artist, pool: [], tracks: [], count: defaultCount, loading: true, loadFailed: false }
         })
       }
@@ -234,24 +256,24 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     }
   },
 
-  removeArtist(id) {
-    set((s) => ({ entries: s.entries.filter((e) => String(e.artist.id) !== String(id)) }))
+  removeArtist(id, source) {
+    set((s) => ({ entries: s.entries.filter((e) => !sameArtist(e, id, source)) }))
   },
 
-  retryArtistPool(id) {
-    const entry = get().entries.find((e) => String(e.artist.id) === String(id))
+  retryArtistPool(id, source) {
+    const entry = get().entries.find((e) => sameArtist(e, id, source))
     if (!entry || entry.loading) return
     set((s) => ({
-      entries: s.entries.map((e) => (String(e.artist.id) === String(id) ? { ...e, loading: true, loadFailed: false } : e))
+      entries: s.entries.map((e) => (sameArtist(e, id, source) ? { ...e, loading: true, loadFailed: false } : e))
     }))
     loadPool(entry.artist)
   },
 
-  setArtistCount(id, rawCount) {
+  setArtistCount(id, rawCount, source) {
     const count = Math.max(1, Math.min(MAX_SONGS_PER_ARTIST, Math.round(rawCount)))
     set((s) => ({
       entries: s.entries.map((e) => {
-        if (String(e.artist.id) !== String(id)) return e
+        if (!sameArtist(e, id, source)) return e
         if (count <= e.tracks.length) return { ...e, count, tracks: e.tracks.slice(0, count) }
         const additional = pickAdditionalTracks(e.pool, e.tracks, s.mode, count - e.tracks.length)
         return { ...e, count, tracks: [...e.tracks, ...additional] }
@@ -259,20 +281,22 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     }))
   },
 
-  addTrack(id, track) {
+  addTrack(id, track, source) {
     set((s) => ({
       entries: s.entries.map((e) => {
-        if (String(e.artist.id) !== String(id)) return e
+        if (!sameArtist(e, id, source)) return e
         if (e.tracks.some((t) => String(t.id) === String(track.id))) return e
         return { ...e, tracks: [...e.tracks, track] }
       })
     }))
   },
 
-  removeTrack(id, trackId) {
+  removeTrack(id, trackId, source) {
     set((s) => ({
       entries: s.entries.map((e) =>
-        String(e.artist.id) === String(id) ? { ...e, tracks: e.tracks.filter((t) => String(t.id) !== String(trackId)) } : e
+        sameArtist(e, id, source)
+          ? { ...e, tracks: e.tracks.filter((t) => String(t.id) !== String(trackId)) }
+          : e
       )
     }))
   },
@@ -281,14 +305,33 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     set({ mode })
   },
 
+  setScope(scope) {
+    generateSession++
+    suggestionsSession++
+    hydrationSession++
+    set({
+      scope,
+      entries: [],
+      error: null,
+      loading: false,
+      neteaseHydrated: false,
+      suggestions: [],
+      suggestionsLoaded: false,
+      suggestionsLoading: false,
+    })
+  },
+
   async ensureNeteaseHydrated(service) {
     if (get().neteaseHydrated) return
+    if (!isProviderParticipating('netease')) return
     if (!service.createPlaylist) return // QQ:不实现相关方法,no-op
+    const session = ++hydrationSession
     set({ neteaseHydrated: true, loading: true })
     try {
       let id: unknown = loadCachedNeteasePlaylistId()
       if (!id) {
         const candidates = await service.findUserPlaylistsByName!(NETEASE_PLAYLIST_NAME)
+        if (hydrationSession !== session) return
         const match = candidates.find((p) => parseRoamDescription(p.description) !== null)
         if (match) {
           id = match.id
@@ -300,6 +343,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         return // 没有可复用的,留在选歌手态,生成时会新建
       }
       const found = await service.getPlaylistWithDescription!(id)
+      if (hydrationSession !== session) return
       if (!found) {
         clearCachedNeteasePlaylistId()
         set({ loading: false })
@@ -324,22 +368,29 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         set({ loading: false }) // 简介解不出来,留在选歌手态;neteasePlaylistId 已缓存,生成时复用
       }
     } catch {
-      set({ loading: false })
+      if (hydrationSession === session) set({ loading: false })
     }
   },
 
   async generate() {
     const { entries, mode } = get()
     if (entries.length === 0) return
+    if (entries.some((entry) => entry.artist.source !== 'local' && !isProviderParticipating(entry.artist.source))) {
+      set({ entries: [], generating: false, error: null })
+      return
+    }
     const session = generateSession
     set({ generating: true, error: null })
-    const source = useSettingsStore.getState().activeSource
-    const service = serviceFor(source)
     const tracks = buildRoamTracks(entries.map((e) => e.tracks))
+    const sources = [...new Set(tracks
+      .map((track) => track.source)
+      .filter((source): source is ProviderId => source !== 'local'))]
+    const source: ProviderId | 'mixed' = sources.length === 1 ? sources[0] : 'mixed'
+    const service = source === 'mixed' ? null : serviceFor(source)
     const artists = entries.map((e) => ({ name: e.artist.name }))
     const date = todayKey()
 
-    if (service.createPlaylist) {
+    if (source === 'netease' && useSettingsStore.getState().neteaseLoggedIn && service?.createPlaylist) {
       // 网易云:写回真实歌单
       try {
         let id = get().neteasePlaylistId
@@ -375,14 +426,14 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         const raw = err instanceof Error ? err.message : String(err)
         // 401 = 服务端判定登录态已失效:同步清掉渲染层标记,顶栏/漫游页立即回到未登录态,
         // 而不是继续"界面显示已登录、写操作全部失效"的错位
-        if (raw.includes('HTTP 401')) useSettingsStore.getState().setNeteaseLoggedIn(false)
+        expireProviderAccount('netease', err)
         // 失败:留在选歌手态,不清 entries,方便重试;错误上页面,不再静默
         set({ generating: false, error: describeGenerateError(err) })
       }
       return
     }
 
-    // QQ / 本地路径,逻辑不变
+    // QQ 或混合音源只写本地，不把跨平台 id 发送到任一远端。
     const playlist: RoamPlaylist = { date, source, mode, artists, tracks }
     if (generateSession !== session) return
     set({ playlist, generating: false, entries: [] })
@@ -398,27 +449,36 @@ export const useRoamStore = create<RoamStore>((set, get) => {
   reset() {
     // generating 一并复位:生成请求卡死时切音源会触发本方法,若不清 generating,漫游页将永远卡在「生成中…」
     generateSession++ // 在途 generate 的结果作废,迟到落地时守卫会丢弃
+    hydrationSession++
     set({ playlist: null, entries: [], mode: 'hot', generating: false, error: null, loading: false, neteaseHydrated: false })
     if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY)
   },
 
-  async loadSuggestions(service) {
+  async loadSuggestions(sources) {
     if (get().suggestionsLoaded || get().suggestionsLoading) return
-    if (!service.getLikedPlaylist && !service.getListeningRanking) {
+    const participatingSources = sources.filter(isProviderParticipating)
+    const services = participatingSources.map((source) => serviceFor(source))
+    if (services.every((service) => !service.getLikedPlaylist && !service.getListeningRanking)) {
       set({ suggestionsLoaded: true })
       return
     }
     set({ suggestionsLoading: true })
     const session = ++suggestionsSession
     try {
-      const [liked, ranking] = await Promise.all([fetchLikedTracks(service), fetchRankingTracks(service)])
+      const seeds = await Promise.all(
+        services.flatMap((service) => [fetchLikedTracks(service), fetchRankingTracks(service)])
+      )
       if (suggestionsSession !== session) return
-      const top = rankArtistsByFrequency([liked, ranking], 16)
+      const top = rankArtistsByFrequency(seeds, 16)
       if (top.length === 0) {
         set({ suggestionsLoaded: true, suggestionsLoading: false })
         return
       }
-      const details = await Promise.all(top.map((a) => service.getArtistDetail(a.id).catch(() => null)))
+      const details = await Promise.all(top.map((artist) =>
+        artist.source === 'local'
+          ? Promise.resolve(null)
+          : serviceFor(artist.source).getArtistDetail(artist.id).catch(() => null)
+      ))
       if (suggestionsSession !== session) return
       const hydrated = shuffle(details.filter((a): a is ArtistInfo => !!a))
       set({ suggestions: hydrated, suggestionsLoaded: true, suggestionsLoading: false })

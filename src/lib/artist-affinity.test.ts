@@ -22,8 +22,17 @@ describe('rankArtistsByFrequency', () => {
     const ranking = [track([a]), track([b]), track([b])]
     const result = rankArtistsByFrequency([liked, ranking])
     expect(result).toEqual([
-      { id: 1, name: 'A', count: 3 },
-      { id: 2, name: 'B', count: 3 },
+      { id: 1, name: 'A', count: 3, source: 'netease' },
+      { id: 2, name: 'B', count: 3, source: 'netease' },
+    ])
+  })
+
+  it('相同 artist id 在不同平台保持独立', () => {
+    const netease = track([{ id: 1, name: 'A' }])
+    const qq = { ...track([{ id: 1, name: 'A' }]), provider: 'qq' as const, source: 'qq' as const }
+    expect(rankArtistsByFrequency([[netease, qq]])).toEqual([
+      { id: 1, name: 'A', count: 1, source: 'netease' },
+      { id: 1, name: 'A', count: 1, source: 'qq' },
     ])
   })
 

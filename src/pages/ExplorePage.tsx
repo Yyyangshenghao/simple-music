@@ -1,225 +1,101 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useMusicService } from '../hooks/useMusicService'
 import { useScrollGradient } from '../hooks/useScrollGradient'
 import { useNavigationStore } from '../stores/navigation'
-import { HeroCard } from '../components/Explore/HeroCard'
-import { QuickAccessRow } from '../components/Explore/QuickAccessRow'
-import { RecentRail } from '../components/Explore/RecentRail'
-import { ToplistSection } from '../components/Explore/ToplistSection'
-import { Stack } from '../components/Explore/Stack'
+import { useContentProvider } from '../hooks/useContentProvider'
+import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { GradientText } from '../components/ui/GradientText'
 import { fadeRise, springGentle } from '../lib/motion-presets'
-import { createPool, needsRefill, redeal, refill, swipeTop, type StackPoolState } from '../lib/stack-pool'
-import type { RadarPlaylist } from '../lib/music-service'
-import type { Playlist, Track } from '../types/domain'
+import type { Playlist } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
-const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
-
-/** 按当前时段问候：给首屏加个锚点，不再一进页面就是卡片。 */
 function greeting(): string {
-  const h = new Date().getHours()
-  if (h < 5) return '夜深了'
-  if (h < 12) return '早上好'
-  if (h < 18) return '下午好'
+  const hour = new Date().getHours()
+  if (hour < 5) return '夜深了'
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
   return '晚上好'
 }
 
 export function ExplorePage() {
-  const service = useMusicService()
-  const [pool, setPool] = useState(EMPTY_POOL)
-  const [poolLoaded, setPoolLoaded] = useState(false)
-  const [dailySongs, setDailySongs] = useState<Track[]>([])
-  const [radar, setRadar] = useState<RadarPlaylist | null>(null)
+  const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
   const [preview, setPreview] = useState<Playlist | null>(null)
-  const refilling = useRef(false)
-  const loadSession = useRef(0)
-  // 推荐歌单分页游标：0 = personalized，之后每次补货翻一页（歌单广场热门，可无限翻）
-  const pageRef = useRef(0)
-  // 换一叠计数：作为 Stack 外层 AnimatePresence 的 key，触发整叠出/入场动画
-  const [dealId, setDealId] = useState(0)
-
-  // 歌单详情提升到导航 store：顶栏前进/后退可穿越
-  const currentView = useNavigationStore((s) => s.currentView)
-  const detail =
-    typeof currentView === 'object' && currentView.type === 'playlist' && currentView.from === 'explore'
-      ? currentView
-      : null
-
+  const previousSourceRef = useRef(activeHomeSource)
+  const currentView = useNavigationStore((state) => state.currentView)
+  const detail = typeof currentView === 'object'
+    && currentView.type === 'playlist'
+    && currentView.from === 'explore'
+    ? currentView
+    : null
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
-  useEffect(() => {
-    // 音源切换后丢弃在途响应，避免旧源数据混入新源状态
-    const session = ++loadSession.current
-    setPool(EMPTY_POOL)
-    setPoolLoaded(false)
-    setDailySongs([])
-    setRadar(null)
-    pageRef.current = 0
-    void service.getRecommendPlaylists(0)
-      .then((pls) => {
-        if (loadSession.current !== session) return
-        pageRef.current = 1
-        setPool(createPool(pls))
-      })
-      .catch(() => {})
-      .finally(() => { if (loadSession.current === session) setPoolLoaded(true) })
-    void service.getDailySongs?.()
-      .then((songs) => { if (loadSession.current === session) setDailySongs(songs) })
-      .catch(() => {})
-    void service.getRadarPlaylist?.()
-      .then((r) => { if (loadSession.current === session) setRadar(r) })
-      .catch(() => {})
-  }, [service])
-
-  // 池子见底时翻下一页补一批（id 去重；页码递增让内容不再循环，请求失败时由 swipeTop 回收兜底）
-  useEffect(() => {
-    if (pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
-    refilling.current = true
-    const session = loadSession.current
-    service.getRecommendPlaylists(pageRef.current)
-      .then((pls) => {
-        if (loadSession.current !== session) return
-        pageRef.current += 1
-        setPool((p) => refill(p, pls, (x) => x.id))
-      })
-      .catch(() => {})
-      .finally(() => { refilling.current = false })
-  }, [pool, service])
-
-  // 详情开合的所有路径（页内返回键、顶栏前进/后退）都重置滚动渐变遮罩
   useEffect(() => {
     setTopOpacity(0)
     setBottomOpacity(0)
   }, [detail, setTopOpacity, setBottomOpacity])
 
-  const handleSwipe = useCallback(() => setPool((p) => swipeTop(p)), [])
+  const previousSource = previousSourceRef.current
+  const previousIndex = previousSource ? enabledSources.indexOf(previousSource) : 0
+  const activeIndex = activeHomeSource ? enabledSources.indexOf(activeHomeSource) : 0
+  const switchDirection = activeIndex >= previousIndex ? 1 : -1
 
-  // 换一叠：整手弃掉换新手牌，dealId 变更触发旧叠移出/新叠移入动画
-  const handleRedeal = useCallback(() => {
-    setDealId((n) => n + 1)
-    setPool((p) => redeal(p))
-  }, [])
-
-  const openDaily = useCallback(() => {
-    if (dailySongs.length === 0) return
-    const src = dailySongs[0].source
-    const pl: Playlist = {
-      provider: src,
-      source: src,
-      type: 'playlist',
-      id: `${src}-daily-songs`,
-      name: src === 'qq' ? '猜你喜欢' : '每日推荐',
-      cover: dailySongs[0]?.cover ?? '',
-      trackCount: dailySongs.length,
-      playCount: 0,
-      creator: '',
-    }
-    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: pl, tracks: dailySongs })
-  }, [dailySongs])
-
-  const openRadar = useCallback(() => {
-    if (!radar) return
-    useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: radar.playlist, tracks: radar.tracks })
-  }, [radar])
-
-  const closePreview = useCallback(() => setPreview(null), [])
+  useEffect(() => {
+    previousSourceRef.current = activeHomeSource
+  }, [activeHomeSource])
 
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="explore-cover" />
   }
 
-  const top = pool.hand.length > 0 ? pool.hand[pool.hand.length - 1] : null
-  const hasSideCards = dailySongs.length > 0 || radar !== null
-
   return (
     <div className={styles.page} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
 
-      <motion.h1 className={styles.greeting} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
-        <GradientText>{greeting()}</GradientText>
-      </motion.h1>
+      <motion.header
+        className={styles.intro}
+        variants={fadeRise}
+        initial="hidden"
+        animate="visible"
+        transition={springGentle}
+      >
+        <p className={styles.kicker}>YOUR MUSIC CONSTELLATION</p>
+        <h1 className={styles.greeting}><GradientText>{greeting()}</GradientText></h1>
+        <p className={styles.summary}>
+          {enabledSources.length > 0
+            ? `${enabledSources.length} 个音乐平台已启用 · 每个平台保留自己的推荐方式`
+            : '还没有启用音乐平台'}
+        </p>
+      </motion.header>
 
-      <div className={styles.topRow}>
-        <motion.section className={styles.hero} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
-          {hasSideCards && (
-            <div className={styles.heroCards}>
-              {dailySongs.length > 0 && (
-                <HeroCard
-                  title={dailySongs[0].source === 'qq' ? '猜你喜欢' : '每日推荐'}
-                  subtitle={
-                    dailySongs[0].source === 'qq'
-                      ? `${dailySongs.length} 首 · 根据你的口味`
-                      : `${dailySongs.length} 首 · 每天更新`
-                  }
-                  cover={dailySongs[0]?.cover}
-                  badge={dailySongs[0].source === 'qq' ? undefined : <span>{new Date().getDate()}</span>}
-                  layoutId={`explore-cover-${dailySongs[0].source}-daily-songs`}
-                  onClick={openDaily}
-                />
-              )}
-              {radar && (
-                <HeroCard
-                  title="私人雷达"
-                  subtitle={`${radar.tracks.length} 首 · 根据你的口味`}
-                  cover={radar.playlist.cover}
-                  layoutId={`explore-cover-${String(radar.playlist.id)}`}
-                  onClick={openRadar}
-                />
-              )}
-            </div>
-          )}
+      {activeHomeSource ? (
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeHomeSource}
+            initial={{ opacity: 0, y: switchDirection * 44, filter: 'blur(7px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, y: switchDirection * -36, filter: 'blur(5px)' }}
+            transition={springGentle}
+          >
+            <ProviderRecommendationSection
+              source={activeHomeSource}
+              onPreview={setPreview}
+            />
+          </motion.div>
+        </AnimatePresence>
+      ) : (
+        <div className={styles.noProviders}>
+          <p>先登录音乐平台，再到设置中明确启用；推荐内容才会出现在这里。</p>
+          <button className="no-drag" onClick={() => useNavigationStore.getState().navigateTo('settings')}>
+            打开音源设置
+          </button>
+        </div>
+      )}
 
-          {pool.hand.length > 0 && (
-            <div className={styles.stage}>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={dealId}
-                  initial={{ x: 90, opacity: 0, rotate: 6 }}
-                  animate={{ x: 0, opacity: 1, rotate: 0 }}
-                  exit={{ x: -110, opacity: 0, rotate: -8, transition: { duration: 0.22, ease: 'easeIn' } }}
-                  transition={springGentle}
-                >
-                  <Stack cards={pool.hand} onSwipe={handleSwipe} onCardClick={setPreview} />
-                </motion.div>
-              </AnimatePresence>
-              {top && (
-                <div className={styles.topInfo}>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={String(top.id)}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.25 }}
-                    >
-                      <p className={styles.topName}>{top.name}</p>
-                      {top.description && <p className={styles.topDesc}>{top.description}</p>}
-                    </motion.div>
-                  </AnimatePresence>
-                  <p className={styles.topHint}>拖拽换一张 · 点击看曲目</p>
-                  <button className={`${styles.redealBtn} no-drag`} onClick={handleRedeal}>↻ 换一叠</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {poolLoaded && pool.hand.length === 0 && !hasSideCards && (
-            <p className={styles.empty}>暂时没有推荐内容</p>
-          )}
-        </motion.section>
-
-        <QuickAccessRow />
-      </div>
-
-      {service.getRecentPlaylists && <RecentRail onOpen={setPreview} />}
-      <ToplistSection onOpen={setPreview} />
-
+      <div className={styles.bottomSpace} />
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
-      <PlaylistPreviewModal playlist={preview} onClose={closePreview} />
+      <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
     </div>
   )
 }

@@ -44,6 +44,15 @@
   text-overflow: ellipsis;
 }
 
+.artistLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.artistLine .artist { min-width: 0; }
+
 .duration { font-size: 12px; color: var(--sm-text-secondary); flex-shrink: 0; }
 
 /* 逐行红心:整行 hover 才显形,已红心常驻点亮;嵌在行 button 内,用 span 避免 button 嵌套 */

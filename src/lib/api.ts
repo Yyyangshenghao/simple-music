@@ -12,6 +12,33 @@ function apiToken(): string | undefined {
 }
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>
+export type ApiProviderSource = 'netease' | 'qq'
+
+let providerAuthFailureHandler: ((source: ApiProviderSource, status: 401 | 403) => void) | null = null
+
+export function registerApiProviderAuthFailureHandler(
+  handler: (source: ApiProviderSource, status: 401 | 403) => void
+): () => void {
+  providerAuthFailureHandler = handler
+  return () => {
+    if (providerAuthFailureHandler === handler) providerAuthFailureHandler = null
+  }
+}
+
+function providerSourceForApiUrl(input: string): ApiProviderSource | null {
+  const path = new URL(input, 'http://127.0.0.1').pathname
+  if (path.startsWith('/api/qq/')) return 'qq'
+  if (
+    path.startsWith('/api/netease/')
+    || path.startsWith('/api/song/')
+    || path.startsWith('/api/playlist/')
+    || path.startsWith('/api/user/')
+    || path === '/api/search'
+    || path.startsWith('/api/search/')
+    || path === '/api/lyric'
+  ) return 'netease'
+  return null
+}
 
 function buildUrl(path: string, params?: QueryParams): string {
   const base = apiBase()
@@ -53,7 +80,13 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
   }
   try {
     const res = await fetch(input, { ...fetchInit, signal: controller.signal })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        const source = providerSourceForApiUrl(input)
+        if (source) providerAuthFailureHandler?.(source, res.status)
+      }
+      throw new Error(`HTTP ${res.status}`)
+    }
     return (await res.json()) as T
   } catch (err) {
     if (timedOut) throw new Error('REQUEST_TIMEOUT')

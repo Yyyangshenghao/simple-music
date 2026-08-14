@@ -56,7 +56,7 @@ export class QQMusicService implements MusicService {
   }
 
   async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', { id: track.id as string | number, mid: track.mid as string | undefined })
+    const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', { id: track.qqId as string | number | undefined, mid: track.mid as string | undefined })
     return res.lines ?? []
   }
 

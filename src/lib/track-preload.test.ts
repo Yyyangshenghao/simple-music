@@ -193,6 +193,23 @@ describe('getPreloadedResolution', () => {
 })
 
 describe('resolveSongUrl', () => {
+  it('QQ 曲目把音频文件 mediaMid 传给播放地址接口', async () => {
+    apiGet.mockResolvedValue({ url: 'http://cdn/qq.mp3' })
+    await resolveSongUrl(makeTrack('song-mid', {
+      provider: 'qq',
+      source: 'qq',
+      mid: 'song-mid',
+      mediaMid: 'file-mid',
+      fee: 0,
+    }), 'standard')
+    expect(apiGet).toHaveBeenCalledWith('/api/qq/song/url', {
+      mid: 'song-mid',
+      mediaMid: 'file-mid',
+      quality: 'standard',
+      fee: '0',
+    }, undefined)
+  })
+
   it('把 AbortSignal 透传给底层请求(切歌时可中止在途 fetch)', async () => {
     apiGet.mockResolvedValue({ url: 'http://cdn/1.mp3' })
     const ac = new AbortController()

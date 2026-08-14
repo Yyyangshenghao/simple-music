@@ -1,0 +1,196 @@
+.root {
+  --dock-color: var(--sm-text-secondary);
+  position: fixed;
+  top: 50%;
+  right: 10px;
+  z-index: 80;
+  padding: 20px 0 20px 18px;
+  transform: translateY(-50%);
+}
+
+.panel {
+  position: relative;
+  width: 154px;
+  box-sizing: border-box;
+  padding: 7px 7px 7px 8px;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--dock-color) 11%, transparent), transparent 52%),
+    var(--glass-bg-card);
+  box-shadow: -12px 14px 42px rgba(0, 0, 0, 0.24);
+  backdrop-filter: var(--glass-blur-card) saturate(118%);
+  -webkit-backdrop-filter: var(--glass-blur-card) saturate(118%);
+  transform: translateX(122px);
+  transition: transform 260ms var(--sm-ease-out), box-shadow 220ms ease;
+}
+
+.open .panel {
+  transform: translateX(0);
+  box-shadow: -18px 18px 52px rgba(0, 0, 0, 0.32);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 0;
+  margin: 0 7px;
+  overflow: hidden;
+  color: var(--sm-text-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  opacity: 0;
+  text-transform: uppercase;
+  transition: height 200ms var(--sm-ease-out), margin 200ms var(--sm-ease-out), opacity 140ms ease;
+}
+
+.open .heading {
+  height: 20px;
+  margin-bottom: 5px;
+  opacity: 1;
+}
+
+.signal {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dock-color);
+  box-shadow: 0 0 10px var(--dock-color);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.option {
+  --provider-color: var(--sm-text-secondary);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 6px 8px 6px 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    height 220ms var(--sm-ease-out),
+    min-height 220ms var(--sm-ease-out),
+    padding 220ms var(--sm-ease-out),
+    opacity 150ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.root:not(.open) .option:not(.active) {
+  height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.option:hover {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}
+
+.option:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--provider-color) 72%, white);
+  outline-offset: -2px;
+}
+
+.active {
+  background: color-mix(in srgb, var(--provider-color) 12%, var(--sm-fill-subtle));
+  color: var(--sm-text-primary);
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--provider-color) 28%, var(--sm-border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--provider-color) 9%, var(--sm-bg-elevated));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--provider-color) 14%, transparent);
+}
+
+.logo > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fallbackLogo {
+  color: var(--provider-color);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activeDot {
+  width: 4px;
+  height: 4px;
+  margin-left: auto;
+  flex: 0 0 4px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.active .activeDot {
+  background: var(--provider-color);
+  box-shadow: 0 0 8px var(--provider-color);
+}
+
+.edgeHint {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 2px;
+  height: 18px;
+  border-radius: var(--sm-radius-pill);
+  background: color-mix(in srgb, var(--dock-color) 72%, var(--sm-text-primary));
+  opacity: 0.7;
+  transform: translateY(-50%);
+  transition: opacity 160ms ease, height 220ms var(--sm-ease-out);
+}
+
+.open .edgeHint {
+  height: 28px;
+  opacity: 0.35;
+}
+
+@media (max-width: 760px) {
+  .root { right: 6px; padding-left: 12px; }
+  .panel { transform: translateX(122px); }
+  .open .panel { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .heading,
+  .option,
+  .edgeHint { transition: none; }
+}

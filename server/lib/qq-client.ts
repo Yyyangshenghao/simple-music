@@ -455,6 +455,36 @@ function qqSingerAvatar(singerMid: string, size?: number): string {
   )
 }
 
+/**
+ * QQ 的用户歌单接口偶尔把 `?n=1` 这类图片查询串放进封面字段。
+ * 它是上游的缺图占位值，不是可独立加载的图片地址；同时兼容常见的协议相对地址。
+ */
+export function pickQQImageUrl(...values: unknown[]): string {
+  for (const value of values) {
+    const raw = str(value).trim()
+    if (!raw) continue
+    const normalized = raw.startsWith('//') ? `https:${raw}` : raw
+    try {
+      const parsed = new URL(normalized)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return normalized
+    } catch {
+      // 继续尝试后续候选字段
+    }
+  }
+  return ''
+}
+
+/** 歌单元数据缺图时，继续使用曲目列表里第一张有效专辑图。 */
+export function pickQQPlaylistCover(detail: unknown, tracks: unknown[]): string {
+  const playlist = rec(detail)
+  return pickQQImageUrl(
+    playlist.logo,
+    playlist.diss_cover,
+    playlist.cover,
+    ...tracks.map((track) => rec(track).cover)
+  )
+}
+
 // ---------- 字段映射 ----------
 
 interface QQArtist {
@@ -533,7 +563,7 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
     source: 'qq',
     id: id ? String(id) : '',
     name: str(pl.diss_name || pl.name || pl.title),
-    cover: str(pl.diss_cover || pl.logo || pl.picurl || pl.cover),
+    cover: pickQQImageUrl(pl.diss_cover, pl.logo, pl.picurl, pl.cover),
     trackCount: numOf(pl.song_cnt || pl.songnum || pl.total_song_num || pl.song_count),
     playCount: numOf(pl.listen_num || pl.visitnum || pl.play_count),
     creator: str(pl.hostname || pl.nick || pl.creator) || 'QQ 音乐',
@@ -555,7 +585,13 @@ function mapQQFeedPlaylist(raw: unknown): Record<string, unknown> {
     source: 'qq',
     id: id ? String(id) : '',
     name: str(basic.title || basic.name),
-    cover: str(cover.medium_url || cover.big_url || cover.default_url || cover.small_url) || str(basic.cover),
+    cover: pickQQImageUrl(
+      cover.medium_url,
+      cover.big_url,
+      cover.default_url,
+      cover.small_url,
+      basic.cover
+    ),
     trackCount: numOf(basic.song_cnt || basic.songnum),
     playCount: numOf(basic.play_cnt || basic.listen_num),
     creator: str(creator.nick || creator.name) || 'QQ 音乐',
@@ -648,8 +684,9 @@ function decodeQQLyricText(text: unknown): string {
 }
 
 function normalizeQQSongId(id: unknown): number {
-  const n = String(id || '').replace(/\D/g, '')
-  return n ? Number(n) : 0
+  const raw = String(id || '').trim()
+  if (!/^\d+$/.test(raw)) return 0
+  return Number(raw)
 }
 
 // ---------- 上游请求封装 ----------
@@ -1015,7 +1052,7 @@ export async function handleQQPlaylistTracks(cookie: string, id: string): Promis
     provider: 'qq',
     id: pid,
     name: str(detail.dissname || detail.diss_name || detail.name),
-    cover: str(detail.logo || detail.diss_cover),
+    cover: pickQQPlaylistCover(detail, tracks),
     trackCount: tracks.length,
   }
   return { loggedIn: true, provider: 'qq', playlist, tracks }
@@ -1378,19 +1415,45 @@ export async function handleQQSongUrl(
   )
   const data = rec(rec(json.req_0).data)
   const infos = arr(data.midurlinfo)
-  const info = (infos.find((item) => rec(item).purl) || infos[0]) as Record<string, unknown> | undefined
+  const playableInfos = infos
+    .map((item) => rec(item))
+    .filter((item) => item.purl)
+    .sort((a, b) => {
+      const aIndex = fileCandidates.findIndex((candidate) => candidate.filename === a.filename)
+      const bIndex = fileCandidates.findIndex((candidate) => candidate.filename === b.filename)
+      return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex)
+    })
+  const info = (playableInfos[0] || infos[0]) as Record<string, unknown> | undefined
   const purl = info ? info.purl : undefined
   if (info && purl) {
-    const sip = str(arr(data.sip)[0]) || 'https://ws.stream.qqmusic.qq.com/'
+    const sips = arr(data.sip).map(str).filter(Boolean)
+    if (sips.length === 0) sips.push('https://ws.stream.qqmusic.qq.com/')
     const fileMeta = fileCandidates.find((item) => item.filename === info.filename) || ({} as Partial<QualityTemplate & { filename: string }>)
+    const seenUrls = new Set<string>()
+    const candidates = playableInfos.flatMap((playable) => {
+      const meta = fileCandidates.find((item) => item.filename === playable.filename) || ({} as Partial<QualityTemplate & { filename: string }>)
+      return sips.flatMap((sip) => {
+        const url = sip + str(playable.purl)
+        if (!url || seenUrls.has(url)) return []
+        seenUrls.add(url)
+        return [{
+          url,
+          trial: false,
+          level: meta.level || str(playable.filename),
+          quality: meta.label || str(playable.filename),
+          filename: str(playable.filename),
+        }]
+      })
+    })
     return {
       provider: 'qq',
-      url: sip + purl,
+      url: sips[0] + purl,
       trial: false,
       playable: true,
       level: fileMeta.level || info.filename || '',
       quality: fileMeta.label || info.filename || '',
       filename: info.filename || '',
+      candidates,
       requestedQuality,
     }
   }

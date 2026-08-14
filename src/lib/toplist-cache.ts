@@ -5,6 +5,8 @@
 // 分组数据(groups)另做短 TTL 缓存:探索页「榜单精选」拉过之后,点进全部榜单页可直接出网格。
 
 import { serviceFor } from './service-registry'
+import { isProviderParticipating } from '../stores/providers'
+import { isProviderId } from '../providers/types'
 import type { ToplistGroup, ToplistPreviewTrack } from './music-service'
 import type { MusicSource } from '../types/domain'
 
@@ -22,6 +24,10 @@ const PREVIEW_CONCURRENCY = 4
 const groupsCache = new Map<MusicSource, { at: number; groups: ToplistGroup[] }>()
 const groupsInflight = new Map<MusicSource, Promise<ToplistGroup[]>>()
 
+function canRequestSource(source: MusicSource): boolean {
+  return !isProviderId(source) || isProviderParticipating(source)
+}
+
 /** 同步取缓存(未命中/已过期返回 null),用于首屏直接渲染而不闪一帧空白。 */
 export function getCachedToplistGroups(source: MusicSource): ToplistGroup[] | null {
   const hit = groupsCache.get(source)
@@ -30,6 +36,7 @@ export function getCachedToplistGroups(source: MusicSource): ToplistGroup[] | nu
 }
 
 export function loadToplistGroups(source: MusicSource): Promise<ToplistGroup[]> {
+  if (!canRequestSource(source)) return Promise.resolve([])
   const cached = getCachedToplistGroups(source)
   if (cached) return Promise.resolve(cached)
   const existing = groupsInflight.get(source)
@@ -38,8 +45,21 @@ export function loadToplistGroups(source: MusicSource): Promise<ToplistGroup[]> 
   if (!service.getToplists) return Promise.resolve([])
   const p = service.getToplists()
     .then((groups) => {
-      groupsCache.set(source, { at: Date.now(), groups })
-      return groups
+      if (!canRequestSource(source)) return []
+      const normalized = groups.map((group) => ({
+        ...group,
+        entries: group.entries.map((entry) => ({
+          ...entry,
+          playlist: {
+            ...entry.playlist,
+            provider: source,
+            source,
+            tracks: entry.playlist.tracks?.map((track) => ({ ...track, provider: source, source })),
+          },
+        })),
+      }))
+      groupsCache.set(source, { at: Date.now(), groups: normalized })
+      return normalized
     })
     .catch(() => [] as ToplistGroup[])
     .finally(() => { groupsInflight.delete(source) })
@@ -84,10 +104,19 @@ function pump(): void {
 }
 
 async function runJob(job: PreviewJob): Promise<void> {
+  if (!canRequestSource(job.source)) {
+    previewInflight.delete(job.key)
+    job.resolve([])
+    return
+  }
   // 榜单可能来自另一音源(导航历史/缓存),按数据自身 source 取 service
   const service = serviceFor(job.source)
   try {
     const preview = (await service.getToplistPreview?.(job.id)) ?? []
+    if (!canRequestSource(job.source)) {
+      job.resolve([])
+      return
+    }
     if (previewCache.size >= PREVIEW_CACHE_MAX) previewCache.clear()
     previewCache.set(job.key, { at: Date.now(), preview })
     job.resolve(preview)
@@ -108,6 +137,7 @@ export function requestToplistPreview(
   id: unknown,
   opts: { priority?: 'high' } = {}
 ): Promise<ToplistPreviewTrack[]> {
+  if (!canRequestSource(source)) return Promise.resolve([])
   const cached = getCachedToplistPreview(source, id)
   if (cached) return Promise.resolve(cached)
   const key = previewKey(source, id)

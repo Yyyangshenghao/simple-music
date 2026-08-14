@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
-import { useMusicService } from '../../hooks/useMusicService'
 import { useRoamStore, MAX_ARTISTS } from '../../stores/roam'
+import { serviceFor } from '../../lib/service-registry'
+import { providerFor } from '../../providers/registry'
+import type { ProviderId } from '../../providers/types'
 import {
   createArtistGraphSimulation,
   getLinkForce,
@@ -16,17 +18,22 @@ import {
 import { ArtistPill } from '../Explore/ArtistPill'
 import { sizedImage } from '../../lib/image-size'
 import { CloseIcon } from '../ui/CloseIcon'
+import { SourceBadge } from '../ui/SourceBadge'
 import { springBouncy, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import type { Simulation } from 'd3-force'
-import type { MusicService } from '../../lib/music-service'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPickerOverlay.module.css'
 
 interface ArtistPickerOverlayProps {
   /** 重开编辑时预置已选歌手(保留选中态,曲库池等到确认时由 store 决定是否复用)。 */
   initialSelected: ArtistInfo[]
+  sources: ProviderId[]
   onConfirm(artists: ArtistInfo[]): void
   onClose(): void
+}
+
+function artistKey(artist: Pick<ArtistInfo, 'source' | 'id'>): string {
+  return `${artist.source}:${String(artist.id)}`
 }
 
 /** 节点的结构性状态(选中/是否已展开等),交给 React 渲染。位置(x/y)交给 d3 力导向仿真,不进这里。 */
@@ -111,10 +118,8 @@ const ArtistGraphNodeContent = memo(function ArtistGraphNodeContent({ meta, disa
  * (ref + style.transform),不经过 React state,避免几十个节点 60fps 重渲染;React state(nodeMetas)
  * 只管结构性数据(选中/展开/父子关系),新增/移除节点这类结构变化才触发一次渲染去挂载/卸载 DOM。
  */
-export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: ArtistPickerOverlayProps) {
-  const service = useMusicService()
-  const serviceRef = useRef<MusicService>(service)
-  serviceRef.current = service
+export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClose }: ArtistPickerOverlayProps) {
+  const sourceSignature = sources.join(',')
 
   const suggestions = useRoamStore((s) => s.suggestions)
   const suggestionsLoaded = useRoamStore((s) => s.suggestionsLoaded)
@@ -190,24 +195,26 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
   }, [])
 
   useEffect(() => {
-    void useRoamStore.getState().loadSuggestions(service)
-  }, [service])
+    void useRoamStore.getState().loadSuggestions(sources)
+    // sources 由父级按稳定 provider 顺序生成，签名变化才需重载。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceSignature])
 
   // 种子节点:预置已选(编辑重开场景)+ 猜你喜欢的歌手统计结果,等 suggestions 就绪后一次性铺开——
   // 全部从画布中心的小范围抖动位置出发,交给仿真的排斥/碰撞力自己「炸开」成不重叠的松散簇。
   useEffect(() => {
     if (seededRef.current || !suggestionsLoaded) return
     seededRef.current = true
-    const selectedIds = new Set(initialSelected.map((a) => String(a.id)))
+    const selectedIds = new Set(initialSelected.map(artistKey))
     selectedSetRef.current = new Set(selectedIds)
     reheatCollide()
-    const candidates = suggestions.filter((a) => !selectedIds.has(String(a.id))).slice(0, 14)
+    const candidates = suggestions.filter((a) => !selectedIds.has(artistKey(a))).slice(0, 14)
     const all = [...initialSelected, ...candidates]
     if (all.length === 0) return
 
     const seedSimNodes: GraphSimNode[] = all.map((artist) => {
       const p = jitterNear(CENTER, 60)
-      return { id: String(artist.id), x: p.x, y: p.y }
+      return { id: artistKey(artist), x: p.x, y: p.y }
     })
     simNodesRef.current = seedSimNodes
     simRef.current?.nodes(simNodesRef.current)
@@ -215,16 +222,16 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
 
     setNodeMetas(
       all.map((artist, i) => ({
-        id: String(artist.id),
+        id: artistKey(artist),
         artist,
-        selected: selectedIds.has(String(artist.id)),
+        selected: selectedIds.has(artistKey(artist)),
         expanded: false,
         expanding: false,
         parentId: null,
         spawnIndex: i,
       }))
     )
-    setSelectedOrder(initialSelected.map((a) => String(a.id)))
+    setSelectedOrder(initialSelected.map(artistKey))
     // 只在 suggestionsLoaded 首次变 true 时播种一次(靠 seededRef 守卫),initialSelected/suggestions 不必入依赖。
   }, [suggestionsLoaded])
 
@@ -246,13 +253,16 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     const seq = ++searchSeq.current
     setSearching(true)
     const timer = setTimeout(() => {
-      service.searchArtists(q)
-        .then((list) => { if (seq === searchSeq.current) setSearchResults(list) })
+      Promise.allSettled(sources.map((source) => providerFor(source).catalog.searchArtists(q)))
+        .then((results) => {
+          if (seq !== searchSeq.current) return
+          setSearchResults(results.flatMap((result) => result.status === 'fulfilled' ? result.value : []))
+        })
         .catch(() => { if (seq === searchSeq.current) setSearchResults([]) })
         .finally(() => { if (seq === searchSeq.current) setSearching(false) })
     }, 250)
     return () => clearTimeout(timer)
-  }, [keyword, service])
+  }, [keyword, sourceSignature])
 
   /** 把一批新的相似歌手接进仿真:落在 parent 附近的小抖动位置 + 一条到 parent 的连线,重新加热仿真弹开。
    *  重新加热用较低的 alpha(0.5 而非满血 1):新节点只需要在局部弹开,没必要把全图强度拉满重新扰动一遍,
@@ -262,7 +272,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
     // 抖动半径压到很小:出生点几乎与父节点重合,配合缩放从 0 弹出的入场动画,看起来是"从父头像里生出来"再被碰撞力顶开。
     const childSimNodes: GraphSimNode[] = artists.map((artist) => {
       const p = jitterNear(parentSim, 8)
-      return { id: String(artist.id), x: p.x, y: p.y }
+      return { id: artistKey(artist), x: p.x, y: p.y }
     })
     simNodesRef.current = [...simNodesRef.current, ...childSimNodes]
     simLinksRef.current = [
@@ -281,19 +291,21 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
   const expandNode = useCallback(async (nodeId: string, artist: ArtistInfo) => {
     const meta = nodeMetasRef.current.find((n) => n.id === nodeId)
     if (meta && (meta.expanded || meta.expanding)) return
-    if (!serviceRef.current.getSimilarArtists) return
+    if (artist.source === 'local') return
+    const service = serviceFor(artist.source)
+    if (!service.getSimilarArtists) return
     setNodeMetas((list) => list.map((n) => (n.id === nodeId ? { ...n, expanding: true } : n)))
     try {
-      const similar = await serviceRef.current.getSimilarArtists!(artist.id)
+      const similar = await service.getSimilarArtists!(artist.id)
       const knownIds = new Set(nodeMetasRef.current.map((n) => n.id))
       knownIds.add(nodeId) // 搜索新落的节点可能还没进 ref,防止相似列表里混着自己
 
-      const fresh = similar.filter((a) => !knownIds.has(String(a.id))).slice(0, randomChildCount())
+      const fresh = similar.filter((a) => !knownIds.has(artistKey(a))).slice(0, randomChildCount())
       growChildren(nodeId, fresh)
       setNodeMetas((list) => [
         ...list.map((n) => (n.id === nodeId ? { ...n, expanded: true, expanding: false } : n)),
         ...fresh.map((artist, i): NodeMeta => ({
-          id: String(artist.id), artist, selected: false, expanded: false, expanding: false, parentId: nodeId, spawnIndex: i,
+          id: artistKey(artist), artist, selected: false, expanded: false, expanding: false, parentId: nodeId, spawnIndex: i,
         }))
       ])
     } catch {
@@ -320,7 +332,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
 
   /** 搜索命中一位歌手:已在画布上就直接选中,否则先落一个新节点(在画布中心附近)再选中+生长。 */
   const pickFromSearch = useCallback((artist: ArtistInfo) => {
-    const id = String(artist.id)
+    const id = artistKey(artist)
     const existing = nodeMetasRef.current.find((n) => n.id === id)
     if (existing) {
       toggleNode(existing)
@@ -459,6 +471,7 @@ export function ArtistPickerOverlay({ initialSelected, onConfirm, onClose }: Art
                 >
                   {artist.avatar && <img className={styles.searchAvatar} src={sizedImage(artist.avatar, 52)} alt="" loading="lazy" decoding="async" draggable={false} />}
                   <span>{artist.name}</span>
+                  <SourceBadge source={artist.source} compact />
                 </button>
               ))}
             </div>

@@ -1,6 +1,7 @@
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistHeader.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { SourceBadge } from '../ui/SourceBadge'
 
 interface ArtistHeaderProps {
   artist: ArtistInfo
@@ -16,6 +17,7 @@ export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
         )}
         <div className={styles.info}>
           <h1 className={styles.name}>{artist.name}</h1>
+          <SourceBadge source={artist.source} reveal />
           <p className={styles.meta}>
             {artist.musicSize ? `${artist.musicSize} 首单曲` : ''}
           </p>

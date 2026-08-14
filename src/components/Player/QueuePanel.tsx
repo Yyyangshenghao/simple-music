@@ -4,6 +4,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import { VirtualList } from '../ui/VirtualList'
+import { SourceBadge } from '../ui/SourceBadge'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -123,6 +124,7 @@ export function QueuePanel() {
                             </>
                           )}
                         </span>
+                        <SourceBadge source={t.source} compact />
                       </button>
                     )
                   }}

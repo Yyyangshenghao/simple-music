@@ -5,7 +5,7 @@ import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 /**
  * 本地音乐:扫描用户选择的文件夹,不接入在线音源的推荐/艺人/专辑体系(见 LibraryPage 的「本地」tab,
- * 扁平列表展示,不走 activeSource 切换或 useLazyPlaylist)。
+ * 扁平列表展示，不参与在线平台选择或 useLazyPlaylist。
  */
 
 interface LocalTrackRaw {

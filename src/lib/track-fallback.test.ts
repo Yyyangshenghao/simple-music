@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchFallbackTrack, normalizeText, otherSource } from './track-fallback'
+import { matchFallbackTrack, normalizeText } from './track-fallback'
 import type { Track } from '../types/domain'
 
 function makeTrack(partial: Partial<Track>): Track {
@@ -15,13 +15,6 @@ function makeTrack(partial: Partial<Track>): Track {
     ...partial
   }
 }
-
-describe('otherSource', () => {
-  it('两个音源互为对侧', () => {
-    expect(otherSource('netease')).toBe('qq')
-    expect(otherSource('qq')).toBe('netease')
-  })
-})
 
 describe('normalizeText', () => {
   it('小写、全角括号转半角、去空白', () => {

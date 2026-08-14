@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { useMusicService } from '../../hooks/useMusicService'
 import { loadPlaylistQueue } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
-import { useSettingsStore } from '../../stores/settings'
+import { useProviderStore } from '../../stores/providers'
+import { serviceFor } from '../../lib/service-registry'
 import { springGentle, springSnappy } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './QuickAccessRow.module.css'
@@ -101,8 +101,10 @@ function slotGeometry(off: number, speed: number) {
  * 点中间卡直接播放整个歌单,点两侧卡把它转到中间。
  */
 export function QuickAccessRow() {
-  const service = useMusicService()
-  const activeSource = useSettingsStore((s) => s.activeSource)
+  const source = useProviderStore((s) => (
+    s.playbackOrder.find((id) => s.byId[id].enabled && s.byId[id].auth === 'authenticated') ?? null
+  ))
+  const service = source ? serviceFor(source) : null
   const playlists = usePlaylistStore((s) => s.playlists)
   const playlistsSource = usePlaylistStore((s) => s.playlistsSource)
   const [liked, setLiked] = useState<Playlist | null>(null)
@@ -121,14 +123,15 @@ export function QuickAccessRow() {
 
   // 「我的库」已有的用户歌单 store：与 LibraryPage 共享同一份数据/加载状态
   useEffect(() => {
-    if (playlistsSource !== activeSource) {
-      void usePlaylistStore.getState().loadUserPlaylists()
+    if (source && playlistsSource !== source) {
+      void usePlaylistStore.getState().loadUserPlaylists(source)
     }
-  }, [playlistsSource, activeSource])
+  }, [playlistsSource, source])
 
   useEffect(() => {
     let cancelled = false
     setLiked(null)
+    if (!service) return () => { cancelled = true }
     service.getLikedPlaylist?.()
       .then((pl) => { if (!cancelled) setLiked(pl) })
       .catch(() => {})

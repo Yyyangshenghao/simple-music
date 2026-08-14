@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
+import { useProviderStore } from '../stores/providers'
+import { isProviderId } from '../providers/types'
 import { api } from '../lib/api'
 import { localMusicService } from '../lib/local-music-service'
 import { parseLrc, alignTranslation, parseYrc, estimateWordTiming } from '../lib/lyric-parser'
@@ -53,7 +55,7 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
 
     if (track.provider === 'qq') {
       const mid = String(track.songmid || track.mid || '')
-      const id = String(track.id || '')
+      const id = String(track.qqId || '')
       const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id })
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
@@ -92,12 +94,13 @@ function lyricTrackKey(track: Track): string {
 
 export function useLyricsFetch(): void {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
-  const trackRef = useRef<Track | null>(null)
+  const resolvedTrack = usePlayerStore((s) => s.resolvedTrack)
+  const participation = useProviderStore((state) => ({
+    netease: state.byId.netease.enabled && state.byId.netease.auth === 'authenticated',
+    qq: state.byId.qq.enabled && state.byId.qq.auth === 'authenticated',
+  }))
 
   useEffect(() => {
-    if (currentTrack === trackRef.current) return
-    trackRef.current = currentTrack
-
     if (!currentTrack) {
       useLyricsStore.setState({ trackKey: null, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
       return
@@ -108,8 +111,19 @@ export function useLyricsFetch(): void {
     useLyricsStore.setState({ trackKey: key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
 
     let cancelled = false
+    const canUse = (track: Track) => !isProviderId(track.source) || participation[track.source]
+    const candidates = [currentTrack, resolvedTrack]
+      .filter((track): track is Track => !!track && canUse(track))
+      .filter((track, index, all) => all.findIndex((item) => lyricTrackKey(item) === lyricTrackKey(track)) === index)
 
-    fetchLyrics(currentTrack).then(({ main, aligned, roma, wordLines }) => {
+    void (async () => {
+      for (const track of candidates) {
+        const result = await fetchLyrics(track)
+        if (cancelled) return empty
+        if (result.main.length > 0) return result
+      }
+      return empty
+    })().then(({ main, aligned, roma, wordLines }) => {
       if (cancelled || useLyricsStore.getState().trackKey !== key) return
       useLyricsStore.getState().setLines(main, aligned, roma)
       useLyricsStore.getState().setWordLines(wordLines)
@@ -118,5 +132,5 @@ export function useLyricsFetch(): void {
     return () => {
       cancelled = true
     }
-  }, [currentTrack])
+  }, [currentTrack, participation.netease, participation.qq, resolvedTrack])
 }

@@ -2,15 +2,19 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
-import { useSettingsStore } from '../stores/settings'
-import { useMusicService } from '../hooks/useMusicService'
+import { useProviderStore } from '../stores/providers'
+import { useContentProvider } from '../hooks/useContentProvider'
 import { useToastStore } from '../stores/toast'
 import { localMusicService } from '../lib/local-music-service'
+import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
+import { providerFor } from '../providers/registry'
+import type { ProviderId } from '../providers/types'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { SourceBadge } from '../components/ui/SourceBadge'
 import type { Playlist, Track } from '../types/domain'
 import type { MutableRefObject } from 'react'
 import styles from './LibraryPage.module.css'
@@ -95,7 +99,7 @@ const PlaylistGridItem = memo(function PlaylistGridItem({ playlist }: { playlist
     <PlaylistCard
       playlist={playlist}
       onClick={() => openPlaylist(playlist)}
-      layoutId={`library-cover-${String(playlist.id)}`}
+      layoutId={`library-cover-${playlist.source}-${String(playlist.id)}`}
     />
   )
 })
@@ -123,6 +127,7 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
+  const { current: contentSource } = useContentProvider()
 
   // 歌单详情提升到导航 store：顶栏前进/后退可穿越
   const currentView = useNavigationStore((s) => s.currentView)
@@ -131,25 +136,17 @@ export function LibraryPage() {
       ? currentView
       : null
 
-  const playlists = usePlaylistStore((s) => s.playlists)
-  const playlistsSource = usePlaylistStore((s) => s.playlistsSource)
-  const activeSource = useSettingsStore((s) => s.activeSource)
-
-  // 拉取条件看"已拉的是不是当前音源"，不能看 length===0：
-  // 未登录/拉取失败时结果恒为空数组，而 store 每次 set 都是新数组引用，
-  // 用 length 判断会让本 effect 无限重入，把接口打爆。
-  useEffect(() => {
-    if (playlistsSource !== activeSource) {
-      void usePlaylistStore.getState().loadUserPlaylists()
-    }
-  }, [playlistsSource, activeSource])
-
   if (detail) {
-    return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="library-cover" />
+    return <PlaylistDetailView
+      playlist={detail.playlist}
+      initialTracks={detail.tracks}
+      layoutIdPrefix={`library-cover-${detail.playlist.source}`}
+    />
   }
 
   return (
     <ScrollArea className={styles.page}>
+      <div className={styles.inner}>
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
@@ -165,62 +162,131 @@ export function LibraryPage() {
         </div>
       </div>
 
-      {tab === 'playlists' && (
-        <div className={styles.grid}>
-          {playlists.map((pl, i) => (
-            <PlaylistGridItem key={String(pl.id) + i} playlist={pl} />
-          ))}
-        </div>
-      )}
+      {tab === 'playlists' && (contentSource
+        ? <ProviderLibraryGrid mode="playlists" source={contentSource} />
+        : <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>)}
 
-      {tab === 'favorites' && <FavoritesTab onOpen={openPlaylist} />}
+      {tab === 'favorites' && (contentSource
+        ? <ProviderLibraryGrid mode="favorites" source={contentSource} />
+        : <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>)}
 
       {tab === 'recent' && <RecentPlaysList />}
 
       {tab === 'local' && <LocalMusicTab />}
+      </div>
     </ScrollArea>
   )
 }
 
-/** 收藏 tab:展示"我喜欢的音乐"歌单入口(音源需支持且已登录),点击进懒加载详情页。 */
-function FavoritesTab({ onOpen }: { onOpen(playlist: Playlist): void }) {
-  const service = useMusicService()
-  const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
-  const activeSource = useSettingsStore((s) => s.activeSource)
-  const [playlist, setPlaylist] = useState<Playlist | null>(null)
-  const [loading, setLoading] = useState(false)
+interface ProviderLibraryGridProps {
+  mode: 'playlists' | 'favorites'
+  source: ProviderId
+}
 
-  const supported = typeof service.getLikedPlaylist === 'function'
-  const loggedIn = activeSource !== 'netease' || neteaseLoggedIn
+async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Promise<Playlist[]> {
+  const library = providerFor(source).library
+  if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
+  const liked = await library?.getLikedPlaylist?.()
+  return liked ? [liked] : []
+}
+
+function isProviderParticipating(source: ProviderId): boolean {
+  const state = useProviderStore.getState().byId[source]
+  return state.enabled && state.auth === 'authenticated'
+}
+
+function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
+  const participating = useProviderStore((state) =>
+    state.byId[source].enabled && state.byId[source].auth === 'authenticated'
+  )
+  const [results, setResults] = useState<Partial<Record<ProviderId, ProviderResult<Playlist[]>>>>({})
+  const sessionRef = useRef(0)
+  const retryRef = useRef<Partial<Record<ProviderId, number>>>({})
 
   useEffect(() => {
-    if (!supported || !loggedIn) return
-    let stale = false
-    setLoading(true)
-    service
-      .getLikedPlaylist!()
-      .then((pl) => {
-        if (!stale) setPlaylist(pl)
-      })
-      .catch(() => {
-        if (!stale) setPlaylist(null)
-      })
-      .finally(() => {
-        if (!stale) setLoading(false)
-      })
+    const session = ++sessionRef.current
+    const controller = new AbortController()
+    setResults({})
+    void runProviderTasks(
+      [source],
+      (source) => loadProviderLibrary(source, mode),
+      {
+        signal: controller.signal,
+        isEnabled: isProviderParticipating,
+        isEmpty: (playlists) => playlists.length === 0,
+        onUpdate: (result) => {
+          if (session !== sessionRef.current) return
+          setResults((current) => ({ ...current, [result.source]: result }))
+        },
+      }
+    )
     return () => {
-      stale = true
+      sessionRef.current += 1
+      controller.abort()
     }
-  }, [service, supported, loggedIn])
+  }, [mode, participating, source])
 
-  if (!supported) return <div className={styles.emptyHint}><p>当前音源暂不支持收藏</p></div>
-  if (!loggedIn) return <div className={styles.emptyHint}><p>登录网易云账号后可查看收藏</p></div>
-  if (loading && !playlist) return <div className={styles.emptyHint}><p>加载中…</p></div>
-  if (!playlist) return <div className={styles.emptyHint}><p>没有找到收藏歌单</p></div>
+  function retryProvider(source: ProviderId): void {
+    const session = sessionRef.current
+    const retry = (retryRef.current[source] ?? 0) + 1
+    retryRef.current[source] = retry
+    void runProviderTasks(
+      [source],
+      (currentSource) => loadProviderLibrary(currentSource, mode),
+      {
+        isEnabled: isProviderParticipating,
+        isEmpty: (playlists) => playlists.length === 0,
+        onUpdate: (result) => {
+          if (session !== sessionRef.current || retryRef.current[source] !== retry) return
+          setResults((current) => ({ ...current, [result.source]: result }))
+        },
+      }
+    )
+  }
+
+  const visibleSources = participating ? [source] : []
+
+  if (visibleSources.length === 0) {
+    return <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>
+  }
 
   return (
-    <div className={styles.grid}>
-      <PlaylistCard playlist={playlist} onClick={() => onOpen(playlist)} layoutId={`library-cover-${String(playlist.id)}`} />
+    <div className={styles.providerSections}>
+      {visibleSources.map((source) => {
+        const result = results[source]
+        const playlists = result?.data ?? []
+        return (
+          <section className={styles.providerSection} key={source} aria-label={`${source}音乐库`}>
+            <div className={styles.providerSectionHeader}>
+              <SourceBadge source={source} reveal />
+              <strong>{providerFor(source).descriptor.label}</strong>
+              <span>
+                {result?.status === 'loading' || !result
+                  ? '加载中…'
+                  : result.status === 'error'
+                    ? result.error?.message
+                    : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '歌单'}`}
+              </span>
+            </div>
+            {result?.status === 'error' ? (
+              <div className={styles.providerError}>
+                <p>这个平台暂时无法加载，请稍后重试。</p>
+                <button className="no-drag" onClick={() => retryProvider(source)}>重试</button>
+              </div>
+            ) : result?.status === 'empty' ? (
+              <div className={styles.providerEmpty}>
+                {mode === 'favorites' ? '这个平台没有可展示的收藏入口' : '这个平台暂时没有歌单，或需要先登录'}
+              </div>
+            ) : playlists.length > 0 ? (
+              <div className={styles.grid}>
+                {playlists.map((playlist) => (
+                  <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />
+                ))}
+              </div>
+            ) : null}
+          </section>
+        )
+      })}
     </div>
   )
 }

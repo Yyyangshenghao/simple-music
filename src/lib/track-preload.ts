@@ -20,6 +20,13 @@ export interface SongUrlResponse {
   trial?: boolean
   restriction?: { message: string }
   message?: string
+  /** 同一解析请求发现的有序地址候选（QQ 可同时返回多档文件和多个 sip）。 */
+  candidates?: Array<{
+    url: string
+    quality?: string
+    level?: string
+    trial?: boolean
+  }>
 }
 
 /** 解析曲目的可播放上游 URL(按音源拼参数);loadTrack 与预加载共用同一份逻辑。 */
@@ -31,7 +38,12 @@ export function resolveSongUrl(
   const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
   const params =
     track.source === 'qq'
-      ? { mid: String(track.mid ?? track.id ?? ''), quality, fee: String(track.fee ?? '') }
+      ? {
+          mid: String(track.mid ?? track.id ?? ''),
+          mediaMid: String(track.mediaMid ?? ''),
+          quality,
+          fee: String(track.fee ?? ''),
+        }
       : { id: String(track.id ?? ''), quality }
   return api.get<SongUrlResponse>(path, params, signal ? { signal } : undefined)
 }

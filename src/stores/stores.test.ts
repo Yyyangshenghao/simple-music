@@ -147,6 +147,14 @@ describe('playlist 播放模式走序', () => {
   async function setup(n = 4) {
     const { usePlaylistStore } = await import('./playlist')
     const { usePlayerStore } = await import('./player')
+    const { useProviderStore } = await import('./providers')
+    useProviderStore.setState((state) => ({
+      byId: {
+        ...state.byId,
+        netease: { ...state.byId.netease, enabled: true, auth: 'authenticated' },
+      },
+      playbackOrder: ['netease'],
+    }))
     const loadTrack = vi.fn(async () => {})
     usePlayerStore.setState({ loadTrack })
     const tracks = Array.from({ length: n }, (_, i) => ({

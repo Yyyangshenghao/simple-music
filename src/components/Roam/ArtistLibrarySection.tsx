@@ -4,6 +4,7 @@ import type { RoamArtistEntry } from '../../stores/roam'
 import { sizedImage } from '../../lib/image-size'
 import { formatDuration } from '../../lib/format-duration'
 import { CloseIcon } from '../ui/CloseIcon'
+import { SourceBadge } from '../ui/SourceBadge'
 import styles from './ArtistLibrarySection.module.css'
 
 interface ArtistLibrarySectionProps {
@@ -28,11 +29,12 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
       <div className={styles.header}>
         {artist.avatar && <img className={styles.avatar} src={sizedImage(artist.avatar, 64)} alt="" loading="lazy" decoding="async" />}
         <span className={styles.name}>{artist.name}</span>
+        <SourceBadge source={artist.source} compact />
         <div className={styles.stepper}>
           <button
             className={`${styles.stepBtn} no-drag`}
             disabled={loading || tracks.length <= 1}
-            onClick={() => setArtistCount(artist.id, tracks.length - 1)}
+            onClick={() => setArtistCount(artist.id, tracks.length - 1, artist.source === 'local' ? undefined : artist.source)}
             aria-label="减少首数"
           >
             –
@@ -41,7 +43,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
           <button
             className={`${styles.stepBtn} no-drag`}
             disabled={loading || tracks.length >= MAX_SONGS_PER_ARTIST || addable.length === 0}
-            onClick={() => setArtistCount(artist.id, tracks.length + 1)}
+            onClick={() => setArtistCount(artist.id, tracks.length + 1, artist.source === 'local' ? undefined : artist.source)}
             aria-label="增加首数"
           >
             +
@@ -49,7 +51,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
         </div>
         <button
           className={`${styles.removeBtn} no-drag`}
-          onClick={() => removeArtist(artist.id)}
+          onClick={() => removeArtist(artist.id, artist.source === 'local' ? undefined : artist.source)}
           aria-label={`移除 ${artist.name}`}
         >
           <CloseIcon size={13} />
@@ -59,7 +61,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
       {!loading && loadFailed && (
         <p className={styles.hint}>
           曲库加载失败
-          <button className={`${styles.retryLink} no-drag`} onClick={() => retryArtistPool(artist.id)}>
+          <button className={`${styles.retryLink} no-drag`} onClick={() => retryArtistPool(artist.id, artist.source === 'local' ? undefined : artist.source)}>
             重试
           </button>
         </p>
@@ -73,7 +75,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
               <span className={styles.trackDuration}>{formatDuration(t.duration)}</span>
               <button
                 className={`${styles.trackRemove} no-drag`}
-                onClick={() => removeTrack(artist.id, t.id)}
+                onClick={() => removeTrack(artist.id, t.id, artist.source === 'local' ? undefined : artist.source)}
                 aria-label={`移除 ${t.name}`}
               >
                 <CloseIcon size={11} />
@@ -95,7 +97,7 @@ export function ArtistLibrarySection({ entry }: ArtistLibrarySectionProps) {
                 <button
                   key={String(t.id)}
                   className={`${styles.addRow} no-drag`}
-                  onClick={() => addTrack(artist.id, t)}
+                  onClick={() => addTrack(artist.id, t, artist.source === 'local' ? undefined : artist.source)}
                 >
                   <span className={styles.trackName}>{t.name}</span>
                   <span className={styles.addPlus}>+</span>

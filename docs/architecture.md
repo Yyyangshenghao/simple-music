@@ -2,6 +2,8 @@
 
 > 本文是全项目的顶层设计文档：进程模型、模块划分、数据流、启动时序与贯穿全项目的设计决策。
 > 各模块内部细节见 [modules/](modules/) 下的分册；播放系统见 [playback-system.md](playback-system.md)。上游接口逆向笔记见 [netease-music-api.md](netease-music-api.md)、[qq-music-api.md](qq-music-api.md)。
+>
+> 本文描述当前开发分支的已实现架构；2.0 多平台融合的完整决策、阶段状态与待验收项见 [Simple Music 2.0 多平台融合架构设计](specs/2026-08-12-simple-music-2.0-multi-provider-design.md)。
 
 Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器：React 渲染层 + 主进程内嵌的 Node HTTP API server，音源支持网易云音乐与 QQ 音乐。项目起点是对 [Mineradio](https://github.com/XxHuberrr/Mineradio)（GPL-3.0）的移植式重写——整体架构已完全重写为 electron-vite + TypeScript，但部分算法/上游接口逻辑（dj-analyzer、win32 桌面注入、部分 server 路由）是"忠实移植"，行为对齐优先于重构（源码中标注了"移植自参考项目"的位置改动前需先确认上游语义）。
 
@@ -54,7 +56,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
 3. `app.whenReady` → `boot()`：`registerIpc()` → `bootServer()`（注入 `app.getPath('userData')` 为 `ServerContext.userDataDir`，返回端口）→ `createMainWindow(port)`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
-5. 渲染层 `App.tsx` 挂载：全局 hooks（桥接/登录态同步/歌词/壁纸/氛围色）+ `loadFromLocal()`（settings）+ `initPlaybackPersistence()`（恢复上次队列为暂停态）+ `initMediaSession()` + 启动即 `checkForUpdate()`。
+5. 渲染层 `App.tsx` 挂载：先加载通用设置，再用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），随后恢复播放队列为暂停态并初始化 Media Session。网易云和 QQ 的登录状态独立核实，单个平台返回不得改写另一平台状态。
 6. `before-quit`：注销热键 → 关闭悬浮窗 → 关闭 server。
 
 **backgroundThrottling 全局关闭的连锁约定**：关闭后窗口最小化/被遮挡/失焦时 rAF 仍满帧跑，所有重渲染循环必须**自行暂停**——LiquidEther 内置 blur/visibilitychange/IntersectionObserver 三重暂停，LyricsPanel 3D 场景用 `useWindowActive()` 停 Canvas，`useAudioEnergy` 在 `document.hidden` 时跳帧。新增全屏渲染循环必须遵守这一约定（历史教训见 GPU 性能审计，风扇狂转主因）。
@@ -65,8 +67,8 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 ```
 组件/页面
-  → useMusicService()                    // 按 settings.activeSource 取单例
-    或 serviceFor(数据.source)            // 跨音源数据必须按数据自带 source 绑定
+  → ContentHub                           // 全源搜索等聚合场景隔离参与平台
+    或 serviceFor(数据.source)            // 单实体操作按复合身份显式绑定平台
   → MusicService 实现（netease-music-service.ts / qq-music-service.ts）
   → src/lib/api.ts                       // 拼 http://127.0.0.1:<port>/api/*
   → server/routes/*                      // 路由链
@@ -78,7 +80,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 规则（易踩坑，违反过会产生真实 bug）：
 
 - **渲染层绝不直接调音乐平台**，一律经本地 server。
-- **`serviceFor(数据.source)` vs `useMusicService()`**：导航历史/缓存里的数据可能属于另一音源。用全局 activeSource 的 service 处理对侧数据，会把错误结果写进按 source 分键的缓存（useLazyPlaylist 曾因此出现"骨架永久占位"的 Critical）。凡是数据对象自带 `source` 字段的场景一律 `serviceFor`。
+- **不存在全局互斥音源**：平台是否参与由 provider store 的“已登录且已启用”共同决定；聚合读取由 `ContentHub` 隔离各平台失败，实体读取与写操作一律使用 `serviceFor(数据.source)`，不得从 UI 当前筛选状态猜平台。
 - **`Track.duration` 全项目约定毫秒**（网易 `dt` 原样、QQ `interval×1000`）。
 - **`Track`/`Playlist` 的 `id` 是 `unknown`**（两音源 id 形态不同，QQ 主键实际是 `mid` 字符串），比较/拼 URL 前必须 `String()`。
 
@@ -86,9 +88,10 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 ```
 player.loadTrack(track)
-  → URL 解析：track.url（自带直链）→ 预加载缓存 → resolveSongUrl()（/api/song/url 或 /api/qq/song/url）
-  → 都失败且开了跨音源兜底 → findFallbackTrack() 去对侧音源搜同曲
+  → PlaybackResolver：手动软优先 → 原源优先 → playbackOrder（只含登录且启用平台）
+  → 跨源时 track-match 保守评分；同平台按音质与地址生成有限候选
   → AudioEngine.load(upstreamUrl, startAt, cacheKey)
+  → canplay 提交实际来源；媒体 error 回到解析器继续同源/跨源降级
   → <audio src="http://127.0.0.1:<port>/api/audio?url=<上游CDN链>&cacheKey=source:id:quality">
   → server 代理：磁盘缓存命中直接本地文件服务（含 Range），未命中透传上游并把"从 0 起的整流"落盘
   → HTMLAudioElement → WebAudio 图：MediaElementSource → AnalyserNode → GainNode → destination
@@ -105,8 +108,9 @@ player.loadTrack(track)
 ## 5. 渲染层状态架构
 
 - **zustand 单文件单 store**，无全局 Provider；store 之间用 `getState()` 直接互调，环形依赖用注册回调解耦（player 播完 → playlist 走序，经 `registerTrackEndedHandler` 注入，避免 player→playlist 反向 import 成环）。
+- **provider store 是平台参与状态的唯一事实来源**：`byId` 保存启用、登录与资料，`contentSource` 保存探索与我的库共用的全局浏览来源，`playbackOrder` 保存播放优先级；内容平台不会关闭其他平台，也不会改变播放顺序。
 - **导航是自研的**（`stores/navigation.ts`）：`AppView` 联合类型 + history/future 双栈（上限 50 防内嵌全量 tracks 的 playlist 视图涨内存），没有引 react-router——视图形态少、需要携带对象参数（playlist 详情带已拉取的 tracks 避免重复请求）、转场方向（push/pop）要喂给 motion。
-- **持久化分层**：设置类走 `simplemusic-settings`（settings store 手动 save/load）；播放态走 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）；其余各自独立 key（最近播放/搜索历史/漫游/更新忽略版本）。
+- **持久化分层**：通用设置走 `simplemusic-settings`；平台偏好走带 schema 的 `simplemusic-provider-settings`；播放态走带 schema 的 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）。首次迁移会把 1.x 设置原文保存到 `simplemusic-settings-v1-backup`，新运行时代码不再读写旧二选一字段。
 - **异步竞态守卫是全项目模式**：任何"响应回来时上下文可能已变"的异步加载，都用会话计数 ref（`loadSession`/`sessionRef`/`searchSeq`）判断响应是否过期后丢弃。player.loadTrack、ExplorePage、useLazyPlaylist、RoamPage 搜索、封面取色均如此；新加异步 setter 沿用该模式。
 
 ## 6. 视觉体系速览
@@ -114,6 +118,7 @@ player.loadTrack(track)
 - 设计方向见根目录 `DESIGN.md`（Spotify 深色内容优先体系）；token 全部在 `src/styles/tokens.css`（`--sm-*` 基础 / `--glass-*` 玻璃层级 / `--ambient-*` 封面取色氛围 / `--audio-energy` 音频能量），经 `@property` 注册。
 - 动效统一引用 `src/lib/motion-presets.ts`（springSnappy/springGentle/tapScale/fadeRise/iconSwap），禁止散落魔法数值。
 - 样式用 CSS Modules（`*.module.css` 与组件同目录）；主题切换靠 `<html data-theme>` + tokens 变量，`auto` 模式移除属性交给 `prefers-color-scheme`。
+- 页面宽度统一使用 `--sm-content-max-width`、`--sm-reading-max-width` 与 `--sm-page-gutter`；网格/列表按内容宽度展开，阅读型内容居中限宽，设置页在宽屏双列、窄屏单列。
 - **全屏 WebGL 同屏只跑一个**（单个窗口内）：氛围背景 LiquidEther 与歌词页 3D 场景互斥（歌词 3D 打开时 `AppShell backgroundHidden` 把背景 `display:none`，LiquidEther 靠 IntersectionObserver 自动暂停）。
 - 深入解析（流体模拟管线、GLSL、性能档位）见 `docs/superpowers/specs/` 下各期设计文档。
 

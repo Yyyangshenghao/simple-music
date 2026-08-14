@@ -13,15 +13,23 @@
 }
 
 .coverWrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 10px;
   overflow: hidden;
 }
 
-.cover { width: 100%; height: 100%; object-fit: cover; }
+.sourceBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 
-.coverFallback { width: 100%; height: 100%; background: var(--sm-bg-elevated); }
+.cover { width: 100%; height: 100%; object-fit: cover; }
 
 .name {
   margin: 10px 2px 2px;

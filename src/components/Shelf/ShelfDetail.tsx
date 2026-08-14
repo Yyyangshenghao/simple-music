@@ -7,6 +7,7 @@ import { formatDuration } from '../../lib/format-duration'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './ShelfDetail.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 
 interface ShelfDetailProps {
   playlist: Playlist
@@ -65,7 +66,7 @@ export function ShelfDetail({ playlist, onClose }: ShelfDetailProps) {
           {playlist.cover ? (
             <img className={styles.cover} src={sizedImage(playlist.cover, 128)} alt="" />
           ) : (
-            <span className={styles.cover} aria-hidden="true" />
+            <PlaylistCoverFallback className={styles.cover} name={playlist.name} source={playlist.source} />
           )}
           <div className={styles.headInfo}>
             <h2 className={styles.title} title={playlist.name}>

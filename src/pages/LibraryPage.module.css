@@ -1,5 +1,11 @@
 .page {
-  padding: 24px 24px 80px;
+  position: relative;
+}
+
+.inner {
+  width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
+  margin: 0 auto;
+  padding: 28px 0 80px;
 }
 
 .header {
@@ -36,6 +42,43 @@
 .subTab:hover { color: var(--sm-text-primary); }
 .subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
 
+.providerSections { display: flex; flex-direction: column; gap: 30px; }
+
+.providerSection {
+  padding: 16px;
+  border: 1px solid var(--sm-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--glass-bg-card) 76%, transparent);
+}
+
+.providerSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+}
+
+.providerError,
+.providerEmpty {
+  padding: 26px 10px;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.providerError p { margin: 0; }
+.providerError button {
+  margin-top: 10px;
+  padding: 5px 12px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  cursor: pointer;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -55,7 +98,15 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-width: 920px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .inner { width: calc(100% - 28px); padding-top: 20px; }
+  .header { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .subTabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .subTabs::-webkit-scrollbar { display: none; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 18px 14px; }
 }
 
 .trackListToolbar {

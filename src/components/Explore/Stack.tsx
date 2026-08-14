@@ -5,6 +5,7 @@ import type { PanInfo } from 'motion/react'
 import type { Playlist } from '../../types/domain'
 import styles from './Stack.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { SourceBadge } from '../ui/SourceBadge'
 
 /** 拖拽甩卡阈值（px），超过即视为把顶卡甩出。 */
 const SENSITIVITY = 170
@@ -93,6 +94,7 @@ export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
               {pl.cover
                 ? <img className={styles.cover} src={sizedImage(pl.cover, 520)} alt="" draggable={false} loading="lazy" />
                 : <div className={styles.coverFallback} />}
+              <SourceBadge source={pl.source} className={styles.sourceBadge} />
               <div className={styles.nameOverlay}>{pl.name}</div>
             </motion.div>
           </CardRotate>

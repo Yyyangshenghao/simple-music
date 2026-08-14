@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { serviceFor } from '../lib/service-registry'
 import type { Track } from '../types/domain'
+import { isProviderId } from '../providers/types'
+import { isProviderParticipating } from './providers'
+import { expireProviderAccount } from './provider-auth'
 
 /** 红心状态缓存:key 为 `source:id`,乐观更新,服务端失败回滚。 */
 
@@ -20,6 +23,10 @@ const failedCooldown = new Map<string, number>()
  *  避免逐行红心对每首网易曲目各发一个请求(列表 50 首就 50 个 HTTP)。
  *  debounce 窗口内收集,到期一次 flush;同一 key 多次 await(滚动重复挂载)共用 resolve。 */
 const BATCH_DELAY_MS = 200
+
+function canInteract(track: Track): boolean {
+  return !isProviderId(track.source) || isProviderParticipating(track.source)
+}
 interface PendingEntry {
   track: Track
   resolvers: Array<() => void>
@@ -54,6 +61,10 @@ async function flushBatch(): Promise<void> {
   if (!bySource.size) return
   await Promise.all(
     [...bySource.entries()].map(async ([source, items]) => {
+      if (isProviderId(source) && !isProviderParticipating(source)) {
+        items.forEach((p) => p.resolvers.forEach((r) => r()))
+        return
+      }
       const svc = serviceFor(source)
       if (!svc.checkLiked) {
         items.forEach((p) => p.resolvers.forEach((r) => r()))
@@ -70,7 +81,8 @@ async function flushBatch(): Promise<void> {
           failedCooldown.delete(keyOf(p.track))
           p.resolvers.forEach((r) => r())
         }
-      } catch {
+      } catch (error) {
+        if (isProviderId(source)) expireProviderAccount(source, error)
         for (const p of items) {
           failedCooldown.set(keyOf(p.track), now + FAIL_COOLDOWN_MS)
           p.resolvers.forEach((r) => r())
@@ -116,6 +128,7 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
 
   supports(track) {
     if (!track) return false
+    if (!canInteract(track)) return false
     return typeof serviceFor(track.source).likeTrack === 'function'
   },
 
@@ -133,6 +146,10 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
         resolve()
         return
       }
+      if (!canInteract(track)) {
+        resolve()
+        return
+      }
       if (!serviceFor(track.source).checkLiked) {
         resolve()
         return
@@ -145,6 +162,7 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
   },
 
   async toggleLike(track) {
+    if (!canInteract(track)) return
     const svc = serviceFor(track.source)
     if (!svc.likeTrack) return
     const key = keyOf(track)
@@ -152,7 +170,8 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     set((s) => ({ likedByKey: withLike(s.likedByKey, key, next) }))
     try {
       if (!(await svc.likeTrack(track, next))) throw new Error('like failed')
-    } catch {
+    } catch (error) {
+      if (isProviderId(track.source)) expireProviderAccount(track.source, error)
       set((s) => ({ likedByKey: withLike(s.likedByKey, key, !next) }))
     }
   }

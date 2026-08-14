@@ -3,6 +3,7 @@ import { TiltCard } from '../ui/TiltCard'
 import type { Playlist } from '../../types/domain'
 import styles from './ShelfCard.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 
 interface ShelfCardProps {
   playlist: Playlist
@@ -20,15 +21,15 @@ export function ShelfCard({ playlist, onOpen }: ShelfCardProps) {
           onClick={onOpen}
           title={playlist.name}
         >
-          <span className={styles.coverWrap}>
+          <div className={styles.coverWrap}>
             {playlist.cover ? (
               <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
             ) : (
-              <span className={styles.cover} aria-hidden="true" />
+              <PlaylistCoverFallback className={styles.cover} name={playlist.name} source={playlist.source} />
             )}
             <span className={styles.spine} aria-hidden="true" />
             <span className={styles.gloss} aria-hidden="true" />
-          </span>
+          </div>
           <span className={styles.meta}>
             <span className={styles.name}>{playlist.name}</span>
             <span className={styles.count}>{playlist.trackCount} 首</span>

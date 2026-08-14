@@ -11,7 +11,7 @@ interface SourceAvatarProps {
   avatarUrl: string
 }
 
-/** 头像角标：右下角叠加官方品牌图标，随 activeSource 切换告知当前音源。 */
+/** 头像角标：右下角叠加实体所属平台的官方品牌图标。 */
 function BrandBadge({ source }: { source: MusicSource }) {
   const Logo = source === 'netease' ? NeteaseLogo : QQMusicLogo
   return (

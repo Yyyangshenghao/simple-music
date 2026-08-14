@@ -122,15 +122,11 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void> {
-    try {
-      await api.post('/api/netease/scrobble', {
-        id: trackId,
-        sourceId: opts.sourceId,
-        time: Math.round(opts.seconds),
-      })
-    } catch {
-      /* 打卡失败不影响播放,静默忽略 */
-    }
+    await api.post('/api/netease/scrobble', {
+      id: trackId,
+      sourceId: opts.sourceId,
+      time: Math.round(opts.seconds),
+    })
   }
 
   async getToplists(): Promise<ToplistGroup[]> {

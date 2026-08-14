@@ -1,5 +1,5 @@
 import { serviceFor } from './service-registry'
-import type { MusicSource, Track } from '../types/domain'
+import type { OnlineMusicSource, Track } from '../types/domain'
 
 /**
  * 跨音源兜底:当前音源解析不出播放 URL(VIP 付费墙/灰色下架)时,
@@ -12,10 +12,6 @@ import type { MusicSource, Track } from '../types/domain'
  */
 
 const DURATION_TOLERANCE_MS = 3000
-
-export function otherSource(source: MusicSource): MusicSource {
-  return source === 'netease' ? 'qq' : 'netease'
-}
 
 /** 归一化:小写、全角括号转半角、去空白。CJK 曲名常见空格差异(如「歌名 (Live)」)由此抹平。 */
 export function normalizeText(s: string): string {
@@ -60,8 +56,11 @@ export function matchFallbackTrack(original: Track, candidates: Track[]): Track 
 }
 
 /** 去对侧音源搜索并匹配同一首歌;搜索失败或无匹配返回 null。 */
-export async function findFallbackTrack(track: Track): Promise<Track | null> {
-  const service = serviceFor(otherSource(track.source))
+export async function findFallbackTrack(
+  track: Track,
+  targetSource: OnlineMusicSource
+): Promise<Track | null> {
+  const service = serviceFor(targetSource)
   const keyword = `${track.name ?? ''} ${track.artist ?? ''}`.trim()
   if (!keyword) return null
   try {

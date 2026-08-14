@@ -9,7 +9,7 @@ export type AppView =
   | 'settings'
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */
-  | { type: 'toplist' }
+  | { type: 'toplist'; source: 'netease' | 'qq' }
   /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
   | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks?: Track[] }
 

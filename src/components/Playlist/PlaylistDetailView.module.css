@@ -70,10 +70,11 @@
   height: 80px;
   border-radius: 12px;
   object-fit: cover;
+  overflow: hidden;
 }
 
 .detailTitle { font-size: 22px; font-weight: 700; margin: 0 0 4px; color: var(--sm-text-primary); }
-.detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 0; }
+.detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 6px 0 0; }
 
 .trackList { padding: 0; }
 

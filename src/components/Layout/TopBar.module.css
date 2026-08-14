@@ -234,7 +234,7 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: 300px;
+  width: 340px;
   background: var(--sm-bg-overlay);
   border: 1px solid var(--sm-border);
   border-radius: 10px;
@@ -243,6 +243,22 @@
   max-height: 400px;
   overflow-y: auto;
   z-index: 500;
+}
+
+.searchProvider + .searchProvider { border-top: 1px solid var(--sm-border); }
+
+.providerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 3px;
+}
+
+.providerError {
+  margin: 0;
+  padding: 7px 14px 11px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
 }
 
 .searchHint {
@@ -341,6 +357,7 @@
 }
 
 .avatarInner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -351,6 +368,11 @@
   color: var(--sm-text-secondary);
   transition: color 0.15s;
 }
+
+.accountGlyph { flex-shrink: 0; }
+
+
+.clusterLogo:first-child { margin-left: 0; }
 
 .avatarBtn:hover .avatarInner {
   color: var(--sm-text-primary);

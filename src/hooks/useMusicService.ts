@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { useSettingsStore } from '../stores/settings'
-import { neteaseService, qqService } from '../lib/service-registry'
+import { serviceFor } from '../lib/service-registry'
 import type { MusicService } from '../lib/music-service'
+import type { MusicSource } from '../types/domain'
 
-export function useMusicService(): MusicService {
-  const activeSource = useSettingsStore((s) => s.activeSource)
-  return useMemo(() => (activeSource === 'qq' ? qqService : neteaseService), [activeSource])
+/** 显式绑定数据所属平台，避免组件隐式依赖全局二选一音源。 */
+export function useMusicService(source: MusicSource): MusicService {
+  return useMemo(() => serviceFor(source), [source])
 }

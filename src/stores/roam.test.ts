@@ -62,9 +62,17 @@ vi.mock('../lib/service-registry', () => ({
 }))
 
 const setNeteaseLoggedIn = vi.fn()
+let neteaseLoggedIn = true
 
 vi.mock('./settings', () => ({
-  useSettingsStore: { getState: () => ({ activeSource: 'netease', setNeteaseLoggedIn }) }
+  useSettingsStore: { getState: () => ({ neteaseLoggedIn, setNeteaseLoggedIn }) }
+}))
+
+let providerParticipating = true
+const setAccountState = vi.fn()
+vi.mock('./providers', () => ({
+  isProviderParticipating: () => providerParticipating,
+  useProviderStore: { getState: () => ({ setAccountState }) },
 }))
 
 import { useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'
@@ -90,10 +98,13 @@ function mkEntry(artistId: number, overrides: Partial<RoamArtistEntry> = {}): Ro
 
 describe('roam store', () => {
   beforeEach(() => {
+    neteaseLoggedIn = true
+    providerParticipating = true
     currentService = localOnlyService
     useRoamStore.setState({ playlist: null, entries: [], mode: 'hot', generating: false, error: null })
     getArtistSongs.mockClear()
     setNeteaseLoggedIn.mockClear()
+    setAccountState.mockClear()
     getArtistSongs.mockImplementation(async (id: unknown) => POOLS[String(id)] ?? [])
   })
 
@@ -101,6 +112,13 @@ describe('roam store', () => {
     const many = Array.from({ length: MAX_ARTISTS + 3 }, (_, i) => mkArtist(i))
     useRoamStore.getState().confirmArtists(many)
     expect(useRoamStore.getState().entries).toHaveLength(MAX_ARTISTS)
+  })
+
+  it('平台未参与时不拉取歌手曲库并移除旧条目', () => {
+    providerParticipating = false
+    useRoamStore.getState().confirmArtists([mkArtist(1)])
+    expect(getArtistSongs).not.toHaveBeenCalled()
+    expect(useRoamStore.getState().entries).toEqual([])
   })
 
   it('confirmArtists 拉取新歌手曲库,首数按人数摊算(2 位→15 首上限,曲库不足则全量)', async () => {
@@ -254,6 +272,7 @@ describe('roam store', () => {
 
 describe('roam store — 网易云真实歌单分支', () => {
   beforeEach(() => {
+    neteaseLoggedIn = true
     currentService = neteaseRealService
     useRoamStore.setState({
       playlist: null,
@@ -264,6 +283,7 @@ describe('roam store — 网易云真实歌单分支', () => {
       loading: false,
       neteasePlaylistId: null,
       neteaseHydrated: false,
+      scope: 'all',
     })
     findUserPlaylistsByName.mockClear()
     getPlaylistWithDescription.mockClear()
@@ -329,6 +349,21 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(findUserPlaylistsByName).toHaveBeenCalledTimes(1)
   })
 
+  it('ensureNeteaseHydrated:切换候选范围后丢弃迟到结果', async () => {
+    let resolveCandidates: (items: MockNeteasePlaylist[]) => void = () => {}
+    findUserPlaylistsByName.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCandidates = resolve
+    }))
+    const pending = useRoamStore.getState().ensureNeteaseHydrated(neteaseRealService as unknown as MusicService)
+    useRoamStore.getState().setScope('all')
+    resolveCandidates([mkNeteasePlaylist({ description: 'Simple Music · 2000-01-01 · 周杰伦' })])
+    await pending
+
+    expect(useRoamStore.getState().playlist).toBeNull()
+    expect(useRoamStore.getState().loading).toBe(false)
+    expect(getPlaylistWithDescription).not.toHaveBeenCalled()
+  })
+
   it('generate:无可复用歌单 → 新建 + 加曲目 + 写简介', async () => {
     useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
     await useRoamStore.getState().generate()
@@ -339,6 +374,29 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(neteasePlaylistId).toBe('new-pid')
     expect(playlist!.tracks).toHaveLength(10)
     expect(entries).toEqual([])
+  })
+
+  it('generate:网易云未登录时只写本地，不调用远端歌单接口', async () => {
+    neteaseLoggedIn = false
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+    await useRoamStore.getState().generate()
+    expect(createPlaylist).not.toHaveBeenCalled()
+    expect(useRoamStore.getState().playlist?.source).toBe('netease')
+  })
+
+  it('generate:混合音源只写本地，并保留两边曲目来源', async () => {
+    const qqTrack = { ...mkTrack(2, 0), provider: 'qq' as const, source: 'qq' as const }
+    const qqEntry = {
+      ...mkEntry(2),
+      artist: { ...mkArtist(2), source: 'qq' as const },
+      pool: [qqTrack],
+      tracks: [qqTrack],
+    }
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: [mkTrack(1, 0)] }), qqEntry], mode: 'hot' })
+    await useRoamStore.getState().generate()
+    expect(createPlaylist).not.toHaveBeenCalled()
+    expect(useRoamStore.getState().playlist?.source).toBe('mixed')
+    expect(useRoamStore.getState().playlist?.tracks.map((track) => track.source).sort()).toEqual(['netease', 'qq'])
   })
 
   it('generate:已有可复用歌单(neteasePlaylistId 命中)→ 不新建,清空旧曲目再加新的', async () => {
@@ -391,6 +449,7 @@ describe('roam store — 网易云真实歌单分支', () => {
     useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
     await useRoamStore.getState().generate()
     expect(setNeteaseLoggedIn).toHaveBeenCalledWith(false)
+    expect(setAccountState).toHaveBeenCalledWith('netease', 'expired')
   })
 
   it('generate 在途时 reset(切音源)→ 迟到的成功结果丢弃,不冲掉新会话', async () => {
