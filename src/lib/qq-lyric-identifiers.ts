@@ -1,6 +1,7 @@
 import type { Track } from '../types/domain'
+import type { QueryParams } from './api'
 
-export interface QQLyricIdentifiers {
+export interface QQLyricIdentifiers extends QueryParams {
   mid?: string
   id?: string | number
 }
