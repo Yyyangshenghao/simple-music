@@ -365,7 +365,7 @@ describe('shuange store', () => {
     expect(getLyrics).not.toHaveBeenCalled()
   })
 
-  it('leave 恢复快照(setState + loadTrack 暂停态 + 恢复音量)', async () => {
+  it('leave 恢复快照并延续进入前的播放状态', async () => {
     const snapTrack = mkTrack('snap-1')
     mockCurrentTrack = snapTrack
     mockPosition = 42420
@@ -392,6 +392,25 @@ describe('shuange store', () => {
     const [track, opts] = loadTrack.mock.calls[0]
     expect(String(track.id)).toBe('snap-1')
     expect(opts?.startAt).toBe(42420)
+    expect(opts?.autoplay).toBe(true)
+    // 一次用于停止刷歌曲目；恢复完成后不会再次暂停原曲。
+    expect(pause).toHaveBeenCalledTimes(1)
+  })
+
+  it('进入前已暂停时退出仍保持暂停', async () => {
+    mockCurrentTrack = mkTrack('paused-snapshot')
+    mockStatus = 'paused'
+    getDailySongs.mockResolvedValue([mkTrack('1')])
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    loadTrack.mockClear()
+    pause.mockClear()
+
+    useShuangeStore.getState().leave()
+    await Promise.resolve()
+
+    expect(loadTrack.mock.calls[0][1]?.autoplay).toBe(false)
+    expect(pause).toHaveBeenCalledTimes(2)
   })
 
   it('进入前没有曲目时退出也会暂停刷歌曲目', async () => {

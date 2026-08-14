@@ -50,6 +50,7 @@ interface ShuangeSnapshot {
   queueContextId: unknown
   position: number
   volume: number
+  wasPlaying: boolean
 }
 
 interface ShuangeStore {
@@ -156,7 +157,7 @@ function sameRange(a: HighlightRange, b: HighlightRange): boolean {
 function prepareWindow(feed: Track[], index: number): void {
   const current = feed[index]
   if (!current) return
-  const neighbors = [feed[index - 1], feed[index + 1], feed[index + 2]]
+  const neighbors = [feed[index - 1], feed[index + 1], feed[index + 2], feed[index + 3]]
     .filter((item): item is Track => !!item)
   const player = usePlayerStore.getState()
   preloadTracks(neighbors, player.quality, current, { coverPx: SHUANGE_COVER_PX })
@@ -201,6 +202,7 @@ function takeSnapshot(): ShuangeSnapshot {
     queueContextId: pl.queueContextId,
     position: p.position ?? 0,
     volume: p.volume ?? 0.8,
+    wasPlaying: p.status === 'playing' || p.status === 'loading',
   }
 }
 
@@ -368,7 +370,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     snapshot = null
     set({ active: false })
     if (!snap) return
-    // 恢复原队列(暂停态):setState 不触发 playAt 自动开播
+    // 恢复原队列；是否继续播放严格跟随进入刷歌前的状态。
     usePlaylistStore.setState({
       queue: snap.queue,
       queueIndex: snap.queueIndex,
@@ -379,9 +381,17 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     p.setVolume(snap.volume)
     if (snap.currentTrack) {
       const restoreSession = shuangeSession
-      void p.loadTrack(snap.currentTrack, { startAt: snap.position, contextId: snap.queueContextId })
+      void p.loadTrack(snap.currentTrack, {
+        startAt: snap.position,
+        contextId: snap.queueContextId,
+        autoplay: snap.wasPlaying,
+      })
         .then(() => {
-          if (restoreSession === shuangeSession && !useShuangeStore.getState().active) {
+          if (
+            !snap.wasPlaying
+            && restoreSession === shuangeSession
+            && !useShuangeStore.getState().active
+          ) {
             usePlayerStore.getState().pause()
           }
       })

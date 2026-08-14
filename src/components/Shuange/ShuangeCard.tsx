@@ -164,7 +164,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
           <ClipProgress track={track} startSec={offset?.startSec ?? 0} endSec={offset?.endSec ?? 0} />
           <div className={styles.progressMeta}>
             <span>{offset?.kind === 'refrain' ? '副歌候选' : '精彩片段'}</span>
-            <span>{Math.round(clipDuration || 30)} 秒循环</span>
+            <span>{Math.round(clipDuration || 30)} 秒后自动下一首</span>
           </div>
 
           <div className={styles.actions}>
