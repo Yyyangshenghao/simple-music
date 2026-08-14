@@ -7,6 +7,14 @@ export function shouldAutoplayPlaybackReload(status: PlaybackStatus): boolean {
   return status === 'playing' || status === 'loading'
 }
 
+/** 设备切换只恢复原本正在出声/起播的会话，暂停曲目不能被系统事件自动唤醒。 */
+export function shouldRecoverAfterOutputDeviceChange(
+  status: PlaybackStatus,
+  wasPlaying: boolean
+): boolean {
+  return wasPlaying || shouldAutoplayPlaybackReload(status)
+}
+
 /** 手动软优先另一个平台时，不能被原平台的直链或预解析缓存短路。 */
 export function canUseOriginPlaybackShortcut(
   originSource: MusicSource,

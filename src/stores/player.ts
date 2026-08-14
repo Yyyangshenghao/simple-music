@@ -6,6 +6,7 @@ import {
   canUseOriginPlaybackShortcut,
   mediaFailureReasonFromPlayError,
   playbackStatusForEngineEvent,
+  shouldRecoverAfterOutputDeviceChange,
   shouldAutoplayPlaybackReload,
 } from '../lib/playback-load-policy'
 import { SOURCE_BRAND } from '../lib/source-brand'
@@ -110,6 +111,7 @@ interface ActivePlayback {
 }
 
 let activePlayback: ActivePlayback | null = null
+let outputRecoveryTimer: ReturnType<typeof setTimeout> | null = null
 
 // 睡眠定时器「播完当前曲再停」:置位后自然播完不走 next,改调该回调(由 sleep-timer store 注册)
 let stopAfterCurrentCb: (() => void) | null = null
@@ -242,6 +244,21 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       onError: (reason, loadId) => {
         if (activePlayback?.engineLoadId !== loadId) return
         void advancePlayback(reason)
+      },
+      onOutputDeviceChange: (wasPlaying) => {
+        const state = get()
+        if (!state.currentTrack || !shouldRecoverAfterOutputDeviceChange(state.status, wasPlaying)) return
+        if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
+        outputRecoveryTimer = setTimeout(() => {
+          outputRecoveryTimer = null
+          const latest = get()
+          if (!latest.currentTrack) return
+          void latest.loadTrack(latest.currentTrack, {
+            startAt: latest.position,
+            contextId: latest.contextId,
+            autoplay: true,
+          })
+        }, 200)
       },
       onEnded: () => {
         if (stopAfterCurrentCb) {

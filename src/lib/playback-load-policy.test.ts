@@ -3,6 +3,7 @@ import {
   canUseOriginPlaybackShortcut,
   mediaFailureReasonFromPlayError,
   playbackStatusForEngineEvent,
+  shouldRecoverAfterOutputDeviceChange,
   shouldAutoplayPlaybackReload,
 } from './playback-load-policy'
 
@@ -31,5 +32,12 @@ describe('playback reload policy', () => {
     expect(mediaFailureReasonFromPlayError(unsupported)).toBe('MEDIA_PLAY_NOT_SUPPORTED')
     expect(mediaFailureReasonFromPlayError(blocked)).toBeUndefined()
     expect(mediaFailureReasonFromPlayError(aborted)).toBeUndefined()
+  })
+
+  it('设备切换只恢复播放中的会话', () => {
+    expect(shouldRecoverAfterOutputDeviceChange('playing', false)).toBe(true)
+    expect(shouldRecoverAfterOutputDeviceChange('loading', false)).toBe(true)
+    expect(shouldRecoverAfterOutputDeviceChange('paused', true)).toBe(true)
+    expect(shouldRecoverAfterOutputDeviceChange('paused', false)).toBe(false)
   })
 })

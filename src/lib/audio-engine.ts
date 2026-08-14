@@ -11,6 +11,8 @@ export interface AudioEngineCallbacks {
   onCanPlay?: (loadId: number) => void
   /** URL 非空但媒体加载/解码失败，交回解析器尝试下一候选。 */
   onError?: (reason: string | undefined, loadId: number) => void
+  /** 系统音频设备列表变化；上层可重建当前播放会话以恢复默认输出。 */
+  onOutputDeviceChange?: (wasPlaying: boolean) => void
 }
 
 /**
@@ -34,6 +36,9 @@ export class AudioEngine {
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   /** 每次 load/clearSource 递增，用于上层拒绝上一地址迟到的媒体事件。 */
   private loadId = 0
+  private readonly handleDeviceChange = (): void => {
+    this.cbs.onOutputDeviceChange?.(!this.audio.paused)
+  }
 
   constructor(cbs: AudioEngineCallbacks = {}) {
     this.cbs = cbs
@@ -41,6 +46,9 @@ export class AudioEngine {
     this.audio.crossOrigin = 'anonymous'
     this.audio.preload = 'auto'
     this.bindEvents()
+    if (typeof navigator !== 'undefined') {
+      navigator.mediaDevices?.addEventListener?.('devicechange', this.handleDeviceChange)
+    }
   }
 
   private bindEvents(): void {
@@ -204,6 +212,9 @@ export class AudioEngine {
 
   destroy(): void {
     this.clearPauseTimer()
+    if (typeof navigator !== 'undefined') {
+      navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange)
+    }
     this.audio.pause()
     this.audio.src = ''
     this.source?.disconnect()

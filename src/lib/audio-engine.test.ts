@@ -33,10 +33,22 @@ class FakeAudio {
 
 describe('AudioEngine media callbacks', () => {
   let audio: FakeAudio
+  let deviceChange: (() => void) | null
 
   beforeEach(() => {
     audio = new FakeAudio()
+    deviceChange = null
     vi.stubGlobal('Audio', vi.fn(() => audio))
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        addEventListener: vi.fn((name: string, callback: () => void) => {
+          if (name === 'devicechange') deviceChange = callback
+        }),
+        removeEventListener: vi.fn((name: string, callback: () => void) => {
+          if (name === 'devicechange' && deviceChange === callback) deviceChange = null
+        }),
+      },
+    })
   })
 
   it('canplay 通知解析器提交候选', () => {
@@ -52,5 +64,17 @@ describe('AudioEngine media callbacks', () => {
     audio.error = { code: 4 }
     audio.dispatch('error')
     expect(onError).toHaveBeenCalledWith('MEDIA_ERR_4', 0)
+  })
+
+  it('输出设备变化时报告当前是否正在播放，并在销毁后解绑', () => {
+    const onOutputDeviceChange = vi.fn()
+    const engine = new AudioEngine({ onOutputDeviceChange })
+    audio.paused = false
+
+    deviceChange?.()
+    expect(onOutputDeviceChange).toHaveBeenCalledWith(true)
+
+    engine.destroy()
+    expect(deviceChange).toBeNull()
   })
 })
