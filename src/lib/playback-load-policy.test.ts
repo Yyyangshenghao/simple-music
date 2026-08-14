@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canUseOriginPlaybackShortcut,
+  mediaFailureReasonFromPlayError,
   playbackStatusForEngineEvent,
   shouldAutoplayPlaybackReload,
 } from './playback-load-policy'
@@ -17,5 +18,18 @@ describe('playback reload policy', () => {
     expect(canUseOriginPlaybackShortcut('netease', 'qq')).toBe(false)
     expect(canUseOriginPlaybackShortcut('netease', 'netease')).toBe(true)
     expect(canUseOriginPlaybackShortcut('netease')).toBe(true)
+  })
+
+  it('只把明确不支持的媒体拒绝交给候选降级', () => {
+    const unsupported = new Error('source is not supported')
+    unsupported.name = 'NotSupportedError'
+    const blocked = new Error('user gesture required')
+    blocked.name = 'NotAllowedError'
+    const aborted = new Error('new load started')
+    aborted.name = 'AbortError'
+
+    expect(mediaFailureReasonFromPlayError(unsupported)).toBe('MEDIA_PLAY_NOT_SUPPORTED')
+    expect(mediaFailureReasonFromPlayError(blocked)).toBeUndefined()
+    expect(mediaFailureReasonFromPlayError(aborted)).toBeUndefined()
   })
 })

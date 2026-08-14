@@ -22,3 +22,16 @@ export function playbackStatusForEngineEvent(
 ): PlaybackStatus {
   return !autoplay && status === 'loading' ? 'paused' : status
 }
+
+/**
+ * play() 的权限拒绝和新请求打断不代表地址坏了；浏览器明确报告格式/来源不支持时，
+ * 才把失败交回候选解析器继续降质或换源。
+ */
+export function mediaFailureReasonFromPlayError(error: unknown): string | undefined {
+  const name = error instanceof Error
+    ? error.name
+    : typeof error === 'object' && error && 'name' in error
+      ? String(error.name)
+      : ''
+  return name === 'NotSupportedError' ? 'MEDIA_PLAY_NOT_SUPPORTED' : undefined
+}

@@ -4,6 +4,7 @@ import { getPreloadedResolution, audioDiskCacheKey } from '../lib/track-preload'
 import { PlaybackResolver, type PlaybackAttempt, type PlaybackResolution } from '../lib/playback-resolver'
 import {
   canUseOriginPlaybackShortcut,
+  mediaFailureReasonFromPlayError,
   playbackStatusForEngineEvent,
   shouldAutoplayPlaybackReload,
 } from '../lib/playback-load-policy'
@@ -154,11 +155,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       playbackAttempts: [...(active.resolver?.attempts ?? [])],
     })
     const eng = ensureEngine()
-    active.engineLoadId = eng.load(candidate.url, active.startAt, cacheKey)
+    const loadId = eng.load(candidate.url, active.startAt, cacheKey)
+    active.engineLoadId = loadId
     eng.setVolume(get().volume)
     if (active.autoplay) {
-      void eng.play().catch(() => {
-        /* autoplay/AudioContext 拒绝不等同于媒体地址失败；真正的加载错误由 error 事件回流。 */
+      void eng.play().catch((error) => {
+        const reason = mediaFailureReasonFromPlayError(error)
+        if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
+        void advancePlayback(reason)
       })
     }
   }
