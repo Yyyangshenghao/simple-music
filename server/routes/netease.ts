@@ -46,6 +46,7 @@ import {
   audioContentTypeForUrl,
   type LoginInfo,
 } from '../lib/netease-client'
+import { collectNeteaseUserPlaylists } from '../lib/netease-user-playlists'
 
 /** 「私人雷达」官方共享歌单 id（社区通行做法：带登录 cookie 请求即返回个人化的每日 35 首）。 */
 const RADAR_PLAYLIST_ID = '3136952023'
@@ -673,10 +674,20 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { loggedIn: false, playlists: [] })
         return true
       }
-      const limit = Math.max(12, Math.min(100, parseInt(url.searchParams.get('limit') || '60', 10) || 60))
+      const maxItems = Math.max(1, Math.min(2000, parseInt(url.searchParams.get('limit') || '2000', 10) || 2000))
       const cookie = getCookie(ctx, 'netease')
-      const r = await call('user_playlist', { uid: info.userId, limit, cookie, timestamp: Date.now() })
-      const list = asArr(asObj(r.body).playlist).map((raw) => {
+      const rawPlaylists = await collectNeteaseUserPlaylists(async (offset, limit) => {
+        const r = await call('user_playlist', {
+          uid: info.userId,
+          limit,
+          offset,
+          cookie,
+          timestamp: Date.now(),
+        })
+        const body = asObj(r.body)
+        return { items: asArr(body.playlist), more: body.more === true }
+      }, maxItems)
+      const list = rawPlaylists.map((raw) => {
         const pl = asObj(raw)
         return {
           id: pl.id,
