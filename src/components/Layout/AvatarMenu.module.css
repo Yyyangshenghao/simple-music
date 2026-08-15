@@ -79,4 +79,18 @@
   color: var(--sm-text-primary);
   font-size: 12px;
   cursor: pointer;
+  transition: color 180ms var(--sm-ease-out), background 180ms var(--sm-ease-out);
+}
+
+.menuRow:hover { background: var(--sm-bg-overlay); }
+
+.menuChevron {
+  flex-shrink: 0;
+  color: var(--sm-text-secondary);
+  transition: color 180ms var(--sm-ease-out), transform 180ms var(--sm-ease-out);
+}
+
+.menuRow:hover .menuChevron {
+  color: var(--sm-text-primary);
+  transform: translateX(2px);
 }

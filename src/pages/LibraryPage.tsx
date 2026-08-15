@@ -258,8 +258,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
         return (
           <section className={styles.providerSection} key={source} aria-label={`${source}音乐库`}>
             <div className={styles.providerSectionHeader}>
-              <SourceBadge source={source} reveal />
-              <strong>{providerFor(source).descriptor.label}</strong>
+              <SourceBadge source={source} displayMode="always" reveal />
               <span>
                 {result?.status === 'loading' || !result
                   ? '加载中…'
