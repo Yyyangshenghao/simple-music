@@ -15,6 +15,7 @@ interface LocalTrackRaw {
   album?: string
   duration?: number
   hasCover: boolean
+  mtimeMs?: number
 }
 
 function toTrack(raw: LocalTrackRaw): Track {
@@ -29,6 +30,7 @@ function toTrack(raw: LocalTrackRaw): Track {
     album: raw.album,
     cover: raw.hasCover ? api.url('/api/local/cover', { id: raw.id }) : undefined,
     duration: raw.duration,
+    mtimeMs: raw.mtimeMs,
     url: api.url('/api/local/audio', { id: raw.id })
   }
 }

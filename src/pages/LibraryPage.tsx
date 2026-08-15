@@ -21,71 +21,29 @@ import styles from './LibraryPage.module.css'
 
 type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
 
-/** 本地音乐列表视图:平铺 / 按艺人分组 / 按专辑分组。 */
-type LocalViewMode = 'flat' | 'artist' | 'album'
+/** 本地音乐排序字段。name/artist 为字符串序,mtimeMs 为文件修改时间(近似添加时间)。 */
+type LocalSortField = 'name' | 'artist' | 'mtimeMs'
+type LocalSortDir = 'asc' | 'desc'
 
-/** 按艺人或专辑对 filtered 分组,保留每首曲目在 filtered 中的全局下标(供入队 playAt 用)。 */
-function groupTracks(
-  tracks: Track[],
-  mode: LocalViewMode
-): [string, { track: Track; index: number }[]][] {
-  const keyFn = mode === 'artist' ? (t: Track) => t.artist || '未知艺人' : (t: Track) => t.album || '未知专辑'
-  const map = new Map<string, { track: Track; index: number }[]>()
-  tracks.forEach((track, index) => {
-    const k = keyFn(track)
-    const arr = map.get(k)
-    if (arr) arr.push({ track, index })
-    else map.set(k, [{ track, index }])
-  })
-  return [...map]
-}
+const LOCAL_SORT_FIELDS: { field: LocalSortField; label: string }[] = [
+  { field: 'name', label: '标题' },
+  { field: 'artist', label: '艺人' },
+  { field: 'mtimeMs', label: '添加时间' },
+]
 
-/** 分组折叠视图:默认全展开,点头部收起/展开。 */
-function LocalGroupedView({
-  filtered,
-  queueRef,
-  mode,
-}: {
-  filtered: Track[]
-  queueRef: MutableRefObject<Track[]>
-  mode: LocalViewMode
-}) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
-  const groups = groupTracks(filtered, mode)
-  return (
-    <>
-      {groups.map(([key, items]) => {
-        const isCollapsed = collapsed.has(key)
-        return (
-          <div className={styles.groupSection} key={key}>
-            <button
-              type="button"
-              className={`${styles.groupHeader} no-drag`}
-              aria-expanded={!isCollapsed}
-              onClick={() =>
-                setCollapsed((s) => {
-                  const next = new Set(s)
-                  if (next.has(key)) next.delete(key)
-                  else next.add(key)
-                  return next
-                })
-              }
-            >
-              <span className={styles.groupArrow} data-collapsed={isCollapsed} aria-hidden="true">
-                ▸
-              </span>
-              <span className={styles.groupTitle}>{key}</span>
-              <span className={styles.groupCount}>{items.length} 首</span>
-            </button>
-            {!isCollapsed &&
-              items.map(({ track, index }) => (
-                <QueuedTrackRow key={String(track.id)} track={track} index={index} queueRef={queueRef} />
-              ))}
-          </div>
-        )
-      })}
-    </>
-  )
+/** 本地曲目比较器:字符串字段按 localeCompare,时间字段按数值;缺省值排到末尾。 */
+function compareTracks(a: Track, b: Track, field: LocalSortField, dir: LocalSortDir): number {
+  let r: number
+  if (field === 'mtimeMs') {
+    const av = a.mtimeMs ?? 0
+    const bv = b.mtimeMs ?? 0
+    r = av - bv
+  } else {
+    const av = a[field] || ''
+    const bv = b[field] || ''
+    r = av.localeCompare(bv, 'zh-Hans-CN-u-co-pinyin')
+  }
+  return dir === 'asc' ? r : -r
 }
 
 // 不闭包任何组件内状态，可提到模块作用域，引用永久稳定
@@ -324,13 +282,89 @@ function RecentPlaysList() {
   )
 }
 
+/** 本地音乐排序下拉:点击展开字段列表,选中后收起;旁边独立按钮切升降序。 */
+function LocalSortMenu({
+  field,
+  dir,
+  onChange,
+}: {
+  field: LocalSortField
+  dir: LocalSortDir
+  onChange: (field: LocalSortField, dir: LocalSortDir) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const current = LOCAL_SORT_FIELDS.find((f) => f.field === field) ?? LOCAL_SORT_FIELDS[0]
+
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className={styles.sortMenu} ref={rootRef}>
+      <button
+        type="button"
+        className={`${styles.sortToggle} no-drag`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className={styles.sortLabel}>排序</span>
+        <span className={styles.sortValue}>{current.label}</span>
+        <span className={styles.sortCaret} data-open={open} aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className={styles.sortDropdown} role="listbox">
+          {LOCAL_SORT_FIELDS.map((f) => (
+            <button
+              key={f.field}
+              type="button"
+              role="option"
+              aria-selected={f.field === field}
+              className={`${styles.sortOption} no-drag${f.field === field ? ` ${styles.sortOptionActive}` : ''}`}
+              onClick={() => {
+                onChange(f.field, dir)
+                setOpen(false)
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className={`${styles.sortDirBtn} no-drag`}
+        onClick={() => onChange(field, dir === 'asc' ? 'desc' : 'asc')}
+        aria-label={dir === 'asc' ? '当前升序,点击改为降序' : '当前降序,点击改为升序'}
+        title={dir === 'asc' ? '升序' : '降序'}
+      >
+        {dir === 'asc' ? '↑' : '↓'}
+      </button>
+    </div>
+  )
+}
+
 /** 本地音乐 tab:选文件夹批量导入,扁平列表播放;不接入在线音源的推荐/艺人体系。 */
 function LocalMusicTab() {
   const [folders, setFolders] = useState<string[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [keyword, setKeyword] = useState('')
   const [scanning, setScanning] = useState(false)
-  const [viewMode, setViewMode] = useState<LocalViewMode>('flat')
+  const [sortField, setSortField] = useState<LocalSortField>('name')
+  const [sortDir, setSortDir] = useState<LocalSortDir>('asc')
 
   async function refresh(): Promise<void> {
     const [f, t] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
@@ -364,11 +398,13 @@ function LocalMusicTab() {
   }
 
   const kw = keyword.trim().toLowerCase()
-  const filtered = kw
+  const matched = kw
     ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
     : tracks
+  // 先过滤再排序:排序在搜索之后,确保显示顺序与当前排序一致。
+  const sorted = [...matched].sort((a, b) => compareTracks(a, b, sortField, sortDir))
   const queueRef = useRef<Track[]>([])
-  queueRef.current = filtered
+  queueRef.current = sorted
 
   return (
     <div className={styles.trackList}>
@@ -381,20 +417,14 @@ function LocalMusicTab() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
-          <div className={styles.viewSwitch} role="tablist" aria-label="列表视图">
-            {(['flat', 'artist', 'album'] as LocalViewMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="tab"
-                aria-selected={viewMode === m}
-                className={`${styles.viewSwitchBtn} no-drag${viewMode === m ? ` ${styles.viewSwitchActive}` : ''}`}
-                onClick={() => setViewMode(m)}
-              >
-                {{ flat: '列表', artist: '艺人', album: '专辑' }[m]}
-              </button>
-            ))}
-          </div>
+          <LocalSortMenu
+            field={sortField}
+            dir={sortDir}
+            onChange={(f, d) => {
+              setSortField(f)
+              setSortDir(d)
+            }}
+          />
           <button className={`${styles.clearBtn} no-drag`} onClick={() => void handleAddFolder()} disabled={scanning}>
             {scanning ? '导入中…' : '添加文件夹'}
           </button>
@@ -418,16 +448,14 @@ function LocalMusicTab() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className={styles.emptyHint}>
           <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
         </div>
-      ) : viewMode === 'flat' ? (
-        filtered.map((t, i) => (
+      ) : (
+        sorted.map((t, i) => (
           <QueuedTrackRow key={String(t.id)} track={t} index={i} queueRef={queueRef} />
         ))
-      ) : (
-        <LocalGroupedView filtered={filtered} queueRef={queueRef} mode={viewMode} />
       )}
     </div>
   )

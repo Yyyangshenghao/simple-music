@@ -46,6 +46,8 @@ export interface Track {
   cover?: string
   duration?: number
   fee?: unknown
+  /** 本地音乐文件修改时间(毫秒),由 local-library 透传,供本地列表「添加时间」排序。在线音源无此字段。 */
+  mtimeMs?: number
   /** 解析出的可播放 URL（懒加载）。 */
   url?: string
   /** 懒加载占位曲目:仅有 id,详情播到/滚到时再补。 */

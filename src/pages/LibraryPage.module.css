@@ -181,78 +181,84 @@
   font-size: 14px;
 }
 
-/* 本地音乐视图切换:平铺/艺人/专辑 */
-.viewSwitch {
+/* 本地音乐排序:自绘下拉 + 升降序按钮。 */
+.sortMenu {
+  position: relative;
   display: inline-flex;
-  gap: 2px;
-  background: var(--sm-bg-elevated);
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  padding: 2px;
+  align-items: center;
+  gap: 4px;
 }
 
-.viewSwitchBtn {
-  padding: 4px 12px;
-  border: none;
-  background: none;
+.sortToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
   color: var(--sm-text-secondary);
   font-size: 12px;
   cursor: pointer;
   transition: background 150ms, color 150ms;
 }
 
-.viewSwitchBtn:hover { color: var(--sm-text-primary); }
-.viewSwitchBtn.viewSwitchActive {
-  background: var(--sm-bg-overlay);
-  color: var(--sm-text-primary);
-}
+.sortToggle:hover { color: var(--sm-text-primary); }
 
-/* 分组折叠视图:艺人/专辑分组头 + 曲目列表 */
-.groupSection {
-  display: flex;
-  flex-direction: column;
-}
+.sortLabel { color: var(--sm-text-secondary); opacity: 0.8; }
+.sortValue { color: var(--sm-text-primary); }
 
-.groupHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px 6px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  color: var(--sm-text-primary);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms;
-}
-
-.groupHeader:hover { background: var(--sm-bg-elevated); }
-
-.groupArrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  color: var(--sm-text-secondary);
+.sortCaret {
   font-size: 10px;
   transition: transform 160ms var(--sm-ease-out);
+  opacity: 0.7;
 }
 
-.groupArrow[data-collapsed='false'] { transform: rotate(90deg); }
+.sortCaret[data-open='true'] { transform: rotate(180deg); }
 
-.groupTitle {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sortDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 34px; /* 让下拉落在升降序按钮左侧 */
+  z-index: 30;
+  min-width: 120px;
+  padding: 4px;
+  border: 1px solid var(--sm-border);
+  border-radius: 12px;
+  background: var(--sm-bg-elevated);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.groupCount {
+.sortOption {
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
   color: var(--sm-text-secondary);
   font-size: 12px;
-  flex-shrink: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
 }
+
+.sortOption:hover { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
+.sortOption.sortOptionActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); font-weight: 600; }
+
+.sortDirBtn {
+  padding: 4px 8px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.sortDirBtn:hover { color: var(--sm-text-primary); }
