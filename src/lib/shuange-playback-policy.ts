@@ -10,3 +10,12 @@ export function shouldAdvanceShuangeClip(
   if (!range || range.endSec <= range.startSec || status !== 'playing') return false
   return position >= range.endSec - 0.3
 }
+
+/** 补货失败或去重后仍停在原卡片时释放防重入锁，允许下一次 ended/进度事件重试。 */
+export function shouldReleaseShuangeAdvanceLock(
+  beforeIndex: number,
+  afterIndex: number,
+  active: boolean
+): boolean {
+  return active && afterIndex === beforeIndex
+}
