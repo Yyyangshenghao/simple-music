@@ -28,6 +28,9 @@ export default defineConfig({
     root: '.',
     resolve: { alias: { '@renderer': resolve('src') } },
     plugins: [react()],
+    // Windows 上 Vite 默认可能只绑 IPv6 [::1],Electron 解析 localhost 走另一族会
+    // ERR_CONNECTION_REFUSED。显式绑 127.0.0.1 确保 IPv4 回环可连。
+    server: { host: '127.0.0.1' },
     build: {
       rollupOptions: {
         input: {

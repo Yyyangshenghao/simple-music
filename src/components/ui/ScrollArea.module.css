@@ -30,9 +30,24 @@
   opacity: 1;
 }
 
+/* 无溢出内容(thumb 高度为 0)时彻底收起 track,避免 0 高度区域误拦点击。 */
+.track.hidden {
+  visibility: hidden;
+}
+
 .thumb {
   width: 100%;
   border-radius: 3px;
   background: var(--sm-text-secondary);
   opacity: 0.6;
+  /* thumb 自身接收拖拽:track 透传 pointer-events:none,这里再开,
+     既不挡住下方内容(只有 thumb 这一小条可点),又支持鼠标拖动快速滚动。 */
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* 拖拽进行中或悬停时:稍提亮并加粗命中区,方便抓住。 */
+.thumb:hover,
+.thumb[data-dragging='true'] {
+  opacity: 0.9;
 }
