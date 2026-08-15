@@ -136,6 +136,8 @@ function describeGenerateError(err: unknown): string {
 
 interface RoamStore {
   playlist: RoamPlaylist | null
+  /** 本机持久化的 QQ/混合漫游；与网易云远端恢复结果分槽保存，避免水合覆盖后丢失恢复入口。 */
+  localPlaylist: RoamPlaylist | null
   entries: RoamArtistEntry[]
   mode: RoamMode
   scope: 'all' | ProviderId
@@ -181,6 +183,7 @@ interface RoamStore {
 }
 
 export const useRoamStore = create<RoamStore>((set, get) => {
+  const initialLocalPlaylist = loadValidPlaylist()
   const sameArtist = (entry: RoamArtistEntry, id: unknown, source?: ProviderId): boolean =>
     String(entry.artist.id) === String(id) && (!source || entry.artist.source === source)
 
@@ -216,7 +219,8 @@ export const useRoamStore = create<RoamStore>((set, get) => {
   }
 
   return {
-  playlist: loadValidPlaylist(),
+  playlist: initialLocalPlaylist,
+  localPlaylist: initialLocalPlaylist,
   entries: [],
   mode: 'hot',
   scope: 'all',
@@ -436,7 +440,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     // QQ 或混合音源只写本地，不把跨平台 id 发送到任一远端。
     const playlist: RoamPlaylist = { date, source, mode, artists, tracks }
     if (generateSession !== session) return
-    set({ playlist, generating: false, entries: [] })
+    set({ playlist, localPlaylist: playlist, generating: false, entries: [] })
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(playlist))
@@ -450,7 +454,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     // generating 一并复位:生成请求卡死时切音源会触发本方法,若不清 generating,漫游页将永远卡在「生成中…」
     generateSession++ // 在途 generate 的结果作废,迟到落地时守卫会丢弃
     hydrationSession++
-    set({ playlist: null, entries: [], mode: 'hot', generating: false, error: null, loading: false, neteaseHydrated: false })
+    set({ playlist: null, localPlaylist: null, entries: [], mode: 'hot', generating: false, error: null, loading: false, neteaseHydrated: false })
     if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY)
   },
 

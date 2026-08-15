@@ -101,7 +101,7 @@ describe('roam store', () => {
     neteaseLoggedIn = true
     providerParticipating = true
     currentService = localOnlyService
-    useRoamStore.setState({ playlist: null, entries: [], mode: 'hot', generating: false, error: null })
+    useRoamStore.setState({ playlist: null, localPlaylist: null, entries: [], mode: 'hot', generating: false, error: null })
     getArtistSongs.mockClear()
     setNeteaseLoggedIn.mockClear()
     setAccountState.mockClear()
@@ -276,6 +276,7 @@ describe('roam store — 网易云真实歌单分支', () => {
     currentService = neteaseRealService
     useRoamStore.setState({
       playlist: null,
+      localPlaylist: null,
       entries: [],
       mode: 'hot',
       generating: false,
@@ -396,6 +397,7 @@ describe('roam store — 网易云真实歌单分支', () => {
     await useRoamStore.getState().generate()
     expect(createPlaylist).not.toHaveBeenCalled()
     expect(useRoamStore.getState().playlist?.source).toBe('mixed')
+    expect(useRoamStore.getState().localPlaylist?.source).toBe('mixed')
     expect(useRoamStore.getState().playlist?.tracks.map((track) => track.source).sort()).toEqual(['netease', 'qq'])
   })
 
