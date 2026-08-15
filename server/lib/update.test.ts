@@ -19,13 +19,13 @@ function withPlatform<T>(platform: NodeJS.Platform, arch: NodeJS.Architecture, f
  *  跟当前机器是什么平台完全无关。 */
 function releaseAssets() {
   return [
-    { name: 'SimpleMusic-1.0.1-Setup.exe', browser_download_url: 'https://example.com/SimpleMusic-1.0.1-Setup.exe' },
+    { name: 'Simple Music-1.0.1-Setup.exe', browser_download_url: 'https://example.com/Simple Music-1.0.1-Setup.exe' },
     {
-      name: 'SimpleMusic-1.0.1-portable.exe',
-      browser_download_url: 'https://example.com/SimpleMusic-1.0.1-portable.exe',
+      name: 'Simple Music-1.0.1-portable.exe',
+      browser_download_url: 'https://example.com/Simple Music-1.0.1-portable.exe',
     },
-    { name: 'SimpleMusic-1.0.1-arm64.dmg', browser_download_url: 'https://example.com/SimpleMusic-1.0.1-arm64.dmg' },
-    { name: 'SimpleMusic-1.0.1-x64.dmg', browser_download_url: 'https://example.com/SimpleMusic-1.0.1-x64.dmg' },
+    { name: 'Simple Music-1.0.1-arm64.dmg', browser_download_url: 'https://example.com/Simple Music-1.0.1-arm64.dmg' },
+    { name: 'Simple Music-1.0.1-x64.dmg', browser_download_url: 'https://example.com/Simple Music-1.0.1-x64.dmg' },
     { name: 'latest-mac.yml', browser_download_url: 'https://example.com/latest-mac.yml' },
     { name: 'latest.yml', browser_download_url: 'https://example.com/latest.yml' },
   ]
@@ -38,18 +38,18 @@ describe('pickReleaseAsset（更新检测按平台选资源 —— 回归 mac �
 
   it('mac / arm64：应选中 arm64 的 dmg，而不是排在数组最前面的 windows exe', () => {
     const picked = withPlatform('darwin', 'arm64', () => pickReleaseAsset(releaseAssets()))
-    expect(picked?.name).toBe('SimpleMusic-1.0.1-arm64.dmg')
+    expect(picked?.name).toBe('Simple Music-1.0.1-arm64.dmg')
   })
 
   it('mac / x64：应选中 x64 的 dmg', () => {
     const picked = withPlatform('darwin', 'x64', () => pickReleaseAsset(releaseAssets()))
-    expect(picked?.name).toBe('SimpleMusic-1.0.1-x64.dmg')
+    expect(picked?.name).toBe('Simple Music-1.0.1-x64.dmg')
   })
 
   it('mac：release 里没有匹配当前芯片的 dmg 时，回退到任意 dmg，而不是 exe', () => {
-    const assets = releaseAssets().filter((a) => a.name !== 'SimpleMusic-1.0.1-arm64.dmg')
+    const assets = releaseAssets().filter((a) => a.name !== 'Simple Music-1.0.1-arm64.dmg')
     const picked = withPlatform('darwin', 'arm64', () => pickReleaseAsset(assets))
-    expect(picked?.name).toBe('SimpleMusic-1.0.1-x64.dmg')
+    expect(picked?.name).toBe('Simple Music-1.0.1-x64.dmg')
   })
 
   it('mac：release 里完全没有 dmg（比如漏传）时返回 null，而不是静默发一个 windows 安装包过去', () => {
@@ -60,13 +60,13 @@ describe('pickReleaseAsset（更新检测按平台选资源 —— 回归 mac �
 
   it('windows：应选中 NSIS 安装包 Setup.exe，而不是便携版或 dmg', () => {
     const picked = withPlatform('win32', 'x64', () => pickReleaseAsset(releaseAssets()))
-    expect(picked?.name).toBe('SimpleMusic-1.0.1-Setup.exe')
+    expect(picked?.name).toBe('Simple Music-1.0.1-Setup.exe')
   })
 
   it('windows：release 里只有便携版时回退到便携版', () => {
-    const assets = releaseAssets().filter((a) => a.name !== 'SimpleMusic-1.0.1-Setup.exe')
+    const assets = releaseAssets().filter((a) => a.name !== 'Simple Music-1.0.1-Setup.exe')
     const picked = withPlatform('win32', 'x64', () => pickReleaseAsset(assets))
-    expect(picked?.name).toBe('SimpleMusic-1.0.1-portable.exe')
+    expect(picked?.name).toBe('Simple Music-1.0.1-portable.exe')
   })
 })
 

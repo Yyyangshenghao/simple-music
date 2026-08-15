@@ -29,8 +29,8 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 - `appId: com.simplemusic.desktop`，产物输出 `dist/`，资源目录 `build/`（icon.ico/icon.icns）。
 - `files`: `out/**/*` + `build/icon.ico` + `package.json`（**package.json 必须进 asar**——server/lib/update.ts 运行时 `import pkgJson from '../../package.json'` 读版本与更新配置）。
-- **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `SimpleMusic-<v>-arm64.dmg` / `SimpleMusic-<v>.dmg`。
-- **win**：NSIS（`SimpleMusic-<v>-Setup.exe`，非 oneClick、可选目录、建快捷方式）+ portable（`SimpleMusic-<v>-portable.exe`，不参与自动更新）。
+- **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple Music-<v>-arm64.dmg` / `Simple Music-<v>.dmg`。
+- **win**：NSIS（`Simple Music-<v>-Setup.exe`，非 oneClick、可选目录、建快捷方式）+ portable（`Simple Music-<v>-portable.exe`，不参与自动更新）。
 
 ## 4. 发布约定
 

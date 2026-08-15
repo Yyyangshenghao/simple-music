@@ -122,7 +122,7 @@ export const UPDATE_CONFIG: UpdateConfig = readUpdateConfig(APP_PACKAGE)
 
 export const APP_INFO = {
   name: APP_PACKAGE.name || 'simplemusic',
-  productName: APP_PACKAGE.productName || 'SimpleMusic',
+  productName: APP_PACKAGE.productName || 'Simple Music',
   version: APP_VERSION,
 }
 
@@ -495,7 +495,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
           name:
             String(patchRec.name || '') ||
             updateAssetNameFromUrl(patchRec.downloadUrl) ||
-            `SimpleMusic-${APP_VERSION}→${latestVersion}.patch.json`,
+            `Simple Music-${APP_VERSION}→${latestVersion}.patch.json`,
           size: Number(patchRec.size || 0) || 0,
           contentType: String(patchRec.contentType || patchRec.content_type || 'application/json'),
           downloadUrl: String(patchRec.downloadUrl),
@@ -515,7 +515,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
         : UPDATE_FALLBACK_NOTES
   const assetInfo: UpdateAsset | null = downloadUrl
     ? {
-        name: String(asset.name || '') || updateAssetNameFromUrl(downloadUrl) || `SimpleMusic-${latestVersion}-Setup.exe`,
+        name: String(asset.name || '') || updateAssetNameFromUrl(downloadUrl) || `Simple Music-${latestVersion}-Setup.exe`,
         size: Number(asset.size || 0) || 0,
         contentType: String(asset.contentType || asset.content_type || ''),
         downloadUrl,
@@ -702,7 +702,7 @@ function githubReleaseDownloadUrl(version: string, fileName: string): string {
 }
 function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
   const latestVersion = normalizeVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION
-  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `SimpleMusic-${latestVersion}-Setup.exe`
+  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `Simple Music-${latestVersion}-Setup.exe`
   const sha512 = normalizeDigest(yamlScalar(text, 'sha512'), 'sha512')
   const size = Number(yamlScalar(text, 'size') || 0) || 0
   const releaseDate = yamlScalar(text, 'releaseDate')
@@ -899,13 +899,13 @@ function trimUpdateJobs(): void {
 }
 
 function safeUpdateFileName(name: unknown, version: string): string {
-  const raw = String(name || '').trim() || `SimpleMusic-${version || APP_VERSION}.exe`
+  const raw = String(name || '').trim() || `Simple Music-${version || APP_VERSION}.exe`
   const cleaned = raw
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160)
-  return cleaned || `SimpleMusic-${version || APP_VERSION}.exe`
+  return cleaned || `Simple Music-${version || APP_VERSION}.exe`
 }
 
 function reuseVerifiedInstallerJob(opts: {

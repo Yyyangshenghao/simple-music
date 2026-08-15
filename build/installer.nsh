@@ -234,14 +234,14 @@ Function SimpleMusicNormalizeInstallDir
   ${If} $1 == 2
     StrCpy $2 "$0" 1 1
     ${If} $2 == ":"
-      StrCpy $0 "$0\SimpleMusic"
+      StrCpy $0 "$0\Simple Music"
     ${EndIf}
   ${ElseIf} $1 == 3
     StrCpy $2 "$0" 1 1
     StrCpy $3 "$0" 1 2
     ${If} $2 == ":"
     ${AndIf} $3 == "\"
-      StrCpy $0 "$0SimpleMusic"
+      StrCpy $0 "$0Simple Music"
     ${EndIf}
   ${EndIf}
   Exch $0
@@ -341,7 +341,7 @@ Function SimpleMusicDirectoryShow
   SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
   ${NSD_OnClick} $0 SimpleMusicDirectoryBrowse
 
-  ${NSD_CreateLabel} 22u 122u 238u 12u "选盘符会自动建 SimpleMusic 子文件夹。"
+  ${NSD_CreateLabel} 22u 122u 238u 12u "选盘符会自动建 Simple Music 子文件夹。"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
   SetCtlColors $0 "6B7280" "FFFFFF"

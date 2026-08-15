@@ -309,7 +309,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
   },
 
-  exportArchive(name = 'SimpleMusic 存档') {
+  exportArchive(name = 'Simple Music 存档') {
     return JSON.stringify(useVisualStore.getState().saveArchive(name), null, 2)
   },
 

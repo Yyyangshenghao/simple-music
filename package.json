@@ -1,6 +1,6 @@
 {
   "name": "simplemusic",
-  "productName": "SimpleMusic",
+  "productName": "Simple Music",
   "version": "1.15.0",
   "description": "简约音乐播放器",
   "author": "yshAM",
@@ -68,7 +68,7 @@
   },
   "build": {
     "appId": "com.simplemusic.desktop",
-    "productName": "SimpleMusic",
+    "productName": "Simple Music",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -117,11 +117,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SimpleMusic",
-      "artifactName": "SimpleMusic-${version}-Setup.${ext}"
+      "shortcutName": "Simple Music",
+      "artifactName": "Simple Music-${version}-Setup.${ext}"
     },
     "portable": {
-      "artifactName": "SimpleMusic-${version}-portable.${ext}"
+      "artifactName": "Simple Music-${version}-portable.${ext}"
     }
   }
 }

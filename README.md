@@ -20,8 +20,8 @@
 
 | 芯片 | 下载哪个 |
 |---|---|
-| Apple 芯片（M1 / M2 / M3 / M4 及以后） | `SimpleMusic-<version>-arm64.dmg` |
-| Intel 芯片（2020 年及更早的 Mac） | `SimpleMusic-<version>.dmg`（不带 `arm64` 后缀的那个） |
+| Apple 芯片（M1 / M2 / M3 / M4 及以后） | `Simple Music-<version>-arm64.dmg` |
+| Intel 芯片（2020 年及更早的 Mac） | `Simple Music-<version>.dmg`（不带 `arm64` 后缀的那个） |
 
 装错芯片版本会直接提示「无法打开」或需要靠 Rosetta 转译运行，性能明显更差，请对号下载。
 
@@ -29,8 +29,8 @@
 
 | 版本 | 下载哪个 | 适合场景 |
 |---|---|---|
-| 安装版（推荐） | `SimpleMusic-<version>-Setup.exe` | 标准安装向导，建开始菜单/桌面快捷方式，支持卸载，也是软件内「检查更新」默认走的那条路径 |
-| 便携版 | `SimpleMusic-<version>-portable.exe` | 免安装，双击直接运行，不写注册表/开始菜单，适合 U 盘携带或不想装应用的场景；更新需要手动重新下载覆盖，不参与自动安装流程 |
+| 安装版（推荐） | `Simple Music-<version>-Setup.exe` | 标准安装向导，建开始菜单/桌面快捷方式，支持卸载，也是软件内「检查更新」默认走的那条路径 |
+| 便携版 | `Simple Music-<version>-portable.exe` | 免安装，双击直接运行，不写注册表/开始菜单，适合 U 盘携带或不想装应用的场景；更新需要手动重新下载覆盖，不参与自动安装流程 |
 
 ## 功能
 
