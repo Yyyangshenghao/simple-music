@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
+import { api } from '../lib/api'
 import { getPreloadedResolution, audioDiskCacheKey } from '../lib/track-preload'
 import { PlaybackResolver, type PlaybackAttempt, type PlaybackResolution } from '../lib/playback-resolver'
 import {
@@ -366,7 +367,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       })
 
       if (track.source === 'local') {
-        if (!track.url) {
+        // 本地音乐不依赖 track.url:最近播放等场景落盘会剥掉 url、或存的 url 绑定的是
+        // 上一会话端口(端口每次随机注入),直接用 track.id 经本地 api 重建当前可用地址。
+        // 重建出的就是 127.0.0.1:<port>/api/local/audio,load 侧 isLocalApiUrl 判定成立,
+        // 不会套 /api/audio 代理被 SSRF 防护拦掉。
+        const localUrl = api.url('/api/local/audio', { id: String(track.id) })
+        if (!localUrl) {
           eng.clearSource()
           set({ status: 'idle' })
           useToastStore.getState().show(FALLBACK_UNPLAYABLE_MESSAGE)
@@ -385,7 +391,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           autoplay,
         }
         activePlayback = active
-        active.engineLoadId = eng.load(track.url, startAt)
+        active.engineLoadId = eng.load(localUrl, startAt)
         eng.setVolume(get().volume)
         if (autoplay) void eng.play().catch(() => {})
         return

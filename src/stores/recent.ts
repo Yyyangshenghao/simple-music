@@ -36,9 +36,12 @@ export const useRecentPlaysStore = create<RecentPlaysStore>((set, get) => ({
   items: loadFromLocal(),
 
   record(track) {
-    // 落盘剥掉临时解析 URL
+    // 落盘剥掉在线音源临时解析 URL(重播时需重新解析);
+    // 本地音乐 url 是结构性可重放地址(经 api.url 读当前端口重建),保留以便直接重放。
+    const isLocal = track.source === 'local'
     const { url: _url, ...rest } = track
-    const entry: RecentPlay = { track: rest as Track, playedAt: Date.now() }
+    const persistedTrack = isLocal ? track : (rest as Track)
+    const entry: RecentPlay = { track: persistedTrack, playedAt: Date.now() }
     const items = [entry, ...get().items.filter((it) => keyOf(it.track) !== keyOf(track))].slice(0, MAX_ITEMS)
     set({ items })
     if (typeof localStorage !== 'undefined') {
