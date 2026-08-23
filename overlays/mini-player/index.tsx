@@ -3,12 +3,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MiniPlayerBar } from '../../src/components/Player/MiniPlayerBar'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
+import { createResizeDispatcher } from './resize-dispatcher'
 import './mini-player.css'
 
 function OverlayApp() {
   const [payload, setPayload] = useState<MiniPlayerPayload>({})
   const [width, setWidth] = useState(() => window.innerWidth)
   const dragging = useRef<{ x: number; y: number } | null>(null)
+  const [resizeDispatcher] = useState(() =>
+    createResizeDispatcher((dx) => window.desktopOverlay?.resizeMiniPlayerBy(dx))
+  )
 
   useEffect(() => {
     const overlay = window.desktopOverlay
@@ -53,8 +57,8 @@ function OverlayApp() {
     void window.desktopOverlay?.setMiniPlayerPopover(open)
   }, [])
   const handleResizeBy = useCallback((dx: number) => {
-    void window.desktopOverlay?.resizeMiniPlayerBy(dx)
-  }, [])
+    resizeDispatcher.push(dx)
+  }, [resizeDispatcher])
 
   return (
     <div

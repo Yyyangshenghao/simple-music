@@ -27,6 +27,7 @@ let miniPlayerProgrammaticMove = false
 const MINI_PLAYER_MIN_WIDTH = 300
 const MINI_PLAYER_MAX_WIDTH = 760
 const MINI_PLAYER_DEFAULT_WIDTH = 360
+const MINI_PLAYER_MAX_RESIZE_DELTA = MINI_PLAYER_MAX_WIDTH - MINI_PLAYER_MIN_WIDTH
 /** 常态高度：64px 条体 + 8px 上下留白（阴影用）。 */
 const MINI_PLAYER_BASE_HEIGHT = 80
 /** 音量弹层展开时的高度；不常驻是因为透明留白区在 OS 层面同样会挡住桌面点击。 */
@@ -341,7 +342,8 @@ function setMiniPlayerBounds(bounds: Electron.Rectangle): void {
   miniPlayerProgrammaticMove = true
   // 非 resizable 窗口在 macOS 上会把 min/max 尺寸钉死在当前值,setBounds 改尺寸会被忽略,故临时放开
   const cur = miniPlayerWindow.getBounds()
-  const needUnlock = next.width !== cur.width || next.height !== cur.height
+  // Windows/Linux 保持关闭原生缩放；拖动右边缘时临时开启会和自绘手柄竞争同一次鼠标手势。
+  const needUnlock = process.platform === 'darwin' && (next.width !== cur.width || next.height !== cur.height)
   if (needUnlock) miniPlayerWindow.setResizable(true)
   miniPlayerWindow.setBounds(next, false)
   if (needUnlock) miniPlayerWindow.setResizable(false)
@@ -353,11 +355,9 @@ function setMiniPlayerBounds(bounds: Electron.Rectangle): void {
 function rememberMiniPlayerBounds(): void {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed() || miniPlayerProgrammaticMove) return
   const b = miniPlayerWindow.getBounds()
-  miniPlayerUserBounds = b
-  if (b.width !== miniPlayerWidth) {
-    miniPlayerWidth = b.width
-    notifyMiniPlayerWidth(b.width)
-  }
+  // moved 只负责记位置。窗口不可由系统边缘缩放，宽度只能由自绘手柄更新；
+  // 否则 Windows/DPI 切换时 getBounds 的瞬时宽度漂移会被误当成用户调整并持久化。
+  miniPlayerUserBounds = { ...b, width: miniPlayerWidth, height: miniPlayerHeight() }
 }
 
 /** 宽度回传主窗口持久化；同一宽度不重复通知。 */
@@ -467,7 +467,13 @@ export function updateMiniPlayer(payload: MiniPlayerPayload): OkResult {
 export function moveMiniPlayerBy(dx: number, dy: number): OkResult {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
   const b = miniPlayerWindow.getBounds()
-  setMiniPlayerBounds({ ...b, x: b.x + Math.round(clampNumber(dx, -200, 200, 0)), y: b.y + Math.round(clampNumber(dy, -200, 200, 0)) })
+  setMiniPlayerBounds({
+    ...b,
+    x: b.x + Math.round(clampNumber(dx, -200, 200, 0)),
+    y: b.y + Math.round(clampNumber(dy, -200, 200, 0)),
+    width: miniPlayerWidth,
+    height: miniPlayerHeight()
+  })
   return { ok: true }
 }
 
@@ -475,8 +481,9 @@ export function moveMiniPlayerBy(dx: number, dy: number): OkResult {
 export function resizeMiniPlayerBy(dx: number): OkResult {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
   const b = miniPlayerWindow.getBounds()
-  const before = b.width
-  setMiniPlayerBounds({ ...b, width: b.width + Math.round(clampNumber(dx, -400, 400, 0)) })
+  const before = miniPlayerWidth
+  const delta = Math.round(clampNumber(dx, -MINI_PLAYER_MAX_RESIZE_DELTA, MINI_PLAYER_MAX_RESIZE_DELTA, 0))
+  setMiniPlayerBounds({ ...b, width: before + delta })
   if (miniPlayerWidth !== before) notifyMiniPlayerWidth(miniPlayerWidth)
   return { ok: true }
 }

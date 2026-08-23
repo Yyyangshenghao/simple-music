@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../../lib/mini-player-config'
+import {
+  beginMiniPlayerResize,
+  updateMiniPlayerResize,
+  type MiniPlayerResizeSession
+} from '../../lib/mini-player-resize'
 import type { MiniPlayerAppearance } from '../../types/ipc'
 import styles from './MiniPlayerBar.module.css'
 
@@ -136,7 +141,9 @@ export function MiniPlayerBar({
 }: MiniPlayerBarProps) {
   const [volumeOpen, setVolumeOpen] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
-  const resizeOrigin = useRef<number | null>(null)
+  const resizeSession = useRef<MiniPlayerResizeSession | null>(null)
+  const pendingResizeDelta = useRef(0)
+  const resizeFrame = useRef<number | null>(null)
 
   const hasTrack = !!trackTitle
   const expanded = width >= MINI_PLAYER_LYRICS_WIDTH
@@ -174,27 +181,48 @@ export function MiniPlayerBar({
     [onSeek, duration]
   )
 
-  // 手柄拖拽:窗口宽度由主进程改，这里只上报增量,用 screenX 免受窗口自身尺寸变化干扰
+  const flushResize = useCallback(() => {
+    resizeFrame.current = null
+    const dx = pendingResizeDelta.current
+    pendingResizeDelta.current = 0
+    if (dx !== 0) onResizeBy?.(dx)
+  }, [onResizeBy])
+
+  useEffect(() => () => {
+    if (resizeFrame.current !== null) cancelAnimationFrame(resizeFrame.current)
+  }, [])
+
+  // 手柄拖拽:窗口宽度由主进程改。screenX 不受窗口自身尺寸变化影响；
+  // 高频 pointermove 合并到每帧一次，避免 IPC/setBounds 队列落后于鼠标。
   const handleResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
     e.stopPropagation()
-    resizeOrigin.current = e.screenX
+    resizeSession.current = beginMiniPlayerResize(e.screenX, width)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const handleResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (resizeOrigin.current === null) return
+    e.stopPropagation()
+    if (!resizeSession.current) return
     // 松开键后 pointerup 不一定送得到（窗口 focusable:false，在窗外松开时 macOS 不派发），
     // 只靠 pointerup 清状态会让残留的 origin 把之后每次纯悬停都变成拖拽。
     if (e.buttons === 0) {
-      resizeOrigin.current = null
+      resizeSession.current = null
+      if (resizeFrame.current !== null) cancelAnimationFrame(resizeFrame.current)
+      flushResize()
       return
     }
-    const dx = e.screenX - resizeOrigin.current
+    const next = updateMiniPlayerResize(resizeSession.current, e.screenX)
+    resizeSession.current = next.session
+    const dx = next.delta
     if (dx === 0) return
-    resizeOrigin.current = e.screenX
-    onResizeBy?.(dx)
+    pendingResizeDelta.current += dx
+    if (resizeFrame.current === null) resizeFrame.current = requestAnimationFrame(flushResize)
   }
   const handleResizeUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    resizeOrigin.current = null
+    e.stopPropagation()
+    resizeSession.current = null
+    if (resizeFrame.current !== null) cancelAnimationFrame(resizeFrame.current)
+    flushResize()
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
@@ -219,7 +247,7 @@ export function MiniPlayerBar({
         </div>
       )}
 
-      <div className={styles.bar} ref={barRef} data-expanded={expanded}>
+      <div className={styles.bar} ref={barRef} data-expanded={expanded} data-lyrics={showLyrics}>
         <button
           type="button"
           className={styles.cover}

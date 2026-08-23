@@ -91,9 +91,14 @@
   gap: 2px;
 }
 
-/* 展开态把信息区压窄,把富余宽度让给歌词 */
-.bar[data-expanded='true'] .info {
-  flex: 0 1 34%;
+/* 歌词态让左侧封面+信息区与右侧控制区接近等宽，使歌词落在视觉中线附近。
+   信息区只小幅随窗口增长，拉长后的空间主要留给歌词。 */
+.bar[data-lyrics='true'] {
+  gap: 8px;
+}
+
+.bar[data-lyrics='true'] .info {
+  flex: 0 1 clamp(88px, 16vw, 112px);
 }
 
 .title {
@@ -116,23 +121,25 @@
 
 /* ---------- 歌词（展开态） ---------- */
 .lyricWrap {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 2px;
   /* 两端羽化,长句被裁时不会硬切 */
-  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent);
 }
 
 .lyric {
+  width: 100%;
   font-size: 12.5px;
+  font-weight: 500;
   line-height: 1.4;
   text-align: center;
   color: var(--mp-fg);
-  opacity: 0.86;
+  opacity: 0.92;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -146,7 +153,7 @@
     transform: translateY(4px);
   }
   to {
-    opacity: 0.86;
+    opacity: 0.92;
     transform: none;
   }
 }
@@ -252,6 +259,7 @@
   align-items: center;
   justify-content: center;
   cursor: ew-resize;
+  touch-action: none;
 }
 
 .grip {
