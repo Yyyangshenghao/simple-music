@@ -74,7 +74,7 @@ npm run build:mac     # 打包 macOS（x64 + arm64 dmg）
 npm run build:win     # 打包 Windows（安装版 + 便携版）
 ```
 
-更多架构与模块说明见 [`CLAUDE.md`](./CLAUDE.md) 与 [`docs/modules/`](./docs/modules/)。
+完整版本升级、标签和 GitHub Release 规范见 [`docs/build-and-release.md`](./docs/build-and-release.md)。更多架构与模块说明见 [`CLAUDE.md`](./CLAUDE.md) 与 [`docs/modules/`](./docs/modules/)。
 
 ## 鸣谢
 

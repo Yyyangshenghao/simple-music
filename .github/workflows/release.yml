@@ -9,7 +9,50 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
+          LOCK_ROOT_VERSION="$(node -p "require('./package-lock.json').packages[''].version")"
+          NOTES_FILE="docs/release-notes-${VERSION}.md"
+          test "$GITHUB_REF_NAME" = "v${PACKAGE_VERSION}"
+          test "$LOCK_VERSION" = "$PACKAGE_VERSION"
+          test "$LOCK_ROOT_VERSION" = "$PACKAGE_VERSION"
+          test -f "$NOTES_FILE"
+          node - "$NOTES_FILE" <<'NODE'
+          const fs = require('fs')
+
+          const file = process.argv[2]
+          const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/)
+          const firstContent = lines.find((line) => line.trim())?.trim()
+          const updates = lines.findIndex((line) => line.trim() === '## 更新日志')
+          const compatibility = lines.findIndex((line) => line.trim() === '## 兼容说明')
+          const verification = lines.findIndex((line) => line.trim() === '## 验证情况')
+
+          if (firstContent !== '## 更新日志' || updates < 0 || compatibility <= updates || verification <= compatibility) {
+            throw new Error('发行说明必须依次包含更新日志、兼容说明和验证情况')
+          }
+
+          const summaries = lines.slice(updates + 1, compatibility).filter((line) => line.trim())
+          const compatibilityBody = lines.slice(compatibility + 1, verification).some((line) => line.trim())
+          const verificationBody = lines.slice(verification + 1).some((line) => line.trim())
+          if (summaries.length !== 4 || summaries.some((line) => !/^-\s+\S/.test(line.trim()) || line.length > 72)) {
+            throw new Error('更新日志必须恰好包含四条不超过 72 字符的摘要')
+          }
+          if (!compatibilityBody || !verificationBody) {
+            throw new Error('兼容说明和验证情况不能为空')
+          }
+          NODE
+
   build:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -60,14 +103,38 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # 发行说明是发布协议的必需输入；缺失时直接阻止发布不完整的 Release。
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES_FILE="docs/release-notes-${VERSION}.md"
+          test -f "$NOTES_FILE"
+          cp "$NOTES_FILE" release-notes.md
+
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
 
+      - name: Validate release assets
+        shell: bash
+        run: |
+          find release-assets -maxdepth 1 -type f -name '*-arm64.dmg' | grep -q .
+          find release-assets -maxdepth 1 -type f -name '*.dmg' ! -name '*-arm64.dmg' | grep -q .
+          find release-assets -maxdepth 1 -type f -name '*-Setup.exe' | grep -q .
+          find release-assets -maxdepth 1 -type f -name '*-portable.exe' | grep -q .
+          test -f release-assets/latest-mac.yml
+          test -f release-assets/latest.yml
+          find release-assets -maxdepth 1 -type f -name '*-arm64.dmg.blockmap' | grep -q .
+          find release-assets -maxdepth 1 -type f -name '*.dmg.blockmap' ! -name '*-arm64.dmg.blockmap' | grep -q .
+          find release-assets -maxdepth 1 -type f -name '*-Setup.exe.blockmap' | grep -q .
+
       - uses: softprops/action-gh-release@v2
         with:
           name: Simple Music ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: release-notes.md
           draft: false
           files: release-assets/**

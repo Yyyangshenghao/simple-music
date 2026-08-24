@@ -37,3 +37,11 @@ Add colocated Vitest tests for logic changes. For bug fixes, first capture the r
 Use focused branches such as `feat/desktop-lyrics-font` or `fix/qq-search-empty`. Commits use an English Conventional Commit type and concise Chinese subject, for example `fix: 修复切歌时封面竞态`. Keep each commit focused.
 
 Pull requests must explain what changed, why, and how it was verified; link relevant issues and attach screenshots or recordings for UI changes. Obtain one approval, use squash merge, and delete the merged branch.
+
+## Version Upgrade and Push Semantics
+
+In this repository, a user request to “推送”, “提交并推送”, or “可以发了” means a complete version upgrade by default, not a branch-only `git push`. Follow `docs/build-and-release.md` section 0 end to end: choose the target version, update `package.json` and the root version in `package-lock.json`, create `docs/release-notes-X.Y.Z.md`, run the required checks, create a dedicated `chore(release): 发布 vX.Y.Z` commit, create an annotated `vX.Y.Z` tag, push the branch and tag, then wait for the Release workflow and verify its assets.
+
+Resolve the target version from an explicit user version first, then a branch name such as `dev/2.0.2`, otherwise default to the next patch version. Stop on version or tag conflicts. Do not move or overwrite a pushed tag. A branch-only push is allowed only when the user explicitly says “只推代码”, “只推分支”, “不要升级版本”, or “不要打 tag”.
+
+Before mutating release metadata, tell the user the resolved target version and that the operation will create a public tag and GitHub Release. Treat the original push request as authorization for the documented release flow, but do not include unrelated dirty files. Stop if the worktree contains ambiguous user changes.
