@@ -74,9 +74,26 @@ describe('settings export/import', () => {
 
   it('persists settings to localStorage', () => {
     useSettingsStore.getState().setLiveBackgroundKeep(true)
-    useSettingsStore.setState({ liveBackgroundKeep: false })
+    useSettingsStore.getState().setFontFamilyCjk('Microsoft YaHei')
+    useSettingsStore.getState().setLyricsFontFamily('PingFang SC')
+    useSettingsStore.getState().setLyricsFontFamilyCjk('Songti SC')
+    useSettingsStore.getState().setLyrics3dFontFamily('Helvetica Neue')
+    useSettingsStore.getState().setLyrics3dFontFamilyCjk('Kaiti SC')
+    useSettingsStore.setState({
+      liveBackgroundKeep: false,
+      fontFamilyCjk: '',
+      lyricsFontFamily: '',
+      lyricsFontFamilyCjk: '',
+      lyrics3dFontFamily: '',
+      lyrics3dFontFamilyCjk: ''
+    })
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().liveBackgroundKeep).toBe(true)
+    expect(useSettingsStore.getState().fontFamilyCjk).toBe('Microsoft YaHei')
+    expect(useSettingsStore.getState().lyricsFontFamily).toBe('PingFang SC')
+    expect(useSettingsStore.getState().lyricsFontFamilyCjk).toBe('Songti SC')
+    expect(useSettingsStore.getState().lyrics3dFontFamily).toBe('Helvetica Neue')
+    expect(useSettingsStore.getState().lyrics3dFontFamilyCjk).toBe('Kaiti SC')
   })
 })
 

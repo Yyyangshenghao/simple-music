@@ -10,7 +10,8 @@ import type {
   HotkeyResult,
   ExportPayload,
   FileResult,
-  ImportResult
+  ImportResult,
+  SystemFontResult
 } from '../../src/types/ipc'
 
 function readServerPort(): number {
@@ -81,6 +82,7 @@ const api = {
   importJson: (): Promise<ImportResult> => ipcRenderer.invoke('file:import-json'),
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
+  listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
   installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })
 }

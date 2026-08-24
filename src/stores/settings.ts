@@ -70,6 +70,16 @@ interface PersistedSettings {
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
   fontFamily: string
+  /** 界面中文回退字体,空字符串表示跟随系统默认。 */
+  fontFamilyCjk: string
+  /** 普通歌词字体,空字符串表示跟随界面字体。 */
+  lyricsFontFamily: string
+  /** 普通歌词中文回退字体,空字符串表示跟随界面字体。 */
+  lyricsFontFamilyCjk: string
+  /** 3D 歌词字体,空字符串表示跟随界面字体。 */
+  lyrics3dFontFamily: string
+  /** 3D 歌词中文回退字体,空字符串表示跟随界面字体。 */
+  lyrics3dFontFamilyCjk: string
   /** 各项性能开关,详见 PerformanceFlags。 */
   performance: PerformanceFlags
   /** 迷你悬浮播放条:独立开关,与主窗口显隐无关。 */
@@ -108,6 +118,11 @@ interface SettingsStore extends PersistedSettings {
   setAudioQuality(q: AudioQuality): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
+  setFontFamilyCjk(f: string): void
+  setLyricsFontFamily(f: string): void
+  setLyricsFontFamilyCjk(f: string): void
+  setLyrics3dFontFamily(f: string): void
+  setLyrics3dFontFamilyCjk(f: string): void
   setPerformance(patch: Partial<PerformanceFlags>): void
   applyPerformancePreset(preset: PerformancePreset): void
   setMiniPlayerEnabled(v: boolean): void
@@ -142,6 +157,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   audioQuality: 'max',
   playMode: 'order',
   fontFamily: '',
+  fontFamilyCjk: '',
+  lyricsFontFamily: '',
+  lyricsFontFamilyCjk: '',
+  lyrics3dFontFamily: '',
+  lyrics3dFontFamilyCjk: '',
   performance: { ...DEFAULT_PERFORMANCE },
   miniPlayerEnabled: false,
   miniPlayerWidth: MINI_PLAYER_DEFAULT_WIDTH,
@@ -227,6 +247,26 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ fontFamily: f })
     get().saveToLocal()
   },
+  setFontFamilyCjk(f) {
+    set({ fontFamilyCjk: f })
+    get().saveToLocal()
+  },
+  setLyricsFontFamily(f) {
+    set({ lyricsFontFamily: f })
+    get().saveToLocal()
+  },
+  setLyricsFontFamilyCjk(f) {
+    set({ lyricsFontFamilyCjk: f })
+    get().saveToLocal()
+  },
+  setLyrics3dFontFamily(f) {
+    set({ lyrics3dFontFamily: f })
+    get().saveToLocal()
+  },
+  setLyrics3dFontFamilyCjk(f) {
+    set({ lyrics3dFontFamilyCjk: f })
+    get().saveToLocal()
+  },
   setPerformance(patch) {
     set({ performance: { ...get().performance, ...patch } })
     get().saveToLocal()
@@ -252,8 +292,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -281,6 +321,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         audioQuality: data.audioQuality ?? 'max',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
+        fontFamilyCjk: data.fontFamilyCjk ?? '',
+        lyricsFontFamily: data.lyricsFontFamily ?? '',
+        lyricsFontFamilyCjk: data.lyricsFontFamilyCjk ?? '',
+        lyrics3dFontFamily: data.lyrics3dFontFamily ?? '',
+        lyrics3dFontFamilyCjk: data.lyrics3dFontFamilyCjk ?? '',
         // 与默认值合并:旧存档没有 performance 字段或新增了开关时取默认,保证升级后字段完整。
         // audioGlowEffect 是后加的开关:旧存档没有它时跟随 gradientTextMotion 推断——
         // 关掉了流光呼吸(极简/自定义省电组合)的用户,默认也不要音频辉光

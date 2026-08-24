@@ -118,6 +118,7 @@
   grid-template-areas:
     'accounts performance'
     'appearance performance'
+    'fonts performance'
     'music desktop-lyrics'
     'music mini-player'
     'music mini-player'
@@ -134,6 +135,7 @@
 
 .accountsGroup { grid-area: accounts; }
 .appearanceGroup { grid-area: appearance; }
+.fontsGroup { grid-area: fonts; }
 .performanceGroup { grid-area: performance; }
 .musicGroup { grid-area: music; }
 .desktopLyricsGroup { grid-area: desktop-lyrics; }
@@ -569,28 +571,37 @@
 .segCustom:hover { color: var(--sm-text-secondary); }
 .segCustom.segActive:hover { color: var(--sm-text-primary); }
 
-.fontRow {
+.fontGuide {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--sm-border);
+  color: var(--sm-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
-.fontInput {
-  width: 160px;
-  padding: 4px 10px;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-base);
-  color: var(--sm-text-primary);
-  font: inherit;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.15s, background 0.15s;
+.fontPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 148px));
+  gap: 8px;
+  min-width: 0;
 }
 
-.fontInput:focus {
-  border-color: var(--sm-accent);
-  background: var(--sm-bg-overlay);
+.fontSlot {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fontSlotLabel {
+  padding-left: 8px;
+  color: var(--sm-text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
 }
 
 .row > input[type='range'] {
@@ -622,6 +633,7 @@
     grid-template-areas:
       'accounts'
       'appearance'
+      'fonts'
       'music'
       'performance'
       'desktop-lyrics'
@@ -665,6 +677,8 @@
 
   .rowLabel { flex-basis: 42%; }
   .rowValue { margin-left: auto; }
+  .fontPairRow .rowLabel { flex-basis: 100%; }
+  .fontPair { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .row > input[type='range'] { flex: 1; min-width: 120px; }
   .segControl { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .segControl::-webkit-scrollbar { display: none; }

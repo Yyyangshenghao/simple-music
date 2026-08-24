@@ -400,6 +400,9 @@ export function StageLyrics3D() {
   const translation = useLyricsStore((s) => s.translation)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
+  const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
+  const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
+  const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
   const coverUrl = usePlayerStore((s) => s.currentTrack?.cover)
 
   // 封面调色板:64×64 采样推导,应用到在场的所有歌词面板
@@ -437,10 +440,10 @@ export function StageLyrics3D() {
     }
   }, [coverUrl])
 
-  // 字体设置变化时清缓存,下一行重建即用新字体
+  // 字体设置变化时先清缓存；下方 mesh effect 同时依赖这些字段，当前行会立即重建。
   useEffect(() => {
     invalidateLyricFontCache()
-  }, [fontFamily])
+  }, [fontFamily, fontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk])
 
   // 切行:旧行进 outgoing 淡出,新行重建浮入
   const text = currentIndex >= 0 ? (lines[currentIndex]?.text ?? '').trim() : ''
@@ -458,7 +461,17 @@ export function StageLyrics3D() {
     root.add(mesh.group)
     currentRef.current = mesh
     // 依赖 currentIndex 保证相邻两行文字相同也重建(原版按行号切换)
-  }, [currentIndex, text, transText, wordLines, uPixel])
+  }, [
+    currentIndex,
+    text,
+    transText,
+    wordLines,
+    uPixel,
+    fontFamily,
+    fontFamilyCjk,
+    lyrics3dFontFamily,
+    lyrics3dFontFamilyCjk
+  ])
 
   // 卸载清场
   useEffect(

@@ -36,6 +36,8 @@
 
   /* 字体:用户可在设置里自定义,留空则用此默认系统字体栈 */
   --sm-font-sans:      -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --sm-lyrics-font-sans: var(--sm-font-sans);
+  --sm-lyrics-3d-font-sans: var(--sm-font-sans);
 
   /* 语义色（状态文字/图标，深色模式用柔和亮色，浅色模式需换深色版本才够对比度） */
   --sm-color-success:  #7fdca4;

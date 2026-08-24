@@ -6,6 +6,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  font-family: var(--sm-lyrics-3d-font-sans);
 }
 
 .scroll {
@@ -42,7 +43,7 @@
 }
 
 .empty {
-  font-family: var(--sm-font-sans);
+  font-family: var(--sm-lyrics-3d-font-sans);
   font-size: clamp(16px, 2vw, 22px);
   font-weight: 600;
   letter-spacing: 2px;

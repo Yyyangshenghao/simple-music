@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { motion, Reorder, useDragControls } from 'motion/react'
 import { api } from '../lib/api'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
@@ -10,11 +10,12 @@ import { springSnappy, tapScale } from '../lib/motion-presets'
 import { playbackStrategySummary } from '../lib/playback-preference-display'
 import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/domain'
-import type { MiniPlayerAppearance } from '../types/ipc'
+import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -41,6 +42,12 @@ function enabledLabel(enabled: boolean): string {
 
 function providerLabel(source: ProviderId): string {
   return listProviders().find((provider) => provider.descriptor.id === source)?.descriptor.label ?? source
+}
+
+function systemDefaultFonts(platform: string | undefined): { western: string; cjk: string } {
+  return platform === 'win32'
+    ? { western: 'Segoe UI', cjk: '微软雅黑（Microsoft YaHei）' }
+    : { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
 }
 
 function PlaybackOrderItem({
@@ -174,6 +181,62 @@ function SliderRow({ label, min, max, step, value, format, onChange }: {
         className="no-drag"
       />
       <span className={styles.rowValue}>{format(value)}</span>
+    </div>
+  )
+}
+
+function FontPairSetting({
+  label,
+  idPrefix,
+  westernValue,
+  cjkValue,
+  fonts,
+  loading,
+  westernDefaultLabel,
+  cjkDefaultLabel,
+  onWesternChange,
+  onCjkChange
+}: {
+  label: string
+  idPrefix: string
+  westernValue: string
+  cjkValue: string
+  fonts: SystemFontFamily[]
+  loading: boolean
+  westernDefaultLabel: string
+  cjkDefaultLabel: string
+  onWesternChange(value: string): void
+  onCjkChange(value: string): void
+}) {
+  return (
+    <div className={`${styles.row} ${styles.fontPairRow}`}>
+      <span className={styles.rowLabel}>{label}</span>
+      <div className={styles.fontPair}>
+        <div className={styles.fontSlot}>
+          <label className={styles.fontSlotLabel} htmlFor={`${idPrefix}-western`}>西文</label>
+          <SystemFontPicker
+            id={`${idPrefix}-western`}
+            value={westernValue}
+            fonts={fonts}
+            loading={loading}
+            defaultLabel={westernDefaultLabel}
+            ariaLabel={`${label}西文字体`}
+            onChange={onWesternChange}
+          />
+        </div>
+        <div className={styles.fontSlot}>
+          <label className={styles.fontSlotLabel} htmlFor={`${idPrefix}-cjk`}>中文</label>
+          <SystemFontPicker
+            id={`${idPrefix}-cjk`}
+            value={cjkValue}
+            fonts={fonts}
+            loading={loading}
+            defaultLabel={cjkDefaultLabel}
+            ariaLabel={`${label}中文字体`}
+            onChange={onCjkChange}
+          />
+        </div>
+      </div>
     </div>
   )
 }
@@ -322,25 +385,43 @@ export function SettingsPage() {
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
   const setFontFamily = useSettingsStore((s) => s.setFontFamily)
-  const [fontDraft, setFontDraft] = useState(fontFamily)
-  const fontDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
+  const setFontFamilyCjk = useSettingsStore((s) => s.setFontFamilyCjk)
+  const lyricsFontFamily = useSettingsStore((s) => s.lyricsFontFamily)
+  const setLyricsFontFamily = useSettingsStore((s) => s.setLyricsFontFamily)
+  const lyricsFontFamilyCjk = useSettingsStore((s) => s.lyricsFontFamilyCjk)
+  const setLyricsFontFamilyCjk = useSettingsStore((s) => s.setLyricsFontFamilyCjk)
+  const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
+  const setLyrics3dFontFamily = useSettingsStore((s) => s.setLyrics3dFontFamily)
+  const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
+  const setLyrics3dFontFamilyCjk = useSettingsStore((s) => s.setLyrics3dFontFamilyCjk)
+  const [systemFonts, setSystemFonts] = useState<SystemFontFamily[]>([])
+  const [fontsLoading, setFontsLoading] = useState(true)
+  const [fontsError, setFontsError] = useState(false)
+  const defaultFonts = systemDefaultFonts(window.desktop?.platform)
+  const inheritedWesternFont = fontFamily || defaultFonts.western
+  const inheritedCjkFont = fontFamilyCjk || defaultFonts.cjk
 
-  // store 中的字体被外部改变时（如导入存档）同步草稿
+  async function loadSystemFonts(): Promise<void> {
+    setFontsLoading(true)
+    setFontsError(false)
+    try {
+      const result = await window.desktop.listSystemFonts()
+      setSystemFonts(result.fonts)
+      setFontsError(!result.ok)
+    } catch {
+      setSystemFonts([])
+      setFontsError(true)
+    } finally {
+      setFontsLoading(false)
+    }
+  }
+
   useEffect(() => {
-    setFontDraft(fontFamily)
-  }, [fontFamily])
-
-  const handleFontChange = (value: string): void => {
-    setFontDraft(value)
-    if (fontDebounce.current) clearTimeout(fontDebounce.current)
-    fontDebounce.current = setTimeout(() => setFontFamily(value), 300)
-  }
-
-  const handleFontReset = (): void => {
-    if (fontDebounce.current) clearTimeout(fontDebounce.current)
-    setFontDraft('')
-    setFontFamily('')
-  }
+    void loadSystemFonts()
+    // 字体列表只在进入设置页时读取一次，失败时可手动重试。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
@@ -557,21 +638,58 @@ export function SettingsPage() {
             ))}
           </div>
         </div>
-        <div className={styles.row}>
-          <label className={styles.rowLabel} htmlFor="settings-font-family">字体</label>
-          <div className={styles.fontRow}>
-            <input
-              id="settings-font-family"
-              className={`${styles.fontInput} no-drag`}
-              value={fontDraft}
-              onChange={(e) => handleFontChange(e.target.value)}
-              placeholder="系统默认"
-            />
-            <button type="button" className={`${styles.seg} no-drag`} onClick={handleFontReset}>
-              重置
+      </section>
+
+      <section className={`${styles.group} ${styles.fontsGroup}`}>
+        <h2 className={styles.groupTitle}>字体</h2>
+        <div className={styles.fontGuide}>
+          <span role="status" aria-live="polite">
+            西文优先显示，中文字符使用中文回退字体
+            {` · 系统默认：${defaultFonts.western} / ${defaultFonts.cjk}`}
+            {fontsLoading ? ' · 正在读取…' : fontsError ? ' · 读取失败' : ` · ${systemFonts.length} 种可用`}
+          </span>
+          {fontsError && (
+            <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+              重试
             </button>
-          </div>
+          )}
         </div>
+        <FontPairSetting
+          label="界面"
+          idPrefix="settings-interface-font"
+          westernValue={fontFamily}
+          cjkValue={fontFamilyCjk}
+          fonts={systemFonts}
+          loading={fontsLoading}
+          westernDefaultLabel={`默认：${defaultFonts.western}`}
+          cjkDefaultLabel={`默认：${defaultFonts.cjk}`}
+          onWesternChange={setFontFamily}
+          onCjkChange={setFontFamilyCjk}
+        />
+        <FontPairSetting
+          label="普通歌词"
+          idPrefix="settings-lyrics-font"
+          westernValue={lyricsFontFamily}
+          cjkValue={lyricsFontFamilyCjk}
+          fonts={systemFonts}
+          loading={fontsLoading}
+          westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+          cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+          onWesternChange={setLyricsFontFamily}
+          onCjkChange={setLyricsFontFamilyCjk}
+        />
+        <FontPairSetting
+          label="3D 歌词"
+          idPrefix="settings-lyrics-3d-font"
+          westernValue={lyrics3dFontFamily}
+          cjkValue={lyrics3dFontFamilyCjk}
+          fonts={systemFonts}
+          loading={fontsLoading}
+          westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+          cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+          onWesternChange={setLyrics3dFontFamily}
+          onCjkChange={setLyrics3dFontFamilyCjk}
+        />
       </section>
 
       <section className={`${styles.group} ${styles.musicGroup}`}>

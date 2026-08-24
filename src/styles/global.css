@@ -25,6 +25,15 @@ body {
   transition: background 350ms var(--sm-ease-in-out), color 200ms var(--sm-ease-in-out);
 }
 
+/* 浏览器默认会给表单控件单独指定系统字体；歌单卡片、歌曲行和导航大量使用 button，
+   必须显式继承，才能统一跟随“界面字体”。 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 .desktop-shell {
   -webkit-app-region: drag;
 }

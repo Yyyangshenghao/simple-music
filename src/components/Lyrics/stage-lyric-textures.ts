@@ -3,7 +3,7 @@ import * as THREE from 'three'
 /**
  * 3D 舞台歌词的 canvas 纹理生成(移植自 Mineradio-MacOS 的
  * makeLyricMask / makeLyricReadabilityTexture / makeLyricGlowTexture / getLyricSunBloomTexture)。
- * 字体跟随应用正文字体(document.body 计算样式),不做原版的字体族/字重/字距自定义。
+ * 字体优先使用独立的 3D 歌词设置，留空时跟随应用正文字体。
  */
 
 export interface LyricMask {
@@ -24,7 +24,10 @@ export interface LyricMask {
 let cachedFontStack: string | null = null
 function fontStack(): string {
   if (!cachedFontStack) {
-    cachedFontStack = (typeof document !== 'undefined' && document.body
+    const custom = typeof document !== 'undefined'
+      ? document.documentElement.style.getPropertyValue('--sm-lyrics-3d-font-sans').trim()
+      : ''
+    cachedFontStack = custom || (typeof document !== 'undefined' && document.body
       ? getComputedStyle(document.body).fontFamily
       : '') || 'Inter,"Noto Sans SC","PingFang SC","Microsoft YaHei",Arial,sans-serif'
   }

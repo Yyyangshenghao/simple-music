@@ -4,12 +4,14 @@ import { resolve, sep, join } from 'node:path'
 import { getMainWindow } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
 import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
+import { listSystemFonts } from '../modules/font-manager'
 import type {
   HotkeyBinding,
   ExportPayload,
   FileResult,
   ImportResult,
-  OkResult
+  OkResult,
+  SystemFontResult
 } from '../../src/types/ipc'
 
 // 必须与 server/lib/update.ts 的 updateWorkDir() 同源：那边支持 SIMPLEMUSIC_UPDATE_DIR
@@ -21,6 +23,14 @@ function getUpdateDownloadDir(): string {
 
 export function registerMiscIpc(): void {
   ipcMain.handle('hotkeys:configure', (_e, bindings: HotkeyBinding[]) => configureHotkeys(bindings ?? []))
+
+  ipcMain.handle('system:list-fonts', async (): Promise<SystemFontResult> => {
+    try {
+      return { ok: true, fonts: await listSystemFonts() }
+    } catch (e) {
+      return { ok: false, fonts: [], error: (e as Error).message || 'LIST_FONTS_FAILED' }
+    }
+  })
 
   ipcMain.handle('file:export-json', async (_e, payload: ExportPayload = {}): Promise<FileResult> => {
     try {

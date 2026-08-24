@@ -15,7 +15,7 @@
 }
 
 .main {
-  font-family: var(--sm-font-sans);
+  font-family: inherit;
   font-weight: 700;
   font-size: calc(clamp(20px, 2.6vw, 34px) * var(--lyrics-font-scale, 1));
   letter-spacing: 1.5px;

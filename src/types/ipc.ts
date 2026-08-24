@@ -134,6 +134,19 @@ export interface ImportResult {
   error?: string
 }
 
+export interface SystemFontFamily {
+  /** 传给 CSS font-family 的稳定字体族名。 */
+  family: string
+  /** 字体自身或系统提供的简体中文名称。 */
+  localizedName?: string
+}
+
+export interface SystemFontResult {
+  ok: boolean
+  fonts: SystemFontFamily[]
+  error?: string
+}
+
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
   'window:minimize': { req: void; res: void }
@@ -163,6 +176,8 @@ export interface IpcChannels {
   'file:export-json': { req: ExportPayload; res: FileResult }
   'file:import-json': { req: void; res: ImportResult }
   'file:select-directory': { req: { title?: string; defaultPath?: string }; res: FileResult }
+
+  'system:list-fonts': { req: void; res: SystemFontResult }
 
   'app:restart': { req: void; res: OkResult }
   'app:install-update': { req: { filePath: string }; res: OkResult }

@@ -275,6 +275,7 @@
   );
   position: relative;
   z-index: 1;
+  font-family: var(--sm-lyrics-font-sans);
 }
 
 .lyricsScroll::-webkit-scrollbar {
@@ -629,6 +630,7 @@
   justify-content: center;
   z-index: 2;
   pointer-events: none;
+  font-family: var(--sm-lyrics-3d-font-sans);
 }
 
 /* 玻璃底板承载文字：模糊/背景强度由 --overlay-blur/--overlay-bg/--overlay-shadow 驱动

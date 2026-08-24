@@ -19,6 +19,7 @@ import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
+import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
@@ -65,12 +66,34 @@ export default function App() {
       if (miniPlayerEnabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth)
     }
     const sync = () => {
-      const { themeMode, fontFamily, performance } = useSettingsStore.getState()
+      const {
+        themeMode,
+        fontFamily,
+        fontFamilyCjk,
+        lyricsFontFamily,
+        lyricsFontFamilyCjk,
+        lyrics3dFontFamily,
+        lyrics3dFontFamilyCjk,
+        performance
+      } = useSettingsStore.getState()
       const root = document.documentElement
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
-      if (fontFamily.trim()) root.style.setProperty('--sm-font-sans', fontFamily)
-      else root.style.removeProperty('--sm-font-sans')
+      if (fontFamily.trim() || fontFamilyCjk.trim()) {
+        root.style.setProperty('--sm-font-sans', fontFamilyCssValue(fontFamily, fontFamilyCjk))
+      } else root.style.removeProperty('--sm-font-sans')
+      if (lyricsFontFamily.trim() || lyricsFontFamilyCjk.trim()) {
+        root.style.setProperty(
+          '--sm-lyrics-font-sans',
+          fontFamilyCssValue(lyricsFontFamily || fontFamily, lyricsFontFamilyCjk || fontFamilyCjk)
+        )
+      } else root.style.removeProperty('--sm-lyrics-font-sans')
+      if (lyrics3dFontFamily.trim() || lyrics3dFontFamilyCjk.trim()) {
+        root.style.setProperty(
+          '--sm-lyrics-3d-font-sans',
+          fontFamilyCssValue(lyrics3dFontFamily || fontFamily, lyrics3dFontFamilyCjk || fontFamilyCjk)
+        )
+      } else root.style.removeProperty('--sm-lyrics-3d-font-sans')
       // 减少透明度:tokens.css 用属性选择器把玻璃层降为无模糊/高不透明
       if (performance.reduceTransparency) root.setAttribute('data-reduce-transparency', '1')
       else root.removeAttribute('data-reduce-transparency')
