@@ -174,9 +174,25 @@ export function createLegacyProvider(options: LegacyProviderOptions): MusicProvi
       searchTracks: async (keyword) => normalizeTracks(await service.searchTracks(keyword), descriptor.id),
       searchArtists: async (keyword) => (await service.searchArtists(keyword))
         .map((artist) => normalizeArtist(artist, descriptor.id)),
+      getSearchHotkeys: service.getSearchHotkeys ? () => service.getSearchHotkeys!() : undefined,
+      getSimilarTracks: service.getSimilarTracks
+        ? async (track) => normalizeTracks(await service.getSimilarTracks!(track), descriptor.id)
+        : undefined,
+      getRelatedPlaylists: service.getRelatedPlaylists
+        ? async (track, previousIds) => {
+            const page = await service.getRelatedPlaylists!(track, previousIds)
+            return { ...page, playlists: normalizePlaylists(page.playlists, descriptor.id) }
+          }
+        : undefined,
       getArtistDetail: async (id) => normalizeArtist(await service.getArtistDetail(id), descriptor.id),
       getArtistSongs: async (id) => normalizeTracks(await service.getArtistSongs(id), descriptor.id),
       getArtistAlbums: async (id) => normalizePlaylists(await service.getArtistAlbums(id), descriptor.id),
+      getAlbumDetail: service.getAlbumDetail
+        ? async (id) => {
+            const album = await service.getAlbumDetail!(id)
+            return album ? normalizePlaylist(album, descriptor.id) : null
+          }
+        : undefined,
       getAlbumTracks: async (id) => normalizeTracks(await service.getAlbumTracks(id), descriptor.id),
       getSimilarArtists: service.getSimilarArtists
         ? async (id) => (await service.getSimilarArtists!(id))

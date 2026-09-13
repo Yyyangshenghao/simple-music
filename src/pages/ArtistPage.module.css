@@ -106,3 +106,21 @@
   font-size: 14px;
   padding: 24px 0;
 }
+
+.similarError {
+  color: var(--sm-text-secondary);
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+.similarError p { margin: 0; }
+
+.similarError button {
+  margin-top: 10px;
+  padding: 6px 14px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  cursor: pointer;
+}

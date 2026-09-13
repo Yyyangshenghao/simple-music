@@ -1,7 +1,9 @@
 import type { ProviderId } from '../providers/types'
 import { registerApiProviderAuthFailureHandler } from '../lib/api'
+import { SOURCE_BRAND } from '../lib/source-brand'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
+import { useToastStore } from './toast'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '')
@@ -19,10 +21,14 @@ export function isProviderAuthFailure(error: unknown): boolean {
  */
 export function expireProviderAccount(source: ProviderId, error: unknown): boolean {
   if (!isProviderAuthFailure(error)) return false
+  const alreadyExpired = useProviderStore.getState().byId[source].auth === 'expired'
   const settings = useSettingsStore.getState()
   if (source === 'netease') settings.setNeteaseLoggedIn(false)
   else settings.setQQLoggedIn(false)
   useProviderStore.getState().setAccountState(source, 'expired')
+  if (!alreadyExpired) {
+    useToastStore.getState().show(`${SOURCE_BRAND[source].label}登录已失效，请前往设置重新登录`)
+  }
   return true
 }
 

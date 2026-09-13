@@ -39,7 +39,7 @@
 - 网易云音乐 / QQ 音乐可同时登录并独立启用；未登录或未启用的平台不会参与内容与播放
 - 探索页与我的库共用右侧半隐藏 Dock 切换全局内容平台，不提供“全部平台”；每日推荐、私人雷达等栏目保持平台原生语义
 - 来源标识支持常显、动态、隐藏，跨平台内容与实际播放来源均可辨认
-- 本地音乐：选文件夹扫描，读内嵌标签与封面，同名 `.lrc` 自动作歌词
+- 本地音乐：选文件夹扫描，读内嵌标签与封面，同名 `.lrc` 自动作歌词，并可按标题、艺人或添加时间排序
 - 播放优先级可调整，单曲可临时软优先某个平台；同平台地址/音质失败后再按顺序跨平台降级
 - 漫游页：以歌手关系图谱为入口滚动式探索，边听边扩展
 
@@ -52,8 +52,9 @@
 **视觉与桌面集成**
 
 - 沉浸式 Three.js 可视化场景、封面粒子、歌词页 3D 舞台
-- 桌面歌词悬浮窗、动态壁纸悬浮窗
-- 浅色/深色双主题，视觉 FX 参数可调并支持存档导入导出
+- 桌面歌词、动态壁纸与迷你播放条三个独立悬浮窗
+- 浅色/深色双主题，界面、歌词与 3D 歌词字体可分别选择系统字体
+- 视觉 FX 参数可调并支持存档导入导出
 - 全局热键、窗口状态同步、应用内检查更新（下载前测速选线）
 - 跨平台（macOS 优先，Windows 同时支持）
 
@@ -74,7 +75,7 @@ npm run build:mac     # 打包 macOS（x64 + arm64 dmg）
 npm run build:win     # 打包 Windows（安装版 + 便携版）
 ```
 
-完整版本升级、标签和 GitHub Release 规范见 [`docs/build-and-release.md`](./docs/build-and-release.md)。更多架构与模块说明见 [`CLAUDE.md`](./CLAUDE.md) 与 [`docs/modules/`](./docs/modules/)。
+完整版本升级、标签和 GitHub Release 规范见 [`docs/build-and-release.md`](./docs/build-and-release.md)。更多实现说明见 [`docs/architecture.md`](./docs/architecture.md)、[`docs/directory-structure.md`](./docs/directory-structure.md) 与 [`docs/modules/`](./docs/modules/)。
 
 ## 鸣谢
 

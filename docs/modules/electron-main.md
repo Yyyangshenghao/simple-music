@@ -1,16 +1,18 @@
 # 主进程(`electron/`)
 
-入口 `electron/main.ts`:单实例锁 → `registerIpc()` → `bootServer()`(内嵌 API server,随机端口)→ `createMainWindow(port)`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)。
+入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server,随机端口 + 持久化 token)→ `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，主窗口与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
 > **安全约定(2026-07-24 加,2026-07-27 文档补录)**:全窗口 `sandbox: true`(主窗 `window-manager`、三个悬浮窗 `overlay-manager`、登录窗 `login-manager`)—— preload 本就是纯 IPC 转发无 node 依赖,沙盒下 `electron.vite.config.ts` preload 输出改 CommonJS(`.cjs`)即可,`process.argv` 端口/token 注入在沙盒下仍可用。API token 由主进程 `randomBytes(32)` 生成、持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 与端口一并注入渲染层,server 侧 `isAllowedToken` 校验(详见 [server.md](server.md) 安全边界)。
 
 ## 目录
 
-- `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')`;`before-quit` 时关闭。
+- `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
+- `modules/tray-manager.ts` — 系统托盘菜单与主窗口恢复/隐藏、播放控制和退出。
 - `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
+- `modules/font-manager.ts` — 按平台枚举、归一化并缓存系统字体,供设置页三个字体域共用。
 - `modules/update-installer.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS 未签名做不了 Squirrel.Mac 式原地替换,改为 `shell.openPath` 打开下载好的 dmg,弹出系统标准的"拖到 Applications"安装器窗口,替换动作完全交给用户和 Finder,主进程不再插手(早期版本自己写 shell 脚本原地替换,失败时容易在 `/Applications` 留下 `.app.new` 孤儿目录,已弃用)。
 - `modules/safe-open.ts` — 外部链接统一出口 `openExternalSafely()`。`shell.openExternal` 会把 URL 交给系统协议处理器,`file://`、自定义 scheme 能拉起本地程序;而窗口里的链接不都可信(登录窗加载的是音乐平台页面,主窗渲染的歌词/评论/歌手简介来自上游接口),因此只放行 http/https/mailto。主窗还挡了 `will-navigate`:导航离开应用入口就等于把 preload 的 `desktop` 桥交给外部页面。
 - `platform/` — 平台能力接口(`getPlatform()`):win32 完整实现(快捷方式等),darwin/其它降级。
@@ -24,10 +26,12 @@
 - `lyrics:*`(主窗口控制桌面歌词)— set-enabled / set-lock / move-by / update
 - `overlay:lyrics-*`(歌词悬浮窗自身)— close / move-by / set-dragging / set-lock / set-hot-bounds / set-pointer-capture
 - `wallpaper:*` — set-enabled / update
+- `miniplayer:*` — set-enabled / update
+- `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
-- `hotkeys:configure`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json`(FX 存档导入导出)
+- `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`
 
-主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`,以及悬浮窗的 lyrics/wallpaper state 转发。
+主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。
 
 ## 约定
 

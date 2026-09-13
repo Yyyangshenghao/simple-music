@@ -18,6 +18,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 │  ├─ modules/hotkey-manager.ts（globalShortcut）                       │
 │  ├─ modules/login-manager.ts（独立登录窗口，session 分区抓 cookie）      │
 │  ├─ modules/update-installer.ts（NSIS 静默安装 / mac 打开 dmg 交用户拖装）│
+│  ├─ modules/tray-manager.ts（系统托盘与主窗口恢复）                       │
 │  └─ ipc/*（contextBridge 通道，类型契约在 src/types/ipc.ts）            │
 └──────────────────────────────────────────────────────────────────────┘
         │ IPC（控制类）                    │ HTTP /api/*（数据类）
@@ -33,12 +34,15 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 ┌─ 壁纸渲染进程 ───────────────┐   └────────────────────────────────────┘
 │ overlays/wallpaper           │
 └──────────────────────────────┘
+┌─ 迷你播放条渲染进程 ──────────┐
+│ overlays/mini-player         │
+└──────────────────────────────┘
 ```
 
 关键决策：
 
 - **为什么内嵌 HTTP server 而不是全走 IPC**：音源请求逻辑（cookie 管理、上游封装、字段映射、音频流代理）是纯 Node 逻辑，做成独立 server 后可以 `npm run server:dev` 脱离 Electron 单独跑、单独测（vitest 直接 import route/lib），渲染层在浏览器里也能调试（`api.ts` 无端口时回退同源）。IPC 只留给"必须由主进程做"的窗口/系统类操作。
-- **端口随机 + 参数注入**：server 监听 `127.0.0.1:0`（随机端口），端口经 `BrowserWindow webPreferences.additionalArguments` 传入 `--simplemusic-server-port=<port>`，preload 从 `process.argv` 读出挂到 `window.desktop.serverPort`。避免固定端口被占用；仅监听 loopback，不暴露到局域网。
+- **端口随机 + 参数注入**：server 监听 `127.0.0.1:0`（随机端口），端口与持久化在 `userData/api-token` 的访问 token 经 `BrowserWindow webPreferences.additionalArguments` 注入 preload，分别挂到 `window.desktop.serverPort` / `serverToken`。避免固定端口被占用，并阻止本机其它网页只靠扫描端口访问 API；server 仍只监听 loopback，不暴露到局域网。
 - **两套 tsconfig 隔离**：`tsconfig.node.json`（electron/ + server/，Node 环境）与 `tsconfig.json`（src/ + overlays/，DOM 环境），`npm run typecheck` 两套全跑。`src/types/ipc.ts` 是唯一被两侧共享的类型文件（主进程 import 渲染层类型，编译期共享、运行期无依赖）。
 
 ## 2. 四个顶层模块
@@ -52,14 +56,14 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 ## 3. 启动时序
 
-1. `electron/main.ts` 顶层：追加 Chromium 开关——`autoplay-policy=no-user-gesture-required`、GPU 光栅化/zero-copy、**关闭全部 background throttling**（后台计时器、渲染进程降级、遮挡窗口降级），ANGLE 后端按平台选 `d3d11`（win32）/`metal`（darwin）。
+1. `electron/main.ts` 顶层：追加 Chromium 开关——`autoplay-policy=no-user-gesture-required`、GPU 光栅化/zero-copy、50MB Chromium 磁盘缓存，ANGLE 后端按平台选 `d3d11`（win32）/`metal`（darwin）。不再全局关闭后台节流；只在主窗口与长期被遮挡的壁纸窗口设置 `backgroundThrottling: false`。
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
-3. `app.whenReady` → `boot()`：`registerIpc()` → `bootServer()`（注入 `app.getPath('userData')` 为 `ServerContext.userDataDir`，返回端口）→ `createMainWindow(port)`。
+3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen 与净化后的剪贴板写入；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
 5. 渲染层 `App.tsx` 挂载：先加载通用设置，再用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），随后恢复播放队列为暂停态并初始化 Media Session。网易云和 QQ 的登录状态独立核实，单个平台返回不得改写另一平台状态。
-6. `before-quit`：注销热键 → 关闭悬浮窗 → 关闭 server。
+6. `before-quit`：注销热键 → 关闭悬浮窗 → 销毁托盘 → 关闭 server。
 
-**backgroundThrottling 全局关闭的连锁约定**：关闭后窗口最小化/被遮挡/失焦时 rAF 仍满帧跑，所有重渲染循环必须**自行暂停**——LiquidEther 内置 blur/visibilitychange/IntersectionObserver 三重暂停，LyricsPanel 3D 场景用 `useWindowActive()` 停 Canvas，`useAudioEnergy` 在 `document.hidden` 时跳帧。新增全屏渲染循环必须遵守这一约定（历史教训见 GPU 性能审计，风扇狂转主因）。
+**后台降耗约定**：主窗口隐藏、最小化或切到迷你播放条时，`App.tsx` 卸载可视层，保留全局 hooks 与 AudioEngine；WebGL/rAF 循环仍需使用 visibility、IntersectionObserver 或窗口状态自行暂停。壁纸窗口因长期处于桌面底层而单独禁用 Chromium 后台节流，不能依赖“被遮挡即自动停帧”。
 
 ## 4. 数据流
 
@@ -67,9 +71,10 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 ```
 组件/页面
-  → ContentHub                           // 全源搜索等聚合场景隔离参与平台
-    或 serviceFor(数据.source)            // 单实体操作按复合身份显式绑定平台
-  → MusicService 实现（netease-music-service.ts / qq-music-service.ts）
+  → providerFor(source).<capability>      // 新功能按能力接口取平台实现
+    或 ContentHub                         // 全源搜索等聚合场景隔离参与平台
+    或 serviceFor(数据.source)             // 旧页面兼容层按实体来源取 service
+  → providers/* / *-music-service.ts
   → src/lib/api.ts                       // 拼 http://127.0.0.1:<port>/api/*
   → server/routes/*                      // 路由链
   → server/lib/*-client.ts               // 上游封装 + cookie
@@ -131,4 +136,4 @@ npm run typecheck   # tsconfig.node.json + tsconfig.json 两套全量
 npm test            # vitest run（测试与源码同目录，*.test.ts）
 ```
 
-测试集中在纯函数/纯逻辑层：server lib（http/cookie/qq-client/dj-analyzer/update/audio-cache）、src lib（api/audio-energy/extract-color/lazy-window/lyric-parser/playback-persistence/roam-*/search-history/stack-pool/track-fallback/track-preload）、stores（likes/roam/stores）、electron 侧唯一可单测的 `update-installer-logic`。涉及播放行为的改动需 `npm run dev` 实测。
+测试与源码同目录，覆盖 server 路由/lib、Provider 契约、播放与推荐纯逻辑、stores、主进程模块和各 overlay 的可测试逻辑。具体清单以 `rg --files -g '*.test.ts'` 为准；涉及播放、窗口或视觉行为的改动仍需 `npm run dev` 实测。

@@ -9,6 +9,10 @@ export interface MusicService {
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>
+  /** 公开热搜词（可选；只作快捷填词，不预搜索）。 */
+  getSearchHotkeys?(): Promise<string[]>
+  getSimilarTracks?(track: Track): Promise<Track[]>
+  getRelatedPlaylists?(track: Track, previousIds?: string[]): Promise<RelatedPlaylistsPage>
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
   /** 相似歌手（可选；未实现的音源不渲染相似歌手胶囊）。 */
@@ -16,6 +20,8 @@ export interface MusicService {
   /** 近一周听歌排行（可选；网易专属，用于漫游页猜测常听歌手）。 */
   getListeningRanking?(): Promise<Track[]>
   getArtistAlbums(id: unknown): Promise<Playlist[]>
+  /** 专辑详情 meta（可选；用于进入专辑后补发行信息与简介，不替代曲目接口）。 */
+  getAlbumDetail?(id: unknown): Promise<Playlist | null>
   /** 专辑曲目全量拉取(`Playlist.type === 'album'` 的详情页用;专辑规模小,不走懒加载)。 */
   getAlbumTracks(id: unknown): Promise<Track[]>
   getTrackUrl(track: Track): Promise<string>
@@ -52,6 +58,11 @@ export interface MusicService {
   /** 听歌打卡上报（可选;仅网易实现）。更新账号端"最近播放歌单"/"听歌排行"等真实数据；
    *  sourceId 为播放来源的歌单/专辑 id，缺省时上游按歌曲自身 id 兜底。失败静默忽略,不影响播放。 */
   reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
+}
+
+export interface RelatedPlaylistsPage {
+  playlists: Playlist[]
+  hasMore: boolean
 }
 
 export interface RadarPlaylist {

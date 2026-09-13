@@ -87,11 +87,24 @@
 
 .emptyHint {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   height: 200px;
   color: var(--sm-text-secondary);
   font-size: 14px;
+}
+
+.emptyHint p { margin: 0; }
+
+.emptyHint button {
+  padding: 6px 14px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  cursor: pointer;
 }
 
 .trackList {

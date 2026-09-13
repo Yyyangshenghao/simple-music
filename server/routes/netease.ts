@@ -141,6 +141,26 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   }
 
   // ---------- 搜索 ----------
+  if (pn === '/api/search/hotkeys') {
+    try {
+      // 公开榜单无需账号 Cookie，失败也不应使用户登录态失效。
+      const resp = await call('search_hot_detail', {})
+      const body = asObj(resp.body)
+      if (resp.status !== 200 || asNum(body.code) !== 200 || !Array.isArray(body.data)) {
+        throw new Error('NETEASE_SEARCH_HOTKEYS_FAILED')
+      }
+      const keywords = [...new Set(body.data.flatMap((entry) => {
+        const word = asObj(entry).searchWord
+        return typeof word === 'string' && word.trim() ? [word.trim()] : []
+      }))].slice(0, 10)
+      sendJson(res, { provider: 'netease', keywords })
+    } catch (err) {
+      console.error('[NeteaseSearchHotkeys]', err)
+      sendJson(res, { provider: 'netease', error: 'NETEASE_SEARCH_HOTKEYS_FAILED', keywords: [] }, 502)
+    }
+    return true
+  }
+
   if (pn === '/api/search') {
     try {
       const kw = url.searchParams.get('keywords') || ''

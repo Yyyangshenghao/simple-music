@@ -1,0 +1,28 @@
+.root { flex-shrink: 0; border-top: 1px solid var(--sm-border); }
+.toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 11px 16px; border: 0;
+  background: color-mix(in srgb, var(--sm-accent) 7%, transparent);
+  color: var(--sm-text-primary); cursor: pointer;
+}
+.toggle:hover, .row:hover:not(:disabled) { background: var(--sm-bg-elevated); }
+.toggle:focus-visible, .row:focus-visible, .refresh:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -2px; }
+.toggleCopy { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.toggleCopy strong { font-size: 12px; font-weight: 650; }
+.toggleCopy small { color: var(--sm-text-secondary); font-size: 10px; }
+.toggleAction { color: var(--sm-accent); font-size: 10px; }
+.content { max-height: min(190px, 30vh); overflow-y: auto; padding: 0 8px 8px; }
+.seed { margin: 0 8px 10px; font-size: 11px; color: var(--sm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heading { margin: 8px 8px 4px; font-size: 11px; color: var(--sm-text-primary); }
+.heading span { margin-left: 4px; font-weight: 400; color: var(--sm-text-secondary); }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; }
+.refresh { margin-right: 8px; padding: 4px; border: 0; background: transparent; color: var(--sm-accent); font-size: 11px; cursor: pointer; }
+.refresh:disabled { opacity: 0.5; cursor: default; }
+.row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-primary); text-align: left; cursor: pointer; }
+.row:disabled { opacity: 0.55; cursor: default; }
+.info { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
+.name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hint { margin: 4px 8px; font-size: 11px; color: var(--sm-text-secondary); }
+.info .hint { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action { flex-shrink: 0; font-size: 11px; color: var(--sm-accent); }
+.cover { width: 32px; height: 32px; flex-shrink: 0; border-radius: 5px; object-fit: cover; }

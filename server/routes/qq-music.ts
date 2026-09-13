@@ -3,19 +3,28 @@ import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import {
   handleQQSearch,
+  handleQQSearchHotkeys,
+  handleQQSimilarSongs,
+  handleQQRelatedPlaylists,
+  parseQQRelatedId,
   handleQQSongUrl,
   handleQQSongQualities,
   handleQQLyric,
   getQQLoginInfo,
   handleQQUserPlaylists,
+  handleQQLikedPlaylist,
   handleQQRadarSong,
   handleQQRecommendFeed,
   handleQQRecommendSongs,
   handleQQPlaylistTracks,
+  handleQQToplistPreview,
+  handleQQToplists,
   handleQQArtistDetail,
+  handleQQArtistSimilar,
   handleQQArtistSearch,
   handleQQArtistSongs,
   handleQQArtistAlbums,
+  handleQQAlbumDetail,
   handleQQAlbumSongs,
   handleQQSongComments,
   normalizeQQCookieInput,
@@ -23,6 +32,11 @@ import {
   qqCookieUin,
   qqCookieMusicKey,
   computeSavedQQCookie,
+  qqAuthErrorStatus,
+  isQQLikedPlaylistReference,
+  isQQToplistReference,
+  QQ_LIKED_PLAYLIST_ID,
+  QQ_TOPLIST_PREFIX,
 } from '../lib/qq-client'
 
 /**
@@ -51,10 +65,42 @@ async function readRequestObject(req: Parameters<RouteHandler>[0]): Promise<Reco
 export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
 
+  if (pn === '/api/qq/song/similar' || pn === '/api/qq/song/related-playlists') {
+    const similar = pn.endsWith('/similar')
+    const empty = similar ? { songs: [] } : { playlists: [], hasMore: false }
+    const songId = parseQQRelatedId(url.searchParams.get('songid'))
+    const previous = url.searchParams.get('previousIds') || ''
+    const previousIds = previous ? previous.split(',').map(parseQQRelatedId) : []
+    if (songId === null || (!similar && (previousIds.length > 30 || previousIds.includes(null)))) {
+      sendJson(res, { provider: 'qq', error: 'INVALID_QQ_RELATED_IDS', ...empty }, 400)
+      return true
+    }
+    try {
+      const data = similar
+        ? { songs: await handleQQSimilarSongs(songId) }
+        : await handleQQRelatedPlaylists(songId, previousIds as number[])
+      sendJson(res, { provider: 'qq', ...data })
+    } catch (err) {
+      console.error('[QQRelatedContent]', err)
+      sendJson(res, { provider: 'qq', error: 'QQ_RELATED_CONTENT_FAILED', ...empty }, 502)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/search/hotkeys') {
+    try {
+      sendJson(res, { provider: 'qq', keywords: await handleQQSearchHotkeys() })
+    } catch (err) {
+      console.error('[QQSearchHotkeys]', err)
+      sendJson(res, { provider: 'qq', error: 'QQ_SEARCH_HOTKEYS_FAILED', keywords: [] }, 502)
+    }
+    return true
+  }
+
   if (pn === '/api/qq/search') {
     try {
       const kw = url.searchParams.get('keywords') || ''
-      const limit = Math.max(4, Math.min(12, parseInt(url.searchParams.get('limit') || '8', 10) || 8))
+      const limit = Math.max(4, Math.min(20, parseInt(url.searchParams.get('limit') || '8', 10) || 8))
       const songs = await handleQQSearch(getCookie(ctx, 'qq'), kw, limit)
       sendJson(res, { provider: 'qq', songs })
     } catch (err) {
@@ -183,6 +229,22 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  if (pn === '/api/qq/liked/playlist') {
+    try {
+      const data = await handleQQLikedPlaylist(getCookie(ctx, 'qq'))
+      sendJson(res, data, data.loggedIn === false ? 401 : 200)
+    } catch (err) {
+      console.error('[QQLikedPlaylist]', err)
+      const status = qqAuthErrorStatus(err)
+      sendJson(
+        res,
+        { provider: 'qq', loggedIn: false, error: status ? 'AUTH_EXPIRED' : (err as Error).message, playlist: null },
+        status ?? 500
+      )
+    }
+    return true
+  }
+
   if (pn === '/api/qq/radar') {
     try {
       const data = await handleQQRadarSong(getCookie(ctx, 'qq'))
@@ -217,14 +279,59 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  if (pn === '/api/qq/toplist') {
+    try {
+      const data = await handleQQToplists(getCookie(ctx, 'qq'))
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQToplists]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, groups: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/toplist/preview') {
+    try {
+      const id = url.searchParams.get('id') || ''
+      if (!isQQToplistReference(id)) {
+        sendJson(res, { provider: 'qq', error: 'INVALID_QQ_TOPLIST_ID', preview: [] }, 400)
+        return true
+      }
+      const data = await handleQQToplistPreview(getCookie(ctx, 'qq'), id)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQToplistPreview]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, preview: [] }, 500)
+    }
+    return true
+  }
+
   if (pn === '/api/qq/playlist/tracks') {
     try {
       const id = url.searchParams.get('id') || url.searchParams.get('disstid') || ''
+      const invalidLikedId = id.startsWith('qq-liked:') && !isQQLikedPlaylistReference(id)
+      const invalidToplistId = id.startsWith(QQ_TOPLIST_PREFIX) && !isQQToplistReference(id)
+      if (!id || invalidLikedId || invalidToplistId) {
+        sendJson(res, {
+          provider: 'qq',
+          error: invalidLikedId
+            ? 'INVALID_QQ_LIKED_PLAYLIST_ID'
+            : invalidToplistId ? 'INVALID_QQ_TOPLIST_ID' : 'Missing QQ playlist id',
+          trackIds: [],
+          tracks: [],
+        }, 400)
+        return true
+      }
       const data = await handleQQPlaylistTracks(getCookie(ctx, 'qq'), id)
-      sendJson(res, data)
+      sendJson(res, data, id === QQ_LIKED_PLAYLIST_ID && data.loggedIn === false ? 401 : 200)
     } catch (err) {
       console.error('[QQPlaylistTracks]', err)
-      sendJson(res, { provider: 'qq', error: (err as Error).message, tracks: [] }, 500)
+      const status = qqAuthErrorStatus(err)
+      sendJson(
+        res,
+        { provider: 'qq', loggedIn: false, error: status ? 'AUTH_EXPIRED' : (err as Error).message, trackIds: [], tracks: [] },
+        status ?? 500
+      )
     }
     return true
   }
@@ -242,6 +349,28 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQArtistDetail]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, artist: null, songs: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/artist/similar') {
+    try {
+      const mid = (url.searchParams.get('mid') || url.searchParams.get('singermid') || '').trim()
+      const limit = Math.max(1, Math.min(30, parseInt(url.searchParams.get('limit') || '10', 10) || 10))
+      if (!mid) {
+        sendJson(res, { provider: 'qq', error: 'MISSING_SINGER_MID', artists: [] }, 400)
+        return true
+      }
+      const data = await handleQQArtistSimilar(getCookie(ctx, 'qq'), mid, limit)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQArtistSimilar]', err)
+      const status = qqAuthErrorStatus(err)
+      sendJson(
+        res,
+        { provider: 'qq', error: status ? 'AUTH_EXPIRED' : 'QQ_ARTIST_SIMILAR_FAILED', artists: [] },
+        status ?? 502
+      )
     }
     return true
   }
@@ -282,6 +411,22 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQAlbumSongs]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, songs: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/album/detail') {
+    try {
+      const mid = (url.searchParams.get('mid') || url.searchParams.get('albummid') || '').trim()
+      if (!mid) {
+        sendJson(res, { provider: 'qq', error: 'MISSING_ALBUM_MID', playlist: null }, 400)
+        return true
+      }
+      const data = await handleQQAlbumDetail(getCookie(ctx, 'qq'), mid)
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQAlbumDetail]', err)
+      sendJson(res, { provider: 'qq', error: (err as Error).message, playlist: null }, 500)
     }
     return true
   }

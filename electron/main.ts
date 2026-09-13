@@ -1,6 +1,6 @@
-import { app, BrowserWindow, screen, session } from 'electron'
+import { app, screen, session } from 'electron'
 import { bootServer, shutdownServer } from './server-host'
-import { createMainWindow, scheduleWindowStateSend, getMainWindow } from './modules/window-manager'
+import { createMainWindow, scheduleWindowStateSend, getMainWindow, getServerPort, getServerToken } from './modules/window-manager'
 import {
   positionDesktopLyricsWindow,
   positionWallpaperWindow,
@@ -38,10 +38,15 @@ app.setName(APP_NAME)
 if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID)
 
 const gotLock = app.requestSingleInstanceLock()
+let isQuitting = false
 
 async function boot(): Promise<void> {
   registerIpc()
   const { port, token } = await bootServer()
+  if (isQuitting) {
+    shutdownServer()
+    return
+  }
   createMainWindow(port, token)
   createTray()
 }
@@ -49,12 +54,7 @@ async function boot(): Promise<void> {
 if (!gotLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    if (getMainWindow()) returnFromMiniPlayer()
-    else app.whenReady().then(boot).catch((e) => console.error('Second instance restore failed:', e))
-  })
-
-  app.whenReady().then(async () => {
+  const startup = app.whenReady().then(async () => {
     // 播放器不需要摄像头/麦克风/定位/通知等能力,默认全部拒绝,只留窗口全屏与写剪贴板。
     // Electron 默认是"全部允许",一旦渲染层被注入内容就能直接向系统要这些权限。
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
@@ -70,16 +70,25 @@ if (!gotLock) {
     await boot()
   })
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) boot()
-    else returnFromMiniPlayer()
-  })
+  // 恢复窗口需等待首次启动完成，不能重新注册 IPC 或以悬浮窗判断主窗口是否存在。
+  const restoreMainWindow = () => {
+    void startup.then(() => {
+      if (isQuitting) return
+      const win = getMainWindow()
+      if (!win || win.isDestroyed()) createMainWindow(getServerPort(), getServerToken())
+      returnFromMiniPlayer()
+    }).catch((e) => console.error('Main window restore failed:', e))
+  }
+  void startup.catch((e) => console.error('Application startup failed:', e))
+  app.on('second-instance', restoreMainWindow)
+  app.on('activate', restoreMainWindow)
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
   })
 
   app.on('before-quit', () => {
+    isQuitting = true
     unregisterHotkeys()
     closeOverlays()
     destroyTray()

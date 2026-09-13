@@ -44,6 +44,7 @@
   font-size: 12px;
   line-height: 1.5;
   color: var(--sm-text-secondary);
+  white-space: pre-line;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

@@ -25,15 +25,15 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **`electron/`** — 主进程(窗口/悬浮窗/热键/登录管理 + IPC + preload)。tsconfig.node.json。
 - **`server/`** — 内嵌 HTTP API server(`/api/*`),被主进程 `server-host.ts` 内嵌启动(端口随机,经 preload 参数 `--simplemusic-server-port` 注入渲染层),也可独立运行。tsconfig.node.json。
 - **`src/`** — React 渲染层(zustand stores + hooks + lib + components/pages)。tsconfig.json,别名 `@renderer/*`。
-- **`overlays/`** — 两个独立悬浮窗渲染入口(桌面歌词、动态壁纸),复用 `src/` 组件,经 `electron/preload/overlay.ts` 通信。
+- **`overlays/`** — 三个独立悬浮窗渲染入口(桌面歌词、动态壁纸、迷你播放条),复用 `src/` 组件,经 `electron/preload/overlay.ts` 通信。
 
-数据流:渲染层 **不直接**调音乐平台 —— 组件 → `useMusicService()`(按 settings.activeSource 返回 Netease/QQ service 单例,均实现 `src/lib/music-service.ts` 的 `MusicService` 接口)→ `src/lib/api.ts`(拼 `http://127.0.0.1:<port>/api/*`)→ `server/routes/*` → `server/lib/*-client.ts` → 上游平台。音频播放走 `/api/audio` 代理,由渲染层 `AudioEngine`(单例 HTMLAudioElement + AnalyserNode)驱动。
+数据流:渲染层 **不直接**调音乐平台 —— 组件按场景使用 `providerFor(source)` 的能力接口、`ContentHub` 聚合读取或兼容层 `serviceFor(entity.source)` → `src/lib/api.ts`(拼 `http://127.0.0.1:<port>/api/*`)→ `server/routes/*` → `server/lib/*-client.ts` → 上游平台。平台参与状态以 provider store 的“已登录且已启用”为准；音频播放走 `/api/audio` 代理,由渲染层 `AudioEngine`(单例 HTMLAudioElement + AnalyserNode)驱动。
 
 模块细节见 `docs/modules/`:
 - [renderer.md](docs/modules/renderer.md) — stores/hooks/lib/组件分区与视觉体系
 - [electron-main.md](docs/modules/electron-main.md) — 主进程模块、IPC 通道、preload 桥
 - [server.md](docs/modules/server.md) — 路由链、端点清单、上游 client
-- [overlays.md](docs/modules/overlays.md) — 桌面歌词/壁纸悬浮窗
+- [overlays.md](docs/modules/overlays.md) — 桌面歌词/壁纸/迷你播放条悬浮窗
 
 历史设计文档在 `docs/specs/` 与 `docs/superpowers/{specs,plans}/`(按日期命名,是理解各次改版意图的一手资料)。
 
@@ -44,9 +44,9 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **动效统一引用 `src/lib/motion-presets.ts`**(springSnappy/springGentle/tapScale/fadeRise 等)与 `src/styles/tokens.css` 的 `--sm-*`/`--glass-*`/`--ambient-*`/`--glow-*` 变量,不要另写魔法数值。全屏 WebGL 场景同屏只跑一个。
 - **视觉方向参考根目录 `DESIGN.md`**(Spotify 深色内容优先系统分析,经 `select-design` 技能导入):改色板/字重/间距节奏前先查这份文档而非凭感觉重新摸索;文档不含玻璃质感规范,悬浮层/玻璃效果仍按 tokens.css 的 `--glass-*` 变量自行调参。
 - **样式用 CSS Modules**(`*.module.css` 与组件同目录),主题切换靠 `data-theme` 属性 + tokens.css 变量。
-- **设置持久化**在 localStorage key `simplemusic-settings`(settings store);FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
+- **设置持久化分层**:通用设置在 `simplemusic-settings`,平台参与/播放顺序在 `simplemusic-provider-settings`,全局内容平台在 `simplemusic-content-provider`,播放队列与断点在 `simplemusic-playback`;FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
 - **`Track`/`Playlist` 的 `id` 类型是 `unknown`**(两个音源 id 形态不同,QQ 还有 mid),比较/拼 URL 前先 `String()`。
-- **跨音源数据取 service 用 `serviceFor(数据.source)`**(`src/lib/service-registry.ts`),不要用全局 activeSource 的 `useMusicService()`:导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存(终审曾抓到此 Critical)。
+- **跨音源实体按自身来源取能力**:新代码优先 `providerFor(数据.source)` 的对应 capability,仍走兼容层的调用使用 `serviceFor(数据.source)`;不要从当前内容平台或播放优先级猜来源。导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存。
 - 网易私人雷达是固定歌单 id `3136952023` + 登录 cookie(`/api/netease/radar`);每日推荐/雷达为网易专属,`MusicService` 中是可选方法,未实现的音源不渲染对应卡片。
 - **已指向本地 API 的 URL 不要再套代理端点**:本地音乐的 `url`/`cover` 是 `http://127.0.0.1:<port>/api/local/*`,长得像 http 上游但其实是我们自己。往 `/api/audio`、`/proxy/cover` 里塞会被 server 的 SSRF 防护(`server/lib/security.ts`)按回环地址 400 掉 —— 本地音乐直接放不出声/没封面。判定用 `isLocalApiUrl()`,取封面统一走 `api.coverImage()`(见 `src/lib/api.ts`)。
-- **新增音源分支时别漏 `local`**:`MusicSource` 是三值(`netease`/`qq`/`local`),但 `settings.activeSource` 只有前两个。按 `track.source`/`track.provider` 分支的地方(歌词管线、音质、红心、预加载)必须显式处理 local,`else` 兜底到网易会静默出错 —— 本地歌词就曾因 `useLyricsFetch` 只有网易/QQ 两个分支而永远不显示。
+- **新增音源分支时别漏 `local`**:`MusicSource` 是三值(`netease`/`qq`/`local`),而 `ProviderId` 只有前两个。按 `track.source`/`track.provider` 分支的地方(歌词管线、音质、红心、预加载)必须显式处理 local,`else` 兜底到网易会静默出错 —— 本地歌词就曾因 `useLyricsFetch` 只有网易/QQ 两个分支而永远不显示。

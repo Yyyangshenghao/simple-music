@@ -13,6 +13,7 @@ import type {
   PlaylistMeta,
   PlaylistSkeleton,
   RadarPlaylist,
+  RelatedPlaylistsPage,
   ToplistGroup,
 } from '../lib/music-service'
 
@@ -41,9 +42,13 @@ export interface CatalogCapability {
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>
+  getSearchHotkeys?(): Promise<string[]>
+  getSimilarTracks?(track: Track): Promise<Track[]>
+  getRelatedPlaylists?(track: Track, previousIds?: string[]): Promise<RelatedPlaylistsPage>
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
   getArtistAlbums(id: unknown): Promise<Playlist[]>
+  getAlbumDetail?(id: unknown): Promise<Playlist | null>
   getAlbumTracks(id: unknown): Promise<Track[]>
   getSimilarArtists?(id: unknown): Promise<ArtistInfo[]>
 }

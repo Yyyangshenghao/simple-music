@@ -30,10 +30,20 @@ describe('music provider registry', () => {
     expect(qq.every((item) => item.source === 'qq')).toBe(true)
   })
 
-  it('能力按实现声明，QQ 不伪装网易专属写入和榜单能力', () => {
+  it('能力按实现声明，QQ 暴露榜单但不伪装网易专属写入能力', () => {
     expect(providerFor('netease').playlistWriter).toBeDefined()
     expect(providerFor('netease').toplists).toBeDefined()
     expect(providerFor('qq').playlistWriter).toBeUndefined()
-    expect(providerFor('qq').toplists).toBeUndefined()
+    expect(providerFor('qq').toplists).toBeDefined()
+    expect(providerFor('qq').catalog.getSimilarArtists).toBeTypeOf('function')
+    expect(providerFor('qq').catalog.getAlbumDetail).toBeTypeOf('function')
+    expect(providerFor('qq').catalog.getSearchHotkeys).toBeTypeOf('function')
+    expect(providerFor('qq').catalog.getSimilarTracks).toBeTypeOf('function')
+    expect(providerFor('qq').catalog.getRelatedPlaylists).toBeTypeOf('function')
+    expect(providerFor('netease').catalog.getSimilarTracks).toBeUndefined()
+    expect(providerFor('netease').catalog.getRelatedPlaylists).toBeUndefined()
+    expect(providerFor('netease').catalog.getSearchHotkeys).toBeTypeOf('function')
+    expect(providerFor('qq').library?.getLikedPlaylist).toBeTypeOf('function')
+    expect(providerFor('qq').library?.checkLiked).toBeUndefined()
   })
 })

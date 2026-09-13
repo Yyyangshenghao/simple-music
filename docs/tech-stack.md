@@ -1,7 +1,7 @@
 # 技术栈与依赖说明
 
 > 每个依赖回答三个问题：干什么用、在哪里用、为什么选它/有什么替代考量。
-> 版本以 `package.json` 为准（本文最近对齐至 v1.13.0）。
+> 版本以 `package.json` 为准（本文最近对齐至 v2.0.2）。
 
 ## 运行时依赖（dependencies）
 
@@ -12,11 +12,13 @@
 | `motion` ^12 | 全渲染层 | framer-motion 的后继包（import 自 `motion/react`）。页面转场（AnimatePresence popLayout）、共享元素（layoutId `explore-cover-*`）、弹簧参数集中在 `src/lib/motion-presets.ts`。 |
 | `three` ^0.169 | Visualizer、LiquidEther | WebGL 基础库。LiquidEther 直接用裸 three（RawShaderMaterial + 自管渲染循环），不经 r3f。 |
 | `@react-three/fiber` ^8 | LyricsPanel 3D 场景、壁纸 Scene | three 的 React 绑定。`frameloop="demand"` + `FrameLimiter` 实现帧率钳制。 |
-| `@react-three/drei` ^9 | Visualizer 辅助 | r3f 常用工具集。 |
-| `@react-three/postprocessing` ^2 | CoverParticleCloud | high/ultra 档的 Bloom + ACES ToneMapping 后期管线（eco/balanced 档不加载后期，辉光内嵌在 sprite shader 里）。 |
-| `gsap` ^3.15 | 个别命令式动效 | 与 motion 并存：motion 管声明式组件动效，gsap 管少数命令式时间线（缓动常量见 `src/lib/animation.ts` 的 `ANIM`）。 |
+| `@react-three/drei` ^9 | 当前无直接 import | 保留在依赖表中，但现有 Visualizer 未使用 drei helper；后续清理依赖前需先验证构建产物。 |
+| `@react-three/postprocessing` ^2 | 当前无直接 import | CoverParticleCloud 已把辉光贡献写入自身 shader，当前没有独立 postprocessing 管线。 |
+| `gsap` ^3.15 | `components/Layout/FlowingMenu` | 与 motion 并存：motion 管声明式组件动效，gsap 只管 FlowingMenu 的命令式时间线。 |
+| `d3-force` ^3 | 漫游歌手关系图 | 对歌手节点执行力导向布局；可测试的图谱模拟逻辑在 `src/lib/artist-graph-sim.ts`。 |
 | `NeteaseCloudMusicApi` ^4.32 | `server/lib/netease-client.ts` | 网易云接口封装（Binaryify，MIT）。注意：CommonJS 包，ESM 下接口函数挂在 `default` 上，`netease-client.ts` 统一解包成 `ncmTable`，并用 `has()/call()` 做可用性探测（不同版本导出面不同）。 |
 | `mpg123-decoder` ^1 | `server/lib/dj-analyzer.ts` | WASM MP3 解码器，纯 Node 侧解码播客长音频做锁拍分析（不依赖浏览器 AudioContext）。动态 `import()` 按需加载。 |
+| `music-metadata` ^11 | `server/lib/local-library.ts` | 扫描本地音乐时读取标题、歌手、专辑、时长与内嵌封面；文件访问始终通过本地索引 id 反查。 |
 
 ## 开发依赖（devDependencies）
 
@@ -27,6 +29,7 @@
 | `electron-builder` ^26 | 打包分发：mac dmg（x64+arm64）、win NSIS 安装版 + portable。配置内联在 package.json `build` 字段。 |
 | `vite` ^5 / `@vitejs/plugin-react` ^4 | electron-vite 的底层。 |
 | `typescript` ^5.5 | 严格模式；两套 tsconfig 见架构文档。 |
+| `@types/node` / `@types/react` / `@types/react-dom` / `@types/three` / `@types/d3-force` | Node、React、Three.js 与 d3-force 的 TypeScript 声明，只参与类型检查。 |
 | `vitest` ^2 | 测试跑器，`npm test` = `vitest run`；单文件：`npx vitest run src/lib/stack-pool.test.ts`。 |
 | `tsx` ^4 | `npm run server:dev` 直接跑 TS 的 server 入口。 |
 
@@ -34,7 +37,7 @@
 
 - **路由库**：视图状态是带对象参数的联合类型（playlist 详情携带 tracks），自研 navigation store（history/future 双栈 + 转场方向）比 URL 路由更贴合。
 - **CSS 框架 / CSS-in-JS**：CSS Modules + tokens.css 设计变量；主题切换零 JS 开销（`data-theme` + `prefers-color-scheme`）。
-- **electron-updater**：更新流程自研（server/lib/update.ts + electron/modules/update-installer.ts），原因是需要国内镜像多线路、digest 校验、macOS 无签名场景（Squirrel.Mac 要求签名，故 mac 用 hdiutil 挂载 dmg 原地替换 .app + 失败回滚）。Windows 端安装参数（`/S --force-run`）与 electron-updater 的 NsisUpdater 对齐。
+- **electron-updater**：更新流程自研（server/lib/update.ts + electron/modules/update-installer.ts），原因是需要国内镜像多线路与 digest 校验。Windows 端安装参数（`/S --force-run`）与 electron-updater 的 NsisUpdater 对齐；macOS 未签名，下载后仅打开 dmg，由用户在 Finder 中完成替换。
 - **lint 工具**：无 eslint/prettier 配置，验证以 `typecheck` + `test` 为准。
 
 ## 上游接口形态（外部"依赖"）

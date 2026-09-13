@@ -2,13 +2,14 @@
 // 全骨架懒加载(useLazyPlaylist)+ 虚拟列表(VirtualList),未加载行显示 shimmer 占位。
 // 播放任意一行时按完整 trackIds 入队,未加载详情的为 pending 占位曲目。
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useBackdropStore } from '../../stores/backdrop'
+import { serviceFor } from '../../lib/service-registry'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
@@ -16,6 +17,7 @@ import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
+import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
 
@@ -43,9 +45,22 @@ function SkeletonTrackRow({ index }: { index: number }) {
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
   const pageRef = useRef<HTMLDivElement>(null)
+  const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
+  const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
   const { total, tracks, loading, error, available, ensureRange, makeQueue, retry } = useLazyPlaylist(playlist, initialTracks)
-  const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
+  const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
+  const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
+
+  useEffect(() => {
+    let cancelled = false
+    setAlbumDetail(null)
+    if (!available || playlist.type !== 'album' || !service.getAlbumDetail) return () => { cancelled = true }
+    void service.getAlbumDetail(playlist.id)
+      .then((detail) => { if (!cancelled && detail) setAlbumDetail(detail) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [available, playlist.id, playlist.source, playlist.type, service])
 
   // 平台一旦停止参与，立即退出其详情页；避免保留来源标识、重试按钮等失效交互。
   useEffect(() => {
@@ -113,15 +128,24 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                 layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
                 transition={springGentle}
               >
-                <PlaylistCoverFallback name={playlist.name} source={playlist.source} />
+                <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />
               </motion.div>
             )}
             <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
               <h1 className={styles.detailTitle}>
-                <GradientText>{playlist.name}</GradientText>
+                <GradientText>{displayPlaylist.name}</GradientText>
               </h1>
-              <SourceBadge source={playlist.source} reveal />
-              <p className={styles.detailSub}>{loading ? '加载中…' : `${total} 首`}</p>
+              <SourceBadge source={displayPlaylist.source} reveal />
+              <p className={styles.detailSub}>
+                {displayPlaylist.type === 'album'
+                  ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : loading ? '加载中…' : `${total} 首`}
+              </p>
+              {displayPlaylist.type === 'album' && displayPlaylist.description && (
+                <p className={styles.detailDescription}>{displayPlaylist.description}</p>
+              )}
             </motion.div>
           </div>
         </div>
