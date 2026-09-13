@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import type { FocusEvent } from 'react'
 import { motion } from 'motion/react'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
 import { SourceBadge } from '../ui/SourceBadge'
+import { SearchHotkeys } from '../Search/SearchHotkeys'
 import { providerFor } from '../../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
+import { useContentProvider } from '../../hooks/useContentProvider'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
@@ -31,6 +34,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ hidden = false }: TopBarProps) {
+  const { current: contentSource } = useContentProvider()
   const currentView = useNavigationStore((s) => s.currentView)
   const history = useNavigationStore((s) => s.history)
   const future = useNavigationStore((s) => s.future)
@@ -104,14 +108,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
     if (!isExpanded) setIsExpanded(true)
   }
 
-  function handleSearchBlur() {
-    setTimeout(() => {
-      setSearchFocused(false)
-      if (!keyword) {
-        clearSearch()
-        setIsExpanded(false)
-      }
-    }, 150)
+  function handleSearchBlur(event: FocusEvent<HTMLDivElement>) {
+    if (event.currentTarget.contains(event.relatedTarget)) return
+    setSearchFocused(false)
+    if (!keyword.trim()) {
+      clearSearch()
+      setIsExpanded(false)
+    }
   }
 
   function clearSearch() {
@@ -120,19 +123,24 @@ export function TopBar({ hidden = false }: TopBarProps) {
     setSearchResults({})
   }
 
+  function closeSearch() {
+    clearSearch()
+    setSearchFocused(false)
+    setIsExpanded(false)
+    inputRef.current?.blur()
+  }
+
   function pickSong(track: Track) {
     const songs = enabledSources.flatMap((source) => searchResults[source]?.data?.songs ?? [])
     const index = songs.findIndex((item) => item.source === track.source && String(item.id) === String(track.id))
     usePlaylistStore.getState().setQueue(songs, Math.max(index, 0))
-    clearSearch()
-    inputRef.current?.blur()
+    closeSearch()
   }
 
   function pickArtist(artist: ArtistInfo) {
     if (artist.source === 'local') return
     navigateTo({ type: 'artist', id: artist.id, source: artist.source })
-    clearSearch()
-    inputRef.current?.blur()
+    closeSearch()
   }
 
   const loading = enabledSources.some((source) => searchResults[source]?.status === 'loading')
@@ -145,7 +153,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
       const status = searchResults[source]?.status
       return status === 'ready' || status === 'empty' || status === 'error'
     })
-  const showDropdown = isExpanded && searchFocused && (keyword.length > 0 || loading || hasResults)
+  const hotkeySource = contentSource && enabledSources.includes(contentSource)
+    && providerFor(contentSource).catalog.getSearchHotkeys ? contentSource : null
+  const showHotkeys = keyword.trim() === '' && hotkeySource !== null
+  const showDropdown = isExpanded && searchFocused && (showHotkeys || keyword.length > 0 || loading || hasResults)
 
   const platform = window.desktop?.platform
   const isMac = platform === 'darwin'
@@ -223,12 +234,18 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
       {/* Right: 搜索框 + 头像 */}
       <div className={styles.right}>
-        <div className={styles.searchWrap}>
+        <div className={styles.searchWrap} onBlur={handleSearchBlur} onKeyDown={(e) => {
+          if (e.key !== 'Escape') return
+          e.preventDefault()
+          e.stopPropagation()
+          closeSearch()
+        }}>
           <div
             className={`${styles.searchForm} ${isExpanded ? styles.searchExpanded : ''}`}
             onClick={handleSearchClick}
             tabIndex={isExpanded ? -1 : 0}
             role="search"
+            aria-label="搜索歌曲、歌手"
             onKeyDown={(e) => {
               if (!isExpanded && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault()
@@ -256,19 +273,28 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
-                onBlur={handleSearchBlur}
+                aria-label="搜索歌曲、歌手"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); void runSearch(keyword.trim()) }
                 }}
                 placeholder="搜索歌曲、歌手…"
               />
             ) : (
-              <span className={styles.searchPlaceholder}>搜索…</span>
+              <>
+                <span className={styles.searchPlaceholder}>搜索歌曲、歌手</span>
+                {hotkeySource && <span className={styles.searchHotkeyBadge} aria-label={`${providerFor(hotkeySource).descriptor.label}热搜`}>热搜</span>}
+              </>
             )}
           </div>
 
           {showDropdown && (
             <div className={styles.searchDropdown}>
+              {showHotkeys && hotkeySource ? (
+                <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {
+                  setKeyword(term)
+                  inputRef.current?.focus()
+                }} />
+              ) : <>
               {loading && <p className={styles.searchHint}>搜索中…</p>}
               {finished && keyword.length > 0 && !hasResults && (
                 <p className={styles.searchHint}>无结果</p>
@@ -299,7 +325,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                       <div>
                         <div className={styles.searchSection}>歌手</div>
                         {artists.slice(0, 4).map((artist) => (
-                          <button key={`${artist.source}:${String(artist.id)}`} className={styles.artistRow} onMouseDown={() => pickArtist(artist)}>
+                          <button key={`${artist.source}:${String(artist.id)}`} className={styles.artistRow} onClick={() => pickArtist(artist)}>
                             {artist.avatar && <img className={styles.rowAvatar} src={sizedImage(artist.avatar, 88)} alt="" loading="lazy" />}
                             <span>{artist.name}</span>
                             <SourceBadge source={artist.source} compact />
@@ -311,7 +337,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                       <div>
                         <div className={styles.searchSection}>歌曲</div>
                         {songs.slice(0, 6).map((song) => (
-                          <button key={`${song.source}:${String(song.id)}`} className={styles.songRow} onMouseDown={() => pickSong(song)}>
+                          <button key={`${song.source}:${String(song.id)}`} className={styles.songRow} onClick={() => pickSong(song)}>
                             {song.cover && <img className={styles.rowCover} src={sizedImage(song.cover, 88)} alt="" loading="lazy" />}
                             <div className={styles.songInfo}>
                               <span className={styles.songName}>{song.name}</span>
@@ -325,6 +351,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   </div>
                 )
               })}
+              </>}
             </div>
           )}
         </div>

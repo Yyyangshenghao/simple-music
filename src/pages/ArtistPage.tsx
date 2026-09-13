@@ -27,6 +27,8 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   const [albums, setAlbums] = useState<Playlist[]>([])
   const [similar, setSimilar] = useState<ArtistInfo[]>([])
   const [similarLoaded, setSimilarLoaded] = useState(false)
+  const [similarError, setSimilarError] = useState(false)
+  const [similarRetry, setSimilarRetry] = useState(0)
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
@@ -41,24 +43,35 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   useEffect(() => {
     // 快速连点歌手时，先发的请求可能后返回；用 cancelled 丢弃过期响应
     let cancelled = false
-    setArtist(null); setSongs([]); setAlbums([]); setSimilar([]); setSimilarLoaded(false)
+    setArtist(null); setSongs([]); setAlbums([])
     if (!participating) {
-      setSimilarLoaded(true)
       return () => { cancelled = true }
     }
     void service.getArtistDetail(id).then((v) => { if (!cancelled) setArtist(v) }).catch(() => {})
     void service.getArtistSongs(id).then((v) => { if (!cancelled) setSongs(v) }).catch(() => {})
     void service.getArtistAlbums(id).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [id, participating, service])
+
+  useEffect(() => {
+    let cancelled = false
+    setSimilar([])
+    setSimilarLoaded(false)
+    setSimilarError(false)
+    if (!participating) {
+      setSimilarLoaded(true)
+      return () => { cancelled = true }
+    }
     if (service.getSimilarArtists) {
       void service.getSimilarArtists(id)
         .then((list) => { if (!cancelled) setSimilar(list) })
-        .catch(() => {})
+        .catch(() => { if (!cancelled) setSimilarError(true) })
         .finally(() => { if (!cancelled) setSimilarLoaded(true) })
     } else {
       setSimilarLoaded(true)
     }
     return () => { cancelled = true }
-  }, [id, participating, service])
+  }, [id, participating, service, similarRetry])
 
   // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
   function openArtist(nextId: unknown, nextSource: MusicSource) {
@@ -136,6 +149,7 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
             <PlaylistCard
               key={String(a.id) + i}
               playlist={a}
+              meta={a.trackCount > 0 ? `${a.trackCount} 首` : '专辑'}
               onClick={() => useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: a })}
             />
           ))}
@@ -147,7 +161,12 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
           {similar.map((a, i) => (
             <ArtistPill key={String(a.id) + i} artist={a} onClick={() => openArtist(a.id, a.source)} />
           ))}
-          {similarLoaded && similar.length === 0 && (
+          {similarError ? (
+            <div className={styles.similarError}>
+              <p>相似歌手暂时无法加载。</p>
+              <button type="button" onClick={() => setSimilarRetry((value) => value + 1)}>重试</button>
+            </div>
+          ) : similarLoaded && similar.length === 0 && (
             <p className={styles.similarEmpty}>暂无相似歌手数据</p>
           )}
         </div>

@@ -77,6 +77,7 @@ MediaElementSource → AnalyserNode(fftSize 2048) → GainNode → destination
 - `canplay` 通知 player 提交实际来源；媒体 `error`（含 URL 非空但加载/解码失败）携带 `loadId` 回流解析器。
 - `clearSource()` 在候选耗尽时清空元素地址，避免失败后 `play()` 重试旧源。
 - `crossOrigin='anonymous'`：MediaElementSource 读跨域音频需要 CORS（代理端已放行）。
+- 监听 `navigator.mediaDevices.devicechange`：输出设备切换时若原本正在播放，player 在短暂防抖后从当前进度重新创建解析会话，避免 Chromium 更换扬声器后元素仍显示播放却无声。
 
 ## 4. URL 解析与音质阶梯
 
@@ -85,7 +86,7 @@ provider 兼容适配器内部仍复用 `resolveSongUrl(track, quality)`（`src/
 - 网易：`GET /api/song/url?id=&quality=`
 - QQ：`GET /api/qq/song/url?mid=&mediaMid=&quality=&fee=`（mid 标识歌曲，mediaMid 标识真实音频文件；fee 用于服务端提前判断付费墙）
 
-**服务端音质阶梯**（`server/lib/netease-client.ts`）：请求音质从 `NETEASE_QUALITY_CANDIDATES` 表（jymaster → hires → lossless → exhigh → higher → standard）中定位起点，**逐级降级尝试**直到拿到可播 URL。`normalizeQualityPreference` 容忍多种别名（flac/sq/320/hq…）。
+**服务端音质阶梯**（`server/lib/netease-client.ts`）：请求音质从 `NETEASE_QUALITY_CANDIDATES` 表（jymaster → sky → jyeffect → hires → lossless → exhigh → higher → standard）中定位起点，**逐级降级尝试**直到拿到可播 URL；前两档需 SVIP。`normalizeQualityPreference` 容忍多种别名（flac/sq/320/hq…）。
 
 QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把每个文件展开为多个 `sip` 地址候选。网易首次 URL 仍由服务端内部降级；若该地址媒体失败，渲染层再按真实可用音质逐档解析。解析器默认最多记录 24 次尝试，同一会话不重复 URL。
 

@@ -131,8 +131,8 @@ npm run build:win      # build + electron-builder --win（NSIS Setup + portable�
 `electron.vite.config.ts`：
 
 - **main**：入口 `electron/main.ts` → `out/main/index.js`（package.json `main` 指向它）。`externalizeDepsPlugin` 把 node_modules 依赖保持 external（打包时由 electron-builder 收进 asar）。
-- **preload**：两个入口 `index`（主窗口）+ `overlay`（悬浮窗）→ `out/preload/{index,overlay}.mjs`。主进程用 `import.meta.dirname + '../preload/index.mjs'` 引用。
-- **renderer**：`root: '.'`，**多页构建**——`index.html`（主窗口）、`overlays/desktop-lyrics/desktop-lyrics.html`、`overlays/wallpaper/wallpaper.html` 三个入口共享 `src/` 代码；别名 `@renderer` → `src`。
+- **preload**：两个入口 `index`（主窗口）+ `overlay`（悬浮窗）→ `out/preload/{index,overlay}.cjs`。全部 BrowserWindow 开启 `sandbox: true`，所以 preload 强制输出 CommonJS；主进程引用对应 `.cjs` 文件。
+- **renderer**：`root: '.'`，**多页构建**——`index.html`（主窗口）及 desktop-lyrics、wallpaper、mini-player 三个 overlay HTML，共四个入口共享 `src/` 代码；别名 `@renderer` → `src`。
 
 dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环境变量 `ELECTRON_RENDERER_URL` 拼相对入口，prod 用 `file://out/renderer/<entry>`。**新增悬浮窗页面必须同时加 renderer.input**，否则 prod 下 404。
 
@@ -143,7 +143,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - `appId: com.simplemusic.desktop`，产物输出 `dist/`，资源目录 `build/`（icon.ico/icon.icns）。
 - `files`: `out/**/*` + `build/icon.ico` + `package.json`（**package.json 必须进 asar**——server/lib/update.ts 运行时 `import pkgJson from '../../package.json'` 读版本与更新配置）。
 - **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple Music-<v>-arm64.dmg` / `Simple Music-<v>.dmg`。
-- **win**：NSIS（`Simple Music-<v>-Setup.exe`，非 oneClick、可选目录、建快捷方式）+ portable（`Simple Music-<v>-portable.exe`，不参与自动更新）。
+- **win**：NSIS（`Simple Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
 
 ## 4. 发布约定
 
@@ -173,15 +173,14 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   → window.desktop.installUpdate(filePath) → IPC app:install-update
       主进程校验 filePath 必须位于 userData/updates/ 内 →
       · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.exit(0)
-      · macOS:   先 hdiutil attach 预检 dmg（失败则不退出应用）→ 写 mac-install.sh（detached bash）→ app.exit(0)
-                 脚本：挂载 → ditto 拷出新 .app → 去 quarantine → mv 旧 .app 为 .old → mv 新 .app 落位
-                 → 成功删备份并 open；任一步失败回滚 .old 并 open 旧版（不能把用户晾在"新旧都不在"）
-                 日志落 userData/updates/install.log
+      · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.exit(0)
+                 用户手动把新版本拖到 Applications 并确认替换；主进程不再原地改写 .app
 ```
 
 补充细节：
 
 - **补丁热更新（/api/update/patch）在新架构不支持**：原项目"源码即运行文件"，补丁按文件名写回；本项目源码经打包后与产物不对应。端点与任务队列结构保留，但应用补丁一步显式抛 `PATCH_NOT_SUPPORTED`（不静默成功、不写文件、不换线路重试）。
+- **macOS 不做原地静默替换**：应用未签名，旧版 hdiutil + shell 脚本方案在权限或进程中断时可能留下孤儿目录，现只打开已校验 dmg，替换动作交给 Finder 和用户。
 - 下载错误分类（`classifyUpdateError`）：hash/size 不符、超时、DNS、网络中断、HTTP 403/404/5xx 均映射为中文原因给 UI；失败线路记录在 `failedAttempts`（最多 6 条）。
 - 任务表 `updateDownloadJobs` 是内存 Map，保留最近 8 个任务。
 - `electron/ipc/misc.ts` 的更新目录**不读** `SIMPLEMUSIC_UPDATE_DIR` 等 env（server 侧读）：手动覆盖下载目录调试时，install 会稳定返回 `INVALID_UPDATE_PATH`，属已知不对齐（源码注释有说明）。

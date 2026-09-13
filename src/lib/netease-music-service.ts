@@ -44,6 +44,11 @@ export class NeteaseMusicService implements MusicService {
     return (res.artists ?? []).map((a) => ({ ...a, source: 'netease' as const }))
   }
 
+  async getSearchHotkeys(): Promise<string[]> {
+    const res = await api.get<{ keywords?: string[] }>('/api/search/hotkeys')
+    return res.keywords ?? []
+  }
+
   async getArtistDetail(id: unknown): Promise<ArtistInfo> {
     const res = await api.get<{ artist: ArtistInfo }>('/api/netease/artist/detail', { id: id as string | number })
     return res.artist

@@ -5,7 +5,7 @@
 ## 0. 基础信息
 
 - 鉴权:Cookie 中 `MUSIC_U` 为登录票据,`server/lib/cookie.ts` 负责本地持久化(`userDataDir` 下)。
-- 音质候选(`NETEASE_QUALITY_CANDIDATES`):`jymaster`(超清母带,需 SVIP)> `hires`(高清臻音)> `lossless`(无损)> `exhigh`(极高)> `higher`(较高)> `standard`(标准),取歌曲 URL 时按此优先级降级探测,命中 `freeTrialInfo` 视为试听片段而非完整播放地址。
+- 音质候选(`NETEASE_QUALITY_CANDIDATES`):`jymaster`(超清母带,需 SVIP)> `sky`(沉浸环绕声,需 SVIP)> `jyeffect`(鲸云音效)> `hires`(高清臻音)> `lossless`(无损)> `exhigh`(极高)> `higher`(较高)> `standard`(标准),取歌曲 URL 时按此优先级降级探测,命中 `freeTrialInfo` 视为试听片段而非完整播放地址。
 - `Track.duration` 取网易 `dt` 字段原样(毫秒)。
 
 ---
@@ -31,6 +31,8 @@
 | `GET /api/netease/recommend/songs` | 每日推荐(dailySongs) | — | `recommend_songs` | 取 `data.dailySongs`,前 20 首 | 已用 |
 | `GET /api/netease/radar` | 私人雷达 | — | `playlist_detail`(固定歌单 id `3136952023` + 登录 cookie) | 未登录直接返回空;社区通行做法,非官方专属雷达接口 | 已用 |
 | `GET /api/netease/recent/playlists` | 账号级"最近播放"歌单 | — | `record_recent_playlist`(`limit:12`) | 需登录,未登录返回空数组 | 已用 |
+| `GET /api/netease/toplist` | 官方榜单分组 | — | `toplist_detail` | 返回策展分组、更新频率与可用的 Top3 预览 | 已用 |
+| `GET /api/netease/toplist/preview` | 单榜 Top3 补充预览 | `id` | `playlist_track_all`(`limit:3`) | 仅对榜单列表未内嵌预览的条目按需请求,带有界短缓存 | 已用 |
 
 ## 3. 搜索(`routes/netease.ts`)
 
@@ -38,6 +40,9 @@
 |---|---|---|---|---|---|
 | `GET /api/search` | 综合搜索歌曲 | `keywords`、`limit` | `cloudsearch` | 结果缺封面时用 `song_detail` 批量兜底补齐 | 已用 |
 | `GET /api/search/artists` | 搜索歌手 | `keywords`、`limit`(1~5) | `cloudsearch`(`type:100`) | `{ artists }` | 已用 |
+| `GET /api/search/hotkeys` | 当前平台空搜索热词 | — | `search_hot_detail` | `{ provider:'netease', keywords:string[] }`；匿名读取 `data[].searchWord`，去空去重、保序前 10；失败返回 502，不使账号失效 | 已用 |
+
+热词只在当前内容平台为已登录、已启用的网易云时展示；点击填入关键词后继续使用原跨平台搜索。2026-09-05 已匿名实测上游返回 `status:200/code:200` 与 20 条热词。
 
 ## 4. 歌手(`routes/netease.ts`)
 
@@ -46,6 +51,7 @@
 | `GET /api/netease/artist/detail` | 歌手基础信息 | `id` | `artist_detail` | `{ artist }` | 已用 |
 | `GET /api/netease/artist/songs` | 歌手歌曲 | `id`、`limit` | `artist_songs` | `{ songs }` | 已用 |
 | `GET /api/netease/artist/albums` | 歌手专辑 | `id`、`limit` | `artist_album` | `{ albums }` | 已用 |
+| `GET /api/netease/artist/similar` | 相似歌手 | `id` | `simi_artist` | `{ artists }`,漫游歌手图谱扩展使用 | 已用 |
 | `GET /api/artist/detail` | 歌手主页(通用,详情+热门曲目一体) | `id`、`limit`(10~80) | `artist_detail` + `artist_songs`(`order:'hot'`,失败兜底 `artist_top_song`) | `{ artist, songs }`,与 `/api/netease/artist/*` 功能有重叠(通用路由供跨音源统一入口使用) | 已用 |
 
 ## 5. 歌曲播放 / 详情 / 歌词(`routes/netease.ts`)
@@ -53,8 +59,9 @@
 | 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
 |---|---|---|---|---|---|
 | `GET /api/song/url` | 取播放直链 | `id`、`quality` | `song_url_v1`(按 `level` 降级探测,失败兜底旧版 `song_url` 按 `br`) | `{ url, playable, level, quality, trial }`,试听/受限时带 `restriction` | 已用 |
+| `GET /api/song/qualities` | 探测账号当前实际可用音质 | `id` | 顺序调用 `song_url_v1` | `{ qualities }`;试听不计入可用档,SVIP 档按登录资料过滤 | 已用 |
 | `GET /api/song/detail` | 按 id 批量补详情(歌单懒加载窗口用) | `ids`(逗号分隔,≤200) | `song_detail` | 按请求 ids 顺序重排返回 | 已用 |
-| `GET /api/lyric` | 取歌词 | `id` | 优先 `lyric_new`(取 `yrc` 逐字歌词),兜底旧版 `lyric` | `{ lyric, tlyric, yrc, source }` | 已用 |
+| `GET /api/lyric` | 取歌词 | `id` | 优先 `lyric_new`(取 `yrc` 逐字歌词),兜底旧版 `lyric` | `{ lyric, tlyric, romalrc, yrc, source }` | 已用 |
 | `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | 首页优先 `hotComments` | 已用 |
 
 ## 6. 歌单(`routes/netease.ts`)
@@ -65,6 +72,8 @@
 | `GET /api/playlist/tracks` | 歌单曲目(懒加载骨架) | `id` | `playlist_detail`(meta+全量 trackIds)→`song_detail`(补前 100 首详情)→失败兜底 `playlist_track_all`(`limit:500`) | `{ playlist, trackIds, tracks }`,三路上游全失败才报 500,与"真空歌单"区分 | 已用 |
 | `POST /api/playlist/create` | 创建歌单 | body `name`、`privacy` | `playlist_create` | 需登录 | 已用 |
 | `POST /api/playlist/add-song` | 收藏歌曲到歌单 | body `pid`、`id` | 优先 `playlist_tracks`(`op:'add'`),失败兜底 `playlist_track_add` | 记录两次尝试的 `attempts` | 已用 |
+| `POST /api/playlist/remove-songs` | 批量移除歌单曲目 | body `pid`、`ids` | `playlist_tracks`(`op:'del'`) | 漫游保存歌单的“清空重塞”流程使用 | 已用 |
+| `POST /api/playlist/desc/update` | 更新歌单简介 | body `id`、`desc` | `playlist_desc_update` | 漫游保存歌单写入日期/歌手说明 | 已用 |
 
 ## 7. 收藏 / 红心(`routes/netease.ts`)
 
@@ -78,10 +87,17 @@
 | 路由 | 用途 | 关键参数 | 说明 | 状态 |
 |---|---|---|---|---|
 | `GET /api/audio` | 音频流代理(支持 Range) | `url` | 渲染层 `AudioEngine` 播放入口;按 host 区分网易/QQ 的 Referer,按扩展名推断 `Content-Type` | 已用 |
-| `GET /api/cover` | 封面图代理(带 CORS,供 canvas 取色) | `url` | `Access-Control-Allow-Origin: *` + `Cross-Origin-Resource-Policy: cross-origin` | 已用 |
-| `GET /proxy/cover` | 封面图代理(旧版,无 CORS 头) | `url` | 与 `/api/cover` 功能重叠,疑似历史遗留 | 已用但可能冗余 |
+| `GET /api/cover` | 流式封面代理 | `url` | 带 CORS/CORP 与 24 小时缓存头；当前渲染层未直接调用 | 兼容保留 |
+| `GET /proxy/cover` | canvas 取色使用的封面代理 | `url` | `api.coverImage()` 的当前入口，带 CORS 与 24 小时缓存头；会整图读入内存后返回 | 已用 |
 
-## 9. 播客(DJ 电台,`routes/podcast.ts`,同样走 netease cookie)
+## 9. 账号播放历史(`routes/netease.ts`)
+
+| 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
+|---|---|---|---|---|---|
+| `GET /api/netease/record` | 近一周听歌排行 | — | `user_record`(`type:1`) | 需登录；未登录或失败返回空数组 | 已用 |
+| `POST /api/netease/scrobble` | 播放进度打卡 | body `id`、`sourceId`、`time` | `scrobble` | 播放链路后台上报；未登录静默跳过，不打断播放 | 已用 |
+
+## 10. 播客(DJ 电台,`routes/podcast.ts`,同样走 netease cookie)
 
 | 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
 |---|---|---|---|---|---|

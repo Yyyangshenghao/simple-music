@@ -1,5 +1,7 @@
 # GitHub Issues TODO（2026-08-12）
 
+> ⚠️ **历史评估快照**：本文记录 2026-08-12 的问题判断，相关修复已在后续 2.0 开发中推进，表内“待实施/待复现”不代表当前状态。现行行为以代码、[架构总览](./architecture.md) 和对应发行说明为准。
+>
 > 来源：[Yyyangshenghao/simple-music 未关闭 Issues](https://github.com/Yyyangshenghao/simple-music/issues)
 >
 > 本文只记录问题与初步评估，尚未实施修复。复现结果出来后再收敛方案。

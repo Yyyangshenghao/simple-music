@@ -8,7 +8,7 @@ import { useToastStore } from '../stores/toast'
 import { localMusicService } from '../lib/local-music-service'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
 import { providerFor } from '../providers/registry'
-import type { ProviderId } from '../providers/types'
+import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
@@ -122,11 +122,11 @@ export function LibraryPage() {
 
       {tab === 'playlists' && (contentSource
         ? <ProviderLibraryGrid mode="playlists" source={contentSource} />
-        : <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>)}
+        : <OnlineLibraryUnavailable />)}
 
       {tab === 'favorites' && (contentSource
         ? <ProviderLibraryGrid mode="favorites" source={contentSource} />
-        : <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>)}
+        : <OnlineLibraryUnavailable />)}
 
       {tab === 'recent' && <RecentPlaysList />}
 
@@ -151,6 +151,25 @@ async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGrid
 function isProviderParticipating(source: ProviderId): boolean {
   const state = useProviderStore.getState().byId[source]
   return state.enabled && state.auth === 'authenticated'
+}
+
+function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
+  const expiredSignature = useProviderStore((state) => PROVIDER_IDS
+    .filter((id) => (!source || id === source) && state.byId[id].auth === 'expired')
+    .join(','))
+  const labels = expiredSignature
+    .split(',')
+    .filter(Boolean)
+    .map((id) => providerFor(id as ProviderId).descriptor.label)
+
+  return (
+    <div className={styles.emptyHint}>
+      <p>{labels.length ? `${labels.join('、')}登录已失效` : '没有已启用的在线音乐平台'}</p>
+      {labels.length > 0 && (
+        <button type="button" onClick={() => useNavigationStore.getState().navigateTo('settings')}>前往设置重新登录</button>
+      )}
+    </div>
+  )
 }
 
 function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
@@ -205,7 +224,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
   const visibleSources = participating ? [source] : []
 
   if (visibleSources.length === 0) {
-    return <div className={styles.emptyHint}><p>没有已启用的在线音乐平台</p></div>
+    return <OnlineLibraryUnavailable source={source} />
   }
 
   return (

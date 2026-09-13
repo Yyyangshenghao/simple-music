@@ -75,6 +75,17 @@
 
 .detailTitle { font-size: 22px; font-weight: 700; margin: 0 0 4px; color: var(--sm-text-primary); }
 .detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 6px 0 0; }
+.detailDescription {
+  display: -webkit-box;
+  max-width: 640px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
 
 .trackList { padding: 0; }
 

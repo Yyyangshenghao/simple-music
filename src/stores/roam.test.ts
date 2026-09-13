@@ -72,7 +72,10 @@ let providerParticipating = true
 const setAccountState = vi.fn()
 vi.mock('./providers', () => ({
   isProviderParticipating: () => providerParticipating,
-  useProviderStore: { getState: () => ({ setAccountState }) },
+  useProviderStore: { getState: () => ({
+    setAccountState,
+    byId: { netease: { enabled: true, auth: 'authenticated' } },
+  }) },
 }))
 
 import { useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'

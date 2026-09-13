@@ -12,11 +12,13 @@ import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 interface PlaylistCardProps {
   playlist: Playlist
   onClick(): void
+  /** 上游没有可靠曲目数时，可用更诚实的辅助信息替代“0 首”。 */
+  meta?: string
   /** 传入时封面参与共享元素转场（与详情页头部封面同 ID）。 */
   layoutId?: string
 }
 
-export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, layoutId }: PlaylistCardProps) {
+export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId }: PlaylistCardProps) {
   return (
     <TiltCard className={styles.glowWrap}>
       <BorderGlow borderRadius={16}>
@@ -28,7 +30,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, layo
             <SourceBadge source={playlist.source} className={styles.sourceBadge} />
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>
-          <p className={styles.meta}>{playlist.trackCount} 首</p>
+          <p className={styles.meta}>{meta ?? `${playlist.trackCount} 首`}</p>
         </button>
       </BorderGlow>
     </TiltCard>

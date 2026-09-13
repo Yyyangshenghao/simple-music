@@ -5,7 +5,7 @@ Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎
 ## 一、分支模型
 
 - **`master` 是主干,始终保持可发布状态**。禁止直接向 master 推送提交(仓库管理员发版除外),所有改动一律走分支 + Pull Request。
-- 所有工作分支**从最新的 master 切出**,合并回 master 后即删除,不留长期分支。
+- 普通工作分支**从最新的 master 切出**,合并回 master 后即删除,不留长期分支。版本发布可在专用版本分支完成,以 [构建与发布规范](docs/build-and-release.md) 为准。
 
 ### 分支命名
 
@@ -45,7 +45,7 @@ Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎
 
 - 主题一句话说清"做了什么",不超过 50 个字,结尾不加句号。
 - 修 bug 的提交,正文写**根因**而不是现象(参考 `cf24abd` 的写法:先说为什么漏,再说怎么修)。
-- **发版提交**主题末尾带版本号:`fix: 修复三处内存无界增长，v1.1.0`(仅发版那一笔,普通提交不带)。
+- 功能/修复提交不在主题末尾拼版本号；版本号与发行说明由独立的 `chore(release): 发布 vX.Y.Z` 提交承载。
 - 一次提交一个逻辑单元:修复与重构分开提,不要"顺带"改无关代码。
 - 提交前必须本地通过:`npm run typecheck && npm test`。
 
@@ -76,7 +76,7 @@ Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎
 完整清单见 [CLAUDE.md](CLAUDE.md),评审时重点盯这些历史踩过的坑:
 
 - `Track.duration` 全项目**毫秒**;`Track.id` 类型是 `unknown`,比较/拼 URL 前先 `String()`。
-- 跨音源数据取 service 必须 `serviceFor(数据.source)`,不能用全局 `useMusicService()`。
+- 跨音源实体按自身 `source` 取能力:新代码优先 `providerFor(数据.source)`,兼容层使用 `serviceFor(数据.source)`,不能从当前内容平台猜来源。
 - 异步 setter 要有竞态守卫(参考 ExplorePage 的 `loadSession` 计数模式)。
 - 样式用 CSS Modules + `tokens.css` 变量;动效引用 `motion-presets.ts`,不写魔法数值。
 - 全屏 WebGL 场景同屏只跑一个;three.js 对象换用不换卸时记得 `dispose()`。
@@ -90,18 +90,9 @@ Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎
 
 ## 六、版本与发布
 
-版本号遵循 SemVer:破坏性改动升 major,新功能升 minor,纯修复升 patch。
+版本号遵循 SemVer。完整流程见 [构建、打包与发布/更新流程](docs/build-and-release.md),其规则优先于本节摘要。
 
-发布由仓库管理员在 master 上操作:
-
-```bash
-npm version <x.y.z> --no-git-tag-version   # 同步 package.json 与 lock
-git commit -am "fix: <本次发布主题>，v<x.y.z>"
-git tag v<x.y.z>
-git push origin master --tags
-```
-
-**推送 `v*.*.*` tag 会自动触发 `.github/workflows/release.yml`**,在 CI 上构建 mac / win 安装包并发布 Release,无需本地打包。tag 一旦推出不可改,发错就发下一个 patch 版本修正。
+发布元数据使用独立提交 `chore(release): 发布 vX.Y.Z`,并创建 annotated tag `vX.Y.Z`。tag 必须指向该发布提交；推送 tag 后需等待 `.github/workflows/release.yml` 完成，并核对 Release 的 macOS 双架构与 Windows 安装版/便携版产物。已推送 tag 不可移动或覆盖，发布失败需修复后递增版本。
 
 ## 七、Issue 约定
 

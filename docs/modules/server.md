@@ -4,14 +4,14 @@
 
 ## 路由机制
 
-`server/index.ts` 维护 `RouteHandler` 链(签名见 `server/types.ts`):handler 返回 `true` 表示已处理,`false` 继续匹配;`static.ts` 兜底放最后(prod 下伺服 out/ 静态文件)。新增端点:在对应 `routes/*.ts` 加分支,或新建 route 文件后加入 `chain`。
+`server/index.ts` 维护 `RouteHandler` 链(签名见 `server/types.ts`):handler 返回 `true` 表示已处理,`false` 继续匹配;`static.ts` 兜底放最后,只伺服 `userDataDir/public`(主窗口生产环境直接加载 `out/renderer` 的 file URL)。新增端点:在对应 `routes/*.ts` 加分支,或新建 route 文件后加入 `chain`。
 
 ## 安全边界(`lib/security.ts`)
 
 只监听 `127.0.0.1` **不等于**只有本应用能访问 —— 用户浏览器里的任意网页也在本机,端口随机但从 JS 扫一遍临时端口段是秒级的事。三道防护都在这里,新增端点/代理时别绕过:
 
 - **`isAllowedOrigin`(入口统一拦截)**:响应带 `Access-Control-Allow-Origin: *`,若不校验来源,恶意网页可 fetch `/api/local/scan` 扫全盘、经 `/api/local/tracks` 拿到音乐文件绝对路径再从 `/api/local/audio` 流走。现按 `Origin` 头拒绝非渲染层来源(放行:无 Origin、`null`(prod file://)、localhost/127.0.0.1(dev vite)),预检一并挡掉。打包应用不再放行 `http://localhost:*`(本机其他网页/其 XSS 曾可读本地路径),dev 仍放行。
-- **`isAllowedToken`(2026-07-24 加,2026-07-27 文档补录)**:Origin 校验挡不住"同源无 Origin"的跨应用调用,真正收口靠一次性 token。主进程 `randomBytes(32)` 生成 token 持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 注入渲染层,`api.ts` 统一带进 query,server `isAllowedToken(ctx.token, query.token)` 校验,覆盖所有端点与 `<audio src>`/`<img src>` 直连地址。缺省(独立 server / dev / 测试未注入)时放行。打包应用强制校验。
+- **`isAllowedToken`**:Origin 校验挡不住"无 Origin"的跨应用调用,真正收口靠高熵访问 token。主进程首次运行用 `randomBytes(32)` 生成并持久化到 `userData/api-token`,之后复用,避免本地曲目持久化封面 URL 在重启后失效；token 经 argv `--simplemusic-server-token=` 注入渲染层,`api.ts` 统一带进 query,server 也接受 `x-simplemusic-token` header。校验覆盖所有端点与 `<audio src>`/`<img src>` 直连地址；缺省(独立 server / dev / 测试未注入)时放行,打包应用强制校验。
 - **`isSafeUpstreamUrl`(所有对外代理必须调用)**:代理端点若原样 fetch 调用方给的 url 就是一个开放代理,可被用来读内网/回环服务(SSRF)。`/api/audio`、`/api/cover`、`/proxy/cover`、`/api/podcast/dj-beatmap` 均已限定 http(s) 且非本机/内网网段。
 - 已知残留:主机名黑名单挡不住 DNS rebinding。彻底修需在连接建立后校验对端 IP,代价远高于收益(上游只会是音乐平台 CDN)。
 
@@ -19,11 +19,11 @@
 
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
-  - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`(固定歌单 id 3136952023 + 登录 cookie)、`/api/netease/banner`、`/api/netease/artist/{detail,songs,albums}`、`/api/netease/album/songs`(专辑曲目全量)
-  - 通用(带 source 参数分流或网易默认):`/api/search`、`/api/search/artists`、`/api/song/url`、`/api/lyric`、`/api/playlist/tracks`、`/api/user/playlists`、`/api/playlist/{create,add-song}`、`/api/song/{like,like/check,comments}`、`/api/artist/detail`
+  - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`、`/api/netease/{banner,toplist,toplist/preview,record,recent/playlists,scrobble}`、`/api/netease/artist/{detail,songs,albums,similar}`、`/api/netease/album/songs`
+  - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存管理:`/api/audio-cache/{stats,clear,config}`(整流下载落盘,默认 userDataDir/audio-cache + 2GB LRU;目录与上限可经 config 端点读写,持久化在 userDataDir/audio-cache-config.json;拖进度条的中段 Range 只透传不落盘)
-- **`routes/qq-music.ts`**(`lib/qq-client.ts`,自参考项目移植的上游请求封装):`/api/qq/{search,song/url,lyric,playlist/tracks,user/playlists,artist/detail,artist/albums,album/songs,song/comments,login/*,logout}`
+- **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
@@ -32,7 +32,7 @@
 
 ## lib 辅助
 
-`http.ts`(sendJson/sendError 等,有测试)、`cookie.ts`(cookie 序列化/解析,有测试)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU,有测试)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`,均有测试)、`local-library.ts`(本地音乐索引;音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。
+`http.ts`(sendJson/sendError 等)、`cookie.ts`(cookie 落盘)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`)、`local-library.ts`(本地音乐索引与 `music-metadata` 标签/封面解析；音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。这些关键逻辑均有同目录测试。
 
 ## 约定
 

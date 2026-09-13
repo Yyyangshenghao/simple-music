@@ -7,6 +7,10 @@ import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
 import { SourceBadge } from '../ui/SourceBadge'
+import { QueueDiscovery } from './QueueDiscovery'
+import { useProviderStore } from '../../stores/providers'
+import { providerFor } from '../../providers/registry'
+import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -29,7 +33,13 @@ export function QueuePanel() {
   const playAt = usePlaylistStore((s) => s.playAt)
   const playMode = useSettingsStore((s) => s.playMode)
   const isPlaying = usePlayerStore((s) => s.status === 'playing')
+  const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const qqAvailable = useProviderStore((s) => s.byId.qq.enabled && s.byId.qq.auth === 'authenticated')
+  const discoverySongId = qqRelatedSongId(currentTrack)
+  const canDiscover = qqAvailable && discoverySongId !== null
+    && !!providerFor('qq').catalog.getSimilarTracks && !!providerFor('qq').catalog.getRelatedPlaylists
   const rootRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const display = useMemo(
     () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
@@ -40,7 +50,9 @@ export function QueuePanel() {
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key !== 'Escape') return
+      setOpen(false)
+      if (rootRef.current?.contains(document.activeElement)) toggleRef.current?.focus()
     }
     function onPointerDown(e: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
@@ -66,6 +78,7 @@ export function QueuePanel() {
   return (
     <div className={styles.root} ref={rootRef}>
       <motion.button
+        ref={toggleRef}
         type="button"
         className={`${styles.toggleBtn} no-drag`}
         data-active={open}
@@ -140,6 +153,10 @@ export function QueuePanel() {
                 />
               )}
             </div>
+            {open && canDiscover && currentTrack && (
+              <QueueDiscovery key={`${currentTrack.source}:${String(currentTrack.id)}:${discoverySongId}`}
+                track={currentTrack} onOpenPlaylist={() => setOpen(false)} />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

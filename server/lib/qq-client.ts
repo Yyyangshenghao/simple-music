@@ -29,7 +29,6 @@ export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
 export const QQ_MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg'
-export const QQ_SMARTBOX_URL = 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg'
 export const QQ_HEADERS: Record<string, string> = {
   Referer: 'https://y.qq.com/',
   'User-Agent': UA,
@@ -427,9 +426,42 @@ interface QQPlaylist {
   specialType: number
 }
 
-function isQQFavoritePlaylist(pl: QQPlaylist): boolean {
-  const name = String((pl && pl.name) || '').trim()
-  return /我喜欢|我的喜欢|喜欢的音乐/i.test(name)
+export const QQ_LIKED_PLAYLIST_ID = 'qq-liked:201'
+export const QQ_TOPLIST_PREFIX = 'qq-toplist:'
+
+export function isQQLikedPlaylistReference(value: unknown): boolean {
+  return String(value || '').trim() === QQ_LIKED_PLAYLIST_ID
+}
+
+export function qqAuthErrorStatus(error: unknown): 401 | 403 | null {
+  const statusCode = Number(rec(error).statusCode)
+  if (statusCode === 401 || statusCode === 403) return statusCode
+  const message = error instanceof Error ? error.message : str(error)
+  if (message === 'AUTH_REQUIRED') return 401
+  if (message === 'AUTH_EXPIRED') return 403
+  return null
+}
+
+export function isQQToplistReference(value: unknown): boolean {
+  return /^qq-toplist:\d+$/.test(String(value || '').trim())
+}
+
+export type QQPlaylistReference =
+  | { kind: 'playlist'; id: string }
+  | { kind: 'liked'; id: '201' }
+  | { kind: 'toplist'; id: string }
+
+export function qqPlaylistReference(value: unknown): QQPlaylistReference {
+  const id = String(value || '').trim()
+  if (isQQLikedPlaylistReference(id)) return { kind: 'liked', id: '201' }
+  if (id.startsWith(QQ_TOPLIST_PREFIX)) {
+    return { kind: 'toplist', id: id.slice(QQ_TOPLIST_PREFIX.length) }
+  }
+  return { kind: 'playlist', id }
+}
+
+function isQQFavoritePlaylist(raw: Record<string, unknown>): boolean {
+  return String(raw.dirid ?? raw.dirId ?? '').trim() === '201'
 }
 
 function isQzoneBackgroundPlaylist(pl: QQPlaylist): boolean {
@@ -488,8 +520,9 @@ export function pickQQPlaylistCover(detail: unknown, tracks: unknown[]): string 
 // ---------- 字段映射 ----------
 
 interface QQArtist {
-  id: unknown
-  mid: unknown
+  id: string | null
+  mid: string
+  qqArtistId: unknown
   name: string
 }
 
@@ -497,38 +530,40 @@ function mapQQArtists(raw: unknown): QQArtist[] {
   return arr(raw)
     .map((a) => {
       const o = rec(a)
-      return { id: o.id, mid: o.mid, name: str(o.name || o.title) }
+      const mid = str(o.mid || o.singerMid || o.singermid)
+      return {
+        id: mid || null,
+        mid,
+        qqArtistId: o.id || o.singerId || o.singerID || '',
+        name: str(o.name || o.title || o.singerName),
+      }
     })
     .filter((a) => a.name)
 }
 
-function mapQQSmartSong(item: unknown): Record<string, unknown> {
-  const o = rec(item)
-  const mid = str(o.mid || o.songmid || o.id)
-  return {
-    provider: 'qq',
-    source: 'qq',
-    type: 'qq',
-    id: mid,
-    qqId: o.id || o.docid || '',
-    mid,
-    songmid: mid,
-    name: str(o.name || o.title),
-    artist: str(o.singer),
-    artists: o.singer ? [{ name: str(o.singer) }] : [],
-    album: '',
-    cover: '',
-    duration: 0,
-    fee: 0,
-    playable: false,
-  }
+function plainTextDescription(raw: unknown): string {
+  return str(raw)
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<string, unknown> {
   const t = rec(track)
   const fb = rec(fallback)
   const album = rec(t.album)
-  const artists = mapQQArtists(t.singer || [])
+  const rawArtists = t.singer || []
+  const artists = mapQQArtists(rawArtists)
+  const displayArtists = artists.length ? artists : mapQQArtists(fb.artists)
+  const linkedArtist = displayArtists.find((artist) => artist.mid)
   const mid = str(t.mid || fb.mid || fb.songmid)
   const albumMid = str(album.mid || album.pmid)
   const pay = rec(t.pay)
@@ -542,10 +577,10 @@ function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<s
     songmid: mid,
     mediaMid: rec(t.file).media_mid,
     name: str(t.name || t.title || fb.name),
-    artist: artists.map((a) => a.name).join(' / ') || str(fb.artist),
-    artists: artists.length ? artists : (Array.isArray(fb.artists) ? fb.artists : []),
-    artistId: artists[0] && (artists[0].id || artists[0].mid),
-    artistMid: artists[0] && artists[0].mid,
+    artist: artists.map((a) => a.name).join(' / ') || str(fb.artist) || displayArtists.map((a) => a.name).join(' / '),
+    artists: displayArtists,
+    artistId: linkedArtist?.id,
+    artistMid: linkedArtist?.mid,
     album: str(album.name || album.title || fb.album),
     albumMid,
     cover: qqAlbumCover(albumMid, 300) || str(fb.cover),
@@ -557,11 +592,11 @@ function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<s
 
 function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
   const pl = rec(raw)
-  const id = pl.dissid || pl.tid || pl.dirid || pl.id || pl.diss_id
-  return {
+  const upstreamId = pl.dissid || pl.tid || pl.dirid || pl.id || pl.diss_id
+  const playlist = {
     provider: 'qq',
     source: 'qq',
-    id: id ? String(id) : '',
+    id: upstreamId ? String(upstreamId) : '',
     name: str(pl.diss_name || pl.name || pl.title),
     cover: pickQQImageUrl(pl.diss_cover, pl.logo, pl.picurl, pl.cover),
     trackCount: numOf(pl.song_cnt || pl.songnum || pl.total_song_num || pl.song_count),
@@ -570,6 +605,10 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
     subscribed: kind === 'collect',
     specialType: 0,
   }
+  if (isQQFavoritePlaylist(pl)) {
+    playlist.id = QQ_LIKED_PLAYLIST_ID
+  }
+  return playlist
 }
 
 /** GetRecommendFeed 返回的歌单是嵌套结构(item.Playlist.basic,封面/创建者也是对象),与其余接口的扁平字段不同源,单独映射。 */
@@ -605,6 +644,7 @@ function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
   const track = r.songid || r.songmid || r.mid || r.name ? r : rec(r.track_info || r.songInfo || r.songinfo || r.song)
   const album = rec(track.album)
   const artists = mapQQArtists(track.singer || track.singers || [])
+  const linkedArtist = artists.find((artist) => artist.mid)
   const mid = str(track.mid || track.songmid || r.mid || r.songmid)
   const albumMid = str(album.mid || track.albummid || r.albummid)
   const pay = rec(track.pay)
@@ -612,7 +652,7 @@ function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
     provider: 'qq',
     source: 'qq',
     type: 'qq',
-    id: mid || String(track.id || track.songid || r.id || r.songid || ''),
+    id: mid,
     qqId: track.id || track.songid || r.id || r.songid || '',
     mid,
     songmid: mid,
@@ -620,8 +660,8 @@ function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
     name: str(track.name || track.songname || r.songname),
     artist: artists.map((a) => a.name).join(' / ') || str(track.singername || r.singername),
     artists,
-    artistId: artists[0] && (artists[0].id || artists[0].mid),
-    artistMid: artists[0] && artists[0].mid,
+    artistId: linkedArtist?.id,
+    artistMid: linkedArtist?.mid,
     album: str(album.name || album.title || track.albumname || r.albumname),
     albumMid,
     cover: qqAlbumCover(albumMid, 300),
@@ -890,7 +930,7 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
       seen.add(pl.id)
       return true
     })
-    .sort((a, b) => Number(isQQFavoritePlaylist(b)) - Number(isQQFavoritePlaylist(a)))
+    .sort((a, b) => Number(b.id === QQ_LIKED_PLAYLIST_ID) - Number(a.id === QQ_LIKED_PLAYLIST_ID))
   return { loggedIn: true, provider: 'qq', userId: uin, playlists }
 }
 
@@ -1018,64 +1058,285 @@ export async function handleQQRecommendSongs(cookie: string): Promise<Record<str
   return { provider: 'qq', songs }
 }
 
-export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
-  const info = await getQQLoginInfo(cookie)
-  if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', tracks: [] }
-  const pid = String(id || '').trim()
-  if (!pid) return { loggedIn: true, provider: 'qq', error: 'Missing QQ playlist id', tracks: [] }
-  const result = rec(
-    await qqGetJSON(
-      cookie,
-      'https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg',
-      {
-        type: 1,
-        utf8: 1,
-        disstid: pid,
-        loginUin: info.userId,
-        format: 'json',
-        inCharset: 'utf8',
-        outCharset: 'utf-8',
-        notice: 0,
-        platform: 'yqq.json',
-        needNewCode: 0,
-      },
-      { headers: { Referer: 'https://y.qq.com/n/yqq/playlist' } }
-    )
-  )
-  const cdlist = arr(result.cdlist)
-  const detail = rec(cdlist[0])
-  const rawTracks = arr(detail.songlist)
-  const tracks = rawTracks
-    .map(mapQQPlaylistTrack)
-    .filter((s) => s.name && (s.mid || s.id))
-  const playlist = {
-    provider: 'qq',
-    id: pid,
-    name: str(detail.dissname || detail.diss_name || detail.name),
-    cover: pickQQPlaylistCover(detail, tracks),
-    trackCount: tracks.length,
-  }
-  return { loggedIn: true, provider: 'qq', playlist, tracks }
+const QQ_PLAYLIST_PAGE_SIZE = 100
+const QQ_PLAYLIST_MAX_PAGES = 100
+
+function qqHasLoginCookie(cookie: string): boolean {
+  const cookieObj = parseCookieString(cookie)
+  return !!(qqCookieUin(cookieObj) && qqCookieMusicKey(cookieObj))
 }
 
-async function qqSmartboxSearch(keywords: string, limit: number): Promise<Record<string, unknown>[]> {
-  const u = new URL(QQ_SMARTBOX_URL)
-  u.searchParams.set('format', 'json')
-  u.searchParams.set('key', keywords)
-  u.searchParams.set('g_tk', '5381')
-  u.searchParams.set('loginUin', '0')
-  u.searchParams.set('hostUin', '0')
-  u.searchParams.set('inCharset', 'utf8')
-  u.searchParams.set('outCharset', 'utf-8')
-  u.searchParams.set('notice', '0')
-  u.searchParams.set('platform', 'yqq.json')
-  u.searchParams.set('needNewCode', '0')
-  const text = await requestText(u.toString(), { headers: QQ_HEADERS })
-  const json = rec(parseJSONText(text))
-  const items = rec(rec(json.data).song).itemlist
-  return arr(items)
-    .slice(0, Math.max(1, Math.min(limit || 6, 10)))
-    .map(mapQQSmartSong)
+function qqPlaylistTotal(data: Record<string, unknown>, detail: Record<string, unknown>): number {
+  return numOf(
+    data.total_song_num ||
+    data.songlist_size ||
+    data.totalNum ||
+    detail.total_song_num ||
+    detail.songlist_size ||
+    detail.totalNum
+  )
+}
+
+function qqPageHasMore(data: Record<string, unknown>, offset: number, rawCount: number, total: number): boolean {
+  const marker = data.hasmore ?? data.hasMore
+  if (marker !== undefined) return marker === true || Number(marker) > 0
+  if (total > 0) return offset + rawCount < total
+  return rawCount >= QQ_PLAYLIST_PAGE_SIZE
+}
+
+async function fetchQQDissPage(
+  cookie: string,
+  ref: Extract<QQPlaylistReference, { kind: 'playlist' | 'liked' }>,
+  offset: number,
+  num = QQ_PLAYLIST_PAGE_SIZE
+): Promise<{ data: Record<string, unknown>; detail: Record<string, unknown>; rawTracks: unknown[] }> {
+  const liked = ref.kind === 'liked'
+  const json = rec(
+    await qqMusicRequest(
+      cookie,
+      {
+        comm: qqAuthComm(cookie),
+        playlist: {
+          module: 'music.srfDissInfo.DissInfo',
+          method: 'CgiGetDiss',
+          param: {
+            disstid: liked ? 0 : ref.id,
+            dirid: liked ? 201 : 0,
+            tag: true,
+            song_begin: offset,
+            song_num: num,
+            userinfo: true,
+            orderlist: true,
+            onlysonglist: false,
+          },
+        },
+      },
+      { cookie: true }
+    )
+  )
+  const block = rec(json.playlist)
+  if (!json.playlist || Number(block.code || 0) !== 0) {
+    const code = Number(block.code || block.result || 0)
+    const message = str(block.message || block.msg)
+    if (
+      liked
+      && qqHasLoginCookie(cookie)
+      && ([301, 1000, 2000].includes(code) || /auth|cookie|login|登录|未登陆|过期|失效|票据/i.test(message))
+    ) {
+      const error = new Error('AUTH_EXPIRED') as Error & { statusCode?: number }
+      error.statusCode = 403
+      throw error
+    }
+    throw new Error(message || 'QQ_PLAYLIST_DETAIL_FAILED')
+  }
+  const data = rec(block.data)
+  return { data, detail: rec(data.dirinfo), rawTracks: arr(data.songlist) }
+}
+
+async function fetchQQToplistPage(
+  cookie: string,
+  topId: string,
+  offset: number,
+  num = QQ_PLAYLIST_PAGE_SIZE
+): Promise<{ data: Record<string, unknown>; detail: Record<string, unknown>; rawTracks: unknown[] }> {
+  if (!/^\d+$/.test(topId)) throw new Error('Invalid QQ toplist id')
+  const json = rec(
+    await qqMusicRequest(
+      cookie,
+      {
+        comm: qqAuthComm(cookie),
+        toplist: {
+          module: 'music.musicToplist.Toplist',
+          method: 'GetDetail',
+          param: { topId: Number(topId), offset, num, withTags: true },
+        },
+      },
+      { cookie: true }
+    )
+  )
+  const block = rec(json.toplist)
+  if (!json.toplist || Number(block.code || 0) !== 0) {
+    throw new Error(str(block.message || block.msg) || 'QQ_TOPLIST_DETAIL_FAILED')
+  }
+  const data = rec(block.data)
+  return { data, detail: rec(data.data), rawTracks: arr(data.songInfoList) }
+}
+
+function mapQQToplistPreviewTrack(raw: unknown): { name: string; artist: string } {
+  const item = rec(raw)
+  const song = rec(item.songInfo || item.songinfo || item)
+  const artists = mapQQArtists(song.singer || song.singers)
+  return {
+    name: str(song.name || song.title || song.songname || item.title),
+    artist: artists.map((artist) => artist.name).join(' / ')
+      || str(song.singerName || song.singername || item.singerName),
+  }
+}
+
+function mapQQToplistEntry(raw: unknown): Record<string, unknown> {
+  const item = rec(raw)
+  const topId = str(item.topId || item.topid || item.id)
+  const preview = arr(item.song || item.songList || item.songlist)
+    .map(mapQQToplistPreviewTrack)
+    .filter((track) => track.name)
+    .slice(0, 3)
+  return {
+    playlist: {
+      provider: 'qq',
+      source: 'qq',
+      type: 'playlist',
+      id: topId ? `${QQ_TOPLIST_PREFIX}${topId}` : '',
+      name: str(item.title || item.name),
+      cover: pickQQImageUrl(
+        item.frontPicUrl,
+        item.frontpic,
+        item.headPicUrl,
+        item.picUrl,
+        item.toplistPic,
+        item.cover
+      ),
+      trackCount: numOf(item.songNum || item.totalNum || item.total_song_num),
+      playCount: numOf(item.listenNum || item.listen_num || item.playCount),
+      creator: 'QQ 音乐',
+      tag: '排行榜',
+      description: plainTextDescription(item.intro || item.desc),
+    },
+    updateFrequency: str(item.updateTips || item.updateTime || item.period),
+    preview,
+  }
+}
+
+export async function handleQQToplists(cookie: string): Promise<Record<string, unknown>> {
+  const json = rec(
+    await qqMusicRequest(
+      cookie,
+      {
+        comm: qqAuthComm(cookie),
+        toplists: {
+          module: 'music.musicToplist.Toplist',
+          method: 'GetAll',
+          param: {},
+        },
+      },
+      { cookie: true }
+    )
+  )
+  const block = rec(json.toplists)
+  if (!json.toplists || Number(block.code || 0) !== 0) {
+    throw new Error(str(block.message || block.msg || block.code) || 'QQ_TOPLISTS_FAILED')
+  }
+  const groups = arr(rec(block.data).group)
+    .map((rawGroup) => {
+      const group = rec(rawGroup)
+      const entries = arr(group.toplist || group.list)
+        .map(mapQQToplistEntry)
+        .filter((entry) => {
+          const playlist = rec(entry.playlist)
+          return playlist.id && playlist.name
+        })
+      return {
+        title: str(group.groupName || group.groupTitle || group.title || group.name) || '排行榜',
+        entries,
+      }
+    })
+    .filter((group) => group.entries.length > 0)
+  return { provider: 'qq', groups }
+}
+
+export async function handleQQToplistPreview(
+  cookie: string,
+  id: string
+): Promise<Record<string, unknown>> {
+  if (!isQQToplistReference(id)) {
+    return { provider: 'qq', error: 'INVALID_QQ_TOPLIST_ID', preview: [] }
+  }
+  const ref = qqPlaylistReference(id)
+  const topId = ref.kind === 'toplist' ? ref.id : ''
+  const result = await fetchQQToplistPage(cookie, topId, 0, 3)
+  const preview = result.rawTracks
+    .map(mapQQToplistPreviewTrack)
+    .filter((track) => track.name)
+    .slice(0, 3)
+  return { provider: 'qq', preview }
+}
+
+export async function handleQQLikedPlaylist(cookie: string): Promise<Record<string, unknown>> {
+  if (!qqHasLoginCookie(cookie)) {
+    return { loggedIn: false, provider: 'qq', playlist: null }
+  }
+  const result = await fetchQQDissPage(cookie, { kind: 'liked', id: '201' }, 0, 1)
+  const tracks = result.rawTracks
+    .map(mapQQPlaylistTrack)
+    .filter((track) => track.name && track.mid)
+  const detail = result.detail
+  return {
+    loggedIn: true,
+    provider: 'qq',
+    playlist: {
+      provider: 'qq',
+      source: 'qq',
+      type: 'playlist',
+      id: QQ_LIKED_PLAYLIST_ID,
+      name: str(detail.title || detail.name || detail.dissname || detail.diss_name) || '我喜欢的音乐',
+      cover: pickQQPlaylistCover(detail, tracks),
+      trackCount: qqPlaylistTotal(result.data, detail),
+      playCount: numOf(detail.listen_num || detail.visitnum || detail.play_count),
+      creator: str(detail.nick || detail.hostname || detail.creator) || 'QQ 音乐',
+      tag: '收藏',
+    },
+  }
+}
+
+export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
+  const ref = qqPlaylistReference(id)
+  const loggedIn = qqHasLoginCookie(cookie)
+  if (!ref.id) {
+    return { loggedIn, provider: 'qq', error: 'Missing QQ playlist id', trackIds: [], tracks: [] }
+  }
+  if (ref.kind === 'liked' && !loggedIn) {
+    return { loggedIn: false, provider: 'qq', trackIds: [], tracks: [] }
+  }
+
+  const tracks: Record<string, unknown>[] = []
+  let detail: Record<string, unknown> = {}
+  let total = 0
+  let offset = 0
+
+  for (let page = 0; page < QQ_PLAYLIST_MAX_PAGES; page++) {
+    const result = ref.kind === 'toplist'
+      ? await fetchQQToplistPage(cookie, ref.id, offset)
+      : await fetchQQDissPage(cookie, ref, offset)
+    if (page === 0) detail = result.detail
+    total = qqPlaylistTotal(result.data, result.detail) || total
+    const mapped = result.rawTracks
+      .map(ref.kind === 'toplist' ? (raw) => mapQQTrack(raw, {}) : mapQQPlaylistTrack)
+      .filter((track) => track.name && track.mid)
+    tracks.push(...mapped)
+    const rawCount = result.rawTracks.length
+    if (!rawCount || !qqPageHasMore(result.data, offset, rawCount, total)) break
+    offset += rawCount
+  }
+
+  const playlistId = ref.kind === 'liked'
+    ? QQ_LIKED_PLAYLIST_ID
+    : ref.kind === 'toplist' ? `${QQ_TOPLIST_PREFIX}${ref.id}` : ref.id
+  const playlist = {
+    provider: 'qq',
+    source: 'qq',
+    type: ref.kind === 'toplist' ? 'toplist' : 'playlist',
+    id: playlistId,
+    name: str(detail.title || detail.name || detail.dissname || detail.diss_name)
+      || (ref.kind === 'liked' ? '我喜欢的音乐' : ''),
+    cover: pickQQPlaylistCover(detail, tracks),
+    trackCount: total || tracks.length,
+  }
+  return {
+    loggedIn,
+    provider: 'qq',
+    playlist,
+    trackIds: tracks.map((track) => track.id),
+    tracks,
+  }
 }
 
 async function qqSongDetail(
@@ -1140,15 +1401,17 @@ export async function handleQQArtistDetail(
     .filter((song) => song && song.name && (song.mid || song.id))
   const firstArtists = songs[0] ? (songs[0].artists as QQArtist[] | undefined) : undefined
   const matchedSongArtist = firstArtists && firstArtists.find((a) => a && a.mid === singerMid)
-  const artistMid = str(info.mid) || singerMid
+  const artistMid = str(info.mid || info.singerMid || info.singermid) || singerMid
   const artistName = str(info.name || info.title) || (matchedSongArtist && matchedSongArtist.name) || ''
   const totalSong = numOf(data.total_song || data.song_count) || songs.length
   return {
     provider: 'qq',
     artist: {
       provider: 'qq',
-      id: info.id || '',
+      source: 'qq',
+      id: artistMid,
       mid: artistMid,
+      qqArtistId: info.id || '',
       name: artistName,
       avatar: str(info.pic || info.avatar) || qqSingerAvatar(artistMid, 300),
       fans: numOf(info.fans),
@@ -1161,12 +1424,63 @@ export async function handleQQArtistDetail(
   }
 }
 
-// ---------- 业务: 歌手搜索 / 歌手歌曲 / 歌手专辑 ----------
+export async function handleQQArtistSimilar(
+  cookie: string,
+  mid: string,
+  limit: number
+): Promise<Record<string, unknown>> {
+  const singerMid = String(mid || '').trim()
+  if (!singerMid) return { provider: 'qq', error: 'MISSING_SINGER_MID', artists: [] }
+  const number = Math.max(1, Math.min(30, limit || 10))
+  const json = rec(
+    await qqMusicRequest(
+      cookie,
+      {
+        comm: qqAuthComm(cookie),
+        similarSinger: {
+          module: 'music.SimilarSingerSvr',
+          method: 'GetSimilarSingerList',
+          param: { singerMid, number },
+        },
+      },
+      { cookie: true }
+    )
+  )
+  const block = rec(json.similarSinger)
+  if (!json.similarSinger || Number(json.code || 0) !== 0 || Number(block.code || 0) !== 0) {
+    throw new Error(str(block.message || block.msg) || 'QQ_ARTIST_SIMILAR_FAILED')
+  }
+  const seen = new Set([singerMid])
+  const artists = arr(rec(block.data).singerlist || rec(block.data).singerList)
+    .map((raw) => {
+      const artist = rec(raw)
+      const artistMid = str(artist.singerMid || artist.singerMID || artist.mid)
+      return {
+        provider: 'qq',
+        source: 'qq',
+        id: artistMid,
+        mid: artistMid,
+        qqArtistId: artist.singerId || artist.singerID || artist.id || '',
+        name: str(artist.singerName || artist.name),
+        avatar: pickQQImageUrl(artist.singerPic, artist.pic, artist.avatar)
+          || qqSingerAvatar(artistMid, 300),
+      }
+    })
+    .filter((artist) => {
+      if (!artist.mid || !artist.name || seen.has(artist.mid)) return false
+      seen.add(artist.mid)
+      return true
+    })
+  return { provider: 'qq', artists }
+}
+
+// ---------- 业务: 歌手搜索 / 相似歌手 / 歌手歌曲 / 歌手专辑 ----------
 
 interface QQArtistSearchResult {
   provider: 'qq'
-  id: unknown
+  id: string
   mid: string
+  qqArtistId: unknown
   name: string
   avatar: string
   musicSize: number
@@ -1200,6 +1514,7 @@ export async function handleQQArtistSearch(
         provider: 'qq' as const,
         id: mid,
         mid,
+        qqArtistId: s.singerID || s.singerId || '',
         name: str(s.singerName),
         avatar: str(s.singerPic) || qqSingerAvatar(mid, 300),
         musicSize: numOf(s.songNum),
@@ -1258,6 +1573,60 @@ function mapQQAlbum(raw: unknown): Record<string, unknown> {
     creator: str(a.singerName),
     tag: '专辑',
     description: str(a.albumTranName),
+  }
+}
+
+export async function handleQQAlbumDetail(
+  cookie: string,
+  albumMid: string
+): Promise<Record<string, unknown>> {
+  const mid = String(albumMid || '').trim()
+  if (!mid) return { provider: 'qq', error: 'MISSING_ALBUM_MID', playlist: null }
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      comm: qqAuthComm(cookie),
+      albumInfo: {
+        module: 'music.musichallAlbum.AlbumInfoServer',
+        method: 'GetAlbumDetail',
+        param: { albumMId: mid },
+      },
+    })
+  )
+  const block = rec(json.albumInfo)
+  if (!json.albumInfo || Number(block.code || 0) !== 0) {
+    return {
+      provider: 'qq',
+      error: str(block.message || block.msg) || 'QQ_ALBUM_DETAIL_FAILED',
+      playlist: null,
+    }
+  }
+  const data = rec(block.data)
+  const basic = rec(data.basicInfo)
+  if (Object.keys(basic).length === 0) {
+    return { provider: 'qq', error: 'QQ_ALBUM_DETAIL_FAILED', playlist: null }
+  }
+  const company = rec(data.company)
+  const artists = mapQQArtists(rec(data.singer).singerList)
+  const resolvedMid = str(basic.albumMid || basic.mid) || mid
+  const publishDate = str(basic.publishDate || basic.publish_date || basic.time_public)
+  const companyName = str(company.name)
+  return {
+    provider: 'qq',
+    playlist: {
+      provider: 'qq',
+      source: 'qq',
+      type: 'album',
+      id: resolvedMid,
+      qqAlbumId: basic.albumID || basic.albumId || basic.id || '',
+      name: str(basic.albumName || basic.name || basic.title),
+      cover: qqAlbumCover(resolvedMid, 300),
+      // AlbumInfo 没有可靠的曲目数，详情页使用 AlbumSongList 的实际列表长度。
+      trackCount: 0,
+      playCount: 0,
+      creator: artists.map((artist) => artist.name).join(' / '),
+      tag: [publishDate, companyName].filter(Boolean).join(' · '),
+      description: str(basic.desc || basic.description || basic.intro),
+    },
   }
 }
 
@@ -1323,6 +1692,93 @@ export async function handleQQAlbumSongs(cookie: string, albumMid: string): Prom
   return { provider: 'qq', total: numOf(data.totalNum) || songs.length, songs }
 }
 
+/** 相关内容只接受真实数字 ID，不能把歌曲 MID 中的数字拼成 ID。 */
+export function parseQQRelatedId(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null
+  const text = String(value).trim()
+  if (!/^\d+$/.test(text)) return null
+  const id = Number(text)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+async function requestQQRelated(method: string, songId: number, params: Record<string, unknown> = {}) {
+  if (parseQQRelatedId(songId) === null) throw new Error('INVALID_QQ_SONG_ID')
+  const json = rec(await qqMusicRequest('', {
+    comm: { ct: 24, cv: 0, format: 'json', uin: '0' },
+    related: { module: 'music.recommend.TrackRelationServer', method, param: { songid: songId, ...params } },
+  }))
+  const block = rec(json.related)
+  const data = rec(block.data)
+  if (!json.related || Number(json.code || 0) !== 0
+    || Number(block.code || 0) !== 0 || Number(data.retcode || 0) !== 0) {
+    throw new Error('QQ_RELATED_CONTENT_FAILED')
+  }
+  return data
+}
+
+export async function handleQQSimilarSongs(songId: number): Promise<Record<string, unknown>[]> {
+  const data = await requestQQRelated('GetSimilarSongs', songId)
+  const raw = [
+    ...arr(data.vecSong),
+    ...arr(data.vecSongNew).flatMap((group) => arr(rec(group).songs)),
+  ]
+  const seen = new Set<string>()
+  return raw.map((item) => mapQQTrack(rec(item).track || item, {})).filter((track) => {
+    const id = str(track.id)
+    if (!id || !track.name || Number(track.qqId) === songId || seen.has(id)) return false
+    seen.add(id)
+    return true
+  }).slice(0, 10)
+}
+
+export async function handleQQRelatedPlaylists(
+  songId: number, previousIds: number[] = []
+): Promise<{ playlists: Record<string, unknown>[]; hasMore: boolean }> {
+  if (previousIds.length > 30 || previousIds.some((id) => parseQQRelatedId(id) === null)) {
+    throw new Error('INVALID_QQ_PLAYLIST_IDS')
+  }
+  const data = await requestQQRelated('GetRelatedPlaylist', songId, { vecPlaylist: [...new Set(previousIds)] })
+  const seen = new Set(previousIds.map(String))
+  const playlists = [
+    ...arr(data.vecPlaylist),
+    ...arr(data.vecPlaylistNew).flatMap((group) => arr(rec(group).playlists)),
+  ].map((raw) => {
+    const item = rec(raw)
+    return {
+      ...mapQQPlaylist({ ...item, song_cnt: item.songNum, listen_num: item.playCnt }, 'related'),
+      type: 'playlist',
+    }
+  }).filter((playlist) => {
+    if (parseQQRelatedId(playlist.id) === null || !playlist.name || seen.has(playlist.id)) return false
+    seen.add(playlist.id)
+    return true
+  }).slice(0, 30)
+  return { playlists, hasMore: Number(data.hasMore) === 1 && playlists.length > 0 }
+}
+
+/** 公开热搜仅作快捷填词，不透传登录凭据或上游跳转指令。 */
+export async function handleQQSearchHotkeys(): Promise<string[]> {
+  const json = rec(await qqMusicRequest('', {
+    comm: { ct: 24, cv: 0, format: 'json', uin: '0' },
+    hotkeys: {
+      module: 'music.musicsearch.HotkeyService',
+      method: 'GetHotkeyForQQMusicMobile',
+      param: { search_id: `${Date.now()}${Math.floor(Math.random() * 1e6)}` },
+    },
+  }))
+  const block = rec(json.hotkeys)
+  const data = rec(block.data)
+  if (!json.hotkeys || Number(json.code || 0) !== 0
+    || Number(block.code || 0) !== 0 || Number(data.ret_code || 0) !== 0) {
+    throw new Error('QQ_SEARCH_HOTKEYS_FAILED')
+  }
+  const keywords = arr(data.vec_hotkey).map((raw) => {
+    const item = rec(raw)
+    return typeof item.query === 'string' ? item.query.trim() : ''
+  }).filter(Boolean)
+  return [...new Set(keywords)].slice(0, 10)
+}
+
 export async function handleQQSearch(
   cookie: string,
   keywords: string,
@@ -1330,24 +1786,33 @@ export async function handleQQSearch(
 ): Promise<Record<string, unknown>[]> {
   const kw = String(keywords || '').trim()
   if (!kw) return []
-  console.log('[QQSearch]', kw, 'limit:', limit)
-  const base = await qqSmartboxSearch(kw, limit)
-  const detailed = await Promise.all(
-    base.map(async (item) => {
-      try {
-        return await qqSongDetail(cookie, str(item.mid), item)
-      } catch (e) {
-        console.warn('[QQSearch] detail failed:', item.mid, (e as Error).message)
-        return item
-      }
+  const num = Math.max(1, Math.min(20, parseInt(String(limit || '20'), 10) || 20))
+  console.log('[QQSearch]', kw, 'limit:', num)
+  const module = 'music.search.SearchCgiService'
+  // 该模块要求信封 key 与 module 同名，且不能附加顶层 comm；否则 Web 通道可能返回空结果。
+  const json = rec(
+    await qqMusicRequest(cookie, {
+      [module]: {
+        module,
+        method: 'DoSearchForQQMusicDesktop',
+        param: { search_type: 0, query: kw, page_num: 1, num_per_page: num },
+      },
     })
   )
+  const block = rec(json[module])
+  if (!json[module] || Number(block.code || 0) !== 0) {
+    throw new Error(str(block.message || block.msg || block.code) || 'QQ_SEARCH_FAILED')
+  }
+  const list = arr(rec(rec(rec(block.data).body).song).list)
+  const mapped = list
+    .map((raw) => mapQQTrack(raw, {}))
+    .filter((song) => song.name && song.mid)
   const seen = new Set<string>()
-  return detailed.filter((song) => {
-    const key = song && (str(song.mid) || str(song.id) || str(song.name) + '|' + str(song.artist))
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return !!song.name
+  return mapped.filter((song) => {
+    const mid = str(song.mid)
+    if (seen.has(mid)) return false
+    seen.add(mid)
+    return true
   })
 }
 
