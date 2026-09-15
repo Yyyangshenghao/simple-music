@@ -40,6 +40,18 @@ if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID)
 const gotLock = app.requestSingleInstanceLock()
 let isQuitting = false
 
+function createPlayerWindow(port: number, token: string): void {
+  const win = createMainWindow(port, token)
+  if (process.platform === 'darwin') {
+    // 音频引擎运行在主窗口中；关闭窗口只隐藏，真正退出时才销毁。
+    win.on('close', (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      win.hide()
+    })
+  }
+}
+
 async function boot(): Promise<void> {
   registerIpc()
   const { port, token } = await bootServer()
@@ -47,7 +59,7 @@ async function boot(): Promise<void> {
     shutdownServer()
     return
   }
-  createMainWindow(port, token)
+  createPlayerWindow(port, token)
   createTray()
 }
 
@@ -75,7 +87,7 @@ if (!gotLock) {
     void startup.then(() => {
       if (isQuitting) return
       const win = getMainWindow()
-      if (!win || win.isDestroyed()) createMainWindow(getServerPort(), getServerToken())
+      if (!win || win.isDestroyed()) createPlayerWindow(getServerPort(), getServerToken())
       returnFromMiniPlayer()
     }).catch((e) => console.error('Main window restore failed:', e))
   }

@@ -388,8 +388,14 @@ function createMiniPlayerWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
-    // 迷你条置顶常驻可见,不会被节流;不再给后台豁免
-    webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    // 显式保留 Chromium 默认后台节流,避免迷你条被遮挡时继续高频刷新
+    webPreferences: {
+      preload: overlayPreload(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      backgroundThrottling: true
+    }
   })
   hardenOverlayWindow(win)
   miniPlayerWindow = win
@@ -451,7 +457,7 @@ export function returnFromMiniPlayer(): OkResult {
   return { ok: true }
 }
 
-/** 迷你条 X：收起迷你条并退居托盘，主窗口保持隐藏（后台继续播放，经托盘恢复）。 */
+/** 显式退居托盘入口：关闭迷你条、保持主窗口隐藏并继续后台播放。 */
 export function hideMiniPlayerToTray(): OkResult {
   closeMiniPlayerWindow()
   notifyRendererMiniOff()

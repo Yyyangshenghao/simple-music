@@ -1,8 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   events: new Map<string, () => void>(),
-  main: null as null | { isDestroyed(): boolean },
+  main: null as null | {
+    isDestroyed(): boolean
+    hide(): void
+    on(event: string, listener: (event: { preventDefault(): void }) => void): void
+  },
+  windowEvents: new Map<string, (event: { preventDefault(): void }) => void>(),
+  hide: vi.fn(),
   windows: [] as object[],
   registerIpc: vi.fn(),
   bootServer: vi.fn(async () => ({ port: 35530, token: 'test-token' })),
@@ -42,19 +48,67 @@ describe('主窗口激活恢复', () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.stubGlobal('process', { ...process, platform: 'darwin' })
     h.events.clear()
+    h.windowEvents.clear()
     h.main = null
     h.windows = []
     h.registerIpc.mockImplementationOnce(() => {}).mockImplementation(() => {
       throw new Error('IPC handler already registered')
     })
     h.createMainWindow.mockImplementation(() => {
-      h.main = { isDestroyed: () => false }
+      h.main = {
+        isDestroyed: () => false,
+        hide: h.hide,
+        on: (event, listener) => { h.windowEvents.set(event, listener) }
+      }
       h.windows = [h.main]
       return h.main
     })
     await import('./main')
     await flush()
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('macOS 关闭主窗口仅隐藏，保留承载播放的窗口和服务', () => {
+    const win = h.main
+    const preventDefault = vi.fn()
+    expect(h.windowEvents.has('close')).toBe(true)
+    h.windowEvents.get('close')!({ preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(h.hide).toHaveBeenCalledTimes(1)
+    expect(h.main).toBe(win)
+    expect(h.shutdown).not.toHaveBeenCalled()
+  })
+
+  it('macOS 隐藏后激活复用原窗口，不重建播放会话', async () => {
+    expect(h.windowEvents.has('close')).toBe(true)
+    h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+    h.events.get('activate')!()
+    await flush()
+    expect(h.restore).toHaveBeenCalledTimes(1)
+    expect(h.createMainWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('macOS 真正退出时允许关闭窗口，不再隐藏', () => {
+    h.events.get('before-quit')!()
+    const preventDefault = vi.fn()
+    expect(h.windowEvents.has('close')).toBe(true)
+    h.windowEvents.get('close')!({ preventDefault })
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(h.hide).not.toHaveBeenCalled()
+    expect(h.shutdown).toHaveBeenCalledTimes(1)
+  })
+
+  it('Windows 保留原有关闭行为', async () => {
+    vi.resetModules()
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    h.windowEvents.clear()
+    h.registerIpc.mockImplementationOnce(() => {})
+    await import('./main')
+    await flush()
+    expect(h.windowEvents.has('close')).toBe(false)
   })
 
   it.each(['activate', 'second-instance'])('%s 在关闭后重建主窗口，不重复初始化', async (event) => {

@@ -18,8 +18,11 @@ export function useMiniPlayerSync(): void {
   const volume = usePlayerStore((s) => s.volume)
   const duration = usePlayerStore((s) => s.duration)
   const accent = useAmbientStore((s) => s.palette[0])
-  const lyricIndex = useLyricsStore((s) => s.currentIndex)
-  const lines = useLyricsStore((s) => s.lines)
+  // 未展示歌词时固定选中空串,避免每次歌词换行都唤醒主窗口组件并发送空 payload。
+  const lyricLine = useLyricsStore((s) => {
+    if (!enabled || !appearance.showLyrics || s.currentIndex < 0) return ''
+    return s.lines[s.currentIndex]?.text ?? ''
+  })
 
   // 曲目 / 播放态 / 音量 / 外观
   useEffect(() => {
@@ -55,9 +58,8 @@ export function useMiniPlayerSync(): void {
     if (!enabled) return
     const d = window.desktop
     if (!d) return
-    const line = appearance.showLyrics && lyricIndex >= 0 ? (lines[lyricIndex]?.text ?? '') : ''
-    void d.updateMiniPlayer({ lyricLine: line })
-  }, [enabled, appearance.showLyrics, lyricIndex, lines])
+    void d.updateMiniPlayer({ lyricLine })
+  }, [enabled, appearance.showLyrics, lyricLine])
 
   // overlay 拖拽改宽后回写设置
   useEffect(() => {

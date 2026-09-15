@@ -4,10 +4,13 @@ const harness = vi.hoisted(() => {
   const instances: Array<{
     bounds: Electron.Rectangle
     listeners: Map<string, () => void>
+    close: ReturnType<typeof vi.fn>
     setBounds: ReturnType<typeof vi.fn>
     setResizable: ReturnType<typeof vi.fn>
   }> = []
   const mainSend = vi.fn()
+  const hideMainWindow = vi.fn()
+  const focusMainWindow = vi.fn()
 
   const BrowserWindow = vi.fn(function (options: Electron.BrowserWindowConstructorOptions) {
     const listeners = new Map<string, () => void>()
@@ -45,7 +48,7 @@ const harness = vi.hoisted(() => {
     return win
   })
 
-  return { BrowserWindow, instances, mainSend }
+  return { BrowserWindow, instances, mainSend, hideMainWindow, focusMainWindow }
 })
 
 vi.mock('electron', () => ({
@@ -59,8 +62,8 @@ vi.mock('electron', () => ({
 vi.mock('./window-manager', () => ({
   getMainWindow: () => ({ isDestroyed: () => false, webContents: { send: harness.mainSend } }),
   resolveRendererUrl: () => 'file:///mini-player.html',
-  hideMainWindow: vi.fn(),
-  focusMainWindow: vi.fn(),
+  hideMainWindow: harness.hideMainWindow,
+  focusMainWindow: harness.focusMainWindow,
   isInAppUrl: () => true
 }))
 
@@ -74,13 +77,15 @@ vi.mock('../platform', () => ({
   })
 }))
 
-import { moveMiniPlayerBy, resizeMiniPlayerBy, setMiniPlayerEnabled } from './overlay-manager'
+import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, setMiniPlayerEnabled } from './overlay-manager'
 
 describe('迷你播放器窗口尺寸', () => {
   beforeEach(() => {
     setMiniPlayerEnabled(false)
     harness.instances.length = 0
     harness.mainSend.mockReset()
+    harness.hideMainWindow.mockReset()
+    harness.focusMainWindow.mockReset()
   })
 
   it('移动时保持用户设置的宽度，不吸收平台上报的瞬时宽度漂移', () => {
@@ -124,5 +129,37 @@ describe('迷你播放器窗口尺寸', () => {
       false
     )
     expect(harness.mainSend).toHaveBeenLastCalledWith('miniplayer:width-changed', { width: 300 })
+  })
+
+  it('保留后台节流，避免被遮挡时高频刷新', () => {
+    setMiniPlayerEnabled(true, 360)
+
+    expect(harness.BrowserWindow).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        webPreferences: expect.objectContaining({ backgroundThrottling: true })
+      })
+    )
+  })
+
+  it('退出迷你模式时关闭迷你窗口、同步设置并聚焦主窗口', () => {
+    setMiniPlayerEnabled(true, 360)
+    const win = harness.instances[0]
+
+    returnFromMiniPlayer()
+
+    expect(win.close).toHaveBeenCalledOnce()
+    expect(harness.mainSend).toHaveBeenCalledWith('miniplayer:control', { action: 'sync-off' })
+    expect(harness.focusMainWindow).toHaveBeenCalledOnce()
+  })
+
+  it('反复启停后可以重新创建迷你窗口', () => {
+    setMiniPlayerEnabled(true, 360)
+    const first = harness.instances[0]
+    setMiniPlayerEnabled(false)
+    setMiniPlayerEnabled(true, 360)
+
+    expect(first.close).toHaveBeenCalledOnce()
+    expect(harness.instances).toHaveLength(2)
+    expect(harness.hideMainWindow).toHaveBeenCalledTimes(2)
   })
 })

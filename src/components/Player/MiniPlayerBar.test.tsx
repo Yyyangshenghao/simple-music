@@ -33,4 +33,11 @@ describe('MiniPlayerBar 歌词布局状态', () => {
     expect(hidden).toContain('data-lyrics="false"')
     expect(hidden).not.toContain('这是一句用于验证展示状态的歌词')
   })
+
+  it('关闭按钮明确表示退出迷你模式', () => {
+    const html = renderBar(MINI_PLAYER_LYRICS_WIDTH)
+
+    expect(html).toContain('aria-label="退出迷你模式"')
+    expect(html).not.toContain('收起到托盘')
+  })
 })
