@@ -7,6 +7,14 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
+// preload 早于页面脚本执行：先接住首屏快照，避免 React effect 尚未订阅时丢状态。
+let miniPlayerState: MiniPlayerPayload = {}
+const miniPlayerListeners = new Set<(payload: MiniPlayerPayload) => void>()
+ipcRenderer.on('overlay:miniplayer-state', (_event, payload: MiniPlayerPayload) => {
+  miniPlayerState = { ...miniPlayerState, ...payload }
+  for (const listener of miniPlayerListeners) listener(payload)
+})
+
 const api = {
   onLyricsState: (cb: (p: LyricsPayload) => void) => on<LyricsPayload>('overlay:lyrics-state', cb),
   onWallpaperState: (cb: (p: WallpaperPayload) => void) => on<WallpaperPayload>('overlay:wallpaper-state', cb),
@@ -17,7 +25,11 @@ const api = {
   moveLyricsBy: (dx: number, dy: number) => ipcRenderer.invoke('overlay:lyrics-move-by', { dx, dy }),
   closeLyrics: () => ipcRenderer.invoke('overlay:lyrics-close'),
 
-  onMiniPlayerState: (cb: (p: MiniPlayerPayload) => void) => on<MiniPlayerPayload>('overlay:miniplayer-state', cb),
+  onMiniPlayerState: (cb: (p: MiniPlayerPayload) => void): (() => void) => {
+    miniPlayerListeners.add(cb)
+    if (Object.keys(miniPlayerState).length) cb(miniPlayerState)
+    return () => { miniPlayerListeners.delete(cb) }
+  },
   moveMiniPlayerBy: (dx: number, dy: number) => ipcRenderer.invoke('overlay:miniplayer-move-by', { dx, dy }),
   resizeMiniPlayerBy: (dx: number) => ipcRenderer.invoke('overlay:miniplayer-resize-by', { dx }),
   setMiniPlayerPopover: (open: boolean) => ipcRenderer.invoke('overlay:miniplayer-set-popover', { open }),

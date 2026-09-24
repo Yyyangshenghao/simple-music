@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => {
     close: ReturnType<typeof vi.fn>
     setBounds: ReturnType<typeof vi.fn>
     setResizable: ReturnType<typeof vi.fn>
+    webContents: { send: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn> }
   }> = []
   const mainSend = vi.fn()
   const hideMainWindow = vi.fn()
@@ -77,7 +78,8 @@ vi.mock('../platform', () => ({
   })
 }))
 
-import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, setMiniPlayerEnabled } from './overlay-manager'
+import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, setMiniPlayerEnabled, updateMiniPlayer } from './overlay-manager'
+import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
 
 describe('迷你播放器窗口尺寸', () => {
   beforeEach(() => {
@@ -161,5 +163,41 @@ describe('迷你播放器窗口尺寸', () => {
     expect(first.close).toHaveBeenCalledOnce()
     expect(harness.instances).toHaveLength(2)
     expect(harness.hideMainWindow).toHaveBeenCalledTimes(2)
+  })
+
+  it('进度更新只发送变化字段，不重复复制曲目与外观', () => {
+    setMiniPlayerEnabled(true, 360)
+    const send = harness.instances[0].webContents.send
+    updateMiniPlayer({ trackTitle: '测试歌曲', position: 10, appearance: DEFAULT_MINI_PLAYER_APPEARANCE })
+    send.mockClear()
+
+    updateMiniPlayer({ position: 11 })
+
+    expect(send).toHaveBeenCalledOnce()
+    expect(send).toHaveBeenCalledWith('overlay:miniplayer-state', { position: 11 })
+  })
+
+  it('相同状态与值相同的跨桥外观对象不重复发送', () => {
+    setMiniPlayerEnabled(true, 360)
+    const send = harness.instances[0].webContents.send
+    updateMiniPlayer({ position: 20, appearance: DEFAULT_MINI_PLAYER_APPEARANCE })
+    send.mockClear()
+
+    updateMiniPlayer({ position: 20, appearance: { ...DEFAULT_MINI_PLAYER_APPEARANCE } })
+
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('新窗口加载时仍发送完整快照', () => {
+    updateMiniPlayer({ trackTitle: '重新打开', position: 30, appearance: DEFAULT_MINI_PLAYER_APPEARANCE })
+    setMiniPlayerEnabled(true, 360)
+    const webContents = harness.instances[0].webContents
+    const onLoad = webContents.once.mock.calls.find(([event]) => event === 'did-finish-load')?.[1]
+
+    onLoad()
+
+    expect(webContents.send).toHaveBeenLastCalledWith('overlay:miniplayer-state', expect.objectContaining({
+      trackTitle: '重新打开', position: 30, appearance: DEFAULT_MINI_PLAYER_APPEARANCE
+    }))
   })
 })

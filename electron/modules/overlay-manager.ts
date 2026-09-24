@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
 import { openExternalSafely } from './safe-open'
+import { miniPlayerPatch } from '../../src/lib/mini-player-state'
 import { getPlatform } from '../platform'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
 
@@ -465,8 +466,12 @@ export function hideMiniPlayerToTray(): OkResult {
 }
 
 export function updateMiniPlayer(payload: MiniPlayerPayload): OkResult {
-  miniPlayerState = { ...miniPlayerState, ...payload }
-  sendMiniPlayerState()
+  const patch = miniPlayerPatch(miniPlayerState, payload)
+  if (!Object.keys(patch).length) return { ok: true }
+  miniPlayerState = { ...miniPlayerState, ...patch }
+  if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+    miniPlayerWindow.webContents.send('overlay:miniplayer-state', patch)
+  }
   return { ok: true }
 }
 
