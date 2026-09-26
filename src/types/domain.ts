@@ -208,10 +208,34 @@ export interface PerformanceFlags {
 }
 /** 歌词面板 3D 模式下的视觉效果类型 */
 export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
+/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层。 */
+export type Lyrics3dStyle = 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
+/** Mineradio 舞台歌词的同屏行数模式。 */
+export type Lyrics3dDisplayMode = 'single' | 'dual' | 'triple' | 'cinema'
 export type ShelfMode = 'dynamic' | 'static'
+
+/** 普通歌词舞台的自由排版参数。位置单位为视口百分比，便于不同窗口尺寸下保持观感。 */
+export interface LyricsLayoutParams {
+  coverScale: number
+  coverX: number
+  coverY: number
+  lyricsWidth: number
+  lyricsX: number
+  lyricsY: number
+}
 
 /** 3D 歌词模式的可调参数,由设置页「3D 歌词」标签页调节并持久化。 */
 export interface Lyrics3dParams {
+  /** 同屏显示 1/2/3/5 行歌词。 */
+  displayMode: Lyrics3dDisplayMode
+  /** 非当前行的基础不透明度。 */
+  contextOpacity: number
+  /** 上下文行间距倍率。 */
+  contextSpread: number
+  /** 边缘行渐隐强度。 */
+  edgeFade: number
+  /** 切行转场的柔和度。 */
+  motionSoftness: number
   /** 粒子数量倍率(0.25~2,乘在各效果按性能档取的基础数量上) */
   particleCount: number
   /** 粒子大小倍率(0.5~2) */

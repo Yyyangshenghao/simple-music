@@ -11,10 +11,12 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 301;
-  min-width: 190px;
+  min-width: 234px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: min(680px, calc(100vh - 120px));
+  overflow-y: auto;
   padding: 6px;
   /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
   background: rgba(24, 26, 32, 0.82);
@@ -41,6 +43,14 @@
   text-align: left;
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;
+}
+
+.sectionLabel {
+  padding: 7px 11px 4px;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 9px;
+  font-weight: 680;
+  letter-spacing: 0.18em;
 }
 
 .item:hover {
@@ -75,4 +85,25 @@
 
 .label {
   white-space: nowrap;
+}
+
+.itemCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hint {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 9px;
+  font-weight: 450;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemActive .hint {
+  color: rgba(255, 255, 255, 0.56);
 }

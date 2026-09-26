@@ -14,7 +14,7 @@ import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import type { ProviderId } from '../providers/types'
-import type { Lyrics3dEffect, Lyrics3dParams, PerformanceFlags } from '../types/domain'
+import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import styles from './SettingsPage.module.css'
 
@@ -253,6 +253,23 @@ const EFFECT_LABELS: Record<Lyrics3dEffect, string> = {
   'speaker-particles': '音箱沙粒'
 }
 
+const LYRIC_STYLE_LABELS: Record<Lyrics3dStyle, string> = {
+  glass: '玻璃',
+  smooth: '丝滑',
+  float: '漂浮',
+  quick: '快切',
+  shine: '流光',
+  glitch: '故障',
+  focus: '简洁叠层'
+}
+
+const LYRIC_DISPLAY_LABELS: Record<Lyrics3dDisplayMode, string> = {
+  single: '单行',
+  dual: '双行',
+  triple: '三行',
+  cinema: '电影五行'
+}
+
 const FPS_OPTIONS = [0, 60, 45, 30, 24]
 
 const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
@@ -284,6 +301,8 @@ function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | nu
 function Lyrics3dSettings() {
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const setLyrics3dEffect = useSettingsStore((s) => s.setLyrics3dEffect)
+  const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
+  const setLyrics3dStyle = useSettingsStore((s) => s.setLyrics3dStyle)
   const params = useSettingsStore((s) => s.lyrics3d)
   const setParams = useSettingsStore((s) => s.setLyrics3dParams)
   const resetParams = useSettingsStore((s) => s.resetLyrics3dParams)
@@ -309,6 +328,38 @@ function Lyrics3dSettings() {
                 transition={springSnappy}
               >
                 {EFFECT_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>歌词样式</span>
+          <div className={styles.segControl}>
+            {(Object.keys(LYRIC_STYLE_LABELS) as Lyrics3dStyle[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${lyrics3dStyle === id ? styles.segActive : ''}`}
+                onClick={() => setLyrics3dStyle(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {LYRIC_STYLE_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>同屏歌词</span>
+          <div className={styles.segControl}>
+            {(Object.keys(LYRIC_DISPLAY_LABELS) as Lyrics3dDisplayMode[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${params.displayMode === id ? styles.segActive : ''}`}
+                onClick={() => setParams({ displayMode: id })}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {LYRIC_DISPLAY_LABELS[id]}
               </motion.button>
             ))}
           </div>
@@ -362,7 +413,15 @@ function Lyrics3dSettings() {
       </section>
 
       <section className={`${styles.group} ${styles.lyricsOverlayGroup}`}>
-        <h2 className={styles.groupTitle}>歌词叠加层</h2>
+        <h2 className={styles.groupTitle}>歌词轨道</h2>
+        <SliderRow label="上下文亮度" min={0.25} max={1} step={0.01}
+          value={params.contextOpacity} format={percent} onChange={patch('contextOpacity')} />
+        <SliderRow label="歌词行间距" min={0.6} max={2.4} step={0.02}
+          value={params.contextSpread} format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
+        <SliderRow label="边缘渐隐" min={0} max={1} step={0.01}
+          value={params.edgeFade} format={percent} onChange={patch('edgeFade')} />
+        <SliderRow label="转场柔和度" min={0.15} max={1.2} step={0.01}
+          value={params.motionSoftness} format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
         <SliderRow label="底部模糊度" min={0} max={1} step={0.01}
           value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
       </section>

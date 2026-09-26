@@ -148,6 +148,11 @@
 .lyricsOverlayGroup { grid-area: lyrics-overlay; }
 .lyricsResetGroup { grid-area: lyrics-reset; }
 
+.lyricsEffectGroup .segControl {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 @keyframes settingsEnter {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }

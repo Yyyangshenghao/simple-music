@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useLyricsStore } from './lyrics'
 import { useVisualStore } from './visual'
-import { useSettingsStore } from './settings'
+import { SETTINGS_STORAGE_KEY, useSettingsStore } from './settings'
 
 describe('lyrics store tick', () => {
   beforeEach(() => {
@@ -79,13 +79,18 @@ describe('settings export/import', () => {
     useSettingsStore.getState().setLyricsFontFamilyCjk('Songti SC')
     useSettingsStore.getState().setLyrics3dFontFamily('Helvetica Neue')
     useSettingsStore.getState().setLyrics3dFontFamilyCjk('Kaiti SC')
+    useSettingsStore.getState().setLyrics3dStyle('smooth')
+    useSettingsStore.getState().setLyrics3dParams({ displayMode: 'triple', contextOpacity: 0.66 })
+    useSettingsStore.getState().setLyricsLayout({ coverScale: 1.2, lyricsWidth: 62, lyricsX: -4 })
     useSettingsStore.setState({
       liveBackgroundKeep: false,
       fontFamilyCjk: '',
       lyricsFontFamily: '',
       lyricsFontFamilyCjk: '',
       lyrics3dFontFamily: '',
-      lyrics3dFontFamilyCjk: ''
+      lyrics3dFontFamilyCjk: '',
+      lyrics3dStyle: 'float',
+      lyricsLayout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 }
     })
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().liveBackgroundKeep).toBe(true)
@@ -94,6 +99,50 @@ describe('settings export/import', () => {
     expect(useSettingsStore.getState().lyricsFontFamilyCjk).toBe('Songti SC')
     expect(useSettingsStore.getState().lyrics3dFontFamily).toBe('Helvetica Neue')
     expect(useSettingsStore.getState().lyrics3dFontFamilyCjk).toBe('Kaiti SC')
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
+    expect(useSettingsStore.getState().lyrics3d).toMatchObject({ displayMode: 'triple', contextOpacity: 0.66 })
+    expect(useSettingsStore.getState().lyricsLayout).toMatchObject({ coverScale: 1.2, lyricsWidth: 62, lyricsX: -4 })
+  })
+
+  it('migrates the legacy stage lyric switch to the closest lyric style', () => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ lyricsStage3d: false }))
+    useSettingsStore.setState({ lyrics3dStyle: 'float' })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
+  })
+
+  it('migrates the retired cascade style and fills Mineradio track defaults', () => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ lyrics3dStyle: 'cascade', lyrics3d: { glowStrength: 0.8 } }))
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
+    expect(useSettingsStore.getState().lyrics3d).toMatchObject({
+      displayMode: 'cinema',
+      contextOpacity: 0.54,
+      glowStrength: 0.8
+    })
+  })
+
+  it('keeps the legacy stage switch consistent when only the new style was stored', () => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ lyrics3dStyle: 'focus' }))
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
+    expect(useSettingsStore.getState().lyricsStage3d).toBe(false)
+  })
+
+  it('keeps the legacy stage switch in sync with lyric style changes', () => {
+    useSettingsStore.getState().setLyrics3dStyle('smooth')
+    expect(useSettingsStore.getState().lyricsStage3d).toBe(true)
+    useSettingsStore.getState().setLyricsStage3d(true)
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('float')
+  })
+
+  it('clamps lyric layout controls and resets them together with font scale', () => {
+    useSettingsStore.getState().setLyricsFontScale(1.35)
+    useSettingsStore.getState().setLyricsLayout({ coverScale: 9, coverX: -99, lyricsWidth: 2 })
+    expect(useSettingsStore.getState().lyricsLayout).toMatchObject({ coverScale: 1.4, coverX: -20, lyricsWidth: 36 })
+    useSettingsStore.getState().resetLyricsLayout()
+    expect(useSettingsStore.getState().lyricsLayout).toMatchObject({ coverScale: 1, coverX: 0, lyricsWidth: 56 })
+    expect(useSettingsStore.getState().lyricsFontScale).toBe(1)
   })
 })
 

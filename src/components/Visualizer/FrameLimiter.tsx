@@ -11,8 +11,18 @@ export function FrameLimiter({ fps }: { fps: number }) {
 
   useEffect(() => {
     if (fps <= 0) return
-    const id = window.setInterval(() => invalidate(), 1000 / fps)
-    return () => window.clearInterval(id)
+    const interval = 1000 / fps
+    let frame = 0
+    let last = performance.now()
+    const loop = (now: number) => {
+      frame = requestAnimationFrame(loop)
+      if (document.hidden || now - last < interval - 0.75) return
+      // 丢帧时从当前时刻重新对齐，避免 setInterval 式补帧造成连续抖动。
+      last = now - ((now - last) % interval)
+      invalidate()
+    }
+    frame = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(frame)
   }, [fps, invalidate])
 
   return null

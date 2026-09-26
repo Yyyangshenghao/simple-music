@@ -7,12 +7,27 @@ import {
   MINI_PLAYER_MIN_WIDTH
 } from '../lib/mini-player-config'
 import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
-import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, PerformanceFlags, PlayMode } from '../types/domain'
+import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, LyricsLayoutParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 export const SETTINGS_STORAGE_KEY = 'simplemusic-settings'
 
+export const DEFAULT_LYRICS_LAYOUT: LyricsLayoutParams = {
+  coverScale: 1,
+  coverX: 0,
+  coverY: 0,
+  lyricsWidth: 56,
+  lyricsX: 0,
+  lyricsY: 0
+}
+
 /** 3D 歌词参数默认值,倍率类均为 1 即历史硬编码行为。 */
 export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
+  // 对齐 Mineradio 2.2 默认存档：电影五行 + 漂浮曲线。
+  displayMode: 'cinema',
+  contextOpacity: 0.54,
+  contextSpread: 1.96,
+  edgeFade: 0.32,
+  motionSoftness: 0.72,
   particleCount: 1,
   particleSize: 1,
   particleBrightness: 1,
@@ -53,6 +68,8 @@ interface PersistedSettings {
   liveBackgroundKeep: boolean
   lyricsPanelMode: 'lyrics' | '3d'
   lyrics3dEffect: Lyrics3dEffect
+  /** 3D 场景上方的歌词排版与转场风格。 */
+  lyrics3dStyle: Lyrics3dStyle
   /** 3D 歌词底部叠加层的模糊/背景强度，0=完全透明（无背景），1=最强毛玻璃。 */
   lyricsOverlayBlur: number
   /** 3D 模式歌词形态:true=场景内舞台歌词(移植自原版 Mineradio),false=DOM 叠加层。 */
@@ -61,6 +78,8 @@ interface PersistedSettings {
   lyrics3d: Lyrics3dParams
   /** 纯歌词模式字号缩放倍率,1 为默认,范围 0.7–1.5。 */
   lyricsFontScale: number
+  /** 普通歌词舞台中封面与歌词列的尺寸、位置。 */
+  lyricsLayout: LyricsLayoutParams
   /** 纯歌词模式是否显示翻译行(有翻译数据时)。 */
   lyricsShowTranslation: boolean
   /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
@@ -107,11 +126,14 @@ interface SettingsStore extends PersistedSettings {
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: 'lyrics' | '3d'): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
+  setLyrics3dStyle(style: Lyrics3dStyle): void
   setLyricsOverlayBlur(v: number): void
   setLyricsStage3d(v: boolean): void
   setLyrics3dParams(patch: Partial<Lyrics3dParams>): void
   resetLyrics3dParams(): void
   setLyricsFontScale(v: number): void
+  setLyricsLayout(patch: Partial<LyricsLayoutParams>): void
+  resetLyricsLayout(): void
   setLyricsShowTranslation(v: boolean): void
   setLyricsShowRoma(v: boolean): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
@@ -147,10 +169,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
   lyrics3dEffect: 'cover-cloud',
+  lyrics3dStyle: 'float',
   lyricsOverlayBlur: 0.4,
   lyricsStage3d: true,
   lyrics3d: { ...DEFAULT_LYRICS_3D },
   lyricsFontScale: 1,
+  lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT },
   lyricsShowTranslation: true,
   lyricsShowRoma: true,
   themeMode: 'auto',
@@ -203,12 +227,17 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyrics3dEffect: effect })
     get().saveToLocal()
   },
+  setLyrics3dStyle(style) {
+    // 同步旧字段，保持降级到旧版时仍能回到最接近的歌词形态。
+    set({ lyrics3dStyle: style, lyricsStage3d: style !== 'focus' })
+    get().saveToLocal()
+  },
   setLyricsOverlayBlur(v) {
     set({ lyricsOverlayBlur: Math.max(0, Math.min(1, v)) })
     get().saveToLocal()
   },
   setLyricsStage3d(v) {
-    set({ lyricsStage3d: v })
+    set({ lyricsStage3d: v, lyrics3dStyle: v ? 'float' : 'focus' })
     get().saveToLocal()
   },
   setLyrics3dParams(patch) {
@@ -221,6 +250,24 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setLyricsFontScale(v) {
     set({ lyricsFontScale: Math.max(0.7, Math.min(1.5, v)) })
+    get().saveToLocal()
+  },
+  setLyricsLayout(patch) {
+    const current = get().lyricsLayout
+    set({
+      lyricsLayout: {
+        coverScale: Math.max(0.6, Math.min(1.4, patch.coverScale ?? current.coverScale)),
+        coverX: Math.max(-20, Math.min(20, patch.coverX ?? current.coverX)),
+        coverY: Math.max(-20, Math.min(20, patch.coverY ?? current.coverY)),
+        lyricsWidth: Math.max(36, Math.min(68, patch.lyricsWidth ?? current.lyricsWidth)),
+        lyricsX: Math.max(-20, Math.min(20, patch.lyricsX ?? current.lyricsX)),
+        lyricsY: Math.max(-20, Math.min(20, patch.lyricsY ?? current.lyricsY))
+      }
+    })
+    get().saveToLocal()
+  },
+  resetLyricsLayout() {
+    set({ lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT }, lyricsFontScale: 1 })
     get().saveToLocal()
   },
   setLyricsShowTranslation(v) {
@@ -292,8 +339,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -303,6 +350,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     if (!raw) return
     try {
       const data = JSON.parse(raw) as Partial<PersistedSettings>
+      const storedLyricsStyle: Lyrics3dStyle = (() => {
+        const value = data.lyrics3dStyle as unknown
+        if (value === 'stage') return 'float'
+        if (value === 'cascade') return 'smooth'
+        if (value === 'glass' || value === 'smooth' || value === 'float' || value === 'quick' || value === 'shine' || value === 'glitch' || value === 'focus') return value
+        return data.lyricsStage3d === false ? 'focus' : 'float'
+      })()
       set({
         hotkeys: data.hotkeys ?? [],
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
@@ -310,11 +364,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
         lyrics3dEffect: data.lyrics3dEffect ?? 'cover-cloud',
+        lyrics3dStyle: storedLyricsStyle,
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
-        lyricsStage3d: data.lyricsStage3d ?? true,
+        lyricsStage3d: storedLyricsStyle !== 'focus',
         // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
         lyrics3d: { ...DEFAULT_LYRICS_3D, ...data.lyrics3d },
         lyricsFontScale: data.lyricsFontScale ?? 1,
+        lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT, ...data.lyricsLayout },
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
         themeMode: data.themeMode ?? 'auto',

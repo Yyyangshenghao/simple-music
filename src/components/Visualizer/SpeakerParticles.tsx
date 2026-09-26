@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
+import { getDotSpriteTexture } from '../../lib/dot-texture'
 import type { PerformanceMode } from '../../types/domain'
 
 /**
- * 音箱沙粒效果 —— 移植自 audio-visualizer 开源项目的 ParticleEffect。
- * 粒子分布在圆形平面上，音频低音"踢飞"粒子跳跃，径向推开，
- * 飞到边界后中心重生，像扬声器振膜上的沙粒被声波震得跳动。
+ * 音箱沙粒效果。粒子运动全部在顶点着色器中完成，主线程只更新少量 uniform；
+ * 避免起声时逐帧遍历、随机化并上传数万颗粒子的 position buffer。
  */
 
-// 每颗粒子每帧都在 JS 里做重力/踢飞/重生运算（无法搬上 GPU），是纯 CPU 开销；
-// 原档位在中低端机上会掉帧，整体下调约 40%。
 const COUNT_BY_MODE: Record<PerformanceMode, number> = {
   eco: 16000,
   balanced: 32000,
@@ -21,24 +19,58 @@ const COUNT_BY_MODE: Record<PerformanceMode, number> = {
   ultra: 90000
 }
 
-// 存储每粒子的 Y 速度
-// 因为 THREE.Points 不支持 custom attributes 给 PointsMaterial，我们用独立数组
+const vertexShader = /* glsl */ `
+  uniform float uTime, uEnergy, uMotion, uSize, uPixel;
+  attribute vec4 aParticle;
+  varying float vLife;
 
-/** 从频谱取平均能量（全频段），与 audio-visualizer 的 getAverageFrequency 语义一致 */
-function avgFrequency(): number {
-  const engine = usePlayerStore.getState()._engine()
-  const data = engine.getFrequencyData()
+  void main() {
+    float angle = aParticle.x;
+    float baseRadius = aParticle.y;
+    float phase = aParticle.z;
+    float lift = aParticle.w;
+    float drive = smoothstep(0.018, 0.62, uEnergy) * uMotion;
+    float speed = 0.09 + drive * (0.18 + lift * 0.13);
+    float life = fract(phase + uTime * speed);
+    float easedLife = life * life * (3.0 - 2.0 * life);
+    float radius = baseRadius + easedLife * drive * (5.8 + lift * 1.8);
+    float wobble = sin(uTime * (0.45 + lift * 0.22) + phase * 21.0) * 0.08 * drive;
+    float y = sin(life * 3.14159265) * drive * (0.8 + lift * 2.2);
+    vec3 p = vec3(cos(angle + wobble) * radius, y, sin(angle + wobble) * radius);
+
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_PointSize = clamp(uSize * uPixel * (18.0 / max(1.0, -mv.z)) * (0.8 + lift * 0.45), 0.7, 8.0);
+    gl_Position = projectionMatrix * mv;
+    vLife = life;
+  }
+`
+
+const fragmentShader = /* glsl */ `
+  uniform sampler2D uDotTex;
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vLife;
+
+  void main() {
+    vec4 dot = texture2D(uDotTex, gl_PointCoord);
+    if (dot.a < 0.02) discard;
+    float lifeFade = smoothstep(0.0, 0.08, vLife) * (1.0 - smoothstep(0.78, 1.0, vLife));
+    gl_FragColor = vec4(uColor * (0.88 + lifeFade * 0.3), dot.a * uOpacity * (0.38 + lifeFade * 0.62));
+  }
+`
+
+function averageFrequency(): number {
+  const data = usePlayerStore.getState()._engine().getFrequencyData()
   if (!data.length) return 0
   let sum = 0
   for (let i = 0; i < data.length; i++) sum += data[i]
-  return sum / data.length
+  return sum / data.length / 255
 }
 
 export function SpeakerParticles() {
   const pointsRef = useRef<THREE.Points>(null)
-  const matRef = useRef<THREE.PointsMaterial>(null)
+  const energyRef = useRef(0)
   const performanceMode = useVisualStore((s) => s.performanceMode)
-  // 粒子数随数量倍率缩放,变化时重建 geometry;此效果为纯 CPU 逐粒子运算,上限收紧
   const countScale = useSettingsStore((s) => s.lyrics3d.particleCount)
   const count = THREE.MathUtils.clamp(
     Math.round(COUNT_BY_MODE[performanceMode] * countScale),
@@ -46,123 +78,71 @@ export function SpeakerParticles() {
     180000
   )
 
-  const radius = 5
-  const maxKickForce = 12
-  const gravity = -19.8
-  const expansionSpeed = 2.5
-  const resetRadius = radius * 1.5
-
-  // 粒子数据：positions + 独立 velocities 数组
-  const { positions, velocities } = useMemo(() => {
-    const pos = new Float32Array(count * 3)
-    const vel = new Float32Array(count)
-    const initialSpawnRadius = 1.0
-
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2
-      const r = initialSpawnRadius * Math.sqrt(Math.random())
-      pos[i * 3] = Math.cos(angle) * r
-      pos[i * 3 + 1] = 0
-      pos[i * 3 + 2] = Math.sin(angle) * r
-      vel[i] = 0
-    }
-    return { positions: pos, velocities: vel }
-  }, [count])
-
   const geometry = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    return g
-  }, [positions])
-
-  // 性能档切换/卸载时释放旧 geometry 的 GPU buffer（geometry 以 prop 传入，r3f 不会自动 dispose）
+    const positions = new Float32Array(count * 3)
+    const particles = new Float32Array(count * 4)
+    for (let i = 0; i < count; i++) {
+      const off = i * 4
+      particles[off] = Math.random() * Math.PI * 2
+      particles[off + 1] = 0.08 + Math.sqrt(Math.random()) * 0.92
+      particles[off + 2] = Math.random()
+      particles[off + 3] = Math.random()
+    }
+    const result = new THREE.BufferGeometry()
+    result.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    result.setAttribute('aParticle', new THREE.BufferAttribute(particles, 4))
+    result.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 12)
+    return result
+  }, [count])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  useFrame((_, delta) => {
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uEnergy: { value: 0 },
+    uMotion: { value: 1 },
+    uSize: { value: 1 },
+    uPixel: { value: 1 },
+    uOpacity: { value: 0.86 },
+    uColor: { value: new THREE.Color('#7ec8f8') },
+    uDotTex: { value: getDotSpriteTexture() }
+  }), [])
+
+  const dpr = useThree((s) => s.viewport.dpr)
+  useEffect(() => {
+    uniforms.uPixel.value = dpr
+  }, [dpr, uniforms])
+
+  useFrame((state, delta) => {
     const params = useSettingsStore.getState().lyrics3d
-    const freq = avgFrequency()
-    // 归一化频率影响（0~1），与原始项目阈值对齐
-    const freqInfluence = Math.min(Math.max(freq / 180, 0), 1)
-    const currentKickStrength = maxKickForce * params.motionIntensity * freqInfluence
-    const kickThreshold = 0.01
+    const rawEnergy = averageFrequency()
+    const rate = rawEnergy > energyRef.current ? 1 - Math.exp(-delta * 5.2) : 1 - Math.exp(-delta * 2.6)
+    energyRef.current += (rawEnergy - energyRef.current) * rate
 
-    const posAttr = geometry.attributes.position as THREE.BufferAttribute
-    const posArr = posAttr.array as Float32Array
-    const resetRadiusSq = resetRadius * resetRadius
-    const centerSpawnRadius = 0.08
-    const centerSpawnRadiusSq = centerSpawnRadius * centerSpawnRadius
+    uniforms.uTime.value = state.clock.getElapsedTime()
+    uniforms.uEnergy.value = energyRef.current
+    uniforms.uMotion.value = params.motionIntensity
+    uniforms.uSize.value = params.particleSize
+    uniforms.uOpacity.value = 0.82
+    const brightnessScale = 0.72 + params.particleBrightness * 0.35
+    uniforms.uColor.value.setHSL(
+      (0.55 + energyRef.current * 0.15) % 1,
+      0.72,
+      Math.min(0.92, (0.42 + energyRef.current * 0.28) * brightnessScale)
+    )
 
-    for (let i = 0; i < count; i++) {
-      const xIdx = i * 3
-      const yIdx = xIdx + 1
-      const zIdx = xIdx + 2
-
-      const x = posArr[xIdx]
-      const z = posArr[zIdx]
-      const distSq = x * x + z * z
-
-      // --- Y 轴：重力 + 低音踢飞 ---
-      velocities[i] += gravity * delta
-      posArr[yIdx] += velocities[i] * delta
-
-      if (posArr[yIdx] <= 0) {
-        posArr[yIdx] = 0
-        if (freqInfluence > kickThreshold && distSq > centerSpawnRadiusSq) {
-          // 低音命中，踢飞粒子（带随机性）
-          velocities[i] = currentKickStrength * (0.5 + Math.random() * 0.5)
-        } else {
-          velocities[i] = 0
-        }
-      }
-
-      // --- XZ 平面：频率驱动径向扩展 ---
-      if (distSq > resetRadiusSq || Math.random() < 0.0005) {
-        // 飞出边界或随机重生 → 回到中心
-        const angle = Math.random() * Math.PI * 2
-        const r = centerSpawnRadius * Math.sqrt(Math.random())
-        posArr[xIdx] = Math.cos(angle) * r
-        posArr[zIdx] = Math.sin(angle) * r
-        posArr[yIdx] = 0
-        velocities[i] = 0
-      } else if (distSq > 0.001 && freqInfluence > kickThreshold) {
-        const dist = Math.sqrt(distSq)
-        const nx = x / dist
-        const nz = z / dist
-        const currentExpansionSpeed = expansionSpeed * params.motionIntensity * freqInfluence
-        posArr[xIdx] += nx * currentExpansionSpeed * delta
-        posArr[zIdx] += nz * currentExpansionSpeed * delta
-      }
-    }
-
-    posAttr.needsUpdate = true
-
-    // 旋转整个粒子盘，增加动态感
     if (pointsRef.current) {
-      pointsRef.current.rotation.y += delta * 0.15
-      pointsRef.current.rotation.x = -0.35 // 微微倾斜，露出深度
-    }
-
-    // 动态颜色随频率变化;亮度/大小按设置倍率缩放,亮度上限 0.95 防过曝
-    if (matRef.current) {
-      const hue = 0.55 + freqInfluence * 0.15
-      matRef.current.color.setHSL(
-        hue % 1,
-        0.7,
-        Math.min(0.95, (0.45 + freqInfluence * 0.35) * params.particleBrightness)
-      )
-      matRef.current.size = 0.025 * params.particleSize
+      pointsRef.current.rotation.y += delta * (0.08 + energyRef.current * 0.08)
+      pointsRef.current.rotation.x = -0.35
     }
   })
 
   return (
-    <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial
-        ref={matRef}
-        color="#7ec8f8"
-        size={0.025}
-        sizeAttenuation
+    <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
+      <shaderMaterial
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
+        uniforms={uniforms}
         transparent
-        opacity={0.85}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />

@@ -308,6 +308,8 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const midSmoothRef = useRef(0)
   const trebleSmoothRef = useRef(0)
   const energySmoothRef = useRef(0)
+  const audioGateRef = useRef(0)
+  const activeRippleIndicesRef = useRef<number[]>([])
 
   const proxyUrl = coverUrl ? api.coverImage(sizedImage(coverUrl, CANVAS_COVER_PX)) : undefined
 
@@ -520,14 +522,19 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     const bands = bandEnergiesFrom(engine.getFrequencyData())
     // 静音→播放瞬间频谱是阶跃(gain 淡入包络不影响 analyser 读数),原始值直接
     // 驱动位移场会导致整面粒子在起播那一刻大幅度抖动,故做指数平滑(升快降慢)
-    const bassSum = bands.subBass + bands.bass
+    const rawBassSum = bands.subBass + bands.bass
+    const gateTarget = bands.energy > 0.012 ? 1 : 0
+    const gateRate = gateTarget > audioGateRef.current ? 4.2 : 2.2
+    audioGateRef.current += (gateTarget - audioGateRef.current) * Math.min(1, delta * gateRate)
+    const audioGate = audioGateRef.current
+    const bassSum = rawBassSum * audioGate
     bassSmoothRef.current = smoothEnergy(bassSmoothRef.current, bassSum * 0.5)
-    midSmoothRef.current = smoothEnergy(midSmoothRef.current, (bands.lowMid + bands.mid) * 0.5)
+    midSmoothRef.current = smoothEnergy(midSmoothRef.current, (bands.lowMid + bands.mid) * 0.5 * audioGate)
     trebleSmoothRef.current = smoothEnergy(
       trebleSmoothRef.current,
-      (bands.highMid + bands.presence + bands.air) / 3
+      ((bands.highMid + bands.presence + bands.air) / 3) * audioGate
     )
-    energySmoothRef.current = smoothEnergy(energySmoothRef.current, bands.energy)
+    energySmoothRef.current = smoothEnergy(energySmoothRef.current, bands.energy * audioGate)
     uniforms.uBass.value = bassSmoothRef.current
     uniforms.uMid.value = midSmoothRef.current
     uniforms.uTreble.value = trebleSmoothRef.current
@@ -540,7 +547,8 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     // bass 上升沿(带迟滞)触发涟漪:九宫格随机挑 2-3 个爆点。
     // 阈值随灵敏度线性下降:灵敏度 0.5 时为历史默认 0.38
     const beatThreshold = 0.58 - 0.4 * params.rippleSensitivity
-    const isHit = bassSum > beatThreshold && !bassAboveRef.current
+    // 起播先用短包络把能量推入场景，首个 analyser 阶跃不直接触发多道涟漪。
+    const isHit = audioGate > 0.72 && bassSum > beatThreshold && !bassAboveRef.current
     bassAboveRef.current = bassSum > beatThreshold * 0.75
     if (isHit && t - lastRippleAtRef.current > RIPPLE_COOLDOWN) {
       lastRippleAtRef.current = t
@@ -565,17 +573,33 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     // 涟漪推进:年龄写入数据纹理;时长滑块缩放年龄流速(默认 0.55 → 原版 2s 生命)
     const ageScale = 0.55 / THREE.MathUtils.clamp(params.rippleDuration, 0.15, 2)
     const data = textures.rippleTex.image.data as unknown as Float32Array
-    let active = 0
+    const maxActive = THREE.MathUtils.clamp(Math.round(params.rippleCount), 1, 6)
+    const activeIndices = activeRippleIndicesRef.current
+    activeIndices.length = 0
     for (let i = 0; i < RIPPLE_MAX; i++) {
       const r = ripplesRef.current[i]
       const age = (t - r.start) * ageScale
       if (r.str > 0.005 && age > 2.0) r.str = 0
-      if (r.str > 0.005) active = i + 1
-      const off = i * 4
-      data[off] = r.x
-      data[off + 1] = r.y
-      data[off + 2] = age
-      data[off + 3] = r.str
+      if (r.str <= 0.005) continue
+      // 按触发时间倒序插入，达到上限时优先保留最新鼓点，旧涟漪不会遮住刚触发的新波纹。
+      let insertAt = activeIndices.length
+      activeIndices.push(i)
+      while (insertAt > 0 && ripplesRef.current[activeIndices[insertAt - 1]].start < r.start) {
+        activeIndices[insertAt] = activeIndices[insertAt - 1]
+        insertAt--
+      }
+      activeIndices[insertAt] = i
+    }
+    const active = Math.min(activeIndices.length, maxActive)
+    for (let i = 0; i < active; i++) {
+      const r = ripplesRef.current[activeIndices[i]]
+      const age = (t - r.start) * ageScale
+      // 紧凑写入活跃涟漪，shader 循环次数等于真实数量，不再因环形槽位下标升高而空跑。
+      const dataOff = i * 4
+      data[dataOff] = r.x
+      data[dataOff + 1] = r.y
+      data[dataOff + 2] = age
+      data[dataOff + 3] = r.str
     }
     textures.rippleTex.needsUpdate = true
     uniforms.uRippleCount.value = active

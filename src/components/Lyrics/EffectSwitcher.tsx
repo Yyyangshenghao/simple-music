@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
-import type { Lyrics3dEffect } from '../../types/domain'
+import type { Lyrics3dEffect, Lyrics3dStyle } from '../../types/domain'
 import styles from './EffectSwitcher.module.css'
 
 interface EffectInfo {
@@ -63,16 +63,104 @@ const EFFECTS: EffectInfo[] = [
   }
 ]
 
+interface StyleInfo {
+  id: Lyrics3dStyle
+  label: string
+  hint: string
+  icon: JSX.Element
+}
+
+const LYRIC_STYLES: StyleInfo[] = [
+  {
+    id: 'glass',
+    label: '玻璃',
+    hint: '通透辉光，均衡动感',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 5h12l-1.5 10h-9z" /><path d="M6.5 8h7" opacity=".55" />
+      </svg>
+    )
+  },
+  {
+    id: 'smooth',
+    label: '丝滑',
+    hint: '柔和连续的轨道滚动',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 5.5h11" opacity=".45" /><path d="M4 10h13" /><path d="M6 14.5h9" opacity=".55" />
+      </svg>
+    )
+  },
+  {
+    id: 'float',
+    label: '漂浮',
+    hint: 'Mineradio 默认的呼吸悬浮',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12c3-4 5 3 8-1s4 1 6-3" /><circle cx="6" cy="5" r="1" /><circle cx="14" cy="15" r=".8" />
+      </svg>
+    )
+  },
+  {
+    id: 'quick',
+    label: '快切',
+    hint: '短促利落，跟拍更快',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h10M6 10h11M3 14h10" /><path d="m13 3 4 3-4 3" />
+      </svg>
+    )
+  },
+  {
+    id: 'shine',
+    label: '流光',
+    hint: '更明亮的扫光和辉光',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 2v4M10 14v4M2 10h4M14 10h4" /><path d="m5 5 2 2m6 6 2 2m0-10-2 2m-6 6-2 2" />
+      </svg>
+    )
+  },
+  {
+    id: 'glitch',
+    label: '故障',
+    hint: '节拍触发的轻微错位',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 5h9v3h5M5 10h10M3 15h6v-3h8" />
+      </svg>
+    )
+  },
+  {
+    id: 'focus',
+    label: '简洁叠层',
+    hint: '关闭 3D 轨道，保留大字',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6 V3h3 M14 3h3v3 M17 14v3h-3 M6 17H3v-3" />
+        <path d="M5 10 H15" />
+      </svg>
+    )
+  }
+]
+
 interface EffectSwitcherProps {
   onClose: () => void
 }
 
-/** 3D 按钮下拉菜单:选择封面粒子云/3D 频谱环/音箱沙粒三种效果,底部附舞台歌词开关 */
+/** 3D 按钮下拉菜单：背景效果和歌词样式分组独立选择。 */
 export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
   const active = useSettingsStore((s) => s.lyrics3dEffect)
   const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
-  const stage3d = useSettingsStore((s) => s.lyricsStage3d)
-  const setStage3d = useSettingsStore((s) => s.setLyricsStage3d)
+  const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
+  const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
 
   return (
     <>
@@ -84,6 +172,7 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={springSnappy}
       >
+        <div className={styles.sectionLabel}>场景效果</div>
         {EFFECTS.map((eff) => {
           const isActive = active === eff.id
           return (
@@ -105,27 +194,30 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
           )
         })}
         <div className={styles.divider} aria-hidden="true" />
-        <motion.button
-          role="menuitemcheckbox"
-          aria-checked={stage3d}
-          className={`${styles.item}${stage3d ? ` ${styles.itemActive}` : ''}`}
-          title="开:歌词悬浮在 3D 场景内;关:传统底部叠加歌词"
-          onClick={() => setStage3d(!stage3d)}
-          whileTap={tapScale}
-          transition={springSnappy}
-        >
-          <span className={styles.icon}>
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
-              strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 14 L10 17 L17 14" />
-              <path d="M3 10 L10 13 L17 10" />
-              <path d="M5 6.5 H15" />
-              <circle cx="3" cy="6.5" r="0.8" />
-              <circle cx="17" cy="6.5" r="0.8" />
-            </svg>
-          </span>
-          <span className={styles.label}>舞台歌词</span>
-        </motion.button>
+        <div className={styles.sectionLabel}>歌词样式</div>
+        {LYRIC_STYLES.map((style) => {
+          const isActive = activeStyle === style.id
+          return (
+            <motion.button
+              key={style.id}
+              role="menuitemradio"
+              aria-checked={isActive}
+              className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
+              onClick={() => {
+                setStyle(style.id)
+                onClose()
+              }}
+              whileTap={tapScale}
+              transition={springSnappy}
+            >
+              <span className={styles.icon}>{style.icon}</span>
+              <span className={styles.itemCopy}>
+                <span className={styles.label}>{style.label}</span>
+                <span className={styles.hint}>{style.hint}</span>
+              </span>
+            </motion.button>
+          )
+        })}
       </motion.div>
     </>
   )

@@ -50,21 +50,22 @@ function makeCanvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
  * 把一行歌词栅格化为 2048×384 的白字 mask。
  * 字号从 maxFont 逐级降到 minFont 以塞进画布,仍超宽时横向压缩(fitScaleX ≥0.68)。
  */
-export function makeLyricMask(text: string, opts?: { maxFont?: number; minFont?: number }): LyricMask {
-  const W = 2048
-  const H = 384
-  const maxFont = opts?.maxFont ?? 128
-  const minFont = opts?.minFont ?? 42
+export function makeLyricMask(text: string, opts?: { maxFont?: number; minFont?: number; textureScale?: number }): LyricMask {
+  const textureScale = Math.max(0.25, Math.min(1, opts?.textureScale ?? 1))
+  const W = Math.round(2048 * textureScale)
+  const H = Math.round(384 * textureScale)
+  const maxFont = (opts?.maxFont ?? 128) * textureScale
+  const minFont = (opts?.minFont ?? 42) * textureScale
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  const maxWidth = W - 190
+  const maxWidth = W - 190 * textureScale
   text = String(text || '').replace(/\s+/g, ' ').trim()
 
   let fontSize = maxFont
   let widest = 1
-  for (; fontSize >= minFont; fontSize -= 4) {
+  for (; fontSize >= minFont; fontSize -= 4 * textureScale) {
     ctx.font = fontCss(fontSize)
     widest = Math.max(1, ctx.measureText(text).width)
     if (widest <= maxWidth) break
