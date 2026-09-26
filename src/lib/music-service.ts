@@ -15,6 +15,8 @@ export interface MusicService {
   getRelatedPlaylists?(track: Track, previousIds?: string[]): Promise<RelatedPlaylistsPage>
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
+  /** 歌手单曲分页（可选；支持时歌手页可继续加载，nextOffset 是音源自己的游标）。 */
+  getArtistSongsPage?(id: unknown, offset: number, limit: number): Promise<ArtistSongsPage>
   /** 相似歌手（可选；未实现的音源不渲染相似歌手胶囊）。 */
   getSimilarArtists?(id: unknown): Promise<ArtistInfo[]>
   /** 近一周听歌排行（可选；网易专属，用于漫游页猜测常听歌手）。 */
@@ -62,6 +64,12 @@ export interface MusicService {
 
 export interface RelatedPlaylistsPage {
   playlists: Playlist[]
+  hasMore: boolean
+}
+
+export interface ArtistSongsPage {
+  songs: Track[]
+  nextOffset: number
   hasMore: boolean
 }
 

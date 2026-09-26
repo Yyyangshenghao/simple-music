@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
 import { api } from '../lib/api'
+import { AppleMusicPlayback } from '../lib/apple-music-playback'
 import { getPreloadedResolution, audioDiskCacheKey } from '../lib/track-preload'
 import { PlaybackResolver, type PlaybackAttempt, type PlaybackResolution } from '../lib/playback-resolver'
+import { fetchOfflineStatus, offlineFileUrl, type OfflineCacheStatus } from '../lib/offline-cache'
 import {
   canUseOriginPlaybackShortcut,
   mediaFailureReasonFromPlayError,
@@ -60,6 +62,8 @@ interface PlayerStore {
   resolvedTrack: Track | null
   /** 在线音源的完整解析结果；本地音乐为 null。 */
   resolution: PlaybackResolution | null
+  /** 当前音频实际来自网络、本地离线缓存或本地音乐。 */
+  playbackTransport: 'online' | 'offline' | 'local' | 'musickit' | null
   playbackAttempts: PlaybackAttempt[]
   /** 当前曲目的播放语境(来源歌单/专辑 id),随队列传入,供切歌时的听歌打卡上报使用。 */
   contextId: unknown
@@ -103,12 +107,15 @@ interface ActivePlayback {
   originTrack: Track
   resolver: PlaybackResolver | null
   candidate: PlaybackCandidate | null
-  candidateKind: 'external' | 'resolver' | 'local'
+  candidateKind: 'external' | 'resolver' | 'offline' | 'local'
+  offlineStatus?: OfflineCacheStatus
   engineLoadId: number
   startAt: number
   advancing: boolean
   fallbackNotified: boolean
   autoplay: boolean
+  preferredSource?: ProviderId
+  offlineFailed?: boolean
 }
 
 let activePlayback: ActivePlayback | null = null
@@ -121,6 +128,46 @@ export function setStopAfterCurrent(cb: (() => void) | null): void {
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => {
+  let applePlayback: AppleMusicPlayback | null = null
+
+  function trackEnded(): void {
+    if (stopAfterCurrentCb) {
+      set({ status: 'paused', position: 0 })
+      const cb = stopAfterCurrentCb
+      stopAfterCurrentCb = null
+      cb()
+      return
+    }
+    if (onTrackEndedInterceptor?.()) return
+    set({ status: 'paused', position: 0 })
+    onTrackEnded?.()
+  }
+
+  function appleCommand(command: Parameters<AppleMusicPlayback['command']>[0]): void {
+    const playback = applePlayback
+    if (!playback) return
+    void playback.command(command).catch(() => {
+      if (applePlayback !== playback) return
+      set({ status: 'paused' })
+      useToastStore.getState().show('Apple Music 控制失败，请检查浏览器播放页')
+    })
+  }
+
+  function createResolver(active: ActivePlayback): PlaybackResolver {
+    const providerState = useProviderStore.getState()
+    return new PlaybackResolver(
+      active.originTrack,
+      get().quality,
+      {
+        playbackOrder: providerState.playbackOrder.filter(isProviderParticipating),
+        preferOriginSource: providerState.preferOriginSource,
+        multiSourceFallback: providerState.multiSourceFallback,
+        preferredSource: active.preferredSource,
+      },
+      { isParticipating: isProviderParticipating }
+    )
+  }
+
   function failPlayback(active: ActivePlayback): void {
     if (activePlayback !== active || active.session !== loadSession) return
     active.resolver?.abort()
@@ -132,6 +179,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       actualSource: null,
       resolvedTrack: null,
       resolution: null,
+      playbackTransport: null,
       playbackAttempts: [...(active.resolver?.attempts ?? [])],
     })
     useToastStore.getState().show(active.resolver?.failureMessage || FALLBACK_UNPLAYABLE_MESSAGE)
@@ -146,7 +194,51 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     if (activePlayback !== active || active.session !== loadSession) return
     active.candidate = candidate
     active.candidateKind = kind
-    const cacheKey = candidate.trial || !cacheable
+    if (candidate.source === 'apple') {
+      ensureEngine().clearSource()
+      ensureEngine().setPlaybackRate(1)
+      const library = candidate.url.startsWith('apple-music:library:')
+      const id = decodeURIComponent(candidate.url.slice(library ? 'apple-music:library:'.length : 'apple-music:'.length))
+      let committed = false
+      const playback = new AppleMusicPlayback((state) => {
+        if (applePlayback !== playback || activePlayback !== active || active.session !== loadSession) return
+        if (state.status === 'error') {
+          playback.stop()
+          applePlayback = null
+          activePlayback = null
+          set({ status: 'paused', actualSource: null, resolvedTrack: null, resolution: null, playbackTransport: null, currentQuality: null })
+          useToastStore.getState().show(state.error || 'Apple Music 播放失败，请检查订阅与浏览器播放页')
+          return
+        }
+        if (!committed && (state.status === 'playing' || state.status === 'paused')) {
+          committed = true
+          const resolution = active.resolver?.complete(candidate) ?? null
+          set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1 })
+        }
+        set({
+          status: state.status === 'ended' ? 'paused' : state.status,
+          position: state.position,
+          ...(state.duration > 0 ? { duration: state.duration } : {}),
+        })
+        if (state.status === 'ended') {
+          playback.stop()
+          applePlayback = null
+          trackEnded()
+        }
+      })
+      applePlayback = playback
+      set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1 })
+      void playback.load(id, library, active.startAt, active.autoplay, get().volume).catch((error) => {
+        if (applePlayback !== playback || activePlayback !== active) return
+        playback.stop()
+        applePlayback = null
+        activePlayback = null
+        set({ status: 'paused', actualSource: null, resolvedTrack: null, resolution: null, playbackTransport: null, currentQuality: null })
+        useToastStore.getState().show(error instanceof Error ? error.message : '请先在设置中连接 Apple Music 播放页')
+      })
+      return
+    }
+    const cacheKey = candidate.trial || !cacheable || active.offlineFailed
       ? undefined
       : audioDiskCacheKey(candidate.track, candidate.quality.id)
     set({
@@ -158,7 +250,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       playbackAttempts: [...(active.resolver?.attempts ?? [])],
     })
     const eng = ensureEngine()
-    const loadId = eng.load(candidate.url, active.startAt, cacheKey)
+    const originSource = active.originTrack.source
+    const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq')
+      ? {
+          originSource,
+          originId: String(active.originTrack.id),
+          resolvedSource: candidate.source,
+          resolvedId: String(candidate.track.mid ?? candidate.track.id),
+          quality: String(candidate.quality.id),
+        }
+      : undefined
+    const loadId = eng.load(candidate.url, active.startAt, cacheKey, cacheContext)
     active.engineLoadId = loadId
     eng.setVolume(get().volume)
     if (active.autoplay) {
@@ -173,6 +275,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   async function advancePlayback(reason?: string): Promise<void> {
     const active = activePlayback
     if (!active || active.advancing) return
+    if (!active.resolver && active.candidateKind === 'offline') {
+      // 本次在线回退不得经代理重新读到同一个坏缓存，也不删除用户固定的文件。
+      active.offlineFailed = true
+      active.resolver = createResolver(active)
+    }
     if (!active.resolver) {
       failPlayback(active)
       return
@@ -208,6 +315,30 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         resolvedTrack: active.originTrack,
         resolution: null,
         currentQuality: null,
+        playbackTransport: 'local',
+      })
+      return
+    }
+    if (active.candidateKind === 'offline') {
+      const status = active.offlineStatus
+      const resolved = status?.resolved
+      const origin = active.originTrack
+      set({
+        actualSource: resolved?.source ?? origin.source,
+        resolvedTrack: resolved ? {
+          provider: resolved.source,
+          source: resolved.source,
+          type: origin.type,
+          id: resolved.id,
+          mid: resolved.source === 'qq' ? resolved.id : undefined,
+          name: resolved.name ?? origin.name,
+          artist: resolved.artist ?? origin.artist,
+          artists: [],
+          duration: origin.duration,
+        } : origin,
+        resolution: null,
+        currentQuality: status?.quality ?? null,
+        playbackTransport: 'offline',
       })
       return
     }
@@ -226,6 +357,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       resolution,
       currentQuality: resolution.quality.label,
       playbackAttempts: [...resolution.attempts],
+      playbackTransport: 'online',
     })
     if (resolution.actualSource !== active.originTrack.source && !active.fallbackNotified) {
       active.fallbackNotified = true
@@ -236,17 +368,18 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
     engine = new AudioEngine({
-      onPosition: (s) => set({ position: s }),
-      onDuration: (d) => set({ duration: d }),
-      onStatus: (status) => set({
+      onPosition: (s) => { if (!applePlayback) set({ position: s }) },
+      onDuration: (d) => { if (!applePlayback) set({ duration: d }) },
+      onStatus: (status) => { if (!applePlayback) set({
         status: playbackStatusForEngineEvent(status, activePlayback?.autoplay ?? true),
-      }),
+      }) },
       onCanPlay: commitPlayableCandidate,
       onError: (reason, loadId) => {
         if (activePlayback?.engineLoadId !== loadId) return
         void advancePlayback(reason)
       },
       onOutputDeviceChange: (wasPlaying) => {
+        if (applePlayback) return
         const state = get()
         if (!state.currentTrack || !shouldRecoverAfterOutputDeviceChange(state.status, wasPlaying)) return
         if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
@@ -262,16 +395,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         }, 200)
       },
       onEnded: () => {
-        if (stopAfterCurrentCb) {
-          set({ status: 'paused', position: 0 })
-          const cb = stopAfterCurrentCb
-          stopAfterCurrentCb = null
-          cb()
-          return
-        }
-        if (onTrackEndedInterceptor?.()) return
-        set({ status: 'paused', position: 0 })
-        onTrackEnded?.()
+        if (!applePlayback) trackEnded()
       }
     })
     return engine
@@ -289,11 +413,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     actualSource: null,
     resolvedTrack: null,
     resolution: null,
+    playbackTransport: null,
     playbackAttempts: [],
     contextId: null,
     rate: 1,
 
     play() {
+      if (applePlayback) { appleCommand({ type: 'play' }); return }
       const eng = ensureEngine()
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
       const { currentTrack, position, contextId } = get()
@@ -304,6 +430,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       void eng.play()
     },
     pause() {
+      if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
       ensureEngine().pause()
     },
     toggle() {
@@ -312,10 +439,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       else get().play()
     },
     seek(seconds) {
+      if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
       ensureEngine().seek(seconds)
       set({ position: seconds })
     },
     setVolume(v) {
+      if (applePlayback) appleCommand({ type: 'volume', volume: v })
       ensureEngine().setVolume(v)
       set({ volume: v })
     },
@@ -324,11 +453,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       useSettingsStore.getState().setAudioQuality(q)
     },
     setRate(r) {
+      if (applePlayback) {
+        useToastStore.getState().show('Apple Music 由官方播放器控制，暂不支持倍速')
+        return
+      }
       ensureEngine().setPlaybackRate(r)
       set({ rate: r })
     },
 
     async loadTrack(track, opts) {
+      applePlayback?.stop()
+      applePlayback = null
       const eng = ensureEngine()
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
@@ -343,13 +478,15 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         prev.currentTrack &&
         `${prev.currentTrack.source}:${String(prev.currentTrack.id)}` !== `${track.source}:${String(track.id)}`
       ) {
-        maybeScrobble(
-          prev.resolvedTrack ?? prev.currentTrack,
-          prev.currentTrack.source,
-          prev.contextId,
-          prev.position,
-          prev.duration
-        )
+        if (prev.playbackTransport === 'online') {
+          maybeScrobble(
+            prev.resolvedTrack ?? prev.currentTrack,
+            prev.currentTrack.source,
+            prev.contextId,
+            prev.position,
+            prev.duration
+          )
+        }
       }
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
       set({
@@ -358,6 +495,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         actualSource: null,
         resolvedTrack: null,
         resolution: null,
+        playbackTransport: null,
         playbackAttempts: [],
         contextId: nextContextId,
         status: autoplay ? 'loading' : 'paused',
@@ -397,22 +535,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         return
       }
 
-      const providerState = useProviderStore.getState()
-      const resolver = new PlaybackResolver(
-        track,
-        get().quality,
-        {
-          playbackOrder: providerState.playbackOrder.filter(isProviderParticipating),
-          preferOriginSource: providerState.preferOriginSource,
-          multiSourceFallback: providerState.multiSourceFallback,
-          preferredSource: opts?.preferredSource,
-        },
-        { isParticipating: isProviderParticipating }
-      )
       const active: ActivePlayback = {
         session,
         originTrack: track,
-        resolver,
+        resolver: null,
         candidate: null,
         candidateKind: 'resolver',
         engineLoadId: 0,
@@ -420,16 +546,39 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         advancing: false,
         fallbackNotified: false,
         autoplay,
+        preferredSource: opts?.preferredSource,
       }
       activePlayback = active
 
+      // 在线曲目先查本地离线索引；命中时不依赖平台登录或网络，媒体文件失效则回到解析器降级链。
+      const offlineStatus = await fetchOfflineStatus(track).catch(() => null)
+      if (activePlayback !== active || active.session !== loadSession) return
+      const offlineUrl = offlineStatus ? offlineFileUrl(offlineStatus, track) : null
+      if (offlineStatus && offlineUrl) {
+        active.candidateKind = 'offline'
+        active.offlineStatus = offlineStatus
+        const loadId = eng.load(offlineUrl, startAt)
+        active.engineLoadId = loadId
+        eng.setVolume(get().volume)
+        if (autoplay) {
+          void eng.play().catch((error) => {
+            const reason = mediaFailureReasonFromPlayError(error)
+            if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
+            void advancePlayback(reason)
+          })
+        }
+        return
+      }
+
+      const resolver = createResolver(active)
+      active.resolver = resolver
       // 自带直链或相邻曲目预解析命中时先起播；媒体失败仍会回到同一 resolver 会话继续降级。
       const originAvailable = isProviderParticipating(track.source)
       const canUseOriginShortcut = canUseOriginPlaybackShortcut(track.source, opts?.preferredSource)
-      const preloaded = originAvailable && canUseOriginShortcut && !track.url
+      const preloaded = track.source !== 'apple' && originAvailable && canUseOriginShortcut && !track.url
         ? getPreloadedResolution(track, get().quality)
         : undefined
-      const externalUrl = originAvailable && canUseOriginShortcut ? track.url ?? preloaded?.url : undefined
+      const externalUrl = track.source !== 'apple' && originAvailable && canUseOriginShortcut ? track.url ?? preloaded?.url : undefined
       if (externalUrl) {
         resolver.ignoreUrl(track.source, externalUrl)
         const level = preloaded?.level ?? track.quality ?? get().quality
@@ -472,7 +621,7 @@ useSettingsStore.subscribe((s) => {
   if (s.audioQuality !== usePlayerStore.getState().quality) {
     usePlayerStore.setState({ quality: s.audioQuality })
     const st = usePlayerStore.getState()
-    if (st.currentTrack && !st.currentTrack.url && (st.status === 'playing' || st.status === 'loading')) {
+    if (st.currentTrack && st.currentTrack.source !== 'apple' && !st.currentTrack.url && (st.status === 'playing' || st.status === 'loading')) {
       void st.loadTrack(st.currentTrack, { startAt: st.position, contextId: st.contextId })
     }
   }

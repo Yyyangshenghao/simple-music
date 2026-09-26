@@ -30,6 +30,11 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const [busySource, setBusySource] = useState<ProviderId | null>(null)
 
   async function login(source: ProviderId): Promise<void> {
+    if (source === 'apple') {
+      navigateTo('settings')
+      onClose()
+      return
+    }
     setBusySource(source)
     try {
       if (source === 'netease') {
@@ -59,7 +64,10 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   async function logout(source: ProviderId): Promise<void> {
     setBusySource(source)
     try {
-      if (source === 'netease') {
+      if (source === 'apple') {
+        await api.post('/api/apple-music/bridge/logout')
+        useProviderStore.getState().setAccountState('apple', 'anonymous')
+      } else if (source === 'netease') {
         setNeteaseLoggedIn(false)
         useProviderStore.getState().setAccountState('netease', 'anonymous')
         await Promise.allSettled([
@@ -91,7 +99,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.providerList}>
           {providers.map((provider) => {
             const source = provider.descriptor.id
-            const loggedIn = source === 'netease' ? neteaseLoggedIn : qqLoggedIn
+            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn
             const state = runtime[source]
             return (
               <section className={styles.providerCard} key={source} aria-label={provider.descriptor.label}>

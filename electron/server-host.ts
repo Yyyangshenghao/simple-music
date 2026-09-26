@@ -3,9 +3,11 @@ import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { startServer } from '../server/index'
+import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
 
 let handle: { port: number; close(): void } | null = null
 let apiToken = ''
+let appleMusicWeb: OfficialAppleMusicSession | undefined
 
 /**
  * 读取或生成本机 API 访问 token,持久化在 userData 下。
@@ -38,7 +40,11 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
   if (handle) return { port: handle.port, token: apiToken }
   const userDataDir = app.getPath('userData')
   apiToken = loadOrCreateToken(userDataDir)
+  // Apple 的生产许可证服务拒绝 CastLabs 开发 VMP 签名。开发态改用系统 Chrome
+  // 的正式 Widevine 客户端；发布包经 EVS 生产签名后继续使用应用内隐藏窗口。
+  appleMusicWeb = new OfficialAppleMusicSession(userDataDir, !app.isPackaged)
   handle = await startServer({
+    appleMusicWeb,
     userDataDir,
     token: apiToken,
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
@@ -52,7 +58,10 @@ export function getApiToken(): string {
   return apiToken
 }
 
-export function shutdownServer(): void {
+export function shutdownServer(): Promise<void> {
+  const closing = appleMusicWeb?.close().catch(() => {})
+  appleMusicWeb = undefined
   handle?.close()
   handle = null
+  return closing ?? Promise.resolve()
 }

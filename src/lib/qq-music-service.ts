@@ -2,6 +2,7 @@ import { api } from './api'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { qqRelatedSongId } from './qq-related-identifiers'
 import type {
+  ArtistSongsPage,
   MusicService,
   PlaylistSkeleton,
   RadarPlaylist,
@@ -74,8 +75,22 @@ export class QQMusicService implements MusicService {
   }
 
   async getArtistSongs(id: unknown): Promise<Track[]> {
-    const res = await api.get<{ songs: Track[] }>('/api/qq/artist/songs', { id: id as string | number })
-    return res.songs ?? []
+    return (await this.getArtistSongsPage(id, 0, 50)).songs
+  }
+
+  async getArtistSongsPage(id: unknown, offset: number, limit: number): Promise<ArtistSongsPage> {
+    const res = await api.get<{ songs?: Track[]; total?: number }>('/api/qq/artist/songs', {
+      id: id as string | number,
+      offset,
+      limit,
+    })
+    const songs = res.songs ?? []
+    const total = Number(res.total)
+    return {
+      songs,
+      nextOffset: offset + limit,
+      hasMore: Number.isFinite(total) ? offset + limit < total : songs.length === limit,
+    }
   }
 
   async getArtistAlbums(id: unknown): Promise<Playlist[]> {

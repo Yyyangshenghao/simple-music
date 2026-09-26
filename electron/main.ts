@@ -39,6 +39,8 @@ if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID)
 
 const gotLock = app.requestSingleInstanceLock()
 let isQuitting = false
+let quitReady = false
+let shutdownStarted = false
 
 function createPlayerWindow(port: number, token: string): void {
   const win = createMainWindow(port, token)
@@ -48,6 +50,11 @@ function createPlayerWindow(port: number, token: string): void {
       if (isQuitting) return
       event.preventDefault()
       win.hide()
+    })
+  } else {
+    // Apple Music 播放窗口会在后台隐藏；主窗口关闭后主动退出，避免只剩后台窗口驻留。
+    win.on('closed', () => {
+      if (!isQuitting) app.quit()
     })
   }
 }
@@ -99,11 +106,16 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit()
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (quitReady) return
+    event?.preventDefault()
+    if (shutdownStarted) return
+    shutdownStarted = true
     isQuitting = true
     unregisterHotkeys()
     closeOverlays()
     destroyTray()
-    shutdownServer()
+    // 应用内后台 MusicKit 窗口承载独立音频，等待关闭后才允许 Electron 退出。
+    void Promise.resolve(shutdownServer()).finally(() => { quitReady = true; app.quit() })
   })
 }

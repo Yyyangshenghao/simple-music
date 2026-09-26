@@ -212,6 +212,17 @@ export function mapSongRecord(song: unknown): MappedSong {
   }
 }
 
+/** 网易云目录里的明确下架版本：保留 VIP/付费歌曲，只排除平台已标记无版权的记录。 */
+export function isNeteaseSongAvailable(song: unknown): boolean {
+  const item = asObj(song)
+  const privilege = asObj(item.privilege)
+  const songStatus = Number(item.st)
+  const privilegeStatus = Number(privilege.st)
+  if (Number.isFinite(songStatus) && songStatus < 0) return false
+  if (Number.isFinite(privilegeStatus) && privilegeStatus < 0) return false
+  return item.noCopyrightRcmd == null
+}
+
 export interface MappedPlaylist {
   provider: string
   source: string
@@ -611,8 +622,11 @@ export async function handleArtistSearch(keywords: string, limit: number, cookie
 
 export async function handleSearch(keywords: string, limit: number, cookie: string): Promise<MappedSong[]> {
   console.log('[Search]', keywords, 'limit:', limit)
-  const result = await call('cloudsearch', { keywords, limit, cookie })
+  const candidateLimit = Math.min(100, Math.max(limit, limit * 4))
+  const result = await call('cloudsearch', { keywords, limit: candidateLimit, cookie })
   const songs = asArr(asObj(asObj(result.body).result).songs)
+    .filter(isNeteaseSongAvailable)
+    .slice(0, limit)
   let mapped = songs.map((s) => mapSongRecord(s))
 
   // 兜底: 补齐缺失的封面

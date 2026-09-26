@@ -35,6 +35,7 @@ export function resolveSongUrl(
   quality: AudioQuality,
   signal?: AbortSignal
 ): Promise<SongUrlResponse> {
+  if (track.source === 'apple') return Promise.resolve({ message: 'Apple Music 使用官方播放器' })
   const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
   const params =
     track.source === 'qq'
@@ -178,6 +179,7 @@ export function preloadTracks(
   }
 
   for (const track of tracks) {
+    if (track.source === 'apple') continue
     if (track.pending) continue
     if (track.url) continue
     const key = trackKey(track, quality)

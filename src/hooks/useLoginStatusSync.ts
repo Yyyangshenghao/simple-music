@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { api } from '../lib/api'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
+import { useAppleMusicConnection } from '../stores/apple-music-connection'
 
 // 应用启动时，服务端可能已持有上次登录留存的 cookie（见 server/lib/cookie.ts 落盘），
 // 但渲染层 neteaseLoggedIn/qqLoggedIn 不持久化、默认 false，需主动拉一次状态对齐 UI。
@@ -13,6 +14,13 @@ interface LoginStatusResponse {
 
 export function useLoginStatusSync(): void {
   useEffect(() => {
+    let cancelled = false
+    let appleTimer: ReturnType<typeof setTimeout>
+    const syncApple = async () => {
+      await useAppleMusicConnection.getState().refresh()
+      if (!cancelled) appleTimer = setTimeout(() => void syncApple(), 3000)
+    }
+    void syncApple()
     void api
       .get<LoginStatusResponse>('/api/login/status')
       .then((r) => {
@@ -36,5 +44,6 @@ export function useLoginStatusSync(): void {
         useProviderStore.getState().setAccountState('qq', loggedIn ? 'authenticated' : 'anonymous', profile)
       })
       .catch(() => {})
+    return () => { cancelled = true; clearTimeout(appleTimer) }
   }, [])
 }

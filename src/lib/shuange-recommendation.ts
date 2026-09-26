@@ -1,4 +1,4 @@
-import type { MusicSource, Track } from '../types/domain'
+import { ONLINE_MUSIC_SOURCES, type MusicSource, type Track } from '../types/domain'
 
 const STORAGE_KEY = 'simplemusic-shuange-profile-v1'
 const CANDIDATE_CACHE_KEY = 'simplemusic-shuange-candidate-cache-v1'
@@ -53,7 +53,7 @@ function readProfile(): ShuangeProfile {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '') as Partial<ShuangeProfile>
     const seen: ShuangeProfile['seen'] = {}
-    for (const source of ['netease', 'qq', 'local'] as const) {
+    for (const source of [...ONLINE_MUSIC_SOURCES, 'local'] as const) {
       const items = value.seen?.[source]
       if (Array.isArray(items)) seen[source] = items.filter((item): item is string => typeof item === 'string').slice(0, MAX_SEEN_PER_SOURCE)
     }
@@ -74,7 +74,7 @@ function readProfile(): ShuangeProfile {
 function readTasteSeedDays(value: unknown): ShuangeProfile['tasteSeededOn'] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const result: ShuangeProfile['tasteSeededOn'] = {}
-  for (const source of ['netease', 'qq'] as const) {
+  for (const source of ONLINE_MUSIC_SOURCES) {
     const day = (value as Record<string, unknown>)[source]
     if (typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)) result[source] = day
   }
@@ -84,7 +84,7 @@ function readTasteSeedDays(value: unknown): ShuangeProfile['tasteSeededOn'] {
 function isCandidateTrack(value: unknown): value is Track {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const track = value as Partial<Track>
-  return track.id != null && typeof track.name === 'string' && (track.source === 'netease' || track.source === 'qq')
+  return track.id != null && typeof track.name === 'string' && ONLINE_MUSIC_SOURCES.some((source) => source === track.source)
 }
 
 function localDay(): string {
@@ -99,7 +99,7 @@ function readCandidateCache(): ShuangeCandidateCache {
     const candidates: ShuangeCandidateCache['candidates'] = {}
     const cachedOn: ShuangeCandidateCache['cachedOn'] = {}
     const today = localDay()
-    for (const source of ['netease', 'qq'] as const) {
+    for (const source of ONLINE_MUSIC_SOURCES) {
       const items = value.candidates?.[source]
       if (value.cachedOn?.[source] === today && Array.isArray(items)) {
         candidates[source] = items.filter(isCandidateTrack).slice(0, MAX_CANDIDATES_PER_SOURCE)
@@ -347,7 +347,7 @@ export function stashShuangeCandidates(candidates: Track[]): void {
   const next = { ...candidateCache.candidates }
   const cachedOn = { ...candidateCache.cachedOn }
   const today = localDay()
-  for (const source of ['netease', 'qq'] as const) {
+  for (const source of ONLINE_MUSIC_SOURCES) {
     const existing = next[source] ?? []
     const known = new Set(existing.map(trackKey))
     const additions = candidates.filter((track) => {

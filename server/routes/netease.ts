@@ -8,12 +8,8 @@ import {
   openAudioCacheWriter,
   isFullStreamRequest,
   coversWholeFile,
-  audioCacheStats,
-  clearAudioCache,
-  getAudioCacheConfig,
-  updateAudioCacheConfig,
-  audioCacheDir,
   serveFileWithRange,
+  type AudioCacheContext,
 } from '../lib/audio-cache'
 import {
   UA,
@@ -33,6 +29,7 @@ import {
   getLoginInfo,
   requireLogin,
   handleSearch,
+  isNeteaseSongAvailable,
   handleArtistSearch,
   handleSongUrl,
   handleSongQualities,
@@ -438,11 +435,23 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const cookie = getCookie(ctx, 'netease')
       const id = url.searchParams.get('id') || ''
-      const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10) || 50))
-      const resp = await call('artist_songs', { id, limit, offset: 0, cookie })
+      // 上游在 limit=200 时会随机截断 total/more；50 条批次可稳定遍历完整曲库。
+      const limit = Math.max(1, Math.min(50, parseInt(url.searchParams.get('limit') || '50', 10) || 50))
+      const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0)
+      const resp = await call('artist_songs', { id, limit, offset, cookie })
       const body = asObj(resp.body)
-      const songs = asArr(body.songs || body.data || []).map(mapSongRecord).filter((s) => s.id && s.name)
-      sendJson(res, { songs })
+      const rawSongs = asArr(body.songs || body.data || [])
+      const songs = rawSongs
+        .map((rawSong) => ({ ...mapSongRecord(rawSong), playable: isNeteaseSongAvailable(rawSong) }))
+        .filter((song) => song.id && song.name)
+      const nextOffset = offset + rawSongs.length
+      const total = Number(body.total)
+      const paginationUnknown = typeof body.more !== 'boolean' && !Number.isFinite(total)
+      const hasMore = body.more === true
+        || (Number.isFinite(total) && nextOffset < total)
+        || (paginationUnknown && rawSongs.length === limit)
+
+      sendJson(res, { songs, nextOffset, hasMore })
     } catch (err) {
       console.error('[ArtistSongs]', err)
       sendJson(res, { songs: [] }, 500)
@@ -1292,12 +1301,28 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
       const cacheKey = url.searchParams.get('cacheKey') || ''
       const range = String(req.headers.range || '')
+      const originSource = url.searchParams.get('originSource')
+      const originId = url.searchParams.get('originId') || ''
+      const resolvedSource = url.searchParams.get('resolvedSource')
+      const resolvedId = url.searchParams.get('resolvedId') || ''
+      const quality = url.searchParams.get('quality') || ''
+      const cacheContext: AudioCacheContext | undefined =
+        (originSource === 'netease' || originSource === 'qq')
+        && (resolvedSource === 'netease' || resolvedSource === 'qq')
+        && originId && resolvedId && quality
+          ? {
+              origin: { source: originSource, id: originId },
+              resolved: { source: resolvedSource, id: resolvedId },
+              quality,
+              contentType: audioContentTypeForUrl(audioUrl, null),
+            }
+          : undefined
 
       // 命中磁盘缓存:本地文件直接服务(含 Range),不走上游
       if (cacheKey) {
-        const hit = await findCachedAudio(ctx.userDataDir, cacheKey)
+        const hit = await findCachedAudio(ctx.userDataDir, cacheKey, cacheContext, true)
         if (hit) {
-          serveFileWithRange(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null))
+          serveFileWithRange(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null), hit.release)
           return true
         }
       }
@@ -1318,7 +1343,9 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       // 只有"从 0 起且上游覆盖完整文件"的整流才落盘;中段 Range(拖进度条)只透传
       const writer =
         cacheKey && up.ok && isFullStreamRequest(range) && coversWholeFile(up.status, cr)
-          ? await openAudioCacheWriter(ctx.userDataDir, cacheKey)
+          ? await openAudioCacheWriter(ctx.userDataDir, cacheKey, cacheContext
+            ? { ...cacheContext, contentType: out['Content-Type'] }
+            : undefined)
           : null
       res.writeHead(up.status, out)
       const reader = up.body?.getReader()
@@ -1337,37 +1364,6 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       res.writeHead(500)
       res.end()
     }
-    return true
-  }
-
-  // ---------- 音频缓存管理 ----------
-  if (pn === '/api/audio-cache/stats') {
-    sendJson(res, await audioCacheStats(ctx.userDataDir))
-    return true
-  }
-
-  if (pn === '/api/audio-cache/clear') {
-    await clearAudioCache(ctx.userDataDir)
-    sendJson(res, { ok: true })
-    return true
-  }
-
-  if (pn === '/api/audio-cache/config') {
-    if (req.method === 'POST') {
-      const body = await readRequestBody(req)
-      const patch: { dir?: string; limitBytes?: number } = {}
-      if (typeof body.dir === 'string') patch.dir = body.dir
-      if (body.limitBytes != null) patch.limitBytes = Number(body.limitBytes)
-      const result = await updateAudioCacheConfig(ctx.userDataDir, patch)
-      if (!result.ok) {
-        sendJson(res, { ok: false, error: result.error }, 400)
-        return true
-      }
-      sendJson(res, { ok: true, ...result.config, defaultDir: audioCacheDir(ctx.userDataDir) })
-      return true
-    }
-    const config = await getAudioCacheConfig(ctx.userDataDir)
-    sendJson(res, { ...config, defaultDir: audioCacheDir(ctx.userDataDir) })
     return true
   }
 

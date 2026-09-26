@@ -24,6 +24,7 @@ describe('我的库账号失效提示', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'anonymous' },
       qq: { enabled: false, auth: 'expired' },
+      apple: { enabled: false, auth: 'anonymous' },
     } })
   })
 

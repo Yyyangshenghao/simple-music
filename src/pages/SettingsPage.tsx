@@ -11,8 +11,10 @@ import { playbackStrategySummary } from '../lib/playback-preference-display'
 import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
+import { AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
+import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
@@ -34,6 +36,17 @@ interface AudioCacheConfigInfo {
   dir: string
   limitBytes: number
   defaultDir: string
+}
+
+interface AudioCacheStatsInfo {
+  bytes: number
+  files: number
+  temporaryBytes: number
+  temporaryFiles: number
+  pinnedBytes: number
+  pinnedFiles: number
+  unmanagedBytes: number
+  unmanagedFiles: number
 }
 
 function enabledLabel(enabled: boolean): string {
@@ -495,10 +508,10 @@ export function SettingsPage() {
   const setMultiSourceFallback = useProviderStore((s) => s.setMultiSourceFallback)
   const setSourceBadgeMode = useProviderStore((s) => s.setSourceBadgeMode)
   const participatingPlaybackOrder = playbackOrder.filter((source) => (
-    providerState[source].enabled && providerState[source].auth === 'authenticated'
+    source !== 'apple' && providerState[source].enabled && providerState[source].auth === 'authenticated'
   ))
   const playbackAuthPending = playbackOrder.some((source) => (
-    providerState[source].enabled && providerState[source].auth === 'unknown'
+    source !== 'apple' && providerState[source].enabled && providerState[source].auth === 'unknown'
   ))
   const visiblePlaybackOrder = playbackAuthPending ? [] : participatingPlaybackOrder
   const performance = useSettingsStore((s) => s.performance)
@@ -506,13 +519,13 @@ export function SettingsPage() {
   const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
   const activePerformancePreset = matchPerformancePreset(performance)
 
-  const [audioCache, setAudioCache] = useState<{ bytes: number; files: number } | null>(null)
+  const [audioCache, setAudioCache] = useState<AudioCacheStatsInfo | null>(null)
   const [cacheConfig, setCacheConfig] = useState<AudioCacheConfigInfo | null>(null)
   const [clearingCache, setClearingCache] = useState(false)
   async function refreshCacheInfo(): Promise<void> {
     try {
       const [stats, config] = await Promise.all([
-        api.get<{ bytes: number; files: number }>('/api/audio-cache/stats'),
+        api.get<AudioCacheStatsInfo>('/api/audio-cache/stats'),
         api.get<AudioCacheConfigInfo>('/api/audio-cache/config'),
       ])
       setAudioCache(stats)
@@ -525,23 +538,27 @@ export function SettingsPage() {
     void refreshCacheInfo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  async function handleClearAudioCache(): Promise<void> {
+  async function handleClearAudioCache(scope: 'temporary' | 'pinned' | 'unmanaged' | 'all'): Promise<void> {
+    if ((scope === 'pinned' || scope === 'all') && audioCache?.pinnedFiles) {
+      if (!window.confirm('这会删除已保存歌曲的本地文件，仍要继续吗？')) return
+    }
     setClearingCache(true)
     try {
-      // 服务端递归删整个缓存目录,缓存极大/磁盘慢时可能超过全局兜底 30s,单独放宽
-      await api.get('/api/audio-cache/clear', undefined, { timeoutMs: 120_000 })
+      await api.post('/api/audio-cache/clear', { scope }, undefined, { timeoutMs: 120_000 })
+      useOfflineCacheStore.getState().invalidate()
       await refreshCacheInfo()
     } catch {
-      /* 失败保留旧值 */
+      useToastStore.getState().show('清理失败：缓存正在播放或保存中')
     } finally {
       setClearingCache(false)
     }
   }
-  async function postCacheConfig(patch: { dir?: string; limitBytes?: number }): Promise<void> {
+  async function postCacheConfig(patch: { dir?: string; limitBytes?: number; confirmPinned?: boolean }): Promise<void> {
     try {
       await api.post('/api/audio-cache/config', patch)
+      useOfflineCacheStore.getState().invalidate()
     } catch {
-      useToastStore.getState().show('缓存设置失败:目录无效或不可写')
+      useToastStore.getState().show('缓存设置失败：目录无效、不可写或正在使用')
     }
     await refreshCacheInfo()
   }
@@ -550,7 +567,9 @@ export function SettingsPage() {
     if (!picker) return
     const r = await picker({ title: '选择音频缓存文件夹', defaultPath: cacheConfig?.dir })
     if (!r.ok || !r.filePath) return
-    await postCacheConfig({ dir: r.filePath })
+    const hasSaved = !!audioCache?.pinnedFiles
+    if (hasSaved && !window.confirm('更改位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
+    await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
   }
   const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
   const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
@@ -645,19 +664,22 @@ export function SettingsPage() {
                 <span>{provider.descriptor.label}</span>
                 <small>
                   {runtime.auth === 'authenticated'
-                    ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
+                    ? runtime.playbackAvailable === false
+                      ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.lastError || '当前不可播放'}`
+                      : `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
                     : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
                 </small>
               </div>
               <Switch
-                checked={runtime.auth === 'authenticated' && runtime.enabled}
-                disabled={runtime.auth !== 'authenticated'}
+                checked={runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false}
+                disabled={runtime.auth !== 'authenticated' || runtime.playbackAvailable === false}
                 onChange={(enabled) => setProviderEnabled(provider.descriptor.id, enabled)}
-                aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled)}${provider.descriptor.label}`}
+                aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false)}${provider.descriptor.label}`}
               />
             </div>
           )
         })}
+        <AppleMusicSettings />
       </section>
 
       <section className={`${styles.group} ${styles.appearanceGroup}`}>
@@ -895,7 +917,11 @@ export function SettingsPage() {
             </button>
           )}
           {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
-            <button className={`${styles.seg} no-drag`} onClick={() => void postCacheConfig({ dir: '' })}>
+            <button className={`${styles.seg} no-drag`} onClick={() => {
+              const hasSaved = !!audioCache?.pinnedFiles
+              if (hasSaved && !window.confirm('恢复默认位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
+              void postCacheConfig({ dir: '', confirmPinned: hasSaved })
+            }}>
               恢复默认
             </button>
           )}
@@ -917,18 +943,45 @@ export function SettingsPage() {
           </div>
         </div>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>已用空间</span>
+          <span className={styles.rowLabel}>总占用</span>
           <span className={styles.rowValue}>
-            {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 首` : '—'}
+            {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 个文件` : '—'}
+          </span>
+          <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.files} onClick={() => void handleClearAudioCache('all')}>
+            清空全部
+          </button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>自动缓存</span>
+          <span className={styles.rowValue}>
+            {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 首` : '—'}
           </span>
           <button
             className={`${styles.seg} no-drag`}
-            disabled={clearingCache || !audioCache || audioCache.bytes === 0}
-            onClick={() => void handleClearAudioCache()}
+            disabled={clearingCache || !audioCache?.temporaryFiles}
+            onClick={() => void handleClearAudioCache('temporary')}
           >
-            {clearingCache ? '清理中…' : '清空'}
+            {clearingCache ? '清理中…' : '清理'}
           </button>
         </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>已保存歌曲</span>
+          <span className={styles.rowValue}>
+            {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 首` : '—'}
+          </span>
+          <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
+            删除全部
+          </button>
+        </div>
+        {!!audioCache?.unmanagedFiles && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>未识别旧文件</span>
+            <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
+            <button className={`${styles.seg} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
+              清理
+            </button>
+          </div>
+        )}
       </section>
 
       <section className={`${styles.group} ${styles.performanceGroup}`}>

@@ -13,6 +13,7 @@ export interface TrackQualityOption {
  * 服务端逐档串行探测(最多 8 档),弱网下单次可能超过全局兜底 30s,单独放宽到 60s。
  */
 export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]> {
+  if (track.source === 'apple') return Promise.resolve([])
   if (track.source === 'local') return Promise.resolve([])
   const req =
     track.source === 'qq'

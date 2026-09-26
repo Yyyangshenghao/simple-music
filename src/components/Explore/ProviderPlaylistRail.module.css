@@ -16,6 +16,7 @@
   grid-auto-columns: 148px;
   gap: 12px;
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 1px 1px 8px;
   scrollbar-width: thin;
   scrollbar-color: var(--sm-border) transparent;

@@ -43,6 +43,7 @@ export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = {
   providers: {
     netease: { enabled: true },
     qq: { enabled: true },
+    apple: { enabled: false },
   },
   playbackOrder: ['netease', 'qq'],
   preferOriginSource: true,
@@ -78,6 +79,7 @@ export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): P
     providers: {
       netease: { enabled: first === 'netease' },
       qq: { enabled: first === 'qq' },
+      apple: { enabled: first === 'apple' },
     },
     playbackOrder: [first],
     preferOriginSource: true,

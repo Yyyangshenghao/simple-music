@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerContext, RouteHandler } from './types'
 import { neteaseRoutes } from './routes/netease'
+import { audioCacheRoutes } from './routes/audio-cache'
 import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
@@ -10,11 +11,16 @@ import { localMusicRoutes } from './routes/local-music'
 import { weatherRoutes } from './routes/weather'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
+import { appleMusicRoutes } from './routes/apple-music'
+import { appleMusicBridgeRoutes, publicAppleMusicBridgeRoutes } from './routes/apple-music-bridge'
 import { sendError } from './lib/http'
 import { isAllowedOrigin, isAllowedToken } from './lib/security'
 
 // 静态路由放最后兜底（总是返回 true）；API 路由在前，未命中返回 false 继续匹配。
 const chain: RouteHandler[] = [
+  appleMusicBridgeRoutes,
+  appleMusicRoutes,
+  audioCacheRoutes,
   neteaseRoutes,
   podcastRoutes,
   beatmapRoutes,
@@ -33,11 +39,21 @@ export function startServer(
     port: partial.port ?? 0,
     // 独立跑(npm run server:dev)与 electron dev 默认放行 localhost;打包应用由主进程传 false
     allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,
+    appleMusicWeb: partial.appleMusicWeb,
+    appleMusicLoginMode: partial.appleMusicLoginMode,
     token: partial.token
   }
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      // 浏览器播放页仅持有 Apple 专用会话凭据；不得取得桌面 API token。
+      try {
+        if (await publicAppleMusicBridgeRoutes(req, res, url, ctx)) return
+      } catch {
+        if (!res.headersSent) sendError(res, 500, 'Apple Music 播放连接失败')
+        else res.end()
+        return
+      }
       // CORS：dev 下渲染层(localhost:5173)与 API server 不同源，需放行；
       // prod 下 file:// origin 为 null 同样需要 *。
       res.setHeader('Access-Control-Allow-Origin', '*')

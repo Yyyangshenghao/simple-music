@@ -10,15 +10,17 @@ import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { ArtistPill } from '../components/Explore/ArtistPill'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { tapScale, springSnappy } from '../lib/motion-presets'
+import { isCatalogUnavailable } from '../lib/track-availability'
 import type { ArtistInfo, MusicSource, Track, Playlist } from '../types/domain'
 import styles from './ArtistPage.module.css'
 import { useProviderStore } from '../stores/providers'
 
 type ArtistTab = 'songs' | 'albums' | 'similar'
+const ARTIST_SONG_PAGE_SIZE = 50
 
 interface ArtistPageProps {
   id: unknown
-  source: 'netease' | 'qq'
+  source: 'netease' | 'qq' | 'apple'
 }
 
 export function ArtistPage({ id, source }: ArtistPageProps) {
@@ -31,6 +33,7 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   const [similarRetry, setSimilarRetry] = useState(0)
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
+  const [songsHasMore, setSongsHasMore] = useState(false)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
   // 跨平台导航留下的历史条目也必须按实体自身 source 查询，避免把网易 id 发给 QQ。
   const service = useMemo(() => serviceFor(source), [source])
@@ -44,11 +47,44 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
     // 快速连点歌手时，先发的请求可能后返回；用 cancelled 丢弃过期响应
     let cancelled = false
     setArtist(null); setSongs([]); setAlbums([])
+    setSongsHasMore(false)
     if (!participating) {
       return () => { cancelled = true }
     }
     void service.getArtistDetail(id).then((v) => { if (!cancelled) setArtist(v) }).catch(() => {})
-    void service.getArtistSongs(id).then((v) => { if (!cancelled) setSongs(v) }).catch(() => {})
+    void (async () => {
+      if (!service.getArtistSongsPage) {
+        const list = await service.getArtistSongs(id)
+        if (!cancelled) {
+          const available = list.filter((song) => !isCatalogUnavailable(song))
+          setSongs(available.slice(0, ARTIST_SONG_PAGE_SIZE))
+          setSongsHasMore(list.length > ARTIST_SONG_PAGE_SIZE || available.length !== list.length)
+        }
+        return
+      }
+
+      let offset = 0
+      let hasMore = true
+      let skippedUnavailable = false
+      const available: Track[] = []
+      const seen = new Set<string>()
+      while (!cancelled && hasMore && available.length < ARTIST_SONG_PAGE_SIZE) {
+        const page = await service.getArtistSongsPage(id, offset, ARTIST_SONG_PAGE_SIZE)
+        skippedUnavailable ||= page.songs.some(isCatalogUnavailable)
+        for (const song of page.songs) {
+          if (isCatalogUnavailable(song)) continue
+          const key = `${song.source}:${String(song.id)}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          available.push(song)
+        }
+        hasMore = page.hasMore && page.nextOffset > offset
+        offset = page.nextOffset
+      }
+      if (cancelled) return
+      setSongs(available.slice(0, ARTIST_SONG_PAGE_SIZE))
+      setSongsHasMore(hasMore || skippedUnavailable || available.length > ARTIST_SONG_PAGE_SIZE)
+    })().catch(() => {})
     void service.getArtistAlbums(id).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
     return () => { cancelled = true }
   }, [id, participating, service])
@@ -75,7 +111,7 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
 
   // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
   function openArtist(nextId: unknown, nextSource: MusicSource) {
-    if (nextSource !== 'netease' && nextSource !== 'qq') return
+    if (nextSource !== 'netease' && nextSource !== 'qq' && nextSource !== 'apple') return
     navigateTo({ type: 'artist', id: nextId, source: nextSource })
   }
 
@@ -88,11 +124,17 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   }, [artist?.avatar])
 
   function playAll() {
-    if (songs.length) usePlaylistStore.getState().setQueue(songs, 0)
+    const playableSongs = songs.filter((song) => !isCatalogUnavailable(song))
+    if (playableSongs.length) usePlaylistStore.getState().setQueue(playableSongs, 0)
   }
 
-  function playTrack(index: number) {
-    usePlaylistStore.getState().setQueue(songs, index)
+  function playTrack(track: Track) {
+    if (isCatalogUnavailable(track)) return
+    const playableSongs = songs.filter((song) => !isCatalogUnavailable(song))
+    const index = playableSongs.findIndex((song) =>
+      song.source === track.source && String(song.id) === String(track.id)
+    )
+    if (index >= 0) usePlaylistStore.getState().setQueue(playableSongs, index)
   }
 
   return (
@@ -133,12 +175,28 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
             {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
           </button>
         ))}
+        {tab === 'songs' && songsHasMore && (
+          <button
+            type="button"
+            className={`${styles.viewAllSongs} no-drag`}
+            onClick={() => navigateTo({ type: 'artistSongs', id, source })}
+          >
+            查看全部歌曲
+          </button>
+        )}
       </div>
 
       {tab === 'songs' && (
         <div className={styles.trackList}>
           {songs.map((s, i) => (
-            <TrackRow key={String(s.id) + i} track={s} index={i} onPlay={() => playTrack(i)} />
+            <TrackRow
+              key={String(s.id) + i}
+              track={s}
+              index={i}
+              onPlay={() => playTrack(s)}
+              disabled={isCatalogUnavailable(s)}
+              statusLabel={isCatalogUnavailable(s) ? '暂无版权' : undefined}
+            />
           ))}
         </div>
       )}

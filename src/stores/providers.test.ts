@@ -20,6 +20,7 @@ function resetStores(): void {
     byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
+      apple: { enabled: false, auth: 'anonymous' },
     },
     playbackOrder: ['netease', 'qq'],
     preferOriginSource: true,
@@ -117,6 +118,23 @@ describe('provider store', () => {
     expect(participatingProviderIds()).toEqual(['netease', 'qq'])
   })
 
+  it('播放能力暂不可用时不参与播放，并在恢复后保留用户启用偏好', () => {
+    const store = useProviderStore.getState()
+    store.setAccountState('apple', 'authenticated', { avatar: '', nickname: 'Apple Music' })
+    useProviderStore.getState().setPlaybackAvailability('apple', true)
+    useProviderStore.getState().setEnabled('apple', true)
+    const persisted = storage[PROVIDER_SETTINGS_STORAGE_KEY]
+    useProviderStore.getState().setPlaybackAvailability('apple', false, '需要有效订阅')
+    useProviderStore.getState().setEnabled('apple', true)
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, playbackAvailable: false, lastError: '需要有效订阅' })
+    expect(participatingProviderIds()).not.toContain('apple')
+    expect(storage[PROVIDER_SETTINGS_STORAGE_KEY]).toBe(persisted)
+
+    useProviderStore.getState().setPlaybackAvailability('apple', true)
+    expect(useProviderStore.getState().byId.apple.enabled).toBe(true)
+    expect(participatingProviderIds()).toContain('apple')
+  })
+
   it('启动核实登录态前保留启用偏好，权威未登录结果才自动停用', () => {
     storage[PROVIDER_SETTINGS_STORAGE_KEY] = JSON.stringify({
       schema: PROVIDER_SETTINGS_SCHEMA,
@@ -130,6 +148,7 @@ describe('provider store', () => {
       byId: {
         netease: { ...state.byId.netease, auth: 'unknown' },
         qq: { ...state.byId.qq, auth: 'unknown' },
+        apple: { ...state.byId.apple, auth: 'unknown' },
       },
     }))
 

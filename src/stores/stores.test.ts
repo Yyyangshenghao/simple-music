@@ -199,6 +199,20 @@ describe('navigation store direction', () => {
     expect(useNavigationStore.getState().currentView).toBe('explore')
   })
 
+  it('从歌手页进入全部歌曲后可返回原歌手页', async () => {
+    const { useNavigationStore } = await import('./navigation')
+    const artist = { type: 'artist' as const, id: 5346, source: 'netease' as const }
+    const artistSongs = { type: 'artistSongs' as const, id: 5346, source: 'netease' as const }
+    useNavigationStore.setState({ currentView: artist, history: [], future: [], lastAction: 'push' })
+
+    useNavigationStore.getState().navigateTo(artistSongs)
+    expect(useNavigationStore.getState().currentView).toEqual(artistSongs)
+    expect(useNavigationStore.getState().history).toEqual([artist])
+
+    useNavigationStore.getState().goBack()
+    expect(useNavigationStore.getState().currentView).toEqual(artist)
+  })
+
   it('history 有上限：超限后丢最早的，避免内嵌 tracks 的视图无限堆积', async () => {
     const { useNavigationStore } = await import('./navigation')
     useNavigationStore.setState({ currentView: 'explore', history: [], future: [], lastAction: 'push' })

@@ -5,7 +5,7 @@ import { listProviders, providerFor } from './registry'
 describe('music provider registry', () => {
   it('注册网易云和 QQ，id 唯一且声明基础能力', () => {
     const providers = listProviders()
-    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq'])
+    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq', 'apple'])
     expect(new Set(providers.map((provider) => provider.descriptor.id)).size).toBe(providers.length)
     for (const provider of providers) {
       expect(provider.catalog.searchTracks).toBeTypeOf('function')

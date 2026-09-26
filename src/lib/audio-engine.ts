@@ -2,6 +2,14 @@ import { api, isLocalApiUrl } from './api'
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
+export interface AudioCacheRequestContext {
+  originSource: 'netease' | 'qq'
+  originId: string
+  resolvedSource: 'netease' | 'qq'
+  resolvedId: string
+  quality: string
+}
+
 export interface AudioEngineCallbacks {
   onPosition?: (seconds: number) => void
   onDuration?: (seconds: number) => void
@@ -117,7 +125,7 @@ export class AudioEngine {
 
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
    * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
-  load(upstreamUrl: string, startAt?: number, cacheKey?: string): number {
+  load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext): number {
     this.clearPauseTimer()
     const loadId = ++this.loadId
     // 新曲从静音起步,出声时经 playing 事件淡入
@@ -128,7 +136,9 @@ export class AudioEngine {
     // 再套一层 /api/audio 既多一跳,也会被 server 的 SSRF 防护按回环地址拦掉。
     const src =
       /^https?:\/\//i.test(upstreamUrl) && !isLocalApiUrl(upstreamUrl)
-        ? api.url('/api/audio', cacheKey ? { url: upstreamUrl, cacheKey } : { url: upstreamUrl })
+        ? api.url('/api/audio', cacheKey
+          ? { url: upstreamUrl, cacheKey, ...cacheContext }
+          : { url: upstreamUrl })
         : upstreamUrl
     this.audio.src = src
     this.audio.load()

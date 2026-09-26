@@ -1,4 +1,4 @@
-import type { ProviderId } from '../providers/types'
+import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 
 const DEFAULT_MAX_AGE_MS = 15_000
 
@@ -57,7 +57,7 @@ export function clearProviderRequestCache(source?: ProviderId): void {
   if (!source) {
     cache.clear()
     inflight.clear()
-    for (const id of ['netease', 'qq'] as const) {
+    for (const id of PROVIDER_IDS) {
       generations.set(id, (generations.get(id) ?? 0) + 1)
     }
     return

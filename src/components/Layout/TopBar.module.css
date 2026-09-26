@@ -281,13 +281,63 @@
   .segItem { padding-inline: 12px; }
 }
 
-.searchProvider + .searchProvider { border-top: 1px solid var(--sm-border); }
-
-.providerHeader {
+.searchSourceTabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px 3px;
+  gap: 6px;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid var(--sm-border);
+  background: linear-gradient(var(--sm-bg-overlay), var(--sm-bg-overlay)), var(--sm-bg-base);
+}
+
+.searchSourceTab {
+  --provider-color: var(--sm-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--sm-border);
+  border-radius: 10px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.searchSourceTab:hover {
+  color: var(--sm-text-primary);
+  border-color: color-mix(in srgb, var(--provider-color) 42%, var(--sm-border-strong));
+}
+
+.searchSourceTab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--provider-color) 72%, white);
+  outline-offset: -2px;
+}
+
+.searchSourceTabActive {
+  border-color: color-mix(in srgb, var(--provider-color) 58%, var(--sm-border));
+  background: color-mix(in srgb, var(--provider-color) 13%, var(--sm-bg-elevated));
+  color: var(--sm-text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--provider-color) 12%, transparent);
+}
+
+.searchSourceMark {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--provider-color);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--provider-color) 70%, transparent);
 }
 
 .providerError {

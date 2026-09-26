@@ -12,7 +12,7 @@ function apiToken(): string | undefined {
 }
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>
-export type ApiProviderSource = 'netease' | 'qq'
+export type ApiProviderSource = 'netease' | 'qq' | 'apple'
 
 let providerAuthFailureHandler: ((source: ApiProviderSource, status: 401 | 403) => void) | null = null
 
@@ -27,6 +27,7 @@ export function registerApiProviderAuthFailureHandler(
 
 function providerSourceForApiUrl(input: string): ApiProviderSource | null {
   const path = new URL(input, 'http://127.0.0.1').pathname
+  if (path.startsWith('/api/apple-music/')) return 'apple'
   if (path.startsWith('/api/qq/')) return 'qq'
   if (
     path.startsWith('/api/netease/')
@@ -81,6 +82,12 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
   try {
     const res = await fetch(input, { ...fetchInit, signal: controller.signal })
     if (!res.ok) {
+      // Apple Music 的配置、订阅和播放页错误由本地服务端转换为可操作的提示。
+      if (providerSourceForApiUrl(input) === 'apple') {
+        const body = await res.json().catch(() => null) as { error?: string } | null
+        if (res.status === 401 || res.status === 403) providerAuthFailureHandler?.('apple', res.status)
+        throw new Error(body?.error || `HTTP ${res.status}`)
+      }
       if (res.status === 401 || res.status === 403) {
         const source = providerSourceForApiUrl(input)
         if (source) providerAuthFailureHandler?.(source, res.status)
@@ -126,7 +133,12 @@ export const api = {
   get<T>(path: string, params?: QueryParams, init?: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> {
     return request<T>(buildUrl(path, params), init)
   },
-  post<T>(path: string, body?: unknown, params?: QueryParams, init?: { timeoutMs?: number }): Promise<T> {
+  post<T>(
+    path: string,
+    body?: unknown,
+    params?: QueryParams,
+    init?: { signal?: AbortSignal; timeoutMs?: number }
+  ): Promise<T> {
     return request<T>(buildUrl(path, params), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

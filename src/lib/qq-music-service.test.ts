@@ -112,6 +112,22 @@ describe('QQMusicService QQ 标识契约', () => {
     expect(apiGet).toHaveBeenCalledWith('/api/qq/artist/similar', { mid: 'artist-mid', limit: 10 })
   })
 
+  it('歌手歌曲按偏移量分页并根据总数判断下一页', async () => {
+    const songs = [{ id: 'song-mid', source: 'qq' }]
+    apiGet.mockResolvedValue({ songs, total: 120 })
+
+    await expect(new QQMusicService().getArtistSongsPage('artist-mid', 50, 50)).resolves.toEqual({
+      songs,
+      nextOffset: 100,
+      hasMore: true,
+    })
+    expect(apiGet).toHaveBeenCalledWith('/api/qq/artist/songs', {
+      id: 'artist-mid',
+      offset: 50,
+      limit: 50,
+    })
+  })
+
   it('按专辑 MID 读取补全后的专辑信息', async () => {
     const playlist = {
       provider: 'qq',

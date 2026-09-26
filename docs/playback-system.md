@@ -12,12 +12,14 @@
 用户点击曲目
   → playlist.setQueue(tracks, index) / playAt(index)      # 队列与走序
   → player.loadTrack(track)                               # 创建可取消的播放会话
-      1. track.url / getPreloadedResolution() 命中时先作为首候选
-      2. PlaybackResolver 按手动软优先 → 原源优先 → playbackOrder 生成 N 音源顺序
-      3. 跨源前由 track-match 保守评分并读取正/负缓存
-      4. provider.playback.resolve() 返回同平台有序音质/地址候选
-      5. URL 为空继续解析；URL 非空但媒体 error 回到解析器尝试下一候选
-  → AudioEngine.load(upstreamUrl, startAt, cacheKey)
+      1. 在线曲目先查离线索引，命中则直接读取本地文件
+      2. 离线文件未命中或媒体加载失败，再进入在线候选链
+      3. track.url / getPreloadedResolution() 命中时先作为在线首候选
+      4. PlaybackResolver 按手动软优先 → 原源优先 → playbackOrder 生成 N 音源顺序
+      5. 跨源前由 track-match 保守评分并读取正/负缓存
+      6. provider.playback.resolve() 返回同平台有序音质/地址候选
+      7. URL 为空继续解析；URL 非空但媒体 error 回到解析器尝试下一候选
+  → AudioEngine.load(upstreamUrl, startAt, cacheKey, cacheContext)
   → canplay：提交 resolvedTrack / actualSource / resolution；error：继续同源或跨源降级
   → <audio src="/api/audio?url=<上游CDN>&cacheKey=source:id:quality">
       server: 磁盘缓存命中→本地文件服务(含 Range);未命中→透传上游,整流旁路落盘
@@ -39,7 +41,8 @@
 | `position` / `duration` | 秒（注意 `Track.duration` 是毫秒，loadTrack 里 `/1000` 换算） |
 | `quality` | 以 settings store 为单一事实来源，经 `subscribe` 回流（`setQuality` 只是转调 settings） |
 | `resolvedTrack` / `actualSource` | 媒体进入 canplay 后提交的实际曲目与平台；加载候选期间为 null |
-| `resolution` / `playbackAttempts` | 当前解析结果与 match / resolve / media-load 诊断链 |
+| `resolution` / `playbackAttempts` | 当前在线解析结果与 match / resolve / media-load 诊断链 |
+| `playbackTransport` | 实际传输方式：`online / offline / local`，离线播放不触发在线听歌上报 |
 | `rate` | 播放速度（保留音高），**不持久化**，重启回 1 |
 
 **两处解耦回调**（都是为了避免反向 import 成环）：
@@ -126,14 +129,20 @@ URL TTL 5 分钟——网易 CDN 链约十几分钟过期，只作短期预热�
 
 上游 CDN 有 Referer/UA 校验且不带 CORS 头，`<audio crossOrigin>` 直连拿不到流。代理统一补 header（`audioProxyHeadersFor` 按 URL 域名选 Referer）、加 `Access-Control-Allow-Origin: *`、透传 Range/Content-Range（拖进度条依赖 206），顺带做磁盘缓存。
 
-### 8.2 磁盘缓存（`server/lib/audio-cache.ts`，2GB LRU）
+### 8.2 自动缓存与离线保存（`server/lib/audio-cache.ts`）
 
 - **key 由渲染层传入**（`source:id:quality`，与预加载 key 同构，`trackCacheKey` 生成）——上游 URL 带过期签名不能当 key。文件名 = `sha1(key).bin`，目录 `userData/audio-cache/`。
 - **只缓存整流**：请求从 0 字节起（无 Range 或 `bytes=0-`）**且**上游响应覆盖完整文件（200，或 206 且 `Content-Range: bytes 0-(N-1)/N`）才旁路落盘；拖进度条产生的中段 Range 只透传。
 - **原子落盘**：先写 `.part` 临时文件，转发完整结束后 rename 为 `.bin`；中途断开（切歌）abort 丢弃——不会出现半截缓存被命中。
-- **LRU 以 mtime 近似**：命中时 `utimes` 续期；commit 后 `enforceCacheLimit` 超限从最旧开始淘汰。
+- **版本化索引**：`.audio-cache-index-v1.json` 记录内容别名、实际音源、档位、MIME、体积和固定状态；索引原子写入并保留备份。旧 `.bin` 首次迁移为 legacy 条目，索引不可恢复时只隔离为“未识别”，不擅自删除。
+- **两类生命周期**：完整播放产生自动缓存，受上限与 LRU 管理；用户“保存到本地”后按内容别名固定，不受自动淘汰。跨源同曲可共享同一物理文件，删除共享文件需要二次确认。
+- **离线优先**：`player.loadTrack` 在在线解析前查询 `/api/audio-cache/status`，命中后从 `/api/audio-cache/file` 读取；本地文件损坏或丢失会自动回退在线解析。
+- **坏文件回退**：媒体加载失败后，本次在线候选链不再传缓存 key，避免代理再次命中坏文件；不自动删除用户固定的文件。
+- **保存会话**：下载失败继续同源/跨源下一候选；取消立即释放前端任务并中止请求，迟到结果不能覆盖新任务。状态查询去重后按最多 100 首分批，清理或别名变更后使旧查询失效。
+- **主动保存严格完整性**：`POST /api/audio-cache/save` 复用播放器解析出的候选，只接受带可验证长度的完整 200 或从 0 覆盖全文件的 206，校验音频 MIME/文件头，试听片段不保存。
+- **LRU 以 mtime 近似**：命中时 `utimes` 续期；commit 后超限从最旧开始淘汰，固定文件、未识别文件和正在读写的文件都不会被自动删除。
 - 命中时本地文件直接服务（`serveCachedAudio`），支持 `bytes=start-(-end)` Range，无效 Range 回 416 + `Content-Range: bytes */size`。
-- 管理端点：`GET /api/audio-cache/stats`（bytes/files/limit）、`/api/audio-cache/clear`（设置页「清除音频缓存」）。
+- 管理端点：状态批查、固定/取消固定、单文件删除、按自动缓存/已保存/未识别分类统计与清理，以及缓存目录和上限配置。更换目录发现已保存内容时必须再次确认。
 
 自带直链的曲目（`track.url`）不传 cacheKey → 不缓存（音质未知，key 无法构造）。
 

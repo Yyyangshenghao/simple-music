@@ -98,6 +98,7 @@ export function useLyricsFetch(): void {
   const participation = useProviderStore((state) => ({
     netease: state.byId.netease.enabled && state.byId.netease.auth === 'authenticated',
     qq: state.byId.qq.enabled && state.byId.qq.auth === 'authenticated',
+    apple: state.byId.apple.enabled && state.byId.apple.auth === 'authenticated',
   }))
 
   useEffect(() => {
@@ -132,5 +133,5 @@ export function useLyricsFetch(): void {
     return () => {
       cancelled = true
     }
-  }, [currentTrack, participation.netease, participation.qq, resolvedTrack])
+  }, [currentTrack, participation.netease, participation.qq, participation.apple, resolvedTrack])
 }

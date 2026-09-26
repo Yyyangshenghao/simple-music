@@ -24,7 +24,7 @@ export function expireProviderAccount(source: ProviderId, error: unknown): boole
   const alreadyExpired = useProviderStore.getState().byId[source].auth === 'expired'
   const settings = useSettingsStore.getState()
   if (source === 'netease') settings.setNeteaseLoggedIn(false)
-  else settings.setQQLoggedIn(false)
+  else if (source === 'qq') settings.setQQLoggedIn(false)
   useProviderStore.getState().setAccountState(source, 'expired')
   if (!alreadyExpired) {
     useToastStore.getState().show(`${SOURCE_BRAND[source].label}登录已失效，请前往设置重新登录`)

@@ -6,6 +6,7 @@ import type {
   PlaylistMeta,
   ToplistGroup,
   ToplistPreviewTrack,
+  ArtistSongsPage,
 } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
@@ -55,8 +56,20 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async getArtistSongs(id: unknown): Promise<Track[]> {
-    const res = await api.get<{ songs: Track[] }>('/api/netease/artist/songs', { id: id as string | number, limit: 50 })
-    return res.songs ?? []
+    return (await this.getArtistSongsPage(id, 0, 50)).songs
+  }
+
+  async getArtistSongsPage(id: unknown, offset: number, limit: number): Promise<ArtistSongsPage> {
+    const res = await api.get<Partial<ArtistSongsPage>>('/api/netease/artist/songs', {
+      id: id as string | number,
+      offset,
+      limit,
+    })
+    return {
+      songs: res.songs ?? [],
+      nextOffset: Number.isFinite(res.nextOffset) ? Number(res.nextOffset) : offset + limit,
+      hasMore: res.hasMore === true,
+    }
   }
 
   async getArtistAlbums(id: unknown): Promise<Playlist[]> {

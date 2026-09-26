@@ -87,6 +87,24 @@
 
 .trackList { padding: 8px; }
 
+.viewAllSongs {
+  margin-left: auto;
+  align-self: center;
+  padding: 6px 14px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-elevated);
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms, background 150ms;
+}
+
+.viewAllSongs:hover {
+  color: var(--sm-accent);
+  border-color: var(--sm-accent);
+}
+
 .albumGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

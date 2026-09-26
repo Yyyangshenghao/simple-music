@@ -4,12 +4,14 @@ import type { Variants } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
 import { springGentle } from '../../lib/motion-presets'
 import styles from './AppShell.module.css'
+import { OfflineSaveStatus } from './OfflineSaveStatus'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
 const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
+const ArtistSongsPage = lazy(() => import('../../pages/ArtistSongsPage').then((m) => ({ default: m.ArtistSongsPage })))
 const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
 const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 
@@ -33,6 +35,7 @@ export function AppShell() {
       void import('../../pages/RoamPage')
       void import('../../pages/SettingsPage')
       void import('../../pages/ArtistPage')
+      void import('../../pages/ArtistSongsPage')
       void import('../../pages/ToplistPage')
       void import('../../pages/ShuangePage')
     }
@@ -63,6 +66,9 @@ export function AppShell() {
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} />
     }
+    if (typeof view === 'object' && view.type === 'artistSongs') {
+      return <ArtistSongsPage id={view.id} source={view.source} />
+    }
     if (typeof view === 'object' && view.type === 'playlist') {
       return view.from === 'library' ? <LibraryPage /> : <ExplorePage />
     }
@@ -89,6 +95,7 @@ export function AppShell() {
           </Suspense>
         </motion.div>
       </AnimatePresence>
+      <OfflineSaveStatus />
     </div>
   )
 }

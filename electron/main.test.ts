@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { app } from 'electron'
 
 const h = vi.hoisted(() => ({
-  events: new Map<string, () => void>(),
+  events: new Map<string, (event?: { preventDefault(): void }) => void>(),
   main: null as null | {
     isDestroyed(): boolean
     hide(): void
@@ -21,7 +22,7 @@ vi.mock('electron', () => ({
   app: {
     commandLine: { appendSwitch: vi.fn() }, setName: vi.fn(), setAppUserModelId: vi.fn(),
     requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(), quit: vi.fn(),
-    on: (event: string, listener: () => void) => h.events.set(event, listener)
+    on: (event: string, listener: (event?: { preventDefault(): void }) => void) => h.events.set(event, listener)
   },
   BrowserWindow: { getAllWindows: () => h.windows },
   screen: { on: vi.fn() },
@@ -101,7 +102,23 @@ describe('主窗口激活恢复', () => {
     expect(h.shutdown).toHaveBeenCalledTimes(1)
   })
 
-  it('Windows 保留原有关闭行为', async () => {
+  it('退出等待官网浏览器关闭，重复退出不跳过清理', async () => {
+    let finish!: () => void
+    h.shutdown.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const preventDefault = vi.fn()
+    h.events.get('before-quit')!({ preventDefault })
+    h.events.get('before-quit')!({ preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+    expect(h.shutdown).toHaveBeenCalledOnce()
+    expect(app.quit).not.toHaveBeenCalled()
+    finish()
+    await flush()
+    expect(app.quit).toHaveBeenCalledOnce()
+    h.events.get('before-quit')!({ preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+  })
+
+  it('Windows 关闭主窗口后退出，不被隐藏的 Apple Music 窗口阻塞', async () => {
     vi.resetModules()
     vi.stubGlobal('process', { ...process, platform: 'win32' })
     h.windowEvents.clear()
@@ -109,6 +126,9 @@ describe('主窗口激活恢复', () => {
     await import('./main')
     await flush()
     expect(h.windowEvents.has('close')).toBe(false)
+    expect(h.windowEvents.has('closed')).toBe(true)
+    h.windowEvents.get('closed')!({ preventDefault: vi.fn() })
+    expect(app.quit).toHaveBeenCalledOnce()
   })
 
   it.each(['activate', 'second-instance'])('%s 在关闭后重建主窗口，不重复初始化', async (event) => {
@@ -139,6 +159,16 @@ describe('主窗口激活恢复', () => {
     await flush()
     expect(h.restore).toHaveBeenCalledTimes(1)
     expect(h.createMainWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('再次启动应用时复用主窗口并退出迷你模式，不重建服务与托盘', async () => {
+    h.events.get('second-instance')!()
+    await flush()
+    expect(h.restore).toHaveBeenCalledOnce()
+    expect(h.createMainWindow).toHaveBeenCalledOnce()
+    expect(h.bootServer).toHaveBeenCalledOnce()
+    expect(h.createTray).toHaveBeenCalledOnce()
+    expect(h.registerIpc).toHaveBeenCalledOnce()
   })
 
   it('连续激活只创建一个主窗口', async () => {

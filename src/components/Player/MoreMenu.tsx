@@ -9,6 +9,9 @@ import { fetchTrackQualities, type TrackQualityOption } from '../../lib/track-qu
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
+import { offlineTrackKey } from '../../lib/offline-cache'
+import { useOfflineCacheStore } from '../../stores/offline-cache'
+import { useToastStore } from '../../stores/toast'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -48,12 +51,13 @@ function PlaybackSourceSection() {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const actualSource = usePlayerStore((s) => s.actualSource)
   const status = usePlayerStore((s) => s.status)
+  const transport = usePlayerStore((s) => s.playbackTransport)
   const preferSourceOnce = usePlayerStore((s) => s.preferSourceOnce)
   const byId = useProviderStore((s) => s.byId)
   const playbackOrder = useProviderStore((s) => s.playbackOrder)
   const participants = playbackOrder.filter((source) => {
     const state = byId[source]
-    return state.enabled && state.auth === 'authenticated'
+    return state.enabled && state.auth === 'authenticated' && (currentTrack?.source === 'apple' ? source === 'apple' : source !== 'apple')
   })
   const originVisible = !isProviderId(currentTrack?.source)
     || participants.includes(currentTrack.source)
@@ -63,7 +67,7 @@ function PlaybackSourceSection() {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>播放来源</span>
-        <span className={styles.sectionStatus}>{status === 'loading' ? '正在解析…' : '本次播放'}</span>
+        <span className={styles.sectionStatus}>{status === 'loading' ? '正在解析…' : transport === 'offline' ? '本地离线' : transport === 'musickit' ? '浏览器官方播放' : '本次播放'}</span>
       </div>
       <div className={styles.sourceFacts}>
         <span>内容来自</span>
@@ -101,6 +105,61 @@ function PlaybackSourceSection() {
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+function OfflineSection({ open }: { open: boolean }) {
+  const track = usePlayerStore((state) => state.currentTrack)
+  const cacheStatus = useOfflineCacheStore((state) => track ? state.byKey[offlineTrackKey(track)] : undefined)
+  useEffect(() => {
+    if (open && track && track.source !== 'local') void useOfflineCacheStore.getState().ensure(track)
+  }, [open, track, cacheStatus])
+  if (!track || track.source === 'local' || track.source === 'apple') return null
+  const label = cacheStatus?.state === 'pinned' ? '已保存' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未保存'
+  const run = async (action: () => Promise<void>) => {
+    try {
+      await action()
+    } catch {
+      useToastStore.getState().show('本地操作失败，请稍后重试')
+    }
+  }
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionTitle}>离线播放</span>
+        <span className={styles.sectionStatus}>{label}</span>
+      </div>
+      <div className={styles.chips}>
+        {(!cacheStatus || cacheStatus.state === 'missing') && (
+          <button type="button" className={styles.chip} onClick={() => void useOfflineCacheStore.getState().save(track)}>
+            保存到本地
+          </button>
+        )}
+        {cacheStatus?.state === 'cached' && (
+          <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
+            保留此缓存
+          </button>
+        )}
+        {cacheStatus?.state === 'pinned' && (
+          <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
+            改为自动缓存
+          </button>
+        )}
+        {cacheStatus?.entryId && (
+          <button
+            type="button"
+            className={styles.chip}
+            onClick={() => {
+              const shared = Number(cacheStatus.savedAliasCount) > (cacheStatus.state === 'pinned' ? 1 : 0)
+              if (shared && !window.confirm('这个文件也被其他已保存歌曲共用，仍要删除吗？')) return
+              void run(() => useOfflineCacheStore.getState().deleteLocal(track, shared))
+            }}
+          >
+            删除本地文件
+          </button>
+        )}
+      </div>
     </section>
   )
 }
@@ -143,6 +202,12 @@ function QualitySection({ open }: { open: boolean }) {
         if (session === fetchSession.current) setOptions([])
       })
   }, [currentSourceParticipating, open, trackKey])
+
+  if (qualityTrack?.source === 'apple') return (
+    <section className={styles.section}>
+      <span className={styles.tip}>Apple Music 音质由官方播放器管理</span>
+    </section>
+  )
 
   return (
     <section className={styles.section}>
@@ -260,6 +325,7 @@ function SleepSection() {
 export function MoreMenu() {
   const [open, setOpen] = useState(false)
   const rate = usePlayerStore((s) => s.rate)
+  const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -289,7 +355,7 @@ export function MoreMenu() {
         className={`${styles.toggleBtn} no-drag`}
         data-active={open || hasActive}
         onClick={() => setOpen((v) => !v)}
-        title="更多:音质 / 倍速 / 定时关闭"
+        title="更多:来源 / 离线 / 音质 / 倍速 / 定时关闭"
         aria-label="更多"
         aria-expanded={open}
         whileTap={tapScale}
@@ -309,8 +375,9 @@ export function MoreMenu() {
             transition={springGentle}
           >
             <PlaybackSourceSection />
+            <OfflineSection open={open} />
             <QualitySection open={open} />
-            <RateSection />
+            {!apple && <RateSection />}
             <SleepSection />
           </motion.div>
         )}

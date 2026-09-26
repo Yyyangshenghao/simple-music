@@ -1,0 +1,17 @@
+.panel { padding: 16px 20px; border-top: 1px solid var(--sm-border); }
+.panel h3 { margin: 0 0 8px; font-size: 14px; }
+.panel p { font-size: 12px; line-height: 1.6; color: var(--sm-text-secondary); margin: 8px 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--sm-border-strong); background: var(--sm-fill-hover); color: inherit; font: inherit; font-size: 12px; cursor: pointer; -webkit-app-region: no-drag; }
+.actions button:disabled { opacity: .4; cursor: default; }
+.panel .message { color: var(--sm-text-primary); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.header p { margin-bottom: 0; }
+.badge { flex-shrink: 0; padding: 5px 9px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); color: var(--sm-text-secondary); font-size: 11px; }
+.actions .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); border-color: transparent; font-weight: 600; }
+.panel .notice { padding: 10px 12px; border-radius: 8px; background: var(--sm-fill-subtle); }
+.panel .error { color: var(--sm-color-danger); }
+.subscriptionNotice { display: grid; gap: 4px; margin: 12px 0; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--sm-color-gold) 38%, var(--sm-border)); border-radius: 10px; background: color-mix(in srgb, var(--sm-color-gold) 8%, transparent); font-size: 12px; line-height: 1.55; }
+.subscriptionNotice strong { color: var(--sm-text-primary); font-size: 12px; }
+.subscriptionNotice span { color: var(--sm-text-secondary); }
+.actions button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }

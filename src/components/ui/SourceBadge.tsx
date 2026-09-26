@@ -46,7 +46,7 @@ export function SourceBadge({
           ? <NeteaseLogo />
           : source === 'qq'
             ? <QQMusicLogo />
-            : <span className={styles.localIcon}>{source === 'local' ? '♪' : '?'}</span>}
+            : <span className={styles.localIcon}>{source === 'local' || source === 'apple' ? '♪' : '?'}</span>}
       </span>
       {!compact && <span className={styles.label}>{label}</span>}
     </span>

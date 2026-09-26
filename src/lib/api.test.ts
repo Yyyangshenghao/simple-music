@@ -149,6 +149,24 @@ describe('api.get', () => {
   })
 })
 
+describe('api.post', () => {
+  it('主动取消 POST 会中止请求，不被误报为超时', async () => {
+    stubPort(40000)
+    const ac = new AbortController()
+    const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('cancelled by caller')))
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = api.post('/api/audio-cache/save', { id: 'song' }, undefined, { signal: ac.signal })
+    ac.abort()
+    await expect(pending).rejects.toThrow('cancelled by caller')
+    expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST', body: '{"id":"song"}' })
+  })
+})
+
 describe('isLocalApiUrl', () => {
   // AudioEngine 用它决定「本地音乐是否还要套 /api/audio 代理」——
   // 套了会被 server 的 SSRF 防护按回环地址 400 掉,本地音乐直接放不出声。

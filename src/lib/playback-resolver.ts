@@ -75,13 +75,15 @@ export function buildPlaybackSourceOrder(
   preferences: PlaybackSourcePreferences,
   isParticipating: (source: ProviderId) => boolean
 ): ProviderId[] {
+  // MusicKit 受保护播放拥有独立会话，不能用音频直链或其他音源静默替代。
+  if (origin.source === 'apple') return isParticipating('apple') ? ['apple'] : []
   const originSource = isProviderId(origin.source) ? origin.source : undefined
   const ordered = uniqueSources([
     preferences.preferredSource,
     preferences.preferOriginSource ? originSource : undefined,
     ...preferences.playbackOrder,
     !preferences.preferOriginSource ? originSource : undefined,
-  ]).filter(isParticipating)
+  ]).filter((source) => source !== 'apple' && isParticipating(source))
   return preferences.multiSourceFallback ? ordered : ordered.slice(0, 1)
 }
 

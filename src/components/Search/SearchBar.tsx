@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { api } from '../../lib/api'
+import { serviceFor } from '../../lib/service-registry'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import {
@@ -13,17 +13,6 @@ import { GlassPanel } from '../ui/GlassPanel'
 import type { Track } from '../../types/domain'
 import { SearchResults } from './SearchResults'
 import styles from './SearchBar.module.css'
-
-interface SearchResponse {
-  songs: Track[]
-}
-
-/** netease/qq 端点与 limit 选择，依据 player.source。 */
-function endpoint(source: 'netease' | 'qq'): { path: string; limit: number } {
-  return source === 'qq'
-    ? { path: '/api/qq/search', limit: 12 }
-    : { path: '/api/search', limit: 20 }
-}
 
 /** 搜索框：受控输入 + 搜索按钮（回车触发），内部持有结果并渲染 SearchResults；
  * 聚焦且输入为空时下拉展示搜索历史（localStorage 持久化,可单条删除/清空）。 */
@@ -49,10 +38,9 @@ export function SearchBar() {
     setSearched(true)
     updateHistory(pushTerm(history, q))
     const source = usePlayerStore.getState().source
-    const { path, limit } = endpoint(source === 'qq' ? 'qq' : 'netease')
     try {
-      const res = await api.get<SearchResponse>(path, { keywords: q, limit })
-      setResults(res.songs ?? [])
+      const tracks = await serviceFor(source).searchTracks(q)
+      setResults(tracks)
     } catch {
       setError(true)
       setResults([])

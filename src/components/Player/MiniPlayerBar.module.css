@@ -244,8 +244,7 @@
   background: var(--mp-fg);
   opacity: 0.75;
   transform-origin: left center;
-  /* 用 transform 推进,避免每秒改宽度触发布局 */
-  transition: transform 0.25s linear;
+  /* 进度以 1Hz 用 transform 推进；不补间，避免透明窗口每秒再合成十余帧。 */
 }
 
 /* ---------- 右边缘宽度手柄 ---------- */

@@ -88,7 +88,7 @@ export function restorePlayback(): void {
   const rawTrack = rawQueue[rawQueueIndex]
   const queue = rawQueue.filter((track): track is Track => {
     if (!track || typeof track !== 'object') return false
-    if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'local') return false
+    if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'apple' && track.source !== 'local') return false
     return track.provider === track.source
       && track.id !== undefined
       && track.id !== null

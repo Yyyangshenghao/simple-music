@@ -49,6 +49,7 @@ describe('AudioEngine media callbacks', () => {
         }),
       },
     })
+    vi.stubGlobal('window', { desktop: { serverPort: 35530, serverToken: 'token' } })
   })
 
   it('canplay 通知解析器提交候选', () => {
@@ -76,5 +77,20 @@ describe('AudioEngine media callbacks', () => {
 
     engine.destroy()
     expect(deviceChange).toBeNull()
+  })
+
+  it('在线候选把内容别名与实际音源写入被动缓存请求', () => {
+    const engine = new AudioEngine()
+    engine.load('https://cdn.example.com/song.mp3', 0, 'qq:mid:lossless', {
+      originSource: 'netease',
+      originId: '123',
+      resolvedSource: 'qq',
+      resolvedId: 'mid',
+      quality: 'lossless',
+    })
+    expect(audio.src).toContain('/api/audio?')
+    expect(audio.src).toContain('cacheKey=qq%3Amid%3Alossless')
+    expect(audio.src).toContain('originSource=netease')
+    expect(audio.src).toContain('resolvedSource=qq')
   })
 })
