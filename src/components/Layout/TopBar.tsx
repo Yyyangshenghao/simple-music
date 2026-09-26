@@ -143,6 +143,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
     closeSearch()
   }
 
+  function openSearchPage() {
+    const query = keyword.trim()
+    if (!query) return
+    navigateTo({ type: 'search', keyword: query })
+    closeSearch()
+  }
+
   function pickArtist(artist: ArtistInfo) {
     if (artist.source === 'local') return
     navigateTo({ type: 'artist', id: artist.id, source: artist.source })
@@ -279,7 +286,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 onFocus={() => setSearchFocused(true)}
                 aria-label="搜索歌曲、歌手"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); void runSearch(keyword.trim()) }
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                    e.preventDefault()
+                    openSearchPage()
+                  }
                 }}
                 placeholder="搜索歌曲、歌手…"
               />
@@ -293,6 +303,12 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
           {showDropdown && (
             <div className={styles.searchDropdown}>
+              {keyword.trim() && (
+                <button type="button" className={styles.searchAll} onClick={openSearchPage}>
+                  <span>查看聚合搜索结果</span>
+                  <span className={styles.searchAllKey} aria-hidden="true">Enter ↵</span>
+                </button>
+              )}
               {showHotkeys && hotkeySource ? (
                 <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {
                   setKeyword(term)

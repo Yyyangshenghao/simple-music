@@ -7,6 +7,7 @@ export type AppView =
   | 'roam'
   | 'shuange'
   | 'settings'
+  | { type: 'search'; keyword: string }
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' | 'apple' }
   | { type: 'artistSongs'; id: unknown; source: 'netease' | 'qq' | 'apple' }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */

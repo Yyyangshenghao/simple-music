@@ -249,6 +249,24 @@
   line-height: 1.4;
 }
 
+.searchAll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--sm-border);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.searchAll:hover { background: var(--sm-fill-hover); }
+.searchAll:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -3px; }
+.searchAllKey { color: var(--sm-text-secondary); font-size: 11px; }
+
 .searchDropdown {
   position: absolute;
   top: calc(100% + 6px);
