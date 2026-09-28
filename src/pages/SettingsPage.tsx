@@ -283,7 +283,7 @@ const LYRIC_DISPLAY_LABELS: Record<Lyrics3dDisplayMode, string> = {
   cinema: '电影五行'
 }
 
-const FPS_OPTIONS = [0, 60, 45, 30, 24]
+const FPS_OPTIONS = [120, 0]
 
 const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
   standard: '标准',

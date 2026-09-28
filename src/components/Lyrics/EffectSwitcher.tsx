@@ -74,7 +74,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'glass',
     label: '玻璃',
-    hint: '通透辉光，均衡动感',
+    hint: '半透明玻璃字，倒角亮边与柔和反射',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -85,7 +85,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'smooth',
     label: '丝滑',
-    hint: '柔和连续的轨道滚动',
+    hint: '清爽无光效，平整连续滚动',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -96,7 +96,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'float',
     label: '漂浮',
-    hint: 'Mineradio 默认的呼吸悬浮',
+    hint: '前后错层，星河中的立体悬浮',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -107,7 +107,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'quick',
     label: '快切',
-    hint: '短促利落，跟拍更快',
+    hint: '横向滑入滑出，带行内进度线',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -118,7 +118,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'shine',
     label: '流光',
-    hint: '更明亮的扫光和辉光',
+    hint: '斜向流光掠过，辉光随节拍呼吸',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -129,7 +129,7 @@ const LYRIC_STYLES: StyleInfo[] = [
   {
     id: 'glitch',
     label: '故障',
-    hint: '节拍触发的轻微错位',
+    hint: '节拍触发的切片错位与色差',
     icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -155,12 +155,14 @@ interface EffectSwitcherProps {
   onClose: () => void
 }
 
-/** 3D 按钮下拉菜单：背景效果和歌词样式分组独立选择。 */
+/** 3D 按钮下拉菜单：同屏行数、背景效果和歌词样式。 */
 export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
   const active = useSettingsStore((s) => s.lyrics3dEffect)
   const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
   const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
+  const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
+  const setParams = useSettingsStore((s) => s.setLyrics3dParams)
 
   return (
     <>
@@ -172,6 +174,23 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={springSnappy}
       >
+        <div className={styles.sectionLabel}>同屏歌词</div>
+        <div className={styles.displayModes} role="group" aria-label="同屏歌词行数">
+          {([['single', '1 行'], ['dual', '2 行'], ['triple', '3 行'], ['cinema', '5 行']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`${styles.displayModeBtn}${displayMode === id ? ` ${styles.displayModeBtnActive}` : ''}`}
+              aria-pressed={displayMode === id}
+              onClick={() => {
+                setParams({ displayMode: id })
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.divider} aria-hidden="true" />
         <div className={styles.sectionLabel}>场景效果</div>
         {EFFECTS.map((eff) => {
           const isActive = active === eff.id
@@ -183,7 +202,6 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
               className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
               onClick={() => {
                 setEffect(eff.id)
-                onClose()
               }}
               whileTap={tapScale}
               transition={springSnappy}
@@ -205,7 +223,6 @@ export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
               className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
               onClick={() => {
                 setStyle(style.id)
-                onClose()
               }}
               whileTap={tapScale}
               transition={springSnappy}

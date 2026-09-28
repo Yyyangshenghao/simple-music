@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import type { WordToken } from '../../types/domain'
+import { measureWordBoundaries, normalizeStageLyricText } from './stage-lyric-progress'
+import { planStageLyricRows } from './stage-lyric-wrap'
 
 /**
  * 3D 舞台歌词的 canvas 纹理生成(移植自 Mineradio-MacOS 的
@@ -19,6 +22,8 @@ export interface LyricMask {
   /** 文字区在 U 方向的起止(0-1),供进度 shader 把 uProgress 映射到字面 */
   textMin: number
   textMax: number
+  wordBoundaries: number[]
+  rowRanges: Array<[number, number]>
 }
 
 let cachedFontStack: string | null = null
@@ -46,11 +51,8 @@ function makeCanvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   return tex
 }
 
-/**
- * 把一行歌词栅格化为 2048×384 的白字 mask。
- * 字号从 maxFont 逐级降到 minFont 以塞进画布,仍超宽时横向压缩(fitScaleX ≥0.68)。
- */
-export function makeLyricMask(text: string, opts?: { maxFont?: number; minFont?: number; textureScale?: number }): LyricMask {
+/** 将超长句排成两行，优先保持可读字号；画布和世界平面尺寸不变。 */
+export function makeLyricMask(text: string, opts?: { maxFont?: number; minFont?: number; textureScale?: number; words?: WordToken[] }): LyricMask {
   const textureScale = Math.max(0.25, Math.min(1, opts?.textureScale ?? 1))
   const W = Math.round(2048 * textureScale)
   const H = Math.round(384 * textureScale)
@@ -61,59 +63,77 @@ export function makeLyricMask(text: string, opts?: { maxFont?: number; minFont?:
   canvas.height = H
   const ctx = canvas.getContext('2d')!
   const maxWidth = W - 190 * textureScale
-  text = String(text || '').replace(/\s+/g, ' ').trim()
-
+  text = normalizeStageLyricText(String(text || ''))
+  ctx.font = fontCss(maxFont)
+  const rows = planStageLyricRows(text, maxWidth, (value) => ctx.measureText(value).width, opts?.words)
   let fontSize = maxFont
   let widest = 1
-  for (; fontSize >= minFont; fontSize -= 4 * textureScale) {
+  const readableMin = rows.lines.length === 2 ? Math.max(minFont, maxFont * 0.7) : minFont
+  for (; fontSize >= readableMin; fontSize -= 4 * textureScale) {
     ctx.font = fontCss(fontSize)
-    widest = Math.max(1, ctx.measureText(text).width)
+    widest = Math.max(1, ...rows.lines.map((line) => ctx.measureText(line).width))
     if (widest <= maxWidth) break
   }
+  fontSize = Math.max(readableMin, fontSize)
   ctx.font = fontCss(fontSize)
-  widest = Math.max(1, ctx.measureText(text).width)
-  let width = Math.min(maxWidth, widest)
-  const fitScaleX = widest > maxWidth ? Math.max(0.68, maxWidth / widest) : 1
-  if (fitScaleX < 1) width = Math.min(maxWidth, widest * fitScaleX)
-
-  const lineHeight = fontSize
-  const y = H / 2 - fontSize / 2 + fontSize * 0.82
+  // 边界必须用最终字号测量，避免字距/字体 hinting 使逐字高亮错位。
+  const wordBoundaries = opts?.words
+    ? rows.lines.length === 2
+      ? [
+          ...measureWordBoundaries(opts.words.slice(0, rows.splitWordIndex), (value) => ctx.measureText(value).width).map((v) => v * 0.5),
+          ...measureWordBoundaries(opts.words.slice(rows.splitWordIndex), (value) => ctx.measureText(value).width).slice(1).map((v) => 0.5 + v * 0.5)
+        ]
+      : measureWordBoundaries(opts.words, (value) => ctx.measureText(value).width)
+    : []
+  const widths = rows.lines.map((line) => Math.max(1, ctx.measureText(line).width))
+  widest = Math.max(...widths)
+  const fitScaleX = widest > maxWidth ? maxWidth / widest : 1
+  const width = Math.min(maxWidth, widest * fitScaleX)
+  const yPositions = rows.lines.length === 2
+    ? [H / 2 - fontSize * 0.60, H / 2 + fontSize * 0.90]
+    : [H / 2 - fontSize / 2 + fontSize * 0.82]
   ctx.clearRect(0, 0, W, H)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = '#fff'
-  if (fitScaleX < 1) {
-    ctx.save()
-    ctx.translate(W / 2, 0)
-    ctx.scale(fitScaleX, 1)
-    ctx.fillText(text, 0, y)
-    ctx.restore()
-  } else {
-    ctx.fillText(text, W / 2, y)
-  }
+  rows.lines.forEach((line, index) => {
+    if (fitScaleX < 1) {
+      ctx.save()
+      ctx.translate(W / 2, 0)
+      ctx.scale(fitScaleX, 1)
+      ctx.fillText(line, 0, yPositions[index])
+      ctx.restore()
+    } else {
+      ctx.fillText(line, W / 2, yPositions[index])
+    }
+  })
 
   return {
     texture: makeCanvasTexture(canvas),
     width: W,
     height: H,
     textWidth: width,
-    textHeight: fontSize,
+    textHeight: fontSize * rows.lines.length,
     fontSize,
-    lineHeight,
-    lines: [text],
+    lineHeight: fontSize,
+    lines: rows.lines,
     fitScaleX,
     textMin: (W / 2 - width / 2) / W,
-    textMax: (W / 2 + width / 2) / W
+    textMax: (W / 2 + width / 2) / W,
+    wordBoundaries,
+    rowRanges: widths.map((rowWidth) => [(W / 2 - rowWidth * fitScaleX / 2) / W, (W / 2 + rowWidth * fitScaleX / 2) / W])
   }
 }
 
-/** 黑白描边可读性层:只有文字形状的多层模糊描边,无矩形底板。 */
+/** 中性字形暗影：柔化背景细节、分离文字轮廓，不绘制硬描边或矩形底板。 */
 export function makeReadabilityTexture(mask: LyricMask): THREE.CanvasTexture {
   const { width: W, height: H, fontSize, lines, fitScaleX } = mask
   const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
+  const scale = 0.5
+  canvas.width = Math.ceil(W * scale)
+  canvas.height = Math.ceil(H * scale)
   const ctx = canvas.getContext('2d')!
+  ctx.scale(scale, scale)
   ctx.clearRect(0, 0, W, H)
   ctx.font = fontCss(fontSize)
   ctx.textAlign = 'center'
@@ -121,33 +141,35 @@ export function makeReadabilityTexture(mask: LyricMask): THREE.CanvasTexture {
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
   ctx.miterLimit = 2
-  const y0 = H / 2 - fontSize / 2 + fontSize * 0.82
+  const yPositions = lines.length === 2
+    ? [H / 2 - fontSize * 0.60, H / 2 + fontSize * 0.90]
+    : [H / 2 - fontSize / 2 + fontSize * 0.82]
 
   const strokeLines = (dy: number) => {
-    const y = y0 + dy
-    if (fitScaleX < 1) {
-      ctx.save()
-      ctx.translate(W / 2, 0)
-      ctx.scale(fitScaleX, 1)
-      ctx.strokeText(lines[0], 0, y)
-      ctx.restore()
-    } else {
-      ctx.strokeText(lines[0], W / 2, y)
-    }
+    lines.forEach((line, index) => {
+      const y = yPositions[index] + dy
+      if (fitScaleX < 1) {
+        ctx.save()
+        ctx.translate(W / 2, 0)
+        ctx.scale(fitScaleX, 1)
+        ctx.strokeText(line, 0, y)
+        ctx.restore()
+      } else {
+        ctx.strokeText(line, W / 2, y)
+      }
+    })
   }
   const pass = (blur: number, alpha: number, lineWidth: number, color: string, dy = 0) => {
     ctx.save()
-    ctx.filter = `blur(${blur}px)`
+    ctx.filter = `blur(${blur * scale}px)`
     ctx.globalAlpha = alpha
     ctx.lineWidth = lineWidth
     ctx.strokeStyle = color
     strokeLines(dy)
     ctx.restore()
   }
-  pass(14, 0.18, Math.max(18, fontSize * 0.16), 'rgba(0,0,0,1)', fontSize * 0.018)
-  pass(5, 0.32, Math.max(9, fontSize * 0.075), 'rgba(0,0,0,1)', fontSize * 0.012)
-  pass(4, 0.15, Math.max(9, fontSize * 0.07), 'rgba(255,255,255,1)')
-  pass(1.2, 0.26, Math.max(3.2, fontSize * 0.03), 'rgba(255,255,255,1)')
+  pass(10, 0.24, Math.max(12, fontSize * 0.11), 'rgba(0,0,0,1)')
+  pass(3.5, 0.40, Math.max(5, fontSize * 0.045), 'rgba(0,0,0,1)')
 
   return makeCanvasTexture(canvas)
 }
@@ -161,56 +183,43 @@ export interface LyricGlowTexture {
 
 /** 多层模糊白字辉光纹理(additive 叠加用),四周渐隐避免硬边。 */
 export function makeGlowTexture(mask: LyricMask): LyricGlowTexture {
-  const text = mask.lines[0]
   const fontSize = mask.fontSize
-  const fitScaleX = mask.fitScaleX
   const measuredWidth = Math.max(1, mask.textWidth)
   const padX = Math.max(160, fontSize * 1.45)
   const padY = Math.max(86, fontSize * 0.78)
   const W = Math.ceil(measuredWidth + padX * 2)
-  const H = Math.ceil(fontSize + padY * 2)
+  const H = Math.ceil(Math.max(mask.height, mask.textHeight + padY * 2))
   const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
+  // 模糊辉光使用四分之一边长；正文 mask 仍保留原始分辨率。
+  const scale = 0.25
+  canvas.width = Math.ceil(W * scale)
+  canvas.height = Math.ceil(H * scale)
   const ctx = canvas.getContext('2d')!
+  ctx.scale(scale, scale)
   ctx.clearRect(0, 0, W, H)
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.font = fontCss(fontSize)
-  const y0 = H / 2 - fontSize / 2 + fontSize * 0.82
-
+  // 复用已经栅格化的清晰字形，避免每一层模糊都重新描边和排版文字。
   const drawGlowText = (dx: number, dy: number) => {
-    const y = y0 + dy
-    if (fitScaleX < 1) {
-      ctx.save()
-      ctx.translate(W / 2 + dx, 0)
-      ctx.scale(fitScaleX, 1)
-      if (ctx.lineWidth > 0) ctx.strokeText(text, 0, y)
-      ctx.fillText(text, 0, y)
-      ctx.restore()
-    } else {
-      if (ctx.lineWidth > 0) ctx.strokeText(text, W / 2 + dx, y)
-      ctx.fillText(text, W / 2 + dx, y)
-    }
+    ctx.drawImage(
+      mask.texture.image,
+      (mask.width - measuredWidth) / 2, 0, measuredWidth, mask.height,
+      padX + dx, (H - mask.height) / 2 + dy, measuredWidth, mask.height
+    )
   }
-  const pass = (blur: number, alpha: number, lineWidth: number) => {
+  const pass = (blur: number, alpha: number) => {
     ctx.save()
-    ctx.filter = `blur(${blur}px)`
+    ctx.filter = `blur(${blur * scale}px)`
     ctx.globalAlpha = alpha
-    ctx.fillStyle = '#fff'
-    ctx.lineWidth = lineWidth
-    ctx.strokeStyle = '#fff'
     drawGlowText(0, 0)
     ctx.restore()
   }
-  pass(14, 0.46, Math.max(10, fontSize * 0.1))
-  pass(34, 0.34, Math.max(18, fontSize * 0.18))
-  pass(78, 0.22, Math.max(28, fontSize * 0.26))
-  pass(116, 0.13, Math.max(42, fontSize * 0.4))
+  pass(14, 0.60)
+  pass(34, 0.46)
+  pass(78, 0.32)
+  pass(116, 0.20)
   // 环形位移叠印:轮廓向外糊开一圈
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
-  ctx.filter = 'blur(8px)'
+  ctx.filter = `blur(${8 * scale}px)`
   ctx.globalAlpha = 0.26
   ctx.fillStyle = '#fff'
   ctx.lineWidth = 0

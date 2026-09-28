@@ -53,6 +53,33 @@
   letter-spacing: 0.18em;
 }
 
+.displayModes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 2px 5px;
+}
+
+.displayModeBtn {
+  padding: 7px 2px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.displayModeBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.displayModeBtnActive {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
 .item:hover {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.9);

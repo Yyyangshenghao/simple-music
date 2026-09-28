@@ -254,7 +254,7 @@ export interface Lyrics3dParams {
   rippleSensitivity: number
   /** 单道波纹扩散时长(秒,0.2~1.5) */
   rippleDuration: number
-  /** 帧率上限(0=不限制,否则为目标 fps,如 24/30/45/60) */
+  /** 帧率上限(0=不限制,否则至少 120 fps) */
   fpsCap: number
   /** 渲染分辨率倍率(0.75~2,即 Canvas dpr) */
   renderScale: number

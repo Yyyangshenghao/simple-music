@@ -36,8 +36,7 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
   rippleCount: 6,
   rippleSensitivity: 0.5,
   rippleDuration: 0.55,
-  // 默认钳 60:ProMotion 屏不限帧会跑 120fps,GPU 负载翻倍但视觉收益极小
-  fpsCap: 60,
+  fpsCap: 120,
   renderScale: 1.25
 }
 
@@ -49,6 +48,11 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   gradientTextMotion: true,
   audioGlowEffect: true,
   reduceTransparency: false,
+}
+
+function normalizeLyrics3dFpsCap(fps: number): number {
+  if (fps === 0) return 0
+  return Number.isFinite(fps) ? Math.max(120, Math.round(fps)) : 120
 }
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
@@ -241,7 +245,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   setLyrics3dParams(patch) {
-    set({ lyrics3d: { ...get().lyrics3d, ...patch } })
+    set({ lyrics3d: {
+      ...get().lyrics3d,
+      ...patch,
+      ...(patch.fpsCap === undefined ? null : { fpsCap: normalizeLyrics3dFpsCap(patch.fpsCap) })
+    } })
     get().saveToLocal()
   },
   resetLyrics3dParams() {
@@ -368,7 +376,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
         lyricsStage3d: storedLyricsStyle !== 'focus',
         // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
-        lyrics3d: { ...DEFAULT_LYRICS_3D, ...data.lyrics3d },
+        lyrics3d: {
+          ...DEFAULT_LYRICS_3D,
+          ...data.lyrics3d,
+          fpsCap: normalizeLyrics3dFpsCap(data.lyrics3d?.fpsCap ?? DEFAULT_LYRICS_3D.fpsCap)
+        },
         lyricsFontScale: data.lyricsFontScale ?? 1,
         lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT, ...data.lyricsLayout },
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,

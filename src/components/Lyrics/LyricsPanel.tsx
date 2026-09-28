@@ -401,7 +401,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
                   // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
                   // 字号一致，激活态只靠 scale/亮度区分
-                  if (wordLine) {
+                  if (wordLine?.words.length) {
                     return (
                       <div
                         key={`${line.time}-${i}`}
@@ -411,7 +411,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       >
                         <KtvLine
                           words={wordLine.words}
-                          lineDurationMs={wordLine.durationMs}
                           lineStartMs={wordLine.time * 1000}
                           active={isActive && open}
                           dim={!isActive}
@@ -567,7 +566,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
             dpr={renderScale}
-            frameloop={fpsCap > 0 ? 'demand' : 'always'}
+            frameloop={fpsCap > 0 ? 'never' : 'always'}
             gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
           >
             <FrameLimiter fps={fpsCap} />
@@ -611,10 +610,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   exit={{ opacity: 0, y: -10 }}
                   transition={springGentle}
                 >
-                  {currentWordLine ? (
+                  {currentWordLine?.words.length ? (
                     <KtvLine
                       words={currentWordLine.words}
-                      lineDurationMs={currentWordLine.durationMs}
                       lineStartMs={currentWordLine.time * 1000}
                       active={true}
                       translationText={showTranslation ? translation[currentIndex]?.text || undefined : undefined}

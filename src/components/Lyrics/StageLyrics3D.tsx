@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { useReducedMotion } from 'motion/react'
 import * as THREE from 'three'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { api } from '../../lib/api'
+import { StageGlassBackdrop } from './stage-glass-backdrop'
+import { frameBlend } from '../../lib/frame-blend'
 import { bandEnergiesFrom } from '../../lib/audio-energy'
+import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
 import { getDotSpriteTexture } from '../../lib/dot-texture'
 import { lyricPaletteFromCoverPixels, silverBlueLyricPalette, type LyricPalette } from '../../lib/lyric-palette'
 import {
@@ -15,8 +19,12 @@ import {
   getSunBloomTexture,
   invalidateLyricFontCache
 } from './stage-lyric-textures'
-import type { LyricLine as LyricLineData, Lyrics3dDisplayMode, Lyrics3dStyle, WordLyricLine } from '../../types/domain'
+import type { Lyrics3dDisplayMode, Lyrics3dStyle, WordLyricLine } from '../../types/domain'
 import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
+import { createLyricStarRiver } from './stage-lyric-river'
+import { LYRIC_STYLE_LOOKS, lyricStyleFrame } from './stage-lyric-motion'
+import { advanceLyricScroll } from './stage-lyric-scroll'
+import { hasPreciseWordTiming, stageLyricProgress, stageWordTimeline } from './stage-lyric-progress'
 
 /**
  * 3D 歌词轨道（参考 Mineradio 2.2.0 / GPL-3.0 的多行布局与动效参数）:歌词以四层结构
@@ -26,7 +34,7 @@ import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
  * 深度、缩放和边缘透明度共同形成空间层次。调色板从封面像素推导
  * (lyric-palette.ts),辉光/太阳随节拍与能量呼吸;翻译行是原版没有的补充。
  * 相对原版简化:去掉骷髅/书架/壁纸联动、镜头锁定布局滑杆与自定义配色；
- * 保留本项目已有的封面取色、KTV 扫光和环绕星点。
+ * 保留本项目已有的封面取色、KTV 扫光和环绕星点，补充五轨星河与节拍辉光跟随。
  */
 
 const WORLD_W = 6.1
@@ -34,8 +42,8 @@ const MASK_ASPECT = 384 / 2048
 const WORLD_H = WORLD_W * MASK_ASPECT
 const BEAT_THRESHOLD = 0.38
 const BEAT_COOLDOWN = 0.18
-const STAR_COUNT = 420
 const SPARK_COUNT = 132
+const PAST_LYRIC_TINT = new THREE.Color('#87909f')
 
 function lyricColor(css: string | undefined, fallback: string, minLum: number): THREE.Color {
   const c = new THREE.Color()
@@ -54,43 +62,136 @@ function lyricColor(css: string | undefined, fallback: string, minLum: number): 
   return c
 }
 
-/** KTV 进度扫光 shader:uProgress 在文字区 [uTextMin,uTextMax] 内从左向右点亮 */
-function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPalette, hasKaraoke: boolean) {
+/** 每个字用原生时间戳独立点亮，时间纹理固定，仅更新播放器经过时间。 */
+function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPalette, wordMap: THREE.DataTexture, wordCount: number) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: mask.texture },
+      uWordMap: { value: wordMap },
+      uWordCount: { value: wordCount },
+      uElapsed: { value: -1 },
       uProgress: { value: 0 },
       uTextMin: { value: mask.textMin },
       uTextMax: { value: mask.textMax },
+      uRow1: { value: new THREE.Vector2(...mask.rowRanges[0]) },
+      uRow2: { value: new THREE.Vector2(...(mask.rowRanges[1] ?? mask.rowRanges[0])) },
+      uWrapped: { value: mask.lines.length === 2 ? 1 : 0 },
       uOpacity: { value: 0 },
+      uPlaybackLight: { value: usePlayerStore.getState().status === 'playing' ? 1 : 0 },
       uBaseColor: { value: lyricColor(pal.primary, '#d6f8ff', 0.38) },
       uHiColor: { value: lyricColor(pal.highlight || pal.primary, '#fff0b8', 0.48) },
       uGlowColor: { value: lyricColor(pal.glowColor || pal.secondary, '#9cffdf', 0.36) },
       uSolarColor: { value: lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5) },
-      uFeather: { value: hasKaraoke ? 0.03 : 0.055 },
-      uSolar: { value: 0 }
+      uFeather: { value: 0.03 },
+      uSolar: { value: 0 },
+      uTime: { value: 0 },
+      uSweep: { value: -1 },
+      uSheen: { value: 0 },
+      uGlass: { value: 0 },
+      uBackdrop: { value: null },
+      uResolution: { value: new THREE.Vector2(1, 1) },
+      uBevel: { value: new THREE.Vector2(Math.max(1, mask.fontSize * 0.006) / mask.width, Math.max(1, mask.fontSize * 0.006) / mask.height) },
+      uTextHeight: { value: mask.textHeight / mask.height },
+      uPrism: { value: 0 },
+      uGlitch: { value: 0 }
     },
     vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader: /* glsl */ `
-      uniform sampler2D uMap;
-      uniform float uProgress, uTextMin, uTextMax, uOpacity, uFeather, uSolar;
+      uniform sampler2D uMap, uWordMap;
+      uniform float uWordCount, uElapsed;
+      uniform float uProgress, uTextMin, uTextMax, uOpacity, uPlaybackLight, uFeather, uSolar;
+      uniform float uTime, uSweep, uSheen, uPrism, uGlitch;
+      uniform float uGlass, uTextHeight, uWrapped;
+      uniform vec2 uBevel, uResolution, uRow1, uRow2;
+      uniform sampler2D uBackdrop;
       uniform vec3 uBaseColor, uHiColor, uGlowColor, uSolarColor;
       varying vec2 vUv;
       void main(){
         vec2 uv = gl_FrontFacing ? vUv : vec2(1.0 - vUv.x, vUv.y);
-        float mask = texture2D(uMap, uv).a;
+        float slice = floor(uv.y * 36.0);
+        float jitter = sin(slice * 17.1 + floor(uTime * 12.0) * 2.7) * uGlitch;
+        uv.x += jitter;
+        float centerMask = texture2D(uMap, uv).a;
+        float split = uPrism + uGlitch * 0.65;
+        float leftMask = centerMask;
+        float rightMask = centerMask;
+        if (split > 0.00001) {
+          leftMask = texture2D(uMap, uv + vec2(split, 0.0)).a;
+          rightMask = texture2D(uMap, uv - vec2(split, 0.0)).a;
+        }
+        float mask = max(centerMask, max(leftMask, rightMask) * 0.65);
         if (mask < 0.01) discard;
         float denom = max(0.001, uTextMax - uTextMin);
         float p = clamp((uv.x - uTextMin) / denom, 0.0, 1.0);
-        float filled = 1.0 - smoothstep(uProgress, uProgress + uFeather, p);
-        float edge = 1.0 - smoothstep(0.0, uFeather * 2.8, abs(p - uProgress));
+        if (uWrapped > 0.5) {
+          bool top = uv.y > 0.5;
+          vec2 range = top ? uRow1 : uRow2;
+          p = (top ? 0.0 : 0.5) + clamp((uv.x-range.x)/max(0.001,range.y-range.x),0.0,1.0)*0.5;
+        }
+        float filled = 1.0;
+        float edge = 0.0;
+        if (uWordCount > 0.0) {
+          // 按字面边界二分定位，不按时间串行等待前一个字。
+          float low = 0.0;
+          float high = uWordCount - 1.0;
+          for (int i = 0; i < 16; i++) {
+            if (low >= high) break;
+            float mid = floor((low + high) * 0.5);
+            vec4 candidate = texture2D(uWordMap, vec2((mid + 0.5) / uWordCount, 0.5));
+            if (p >= candidate.y) low = mid + 1.0;
+            else high = mid;
+          }
+          vec4 word = texture2D(uWordMap, vec2((low + 0.5) / uWordCount, 0.5));
+          float wordWidth = max(0.000001, word.y - word.x);
+          float wordP = clamp((p - word.x) / wordWidth, 0.0, 1.0);
+          float local = uElapsed < word.z ? 0.0 : (word.w <= 0.0 ? 1.0 : clamp((uElapsed - word.z) / word.w, 0.0, 1.0));
+          filled = 0.0;
+          if (local >= 1.0) filled = 1.0;
+          else if (local > 0.0) {
+            // 羽化只留在已唱一侧，未开始的字严格不点亮。
+            float feather = min(0.15, uFeather / wordWidth);
+            filled = 1.0 - smoothstep(max(0.0, local - feather), local, wordP);
+            edge = (1.0 - smoothstep(0.0, feather * 2.8, abs(wordP - local))) * filled;
+          }
+        }
+        if (uGlass > 0.5) {
+          // 极细曲面边缘 + 真实场景折射，字面保持通透，不使用金属明暗分层。
+          float up = texture2D(uMap, uv + vec2(0.0,uBevel.y)).a;
+          float down = texture2D(uMap, uv - vec2(0.0,uBevel.y)).a;
+          float left = texture2D(uMap, uv - vec2(uBevel.x,0.0)).a;
+          float right = texture2D(uMap, uv + vec2(uBevel.x,0.0)).a;
+          vec2 normal = vec2(left-right, down-up);
+          float rim = clamp(length(normal),0.0,1.0);
+          float height = clamp((uv.y-0.5)/max(0.01,uTextHeight)+0.5,0.0,1.0);
+          vec2 screen = gl_FragCoord.xy / uResolution;
+          vec2 refractUv = clamp(screen + (normal * 6.0 + vec2(0.0,(height-0.5)*2.0)) / uResolution, 0.001, 0.999);
+          vec4 backdrop = texture2D(uBackdrop, refractUv);
+          float reflectionOffset = (p+(height-0.5)*0.32-uSweep)*3.0;
+          float reflection = exp(-reflectionOffset*reflectionOffset) * uSheen;
+          float lightEdge = max(0.0, dot(normal, normalize(vec2(-0.45,0.9))));
+          float backgroundLight = dot(backdrop.rgb,vec3(0.2126,0.7152,0.0722))*backdrop.a;
+          // 沿用封面调色板：未唱主色、已唱高亮色；只调整亮度以保持玻璃通透。
+          vec3 palette = mix(uBaseColor,uHiColor,filled*0.65);
+          vec3 tint = palette / max(0.001,max(palette.r,max(palette.g,palette.b)));
+          vec3 pearl = mix(mix(tint,vec3(1.0),0.48),tint*0.10,smoothstep(0.34,0.52,backgroundLight));
+          // 透明区域交给正常 alpha 合成透出 CSS 底色，不能把空纹理当黑玻璃。
+          vec3 glass = mix(pearl, backdrop.rgb, backdrop.a * (0.56-filled*0.08));
+          glass += mix(pearl,uGlowColor,0.25) * (lightEdge*0.48+reflection*0.11);
+          float alpha = (0.38+filled*0.17+rim*0.14) * centerMask*uOpacity;
+          gl_FragColor = vec4(glass * mix(0.62,1.0,uPlaybackLight), alpha);
+          return;
+        }
         vec3 color = mix(uBaseColor, uHiColor, filled * 0.88);
         color += uGlowColor * edge * 0.14;
         color = mix(color, color + uSolarColor * 0.34, uSolar * (0.25 + filled * 0.45));
         color += uSolarColor * edge * uSolar * 0.22;
+        float sweep = 1.0 - smoothstep(0.0, 0.075, abs(p + (uv.y - 0.5) * 0.16 - uSweep));
+        color += uHiColor * sweep * uSheen;
+        color += vec3(leftMask - centerMask, 0.0, rightMask - centerMask) * 0.42;
         float lum = dot(color, vec3(0.299, 0.587, 0.114));
-        color += vec3(max(0.0, 0.30 - lum));
-        gl_FragColor = vec4(color, mask * uOpacity);
+        // 保留色相并抬高字面最低亮度，与下层中性暗影共同分离同色背景。
+        color = mix(color, vec3(1.0), clamp((0.58-lum)/max(0.001,1.0-lum),0.0,1.0));
+        gl_FragColor = vec4(color * mix(0.62,1.0,uPlaybackLight), mask * uOpacity);
       }
     `,
     transparent: true,
@@ -101,6 +202,9 @@ function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPale
 }
 
 interface LyricMeshData {
+  wordBoundaries: number[]
+  rowCount: number
+  accentMat: THREE.ShaderMaterial
   textMat: THREE.ShaderMaterial
   readabilityMat: THREE.MeshBasicMaterial
   glowMat: THREE.MeshBasicMaterial
@@ -125,23 +229,31 @@ interface ActiveLyricMesh {
   lineIndex: number
   entryDirection: number
   exitDirection: number
-  exitStartY: number
+  exitStartX: number
   exitStartZ: number
+  exitStartScale: number
+  exitStartOpacity: number
 }
 
 function buildLyricMesh(
   text: string,
   transText: string | undefined,
   pal: LyricPalette,
-  hasKaraoke: boolean,
+  wordLine: WordLyricLine | undefined,
   uPixel: { value: number },
   lineIndex: number,
   entryDirection: number,
   lineStep: number
 ): ActiveLyricMesh {
   const disposables: Array<{ dispose(): void }> = []
-  const mask = makeLyricMask(text)
+  const hasKaraoke = hasPreciseWordTiming(wordLine)
+  const mask = makeLyricMask(text, { words: hasKaraoke ? wordLine?.words : undefined })
   disposables.push(mask.texture)
+  const wordData = stageWordTimeline(wordLine, mask.wordBoundaries)
+  const wordCount = wordData.length / 4
+  const wordMap = new THREE.DataTexture(wordCount ? wordData : new Float32Array(4), Math.max(1, wordCount), 1, THREE.RGBAFormat, THREE.FloatType)
+  wordMap.needsUpdate = true
+  disposables.push(wordMap)
   const textWorldW = WORLD_W * (mask.textWidth / mask.width)
   const textWorldH = WORLD_H * (mask.textHeight / mask.height)
 
@@ -197,8 +309,7 @@ function buildLyricMesh(
   glow.scale.set(1.0, 1.06, 1)
   group.add(glow)
 
-  // 黑白描边可读性板:白色描边部分跟随封面调色板轻度上色,
-  // 避免在暖/冷色氛围光中露出与四周不协调的纯灰色
+  // 中性字形暗影隔开复杂背景，不随封面染色，也不添加矩形底板。
   const readabilityTex = makeReadabilityTexture(mask)
   disposables.push(readabilityTex)
   const readabilityMat = new THREE.MeshBasicMaterial({
@@ -208,7 +319,7 @@ function buildLyricMesh(
     depthWrite: false,
     depthTest: false,
     side: THREE.DoubleSide,
-    color: lyricColor(pal.glowColor || pal.secondary || pal.primary, '#c9d6e6', 0.7)
+    color: 0xffffff
   })
   disposables.push(readabilityMat)
   const planeGeo = new THREE.PlaneGeometry(WORLD_W, WORLD_H, 1, 1)
@@ -219,11 +330,45 @@ function buildLyricMesh(
   group.add(readability)
 
   // 文字本体(KTV 进度扫光)
-  const textMat = makeTextMaterial(mask, pal, hasKaraoke)
+  const textMat = makeTextMaterial(mask, pal, wordMap, wordCount)
   disposables.push(textMat)
   const textMesh = new THREE.Mesh(planeGeo, textMat)
   textMesh.renderOrder = 43
   group.add(textMesh)
+
+  // 快切进度线；其他样式完全隐藏，玻璃材质直接绘制在字面上。
+  const accentMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMode: { value: 0 },
+      uOpacity: { value: 0 },
+      uProgress: { value: 0 },
+      uColor: { value: lyricColor(pal.primary, '#d6f8ff', 0.38) }
+    },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: /* glsl */ `
+      uniform float uMode, uOpacity, uProgress;
+      uniform vec3 uColor;
+      varying vec2 vUv;
+      void main() {
+        if (uMode < 1.5) discard;
+        vec2 uv = gl_FrontFacing ? vUv : vec2(1.0-vUv.x, vUv.y);
+        float line = (1.0-smoothstep(0.015, 0.035, abs(uv.y-0.10)))
+          * step(0.07, uv.x) * step(uv.x, 0.93);
+        float filled = 1.0-smoothstep(uProgress, uProgress+0.015, (uv.x-0.07)/0.86);
+        gl_FragColor = vec4(uColor, line * (0.16+filled*0.72) * uOpacity);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide
+  })
+  const accentGeo = new THREE.PlaneGeometry(textWorldW + 0.5, textWorldH + 0.55)
+  const accent = new THREE.Mesh(accentGeo, accentMat)
+  accent.renderOrder = 40
+  accent.position.set(0, -0.04, -0.04)
+  group.add(accent)
+  disposables.push(accentMat, accentGeo)
 
   // 翻译行:小号静态 mask,色用高亮色压暗,透明度跟随主行
   let transMat: THREE.MeshBasicMaterial | null = null
@@ -327,9 +472,14 @@ function buildLyricMesh(
     lineIndex,
     entryDirection,
     exitDirection: entryDirection,
-    exitStartY: group.position.y,
+    exitStartX: group.position.x,
     exitStartZ: group.position.z,
+    exitStartScale: group.scale.x,
+    exitStartOpacity: 0,
     data: {
+      wordBoundaries: mask.wordBoundaries,
+      rowCount: mask.lines.length,
+      accentMat,
       textMat,
       readabilityMat,
       glowMat,
@@ -347,8 +497,12 @@ function buildLyricMesh(
 }
 
 interface ContextLyricMesh {
+  rowCount: number
+  textWorldH: number
   group: THREE.Group
   material: THREE.MeshBasicMaterial
+  baseColor: THREE.Color
+  glowMaterial: THREE.MeshBasicMaterial
   transMaterial: THREE.MeshBasicMaterial | null
   lineIndex: number
   text: string
@@ -365,7 +519,7 @@ function buildContextLyricMesh(
   lineIndex: number,
   initialY: number
 ): ContextLyricMesh {
-  const mask = makeLyricMask(text, { maxFont: 76, minFont: 30, textureScale: 0.5 })
+  const mask = makeLyricMask(text, { maxFont: 112, minFont: 36, textureScale: 0.65 })
   const material = new THREE.MeshBasicMaterial({
     map: mask.texture,
     transparent: true,
@@ -379,13 +533,27 @@ function buildContextLyricMesh(
   const geometry = new THREE.PlaneGeometry(width, width * MASK_ASPECT, 1, 1)
   const mesh = new THREE.Mesh(geometry, material)
   mesh.renderOrder = 39
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    map: mask.texture,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    color: lyricColor(pal.highlight || pal.secondary, '#d6f8ff', 0.44)
+  })
+  const glow = new THREE.Mesh(geometry, glowMaterial)
+  glow.renderOrder = 38
+  glow.position.z = -0.008
+  glow.scale.set(1.025, 1.08, 1)
   const group = new THREE.Group()
   group.renderOrder = 39
   group.position.set(0, initialY, 1.23)
-  group.scale.setScalar(0.84)
-  group.add(mesh)
+  group.scale.setScalar(0.94)
+  group.add(glow, mesh)
 
-  const disposables: Array<{ dispose(): void }> = [mask.texture, material, geometry]
+  const disposables: Array<{ dispose(): void }> = [mask.texture, material, glowMaterial, geometry]
   let transMaterial: THREE.MeshBasicMaterial | null = null
   if (transText) {
     const transMask = makeLyricMask(transText, { maxFont: 48, minFont: 24, textureScale: 0.5 })
@@ -407,7 +575,11 @@ function buildContextLyricMesh(
     disposables.push(transMask.texture, transMaterial, transGeometry)
   }
 
-  return { group, material, transMaterial, lineIndex, text, transText, seed: Math.random() * 100, disposables }
+  return {
+    group, material, baseColor: material.color.clone(), glowMaterial, transMaterial,
+    rowCount: mask.lines.length, textWorldH: width * MASK_ASPECT * (mask.textHeight / mask.height),
+    lineIndex, text, transText, seed: Math.random() * 100, disposables
+  }
 }
 
 interface MotionProfile {
@@ -441,8 +613,15 @@ function displayOffsets(mode: Lyrics3dDisplayMode): number[] {
   return [-2, -1, 0, 1, 2]
 }
 
-function lyricLineStep(spread: number): number {
-  return THREE.MathUtils.clamp(0.58 * spread, 0.45, 1.22)
+function contextLineOpacity(opacity: number, edgeFade: number, distance: number, maxDistance: number, upcoming: boolean): number {
+  const edgeOpacity = 1 - (distance / maxDistance) * edgeFade
+  const distanceOpacity = distance <= 1 ? 1 : 0.64
+  return THREE.MathUtils.clamp(opacity * (upcoming ? 1.55 : 0.75) * distanceOpacity * edgeOpacity, 0.04, 0.92)
+}
+
+function lyricLineStep(spread: number, rowCount = 1, hasTranslation = false): number {
+  const base = THREE.MathUtils.clamp(0.46 * spread, 0.45, 1.05)
+  return rowCount === 2 ? Math.max(base, hasTranslation ? 0.88 : 0.68) : base
 }
 
 function disposeContextMesh(mesh: ContextLyricMesh | null): void {
@@ -454,12 +633,12 @@ function disposeContextMesh(mesh: ContextLyricMesh | null): void {
 function applyPaletteToMesh(mesh: ActiveLyricMesh | null, pal: LyricPalette): void {
   if (!mesh) return
   const u = mesh.data.textMat.uniforms
+  mesh.data.accentMat.uniforms.uColor.value.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
   u.uBaseColor.value.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
   u.uHiColor.value.copy(lyricColor(pal.highlight || pal.primary, '#fff0b8', 0.48))
   u.uGlowColor.value.copy(lyricColor(pal.glowColor || pal.secondary, '#9cffdf', 0.36))
   u.uSolarColor.value.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5))
   mesh.data.glowMat.color.copy(lyricColor(pal.glowColor || pal.secondary, '#9cffdf', 0.36))
-  mesh.data.readabilityMat.color.copy(lyricColor(pal.glowColor || pal.secondary || pal.primary, '#c9d6e6', 0.7))
   mesh.data.sparkMat.uniforms.uColor.value.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.46))
   mesh.data.sunMat.color.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5))
   if (mesh.data.transMat) mesh.data.transMat.color.copy(lyricColor(pal.highlight || pal.primary, '#d6f8ff', 0.44))
@@ -471,42 +650,21 @@ function disposeMesh(mesh: ActiveLyricMesh | null): void {
   for (const d of mesh.data.disposables) d.dispose()
 }
 
-/** 行进度:逐字歌词按字符时间窗插值,普通歌词按行时长线性 + smoothstep */
-function lineProgress(now: number, idx: number, lines: LyricLineData[], wordLine?: WordLyricLine): number {
-  const line = lines[idx]
-  if (!line) return 0
-  if (wordLine && wordLine.words.length) {
-    const charCount = wordLine.words.reduce((s, w) => s + w.text.length, 0)
-    if (charCount > 0) {
-      const nowMs = (now - wordLine.time) * 1000 + 30
-      let c0 = 0
-      let lastP = 0
-      for (const w of wordLine.words) {
-        const ws = w.startMs
-        const we = ws + Math.max(80, w.durationMs ?? 240)
-        if (nowMs < ws) return lastP
-        const local = nowMs >= we ? 1 : Math.min(1, Math.max(0, (nowMs - ws) / Math.max(80, we - ws)))
-        lastP = Math.max(lastP, (c0 + w.text.length * local) / charCount)
-        if (nowMs < we) return lastP
-        c0 += w.text.length
-      }
-      return 1
-    }
-  }
-  const adjNow = now + 0.02
-  const next = lines[idx + 1]
-  const nextT = next && next.time > line.time ? next.time : line.time + 4.8
-  const span = Math.max(0.75, nextT - line.time)
-  const p = Math.min(1, Math.max(0, (adjNow - line.time) / span))
-  return p * p * (3 - 2 * p)
-}
-
 export function StageLyrics3D() {
+  const reducedMotion = useReducedMotion()
   const rootRef = useRef<THREE.Group>(null)
+  const glassBackdropRef = useRef<StageGlassBackdrop | null>(null)
+  const glassCaptureAtRef = useRef(-Infinity)
+  const riverRef = useRef<ReturnType<typeof createLyricStarRiver> | null>(null)
+  const motionTimeRef = useRef(0)
+  const playbackLightRef = useRef(usePlayerStore.getState().status === 'playing' ? 1 : 0)
   const currentRef = useRef<ActiveLyricMesh | null>(null)
   const contextRef = useRef(new Map<number, ContextLyricMesh>())
   const outgoingRef = useRef<ActiveLyricMesh[]>([])
   const previousIndexRef = useRef(-1)
+  const scrollIndexRef = useRef<number | null>(null)
+  const scrollVelocityRef = useRef(0)
+  const lineStepRef = useRef(0)
   const palRef = useRef<LyricPalette>(silverBlueLyricPalette())
   const sunColorRef = useRef(new THREE.Color(0xffe6a4))
   const sunHotColorRef = useRef(new THREE.Color(0xfff4cc))
@@ -526,18 +684,42 @@ export function StageLyrics3D() {
     uPixel.value = dpr
   }, [dpr, uPixel])
 
+  // 星河跨切行复用；只释放私有几何和材质，共享星点纹理留给缓存管理。
+  useEffect(() => {
+    const river = createLyricStarRiver(uPixel)
+    rootRef.current?.add(river)
+    riverRef.current = river
+    return () => {
+      river.parent?.remove(river)
+      river.geometry.dispose()
+      river.material.dispose()
+      riverRef.current = null
+    }
+  }, [uPixel])
+
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const lines = useLyricsStore((s) => s.lines)
   const wordLines = useLyricsStore((s) => s.wordLines)
   const translation = useLyricsStore((s) => s.translation)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
+  const selectedStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const contextSpread = useSettingsStore((s) => s.lyrics3d.contextSpread)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
   const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
   const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
   const coverUrl = usePlayerStore((s) => s.currentTrack?.cover)
+
+  // 切换样式立即重播入场，让当前歌词即可展示差异，不必等下一句。
+  useEffect(() => {
+    const current = currentRef.current
+    if (current) {
+      current.age = 0
+      current.entryOpacity = current.data.textMat.uniforms.uOpacity.value
+      current.entryScale = current.group.scale.x
+    }
+  }, [selectedStyle])
 
   // 封面调色板:64×64 采样推导,应用到在场的所有歌词面板
   useEffect(() => {
@@ -563,7 +745,8 @@ export function StageLyrics3D() {
         applyPaletteToMesh(currentRef.current, pal)
         for (const m of outgoingRef.current) applyPaletteToMesh(m, pal)
         for (const context of contextRef.current.values()) {
-          context.material.color.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
+          context.baseColor.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
+          context.glowMaterial.color.copy(lyricColor(pal.highlight || pal.secondary, '#d6f8ff', 0.44))
           context.transMaterial?.color.copy(lyricColor(pal.highlight || pal.primary, '#d6f8ff', 0.44))
         }
       } catch {
@@ -583,24 +766,48 @@ export function StageLyrics3D() {
     invalidateLyricFontCache()
   }, [fontFamily, fontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk])
 
-  // 切行:旧行进 outgoing，新行从滚动方向进入焦点。
+  // 切行时旧行进入轨道；同一句的翻译、时间或字体更新只原位重建。
   const text = currentIndex >= 0 ? (lines[currentIndex]?.text ?? '').trim() : ''
   const transText = showTranslation ? translation[currentIndex]?.text?.trim() || undefined : undefined
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
+    const jumped = previousIndexRef.current >= 0 && Math.abs(currentIndex - previousIndexRef.current) > 1
+    if (scrollIndexRef.current === null || jumped) {
+      scrollIndexRef.current = currentIndex
+      scrollVelocityRef.current = 0
+    }
     const movingForward = previousIndexRef.current < 0 || currentIndex >= previousIndexRef.current
     const entryDirection = movingForward ? -1 : 1
+    const sameLine = currentRef.current?.lineIndex === currentIndex
+    const replacementState = sameLine && currentRef.current
+      ? {
+          position: currentRef.current.group.position.clone(),
+          scale: currentRef.current.group.scale.x,
+          opacity: currentRef.current.data.textMat.uniforms.uOpacity.value
+        }
+      : null
+    if (jumped) {
+      for (const mesh of outgoingRef.current) disposeMesh(mesh)
+      outgoingRef.current = []
+    }
     if (currentRef.current) {
-      currentRef.current.age = 0
-      currentRef.current.exitDirection = movingForward ? 1 : -1
-      currentRef.current.exitStartY = currentRef.current.group.position.y
-      currentRef.current.exitStartZ = currentRef.current.group.position.z
-      outgoingRef.current.push(currentRef.current)
-      currentRef.current = null
+      if (jumped || sameLine) {
+        disposeMesh(currentRef.current)
+        currentRef.current = null
+      } else {
+        currentRef.current.age = 0
+        currentRef.current.exitDirection = movingForward ? 1 : -1
+        currentRef.current.exitStartX = currentRef.current.group.position.x
+        currentRef.current.exitStartZ = currentRef.current.group.position.z
+        currentRef.current.exitStartScale = currentRef.current.group.scale.x
+        currentRef.current.exitStartOpacity = currentRef.current.data.textMat.uniforms.uOpacity.value
+        outgoingRef.current.push(currentRef.current)
+        currentRef.current = null
+      }
     }
     const existingContext = contextRef.current.get(currentIndex)
-    const incomingState = existingContext
+    const incomingState = existingContext && !jumped && !sameLine
       ? {
           position: existingContext.group.position.clone(),
           scale: existingContext.group.scale.x,
@@ -617,21 +824,23 @@ export function StageLyrics3D() {
         text,
         transText,
         palRef.current,
-        !!wordLines[currentIndex]?.words?.length,
+        wordLines[currentIndex],
         uPixel,
         currentIndex,
         entryDirection,
         lyricLineStep(useSettingsStore.getState().lyrics3d.contextSpread)
       )
-      if (incomingState) {
-        mesh.group.position.copy(incomingState.position)
-        mesh.group.scale.setScalar(incomingState.scale)
-        mesh.entryOpacity = incomingState.opacity
-        mesh.entryScale = incomingState.scale
-        mesh.data.textMat.uniforms.uOpacity.value = incomingState.opacity
-        mesh.data.readabilityMat.opacity = incomingState.opacity * 0.72
-        if (mesh.data.transMat) mesh.data.transMat.opacity = incomingState.opacity * 0.62
+      const start = replacementState ?? incomingState
+      if (start) {
+        mesh.group.position.copy(start.position)
+        mesh.group.scale.setScalar(start.scale)
+        mesh.entryOpacity = start.opacity
+        mesh.entryScale = start.scale
+        mesh.data.textMat.uniforms.uOpacity.value = start.opacity
+        mesh.data.readabilityMat.opacity = start.opacity * 0.72
+        if (mesh.data.transMat) mesh.data.transMat.opacity = start.opacity * 0.62
       }
+      if (replacementState) mesh.age = motionProfile(useSettingsStore.getState().lyrics3dStyle, useSettingsStore.getState().lyrics3d.motionSoftness).enter
       root.add(mesh.group)
       currentRef.current = mesh
     }
@@ -651,7 +860,7 @@ export function StageLyrics3D() {
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
-    const step = lyricLineStep(contextSpread)
+    const step = lyricLineStep(contextSpread, currentRef.current?.data.rowCount, !!transText)
     const wanted = new Set(
       displayOffsets(displayMode)
         .map((offset) => currentIndex + offset)
@@ -673,7 +882,7 @@ export function StageLyrics3D() {
       if (!lineText) continue
       const lineTrans = showTranslation ? translation[lineIndex]?.text?.trim() || '' : ''
       const delta = lineIndex - currentIndex
-      const initialY = -delta * step + Math.sign(delta) * step * 0.28
+      const initialY = 0.18 - delta * step
       const mesh = buildContextLyricMesh(lineText, lineTrans, palRef.current, lineIndex, initialY)
       contextRef.current.set(lineIndex, mesh)
       root.add(mesh.group)
@@ -685,6 +894,7 @@ export function StageLyrics3D() {
     showTranslation,
     displayMode,
     contextSpread,
+    transText,
     fontFamily,
     fontFamilyCjk,
     lyrics3dFontFamily,
@@ -694,6 +904,8 @@ export function StageLyrics3D() {
   // 卸载清场
   useEffect(
     () => () => {
+      glassBackdropRef.current?.dispose()
+      glassBackdropRef.current = null
       disposeMesh(currentRef.current)
       currentRef.current = null
       for (const context of contextRef.current.values()) disposeContextMesh(context)
@@ -706,16 +918,50 @@ export function StageLyrics3D() {
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.1)
-    const t = state.clock.getElapsedTime()
+    const playing = usePlayerStore.getState().status === 'playing'
+    const lightTarget = playing ? 1 : 0
+    playbackLightRef.current += (lightTarget - playbackLightRef.current)
+      * (reducedMotion ? 1 : frameBlend(playing ? 0.12 : 0.075, dt))
+    if (playing && !reducedMotion) motionTimeRef.current += dt
+    const t = motionTimeRef.current
     const settings = useSettingsStore.getState()
     const params = settings.lyrics3d
     const style = settings.lyrics3dStyle
+    const look = LYRIC_STYLE_LOOKS[style]
     const profile = motionProfile(style, params.motionSoftness)
-    const lineStep = lyricLineStep(params.contextSpread)
+    const visibleRows = [
+      currentRef.current && { rows: currentRef.current.data.rowCount, translation: !!currentRef.current.data.transMat },
+      ...outgoingRef.current.map((mesh) => ({ rows: mesh.data.rowCount, translation: !!mesh.data.transMat })),
+      ...Array.from(contextRef.current.values(), (mesh) => ({ rows: mesh.rowCount, translation: !!mesh.transMaterial }))
+    ]
+    const targetLineStep = Math.max(
+      lyricLineStep(params.contextSpread),
+      ...visibleRows.filter((row) => !!row).map((row) => lyricLineStep(params.contextSpread, row!.rows, row!.translation))
+    )
+    lineStepRef.current = lineStepRef.current === 0
+      ? targetLineStep
+      : lineStepRef.current + (targetLineStep - lineStepRef.current) * frameBlend(0.12, dt)
+    const lineStep = lineStepRef.current
+    let trackIndex = currentIndex
+    if (reducedMotion) {
+      scrollIndexRef.current = currentIndex
+      scrollVelocityRef.current = 0
+    } else {
+      const next = advanceLyricScroll(
+        scrollIndexRef.current ?? currentIndex,
+        scrollVelocityRef.current,
+        currentIndex,
+        dt,
+        7.5 / Math.max(0.45, profile.enter)
+      )
+      trackIndex = next.position
+      scrollIndexRef.current = next.position
+      scrollVelocityRef.current = next.velocity
+    }
 
     // 音频能量与节拍包络
     const engine = usePlayerStore.getState()._engine()
-    const bands = bandEnergiesFrom(engine.getFrequencyData())
+    const bands = bandEnergiesFrom(playing ? engine.getFrequencyData() : [])
     const bassSum = bands.subBass + bands.bass
     const bass01 = Math.min(1, bassSum * 0.5)
     if (bassSum > BEAT_THRESHOLD && !prevBassAboveRef.current && t - lastBeatAtRef.current > BEAT_COOLDOWN) {
@@ -725,7 +971,7 @@ export function StageLyrics3D() {
     prevBassAboveRef.current = bassSum > BEAT_THRESHOLD * 0.75
     beatPulseRef.current = Math.max(0, beatPulseRef.current - dt * 3.2)
     const beatPulse = beatPulseRef.current
-    energySmoothRef.current += (bands.energy - energySmoothRef.current) * 0.06
+    energySmoothRef.current += (bands.energy - energySmoothRef.current) * frameBlend(0.06, dt)
 
     // 辉光驱动:glowStrength 滑块(默认 1)→ 原版 lyricGlowStrength 默认 0.5
     const lyricGlowStrength = Math.min(0.85, Math.max(0, 0.5 * params.glowStrength))
@@ -733,16 +979,40 @@ export function StageLyrics3D() {
     const glowBreath = lyricGlowStrength > 0 ? 0.5 + 0.5 * Math.sin(t * 1.05) : 0
     const musicBloom = Math.max(energySmoothRef.current, beatPulse * 0.1)
     const beatGlowRaw = lyricGlowStrength > 0 ? beatPulse * 1.22 : 0
-    beatGlowRef.current += (beatGlowRaw - beatGlowRef.current) * (beatGlowRaw > beatGlowRef.current ? 0.32 : 0.1)
+    beatGlowRef.current += (beatGlowRaw - beatGlowRef.current) * frameBlend(beatGlowRaw > beatGlowRef.current ? 0.32 : 0.1, dt)
     const beatGlow = beatGlowRef.current
     let solarBloom =
       lyricGlowStrength > 0
         ? (0.18 + glowBreath * 0.16 + musicBloom * 0.9 + beatGlow * 1.18 + Math.sin(t * 0.37 + 1.2) * 0.035) * glowDrive
         : 0
     solarBloom = Math.max(0, Math.min(1.45, solarBloom))
-    highBloomRef.current += (solarBloom - highBloomRef.current) * (solarBloom > highBloomRef.current ? 0.075 : 0.05)
+    highBloomRef.current += (solarBloom - highBloomRef.current) * frameBlend(solarBloom > highBloomRef.current ? 0.075 : 0.05, dt)
     const solar = highBloomRef.current
     const sparksOn = lyricGlowStrength > 0.025
+    const motion = reducedMotion ? 0 : params.motionIntensity
+
+    const river = riverRef.current
+    if (river) {
+      const u = river.material.uniforms
+      const data = currentRef.current?.data
+      const ease = 1 - Math.exp(-dt * 5)
+      u.uTime.value = t
+      u.uBass.value = bass01
+      u.uBeat.value = reducedMotion ? 0 : beatPulse
+      u.uMotion.value = motion
+      u.uSize.value = params.particleSize
+      u.uWidth.value += (Math.min(7.2, Math.max(2.25, (data?.textWorldW ?? 3.4) * 1.12 + 0.8)) - u.uWidth.value) * ease
+      u.uHeight.value += (Math.min(1.35, Math.max(0.52, (data?.textWorldH ?? 0.3) * 1.85 + 0.18)) - u.uHeight.value) * ease
+      const target = data && sparksOn
+        ? Math.min(0.7, (0.16 + solar * 0.18 + beatGlow * 0.1) * params.particleBrightness * glowDrive) * look.particles
+        : 0
+      u.uOpacity.value += (target - u.uOpacity.value) * ease
+      u.uColorA.value.copy(sunColorRef.current)
+      u.uColorB.value.copy(sunHotColorRef.current)
+      river.geometry.setDrawRange(0, Math.round(420 * params.particleCount))
+      river.visible = u.uOpacity.value > 0.005
+      river.position.y = currentRef.current?.group.position.y ?? 0.18
+    }
 
     // 视口适配:按歌词所在深度的可视宽度收缩整组,窄面板不溢出
     const root = rootRef.current
@@ -758,43 +1028,58 @@ export function StageLyrics3D() {
       const offsets = displayOffsets(params.displayMode)
       const verticalSpan = (Math.max(...offsets) - Math.min(...offsets)) * lineStep + WORLD_H * 1.25
       const fit = Math.min(1, (visibleW * 0.84) / needW, (visibleH * 0.72) / verticalSpan)
-      fitScaleRef.current += (fit - fitScaleRef.current) * (fit < fitScaleRef.current ? 0.18 : 0.1)
+      fitScaleRef.current += (fit - fitScaleRef.current) * frameBlend(fit < fitScaleRef.current ? 0.18 : 0.1, dt)
       root.scale.setScalar(Math.max(0.42, fitScaleRef.current))
     }
 
     // 当前行:浮入 + 呼吸漂浮 + 辉光/太阳/星点动态 + KTV 进度
     const cur = currentRef.current
     if (cur) {
+      if (cur.age === 0 && style === 'quick') {
+        cur.group.position.x = 1.3 * motion * cur.entryDirection
+      }
       cur.age += dt
       const a0 = Math.min(1, cur.age / profile.enter)
       const a = a0 * a0 * (3 - 2 * a0)
       const d = cur.data
       const seed = cur.floatSeed
+      const styleFrame = lyricStyleFrame(style, cur.age, profile.enter, t, beatPulse, motion, playing)
+      d.textMat.uniforms.uTime.value = t
+      d.textMat.uniforms.uSweep.value = styleFrame.sweep
+      d.textMat.uniforms.uSheen.value = styleFrame.sheen * glowDrive
+      d.textMat.uniforms.uGlass.value = style === 'glass' ? 1 : 0
+      d.textMat.uniforms.uPlaybackLight.value = playbackLightRef.current
+      d.textMat.uniforms.uPrism.value = styleFrame.prism
+      d.textMat.uniforms.uGlitch.value = styleFrame.glitch
+      d.accentMat.uniforms.uMode.value = look.panel
+      cur.group.rotation.x = styleFrame.tiltX * cur.entryDirection
+      cur.group.rotation.y = styleFrame.tiltY
 
       const opacity = THREE.MathUtils.clamp(
         d.textMat.uniforms.uOpacity.value
-          + (cur.entryOpacity + (0.96 - cur.entryOpacity) * a - d.textMat.uniforms.uOpacity.value) * 0.16,
+          + (cur.entryOpacity + (0.96 - cur.entryOpacity) * a - d.textMat.uniforms.uOpacity.value) * frameBlend(0.16, dt),
         0,
         1
       )
       d.textMat.uniforms.uOpacity.value = opacity
-      d.readabilityMat.opacity += (opacity * 0.86 - d.readabilityMat.opacity) * 0.16
-      const styledSolar = solar * (style === 'shine' ? 1.28 : 1)
-      d.textMat.uniforms.uSolar.value += (styledSolar - d.textMat.uniforms.uSolar.value) * 0.12
-      if (d.transMat) d.transMat.opacity += (opacity * 0.72 - d.transMat.opacity) * 0.16
+      d.accentMat.uniforms.uOpacity.value = opacity
+      d.readabilityMat.opacity += (opacity * (style === 'glass' ? 0.42 : 0.9) - d.readabilityMat.opacity) * frameBlend(0.16, dt)
+      const styledSolar = solar * look.glow
+      d.textMat.uniforms.uSolar.value += (styledSolar - d.textMat.uniforms.uSolar.value) * frameBlend(0.12, dt)
+      if (d.transMat) d.transMat.opacity += (opacity * 0.72 - d.transMat.opacity) * frameBlend(0.16, dt)
 
       const warmth = Math.max(0, Math.min(1, solar * 1.1))
       const glowTarget = lyricGlowStrength > 0
-        ? Math.min(1.0, (0.075 + styledSolar * 0.34 + beatGlow * 0.16) * Math.min(3, glowDrive) * profile.glowLift)
+        ? Math.min(1.0, (0.075 + styledSolar * 0.34 + beatGlow * 0.16) * Math.min(3, glowDrive) * profile.glowLift) * look.glow
         : 0
-      d.glowMat.opacity += (glowTarget - d.glowMat.opacity) * (glowTarget > d.glowMat.opacity ? 0.095 : 0.055)
+      d.glowMat.opacity += (glowTarget - d.glowMat.opacity) * frameBlend(glowTarget > d.glowMat.opacity ? 0.095 : 0.055, dt)
       d.glowMat.color.copy(lyricColor(palRef.current.glowColor || palRef.current.secondary, '#9cffdf', 0.36)).lerp(sunHotColorRef.current, warmth)
 
-      const sparkTarget = sparksOn ? Math.min(0.42, (0.1 + solar * 0.14 + beatGlow * 0.1) * Math.min(1.6, glowDrive)) : 0
+      const sparkTarget = sparksOn ? Math.min(0.42, (0.1 + solar * 0.14 + beatGlow * 0.1) * Math.min(1.6, glowDrive)) * look.particles : 0
       const sparkOpacity = d.sparkMat.uniforms.uOpacity.value
-      d.sparkMat.uniforms.uOpacity.value = sparkOpacity + (sparkTarget - sparkOpacity) * (sparkTarget > sparkOpacity ? 0.13 : 0.075)
+      d.sparkMat.uniforms.uOpacity.value = sparkOpacity + (sparkTarget - sparkOpacity) * frameBlend(sparkTarget > sparkOpacity ? 0.13 : 0.075, dt)
       d.sparkMat.uniforms.uSize.value +=
-        ((sparksOn ? 0.05 + solar * 0.016 + beatGlow * 0.026 + bass01 * 0.008 : 0.035) - d.sparkMat.uniforms.uSize.value) * 0.12
+        ((sparksOn ? 0.05 + solar * 0.016 + beatGlow * 0.026 + bass01 * 0.008 : 0.035) - d.sparkMat.uniforms.uSize.value) * frameBlend(0.12, dt)
       d.sparkMat.uniforms.uColor.value.copy(sunHotColorRef.current).lerp(sunColorRef.current, 0.22 + solar * 0.18)
       d.sparkMat.uniforms.uTime.value = t
       d.sparkMat.uniforms.uBass.value = bass01
@@ -802,8 +1087,8 @@ export function StageLyrics3D() {
       d.sparks.visible = d.sparkMat.uniforms.uOpacity.value > 0.015
 
       const sunTarget =
-        lyricGlowStrength > 0 ? Math.min(0.88, (Math.pow(Math.min(1.35, solar), 1.08) * 0.28 + beatGlow * 0.2) * Math.min(2.4, glowDrive)) : 0
-      d.sunMat.opacity += (sunTarget - d.sunMat.opacity) * 0.055
+        lyricGlowStrength > 0 ? Math.min(0.88, (Math.pow(Math.min(1.35, solar), 1.08) * 0.28 + beatGlow * 0.2) * Math.min(2.4, glowDrive)) * look.glow : 0
+      d.sunMat.opacity += (sunTarget - d.sunMat.opacity) * frameBlend(0.055, dt)
       d.sunMat.color.copy(sunColorRef.current).lerp(sunHotColorRef.current, solar * 0.55)
       const beatScale = beatGlow * 0.24
       d.sun.scale.set(
@@ -811,18 +1096,22 @@ export function StageLyrics3D() {
         0.6 + solar * 0.34 + beatScale * 0.72 + Math.cos(t * 1.25) * solar * 0.02,
         1
       )
-      const breathe = (Math.sin(t * 0.92 + seed) * 0.05 + Math.sin(t * 0.41 + seed * 0.7) * 0.028) * profile.floatAmp
-      const glitchX = style === 'glitch' ? Math.sin(t * 47 + seed) * (0.008 + beatPulse * 0.025) : 0
+      // 原版辉光随节拍偏移后回落，文字保持可读；幅度服从现有动效强度。
+      const follow = beatGlow * motion
+      d.glow.position.x += (Math.sin(t * 1.7 + seed) * follow * 0.1 - d.glow.position.x) * (1 - Math.exp(-dt * 9))
+      d.sun.position.y += (0.02 + follow * 0.045 - d.sun.position.y) * (1 - Math.exp(-dt * 7))
+      d.glow.rotation.z = Math.sin(t * 0.7 + seed) * follow * 0.045
+      const floatMotion = style === 'float' ? motion : 0
+      const breathe = Math.sin(t * 0.92 + seed) * 0.06 * floatMotion
+      const glitchX = style === 'glitch' ? Math.sin(t * 47 + seed) * beatPulse * 0.025 * motion : 0
       const moveEase = 1 - Math.exp(-dt / Math.max(0.045, profile.slide * 0.32))
       const baseScale = cur.entryScale + (1.015 - cur.entryScale) * a
-      cur.group.scale.setScalar(baseScale + breathe * a + bass01 * 0.038 * a + beatPulse * 0.014 * a)
-      cur.group.position.x += (glitchX - cur.group.position.x) * moveEase
-      cur.group.position.y += (
-        0.18 + Math.sin(t * 0.55 + seed) * 0.055 * profile.floatAmp + Math.sin(t * 1.35 + seed) * 0.014 * profile.floatAmp
-        - cur.group.position.y
-      ) * moveEase
-      cur.group.position.z += (1.48 + Math.cos(t * 0.48 + seed) * 0.08 - cur.group.position.z) * 0.08
-      cur.group.rotation.z = Math.sin(t * 0.34 + seed) * (style === 'smooth' ? 0.006 : 0.018 * profile.floatAmp)
+      cur.group.scale.setScalar(baseScale + breathe * a)
+      cur.group.position.x += (glitchX + styleFrame.slideX * cur.entryDirection + Math.sin(t * 0.55) * 0.26 * floatMotion - cur.group.position.x) * moveEase
+      cur.group.position.y = 0.18 + (trackIndex - cur.lineIndex) * lineStep
+        + Math.sin(t * 0.8 + seed) * 0.04 * floatMotion
+      cur.group.position.z += (1.48 + Math.cos(t * 0.65 + seed) * 0.24 * floatMotion - cur.group.position.z) * moveEase
+      cur.group.rotation.z = Math.sin(t * 0.55 + seed) * 0.045 * floatMotion
 
       // 星点漂移完全在顶点着色器中完成，主线程不再逐帧改写 BufferAttribute。
       if (d.sparks.visible) {
@@ -831,10 +1120,12 @@ export function StageLyrics3D() {
 
       // KTV 进度
       const lyrics = useLyricsStore.getState()
-      const now = engine.position + lyrics.offsetSec
+      const now = lyricPlaybackPosition(usePlayerStore.getState()) + lyrics.offsetSec
       if (lyrics.currentIndex >= 0) {
-        d.textMat.uniforms.uProgress.value = lineProgress(now, lyrics.currentIndex, lyrics.lines, lyrics.wordLines[lyrics.currentIndex])
+        d.textMat.uniforms.uElapsed.value = now - (lyrics.wordLines[lyrics.currentIndex]?.time ?? now)
+        d.textMat.uniforms.uProgress.value = stageLyricProgress(now, lyrics.wordLines[lyrics.currentIndex], d.wordBoundaries)
       }
+      d.accentMat.uniforms.uProgress.value = d.textMat.uniforms.uProgress.value
     }
 
     const maxDistance = Math.max(1, ...displayOffsets(params.displayMode).map(Math.abs))
@@ -842,25 +1133,29 @@ export function StageLyrics3D() {
     for (const mesh of contextRef.current.values()) {
       const distance = Math.abs(mesh.lineIndex - currentIndex)
       const deltaIndex = mesh.lineIndex - currentIndex
-      const edgeOpacity = 1 - (distance / maxDistance) * params.edgeFade
-      const distanceOpacity = distance <= 1 ? 1 : 0.64
-      const hasOutgoingMesh = outgoingRef.current.some((outgoing) => outgoing.lineIndex === mesh.lineIndex)
-      const targetOpacity = hasOutgoingMesh
-        ? 0
-        : THREE.MathUtils.clamp(params.contextOpacity * distanceOpacity * edgeOpacity, 0.04, 0.92)
-      const drift = Math.sin(t * 0.42 + mesh.seed) * profile.contextDrift
+      const upcoming = deltaIndex > 0
+      const outgoing = outgoingRef.current.find((line) => line.lineIndex === mesh.lineIndex)
+      const targetOpacity = outgoing ? 0 : contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, upcoming)
+      const drift = style === 'float' ? Math.sin(t * 0.65 + mesh.seed) * 0.04 * motion : 0
       const glitch = style === 'glitch' ? Math.sin(t * 38 + mesh.seed) * 0.015 : 0
-      const targetY = -deltaIndex * lineStep + drift
-      const targetZ = 1.24 - distance * 0.15
-      const targetScale = Math.max(0.72, 0.92 - distance * 0.055)
-      mesh.material.opacity += (targetOpacity - mesh.material.opacity) * contextEase
+      const targetY = 0.18 + (trackIndex - mesh.lineIndex) * lineStep + drift
+      const targetZ = 1.24 - distance * look.depth + (upcoming ? 0.04 : -0.08)
+      const targetScale = Math.max(0.72, (upcoming ? 0.99 : 0.87) - distance * 0.055)
+      mesh.material.color.copy(mesh.baseColor).lerp(upcoming ? sunHotColorRef.current : PAST_LYRIC_TINT, upcoming ? 0.18 : 0.42)
+      const opacityEase = outgoing ? 1 : contextEase
+      mesh.material.opacity += (targetOpacity - mesh.material.opacity) * opacityEase
+      const glowTarget = upcoming && distance === 1 && lyricGlowStrength > 0
+        ? targetOpacity * 0.27 * glowDrive * look.glow * (0.35 + playbackLightRef.current * 0.65)
+        : 0
+      mesh.glowMaterial.opacity += (glowTarget - mesh.glowMaterial.opacity) * contextEase
       if (mesh.transMaterial) mesh.transMaterial.opacity += (targetOpacity * 0.62 - mesh.transMaterial.opacity) * contextEase
-      mesh.group.position.x += (glitch - mesh.group.position.x) * contextEase
-      mesh.group.position.y += (targetY - mesh.group.position.y) * contextEase
+      mesh.group.position.x += (glitch + Math.sign(deltaIndex) * look.stagger * motion - mesh.group.position.x) * contextEase
+      mesh.group.position.y = targetY
       mesh.group.position.z += (targetZ - mesh.group.position.z) * contextEase
       const scale = mesh.group.scale.x + (targetScale - mesh.group.scale.x) * contextEase
       mesh.group.scale.setScalar(scale)
-      mesh.group.rotation.z = Math.sin(t * 0.27 + mesh.seed) * profile.contextDrift * 0.08
+      mesh.group.rotation.y = style === 'float' ? -Math.sign(deltaIndex) * 0.22 * motion : 0
+      mesh.group.rotation.z = style === 'float' ? Math.sin(t * 0.4 + mesh.seed) * 0.025 * motion : 0
     }
 
     // 淡出行沿轨道方向离开，避免当前行与上下文像两个互不相干的层。
@@ -869,22 +1164,56 @@ export function StageLyrics3D() {
       m.age += dt
       const a0 = Math.min(1, m.age / profile.exit)
       const a = a0 * a0 * (3 - 2 * a0)
-      const opacity = (1 - a) * 0.72
+      const context = contextRef.current.get(m.lineIndex)
+      const distance = Math.abs(m.lineIndex - currentIndex)
+      const targetOpacity = context
+        ? contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, m.lineIndex > currentIndex)
+        : 0
+      const opacity = THREE.MathUtils.lerp(m.exitStartOpacity, targetOpacity, a)
       const d = m.data
       d.textMat.uniforms.uOpacity.value = opacity
-      d.readabilityMat.opacity = opacity * 0.58
-      d.textMat.uniforms.uSolar.value *= 0.86
-      d.glowMat.opacity = lyricGlowStrength > 0 ? opacity * 0.08 * lyricGlowStrength : 0
-      d.sparkMat.uniforms.uOpacity.value = sparksOn ? Math.max(opacity * 0.24, (1 - a) * 0.18) * lyricGlowStrength : 0
-      d.sunMat.opacity = lyricGlowStrength > 0 ? opacity * 0.08 * lyricGlowStrength : 0
+      d.accentMat.uniforms.uOpacity.value = opacity * (1 - a)
+      d.readabilityMat.opacity = opacity * (1 - a) * (d.textMat.uniforms.uGlass.value > 0.5 ? 0.42 : 0.9)
+      d.textMat.uniforms.uSolar.value *= 1 - frameBlend(0.14, dt)
+      d.glowMat.opacity = lyricGlowStrength > 0 ? opacity * (1 - a) * 0.08 * lyricGlowStrength * look.glow : 0
+      d.sparkMat.uniforms.uOpacity.value = sparksOn ? opacity * (1 - a) * 0.24 * lyricGlowStrength * look.particles : 0
+      d.sunMat.opacity = lyricGlowStrength > 0 ? opacity * (1 - a) * 0.08 * lyricGlowStrength * look.glow : 0
       if (d.transMat) d.transMat.opacity = opacity * 0.6
-      m.group.position.y = THREE.MathUtils.lerp(m.exitStartY, m.exitStartY + m.exitDirection * lineStep, a)
+      m.group.position.x = m.exitStartX + (style === 'quick' ? a * m.exitDirection * 1.3 * motion : 0)
+      m.group.position.y = 0.18 + (trackIndex - m.lineIndex) * lineStep
       m.group.position.z = THREE.MathUtils.lerp(m.exitStartZ, m.exitStartZ - 0.24, a)
-      m.group.scale.setScalar(0.98 - a * 0.06)
+      const contextScale = context
+        ? THREE.MathUtils.clamp(context.group.scale.x * context.textWorldH / Math.max(0.01, d.textWorldH), 0.4, 1.1)
+        : m.exitStartScale * 0.94
+      m.group.scale.setScalar(THREE.MathUtils.lerp(m.exitStartScale, contextScale, a))
       if (a0 >= 1) {
+        if (context) {
+          context.material.opacity = targetOpacity
+          if (context.transMaterial) context.transMaterial.opacity = targetOpacity * 0.62
+        }
         disposeMesh(m)
         outgoingRef.current.splice(i, 1)
       }
+    }
+
+    const glassMeshes = [currentRef.current, ...outgoingRef.current].filter(
+      (mesh): mesh is ActiveLyricMesh => !!mesh && mesh.data.textMat.uniforms.uGlass.value > 0.5
+    )
+    if (glassMeshes.length && rootRef.current) {
+      const backdrop = glassBackdropRef.current ??= new StageGlassBackdrop()
+      // 字面仍按显示器刷新率渲染；折射背景至多 30fps，避免 120fps 时每帧再绘一遍场景。
+      if (state.clock.elapsedTime - glassCaptureAtRef.current >= 1 / 30) {
+        backdrop.capture(state.gl, state.scene, state.camera, rootRef.current)
+        glassCaptureAtRef.current = state.clock.elapsedTime
+      }
+      for (const mesh of glassMeshes) {
+        mesh.data.textMat.uniforms.uBackdrop.value = backdrop.target.texture
+        mesh.data.textMat.uniforms.uResolution.value.copy(backdrop.resolution)
+      }
+    } else if (glassBackdropRef.current) {
+      glassBackdropRef.current.dispose()
+      glassBackdropRef.current = null
+      glassCaptureAtRef.current = -Infinity
     }
   })
 
