@@ -2,7 +2,7 @@
 // 全骨架懒加载(useLazyPlaylist)+ 虚拟列表(VirtualList),未加载行显示 shimmer 占位。
 // 播放任意一行时按完整 trackIds 入队,未加载详情的为 pending 占位曲目。
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
@@ -44,11 +44,53 @@ function SkeletonTrackRow({ index }: { index: number }) {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(false)
+  const refreshInFlight = useRef(false)
+  const checkInFlight = useRef(false)
   const pageRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
-  const { total, tracks, loading, error, available, ensureRange, makeQueue, retry } = useLazyPlaylist(playlist, initialTracks)
+  const { total, tracks, loading, error, available, ensureRange, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
+  const canRefresh = playlist.type !== 'album' && !initialTracks?.length
+  const refreshPlaylist = useCallback(async () => {
+    if (!canRefresh || refreshInFlight.current) return
+    refreshInFlight.current = true
+    setRefreshing(true)
+    setRefreshError(false)
+    try {
+      await refresh()
+    } catch {
+      setRefreshError(true)
+    } finally {
+      refreshInFlight.current = false
+      setRefreshing(false)
+    }
+  }, [canRefresh, refresh])
+  const checkPlaylist = useCallback(async () => {
+    if (!canRefresh || checkInFlight.current || refreshInFlight.current) return
+    checkInFlight.current = true
+    try {
+      await checkForUpdates()
+    } catch {
+      // 自动检查失败时保留现有歌曲；下次回到前台或定时检查会重试。
+    } finally {
+      checkInFlight.current = false
+    }
+  }, [canRefresh, checkForUpdates])
+  useEffect(() => {
+    if (!canRefresh) return
+    const onFocus = () => { void checkPlaylist() }
+    window.addEventListener('focus', onFocus)
+    const interval = canCheckForUpdates
+      ? window.setInterval(() => { if (document.visibilityState === 'visible') void checkPlaylist() }, 60_000)
+      : null
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (interval !== null) window.clearInterval(interval)
+    }
+  }, [canRefresh, canCheckForUpdates, checkPlaylist])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
@@ -143,6 +185,11 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                       .join(' · ')
                   : loading ? '加载中…' : `${total} 首`}
               </p>
+              {canRefresh && (
+                <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
+                  {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
+                </button>
+              )}
               {displayPlaylist.type === 'album' && displayPlaylist.description && (
                 <p className={styles.detailDescription}>{displayPlaylist.description}</p>
               )}

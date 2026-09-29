@@ -1160,6 +1160,26 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 轻量检查歌单曲目更新时间与顺序；不请求歌曲详情 ----------
+  if (pn === '/api/playlist/revision') {
+    const id = url.searchParams.get('id')
+    if (!id) {
+      sendJson(res, { error: 'Missing playlist id' }, 400)
+      return true
+    }
+    try {
+      const detail = await call('playlist_detail', { id, s: 0, cookie: getCookie(ctx, 'netease'), timestamp: Date.now() })
+      const pl = asObj(asObj(detail.body).playlist)
+      if (!pl.id || !Array.isArray(pl.trackIds)) throw new Error('INVALID_PLAYLIST_DETAIL')
+      const trackIds = asArr(pl.trackIds).map((track) => asStr(asObj(track).id)).filter(Boolean)
+      const updatedAt = asNum(pl.trackUpdateTime)
+      sendJson(res, { updatedAt: updatedAt > 0 ? updatedAt : null, trackIds })
+    } catch (err) {
+      sendJson(res, { error: (err as Error).message }, isUpstreamNotFoundError(err) ? 404 : 500)
+    }
+    return true
+  }
+
   // ---------- 歌单曲目详情:全量 trackIds + 前 100 首详情(懒加载骨架) ----------
   if (pn === '/api/playlist/tracks') {
     try {
@@ -1169,16 +1189,18 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       const cookie = getCookie(ctx, 'netease')
-      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string } = {
+      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string; trackUpdateTime: number | null } = {
         id,
         name: '',
         cover: '',
         trackCount: 0,
         description: '',
+        trackUpdateTime: null,
       }
       let trackIds: string[] = []
       let tracks: ReturnType<typeof mapSongRecord>[] = []
       let upstreamError: string | null = null
+      let detailLoaded = false
       // playlist_detail 的原始错误对象:用于区分"歌单查无"(404 给调用方清缓存/新建)
       // 与"上游瞬时故障"(500 给调用方抛错展示),避免网络抖动被误判成歌单被删
       let detailErr: unknown = null
@@ -1194,10 +1216,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             cover: asStr(pl.coverImgUrl),
             trackCount: asNum(pl.trackCount),
             description: asStr(pl.description),
+            trackUpdateTime: asNum(pl.trackUpdateTime) || null,
           }
           trackIds = asArr(pl.trackIds)
             .map((t) => asStr(asObj(t).id))
             .filter(Boolean)
+          detailLoaded = Array.isArray(pl.trackIds)
         } catch (err) {
           detailErr = err
           upstreamError = (err as Error).message
@@ -1220,7 +1244,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
 
       // 3) fallback:playlist_track_all 旧逻辑(limit 500),trackIds 从结果推导
-      if (!tracks.length && has('playlist_track_all')) {
+      if (!tracks.length && (!detailLoaded || trackIds.length > 0) && has('playlist_track_all')) {
         try {
           const all = await call('playlist_track_all', { id, limit: 500, offset: 0, cookie, timestamp: Date.now() })
           const ab = asObj(all.body)

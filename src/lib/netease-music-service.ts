@@ -3,6 +3,7 @@ import type {
   MusicService,
   RadarPlaylist,
   PlaylistSkeleton,
+  PlaylistRevision,
   PlaylistMeta,
   ToplistGroup,
   ToplistPreviewTrack,
@@ -17,10 +18,14 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
-    const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
+    const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[]; playlist?: { trackUpdateTime?: number | null } }>('/api/playlist/tracks', { id: id as string | number })
     const tracks = res.tracks ?? []
     const trackIds = res.trackIds?.length ? res.trackIds : tracks.map((t) => t.id)
-    return { trackIds, tracks }
+    return { trackIds, tracks, updatedAt: res.playlist?.trackUpdateTime ?? null }
+  }
+
+  async getPlaylistRevision(id: unknown): Promise<PlaylistRevision> {
+    return api.get<PlaylistRevision>('/api/playlist/revision', { id: id as string | number })
   }
 
   async getTracksByIds(ids: unknown[]): Promise<Track[]> {

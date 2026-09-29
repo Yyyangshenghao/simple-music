@@ -36,3 +36,14 @@ describe('网易云歌手歌曲分页', () => {
     })
   })
 })
+
+describe('网易云歌单变更检查', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('只请求歌单版本信息', async () => {
+    const revision = { updatedAt: 123, trackIds: ['1', '2'] }
+    const get = vi.spyOn(api, 'get').mockResolvedValue(revision)
+    await expect(new NeteaseMusicService().getPlaylistRevision('playlist-id')).resolves.toEqual(revision)
+    expect(get).toHaveBeenCalledWith('/api/playlist/revision', { id: 'playlist-id' })
+  })
+})

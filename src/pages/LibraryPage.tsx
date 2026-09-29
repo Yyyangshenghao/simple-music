@@ -182,6 +182,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
 
   useEffect(() => {
     const session = ++sessionRef.current
+    retryRef.current[source] = 0
     const controller = new AbortController()
     setResults({})
     void runProviderTasks(
@@ -192,7 +193,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
         isEnabled: isProviderParticipating,
         isEmpty: (playlists) => playlists.length === 0,
         onUpdate: (result) => {
-          if (session !== sessionRef.current) return
+          if (session !== sessionRef.current || retryRef.current[source] !== 0) return
           setResults((current) => ({ ...current, [result.source]: result }))
         },
       }
@@ -221,6 +222,13 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     )
   }
 
+  useEffect(() => {
+    if (!participating) return
+    const onFocus = () => retryProvider(source)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [mode, participating, source]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const visibleSources = participating ? [source] : []
 
   if (visibleSources.length === 0) {
@@ -243,6 +251,9 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                     ? result.error?.message
                     : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '歌单'}`}
               </span>
+              {mode === 'playlists' && result?.status !== 'loading' && (
+                <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>
+              )}
             </div>
             {result?.status === 'error' ? (
               <div className={styles.providerError}>
