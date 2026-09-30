@@ -58,10 +58,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            script: build:mac
+            target: mac
             artifact: dist-mac
           - os: windows-latest
-            script: build:win
+            target: win
             artifact: dist-win
     runs-on: ${{ matrix.os }}
     steps:
@@ -90,7 +90,9 @@ jobs:
       # 这里显式关掉自动发布：只在本 job 里产出本地安装包，真正发布交给下面单独的 publish job，
       # 避免两个 matrix job 各自抢着建 release 造成竞态。
       - name: Build production package with Widevine VMP signature
-        run: npm run ${{ matrix.script }} -- --publish never
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.target }} --publish never
         env:
           EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
           EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
