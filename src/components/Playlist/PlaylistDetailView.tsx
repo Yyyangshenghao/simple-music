@@ -10,6 +10,8 @@ import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useBackdropStore } from '../../stores/backdrop'
 import { serviceFor } from '../../lib/service-registry'
+import { TrackSearch } from '../ui/TrackSearch'
+import { matchingTrackIndices } from '../../lib/track-search'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
@@ -44,15 +46,20 @@ function SkeletonTrackRow({ index }: { index: number }) {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const [query, setQuery] = useState('')
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState(false)
+  const [searchAttempt, setSearchAttempt] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState(false)
   const refreshInFlight = useRef(false)
   const checkInFlight = useRef(false)
+  const searching = Boolean(query.trim())
   const pageRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
-  const { total, tracks, loading, error, available, ensureRange, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
+  const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
   const canRefresh = playlist.type !== 'album' && !initialTracks?.length
   const refreshPlaylist = useCallback(async () => {
     if (!canRefresh || refreshInFlight.current) return
@@ -91,6 +98,18 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       if (interval !== null) window.clearInterval(interval)
     }
   }, [canRefresh, canCheckForUpdates, checkPlaylist])
+  const matches = searching ? matchingTrackIndices(tracks, query, true) : []
+  useEffect(() => { setQuery('') }, [playlist.id, playlist.source])
+  useEffect(() => {
+    let cancelled = false
+    setSearchError(false)
+    setSearchLoading(searching && !error)
+    if (!searching || loading || error) return
+    void ensureAll(() => cancelled)
+      .catch(() => { if (!cancelled) setSearchError(true) })
+      .finally(() => { if (!cancelled) setSearchLoading(false) })
+    return () => { cancelled = true }
+  }, [searching, loading, error, ensureAll, searchAttempt])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
@@ -196,6 +215,15 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             </motion.div>
           </div>
         </div>
+        <TrackSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="搜索歌单内的歌曲或歌手"
+          count={searching ? matches.length : total}
+          loading={searchLoading || loading}
+          error={searchError}
+          onRetry={() => setSearchAttempt((value) => value + 1)}
+        />
         {error ? (
           <div className={styles.errorHint}>
             <p>歌单加载失败</p>
@@ -212,13 +240,14 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             transition={{ ...springGentle, delay: 0.15 }}
           >
             <VirtualList
-              total={total}
+              total={searching ? matches.length : total}
               rowHeight={TRACK_ROW_HEIGHT}
               scrollRef={pageRef}
-              onRangeChange={ensureRange}
+              onRangeChange={searching ? undefined : ensureRange}
               renderRow={(i) => {
-                const t = tracks[i]
-                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(i)} /> : <SkeletonTrackRow index={i} />
+                const originalIndex = searching ? matches[i] : i
+                const t = tracks[originalIndex]
+                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} />
               }}
             />
           </motion.div>

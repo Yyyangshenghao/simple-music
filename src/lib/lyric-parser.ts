@@ -63,7 +63,7 @@ export function alignTranslation(main: LyricLine[], translation: LyricLine[]): L
 export function parseYrc(text: string): WordLyricLine[] {
   if (!text) return []
   const lines: WordLyricLine[] = []
-  const WORD_TOKEN = /\((\d+),(\d+),-?\d+\)([^(]*)/g
+  const WORD_TOKEN = /\((\d+),(\d+),-?\d+\)(.*?)(?=\(\d+,\d+,-?\d+\)|$)/g
   for (const raw of String(text).split(/\r?\n/)) {
     const headerMatch = raw.match(/^\[(\d+),(\d+)\](.*)$/)
     if (!headerMatch) continue
@@ -74,19 +74,64 @@ export function parseYrc(text: string): WordLyricLine[] {
     WORD_TOKEN.lastIndex = 0
     while ((m = WORD_TOKEN.exec(headerMatch[3]))) {
       const tx = m[3]
-      if (!tx || !tx.trim()) continue
+      if (!tx) continue
       words.push({
         text: tx,
         startMs: Math.max(0, parseInt(m[1], 10) - lineStartMs),
         durationMs: parseInt(m[2], 10),
       })
     }
-    if (words.length) {
+    if (words.some(word => word.text.trim())) {
       lines.push({ time: lineStartMs / 1000, durationMs, words })
     }
   }
   lines.sort((a, b) => a.time - b.time)
   return lines
+}
+
+/**
+ * QQ 明文 QRC：每个文本片段后跟 (歌曲绝对起始毫秒,持续毫秒)。
+ * 支持 LyricContent XML 包装；密文和缺少完整逐字时间的行不猜测时序。
+ */
+export function parseQrc(text: string): WordLyricLine[] {
+  const envelope = String(text || '').match(/\bLyricContent\s*=\s*(["'])([\s\S]*?)\1/)
+  const entities: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
+  const content = envelope
+    ? envelope[2].replace(/&(amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);/gi, (entity, value: string) => {
+      if (!value.startsWith('#')) return entities[value.toLowerCase()] ?? entity
+      const code = value[1].toLowerCase() === 'x' ? parseInt(value.slice(2), 16) : Number(value.slice(1))
+      return Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity
+    })
+    : String(text || '')
+  const lines: WordLyricLine[] = []
+  for (const raw of content.split(/\r?\n/)) {
+    const header = raw.match(/^\[(\d+),(\d+)\](.*)$/)
+    if (!header) continue
+    const start = Number(header[1])
+    const durationMs = Number(header[2])
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(durationMs)) continue
+    const words: WordToken[] = []
+    const body = header[3]
+    const timing = /\((\d+),(\d+)\)/g
+    let cursor = 0
+    let match: RegExpExecArray | null
+    let valid = true
+    while ((match = timing.exec(body))) {
+      const wordStart = Number(match[1])
+      const wordDuration = Number(match[2])
+      if (!Number.isSafeInteger(wordStart) || !Number.isSafeInteger(wordDuration) || wordStart < start) {
+        valid = false
+        break
+      }
+      const wordText = body.slice(cursor, match.index)
+      if (wordText) words.push({ text: wordText, startMs: wordStart - start, durationMs: wordDuration })
+      cursor = timing.lastIndex
+    }
+    if (valid && !body.slice(cursor).trim() && words.some(word => word.text.trim())) {
+      lines.push({ time: start / 1000, durationMs, words })
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time)
 }
 
 /**

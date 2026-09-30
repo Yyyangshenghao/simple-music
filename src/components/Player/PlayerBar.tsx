@@ -253,6 +253,7 @@ interface PlayerBarProps {
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
+  const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const position = usePlayerStore((s) => s.position)
   const duration = usePlayerStore((s) => s.duration)
   const volume = usePlayerStore((s) => s.volume)
@@ -262,7 +263,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
   const next = usePlaylistStore((s) => s.next)
   const prev = usePlaylistStore((s) => s.prev)
 
-  const isPlaying = status === 'playing'
+  const isPlaying = status === 'playing' || (apple && status === 'loading')
   const isLoading = status === 'loading'
 
   return (

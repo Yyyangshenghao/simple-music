@@ -3,90 +3,8 @@ import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
 import { useProviderStore } from '../stores/providers'
 import { isProviderId } from '../providers/types'
-import { api } from '../lib/api'
-import { localMusicService } from '../lib/local-music-service'
-import { qqLyricIdentifiers } from '../lib/qq-lyric-identifiers'
-import { parseLrc, alignTranslation, parseYrc, estimateWordTiming } from '../lib/lyric-parser'
-import type { Track, LyricLine as LyricLineType, WordLyricLine as WordLyricLineType } from '../types/domain'
-
-interface LyricsResult {
-  main: LyricLineType[]
-  aligned: LyricLineType[]
-  roma: LyricLineType[]
-  wordLines: WordLyricLineType[]
-}
-
-interface NeteaseLyricResponse {
-  lyric?: string
-  tlyric?: string
-  romalrc?: string
-  yrc?: string
-  error?: string
-}
-
-interface QQLyricResponse {
-  lyric?: string
-  tlyric?: string
-  roma?: string
-  error?: string
-}
-
-const empty: LyricsResult = { main: [], aligned: [], roma: [], wordLines: [] }
-
-async function fetchLyrics(track: Track): Promise<LyricsResult> {
-  try {
-    if (track.provider === 'netease') {
-      const rec = await api.get<NeteaseLyricResponse>('/api/lyric', { id: String(track.id) })
-      const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
-      const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
-      const romaText = typeof rec.romalrc === 'string' ? rec.romalrc : ''
-      const yrcText = typeof rec.yrc === 'string' ? rec.yrc : ''
-      if (!mainText) return empty
-      const main = parseLrc(mainText)
-      const trans = transText ? parseLrc(transText) : []
-      const roma = romaText ? parseLrc(romaText) : []
-      const wordLines = yrcText ? parseYrc(yrcText) : estimateWordTiming(main)
-      return {
-        main,
-        aligned: trans.length ? alignTranslation(main, trans) : [],
-        roma: roma.length ? alignTranslation(main, roma) : [],
-        wordLines,
-      }
-    }
-
-    if (track.provider === 'qq') {
-      const { mid, id } = qqLyricIdentifiers(track)
-      const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id })
-      const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
-      const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
-      const romaText = typeof rec.roma === 'string' ? rec.roma : ''
-      if (!mainText) return empty
-      const main = parseLrc(mainText)
-      const trans = transText ? parseLrc(transText) : []
-      // QQ 的 roma 可能是 QRC 等非 LRC 格式,parseLrc 解析不出时间标签时得到空数组,静默降级
-      const roma = romaText ? parseLrc(romaText) : []
-      return {
-        main,
-        aligned: trans.length ? alignTranslation(main, trans) : [],
-        roma: roma.length ? alignTranslation(main, roma) : [],
-        wordLines: estimateWordTiming(main),
-      }
-    }
-
-    // 本地音乐:曲目同目录的同名 .lrc。server 端点与 localMusicService.getLyrics 一直都在,
-    // 但这条管线（App 里唯一的歌词入口）此前只有网易/QQ 两个分支,本地曲目直接落到下面的
-    // return empty —— 表现为本地音乐永远没有歌词。
-    if (track.provider === 'local') {
-      const main = await localMusicService.getLyrics(track)
-      if (!main.length) return empty
-      return { main, aligned: [], roma: [], wordLines: estimateWordTiming(main) }
-    }
-
-    return empty
-  } catch {
-    return empty
-  }
-}
+import { fetchLyrics, emptyLyrics } from '../lib/lyrics-fetch'
+import type { Track } from '../types/domain'
 
 function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
@@ -95,6 +13,7 @@ function lyricTrackKey(track: Track): string {
 export function useLyricsFetch(): void {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const resolvedTrack = usePlayerStore((s) => s.resolvedTrack)
+  const playbackOrder = useProviderStore((state) => state.playbackOrder)
   const participation = useProviderStore((state) => ({
     netease: state.byId.netease.enabled && state.byId.netease.auth === 'authenticated',
     qq: state.byId.qq.enabled && state.byId.qq.auth === 'authenticated',
@@ -103,15 +22,17 @@ export function useLyricsFetch(): void {
 
   useEffect(() => {
     if (!currentTrack) {
-      useLyricsStore.setState({ trackKey: null, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
+      useLyricsStore.setState({ trackKey: null, source: null, loading: false, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
       return
     }
 
     const key = lyricTrackKey(currentTrack)
     // currentTrack 在 URL 解析前就会同步切换；先标记归属并清空，避免新歌卡片闪出上一首歌词。
-    useLyricsStore.setState({ trackKey: key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1 })
+    useLyricsStore.setState({ trackKey: key, source: null, loading: true, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
 
     let cancelled = false
+    const controller = new AbortController()
+    const lyricSources = playbackOrder.filter(source => participation[source])
     const canUse = (track: Track) => !isProviderId(track.source) || participation[track.source]
     const candidates = [currentTrack, resolvedTrack]
       .filter((track): track is Track => !!track && canUse(track))
@@ -119,19 +40,22 @@ export function useLyricsFetch(): void {
 
     void (async () => {
       for (const track of candidates) {
-        const result = await fetchLyrics(track)
-        if (cancelled) return empty
+        const result = await fetchLyrics(track, lyricSources, controller.signal)
+        if (cancelled) return emptyLyrics
         if (result.main.length > 0) return result
       }
-      return empty
-    })().then(({ main, aligned, roma, wordLines }) => {
+      return emptyLyrics
+    })().then(({ main, aligned, roma, wordLines, source }) => {
       if (cancelled || useLyricsStore.getState().trackKey !== key) return
       useLyricsStore.getState().setLines(main, aligned, roma)
       useLyricsStore.getState().setWordLines(wordLines)
+      useLyricsStore.setState({ source: main.length ? source : null, loading: false })
+      useLyricsStore.getState().tick(usePlayerStore.getState().position)
     })
 
     return () => {
       cancelled = true
+      controller.abort()
     }
-  }, [currentTrack, participation.netease, participation.qq, participation.apple, resolvedTrack])
+  }, [currentTrack, participation.netease, participation.qq, participation.apple, playbackOrder, resolvedTrack])
 }

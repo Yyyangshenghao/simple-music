@@ -193,6 +193,48 @@ describe('Apple Music 官方播放通道', () => {
     await Promise.resolve()
   }
 
+  it('恢复立即显示加载，加载期间再次点击可暂停', async () => {
+    await loadApple()
+    usePlayerStore.getState().pause()
+    usePlayerStore.getState().play()
+    expect(usePlayerStore.getState().status).toBe('loading')
+    usePlayerStore.getState().toggle()
+    expect(h.appleCommand).toHaveBeenLastCalledWith({ type: 'pause' })
+    expect(usePlayerStore.getState().status).toBe('paused')
+  })
+
+  it('Apple 曲目解析期间暂停和拖动会用于最终加载，旧引擎事件不能覆盖操作', async () => {
+    let finish!: (candidate: PlaybackCandidate) => void
+    h.status.mockResolvedValue({ state: 'missing' })
+    h.participating.mockReturnValue(true)
+    h.next.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const loading = usePlayerStore.getState().loadTrack(appleTrack)
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    usePlayerStore.getState().toggle()
+    usePlayerStore.getState().seek(45)
+    h.callbacks.onPosition?.(999)
+    h.callbacks.onStatus?.('playing')
+    expect(usePlayerStore.getState()).toMatchObject({ status: 'paused', position: 45 })
+    finish(appleCandidate)
+    await loading
+    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 45, false, expect.any(Number), 180)
+  })
+
+  it('Apple 曲目解析期间暂停再恢复复用当前加载，不重新解析', async () => {
+    let finish!: (candidate: PlaybackCandidate) => void
+    h.status.mockResolvedValue({ state: 'missing' })
+    h.participating.mockReturnValue(true)
+    h.next.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const loading = usePlayerStore.getState().loadTrack(appleTrack)
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    usePlayerStore.getState().pause()
+    usePlayerStore.getState().play()
+    finish(appleCandidate)
+    await loading
+    expect(h.next).toHaveBeenCalledOnce()
+    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 0, true, expect.any(Number), 180)
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     h.complete.mockReturnValue({ actualSource: 'apple', resolvedTrack: appleTrack, quality: appleCandidate.quality, attempts: [] })
@@ -210,7 +252,7 @@ describe('Apple Music 官方播放通道', () => {
   it('受保护歌曲不进入音频代理，支持播放状态、暂停、拖动和音量控制', async () => {
     await loadApple()
     expect(h.load).not.toHaveBeenCalled()
-    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 0, true, expect.any(Number))
+    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 0, true, expect.any(Number), 180)
     h.appleState!({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'playing', position: 50, duration: 180 })
     h.appleState!({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'playing', position: 50, duration: 180 })
     expect(h.complete).toHaveBeenCalledOnce()
@@ -278,7 +320,7 @@ describe('Apple Music 官方播放通道', () => {
     await loadApple()
     h.appleLoad.mockClear()
     await usePlayerStore.getState().loadTrack(appleTrack, { startAt: 42, autoplay: false })
-    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 42, false, expect.any(Number))
+    expect(h.appleLoad).toHaveBeenCalledWith('123', false, 42, false, expect.any(Number), 180)
     expect(h.load).not.toHaveBeenCalled()
     usePlayerStore.getState().setRate(1.5)
     expect(h.rate).not.toHaveBeenCalledWith(1.5)

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
@@ -8,7 +8,7 @@ import styles from './TrackRow.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
 import { SourceBadge } from '../ui/SourceBadge'
-import { offlineTrackKey } from '../../lib/offline-cache'
+import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 
 interface TrackRowProps {
@@ -55,7 +55,17 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel }
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const supported = useLikesStore.getState().supports(track)
   const visible = supported && (track.source !== 'netease' || neteaseLoggedIn)
-  const offline = useOfflineCacheStore((s) => s.byKey[offlineTrackKey(track)])
+  const offlineKey = offlineTrackKey(track)
+  const offline = useOfflineCacheStore((s) => s.byKey[offlineKey])
+  const offlineRevision = useOfflineCacheStore((s) => s.revision)
+  // 缓存淘汰只释放全局记录；已显示的徽标保留到行卸载或缓存主动失效。
+  const lastOffline = useRef<{ key: string; revision: number; status?: OfflineCacheStatus }>({ key: offlineKey, revision: offlineRevision, status: offline })
+  if (lastOffline.current.key !== offlineKey || lastOffline.current.revision !== offlineRevision) {
+    lastOffline.current = { key: offlineKey, revision: offlineRevision, status: offline }
+  } else if (offline) {
+    lastOffline.current.status = offline
+  }
+  const visibleOffline = offline ?? lastOffline.current.status
   const offlineVisible = track.source === 'netease' || track.source === 'qq'
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
@@ -64,7 +74,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel }
   }, [track, visible])
   useEffect(() => {
     if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
-  }, [offlineVisible, track, offline])
+  }, [offlineVisible, track.source, track.id, offlineRevision])
 
   return (
     <button
@@ -94,25 +104,25 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel }
           className={styles.offlineBtn}
           role="button"
           tabIndex={0}
-          data-state={offline?.state ?? 'missing'}
-          title={offline?.state === 'pinned' ? '已保存，点击取消固定' : offline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
-          aria-label={offline?.state === 'pinned' ? '取消固定' : '保存到本地'}
+          data-state={visibleOffline?.state ?? 'missing'}
+          title={visibleOffline?.state === 'pinned' ? '已保存，点击取消固定' : visibleOffline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
+          aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
           onClick={(e) => {
             e.stopPropagation()
-            if (offline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (offline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
+            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
           onKeyDown={(e) => {
             if (e.key !== 'Enter' && e.key !== ' ') return
             e.preventDefault()
             e.stopPropagation()
-            if (offline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (offline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
+            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
         >
-          <OfflineIcon state={offline?.state ?? 'missing'} />
+          <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
         </span>
       )}
       {visible && !disabled && (

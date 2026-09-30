@@ -12,6 +12,7 @@ import {
   handleQQToplistPreview,
   handleQQToplists,
   handleQQUserPlaylists,
+  getQQLoginInfo,
   isQQLikedPlaylistReference,
   isQQToplistReference,
   pickQQImageUrl,
@@ -21,6 +22,46 @@ import {
 } from './qq-client'
 
 const LOGGED_IN_COOKIE = 'uin=12345; qm_keyst=some-key-value'
+
+describe('QQ 登录昵称', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('不把其他 QQ 账号的 ptnick 当作当前账号昵称', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ code: 0, data: {} }),
+    }))
+    const info = await getQQLoginInfo('login_type=2; wxuin=12345; qm_keyst=some-key-value; ptnick_67890=其他账号')
+    expect(info.nickname).toBe('')
+  })
+
+  it('保留当前 QQ 账号对应的 ptnick 昵称', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ code: 0, data: {} }),
+    }))
+    const info = await getQQLoginInfo('uin=12345; qm_keyst=some-key-value; ptnick_12345=我的昵称')
+    expect(info.nickname).toBe('我的昵称')
+  })
+
+  it('不把无账号标识的 nick Cookie 直接当成 QQ 音乐用户名', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ code: 0, data: {} }),
+    }))
+    const info = await getQQLoginInfo('uin=12345; qm_keyst=some-key-value; nick=412e4d')
+    expect(info.nickname).toBe('')
+  })
+
+  it('优先使用 QQ 音乐资料接口返回的昵称', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ code: 0, data: { creator: { nick: '正确昵称' } } }),
+    }))
+    const info = await getQQLoginInfo('uin=12345; qm_keyst=some-key-value; nick=412e4d')
+    expect(info.nickname).toBe('正确昵称')
+  })
+})
 
 describe('handleQQSearchHotkeys', () => {
   afterEach(() => vi.unstubAllGlobals())

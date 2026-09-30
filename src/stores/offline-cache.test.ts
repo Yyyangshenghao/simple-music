@@ -150,6 +150,16 @@ describe('单曲离线保存会话', () => {
     expect(Object.keys(useOfflineCacheStore.getState().byKey)).toHaveLength(205)
   })
 
+  it('浏览大量歌曲后只保留有限的近期离线状态', async () => {
+    const tracks = Array.from({ length: 2300 }, (_, id) => ({ ...track, id: String(id) }))
+    h.statuses.mockResolvedValue(tracks.map((item) => ({ ...missing, id: item.id })))
+    await useOfflineCacheStore.getState().ensureMany(tracks)
+    const statuses = useOfflineCacheStore.getState().byKey
+    expect(Object.keys(statuses).length).toBeLessThanOrEqual(2048)
+    expect(statuses['qq:0']).toBeUndefined()
+    expect(statuses['qq:2299']).toBeDefined()
+  })
+
   it('清理后旧批量查询迟到不能重新写回离线徽标', async () => {
     const lookup = deferred<OfflineCacheStatus[]>()
     h.statuses.mockReturnValueOnce(lookup.promise)

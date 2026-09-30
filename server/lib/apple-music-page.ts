@@ -10,7 +10,7 @@ export const appleMusicPlayerPage = `<!doctype html>
   history.replaceState(null, '', location.pathname)
   const status = document.getElementById('status')
   const auth = document.getElementById('authorize'), play = document.getElementById('play'), logout = document.getElementById('logout')
-  let music, failureGeneration = 0, ack = 0, playbackId = '', lastContact = Date.now(), active = true, currentStatus = 'idle', pendingSeek = null, expectedDuration = 0, currentError, subscription = 'unknown'
+  let music, failureGeneration = 0, ack = 0, controlSequence = 0, playbackId = '', lastContact = Date.now(), active = true, currentStatus = 'idle', pendingSeek = null, expectedDuration = 0, currentError, subscription = 'unknown'
   const show = text => { status.textContent = text }
   async function api(path, body) {
     if (!active) throw new Error('播放会话已失效，请重新连接')
@@ -28,7 +28,7 @@ export const appleMusicPlayerPage = `<!doctype html>
   }
   async function report(error) {
     if (!active) return
-    await api('state', { playbackId, status: error ? 'error' : currentStatus, position: pendingSeek ?? (music?.currentPlaybackTime || 0), duration: music?.currentPlaybackDuration || 0, error: error ? String(error.message || error) : currentError, subscription })
+    await api('state', { playbackId, controlSequence, status: error ? 'error' : currentStatus, position: pendingSeek ?? (music?.currentPlaybackTime || 0), duration: music?.currentPlaybackDuration || 0, error: error ? String(error.message || error) : currentError, subscription })
   }
   async function fail(error) {
     failureGeneration++
@@ -49,7 +49,7 @@ export const appleMusicPlayerPage = `<!doctype html>
     if (state !== 'active') throw new Error('暂时无法确认 Apple Music 订阅状态，请检查网络后重试')
     music.previewOnly = false
   }
-  async function start(sequence = ack) {
+  async function start(sequence = ack, confirmedSequence) {
     const generation = failureGeneration
     await canPlay()
     // SDK加载可能耗时数秒；真正出声前重新核对期间收到的切歌/暂停/停止。
@@ -66,15 +66,18 @@ export const appleMusicPlayerPage = `<!doctype html>
     if (generation !== failureGeneration) { await stopSafely(); return }
     if (!active) { await music.stop(); throw new Error('播放会话已失效，请重新连接') }
     if (expectedDuration > 0 && music.currentPlaybackDuration > 0 && music.currentPlaybackDuration + 3 < expectedDuration) { await music.stop(); throw new Error('检测到试听片段，已停止播放；完整歌曲需要有效的 Apple Music 订阅') }
-    if (pendingSeek !== null) { await operation(music.seekToTime(pendingSeek)); pendingSeek = null }
+    if (pendingSeek !== null) { if (pendingSeek > 0) await operation(music.seekToTime(pendingSeek)); pendingSeek = null }
     if (generation !== failureGeneration) { await stopSafely(); return }
     currentError = undefined
+    if (confirmedSequence !== undefined) controlSequence = confirmedSequence
     currentStatus = 'playing'; show('正在播放，可回到 Simple Music 控制'); await report()
   }
   async function command(c) {
     if (c.type !== 'load' && c.playbackId !== playbackId) return
+    const generation = failureGeneration
+    const confirmControl = () => { if (active && generation === failureGeneration && c.controlSequence !== undefined) controlSequence = c.controlSequence }
     if (c.type === 'load') {
-      const generation = failureGeneration
+      controlSequence = 0
       playbackId = c.playbackId; currentError = undefined; currentStatus = 'loading'; pendingSeek = c.startAt || 0
       await music.stop(); await canPlay()
       let songId = c.id
@@ -83,8 +86,11 @@ export const appleMusicPlayerPage = `<!doctype html>
         songId = result.data?.data?.[0]?.id
         if (!songId) throw new Error('此资料库歌曲没有 Apple Music 曲库版本，暂不支持播放上传的歌曲')
       }
-      const details = await operation(music.api.music('v1/catalog/' + music.storefrontId + '/songs/' + encodeURIComponent(songId)))
-      expectedDuration = (details.data?.data?.[0]?.attributes?.durationInMillis || 0) / 1000
+      expectedDuration = !c.library && c.duration > 0 ? c.duration : 0
+      if (!expectedDuration) {
+        const details = await operation(music.api.music('v1/catalog/' + music.storefrontId + '/songs/' + encodeURIComponent(songId)))
+        expectedDuration = (details.data?.data?.[0]?.attributes?.durationInMillis || 0) / 1000
+      }
       await operation(music.setQueue({ song: songId, startPlaying: false }))
       if (!active || generation !== failureGeneration) return
       if (c.volume !== undefined) music.volume = c.volume
@@ -92,12 +98,12 @@ export const appleMusicPlayerPage = `<!doctype html>
       if (c.autoplay !== false) {
         try { await start(c.sequence) } catch (e) { if (e.name !== 'NotAllowedError' && !/autoplay|user gesture/i.test(e.message || '')) throw e; currentStatus = 'paused'; show('请点击“开始播放”以允许浏览器播放。'); await report() }
       } else { currentStatus = 'paused'; await report() }
-    } else if (c.type === 'play') await start(c.sequence)
-    else if (c.type === 'pause') { await music.pause(); currentStatus = 'paused'; await report() }
+    } else if (c.type === 'play') await start(c.sequence, c.controlSequence)
+    else if (c.type === 'pause') { await music.pause(); if (active && generation === failureGeneration) { currentStatus = 'paused'; confirmControl() }; await report() }
     else if (c.type === 'stop') { await music.stop(); currentStatus = 'idle'; play.disabled = true; await report() }
     else if (c.type === 'seek') {
       if (pendingSeek !== null) pendingSeek = c.seconds || 0
-      await operation(music.seekToTime(c.seconds || 0)); await report()
+      await operation(music.seekToTime(c.seconds || 0)); confirmControl(); await report()
     }
     else if (c.type === 'volume') music.volume = c.volume
   }

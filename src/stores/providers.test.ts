@@ -118,6 +118,19 @@ describe('provider store', () => {
     expect(participatingProviderIds()).toEqual(['netease', 'qq'])
   })
 
+  it('Apple 暂时失联时保留启用偏好，明确退出登录才关闭', () => {
+    const store = useProviderStore.getState()
+    store.setAccountState('apple', 'authenticated')
+    store.setEnabled('apple', true)
+    store.setAccountState('apple', 'anonymous', undefined, { preserveEnabled: true })
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, auth: 'anonymous' })
+    expect(participatingProviderIds()).not.toContain('apple')
+    expect(JSON.parse(storage[PROVIDER_SETTINGS_STORAGE_KEY]).providers.apple.enabled).toBe(true)
+    store.setAccountState('apple', 'anonymous')
+    expect(useProviderStore.getState().byId.apple.enabled).toBe(false)
+    expect(JSON.parse(storage[PROVIDER_SETTINGS_STORAGE_KEY]).providers.apple.enabled).toBe(false)
+  })
+
   it('播放能力暂不可用时不参与播放，并在恢复后保留用户启用偏好', () => {
     const store = useProviderStore.getState()
     store.setAccountState('apple', 'authenticated', { avatar: '', nickname: 'Apple Music' })

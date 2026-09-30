@@ -67,6 +67,8 @@ export interface Playlist {
   name: string
   cover: string
   trackCount: number
+  /** 歌单列表未返回数量且尚未读取曲目关系时，避免把未知显示成 0。 */
+  trackCountKnown?: boolean
   playCount: number
   creator: string
   tag?: string

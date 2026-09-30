@@ -31,6 +31,32 @@ async function request(path: string, body?: unknown) {
   return { status: res.writeHead.mock.calls[0]?.[0], data: JSON.parse(String(res.end.mock.calls[0]?.[0])) }
 }
 describe('官网模式服务端接线', () => {
+  it('原生歌词使用账号地区和逐字端点，拒绝任意路径', async () => {
+    vi.mocked(ctx.appleMusicWeb!.catalog).mockResolvedValue({ data: [{ attributes: { ttml: '<tt/>' } }] })
+    expect(await request('lyrics?id=123')).toEqual({ status: 200, data: { ttml: '<tt/>' } })
+    expect(ctx.appleMusicWeb!.catalog).toHaveBeenCalledWith('/v1/catalog/us/songs/123/syllable-lyrics')
+    expect((await request('lyrics?id=..%2Fsecret')).status).toBe(400)
+  })
+  it('个人库编号先映射曲库，逐字不可用时尝试行级且不退出登录', async () => {
+    vi.mocked(ctx.appleMusicWeb!.catalog)
+      .mockResolvedValueOnce({ data: [{ id: '456' }] })
+      .mockRejectedValueOnce(new Error('403'))
+      .mockResolvedValueOnce({ data: [{ attributes: { ttml: '<tt/>' } }] })
+    expect((await request('lyrics?id=i.123&library=true')).data.ttml).toBe('<tt/>')
+    expect(ctx.appleMusicWeb!.catalog).toHaveBeenNthCalledWith(3, '/v1/catalog/us/songs/456/lyrics')
+    expect(ctx.appleMusicWeb!.logout).not.toHaveBeenCalled()
+    expect(ctx.appleMusicWeb!.close).not.toHaveBeenCalled()
+  })
+  it('歌词拒绝访问时返回空内容供前端补位', async () => {
+    vi.mocked(ctx.appleMusicWeb!.catalog).mockRejectedValue(new Error('403'))
+    expect(await request('lyrics?id=123')).toEqual({ status: 200, data: { ttml: '' } })
+    expect(ctx.appleMusicWeb!.command).not.toHaveBeenCalled()
+  })
+
+  it('登录状态将窗口失败原因交给界面', async () => {
+    vi.mocked(ctx.appleMusicWeb!.state).mockReturnValue({ connected: false, loggedIn: false, subscription: 'unknown', storefront: 'cn', playbackId: '', status: 'idle', position: 0, duration: 0, error: '官网登录窗口已断开' })
+    expect((await request('status')).data).toMatchObject({ connected: false, error: '官网登录窗口已断开' })
+  })
   it('没有JWT也允许打开官网，状态使用真实浏览器会话', async () => {
     expect(getAppleMusicStatus(ctx)).toMatchObject({ configured: false, ready: true, loginMode: 'web', loggedIn: true, subscription: 'active' })
     expect(await request('bridge/open', { mode: 'web' })).toEqual({ status: 200, data: { opened: true } })

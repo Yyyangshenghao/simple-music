@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
+import { TrackSearch } from '../components/ui/TrackSearch'
+import { matchingTrackIndices } from '../lib/track-search'
+import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
@@ -9,6 +12,7 @@ import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
 import { ArtistPill } from '../components/Explore/ArtistPill'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { VirtualList } from '../components/ui/VirtualList'
 import { tapScale, springSnappy } from '../lib/motion-presets'
 import { isCatalogUnavailable } from '../lib/track-availability'
 import type { ArtistInfo, MusicSource, Track, Playlist } from '../types/domain'
@@ -17,6 +21,7 @@ import { useProviderStore } from '../stores/providers'
 
 type ArtistTab = 'songs' | 'albums' | 'similar'
 const ARTIST_SONG_PAGE_SIZE = 50
+const TRACK_ROW_HEIGHT = 56
 
 interface ArtistPageProps {
   id: unknown
@@ -24,6 +29,8 @@ interface ArtistPageProps {
 }
 
 export function ArtistPage({ id, source }: ArtistPageProps) {
+  const [query, setQuery] = useState('')
+  const searching = Boolean(query.trim())
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
@@ -34,12 +41,15 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   const [tab, setTab] = useState<ArtistTab>('songs')
   const [scrolled, setScrolled] = useState(false)
   const [songsHasMore, setSongsHasMore] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
   // 跨平台导航留下的历史条目也必须按实体自身 source 查询，避免把网易 id 发给 QQ。
   const service = useMemo(() => serviceFor(source), [source])
   const participating = useProviderStore((state) =>
     state.byId[source].enabled && state.byId[source].auth === 'authenticated'
   )
+  const search = useArtistSearch(id, source, tab === 'songs' && searching && participating)
+  useEffect(() => { setQuery('') }, [id, source])
   const goBack = useNavigationStore((s) => s.goBack)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
 
@@ -117,20 +127,34 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
 
   const tabs: ArtistTab[] = service.getSimilarArtists ? ['songs', 'albums', 'similar'] : ['songs', 'albums']
 
+  const tabButtons = tabs.map((t) => (
+    <button
+      key={t}
+      className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
+      onClick={() => setTab(t)}
+    >
+      {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
+    </button>
+  ))
+
   // 歌手头像模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
     useBackdropStore.getState().setCover(artist?.avatar)
     return () => useBackdropStore.getState().setCover(null)
   }, [artist?.avatar])
 
+  const displayedSongs = searching
+    ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index]).filter((song) => !isCatalogUnavailable(song))
+    : songs
+
   function playAll() {
-    const playableSongs = songs.filter((song) => !isCatalogUnavailable(song))
+    const playableSongs = (searching ? displayedSongs : songs).filter((song) => !isCatalogUnavailable(song))
     if (playableSongs.length) usePlaylistStore.getState().setQueue(playableSongs, 0)
   }
 
   function playTrack(track: Track) {
     if (isCatalogUnavailable(track)) return
-    const playableSongs = songs.filter((song) => !isCatalogUnavailable(song))
+    const playableSongs = (searching ? displayedSongs : songs).filter((song) => !isCatalogUnavailable(song))
     const index = playableSongs.findIndex((song) =>
       song.source === track.source && String(song.id) === String(track.id)
     )
@@ -138,7 +162,7 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
   }
 
   return (
-    <ScrollArea className={styles.page} onScrolledChange={setScrolled}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef} onScrolledChange={setScrolled}>
       <motion.button
         className={`${styles.back} no-drag`}
         onClick={goBack}
@@ -166,38 +190,42 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
       <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
-        {tabs.map((t) => (
-          <button
-            key={t}
-            className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
-            onClick={() => setTab(t)}
-          >
-            {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
-          </button>
-        ))}
-        {tab === 'songs' && songsHasMore && (
-          <button
-            type="button"
-            className={`${styles.viewAllSongs} no-drag`}
-            onClick={() => navigateTo({ type: 'artistSongs', id, source })}
-          >
-            查看全部歌曲
-          </button>
+        {tab === 'songs' ? (
+          <TrackSearch value={query} onChange={setQuery} placeholder="搜索该歌手的歌曲"
+            count={displayedSongs.length} loading={search.loading} error={search.error} onRetry={search.retry}>
+            <div className={styles.tabGroup}>{tabButtons}</div>
+          </TrackSearch>
+        ) : (
+          <div className={styles.tabsOnly}>{tabButtons}</div>
         )}
       </div>
 
       {tab === 'songs' && (
         <div className={styles.trackList}>
-          {songs.map((s, i) => (
-            <TrackRow
-              key={String(s.id) + i}
-              track={s}
-              index={i}
-              onPlay={() => playTrack(s)}
-              disabled={isCatalogUnavailable(s)}
-              statusLabel={isCatalogUnavailable(s) ? '暂无版权' : undefined}
-            />
-          ))}
+          <VirtualList
+            total={displayedSongs.length}
+            rowHeight={TRACK_ROW_HEIGHT}
+            scrollRef={scrollRef}
+            renderRow={(index) => {
+              const song = displayedSongs[index]
+              return <TrackRow
+                track={song}
+                index={index}
+                onPlay={() => playTrack(song)}
+                disabled={isCatalogUnavailable(song)}
+                statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
+              />
+            }}
+          />
+          {!searching && songsHasMore && (
+            <button
+              type="button"
+              className={`${styles.viewAllSongs} no-drag`}
+              onClick={() => navigateTo({ type: 'artistSongs', id, source })}
+            >
+              查看全部歌曲
+            </button>
+          )}
         </div>
       )}
 

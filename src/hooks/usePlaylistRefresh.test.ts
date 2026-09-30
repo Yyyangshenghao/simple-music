@@ -68,6 +68,27 @@ describe('歌单内容刷新', () => {
     expect(hook.makeQueue().map((track) => track.id)).toEqual([1, 2])
   })
 
+  it('仍在打开的歌单被 LRU 淘汰后可以重新获取', async () => {
+    const { hook } = await setup()
+    for (let i = 0; i < 4; i++) {
+      useLazyPlaylist(playlist())
+      await Promise.resolve()
+    }
+    harness.skeleton.mockResolvedValueOnce({ trackIds: [9], tracks: [song(9)], updatedAt: 2 })
+    await hook.refresh()
+    expect(hook.makeQueue().map((track) => track.id)).toEqual([9])
+  })
+
+  it('初次加载失败后再次进入会自动重试', async () => {
+    const item = playlist()
+    harness.skeleton.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ trackIds: [9], tracks: [song(9)], updatedAt: 2 })
+    useLazyPlaylist(item)
+    await Promise.resolve()
+    await Promise.resolve()
+    useLazyPlaylist(item)
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
   it('两个视图同时刷新时较旧响应不会覆盖较新结果', async () => {
     const { hook: first, item } = await setup()
     harness.revision.mockResolvedValue({ trackIds: [1, 2], updatedAt: 1 })

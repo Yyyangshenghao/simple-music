@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { lyricPlaybackPosition } from '../lib/lyric-playback-position'
 import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
 
@@ -6,8 +7,14 @@ import { useLyricsStore } from '../stores/lyrics'
 export function useAudio(): void {
   useEffect(() => {
     useLyricsStore.getState().tick(usePlayerStore.getState().position)
-    return usePlayerStore.subscribe((state, previous) => {
-      if (state.position !== previous.position) useLyricsStore.getState().tick(state.position)
+    const unsubscribe = usePlayerStore.subscribe((state, previous) => {
+      if (state.playbackTransport !== 'musickit' && state.position !== previous.position) useLyricsStore.getState().tick(state.position)
     })
+    // 行切换与逐字高亮共用连续时钟，避免每秒换行与逐帧扫光不同步。
+    const timer = setInterval(() => {
+      const state = usePlayerStore.getState()
+      if (state.playbackTransport === 'musickit') useLyricsStore.getState().tick(lyricPlaybackPosition(state))
+    }, 50)
+    return () => { unsubscribe(); clearInterval(timer) }
   }, [])
 }

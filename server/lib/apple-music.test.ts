@@ -55,10 +55,10 @@ describe('Apple Music 配置与用户授权', () => {
 })
 
 describe('Apple Music 代理边界', () => {
-  it.each(['/v1/catalog/cn/search?term=a&types=songs&offset=25', '/v1/catalog/us/albums/123/tracks?offset=100', '/v1/catalog/cn/artists/123/view/top-songs?offset=25', '/v1/me/library/playlists/p.123/tracks?offset=100'])('允许资源分页 %s', path => {
+  it.each(['/v1/catalog/cn/search?term=a&types=songs&offset=25', '/v1/catalog/us/albums/123/tracks?offset=100', '/v1/catalog/cn/artists/123/view/top-songs?offset=25', '/v1/me/library/playlists/p.123/tracks?offset=100', '/v1/me/recommendations?offset=10'])('允许资源分页 %s', path => {
     expect(appleMusicApiUrl(path).href).toBe(`https://api.music.apple.com${path}`)
   })
-  it.each(['https://evil.test/v1/catalog/cn/songs', '//evil.test/v1/catalog/cn/songs', '/v1/catalog/cn/songs/../search', '/v1/catalog/cn/songs/%2e%2e', '/v1/catalog/cn/songs\\evil', '/v1/me/favorites', '/v1/catalog/cn/songs#secret', '/v1/catalog/cn/unknown'])('拒绝任意目标 %s', path => {
+  it.each(['https://evil.test/v1/catalog/cn/songs', '//evil.test/v1/catalog/cn/songs', '/v1/catalog/cn/songs/../search', '/v1/catalog/cn/songs/%2e%2e', '/v1/catalog/cn/songs\\evil', '/v1/me/favorites', '/v1/me/recommendations/unknown', '/v1/catalog/cn/songs#secret', '/v1/catalog/cn/unknown'])('拒绝任意目标 %s', path => {
     expect(() => appleMusicApiUrl(path)).toThrow()
   })
   it('曲库不附用户凭据，个人资源附用户凭据，不跟随重定向', async () => {

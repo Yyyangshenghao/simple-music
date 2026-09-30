@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import styles from './ScrollArea.module.css'
 
 interface ScrollAreaProps {
   children: ReactNode
   /** 应用到滚动容器本身的类名（内边距、定位等） */
   className?: string
+  scrollRef?: RefObject<HTMLDivElement>
   /** 滚动距离超过阈值（8px）时触发，用于让吸顶元素在滚动后才显示背景 */
   onScrolledChange?: (scrolled: boolean) => void
 }
@@ -14,8 +15,9 @@ const MIN_THUMB_HEIGHT = 32
 const SCROLLED_THRESHOLD = 8
 
 /** 隐藏原生滚动条的滚动容器，滚动时淡入一条自绘细滚动条，停止滚动后自动淡出。 */
-export function ScrollArea({ children, className, onScrolledChange }: ScrollAreaProps) {
+export function ScrollArea({ children, className, scrollRef, onScrolledChange }: ScrollAreaProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  const nodeRef = scrollRef ?? viewportRef
   const thumbRef = useRef<HTMLDivElement>(null)
   const [thumb, setThumb] = useState({ top: 0, height: 0 })
   const [visible, setVisible] = useState(false)
@@ -24,7 +26,7 @@ export function ScrollArea({ children, className, onScrolledChange }: ScrollArea
   onScrolledChangeRef.current = onScrolledChange
 
   useEffect(() => {
-    const el = viewportRef.current
+    const el = nodeRef.current
     const thumbEl = thumbRef.current
     if (!el || !thumbEl) return
     let hideTimer: ReturnType<typeof setTimeout> | null = null
@@ -128,11 +130,11 @@ export function ScrollArea({ children, className, onScrolledChange }: ScrollArea
       if (hideTimer) clearTimeout(hideTimer)
       if (raf !== null) cancelAnimationFrame(raf)
     }
-  }, [])
+  }, [nodeRef])
 
   return (
     <div className={styles.root}>
-      <div ref={viewportRef} className={`${styles.viewport} ${className ?? ''}`}>
+      <div ref={nodeRef} className={`${styles.viewport} ${className ?? ''}`}>
         {children}
       </div>
       <div className={`${styles.track} ${visible || dragging ? styles.visible : ''} ${thumb.height > 0 ? '' : styles.hidden}`} aria-hidden="true">

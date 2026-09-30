@@ -43,7 +43,7 @@ interface ProviderStore extends Omit<ProviderPreferences, 'providers'> {
   setMultiSourceFallback(enabled: boolean): void
   setSourceBadgeMode(mode: SourceBadgeMode): void
   setContentSource(source: ProviderId): void
-  setAccountState(id: ProviderId, auth: ProviderAuthState, profile?: ProviderProfile): void
+  setAccountState(id: ProviderId, auth: ProviderAuthState, profile?: ProviderProfile, options?: { preserveEnabled?: boolean }): void
   setPlaybackAvailability(id: ProviderId, available: boolean, message?: string): void
 }
 
@@ -160,9 +160,9 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     writeContentProviderPreference(source)
   },
 
-  setAccountState(id, auth, profile) {
+  setAccountState(id, auth, profile, options) {
     set((state) => {
-      const enabled = auth === 'authenticated' ? state.byId[id].enabled : false
+      const enabled = auth === 'authenticated' || options?.preserveEnabled ? state.byId[id].enabled : false
       const byId = {
         ...state.byId,
         [id]: { ...state.byId[id], enabled, auth, profile,

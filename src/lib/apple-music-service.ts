@@ -11,15 +11,49 @@ interface AppleResource {
     albumName?: string
     curatorName?: string
     durationInMillis?: number
+    isrc?: string
     trackCount?: number
     artwork?: { url?: string }
     description?: { standard?: string }
+    title?: { stringForDisplay?: string }
     playParams?: { catalogId?: string; isLibrary?: boolean }
   }
   relationships?: Record<string, ApplePage>
 }
-interface ApplePage { data?: AppleResource[]; next?: string }
+interface ApplePage { data?: AppleResource[]; next?: string; meta?: { total?: number } }
 interface AppleSearch { results?: { songs?: ApplePage; artists?: ApplePage; playlists?: ApplePage[] } }
+export interface AppleRecommendationGroup { id: string; title: string; items: Playlist[] }
+export interface AppleRecommendationFeature { item: Playlist; groupTitle: string; moduleId: string }
+export interface AppleChartPlaylistsPage { playlists: Playlist[]; nextCursor?: string }
+const FAVORITE_SONG_NAMES = new Set(['喜爱歌曲', '喜欢的歌曲', 'favorite songs', 'favourite songs'])
+
+export function appendUniqueAppleCharts(current: Playlist[], incoming: Playlist[]): Playlist[] {
+  const known = new Set(current.map(playlist => String(playlist.id)))
+  return [...current, ...incoming.filter(playlist => {
+    const id = String(playlist.id)
+    if (known.has(id)) return false
+    known.add(id)
+    return true
+  })]
+}
+
+export function pickAppleRecommendationFeatures(groups: AppleRecommendationGroup[], seed: number): AppleRecommendationFeature[] {
+  const seen = new Set<string>()
+  return groups.flatMap(group => {
+    if (!group.items.length) return []
+    let hash = seed | 0
+    for (const character of group.id) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+    const start = (hash >>> 0) % group.items.length
+    for (let offset = 0; offset < group.items.length; offset++) {
+      const item = group.items[(start + offset) % group.items.length]
+      const key = `${item.type}:${String(item.id)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      return [{ item, groupTitle: group.title, moduleId: group.id }]
+    }
+    return []
+  })
+}
 
 function artwork(resource: AppleResource): string {
   return (resource.attributes?.artwork?.url ?? '').replaceAll('{w}', '600').replaceAll('{h}', '600')
@@ -35,6 +69,7 @@ export function mapAppleTrack(resource: AppleResource): Track {
     name: a.name ?? '', artist: a.artistName ?? '', artists,
     artistId: artists[0]?.id, album: a.albumName, cover: artwork(resource),
     duration: a.durationInMillis,
+    isrc: a.isrc,
     appleLibrary: resource.type === 'library-songs',
     catalogId: resource.type === 'library-songs' ? a.playParams?.catalogId : resource.id,
   }
@@ -42,10 +77,13 @@ export function mapAppleTrack(resource: AppleResource): Track {
 
 function mapPlaylist(resource: AppleResource): Playlist {
   const a = resource.attributes ?? {}
+  const relationship = resource.relationships?.tracks
+  const count = a.trackCount ?? relationship?.meta?.total ?? (!relationship?.next ? relationship?.data?.length : undefined)
   return {
     provider: 'apple', source: 'apple', type: resource.type.includes('albums') ? 'album' : 'playlist',
     id: resource.id, name: a.name ?? '', cover: artwork(resource),
-    trackCount: a.trackCount ?? resource.relationships?.tracks?.data?.length ?? 0,
+    trackCount: count ?? 0,
+    ...(resource.type === 'library-playlists' ? { trackCountKnown: count !== undefined } : {}),
     playCount: 0, creator: a.curatorName ?? a.artistName ?? 'Apple Music',
     description: a.description?.standard,
   }
@@ -88,10 +126,54 @@ export class AppleMusicService implements MusicService {
     return result
   }
 
+  private async playlistWithCount(resource: AppleResource): Promise<Playlist> {
+    const playlist = mapPlaylist(resource)
+    if (playlist.trackCountKnown !== false) return playlist
+    try {
+      const page = await this.request<ApplePage>(`/v1/me/library/playlists/${encodeURIComponent(resource.id)}/tracks?limit=1`)
+      const count = page.meta?.total ?? (!page.next ? page.data?.length : undefined)
+      return typeof count === 'number' && Number.isSafeInteger(count) && count >= 0
+        ? { ...playlist, trackCount: count, trackCountKnown: true }
+        : playlist
+    } catch { return playlist }
+  }
+
   async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
     if (page > 0) return []
     const result = await this.request<AppleSearch>(await this.catalog('charts?types=playlists&limit=50'))
     return (result.results?.playlists ?? []).flatMap((chart) => chart.data ?? []).map(mapPlaylist)
+  }
+
+  async getChartPlaylistsPage(cursor?: string): Promise<AppleChartPlaylistsPage> {
+    if (cursor && !/^\/v1\/catalog\/[a-z]{2}\/charts\?/.test(cursor)) throw new Error('Apple Music 榜单分页地址无效')
+    const path = cursor ?? await this.catalog('charts?types=playlists&chart=most-played&limit=24')
+    const result = await this.request<AppleSearch>(path)
+    const chart = result.results?.playlists?.[0]
+    return {
+      playlists: (chart?.data ?? []).filter(item => item.type === 'playlists').map(mapPlaylist),
+      nextCursor: chart?.next,
+    }
+  }
+
+  async getStorefrontChartPlaylists(): Promise<Playlist[]> {
+    const base = await this.catalog('playlists')
+    const storefront = base.split('/')[3]
+    const page = await this.request<ApplePage>(`${base}?filter[storefront-chart]=${storefront}`)
+    return (page.data ?? []).filter(item => item.type === 'playlists').slice(0, 20).map(mapPlaylist)
+  }
+
+  async getRecommendationGroups(): Promise<AppleRecommendationGroup[]> {
+    const status = await api.get<{ loggedIn: boolean }>('/api/apple-music/status')
+    if (!status.loggedIn) return []
+    const resources = await this.all('/v1/me/recommendations')
+    return resources.flatMap(resource => {
+      if (resource.type !== 'personal-recommendation') return []
+      const title = resource.attributes?.title?.stringForDisplay?.trim()
+      const items = (resource.relationships?.contents?.data ?? [])
+        .filter(item => (item.type === 'playlists' || item.type === 'albums') && item.attributes?.name)
+        .map(mapPlaylist)
+      return title && items.length > 0 ? [{ id: resource.id, title, items }] : []
+    })
   }
 
   async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
@@ -144,18 +226,42 @@ export class AppleMusicService implements MusicService {
   }
 
   async getAlbumDetail(id: unknown): Promise<Playlist | null> {
-    const result = await this.request<ApplePage>(await this.catalog(`albums/${encodeURIComponent(String(id))}`))
+    const value = String(id)
+    const path = value.startsWith('l.') ? `/v1/me/library/albums/${encodeURIComponent(value)}` : await this.catalog(`albums/${encodeURIComponent(value)}`)
+    const result = await this.request<ApplePage>(path)
     return result.data?.[0] ? mapPlaylist(result.data[0]) : null
   }
 
   async getAlbumTracks(id: unknown): Promise<Track[]> {
-    return (await this.all(await this.catalog(`albums/${encodeURIComponent(String(id))}/tracks`))).filter((item) => item.type === 'songs').map(mapAppleTrack)
+    const value = String(id)
+    const path = value.startsWith('l.') ? `/v1/me/library/albums/${encodeURIComponent(value)}/tracks` : await this.catalog(`albums/${encodeURIComponent(value)}/tracks`)
+    return (await this.all(path)).filter((item) => item.type === 'songs' || item.type === 'library-songs').map(mapAppleTrack)
   }
 
   async getUserPlaylists(): Promise<Playlist[]> {
     const status = await api.get<{ loggedIn: boolean }>('/api/apple-music/status')
     if (!status.loggedIn) return []
-    return (await this.all('/v1/me/library/playlists?limit=100')).map(mapPlaylist)
+    const resources = await this.all('/v1/me/library/playlists?limit=100')
+    const playlists: Playlist[] = []
+    for (let offset = 0; offset < resources.length; offset += 5) {
+      playlists.push(...await Promise.all(resources.slice(offset, offset + 5).map(resource => this.playlistWithCount(resource))))
+    }
+    return playlists
+  }
+
+  async getLikedPlaylist(): Promise<Playlist | null> {
+    const status = await api.get<{ loggedIn: boolean }>('/api/apple-music/status')
+    if (!status.loggedIn) return null
+    const resources = await this.all('/v1/me/library/playlists?limit=100')
+    const favorite = resources.find(resource => resource.type === 'library-playlists'
+      && FAVORITE_SONG_NAMES.has(resource.attributes?.name?.trim().toLowerCase() ?? ''))
+    return favorite ? this.playlistWithCount(favorite) : null
+  }
+
+  async getUserAlbums(): Promise<Playlist[]> {
+    const status = await api.get<{ loggedIn: boolean }>('/api/apple-music/status')
+    if (!status.loggedIn) return []
+    return (await this.all('/v1/me/library/albums?limit=100')).filter(item => item.type === 'library-albums').map(mapPlaylist)
   }
 
   async getTrackUrl(track: Track): Promise<string> { return appleMusicTrackUrl(track) }

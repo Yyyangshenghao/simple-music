@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: {
     commandLine: { appendSwitch: vi.fn() }, setName: vi.fn(), setAppUserModelId: vi.fn(),
-    requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(), quit: vi.fn(),
+    requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(), quit: vi.fn(), exit: vi.fn(),
     on: (event: string, listener: (event?: { preventDefault(): void }) => void) => h.events.set(event, listener)
   },
   BrowserWindow: { getAllWindows: () => h.windows },
@@ -70,7 +70,26 @@ describe('主窗口激活恢复', () => {
     await flush()
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { h.events.get('will-quit')?.(); vi.useRealTimers(); vi.unstubAllGlobals() })
+
+  it('关闭服务卡住时退出兜底释放主进程，不永久占用单实例锁', async () => {
+    vi.useFakeTimers()
+    h.shutdown.mockImplementationOnce(() => new Promise<void>(() => {}))
+    h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(app.exit).toHaveBeenCalledWith(0)
+  })
+
+  it('服务关闭报错仍继续退出，正常退出后取消兜底', async () => {
+    vi.useFakeTimers()
+    h.shutdown.mockRejectedValueOnce(new Error('cleanup failed'))
+    h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(app.quit).toHaveBeenCalledOnce()
+    h.events.get('will-quit')?.()
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(app.exit).not.toHaveBeenCalled()
+  })
 
   it('macOS 关闭主窗口仅隐藏，保留承载播放的窗口和服务', () => {
     const win = h.main

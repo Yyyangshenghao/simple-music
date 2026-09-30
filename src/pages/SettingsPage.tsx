@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from 'react'
-import { motion, Reorder, useDragControls } from 'motion/react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { AnimatePresence, motion, Reorder, useDragControls, useReducedMotion } from 'motion/react'
 import { api } from '../lib/api'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
@@ -10,10 +10,12 @@ import { springSnappy, tapScale } from '../lib/motion-presets'
 import { playbackStrategySummary } from '../lib/playback-preference-display'
 import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
+import { useNavigationStore } from '../stores/navigation'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
@@ -22,7 +24,45 @@ import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
-type SettingsTab = 'general' | 'lyrics3d'
+const SETTINGS_TABS = [
+  { id: 'music', label: '音源与播放', description: '账户、来源标识、播放顺序与音质' },
+  { id: 'visual', label: '界面与窗口', description: '主题、字体、迷你播放条与界面动效' },
+  { id: 'lyrics', label: '歌词与动效', description: '桌面歌词、字体与 3D 歌词舞台' },
+  { id: 'cache', label: '音频缓存', description: '缓存位置、容量与清理' },
+  { id: 'about', label: '关于应用', description: '版本信息与更新' },
+] as const
+type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
+
+function SectionHeading({ section, index }: { section: (typeof SETTINGS_TABS)[number]; index: number }) {
+  return (
+    <div className={styles.sectionHeading}>
+      <span className={styles.sectionEyebrow}>PREFERENCES / {String(index + 1).padStart(2, '0')}</span>
+      <h2 id={`settings-heading-${section.id}`}>{section.label}</h2>
+      <p>{section.description}</p>
+    </div>
+  )
+}
+
+function InfoButton({ label, text: description }: { label: string; text: string }) {
+  const tooltipId = useId()
+  return (
+    <span className={styles.infoWrap}>
+      <button
+        type="button"
+        className={styles.infoButton}
+        aria-label={`${label}说明`}
+        aria-describedby={tooltipId}
+        onClick={(event) => event.currentTarget.focus()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') event.currentTarget.blur()
+        }}
+      >
+        i
+      </button>
+      <span id={tooltipId} className={styles.infoTooltip} role="tooltip">{description}</span>
+    </span>
+  )
+}
 
 /** 字节数格式化为可读体积(MB/GB)。 */
 function formatCacheSize(bytes: number): string {
@@ -93,7 +133,7 @@ function PlaybackOrderItem({
       layout
     >
       <span className={styles.playbackOrderRank}>{index + 1}</span>
-      <SourceBadge source={source} compact reveal />
+      <SourceBadge source={source} compact displayMode="always" />
       <span className={styles.playbackOrderName}>{label}</span>
       <span className={styles.playbackOrderRole}>{role}</span>
       {total > 1 && (
@@ -293,7 +333,6 @@ const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
 
 const PERFORMANCE_FLAG_LABELS: { key: keyof PerformanceFlags; label: string; hint: string }[] = [
   { key: 'bgFluidMotion', label: '背景跟手流体动效', hint: '关闭后氛围背景改用静态渐变,不再跟随鼠标' },
-  { key: 'lyrics3dEnabled', label: '3D 歌词模式', hint: '关闭后歌词页只保留纯文字滚动,3D 按钮禁用' },
   { key: 'cardTiltEffect', label: '卡片跟光 3D 倾斜', hint: '歌单/推荐卡片跟随鼠标倾斜追光' },
   { key: 'clickSparkEffect', label: '点击火花特效', hint: '' },
   { key: 'gradientTextMotion', label: '标题流光呼吸动画', hint: '' },
@@ -305,13 +344,14 @@ const PERFORMANCE_FLAG_LABELS: { key: keyof PerformanceFlags; label: string; hin
 function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | null {
   for (const id of Object.keys(PERFORMANCE_PRESETS) as PerformancePreset[]) {
     const preset = PERFORMANCE_PRESETS[id]
-    if ((Object.keys(preset) as (keyof PerformanceFlags)[]).every((k) => preset[k] === flags[k])) return id
+    if ((Object.keys(preset) as (keyof typeof preset)[]).every((k) => preset[k] === flags[k])) return id
   }
   return null
 }
 
-/** 3D 歌词标签页:效果选择 + 粒子/波纹/性能参数,实时生效并持久化。 */
-function Lyrics3dSettings() {
+/** 3D 歌词设置按当前场景与歌词样式展示生效的参数。 */
+function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
+  const reducedMotion = useReducedMotion()
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const setLyrics3dEffect = useSettingsStore((s) => s.setLyrics3dEffect)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
@@ -325,62 +365,9 @@ function Lyrics3dSettings() {
   const patch = (key: keyof Lyrics3dParams) => (v: number) => setParams({ [key]: v })
   const percent = (v: number): string => `${Math.round(v * 100)}%`
 
-  return (
-    <div className={styles.lyricsGrid}>
-      <section className={`${styles.group} ${styles.lyricsEffectGroup}`}>
-        <h2 className={styles.groupTitle}>效果</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>3D 效果</span>
-          <div className={styles.segControl}>
-            {(Object.keys(EFFECT_LABELS) as Lyrics3dEffect[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${lyrics3dEffect === id ? styles.segActive : ''}`}
-                onClick={() => setLyrics3dEffect(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {EFFECT_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>歌词样式</span>
-          <div className={styles.segControl}>
-            {(Object.keys(LYRIC_STYLE_LABELS) as Lyrics3dStyle[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${lyrics3dStyle === id ? styles.segActive : ''}`}
-                onClick={() => setLyrics3dStyle(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {LYRIC_STYLE_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>同屏歌词</span>
-          <div className={styles.segControl}>
-            {(Object.keys(LYRIC_DISPLAY_LABELS) as Lyrics3dDisplayMode[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${params.displayMode === id ? styles.segActive : ''}`}
-                onClick={() => setParams({ displayMode: id })}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {LYRIC_DISPLAY_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-      </section>
-
+  const renderSettings = (
       <section className={`${styles.group} ${styles.lyricsPerformanceGroup}`}>
-        <h2 className={styles.groupTitle}>性能</h2>
+        <h3 className={styles.groupTitle}>3D 渲染</h3>
         <div className={styles.row}>
           <span className={styles.rowLabel}>帧率上限</span>
           <div className={styles.segControl}>
@@ -399,60 +386,199 @@ function Lyrics3dSettings() {
         </div>
         <SliderRow label="渲染分辨率" min={0.75} max={2} step={0.05}
           value={params.renderScale} format={(v) => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
-      </section>
-
-      <section className={`${styles.group} ${styles.lyricsRippleGroup}`}>
-        <h2 className={styles.groupTitle}>鼓点波纹（封面粒子云）</h2>
-        <SliderRow label="波纹数量" min={1} max={6} step={1}
-          value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
-        <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
-          value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
-        <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
-          value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-      </section>
-
-      <section className={`${styles.group} ${styles.lyricsParticleGroup}`}>
-        <h2 className={styles.groupTitle}>粒子</h2>
-        <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
-          value={params.particleCount} format={percent} onChange={patch('particleCount')} />
-        <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
-          value={params.particleSize} format={percent} onChange={patch('particleSize')} />
-        <SliderRow label="粒子亮度" min={0.3} max={2} step={0.05}
-          value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
-        <SliderRow label="辉光强度" min={0} max={2} step={0.05}
-          value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
-        <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
-          value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
-      </section>
-
-      <section className={`${styles.group} ${styles.lyricsOverlayGroup}`}>
-        <h2 className={styles.groupTitle}>歌词轨道</h2>
-        <SliderRow label="上下文亮度" min={0.25} max={1} step={0.01}
-          value={params.contextOpacity} format={percent} onChange={patch('contextOpacity')} />
-        <SliderRow label="歌词行间距" min={0.6} max={2.4} step={0.02}
-          value={params.contextSpread} format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
-        <SliderRow label="边缘渐隐" min={0} max={1} step={0.01}
-          value={params.edgeFade} format={percent} onChange={patch('edgeFade')} />
-        <SliderRow label="转场柔和度" min={0.15} max={1.2} step={0.01}
-          value={params.motionSoftness} format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
-        <SliderRow label="底部模糊度" min={0} max={1} step={0.01}
-          value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
-      </section>
-
-      <section className={`${styles.group} ${styles.lyricsResetGroup}`}>
+        <div className={styles.lyricsSubheading}>恢复设置</div>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>恢复全部 3D 参数为默认值</span>
+          <span className={styles.rowLabel}>恢复场景、歌词层次与渲染参数</span>
           <button className={`${styles.seg} no-drag`} onClick={resetParams}>
             恢复默认
           </button>
         </div>
       </section>
+  )
+
+  return (
+    view === 'scene' ? <section className={`${styles.group} ${styles.lyricsEffectGroup}`}>
+        <h3 className={styles.groupTitle}>场景与文字</h3>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>背景场景</span>
+          <div className={styles.segControl}>
+            {(Object.keys(EFFECT_LABELS) as Lyrics3dEffect[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${lyrics3dEffect === id ? styles.segActive : ''}`}
+                onClick={() => setLyrics3dEffect(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {EFFECT_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>文字演出</span>
+          <div className={styles.segControl}>
+            {(Object.keys(LYRIC_STYLE_LABELS) as Lyrics3dStyle[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${lyrics3dStyle === id ? styles.segActive : ''}`}
+                onClick={() => setLyrics3dStyle(id)}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {LYRIC_STYLE_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+        {lyrics3dStyle !== 'focus' && <div className={styles.row}>
+          <span className={styles.rowLabel}>
+            同屏歌词
+            <InfoButton label="同屏歌词" text="控制 3D 歌词舞台同时显示的歌词行数。" />
+          </span>
+          <div className={styles.segControl}>
+            {(Object.keys(LYRIC_DISPLAY_LABELS) as Lyrics3dDisplayMode[]).map((id) => (
+              <motion.button
+                key={id}
+                className={`${styles.seg} no-drag ${params.displayMode === id ? styles.segActive : ''}`}
+                onClick={() => setParams({ displayMode: id })}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                {LYRIC_DISPLAY_LABELS[id]}
+              </motion.button>
+            ))}
+          </div>
+        </div>}
+      </section> : <div className={styles.lyricsGrid}>
+      <div className={styles.lyricsTuning}>
+      <div className={styles.lyricsTuningColumn}>
+      <section className={`${styles.group} ${styles.lyricsOverlayGroup}`}>
+        <h3 className={styles.groupTitle}>
+          {lyrics3dStyle === 'focus' ? '简洁叠层 · 歌词' : '3D 歌词 · 文字层次'}
+          <InfoButton label="3D 歌词文字层次" text="调整歌词的亮度、间距、切换过渡和辉光。辉光强度也会影响封面粒子云；简洁叠层只显示居中的当前歌词。" />
+        </h3>
+        {lyrics3dStyle === 'focus' ? (
+          <SliderRow label="当前歌词底部模糊" min={0} max={1} step={0.01}
+            value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
+        ) : <>
+          <SliderRow label="前后歌词亮度" min={0.25} max={1} step={0.01}
+            value={params.contextOpacity} format={percent} onChange={patch('contextOpacity')} />
+          <SliderRow label="歌词行间距" min={0.6} max={2.4} step={0.02}
+            value={params.contextSpread} format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
+          <SliderRow label="远处歌词渐隐" min={0} max={1} step={0.01}
+            value={params.edgeFade} format={percent} onChange={patch('edgeFade')} />
+          <SliderRow label="切换柔和度" min={0.15} max={1.2} step={0.01}
+            value={params.motionSoftness} format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
+          <SliderRow label="辉光强度" min={0} max={2} step={0.05}
+            value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
+        </>}
+      </section>
+      {renderSettings}
+      </div>
+      <motion.div layout className={styles.lyricsTuningColumn} transition={{ duration: reducedMotion ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.section
+            key={lyrics3dEffect}
+            className={`${styles.group} ${styles.lyricsParticleGroup}`}
+            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
+            transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <h3 className={styles.groupTitle}>
+              {EFFECT_LABELS[lyrics3dEffect]} · 场景细节
+              <InfoButton label="场景细节" text="下面的粒子与动效参数随当前背景场景实时变化；切换场景时会保留数值。" />
+            </h3>
+            <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
+              value={params.particleCount} format={percent} onChange={patch('particleCount')} />
+            <SliderRow label={lyrics3dEffect === 'waveform-3d' ? '歌词点缀粒子大小' : '粒子大小'} min={0.2} max={2} step={0.05}
+              value={params.particleSize} format={percent} onChange={patch('particleSize')} />
+            <SliderRow label="场景亮度" min={0.3} max={2} step={0.05}
+              value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
+            <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
+              value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
+            {lyrics3dEffect === 'cover-cloud' && lyrics3dStyle === 'focus' && <SliderRow label="辉光强度" min={0} max={2} step={0.05}
+              value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />}
+            {lyrics3dEffect === 'cover-cloud' && <>
+              <div className={styles.lyricsSubheading}>鼓点波纹 <span>仅封面粒子云</span></div>
+              <SliderRow label="波纹数量" min={1} max={6} step={1}
+                value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+              <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
+                value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
+              <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
+                value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+            </>}
+          </motion.section>
+        </AnimatePresence>
+      </motion.div>
+      </div>
     </div>
   )
 }
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<SettingsTab>('general')
+  const pageRef = useRef<HTMLDivElement>(null)
+  const selectedSectionRef = useRef<SettingsTab | null>(null)
+  const [activeSection, setActiveSection] = useState<SettingsTab>('music')
+  const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
+
+  useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    const updateActiveSection = () => {
+      if (selectedSectionRef.current) return
+      if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) {
+        setActiveSection(SETTINGS_TABS[SETTINGS_TABS.length - 1].id)
+        return
+      }
+      const threshold = page.getBoundingClientRect().top + 120
+      let current: SettingsTab = 'music'
+      for (const section of SETTINGS_TABS) {
+        const node = document.getElementById(`settings-section-${section.id}`)
+        if (node && node.getBoundingClientRect().top <= threshold) current = section.id
+      }
+      setActiveSection(current)
+    }
+    const resumeScrollTracking = () => {
+      selectedSectionRef.current = null
+      updateActiveSection()
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target === page) resumeScrollTracking()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) resumeScrollTracking()
+    }
+    page.addEventListener('scroll', updateActiveSection, { passive: true })
+    page.addEventListener('wheel', resumeScrollTracking, { passive: true })
+    page.addEventListener('touchstart', resumeScrollTracking, { passive: true })
+    page.addEventListener('keydown', handleKeyDown)
+    page.addEventListener('pointerdown', handlePointerDown)
+    updateActiveSection()
+    return () => {
+      page.removeEventListener('scroll', updateActiveSection)
+      page.removeEventListener('wheel', resumeScrollTracking)
+      page.removeEventListener('touchstart', resumeScrollTracking)
+      page.removeEventListener('keydown', handleKeyDown)
+      page.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [])
+
+  const scrollToSection = useCallback((id: SettingsTab): void => {
+    const page = pageRef.current
+    const section = document.getElementById(`settings-section-${id}`)
+    if (!page || !section) return
+    selectedSectionRef.current = id
+    const top = section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 20
+    page.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    setActiveSection(id)
+  }, [])
+  useEffect(() => {
+    if (settingsMusicRequest === 0) return
+    scrollToSection('music')
+    useNavigationStore.setState({ settingsMusicRequest: 0 })
+  }, [settingsMusicRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
@@ -518,6 +644,19 @@ export function SettingsPage() {
   const setPerformance = useSettingsStore((s) => s.setPerformance)
   const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
   const activePerformancePreset = matchPerformancePreset(performance)
+
+  const setLyrics3dEnabled = (enabled: boolean): void => {
+    const page = pageRef.current
+    const section = document.getElementById('settings-section-lyrics')
+    const top = page && section
+      ? section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 20
+      : 0
+    setPerformance({ lyrics3dEnabled: enabled })
+    if (!page) return
+    selectedSectionRef.current = 'lyrics'
+    setActiveSection('lyrics')
+    requestAnimationFrame(() => page.scrollTo({ top, behavior: 'auto' }))
+  }
 
   const [audioCache, setAudioCache] = useState<AudioCacheStatsInfo | null>(null)
   const [cacheConfig, setCacheConfig] = useState<AudioCacheConfigInfo | null>(null)
@@ -598,536 +737,616 @@ export function SettingsPage() {
         : '尚未检查'
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <div className={styles.shell}>
         <header className={styles.hero}>
           <div className={styles.heroCopy}>
             <span className={styles.eyebrow}>CONTROL CENTER</span>
             <h1 className={styles.title}>设置</h1>
-            <p className={styles.lede}>把音源、播放与视觉体验调整成你习惯的样子。</p>
+            <p className={styles.lede}>音源、播放、界面与歌词，都可以按你的习惯调整。</p>
           </div>
-
-          {/* 标签页导航:通用 / 3D 歌词 */}
-          <div className={styles.tabBar} role="tablist" aria-label="设置分类">
-            {([['general', '通用'], ['lyrics3d', '3D 歌词']] as [SettingsTab, string][]).map(([id, label]) => (
+        </header>
+        <div className={styles.settingsLayout}>
+          <nav className={styles.tabBar} aria-label="设置导航">
+            {SETTINGS_TABS.map(({ id, label, description }, index) => (
               <motion.button
                 key={id}
                 type="button"
-                role="tab"
-                aria-selected={tab === id}
-                aria-controls={`settings-panel-${id}`}
-                id={`settings-tab-${id}`}
-                tabIndex={tab === id ? 0 : -1}
-                className={`${styles.tab} no-drag ${tab === id ? styles.tabActive : ''}`}
-                onClick={() => setTab(id)}
-                onKeyDown={(event) => {
-                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-                  event.preventDefault()
-                  const nextTab = event.key === 'Home'
-                    ? 'general'
-                    : event.key === 'End'
-                      ? 'lyrics3d'
-                      : id === 'general' ? 'lyrics3d' : 'general'
-                  setTab(nextTab)
-                  document.getElementById(`settings-tab-${nextTab}`)?.focus()
+                aria-current={activeSection === id ? 'location' : undefined}
+                aria-label={label}
+                className={`${styles.tab} no-drag ${activeSection === id ? styles.tabActive : ''}`}
+                onClick={(event) => {
+                  scrollToSection(id)
+                  if (event.detail > 0) event.currentTarget.blur()
                 }}
                 whileTap={tapScale}
                 transition={springSnappy}
               >
-                {label}
+                <span className={styles.tabNumber}>{String(index + 1).padStart(2, '0')}</span>
+                <span className={styles.tabCopy}>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
+                </span>
               </motion.button>
             ))}
-          </div>
-        </header>
+          </nav>
+          <div className={styles.settingsContent}>
+            <section id="settings-section-music" className={styles.settingsSection} aria-labelledby="settings-heading-music">
+              <SectionHeading section={SETTINGS_TABS[0]} index={0} />
+              <div className={`${styles.settingsGrid} ${styles.musicGrid}`}>
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>
+                    音源与账户
+                    <InfoButton label="音源与账户" text="平台必须先登录，再由你明确启用；退出登录后会立即停止参与内容与播放。" />
+                  </h3>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>来源标识</span>
+                    <div className={styles.segControl}>
+                      {(['always', 'dynamic', 'hidden'] as const).map((mode) => (
+                        <motion.button
+                          key={mode}
+                          className={`${styles.seg} no-drag ${sourceBadgeMode === mode ? styles.segActive : ''}`}
+                          onClick={() => setSourceBadgeMode(mode)}
+                          whileTap={tapScale}
+                          transition={springSnappy}
+                        >
+                          {{ always: '常显', dynamic: '动态', hidden: '隐藏' }[mode]}
+                        </motion.button>
+                      ))}
+                    </div>
+                    <span className={styles.rowValue}>
+                      {sourceBadgeMode === 'dynamic' ? '悬停或聚焦时显示' : sourceBadgeMode === 'hidden' ? '隐藏内容中的来源角标' : '始终显示'}
+                    </span>
+                  </div>
+                  {listProviders().map((provider) => {
+                    const runtime = providerState[provider.descriptor.id]
+                    return (
+                      <div className={styles.providerRow} key={provider.descriptor.id}>
+                        <SourceBadge source={provider.descriptor.id} displayMode="always" showInactive />
+                        <div className={styles.providerAccount}>
+                          <span><SourceName source={provider.descriptor.id} /></span>
+                          <small>
+                            {runtime.auth === 'authenticated'
+                              ? runtime.playbackAvailable === false
+                                ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.lastError || '当前不可播放'}`
+                                : `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
+                              : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
+                          </small>
+                        </div>
+                        <Switch
+                          checked={runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false}
+                          disabled={runtime.auth !== 'authenticated' || runtime.playbackAvailable === false}
+                          onChange={(enabled) => setProviderEnabled(provider.descriptor.id, enabled)}
+                          aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false)}${provider.descriptor.label}`}
+                        />
+                      </div>
+                    )
+                  })}
+                  <AppleMusicSettings />
+                </section>
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>播放</h3>
+                  <div className={styles.playbackStrategyRow}>
+                    <div className={styles.playbackStrategy}>
+                      <div className={styles.playbackStrategyHeading}>
+                        <div>
+                          <span className={styles.playbackStrategyKicker}>播放接力</span>
+                          <strong>决定歌曲默认从哪里开始播放</strong>
+                        </div>
+                        <span className={styles.playbackProviderCount}>
+                          {playbackAuthPending ? '正在核实' : `${participatingPlaybackOrder.length} 个平台`}
+                        </span>
+                      </div>
 
-        {tab === 'lyrics3d' && (
-          <div id="settings-panel-lyrics3d" role="tabpanel" aria-labelledby="settings-tab-lyrics3d">
-            <Lyrics3dSettings />
-          </div>
-        )}
+                      {visiblePlaybackOrder.length > 1 ? (
+                        <div className={styles.playbackModeBlock}>
+                          <span className={styles.playbackFieldLabel}>
+                            起播方式
+                            <InfoButton
+                              label="起播方式"
+                              text={preferOriginSource
+                                ? '未指定本次优先时，先尝试歌曲所属平台，再按下方顺序补位。'
+                                : '未指定本次优先时，所有歌曲都从下方第一个平台开始。'}
+                            />
+                          </span>
+                          <div className={styles.playbackModeControl} role="radiogroup" aria-label="起播方式">
+                            <motion.button
+                              type="button"
+                              role="radio"
+                              aria-checked={preferOriginSource}
+                              tabIndex={preferOriginSource ? 0 : -1}
+                              className={`${styles.playbackModeButton} no-drag ${preferOriginSource ? styles.playbackModeButtonActive : ''}`}
+                              onClick={() => setPreferOriginSource(true)}
+                              onKeyDown={(event) => {
+                                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+                                event.preventDefault()
+                                const keepCurrent = event.key === 'Home'
+                                setPreferOriginSource(keepCurrent)
+                                if (!keepCurrent) {
+                                  ;(event.currentTarget.nextElementSibling as HTMLElement | null)?.focus()
+                                }
+                              }}
+                              whileTap={tapScale}
+                              transition={springSnappy}
+                            >
+                              跟随歌曲来源
+                            </motion.button>
+                            <motion.button
+                              type="button"
+                              role="radio"
+                              aria-checked={!preferOriginSource}
+                              tabIndex={!preferOriginSource ? 0 : -1}
+                              className={`${styles.playbackModeButton} no-drag ${!preferOriginSource ? styles.playbackModeButtonActive : ''}`}
+                              onClick={() => setPreferOriginSource(false)}
+                              onKeyDown={(event) => {
+                                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+                                event.preventDefault()
+                                const keepCurrent = event.key === 'End'
+                                setPreferOriginSource(!keepCurrent)
+                                if (!keepCurrent) {
+                                  ;(event.currentTarget.previousElementSibling as HTMLElement | null)?.focus()
+                                }
+                              }}
+                              whileTap={tapScale}
+                              transition={springSnappy}
+                            >
+                              固定播放顺序
+                            </motion.button>
+                          </div>
+                        </div>
+                      ) : visiblePlaybackOrder.length === 1 ? (
+                        <div className={styles.playbackSingleProviderHint}>当前只有一个已启用平台，无需设置接力方式。</div>
+                      ) : null}
 
-        {tab === 'general' && (<div
-          id="settings-panel-general"
-          role="tabpanel"
-          aria-labelledby="settings-tab-general"
-          className={styles.settingsGrid}
-        >
-      <section className={`${styles.group} ${styles.accountsGroup}`}>
-        <h2 className={styles.groupTitle}>音源与账户</h2>
-        <p className={styles.groupHint}>平台必须先登录，再由你明确启用；退出登录后会立即停止参与内容与播放。</p>
-        {listProviders().map((provider) => {
-          const runtime = providerState[provider.descriptor.id]
-          return (
-            <div className={styles.providerRow} key={provider.descriptor.id}>
-              <SourceBadge source={provider.descriptor.id} reveal />
-              <div className={styles.providerAccount}>
-                <span>{provider.descriptor.label}</span>
-                <small>
-                  {runtime.auth === 'authenticated'
-                    ? runtime.playbackAvailable === false
-                      ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.lastError || '当前不可播放'}`
-                      : `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
-                    : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
-                </small>
+                      <div className={styles.playbackRulePreview} aria-live="polite">
+                        <span>全局规则</span>
+                        <strong>
+                          {playbackStrategySummary(
+                            visiblePlaybackOrder.map(providerLabel),
+                            preferOriginSource,
+                            multiSourceFallback
+                          )}
+                        </strong>
+                      </div>
+
+                      <div className={styles.playbackOrderBlock}>
+                        <div className={styles.playbackOrderHeading}>
+                          <span>
+                            {visiblePlaybackOrder.length <= 1
+                              ? '当前音源'
+                              : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
+                          </span>
+                          {visiblePlaybackOrder.length > 1 && <small>拖动排序 · 键盘可用 Alt + ↑/↓</small>}
+                        </div>
+                        <PlaybackOrderEditor
+                          order={visiblePlaybackOrder}
+                          followOrigin={preferOriginSource}
+                          emptyMessage={playbackAuthPending ? '正在核实平台账号状态…' : '先在“音源与账户”中启用一个平台'}
+                          onChange={setPlaybackOrder}
+                        />
+                      </div>
+
+                      {visiblePlaybackOrder.length > 1 && <div className={styles.playbackFallbackRow}>
+                        <div>
+                          <strong>播放失败后自动换源</strong>
+                          <small>
+                            {multiSourceFallback
+                              ? '当前平台没有版权、会员受限或地址失效时，继续接力。'
+                              : '关闭后只在当前平台内部降低音质，不再切换平台。'}
+                          </small>
+                        </div>
+                        <Switch
+                          checked={multiSourceFallback}
+                          onChange={setMultiSourceFallback}
+                          aria-label="播放失败后自动换源"
+                        />
+                      </div>}
+                    </div>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>音质偏好</span>
+                    <div className={styles.segControl}>
+                      {(['standard', 'higher', 'exhigh', 'lossless', 'max'] as AudioQuality[]).map((q) => (
+                        <motion.button
+                          key={q}
+                          className={`${styles.seg} no-drag ${audioQuality === q ? styles.segActive : ''}`}
+                          onClick={() => setAudioQuality(q)}
+                          whileTap={tapScale}
+                          transition={springSnappy}
+                          title={q === 'max' ? '按每首歌实际可得的最高音质播放(母带/Hi-Res/无损…逐级回退)' : undefined}
+                        >
+                          {{ standard: '标准', higher: '高品质', exhigh: '极高', lossless: '无损', max: '最高' }[q]}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
               </div>
-              <Switch
-                checked={runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false}
-                disabled={runtime.auth !== 'authenticated' || runtime.playbackAvailable === false}
-                onChange={(enabled) => setProviderEnabled(provider.descriptor.id, enabled)}
-                aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false)}${provider.descriptor.label}`}
-              />
-            </div>
-          )
-        })}
-        <AppleMusicSettings />
-      </section>
+            </section>
+            <section id="settings-section-visual" className={styles.settingsSection} aria-labelledby="settings-heading-visual">
+              <SectionHeading section={SETTINGS_TABS[1]} index={1} />
+              <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
+                <div className={styles.visualColumn}>
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>主题</h3>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>主题模式</span>
+                      <div className={styles.segControl}>
+                        {(['auto', 'light', 'dark'] as ThemeMode[]).map((m) => (
+                          <motion.button
+                            key={m}
+                            className={`${styles.seg} no-drag ${themeMode === m ? styles.segActive : ''}`}
+                            onClick={() => setThemeMode(m)}
+                            whileTap={tapScale}
+                            transition={springSnappy}
+                          >
+                            {{ auto: '自动', light: '浅色', dark: '深色' }[m]}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
 
-      <section className={`${styles.group} ${styles.appearanceGroup}`}>
-        <h2 className={styles.groupTitle}>外观</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>来源标识</span>
-          <div className={styles.segControl}>
-            {(['always', 'dynamic', 'hidden'] as const).map((mode) => (
-              <motion.button
-                key={mode}
-                className={`${styles.seg} no-drag ${sourceBadgeMode === mode ? styles.segActive : ''}`}
-                onClick={() => setSourceBadgeMode(mode)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {{ always: '常显', dynamic: '动态', hidden: '隐藏' }[mode]}
-              </motion.button>
-            ))}
-          </div>
-          <span className={styles.rowValue}>
-            {sourceBadgeMode === 'dynamic' ? '悬停或聚焦时显示' : sourceBadgeMode === 'hidden' ? '不显示实体来源' : '始终显示'}
-          </span>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>主题模式</span>
-          <div className={styles.segControl}>
-            {(['auto', 'light', 'dark'] as ThemeMode[]).map((m) => (
-              <motion.button
-                key={m}
-                className={`${styles.seg} no-drag ${themeMode === m ? styles.segActive : ''}`}
-                onClick={() => setThemeMode(m)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {{ auto: '自动', light: '浅色', dark: '深色' }[m]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className={`${styles.group} ${styles.fontsGroup}`}>
-        <h2 className={styles.groupTitle}>字体</h2>
-        <div className={styles.fontGuide}>
-          <span role="status" aria-live="polite">
-            西文优先显示，中文字符使用中文回退字体
-            {` · 系统默认：${defaultFonts.western} / ${defaultFonts.cjk}`}
-            {fontsLoading ? ' · 正在读取…' : fontsError ? ' · 读取失败' : ` · ${systemFonts.length} 种可用`}
-          </span>
-          {fontsError && (
-            <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
-              重试
-            </button>
-          )}
-        </div>
-        <FontPairSetting
-          label="界面"
-          idPrefix="settings-interface-font"
-          westernValue={fontFamily}
-          cjkValue={fontFamilyCjk}
-          fonts={systemFonts}
-          loading={fontsLoading}
-          westernDefaultLabel={`默认：${defaultFonts.western}`}
-          cjkDefaultLabel={`默认：${defaultFonts.cjk}`}
-          onWesternChange={setFontFamily}
-          onCjkChange={setFontFamilyCjk}
-        />
-        <FontPairSetting
-          label="普通歌词"
-          idPrefix="settings-lyrics-font"
-          westernValue={lyricsFontFamily}
-          cjkValue={lyricsFontFamilyCjk}
-          fonts={systemFonts}
-          loading={fontsLoading}
-          westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
-          cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
-          onWesternChange={setLyricsFontFamily}
-          onCjkChange={setLyricsFontFamilyCjk}
-        />
-        <FontPairSetting
-          label="3D 歌词"
-          idPrefix="settings-lyrics-3d-font"
-          westernValue={lyrics3dFontFamily}
-          cjkValue={lyrics3dFontFamilyCjk}
-          fonts={systemFonts}
-          loading={fontsLoading}
-          westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
-          cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
-          onWesternChange={setLyrics3dFontFamily}
-          onCjkChange={setLyrics3dFontFamilyCjk}
-        />
-      </section>
-
-      <section className={`${styles.group} ${styles.musicGroup}`}>
-        <h2 className={styles.groupTitle}>音乐</h2>
-        <div className={styles.playbackStrategyRow}>
-          <div className={styles.playbackStrategy}>
-            <div className={styles.playbackStrategyHeading}>
-              <div>
-                <span className={styles.playbackStrategyKicker}>播放接力</span>
-                <strong>决定歌曲默认从哪里开始播放</strong>
-              </div>
-              <span className={styles.playbackProviderCount}>
-                {playbackAuthPending ? '正在核实' : `${participatingPlaybackOrder.length} 个平台`}
-              </span>
-            </div>
-
-            {visiblePlaybackOrder.length > 1 ? (
-              <div className={styles.playbackModeBlock}>
-                <span className={styles.playbackFieldLabel}>起播方式</span>
-                <div className={styles.playbackModeControl} role="radiogroup" aria-label="起播方式">
-                  <motion.button
-                    type="button"
-                    role="radio"
-                    aria-checked={preferOriginSource}
-                    tabIndex={preferOriginSource ? 0 : -1}
-                    className={`${styles.playbackModeButton} no-drag ${preferOriginSource ? styles.playbackModeButtonActive : ''}`}
-                    onClick={() => setPreferOriginSource(true)}
-                    onKeyDown={(event) => {
-                      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
-                      event.preventDefault()
-                      const keepCurrent = event.key === 'Home'
-                      setPreferOriginSource(keepCurrent)
-                      if (!keepCurrent) {
-                        ;(event.currentTarget.nextElementSibling as HTMLElement | null)?.focus()
-                      }
-                    }}
-                    whileTap={tapScale}
-                    transition={springSnappy}
-                  >
-                    跟随歌曲来源
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    role="radio"
-                    aria-checked={!preferOriginSource}
-                    tabIndex={!preferOriginSource ? 0 : -1}
-                    className={`${styles.playbackModeButton} no-drag ${!preferOriginSource ? styles.playbackModeButtonActive : ''}`}
-                    onClick={() => setPreferOriginSource(false)}
-                    onKeyDown={(event) => {
-                      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
-                      event.preventDefault()
-                      const keepCurrent = event.key === 'End'
-                      setPreferOriginSource(!keepCurrent)
-                      if (!keepCurrent) {
-                        ;(event.currentTarget.previousElementSibling as HTMLElement | null)?.focus()
-                      }
-                    }}
-                    whileTap={tapScale}
-                    transition={springSnappy}
-                  >
-                    固定播放顺序
-                  </motion.button>
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>
+                      界面字体
+                      <InfoButton label="界面字体" text={`西文优先显示，中文字符使用中文回退字体。系统默认：${defaultFonts.western} / ${defaultFonts.cjk}`} />
+                    </h3>
+                    <div className={styles.fontGuide}>
+                      <span role="status" aria-live="polite">
+                        {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
+                      </span>
+                      {fontsError && (
+                        <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+                          重试
+                        </button>
+                      )}
+                    </div>
+                    <FontPairSetting
+                      label="界面"
+                      idPrefix="settings-interface-font"
+                      westernValue={fontFamily}
+                      cjkValue={fontFamilyCjk}
+                      fonts={systemFonts}
+                      loading={fontsLoading}
+                      westernDefaultLabel={`默认：${defaultFonts.western}`}
+                      cjkDefaultLabel={`默认：${defaultFonts.cjk}`}
+                      onWesternChange={setFontFamily}
+                      onCjkChange={setFontFamilyCjk}
+                    />
+                  </section>
+                  <section className={`${styles.group} ${styles.miniPlayerGroup}`}>
+                    <h3 className={styles.groupTitle}>
+                      迷你播放条
+                      <InfoButton label="迷你播放条" text={`开关在播放栏右侧。悬浮条可拖动、拖右边缘可调宽度；加宽到 ${MINI_PLAYER_LYRICS_WIDTH}px 以上会显示当前歌词。`} />
+                    </h3>
+                    <SliderRow
+                      label="底板不透明度"
+                      min={0.15}
+                      max={1}
+                      step={0.01}
+                      value={miniPlayerAppearance.opacity}
+                      format={(v) => `${Math.round(v * 100)}%`}
+                      onChange={(v) => setMiniPlayerAppearance({ opacity: v })}
+                    />
+                    <SliderRow
+                      label="背景模糊"
+                      min={0}
+                      max={36}
+                      step={1}
+                      value={miniPlayerAppearance.blur}
+                      format={(v) => `${Math.round(v)}px`}
+                      onChange={(v) => setMiniPlayerAppearance({ blur: v })}
+                    />
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>色调</span>
+                      <div className={styles.segControl}>
+                        {MINI_PLAYER_TINTS.map((t) => (
+                          <button
+                            key={t.value}
+                            type="button"
+                            className={`${styles.seg} ${miniPlayerAppearance.tint === t.value ? styles.segActive : ''}`}
+                            onClick={() => setMiniPlayerAppearance({ tint: t.value })}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>显示底边进度条</span>
+                      <Switch
+                        checked={miniPlayerAppearance.showProgress}
+                        onChange={(v) => setMiniPlayerAppearance({ showProgress: v })}
+                        aria-label="显示底边进度条"
+                      />
+                    </div>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>加宽后显示歌词</span>
+                      <Switch
+                        checked={miniPlayerAppearance.showLyrics}
+                        onChange={(v) => setMiniPlayerAppearance({ showLyrics: v })}
+                        aria-label="加宽后显示歌词"
+                      />
+                    </div>
+                  </section>
                 </div>
-                <span className={styles.playbackModeHint}>
-                  {preferOriginSource
-                    ? '未指定“本次优先”时，歌曲所属平台已启用就先用它；否则从下方顺序开始。'
-                    : '未指定“本次优先”时，所有歌曲都从下方第 1 个平台开始。'}
-                </span>
+                <div className={styles.visualColumn}>
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>
+                      界面动效
+                      <InfoButton label="动效预设" text="预设只调整界面动效；3D 歌词可在歌词设置中单独启用。" />
+                    </h3>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>动效预设</span>
+                      <div className={styles.segControl}>
+                        {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
+                          <motion.button
+                            key={id}
+                            className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
+                            onClick={() => applyPerformancePreset(id)}
+                            whileTap={tapScale}
+                            transition={springSnappy}
+                          >
+                            {PERFORMANCE_PRESET_LABELS[id]}
+                          </motion.button>
+                        ))}
+                        <span
+                          className={`${styles.seg} ${styles.segCustom} ${activePerformancePreset === null ? styles.segActive : ''}`}
+                          title="单独调整开关后，组合不再对应预设，改动仍会保存"
+                        >
+                          自定义
+                        </span>
+                      </div>
+                    </div>
+                    {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
+                      <div className={styles.row} key={key}>
+                        <span className={styles.rowLabel}>
+                          {label}
+                          {hint && <InfoButton label={label} text={hint} />}
+                        </span>
+                        <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+                      </div>
+                    ))}
+                  </section>
+                </div>
               </div>
-            ) : visiblePlaybackOrder.length === 1 ? (
-              <div className={styles.playbackSingleProviderHint}>当前只有一个已启用平台，无需设置接力方式。</div>
-            ) : null}
-
-            <div className={styles.playbackRulePreview} aria-live="polite">
-              <span>全局规则</span>
-              <strong>
-                {playbackStrategySummary(
-                  visiblePlaybackOrder.map(providerLabel),
-                  preferOriginSource,
-                  multiSourceFallback
-                )}
-              </strong>
-            </div>
-
-            <div className={styles.playbackOrderBlock}>
-              <div className={styles.playbackOrderHeading}>
-                <span>
-                  {visiblePlaybackOrder.length <= 1
-                    ? '当前音源'
-                    : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
-                </span>
-                {visiblePlaybackOrder.length > 1 && <small>拖动排序 · 键盘可用 Alt + ↑/↓</small>}
+            </section>
+            <section id="settings-section-lyrics" className={styles.settingsSection} aria-labelledby="settings-heading-lyrics">
+              <SectionHeading section={SETTINGS_TABS[2]} index={2} />
+              <div className={styles.lyricsPage}>
+                <div className={styles.lyricsOverview}>
+                  <div className={styles.lyricsColumn}>
+                    <section className={styles.group}>
+                      <h3 className={styles.groupTitle}>桌面歌词</h3>
+                      <div className={styles.row}>
+                        <span className={styles.rowLabel}>启用桌面歌词</span>
+                        <Switch checked={desktopLyrics} onChange={(v) => updateFx({ desktopLyrics: v })} aria-label="启用桌面歌词" />
+                      </div>
+                      <div className={styles.row}>
+                        <label className={styles.rowLabel} htmlFor="settings-desktop-lyrics-size">字体大小</label>
+                        <input
+                          id="settings-desktop-lyrics-size"
+                          type="range"
+                          min={12}
+                          max={48}
+                          step={2}
+                          value={desktopLyricsSize}
+                          aria-valuetext={`${desktopLyricsSize}px`}
+                          onChange={(e) => updateFx({ desktopLyricsSize: Number(e.target.value) })}
+                          className="no-drag"
+                        />
+                        <span className={styles.rowValue}>{desktopLyricsSize}px</span>
+                      </div>
+                    </section>
+                    <section className={`${styles.group} ${styles.lyricsMasterGroup}`}>
+                      <h3 className={styles.groupTitle}>
+                        3D 歌词
+                        <InfoButton label="3D 歌词" text="启用后展开背景场景、文字演出和细节设置；关闭后播放页只保留普通歌词。" />
+                      </h3>
+                      <div className={styles.row}>
+                        <span className={styles.rowLabel}>启用 3D 歌词舞台</span>
+                        <Switch
+                          checked={performance.lyrics3dEnabled}
+                          onChange={setLyrics3dEnabled}
+                          aria-label="启用 3D 歌词舞台"
+                          aria-controls="settings-lyrics3d-details"
+                          aria-expanded={performance.lyrics3dEnabled}
+                        />
+                      </div>
+                    </section>
+                  </div>
+                  <div className={styles.lyricsColumn}>
+                    <section className={styles.group}>
+                      <h3 className={styles.groupTitle}>
+                        歌词字体
+                        <InfoButton label="歌词字体" text="普通歌词和 3D 歌词可分别选字体；留空时跟随界面字体。" />
+                      </h3>
+                      <div className={styles.fontGuide}>
+                        <span role="status" aria-live="polite">
+                          {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
+                        </span>
+                        {fontsError && (
+                          <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+                            重试
+                          </button>
+                        )}
+                      </div>
+                      <FontPairSetting
+                        label="普通歌词"
+                        idPrefix="settings-lyrics-font"
+                        westernValue={lyricsFontFamily}
+                        cjkValue={lyricsFontFamilyCjk}
+                        fonts={systemFonts}
+                        loading={fontsLoading}
+                        westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+                        cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+                        onWesternChange={setLyricsFontFamily}
+                        onCjkChange={setLyricsFontFamilyCjk}
+                      />
+                      <FontPairSetting
+                        label="3D 歌词"
+                        idPrefix="settings-lyrics-3d-font"
+                        westernValue={lyrics3dFontFamily}
+                        cjkValue={lyrics3dFontFamilyCjk}
+                        fonts={systemFonts}
+                        loading={fontsLoading}
+                        westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+                        cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+                        onWesternChange={setLyrics3dFontFamily}
+                        onCjkChange={setLyrics3dFontFamilyCjk}
+                      />
+                    </section>
+                  </div>
+                </div>
+                <div id="settings-lyrics3d-details" className={styles.lyricsExpanded} hidden={!performance.lyrics3dEnabled}>
+                  {performance.lyrics3dEnabled && <>
+                    <Lyrics3dSettings view="scene" />
+                    <Lyrics3dSettings view="tuning" />
+                  </>}
+                </div>
               </div>
-              <PlaybackOrderEditor
-                order={visiblePlaybackOrder}
-                followOrigin={preferOriginSource}
-                emptyMessage={playbackAuthPending ? '正在核实平台账号状态…' : '先在“音源与账户”中启用一个平台'}
-                onChange={setPlaybackOrder}
-              />
-            </div>
-
-            {visiblePlaybackOrder.length > 1 && <div className={styles.playbackFallbackRow}>
-              <div>
-                <strong>播放失败后自动换源</strong>
-                <small>
-                  {multiSourceFallback
-                    ? '当前平台没有版权、会员受限或地址失效时，继续接力。'
-                    : '关闭后只在当前平台内部降低音质，不再切换平台。'}
-                </small>
+            </section>
+            <section id="settings-section-cache" className={styles.settingsSection} aria-labelledby="settings-heading-cache">
+              <SectionHeading section={SETTINGS_TABS[3]} index={3} />
+              <div className={styles.settingsGrid}>
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>缓存管理</h3>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>
+                      缓存位置
+                      <InfoButton label="缓存位置" text="已播放的整曲缓存在此文件夹，重复播放不再消耗流量；更改位置会清空原文件夹中的缓存。" />
+                    </span>
+                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
+                      {cacheConfig?.dir ?? '—'}
+                    </span>
+                    {!!window.desktop?.selectDirectory && (
+                      <button className={`${styles.seg} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
+                        更改
+                      </button>
+                    )}
+                    {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
+                      <button className={`${styles.seg} no-drag`} onClick={() => {
+                        const hasSaved = !!audioCache?.pinnedFiles
+                        if (hasSaved && !window.confirm('恢复默认位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
+                        void postCacheConfig({ dir: '', confirmPinned: hasSaved })
+                      }}>
+                        恢复默认
+                      </button>
+                    )}
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>缓存上限</span>
+                    <div className={styles.segControl}>
+                      {CACHE_LIMIT_PRESETS_GB.map((gb) => (
+                        <motion.button
+                          key={gb}
+                          className={`${styles.seg} no-drag ${cacheConfig?.limitBytes === gb * 1024 ** 3 ? styles.segActive : ''}`}
+                          onClick={() => void postCacheConfig({ limitBytes: gb * 1024 ** 3 })}
+                          whileTap={tapScale}
+                          transition={springSnappy}
+                        >
+                          {gb} GB
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>总占用</span>
+                    <span className={styles.rowValue}>
+                      {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 个文件` : '—'}
+                    </span>
+                    <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.files} onClick={() => void handleClearAudioCache('all')}>
+                      清空全部
+                    </button>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>自动缓存</span>
+                    <span className={styles.rowValue}>
+                      {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 首` : '—'}
+                    </span>
+                    <button
+                      className={`${styles.seg} no-drag`}
+                      disabled={clearingCache || !audioCache?.temporaryFiles}
+                      onClick={() => void handleClearAudioCache('temporary')}
+                    >
+                      {clearingCache ? '清理中…' : '清理'}
+                    </button>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>已保存歌曲</span>
+                    <span className={styles.rowValue}>
+                      {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 首` : '—'}
+                    </span>
+                    <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
+                      删除全部
+                    </button>
+                  </div>
+                  {!!audioCache?.unmanagedFiles && (
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>未识别旧文件</span>
+                      <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
+                      <button className={`${styles.seg} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
+                        清理
+                      </button>
+                    </div>
+                  )}
+                </section>
               </div>
-              <Switch
-                checked={multiSourceFallback}
-                onChange={setMultiSourceFallback}
-                aria-label="播放失败后自动换源"
-              />
-            </div>}
+            </section>
+            <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
+              <SectionHeading section={SETTINGS_TABS[4]} index={4} />
+              <div className={styles.settingsGrid}>
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>版本与更新</h3>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>Simple Music</span>
+                    <span className={styles.rowValue}>v{currentVersion}</span>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>{updateStatusText}</span>
+                    {ready ? (
+                      <button className={`${styles.seg} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
+                        {installing
+                          ? isMacUpdate
+                            ? '正在打开安装包…'
+                            : '正在安装…'
+                          : isMacUpdate
+                            ? '打开安装包'
+                            : '重启并安装'}
+                      </button>
+                    ) : downloading ? (
+                      <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
+                    ) : updateInfo?.updateAvailable ? (
+                      <button className={`${styles.seg} no-drag`} onClick={() => void startDownload()}>
+                        下载更新
+                      </button>
+                    ) : (
+                      <button className={`${styles.seg} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
+                        检查更新
+                      </button>
+                    )}
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>开源项目</span>
+                    <a
+                      className={`${styles.aboutLink} no-drag`}
+                      href="https://github.com/Yyyangshenghao/simple-music"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="在浏览器中打开 GitHub 项目主页"
+                      title="GitHub 项目主页"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+                      </svg>
+                    </a>
+                  </div>
+                </section>
+              </div>
+            </section>
           </div>
         </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>音质偏好</span>
-          <div className={styles.segControl}>
-            {(['standard', 'higher', 'exhigh', 'lossless', 'max'] as AudioQuality[]).map((q) => (
-              <motion.button
-                key={q}
-                className={`${styles.seg} no-drag ${audioQuality === q ? styles.segActive : ''}`}
-                onClick={() => setAudioQuality(q)}
-                whileTap={tapScale}
-                transition={springSnappy}
-                title={q === 'max' ? '按每首歌实际可得的最高音质播放(母带/Hi-Res/无损…逐级回退)' : undefined}
-              >
-                {{ standard: '标准', higher: '高品质', exhigh: '极高', lossless: '无损', max: '最高' }[q]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel} title="已播放的整曲会缓存到此文件夹,重复播放不再消耗流量;更改后原文件夹里的缓存会被清空">缓存位置</span>
-          <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
-            {cacheConfig?.dir ?? '—'}
-          </span>
-          {!!window.desktop?.selectDirectory && (
-            <button className={`${styles.seg} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
-              更改
-            </button>
-          )}
-          {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
-            <button className={`${styles.seg} no-drag`} onClick={() => {
-              const hasSaved = !!audioCache?.pinnedFiles
-              if (hasSaved && !window.confirm('恢复默认位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
-              void postCacheConfig({ dir: '', confirmPinned: hasSaved })
-            }}>
-              恢复默认
-            </button>
-          )}
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>缓存上限</span>
-          <div className={styles.segControl}>
-            {CACHE_LIMIT_PRESETS_GB.map((gb) => (
-              <motion.button
-                key={gb}
-                className={`${styles.seg} no-drag ${cacheConfig?.limitBytes === gb * 1024 ** 3 ? styles.segActive : ''}`}
-                onClick={() => void postCacheConfig({ limitBytes: gb * 1024 ** 3 })}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {gb} GB
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>总占用</span>
-          <span className={styles.rowValue}>
-            {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 个文件` : '—'}
-          </span>
-          <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.files} onClick={() => void handleClearAudioCache('all')}>
-            清空全部
-          </button>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>自动缓存</span>
-          <span className={styles.rowValue}>
-            {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 首` : '—'}
-          </span>
-          <button
-            className={`${styles.seg} no-drag`}
-            disabled={clearingCache || !audioCache?.temporaryFiles}
-            onClick={() => void handleClearAudioCache('temporary')}
-          >
-            {clearingCache ? '清理中…' : '清理'}
-          </button>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>已保存歌曲</span>
-          <span className={styles.rowValue}>
-            {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 首` : '—'}
-          </span>
-          <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
-            删除全部
-          </button>
-        </div>
-        {!!audioCache?.unmanagedFiles && (
-          <div className={styles.row}>
-            <span className={styles.rowLabel}>未识别旧文件</span>
-            <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
-            <button className={`${styles.seg} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
-              清理
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className={`${styles.group} ${styles.performanceGroup}`}>
-        <h2 className={styles.groupTitle}>性能</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>预设</span>
-          <div className={styles.segControl}>
-            {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
-                onClick={() => applyPerformancePreset(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {PERFORMANCE_PRESET_LABELS[id]}
-              </motion.button>
-            ))}
-            {/* 当前开关组合不匹配任何预设时的只读指示态:下面 5 个开关已实时存档,这里仅是展示 */}
-            <span
-              className={`${styles.seg} ${styles.segCustom} ${activePerformancePreset === null ? styles.segActive : ''}`}
-              title="单独调整下面任意开关后,组合不再对应某个预设,但改动会照常保存"
-            >
-              自定义
-            </span>
-          </div>
-        </div>
-        {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
-          <div className={styles.row} key={key}>
-            <span className={styles.rowLabel} title={hint || undefined}>{label}</span>
-            <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
-          </div>
-        ))}
-      </section>
-
-      <section className={`${styles.group} ${styles.desktopLyricsGroup}`}>
-        <h2 className={styles.groupTitle}>桌面歌词</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>启用桌面歌词</span>
-          <Switch checked={desktopLyrics} onChange={(v) => updateFx({ desktopLyrics: v })} aria-label="启用桌面歌词" />
-        </div>
-        <div className={styles.row}>
-          <label className={styles.rowLabel} htmlFor="settings-desktop-lyrics-size">字体大小</label>
-          <input
-            id="settings-desktop-lyrics-size"
-            type="range"
-            min={12}
-            max={48}
-            step={2}
-            value={desktopLyricsSize}
-            aria-valuetext={`${desktopLyricsSize}px`}
-            onChange={(e) => updateFx({ desktopLyricsSize: Number(e.target.value) })}
-            className="no-drag"
-          />
-          <span className={styles.rowValue}>{desktopLyricsSize}px</span>
-        </div>
-      </section>
-
-      <section className={`${styles.group} ${styles.miniPlayerGroup}`}>
-        <h2 className={styles.groupTitle}>迷你播放条</h2>
-        <p className={styles.groupHint}>
-          开关在播放栏右侧。悬浮条拖动可移动，拖右边缘可调宽度；加宽到 {MINI_PLAYER_LYRICS_WIDTH}px 以上会展开当前歌词。
-        </p>
-        <SliderRow
-          label="底板不透明度"
-          min={0.15}
-          max={1}
-          step={0.01}
-          value={miniPlayerAppearance.opacity}
-          format={(v) => `${Math.round(v * 100)}%`}
-          onChange={(v) => setMiniPlayerAppearance({ opacity: v })}
-        />
-        <SliderRow
-          label="背景模糊"
-          min={0}
-          max={36}
-          step={1}
-          value={miniPlayerAppearance.blur}
-          format={(v) => `${Math.round(v)}px`}
-          onChange={(v) => setMiniPlayerAppearance({ blur: v })}
-        />
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>色调</span>
-          <div className={styles.segControl}>
-            {MINI_PLAYER_TINTS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                className={`${styles.seg} ${miniPlayerAppearance.tint === t.value ? styles.segActive : ''}`}
-                onClick={() => setMiniPlayerAppearance({ tint: t.value })}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>显示底边进度条</span>
-          <Switch
-            checked={miniPlayerAppearance.showProgress}
-            onChange={(v) => setMiniPlayerAppearance({ showProgress: v })}
-            aria-label="显示底边进度条"
-          />
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>加宽后显示歌词</span>
-          <Switch
-            checked={miniPlayerAppearance.showLyrics}
-            onChange={(v) => setMiniPlayerAppearance({ showLyrics: v })}
-            aria-label="加宽后显示歌词"
-          />
-        </div>
-      </section>
-
-      <section className={`${styles.group} ${styles.aboutGroup}`}>
-        <h2 className={styles.groupTitle}>关于</h2>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>Simple Music</span>
-          <span className={styles.rowValue}>v{currentVersion}</span>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>{updateStatusText}</span>
-          {ready ? (
-            <button className={`${styles.seg} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
-              {installing
-                ? isMacUpdate
-                  ? '正在打开安装包…'
-                  : '正在安装…'
-                : isMacUpdate
-                  ? '打开安装包'
-                  : '重启并安装'}
-            </button>
-          ) : downloading ? (
-            <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
-          ) : updateInfo?.updateAvailable ? (
-            <button className={`${styles.seg} no-drag`} onClick={() => void startDownload()}>
-              下载更新
-            </button>
-          ) : (
-            <button className={`${styles.seg} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
-              检查更新
-            </button>
-          )}
-        </div>
-      </section>
-      </div>)}
       </div>
     </div>
   )

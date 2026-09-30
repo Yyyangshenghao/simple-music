@@ -41,6 +41,7 @@ const gotLock = app.requestSingleInstanceLock()
 let isQuitting = false
 let quitReady = false
 let shutdownStarted = false
+let quitTimeout: ReturnType<typeof setTimeout> | undefined
 
 function createPlayerWindow(port: number, token: string): void {
   const win = createMainWindow(port, token)
@@ -112,10 +113,17 @@ if (!gotLock) {
     if (shutdownStarted) return
     shutdownStarted = true
     isQuitting = true
+    // 专用浏览器清理最多约 4.5 秒；再给窗口卸载留出时间，避免退出卡住单实例锁。
+    quitTimeout = setTimeout(() => app.exit(0), 8000)
+    quitTimeout.unref()
     unregisterHotkeys()
     closeOverlays()
     destroyTray()
     // 应用内后台 MusicKit 窗口承载独立音频，等待关闭后才允许 Electron 退出。
-    void Promise.resolve(shutdownServer()).finally(() => { quitReady = true; app.quit() })
+    void (async () => {
+      try { await shutdownServer() } catch (error) { console.error('Application cleanup failed:', error) }
+      finally { quitReady = true; app.quit() }
+    })()
   })
+  app.on('will-quit', () => clearTimeout(quitTimeout))
 }

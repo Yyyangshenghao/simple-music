@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -49,6 +49,12 @@ describe('parseYrc', () => {
     const [line] = parseYrc(yrc)
     expect(line.words.map((w) => w.text)).toEqual(['EAS ', 'MUSIC ', 'LTD'])
     expect(line.words[1]).toEqual({ text: 'MUSIC ', startMs: 300, durationMs: 300 })
+  })
+
+  it('保留独立空格和文本括号，避免原生主歌词丢字', () => {
+    const [line] = parseYrc('[1000,1000](1000,300,0)Hello(1300,100,0) (1400,600,0)(world)')
+    expect(line.words.map(word => word.text).join('')).toBe('Hello (world)')
+    expect(line.words[2].startMs).toBe(400)
   })
 
   it('skips whitespace-only tokens and lines without words', () => {
@@ -103,5 +109,29 @@ describe('alignTranslation', () => {
       { time: 1, text: '你好' },
       { time: 3, text: '' }
     ])
+  })
+})
+
+
+describe('parseQrc', () => {
+  it('保留英文空格，并将歌曲绝对时间转为句内偏移，保留停顿', () => {
+    expect(parseQrc('[1000,2400]Hello (1100,400)world(2200,700)')).toEqual([{
+      time: 1, durationMs: 2400, words: [
+        { text: 'Hello ', startMs: 100, durationMs: 400 },
+        { text: 'world', startMs: 1200, durationMs: 700 },
+      ],
+    }])
+  })
+
+  it('解析 XML 明文及转义字符，保留歌词中的括号', () => {
+    expect(parseQrc('<QrcInfos><LyricInfo><Lyric_1 LyricType="1" LyricContent="[1000,1000]You &amp; (me)(1000,1000)&#10;[3000,500]好(3000,500)"/></LyricInfo></QrcInfos>'))
+      .toEqual([
+        { time: 1, durationMs: 1000, words: [{ text: 'You & (me)', startMs: 0, durationMs: 1000 }] },
+        { time: 3, durationMs: 500, words: [{ text: '好', startMs: 0, durationMs: 500 }] },
+      ])
+  })
+
+  it.each(['密文a7c310', '[00:01.00]普通歌词', '[1000,1000]无逐字数据', '[1000,1000]残缺(1000,500)文本'])('非逐字或不完整数据安全降级：%s', text => {
+    expect(parseQrc(text)).toEqual([])
   })
 })

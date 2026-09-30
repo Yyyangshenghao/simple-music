@@ -17,12 +17,14 @@ export type AppView =
 
 interface NavigationStore {
   currentView: AppView
+  settingsMusicRequest: number
   history: AppView[]
   /** 后退后可前进的视图栈；任何新导航都会清空。 */
   future: AppView[]
   /** 最近一次导航方向：navigateTo/goForward 为 push，goBack 为 pop（供转场方向使用）。 */
   lastAction: 'push' | 'pop'
   navigateTo(view: AppView): void
+  requestSettingsMusic(): void
   goBack(): void
   goForward(): void
 }
@@ -32,12 +34,17 @@ const MAX_HISTORY = 50
 
 export const useNavigationStore = create<NavigationStore>((set, get) => ({
   currentView: 'explore',
+  settingsMusicRequest: 0,
   history: [],
   future: [],
   lastAction: 'push',
 
   navigateTo(view) {
     set((s) => ({ currentView: view, history: [...s.history, s.currentView].slice(-MAX_HISTORY), future: [], lastAction: 'push' }))
+  },
+
+  requestSettingsMusic() {
+    set((s) => ({ settingsMusicRequest: s.settingsMusicRequest + 1 }))
   },
 
   goBack() {

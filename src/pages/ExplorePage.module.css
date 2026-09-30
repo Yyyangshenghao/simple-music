@@ -29,12 +29,6 @@
   line-height: 1;
 }
 
-.summary {
-  margin: 12px 0 0;
-  color: var(--sm-text-secondary);
-  font-size: 12px;
-}
-
 .noProviders {
   width: min(620px, calc(100% - (var(--sm-page-gutter) * 2)));
   margin: 64px auto;

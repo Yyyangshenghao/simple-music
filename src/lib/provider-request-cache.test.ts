@@ -54,4 +54,14 @@ describe('provider request cache', () => {
     await expect(requestProviderData('netease', 'library', freshLoader)).resolves.toBe('fresh')
     expect(freshLoader).toHaveBeenCalledOnce()
   })
+
+  it('大量分页请求不会永久保留最早的结果', async () => {
+    const first = vi.fn().mockResolvedValue('first')
+    await requestProviderData('apple', 'charts:page:0', first)
+    for (let page = 1; page <= 100; page++) {
+      await requestProviderData('apple', `charts:page:${page}`, () => Promise.resolve(page))
+    }
+    await requestProviderData('apple', 'charts:page:0', first)
+    expect(first).toHaveBeenCalledTimes(2)
+  })
 })

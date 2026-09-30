@@ -255,10 +255,6 @@ function qqCookieNickname(obj: CookieMap, uinInput?: string): string {
   const keys = [
     uin && 'ptnick_' + uin,
     padded && 'ptnick_' + padded,
-    'ptnick',
-    'nick',
-    'nickname',
-    'qq_nickname',
   ].filter(Boolean) as string[]
   for (const key of keys) {
     if (obj[key]) {
@@ -266,8 +262,7 @@ function qqCookieNickname(obj: CookieMap, uinInput?: string): string {
       if (nick) return nick
     }
   }
-  const ptnickKey = Object.keys(obj).find((key) => /^ptnick_/i.test(key) && obj[key])
-  return ptnickKey ? decodeQQCookieValue(obj[ptnickKey]) : ''
+  return ''
 }
 
 function qqCookieAvatar(obj: CookieMap, uinInput?: string): string {
@@ -837,7 +832,7 @@ function normalizeQQProfile(cookie: string, body: unknown, cookieObj: CookieMap)
     loggedIn: !!(uin && qqCookieMusicKey(cookieObj)),
     preview: false,
     userId: uin,
-    nickname: nick || (uin ? 'QQ ' + uin : 'QQ 音乐'),
+    nickname: nick,
     avatar,
     vipType,
     hasCookie: !!cookie,

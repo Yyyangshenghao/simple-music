@@ -45,7 +45,7 @@ describe('Apple Music 设置', () => {
     } else {
       expect(html).toContain('完整播放需要有效的 Apple Music 订阅')
       expect(html).toContain('Apple 音源不会启用')
-      expect(html).toContain('无需保留外部浏览器')
+      expect(html).toContain('即可在 Simple Music 中选歌和播放')
     }
   })
 
@@ -56,5 +56,13 @@ describe('Apple Music 设置', () => {
     expect(html).toContain('此账号没有有效的 Apple Music 订阅')
     expect(html).toContain('Apple 音源已保持禁用')
     expect(html).not.toContain('歌曲会直接在 Simple Music 内播放')
+  })
+
+  it('启动恢复期间提示恢复中，不误显示未登录', () => {
+    h.account = { ...connected, loggedIn: false, connected: false, subscription: 'unknown', restoring: true }
+    const html = renderToStaticMarkup(<AppleMusicSettings />)
+    expect(html).toContain('恢复登录中')
+    expect(html).not.toContain('>未登录</span>')
+    expect(html).toContain('disabled=""')
   })
 })

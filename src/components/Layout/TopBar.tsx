@@ -6,6 +6,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
+import { SourceName } from '../ui/SourceName'
 import { providerFor } from '../../providers/registry'
 import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
@@ -20,6 +21,7 @@ const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '我的库', view: 'library' },
   { label: '漫游', view: 'roam' },
   { label: '刷歌', view: 'shuange' },
+  { label: '设置', view: 'settings' },
 ]
 
 interface SearchPayload {
@@ -215,13 +217,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
       <div className={styles.center}>
         <nav className={styles.segNav} aria-label="主导航">
           {NAV_ITEMS.map((item) => {
-            // 歌单详情归属其来源 tab；其余非「我的库」/「漫游」视图（设置/歌手）默认落在探索
+            // 歌单详情归属其来源 tab；其余未列入主导航的视图默认落在探索
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
                 : currentView
             const active = section === item.view
-              || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange')
+              || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange' && section !== 'settings')
             return (
               <button
                 key={item.label}
@@ -330,7 +332,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                         onClick={() => setSelectedSearchSource(source)}
                       >
                         <span className={styles.searchSourceMark} aria-hidden="true" />
-                        <span>{descriptor.label}</span>
+                        <span><SourceName source={source} /></span>
                       </button>
                     )
                   })}

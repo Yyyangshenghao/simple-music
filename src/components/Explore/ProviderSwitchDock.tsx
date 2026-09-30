@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { providerFor } from '../../providers/registry'
 import type { ProviderId } from '../../providers/types'
-import { NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { SourceName } from '../ui/SourceName'
 import styles from './ProviderSwitchDock.module.css'
 
 interface ProviderSwitchDockProps {
@@ -16,6 +17,7 @@ function ProviderLogo({ source }: { source: ProviderId }) {
   const descriptor = providerFor(source).descriptor
   if (descriptor.iconKey === 'netease') return <NeteaseLogo />
   if (descriptor.iconKey === 'qq') return <QQMusicLogo />
+  if (descriptor.iconKey === 'apple') return <AppleMusicIcon />
   return <span className={styles.fallbackLogo}>{descriptor.label.slice(0, 1)}</span>
 }
 
@@ -102,7 +104,7 @@ export function ProviderSwitchDock({
                 type="button"
                 role="radio"
                 aria-checked={active}
-                aria-label={`切换到${descriptor.label}`}
+                aria-label={`切换到${source === 'apple' ? 'Apple Music' : descriptor.label}`}
                 tabIndex={active ? 0 : -1}
                 title={!open ? descriptor.label : undefined}
                 className={`${styles.option}${active ? ` ${styles.active}` : ''} no-drag`}
@@ -118,7 +120,7 @@ export function ProviderSwitchDock({
                 }}
               >
                 <span className={styles.logo} aria-hidden="true"><ProviderLogo source={source} /></span>
-                <span className={styles.label}>{descriptor.label}</span>
+                <span className={styles.label}><SourceName source={source} /></span>
                 <span className={styles.activeDot} aria-hidden="true" />
               </button>
             )

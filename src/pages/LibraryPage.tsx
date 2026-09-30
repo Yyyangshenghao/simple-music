@@ -19,7 +19,7 @@ import type { Playlist, Track } from '../types/domain'
 import type { MutableRefObject } from 'react'
 import styles from './LibraryPage.module.css'
 
-type SubTab = 'playlists' | 'favorites' | 'recent' | 'local'
+type SubTab = 'playlists' | 'albums' | 'favorites' | 'recent' | 'local'
 
 /** 本地音乐排序字段。name/artist 为字符串序,mtimeMs 为文件修改时间(近似添加时间)。 */
 type LocalSortField = 'name' | 'artist' | 'mtimeMs'
@@ -86,6 +86,10 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
   const { current: contentSource } = useContentProvider()
+  const albumsAvailable = !!contentSource && !!providerFor(contentSource).library?.getUserAlbums
+  useEffect(() => {
+    if (tab === 'albums' && !albumsAvailable) setTab('playlists')
+  }, [tab, albumsAvailable])
 
   // 歌单详情提升到导航 store：顶栏前进/后退可穿越
   const currentView = useNavigationStore((s) => s.currentView)
@@ -108,13 +112,13 @@ export function LibraryPage() {
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
-          {(['playlists', 'favorites', 'recent', 'local'] as SubTab[]).map((t) => (
+          {(['playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'local'] as SubTab[]).map((t) => (
             <button
               key={t}
               className={`${styles.subTab} no-drag ${tab === t ? styles.subTabActive : ''}`}
               onClick={() => setTab(t)}
             >
-              {{ playlists: '歌单', favorites: '收藏', recent: '最近播放', local: '本地音乐' }[t]}
+              {{ playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', local: '本地音乐' }[t]}
             </button>
           ))}
         </div>
@@ -123,6 +127,8 @@ export function LibraryPage() {
       {tab === 'playlists' && (contentSource
         ? <ProviderLibraryGrid mode="playlists" source={contentSource} />
         : <OnlineLibraryUnavailable />)}
+
+      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid mode="albums" source={contentSource} />}
 
       {tab === 'favorites' && (contentSource
         ? <ProviderLibraryGrid mode="favorites" source={contentSource} />
@@ -137,36 +143,44 @@ export function LibraryPage() {
 }
 
 interface ProviderLibraryGridProps {
-  mode: 'playlists' | 'favorites'
+  mode: 'playlists' | 'albums' | 'favorites'
   source: ProviderId
 }
 
 async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Promise<Playlist[]> {
   const library = providerFor(source).library
   if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
+  if (mode === 'albums') return library?.getUserAlbums?.() ?? []
   const liked = await library?.getLikedPlaylist?.()
   return liked ? [liked] : []
 }
 
 function isProviderParticipating(source: ProviderId): boolean {
   const state = useProviderStore.getState().byId[source]
-  return state.enabled && state.auth === 'authenticated'
+  return state.enabled && state.auth === 'authenticated' && state.playbackAvailable !== false
 }
 
 function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
   const expiredSignature = useProviderStore((state) => PROVIDER_IDS
     .filter((id) => (!source || id === source) && state.byId[id].auth === 'expired')
     .join(','))
+  const unavailableSignature = useProviderStore((state) => PROVIDER_IDS
+    .filter((id) => (!source || id === source) && state.byId[id].auth === 'authenticated' && state.byId[id].playbackAvailable === false)
+    .join(','))
   const labels = expiredSignature
+    .split(',')
+    .filter(Boolean)
+    .map((id) => providerFor(id as ProviderId).descriptor.label)
+  const unavailableLabels = unavailableSignature
     .split(',')
     .filter(Boolean)
     .map((id) => providerFor(id as ProviderId).descriptor.label)
 
   return (
     <div className={styles.emptyHint}>
-      <p>{labels.length ? `${labels.join('、')}登录已失效` : '没有已启用的在线音乐平台'}</p>
-      {labels.length > 0 && (
-        <button type="button" onClick={() => useNavigationStore.getState().navigateTo('settings')}>前往设置重新登录</button>
+      <p>{labels.length ? `${labels.join('、')}登录已失效` : unavailableLabels.length ? `${unavailableLabels.join('、')} 暂时不可用` : '没有已启用的在线音乐平台'}</p>
+      {(labels.length > 0 || unavailableLabels.length > 0) && (
+        <button type="button" onClick={() => useNavigationStore.getState().navigateTo('settings')}>{labels.length ? '前往设置重新登录' : '前往设置重新连接'}</button>
       )}
     </div>
   )
@@ -174,7 +188,7 @@ function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
 
 function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
   const participating = useProviderStore((state) =>
-    state.byId[source].enabled && state.byId[source].auth === 'authenticated'
+    state.byId[source].enabled && state.byId[source].auth === 'authenticated' && state.byId[source].playbackAvailable !== false
   )
   const [results, setResults] = useState<Partial<Record<ProviderId, ProviderResult<Playlist[]>>>>({})
   const sessionRef = useRef(0)
@@ -249,7 +263,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                   ? '加载中…'
                   : result.status === 'error'
                     ? result.error?.message
-                    : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '歌单'}`}
+                    : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : mode === 'albums' ? '专辑' : '歌单'}`}
               </span>
               {mode === 'playlists' && result?.status !== 'loading' && (
                 <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>
@@ -262,7 +276,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
               </div>
             ) : result?.status === 'empty' ? (
               <div className={styles.providerEmpty}>
-                {mode === 'favorites' ? '这个平台没有可展示的收藏入口' : '这个平台暂时没有歌单，或需要先登录'}
+                {mode === 'favorites' ? '这个平台没有可展示的收藏入口' : mode === 'albums' ? '这个平台暂时没有专辑，或需要先登录' : '这个平台暂时没有歌单，或需要先登录'}
               </div>
             ) : playlists.length > 0 ? (
               <div className={styles.grid}>

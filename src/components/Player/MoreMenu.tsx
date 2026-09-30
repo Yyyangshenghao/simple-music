@@ -9,6 +9,7 @@ import { fetchTrackQualities, type TrackQualityOption } from '../../lib/track-qu
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
+import { SourceName } from '../ui/SourceName'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -67,7 +68,7 @@ function PlaybackSourceSection() {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>播放来源</span>
-        <span className={styles.sectionStatus}>{status === 'loading' ? '正在解析…' : transport === 'offline' ? '本地离线' : transport === 'musickit' ? '浏览器官方播放' : '本次播放'}</span>
+        <span className={styles.sectionStatus}>{status === 'loading' ? '正在加载…' : transport === 'offline' ? '本地离线' : '本次播放'}</span>
       </div>
       <div className={styles.sourceFacts}>
         <span>内容来自</span>
@@ -75,7 +76,7 @@ function PlaybackSourceSection() {
           {originVisible ? (
             <>
               <SourceBadge source={currentTrack.source} reveal />
-              {SOURCE_BRAND[currentTrack.source].label}
+              <SourceName source={currentTrack.source} />
             </>
           ) : '当前不可用'}
         </span>
@@ -84,12 +85,12 @@ function PlaybackSourceSection() {
           {actualSource ? (
             <>
               <SourceBadge source={actualSource} reveal />
-              {SOURCE_BRAND[actualSource].label}
+              <SourceName source={actualSource} />
             </>
           ) : '尚未确定'}
         </span>
       </div>
-      {isProviderId(currentTrack.source) && participants.length > 0 && (
+      {isProviderId(currentTrack.source) && currentTrack.source !== 'apple' && participants.length > 0 && (
         <div className={styles.chips}>
           {participants.map((source) => (
             <button
@@ -205,7 +206,11 @@ function QualitySection({ open }: { open: boolean }) {
 
   if (qualityTrack?.source === 'apple') return (
     <section className={styles.section}>
-      <span className={styles.tip}>Apple Music 音质由官方播放器管理</span>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionTitle}>音质</span>
+        <span className={styles.sectionStatus}>默认</span>
+      </div>
+      <span className={styles.tip}>当前音源暂无可选音质</span>
     </section>
   )
 

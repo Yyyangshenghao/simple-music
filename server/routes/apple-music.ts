@@ -1,3 +1,4 @@
+import { fetchAppleMusicLyrics } from '../lib/apple-music-lyrics'
 import type { RouteHandler } from '../types'
 import { revokeAppleMusicBridge } from '../lib/apple-music-bridge'
 import { readJson, sendError, sendJson } from '../lib/http'
@@ -6,14 +7,18 @@ import { AppleMusicError, clearAppleMusicUserToken, fetchAppleMusic, getAppleMus
 export const appleMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (!url.pathname.startsWith('/api/apple-music/')) return false
   const route = url.pathname.slice('/api/apple-music/'.length)
-  if (!['status', 'config', 'catalog', 'logout'].includes(route)) return false
+  if (!['status', 'config', 'catalog', 'logout', 'lyrics'].includes(route)) return false
   res.setHeader('Cache-Control', 'no-store')
-  const method = route === 'status' || route === 'catalog' ? 'GET' : 'POST'
+  const method = route === 'status' || route === 'catalog' || route === 'lyrics' ? 'GET' : 'POST'
   if (req.method !== method) {
     sendError(res, 405, '不支持的请求方法')
     return true
   }
   try {
+    if (route === 'lyrics') {
+      sendJson(res, await fetchAppleMusicLyrics(ctx, url.searchParams.get('id') || '', url.searchParams.get('library') === 'true'))
+      return true
+    }
     if (route === 'config') {
       const body = await readJson<unknown>(req)
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppleMusicError(400, 'Apple Music 配置格式无效')

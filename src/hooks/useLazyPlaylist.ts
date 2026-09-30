@@ -13,7 +13,7 @@ interface LazyEntry {
   trackIds: unknown[]
   tracks: (Track | null)[]
   loadedWindows: Set<number>
-  inflightWindows: Set<number>
+  inflightWindows: Map<number, Promise<void>>
   skeletonLoaded: boolean
   error: boolean
   /** 骨架加载完成时间戳,用于 TTL 过期判断。 */
@@ -52,7 +52,7 @@ function touchAndEvict(key: string): void {
 }
 
 function emptyEntry(): LazyEntry {
-  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Set(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
+  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Map(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
 }
 
 /** 每日推荐/雷达等已全量在手的场景:直接落缓存,不发任何请求。 */
@@ -161,8 +161,12 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
 
   const refresh = useCallback(async () => {
     if (!available || playlist.type === 'album' || initialTracks?.length) return
-    const previous = cache.get(key)
-    if (!previous) return
+    let previous = cache.get(key)
+    if (!previous) {
+      previous = emptyEntry()
+      cache.set(key, previous)
+      touchAndEvict(key)
+    }
     const session = ++sessionRef.current
     const version = ++nextSkeletonVersion
     skeletonVersions.set(key, version)
@@ -211,7 +215,11 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     sessionRef.current += 1
     const session = sessionRef.current
     const e = cache.get(key)
-    if (!available || !e || e.error) return
+    if (!available || !e) return
+    if (e.error) {
+      e.error = false
+      bump()
+    }
     // 专辑没有歌单骨架接口:一次拉全量曲目直接播种(专辑规模小,无需窗口懒加载)
     if (playlist.type === 'album') {
       if (e.skeletonLoaded) return
@@ -236,38 +244,46 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
 
   const entry = cache.get(key)!
 
-  const ensureRange = useCallback(
-    (start: number, end: number) => {
-      if (!available) return
-      const e = cache.get(key)
-      if (!e || !e.skeletonLoaded) return
-      const total = e.trackIds.length
-      const session = sessionRef.current
-      for (const w of windowIndicesFor(start, end, TRACK_WINDOW, total)) {
-        if (e.loadedWindows.has(w) || e.inflightWindows.has(w)) continue
-        e.inflightWindows.add(w)
-        const span = windowSpan(w, TRACK_WINDOW, total)
-        service
-          .getTracksByIds(e.trackIds.slice(span.start, span.end))
-          .then((fetched) => {
-            e.inflightWindows.delete(w)
-            const byId = new Map(fetched.map((t) => [String(t.id), t]))
-            for (let i = span.start; i < span.end; i++) {
-              e.tracks[i] = byId.get(String(e.trackIds[i])) ?? e.tracks[i]
-            }
-            // 只有真正拿到数据才标记已加载:service 绑错音源等情况会返回空数组,
-            // 若仍标记 loaded,该窗口将永久停留在骨架态,滚动重试也无法触发重拉。
-            if (fetched.length > 0) e.loadedWindows.add(w)
-            if (sessionRef.current === session) bump()
-          })
-          .catch(() => {
-            // 失败不标记 loaded:下次滚到该窗口自动重试
-            e.inflightWindows.delete(w)
-          })
-      }
-    },
-    [available, key, service, entry]
-  )
+  const loadWindow = useCallback((e: LazyEntry, w: number): Promise<void> => {
+    if (e.loadedWindows.has(w)) return Promise.resolve()
+    const inflight = e.inflightWindows.get(w)
+    if (inflight) return inflight
+    const session = sessionRef.current
+    const span = windowSpan(w, TRACK_WINDOW, e.trackIds.length)
+    const request = service.getTracksByIds(e.trackIds.slice(span.start, span.end))
+      .then((fetched) => {
+        const byId = new Map(fetched.map((t) => [String(t.id), t]))
+        for (let i = span.start; i < span.end; i++) {
+          e.tracks[i] = byId.get(String(e.trackIds[i])) ?? e.tracks[i]
+        }
+        if (fetched.length > 0) e.loadedWindows.add(w)
+        else throw new Error('歌曲详情暂不可用')
+        if (sessionRef.current === session) bump()
+      })
+      .finally(() => { e.inflightWindows.delete(w) })
+    e.inflightWindows.set(w, request)
+    return request
+  }, [service])
+
+  const ensureRange = useCallback((start: number, end: number) => {
+    if (!available) return
+    const e = cache.get(key)
+    if (!e?.skeletonLoaded) return
+    for (const w of windowIndicesFor(start, end, TRACK_WINDOW, e.trackIds.length)) {
+      void loadWindow(e, w).catch(() => {})
+    }
+  }, [available, key, loadWindow, entry])
+
+  const ensureAll = useCallback(async (cancelled: () => boolean) => {
+    if (!available) return
+    const e = cache.get(key)
+    if (!e?.skeletonLoaded) return
+    // 串行补齐，复用可见区域的在途请求，避免大歌单同时发出大量请求。
+    for (const w of windowIndicesFor(0, e.trackIds.length, TRACK_WINDOW, e.trackIds.length)) {
+      if (cancelled()) return
+      await loadWindow(e, w)
+    }
+  }, [available, key, loadWindow, entry])
 
   return {
     total: entry.trackIds.length,
@@ -276,6 +292,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     error: entry.error || !available,
     available,
     ensureRange,
+    ensureAll,
     makeQueue: () => {
       const current = cache.get(key) ?? entry
       return buildQueue(current.trackIds, current.tracks, playlist.source)

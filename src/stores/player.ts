@@ -79,6 +79,7 @@ interface PlayerStore {
   loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean }): Promise<void>
   /** 当前曲目仅本次重载时软优先指定平台，不改变全局播放顺序。 */
   preferSourceOnce(source: ProviderId): void
+  _lyricPosition(): number
   _engine(): AudioEngine
 }
 
@@ -149,7 +150,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     void playback.command(command).catch(() => {
       if (applePlayback !== playback) return
       set({ status: 'paused' })
-      useToastStore.getState().show('Apple Music 控制失败，请检查浏览器播放页')
+      useToastStore.getState().show('Apple Music 播放控制失败，请重试')
     })
   }
 
@@ -207,7 +208,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           applePlayback = null
           activePlayback = null
           set({ status: 'paused', actualSource: null, resolvedTrack: null, resolution: null, playbackTransport: null, currentQuality: null })
-          useToastStore.getState().show(state.error || 'Apple Music 播放失败，请检查订阅与浏览器播放页')
+          useToastStore.getState().show(state.error || 'Apple Music 播放失败，请检查网络与订阅状态')
           return
         }
         if (!committed && (state.status === 'playing' || state.status === 'paused')) {
@@ -228,13 +229,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       })
       applePlayback = playback
       set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1 })
-      void playback.load(id, library, active.startAt, active.autoplay, get().volume).catch((error) => {
+      void playback.load(id, library, active.startAt, active.autoplay, get().volume, (candidate.track.duration ?? 0) / 1000).catch((error) => {
         if (applePlayback !== playback || activePlayback !== active) return
         playback.stop()
         applePlayback = null
         activePlayback = null
         set({ status: 'paused', actualSource: null, resolvedTrack: null, resolution: null, playbackTransport: null, currentQuality: null })
-        useToastStore.getState().show(error instanceof Error ? error.message : '请先在设置中连接 Apple Music 播放页')
+        useToastStore.getState().show(error instanceof Error ? error.message : '请在设置中登录 Apple Music 后重试')
       })
       return
     }
@@ -368,9 +369,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
     engine = new AudioEngine({
-      onPosition: (s) => { if (!applePlayback) set({ position: s }) },
-      onDuration: (d) => { if (!applePlayback) set({ duration: d }) },
-      onStatus: (status) => { if (!applePlayback) set({
+      onPosition: (s) => { if (get().currentTrack?.source !== 'apple') set({ position: s }) },
+      onDuration: (d) => { if (get().currentTrack?.source !== 'apple') set({ duration: d }) },
+      onStatus: (status) => { if (get().currentTrack?.source !== 'apple') set({
         status: playbackStatusForEngineEvent(status, activePlayback?.autoplay ?? true),
       }) },
       onCanPlay: commitPlayableCandidate,
@@ -379,7 +380,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         void advancePlayback(reason)
       },
       onOutputDeviceChange: (wasPlaying) => {
-        if (applePlayback) return
+        if (get().currentTrack?.source === 'apple') return
         const state = get()
         if (!state.currentTrack || !shouldRecoverAfterOutputDeviceChange(state.status, wasPlaying)) return
         if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
@@ -395,7 +396,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         }, 200)
       },
       onEnded: () => {
-        if (!applePlayback) trackEnded()
+        if (get().currentTrack?.source !== 'apple') trackEnded()
       }
     })
     return engine
@@ -419,7 +420,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     rate: 1,
 
     play() {
-      if (applePlayback) { appleCommand({ type: 'play' }); return }
+      if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
+      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
+        activePlayback.autoplay = true
+        set({ status: 'loading' })
+        return
+      }
       const eng = ensureEngine()
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
       const { currentTrack, position, contextId } = get()
@@ -431,15 +437,26 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
     pause() {
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
+      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
+        activePlayback.autoplay = false
+        ensureEngine().pause()
+        set({ status: 'paused' })
+        return
+      }
       ensureEngine().pause()
     },
     toggle() {
       const s = get().status
-      if (s === 'playing') get().pause()
+      if (s === 'playing' || (get().currentTrack?.source === 'apple' && s === 'loading')) get().pause()
       else get().play()
     },
     seek(seconds) {
       if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
+      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
+        activePlayback.startAt = seconds
+        set({ position: seconds })
+        return
+      }
       ensureEngine().seek(seconds)
       set({ position: seconds })
     },
@@ -454,7 +471,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
     setRate(r) {
       if (applePlayback) {
-        useToastStore.getState().show('Apple Music 由官方播放器控制，暂不支持倍速')
+        useToastStore.getState().show('当前音源暂不支持倍速')
         return
       }
       ensureEngine().setPlaybackRate(r)
@@ -610,6 +627,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       })
     },
 
+    _lyricPosition: () => applePlayback?.lyricPosition ?? get().position,
     _engine: ensureEngine
   }
 })

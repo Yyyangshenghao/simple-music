@@ -44,8 +44,43 @@ function state(playbackId: string, extra: Partial<ApplePlaybackState> = {}): App
 }
 
 describe('Apple Music 播放控制', () => {
+  it('歌词在相同快照间平滑推进，暂停和待确认拖动立即冻结', async () => {
+    let now = 0
+    const time = vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const player = new AppleMusicPlayback(vi.fn())
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(0)
+    now = 125
+    expect(player.lyricPosition).toBeCloseTo(30.125)
+    now = 250
+    await vi.advanceTimersByTimeAsync(250)
+    expect(player.lyricPosition).toBeCloseTo(30.25)
+    await player.command({ type: 'pause' })
+    now = 500
+    await vi.advanceTimersByTimeAsync(250)
+    expect(player.lyricPosition).toBeCloseTo(30.25)
+    await player.command({ type: 'seek', seconds: 80 })
+    now = 750
+    await vi.advanceTimersByTimeAsync(250)
+    expect(player.lyricPosition).toBe(80)
+    player.stop()
+    time.mockRestore()
+  })
+
+  it('当前会话断开时保留服务端的具体播放失败原因', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    const error = 'Apple Music 加载歌曲失败：Chrome Apple Music 操作超时'
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { connected: false, status: 'error', error }))
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', error }))
+    player.stop()
+  })
+
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     vi.useFakeTimers()
     vi.mocked(api.post).mockResolvedValue({ ok: true })
   })
@@ -150,7 +185,138 @@ describe('Apple Music 播放控制', () => {
     await player.load('123', false, 0, true, 1)
     await vi.advanceTimersByTimeAsync(3000)
     expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', error: expect.stringContaining('断开') }))
-    expect(api.get).toHaveBeenCalledOnce()
+    expect(api.get).toHaveBeenCalledTimes(3)
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('短暂查询失败和断开快照恢复后继续播放，不报告错误', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('temporary'))
+      .mockResolvedValueOnce(state('', { connected: false }))
+      .mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: 'playing' }))
+    expect(onState.mock.calls.every(([value]) => value.status !== 'error')).toBe(true)
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('暂停和拖动等待确认时，旧播放快照不能撤销用户操作', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(0)
+    await player.command({ type: 'pause' })
+    await player.command({ type: 'seek', seconds: 80 })
+    await vi.advanceTimersByTimeAsync(750)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'paused', position: 80 }))
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'paused', position: 80, controlSequence: 2 }))
+    await vi.advanceTimersByTimeAsync(750)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'playing', position: 82 }))
+    await vi.advanceTimersByTimeAsync(750)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'playing', position: 82 }))
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('控制确认前发出的状态请求即使晚到也不能确认新操作', async () => {
+    let finish!: (value: ApplePlaybackState) => void
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await player.load('123', false, 0, true, 1)
+    await player.command({ type: 'seek', seconds: 80 })
+    finish(state(sent().playbackId, { position: 80 }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onState).not.toHaveBeenCalled()
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { position: 30 }))
+    await vi.advanceTimersByTimeAsync(750)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ position: 80 }))
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('自然结束在半秒内通知，不等待原先的750毫秒轮询', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(0)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'ended' }))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ended' }))
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('快速暂停再播放时，旧playing快照不能确认尚未执行的恢复命令', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await player.command({ type: 'pause' })
+    await player.command({ type: 'play' })
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'loading' }))
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'paused', controlSequence: 1 }))
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'loading' }))
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { controlSequence: 2 }))
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'playing' }))
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('歌曲结束时回拖，未确认的旧结束快照不能触发下一首，媒体错误仍立即上报', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    await player.command({ type: 'seek', seconds: 20 })
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'ended' }))
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'loading', position: 20 }))
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId, { status: 'error', error: 'DRM failure' }))
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'error', error: 'DRM failure' }))
+    const count = vi.mocked(api.get).mock.calls.length
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api.get).toHaveBeenCalledTimes(count)
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('发送控制失败后解除本次待确认状态，后续快照可恢复真实进度', async () => {
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    vi.mocked(api.get).mockImplementation(async () => state(sent().playbackId))
+    await player.load('123', false, 0, true, 1)
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('offline'))
+    await expect(player.command({ type: 'seek', seconds: 80 })).rejects.toThrow('offline')
+    await vi.advanceTimersByTimeAsync(250)
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'playing', position: 30 }))
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('快速连续拖动仅发送最新的未发出位置和音量，不积压暂停', async () => {
+    const player = new AppleMusicPlayback(vi.fn())
+    vi.mocked(api.get).mockResolvedValue(state('ignored'))
+    await player.load('123', false, 0, true, 1)
+    const controls: Promise<void>[] = []
+    for (let index = 1; index <= 20; index++) {
+      controls.push(player.command({ type: 'volume', volume: index / 20 }))
+      controls.push(player.command({ type: 'seek', seconds: index }))
+    }
+    controls.push(player.command({ type: 'pause' }))
+    await Promise.all(controls)
+    expect(vi.mocked(api.post).mock.calls.map((_, index) => sent(index).type)).toEqual(['load', 'volume', 'seek', 'pause'])
+    expect(sent(2)).toMatchObject({ type: 'seek', seconds: 20, controlSequence: 20 })
     player.stop()
     await vi.advanceTimersByTimeAsync(0)
   })

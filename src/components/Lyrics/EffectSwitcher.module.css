@@ -11,7 +11,7 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 301;
-  min-width: 234px;
+  width: 314px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -26,7 +26,70 @@
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
   pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
+
+.menuTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.menuTabs button {
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.menuTabs .menuTabActive {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.tuningPanel {
+  padding: 3px 7px 9px;
+}
+
+.tuningHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 4px 12px;
+}
+
+.tuningHeading strong { color: #fff; font-size: 13px; }
+.tuningHeading span { color: rgba(255, 255, 255, 0.48); font-size: 10px; }
+
+.tuningDivider {
+  margin: 12px 2px 5px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.tuningRow {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+}
+
+.tuningRow input { width: 100%; accent-color: #fff; }
+.tuningRow output { color: rgba(255, 255, 255, 0.52); text-align: right; font-variant-numeric: tabular-nums; }
 
 .item {
   display: flex;

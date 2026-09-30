@@ -56,7 +56,7 @@
     "lyricGlowBeat": true,
     "lyricGlowParticles": false,
     "desktopLyrics": false,
-    "desktopLyricsSize": 1,
+    "desktopLyricsSize": 38,
     "desktopLyricsOpacity": 0.92,
     "desktopLyricsY": 0.76,
     "desktopLyricsClickThrough": false,

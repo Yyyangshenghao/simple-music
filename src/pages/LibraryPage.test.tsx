@@ -4,8 +4,9 @@ import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import { LibraryPage } from './LibraryPage'
 
+const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | null }))
 vi.mock('../hooks/useContentProvider', () => ({
-  useContentProvider: () => ({ current: null, sources: [], select: vi.fn() }),
+  useContentProvider: () => ({ current: content.current, sources: [], select: vi.fn() }),
 }))
 
 // 静态渲染默认读取 Zustand 初始快照；此处使用当前状态模拟账号请求完成后的重渲染。
@@ -20,6 +21,7 @@ vi.mock('../stores/providers', async (importOriginal) => {
 
 describe('我的库账号失效提示', () => {
   beforeEach(() => {
+    content.current = null
     useNavigationStore.setState({ currentView: 'library', history: [], future: [] })
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'anonymous' },
@@ -40,5 +42,25 @@ describe('我的库账号失效提示', () => {
     const html = renderToStaticMarkup(<LibraryPage />)
     expect(html).toContain('没有已启用的在线音乐平台')
     expect(html).not.toContain('登录已失效')
+  })
+
+  it('Apple Music 提供独立专辑入口，其他平台不显示空入口', () => {
+    content.current = 'apple'
+    const apple = renderToStaticMarkup(<LibraryPage />)
+    expect(apple).toContain('>专辑</button>')
+    content.current = 'qq'
+    expect(renderToStaticMarkup(<LibraryPage />)).not.toContain('>专辑</button>')
+  })
+
+  it('Apple 播放器断开时不展示可点的资料库，并提示重新连接', () => {
+    content.current = 'apple'
+    useProviderStore.setState(state => ({ byId: {
+      ...state.byId,
+      apple: { enabled: true, auth: 'authenticated', playbackAvailable: false },
+    } }))
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('Apple Music 暂时不可用')
+    expect(html).toContain('前往设置重新连接')
+    expect(html).not.toContain('加载中…')
   })
 })

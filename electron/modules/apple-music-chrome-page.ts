@@ -36,24 +36,30 @@ export class AppleMusicChromePage {
   private targetId = ''
   private commandId = 0
   private closed = false
+  private closing?: Promise<void>
   private pending = new Map<number, { resolve(value: Record<string, unknown>): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
 
   private constructor(private readonly onClose: () => void) {}
 
-  static async open(userDataDir: string, onClose: () => void): Promise<AppleMusicChromePage> {
+  static async open(userDataDir: string, onClose: () => void, signal?: AbortSignal): Promise<AppleMusicChromePage> {
     const executable = resolveChromeExecutable()
     if (!executable) throw new Error('本地 Apple Music DRM 验证需要安装 Google Chrome')
     let lastError: unknown
     for (let attempt = 0; attempt < 2; attempt++) {
+      if (signal?.aborted) throw new Error('连接已取消')
       const page = new AppleMusicChromePage(onClose)
+      const cancel = () => { void page.close() }
+      signal?.addEventListener('abort', cancel, { once: true })
       try {
-        await page.launch(executable, join(userDataDir, 'apple-music-browser'))
+        await page.launch(executable, join(userDataDir, 'apple-music-browser'), signal)
+        if (signal?.aborted) throw new Error('连接已取消')
         return page
       } catch (error) {
         lastError = error
         await page.close()
+        if (signal?.aborted) throw new Error('连接已取消')
         if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500))
-      }
+      } finally { signal?.removeEventListener('abort', cancel) }
     }
     throw lastError instanceof Error ? lastError : new Error('Chrome Apple Music 启动失败')
   }
@@ -80,10 +86,6 @@ export class AppleMusicChromePage {
     await this.call('Page.bringToFront')
   }
 
-  async minimize(): Promise<void> {
-    await this.setWindowState('minimized')
-  }
-
   async navigate(url: string): Promise<void> {
     await this.call('Page.navigate', { url })
   }
@@ -95,19 +97,29 @@ export class AppleMusicChromePage {
     })()`)
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  close(): Promise<void> {
+    if (this.closing) return this.closing
     this.closed = true
+    this.closing = this.closeResources()
+    return this.closing
+  }
+
+  private async closeResources(): Promise<void> {
     try { await this.call('Browser.close', {}, 2_000) } catch {}
     this.rejectPending(new Error('Chrome Apple Music 会话已关闭'))
     this.socket?.close()
     this.socket = undefined
-    if (this.child && !this.child.killed) this.child.kill()
+    const child = this.child
+    if (child) {
+      // killed 只说明信号已发送，不能据此判断进程已经结束。
+      if (!await terminateChild(child, 'SIGTERM', 1500)) await terminateChild(child, 'SIGKILL', 1000)
+    }
     this.child = undefined
   }
 
-  private async launch(executable: string, profileDir: string): Promise<void> {
+  private async launch(executable: string, profileDir: string, signal?: AbortSignal): Promise<void> {
     const port = await reservePort()
+    if (this.closed || signal?.aborted) throw new Error('连接已取消')
     const child = spawn(executable, [
       `--remote-debugging-port=${port}`,
       '--remote-debugging-address=127.0.0.1',
@@ -125,7 +137,8 @@ export class AppleMusicChromePage {
     child.once('exit', () => this.handleClosed())
     child.once('error', () => this.handleClosed())
 
-    const target = await waitForTarget(port, () => this.closed)
+    const target = await waitForTarget(port, () => this.closed, signal)
+    if (this.closed) throw new Error('连接已取消')
     if (!target.webSocketDebuggerUrl) throw new Error('无法连接 Chrome Apple Music 页面')
     this.targetId = target.id
     await this.connect(target.webSocketDebuggerUrl)
@@ -139,7 +152,11 @@ export class AppleMusicChromePage {
       const timer = setTimeout(() => reject(new Error('连接 Chrome Apple Music 页面超时')), COMMAND_TIMEOUT_MS)
       socket.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
       socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('无法连接 Chrome Apple Music 页面')) }, { once: true })
-      socket.addEventListener('close', () => this.handleClosed())
+      socket.addEventListener('close', () => {
+        clearTimeout(timer)
+        reject(new Error('Chrome Apple Music 页面已关闭'))
+        this.handleClosed()
+      })
       socket.addEventListener('message', event => this.handleMessage(String(event.data)))
     })
   }
@@ -170,7 +187,7 @@ export class AppleMusicChromePage {
     else pending.resolve(message.result ?? {})
   }
 
-  private async setWindowState(windowState: 'normal' | 'minimized'): Promise<void> {
+  private async setWindowState(windowState: 'normal'): Promise<void> {
     const result = await this.call('Browser.getWindowForTarget', { targetId: this.targetId })
     const windowId = result.windowId
     if (typeof windowId !== 'number') return
@@ -178,9 +195,9 @@ export class AppleMusicChromePage {
   }
 
   private handleClosed(): void {
-    if (this.closed) return
-    this.closed = true
     this.rejectPending(new Error('Chrome Apple Music 页面已关闭'))
+    if (this.closed) return
+    void this.close()
     this.onClose()
   }
 
@@ -220,12 +237,12 @@ async function reservePort(): Promise<number> {
   })
 }
 
-async function waitForTarget(port: number, cancelled: () => boolean): Promise<CdpTarget> {
+async function waitForTarget(port: number, cancelled: () => boolean, signal?: AbortSignal): Promise<CdpTarget> {
   const deadline = Date.now() + START_TIMEOUT_MS
   let lastError: unknown
   while (Date.now() < deadline && !cancelled()) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`)
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(2000)]) : AbortSignal.timeout(2000) })
       const targets = await response.json() as CdpTarget[]
       const target = targets.find(item => item.type === 'page' && item.url.startsWith('https://music.apple.com'))
       if (target) return target
@@ -234,4 +251,19 @@ async function waitForTarget(port: number, cancelled: () => boolean): Promise<Cd
   }
   if (cancelled()) throw new Error('连接已取消')
   throw new Error(lastError instanceof Error ? `Chrome Apple Music 启动失败：${lastError.message}` : 'Chrome Apple Music 启动超时')
+}
+
+function terminateChild(child: ChildProcess, signal: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode != null || child.signalCode != null || !child.pid) return Promise.resolve(true)
+  return new Promise(resolve => {
+    const finish = (exited: boolean) => {
+      clearTimeout(timer)
+      child.removeListener('exit', onExit)
+      resolve(exited)
+    }
+    const onExit = () => finish(true)
+    const timer = setTimeout(() => finish(false), timeoutMs)
+    child.once('exit', onExit)
+    try { child.kill(signal) } catch { finish(false) }
+  })
 }

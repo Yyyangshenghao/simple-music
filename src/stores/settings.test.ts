@@ -27,3 +27,16 @@ describe('3D 歌词帧率', () => {
     expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(0)
   })
 })
+
+describe('界面动效预设', () => {
+  it('切换预设不会改变 3D 歌词总开关', () => {
+    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+    useSettingsStore.getState().setPerformance({ lyrics3dEnabled: false })
+    useSettingsStore.getState().applyPerformancePreset('standard')
+    expect(useSettingsStore.getState().performance.lyrics3dEnabled).toBe(false)
+
+    useSettingsStore.getState().setPerformance({ lyrics3dEnabled: true })
+    useSettingsStore.getState().applyPerformancePreset('minimal')
+    expect(useSettingsStore.getState().performance.lyrics3dEnabled).toBe(true)
+  })
+})

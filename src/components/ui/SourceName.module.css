@@ -1,0 +1,13 @@
+.apple {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18em;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.apple svg {
+  width: 0.95em;
+  height: 0.95em;
+  flex: 0 0 auto;
+}

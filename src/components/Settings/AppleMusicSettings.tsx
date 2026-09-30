@@ -1,19 +1,22 @@
 import { useEffect } from 'react'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
+import { SourceName } from '../ui/SourceName'
 import styles from './AppleMusicSettings.module.css'
 
 export function AppleMusicSettings() {
   const { account, phase, message, error, refresh, connect, disconnect } = useAppleMusicConnection()
-  const busy = phase !== 'idle'
+  const busy = phase !== 'idle' || !!account?.restoring
   const waiting = phase === 'waiting'
   const subscription = account?.subscription ?? 'unknown'
-  const badge = waiting && !account?.loggedIn
+  const badge = account?.restoring
+    ? '恢复登录中'
+    : waiting && !account?.loggedIn
     ? '等待授权'
     : account?.loggedIn && subscription === 'inactive'
       ? '无有效订阅'
       : account?.loggedIn && subscription === 'unknown'
         ? '确认订阅中'
-        : account?.connected && account.loggedIn ? '已连接' : account?.loggedIn ? '应用内播放器已断开' : '未登录'
+        : account?.connected && account.loggedIn ? '已登录' : account?.loggedIn ? '连接已中断' : '未登录'
 
   useEffect(() => { void refresh() }, [refresh])
 
@@ -21,14 +24,14 @@ export function AppleMusicSettings() {
     <section className={styles.panel} aria-label="Apple Music 账户">
       <div className={styles.header}>
         <div>
-          <h3>Apple Music</h3>
-          <p>连接你的音乐资料库，在 Simple Music 选歌和控制播放。</p>
+          <h3><SourceName source="apple" /></h3>
+          <p>登录后即可在 Simple Music 使用 Apple Music 音源。</p>
         </div>
         <span className={styles.badge}>{badge}</span>
       </div>
       <div className={styles.actions}>
         <button className={styles.primary} disabled={busy || !!(account?.loggedIn && account.connected)} onClick={() => void connect()}>
-          {phase === 'opening' ? '正在打开…' : waiting ? '等待 Apple 授权…' : account?.loggedIn ? account.connected
+          {account?.restoring ? '正在恢复 Apple Music…' : phase === 'opening' ? '正在打开…' : waiting ? '等待 Apple 授权…' : account?.loggedIn ? account.connected
             ? subscription === 'inactive' ? '无有效订阅' : subscription === 'unknown' ? '正在确认订阅…' : '已连接 Apple Music'
             : '重新连接' : '登录 Apple Music'}
         </button>
@@ -45,7 +48,7 @@ export function AppleMusicSettings() {
               ? '确认完成前不会启用 Apple 音源，避免点歌后才出现播放错误。'
               : '没有订阅仍可完成账号登录，但 Apple 音源不会启用，也不能播放完整歌曲；免费广播暂未接入。'}</span>
       </div>
-      <p>{account?.loggedIn && account.connected && subscription === 'active' ? '已连接 Apple Music。授权窗口已隐藏，歌曲会直接在 Simple Music 内播放。' : '应用会打开专用的 Apple Music 授权窗口；完成登录后窗口自动隐藏，无需保留外部浏览器。'}</p>
+      <p>{account?.loggedIn && account.connected && subscription === 'active' ? '歌曲会直接在 Simple Music 内播放，可使用播放队列、快捷键和迷你播放器。' : '完成 Apple 账号授权后，即可在 Simple Music 中选歌和播放。'}</p>
       {message && <p className={error ? styles.error : styles.message} role={error ? 'alert' : 'status'}>{message}</p>}
     </section>
   )

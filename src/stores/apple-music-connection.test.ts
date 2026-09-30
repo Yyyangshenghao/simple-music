@@ -22,12 +22,18 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('Apple Music 登录流程', () => {
+  it('授权窗口已失败时立即恢复登录按钮并显示原因', async () => {
+    await connection().connect()
+    vi.mocked(api.get).mockResolvedValue({ ...ready, error: 'Apple Music 官网加载超时，请重试' })
+    await connection().refresh()
+    expect(connection()).toMatchObject({ phase: 'idle', error: true, message: 'Apple Music 官网加载超时，请重试' })
+  })
   it('直接登录无需提交开发者配置，授权完成后自动启用音源', async () => {
     await connection().connect()
     expect(api.post).not.toHaveBeenCalled()
     expect(openAppleMusicPlayer).toHaveBeenCalledWith('web')
     expect(connection().phase).toBe('waiting')
-    expect(connection().message).toContain('窗口会自动隐藏')
+    expect(connection().message).toContain('登录成功后即可播放')
     vi.mocked(api.get).mockResolvedValue(connected)
     await connection().refresh()
     expect(connection().phase).toBe('idle')
@@ -59,6 +65,52 @@ describe('Apple Music 登录流程', () => {
   it('普通状态同步不重新开启用户已关闭的音源', async () => {
     vi.mocked(api.get).mockResolvedValue(connected)
     await connection().refresh()
+    expect(useProviderStore.getState().byId.apple.enabled).toBe(false)
+  })
+  it('播放器断开但账号仍登录时暂停音源，重连后恢复原启用选择', async () => {
+    vi.mocked(api.get).mockResolvedValue(connected)
+    await connection().refresh()
+    useProviderStore.getState().setEnabled('apple', true)
+    vi.mocked(api.get).mockResolvedValue({ ...connected, connected: false, error: 'Apple Music 播放连接已断开，请重新连接' })
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, playbackAvailable: false })
+    expect(connection()).toMatchObject({ error: true, message: 'Apple Music 播放连接已断开，请重新连接' })
+    vi.mocked(api.get).mockResolvedValue(connected)
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, playbackAvailable: true })
+    expect(connection().error).toBe(false)
+  })
+  it('启动时 Apple 会话仍在恢复，不把已保存的启用偏好写成关闭', async () => {
+    useProviderStore.setState(state => ({ byId: {
+      ...state.byId,
+      apple: { enabled: true, auth: 'unknown' },
+    } }))
+    vi.mocked(api.get).mockResolvedValueOnce({ ...ready, restoring: true })
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, auth: 'unknown' })
+    vi.mocked(api.get).mockResolvedValue(connected)
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, auth: 'authenticated', playbackAvailable: true })
+  })
+  it('静默恢复超时后暂未登录仍保留启用偏好，迟到的有效授权会恢复音源', async () => {
+    useProviderStore.setState(state => ({ byId: {
+      ...state.byId,
+      apple: { enabled: true, auth: 'unknown' },
+    } }))
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, auth: 'anonymous' })
+    vi.mocked(api.get).mockResolvedValue(connected)
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ enabled: true, auth: 'authenticated', playbackAvailable: true })
+  })
+  it('暂时失联后用户主动退出会清除保留的启用偏好', async () => {
+    useProviderStore.setState(state => ({ byId: {
+      ...state.byId,
+      apple: { enabled: true, auth: 'unknown' },
+    } }))
+    await connection().refresh()
+    expect(useProviderStore.getState().byId.apple.enabled).toBe(true)
+    await connection().disconnect()
     expect(useProviderStore.getState().byId.apple.enabled).toBe(false)
   })
   it('旧账号仍有效但新窗口没有授权时，不误报登录完成', async () => {

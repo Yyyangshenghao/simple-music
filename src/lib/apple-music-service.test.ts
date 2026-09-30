@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppleMusicService, appleMusicTrackUrl, mapAppleTrack } from './apple-music-service'
+import { AppleMusicService, appendUniqueAppleCharts, appleMusicTrackUrl, mapAppleTrack, pickAppleRecommendationFeatures } from './apple-music-service'
 import { appleMusicProvider } from '../providers/apple-music-provider'
 import { api } from './api'
 import { appleMusicApiUrl } from '../../server/lib/apple-music'
+import type { Playlist } from '../types/domain'
 
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 const get = vi.mocked(api.get)
@@ -28,12 +29,18 @@ describe('Apple Music service', () => {
     await service.getArtistAlbums(123)
     await service.getAlbumDetail(123)
     await service.getAlbumTracks(123)
+    await service.getAlbumDetail('l.library')
+    await service.getAlbumTracks('l.library')
     await service.getPlaylistSkeleton('pl.catalog')
     await service.getPlaylistSkeleton('p.library')
     await service.getTracksByIds([123, 'i.library'])
     await service.getUserPlaylists()
+    await service.getUserAlbums()
     await service.getRecommendPlaylists()
-    expect(paths).toHaveLength(13)
+    await service.getChartPlaylistsPage()
+    await service.getStorefrontChartPlaylists()
+    await service.getRecommendationGroups()
+    expect(paths).toHaveLength(19)
     expect(paths.some((path) => path.includes('/artists/123/view/top-songs'))).toBe(true)
   })
 
@@ -74,6 +81,112 @@ describe('Apple Music service', () => {
     expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/library/playlists?offset=100' })
   })
 
+  it('资料库歌单列表缺少歌曲数时，从曲目关系读取真实总数', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [{ id: 'p.favorite', type: 'library-playlists', attributes: { name: '喜爱歌曲' } }] })
+      .mockResolvedValueOnce({ data: [song('i.first', 'library-songs')], meta: { total: 42 }, next: '/v1/me/library/playlists/p.favorite/tracks?offset=1' })
+
+    const playlists = await new AppleMusicService().getUserPlaylists()
+
+    expect(playlists).toMatchObject([{ id: 'p.favorite', trackCount: 42, trackCountKnown: true }])
+    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/library/playlists/p.favorite/tracks?limit=1' })
+  })
+
+  it('收藏入口只选择喜爱歌曲歌单，保留真实曲目数', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [
+        { id: 'p.travel', type: 'library-playlists', attributes: { name: '我喜爱的旅行歌曲' } },
+        { id: 'p.favorite', type: 'library-playlists', attributes: { name: '喜爱歌曲' } },
+      ] })
+      .mockResolvedValueOnce({ data: [song('i.first', 'library-songs')], meta: { total: 42 } })
+
+    expect(await new AppleMusicService().getLikedPlaylist()).toMatchObject({ id: 'p.favorite', trackCount: 42 })
+    expect(get).toHaveBeenCalledTimes(3)
+    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/library/playlists/p.favorite/tracks?limit=1' })
+  })
+
+  it('没有喜爱歌曲歌单时不把普通歌单当作收藏入口', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [{ id: 'p.other', type: 'library-playlists', attributes: { name: 'Favorite Mix' } }] })
+    expect(await new AppleMusicService().getLikedPlaylist()).toBeNull()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('按 Apple 推荐分组保留歌单与专辑顺序，忽略缺少标题的栏目', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [
+        {
+          id: 'mixes', type: 'personal-recommendation',
+          attributes: { title: { stringForDisplay: '为你推荐' } },
+          relationships: { contents: { data: [
+            { id: 'pl.mix', type: 'playlists', attributes: { name: '周五放松', artwork: { url: 'https://example.com/{w}x{h}.jpg' } } },
+            { id: 'album.1', type: 'albums', attributes: { name: '专辑' } },
+          ] } },
+        },
+        { id: 'untitled', type: 'personal-recommendation', relationships: { contents: { data: [
+          { id: 'pl.untitled', type: 'playlists', attributes: { name: '无标题' } },
+        ] } } },
+      ] })
+
+    expect(await new AppleMusicService().getRecommendationGroups()).toMatchObject([
+      { id: 'mixes', title: '为你推荐', items: [
+        { id: 'pl.mix', name: '周五放松', source: 'apple', type: 'playlist' },
+        { id: 'album.1', name: '专辑', source: 'apple', type: 'album' },
+      ] },
+    ])
+    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/recommendations' })
+  })
+
+  it('为你精选从每个分类稳定抽取一项，并避免跨分类重复', () => {
+    const item = (id: string, type: Playlist['type'] = 'playlist'): Playlist => ({
+      provider: 'apple', source: 'apple', type, id, name: id, cover: '', trackCount: 0, playCount: 0, creator: 'Apple Music',
+    })
+    const firstGroup = Array.from({ length: 14 }, (_, index) => item(`pl.${index}`))
+    const firstPick = pickAppleRecommendationFeatures([{ id: 'a', title: '专属推荐', items: firstGroup }], 42)[0].item
+    const groups = [
+      { id: 'a', title: '专属推荐', items: firstGroup },
+      { id: 'b', title: '继续发现', items: [firstPick, item('pl.0', 'album')] },
+      { id: 'empty', title: '空栏目', items: [] },
+    ]
+    const result = pickAppleRecommendationFeatures(groups, 42)
+    expect(result).toEqual(pickAppleRecommendationFeatures(groups, 42))
+    expect(result.map(feature => feature.moduleId)).toEqual(['a', 'b'])
+    expect(new Set(result.map(feature => `${feature.item.type}:${feature.item.id}`)).size).toBe(2)
+    expect(result[1]).toMatchObject({ item: { id: 'pl.0', type: 'album' }, groupTitle: '继续发现' })
+  })
+
+  it('未登录时不请求个性化推荐', async () => {
+    get.mockResolvedValueOnce({ loggedIn: false })
+    expect(await new AppleMusicService().getRecommendationGroups()).toEqual([])
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
+  it('曲目数查询失败时保留歌单，但标记数量未知', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [{ id: 'p.favorite', type: 'library-playlists', attributes: { name: '喜爱歌曲' } }] })
+      .mockRejectedValueOnce(new Error('暂时无法连接'))
+
+    expect(await new AppleMusicService().getUserPlaylists()).toMatchObject([
+      { id: 'p.favorite', trackCountKnown: false },
+    ])
+  })
+
+  it('个人专辑完整翻页，详情和曲目走资料库路径', async () => {
+    get.mockResolvedValueOnce({ loggedIn: true })
+      .mockResolvedValueOnce({ data: [{ id: 'l.first', type: 'library-albums', attributes: { name: '专辑一' } }], next: '/v1/me/library/albums?offset=100' })
+      .mockResolvedValueOnce({ data: [{ id: 'l.second', type: 'library-albums', attributes: { name: '专辑二' } }] })
+      .mockResolvedValueOnce({ data: [{ id: 'l.first', type: 'library-albums', attributes: { name: '专辑一' } }] })
+      .mockResolvedValueOnce({ data: [song('i.song', 'library-songs'), song('mv', 'music-videos')] })
+    const service = new AppleMusicService()
+    expect((await service.getUserAlbums()).map(album => album.id)).toEqual(['l.first', 'l.second'])
+    expect(await service.getAlbumDetail('l.first')).toMatchObject({ id: 'l.first', type: 'album' })
+    expect(await service.getAlbumTracks('l.first')).toMatchObject([{ id: 'i.song', appleLibrary: true }])
+    expect(get.mock.calls.map(call => call[1]?.path).filter(Boolean)).toEqual([
+      '/v1/me/library/albums?limit=100', '/v1/me/library/albums?offset=100',
+      '/v1/me/library/albums/l.first', '/v1/me/library/albums/l.first/tracks',
+    ])
+  })
+
   it.each(['https://evil.test/v1/songs', '//evil.test/v1/songs', '/api/local/tracks'])(
     '拒绝异常分页地址 %s，不向其发送第二次请求', async (next) => {
       get.mockResolvedValueOnce({ data: [song('i.a', 'library-songs')], next })
@@ -103,6 +216,11 @@ describe('Apple Music service', () => {
     expect(track.cover).toBe('https://example.com/600x600.jpg')
     expect(appleMusicTrackUrl(track)).toBe('apple-music:library:i.test')
     expect(appleMusicTrackUrl({ ...track, catalogId: '123' })).toBe('apple-music:123')
+  })
+
+  it('保留录音编号供同曲歌词校验', () => {
+    const resource = song('123')
+    expect(mapAppleTrack({ ...resource, attributes: { ...resource.attributes, isrc: 'USABC2600001' } }).isrc).toBe('USABC2600001')
   })
 
   it('搜索按账号 storefront 构造官方路径', async () => {
@@ -137,6 +255,46 @@ describe('Apple Music service', () => {
     expect(get).toHaveBeenCalledTimes(2)
   })
 
+  it('榜单按 Apple 返回的游标继续加载，不丢失后续歌单', async () => {
+    const next = '/v1/catalog/cn/charts?chart=most-played&limit=24&offset=24&types=playlists'
+    get.mockResolvedValueOnce({ storefront: 'cn' })
+      .mockResolvedValueOnce({ results: { playlists: [{ data: [{ id: 'pl.first', type: 'playlists', attributes: { name: '第一张' } }], next }] } })
+      .mockResolvedValueOnce({ results: { playlists: [{ data: [{ id: 'pl.second', type: 'playlists', attributes: { name: '第二张' } }] }] } })
+
+    const service = new AppleMusicService()
+    expect(await service.getChartPlaylistsPage()).toMatchObject({ playlists: [{ id: 'pl.first' }], nextCursor: next })
+    expect(await service.getChartPlaylistsPage(next)).toMatchObject({ playlists: [{ id: 'pl.second' }], nextCursor: undefined })
+    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/cn/charts?types=playlists&chart=most-played&limit=24' })
+    expect(get).toHaveBeenNthCalledWith(3, '/api/apple-music/catalog', { path: next })
+  })
+
+  it('多页榜单合并时跳过已有和同页重复卡片', () => {
+    const chart = (id: string): Playlist => ({ provider: 'apple', source: 'apple', type: 'playlist', id, name: id, cover: '', trackCount: 0, playCount: 0, creator: 'Apple Music' })
+    const first = chart('pl.first')
+    const second = chart('pl.second')
+    expect(appendUniqueAppleCharts([first], [first, second, second]).map(item => item.id)).toEqual(['pl.first', 'pl.second'])
+  })
+
+  it('榜单游标只能继续读取 charts', async () => {
+    await expect(new AppleMusicService().getChartPlaylistsPage('/v1/me/library/songs')).rejects.toThrow('榜单分页地址无效')
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('地区榜单只读取当前地区的首批歌单', async () => {
+    const next = '/v1/catalog/us/playlists?filter[storefront-chart]=us&offset=1'
+    const data = Array.from({ length: 25 }, (_, index) => ({
+      id: `pl.us-${index + 1}`, type: 'playlists', attributes: { name: `Top 100: ${index + 1}` },
+    }))
+    get.mockResolvedValueOnce({ storefront: 'us' })
+      .mockResolvedValueOnce({ data, next })
+    const playlists = await new AppleMusicService().getStorefrontChartPlaylists()
+    expect(playlists).toHaveLength(20)
+    expect(playlists[0]).toMatchObject({ id: 'pl.us-1', source: 'apple' })
+    expect(playlists.at(-1)).toMatchObject({ id: 'pl.us-20' })
+    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/us/playlists?filter[storefront-chart]=us' })
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
   it('未登录资料库为空，避免发起需用户授权请求', async () => {
     get.mockResolvedValueOnce({ loggedIn: false })
     expect(await new AppleMusicService().getUserPlaylists()).toEqual([])
@@ -152,7 +310,7 @@ describe('Apple Music service', () => {
     const candidates = await appleMusicProvider.playback.resolve(mapAppleTrack(song('123')), 'max')
     expect(candidates[0]).toMatchObject({ source: 'apple', url: 'apple-music:123', trial: false })
     expect(appleMusicProvider.playlistWriter).toBeUndefined()
-    expect(appleMusicProvider.library?.getLikedPlaylist).toBeUndefined()
+    expect(appleMusicProvider.library?.getLikedPlaylist).toBeTypeOf('function')
     expect(appleMusicProvider.descriptor.defaultEnabled).toBe(false)
     const controller = new AbortController()
     controller.abort()

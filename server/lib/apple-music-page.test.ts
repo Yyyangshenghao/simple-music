@@ -2,7 +2,7 @@ import { runInNewContext } from 'node:vm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appleMusicPlayerPage } from './apple-music-page'
 
-type Command = { type: string; sequence: number; playbackId: string; id?: string; library?: boolean; autoplay?: boolean; startAt?: number; volume?: number; seconds?: number }
+type Command = { type: string; sequence: number; playbackId: string; id?: string; library?: boolean; autoplay?: boolean; startAt?: number; volume?: number; seconds?: number; duration?: number; controlSequence?: number }
 type Report = { status: string; playbackId: string; position: number; duration: number; subscription: string; error?: string }
 
 async function browserHarness() {
@@ -70,6 +70,52 @@ async function browserHarness() {
 describe('浏览器 MusicKit 官方播放流程', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
+
+  it('成功控制才回报确认序号，旧快照与失败不能确认新操作', async () => {
+    const h = await browserHarness()
+    await h.authorize()
+    await h.send({ type: 'load', id: '123', sequence: 1, playbackId: 'p1' })
+    let finish!: () => void
+    h.music.pause.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    await h.send({ type: 'pause', sequence: 2, playbackId: 'p1', controlSequence: 1 })
+    expect(h.reports.at(-1)).toMatchObject({ controlSequence: 0 })
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.reports.at(-1)).toMatchObject({ controlSequence: 1 })
+    await h.send({ type: 'play', sequence: 3, playbackId: 'p1', controlSequence: 2 })
+    expect(h.reports.at(-1)).toMatchObject({ controlSequence: 2 })
+    h.music.seekToTime.mockRejectedValueOnce(new Error('seek failed'))
+    await h.send({ type: 'seek', seconds: 10, sequence: 4, playbackId: 'p1', controlSequence: 3 })
+    expect(h.reports.at(-1)).toMatchObject({ controlSequence: 2, status: 'error' })
+    await h.send({ type: 'load', id: '456', sequence: 5, playbackId: 'p2' })
+    expect(h.reports.at(-1)).toMatchObject({ controlSequence: 0 })
+  })
+
+  it('已知目录时长省去详情请求，从头播放不跳转且保留试听保护', async () => {
+    const h = await browserHarness()
+    await h.authorize()
+    await h.send({ type: 'load', id: '123', sequence: 1, playbackId: 'p1', duration: 180, startAt: 0 })
+    expect(h.music.api.music).not.toHaveBeenCalled()
+    expect(h.music.seekToTime).not.toHaveBeenCalled()
+    h.music.currentPlaybackDuration = 30
+    h.events.state()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.reports.at(-1)).toMatchObject({ status: 'error' })
+  })
+
+  it('资料库映射后的时长以目录为准，缺失目录时长则查询详情', async () => {
+    const h = await browserHarness()
+    await h.authorize()
+    await h.send({ type: 'load', id: '123', sequence: 1, playbackId: 'p1', duration: 0 })
+    expect(h.music.api.music).toHaveBeenCalledWith('v1/catalog/cn/songs/123')
+    h.music.api.music.mockClear().mockResolvedValueOnce({ data: { data: [{ id: '456' }] } })
+    await h.send({ type: 'load', id: 'i.123', library: true, sequence: 2, playbackId: 'p2', duration: 30 })
+    expect(h.music.api.music).toHaveBeenCalledWith('v1/catalog/cn/songs/456')
+    h.music.currentPlaybackDuration = 30
+    h.events.state()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.reports.at(-1)).toMatchObject({ status: 'error' })
+  })
 
   it('授权、加载、暂停、拖动、完成均同步；用户音量与断点生效', async () => {
     const h = await browserHarness()

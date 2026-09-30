@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { startServer } from '../server/index'
 import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
+import { getMainWindow } from './modules/window-manager'
 
 let handle: { port: number; close(): void } | null = null
 let apiToken = ''
@@ -42,7 +43,10 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
   apiToken = loadOrCreateToken(userDataDir)
   // Apple 的生产许可证服务拒绝 CastLabs 开发 VMP 签名。开发态改用系统 Chrome
   // 的正式 Widevine 客户端；发布包经 EVS 生产签名后继续使用应用内隐藏窗口。
-  appleMusicWeb = new OfficialAppleMusicSession(userDataDir, !app.isPackaged)
+  appleMusicWeb = new OfficialAppleMusicSession(userDataDir, !app.isPackaged, () => {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) { win.show(); win.focus() }
+  })
   handle = await startServer({
     appleMusicWeb,
     userDataDir,
@@ -50,6 +54,7 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged
   })
+  void appleMusicWeb.restore()
   return { port: handle.port, token: apiToken }
 }
 

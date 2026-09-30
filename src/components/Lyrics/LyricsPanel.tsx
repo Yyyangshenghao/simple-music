@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
+import { useProviderStore } from '../../stores/providers'
+import { SourceName } from '../ui/SourceName'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
@@ -136,6 +138,9 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
+  const lyricSource = useLyricsStore((s) => s.source)
+  const lyricsLoading = useLyricsStore((s) => s.loading)
+  const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
   const offsetSec = useLyricsStore((s) => s.offsetSec)
@@ -182,6 +187,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 3D 效果下拉菜单:已处于 3D 模式时再点一次 3D 按钮才展开
   const [effectMenuOpen, setEffectMenuOpen] = useState(false)
+  const [effectMenuTab, setEffectMenuTab] = useState<'scene' | 'adjust'>('scene')
 
   // 右缘侧栏的歌词设置浮层(自由排版/字号/同步)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
@@ -318,19 +324,30 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <button
               className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
               disabled={!lyrics3dEnabled}
-              title={lyrics3dEnabled ? undefined : '已在设置的性能选项中关闭 3D 歌词'}
+              title={lyrics3dEnabled ? '选择 3D 场景与文字' : '已在设置的歌词与动效中关闭 3D 歌词'}
               onClick={() => {
                 if (mode !== '3d') {
                   setMode('3d')
                 } else {
-                  setEffectMenuOpen((v) => !v)
+                  setEffectMenuTab('scene')
+                  setEffectMenuOpen(effectMenuTab === 'scene' ? !effectMenuOpen : true)
                 }
               }}
             >
               3D
             </button>
+            {mode === '3d' && <button
+              className={`${styles.modeAdjustBtn}${effectMenuOpen && effectMenuTab === 'adjust' ? ` ${styles.modeBtnActive}` : ''}`}
+              type="button"
+              aria-label="调节 3D 歌词"
+              title="调节当前 3D 场景和歌词"
+              onClick={() => {
+                setEffectMenuTab('adjust')
+                setEffectMenuOpen(effectMenuTab === 'adjust' ? !effectMenuOpen : true)
+              }}
+            >调节</button>}
             {effectMenuOpen && mode === '3d' && (
-              <EffectSwitcher onClose={() => setEffectMenuOpen(false)} />
+              <EffectSwitcher tab={effectMenuTab} onTabChange={setEffectMenuTab} onClose={() => setEffectMenuOpen(false)} />
             )}
           </div>
         </div>
@@ -384,11 +401,18 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   source={track?.source ?? 'netease'}
                   onBeforeNavigate={onClose}
                 />
+                {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
+                  <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
+                )}
               </div>
             </div>
 
             {lines.length === 0 ? (
-              <div className={styles.empty}>暂无歌词</div>
+              <div className={styles.empty}>
+                {lyricsLoading ? '正在加载歌词…' : track?.source === 'apple'
+                  ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
+                  : '暂无歌词'}
+              </div>
             ) : (
               <div
                 className={`${styles.lyricsScroll}${browsing ? ` ${styles.browsing}` : ''}`}

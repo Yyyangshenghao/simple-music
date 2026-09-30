@@ -47,6 +47,26 @@ describe('Apple Music browser bridge', () => {
     const ctx = context(); openAppleMusicBridge(ctx)
     expect(() => queueAppleMusicCommand(ctx, { type: 'load', playbackId: 'a', id: '../bad' })).toThrow()
     expect(() => queueAppleMusicCommand(ctx, { type: 'volume', playbackId: 'a', volume: 2 })).toThrow()
+    for (const duration of [-1, NaN, Infinity]) {
+      expect(() => queueAppleMusicCommand(ctx, { type: 'load', playbackId: 'a', id: '123', duration })).toThrow('参数')
+    }
+    for (const controlSequence of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => queueAppleMusicCommand(ctx, { type: 'pause', playbackId: 'a', controlSequence })).toThrow('参数')
+    }
+  })
+  it('接收有效控制确认并在新加载重置，非法确认被忽略', () => {
+    const ctx = context(); openAppleMusicBridge(ctx); activate(ctx)
+    queueAppleMusicCommand(ctx, { type: 'load', playbackId: 'a', id: '123' })
+    queueAppleMusicCommand(ctx, { type: 'pause', playbackId: 'a', controlSequence: 1 })
+    expect(appleMusicBridgeState(ctx).controlSequence).toBe(0)
+    updateAppleMusicBridgeState(ctx, { playbackId: 'a', controlSequence: 1 })
+    expect(appleMusicBridgeState(ctx).controlSequence).toBe(1)
+    for (const controlSequence of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      updateAppleMusicBridgeState(ctx, { playbackId: 'a', controlSequence })
+      expect(appleMusicBridgeState(ctx).controlSequence).toBe(1)
+    }
+    queueAppleMusicCommand(ctx, { type: 'load', playbackId: 'b', id: '456' })
+    expect(appleMusicBridgeState(ctx).controlSequence).toBe(0)
   })
   it('明确区分无订阅和暂时无法确认，均不排队播放', () => {
     const ctx = context(); openAppleMusicBridge(ctx)

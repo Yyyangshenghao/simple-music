@@ -12,17 +12,22 @@ import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 interface PlaylistCardProps {
   playlist: Playlist
   onClick(): void
-  /** 上游没有可靠曲目数时，可用更诚实的辅助信息替代“0 首”。 */
+  /** 上游没有可靠曲目数时，可传入辅助信息；空字符串隐藏辅助文字。 */
   meta?: string
   /** 传入时封面参与共享元素转场（与详情页头部封面同 ID）。 */
   layoutId?: string
 }
 
 export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId }: PlaylistCardProps) {
+  const displayMeta = meta ?? (playlist.trackCountKnown === false ? '查看歌曲' : `${playlist.trackCount} 首`)
   return (
     <TiltCard className={styles.glowWrap}>
       <BorderGlow borderRadius={16}>
-        <button className={`${styles.card} no-drag`} onClick={onClick}>
+        <button
+          className={`${styles.card} no-drag`}
+          onClick={onClick}
+          aria-label={`${playlist.type === 'album' ? '专辑' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
+        >
           <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
             {playlist.cover
               ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
@@ -30,7 +35,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
             <SourceBadge source={playlist.source} className={styles.sourceBadge} />
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>
-          <p className={styles.meta}>{meta ?? `${playlist.trackCount} 首`}</p>
+          {displayMeta && <p className={styles.meta}>{displayMeta}</p>}
         </button>
       </BorderGlow>
     </TiltCard>

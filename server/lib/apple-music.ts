@@ -80,7 +80,8 @@ export function getAppleMusicStatus(ctx: ServerContext) {
   if (ctx.appleMusicWeb && ctx.appleMusicLoginMode !== 'developer') {
     const state = ctx.appleMusicWeb.state()
     return { configured: false, ready: true, managed: false, loginMode: 'web' as const,
-      connected: state.connected, loggedIn: state.loggedIn, subscription: state.subscription, storefront: state.storefront }
+      connected: state.connected, loggedIn: state.loggedIn, restoring: state.restoring ?? false,
+      subscription: state.subscription, storefront: state.storefront, ...(state.error ? { error: state.error } : {}) }
   }
   const config = getAppleMusicConfig(ctx)
   let valid = false
@@ -100,7 +101,8 @@ export function appleMusicApiUrl(path: string): URL {
   const catalog = /^\/v1\/catalog\/[a-z]{2}\/(?:search(?:\/suggestions)?|charts|(?:songs|albums|artists|playlists)(?:\/[A-Za-z0-9._-]+(?:\/(?:tracks|albums|songs|artists|playlists|relationships\/(?:tracks|albums|songs|artists|playlists)))?)?)$/
   const artistView = /^\/v1\/catalog\/[a-z]{2}\/artists\/[A-Za-z0-9._-]+\/view\/top-songs$/
   const library = /^\/v1\/me\/library\/(?:songs|albums|artists|playlists)(?:\/[A-Za-z0-9._-]+(?:\/(?:tracks|albums|songs|artists|catalog))?)?$/
-  if ((!catalog.test(pathname) && !artistView.test(pathname) && !library.test(pathname)) || pathname.split('/').some(p => p === '.' || p === '..')) {
+  const recommendations = pathname === '/v1/me/recommendations'
+  if ((!catalog.test(pathname) && !artistView.test(pathname) && !library.test(pathname) && !recommendations) || pathname.split('/').some(p => p === '.' || p === '..')) {
     throw new AppleMusicError(400, '不支持的 Apple Music 请求路径')
   }
   return new URL(path, 'https://api.music.apple.com')

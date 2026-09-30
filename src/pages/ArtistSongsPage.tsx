@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
+import { TrackSearch } from '../components/ui/TrackSearch'
+import { matchingTrackIndices } from '../lib/track-search'
+import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
@@ -7,6 +10,7 @@ import { useBackdropStore } from '../stores/backdrop'
 import { useProviderStore } from '../stores/providers'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { VirtualList } from '../components/ui/VirtualList'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { sizedImage } from '../lib/image-size'
 import { springSnappy, tapScale } from '../lib/motion-presets'
@@ -15,6 +19,7 @@ import type { ArtistInfo, Track } from '../types/domain'
 import styles from './ArtistSongsPage.module.css'
 
 const PAGE_SIZE = 50
+const TRACK_ROW_HEIGHT = 56
 
 interface ArtistSongsPageProps {
   id: unknown
@@ -22,6 +27,8 @@ interface ArtistSongsPageProps {
 }
 
 export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
+  const [query, setQuery] = useState('')
+  const searching = Boolean(query.trim())
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
   const [songs, setSongs] = useState<Track[]>([])
   const [cursor, setCursor] = useState(0)
@@ -31,11 +38,14 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
   const [initialRetry, setInitialRetry] = useState(0)
   const [hideUnavailable, setHideUnavailable] = useState(true)
   const requestScopeRef = useRef<object>({})
+  const scrollRef = useRef<HTMLDivElement>(null)
   const loadSentinelRef = useRef<HTMLDivElement>(null)
   const service = useMemo(() => serviceFor(source), [source])
   const participating = useProviderStore((state) =>
     state.byId[source].enabled && state.byId[source].auth === 'authenticated'
   )
+  const search = useArtistSearch(id, source, searching && participating)
+  useEffect(() => { setQuery('') }, [id, source])
   const goBack = useNavigationStore((state) => state.goBack)
 
   useEffect(() => {
@@ -80,11 +90,14 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
     return () => useBackdropStore.getState().setCover(null)
   }, [artist?.avatar])
 
-  const visibleSongs = hideUnavailable ? songs.filter((song) => !isCatalogUnavailable(song)) : songs
+  const searchedSongs = searching
+    ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index])
+    : songs
+  const visibleSongs = hideUnavailable ? searchedSongs.filter((song) => !isCatalogUnavailable(song)) : searchedSongs
 
   function playTrack(track: Track) {
     if (isCatalogUnavailable(track)) return
-    const playableSongs = songs.filter((song) => !isCatalogUnavailable(song))
+    const playableSongs = searchedSongs.filter((song) => !isCatalogUnavailable(song))
     const index = playableSongs.findIndex((song) =>
       song.source === track.source && String(song.id) === String(track.id)
     )
@@ -120,16 +133,16 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
 
   useEffect(() => {
     const sentinel = loadSentinelRef.current
-    if (!sentinel || !hasMore || loading || loadError) return
+    if (searching || !sentinel || !hasMore || loading || loadError) return
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) void loadMore()
     }, { rootMargin: '320px 0px' })
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [hasMore, loadError, loading, loadMore])
+  }, [hasMore, loadError, loading, loadMore, searching])
 
   return (
-    <ScrollArea className={styles.page}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <motion.button
         className={`${styles.back} no-drag`}
         onClick={goBack}
@@ -163,7 +176,7 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
             {artist?.musicSize ? <span>共 {artist.musicSize} 首</span> : null}
           </div>
         </div>
-        {songs.some(isCatalogUnavailable) && (
+        {(searching ? search.songs : songs).some(isCatalogUnavailable) && (
           <button
             type="button"
             className={`${styles.availabilityFilter} no-drag`}
@@ -176,19 +189,26 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
       </header>
 
       <div className={styles.trackList}>
-        {visibleSongs.map((song, index) => (
-          <TrackRow
-            key={`${song.source}:${String(song.id)}`}
-            track={song}
-            index={index}
-            onPlay={() => playTrack(song)}
-            disabled={isCatalogUnavailable(song)}
-            statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
-          />
-        ))}
+        <TrackSearch value={query} onChange={setQuery} placeholder="搜索该歌手的歌曲"
+          count={visibleSongs.length} loading={search.loading} error={search.error} onRetry={search.retry} />
+        <VirtualList
+          total={visibleSongs.length}
+          rowHeight={TRACK_ROW_HEIGHT}
+          scrollRef={scrollRef}
+          renderRow={(index) => {
+            const song = visibleSongs[index]
+            return <TrackRow
+              track={song}
+              index={index}
+              onPlay={() => playTrack(song)}
+              disabled={isCatalogUnavailable(song)}
+              statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
+            />
+          }}
+        />
       </div>
 
-      <div className={styles.pagination}>
+      {!searching && <div className={styles.pagination}>
         {loading ? (
           <span>正在载入完整曲库…</span>
         ) : loadError ? (
@@ -206,7 +226,7 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
           <span>{participating ? '暂时拿不到歌曲' : '该平台未登录或未启用'}</span>
         ) : null}
         <div ref={loadSentinelRef} className={styles.loadSentinel} aria-hidden="true" />
-      </div>
+      </div>}
     </ScrollArea>
   )
 }

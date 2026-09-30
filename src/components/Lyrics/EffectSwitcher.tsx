@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { motion } from 'motion/react'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
@@ -153,88 +154,151 @@ const LYRIC_STYLES: StyleInfo[] = [
 
 interface EffectSwitcherProps {
   onClose: () => void
+  tab: 'scene' | 'adjust'
+  onTabChange: (tab: 'scene' | 'adjust') => void
 }
 
-/** 3D 按钮下拉菜单：同屏行数、背景效果和歌词样式。 */
-export function EffectSwitcher({ onClose }: EffectSwitcherProps) {
+function TuningSlider({ label, value, min, max, step, onChange, format = (v: number) => `${Math.round(v * 100)}%` }: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  onChange: (value: number) => void
+  format?: (value: number) => string
+}) {
+  const id = useId()
+  return (
+    <label className={styles.tuningRow} htmlFor={id}>
+      <span>{label}</span>
+      <input id={id} type="range" min={min} max={max} step={step} value={value}
+        aria-valuetext={format(value)} onChange={(event) => onChange(Number(event.currentTarget.value))} />
+      <output htmlFor={id}>{format(value)}</output>
+    </label>
+  )
+}
+
+/** 歌词播放页的 3D 场景选择与当前场景调节。 */
+export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProps) {
   const active = useSettingsStore((s) => s.lyrics3dEffect)
   const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
   const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
   const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
+  const params = useSettingsStore((s) => s.lyrics3d)
+  const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
+  const setOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
   const setParams = useSettingsStore((s) => s.setLyrics3dParams)
+  const patch = (key: keyof typeof params) => (value: number) => setParams({ [key]: value })
 
   return (
     <>
       <div className={`${styles.backdrop} no-drag`} onClick={onClose} />
       <motion.div
         className={`${styles.menu} no-drag`}
-        role="menu"
+        role="dialog"
+        aria-label="3D 歌词设置"
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={springSnappy}
       >
-        <div className={styles.sectionLabel}>同屏歌词</div>
-        <div className={styles.displayModes} role="group" aria-label="同屏歌词行数">
-          {([['single', '1 行'], ['dual', '2 行'], ['triple', '3 行'], ['cinema', '5 行']] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`${styles.displayModeBtn}${displayMode === id ? ` ${styles.displayModeBtnActive}` : ''}`}
-              aria-pressed={displayMode === id}
-              onClick={() => {
-                setParams({ displayMode: id })
-              }}
-            >
-              {label}
-            </button>
-          ))}
+        <div className={styles.menuTabs} role="tablist" aria-label="3D 歌词选项">
+          <button type="button" role="tab" aria-selected={tab === 'scene'}
+            className={tab === 'scene' ? styles.menuTabActive : ''} onClick={() => onTabChange('scene')}>场景与文字</button>
+          <button type="button" role="tab" aria-selected={tab === 'adjust'}
+            className={tab === 'adjust' ? styles.menuTabActive : ''} onClick={() => onTabChange('adjust')}>细节调节</button>
         </div>
-        <div className={styles.divider} aria-hidden="true" />
-        <div className={styles.sectionLabel}>场景效果</div>
-        {EFFECTS.map((eff) => {
-          const isActive = active === eff.id
-          return (
-            <motion.button
-              key={eff.id}
-              role="menuitemradio"
-              aria-checked={isActive}
-              className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
-              onClick={() => {
-                setEffect(eff.id)
-              }}
-              whileTap={tapScale}
-              transition={springSnappy}
-            >
-              <span className={styles.icon}>{eff.icon}</span>
-              <span className={styles.label}>{eff.label}</span>
-            </motion.button>
-          )
-        })}
-        <div className={styles.divider} aria-hidden="true" />
-        <div className={styles.sectionLabel}>歌词样式</div>
-        {LYRIC_STYLES.map((style) => {
-          const isActive = activeStyle === style.id
-          return (
-            <motion.button
-              key={style.id}
-              role="menuitemradio"
-              aria-checked={isActive}
-              className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
-              onClick={() => {
-                setStyle(style.id)
-              }}
-              whileTap={tapScale}
-              transition={springSnappy}
-            >
-              <span className={styles.icon}>{style.icon}</span>
-              <span className={styles.itemCopy}>
-                <span className={styles.label}>{style.label}</span>
-                <span className={styles.hint}>{style.hint}</span>
-              </span>
-            </motion.button>
-          )
-        })}
+        {tab === 'scene' ? <>
+          {activeStyle !== 'focus' && <>
+          <div className={styles.sectionLabel}>同屏歌词</div>
+          <div className={styles.displayModes} role="group" aria-label="同屏歌词行数">
+            {([['single', '1 行'], ['dual', '2 行'], ['triple', '3 行'], ['cinema', '5 行']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`${styles.displayModeBtn}${displayMode === id ? ` ${styles.displayModeBtnActive}` : ''}`}
+                aria-pressed={displayMode === id}
+                onClick={() => {
+                  setParams({ displayMode: id })
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.divider} aria-hidden="true" />
+          </>}
+          <div className={styles.sectionLabel}>场景效果</div>
+          {EFFECTS.map((eff) => {
+            const isActive = active === eff.id
+            return (
+              <motion.button
+                key={eff.id}
+                aria-pressed={isActive}
+                className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
+                onClick={() => {
+                  setEffect(eff.id)
+                }}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                <span className={styles.icon}>{eff.icon}</span>
+                <span className={styles.label}>{eff.label}</span>
+              </motion.button>
+            )
+          })}
+          <div className={styles.divider} aria-hidden="true" />
+          <div className={styles.sectionLabel}>歌词样式</div>
+          {LYRIC_STYLES.map((style) => {
+            const isActive = activeStyle === style.id
+            return (
+              <motion.button
+                key={style.id}
+                aria-pressed={isActive}
+                className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
+                onClick={() => {
+                  setStyle(style.id)
+                }}
+                whileTap={tapScale}
+                transition={springSnappy}
+              >
+                <span className={styles.icon}>{style.icon}</span>
+                <span className={styles.itemCopy}>
+                  <span className={styles.label}>{style.label}</span>
+                  <span className={styles.hint}>{style.hint}</span>
+                </span>
+              </motion.button>
+            )
+          })}
+        </> : <div className={styles.tuningPanel}>
+          <div className={styles.tuningHeading}>
+            <strong>{EFFECTS.find((effect) => effect.id === active)?.label}</strong>
+            <span>调整时可直接看到舞台变化</span>
+          </div>
+          <TuningSlider label="粒子数量" value={params.particleCount} min={0.25} max={2} step={0.05} onChange={patch('particleCount')} />
+          <TuningSlider label={active === 'waveform-3d' ? '歌词点缀粒子大小' : '粒子大小'} value={params.particleSize} min={0.2} max={2} step={0.05} onChange={patch('particleSize')} />
+          <TuningSlider label="场景亮度" value={params.particleBrightness} min={0.3} max={2} step={0.05} onChange={patch('particleBrightness')} />
+          <TuningSlider label="动效强度" value={params.motionIntensity} min={0.2} max={2} step={0.05} onChange={patch('motionIntensity')} />
+          {active === 'cover-cloud' && activeStyle === 'focus' && <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />}
+          {active === 'cover-cloud' && <>
+            <div className={styles.tuningDivider}>鼓点波纹 · 封面粒子云</div>
+            <TuningSlider label="波纹数量" value={params.rippleCount} min={1} max={6} step={1}
+              format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+            <TuningSlider label="触发灵敏度" value={params.rippleSensitivity} min={0} max={1} step={0.01} onChange={patch('rippleSensitivity')} />
+            <TuningSlider label="扩散时长" value={params.rippleDuration} min={0.2} max={1.5} step={0.05}
+              format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+          </>}
+          <div className={styles.tuningDivider}>{activeStyle === 'focus' ? '简洁叠层' : '3D 歌词 · 文字层次'}</div>
+          {activeStyle === 'focus' ? <TuningSlider label="歌词底部模糊" value={overlayBlur} min={0} max={1} step={0.01} onChange={setOverlayBlur} /> : <>
+            <TuningSlider label="前后歌词亮度" value={params.contextOpacity} min={0.25} max={1} step={0.01} onChange={patch('contextOpacity')} />
+            <TuningSlider label="歌词行间距" value={params.contextSpread} min={0.6} max={2.4} step={0.02}
+              format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
+            <TuningSlider label="远处歌词渐隐" value={params.edgeFade} min={0} max={1} step={0.01} onChange={patch('edgeFade')} />
+            <TuningSlider label="切换柔和度" value={params.motionSoftness} min={0.15} max={1.2} step={0.01}
+              format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
+            <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />
+          </>}
+        </div>}
       </motion.div>
     </>
   )

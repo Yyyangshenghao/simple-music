@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
-import { SOURCE_BRAND } from '../lib/source-brand'
 import { sizedImage } from '../lib/image-size'
 import { isCatalogUnavailable } from '../lib/track-availability'
 import { useProviderStore } from '../stores/providers'
@@ -10,6 +9,7 @@ import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { SourceName } from '../components/ui/SourceName'
 import { TrackRow } from '../components/Explore/TrackRow'
 import type { ArtistInfo, Track } from '../types/domain'
 import styles from './SearchPage.module.css'
@@ -84,7 +84,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
           {sources.map((source) => (
             <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => setSourceFilter(source)}>
               <SourceBadge source={source} compact reveal />
-              <span>{providerFor(source).descriptor.label}</span>
+              <span><SourceName source={source} /></span>
             </button>
           ))}
         </div>
@@ -100,7 +100,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
             {failures.length > 0 && (
               <div className={styles.errors} role="status">
                 <div>{failures.map(({ source, label, error }) => (
-                  <p key={`${source}:${label}`}>{providerFor(source).descriptor.label} · {label}：{error?.message ?? '搜索失败'}</p>
+                  <p key={`${source}:${label}`}><SourceName source={source} /> · {label}：{error?.message ?? '搜索失败'}</p>
                 ))}</div>
                 <button type="button" onClick={() => setRetry((value) => value + 1)}>重新搜索</button>
               </div>
@@ -117,7 +117,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
                       {artist.avatar
                         ? <img src={sizedImage(artist.avatar, 160)} alt="" loading="lazy" />
                         : <span className={styles.avatarFallback} aria-hidden="true">{artist.name.slice(0, 1)}</span>}
-                      <span className={styles.artistInfo}><strong>{artist.name}</strong><span><SourceBadge source={artist.source} compact reveal />{SOURCE_BRAND[artist.source].label}</span></span>
+                      <span className={styles.artistInfo}><strong>{artist.name}</strong><span><SourceBadge source={artist.source} compact reveal /><SourceName source={artist.source} /></span></span>
                     </button>
                   ))}
                 </div>

@@ -20,6 +20,53 @@ function harness() {
 }
 
 describe('官网内 MusicKit 会话适配', () => {
+  it('控制序号仅在成功完成后确认，加载新歌重置确认', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180 })
+    let finish!: () => void
+    h.music.pause.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const pending = h.command('pause', { controlSequence: 1 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 0 })
+    finish()
+    await pending
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 1 })
+    await h.command('play', { controlSequence: 2 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 2 })
+    h.music.seekToTime.mockRejectedValueOnce(new Error('seek failed'))
+    await h.command('seek', { seconds: 10, controlSequence: 3 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 2, status: 'error' })
+    await h.command('load', { id: '456', duration: 180 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 0 })
+  })
+  it('取消期间完成的旧控制不能确认', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180 })
+    let finish!: () => void
+    h.music.pause.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const pending = h.command('pause', { controlSequence: 1 })
+    await h.call({ type: 'invalidate', generation: 1 })
+    finish()
+    await pending
+    expect(await h.call({ type: 'state' })).toMatchObject({ controlSequence: 0 })
+  })
+  it('已知目录时长直接加载且从头播放不额外跳转，仍拦截试听', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180, startAt: 0 })
+    expect(h.music.api.music).not.toHaveBeenCalled()
+    expect(h.music.seekToTime).not.toHaveBeenCalled()
+    h.music.currentPlaybackDuration = 30
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'error' })
+  })
+  it('未知目录时长和资料库映射仍查询官方时长', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 0 })
+    expect(h.music.api.music).toHaveBeenCalledWith('v1/catalog/cn/songs/123')
+    h.music.api.music.mockClear()
+    await h.command('load', { id: 'i.123', library: true, duration: 30 })
+    expect(h.music.api.music).toHaveBeenCalledWith('v1/catalog/cn/songs/456')
+    h.music.currentPlaybackDuration = 30
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'error' })
+  })
   it('仅在 Apple 官网执行，其他来源不能调用 SDK', async () => {
     const h = harness()
     h.context.location.origin = 'https://example.com'

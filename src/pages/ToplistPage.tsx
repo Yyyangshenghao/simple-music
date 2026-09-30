@@ -7,11 +7,11 @@ import { ToplistCard } from '../components/Explore/ToplistCard'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { GradientText } from '../components/ui/GradientText'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { SourceName } from '../components/ui/SourceName'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import type { ToplistGroup } from '../lib/music-service'
 import type { Playlist } from '../types/domain'
 import styles from './ToplistPage.module.css'
-import { providerFor } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 
 /** 全部榜单:服务端按主题分组(官方榜/云村特色/曲风/ACG/语种海外/更多),每组一片网格。
@@ -75,7 +75,7 @@ export function ToplistPage() {
       <motion.h1 className={styles.heading} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
         <GradientText>榜单精选</GradientText>
         <SourceBadge source={source} reveal />
-        {participating && <span className={styles.sourceLabel}>{providerFor(source).descriptor.label}</span>}
+        {participating && <span className={styles.sourceLabel}><SourceName source={source} /></span>}
       </motion.h1>
 
       {groups.map((group) => (

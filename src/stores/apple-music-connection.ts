@@ -10,8 +10,10 @@ export interface AppleMusicAccountStatus {
   managed: boolean
   loggedIn: boolean
   connected: boolean
+  restoring?: boolean
   subscription: 'unknown' | 'active' | 'inactive'
   storefront: string
+  error?: string
 }
 
 interface ConnectionState {
@@ -40,17 +42,24 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
       const account = await api.get<AppleMusicAccountStatus>('/api/apple-music/status')
       if (version !== revision || sequence !== requestSequence || ['opening', 'disconnecting'].includes(get().phase)) return
       set({ account, ...(get().statusError ? { error: false, statusError: false, message: '' } : {}) })
+      if (account.restoring) return
       const store = useProviderStore.getState()
       const auth = account.loggedIn ? 'authenticated' : 'anonymous'
-      if (store.byId.apple.auth !== auth) store.setAccountState('apple', auth, account.loggedIn ? { avatar: '', nickname: 'Apple Music' } : undefined)
+      if (store.byId.apple.auth !== auth) store.setAccountState('apple', auth,
+        account.loggedIn ? { avatar: '', nickname: 'Apple Music' } : undefined,
+        { preserveEnabled: !account.loggedIn })
       if (account.loggedIn) {
-        const unavailable = account.subscription === 'inactive'
-          ? '此账号没有有效的 Apple Music 订阅，无法播放完整歌曲。'
-          : '正在确认 Apple Music 订阅状态，确认前无法播放。'
-        store.setPlaybackAvailability('apple', account.subscription === 'active', unavailable)
+        const unavailable = !account.connected
+          ? account.error || 'Apple Music 播放连接已断开，请重新连接。'
+          : account.subscription === 'inactive'
+            ? '此账号没有有效的 Apple Music 订阅，无法播放完整歌曲。'
+            : '正在确认 Apple Music 订阅状态，确认前无法播放。'
+        store.setPlaybackAvailability('apple', account.connected && account.subscription === 'active', unavailable)
       }
       if (get().phase === 'waiting') {
-        if (account.loggedIn && account.connected && account.subscription === 'active') {
+        if (!account.connected && account.error) {
+          set({ phase: 'idle', error: true, message: account.error })
+        } else if (account.loggedIn && account.connected && account.subscription === 'active') {
           store.setEnabled('apple', true)
           set({ phase: 'idle', error: false, message: '已登录，Apple Music 订阅有效，音源已启用。' })
         } else if (account.loggedIn && account.connected && account.subscription === 'inactive') {
@@ -63,6 +72,8 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
         } else if (Date.now() >= deadline) {
           set({ phase: 'idle', error: true, message: '尚未收到授权结果，请重新登录，并在应用内授权窗口完成 Apple 授权。' })
         }
+      } else if (!account.connected && (account.loggedIn || account.error)) {
+        set({ error: true, message: account.error || 'Apple Music 播放连接已断开，请重新连接。' })
       } else if (account.loggedIn && account.subscription === 'inactive') {
         set({ error: true, message: '已登录，但此账号没有有效的 Apple Music 订阅，Apple 音源已停用。' })
       } else if (account.loggedIn && account.subscription === 'unknown') {
@@ -88,7 +99,7 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
       }
       await openAppleMusicPlayer(config ? 'developer' : 'web')
       deadline = Date.now() + 120_000
-      set({ phase: 'waiting', message: '请在 Apple Music 授权窗口完成登录；成功后窗口会自动隐藏并启用应用内播放。' })
+      set({ phase: 'waiting', message: '请完成 Apple 账号授权，登录成功后即可播放。' })
     } catch (error) {
       set({ phase: 'idle', error: true, message: errorMessage(error) })
     }

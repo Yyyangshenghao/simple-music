@@ -52,28 +52,44 @@
 }
 
 .subTabs {
-  display: flex;
-  gap: 4px;
-  padding: 16px 24px 0;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom: 1px solid transparent;
+  display: flow-root;
+  padding: 0 24px;
   position: sticky;
   top: 0;
   z-index: 10;
-  transition: background 200ms ease, border-color 200ms ease, backdrop-filter 200ms ease;
+  isolation: isolate;
+}
+
+/* 背景独立渐隐，避免把标签、搜索框一起遮罩，也不再产生玻璃层的硬边。 */
+.subTabs::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--sm-bg-base) 88%, transparent);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  opacity: 0;
+  transition: opacity 200ms ease;
 }
 
 .subTabsScrolled {
-  background: var(--sm-bg-elevated);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
-  border-bottom-color: var(--sm-border);
+  --track-toolbar-divider: transparent;
+}
+
+.subTabsScrolled::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .subTabs::before { transition: none; }
 }
 
 .subTab {
-  padding: 8px 16px;
+  padding: 9px 0;
+  margin-right: 16px;
+  white-space: nowrap;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -85,16 +101,19 @@
 
 .subTab.active { color: var(--sm-accent); border-bottom-color: var(--sm-accent); }
 
-.trackList { padding: 8px; }
+.trackList { padding: 0 24px 32px; }
+
+.tabGroup { display: flex; align-items: center; gap: 8px; }
+.tabsOnly { display: flex; align-items: center; gap: 8px; min-height: 72px; margin-bottom: 12px; border-bottom: 1px solid var(--track-toolbar-divider, var(--sm-border)); }
 
 .viewAllSongs {
-  margin-left: auto;
-  align-self: center;
+  display: block;
+  margin: 24px auto 0;
   padding: 6px 14px;
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-primary);
+  background: transparent;
+  color: var(--sm-text-secondary);
   font-size: 12px;
   cursor: pointer;
   transition: color 150ms, border-color 150ms, background 150ms;

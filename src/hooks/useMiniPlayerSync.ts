@@ -36,7 +36,7 @@ export function useMiniPlayerSync(): void {
       trackTitle: currentTrack?.name ?? '',
       artistName: currentTrack?.artist ?? '',
       coverUrl: currentTrack?.cover ? sizedImage(currentTrack.cover, 88) : '',
-      playing: status === 'playing',
+      playing: status === 'playing' || (currentTrack?.source === 'apple' && status === 'loading'),
       volume,
       duration,
       accent,
@@ -51,9 +51,14 @@ export function useMiniPlayerSync(): void {
     if (!d) return
     const push = () => void d.updateMiniPlayer({ position: usePlayerStore.getState().position })
     push()
-    if (status !== 'playing') return
-    const timer = setInterval(push, 1000)
-    return () => clearInterval(timer)
+    const unsubscribe = usePlayerStore.subscribe((state, previous) => {
+      if (state.status !== 'playing' && state.position !== previous.position) push()
+    })
+    const timer = status === 'playing' ? setInterval(push, 1000) : undefined
+    return () => {
+      unsubscribe()
+      clearInterval(timer)
+    }
   }, [enabled, appearance.showProgress, status, currentTrack])
 
   // 歌词行:仅展开态需要

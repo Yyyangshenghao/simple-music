@@ -23,6 +23,7 @@ export interface OfflineSaveJob {
 
 interface OfflineCacheStore {
   byKey: Record<string, OfflineCacheStatus>
+  revision: number
   job: OfflineSaveJob | null
   ensure(track: Track): Promise<OfflineCacheStatus | null>
   ensureMany(tracks: Track[]): Promise<void>
@@ -46,6 +47,19 @@ interface StatusWaiter {
 const pendingStatuses = new Map<string, StatusWaiter[]>()
 let statusBatchTimer: ReturnType<typeof setTimeout> | null = null
 let statusRevision = 0
+const MAX_CACHED_STATUSES = 2048
+
+function mergeStatuses(current: Record<string, OfflineCacheStatus>, statuses: OfflineCacheStatus[]): Record<string, OfflineCacheStatus> {
+  const next = { ...current }
+  for (const status of statuses) {
+    const key = `${status.source}:${status.id}`
+    delete next[key]
+    next[key] = status
+  }
+  const keys = Object.keys(next)
+  for (let i = 0; i < keys.length - MAX_CACHED_STATUSES; i++) delete next[keys[i]]
+  return next
+}
 
 function scheduleStatusBatch(): void {
   if (statusBatchTimer) return
@@ -60,7 +74,7 @@ function scheduleStatusBatch(): void {
         const found = new Map(statuses.map((status) => [`${status.source}:${status.id}`, status]))
         if (revision === statusRevision) {
           useOfflineCacheStore.setState((state) => ({
-            byKey: statuses.reduce((all, status) => ({ ...all, [`${status.source}:${status.id}`]: status }), state.byKey),
+            byKey: mergeStatuses(state.byKey, statuses),
           }))
         }
         for (const [pendingKey, waiters] of batch) {
@@ -85,6 +99,7 @@ function queueStatus(track: Track): Promise<OfflineCacheStatus | null> {
 
 export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   byKey: {},
+  revision: 0,
   job: null,
 
   async ensure(track) {
@@ -105,10 +120,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
       const statuses = await fetchOfflineStatuses(pending)
       if (revision !== statusRevision) return
       set((state) => ({
-        byKey: statuses.reduce((all, status) => ({
-          ...all,
-          [`${status.source}:${status.id}`]: status,
-        }), state.byKey),
+        byKey: mergeStatuses(state.byKey, statuses),
       }))
     } catch {
       /* 状态徽标失败不阻断列表。 */
@@ -127,7 +139,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
     try {
       const existing = await fetchOfflineStatus(track, controller.signal)
       if (!isCurrent()) return
-      set((state) => ({ byKey: { ...state.byKey, [offlineTrackKey(track)]: existing } }))
+      set((state) => ({ byKey: mergeStatuses(state.byKey, [existing]) }))
       if (existing.state === 'pinned') {
         set({ job: { track, status: 'done', controller } })
         return
@@ -142,7 +154,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
         if (!isCurrent()) return
         get().invalidate()
         set((state) => ({
-          byKey: { ...state.byKey, [offlineTrackKey(track)]: pinned },
+          byKey: mergeStatuses(state.byKey, [pinned]),
           job: { track, status: 'done', controller },
         }))
         useToastStore.getState().show('已保存到本地')
@@ -191,7 +203,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
           if (!isCurrent()) return
           get().invalidate()
           set((state) => ({
-            byKey: { ...state.byKey, [offlineTrackKey(track)]: result.status },
+            byKey: mergeStatuses(state.byKey, [result.status]),
             job: { track, status: 'done', controller },
           }))
           useToastStore.getState().show('已保存到本地')
@@ -223,7 +235,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
     })
     const next = await fetchOfflineStatus(track)
     get().invalidate()
-    set((state) => ({ byKey: { ...state.byKey, [key]: next } }))
+    set((state) => ({ byKey: mergeStatuses(state.byKey, [next]) }))
   },
 
   async deleteLocal(track, confirmShared = false) {
@@ -253,6 +265,6 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
 
   invalidate() {
     statusRevision++
-    set({ byKey: {} })
+    set((state) => ({ byKey: {}, revision: state.revision + 1 }))
   },
 }))

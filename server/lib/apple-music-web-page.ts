@@ -19,6 +19,7 @@ interface MusicInstance {
   addEventListener(name: string, handler: (event?: { message?: string; error?: { message?: string } }) => void): void
 }
 interface PageState {
+  controlSequence: number
   generation: number
   failures: number
   queueReady: boolean
@@ -47,13 +48,13 @@ export async function appleMusicWebPage(task: WebPageTask) {
   const music = kit?.getInstance()
   if (!music || !kit) throw new Error('Apple Music 官网仍在加载，请稍候')
   if (!web.__simpleMusicSession) {
-    const initial: PageState = { generation: 0, failures: 0, queueReady: false, pausedId: '', playbackId: '', status: 'idle', expectedDuration: 0, pendingSeek: null,
+    const initial: PageState = { controlSequence: 0, generation: 0, failures: 0, queueReady: false, pausedId: '', playbackId: '', status: 'idle', expectedDuration: 0, pendingSeek: null,
       subscription: 'unknown', subscriptionCheckedAt: 0, accountStorefront: '', wasAuthorized: false }
     web.__simpleMusicSession = initial
     music.addEventListener(kit.Events.mediaPlaybackError, event => {
       initial.failures++
       initial.status = 'error'
-      initial.error = event?.error?.message || event?.message || 'Apple Music 播放失败；请确认订阅有效，并检查浏览器播放支持'
+      initial.error = event?.error?.message || event?.message || 'Apple Music 播放失败，请检查网络与订阅状态'
       void Promise.resolve().then(() => music.stop()).catch(() => {})
     })
   }
@@ -130,6 +131,7 @@ export async function appleMusicWebPage(task: WebPageTask) {
     return { connected: true, loggedIn: !!music.isAuthorized, subscription, storefront,
       redirectUrl: storefront !== music.storefrontId ? `https://music.apple.com/${storefront}/new` : undefined,
       playbackId: state.playbackId, status: state.status, error: state.error,
+      controlSequence: state.controlSequence,
       position: state.pendingSeek ?? (music.currentPlaybackTime || 0), duration: music.currentPlaybackDuration || 0 }
   }
   const c = task.command
@@ -138,6 +140,9 @@ export async function appleMusicWebPage(task: WebPageTask) {
   if (c.type !== 'load' && c.type !== 'stop' && c.playbackId !== state.playbackId) return null
   const failures = state.failures
   const current = () => task.generation === state.generation && failures === state.failures
+  const confirmControl = () => {
+    if (current() && c.controlSequence !== undefined) state.controlSequence = c.controlSequence
+  }
   const play = async () => {
     if (!current()) return
     if (!state.queueReady) throw new Error('歌曲尚未加载成功，请重新选择歌曲')
@@ -146,18 +151,20 @@ export async function appleMusicWebPage(task: WebPageTask) {
     if (!current()) { await music.stop(); return }
     if (state.pausedId === state.playbackId) { await music.pause(); state.status = 'paused'; return }
     if (state.pendingSeek !== null) {
-      await music.seekToTime(state.pendingSeek)
+      if (state.pendingSeek > 0) await music.seekToTime(state.pendingSeek)
       if (!current()) return
       state.pendingSeek = null
     }
     state.status = 'playing'
     state.error = undefined
+    return true
   }
   try {
     if (c.type === 'load') {
       if (!music.isAuthorized) throw new Error('请先在 Apple Music 官网登录')
       await requireSubscription()
       state.playbackId = c.playbackId; state.queueReady = false; state.status = 'loading'; state.error = undefined
+      state.controlSequence = 0
       state.pendingSeek = c.startAt || 0
       music.previewOnly = false
       await music.stop()
@@ -168,17 +175,21 @@ export async function appleMusicWebPage(task: WebPageTask) {
         if (!song) throw new Error('此资料库歌曲没有 Apple Music 曲库版本')
       }
       if (!current()) return null
-      const details = (await music.api.music('v1/catalog/' + music.storefrontId + '/songs/' + encodeURIComponent(song))).data as { data?: Array<{ attributes?: { durationInMillis?: number } }> }
-      state.expectedDuration = (details.data?.[0]?.attributes?.durationInMillis || 0) / 1000
+      let duration = !c.library && c.duration && c.duration > 0 ? c.duration : 0
+      if (!duration) {
+        const details = (await music.api.music('v1/catalog/' + music.storefrontId + '/songs/' + encodeURIComponent(song))).data as { data?: Array<{ attributes?: { durationInMillis?: number } }> }
+        duration = (details.data?.[0]?.attributes?.durationInMillis || 0) / 1000
+      }
       if (!current()) return null
+      state.expectedDuration = duration
       await music.setQueue({ song, startPlaying: false })
       if (!current()) return null
       state.queueReady = true
       if (c.volume !== undefined) music.volume = c.volume
       if (c.autoplay === false) state.status = 'paused'
       else await play()
-    } else if (c.type === 'play') { await requireSubscription(); state.pausedId = ''; await play() }
-    else if (c.type === 'pause') { await music.pause(); state.status = 'paused' }
+    } else if (c.type === 'play') { await requireSubscription(); state.pausedId = ''; if (await play()) confirmControl() }
+    else if (c.type === 'pause') { await music.pause(); if (current()) { state.status = 'paused'; confirmControl() } }
     else if (c.type === 'stop') {
       await music.stop()
       state.playbackId = c.playbackId; state.status = 'idle'; state.queueReady = false; state.pendingSeek = null
@@ -186,6 +197,7 @@ export async function appleMusicWebPage(task: WebPageTask) {
     else if (c.type === 'seek') {
       if (state.pendingSeek !== null) state.pendingSeek = c.seconds || 0
       await music.seekToTime(c.seconds || 0)
+      confirmControl()
     } else if (c.type === 'volume') music.volume = c.volume!
   } catch (error) {
     if (!current()) return null

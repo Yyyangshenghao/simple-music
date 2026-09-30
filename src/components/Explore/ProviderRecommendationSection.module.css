@@ -22,6 +22,17 @@
   background: linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 34%);
 }
 
+.appleSection {
+  padding: 20px 10px 24px;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+
+.appleSection::after { display: none; }
+
 .header {
   position: relative;
   z-index: 1;
@@ -30,14 +41,6 @@
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 18px;
-}
-
-.title {
-  margin: 9px 0 0;
-  color: var(--sm-text-primary);
-  font-size: clamp(18px, 2vw, 24px);
-  font-weight: 750;
-  letter-spacing: -0.035em;
 }
 
 .status {
@@ -83,8 +86,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: clamp(44px, 5vw, 64px);
 }
+
+.stage > div:first-child { flex-shrink: 0; }
 
 .topInfo { width: min(190px, 22vw); }
 .eyebrow { margin: 0 0 7px; color: var(--sm-text-secondary); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }

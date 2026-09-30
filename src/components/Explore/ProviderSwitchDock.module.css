@@ -6,10 +6,12 @@
   z-index: 80;
   padding: 20px 0 20px 18px;
   transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .panel {
   position: relative;
+  pointer-events: auto;
   width: 154px;
   box-sizing: border-box;
   padding: 7px 7px 7px 8px;
@@ -130,7 +132,8 @@
   box-shadow: 0 0 18px color-mix(in srgb, var(--provider-color) 14%, transparent);
 }
 
-.logo > svg {
+.logo > svg,
+.logo > img {
   width: 20px;
   height: 20px;
 }
