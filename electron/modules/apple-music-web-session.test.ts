@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { join } from 'node:path'
 
 const h = vi.hoisted(() => {
   const readFile = vi.fn(() => 'false')
@@ -330,9 +331,9 @@ describe('应用内 Apple Music 会话', () => {
   it('成功授权持久化布尔恢复标记，退出登录清除标记', async () => {
     h.setState(signedIn)
     await apple.open()
-    expect(h.writeFile).toHaveBeenCalledWith('/tmp/simple-music-test/apple-music-restore', 'true', expect.any(Object))
+    expect(h.writeFile).toHaveBeenCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'true', expect.any(Object))
     await apple.logout()
-    expect(h.writeFile).toHaveBeenLastCalledWith('/tmp/simple-music-test/apple-music-restore', 'false', expect.any(Object))
+    expect(h.writeFile).toHaveBeenLastCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'false', expect.any(Object))
   })
 
   it('恢复期间退出登录后不会迟到创建窗口或重新记录登录', async () => {

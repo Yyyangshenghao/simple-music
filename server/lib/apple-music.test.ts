@@ -25,7 +25,7 @@ describe('Apple Music 配置与用户授权', () => {
     expect(getAppleMusicStatus(ctx)).toMatchObject({ configured: true, ready: true, managed: false, connected: false, loggedIn: true, storefront: 'cn' })
     const path = join(ctx.userDataDir, 'apple-music.json')
     expect(readFileSync(path, 'utf8')).not.toContain('user-secret')
-    expect(statSync(path).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600)
     clearAppleMusicUserToken(ctx)
     expect(getAppleMusicStatus(ctx).loggedIn).toBe(false)
     expect(getAppleMusicConfig(ctx).storefront).toBe('us')
