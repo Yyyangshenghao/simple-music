@@ -1,36 +1,15 @@
-/**
- * KTV 风格逐字高亮歌词行。
- *
- * active 时内部用 rAF 每帧读取音频引擎的精确播放位置，把行内已播放毫秒数
- * 写入行容器的 CSS 变量 --elapsed；每个字按自身时间窗 [--ws, --ws + --wd]
- * 在 CSS 里计算点亮进度，实现丝滑的从左到右亮度扫光（不经过 React 重渲染）。
- *
- * 用法示例（在 LyricsPanel 中）：
- *   <KtvLine
- *     words={wordLine.words}
- *     lineDurationMs={wordLine.durationMs}
- *     lineStartMs={wordLine.time * 1000}
- *     active={true}
- *     translationText={translation[i]?.text}
- *   />
- *
- * 外层容器需要设置 font-size（active 行建议 26–30px，非 active 行 18–20px）。
- */
+/** 原生时间戳驱动的逐字高亮：每个词独立裁剪，媒体时钟直接定位浏览器动画。 */
 
 import { memo, useEffect, useRef } from 'react'
 import { usePlayerStore } from '../../stores/player'
 import { useLyricsStore } from '../../stores/lyrics'
+import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
+import { createWordHighlightTimeline, hasWordTiming } from '../../lib/word-highlight-timeline'
+import type { WordToken } from '../../types/domain'
 import styles from './KtvLine.module.css'
-
-interface WordToken {
-  text: string
-  startMs: number       // 相对于行起始时间的毫秒偏移
-  durationMs?: number   // 该字的精确时长（来自 YRC；估算数据无此字段）
-}
 
 interface KtvLineProps {
   words: WordToken[]
-  lineDurationMs: number   // 整行时长（毫秒）
   lineStartMs: number      // 行起始时间（歌曲内绝对毫秒）
   active: boolean          // 是否是当前正在演唱的行
   dim?: boolean            // 非当前行（过去/未来）时为 true
@@ -40,52 +19,49 @@ interface KtvLineProps {
   alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
 }
 
-export const KtvLine = memo(function KtvLine({ words, lineDurationMs, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
+export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
 
+  const timed = hasWordTiming(words)
   useEffect(() => {
-    if (!active) return
-    const engine = usePlayerStore.getState()._engine()
-    // 扫光是宽羽化带的亮度渐变,60fps 已过采样;ProMotion 屏不限帧会跑 120fps,
-    // 每帧触发整行 char 的样式重算+渐变重绘,纯属浪费
-    const FRAME_MS = 1000 / 60
+    if (!active || !timed || !wordsRef.current) return
+    const elements = Array.from(wordsRef.current.querySelectorAll(`.${styles.charFill}`))
+    const timeline = createWordHighlightTimeline(elements, words)
+    if (!timeline) return
     let raf = 0
-    let last = 0
-    const loop = (now: number) => {
-      raf = requestAnimationFrame(loop)
-      // backgroundThrottling 关闭时窗口隐藏 rAF 照跑,跳过无意义的样式写入
-      if (now - last < FRAME_MS - 1 || document.hidden) return
-      last = now
-      // 叠加用户设置的歌词时间偏移,与行索引判定(lyrics store tick)保持同一基准
+    const sync = () => {
       const offsetSec = useLyricsStore.getState().offsetSec
-      wordsRef.current?.style.setProperty('--elapsed', ((engine.position + offsetSec) * 1000 - lineStartMs).toFixed(1))
+      const position = lyricPlaybackPosition(usePlayerStore.getState())
+      timeline.seek((position + offsetSec) * 1000 - lineStartMs)
     }
+    const loop = () => {
+      if (!document.hidden) sync()
+      raf = requestAnimationFrame(loop)
+    }
+    sync()
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [active, lineStartMs])
+    return () => {
+      cancelAnimationFrame(raf)
+      timeline.dispose()
+    }
+  }, [active, timed, lineStartMs, words])
 
   return (
     <div className={[
       styles.line,
       active ? styles.active : '',
+      !timed ? styles.untimed : '',
       dim ? styles.dim : '',
       past ? styles.past : '',
       alignLeft ? styles.alignLeft : '',
     ].filter(Boolean).join(' ')}>
       <div className={styles.words} ref={wordsRef}>
-        {words.map((word, i) => {
-          const nextStartMs = words[i + 1]?.startMs ?? lineDurationMs
-          const durMs = Math.max(80, word.durationMs ?? (nextStartMs - word.startMs))
-          return (
-            <span
-              key={i}
-              className={styles.char}
-              style={{ '--ws': word.startMs, '--wd': durMs } as React.CSSProperties}
-            >
-              {word.text}
-            </span>
-          )
-        })}
+        {words.map((word, i) => (
+          <span key={i} className={styles.char}>
+            {word.text}
+            <span className={styles.charFill} aria-hidden="true">{word.text}</span>
+          </span>
+        ))}
       </div>
       {romaText && (
         <div className={styles.roma}>{romaText}</div>

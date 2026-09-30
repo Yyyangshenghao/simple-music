@@ -16,3 +16,34 @@ describe('网易云热搜服务', () => {
     await expect(new NeteaseMusicService().getSearchHotkeys()).rejects.toThrow('offline')
   })
 })
+
+describe('网易云歌手歌曲分页', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('按服务端游标继续加载并保留是否还有下一页', async () => {
+    const songs = [{ id: 51, source: 'netease' }]
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ songs, nextOffset: 137, hasMore: true })
+
+    await expect(new NeteaseMusicService().getArtistSongsPage('artist-id', 82, 50)).resolves.toEqual({
+      songs,
+      nextOffset: 137,
+      hasMore: true,
+    })
+    expect(get).toHaveBeenCalledWith('/api/netease/artist/songs', {
+      id: 'artist-id',
+      offset: 82,
+      limit: 50,
+    })
+  })
+})
+
+describe('网易云歌单变更检查', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('只请求歌单版本信息', async () => {
+    const revision = { updatedAt: 123, trackIds: ['1', '2'] }
+    const get = vi.spyOn(api, 'get').mockResolvedValue(revision)
+    await expect(new NeteaseMusicService().getPlaylistRevision('playlist-id')).resolves.toEqual(revision)
+    expect(get).toHaveBeenCalledWith('/api/playlist/revision', { id: 'playlist-id' })
+  })
+})

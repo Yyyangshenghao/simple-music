@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
@@ -8,11 +8,15 @@ import styles from './TrackRow.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
 import { SourceBadge } from '../ui/SourceBadge'
+import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
+import { useOfflineCacheStore } from '../../stores/offline-cache'
 
 interface TrackRowProps {
   track: Track
   index?: number
   onPlay(): void
+  disabled?: boolean
+  statusLabel?: string
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
@@ -24,7 +28,17 @@ function EqIndicator({ paused }: { paused: boolean }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay }: TrackRowProps) {
+function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 3v11m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 18.5h14" strokeLinecap="round" />
+      {state === 'pinned' && <path d="m17 5 1.5 1.5L21 4" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
+  )
+}
+
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel }: TrackRowProps) {
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -41,14 +55,34 @@ export function TrackRow({ track, index, onPlay }: TrackRowProps) {
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const supported = useLikesStore.getState().supports(track)
   const visible = supported && (track.source !== 'netease' || neteaseLoggedIn)
+  const offlineKey = offlineTrackKey(track)
+  const offline = useOfflineCacheStore((s) => s.byKey[offlineKey])
+  const offlineRevision = useOfflineCacheStore((s) => s.revision)
+  // 缓存淘汰只释放全局记录；已显示的徽标保留到行卸载或缓存主动失效。
+  const lastOffline = useRef<{ key: string; revision: number; status?: OfflineCacheStatus }>({ key: offlineKey, revision: offlineRevision, status: offline })
+  if (lastOffline.current.key !== offlineKey || lastOffline.current.revision !== offlineRevision) {
+    lastOffline.current = { key: offlineKey, revision: offlineRevision, status: offline }
+  } else if (offline) {
+    lastOffline.current.status = offline
+  }
+  const visibleOffline = offline ?? lastOffline.current.status
+  const offlineVisible = track.source === 'netease' || track.source === 'qq'
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
     if (visible) void useLikesStore.getState().ensureChecked(track)
   }, [track, visible])
+  useEffect(() => {
+    if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
+  }, [offlineVisible, track.source, track.id, offlineRevision])
 
   return (
-    <button className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`} onClick={onPlay}>
+    <button
+      className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
+      onClick={onPlay}
+      disabled={disabled}
+      title={statusLabel}
+    >
       {index !== undefined && (
         isCurrent
           ? <EqIndicator paused={!isPlaying} />
@@ -63,9 +97,35 @@ export function TrackRow({ track, index, onPlay }: TrackRowProps) {
         </span>
       </div>
       <span className={styles.duration}>
-        {formatDuration(track.duration)}
+        {statusLabel || formatDuration(track.duration)}
       </span>
-      {visible && (
+      {offlineVisible && !disabled && (
+        <span
+          className={styles.offlineBtn}
+          role="button"
+          tabIndex={0}
+          data-state={visibleOffline?.state ?? 'missing'}
+          title={visibleOffline?.state === 'pinned' ? '已保存，点击取消固定' : visibleOffline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
+          aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
+            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            else void useOfflineCacheStore.getState().save(track)
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            e.stopPropagation()
+            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
+            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            else void useOfflineCacheStore.getState().save(track)
+          }}
+        >
+          <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
+        </span>
+      )}
+      {visible && !disabled && (
         <span
           className={`${styles.likeBtn} no-drag`}
           role="button"

@@ -59,7 +59,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
       </div>
       <div className={styles.actions}>
         <button className={styles.playAll} onClick={playAll} disabled={total === 0}>▶ 播放全部</button>
-        <button className={styles.openBtn} onClick={openDetail} disabled={total === 0}>进入歌单</button>
+        <button className={styles.openBtn} onClick={openDetail} disabled={total === 0}>{playlist.type === 'album' ? '进入专辑' : '进入歌单'}</button>
         <span className={styles.count}>{loading ? '加载中…' : `${total} 首`}</span>
       </div>
       <div className={styles.list}>
@@ -81,7 +81,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
   )
 }
 
-/** 歌单小卡预览：简介 + 可滚动曲目，可播放全部或进入完整详情页。 */
+/** 歌单和专辑小卡预览：简介 + 可滚动曲目，可播放全部或进入完整详情页。 */
 export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModalProps) {
   useEffect(() => {
     if (!playlist) return

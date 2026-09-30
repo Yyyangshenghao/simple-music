@@ -11,6 +11,8 @@ import { fadeRise, springGentle } from '../lib/motion-presets'
 import type { Playlist } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
+const scrollPositions = new Map<string, number>()
+
 function greeting(): string {
   const hour = new Date().getHours()
   if (hour < 5) return '夜深了'
@@ -23,6 +25,9 @@ export function ExplorePage() {
   const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
   const [preview, setPreview] = useState<Playlist | null>(null)
   const previousSourceRef = useRef(activeHomeSource)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const restoringScrollRef = useRef(false)
   const currentView = useNavigationStore((state) => state.currentView)
   const detail = typeof currentView === 'object'
     && currentView.type === 'playlist'
@@ -45,12 +50,63 @@ export function ExplorePage() {
     previousSourceRef.current = activeHomeSource
   }, [activeHomeSource])
 
+  useEffect(() => {
+    const page = pageRef.current
+    const content = contentRef.current
+    const target = activeHomeSource ? scrollPositions.get(activeHomeSource) ?? 0 : 0
+    if (!page || !content || !target || detail) {
+      restoringScrollRef.current = false
+      return
+    }
+    let restored = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    restoringScrollRef.current = true
+    const removeListeners = () => {
+      page.removeEventListener('wheel', cancel)
+      page.removeEventListener('touchstart', cancel)
+      page.removeEventListener('pointerdown', cancel)
+      document.removeEventListener('keydown', cancelOnScrollKey)
+      if (timeout) clearTimeout(timeout)
+    }
+    const cancel = () => {
+      restored = true
+      restoringScrollRef.current = false
+      observer.disconnect()
+      removeListeners()
+    }
+    const cancelOnScrollKey = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) cancel()
+    }
+    const observer = new ResizeObserver(() => {
+      if (restored || page.scrollHeight - page.clientHeight < target - 1) return
+      page.scrollTop = target
+      if (page.scrollTop >= target - 1) cancel()
+    })
+    observer.observe(content)
+    if (page.scrollHeight - page.clientHeight >= target - 1) {
+      page.scrollTop = target
+      if (page.scrollTop >= target - 1) cancel()
+    }
+    if (restored) return
+    page.addEventListener('wheel', cancel, { once: true })
+    page.addEventListener('touchstart', cancel, { once: true })
+    page.addEventListener('pointerdown', cancel, { once: true })
+    document.addEventListener('keydown', cancelOnScrollKey)
+    timeout = setTimeout(() => { restored = true; observer.disconnect() }, 5000)
+    return () => {
+      cancel()
+    }
+  }, [activeHomeSource, detail])
+
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="explore-cover" />
   }
 
   return (
-    <div className={styles.page} onScroll={handleScroll}>
+    <div ref={pageRef} className={styles.page} onScroll={(event) => {
+      handleScroll(event)
+      if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, event.currentTarget.scrollTop)
+    }}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
 
       <motion.header
@@ -62,16 +118,12 @@ export function ExplorePage() {
       >
         <p className={styles.kicker}>YOUR MUSIC CONSTELLATION</p>
         <h1 className={styles.greeting}><GradientText>{greeting()}</GradientText></h1>
-        <p className={styles.summary}>
-          {enabledSources.length > 0
-            ? `${enabledSources.length} 个音乐平台已启用 · 每个平台保留自己的推荐方式`
-            : '还没有启用音乐平台'}
-        </p>
       </motion.header>
 
       {activeHomeSource ? (
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
+            ref={contentRef}
             key={activeHomeSource}
             initial={{ opacity: 0, y: switchDirection * 44, filter: 'blur(7px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}

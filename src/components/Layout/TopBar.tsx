@@ -5,10 +5,10 @@ import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
-import { SourceBadge } from '../ui/SourceBadge'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
+import { SourceName } from '../ui/SourceName'
 import { providerFor } from '../../providers/registry'
-import { PROVIDER_IDS, type ProviderId } from '../../providers/types'
+import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { useContentProvider } from '../../hooks/useContentProvider'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
@@ -21,6 +21,7 @@ const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '我的库', view: 'library' },
   { label: '漫游', view: 'roam' },
   { label: '刷歌', view: 'shuange' },
+  { label: '设置', view: 'settings' },
 ]
 
 interface SearchPayload {
@@ -47,6 +48,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const [searchFocused, setSearchFocused] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [selectedSearchSource, setSelectedSearchSource] = useState<ProviderId | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
@@ -57,6 +59,11 @@ export function TopBar({ hidden = false }: TopBarProps) {
     () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
     [enabledSignature]
   )
+  const activeSearchSource = selectedSearchSource && enabledSources.includes(selectedSearchSource)
+    ? selectedSearchSource
+    : contentSource && enabledSources.includes(contentSource)
+      ? contentSource
+      : enabledSources[0] ?? null
 
   useEffect(() => {
     if (isExpanded) inputRef.current?.focus()
@@ -131,9 +138,17 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   function pickSong(track: Track) {
-    const songs = enabledSources.flatMap((source) => searchResults[source]?.data?.songs ?? [])
+    if (!isProviderId(track.source)) return
+    const songs = searchResults[track.source]?.data?.songs ?? []
     const index = songs.findIndex((item) => item.source === track.source && String(item.id) === String(track.id))
     usePlaylistStore.getState().setQueue(songs, Math.max(index, 0))
+    closeSearch()
+  }
+
+  function openSearchPage() {
+    const query = keyword.trim()
+    if (!query) return
+    navigateTo({ type: 'search', keyword: query })
     closeSearch()
   }
 
@@ -143,16 +158,14 @@ export function TopBar({ hidden = false }: TopBarProps) {
     closeSearch()
   }
 
-  const loading = enabledSources.some((source) => searchResults[source]?.status === 'loading')
-  const hasResults = enabledSources.some((source) => {
-    const data = searchResults[source]?.data
-    return !!data && (data.songs.length > 0 || data.artists.length > 0)
-  })
-  const finished = enabledSources.length === 0
-    || enabledSources.every((source) => {
-      const status = searchResults[source]?.status
-      return status === 'ready' || status === 'empty' || status === 'error'
-    })
+  const activeSearchResult = activeSearchSource ? searchResults[activeSearchSource] : undefined
+  const activeSearchData = activeSearchResult?.data
+  const loading = activeSearchResult?.status === 'loading'
+  const hasResults = !!activeSearchData
+    && (activeSearchData.songs.length > 0 || activeSearchData.artists.length > 0)
+  const showNoResults = enabledSources.length === 0
+    || activeSearchResult?.status === 'empty'
+    || (activeSearchResult?.status === 'ready' && !hasResults)
   const hotkeySource = contentSource && enabledSources.includes(contentSource)
     && providerFor(contentSource).catalog.getSearchHotkeys ? contentSource : null
   const showHotkeys = keyword.trim() === '' && hotkeySource !== null
@@ -204,13 +217,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
       <div className={styles.center}>
         <nav className={styles.segNav} aria-label="主导航">
           {NAV_ITEMS.map((item) => {
-            // 歌单详情归属其来源 tab；其余非「我的库」/「漫游」视图（设置/歌手）默认落在探索
+            // 歌单详情归属其来源 tab；其余未列入主导航的视图默认落在探索
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
                 : currentView
             const active = section === item.view
-              || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange')
+              || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange' && section !== 'settings')
             return (
               <button
                 key={item.label}
@@ -275,7 +288,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 onFocus={() => setSearchFocused(true)}
                 aria-label="搜索歌曲、歌手"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); void runSearch(keyword.trim()) }
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                    e.preventDefault()
+                    openSearchPage()
+                  }
                 }}
                 placeholder="搜索歌曲、歌手…"
               />
@@ -289,68 +305,75 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
           {showDropdown && (
             <div className={styles.searchDropdown}>
+              {keyword.trim() && (
+                <button type="button" className={styles.searchAll} onClick={openSearchPage}>
+                  <span>查看聚合搜索结果</span>
+                  <span className={styles.searchAllKey} aria-hidden="true">Enter ↵</span>
+                </button>
+              )}
               {showHotkeys && hotkeySource ? (
                 <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {
                   setKeyword(term)
                   inputRef.current?.focus()
                 }} />
               ) : <>
-              {loading && <p className={styles.searchHint}>搜索中…</p>}
-              {finished && keyword.length > 0 && !hasResults && (
-                <p className={styles.searchHint}>无结果</p>
+              {keyword.trim().length > 0 && enabledSources.length > 0 && (
+                <div className={styles.searchSourceTabs} role="group" aria-label="选择搜索平台">
+                  {enabledSources.map((source) => {
+                    const descriptor = providerFor(source).descriptor
+                    const active = source === activeSearchSource
+                    return (
+                      <button
+                        key={source}
+                        type="button"
+                        className={`${styles.searchSourceTab}${active ? ` ${styles.searchSourceTabActive}` : ''}`}
+                        style={{ '--provider-color': descriptor.color } as React.CSSProperties}
+                        aria-pressed={active}
+                        onClick={() => setSelectedSearchSource(source)}
+                      >
+                        <span className={styles.searchSourceMark} aria-hidden="true" />
+                        <span><SourceName source={source} /></span>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
-              {enabledSources.map((source) => {
-                const result = searchResults[source]
-                if (!result || result.status === 'loading') return null
-                if (result.status === 'error') {
-                  return (
-                    <div className={styles.searchProvider} key={source}>
-                      <div className={styles.providerHeader}>
-                        <strong>{providerFor(source).descriptor.label}</strong>
-                        <SourceBadge source={source} reveal />
-                      </div>
-                      <p className={styles.providerError}>{result.error?.message}</p>
-                    </div>
-                  )
-                }
-                if (!result.data || result.status === 'empty') return null
-                const { artists, songs } = result.data
-                return (
-                  <div className={styles.searchProvider} key={source}>
-                    <div className={styles.providerHeader}>
-                      <strong>{providerFor(source).descriptor.label}</strong>
-                      <SourceBadge source={source} reveal />
-                    </div>
-                    {artists.length > 0 && (
+              {loading && <p className={styles.searchHint}>搜索中…</p>}
+              {showNoResults && keyword.length > 0 && (
+                <p className={styles.searchHint}>{enabledSources.length === 0 ? '请先启用音乐平台' : '无结果'}</p>
+              )}
+              {activeSearchSource && activeSearchResult?.status === 'error' && (
+                <p className={styles.providerError}>{activeSearchResult.error?.message}</p>
+              )}
+              {activeSearchSource && activeSearchData && activeSearchResult?.status !== 'empty' && (
+                <div className={styles.searchProvider}>
+                    {activeSearchData.artists.length > 0 && (
                       <div>
                         <div className={styles.searchSection}>歌手</div>
-                        {artists.slice(0, 4).map((artist) => (
+                        {activeSearchData.artists.slice(0, 4).map((artist) => (
                           <button key={`${artist.source}:${String(artist.id)}`} className={styles.artistRow} onClick={() => pickArtist(artist)}>
                             {artist.avatar && <img className={styles.rowAvatar} src={sizedImage(artist.avatar, 88)} alt="" loading="lazy" />}
                             <span>{artist.name}</span>
-                            <SourceBadge source={artist.source} compact />
                           </button>
                         ))}
                       </div>
                     )}
-                    {songs.length > 0 && (
+                    {activeSearchData.songs.length > 0 && (
                       <div>
                         <div className={styles.searchSection}>歌曲</div>
-                        {songs.slice(0, 6).map((song) => (
+                        {activeSearchData.songs.slice(0, 6).map((song) => (
                           <button key={`${song.source}:${String(song.id)}`} className={styles.songRow} onClick={() => pickSong(song)}>
                             {song.cover && <img className={styles.rowCover} src={sizedImage(song.cover, 88)} alt="" loading="lazy" />}
                             <div className={styles.songInfo}>
                               <span className={styles.songName}>{song.name}</span>
                               <span className={styles.songArtist}>{song.artist}</span>
                             </div>
-                            <SourceBadge source={song.source} compact />
                           </button>
                         ))}
                       </div>
                     )}
-                  </div>
-                )
-              })}
+                </div>
+              )}
               </>}
             </div>
           )}

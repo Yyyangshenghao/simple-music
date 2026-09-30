@@ -54,7 +54,7 @@ export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRang
   }, [range, onRangeChange])
 
   const rows: ReactNode[] = []
-  for (let i = range.start; i < range.end; i++) {
+  for (let i = range.start; i < Math.min(range.end, total); i++) {
     rows.push(
       <div key={i} style={{ position: 'absolute', top: i * rowHeight, left: 0, right: 0, height: rowHeight }}>
         {renderRow(i)}

@@ -17,6 +17,13 @@ describe('SourceBadge', () => {
     expect(html).toContain('title="QQ音乐"')
   })
 
+  it('Apple 来源以音符图标和苹果标志加 Music 展示', () => {
+    const html = renderToStaticMarkup(<SourceBadge source="apple" showInactive />)
+    expect(html).toContain('>Music</span>')
+    expect(html).toContain('apple-music-icon.svg')
+    expect(html).toContain('<svg')
+  })
+
   it('上游遗漏来源时显示未知而不是让页面崩溃', () => {
     const html = renderToStaticMarkup(<SourceBadge source={undefined} />)
     expect(html).toContain('来源未知')
@@ -25,6 +32,12 @@ describe('SourceBadge', () => {
 
   it('隐藏模式不渲染来源实体', () => {
     expect(renderToStaticMarkup(<SourceBadge source="netease" displayMode="hidden" showInactive />)).toBe('')
+  })
+
+  it('页面身份标识可覆盖内容角标的隐藏偏好', () => {
+    useProviderStore.setState({ sourceBadgeMode: 'hidden' })
+    const html = renderToStaticMarkup(<SourceBadge source="netease" displayMode="always" showInactive />)
+    expect(html).toContain('aria-label="来源：网易云"')
   })
 
   it('未参与平台不渲染来源实体', () => {

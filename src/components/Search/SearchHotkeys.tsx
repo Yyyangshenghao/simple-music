@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { providerFor } from '../../providers/registry'
 import type { ProviderId } from '../../providers/types'
+import { SourceName } from '../ui/SourceName'
 import styles from './SearchHotkeys.module.css'
 
 interface SearchHotkeysProps {
@@ -35,7 +36,7 @@ export function SearchHotkeys({ source, onSelect }: SearchHotkeysProps) {
 
   return (
     <section className={styles.section} aria-label={`${provider.descriptor.label}热搜`}>
-      <h3 className={styles.heading}>{provider.descriptor.label}热搜</h3>
+      <h3 className={styles.heading}><SourceName source={source} />热搜</h3>
       {status === 'loading' ? <p className={styles.hint} role="status">热词加载中…</p>
         : status === 'error' ? <p className={styles.hint}>热词暂不可用，可直接输入搜索</p>
           : keywords.length === 0 ? <p className={styles.hint}>暂无热词，可直接输入搜索</p>

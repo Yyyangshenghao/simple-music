@@ -64,6 +64,8 @@
   --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
                0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
   --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
+  --detail-cover-filter: blur(24px) brightness(0.55) saturate(1.2);
+  --detail-cover-scrim: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 40%, rgba(0, 0, 0, 0.5) 100%);
 }
 
 /* ── 浅色模式 ── */
@@ -97,6 +99,8 @@
     --glass-border-base: rgba(0, 0, 0, 0.08);
     --glass-border-card: rgba(0, 0, 0, 0.10);
     --glass-border-modal:rgba(0, 0, 0, 0.06);
+    --detail-cover-filter: blur(32px) brightness(1.05) saturate(0.72);
+    --detail-cover-scrim: linear-gradient(180deg, rgba(246, 248, 250, 0.88) 0%, rgba(246, 248, 250, 0.82) 44%, rgba(246, 248, 250, 0.9) 100%);
 
     /* 浅色模式：辉光减半，避免刺眼 */
     --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
@@ -135,6 +139,8 @@
   --glass-border-base: rgba(0, 0, 0, 0.08);
   --glass-border-card: rgba(0, 0, 0, 0.10);
   --glass-border-modal:rgba(0, 0, 0, 0.06);
+  --detail-cover-filter: blur(32px) brightness(1.05) saturate(0.72);
+  --detail-cover-scrim: linear-gradient(180deg, rgba(246, 248, 250, 0.88) 0%, rgba(246, 248, 250, 0.82) 44%, rgba(246, 248, 250, 0.9) 100%);
 
   /* 浅色模式：辉光减半，避免刺眼 */
   --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
@@ -180,6 +186,8 @@
   --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
                0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
   --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
+  --detail-cover-filter: blur(24px) brightness(0.55) saturate(1.2);
+  --detail-cover-scrim: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 40%, rgba(0, 0, 0, 0.5) 100%);
 }
 
 /* ── 减少透明度 / 降低视觉特效 ──

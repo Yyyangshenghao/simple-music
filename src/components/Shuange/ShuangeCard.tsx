@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { tapScale } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
-import { SOURCE_BRAND } from '../../lib/source-brand'
+import { SourceName } from '../ui/SourceName'
 import { SHUANGE_COVER_PX, useShuangeStore } from '../../stores/shuange'
 import { usePlayerStore } from '../../stores/player'
 import { useLyricsStore } from '../../stores/lyrics'
@@ -103,7 +103,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
       <div className={styles.backdropShade} aria-hidden="true" />
 
       <header className={styles.header}>
-        <div className={styles.eyebrow}><span>DISCOVERY CUT</span><i />{SOURCE_BRAND[track.source].label}</div>
+        <div className={styles.eyebrow}><span>DISCOVERY CUT</span><i /><SourceName source={track.source} /></div>
         <motion.button
           type="button"
           className={`${styles.refreshAction} no-drag`}

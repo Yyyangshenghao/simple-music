@@ -22,6 +22,7 @@ describe('likes store', () => {
       byId: {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: false, auth: 'anonymous' },
+        apple: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease'],
     })

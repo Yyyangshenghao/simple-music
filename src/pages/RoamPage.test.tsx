@@ -9,6 +9,7 @@ const { providerState, roamState, settingsState } = vi.hoisted(() => ({
     byId: {
       netease: { enabled: true, auth: 'authenticated' as const },
       qq: { enabled: true, auth: 'authenticated' as const },
+      apple: { enabled: false, auth: 'anonymous' as const },
     },
     sourceBadgeMode: 'dynamic' as const,
   },

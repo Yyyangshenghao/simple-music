@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MiniPlayerBar } from '../../src/components/Player/MiniPlayerBar'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
+import { mergeMiniPlayerPayload } from '../../src/lib/mini-player-state'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
 import { createResizeDispatcher } from './resize-dispatcher'
 import './mini-player.css'
@@ -17,7 +18,7 @@ function OverlayApp() {
   useEffect(() => {
     const overlay = window.desktopOverlay
     if (!overlay) return
-    return overlay.onMiniPlayerState((p) => setPayload((prev) => ({ ...prev, ...p })))
+    return overlay.onMiniPlayerState((p) => setPayload((prev) => mergeMiniPlayerPayload(prev, p)))
   }, [])
 
   // 宽度由主进程改窗口尺寸驱动,这里只跟随

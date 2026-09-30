@@ -7,6 +7,8 @@ interface SwitchProps {
   onChange(v: boolean): void
   disabled?: boolean
   'aria-label'?: string
+  'aria-controls'?: string
+  'aria-expanded'?: boolean
 }
 
 /** 胶囊滑动开关：轨道随开关态变强调色，圆点弹簧滑动。 */

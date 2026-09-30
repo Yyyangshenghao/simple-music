@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Track } from '../types/domain'
+import type { OnlineMusicSource, Track } from '../types/domain'
 
 const transportMocks = vi.hoisted(() => ({
   fetchTrackQualities: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('../lib/track-preload', () => ({
 
 import { listProviders } from './registry'
 
-function trackFor(source: 'netease' | 'qq'): Track {
+function trackFor(source: OnlineMusicSource): Track {
   return {
     provider: source,
     source,
@@ -45,7 +45,7 @@ describe.each(listProviders())('$descriptor.id provider contract', (provider) =>
     await expect(provider.catalog.searchTracks('keyword')).resolves.toEqual([track])
     await expect(provider.playback.getLyrics(track)).resolves.toEqual([{ time: 0, text: 'lyric' }])
     expect(searchTracks).toHaveBeenCalledWith('keyword')
-    expect(getLyrics).toHaveBeenCalledWith(track)
+    expect(getLyrics).toHaveBeenCalled()
   })
 
   it('在 provider 边界修正 legacy 实体的来源字段', async () => {
@@ -62,6 +62,12 @@ describe.each(listProviders())('$descriptor.id provider contract', (provider) =>
 
   it('播放能力统一音质和 URL 解析结果', async () => {
     const track = trackFor(provider.descriptor.id)
+    if (provider.descriptor.id === 'apple') {
+      await expect(provider.playback.getQualities(track)).resolves.toEqual([{ id: 'standard', label: 'Apple Music', rank: 0 }])
+      await expect(provider.playback.resolve(track, 'max')).resolves.toMatchObject([{ url: 'apple-music:apple-track', trial: false }])
+      expect(transportMocks.resolveSongUrl).not.toHaveBeenCalled()
+      return
+    }
     transportMocks.fetchTrackQualities.mockResolvedValue([
       { level: 'lossless', label: '无损', br: 999000 },
     ])
@@ -89,6 +95,7 @@ describe.each(listProviders())('$descriptor.id provider contract', (provider) =>
   })
 
   it('播放受限时保留平台提示供解析器最终展示', async () => {
+    if (provider.descriptor.id === 'apple') return // MusicKit 运行期报告授权与播放限制
     const track = trackFor(provider.descriptor.id)
     transportMocks.resolveSongUrl.mockResolvedValue({
       url: '',

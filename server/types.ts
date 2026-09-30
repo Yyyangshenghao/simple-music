@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { AppleMusicWebSession } from './lib/apple-music-web-types'
 
 export interface ServerContext {
+  appleMusicWeb?: AppleMusicWebSession
+  appleMusicLoginMode?: 'web' | 'developer'
   userDataDir: string
   port: number
   /** 是否放行 http://localhost 来源(仅开发需要;打包应用只认 file:// 的 "null")。缺省视为放行。 */

@@ -20,4 +20,14 @@ describe('ProviderSwitchDock', () => {
     )
     expect(html).not.toContain('全部平台')
   })
+
+  it('Apple 平台显示音符图标和苹果标志加 Music', () => {
+    const html = renderToStaticMarkup(
+      <ProviderSwitchDock sources={['netease', 'apple']} current="apple" onSelect={() => {}} />
+    )
+    expect(html).toContain('aria-label="切换到Apple Music"')
+    expect(html).toContain('>Music</span>')
+    expect(html).toContain('apple-music-icon.svg')
+    expect(html).toContain('viewBox="0 0 24 24"')
+  })
 })

@@ -6,8 +6,7 @@ import {
   resizeMiniPlayerBy,
   setMiniPlayerPopover,
   triggerMiniPlayerControl,
-  returnFromMiniPlayer,
-  hideMiniPlayerToTray
+  returnFromMiniPlayer
 } from '../modules/overlay-manager'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
 
@@ -27,8 +26,8 @@ export function registerMiniPlayerIpc(): void {
   ipcMain.handle('overlay:miniplayer-control', (_e, arg: { action: string; value?: number }) =>
     triggerMiniPlayerControl(String(arg?.action ?? ''), typeof arg?.value === 'number' ? arg.value : undefined)
   )
-  // X:收起迷你条并退居托盘,主窗口保持隐藏(设置开关经 sync-off 回落)
-  ipcMain.handle('overlay:miniplayer-close', () => hideMiniPlayerToTray())
+  // X:退出迷你模式,恢复主窗口并把设置开关经 sync-off 落回关闭
+  ipcMain.handle('overlay:miniplayer-close', () => returnFromMiniPlayer())
   // 封面/回到大播放器:恢复主窗口 + 关闭迷你条 + 同步设置开关
   ipcMain.handle('overlay:miniplayer-focus-main', () => returnFromMiniPlayer())
 }

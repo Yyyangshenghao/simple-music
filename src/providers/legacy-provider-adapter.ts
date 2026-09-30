@@ -97,10 +97,13 @@ function recommendationCapability(
 }
 
 function libraryCapability(service: MusicService, source: ProviderId): LibraryCapability | undefined {
-  if (!service.getUserPlaylists && !service.getLikedPlaylist && !service.checkLiked) return undefined
+  if (!service.getUserPlaylists && !service.getUserAlbums && !service.getLikedPlaylist && !service.checkLiked) return undefined
   return {
     getUserPlaylists: service.getUserPlaylists
       ? async () => normalizePlaylists(await service.getUserPlaylists!(), source)
+      : undefined,
+    getUserAlbums: service.getUserAlbums
+      ? async () => normalizePlaylists(await service.getUserAlbums!(), source)
       : undefined,
     getLikedPlaylist: service.getLikedPlaylist
       ? async () => {

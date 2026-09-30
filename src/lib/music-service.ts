@@ -5,6 +5,8 @@ export interface MusicService {
   getRecommendPlaylists(page?: number): Promise<Playlist[]>
   /** 歌单骨架:完整 trackIds(顺序即歌单顺序)+ 已带详情的前缀批次(QQ/小歌单可能就是全部)。 */
   getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton>
+  /** 可选的轻量歌单变更检查；曲目顺序用于兜底判断时间戳未更新的情况。 */
+  getPlaylistRevision?(id: unknown): Promise<PlaylistRevision>
   /** 按 id 批量补曲目详情;返回顺序与入参一致,查不到的跳过。 */
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
@@ -15,6 +17,8 @@ export interface MusicService {
   getRelatedPlaylists?(track: Track, previousIds?: string[]): Promise<RelatedPlaylistsPage>
   getArtistDetail(id: unknown): Promise<ArtistInfo>
   getArtistSongs(id: unknown): Promise<Track[]>
+  /** 歌手单曲分页（可选；支持时歌手页可继续加载，nextOffset 是音源自己的游标）。 */
+  getArtistSongsPage?(id: unknown, offset: number, limit: number): Promise<ArtistSongsPage>
   /** 相似歌手（可选；未实现的音源不渲染相似歌手胶囊）。 */
   getSimilarArtists?(id: unknown): Promise<ArtistInfo[]>
   /** 近一周听歌排行（可选；网易专属，用于漫游页猜测常听歌手）。 */
@@ -45,6 +49,8 @@ export interface MusicService {
   getLikedPlaylist?(): Promise<Playlist | null>
   /** 当前账号的歌单列表（可选;网易/QQ 各有自己的端点,本地音乐无此概念）。未登录返回空数组。 */
   getUserPlaylists?(): Promise<Playlist[]>
+  /** 当前账号资料库中的专辑（可选；与歌单、收藏歌曲分开展示）。 */
+  getUserAlbums?(): Promise<Playlist[]>
   /** 按名字列出账号歌单候选项（可选;仅网易实现,漫游功能用于识别归属;含 description 供调用方按业务规则筛选,如水印校验）。 */
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   /** 按 id 取歌单当前 meta(含 description)+ 全部曲目（可选;仅网易实现）。找不到返回 null。 */
@@ -62,6 +68,12 @@ export interface MusicService {
 
 export interface RelatedPlaylistsPage {
   playlists: Playlist[]
+  hasMore: boolean
+}
+
+export interface ArtistSongsPage {
+  songs: Track[]
+  nextOffset: number
   hasMore: boolean
 }
 
@@ -92,6 +104,12 @@ export interface ToplistGroup {
 export interface PlaylistSkeleton {
   trackIds: unknown[]
   tracks: Track[]
+  updatedAt?: number | null
+}
+
+export interface PlaylistRevision {
+  trackIds: unknown[]
+  updatedAt: number | null
 }
 
 /** 漫游功能用的轻量歌单 meta——只包含实际会用到的字段,不是完整的 Playlist。 */

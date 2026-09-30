@@ -12,13 +12,13 @@
   inset: -4%;
   background-size: cover;
   background-position: center;
-  filter: blur(24px) brightness(0.55) saturate(1.2);
+  filter: var(--detail-cover-filter);
   transform: scale(1.06);
 }
 
-/* 暗色叠层,保证前景文字在任意封面色调下都有足够对比度,同时不糊到看不出封面本身 */
+/* 根据主题压住封面明暗，保持文字对比度和背景层次一致。 */
 .scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.25) 40%, rgba(0, 0, 0, 0.5) 100%);
+  background: var(--detail-cover-scrim);
 }

@@ -1,59 +1,362 @@
-import { createHash } from 'node:crypto'
-import { createWriteStream, createReadStream, type WriteStream } from 'node:fs'
+import { createHash, randomBytes } from 'node:crypto'
+import { createReadStream, createWriteStream, type WriteStream } from 'node:fs'
 import { promises as fsp } from 'node:fs'
-import { join, isAbsolute } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import type { ServerResponse } from 'node:http'
 
-/**
- * 音频磁盘缓存:/api/audio 代理整流下载时落盘,重复播放直接本地文件服务。
- * - key 由渲染层传入(source:id:quality),上游 URL 带过期签名不能当 key。
- * - 只缓存"从 0 字节起且上游覆盖完整文件"的整流;拖进度条的中段 Range 只透传不落盘。
- * - 写入先落 .part 临时文件,完整后 rename,不会出现半截缓存被命中。
- * - LRU 以文件 mtime 近似:命中续期,超限从最旧开始淘汰。
- * - 目录与上限可配,持久化在 userDataDir/audio-cache-config.json(设置页经 /api/audio-cache/config 读写)。
- */
+/** 音频磁盘缓存与离线索引；音频文件名保持 sha1(cacheKey).bin 以兼容旧版本。 */
 
-export const AUDIO_CACHE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 默认 2GB
-export const AUDIO_CACHE_MIN_LIMIT = 256 * 1024 * 1024 // 256MB
-export const AUDIO_CACHE_MAX_LIMIT = 100 * 1024 * 1024 * 1024 // 100GB
+export const AUDIO_CACHE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
+export const AUDIO_CACHE_MIN_LIMIT = 256 * 1024 * 1024
+export const AUDIO_CACHE_MAX_LIMIT = 100 * 1024 * 1024 * 1024
 
 const CONFIG_FILE = 'audio-cache-config.json'
+const INDEX_FILE = '.audio-cache-index-v1.json'
+const INDEX_BACKUP_FILE = '.audio-cache-index-v1.bak.json'
+const INDEX_MARKER_FILE = 'audio-cache-index-v1.marker'
+const INDEX_SCHEMA = 1
+const MAX_TEMP_ORIGINS = 8
+
+type OnlineSource = 'netease' | 'qq'
 
 export interface AudioCacheConfig {
   dir: string
   limitBytes: number
 }
 
-/** 默认缓存目录(未配置时使用;也是设置页"恢复默认"的目标)。 */
+export interface AudioCacheOriginInput {
+  source: OnlineSource
+  id: string
+  name?: string
+  artist?: string
+  album?: string
+  cover?: string
+  duration?: number
+}
+
+export interface AudioCacheResolvedInput extends AudioCacheOriginInput {}
+
+export interface AudioCacheContext {
+  origin: AudioCacheOriginInput
+  resolved: AudioCacheResolvedInput
+  quality: string
+  contentType?: string
+  /** 主动保存成功时写入别名级离线承诺。 */
+  pinned?: boolean
+  /** 主动保存用于核对实际写入长度。 */
+  expectedBytes?: number
+}
+
+interface CacheFileEntry {
+  entryId: string
+  fileName: string
+  size: number
+  createdAt: number
+  updatedAt: number
+}
+
+interface CacheOrigin extends AudioCacheOriginInput {
+  lastUsedAt: number
+  savedAt?: number
+}
+
+export interface ManagedAudioCacheEntry extends CacheFileEntry {
+  legacy?: false
+  cacheKey: string
+  contentType: string
+  origins: CacheOrigin[]
+  resolved: AudioCacheResolvedInput
+  quality: string
+}
+
+interface LegacyAudioCacheEntry extends CacheFileEntry {
+  legacy: true
+}
+
+type AudioCacheEntry = ManagedAudioCacheEntry | LegacyAudioCacheEntry
+
+interface AudioCacheIndexV1 {
+  schema: 1
+  entries: Record<string, AudioCacheEntry>
+}
+
+export interface OfflineCacheStatus {
+  source: OnlineSource
+  id: string
+  state: 'missing' | 'cached' | 'pinned'
+  entryId?: string
+  resolved?: AudioCacheResolvedInput
+  quality?: string
+  size?: number
+  savedAliasCount?: number
+}
+
+export interface AudioCacheStats {
+  bytes: number
+  files: number
+  temporaryBytes: number
+  temporaryFiles: number
+  pinnedBytes: number
+  pinnedFiles: number
+  unmanagedBytes: number
+  unmanagedFiles: number
+  limit: number
+  dir: string
+}
+
+export type CacheMutationResult =
+  | { ok: true }
+  | { ok: false; error: 'NOT_FOUND' | 'CACHE_BUSY' | 'CACHE_SHARED'; savedAliasCount?: number }
+
+const configMemo = new Map<string, AudioCacheConfig>()
+const mutationTails = new Map<string, Promise<void>>()
+const entryLockTails = new Map<string, Promise<void>>()
+const activeWriters = new Set<string>()
+const activeReaders = new Map<string, number>()
+const maintenanceDirs = new Set<string>()
+const blockedEntries = new Set<string>()
+
+function emptyIndex(): AudioCacheIndexV1 {
+  return { schema: INDEX_SCHEMA, entries: {} }
+}
+
+function isOnlineSource(value: unknown): value is OnlineSource {
+  return value === 'netease' || value === 'qq'
+}
+
+function cleanText(value: unknown): string | undefined {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text || undefined
+}
+
+function normalizeOrigin(value: AudioCacheOriginInput): AudioCacheOriginInput | null {
+  const id = String(value?.id ?? '').trim()
+  if (!isOnlineSource(value?.source) || !id) return null
+  const duration = Number(value.duration)
+  return {
+    source: value.source,
+    id,
+    name: cleanText(value.name),
+    artist: cleanText(value.artist),
+    album: cleanText(value.album),
+    cover: cleanText(value.cover),
+    duration: Number.isFinite(duration) && duration > 0 ? duration : undefined,
+  }
+}
+
+function originKey(origin: Pick<AudioCacheOriginInput, 'source' | 'id'>): string {
+  return `${origin.source}:${String(origin.id)}`
+}
+
+export function audioCacheEntryId(cacheKey: string): string {
+  return createHash('sha1').update(cacheKey).digest('hex')
+}
+
+function fileNameFor(cacheKey: string): string {
+  return `${audioCacheEntryId(cacheKey)}.bin`
+}
+
+function entryActivityKey(dir: string, entryId: string): string {
+  return `${dir}\u0000${entryId}`
+}
+
+function hasSavedOrigin(entry: AudioCacheEntry): boolean {
+  return !entry.legacy && entry.origins.some((origin) => origin.savedAt != null)
+}
+
+function savedAliasCount(entry: AudioCacheEntry): number {
+  return entry.legacy ? 0 : entry.origins.filter((origin) => origin.savedAt != null).length
+}
+
+function isCacheFileEntry(value: unknown): value is CacheFileEntry {
+  if (!value || typeof value !== 'object') return false
+  const entry = value as Partial<CacheFileEntry>
+  return typeof entry.entryId === 'string' && /^[a-f0-9]{40}$/i.test(entry.entryId)
+    && entry.fileName === `${entry.entryId}.bin`
+    && Number.isSafeInteger(entry.size) && entry.size! >= 0
+    && Number.isFinite(entry.createdAt) && entry.createdAt! >= 0
+    && Number.isFinite(entry.updatedAt) && entry.updatedAt! >= 0
+}
+
+function isCacheOrigin(value: unknown): value is CacheOrigin {
+  if (!value || typeof value !== 'object') return false
+  const origin = value as Partial<CacheOrigin>
+  return isOnlineSource(origin.source) && typeof origin.id === 'string' && !!origin.id.trim()
+    && Number.isFinite(origin.lastUsedAt) && origin.lastUsedAt! >= 0
+    && (origin.savedAt == null || (Number.isFinite(origin.savedAt) && origin.savedAt >= 0))
+}
+
+function isManagedEntry(value: unknown): value is ManagedAudioCacheEntry {
+  if (!isCacheFileEntry(value)) return false
+  const entry = value as Partial<ManagedAudioCacheEntry>
+  return (value as { legacy?: unknown }).legacy !== true
+    && typeof entry.cacheKey === 'string' && audioCacheEntryId(entry.cacheKey) === entry.entryId
+    && typeof entry.contentType === 'string' && !!entry.contentType && !/[\r\n]/.test(entry.contentType)
+    && Array.isArray(entry.origins)
+    && entry.origins.every(isCacheOrigin)
+    && !!entry.resolved
+    && isOnlineSource(entry.resolved.source)
+    && typeof entry.resolved.id === 'string' && !!entry.resolved.id.trim()
+    && typeof entry.quality === 'string' && !!entry.quality.trim()
+    && entry.cacheKey === `${entry.resolved.source}:${entry.resolved.id}:${entry.quality}`
+}
+
+function isLegacyEntry(value: unknown): value is LegacyAudioCacheEntry {
+  if (!isCacheFileEntry(value)) return false
+  const entry = value as Partial<LegacyAudioCacheEntry>
+  return entry.legacy === true
+}
+
+function parseIndex(raw: string): AudioCacheIndexV1 | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<AudioCacheIndexV1>
+    if (parsed.schema !== INDEX_SCHEMA || !parsed.entries || typeof parsed.entries !== 'object' || Array.isArray(parsed.entries)) return null
+    const entries: Record<string, AudioCacheEntry> = {}
+    for (const [id, entry] of Object.entries(parsed.entries)) {
+      if (!(isManagedEntry(entry) || isLegacyEntry(entry)) || entry.entryId !== id) return null
+      entries[id] = entry
+    }
+    return { schema: INDEX_SCHEMA, entries }
+  } catch {
+    return null
+  }
+}
+
+async function readIndexFile(path: string): Promise<AudioCacheIndexV1 | null> {
+  try {
+    return parseIndex(await fsp.readFile(path, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  const temp = `${path}.${randomBytes(6).toString('hex')}.tmp`
+  await fsp.writeFile(temp, JSON.stringify(value, null, 2))
+  await fsp.rename(temp, path)
+}
+
+async function writeIndex(dir: string, index: AudioCacheIndexV1): Promise<void> {
+  await fsp.mkdir(dir, { recursive: true })
+  const current = await readIndexFile(join(dir, INDEX_FILE))
+  if (current) await writeJsonAtomic(join(dir, INDEX_BACKUP_FILE), current)
+  await writeJsonAtomic(join(dir, INDEX_FILE), index)
+}
+
+async function scanLegacyEntries(dir: string): Promise<Record<string, LegacyAudioCacheEntry>> {
+  const entries: Record<string, LegacyAudioCacheEntry> = {}
+  let names: string[]
+  try {
+    names = await fsp.readdir(dir)
+  } catch {
+    return entries
+  }
+  const now = Date.now()
+  for (const fileName of names) {
+    const match = /^([a-f0-9]{40})\.bin$/i.exec(fileName)
+    if (!match) continue
+    try {
+      const stat = await fsp.stat(join(dir, fileName))
+      entries[match[1]] = {
+        legacy: true,
+        entryId: match[1],
+        fileName,
+        size: stat.size,
+        createdAt: stat.birthtimeMs || now,
+        updatedAt: stat.mtimeMs || now,
+      }
+    } catch {
+      /* 并发删除，忽略 */
+    }
+  }
+  return entries
+}
+
+async function loadIndex(userDataDir: string, dir: string): Promise<AudioCacheIndexV1> {
+  const primary = await readIndexFile(join(dir, INDEX_FILE))
+  if (primary) return primary
+  const backup = await readIndexFile(join(dir, INDEX_BACKUP_FILE))
+  if (backup) {
+    await writeJsonAtomic(join(dir, INDEX_FILE), backup).catch(() => {})
+    return backup
+  }
+
+  const marker = join(userDataDir, INDEX_MARKER_FILE)
+  let migrated = false
+  try {
+    await fsp.access(marker)
+    migrated = true
+  } catch {
+    /* 首次迁移 */
+  }
+  if (migrated) return emptyIndex()
+
+  const index: AudioCacheIndexV1 = { schema: INDEX_SCHEMA, entries: await scanLegacyEntries(dir) }
+  await writeIndex(dir, index)
+  await fsp.mkdir(userDataDir, { recursive: true })
+  await fsp.writeFile(marker, '1')
+  return index
+}
+
+async function withMutation<T>(userDataDir: string, task: () => Promise<T>): Promise<T> {
+  const previous = mutationTails.get(userDataDir) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.then(() => current)
+  mutationTails.set(userDataDir, tail)
+  await previous
+  try {
+    return await task()
+  } finally {
+    release()
+    if (mutationTails.get(userDataDir) === tail) mutationTails.delete(userDataDir)
+  }
+}
+
+async function acquireEntryLock(key: string): Promise<() => void> {
+  const previous = entryLockTails.get(key) ?? Promise.resolve()
+  let unlock!: () => void
+  const current = new Promise<void>((resolve) => { unlock = resolve })
+  const tail = previous.then(() => current)
+  entryLockTails.set(key, tail)
+  await previous
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    unlock()
+    if (entryLockTails.get(key) === tail) entryLockTails.delete(key)
+  }
+}
+
+/** 默认缓存目录。 */
 export function audioCacheDir(userDataDir: string): string {
   return join(userDataDir, 'audio-cache')
 }
 
-function clampLimit(n: number): number {
-  return Math.min(AUDIO_CACHE_MAX_LIMIT, Math.max(AUDIO_CACHE_MIN_LIMIT, Math.floor(n)))
+function clampLimit(value: number): number {
+  return Math.min(AUDIO_CACHE_MAX_LIMIT, Math.max(AUDIO_CACHE_MIN_LIMIT, Math.floor(value)))
 }
 
-let configMemo: { key: string; config: AudioCacheConfig } | null = null
-
 export async function getAudioCacheConfig(userDataDir: string): Promise<AudioCacheConfig> {
-  if (configMemo?.key === userDataDir) return configMemo.config
+  const memo = configMemo.get(userDataDir)
+  if (memo) return memo
   const config: AudioCacheConfig = { dir: audioCacheDir(userDataDir), limitBytes: AUDIO_CACHE_LIMIT_BYTES }
   try {
     const raw = JSON.parse(await fsp.readFile(join(userDataDir, CONFIG_FILE), 'utf8')) as Partial<AudioCacheConfig>
     if (typeof raw.dir === 'string' && isAbsolute(raw.dir)) config.dir = raw.dir
     if (typeof raw.limitBytes === 'number' && Number.isFinite(raw.limitBytes)) config.limitBytes = clampLimit(raw.limitBytes)
   } catch {
-    /* 无配置文件或损坏:用默认 */
+    /* 无配置或配置损坏时使用默认值 */
   }
-  configMemo = { key: userDataDir, config }
+  configMemo.set(userDataDir, config)
   return config
 }
 
-/** 探测目录可写:建目录 + 写删探针文件。 */
 async function probeWritable(dir: string): Promise<boolean> {
   try {
     await fsp.mkdir(dir, { recursive: true })
-    const probe = join(dir, '.sm-write-probe')
+    const probe = join(dir, `.sm-write-probe-${randomBytes(4).toString('hex')}`)
     await fsp.writeFile(probe, '')
     await fsp.rm(probe, { force: true })
     return true
@@ -62,24 +365,36 @@ async function probeWritable(dir: string): Promise<boolean> {
   }
 }
 
-/**
- * 更新缓存配置。dir 传空字符串 = 恢复默认目录;目录变更时清空旧目录里的缓存文件(缓存可再生,避免残留占盘)。
- * limitBytes 会被钳到 [256MB, 100GB];缩小上限立即触发一次淘汰。
- */
+function hasActiveEntriesInDir(dir: string): boolean {
+  const prefix = `${dir}\u0000`
+  if ([...activeWriters].some((key) => key.startsWith(prefix))) return true
+  return [...activeReaders].some(([key, count]) => count > 0 && key.startsWith(prefix))
+}
+
+async function clearCacheFilesIn(dir: string): Promise<void> {
+  let names: string[]
+  try {
+    names = await fsp.readdir(dir)
+  } catch {
+    return
+  }
+  await Promise.all(names
+    .filter((name) => name.endsWith('.bin') || name.endsWith('.part') || name.startsWith(`${INDEX_FILE}.`) || name === INDEX_FILE || name === INDEX_BACKUP_FILE)
+    .map((name) => fsp.rm(join(dir, name), { force: true }).catch(() => {})))
+}
+
 export async function updateAudioCacheConfig(
   userDataDir: string,
-  patch: { dir?: string; limitBytes?: number }
+  patch: { dir?: string; limitBytes?: number; confirmPinned?: boolean }
 ): Promise<{ ok: true; config: AudioCacheConfig } | { ok: false; error: string }> {
   const current = await getAudioCacheConfig(userDataDir)
   const next: AudioCacheConfig = { ...current }
-
   if (patch.limitBytes != null) {
     if (typeof patch.limitBytes !== 'number' || !Number.isFinite(patch.limitBytes)) {
       return { ok: false, error: 'INVALID_LIMIT' }
     }
     next.limitBytes = clampLimit(patch.limitBytes)
   }
-
   if (patch.dir != null) {
     const dir = String(patch.dir).trim() || audioCacheDir(userDataDir)
     if (!isAbsolute(dir)) return { ok: false, error: 'DIR_NOT_ABSOLUTE' }
@@ -87,64 +402,182 @@ export async function updateAudioCacheConfig(
     next.dir = dir
   }
 
+  if (next.dir !== current.dir) {
+    let preflight: string | null
+    try {
+      preflight = await withMutation(userDataDir, async () => {
+        maintenanceDirs.add(current.dir)
+        if (hasActiveEntriesInDir(current.dir)) return 'CACHE_BUSY'
+        const index = await loadIndex(userDataDir, current.dir)
+        if (!patch.confirmPinned && Object.values(index.entries).some(hasSavedOrigin)) return 'PINNED_CONTENT'
+        return null
+      })
+    } catch (error) {
+      maintenanceDirs.delete(current.dir)
+      throw error
+    }
+    if (preflight) {
+      maintenanceDirs.delete(current.dir)
+      return { ok: false, error: preflight }
+    }
+  }
+
   try {
     await fsp.mkdir(userDataDir, { recursive: true })
-    await fsp.writeFile(join(userDataDir, CONFIG_FILE), JSON.stringify(next, null, 2))
+    await writeJsonAtomic(join(userDataDir, CONFIG_FILE), next)
   } catch {
+    maintenanceDirs.delete(current.dir)
     return { ok: false, error: 'CONFIG_SAVE_FAILED' }
   }
 
-  const oldDir = current.dir
-  configMemo = { key: userDataDir, config: next }
-  if (next.dir !== oldDir) {
-    await clearCacheFilesIn(oldDir)
+  configMemo.set(userDataDir, next)
+  if (next.dir !== current.dir) {
+    await clearCacheFilesIn(current.dir)
+    maintenanceDirs.delete(current.dir)
   }
-  if (next.limitBytes < current.limitBytes) {
-    await enforceCacheLimit(next.dir, next.limitBytes).catch(() => {})
-  }
+  if (next.limitBytes < current.limitBytes) await enforceAudioCacheLimit(userDataDir)
   return { ok: true, config: next }
 }
 
-function fileNameFor(key: string): string {
-  return createHash('sha1').update(key).digest('hex') + '.bin'
-}
-
-/** 请求是否从 0 字节起、可整体缓存(无 Range 或 bytes=0-;播放器起播即这两种形态)。 */
 export function isFullStreamRequest(range: string): boolean {
-  const r = range.trim()
-  return r === '' || /^bytes=0-$/i.test(r)
+  const value = range.trim()
+  return value === '' || /^bytes=0-$/i.test(value)
 }
 
-/** 上游响应是否覆盖完整文件:200,或 206 且 Content-Range 为 bytes 0-(N-1)/N。 */
 export function coversWholeFile(status: number, contentRange: string | null): boolean {
   if (status === 200) return true
   if (status !== 206 || !contentRange) return false
-  const m = /^bytes\s+0-(\d+)\/(\d+)$/i.exec(contentRange.trim())
-  if (!m) return false
-  return Number(m[1]) + 1 === Number(m[2])
+  const match = /^bytes\s+0-(\d+)\/(\d+)$/i.exec(contentRange.trim())
+  return !!match && Number(match[1]) + 1 === Number(match[2])
 }
 
-/** 解析播放器 Range 头(bytes=start- / bytes=start-end);无效或越界返回 null(应回 416)。 */
 export function parseByteRange(range: string, size: number): { start: number; end: number } | null {
-  const m = /^bytes=(\d+)-(\d*)$/i.exec(range.trim())
-  if (!m) return null
-  const start = Number(m[1])
-  const end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1)
+  const match = /^bytes=(\d+)-(\d*)$/i.exec(range.trim())
+  if (!match) return null
+  const start = Number(match[1])
+  const end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1)
   if (start >= size || start > end) return null
   return { start, end }
 }
 
-/** 查缓存命中;命中时续期 mtime(LRU)。 */
+function mergeOrigin(
+  origins: CacheOrigin[],
+  input: AudioCacheOriginInput,
+  pinned: boolean,
+  now: number
+): CacheOrigin[] {
+  const key = originKey(input)
+  const previous = origins.find((origin) => originKey(origin) === key)
+  const merged: CacheOrigin = {
+    ...previous,
+    ...input,
+    lastUsedAt: now,
+    savedAt: pinned ? now : previous?.savedAt,
+  }
+  const next = origins.filter((origin) => originKey(origin) !== key)
+  next.push(merged)
+  const saved = next.filter((origin) => origin.savedAt != null)
+  const temporary = next
+    .filter((origin) => origin.savedAt == null)
+    .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+    .slice(0, MAX_TEMP_ORIGINS)
+  return [...saved, ...temporary]
+}
+
+async function upsertManagedEntry(
+  userDataDir: string,
+  dir: string,
+  cacheKey: string,
+  size: number,
+  context: AudioCacheContext
+): Promise<void> {
+  const origin = normalizeOrigin(context.origin)
+  const resolved = normalizeOrigin(context.resolved)
+  const quality = cleanText(context.quality)
+  if (!origin || !resolved || !quality) return
+  await withMutation(userDataDir, async () => {
+    const entryId = audioCacheEntryId(cacheKey)
+    const activityKey = entryActivityKey(dir, entryId)
+    if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) return
+    try {
+      if ((await fsp.stat(join(dir, fileNameFor(cacheKey)))).size !== size) return
+    } catch {
+      return
+    }
+    const index = await loadIndex(userDataDir, dir)
+    const previous = index.entries[entryId]
+    const now = Date.now()
+    const origins = previous && !previous.legacy ? previous.origins : []
+    if (context.pinned) {
+      const key = originKey(origin)
+      for (const entry of Object.values(index.entries)) {
+        if (entry.legacy || entry.entryId === entryId) continue
+        entry.origins = entry.origins.map((item) => (
+          originKey(item) === key ? { ...item, savedAt: undefined } : item
+        ))
+      }
+    }
+    index.entries[entryId] = {
+      entryId,
+      fileName: fileNameFor(cacheKey),
+      cacheKey,
+      contentType: cleanText(context.contentType)
+        ?? (previous && !previous.legacy ? previous.contentType : 'application/octet-stream'),
+      size,
+      origins: mergeOrigin(origins, origin, !!context.pinned, now),
+      resolved,
+      quality,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+    }
+    await writeIndex(dir, index)
+  })
+}
+
 export async function findCachedAudio(
   userDataDir: string,
-  key: string
-): Promise<{ path: string; size: number } | null> {
-  const p = join((await getAudioCacheConfig(userDataDir)).dir, fileNameFor(key))
+  cacheKey: string,
+  context?: AudioCacheContext,
+  acquireReadLease = false
+): Promise<{ path: string; size: number; entryId: string; release?: () => void } | null> {
+  const dir = (await getAudioCacheConfig(userDataDir)).dir
+  const entryId = audioCacheEntryId(cacheKey)
+  const activityKey = entryActivityKey(dir, entryId)
+  if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) return null
+  const path = join(dir, fileNameFor(cacheKey))
   try {
-    const st = await fsp.stat(p)
+    const indexedSize = await withMutation(userDataDir, async () => {
+      if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) return null
+      return (await loadIndex(userDataDir, dir)).entries[entryId]?.size ?? null
+    })
+    // 索引灾难恢复后的未识别文件保持隔离；只服务首次迁移或正常提交过的条目。
+    if (indexedSize == null) return null
+    const stat = await fsp.stat(path)
+    if (stat.size !== indexedSize) return null
     const now = new Date()
-    await fsp.utimes(p, now, now).catch(() => {})
-    return { path: p, size: st.size }
+    await fsp.utimes(path, now, now).catch(() => {})
+    if (context) await upsertManagedEntry(userDataDir, dir, cacheKey, stat.size, context)
+    if (!acquireReadLease) return { path, size: stat.size, entryId }
+    return withMutation(userDataDir, async () => {
+      if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) return null
+      const indexed = (await loadIndex(userDataDir, dir)).entries[entryId]
+      const latest = await fsp.stat(path).catch(() => null)
+      if (!indexed || !latest || latest.size !== indexed.size) return null
+      activeReaders.set(activityKey, (activeReaders.get(activityKey) ?? 0) + 1)
+      let released = false
+      return {
+        path,
+        size: latest.size,
+        entryId,
+        release() {
+          if (released) return
+          released = true
+          const remaining = (activeReaders.get(activityKey) ?? 1) - 1
+          if (remaining > 0) activeReaders.set(activityKey, remaining)
+          else activeReaders.delete(activityKey)
+        },
+      }
+    })
   } catch {
     return null
   }
@@ -152,30 +585,54 @@ export async function findCachedAudio(
 
 export interface AudioCacheWriter {
   write(chunk: Uint8Array): Promise<void>
-  /** 整流转发完成后调用:关流、rename 为正式缓存、执行 LRU 淘汰。 */
-  commit(): Promise<void>
-  /** 中途断开(切歌)时调用:丢弃临时文件。 */
+  /** 返回 false 表示长度不符或写入失败，没有正式缓存。 */
+  commit(): Promise<boolean>
   abort(): void
 }
 
-export async function openAudioCacheWriter(userDataDir: string, key: string): Promise<AudioCacheWriter | null> {
-  const { dir, limitBytes } = await getAudioCacheConfig(userDataDir)
-  const final = join(dir, fileNameFor(key))
-  const temp = final + '.part'
+export async function openAudioCacheWriter(
+  userDataDir: string,
+  cacheKey: string,
+  context?: AudioCacheContext
+): Promise<AudioCacheWriter | null> {
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  const entryId = audioCacheEntryId(cacheKey)
+  const activityKey = entryActivityKey(dir, entryId)
+  if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) return null
+  const releaseLock = await acquireEntryLock(activityKey)
+  if (maintenanceDirs.has(dir) || blockedEntries.has(activityKey)) {
+    releaseLock()
+    return null
+  }
+  activeWriters.add(activityKey)
+  const finalPath = join(dir, fileNameFor(cacheKey))
+  const tempPath = join(dir, `${entryId}.${randomBytes(6).toString('hex')}.part`)
   let stream: WriteStream
   try {
     await fsp.mkdir(dir, { recursive: true })
-    stream = createWriteStream(temp)
+    stream = createWriteStream(tempPath)
   } catch {
+    activeWriters.delete(activityKey)
+    releaseLock()
     return null
   }
+
   let failed = false
-  stream.on('error', () => {
-    failed = true
-  })
+  let finished = false
+  let bytesWritten = 0
+  stream.on('error', () => { failed = true })
+  const release = () => {
+    if (finished) return
+    finished = true
+    activeWriters.delete(activityKey)
+    releaseLock()
+  }
+
   return {
     async write(chunk) {
-      if (failed || stream.write(chunk)) return
+      if (failed || finished) return
+      bytesWritten += chunk.byteLength
+      if (stream.write(chunk)) return
       await new Promise<void>((resolve) => {
         const finish = () => {
           stream.off('drain', finish)
@@ -189,120 +646,458 @@ export async function openAudioCacheWriter(userDataDir: string, key: string): Pr
       })
     },
     async commit() {
+      if (finished) return false
       await new Promise<void>((resolve) => stream.end(resolve))
-      if (failed) {
-        await fsp.rm(temp, { force: true }).catch(() => {})
-        return
+      const expected = context?.expectedBytes
+      if (failed || (expected != null && expected !== bytesWritten)) {
+        await fsp.rm(tempPath, { force: true }).catch(() => {})
+        release()
+        return false
       }
       try {
-        await fsp.rename(temp, final)
-        await enforceCacheLimit(dir, limitBytes)
+        try {
+          const existing = await fsp.stat(finalPath)
+          if (context?.expectedBytes != null && existing.size !== context.expectedBytes) {
+            await fsp.rm(finalPath, { force: true })
+            await fsp.rename(tempPath, finalPath)
+          } else {
+            await fsp.rm(tempPath, { force: true })
+          }
+        } catch {
+          await fsp.rename(tempPath, finalPath)
+        }
+        const stat = await fsp.stat(finalPath)
+        if (context) {
+          await upsertManagedEntry(userDataDir, dir, cacheKey, stat.size, context)
+        } else {
+          await withMutation(userDataDir, async () => {
+            const index = await loadIndex(userDataDir, dir)
+            if (!index.entries[entryId]) {
+              const now = Date.now()
+              index.entries[entryId] = {
+                legacy: true,
+                entryId,
+                fileName: fileNameFor(cacheKey),
+                size: stat.size,
+                createdAt: now,
+                updatedAt: now,
+              }
+              await writeIndex(dir, index)
+            }
+          })
+        }
+        release()
+        await enforceAudioCacheLimit(userDataDir)
+        return true
       } catch {
-        await fsp.rm(temp, { force: true }).catch(() => {})
+        await fsp.rm(tempPath, { force: true }).catch(() => {})
+        release()
+        return false
       }
     },
     abort() {
+      if (finished) return
       failed = true
       stream.destroy()
-      void fsp.rm(temp, { force: true }).catch(() => {})
+      void fsp.rm(tempPath, { force: true }).catch(() => {})
+      release()
     },
   }
 }
 
-async function listCacheFiles(dir: string): Promise<{ path: string; size: number; mtimeMs: number }[]> {
+async function listBinFiles(dir: string): Promise<Array<{ entryId: string; path: string; size: number; mtimeMs: number }>> {
   let names: string[]
   try {
     names = await fsp.readdir(dir)
   } catch {
     return []
   }
-  const out: { path: string; size: number; mtimeMs: number }[] = []
+  const files: Array<{ entryId: string; path: string; size: number; mtimeMs: number }> = []
   for (const name of names) {
-    if (!name.endsWith('.bin')) continue
-    const p = join(dir, name)
+    const match = /^([a-f0-9]{40})\.bin$/i.exec(name)
+    if (!match) continue
+    const path = join(dir, name)
     try {
-      const st = await fsp.stat(p)
-      out.push({ path: p, size: st.size, mtimeMs: st.mtimeMs })
+      const stat = await fsp.stat(path)
+      files.push({ entryId: match[1], path, size: stat.size, mtimeMs: stat.mtimeMs })
     } catch {
-      /* 并发删除等,跳过 */
+      /* 并发删除，忽略 */
     }
   }
-  return out
+  return files
 }
 
-/** 超限时按 mtime 从最旧开始淘汰,直到总量回到限额内。 */
+async function enforceAudioCacheLimit(userDataDir: string, explicitLimit?: number): Promise<void> {
+  const config = await getAudioCacheConfig(userDataDir)
+  await withMutation(userDataDir, async () => {
+    const index = await loadIndex(userDataDir, config.dir)
+    const files = await listBinFiles(config.dir)
+    const indexed = new Map(Object.values(index.entries).map((entry) => [entry.entryId, entry]))
+    const candidates = files.filter((file) => {
+      const entry = indexed.get(file.entryId)
+      if (!entry || hasSavedOrigin(entry)) return false
+      const key = entryActivityKey(config.dir, file.entryId)
+      return !activeWriters.has(key) && !(activeReaders.get(key) ?? 0)
+    })
+    let temporaryBytes = candidates.reduce((sum, file) => sum + file.size, 0)
+    const limit = explicitLimit ?? config.limitBytes
+    if (temporaryBytes <= limit) return
+    candidates.sort((a, b) => a.mtimeMs - b.mtimeMs)
+    let changed = false
+    for (const file of candidates) {
+      if (temporaryBytes <= limit) break
+      const activityKey = entryActivityKey(config.dir, file.entryId)
+      blockedEntries.add(activityKey)
+      try {
+        await fsp.rm(file.path, { force: true })
+        delete index.entries[file.entryId]
+        temporaryBytes -= file.size
+        changed = true
+      } catch {
+        /* 下次超限检查重试。 */
+      } finally {
+        blockedEntries.delete(activityKey)
+      }
+    }
+    if (changed) await writeIndex(config.dir, index)
+  })
+}
+
+/** 兼容原调用；缺索引时按旧语义处理全部 .bin。 */
 export async function enforceCacheLimit(dir: string, limit = AUDIO_CACHE_LIMIT_BYTES): Promise<void> {
-  const files = await listCacheFiles(dir)
-  let total = files.reduce((s, f) => s + f.size, 0)
-  if (total <= limit) return
-  files.sort((a, b) => a.mtimeMs - b.mtimeMs)
-  for (const f of files) {
-    if (total <= limit) break
-    await fsp.rm(f.path, { force: true }).catch(() => {})
-    total -= f.size
+  const index = await readIndexFile(join(dir, INDEX_FILE))
+  const files = await listBinFiles(dir)
+  const candidates = files.filter((file) => {
+    const entry = index?.entries[file.entryId]
+    return !entry || !hasSavedOrigin(entry)
+  }).sort((a, b) => a.mtimeMs - b.mtimeMs)
+  let bytes = candidates.reduce((sum, file) => sum + file.size, 0)
+  for (const file of candidates) {
+    if (bytes <= limit) break
+    await fsp.rm(file.path, { force: true }).catch(() => {})
+    bytes -= file.size
   }
 }
 
-export async function audioCacheStats(
-  userDataDir: string
-): Promise<{ bytes: number; files: number; limit: number; dir: string }> {
-  const { dir, limitBytes } = await getAudioCacheConfig(userDataDir)
-  const files = await listCacheFiles(dir)
-  return { bytes: files.reduce((s, f) => s + f.size, 0), files: files.length, limit: limitBytes, dir }
+function matchingCandidates(index: AudioCacheIndexV1, source: OnlineSource, id: string): ManagedAudioCacheEntry[] {
+  const key = `${source}:${id}`
+  return Object.values(index.entries).filter((entry): entry is ManagedAudioCacheEntry => (
+    !entry.legacy && entry.origins.some((origin) => originKey(origin) === key)
+  ))
 }
 
-/** 清空指定目录下我们产出的缓存文件(.bin/.part),不动目录里的其他内容。 */
-async function clearCacheFilesIn(dir: string): Promise<void> {
-  let names: string[]
-  try {
-    names = await fsp.readdir(dir)
-  } catch {
-    return
-  }
-  await Promise.all(
-    names
-      .filter((n) => n.endsWith('.bin') || n.endsWith('.part'))
-      .map((n) => fsp.rm(join(dir, n), { force: true }).catch(() => {}))
-  )
+function pickOfflineEntry(entries: ManagedAudioCacheEntry[], source: OnlineSource, id: string): ManagedAudioCacheEntry | null {
+  const key = `${source}:${id}`
+  return [...entries].sort((a, b) => {
+    const ao = a.origins.find((origin) => originKey(origin) === key)
+    const bo = b.origins.find((origin) => originKey(origin) === key)
+    const saved = Number(bo?.savedAt ?? 0) - Number(ao?.savedAt ?? 0)
+    if (saved) return saved
+    const direct = Number(b.resolved.source === source) - Number(a.resolved.source === source)
+    if (direct) return direct
+    const used = Number(bo?.lastUsedAt ?? 0) - Number(ao?.lastUsedAt ?? 0)
+    if (used) return used
+    return a.entryId.localeCompare(b.entryId)
+  })[0] ?? null
+}
+
+export async function getAudioCacheStatuses(
+  userDataDir: string,
+  refs: Array<{ source: OnlineSource; id: string }>
+): Promise<OfflineCacheStatus[]> {
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return refs.map(({ source, id }) => ({ source, id, state: 'missing' as const }))
+    const index = await loadIndex(userDataDir, dir)
+    let changed = false
+    for (const entry of Object.values(index.entries)) {
+      try {
+        const stat = await fsp.stat(join(dir, entry.fileName))
+        if (stat.size !== entry.size) {
+          delete index.entries[entry.entryId]
+          changed = true
+        }
+      } catch {
+        delete index.entries[entry.entryId]
+        changed = true
+      }
+    }
+    if (changed) await writeIndex(dir, index)
+
+    return refs.map((ref) => {
+      const source = ref.source
+      const id = String(ref.id)
+      const selected = pickOfflineEntry(matchingCandidates(index, source, id), source, id)
+      if (!selected) return { source, id, state: 'missing' }
+      const alias = selected.origins.find((origin) => originKey(origin) === `${source}:${id}`)
+      return {
+        source,
+        id,
+        state: alias?.savedAt != null ? 'pinned' : 'cached',
+        entryId: selected.entryId,
+        resolved: selected.resolved,
+        quality: selected.quality,
+        size: selected.size,
+        savedAliasCount: savedAliasCount(selected),
+      }
+    })
+  })
+}
+
+export async function openAudioCacheEntry(
+  userDataDir: string,
+  entryId: string,
+  origin: { source: OnlineSource; id: string }
+): Promise<{ path: string; size: number; contentType: string; release(): void } | null> {
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return null
+    const index = await loadIndex(userDataDir, dir)
+    const entry = index.entries[entryId]
+    if (!entry || entry.legacy) return null
+    const key = originKey(origin)
+    const alias = entry.origins.find((item) => originKey(item) === key)
+    if (!alias) return null
+    const path = join(dir, entry.fileName)
+    let stat
+    try {
+      stat = await fsp.stat(path)
+    } catch {
+      delete index.entries[entryId]
+      await writeIndex(dir, index)
+      return null
+    }
+    if (stat.size !== entry.size) {
+      delete index.entries[entryId]
+      await writeIndex(dir, index)
+      return null
+    }
+    const now = Date.now()
+    alias.lastUsedAt = now
+    entry.updatedAt = now
+    await fsp.utimes(path, new Date(now), new Date(now)).catch(() => {})
+    await writeIndex(dir, index)
+    const activityKey = entryActivityKey(dir, entryId)
+    activeReaders.set(activityKey, (activeReaders.get(activityKey) ?? 0) + 1)
+    let released = false
+    return {
+      path,
+      size: stat.size,
+      contentType: entry.contentType,
+      release() {
+        if (released) return
+        released = true
+        const remaining = (activeReaders.get(activityKey) ?? 1) - 1
+        if (remaining > 0) activeReaders.set(activityKey, remaining)
+        else activeReaders.delete(activityKey)
+      },
+    }
+  })
+}
+
+export async function pinAudioCacheEntry(
+  userDataDir: string,
+  entryId: string,
+  originInput: AudioCacheOriginInput,
+  pinned: boolean
+): Promise<CacheMutationResult> {
+  const origin = normalizeOrigin(originInput)
+  if (!origin) return { ok: false, error: 'NOT_FOUND' }
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return { ok: false, error: 'CACHE_BUSY' }
+    const index = await loadIndex(userDataDir, dir)
+    const entry = index.entries[entryId]
+    if (!entry || entry.legacy) return { ok: false, error: 'NOT_FOUND' }
+    const key = originKey(origin)
+    const alias = entry.origins.find((item) => originKey(item) === key)
+    if (!alias) return { ok: false, error: 'NOT_FOUND' }
+    if (pinned) {
+      for (const candidate of Object.values(index.entries)) {
+        if (candidate.legacy || candidate.entryId === entryId) continue
+        candidate.origins = candidate.origins.map((item) => (
+          originKey(item) === key ? { ...item, savedAt: undefined } : item
+        ))
+      }
+      Object.assign(alias, origin, { savedAt: Date.now(), lastUsedAt: Date.now() })
+    } else {
+      alias.savedAt = undefined
+    }
+    await writeIndex(dir, index)
+    return { ok: true }
+  })
+}
+
+export async function deleteAudioCacheEntry(
+  userDataDir: string,
+  entryId: string,
+  originInput: Pick<AudioCacheOriginInput, 'source' | 'id'>,
+  confirmShared = false
+): Promise<CacheMutationResult> {
+  const origin = normalizeOrigin(originInput as AudioCacheOriginInput)
+  if (!origin) return { ok: false, error: 'NOT_FOUND' }
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return { ok: false, error: 'CACHE_BUSY' }
+    const index = await loadIndex(userDataDir, dir)
+    const entry = index.entries[entryId]
+    if (!entry || entry.legacy) return { ok: false, error: 'NOT_FOUND' }
+    const key = originKey(origin)
+    if (!entry.origins.some((item) => originKey(item) === key)) return { ok: false, error: 'NOT_FOUND' }
+    const otherSaved = entry.origins.filter((item) => item.savedAt != null && originKey(item) !== key).length
+    if (otherSaved > 0 && !confirmShared) {
+      return { ok: false, error: 'CACHE_SHARED', savedAliasCount: savedAliasCount(entry) }
+    }
+    const activityKey = entryActivityKey(dir, entryId)
+    blockedEntries.add(activityKey)
+    try {
+      if (activeWriters.has(activityKey) || (activeReaders.get(activityKey) ?? 0) > 0) {
+        return { ok: false, error: 'CACHE_BUSY' }
+      }
+      try {
+        await fsp.rm(join(dir, entry.fileName), { force: true })
+      } catch {
+        return { ok: false, error: 'CACHE_BUSY' }
+      }
+      delete index.entries[entryId]
+      await writeIndex(dir, index)
+      return { ok: true }
+    } finally {
+      blockedEntries.delete(activityKey)
+    }
+  })
+}
+
+export async function clearAudioCacheScope(
+  userDataDir: string,
+  scope: 'temporary' | 'pinned' | 'unmanaged' | 'all'
+): Promise<CacheMutationResult> {
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return { ok: false, error: 'CACHE_BUSY' }
+    maintenanceDirs.add(dir)
+    try {
+      if (hasActiveEntriesInDir(dir)) return { ok: false, error: 'CACHE_BUSY' }
+      const index = await loadIndex(userDataDir, dir)
+      const files = await listBinFiles(dir)
+      const indexedIds = new Set(Object.keys(index.entries))
+      const removeIds = new Set<string>()
+      if (scope === 'temporary' || scope === 'all') {
+        for (const entry of Object.values(index.entries)) if (!hasSavedOrigin(entry)) removeIds.add(entry.entryId)
+      }
+      if (scope === 'pinned' || scope === 'all') {
+        for (const entry of Object.values(index.entries)) if (hasSavedOrigin(entry)) removeIds.add(entry.entryId)
+      }
+      if (scope === 'unmanaged' || scope === 'all') {
+        for (const file of files) if (!indexedIds.has(file.entryId)) removeIds.add(file.entryId)
+      }
+      let failed = false
+      for (const file of files) {
+        if (!removeIds.has(file.entryId)) continue
+        try {
+          await fsp.rm(file.path, { force: true })
+          delete index.entries[file.entryId]
+        } catch {
+          failed = true
+        }
+      }
+      const names = await fsp.readdir(dir).catch(() => [] as string[])
+      await Promise.all(names.filter((name) => name.endsWith('.part')).map((name) => fsp.rm(join(dir, name), { force: true }).catch(() => {})))
+      await writeIndex(dir, index)
+      return failed ? { ok: false, error: 'CACHE_BUSY' } : { ok: true }
+    } finally {
+      maintenanceDirs.delete(dir)
+    }
+  })
 }
 
 export async function clearAudioCache(userDataDir: string): Promise<void> {
-  await clearCacheFilesIn((await getAudioCacheConfig(userDataDir)).dir)
+  await clearAudioCacheScope(userDataDir, 'all')
 }
 
-/** 按 Range 服务本地文件(支持 bytes=start-(-end),无效 Range 回 416)。缓存命中/本地音乐播放共用。 */
+export async function audioCacheStats(userDataDir: string): Promise<AudioCacheStats> {
+  const config = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    const index = await loadIndex(userDataDir, config.dir)
+    const files = await listBinFiles(config.dir)
+    let temporaryBytes = 0
+    let temporaryFiles = 0
+    let pinnedBytes = 0
+    let pinnedFiles = 0
+    let unmanagedBytes = 0
+    let unmanagedFiles = 0
+    for (const file of files) {
+      const entry = index.entries[file.entryId]
+      if (!entry) {
+        unmanagedBytes += file.size
+        unmanagedFiles++
+      } else if (hasSavedOrigin(entry)) {
+        pinnedBytes += file.size
+        pinnedFiles++
+      } else {
+        temporaryBytes += file.size
+        temporaryFiles++
+      }
+    }
+    return {
+      bytes: files.reduce((sum, file) => sum + file.size, 0),
+      files: files.length,
+      temporaryBytes,
+      temporaryFiles,
+      pinnedBytes,
+      pinnedFiles,
+      unmanagedBytes,
+      unmanagedFiles,
+      limit: config.limitBytes,
+      dir: config.dir,
+    }
+  })
+}
+
 export function serveFileWithRange(
   res: ServerResponse,
   filePath: string,
   size: number,
   range: string,
-  contentType: string
+  contentType: string,
+  onDone?: () => void
 ): void {
   const base: Record<string, string> = {
     'Content-Type': contentType,
     'Access-Control-Allow-Origin': '*',
     'Accept-Ranges': 'bytes',
-    // 音频已有本地文件/audio-cache,禁止 Chromium 磁盘缓存再存一份
     'Cache-Control': 'no-store',
   }
   const parsed = range ? parseByteRange(range, size) : null
   if (range && !parsed) {
     res.writeHead(416, { ...base, 'Content-Range': `bytes */${size}` })
     res.end()
+    onDone?.()
     return
   }
-  let stream: ReturnType<typeof createReadStream>
+  const stream = parsed
+    ? createReadStream(filePath, { start: parsed.start, end: parsed.end })
+    : createReadStream(filePath)
   if (parsed) {
     res.writeHead(206, {
       ...base,
       'Content-Range': `bytes ${parsed.start}-${parsed.end}/${size}`,
       'Content-Length': String(parsed.end - parsed.start + 1),
     })
-    stream = createReadStream(filePath, { start: parsed.start, end: parsed.end })
   } else {
     res.writeHead(200, { ...base, 'Content-Length': String(size) })
-    stream = createReadStream(filePath)
   }
-  stream.on('error', () => res.end())
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    onDone?.()
+  }
+  stream.once('error', () => {
+    res.end()
+    finish()
+  })
+  stream.once('close', finish)
+  res.once('close', finish)
   stream.pipe(res)
 }

@@ -60,6 +60,16 @@
   font-size: 11px;
 }
 
+.providerSectionHeader button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.providerSectionHeader button:hover { color: var(--sm-text-primary); }
+
 .providerError,
 .providerEmpty {
   padding: 26px 10px;

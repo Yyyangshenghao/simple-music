@@ -33,7 +33,7 @@ function candidate(source: ProviderId, url: string, level = 'exhigh'): PlaybackC
 
 function dependencies(options: {
   active?: ProviderId[]
-  resolve: Record<ProviderId, (track: Track, quality: AudioQuality, signal?: AbortSignal) => Promise<PlaybackCandidate[]>>
+  resolve: Partial<Record<ProviderId, (track: Track, quality: AudioQuality, signal?: AbortSignal) => Promise<PlaybackCandidate[]>>>
   qualities?: Partial<Record<ProviderId, QualityOption[]>>
   matches?: Partial<Record<ProviderId, Track | null>>
 }) {
@@ -56,6 +56,13 @@ function dependencies(options: {
 
 describe('buildPlaybackSourceOrder', () => {
   const participating = () => true
+
+  it('Apple Music 原曲只走官方播放器，其他平台不把 Apple 当作直链兜底', () => {
+    const preferences = { playbackOrder: ['apple', 'qq', 'netease'] as ProviderId[], preferOriginSource: false, multiSourceFallback: true }
+    expect(buildPlaybackSourceOrder(track('apple'), preferences, participating)).toEqual(['apple'])
+    expect(buildPlaybackSourceOrder(track('apple'), preferences, () => false)).toEqual([])
+    expect(buildPlaybackSourceOrder(track('qq'), preferences, participating)).toEqual(['qq', 'netease'])
+  })
 
   it('手动软优先在最前，其后是原源和全局顺序', () => {
     expect(buildPlaybackSourceOrder(track('netease'), {

@@ -30,7 +30,7 @@ export function Scene({ className }: SceneProps) {
       <Canvas
         camera={{ position: [0, 0, 14], fov: 60 }}
         dpr={[1, 1.5]}
-        frameloop="demand"
+        frameloop="never"
         gl={{ antialias: false, alpha: true }}
       >
         <FrameLimiter fps={WALLPAPER_FPS} />

@@ -120,8 +120,13 @@
 /* 倍速五档等分一行,避免 flex-wrap 换出孤零零的一个 */
 .rateChips {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
+}
+
+.rateChips .chip {
+  min-width: 0;
+  padding-inline: 2px;
 }
 
 .chip {

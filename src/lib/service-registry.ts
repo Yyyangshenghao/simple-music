@@ -10,7 +10,10 @@ import type { MusicSource } from '../types/domain'
 export const neteaseService = providerFor('netease').legacyService as NeteaseMusicService
 export const qqService = providerFor('qq').legacyService as QQMusicService
 
+export const appleMusicService = providerFor('apple').legacyService
+
 export function serviceFor(source: MusicSource): MusicService {
+  if (source === 'apple') return appleMusicService
   if (source === 'qq') return qqService
   if (source === 'local') return localMusicService
   return neteaseService

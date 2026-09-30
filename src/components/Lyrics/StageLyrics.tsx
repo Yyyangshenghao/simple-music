@@ -41,6 +41,7 @@ interface LyricsResult {
 /** 拉取并解析歌词，返回主歌词与对齐后的翻译；失败或无歌词返回空结果。 */
 async function fetchLyrics(track: Track): Promise<LyricsResult> {
   const empty: LyricsResult = { main: [], aligned: [] }
+  if (track.source === 'apple') return empty
   try {
     let res: unknown
     if (track.source === 'qq') {

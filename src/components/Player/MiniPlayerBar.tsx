@@ -301,7 +301,7 @@ export function MiniPlayerBar({
           >
             <VolumeIcon muted={volume <= 0} />
           </button>
-          <button type="button" className={`${styles.ctl} ${styles.ctlClose}`} onPointerDown={stop} onClick={onClose} title="收起到托盘" aria-label="收起到托盘">
+          <button type="button" className={`${styles.ctl} ${styles.ctlClose}`} onPointerDown={stop} onClick={onClose} title="退出迷你模式" aria-label="退出迷你模式">
             <CloseIcon />
           </button>
         </div>

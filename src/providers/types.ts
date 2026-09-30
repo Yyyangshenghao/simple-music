@@ -114,6 +114,7 @@ export interface RecommendationCapability {
 
 export interface LibraryCapability {
   getUserPlaylists?(): Promise<Playlist[]>
+  getUserAlbums?(): Promise<Playlist[]>
   getLikedPlaylist?(): Promise<Playlist | null>
   checkLiked?(ids: unknown[]): Promise<Record<string, boolean>>
 }

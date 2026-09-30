@@ -2,7 +2,7 @@
 // 全骨架懒加载(useLazyPlaylist)+ 虚拟列表(VirtualList),未加载行显示 shimmer 占位。
 // 播放任意一行时按完整 trackIds 入队,未加载详情的为 pending 占位曲目。
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
@@ -10,6 +10,8 @@ import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useBackdropStore } from '../../stores/backdrop'
 import { serviceFor } from '../../lib/service-registry'
+import { TrackSearch } from '../ui/TrackSearch'
+import { matchingTrackIndices } from '../../lib/track-search'
 import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
@@ -44,11 +46,70 @@ function SkeletonTrackRow({ index }: { index: number }) {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const [query, setQuery] = useState('')
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState(false)
+  const [searchAttempt, setSearchAttempt] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(false)
+  const refreshInFlight = useRef(false)
+  const checkInFlight = useRef(false)
+  const searching = Boolean(query.trim())
   const pageRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
-  const { total, tracks, loading, error, available, ensureRange, makeQueue, retry } = useLazyPlaylist(playlist, initialTracks)
+  const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
+  const canRefresh = playlist.type !== 'album' && !initialTracks?.length
+  const refreshPlaylist = useCallback(async () => {
+    if (!canRefresh || refreshInFlight.current) return
+    refreshInFlight.current = true
+    setRefreshing(true)
+    setRefreshError(false)
+    try {
+      await refresh()
+    } catch {
+      setRefreshError(true)
+    } finally {
+      refreshInFlight.current = false
+      setRefreshing(false)
+    }
+  }, [canRefresh, refresh])
+  const checkPlaylist = useCallback(async () => {
+    if (!canRefresh || checkInFlight.current || refreshInFlight.current) return
+    checkInFlight.current = true
+    try {
+      await checkForUpdates()
+    } catch {
+      // 自动检查失败时保留现有歌曲；下次回到前台或定时检查会重试。
+    } finally {
+      checkInFlight.current = false
+    }
+  }, [canRefresh, checkForUpdates])
+  useEffect(() => {
+    if (!canRefresh) return
+    const onFocus = () => { void checkPlaylist() }
+    window.addEventListener('focus', onFocus)
+    const interval = canCheckForUpdates
+      ? window.setInterval(() => { if (document.visibilityState === 'visible') void checkPlaylist() }, 60_000)
+      : null
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (interval !== null) window.clearInterval(interval)
+    }
+  }, [canRefresh, canCheckForUpdates, checkPlaylist])
+  const matches = searching ? matchingTrackIndices(tracks, query, true) : []
+  useEffect(() => { setQuery('') }, [playlist.id, playlist.source])
+  useEffect(() => {
+    let cancelled = false
+    setSearchError(false)
+    setSearchLoading(searching && !error)
+    if (!searching || loading || error) return
+    void ensureAll(() => cancelled)
+      .catch(() => { if (!cancelled) setSearchError(true) })
+      .finally(() => { if (!cancelled) setSearchLoading(false) })
+    return () => { cancelled = true }
+  }, [searching, loading, error, ensureAll, searchAttempt])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
@@ -143,12 +204,26 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                       .join(' · ')
                   : loading ? '加载中…' : `${total} 首`}
               </p>
+              {canRefresh && (
+                <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
+                  {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
+                </button>
+              )}
               {displayPlaylist.type === 'album' && displayPlaylist.description && (
                 <p className={styles.detailDescription}>{displayPlaylist.description}</p>
               )}
             </motion.div>
           </div>
         </div>
+        <TrackSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="搜索歌单内的歌曲或歌手"
+          count={searching ? matches.length : total}
+          loading={searchLoading || loading}
+          error={searchError}
+          onRetry={() => setSearchAttempt((value) => value + 1)}
+        />
         {error ? (
           <div className={styles.errorHint}>
             <p>歌单加载失败</p>
@@ -165,13 +240,14 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             transition={{ ...springGentle, delay: 0.15 }}
           >
             <VirtualList
-              total={total}
+              total={searching ? matches.length : total}
               rowHeight={TRACK_ROW_HEIGHT}
               scrollRef={pageRef}
-              onRangeChange={ensureRange}
+              onRangeChange={searching ? undefined : ensureRange}
               renderRow={(i) => {
-                const t = tracks[i]
-                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(i)} /> : <SkeletonTrackRow index={i} />
+                const originalIndex = searching ? matches[i] : i
+                const t = tracks[originalIndex]
+                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} />
               }}
             />
           </motion.div>

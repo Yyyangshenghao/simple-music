@@ -1,7 +1,7 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.1.0",
+  "version": "2.2.2",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -44,7 +44,8 @@
     "@types/react-dom": "^18.3.0",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.0",
-    "electron": "^42.4.1",
+    "@xmldom/xmldom": "^0.8.13",
+    "electron": "git+https://github.com/castlabs/electron-releases.git#v42.11.0+wvcus",
     "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
     "tsx": "^4.16.0",
@@ -69,6 +70,11 @@
   "build": {
     "appId": "com.simplemusic.desktop",
     "productName": "Simple Music",
+    "afterPack": "build/vmp-sign-macos.cjs",
+    "afterSign": "build/vmp-sign-windows.cjs",
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "build"

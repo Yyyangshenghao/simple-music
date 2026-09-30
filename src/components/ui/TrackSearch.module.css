@@ -1,0 +1,74 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  min-height: 72px;
+  padding: 14px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--track-toolbar-divider, var(--sm-border));
+  box-sizing: border-box;
+}
+
+.context { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.heading { margin: 0; color: var(--sm-text-primary); font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.total { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.search { width: 280px; max-width: 100%; margin-left: auto; }
+.field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--glass-bg-base);
+  color: var(--sm-text-secondary);
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+.field:hover { background: var(--glass-bg-card); border-color: var(--sm-border); }
+.field:focus-within { border-color: var(--sm-accent); background: var(--sm-bg-elevated); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-accent) 10%, transparent); }
+.active .searchIcon, .field:focus-within .searchIcon { color: var(--sm-accent); }
+.searchIcon { flex-shrink: 0; transition: color 180ms ease; }
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.field input::placeholder { color: var(--sm-text-secondary); }
+.field input::-webkit-search-cancel-button { display: none; }
+.clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+.clear:hover { background: var(--glass-bg-card); color: var(--sm-text-primary); }
+.clear:focus-visible, .error button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+.result { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-left: 8px; border-left: 1px solid var(--sm-border); color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.spinner { width: 10px; height: 10px; border: 1px solid var(--sm-border); border-top-color: var(--sm-accent); border-radius: 50%; animation: spin 800ms linear infinite; }
+.error { margin-top: 8px; text-align: right; color: var(--sm-text-secondary); font-size: 12px; }
+.error button { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--sm-accent); cursor: pointer; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .toolbar { gap: 12px; }
+  .search { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field, .searchIcon { transition: none; }
+  .spinner { animation: none; }
+}

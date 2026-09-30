@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
+import { useProviderStore } from '../../stores/providers'
+import { SourceName } from '../ui/SourceName'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
@@ -103,9 +105,42 @@ const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>>
   'speaker-particles': SpeakerParticles
 }
 
+interface LayoutSliderProps {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (value: number) => string
+  onChange: (value: number) => void
+}
+
+function LayoutSlider({ label, value, min, max, step, format, onChange }: LayoutSliderProps) {
+  const progress = ((value - min) / (max - min)) * 100
+  return (
+    <label className={styles.layoutSliderRow}>
+      <span className={styles.popLabel}>{label}</span>
+      <input
+        className={styles.layoutSlider}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        style={{ '--range-progress': `${progress}%` } as React.CSSProperties}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+      />
+      <span className={styles.layoutValue}>{format(value)}</span>
+    </label>
+  )
+}
+
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
+  const lyricSource = useLyricsStore((s) => s.source)
+  const lyricsLoading = useLyricsStore((s) => s.loading)
+  const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
   const offsetSec = useLyricsStore((s) => s.offsetSec)
@@ -116,6 +151,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setMode = useSettingsStore((s) => s.setLyricsPanelMode)  // added by Agent A
   const lyricsFontScale = useSettingsStore((s) => s.lyricsFontScale)
   const setLyricsFontScale = useSettingsStore((s) => s.setLyricsFontScale)
+  const lyricsLayout = useSettingsStore((s) => s.lyricsLayout)
+  const setLyricsLayout = useSettingsStore((s) => s.setLyricsLayout)
+  const resetLyricsLayout = useSettingsStore((s) => s.resetLyricsLayout)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const setShowTranslation = useSettingsStore((s) => s.setLyricsShowTranslation)
   const showRoma = useSettingsStore((s) => s.lyricsShowRoma)
@@ -126,7 +164,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
-  const stageLyricsOn = useSettingsStore((s) => s.lyricsStage3d)
+  const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
   const renderScale = useSettingsStore((s) => s.lyrics3d.renderScale)
   const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
@@ -149,8 +187,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 3D 效果下拉菜单:已处于 3D 模式时再点一次 3D 按钮才展开
   const [effectMenuOpen, setEffectMenuOpen] = useState(false)
+  const [effectMenuTab, setEffectMenuTab] = useState<'scene' | 'adjust'>('scene')
 
-  // 右缘侧栏的歌词设置浮层(字号/快慢)
+  // 右缘侧栏的歌词设置浮层(自由排版/字号/同步)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -254,6 +293,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 纯 LRC 行数据
   const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
+  const previousPlainLine = currentIndex > 0 ? lines[currentIndex - 1] : undefined
+  const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
 
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
@@ -283,19 +324,30 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <button
               className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
               disabled={!lyrics3dEnabled}
-              title={lyrics3dEnabled ? undefined : '已在设置的性能选项中关闭 3D 歌词'}
+              title={lyrics3dEnabled ? '选择 3D 场景与文字' : '已在设置的歌词与动效中关闭 3D 歌词'}
               onClick={() => {
                 if (mode !== '3d') {
                   setMode('3d')
                 } else {
-                  setEffectMenuOpen((v) => !v)
+                  setEffectMenuTab('scene')
+                  setEffectMenuOpen(effectMenuTab === 'scene' ? !effectMenuOpen : true)
                 }
               }}
             >
               3D
             </button>
+            {mode === '3d' && <button
+              className={`${styles.modeAdjustBtn}${effectMenuOpen && effectMenuTab === 'adjust' ? ` ${styles.modeBtnActive}` : ''}`}
+              type="button"
+              aria-label="调节 3D 歌词"
+              title="调节当前 3D 场景和歌词"
+              onClick={() => {
+                setEffectMenuTab('adjust')
+                setEffectMenuOpen(effectMenuTab === 'adjust' ? !effectMenuOpen : true)
+              }}
+            >调节</button>}
             {effectMenuOpen && mode === '3d' && (
-              <EffectSwitcher onClose={() => setEffectMenuOpen(false)} />
+              <EffectSwitcher tab={effectMenuTab} onTabChange={setEffectMenuTab} onClose={() => setEffectMenuOpen(false)} />
             )}
           </div>
         </div>
@@ -317,7 +369,18 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <div className={styles.auroraStage} aria-hidden="true" />
 
           {/* Apple Music 式左右分栏:左侧封面+信息,右侧歌词 */}
-          <div className={styles.splitLayout}>
+          <div
+            className={styles.splitLayout}
+            style={{
+              '--lyrics-cover-scale': lyricsLayout.coverScale,
+              '--lyrics-cover-x': `${lyricsLayout.coverX}vw`,
+              '--lyrics-cover-y': `${lyricsLayout.coverY}vh`,
+              '--lyrics-column-width': `${lyricsLayout.lyricsWidth}%`,
+              '--lyrics-column-x': `${lyricsLayout.lyricsX}vw`,
+              '--lyrics-column-y': `${lyricsLayout.lyricsY}vh`,
+              '--lyrics-font-scale': lyricsFontScale
+            } as React.CSSProperties}
+          >
             <div className={styles.coverSection}>
               {track?.cover ? (
                 <img
@@ -338,16 +401,22 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   source={track?.source ?? 'netease'}
                   onBeforeNavigate={onClose}
                 />
+                {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
+                  <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
+                )}
               </div>
             </div>
 
             {lines.length === 0 ? (
-              <div className={styles.empty}>暂无歌词</div>
+              <div className={styles.empty}>
+                {lyricsLoading ? '正在加载歌词…' : track?.source === 'apple'
+                  ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
+                  : '暂无歌词'}
+              </div>
             ) : (
               <div
                 className={`${styles.lyricsScroll}${browsing ? ` ${styles.browsing}` : ''}`}
                 ref={scrollRef}
-                style={{ '--lyrics-font-scale': lyricsFontScale } as React.CSSProperties}
               >
                 <div className={styles.lyricsPad} aria-hidden="true" />
                 {lines.map((line, i) => {
@@ -356,7 +425,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
                   // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
                   // 字号一致，激活态只靠 scale/亮度区分
-                  if (wordLine) {
+                  if (wordLine?.words.length) {
                     return (
                       <div
                         key={`${line.time}-${i}`}
@@ -366,7 +435,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       >
                         <KtvLine
                           words={wordLine.words}
-                          lineDurationMs={wordLine.durationMs}
                           lineStartMs={wordLine.time * 1000}
                           active={isActive && open}
                           dim={!isActive}
@@ -428,30 +496,45 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 </button>
                 {settingsPopOpen && (
                   <div className={styles.lyricsSettingsPop}>
-                    <div className={styles.popRow}>
-                      <span className={styles.popLabel}>字号</span>
-                      <div className={styles.popBtns}>
-                        <button
-                          className={styles.textCtrlBtn}
-                          disabled={lyricsFontScale <= 0.7}
-                          onClick={() => setLyricsFontScale(Math.round((lyricsFontScale - 0.1) * 10) / 10)}
-                          title="缩小歌词字号"
-                        >
-                          A-
-                        </button>
-                        <span className={styles.popValue}>{lyricsFontScale.toFixed(1)}×</span>
-                        <button
-                          className={styles.textCtrlBtn}
-                          disabled={lyricsFontScale >= 1.5}
-                          onClick={() => setLyricsFontScale(Math.round((lyricsFontScale + 0.1) * 10) / 10)}
-                          title="放大歌词字号"
-                        >
-                          A+
-                        </button>
+                    <div className={styles.popHeader}>
+                      <div>
+                        <strong>舞台排版</strong>
+                        <span>封面与歌词可独立移动、缩放</span>
                       </div>
+                      <button className={styles.resetLayoutBtn} onClick={resetLyricsLayout}>重置</button>
+                    </div>
+                    <div className={styles.layoutPresets}>
+                      <button onClick={() => {
+                        setLyricsLayout({ coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 })
+                        setLyricsFontScale(1)
+                      }}>平衡</button>
+                      <button onClick={() => {
+                        setLyricsLayout({ coverScale: 1.22, coverX: 2, coverY: 0, lyricsWidth: 47, lyricsX: 1, lyricsY: 1 })
+                        setLyricsFontScale(0.9)
+                      }}>封面主导</button>
+                      <button onClick={() => {
+                        setLyricsLayout({ coverScale: 0.72, coverX: -3, coverY: -3, lyricsWidth: 64, lyricsX: -2, lyricsY: 0 })
+                        setLyricsFontScale(1.15)
+                      }}>歌词主导</button>
+                    </div>
+                    <div className={styles.layoutGroup}>
+                      <span className={styles.layoutGroupTitle}>封面</span>
+                      <LayoutSlider label="大小" value={lyricsLayout.coverScale} min={0.6} max={1.4} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(coverScale) => setLyricsLayout({ coverScale })} />
+                      <LayoutSlider label="水平" value={lyricsLayout.coverX} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(coverX) => setLyricsLayout({ coverX })} />
+                      <LayoutSlider label="垂直" value={lyricsLayout.coverY} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(coverY) => setLyricsLayout({ coverY })} />
+                    </div>
+                    <div className={styles.layoutGroup}>
+                      <span className={styles.layoutGroupTitle}>歌词</span>
+                      <LayoutSlider label="字号" value={lyricsFontScale} min={0.7} max={1.5} step={0.05} format={(v) => `${v.toFixed(2)}×`} onChange={setLyricsFontScale} />
+                      <LayoutSlider label="宽度" value={lyricsLayout.lyricsWidth} min={36} max={68} step={1} format={(v) => `${v}%`} onChange={(lyricsWidth) => setLyricsLayout({ lyricsWidth })} />
+                      <LayoutSlider label="水平" value={lyricsLayout.lyricsX} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(lyricsX) => setLyricsLayout({ lyricsX })} />
+                      <LayoutSlider label="垂直" value={lyricsLayout.lyricsY} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(lyricsY) => setLyricsLayout({ lyricsY })} />
+                    </div>
+                    <div className={`${styles.popRow} ${styles.syncRow}`}>
+                      <span className={styles.popLabel}>歌词同步</span>
+                      <span className={styles.popValue}>{offsetSec > 0 ? '+' : ''}{offsetSec.toFixed(1)}s</span>
                     </div>
                     <div className={styles.popRow}>
-                      <span className={styles.popLabel}>快慢</span>
                       <div className={styles.popBtns}>
                         <button
                           className={styles.textCtrlBtn}
@@ -507,13 +590,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <Canvas
             camera={{ position: [0, 0, 14], fov: 60 }}
             dpr={renderScale}
-            frameloop={fpsCap > 0 ? 'demand' : 'always'}
+            frameloop={fpsCap > 0 ? 'never' : 'always'}
             gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
           >
             <FrameLimiter fps={fpsCap} />
             <CinemaCamera />
             <EffectComponent coverUrl={track?.cover} />
-            {stageLyricsOn && <StageLyrics3D />}
+            {lyrics3dStyle !== 'focus' && <StageLyrics3D />}
           </Canvas>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
@@ -529,43 +612,52 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             aria-hidden="true"
           />
 
-          {/* 歌词叠加层(舞台歌词关闭时的回退形态):居中大字 + 玻璃卡片 */}
-          {!stageLyricsOn && (
+          {/* 聚焦叠层：居中大字 + 上下文预览 */}
+          {lyrics3dStyle === 'focus' && (
           <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={currentIndex}
-                className={styles.overlayCurrentLine}
-                style={{
-                  '--overlay-blur': `${overlayBlur * 26}px`,
-                  '--overlay-bg': overlayBlur * 0.46,
-                  '--overlay-shadow': overlayBlur * 0.4
-                } as React.CSSProperties}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={springGentle}
-              >
-                {currentWordLine ? (
-                  <KtvLine
-                    words={currentWordLine.words}
-                    lineDurationMs={currentWordLine.durationMs}
-                    lineStartMs={currentWordLine.time * 1000}
-                    active={true}
-                    translationText={translation[currentIndex]?.text || undefined}
-                  />
-                ) : currentPlainLine ? (
-                  <LyricLine
-                    text={currentPlainLine.text}
-                    translation={translation[currentIndex]?.text || undefined}
-                    active={true}
-                    overlay
-                  />
-                ) : (
-                  <div className={styles.overlayPlaceholder}>—</div>
-                )}
+            <div className={styles.overlayLineStack}>
+              <motion.div key={`previous-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayPreviousLine}`}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={springGentle}>
+                {previousPlainLine?.text}
               </motion.div>
-            </AnimatePresence>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={currentIndex}
+                  className={styles.overlayCurrentLine}
+                  style={{
+                    '--overlay-blur': `${overlayBlur * 26}px`,
+                    '--overlay-bg': overlayBlur * 0.46,
+                    '--overlay-shadow': overlayBlur * 0.4
+                  } as React.CSSProperties}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={springGentle}
+                >
+                  {currentWordLine?.words.length ? (
+                    <KtvLine
+                      words={currentWordLine.words}
+                      lineStartMs={currentWordLine.time * 1000}
+                      active={true}
+                      translationText={showTranslation ? translation[currentIndex]?.text || undefined : undefined}
+                    />
+                  ) : currentPlainLine ? (
+                    <LyricLine
+                      text={currentPlainLine.text}
+                      translation={showTranslation ? translation[currentIndex]?.text || undefined : undefined}
+                      active={true}
+                      overlay
+                    />
+                  ) : (
+                    <div className={styles.overlayPlaceholder}>—</div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+              <motion.div key={`next-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayNextLine}`}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: nextPlainLine ? 0.3 : 0, y: 0 }} transition={springGentle}>
+                {nextPlainLine?.text}
+              </motion.div>
+            </div>
           </div>
           )}
         </div>

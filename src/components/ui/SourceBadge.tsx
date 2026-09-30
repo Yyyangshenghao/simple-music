@@ -1,9 +1,10 @@
 import type { MusicSource } from '../../types/domain'
 import { SOURCE_BRAND } from '../../lib/source-brand'
-import { NeteaseLogo, QQMusicLogo } from './brand-logos'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from './brand-logos'
 import { useProviderStore } from '../../stores/providers'
 import type { SourceBadgeMode } from '../../lib/provider-preferences'
 import { isProviderId } from '../../providers/types'
+import { SourceName } from './SourceName'
 import styles from './SourceBadge.module.css'
 
 interface SourceBadgeProps {
@@ -33,22 +34,25 @@ export function SourceBadge({
   const dynamic = mode === 'dynamic' && !reveal
   const brand = source ? SOURCE_BRAND[source] : null
   const label = brand?.label ?? '来源未知'
+  const accessibleLabel = source === 'apple' ? 'Apple Music' : label
   return (
     <span
       className={`${styles.badge}${dynamic ? ` ${styles.dynamic}` : ''}${compact ? ` ${styles.compact}` : ''}${className ? ` ${className}` : ''}`}
       style={{ '--source-color': brand?.color ?? '#8B8B8B' } as React.CSSProperties}
       role="img"
-      aria-label={`来源：${label}`}
-      title={label}
+      aria-label={`来源：${accessibleLabel}`}
+      title={accessibleLabel}
     >
       <span className={styles.icon} aria-hidden="true">
         {source === 'netease'
           ? <NeteaseLogo />
           : source === 'qq'
             ? <QQMusicLogo />
-            : <span className={styles.localIcon}>{source === 'local' ? '♪' : '?'}</span>}
+            : source === 'apple'
+              ? <AppleMusicIcon />
+              : <span className={styles.localIcon}>{source === 'local' ? '♪' : '?'}</span>}
       </span>
-      {!compact && <span className={styles.label}>{label}</span>}
+      {!compact && <span className={styles.label}>{source ? <SourceName source={source} /> : label}</span>}
     </span>
   )
 }

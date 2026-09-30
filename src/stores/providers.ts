@@ -30,6 +30,7 @@ export interface ProviderRuntimeState {
   enabled: boolean
   auth: ProviderAuthState
   profile?: ProviderProfile
+  playbackAvailable?: boolean
   lastError?: string
 }
 
@@ -42,7 +43,8 @@ interface ProviderStore extends Omit<ProviderPreferences, 'providers'> {
   setMultiSourceFallback(enabled: boolean): void
   setSourceBadgeMode(mode: SourceBadgeMode): void
   setContentSource(source: ProviderId): void
-  setAccountState(id: ProviderId, auth: ProviderAuthState, profile?: ProviderProfile): void
+  setAccountState(id: ProviderId, auth: ProviderAuthState, profile?: ProviderProfile, options?: { preserveEnabled?: boolean }): void
+  setPlaybackAvailability(id: ProviderId, available: boolean, message?: string): void
 }
 
 function runtimeMap(
@@ -54,6 +56,11 @@ function runtimeMap(
       ...previous?.netease,
       enabled: preferences.providers.netease.enabled,
       auth: previous?.netease.auth ?? 'unknown',
+    },
+    apple: {
+      ...previous?.apple,
+      enabled: preferences.providers.apple.enabled,
+      auth: previous?.apple.auth ?? 'unknown',
     },
     qq: {
       ...previous?.qq,
@@ -68,6 +75,7 @@ function preferencesOf(state: ProviderStore): ProviderPreferences {
     providers: {
       netease: { enabled: state.byId.netease.enabled },
       qq: { enabled: state.byId.qq.enabled },
+      apple: { enabled: state.byId.apple.enabled },
     },
     playbackOrder: state.playbackOrder,
     preferOriginSource: state.preferOriginSource,
@@ -101,7 +109,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   contentSource: null,
 
   setEnabled(id, enabled) {
-    if (enabled && get().byId[id].auth !== 'authenticated') return
+    if (enabled && (get().byId[id].auth !== 'authenticated' || get().byId[id].playbackAvailable === false)) return
     set((state) => {
       const byId = {
         ...state.byId,
@@ -110,6 +118,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       const providers = {
         netease: { enabled: byId.netease.enabled },
         qq: { enabled: byId.qq.enabled },
+        apple: { enabled: byId.apple.enabled },
       }
       return {
         byId,
@@ -125,6 +134,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       playbackOrder: normalizePlaybackOrder(order, {
         netease: { enabled: state.byId.netease.enabled },
         qq: { enabled: state.byId.qq.enabled },
+        apple: { enabled: state.byId.apple.enabled },
       }),
     }))
     persist(get())
@@ -150,23 +160,38 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     writeContentProviderPreference(source)
   },
 
-  setAccountState(id, auth, profile) {
+  setAccountState(id, auth, profile, options) {
     set((state) => {
-      const enabled = auth === 'authenticated' ? state.byId[id].enabled : false
+      const enabled = auth === 'authenticated' || options?.preserveEnabled ? state.byId[id].enabled : false
       const byId = {
         ...state.byId,
-        [id]: { ...state.byId[id], enabled, auth, profile },
+        [id]: { ...state.byId[id], enabled, auth, profile,
+          ...(auth === 'authenticated' ? {} : { playbackAvailable: undefined, lastError: undefined }) },
       }
       return {
         byId,
         playbackOrder: normalizePlaybackOrder(state.playbackOrder, {
           netease: { enabled: byId.netease.enabled },
           qq: { enabled: byId.qq.enabled },
+          apple: { enabled: byId.apple.enabled },
         }),
       }
     })
     clearProviderRequestCache(id)
     if (auth !== 'authenticated') persist(get())
+  },
+
+  setPlaybackAvailability(id, available, message) {
+    const current = get().byId[id]
+    const lastError = available ? undefined : message
+    if (current.playbackAvailable === available && current.lastError === lastError) return
+    set((state) => ({
+      byId: {
+        ...state.byId,
+        [id]: { ...state.byId[id], playbackAvailable: available, lastError },
+      },
+    }))
+    clearProviderRequestCache(id)
   },
 }))
 
@@ -214,7 +239,7 @@ export function enabledProviderIds(): ProviderId[] {
 
 export function isProviderParticipating(id: ProviderId): boolean {
   const state = useProviderStore.getState().byId[id]
-  return state.enabled && state.auth === 'authenticated'
+  return state.enabled && state.auth === 'authenticated' && state.playbackAvailable !== false
 }
 
 export function participatingProviderIds(): ProviderId[] {

@@ -25,41 +25,41 @@
 .words {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   justify-content: center;
   gap: 0;
   line-height: 1.3;
 }
 
-/* 单个字/词 span：用 background-clip: text 实现扫光 */
+/* 两层文字共享排版；只裁剪亮层，避免每帧重建渐变和重算整行 CSS 变量。 */
 .char {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
   font-size: inherit;
   font-weight: inherit;
-  /* YRC 英文 token 自带尾随空格，保留它保证词间距 */
-  white-space: pre;
-  /* 点亮进度：行容器每帧更新 --elapsed（行内已播毫秒），
-     每个字按自身时间窗 [--ws, --ws + --wd] 计算 0–1 进度 */
-  --p: clamp(0, (var(--elapsed, 0) - var(--ws, 0)) / var(--wd, 1), 1);
-  /* 亮/暗两段之间留 24% 羽化带：扫过时是柔和的亮度过渡而不是硬边;
-     颜色经变量暴露,浅色封面的 3D 叠加层会覆盖为深色(见 LyricsPanel .lightCover) */
-  background: linear-gradient(
-    to right,
-    var(--lyric-fill-hi, rgba(255, 255, 255, 1)) calc((var(--p) * 124 - 24) * 1%),
-    var(--lyric-fill-lo, rgba(255, 255, 255, 0.35)) calc(var(--p) * 124 * 1%)
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  /* 原生 token 也可能是一整句；亮层继承相同换行，保留空格且允许长词折行。 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--lyric-fill-lo, rgba(255, 255, 255, 0.35));
 }
 
-/* 非当前行不参与扫光：默认全亮（已唱过的行、3D 下一行预览），
-   还没唱到的暗行（dim 且非 past）全暗 */
-.line:not(.active) .char {
-  --p: 1;
+.charFill {
+  position: absolute;
+  inset: 0;
+  color: var(--lyric-fill-hi, rgba(255, 255, 255, 1));
+  clip-path: inset(0 100% 0 0);
+  pointer-events: none;
 }
 
-.dim:not(.past) .char {
-  --p: 0;
+.line:not(.active) .charFill,
+.untimed.active .charFill {
+  clip-path: inset(0 0 0 0);
+}
+
+.dim:not(.past) .charFill {
+  clip-path: inset(0 100% 0 0);
 }
 
 /* 左对齐变体(歌词页左右布局):放大从左侧锚点展开,不横移 */
@@ -70,6 +70,17 @@
 
 .alignLeft .words {
   justify-content: flex-start;
+}
+
+/* 柔光只绘制一次；亮字层仅负责进度，避免光晕被逐字裁剪成硬边。 */
+.alignLeft.active {
+  --lyric-fill-hi: #f5f6f7;
+  text-shadow: 0 0 12px rgba(232, 240, 248, 0.12),
+    0 0 32px rgba(211, 226, 242, 0.08);
+}
+
+.alignLeft .charFill {
+  text-shadow: none;
 }
 
 .alignLeft .translation {

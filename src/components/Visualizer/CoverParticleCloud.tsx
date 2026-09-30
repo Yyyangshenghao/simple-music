@@ -5,7 +5,8 @@ import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { api } from '../../lib/api'
-import { bandEnergiesFrom, smoothEnergy } from '../../lib/audio-energy'
+import { bandEnergiesFrom, type BandEnergies } from '../../lib/audio-energy'
+import { frameBlend } from '../../lib/frame-blend'
 import { buildEdgeDepthData } from '../../lib/cover-edge'
 import { getDotSpriteTexture } from '../../lib/dot-texture'
 import type { PerformanceMode } from '../../types/domain'
@@ -33,7 +34,11 @@ const COVER_TEX_SIZE = 384
 const EDGE_TEX_SIZE = 256
 const RIPPLE_COOLDOWN = 0.32
 const COLOR_MIX_MS = 520
-const FRAME_INTERVAL_MS = 1000 / 30
+const AUDIO_SAMPLE_INTERVAL = 1 / 30
+
+function smoothAudioEnergy(previous: number, target: number, delta: number): number {
+  return previous + (target - previous) * frameBlend(target > previous ? 0.35 : 0.08, delta)
+}
 
 // 网格每边粒子数按性能档取原版的档位上限(原版默认档 118)
 const GRID_CAP_BY_MODE: Record<PerformanceMode, number> = {
@@ -303,11 +308,14 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
   const lastRippleAtRef = useRef(-10)
   const beatEnvRef = useRef(0)
   const colorMixStartRef = useRef(-1)
-  const lastFrameTimeRef = useRef(0)
+  const sampleElapsedRef = useRef(0)
+  const sampledBandsRef = useRef<BandEnergies | null>(null)
   const bassSmoothRef = useRef(0)
   const midSmoothRef = useRef(0)
   const trebleSmoothRef = useRef(0)
   const energySmoothRef = useRef(0)
+  const audioGateRef = useRef(0)
+  const activeRippleIndicesRef = useRef<number[]>([])
 
   const proxyUrl = coverUrl ? api.coverImage(sizedImage(coverUrl, CANVAS_COVER_PX)) : undefined
 
@@ -503,11 +511,13 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
       if (p >= 1) colorMixStartRef.current = -1
     }
 
-    // 仅 eco/balanced 档节流:跳过本帧的频段计算/节拍检测/涟漪推进
-    if (throttle) {
-      const nowMs = performance.now()
-      if (nowMs - lastFrameTimeRef.current < FRAME_INTERVAL_MS) return
-      lastFrameTimeRef.current = nowMs
+    // 均衡/节能档只限制频谱采样；插值、节拍衰减与涟漪仍逐帧推进。
+    sampleElapsedRef.current += delta
+    if (!throttle || !sampledBandsRef.current || sampleElapsedRef.current + 1e-9 >= AUDIO_SAMPLE_INTERVAL) {
+      const engine = usePlayerStore.getState()._engine()
+      sampledBandsRef.current = bandEnergiesFrom(engine.getFrequencyData())
+      const samplePeriods = Math.floor((sampleElapsedRef.current + 1e-9) / AUDIO_SAMPLE_INTERVAL)
+      sampleElapsedRef.current = Math.max(0, sampleElapsedRef.current - samplePeriods * AUDIO_SAMPLE_INTERVAL)
     }
 
     const params = useSettingsStore.getState().lyrics3d
@@ -516,31 +526,36 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     uniforms.uBloomStrength.value = 0.62 * params.glowStrength
     uniforms.uIntensity.value = 0.85 * params.motionIntensity
 
-    const engine = usePlayerStore.getState()._engine()
-    const bands = bandEnergiesFrom(engine.getFrequencyData())
+    const bands = sampledBandsRef.current!
     // 静音→播放瞬间频谱是阶跃(gain 淡入包络不影响 analyser 读数),原始值直接
     // 驱动位移场会导致整面粒子在起播那一刻大幅度抖动,故做指数平滑(升快降慢)
-    const bassSum = bands.subBass + bands.bass
-    bassSmoothRef.current = smoothEnergy(bassSmoothRef.current, bassSum * 0.5)
-    midSmoothRef.current = smoothEnergy(midSmoothRef.current, (bands.lowMid + bands.mid) * 0.5)
-    trebleSmoothRef.current = smoothEnergy(
+    const rawBassSum = bands.subBass + bands.bass
+    const gateTarget = bands.energy > 0.012 ? 1 : 0
+    const gateRate = gateTarget > audioGateRef.current ? 4.2 : 2.2
+    audioGateRef.current += (gateTarget - audioGateRef.current) * (-Math.expm1(-delta * gateRate))
+    const audioGate = audioGateRef.current
+    const bassSum = rawBassSum * audioGate
+    bassSmoothRef.current = smoothAudioEnergy(bassSmoothRef.current, bassSum * 0.5, delta)
+    midSmoothRef.current = smoothAudioEnergy(midSmoothRef.current, (bands.lowMid + bands.mid) * 0.5 * audioGate, delta)
+    trebleSmoothRef.current = smoothAudioEnergy(
       trebleSmoothRef.current,
-      (bands.highMid + bands.presence + bands.air) / 3
+      ((bands.highMid + bands.presence + bands.air) / 3) * audioGate,
+      delta
     )
-    energySmoothRef.current = smoothEnergy(energySmoothRef.current, bands.energy)
+    energySmoothRef.current = smoothAudioEnergy(energySmoothRef.current, bands.energy * audioGate, delta)
     uniforms.uBass.value = bassSmoothRef.current
     uniforms.uMid.value = midSmoothRef.current
     uniforms.uTreble.value = trebleSmoothRef.current
     uniforms.uEnergy.value = energySmoothRef.current
 
-    // 节拍包络:鼓点瞬间 1,随后指数衰减,驱动点径涨缩
+    // 节拍包络:鼓点瞬间 1,随后按时间衰减,驱动点径涨缩
     beatEnvRef.current = Math.max(0, beatEnvRef.current - delta * 3.5)
-    uniforms.uBeat.value = beatEnvRef.current
 
     // bass 上升沿(带迟滞)触发涟漪:九宫格随机挑 2-3 个爆点。
     // 阈值随灵敏度线性下降:灵敏度 0.5 时为历史默认 0.38
     const beatThreshold = 0.58 - 0.4 * params.rippleSensitivity
-    const isHit = bassSum > beatThreshold && !bassAboveRef.current
+    // 起播先用短包络把能量推入场景，首个 analyser 阶跃不直接触发多道涟漪。
+    const isHit = audioGate > 0.72 && bassSum > beatThreshold && !bassAboveRef.current
     bassAboveRef.current = bassSum > beatThreshold * 0.75
     if (isHit && t - lastRippleAtRef.current > RIPPLE_COOLDOWN) {
       lastRippleAtRef.current = t
@@ -562,20 +577,38 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
       }
     }
 
+    uniforms.uBeat.value = beatEnvRef.current
+
     // 涟漪推进:年龄写入数据纹理;时长滑块缩放年龄流速(默认 0.55 → 原版 2s 生命)
     const ageScale = 0.55 / THREE.MathUtils.clamp(params.rippleDuration, 0.15, 2)
     const data = textures.rippleTex.image.data as unknown as Float32Array
-    let active = 0
+    const maxActive = THREE.MathUtils.clamp(Math.round(params.rippleCount), 1, 6)
+    const activeIndices = activeRippleIndicesRef.current
+    activeIndices.length = 0
     for (let i = 0; i < RIPPLE_MAX; i++) {
       const r = ripplesRef.current[i]
       const age = (t - r.start) * ageScale
       if (r.str > 0.005 && age > 2.0) r.str = 0
-      if (r.str > 0.005) active = i + 1
-      const off = i * 4
-      data[off] = r.x
-      data[off + 1] = r.y
-      data[off + 2] = age
-      data[off + 3] = r.str
+      if (r.str <= 0.005) continue
+      // 按触发时间倒序插入，达到上限时优先保留最新鼓点，旧涟漪不会遮住刚触发的新波纹。
+      let insertAt = activeIndices.length
+      activeIndices.push(i)
+      while (insertAt > 0 && ripplesRef.current[activeIndices[insertAt - 1]].start < r.start) {
+        activeIndices[insertAt] = activeIndices[insertAt - 1]
+        insertAt--
+      }
+      activeIndices[insertAt] = i
+    }
+    const active = Math.min(activeIndices.length, maxActive)
+    for (let i = 0; i < active; i++) {
+      const r = ripplesRef.current[activeIndices[i]]
+      const age = (t - r.start) * ageScale
+      // 紧凑写入活跃涟漪，shader 循环次数等于真实数量，不再因环形槽位下标升高而空跑。
+      const dataOff = i * 4
+      data[dataOff] = r.x
+      data[dataOff + 1] = r.y
+      data[dataOff + 2] = age
+      data[dataOff + 3] = r.str
     }
     textures.rippleTex.needsUpdate = true
     uniforms.uRippleCount.value = active

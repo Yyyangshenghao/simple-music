@@ -39,6 +39,26 @@ if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID)
 
 const gotLock = app.requestSingleInstanceLock()
 let isQuitting = false
+let quitReady = false
+let shutdownStarted = false
+let quitTimeout: ReturnType<typeof setTimeout> | undefined
+
+function createPlayerWindow(port: number, token: string): void {
+  const win = createMainWindow(port, token)
+  if (process.platform === 'darwin') {
+    // 音频引擎运行在主窗口中；关闭窗口只隐藏，真正退出时才销毁。
+    win.on('close', (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      win.hide()
+    })
+  } else {
+    // Apple Music 播放窗口会在后台隐藏；主窗口关闭后主动退出，避免只剩后台窗口驻留。
+    win.on('closed', () => {
+      if (!isQuitting) app.quit()
+    })
+  }
+}
 
 async function boot(): Promise<void> {
   registerIpc()
@@ -47,7 +67,7 @@ async function boot(): Promise<void> {
     shutdownServer()
     return
   }
-  createMainWindow(port, token)
+  createPlayerWindow(port, token)
   createTray()
 }
 
@@ -75,7 +95,7 @@ if (!gotLock) {
     void startup.then(() => {
       if (isQuitting) return
       const win = getMainWindow()
-      if (!win || win.isDestroyed()) createMainWindow(getServerPort(), getServerToken())
+      if (!win || win.isDestroyed()) createPlayerWindow(getServerPort(), getServerToken())
       returnFromMiniPlayer()
     }).catch((e) => console.error('Main window restore failed:', e))
   }
@@ -87,11 +107,23 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit()
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (quitReady) return
+    event?.preventDefault()
+    if (shutdownStarted) return
+    shutdownStarted = true
     isQuitting = true
+    // 专用浏览器清理最多约 4.5 秒；再给窗口卸载留出时间，避免退出卡住单实例锁。
+    quitTimeout = setTimeout(() => app.exit(0), 8000)
+    quitTimeout.unref()
     unregisterHotkeys()
     closeOverlays()
     destroyTray()
-    shutdownServer()
+    // 应用内后台 MusicKit 窗口承载独立音频，等待关闭后才允许 Electron 退出。
+    void (async () => {
+      try { await shutdownServer() } catch (error) { console.error('Application cleanup failed:', error) }
+      finally { quitReady = true; app.quit() }
+    })()
   })
+  app.on('will-quit', () => clearTimeout(quitTimeout))
 }

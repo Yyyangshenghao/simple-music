@@ -1,7 +1,7 @@
 // 领域类型。Track/Playlist 对齐 server 返回（netease-client.ts 的 mapSongRecord/mapDiscoverPlaylist），
 // FxParams/FxSnapshot 对齐 public/default-user-fx-archive.json 以保证存档互通。
 
-export const ONLINE_MUSIC_SOURCES = ['netease', 'qq'] as const
+export const ONLINE_MUSIC_SOURCES = ['netease', 'qq', 'apple'] as const
 export type OnlineMusicSource = (typeof ONLINE_MUSIC_SOURCES)[number]
 export type MusicSource = OnlineMusicSource | 'local'
 // max = 不锁档位,服务端按每首歌实际可得的最高档(母带/Hi-Res/无损…)逐级回退;
@@ -52,6 +52,8 @@ export interface Track {
   url?: string
   /** 懒加载占位曲目:仅有 id,详情播到/滚到时再补。 */
   pending?: boolean
+  /** false 表示音源目录仍收录，但当前账号/地区明确不可播放。 */
+  playable?: boolean
   quality?: AudioQuality
   /** 不同来源透传的额外字段（mid/songmid 等）。 */
   [key: string]: unknown
@@ -65,6 +67,8 @@ export interface Playlist {
   name: string
   cover: string
   trackCount: number
+  /** 歌单列表未返回数量且尚未读取曲目关系时，避免把未知显示成 0。 */
+  trackCountKnown?: boolean
   playCount: number
   creator: string
   tag?: string
@@ -208,10 +212,34 @@ export interface PerformanceFlags {
 }
 /** 歌词面板 3D 模式下的视觉效果类型 */
 export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
+/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层。 */
+export type Lyrics3dStyle = 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
+/** Mineradio 舞台歌词的同屏行数模式。 */
+export type Lyrics3dDisplayMode = 'single' | 'dual' | 'triple' | 'cinema'
 export type ShelfMode = 'dynamic' | 'static'
+
+/** 普通歌词舞台的自由排版参数。位置单位为视口百分比，便于不同窗口尺寸下保持观感。 */
+export interface LyricsLayoutParams {
+  coverScale: number
+  coverX: number
+  coverY: number
+  lyricsWidth: number
+  lyricsX: number
+  lyricsY: number
+}
 
 /** 3D 歌词模式的可调参数,由设置页「3D 歌词」标签页调节并持久化。 */
 export interface Lyrics3dParams {
+  /** 同屏显示 1/2/3/5 行歌词。 */
+  displayMode: Lyrics3dDisplayMode
+  /** 非当前行的基础不透明度。 */
+  contextOpacity: number
+  /** 上下文行间距倍率。 */
+  contextSpread: number
+  /** 边缘行渐隐强度。 */
+  edgeFade: number
+  /** 切行转场的柔和度。 */
+  motionSoftness: number
   /** 粒子数量倍率(0.25~2,乘在各效果按性能档取的基础数量上) */
   particleCount: number
   /** 粒子大小倍率(0.5~2) */
@@ -228,7 +256,7 @@ export interface Lyrics3dParams {
   rippleSensitivity: number
   /** 单道波纹扩散时长(秒,0.2~1.5) */
   rippleDuration: number
-  /** 帧率上限(0=不限制,否则为目标 fps,如 24/30/45/60) */
+  /** 帧率上限(0=不限制,否则至少 120 fps) */
   fpsCap: number
   /** 渲染分辨率倍率(0.75~2,即 Canvas dpr) */
   renderScale: number

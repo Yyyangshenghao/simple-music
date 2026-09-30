@@ -1,6 +1,7 @@
-import type { ProviderId } from '../providers/types'
+import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 
 const DEFAULT_MAX_AGE_MS = 15_000
+const MAX_CACHE_ENTRIES = 64
 
 interface CacheEntry {
   value: unknown
@@ -34,14 +35,23 @@ export function requestProviderData<T>(
   if (!options.force && existing && existing.expiresAt > Date.now()) {
     return Promise.resolve(existing.value as T)
   }
-
   const request = loader()
     .then((value) => {
       if ((generations.get(source) ?? 0) === generation) {
+        const now = Date.now()
+        for (const [cachedKey, entry] of cache) {
+          if (entry.expiresAt <= now) cache.delete(cachedKey)
+        }
+        cache.delete(key)
         cache.set(key, {
           value,
-          expiresAt: Date.now() + (options.maxAgeMs ?? DEFAULT_MAX_AGE_MS),
+          expiresAt: now + (options.maxAgeMs ?? DEFAULT_MAX_AGE_MS),
         })
+        while (cache.size > MAX_CACHE_ENTRIES) {
+          const oldest = cache.keys().next().value
+          if (oldest === undefined) break
+          cache.delete(oldest)
+        }
       }
       return value
     })
@@ -57,7 +67,7 @@ export function clearProviderRequestCache(source?: ProviderId): void {
   if (!source) {
     cache.clear()
     inflight.clear()
-    for (const id of ['netease', 'qq'] as const) {
+    for (const id of PROVIDER_IDS) {
       generations.set(id, (generations.get(id) ?? 0) + 1)
     }
     return

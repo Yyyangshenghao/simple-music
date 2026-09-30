@@ -14,6 +14,7 @@ vi.mock('../../stores/providers', async (importOriginal) => {
     (selector: (value: unknown) => unknown) => selector({ byId: {
       qq: { enabled: state.qqEnabled, auth: 'authenticated' },
       netease: { enabled: true, auth: 'authenticated' },
+      apple: { enabled: false, auth: 'anonymous' },
     } }), original.useProviderStore
   ) }
 })

@@ -18,6 +18,8 @@ import { SourceBadge } from '../ui/SourceBadge'
 import { RecentRail } from './RecentRail'
 import { ToplistSection } from './ToplistSection'
 import { ProviderPlaylistRail } from './ProviderPlaylistRail'
+import { AppleHomeLibrary } from './AppleHomeLibrary'
+import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import styles from './ProviderRecommendationSection.module.css'
 
 type SurfaceResult = ProviderResult<RecommendationPage> & { surface: RecommendationSurface }
@@ -51,7 +53,7 @@ interface ProviderRecommendationSectionProps {
 
 export function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
   const provider = providerFor(source)
-  const surfaces = provider.recommendations?.listSurfaces() ?? []
+  const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
   const [results, setResults] = useState<Record<string, SurfaceResult>>({})
   const [pool, setPool] = useState<StackPoolState<Playlist>>(EMPTY_POOL)
   const [dealId, setDealId] = useState(0)
@@ -156,37 +158,39 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
   const loading = Object.keys(results).length < surfaces.length
     || Object.values(results).some((result) => result.status === 'loading')
   const top = pool.hand.at(-1) ?? null
+  const feedPage = feedSurface ? results[feedSurface.id]?.data : null
+  const feedPlaylists = feedPage?.content.type === 'playlists' ? feedPage.content.playlists : []
+  const showRecommendationStage = source !== 'apple' || loading || readyHeroes.length > 0 || pool.hand.length > 0
 
   return (
     <motion.section
-      className={styles.section}
+      className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springGentle}
       aria-label={`${provider.descriptor.label}推荐`}
     >
       <header className={styles.header}>
-        <div>
-          <SourceBadge source={source} reveal />
-          <h2 className={styles.title}>{provider.descriptor.label}，为你而来</h2>
-        </div>
-        <div className={styles.status}>
-          <span>{loading ? '正在连接平台…' : errors.length > 0 ? `${errors.length} 个栏目暂不可用` : '已更新'}</span>
-          {errors.length > 0 && (
-            <button
-              className="no-drag"
-              onClick={() => {
-                const session = sessionRef.current
-                void Promise.all(errors.map((result) => loadSurface(result.surface, session, true)))
-              }}
-            >
-              重试
-            </button>
-          )}
-        </div>
+        <SourceBadge source={source} displayMode="always" />
+        {(loading || errors.length > 0) && (
+          <div className={styles.status}>
+            {loading ? <span>正在连接平台…</span> : <span>{errors.length} 个栏目暂不可用</span>}
+            {errors.length > 0 && (
+              <button
+                className="no-drag"
+                onClick={() => {
+                  const session = sessionRef.current
+                  void Promise.all(errors.map((result) => loadSurface(result.surface, session, true)))
+                }}
+              >
+                重试
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
-      <div className={styles.content}>
+      {showRecommendationStage && <div className={styles.content}>
         {readyHeroes.length > 0 && (
           <div className={styles.heroCards}>
             {readyHeroes.map((result) => {
@@ -269,7 +273,9 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
             )}
           </div>
         )}
-      </div>
+      </div>}
+      {source === 'apple' && <ApplePlaylistRecommendations charts={feedPlaylists} onOpen={onPreview} />}
+      {source === 'apple' && <AppleHomeLibrary onOpen={onPreview} />}
       {provider.library?.getUserPlaylists && <ProviderPlaylistRail source={source} onOpen={onPreview} />}
       {provider.history?.getRecentPlaylists && <RecentRail source={source} embedded onOpen={onPreview} />}
       {provider.toplists && <ToplistSection source={source} embedded onOpen={onPreview} />}

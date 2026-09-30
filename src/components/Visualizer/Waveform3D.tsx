@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
-import { bassEnergyFrom, spectrumSlice } from '../../lib/audio-energy'
+import { bassEnergyFrom } from '../../lib/audio-energy'
 import type { PerformanceMode } from '../../types/domain'
 
 const VERTICES_BY_MODE: Record<PerformanceMode, number> = {
@@ -70,12 +70,11 @@ export function Waveform3D() {
     hueRef.current += delta * (0.08 + energy * 0.12)
 
     // 低频环: 用低频段频谱 (bins 0..n)
-    const lowSpectrum = spectrumSlice(freqData, 0, n)
     const lowPosAttr = lowGeo.attributes.position as THREE.BufferAttribute
     const lowPosArr = lowPosAttr.array as Float32Array
     for (let i = 0; i < n; i++) {
       const angle = (i / n) * Math.PI * 2
-      const amp = lowSpectrum[i]
+      const amp = i < freqData.length ? freqData[i] / 255 : 0
       const radius = 3.5 + amp * 5 * params.motionIntensity
       lowPosArr[i * 3] = Math.cos(angle) * radius
       lowPosArr[i * 3 + 1] = 0.8
@@ -84,12 +83,12 @@ export function Waveform3D() {
     lowPosAttr.needsUpdate = true
 
     // 中高频环: 用中高频段频谱 (bins 64..64+n)
-    const highSpectrum = spectrumSlice(freqData, 64, n)
     const highPosAttr = highGeo.attributes.position as THREE.BufferAttribute
     const highPosArr = highPosAttr.array as Float32Array
     for (let i = 0; i < n; i++) {
       const angle = (i / n) * Math.PI * 2
-      const amp = highSpectrum[i]
+      const idx = 64 + i
+      const amp = idx < freqData.length ? freqData[idx] / 255 : 0
       const radius = 3 + amp * 4 * params.motionIntensity
       highPosArr[i * 3] = Math.cos(angle) * radius
       highPosArr[i * 3 + 1] = -0.8

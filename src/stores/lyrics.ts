@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LyricLine, LyricLayout, WordLyricLine } from '../types/domain'
+import type { LyricLine, LyricLayout, WordLyricLine, MusicSource } from '../types/domain'
 
 const DEFAULT_LAYOUT: LyricLayout = {
   scale: 1,
@@ -14,6 +14,8 @@ const DEFAULT_LAYOUT: LyricLayout = {
 interface LyricsStore {
   /** 当前歌词所属曲目；用于异步切歌期间避免新封面短暂配上旧歌词。 */
   trackKey: string | null
+  source: MusicSource | null
+  loading: boolean
   lines: LyricLine[]
   currentIndex: number
   translation: LyricLine[]
@@ -45,6 +47,8 @@ function indexForPosition(lines: LyricLine[], position: number): number {
 
 export const useLyricsStore = create<LyricsStore>((set, get) => ({
   trackKey: null,
+  source: null,
+  loading: false,
   lines: [],
   currentIndex: -1,
   translation: [],

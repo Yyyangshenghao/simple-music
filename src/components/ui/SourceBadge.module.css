@@ -72,7 +72,8 @@
   flex: 0 0 auto;
 }
 
-.icon > svg {
+.icon > svg,
+.icon > img {
   width: 100%;
   height: 100%;
 }

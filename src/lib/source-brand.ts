@@ -10,5 +10,6 @@ interface SourceBrand {
 export const SOURCE_BRAND: Record<MusicSource, SourceBrand> = {
   netease: { label: '网易云', color: '#D43C33', colorSoft: 'rgba(212, 60, 51, 0.4)' },
   qq: { label: 'QQ音乐', color: '#0DAF52', colorSoft: 'rgba(13, 175, 82, 0.4)' },
+  apple: { label: 'Apple Music', color: '#FA243C', colorSoft: 'rgba(250, 36, 60, 0.4)' },
   local: { label: '本地', color: '#8B8B8B', colorSoft: 'rgba(139, 139, 139, 0.4)' }
 }
