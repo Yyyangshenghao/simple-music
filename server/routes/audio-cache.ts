@@ -9,6 +9,7 @@ import {
   deleteAudioCacheEntry,
   getAudioCacheConfig,
   getAudioCacheStatuses,
+  listSavedAudioCache,
   openAudioCacheEntry,
   openAudioCacheWriter,
   pinAudioCacheEntry,
@@ -76,6 +77,11 @@ function mutationStatus(error: string): number {
 
 export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
+
+  if (pn === '/api/audio-cache/library' && req.method === 'GET') {
+    sendJson(res, { items: await listSavedAudioCache(ctx.userDataDir) })
+    return true
+  }
 
   if (pn === '/api/audio-cache/status' && req.method === 'POST') {
     const body = await bodyOf(req)

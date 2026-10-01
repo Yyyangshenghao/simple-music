@@ -42,6 +42,7 @@ describe('我的库账号失效提示', () => {
     const html = renderToStaticMarkup(<LibraryPage />)
     expect(html).toContain('没有已启用的在线音乐平台')
     expect(html).not.toContain('登录已失效')
+    expect(html).toContain('>离线音乐</button>')
   })
 
   it('Apple Music 提供独立专辑入口，其他平台不显示空入口', () => {

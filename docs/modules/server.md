@@ -18,7 +18,7 @@
 ## 路由与端点
 
 - **`routes/apple-music.ts`** + `lib/apple-music.ts`：`/api/apple-music/{status,config,catalog,logout,lyrics}`，负责账号状态、受限目录路径、歌词与配置；`routes/apple-music-bridge.ts` 管理官网播放器页面、会话状态和播放命令。发布版使用主进程官网会话，开发版受保护播放使用系统 Chrome。`/apple-music-bridge/*` 只接受独立播放器会话凭据，不应改为复用桌面 API token。
-- **`routes/audio-cache.ts`** + `lib/audio-cache.ts`：`/api/audio-cache/*` 的批量状态、保存、固定/取消固定、文件读取、统计、清理与目录配置；仅用于经音频代理解析的在线直链，不缓存 Apple Music 受保护音频。
+- **`routes/audio-cache.ts`** + `lib/audio-cache.ts`：`/api/audio-cache/*` 的离线歌曲列表（`GET /api/audio-cache/library`，仅列主动保存的原始曲目）、批量状态、保存、固定/取消固定、文件读取、统计、清理与目录配置；仅用于经音频代理解析的在线直链，不缓存 Apple Music 受保护音频。
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
   - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`、`/api/netease/{banner,toplist,toplist/preview,record,recent/playlists,scrobble}`、`/api/netease/artist/{detail,songs,albums,similar}`、`/api/netease/album/songs`
