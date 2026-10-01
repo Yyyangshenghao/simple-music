@@ -164,7 +164,8 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   playAt(index) {
     const track = get().queue[index]
     if (!track) return
-    if (isProviderId(track.source) && !isProviderParticipating(track.source)) return
+    // 网易/QQ 交给播放器先查离线文件；Apple 仍要求可用的官网会话。
+    if (track.source === 'apple' && !isProviderParticipating(track.source)) return
     set({ queueIndex: index })
     schedulePreloadNeighbors()
     const contextId = get().queueContextId

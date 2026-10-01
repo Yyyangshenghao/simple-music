@@ -18,8 +18,9 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import type { Playlist, Track } from '../types/domain'
 import type { MutableRefObject } from 'react'
 import styles from './LibraryPage.module.css'
+import { OfflineMusicTab } from './OfflineMusicTab'
 
-type SubTab = 'playlists' | 'albums' | 'favorites' | 'recent' | 'local'
+type SubTab = 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'local'
 
 /** 本地音乐排序字段。name/artist 为字符串序,mtimeMs 为文件修改时间(近似添加时间)。 */
 type LocalSortField = 'name' | 'artist' | 'mtimeMs'
@@ -112,13 +113,13 @@ export function LibraryPage() {
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
-          {(['playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'local'] as SubTab[]).map((t) => (
+          {(['playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map((t) => (
             <button
               key={t}
               className={`${styles.subTab} no-drag ${tab === t ? styles.subTabActive : ''}`}
               onClick={() => setTab(t)}
             >
-              {{ playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', local: '本地音乐' }[t]}
+              {{ playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[t]}
             </button>
           ))}
         </div>
@@ -135,6 +136,8 @@ export function LibraryPage() {
         : <OnlineLibraryUnavailable />)}
 
       {tab === 'recent' && <RecentPlaysList />}
+
+      {tab === 'offline' && <OfflineMusicTab />}
 
       {tab === 'local' && <LocalMusicTab />}
       </div>

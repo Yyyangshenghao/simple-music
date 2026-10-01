@@ -52,6 +52,10 @@ describe('主动保存路由', () => {
       expect(saved.status).toBe(200)
       expect(await saved.json()).toMatchObject({ ok: true, status: { state: 'pinned', size: bytes.length } })
 
+      const library = await clientFetch(`${base}/api/audio-cache/library`)
+      expect(library.status).toBe(200)
+      expect(await library.json()).toMatchObject({ items: [{ origin: { source: 'netease', id: '123', name: '测试歌曲' }, size: bytes.length }] })
+
       const status = await clientFetch(`${base}/api/audio-cache/status`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
