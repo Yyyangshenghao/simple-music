@@ -90,6 +90,15 @@ describe('官网内 MusicKit 会话适配', () => {
       redirectUrl: 'https://music.apple.com/cn/new',
     })
   })
+  it('未登录或尚未取得账号地区时不跳转', async () => {
+    const h = harness()
+    h.music.storefrontId = ''
+    h.music.isAuthorized = false
+    expect((await h.call({ type: 'state' })).redirectUrl).toBeUndefined()
+    h.music.isAuthorized = true
+    h.music.api.music.mockResolvedValueOnce({ data: { data: [] } })
+    expect((await h.call({ type: 'state' })).redirectUrl).toBeUndefined()
+  })
   it('状态跟随官网授权，恢复断点、音量与自然结束', async () => {
     const h = harness()
     await h.command('load', { id: '123', startAt: 20, volume: .4 })

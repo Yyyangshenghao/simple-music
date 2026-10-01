@@ -33,6 +33,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   private generation = 0
   private lifecycle = 0
   private loginPrompted = false
+  private redirectedStorefront = ''
   private interactive = false
   private backgrounded = false
   private authorizationShown = false
@@ -167,6 +168,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     this.backgrounded = false
     this.authorizationShown = false
     this.loginPrompted = false
+    this.redirectedStorefront = ''
     this.pollFailures = 0
     win.webContents.setUserAgent(chromeUserAgent())
     win.webContents.setWindowOpenHandler(({ url }) => isAppleUrl(url) ? { action: 'allow' } : { action: 'deny' })
@@ -253,23 +255,38 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
 
   private async poll(win: BrowserWindow) {
     const generation = this.generation
+    let nextPollMs: number | undefined
     try {
-      const state = await this.evaluate({ type: 'state' }) as ReturnType<AppleMusicWebSession['state']>
+      const value = await this.evaluate({ type: 'state' }) as ReturnType<AppleMusicWebSession['state']> & { redirectUrl?: string }
+      const { redirectUrl, ...state } = value
       if (this.window === win && generation === this.generation) {
-        this.pageReadyDeadline = 0
-        this.pollFailures = 0
-        if (this.snapshot.status === 'loading' && state.playbackId !== this.snapshot.playbackId) {
-          this.snapshot = { ...this.snapshot, connected: state.connected, loggedIn: state.loggedIn, subscription: state.subscription, storefront: state.storefront }
-        } else this.snapshot = state
-        if (state.loggedIn && !win.isDestroyed()) {
-          this.finishRestore()
-          this.interactive = false
-          this.saveRestore(true)
-          if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false }
-        } else if (this.interactive && !this.loginPrompted) {
-          this.backgrounded = false
-          this.showAuthorization(win)
-          this.loginPrompted = await this.promptLogin()
+        const currentRegion = new URL(win.webContents.getURL()).pathname.split('/')[1]
+        if (state.loggedIn && redirectUrl && /^[a-z]{2}$/.test(state.storefront)) {
+          this.snapshot = { ...emptyState(), connected: state.connected, storefront: state.storefront }
+          if (currentRegion !== state.storefront && this.redirectedStorefront !== state.storefront) {
+            this.pageReadyDeadline = Date.now() + OPEN_TIMEOUT_MS
+            this.redirectedStorefront = state.storefront
+            await withTimeout(win.loadURL(`https://music.apple.com/${state.storefront}/new`), OPEN_TIMEOUT_MS, 'Apple Music 账号地区页面加载超时')
+            nextPollMs = 4000
+          } else {
+            this.snapshot.error = 'Apple Music 网页地区与账号地区不一致，无法播放；请重新连接后重试'
+          }
+        } else {
+          this.pageReadyDeadline = 0
+          this.pollFailures = 0
+          if (this.snapshot.status === 'loading' && state.playbackId !== this.snapshot.playbackId) {
+            this.snapshot = { ...this.snapshot, connected: state.connected, loggedIn: state.loggedIn, subscription: state.subscription, storefront: state.storefront }
+          } else this.snapshot = state
+          if (state.loggedIn && !win.isDestroyed()) {
+            this.finishRestore()
+            this.interactive = false
+            this.saveRestore(true)
+            if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false }
+          } else if (this.interactive && !this.loginPrompted) {
+            this.backgrounded = false
+            this.showAuthorization(win)
+            this.loginPrompted = await this.promptLogin()
+          }
         }
       }
     } catch {
@@ -281,7 +298,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
         if (++this.pollFailures >= 3 && Date.now() >= this.pageReadyDeadline) this.invalidateWindow(win)
       }
     }
-    if (this.window === win && !win.isDestroyed()) this.timer = setTimeout(() => void this.poll(win), this.playbackPollInterval())
+    if (this.window === win && !win.isDestroyed()) this.timer = setTimeout(() => void this.poll(win), nextPollMs ?? this.playbackPollInterval())
   }
 
   private playbackPollInterval(): number {

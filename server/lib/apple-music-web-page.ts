@@ -129,7 +129,7 @@ export async function appleMusicWebPage(task: WebPageTask) {
       await music.stop()
     }
     return { connected: true, loggedIn: !!music.isAuthorized, subscription, storefront,
-      redirectUrl: storefront !== music.storefrontId ? `https://music.apple.com/${storefront}/new` : undefined,
+      redirectUrl: state.accountStorefront && storefront !== music.storefrontId ? `https://music.apple.com/${storefront}/new` : undefined,
       playbackId: state.playbackId, status: state.status, error: state.error,
       controlSequence: state.controlSequence,
       position: state.pendingSeek ?? (music.currentPlaybackTime || 0), duration: music.currentPlaybackDuration || 0 }
