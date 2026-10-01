@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { AudioEngine, type PlaybackStatus } from '../lib/audio-engine'
 import { api } from '../lib/api'
 import { AppleMusicPlayback } from '../lib/apple-music-playback'
+import { appleAudioSpectrum } from '../lib/apple-audio-spectrum'
 import { getPreloadedResolution, audioDiskCacheKey } from '../lib/track-preload'
 import { PlaybackResolver, type PlaybackAttempt, type PlaybackResolution } from '../lib/playback-resolver'
 import { fetchOfflineStatus, offlineFileUrl, type OfflineCacheStatus } from '../lib/offline-cache'
@@ -22,6 +23,7 @@ import { isProviderId, type PlaybackCandidate, type ProviderId, type QualityOpti
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
 const FALLBACK_UNPLAYABLE_MESSAGE = '这首歌暂时无法播放，可以换一首试试'
+const EMPTY_FREQUENCY = new Uint8Array(0)
 
 // 听歌打卡门槛:播满 20 秒或过半(取更短者)才算"真的听了",避免快速切歌也上报打卡
 const SCROBBLE_MIN_SECONDS = 20
@@ -81,6 +83,7 @@ interface PlayerStore {
   preferSourceOnce(source: ProviderId): void
   _lyricPosition(): number
   _engine(): AudioEngine
+  _frequencyData(): Uint8Array
 }
 
 let engine: AudioEngine | null = null
@@ -204,6 +207,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       const playback = new AppleMusicPlayback((state) => {
         if (applePlayback !== playback || activePlayback !== active || active.session !== loadSession) return
         if (state.status === 'error') {
+          appleAudioSpectrum.stop()
           playback.stop()
           applePlayback = null
           activePlayback = null
@@ -215,6 +219,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           committed = true
           const resolution = active.resolver?.complete(candidate) ?? null
           set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1 })
+          void window.desktop?.startAppleAudioCapture?.().catch(() => {})
+        } else if (state.status === 'playing' && get().status !== 'playing') {
+          void window.desktop?.startAppleAudioCapture?.().catch(() => {})
         }
         set({
           status: state.status === 'ended' ? 'paused' : state.status,
@@ -224,13 +231,19 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         if (state.status === 'ended') {
           playback.stop()
           applePlayback = null
+          const endedSession = loadSession
           trackEnded()
+          // 同步开始下一首 Apple 曲目时保留捕获；队列结束则释放音轨。
+          queueMicrotask(() => {
+            if (loadSession === endedSession && !applePlayback) appleAudioSpectrum.stop()
+          })
         }
       })
       applePlayback = playback
       set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1 })
       void playback.load(id, library, active.startAt, active.autoplay, get().volume, (candidate.track.duration ?? 0) / 1000).catch((error) => {
         if (applePlayback !== playback || activePlayback !== active) return
+        appleAudioSpectrum.stop()
         playback.stop()
         applePlayback = null
         activePlayback = null
@@ -479,6 +492,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     async loadTrack(track, opts) {
+      if (track.source !== 'apple') appleAudioSpectrum.stop()
       applePlayback?.stop()
       applePlayback = null
       const eng = ensureEngine()
@@ -572,6 +586,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       if (activePlayback !== active || active.session !== loadSession) return
       const offlineUrl = offlineStatus ? offlineFileUrl(offlineStatus, track) : null
       if (offlineStatus && offlineUrl) {
+        appleAudioSpectrum.stop()
         active.candidateKind = 'offline'
         active.offlineStatus = offlineStatus
         const loadId = eng.load(offlineUrl, startAt)
@@ -628,7 +643,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     _lyricPosition: () => applePlayback?.lyricPosition ?? get().position,
-    _engine: ensureEngine
+    _engine: ensureEngine,
+    _frequencyData: () => get().playbackTransport === 'musickit' && get().status === 'playing'
+      ? appleAudioSpectrum.read()
+      : get().playbackTransport === 'musickit' ? EMPTY_FREQUENCY : ensureEngine().getFrequencyData()
   }
 })
 

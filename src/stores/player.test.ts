@@ -4,6 +4,7 @@ import type { PlaybackCandidate } from '../providers/types'
 import type { OfflineCacheStatus } from '../lib/offline-cache'
 import type { Track } from '../types/domain'
 import type { ApplePlaybackState } from '../lib/apple-music-playback'
+import { appleAudioSpectrum } from '../lib/apple-audio-spectrum'
 
 const h = vi.hoisted(() => ({
   callbacks: {} as AudioEngineCallbacks,
@@ -265,6 +266,19 @@ describe('Apple Music 官方播放通道', () => {
     expect(h.appleCommand).toHaveBeenCalledWith({ type: 'volume', volume: .3 })
   })
 
+  it('Apple Music 播放时可视化读取独立窗口的频谱', async () => {
+    await loadApple()
+    h.appleState!({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'playing', position: 10, duration: 180 })
+    const read = vi.spyOn(appleAudioSpectrum, 'read').mockReturnValue(Uint8Array.of(64, 128))
+    try {
+      expect([...usePlayerStore.getState()._frequencyData()]).toEqual([64, 128])
+      usePlayerStore.getState().pause()
+      expect(usePlayerStore.getState()._frequencyData()).toHaveLength(0)
+    } finally {
+      read.mockRestore()
+    }
+  })
+
   it('切回其他音源停止浏览器音频，旧状态不能覆盖新曲目', async () => {
     await loadApple()
     const stale = h.appleState!
@@ -290,11 +304,26 @@ describe('Apple Music 官方播放通道', () => {
     const next = vi.fn()
     registerTrackEndedHandler(next)
     await loadApple()
+    const stopCapture = vi.spyOn(appleAudioSpectrum, 'stop')
     const ended: ApplePlaybackState = { connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'ended', position: 180, duration: 180 }
     h.appleState!(ended)
     h.appleState!(ended)
+    await Promise.resolve()
     expect(next).toHaveBeenCalledOnce()
+    expect(stopCapture).toHaveBeenCalledOnce()
     expect(usePlayerStore.getState()).toMatchObject({ status: 'paused', position: 0 })
+    stopCapture.mockRestore()
+  })
+
+  it('自动接播下一首 Apple 曲目时复用捕获', async () => {
+    await loadApple()
+    const stopCapture = vi.spyOn(appleAudioSpectrum, 'stop')
+    let nextLoad!: Promise<void>
+    registerTrackEndedHandler(() => { nextLoad = usePlayerStore.getState().loadTrack({ ...appleTrack, id: 'next' }) })
+    h.appleState!({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'ended', position: 180, duration: 180 })
+    await nextLoad
+    expect(stopCapture).not.toHaveBeenCalled()
+    stopCapture.mockRestore()
   })
 
   it('睡眠定时的播完当前曲优先于自动下一首', async () => {

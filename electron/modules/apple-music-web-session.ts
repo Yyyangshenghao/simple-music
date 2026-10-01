@@ -54,6 +54,14 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   ) {}
   state() { return { ...this.snapshot, restoring: this.restoring } }
 
+  /** 仅应用内 MusicKit 窗口可供主渲染层捕获音频；开发态 Chrome 不属于本进程。 */
+  captureFrame(): Electron.WebFrameMain | null {
+    const win = this.window
+    return win && !win.isDestroyed() && win.webContents.getURL().startsWith(APPLE_MUSIC_URL)
+      ? win.webContents.mainFrame
+      : null
+  }
+
   async open(): Promise<void> {
     this.finishRestore()
     this.interactive = true

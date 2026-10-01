@@ -19,6 +19,8 @@ import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
+import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
+import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { TopBar } from './components/Layout/TopBar'
@@ -53,6 +55,30 @@ export default function App() {
   useMiniPlayerSync()
   useLyricsFetch()
   useAmbientPalette()
+
+  useEffect(() => {
+    const handleCapture = () => appleAudioSpectrum.start()
+    const resumeSpectrum = () => {
+      if (!document.hidden && usePlayerStore.getState().playbackTransport === 'musickit') {
+        void window.desktop?.startAppleAudioCapture?.().catch(() => {})
+      }
+    }
+    window.addEventListener('simplemusic:apple-audio-capture', handleCapture)
+    window.addEventListener('pointerdown', resumeSpectrum)
+    window.addEventListener('pointerup', resumeSpectrum)
+    window.addEventListener('keydown', resumeSpectrum)
+    window.addEventListener('focus', resumeSpectrum)
+    document.addEventListener('visibilitychange', resumeSpectrum)
+    return () => {
+      window.removeEventListener('simplemusic:apple-audio-capture', handleCapture)
+      window.removeEventListener('pointerdown', resumeSpectrum)
+      window.removeEventListener('pointerup', resumeSpectrum)
+      window.removeEventListener('keydown', resumeSpectrum)
+      window.removeEventListener('focus', resumeSpectrum)
+      document.removeEventListener('visibilitychange', resumeSpectrum)
+      appleAudioSpectrum.stop()
+    }
+  }, [])
 
   useEffect(() => {
     useSettingsStore.getState().loadFromLocal()

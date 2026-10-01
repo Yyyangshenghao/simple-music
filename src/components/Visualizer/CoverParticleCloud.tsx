@@ -514,8 +514,7 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     // 均衡/节能档只限制频谱采样；插值、节拍衰减与涟漪仍逐帧推进。
     sampleElapsedRef.current += delta
     if (!throttle || !sampledBandsRef.current || sampleElapsedRef.current + 1e-9 >= AUDIO_SAMPLE_INTERVAL) {
-      const engine = usePlayerStore.getState()._engine()
-      sampledBandsRef.current = bandEnergiesFrom(engine.getFrequencyData())
+      sampledBandsRef.current = bandEnergiesFrom(usePlayerStore.getState()._frequencyData())
       const samplePeriods = Math.floor((sampleElapsedRef.current + 1e-9) / AUDIO_SAMPLE_INTERVAL)
       sampleElapsedRef.current = Math.max(0, sampleElapsedRef.current - samplePeriods * AUDIO_SAMPLE_INTERVAL)
     }

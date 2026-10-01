@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { app } from 'electron'
+import { app, session } from 'electron'
 
 const h = vi.hoisted(() => ({
   events: new Map<string, (event?: { preventDefault(): void }) => void>(),
   main: null as null | {
     isDestroyed(): boolean
     hide(): void
+    webContents: { mainFrame: object }
     on(event: string, listener: (event: { preventDefault(): void }) => void): void
   },
+  appleFrame: { id: 'apple-frame' },
+  captureFrame: vi.fn(),
   windowEvents: new Map<string, (event: { preventDefault(): void }) => void>(),
   hide: vi.fn(),
   windows: [] as object[],
@@ -26,9 +29,9 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: { getAllWindows: () => h.windows },
   screen: { on: vi.fn() },
-  session: { defaultSession: { setPermissionRequestHandler: vi.fn() } }
+  session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDisplayMediaRequestHandler: vi.fn() } }
 }))
-vi.mock('./server-host', () => ({ bootServer: h.bootServer, shutdownServer: h.shutdown }))
+vi.mock('./server-host', () => ({ bootServer: h.bootServer, shutdownServer: h.shutdown, getAppleMusicCaptureFrame: h.captureFrame }))
 vi.mock('./ipc', () => ({ registerIpc: h.registerIpc }))
 vi.mock('./modules/window-manager', () => ({
   getMainWindow: () => h.main, createMainWindow: h.createMainWindow,
@@ -54,6 +57,7 @@ describe('主窗口激活恢复', () => {
     h.windowEvents.clear()
     h.main = null
     h.windows = []
+    h.captureFrame.mockReturnValue(h.appleFrame)
     h.registerIpc.mockImplementationOnce(() => {}).mockImplementation(() => {
       throw new Error('IPC handler already registered')
     })
@@ -61,6 +65,7 @@ describe('主窗口激活恢复', () => {
       h.main = {
         isDestroyed: () => false,
         hide: h.hide,
+        webContents: { mainFrame: { id: 'main-frame' } },
         on: (event, listener) => { h.windowEvents.set(event, listener) }
       }
       h.windows = [h.main]
@@ -100,6 +105,21 @@ describe('主窗口激活恢复', () => {
     expect(h.hide).toHaveBeenCalledTimes(1)
     expect(h.main).toBe(win)
     expect(h.shutdown).not.toHaveBeenCalled()
+  })
+
+  it('只允许主窗口捕获 Apple Music 音频，且保留原窗口出声', () => {
+    const request = vi.mocked(session.defaultSession.setPermissionRequestHandler).mock.calls.at(-1)![0]!
+    const display = vi.mocked(session.defaultSession.setDisplayMediaRequestHandler).mock.calls.at(-1)![0]!
+    const callback = vi.fn()
+    request(h.main!.webContents as Electron.WebContents, 'display-capture', callback, {} as never)
+    expect(callback).toHaveBeenCalledWith(true)
+    display({ frame: h.main!.webContents.mainFrame, audioRequested: true, videoRequested: true } as never, callback)
+    expect(callback).toHaveBeenLastCalledWith({ video: h.main!.webContents.mainFrame, audio: h.appleFrame, enableLocalEcho: true })
+    display({ frame: { id: 'foreign' }, audioRequested: true, videoRequested: true } as never, callback)
+    expect(callback).toHaveBeenLastCalledWith(null)
+    h.captureFrame.mockReturnValue(null)
+    request(h.main!.webContents as Electron.WebContents, 'display-capture', callback, {} as never)
+    expect(callback).toHaveBeenLastCalledWith(false)
   })
 
   it('macOS 隐藏后激活复用原窗口，不重建播放会话', async () => {

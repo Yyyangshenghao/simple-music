@@ -960,8 +960,7 @@ export function StageLyrics3D() {
     }
 
     // 音频能量与节拍包络
-    const engine = usePlayerStore.getState()._engine()
-    const bands = bandEnergiesFrom(playing ? engine.getFrequencyData() : [])
+    const bands = bandEnergiesFrom(playing ? usePlayerStore.getState()._frequencyData() : [])
     const bassSum = bands.subBass + bands.bass
     const bass01 = Math.min(1, bassSum * 0.5)
     if (bassSum > BEAT_THRESHOLD && !prevBassAboveRef.current && t - lastBeatAtRef.current > BEAT_COOLDOWN) {
