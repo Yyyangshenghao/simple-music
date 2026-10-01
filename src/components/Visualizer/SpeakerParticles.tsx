@@ -60,7 +60,7 @@ const fragmentShader = /* glsl */ `
 `
 
 function averageFrequency(): number {
-  const data = usePlayerStore.getState()._engine().getFrequencyData()
+  const data = usePlayerStore.getState()._frequencyData()
   if (!data.length) return 0
   let sum = 0
   for (let i = 0; i < data.length; i++) sum += data[i]

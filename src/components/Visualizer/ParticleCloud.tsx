@@ -15,8 +15,7 @@ const COUNT_BY_MODE: Record<PerformanceMode, number> = {
 }
 
 function bassEnergy(): number {
-  const engine = usePlayerStore.getState()._engine()
-  const data = engine.getFrequencyData()
+  const data = usePlayerStore.getState()._frequencyData()
   if (!data.length) return 0
   const n = Math.min(16, data.length)
   let sum = 0

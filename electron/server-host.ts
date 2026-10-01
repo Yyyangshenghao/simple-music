@@ -63,6 +63,10 @@ export function getApiToken(): string {
   return apiToken
 }
 
+export function getAppleMusicCaptureFrame(): Electron.WebFrameMain | null {
+  return appleMusicWeb?.captureFrame() ?? null
+}
+
 export function shutdownServer(): Promise<void> {
   const closing = appleMusicWeb?.close().catch(() => {})
   appleMusicWeb = undefined

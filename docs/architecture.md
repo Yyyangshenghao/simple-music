@@ -5,7 +5,7 @@
 >
 > 本文描述当前开发分支的已实现架构；2.0 多平台融合的完整决策、阶段状态与待验收项见 [Simple Music 2.0 多平台融合架构设计](specs/2026-08-12-simple-music-2.0-multi-provider-design.md)。
 
-Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器：React 渲染层 + 主进程内嵌的 Node HTTP API server，音源支持网易云音乐与 QQ 音乐。项目起点是对 [Mineradio](https://github.com/XxHuberrr/Mineradio)（GPL-3.0）的移植式重写——整体架构已完全重写为 electron-vite + TypeScript，但部分算法/上游接口逻辑（dj-analyzer、win32 桌面注入、部分 server 路由）是"忠实移植"，行为对齐优先于重构（源码中标注了"移植自参考项目"的位置改动前需先确认上游语义）。
+Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器：React 渲染层 + 主进程内嵌的 Node HTTP API server，支持网易云音乐、QQ 音乐、Apple Music 与本地文件。项目起点是对 [Mineradio](https://github.com/XxHuberrr/Mineradio)（GPL-3.0）的移植式重写——整体架构已完全重写为 electron-vite + TypeScript，但部分算法/上游接口逻辑（dj-analyzer、win32 桌面注入、部分 server 路由）是"忠实移植"，行为对齐优先于重构（源码中标注了"移植自参考项目"的位置改动前需先确认上游语义）。
 
 ## 1. 进程模型
 
@@ -13,6 +13,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 ┌────────────────────────── Electron 主进程 ──────────────────────────┐
 │  electron/main.ts                                                   │
 │  ├─ server-host.ts ──► 内嵌 HTTP API server（server/，127.0.0.1 随机端口）│
+│  │                    Apple Music 官网会话（授权、曲库、受保护播放）       │
 │  ├─ modules/window-manager.ts ──► 主窗口（无边框，16:9）               │
 │  ├─ modules/overlay-manager.ts ──► 桌面歌词/壁纸/迷你播放条窗（三个独立渲染进程）│
 │  ├─ modules/hotkey-manager.ts（globalShortcut）                       │
@@ -27,6 +28,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 │ src/（React 18 + zustand）   │   │ server/routes/* → server/lib/*     │
 │ preload: window.desktop      │   │ ├─ netease（NeteaseCloudMusicApi）  │
 └──────────────────────────────┘   │ ├─ qq-music（Web 接口逆向封装）      │
+                                   │ ├─ apple-music（官网会话桥接）       │
 ┌─ 桌面歌词渲染进程 ───────────┐   │ ├─ podcast / beatmap（DJ 锁拍）      │
 │ overlays/desktop-lyrics      │   │ ├─ weather（Open-Meteo 天气电台）    │
 │ preload: window.desktopOverlay│  │ ├─ update（GitHub Release + 镜像）   │
@@ -58,9 +60,9 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 1. `electron/main.ts` 顶层：追加 Chromium 开关——`autoplay-policy=no-user-gesture-required`、GPU 光栅化/zero-copy、50MB Chromium 磁盘缓存，ANGLE 后端按平台选 `d3d11`（win32）/`metal`（darwin）。不再全局关闭后台节流；只在主窗口与长期被遮挡的壁纸窗口设置 `backgroundThrottling: false`。
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
-3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen 与净化后的剪贴板写入；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
+3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen、净化后的剪贴板写入及主窗口对 Apple 后台音频的定向捕获；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，创建 Apple Music 会话，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
-5. 渲染层 `App.tsx` 挂载：先加载通用设置，再用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），随后恢复播放队列为暂停态并初始化 Media Session。网易云和 QQ 的登录状态独立核实，单个平台返回不得改写另一平台状态。
+5. 渲染层 `App.tsx` 挂载：先加载通用设置，再用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），随后恢复播放队列为暂停态并初始化 Media Session。各在线平台的登录与参与状态独立核实；Apple Music 还需确认订阅状态。
 6. `before-quit`：注销热键 → 关闭悬浮窗 → 销毁托盘 → 关闭 server。
 
 **后台降耗约定**：主窗口隐藏、最小化或切到迷你播放条时，`App.tsx` 卸载可视层，保留全局 hooks 与 AudioEngine；WebGL/rAF 循环仍需使用 visibility、IntersectionObserver 或窗口状态自行暂停。壁纸窗口因长期处于桌面底层而单独禁用 Chromium 后台节流，不能依赖“被遮挡即自动停帧”。
@@ -77,23 +79,23 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
   → providers/* / *-music-service.ts
   → src/lib/api.ts                       // 拼 http://127.0.0.1:<port>/api/*
   → server/routes/*                      // 路由链
-  → server/lib/*-client.ts               // 上游封装 + cookie
-  → 上游平台（music.163.com / y.qq.com）
-  → mapSongRecord / mapQQTrack 等映射为领域类型（src/types/domain.ts 的事实来源）
+  → server/lib/* / Apple 官网会话         // 上游封装与授权状态
+  → 上游平台（网易云 / QQ / Apple Music）
+  → 按来源映射为 src/types/domain.ts 的领域类型
 ```
 
 规则（易踩坑，违反过会产生真实 bug）：
 
 - **渲染层绝不直接调音乐平台**，一律经本地 server。
-- **不存在全局互斥音源**：平台是否参与由 provider store 的“已登录且已启用”共同决定；聚合读取由 `ContentHub` 隔离各平台失败，实体读取与写操作一律使用 `serviceFor(数据.source)`，不得从 UI 当前筛选状态猜平台。
+- **不存在全局互斥音源**：平台是否参与由 provider store 的登录、启用及播放可用状态决定；聚合读取由 `ContentHub` 隔离各平台失败，实体读取与写操作按实体的 `source` 选 provider 能力或兼容层 service，不得从 UI 当前筛选状态猜平台。Apple Music 需要有效订阅。
 - **`Track.duration` 全项目约定毫秒**（网易 `dt` 原样、QQ `interval×1000`）。
-- **`Track`/`Playlist` 的 `id` 是 `unknown`**（两音源 id 形态不同，QQ 主键实际是 `mid` 字符串），比较/拼 URL 前必须 `String()`。
+- **`Track`/`Playlist` 的 `id` 是 `unknown`**（各来源 ID 形态不同），比较/拼 URL 前必须 `String()`。`ProviderId` 为 `netease` / `qq` / `apple`，`MusicSource` 另含 `local`。
 
 ### 4.2 音频播放链
 
 ```
-player.loadTrack(track)
-  → PlaybackResolver：手动软优先 → 原源优先 → playbackOrder（只含登录且启用平台）
+player.loadTrack(网易云或 QQ 曲目)
+  → PlaybackResolver：手动软优先 → 原源优先 → playbackOrder（仅网易云/QQ）
   → 跨源时 track-match 保守评分；同平台按音质与地址生成有限候选
   → AudioEngine.load(upstreamUrl, startAt, cacheKey)
   → canplay 提交实际来源；媒体 error 回到解析器继续同源/跨源降级
@@ -105,6 +107,8 @@ player.loadTrack(track)
 - Analyser 暴露频谱给全部可视化（能量辉光、粒子云、频谱环）；Gain 挂在 Analyser **之后**做 0.25s 淡入淡出包络，不污染频谱读数。
 - 音频代理为什么存在：上游 CDN 有 Referer/UA 校验且跨域，`<audio>` 直连拿不到；代理统一补 header、加 CORS、顺带做磁盘缓存（2GB LRU）。
 - 详见 [playback-system.md](playback-system.md)。
+
+本地曲目按索引 ID 读取本地 API，不进入跨源匹配。Apple Music 的 `apple-music:` 候选由 `AppleMusicPlayback` 控制后台 MusicKit 会话，播放进度回写同一个 player store；音频不经 `/api/audio`，也不写入离线缓存。主窗口可尝试捕获该窗口的只读音轨供频谱使用，捕获失败不影响播放。原生歌词不可用时，可从已启用的网易云或 QQ 音乐匹配同曲歌词。开发态使用系统 Chrome 承载受保护播放；正式包使用 EVS 签名的应用内窗口。详见 [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md)。
 
 ### 4.3 控制类通信（IPC）
 

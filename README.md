@@ -1,8 +1,8 @@
 # Simple Music
 
-一个基于 Electron + React 的多平台桌面音乐播放器，可同时接入网易云音乐与 QQ 音乐，并融合展示内容、按优先级自动寻找可播放音源。内置沉浸式可视化、桌面歌词、动态壁纸等能力。
+一个基于 Electron + React 的桌面音乐播放器，支持网易云音乐、QQ 音乐、Apple Music 与本地音乐。网易云和 QQ 可按播放优先级寻找可用音源；Apple Music 使用独立的受保护播放会话。内置沉浸式可视化、桌面歌词、动态壁纸等能力。
 
-> **免责声明**：本项目为个人学习与技术交流用途，非网易云音乐、腾讯 QQ 音乐官方产品，也不隶属或代表网易、腾讯及其关联公司。项目中涉及的音源接口为对公开 Web/客户端接口的技术性调用，不提供任何音乐内容的存储或分发。请勿用于商业用途，因使用本项目产生的任何版权或法律纠纷由使用者自行承担。若相关权利方认为本项目存在侵权内容，请联系作者，将第一时间处理。
+> **免责声明**：本项目为个人学习与技术交流用途，不是网易云音乐、QQ 音乐或 Apple Music 的官方产品，也不代表相关平台。项目不托管或分发音乐内容；音频缓存与离线保存发生在使用者本机。请遵守所用平台的服务条款与适用法律。若相关权利方认为本项目存在侵权内容，请联系作者处理。
 
 ## 截图
 
@@ -36,22 +36,23 @@
 
 **音源与内容**
 
-- 网易云音乐 / QQ 音乐可同时登录并独立启用；未登录或未启用的平台不会参与内容与播放
+- 网易云音乐 / QQ 音乐 / Apple Music 可分别登录和启用；Apple Music 需有效订阅才能播放完整歌曲，正式版在应用内完成登录与播放
+- Apple Music 支持搜索、榜单、首页推荐、个人资料库浏览和原生歌词；原生歌词缺失时可从已启用的网易云或 QQ 匹配同曲歌词
 - 探索页与我的库共用右侧半隐藏 Dock 切换全局内容平台，不提供“全部平台”；每日推荐、私人雷达等栏目保持平台原生语义
 - 来源标识支持常显、动态、隐藏，跨平台内容与实际播放来源均可辨认
 - 本地音乐：选文件夹扫描，读内嵌标签与封面，同名 `.lrc` 自动作歌词，并可按标题、艺人或添加时间排序
-- 播放优先级可调整，单曲可临时软优先某个平台；同平台地址/音质失败后再按顺序跨平台降级
+- 网易云与 QQ 的播放优先级可调整，单曲可临时软优先某个平台；同平台地址/音质失败后再按顺序跨平台降级。Apple Music 不参与跨平台音频替换
 - 漫游页：以歌手关系图谱为入口滚动式探索，边听边扩展
 
 **播放**
 
-- 音质档位可选（含 `max` 跟随账号最高可用档），单曲可查看实际命中的档位
-- 音频磁盘缓存：整曲播放过一次即落盘，重复播放不再走网络（目录与容量上限可配）
+- 网易云与 QQ 音质档位可选（含 `max` 跟随账号最高可用档），单曲可查看实际命中的档位
+- 网易云与 QQ 的音频磁盘缓存：完整音频下载后可复用，也可保存离线歌曲（目录与容量上限可配）；Apple Music 不支持下载或离线保存
 - 淡入淡出、断点续播、睡眠定时、播放队列
 
 **视觉与桌面集成**
 
-- 沉浸式 Three.js 可视化场景、封面粒子、歌词页 3D 舞台
+- 沉浸式 Three.js 可视化场景、封面粒子、歌词页 3D 舞台；Apple Music 的可视化频谱取决于系统是否允许捕获受保护音频
 - 桌面歌词、动态壁纸与迷你播放条三个独立悬浮窗
 - 浅色/深色双主题，界面、歌词与 3D 歌词字体可分别选择系统字体
 - 视觉 FX 参数可调并支持存档导入导出
@@ -60,12 +61,12 @@
 
 ## 技术栈
 
-Electron + React 18 + TypeScript + Zustand + electron-vite + Three.js（`@react-three/fiber`）
+Electron（CastLabs ECS）+ React 18 + TypeScript + Zustand + electron-vite + Three.js（`@react-three/fiber`）
 
 ## 开发
 
 ```bash
-npm install
+npm ci
 npm run dev           # electron-vite 开发模式（渲染层 5173，API server 随主进程启动）
 npm run build         # 构建到 out/
 npm run typecheck     # 类型检查（node 侧 + 渲染侧两套 tsconfig）
@@ -75,7 +76,7 @@ npm run build:mac     # 打包 macOS（x64 + arm64 dmg）
 npm run build:win     # 打包 Windows（安装版 + 便携版）
 ```
 
-完整版本升级、标签和 GitHub Release 规范见 [`docs/build-and-release.md`](./docs/build-and-release.md)。更多实现说明见 [`docs/architecture.md`](./docs/architecture.md)、[`docs/directory-structure.md`](./docs/directory-structure.md) 与 [`docs/modules/`](./docs/modules/)。
+开发模式下，Apple Music 受保护播放使用本机 Chrome；正式安装包通过 CastLabs EVS 签名后使用应用内窗口。完整版本升级和 GitHub Release 规范见 [构建与发布](./docs/build-and-release.md)，实现文档从 [文档导航](./docs/README.md) 开始阅读。
 
 ## 鸣谢
 

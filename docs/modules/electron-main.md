@@ -1,12 +1,13 @@
 # 主进程(`electron/`)
 
-入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server,随机端口 + 持久化 token)→ `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，主窗口与壁纸窗口按需单独设置 `backgroundThrottling: false`。
+入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，主窗口与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
 > **安全约定(2026-07-24 加,2026-07-27 文档补录)**:全窗口 `sandbox: true`(主窗 `window-manager`、三个悬浮窗 `overlay-manager`、登录窗 `login-manager`)—— preload 本就是纯 IPC 转发无 node 依赖,沙盒下 `electron.vite.config.ts` preload 输出改 CommonJS(`.cjs`)即可,`process.argv` 端口/token 注入在沙盒下仍可用。API token 由主进程 `randomBytes(32)` 生成、持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 与端口一并注入渲染层,server 侧 `isAllowedToken` 校验(详见 [server.md](server.md) 安全边界)。
 
 ## 目录
 
 - `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
+- `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
@@ -19,6 +20,7 @@
 - `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort/serverToken + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入,API token 经 `--simplemusic-server-token=` 传入。
 - `preload/overlay.ts` — 悬浮窗桥:`window.desktopOverlay`。
 - `ipc/` — 按域拆分注册,`ipc/index.ts` 统一 `registerIpc()`。
+- `ipc/apple-audio.ts` — 只允许主窗口请求固定的 Apple 音频捕获动作，供可视化频谱使用；捕获失败不影响播放。
 
 ## IPC 通道(invoke)
 
@@ -30,6 +32,7 @@
 - `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
 - `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`
+- `apple:audio-capture-start` — 主窗口对 Apple 后台音轨的定向频谱采集请求。
 
 主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。
 

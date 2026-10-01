@@ -400,6 +400,43 @@ describe('应用内 Apple Music 会话', () => {
     expect(h.chrome.minimize).not.toHaveBeenCalled()
   })
 
+  it('应用内网页地区与账号不同时导航到账号地区后再隐藏', async () => {
+    h.setState(signedIn)
+    h.setLoadBehavior(async () => {
+      const win = h.windows[0]
+      if (win.webContents.getURL() === 'https://music.apple.com/') {
+        win.webContents.executeJavaScript.mockResolvedValueOnce({ ...signedIn, redirectUrl: 'https://music.apple.com/cn/new' } as any)
+      }
+    })
+
+    await apple.open()
+    const win = h.windows[0]
+    expect(win.loadURL).toHaveBeenCalledWith('https://music.apple.com/cn/new')
+    expect(apple.state()).toMatchObject({ loggedIn: false, subscription: 'unknown' })
+    expect(() => apple.command({ type: 'load', playbackId: 'p1', id: '123' })).toThrow('请先')
+    expect(win.hide).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(win.hide).toHaveBeenCalledOnce()
+  })
+
+  it('官网改写地区页面地址时不反复导航', async () => {
+    await apple.open()
+    const win = h.windows[0]
+    h.setState(signedIn)
+    const execute = win.webContents.executeJavaScript.getMockImplementation()!
+    win.webContents.executeJavaScript.mockImplementation(async script =>
+      script.includes('"type":"state"') ? { ...signedIn, redirectUrl: 'https://music.apple.com/cn/new' } : execute(script))
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(win.loadURL).toHaveBeenCalledWith('https://music.apple.com/cn/new')
+    expect(apple.state()).toMatchObject({ loggedIn: false, subscription: 'unknown' })
+    win.setUrl('https://music.apple.com/new')
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(win.loadURL).toHaveBeenCalledTimes(2)
+    expect(apple.state()).toMatchObject({ loggedIn: false, subscription: 'unknown', error: expect.stringContaining('地区不一致') })
+    expect(win.hide).not.toHaveBeenCalled()
+  })
+
   it('使用隔离持久会话和安全的后台播放窗口', async () => {
     await apple.open()
     const win = h.windows[0]

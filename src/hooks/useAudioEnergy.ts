@@ -42,7 +42,7 @@ export function useAudioEnergy(ref: RefObject<HTMLElement | null>, enabled = tru
       raf = requestAnimationFrame(tick)
       if (now - last < FRAME_MS - 1 || document.hidden) return
       last = now
-      const data = usePlayerStore.getState()._engine().getFrequencyData()
+      const data = usePlayerStore.getState()._frequencyData()
       energy = smoothEnergy(energy, bassEnergyFrom(data))
       el.style.setProperty('--audio-energy', energy.toFixed(3))
     }

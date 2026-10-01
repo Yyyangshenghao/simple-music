@@ -44,6 +44,7 @@ const api = {
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
   maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   onStateChange: (cb: (s: WindowState) => void) => on<WindowState>('window:state-changed', cb),
+  startAppleAudioCapture: (): Promise<boolean> => ipcRenderer.invoke('apple:audio-capture-start'),
 
   // 登录
   openNeteaseLogin: (): Promise<LoginResult> => ipcRenderer.invoke('login:netease-open'),

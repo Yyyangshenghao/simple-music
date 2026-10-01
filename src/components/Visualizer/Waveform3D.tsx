@@ -63,8 +63,7 @@ export function Waveform3D() {
 
   useFrame((_, delta) => {
     const params = useSettingsStore.getState().lyrics3d
-    const engine = usePlayerStore.getState()._engine()
-    const freqData = engine.getFrequencyData()
+    const freqData = usePlayerStore.getState()._frequencyData()
     const energy = bassEnergyFrom(freqData)
 
     hueRef.current += delta * (0.08 + energy * 0.12)

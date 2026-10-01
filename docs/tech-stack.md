@@ -1,7 +1,7 @@
 # 技术栈与依赖说明
 
 > 每个依赖回答三个问题：干什么用、在哪里用、为什么选它/有什么替代考量。
-> 版本以 `package.json` 为准（本文最近对齐至 v2.0.2）。
+> 版本以 `package.json` 为准；本文按当前依赖与实现维护，不把历史方案中的版本号当作现行要求。
 
 ## 运行时依赖（dependencies）
 
@@ -24,7 +24,7 @@
 
 | 依赖 | 说明 |
 |---|---|
-| `electron` ^42 | 主框架。 |
+| `electron`（CastLabs ECS 42） | 主框架；受保护 Apple Music 播放需要 Widevine。正式发布的安装包必须经 EVS streaming VMP 生产签名，见 [构建与发布](build-and-release.md)。 |
 | `electron-vite` ^2 | 三段构建（main/preload/renderer 各自打包）；dev 模式渲染层跑 vite dev server（5173），经 `ELECTRON_RENDERER_URL` 注入主进程。 |
 | `electron-builder` ^26 | 打包分发：mac dmg（x64+arm64）、win NSIS 安装版 + portable。配置内联在 package.json `build` 字段。 |
 | `vite` ^5 / `@vitejs/plugin-react` ^4 | electron-vite 的底层。 |
@@ -46,10 +46,11 @@
 |---|---|---|
 | 网易云音乐 | `NeteaseCloudMusicApi` 包（本地起调用，非公网服务） | 包版本与网易改版双重风险；接口可用性用 `has()` 探测 + 多路兜底（如 lyric_new→lyric、playlist_detail→playlist_track_all）。 |
 | QQ 音乐 | 直接 fetch Web 端接口（`u.y.qq.com/cgi-bin/musicu.fcg` 等），逆向来源见 [qq-music-api.md](qq-music-api.md) | 无官方 API；接口曾整体不可用（2026-07-05），vkey/鉴权逻辑对 cookie 形态敏感。 |
+| Apple Music | 应用内 Apple 官网会话 + MusicKit；开发态受保护播放使用系统 Chrome，另有开发者令牌备用模式 | 需要有效 Apple Music 订阅；受官网结构、地区、DRM 与生产签名影响。播放不进入本地音频代理或离线缓存，详见 [接入记录](specs/2026-09-17-apple-music-integration.md)。 |
 | Open-Meteo / ip-api.com | 免 key 公共接口 | 天气电台专用，失败有本地兜底电台。 |
 | GitHub Releases + 国内镜像 | 更新检查/下载 | 镜像列表配置在 package.json `simplemusic.update.mirrors`，支持 `{url}`/`{encodedUrl}` 模板。 |
 
 ## 环境要求
 
-- Node 20+（`@types/node` ^20；server 代码使用全局 `fetch`、`AbortSignal.timeout`）。
+- 本地开发使用支持全局 `fetch` 与 `AbortSignal.timeout` 的 Node 20+；发布流水线固定 Node 22.12，运行 `npm ci`、类型检查、测试并构建签名安装包。
 - 平台：macOS 优先（开发机），Windows 完整支持（含桌面歌词中键、壁纸注入等 win32 专属能力），Linux 仅理论可跑（更新资源选择有 AppImage/deb 分支但未打包）。

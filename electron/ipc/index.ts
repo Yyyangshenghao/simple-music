@@ -4,6 +4,7 @@ import { registerWallpaperIpc } from './wallpaper'
 import { registerMiniPlayerIpc } from './miniplayer'
 import { registerLoginIpc } from './login'
 import { registerMiscIpc } from './misc'
+import { registerAppleAudioIpc } from './apple-audio'
 
 export function registerIpc(): void {
   registerWindowIpc()
@@ -12,4 +13,5 @@ export function registerIpc(): void {
   registerMiniPlayerIpc()
   registerLoginIpc()
   registerMiscIpc()
+  registerAppleAudioIpc()
 }

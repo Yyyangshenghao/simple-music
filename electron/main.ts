@@ -1,5 +1,5 @@
 import { app, screen, session } from 'electron'
-import { bootServer, shutdownServer } from './server-host'
+import { bootServer, getAppleMusicCaptureFrame, shutdownServer } from './server-host'
 import { createMainWindow, scheduleWindowStateSend, getMainWindow, getServerPort, getServerToken } from './modules/window-manager'
 import {
   positionDesktopLyricsWindow,
@@ -75,10 +75,25 @@ if (!gotLock) {
   app.quit()
 } else {
   const startup = app.whenReady().then(async () => {
-    // 播放器不需要摄像头/麦克风/定位/通知等能力,默认全部拒绝,只留窗口全屏与写剪贴板。
+    // 播放器不需要摄像头/麦克风/定位/通知等能力,只留窗口全屏、写剪贴板和主窗口的 Apple 音频捕获。
     // Electron 默认是"全部允许",一旦渲染层被注入内容就能直接向系统要这些权限。
-    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-      callback(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
+    const allowedPermission = (wc: Electron.WebContents | null, permission: string) =>
+      permission === 'fullscreen' || permission === 'clipboard-sanitized-write' ||
+      (permission === 'display-capture' && !!wc && wc === getMainWindow()?.webContents && !!getAppleMusicCaptureFrame())
+    session.defaultSession.setPermissionCheckHandler((wc, permission) => allowedPermission(wc, permission))
+    session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+      callback(allowedPermission(wc, permission))
+    })
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      const mainFrame = getMainWindow()?.webContents.mainFrame
+      const appleFrame = getAppleMusicCaptureFrame()
+      if (!mainFrame || request.frame !== mainFrame || !request.audioRequested || !request.videoRequested || !appleFrame) {
+        // Electron 文档支持 null 拒绝请求，当前类型声明只包含成功流。
+        (callback as (streams: Parameters<typeof callback>[0] | null) => void)(null)
+        return
+      }
+      // 捕获 Apple 窗口的音频而不接管输出，MusicKit 仍直接向扬声器播放。
+      callback({ video: mainFrame, audio: appleFrame, enableLocalEcho: true })
     })
     screen.on('display-metrics-changed', () => {
       positionDesktopLyricsWindow()

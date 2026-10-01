@@ -36,7 +36,7 @@ vi.mock('../../stores/settings', () => ({
   )
 }))
 vi.mock('../../stores/player', () => ({
-  usePlayerStore: { getState: () => ({ _engine: () => ({ getFrequencyData: harness.readFrequency }) }) }
+  usePlayerStore: { getState: () => ({ _frequencyData: harness.readFrequency }) }
 }))
 vi.mock('../../lib/api', () => ({ api: {} }))
 vi.mock('../../lib/dot-texture', () => ({ getDotSpriteTexture: () => null }))
