@@ -4,12 +4,12 @@
 > 代理与磁盘缓存、队列走序、预加载、持久化、睡眠定时器、系统媒体集成。
 > 相关代码：`src/stores/player.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
 > `src/lib/playback-resolver.ts`、`src/lib/track-match.ts`、`src/lib/track-preload.ts`、`src/lib/playback-persistence.ts`、
-> `server/routes/netease.ts`（/api/audio）、`server/lib/audio-cache.ts`。
+> `server/routes/netease.ts`（/api/audio）、`server/routes/audio-cache.ts`、`server/lib/audio-cache.ts`。
 
 ## 1. 全链路总览
 
 ```
-用户点击曲目
+用户点击网易云 / QQ / 本地曲目
   → playlist.setQueue(tracks, index) / playAt(index)      # 队列与走序
   → player.loadTrack(track)                               # 创建可取消的播放会话
       1. 在线曲目先查离线索引，命中则直接读取本地文件
@@ -28,6 +28,8 @@
   → 自然播完 ended → stopAfterCurrent 闸门(睡眠定时器) 或 playlist.handleTrackEnded()
 ```
 
+Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 Apple 曲目只返回 Apple 候选；`AppleMusicPlayback` 将 `apple-music:` 标识交给后台 MusicKit 会话控制，不经过 HTMLAudioElement、`/api/audio`、跨源替换或离线缓存。详见 §12。
+
 ## 2. player store（`src/stores/player.ts`）
 
 单例 zustand store，持有懒创建的 `AudioEngine` 单例（模块级变量，非 state）。
@@ -42,7 +44,7 @@
 | `quality` | 以 settings store 为单一事实来源，经 `subscribe` 回流（`setQuality` 只是转调 settings） |
 | `resolvedTrack` / `actualSource` | 媒体进入 canplay 后提交的实际曲目与平台；加载候选期间为 null |
 | `resolution` / `playbackAttempts` | 当前在线解析结果与 match / resolve / media-load 诊断链 |
-| `playbackTransport` | 实际传输方式：`online / offline / local`，离线播放不触发在线听歌上报 |
+| `playbackTransport` | 实际传输方式：`online / offline / local / musickit`，离线播放不触发在线听歌上报 |
 | `rate` | 播放速度（保留音高），**不持久化**，重启回 1 |
 
 **两处解耦回调**（都是为了避免反向 import 成环）：
@@ -56,7 +58,7 @@
 
 ## 3. AudioEngine（`src/lib/audio-engine.ts`）
 
-单个 `HTMLAudioElement` + Web Audio 图。**图结构与顺序是刻意的**：
+网易云、QQ 和本地播放使用单个 `HTMLAudioElement` + Web Audio 图。**图结构与顺序是刻意的**：
 
 ```
 MediaElementSource → AnalyserNode(fftSize 2048) → GainNode → destination
@@ -97,7 +99,7 @@ QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把�
 
 ## 5. N 音源匹配与降级（`src/lib/playback-resolver.ts`、`src/lib/track-match.ts`）
 
-只允许“已登录、已明确启用”的平台进入来源顺序。`multiSourceFallback=false` 时只尝试最终顺序的第一个平台；手动“本次优先”是软优先，当前平台耗尽后仍可继续降级。
+只允许“已登录、已明确启用且播放可用”的平台进入来源顺序。Apple 曲目只尝试 Apple；非 Apple 曲目顺序会排除 Apple，避免把受保护音频当作直链替换。`multiSourceFallback=false` 时只尝试最终顺序的第一个平台；手动“本次优先”是软优先，当前平台耗尽后仍可继续降级。
 
 **同曲判定**：
 
@@ -166,10 +168,17 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 `navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。启动时调用一次，环境不支持静默跳过。
 
-## 12. 改动检查清单
+## 12. Apple Music 专用播放
+
+`src/lib/apple-music-playback.ts` 接受 player store 的加载与控制命令，经 `/api/apple-music/bridge/*` 到主进程管理的官网 MusicKit 会话。发布版使用应用内隔离窗口；开发态的受保护播放由系统 Chrome 承载。`src/stores/apple-music-connection.ts` 只有在账号已登录且订阅明确有效时才让 Apple 参与播放；订阅未知或无效时不把试听当完整播放，也不静默换到其他音源。
+
+主播放栏、队列、热键、迷你条和睡眠定时器复用 player store 状态。Apple 不使用音质档位、倍速或离线保存；歌词先查 Apple 原生数据，失败时可以从已启用的网易云或 QQ 匹配同曲歌词，此过程不改变音频来源。`src/lib/apple-audio-spectrum.ts` 可尝试采集后台窗口的只读音轨，供现有可视化使用；捕获失败时音频仍由 MusicKit 正常播放。
+
+## 13. 改动检查清单
 
 - 改解析器内任何异步步骤：同时检查 `AbortSignal`、当前平台参与状态和有限尝试数。
 - 新增媒体候选：必须等 `canplay` 后再提交 `actualSource`，`error` 必须能回到当前解析会话。
 - 改 AudioEngine 节点图：Analyser 必须在 Gain 之前；`pauseTimer` 的取消路径别漏。
 - 改缓存 key 构成：使用实际解析曲目的 source/id/quality；不要把跨平台音频写进内容来源的 key。
+- 改 Apple Music：检查订阅状态、后台会话撤销和命令序号；不能让 Apple 进入 `/api/audio`、离线缓存或网易/QQ 跨源候选。
 - 涉及播放行为的改动 typecheck/test 不够，需 `npm run dev` 实测（淡入淡出、断点续播、兜底换源都是运行时行为）。

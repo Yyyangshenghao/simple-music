@@ -12,7 +12,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 | store | 职责 |
 |---|---|
-| `player.ts` | 播放状态/进度/音量/音质;懒创建 `AudioEngine` 单例;`loadTrack` 解析 URL 并播放 |
+| `player.ts` | 播放状态/进度/音量/音质；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
 | `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings + artist/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向 |
 | `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
@@ -24,6 +24,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
 | `roam.ts` / `shuange.ts` | 漫游歌手图谱与保存歌单、刷歌会话/自适应推荐状态 |
 | `sleep-timer.ts` / `update.ts` | 睡眠定时状态机、应用更新检查/下载任务 |
+| `apple-music-connection.ts` / `offline-cache.ts` | Apple Music 登录、订阅及连接状态；在线单曲离线保存状态 |
 
 ## hooks(全局副作用,大多在 App.tsx 挂载一次)
 
@@ -40,12 +41,13 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 ## providers / lib
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
-- `providers/registry.ts` — 网易/QQ Provider 注册表；新功能先判断对应 capability 是否存在。
+- `providers/registry.ts` — 网易/QQ/Apple Music Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。
 - `providers/*-provider.ts` — 平台能力实现；`legacy-provider-adapter.ts` 连接仍使用 `MusicService` 的旧页面。
 
 - `music-service.ts` / `service-registry.ts` — 兼容层接口与 service 单例；实体操作必须 `serviceFor(entity.source)`，不得从当前内容平台猜来源。
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
+- `apple-music-playback.ts` / `apple-audio-spectrum.ts` — Apple Music 播放命令与后台状态同步；按系统权限尝试采集只读音轨供可视化使用，采集失败不阻断播放。
 - `playback-resolver.ts` / `track-match.ts` / `track-preload.ts` — 多平台候选解析、保守同曲匹配和相邻曲目预加载。
 - `lyric-parser.ts` — LRC/逐字歌词解析。
 - `stack-pool.ts` — 探索页 Stack 卡片堆的池子管理(纯函数,有测试)。
@@ -69,4 +71,4 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。
-- 在线平台只接受 `ProviderId`(`netease`/`qq`)，本地音乐是 `MusicSource` 的第三种值；新增分支不能把 `local` 落进网易兜底。
+- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`)，本地音乐是 `MusicSource` 的第四种值；新增分支不能把 `local` 落进网易兜底。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。

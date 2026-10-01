@@ -1,6 +1,6 @@
 # 协作规范
 
-Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎么写、版本怎么发。所有规则以本文档为准,架构与代码约定见 [CLAUDE.md](CLAUDE.md) 与 [docs/modules/](docs/modules/)。
+Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息怎么写、版本怎么发。架构与模块入口见 [文档导航](docs/README.md)，仓库代理的改动边界见 [AGENTS.md](AGENTS.md)。
 
 ## 一、分支模型
 
@@ -76,7 +76,8 @@ Simple Music 的多人协作约定:分支怎么开、代码怎么提、消息怎
 完整清单见 [CLAUDE.md](CLAUDE.md),评审时重点盯这些历史踩过的坑:
 
 - `Track.duration` 全项目**毫秒**;`Track.id` 类型是 `unknown`,比较/拼 URL 前先 `String()`。
-- 跨音源实体按自身 `source` 取能力:新代码优先 `providerFor(数据.source)`,兼容层使用 `serviceFor(数据.source)`,不能从当前内容平台猜来源。
+- 跨音源实体按自身 `source` 取能力：新代码优先 `providerFor(数据.source)`，兼容层使用 `serviceFor(数据.source)`，不能从当前内容平台猜来源。`ProviderId` 含网易、QQ、Apple；`MusicSource` 另含 `local`。
+- Apple Music 的受保护播放不走直链音频代理、跨源兜底或离线缓存；歌词同曲补位与音频来源分开处理。
 - 异步 setter 要有竞态守卫(参考 ExplorePage 的 `loadSession` 计数模式)。
 - 样式用 CSS Modules + `tokens.css` 变量;动效引用 `motion-presets.ts`,不写魔法数值。
 - 全屏 WebGL 场景同屏只跑一个;three.js 对象换用不换卸时记得 `dispose()`。
