@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
+import { defaultShortcuts, normalizeAccelerator, normalizeBindings, type ShortcutScope } from '../lib/shortcuts'
 import {
   DEFAULT_MINI_PLAYER_APPEARANCE,
   MINI_PLAYER_DEFAULT_WIDTH,
@@ -10,6 +11,23 @@ import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
 import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, LyricsLayoutParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 export const SETTINGS_STORAGE_KEY = 'simplemusic-settings'
+
+// 仅升级完整的旧默认配置；任何自定义或主动清除的绑定都保留。
+function migrateShortcutDefaults(value: unknown, scope: ShortcutScope, platform: string): unknown {
+  if (!Array.isArray(value)) return value
+  const defaults = defaultShortcuts(scope).filter((binding) => binding.action !== 'settings')
+  const isOldDefault = value.length === defaults.length && defaults.every((binding) => {
+    const old = binding.action === 'mini-player'
+      ? scope === 'local' ? 'CommandOrControl+Shift+M' : 'CommandOrControl+Alt+M'
+      : scope === 'global' ? binding.accelerator.replace('+Shift', '') : binding.accelerator
+    return value.some((item) => item?.action === binding.action && typeof item.accelerator === 'string'
+      && normalizeAccelerator(item.accelerator, platform) === normalizeAccelerator(old, platform))
+  })
+  const bindings = isOldDefault ? defaultShortcuts(scope) : value
+  // 新增设置入口：旧存档补上，已自定义或主动清除此项时保留。
+  return scope === 'local' && !bindings.some((item) => item?.action === 'settings')
+    ? [...bindings, { action: 'settings', accelerator: 'CommandOrControl+,' }] : bindings
+}
 
 export const DEFAULT_LYRICS_LAYOUT: LyricsLayoutParams = {
   coverScale: 1,
@@ -66,6 +84,9 @@ export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlag
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
+  localHotkeys: HotkeyBinding[]
+  globalHotkeysEnabled: boolean
+  mediaKeysEnabled: boolean
   shelfShowPodcasts: boolean
   shelfMergeCollections: boolean
   liveBackgroundKeep: boolean
@@ -120,6 +141,10 @@ interface SettingsStore extends PersistedSettings {
   qqAvatar: string
   qqNickname: string
   setHotkeys(hotkeys: HotkeyBinding[]): void
+  setLocalHotkeys(hotkeys: HotkeyBinding[]): void
+  setGlobalHotkeysEnabled(enabled: boolean): void
+  setMediaKeysEnabled(enabled: boolean): void
+  resetShortcuts(): void
   setNeteaseLoggedIn(v: boolean): void
   setQQLoggedIn(v: boolean): void
   setNeteaseProfile(avatar: string, nickname: string): void
@@ -160,7 +185,10 @@ interface SettingsStore extends PersistedSettings {
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  hotkeys: [],
+  hotkeys: defaultShortcuts('global'),
+  localHotkeys: defaultShortcuts('local'),
+  globalHotkeysEnabled: true,
+  mediaKeysEnabled: true,
   neteaseLoggedIn: false,
   qqLoggedIn: false,
   neteaseAvatar: '',
@@ -196,6 +224,22 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setHotkeys(hotkeys) {
     set({ hotkeys })
+    get().saveToLocal()
+  },
+  setLocalHotkeys(localHotkeys) {
+    set({ localHotkeys })
+    get().saveToLocal()
+  },
+  setGlobalHotkeysEnabled(globalHotkeysEnabled) {
+    set({ globalHotkeysEnabled })
+    get().saveToLocal()
+  },
+  setMediaKeysEnabled(mediaKeysEnabled) {
+    set({ mediaKeysEnabled })
+    get().saveToLocal()
+  },
+  resetShortcuts() {
+    set({ hotkeys: defaultShortcuts('global'), localHotkeys: defaultShortcuts('local'), globalHotkeysEnabled: true, mediaKeysEnabled: true })
     get().saveToLocal()
   },
   setNeteaseLoggedIn(v) {
@@ -346,8 +390,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -357,6 +401,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     if (!raw) return
     try {
       const data = JSON.parse(raw) as Partial<PersistedSettings>
+      const platform = typeof window !== 'undefined' ? window.desktop?.platform ?? 'win32' : 'win32'
       const storedLyricsStyle: Lyrics3dStyle = (() => {
         const value = data.lyrics3dStyle as unknown
         if (value === 'stage') return 'float'
@@ -365,7 +410,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         return data.lyricsStage3d === false ? 'focus' : 'float'
       })()
       set({
-        hotkeys: data.hotkeys ?? [],
+        // 旧版默认写入空列表但没有配置入口；升级补上默认键。新版空列表表示主动清除。
+        hotkeys: normalizeBindings(
+          migrateShortcutDefaults(data.localHotkeys === undefined && Array.isArray(data.hotkeys) && data.hotkeys.length === 0 ? undefined : data.hotkeys, 'global', platform),
+          defaultShortcuts('global'), platform
+        ),
+        localHotkeys: normalizeBindings(migrateShortcutDefaults(data.localHotkeys, 'local', platform), defaultShortcuts('local'), platform),
+        globalHotkeysEnabled: data.globalHotkeysEnabled ?? true,
+        mediaKeysEnabled: data.mediaKeysEnabled ?? true,
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,

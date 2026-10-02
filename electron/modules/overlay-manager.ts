@@ -2,8 +2,10 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
 import { openExternalSafely } from './safe-open'
+import { preventLyricsActivation } from './macos-lyrics-window'
 import { miniPlayerPatch } from '../../src/lib/mini-player-state'
 import { getPlatform } from '../platform'
+import { desktopLyricsHeight, desktopLyricsSize, DESKTOP_LYRICS_MAX_SIZE, DESKTOP_LYRICS_MIN_SIZE } from '../../src/lib/desktop-lyrics-layout'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
 
 const platform = getPlatform()
@@ -11,10 +13,16 @@ const platform = getPlatform()
 let lyricsWindow: BrowserWindow | null = null
 let lyricsState: LyricsPayload = {}
 let lyricsUserBounds: Electron.Rectangle | null = null
+let lyricsSizeCustomized = false
 let lyricsProgrammaticMove = false
 let lyricsPointerCapture = false
 let lyricsMouseIgnored: boolean | null = null
 let lyricsHotBounds: HotBounds | null = null
+let lyricsControlBounds: HotBounds | null = null
+let lyricsHoverBounds: HotBounds | null = null
+let lyricsHoverStartedAt: number | null = null
+let lyricsUnlockVisible = false
+let lyricsControlTimer: ReturnType<typeof setInterval> | null = null
 let lyricsLastMiddleAt = 0
 
 let wallpaperWindow: BrowserWindow | null = null
@@ -62,12 +70,16 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
 const overlayPreload = () => join(import.meta.dirname, '../preload/overlay.cjs')
 
 // ---------- 桌面歌词 ----------
+function lyricsContentHeight(payload: LyricsPayload, zoom = 1): number {
+  return Math.ceil(desktopLyricsHeight(clampNumber(payload.size, DESKTOP_LYRICS_MIN_SIZE, DESKTOP_LYRICS_MAX_SIZE, 38), !!payload.translation, !!payload.roma) * zoom - 0.000001)
+}
+
 function lyricsDefaultBounds(payload: LyricsPayload): Electron.Rectangle {
   const display = lyricsUserBounds ? screen.getDisplayMatching(lyricsUserBounds) : screen.getPrimaryDisplay()
-  const b = display.bounds
+  const b = display.workArea
   const yRatio = clampNumber(payload.y, 0.08, 0.92, 0.76)
-  const width = Math.round(Math.min(Math.max(880, b.width * 0.72), b.width - 96))
-  const height = Math.round(Math.min(Math.max(340, b.height * 0.38), 560, b.height - 96))
+  const width = Math.round(Math.min(680, b.width - 48))
+  const height = Math.min(lyricsContentHeight(payload, lyricsWindow?.webContents.getZoomFactor()), b.height)
   return {
     x: Math.round(b.x + (b.width - width) / 2),
     y: Math.round(b.y + b.height * yRatio - height / 2),
@@ -76,10 +88,10 @@ function lyricsDefaultBounds(payload: LyricsPayload): Electron.Rectangle {
   }
 }
 
-function constrainLyricsBounds(bounds: Electron.Rectangle): Electron.Rectangle {
-  const area = screen.getDisplayMatching(bounds).bounds
-  const width = Math.round(Math.min(Math.max(320, bounds.width), area.width))
-  const height = Math.round(Math.min(Math.max(180, bounds.height), area.height))
+function constrainLyricsBounds(bounds: Electron.Rectangle, area = screen.getDisplayMatching(bounds).workArea): Electron.Rectangle {
+  const width = Math.round(Math.min(Math.max(280, bounds.width), area.width))
+  const minHeight = lyricsContentHeight({ ...lyricsState, size: DESKTOP_LYRICS_MIN_SIZE }, lyricsWindow?.webContents.getZoomFactor())
+  const height = Math.round(Math.min(Math.max(minHeight, bounds.height), area.height))
   const maxX = area.x + Math.max(0, area.width - width)
   const maxY = area.y + Math.max(0, area.height - height)
   return {
@@ -96,7 +108,11 @@ function setLyricsBounds(bounds: Electron.Rectangle): void {
   const cur = lyricsWindow.getBounds()
   if (cur.x === next.x && cur.y === next.y && cur.width === next.width && cur.height === next.height) return
   lyricsProgrammaticMove = true
+  // 与迷你窗一致：macOS 非 resizable 窗口改尺寸前需要临时放开。
+  const needUnlock = process.platform === 'darwin' && (next.width !== cur.width || next.height !== cur.height)
+  if (needUnlock) lyricsWindow.setResizable(true)
   lyricsWindow.setBounds(next, false)
+  if (needUnlock) lyricsWindow.setResizable(false)
   setTimeout(() => {
     lyricsProgrammaticMove = false
   }, 120)
@@ -107,10 +123,66 @@ function rememberLyricsBounds(): void {
   lyricsUserBounds = lyricsWindow.getBounds()
 }
 
-function applyLyricsMouseBehavior(): void {
+function syncLyricsSize(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
+  const size = desktopLyricsSize(lyricsWindow.getBounds().height / lyricsWindow.webContents.getZoomFactor(), !!lyricsState.translation, !!lyricsState.roma)
+  if (Math.abs(size - (lyricsState.size ?? 38)) < 0.01) return
+  lyricsState = { ...lyricsState, size }
+  const main = getMainWindow()
+  if (main && !main.isDestroyed()) main.webContents.send('lyrics:size-changed', { size })
+}
+
+function stopLyricsControlPoller(): void {
+  if (lyricsControlTimer) clearInterval(lyricsControlTimer)
+  lyricsControlTimer = null
+}
+
+function lyricsBoundsOnScreen(bounds: HotBounds | null): Electron.Rectangle | null {
+  if (!lyricsWindow || !bounds) return null
+  const b = lyricsWindow.getBounds()
+  return { x: b.x + bounds.left, y: b.y + bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top }
+}
+
+function applyLyricsMouseBehavior(): void {
+  if (!lyricsWindow || lyricsWindow.isDestroyed()) {
+    stopLyricsControlPoller()
+    return
+  }
   const locked = lyricsState.clickThrough !== false
-  const shouldIgnore = locked || !lyricsPointerCapture
+  if (locked && !lyricsControlTimer) {
+    // 全窗穿透时无法依赖 pointerenter；仅锁定期间检查系统光标的歌词悬停及解锁热区。
+    lyricsControlTimer = setInterval(applyLyricsMouseBehavior, 50)
+    lyricsControlTimer.unref()
+  } else if (!locked) stopLyricsControlPoller()
+  const cursor = screen.getCursorScreenPoint()
+  const controls = lyricsBoundsOnScreen(lyricsControlBounds)
+  const hover = lyricsBoundsOnScreen(lyricsHoverBounds)
+  let visible = lyricsUnlockVisible
+  if (!locked || !hover || !controls) {
+    lyricsHoverStartedAt = null
+    visible = false
+  } else if (visible && hover && controls) {
+    // 保留歌词到图标之间的移动通道，避免光标途经透明间隙时图标消失。
+    const x = Math.min(hover.x, controls.x)
+    const y = Math.min(hover.y, controls.y)
+    visible = pointInBounds(cursor, {
+      x, y,
+      width: Math.max(hover.x + hover.width, controls.x + controls.width) - x,
+      height: Math.max(hover.y + hover.height, controls.y + controls.height) - y
+    })
+    if (!visible) lyricsHoverStartedAt = null
+  } else if (pointInBounds(cursor, hover)) {
+    lyricsHoverStartedAt ??= Date.now()
+    visible = Date.now() - lyricsHoverStartedAt >= 500
+  } else {
+    lyricsHoverStartedAt = null
+    visible = false
+  }
+  if (visible !== lyricsUnlockVisible) {
+    lyricsUnlockVisible = visible
+    sendLyricsState()
+  }
+  const shouldIgnore = locked && !(visible && pointInBounds(cursor, controls))
   if (lyricsMouseIgnored === shouldIgnore) return
   lyricsMouseIgnored = shouldIgnore
   lyricsWindow.setIgnoreMouseEvents(shouldIgnore, { forward: true })
@@ -149,26 +221,30 @@ function broadcastLyricsLockState(): void {
   sendLyricsState()
 }
 
-function broadcastLyricsEnabledState(enabled: boolean): void {
+function broadcastLyricsEnabledState(enabled: boolean, requested = false): void {
   const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:enabled-state-changed', { enabled })
+  if (main && !main.isDestroyed()) main.webContents.send('lyrics:enabled-state-changed', { enabled, ...(requested ? { requested: true } : {}) })
 }
 
 function sendLyricsState(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
-  lyricsWindow.webContents.send('overlay:lyrics-state', lyricsState)
+  lyricsWindow.webContents.send('overlay:lyrics-state', { ...lyricsState, unlockVisible: lyricsUnlockVisible })
 }
 
 export function positionDesktopLyricsWindow(payload: LyricsPayload = lyricsState, force = false): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
   const useManual = lyricsUserBounds && !force
-  setLyricsBounds(useManual && lyricsUserBounds ? lyricsUserBounds : lyricsDefaultBounds(payload))
+  setLyricsBounds(useManual && lyricsUserBounds
+    ? { ...lyricsUserBounds, ...(!lyricsSizeCustomized ? { height: lyricsContentHeight(payload, lyricsWindow.webContents.getZoomFactor()) } : {}) }
+    : lyricsDefaultBounds(payload))
   lyricsWindow.setOpacity(clampNumber(payload.opacity, 0.28, 1, 0.92))
 }
 
 function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   const prevY = lyricsState.y
   const prevOpacity = lyricsState.opacity
+  const prevSize = lyricsState.size
+  const prevSecondaryLines = Number(!!lyricsState.translation) + Number(!!lyricsState.roma)
   lyricsState = { ...lyricsState, ...payload, enabled: true }
   const hasY = Object.prototype.hasOwnProperty.call(payload, 'y')
   const nextY = clampNumber(lyricsState.y, 0.08, 0.92, 0.76)
@@ -181,12 +257,24 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) {
     if (yChanged) positionDesktopLyricsWindow(lyricsState, true)
     else if (opacityChanged) lyricsWindow.setOpacity(clampNumber(lyricsState.opacity, 0.28, 1, 0.92))
+    const sizeChanged = typeof payload.size === 'number' && payload.size !== prevSize
+    const secondaryLinesChanged = Number(!!lyricsState.translation) + Number(!!lyricsState.roma) !== prevSecondaryLines
+    if (sizeChanged || (!lyricsSizeCustomized && secondaryLinesChanged)) {
+      const bounds = lyricsWindow.getBounds()
+      setLyricsBounds({ ...bounds, height: lyricsContentHeight(lyricsState, lyricsWindow.webContents.getZoomFactor()) })
+      if (lyricsUserBounds) lyricsUserBounds = lyricsWindow.getBounds()
+    } else if (secondaryLinesChanged) {
+      // 翻译或音译出现时仅保障最小可读字号，其余沿用用户高度。
+      setLyricsBounds(lyricsWindow.getBounds())
+      if (lyricsUserBounds) lyricsUserBounds = lyricsWindow.getBounds()
+    }
+    syncLyricsSize()
     applyLyricsMouseBehavior()
     sendLyricsState()
     return lyricsWindow
   }
 
-  lyricsWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 920,
     height: 190,
     frame: false,
@@ -196,13 +284,16 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
     resizable: false,
     movable: true,
     focusable: false,
+    ...(process.platform === 'darwin' ? { type: 'panel', acceptFirstMouse: true } : {}),
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Desktop Lyrics',
     // 歌词窗置顶常驻可见,不会被节流;不再给后台豁免,锁屏/显示器关闭时按默认节流降耗
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
-  hardenOverlayWindow(lyricsWindow)
+  lyricsWindow = win
+  preventLyricsActivation(win)
+  hardenOverlayWindow(win)
   try {
     lyricsWindow.setAlwaysOnTop(true, 'screen-saver')
     lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -212,15 +303,26 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   platform.startMousePoller(handleMiddleClick)
   applyLyricsMouseBehavior()
   positionDesktopLyricsWindow(lyricsState, yChanged || !lyricsUserBounds)
+  if (lyricsUserBounds && typeof payload.size === 'number') {
+    setLyricsBounds({ ...lyricsWindow.getBounds(), height: lyricsContentHeight(lyricsState, lyricsWindow.webContents.getZoomFactor()) })
+  }
+  syncLyricsSize()
   lyricsWindow.once('ready-to-show', () => {
-    if (!lyricsWindow || lyricsWindow.isDestroyed()) return
-    lyricsWindow.showInactive()
+    if (lyricsWindow !== win || win.isDestroyed()) return
+    win.showInactive()
     sendLyricsState()
   })
   lyricsWindow.webContents.once('did-finish-load', sendLyricsState)
   lyricsWindow.on('closed', () => {
-    lyricsWindow = null
-    lyricsMouseIgnored = null
+    if (lyricsWindow === win) {
+      lyricsWindow = null
+      lyricsMouseIgnored = null
+      lyricsControlBounds = null
+      lyricsHoverBounds = null
+      lyricsHoverStartedAt = null
+      lyricsUnlockVisible = false
+      stopLyricsControlPoller()
+    }
   })
   lyricsWindow.on('moved', rememberLyricsBounds)
   lyricsWindow.loadURL(resolveRendererUrl('overlays/desktop-lyrics/desktop-lyrics.html')).catch((e) =>
@@ -229,18 +331,23 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   return lyricsWindow
 }
 
-function closeLyricsWindow(): void {
+function closeLyricsWindow(requested = false): void {
   lyricsState = { ...lyricsState, enabled: false }
   lyricsPointerCapture = false
   lyricsMouseIgnored = null
   lyricsHotBounds = null
+  lyricsControlBounds = null
+  lyricsHoverBounds = null
+  lyricsHoverStartedAt = null
+  lyricsUnlockVisible = false
+  stopLyricsControlPoller()
   platform.stopMousePoller()
   if (lyricsWindow && !lyricsWindow.isDestroyed()) {
     sendLyricsState()
     lyricsWindow.close()
   }
   lyricsWindow = null
-  broadcastLyricsEnabledState(false)
+  broadcastLyricsEnabledState(false, requested)
 }
 
 // ---------- 壁纸 ----------
@@ -385,7 +492,7 @@ function createMiniPlayerWindow(): BrowserWindow {
     // 尺寸完全由自绘手柄经 setBounds 控制:放开 OS 边缘拖拽会和自绘手柄同帧各改一次宽度，产生抖动
     resizable: false,
     movable: true,
-    focusable: false,
+    focusable: true,
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
@@ -407,8 +514,9 @@ function createMiniPlayerWindow(): BrowserWindow {
     console.warn('Mini player topmost setup skipped:', (e as Error).message)
   }
   win.once('ready-to-show', () => {
-    if (win.isDestroyed()) return
-    win.showInactive()
+    if (miniPlayerWindow !== win || win.isDestroyed()) return
+    // 进入迷你模式时承接主窗口焦点，应用内快捷键才能再次返回完整窗口。
+    win.show()
     sendMiniPlayerState()
   })
   win.webContents.once('did-finish-load', sendMiniPlayerState)
@@ -518,12 +626,12 @@ export function triggerMiniPlayerControl(action: string, value?: number): OkResu
 }
 
 // ---------- 对外 API（供 ipc 调用） ----------
-export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}): OkResult {
+export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}, requested = false): OkResult {
   if (enabled) {
     createLyricsWindow(payload)
-    broadcastLyricsEnabledState(true)
+    broadcastLyricsEnabledState(true, requested)
   } else {
-    closeLyricsWindow()
+    closeLyricsWindow(requested)
   }
   return { ok: true }
 }
@@ -553,11 +661,31 @@ export function moveLyricsBy(dx: number, dy: number): OkResult {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return { ok: false, error: 'NO_DESKTOP_LYRICS_WINDOW' }
   if (lyricsState.clickThrough !== false) return { ok: false, error: 'DESKTOP_LYRICS_LOCKED' }
   const b = lyricsWindow.getBounds()
-  lyricsWindow.setBounds(
-    { ...b, x: Math.round(b.x + clampNumber(dx, -160, 160, 0)), y: Math.round(b.y + clampNumber(dy, -160, 160, 0)) },
-    false
-  )
+  setLyricsBounds({ ...b, x: Math.round(b.x + clampNumber(dx, -160, 160, 0)), y: Math.round(b.y + clampNumber(dy, -160, 160, 0)) })
   lyricsUserBounds = lyricsWindow.getBounds()
+  return { ok: true }
+}
+
+export function resizeLyrics(width: number, height: number, anchor?: 'top-left'): OkResult {
+  if (!lyricsWindow || lyricsWindow.isDestroyed()) return { ok: false, error: 'NO_DESKTOP_LYRICS_WINDOW' }
+  if (lyricsState.clickThrough !== false) return { ok: false, error: 'DESKTOP_LYRICS_LOCKED' }
+  const current = lyricsWindow.getBounds()
+  const area = screen.getDisplayMatching(current).workArea
+  const next = constrainLyricsBounds({
+    ...current,
+    width: clampNumber(width, 280, anchor ? current.x + current.width - area.x : 10000, current.width),
+    height: clampNumber(height, 40, anchor ? current.y + current.height - area.y : 10000, current.height)
+  }, anchor ? area : undefined)
+  // 左上角缩放固定右下角；尺寸到达屏幕或最小值时也不继续移动。
+  if (anchor) {
+    next.x = current.x + current.width - next.width
+    next.y = current.y + current.height - next.height
+  }
+  setLyricsBounds(next)
+  lyricsSizeCustomized = true
+  lyricsUserBounds = lyricsWindow.getBounds()
+  syncLyricsSize()
+  sendLyricsState()
   return { ok: true }
 }
 
@@ -573,6 +701,34 @@ export function setLyricsHotBounds(bounds: Partial<HotBounds>): OkResult {
   const right = clampNumber(bounds.right, left + 1, 6000, left + 1)
   const bottom = clampNumber(bounds.bottom, top + 1, 6000, top + 1)
   lyricsHotBounds = { left, top, right, bottom }
+  return { ok: true }
+}
+
+export function setLyricsControlBounds(bounds: Partial<HotBounds> & { hover?: HotBounds }): OkResult {
+  if (!lyricsWindow || lyricsWindow.isDestroyed()) return { ok: false, error: 'NO_DESKTOP_LYRICS_WINDOW' }
+  // DOM 使用 CSS 像素；窗口及系统光标使用 DIP，需计入 Electron 页面缩放。
+  const zoom = lyricsWindow.webContents.getZoomFactor()
+  const current = lyricsWindow.getBounds()
+  const contentHeight = lyricsSizeCustomized
+    ? Math.max(current.height, lyricsContentHeight({ ...lyricsState, size: DESKTOP_LYRICS_MIN_SIZE }, zoom))
+    : lyricsContentHeight(lyricsState, zoom)
+  if (current.height !== contentHeight) {
+    setLyricsBounds({ ...current, height: contentHeight, y: current.y + (current.height - contentHeight) / 2 })
+    if (lyricsUserBounds) lyricsUserBounds = lyricsWindow.getBounds()
+    syncLyricsSize()
+    sendLyricsState()
+  }
+  const { width, height } = lyricsWindow.getBounds()
+  const toDIP = (rect: Partial<HotBounds>): HotBounds | null => {
+    const left = clampNumber(Number(rect.left) * zoom, 0, width - 1, 0)
+    const top = clampNumber(Number(rect.top) * zoom, 0, height - 1, 0)
+    const right = clampNumber(Number(rect.right) * zoom, left, width, left)
+    const bottom = clampNumber(Number(rect.bottom) * zoom, top, height, top)
+    return right > left && bottom > top ? { left, top, right, bottom } : null
+  }
+  lyricsControlBounds = toDIP(bounds)
+  lyricsHoverBounds = bounds.hover ? toDIP(bounds.hover) : null
+  applyLyricsMouseBehavior()
   return { ok: true }
 }
 
@@ -597,7 +753,8 @@ export function updateWallpaper(payload: WallpaperPayload = {}): OkResult {
 }
 
 export function closeOverlays(): void {
-  closeLyricsWindow()
+  // 应用退出不等于用户关闭歌词；保留下一次启动的开关偏好。
+  closeLyricsWindow(true)
   closeWallpaperWindow()
   closeMiniPlayerWindow()
 }

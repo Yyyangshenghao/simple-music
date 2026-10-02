@@ -44,10 +44,16 @@ export interface LoginResult {
 
 /** 桌面歌词 payload：已知控制字段 + 渲染层自定义内容字段。 */
 export interface LyricsPayload {
+  size?: number
+  fontFamily?: string
+  color?: string
+  roma?: string
   enabled?: boolean
   y?: number
   opacity?: number
   clickThrough?: boolean
+  /** 主进程计算的锁定悬停解锁提示，非持久设置。 */
+  unlockVisible?: boolean
   [key: string]: unknown
 }
 
@@ -88,11 +94,19 @@ export interface MiniPlayerPayload {
   /** 封面主色 hex，tint='cover' 时用作底色。 */
   accent?: string
   appearance?: MiniPlayerAppearance
+  /** 迷你窗口内返回完整窗口的应用内快捷键；空串表示停用或由全局键处理。 */
+  returnShortcut?: string
 }
 
 export interface HotkeyBinding {
   action: string
   accelerator: string
+}
+
+export interface HotkeyConfiguration {
+  bindings: HotkeyBinding[]
+  recording: boolean
+  settingsAccelerator?: string
 }
 
 export interface HotkeyConflict {
@@ -111,6 +125,7 @@ export interface HotkeyOutcome {
 export interface HotkeyResult {
   ok: boolean
   results: HotkeyOutcome[]
+  menuAccelerators?: string[]
 }
 
 export interface ExportPayload {
@@ -171,7 +186,7 @@ export interface IpcChannels {
   'miniplayer:set-enabled': { req: { enabled: boolean; width?: number }; res: OkResult }
   'miniplayer:update': { req: MiniPlayerPayload; res: OkResult }
 
-  'hotkeys:configure': { req: HotkeyBinding[]; res: HotkeyResult }
+  'hotkeys:configure': { req: HotkeyConfiguration; res: HotkeyResult }
 
   'file:export-json': { req: ExportPayload; res: FileResult }
   'file:import-json': { req: void; res: ImportResult }
@@ -186,8 +201,9 @@ export interface IpcChannels {
 export interface IpcEvents {
   'window:state-changed': WindowState
   'lyrics:lock-state-changed': { locked: boolean }
-  'lyrics:enabled-state-changed': { enabled: boolean }
-  'hotkey:triggered': { action: string }
+  'lyrics:size-changed': { size: number }
+  'lyrics:enabled-state-changed': { enabled: boolean; requested?: boolean }
+  'hotkey:triggered': { action: string; source?: 'menu' }
   'miniplayer:control': { action: string; value?: number }
   /** overlay 侧拖拽改宽后回传，主窗口负责持久化。 */
   'miniplayer:width-changed': { width: number }
@@ -205,8 +221,10 @@ export interface OverlayChannels {
   'overlay:lyrics-set-dragging': { req: { dragging: boolean }; res: OkResult }
   'overlay:lyrics-set-pointer-capture': { req: { active: boolean }; res: OkResult }
   'overlay:lyrics-set-hot-bounds': { req: HotBounds; res: OkResult }
+  'overlay:lyrics-set-control-bounds': { req: HotBounds & { hover?: HotBounds }; res: OkResult }
   'overlay:lyrics-set-lock': { req: { locked: boolean }; res: OkResult }
   'overlay:lyrics-move-by': { req: { dx: number; dy: number }; res: OkResult }
+  'overlay:lyrics-resize': { req: { width: number; height: number; anchor?: 'top-left' }; res: OkResult }
   'overlay:lyrics-close': { req: void; res: OkResult }
   'overlay:miniplayer-move-by': { req: { dx: number; dy: number }; res: OkResult }
   'overlay:miniplayer-resize-by': { req: { dx: number }; res: OkResult }

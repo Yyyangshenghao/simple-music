@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MotionConfig } from 'motion/react'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
+import { useShortcuts } from './hooks/useShortcuts'
 import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
@@ -53,6 +54,7 @@ export default function App() {
   const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
+  useShortcuts()
   useLoginStatusSync()
   useAudio()
   useDesktopLyricsSync()

@@ -59,7 +59,8 @@ const api = {
   setDesktopLyricsLock: (locked: boolean): Promise<OkResult> => ipcRenderer.invoke('lyrics:set-lock', { locked }),
   moveDesktopLyricsBy: (dx: number, dy: number): Promise<OkResult> => ipcRenderer.invoke('lyrics:move-by', { dx, dy }),
   onDesktopLyricsLockState: (cb: (p: { locked: boolean }) => void) => on('lyrics:lock-state-changed', cb),
-  onDesktopLyricsEnabledState: (cb: (p: { enabled: boolean }) => void) => on('lyrics:enabled-state-changed', cb),
+  onDesktopLyricsSizeState: (cb: (p: { size: number }) => void) => on('lyrics:size-changed', cb),
+  onDesktopLyricsEnabledState: (cb: (p: { enabled: boolean; requested?: boolean }) => void) => on('lyrics:enabled-state-changed', cb),
 
   // 壁纸
   setWallpaperEnabled: (enabled: boolean, payload?: WallpaperPayload): Promise<OkResult> =>
@@ -74,9 +75,9 @@ const api = {
   onMiniPlayerWidthChanged: (cb: (p: { width: number }) => void) => on('miniplayer:width-changed', cb),
 
   // 快捷键
-  configureHotkeys: (bindings: HotkeyBinding[]): Promise<HotkeyResult> =>
-    ipcRenderer.invoke('hotkeys:configure', bindings ?? []),
-  onHotkey: (cb: (p: { action: string }) => void) => on('hotkey:triggered', cb),
+  configureHotkeys: (bindings: HotkeyBinding[], recording = false, settingsAccelerator?: string): Promise<HotkeyResult> =>
+    ipcRenderer.invoke('hotkeys:configure', { bindings: bindings ?? [], recording, settingsAccelerator }),
+  onHotkey: (cb: (p: { action: string; source?: 'menu' }) => void) => on('hotkey:triggered', cb),
 
   // 文件 / 应用
   exportJson: (payload: ExportPayload): Promise<FileResult> => ipcRenderer.invoke('file:export-json', payload),

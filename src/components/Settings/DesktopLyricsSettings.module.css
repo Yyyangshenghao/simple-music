@@ -1,0 +1,78 @@
+.card {
+  min-width: 0;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--glass-bg-card) 86%, transparent);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+}
+
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 14px; font-weight: 680; }
+.header p { margin: 6px 0 0; color: var(--sm-text-secondary); font-size: 12px; }
+
+.preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 138px;
+  margin: 0 24px;
+  padding: 30px 18px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: #1b222a;
+  overflow: hidden;
+}
+
+.previewLabel { position: absolute; top: 12px; left: 14px; color: rgba(255, 255, 255, 0.45); font-size: 10px; }
+.previewText { display: flex; flex-direction: column; gap: 5px; min-width: 0; text-align: center; text-shadow: 0 2px 5px rgba(0, 0, 0, 0.85); }
+.previewLine { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 32px; font-weight: 700; line-height: 1.2; }
+.previewTranslation { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; line-height: 1.2; opacity: 0.82; }
+.glow { text-shadow: 0 0 12px color-mix(in srgb, var(--lyrics-preview-color) 60%, transparent), 0 2px 5px rgba(0, 0, 0, 0.85); }
+
+.columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; padding: 22px 24px 24px; }
+.settings { min-width: 0; }
+.columns > .settings + .settings { padding-left: 32px; border-left: 1px solid var(--sm-border); }
+.row, .labelLine { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--sm-text-primary); font-size: 12px; }
+.row { min-height: 48px; }
+.row > label, .row > span { flex: 0 0 auto; }
+.labelLine output { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.settings input[type='range'] { display: block; width: 100%; margin: 14px 0 0; accent-color: var(--sm-accent); cursor: pointer; }
+.hint { margin: 9px 0 0; color: var(--sm-text-secondary); font-size: 11px; line-height: 1.65; }
+.sizeSetting { margin-bottom: 14px; }
+.opacitySetting { margin-bottom: 14px; }
+.lockSetting { padding-top: 4px; margin-top: 5px; border-top: 1px solid var(--sm-border); }
+.lockSetting .hint { margin-top: 0; }
+.colorSetting { margin-top: 14px; color: var(--sm-text-primary); font-size: 12px; }
+.colors { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.swatch { position: relative; flex: 0 0 24px; width: 24px; height: 24px; border: 1px solid rgba(0, 0, 0, 0.18); border-radius: 50%; background: var(--swatch-color); cursor: pointer; }
+.swatch[aria-pressed='true']::after { position: absolute; inset: -5px; border: 1px solid var(--sm-accent); border-radius: inherit; content: ''; }
+.swatch:focus-visible, .customColor:focus-within, .fontError button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 4px; }
+.customColor { display: flex; align-items: center; gap: 7px; margin-left: 4px; color: var(--sm-text-secondary); cursor: pointer; }
+.customColor input { width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; }
+.customColor input::-webkit-color-swatch-wrapper { padding: 0; }
+.customColor input::-webkit-color-swatch { border: 1px solid var(--sm-border-strong); border-radius: 50%; }
+.fontError { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--sm-text-secondary); font-size: 11px; }
+.fontError button { padding: 3px 0; border: 0; background: transparent; color: var(--sm-text-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.fontError button:disabled { opacity: 0.45; cursor: default; }
+
+@media (max-width: 900px) {
+  .columns { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .columns > .settings + .settings { padding: 22px 0 0; border-top: 1px solid var(--sm-border); border-left: 0; }
+}
+
+@media (max-width: 600px) {
+  .header { padding: 18px 16px; }
+  .preview { margin: 0 16px; }
+  .previewLine { font-size: 24px; }
+  .columns { padding: 20px 16px; }
+}

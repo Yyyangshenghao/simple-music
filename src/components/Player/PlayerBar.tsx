@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
+import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
@@ -164,6 +165,29 @@ function MiniPlayerIcon() {
       <rect x="3" y="5" width="18" height="14" rx="2.5" />
       <rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor" stroke="none" />
     </svg>
+  )
+}
+
+/** 桌面歌词开关：与设置及快捷键共用同一状态。 */
+function DesktopLyricsButton() {
+  const enabled = useVisualStore((s) => s.fx.desktopLyrics)
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
+      data-active={enabled}
+      onClick={() => useVisualStore.getState().updateFx({ desktopLyrics: !enabled })}
+      title={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
+      aria-label={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
+      aria-pressed={enabled}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2.5" />
+        <path d="M7 9h10M7 13h10M9 17h6" />
+      </svg>
+    </motion.button>
   )
 }
 
@@ -351,6 +375,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
           <VolumeControl />
           <span className={styles.divider} aria-hidden="true" />
           <SourceFallbackBadge />
+          <DesktopLyricsButton />
           <MiniPlayerButton />
           <QueuePanel />
           <MoreMenu />

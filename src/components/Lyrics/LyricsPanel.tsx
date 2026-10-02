@@ -320,16 +320,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             >
               3D
             </button>
-            {mode === '3d' && <button
-              className={`${styles.modeAdjustBtn}${effectMenuOpen && effectMenuTab === 'adjust' ? ` ${styles.modeBtnActive}` : ''}`}
-              type="button"
-              aria-label="调节 3D 歌词"
-              title="调节当前 3D 场景和歌词"
-              onClick={() => {
-                setEffectMenuTab('adjust')
-                setEffectMenuOpen(effectMenuTab === 'adjust' ? !effectMenuOpen : true)
-              }}
-            >调节</button>}
             {effectMenuOpen && mode === '3d' && (
               <EffectSwitcher tab={effectMenuTab} onTabChange={setEffectMenuTab} onClose={() => setEffectMenuOpen(false)} />
             )}

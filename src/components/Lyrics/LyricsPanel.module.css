@@ -438,19 +438,6 @@
   display: flex;
 }
 
-.modeAdjustBtn {
-  padding: 6px 14px;
-  border: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.modeAdjustBtn:hover { color: #fff; }
-
 /* ===== 右缘悬停控制栏(纯歌词模式) =====
    纵向避开顶部 header(模式切换)与底部悬浮播放栏,不挡它们的点击 */
 .sideRail {

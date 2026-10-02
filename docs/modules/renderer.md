@@ -30,7 +30,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## hooks(全局副作用,大多在 App.tsx 挂载一次)
 
-- `useDesktopBridge` — 订阅窗口状态、热键和迷你条控制，桥接 player/playlist/window store。
+- `useDesktopBridge` — 订阅窗口状态和迷你条控制，桥接 player/playlist/window store。
+- `useShortcuts` — 应用内键盘分发、全局热键注册与事件订阅；录入期间释放全局绑定，丢弃旧注册回复，同键只执行一次。
 - `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider。
 - `useAudio` — 播放进度 → lyrics store tick；MusicKit 仅播放时启动 50ms 连续时钟，暂停、拖动及歌词偏移变化即时同步。歌词行用二分定位，同值不通知订阅者。
 - `useLyricsFetch` — 换歌时拉歌词。
@@ -41,6 +42,10 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useScrollGradient` / `useScrollReveal` — 滚动渐隐边缘 / 入场 stagger。
 
 ## providers / lib
+
+快捷键设置位于「设置 → 快捷键」，支持播放/暂停、切歌、音量、喜欢、桌面歌词、迷你模式与打开设置的应用内和全局绑定。点击录入，Esc 取消，Delete/Backspace 或行内清除按钮取消绑定；修改即时保存，启动恢复。录入期间暂停应用菜单快捷键；刷新、退出等菜单组合及常见系统保留键不能绑定。打开设置默认是 macOS `⌘+,` / Windows `Ctrl+,`，默认不注册全局键；同步到原生设置菜单，输入框内也可使用。旧存档补上此入口，自定义或清除此项会保留。默认用 `CommandOrControl` 适配 macOS / Windows，全局组合增加 Alt 与 Shift；迷你模式应用内为 `CommandOrControl+Shift+P`。系统和其他软件的自定义占用由注册结果提示。完整的旧默认配置会升级，自定义与主动清除的配置保留。输入框、可编辑区与输入法组合输入期间避让应用内动作。
+
+系统媒体键开关控制网易云、QQ 和本地播放的 Media Session；关闭时保留空处理器，防止浏览器默认媒体动作继续控制音频。Apple Music 官网会话独立管理媒体键，本开关不控制它；应用内与全局快捷键仍复用 player/playlist store 控制 Apple 播放。全局注册失败逐行显示原因，不猜测占用它的软件。
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
 - `providers/registry.ts` — 网易/QQ/Apple Music Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。

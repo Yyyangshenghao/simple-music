@@ -147,11 +147,15 @@ export interface FxSnapshot {
   lyricGlowParticles: boolean
   desktopLyrics: boolean
   desktopLyricsSize: number
+  desktopLyricsFontFamily: string
+  desktopLyricsColor: string
   desktopLyricsOpacity: number
   desktopLyricsY: number
   desktopLyricsClickThrough: boolean
   desktopLyricsCinema: boolean
   desktopLyricsHighlight: boolean
+  desktopLyricsShowTranslation: boolean
+  desktopLyricsShowRoma: boolean
   desktopLyricsFps: number
   performanceBackground: string
   performanceQuality: string

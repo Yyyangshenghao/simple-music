@@ -4,7 +4,6 @@ import { api } from '../lib/api'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
-import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { playbackStrategySummary } from '../lib/playback-preference-display'
@@ -13,6 +12,8 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
+import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
@@ -29,6 +30,7 @@ const SETTINGS_TABS = [
   { id: 'visual', label: '界面与窗口', description: '主题、字体、迷你播放条与界面动效' },
   { id: 'lyrics', label: '歌词与动效', description: '桌面歌词、字体与 3D 歌词舞台' },
   { id: 'cache', label: '音频缓存', description: '缓存位置、容量与清理' },
+  { id: 'shortcuts', label: '快捷键', description: '应用内、全局快捷键与系统媒体键' },
   { id: 'about', label: '关于应用', description: '版本信息与更新' },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
@@ -710,9 +712,6 @@ export function SettingsPage() {
     if (hasSaved && !window.confirm('更改位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
     await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
   }
-  const desktopLyrics = useVisualStore((s) => s.fx.desktopLyrics)
-  const desktopLyricsSize = useVisualStore((s) => s.fx.desktopLyricsSize)
-  const updateFx = useVisualStore((s) => s.updateFx)
   const miniPlayerAppearance = useSettingsStore((s) => s.miniPlayerAppearance)
   const setMiniPlayerAppearance = useSettingsStore((s) => s.setMiniPlayerAppearance)
 
@@ -1115,30 +1114,14 @@ export function SettingsPage() {
             <section id="settings-section-lyrics" className={styles.settingsSection} aria-labelledby="settings-heading-lyrics">
               <SectionHeading section={SETTINGS_TABS[2]} index={2} />
               <div className={styles.lyricsPage}>
+                <DesktopLyricsSettings
+                  fonts={systemFonts}
+                  loading={fontsLoading}
+                  fontsError={fontsError}
+                  onRetryFonts={() => { void loadSystemFonts() }}
+                />
                 <div className={styles.lyricsOverview}>
                   <div className={styles.lyricsColumn}>
-                    <section className={styles.group}>
-                      <h3 className={styles.groupTitle}>桌面歌词</h3>
-                      <div className={styles.row}>
-                        <span className={styles.rowLabel}>启用桌面歌词</span>
-                        <Switch checked={desktopLyrics} onChange={(v) => updateFx({ desktopLyrics: v })} aria-label="启用桌面歌词" />
-                      </div>
-                      <div className={styles.row}>
-                        <label className={styles.rowLabel} htmlFor="settings-desktop-lyrics-size">字体大小</label>
-                        <input
-                          id="settings-desktop-lyrics-size"
-                          type="range"
-                          min={12}
-                          max={48}
-                          step={2}
-                          value={desktopLyricsSize}
-                          aria-valuetext={`${desktopLyricsSize}px`}
-                          onChange={(e) => updateFx({ desktopLyricsSize: Number(e.target.value) })}
-                          className="no-drag"
-                        />
-                        <span className={styles.rowValue}>{desktopLyricsSize}px</span>
-                      </div>
-                    </section>
                     <section className={`${styles.group} ${styles.lyricsMasterGroup}`}>
                       <h3 className={styles.groupTitle}>
                         3D 歌词
@@ -1294,8 +1277,12 @@ export function SettingsPage() {
                 </section>
               </div>
             </section>
-            <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
+            <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
               <SectionHeading section={SETTINGS_TABS[4]} index={4} />
+              <ShortcutSettings />
+            </section>
+            <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
+              <SectionHeading section={SETTINGS_TABS[5]} index={5} />
               <div className={styles.settingsGrid}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>版本与更新</h3>

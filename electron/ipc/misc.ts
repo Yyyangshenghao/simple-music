@@ -1,12 +1,13 @@
 import { ipcMain, dialog, shell, app } from 'electron'
 import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { resolve, sep, join } from 'node:path'
-import { getMainWindow } from '../modules/window-manager'
+import { getMainWindow, setShortcutRecording } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
+import { configureSettingsMenu } from '../modules/settings-menu'
 import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
 import { listSystemFonts } from '../modules/font-manager'
 import type {
-  HotkeyBinding,
+  HotkeyConfiguration,
   ExportPayload,
   FileResult,
   ImportResult,
@@ -22,7 +23,11 @@ function getUpdateDownloadDir(): string {
 }
 
 export function registerMiscIpc(): void {
-  ipcMain.handle('hotkeys:configure', (_e, bindings: HotkeyBinding[]) => configureHotkeys(bindings ?? []))
+  ipcMain.handle('hotkeys:configure', (_e, config: HotkeyConfiguration) => {
+    if (typeof config?.settingsAccelerator === 'string') configureSettingsMenu(config.settingsAccelerator)
+    setShortcutRecording(!!config?.recording)
+    return configureHotkeys(config?.bindings ?? [])
+  })
 
   ipcMain.handle('system:list-fonts', async (): Promise<SystemFontResult> => {
     try {

@@ -8,6 +8,11 @@
 
 - 数据流:主窗口 `useDesktopLyricsSync` → `lyrics:update` IPC → overlay-manager 缓存并转发 → `overlay.onLyricsState` 收 `LyricsPayload`。
 - 自身交互(拖动/锁定/穿透)走 `overlay:lyrics-*` 通道:set-dragging、move-by、set-lock、set-hot-bounds(热区,配合鼠标穿透)、set-pointer-capture、close。
+- 播放栏右侧有桌面歌词开关；设置 → 歌词与动效的桌面歌词卡片可调字号、独立系统字体、字体颜色、不透明度、音译、翻译、文字发光和锁定，并即时预览字体与颜色。窗口默认宽 680，高度随字号与音译/翻译行数收紧（38px 单行时为 90），文字行与底框上下各留约 5px。底框高度决定字号，拉高同步放大、收矮同步缩小，仅改宽度不改变字号；设置页调整字号反向调整窗口高度。未锁定时鼠标移入同步显示底框、右上角锁定/关闭按钮及左上角手柄，移出同步隐藏，底框可拖动；左上角手柄可拖动调整宽高，缩放时固定右下角。自定义尺寸在当前会话保留，不被热区更新重置，最小高度保障 12px 主歌词及完整辅助行；各行按 1.1 行高分配高度，音译和翻译字号为主歌词的 0.6 倍，行间隔为 4px。锁定时隐藏底框、调整手柄及锁定/关闭按钮，系统光标在歌词文字区域连续停留 0.5 秒后在文字上方 4px 处显示解锁图标；移向图标时保持显示，离开歌词与图标之间的区域后收起。歌词始终穿透，只有显示的图标接收点击，点击解锁后恢复拖动、关闭操作。仅锁定时检查系统光标，解锁/关闭后停止检查；解锁图标热区独立于 Windows 中键切换的歌词热区。窗口使用工作区内的紧凑高度，拖动位置不会超出屏幕。
+- 音译按当前歌词行读取歌曲已有的音译数据，显示在原文与翻译之间；关闭开关或歌曲没有音译时不占空行。
+- 桌面歌词使用不可聚焦窗口并以 `showInactive()` 显示；macOS 使用 `panel` 和 `acceptFirstMouse: true`，创建后由 `macos-lyrics-window.ts` 同步设置 AppKit `_setPreventsActivation:` 标记，处理 [macOS 27 中 panel 仍会激活应用的上游缺陷](https://github.com/electron/electron/issues/53889)。该方法属于私有接口，升级 macOS/Electron 时需实测拖动、缩放与锁定按钮；不支持时输出明确警告。Koffi 固定使用包含两种 Mac 架构预编译文件的 2.x，并显式解包原生文件。
+- 开关与外观偏好单独保存在 `simplemusic-desktop-lyrics`，不影响场景参数；退出应用保留开启状态。拖动位置目前仅在当前会话保留。
+- 拖框后的实际字号经 `lyrics:size-changed` 回传设置并保存，回传不再发送字号请求，避免旧尺寸覆盖正在拖动的窗口。外观变化立即下发；歌词按当前曲目归属过滤，切歌时不会推送上一首文本。preload 缓存首屏完整快照，订阅时重放，防止页面加载先于 React 订阅时丢失状态。
 
 ## wallpaper(动态壁纸)
 
@@ -22,6 +27,7 @@
 
 - 开关在**播放栏右侧**的 `MiniPlayerButton`(不在设置页);设置页只留外观项(不透明度/模糊/色调/进度条/歌词)。
 - 开启后主窗口隐藏、迷你播放条显示；点击封面或关闭按钮会退出迷你模式并恢复主窗口，二者保持互斥。
+- 进入迷你模式时迷你窗口承接键盘焦点，再按应用内「迷你 / 完整模式」快捷键可返回主窗口；自定义按键同步生效。与全局绑定同键且注册成功时由全局入口处理，避免双触发。焦点切换到其他应用后，需使用全局快捷键返回。
 - 数据流:主窗口 `useMiniPlayerSync` 拆三条 effect 推送(曲目态、1Hz 进度、歌词行)→ `miniplayer:update`;回程控制走 `overlay:miniplayer-control` → 主进程转 `miniplayer:control` 事件 → `useDesktopBridge` 落到 player/playlist store。
 - 尺寸:高度锁死(常态 80,音量弹层展开 136,底边不动);宽度由自绘右边缘手柄经 `overlay:miniplayer-resize-by` 改窗口,主进程再用 `miniplayer:width-changed` 回传主窗口持久化。宽度 ≥ `MINI_PLAYER_LYRICS_WIDTH` 时展开歌词行。
 - 窗口 `resizable: false`,尺寸只由 `setBounds` 改(改尺寸前临时 `setResizable(true)`,否则 macOS 会忽略);放开 OS 边缘拖拽会与自绘手柄同帧各改一次宽度而抖动。
