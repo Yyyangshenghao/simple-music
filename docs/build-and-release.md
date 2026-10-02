@@ -6,17 +6,19 @@
 
 在 Simple Music 仓库中，用户说“推送”“提交并推送”或“可以发了”，默认表示执行一次完整版本升级，而不是只运行 `git push`。完整版本升级必须完成：
 
-1. 确定目标版本并更新版本文件；
-2. 整理该版本发行说明；
-3. 完成逻辑复核、自动化验证和必要的 UI 冒烟；
-4. 提交尚未提交的功能改动；
-5. 创建独立的发布提交和 annotated tag；
-6. 推送当前分支与版本标签；
-7. 等待 GitHub Actions 完成，并核对 Release 与安装包。
+1. 确定目标版本、对应 `dev/X.Y.Z` 及完整发布范围；
+2. 将该版本的 feature PR 验收后合入 dev，不混入其他版本的工作；
+3. 在 dev 更新版本文件、发行说明，创建独立发布元数据提交；
+4. 完成逻辑复核、自动化验证和必要的 UI 冒烟；
+5. 创建 dev → master 的发布 PR，经评审和检查后使用 Merge commit 合并；
+6. 核对合并后的 master 提交，对该提交创建并推送 annotated tag；
+7. 等待 GitHub Actions 完成，核对 Release 与安装包，并同步仍在维护的 dev。
 
-只有用户明确说“只推代码”“只推分支”“不要升级版本”或“不要打 tag”时，才执行普通分支推送。
+用户明确说“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时，只同步指定分支，不自动发布。创建 feature、合入 dev、写文档或讨论规范本身也不构成发布请求。
 
-开始执行前应先告知用户本次目标版本，以及将创建公开 tag 和 GitHub Release。用户说“推送”已经构成对本规范内发布动作的授权，不需要重复确认；如果实际操作超出本规范，仍需单独说明并请求授权。
+开始执行前告知目标版本、发布范围，以及将合入 master 并创建公开 tag/Release。完整发布请求已授权本流程内的 PR、合并与标签操作，不重复确认；冲突、版本范围不明确或需要额外绕过门禁时应停止说明。
+
+正常发布路径固定为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release，分支创建、同步和合并方式以 [协作规范](../CONTRIBUTING.md) 为准。master 只接收已验收的版本；未纳入本次发布的工作留在尚未合入待发布 dev 的 feature，或明确属于其他版本的 dev，不能混入待发布 dev。
 
 ### 0.2 版本号规则
 
@@ -29,14 +31,16 @@
 目标版本按以下优先级确定：
 
 1. 用户明确指定的版本；
-2. 当前分支名中的版本，例如 `dev/2.0.2` 对应 `2.0.2`；
+2. 所属 dev 分支的版本，例如 `dev/2.3.0` 对应 `2.3.0`，feature 必须先确认所属 dev；
 3. 两者都没有时，默认将 `package.json` 当前版本递增一个补丁版本。
 
-如果分支版本、用户指定版本和现有 tag 冲突，必须停止并说明，不能猜测或覆盖已有 tag。`package.json` 是应用版本的唯一事实来源，`package-lock.json` 根包版本必须与其一致。
+用户指定版本必须与版本 dev 一致；冲突时先明确正确 dev，不能在现有 dev 上随意改成另一个版本。版本号和正式标签在开发期不能作为“已经发布”的证明。发布准备前 `package.json` 可以仍是上一稳定版版本，版本 dev 名称表示目标；准备发布时统一更新两个版本文件，不因普通 feature 提交反复升级版本。
+
+如果分支版本、用户指定版本和现有 tag 冲突，必须停止并说明，不能猜测或覆盖已有 tag。`package.json` 是应用版本的唯一事实来源，`package-lock.json` 顶层及根包版本必须与其一致。
 
 ### 0.3 发布前检查
 
-发布前按顺序完成：
+在版本 dev 上准备发布元数据，并完成：
 
 ```bash
 git status --short --branch
@@ -52,12 +56,13 @@ git diff --check
 
 同时检查：
 
-- 工作区没有混入无关改动；只能提交本次任务已确认的文件，发现用户遗留改动或范围不明时必须停止；
+- 工作区没有混入无关改动；只能提交本次版本已确认的文件，发现用户遗留改动或范围不明时停止或使用已确认范围的独立工作区，不擅自迁移改动；
+- dev 包含当前 master 的必要更新，待发布 feature 均已集成，发布 PR 范围完整；未验收功能留在独立 feature，不能靠发版时临时删除功能来裁剪范围；
 - 新功能、修复和设置迁移形成完整调用链；
 - 受影响的 UI 已用 `npm run dev` 冒烟；
 - `docs/release-notes-<目标版本>.md` 已创建，至少包含更新日志、兼容说明和验证情况；
 - 发行说明开头按下面模板放置四条要点，每行不超过 72 个字符，便于应用内更新弹窗提取；
-- 目标版本高于当前版本，且本地与远端均不存在同名 tag。
+- 目标版本高于上一稳定发布版本，且本地与远端均不存在同名 tag；dev 已预先更新版本号时，不重复递增。
 
 ```markdown
 ## 更新日志
@@ -78,21 +83,42 @@ git diff --check
 
 发布工作流会把该文件原样作为 GitHub Release body；文件缺失、三个标题及四条摘要格式不正确、`package.json` 与 `package-lock.json` 版本不一致，或 tag 与应用版本不一致时，`validate` job 必须失败，不能发布元数据不完整的版本。
 
-若验证失败，不创建发布提交和标签，也不推送半成品版本。
+验证失败时可以保留或推送开发提交供修复，但不得合入 master、创建正式 tag 或公开 Release。文档、代码和工作流未同步完成时，不把目标门禁当作已经通过。
 
-### 0.4 提交、标签和推送顺序
+### 0.4 提交、合并、标签和推送顺序
 
-功能改动与发布元数据分成两个边界：功能提交保持原有 Conventional Commit；版本号和发行说明使用单独发布提交。
+功能改动与发布元数据分成两个边界：feature → dev 的 Squash 提交保持原有 Conventional Commit；版本号和发行说明在 dev 上使用单独发布提交。以下以 2.3.0 为例；版本号必须替换为实际目标。
 
 ```bash
-git add package.json package-lock.json docs/release-notes-<目标版本>.md
-git commit -m "chore(release): 发布 v<目标版本>"
-git tag -a "v<目标版本>" -m "Simple Music v<目标版本>"
-git push -u origin <当前分支>
-git push origin "v<目标版本>"
+# 在 dev/2.3.0 上检查暂存范围后提交发布元数据
+git add package.json package-lock.json docs/release-notes-2.3.0.md
+git diff --cached --check
+git diff --cached --stat
+git commit -m "chore(release): 发布 v2.3.0"
+git push -u origin dev/2.3.0
 ```
 
-标签必须指向发布提交。标签推送会触发 `.github/workflows/release.yml`，从该标签对应的源码构建并发布，不要求先把发布分支合并到 `master`；合并主分支是独立操作，除非用户明确要求，否则不顺带执行。
+随后创建 `dev/2.3.0` → `master` 的发布 PR，标题为 `chore(release): 发布 v2.3.0`。审核版本范围、验证结果和发行说明后，使用 **Merge commit** 合并；不得先在 dev 打正式标签，也不对整条 dev 使用 Squash/rebase merge。
+
+从 PR 返回结果取得合并后的 master 提交 SHA，核对该 SHA 上的版本、lockfile、发行说明和检查结果。不要假定本地 dev 的 HEAD、PR 合并前的 SHA 或此刻最新 master 恰好等于该发布提交。
+
+```bash
+git fetch origin master --tags
+# 将下值替换为该发布 PR 合并后的 master 提交 SHA
+release_commit='填写已核对的发布合并提交SHA'
+git show "${release_commit}:package.json"
+git show "${release_commit}:package-lock.json"
+git show "${release_commit}:docs/release-notes-2.3.0.md"
+# 再次确认本地、远端无 v2.3.0，并核对上述三个文件
+git tag --list v2.3.0
+git ls-remote --tags origin refs/tags/v2.3.0
+# 来源检查失败时不创建标签；创建失败时不推送，任一步失败都应停止
+git merge-base --is-ancestor "$release_commit" origin/master &&
+  git tag -a v2.3.0 "$release_commit" -m "Simple Music v2.3.0" &&
+  git push origin v2.3.0
+```
+
+tag 必须指向发布 PR 合并后的 master 提交，包含 dev 中的独立发布元数据提交。发布工作流构建该 tag 的固定源码；**不能将 checkout 改成随时间移动的 master**。master 后续变化不得改变已经发布的同名版本。
 
 ### 0.5 推送后的发布验收
 
@@ -112,6 +138,30 @@ git push origin "v<目标版本>"
 - 标签已推送但构建失败：先判断能否安全重跑；禁止静默强推或重写 tag；
 - Release 已发布但应用存在严重问题：优先发布更高补丁版本；若需要撤下当前版本，必须由用户明确授权后再调整 GitHub Release 状态；
 - 任何时候都不自动删除远端分支、tag、Release 或安装包。
+
+### 0.7 CI 与发布门禁
+
+以下是本仓库的目标验收标准，自动化配置必须与其同步：
+
+| 入口 | 必须完成的检查 | 是否允许发布稳定版 |
+|---|---|---|
+| feature PR → 所属 dev | 类型检查、全量测试、源码构建；受影响的 UI/播放/登录流程人工检查 | 否 |
+| dev 更新、dev PR → master | Windows/macOS 类型检查、全量测试、源码构建及版本范围复核；发布 PR 额外检查版本文件和发行说明 | 否 |
+| master 更新 | 对合并后的提交执行 Windows/macOS 类型检查、全量测试和源码构建 | 否；通过后才能为该发布提交打 tag |
+| 正式版本 tag | 校验来源为已验收 master 提交、版本和说明一致；双平台测试、正式签名、打包、产物齐全检查，统一发布 | 是 |
+
+- PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时单独使用预发布版本和渠道，不能伪装成稳定版。
+- master 和活跃 dev 应启用 PR 合并及必需状态检查；master 发布 PR 还要求至少 1 人评审通过。不得以管理员绕过失败检查完成正常发布。
+- tag 需要限制创建、更新和删除权限；稳定发布校验必须检查提交来源，不能仅凭 `v*.*.*` 名称判断可发布。
+- Release 默认只读权限，仅发布 job 授予 `contents: write`；生产签名凭据只提供给受信任的正式打包步骤。同一版本发布避免并发执行，失败时保留固定 tag。
+- **截至 2026-10-02，现有 `.github/workflows/release.yml` 已实现 tag 触发、元数据校验、双平台测试/打包及产物检查；PR/dev/master CI、来源校验和分支/tag 门禁尚未配置，Release 仍使用工作流级写权限且没有并发限制。未落地的流程检查目前由人工执行；权限、并发与平台门禁需后续配置，不能声称已由 GitHub 自动强制。配置落地时同步更新本段。**
+
+### 0.8 紧急补丁与旧版本维护
+
+- 默认补丁仍遵循正常流程：从最新 master 创建目标补丁 dev，从 dev 创建修复 feature，依次合入 dev、master，验证 master 提交后打 tag；再将 master 的修复同步到仍在维护的新版本 dev。
+- master 原则上不提前集成下一版本的未验收功能。已有历史分支和已发布版本不因本规范回退、重命名或重打标签。
+- 若用户明确要求基于旧稳定版修复并排除 master 中已有功能，先说明基准 tag、维护版本、排除范围及绕过常规主干来源规则的原因；只有得到明确的旧版本维护授权后才能采用独立维护分支。不能把普通 feature/dev 发布解释为此例外。
+- 维护发布仍须完成测试、签名、发行说明与产物验收，记录真实源码提交，并将修复单独回灌 master 及相关 dev。不得为证明“已合主干”而移动旧 tag，也不能把现有 master 额外功能混入旧版补丁。自动来源门禁落地后，此例外也需显式配置授权路径，不能临时关闭门禁。
 
 ## 1. 常用命令
 

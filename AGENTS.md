@@ -41,6 +41,8 @@ npm run build                  # 构建到 out/，不生成安装包
 
 ## 提交、PR 与发布
 
-普通改动使用聚焦分支、英文 Conventional Commit 类型加中文主题；PR 写明改动、原因与验证，UI 变更附截图或录屏。详细规则以 [CONTRIBUTING.md](CONTRIBUTING.md) 为准。
+固定分支流向为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release。每个版本使用一个明确的 dev，新任务从所属 dev 创建 feature，功能和修复都先合回 dev；不得默认从 master 创建普通工作分支或跳过 dev。已有旧命名分支不自动重命名，先确认版本归属。英文 Conventional Commit 类型加中文主题；PR 写明范围、目标版本、原因与验证，UI 变更附截图或录屏。feature → dev 使用 Squash merge，dev → master 使用 Merge commit，保留集成及发布历史；已共享的 dev/master 不 rebase 或强推。详细规则以 [CONTRIBUTING.md](CONTRIBUTING.md) 为准。
 
-本仓库中“推送”“提交并推送”“可以发了”默认指完整版本升级，按 [构建与发布 §0](docs/build-and-release.md) 执行：解析目标版本，更新 `package.json` 与 `package-lock.json`，写发行说明并验证，创建独立 `chore(release): 发布 vX.Y.Z` 提交和 annotated tag，推送分支与 tag，等待 Release 工作流并核对产物。用户明确要求“只推代码”“只推分支”“不要升级版本”或“不要打 tag”时才仅推分支。发布前先告知目标版本及将生成公开 tag/Release；版本冲突、同名 tag 或范围不明的工作区改动应停止，已推送 tag 不得改写。
+本仓库中“推送”“提交并推送”“可以发了”默认指完整版本升级，按 [构建与发布 §0](docs/build-and-release.md) 执行：确认版本 dev 与发布范围，完成 feature 集成，在 dev 更新 `package.json`、`package-lock.json` 和发行说明，验证并形成独立发布元数据提交，经发布 PR 合入 master，再对合并后的 master 提交创建 annotated tag；推送 tag 后等待 Release 工作流并核对产物。发布授权包含上述 PR、合并与 tag 操作，不得先从 dev 发稳定版再补合主分支。用户明确要求“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时仅同步指定分支。
+
+开发分支构建只用于验证或明确标识的预发布；稳定版本默认只能从 master 上已验收的提交打 tag，并构建该 tag 的固定源码。发布前告知目标版本及公开 tag/Release；版本冲突、同名 tag 或范围不明的工作区改动应停止，已推送 tag 不得改写。旧版本隔离补丁必须按 §0.8 明确授权并记录基准；不能擅自绕过主干发布流程。CI 和分支保护的实际状态以仓库配置为准，不能将文档要求宣称为已启用的自动门禁。
