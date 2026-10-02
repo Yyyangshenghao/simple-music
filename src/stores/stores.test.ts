@@ -290,6 +290,62 @@ describe('playlist 播放模式走序', () => {
     expect(usePlaylistStore.getState().queue).toHaveLength(4)
   })
 
+  it('顺序模式拖动队列后保留当前曲目和随机排列对应关系', async () => {
+    const { usePlaylistStore, loadTrack } = await setup()
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.setState({ queueIndex: 2, shuffleOrder: [2, 0, 3, 1] })
+    usePlaylistStore.getState().moveQueueItem(0, 3)
+
+    expect(usePlaylistStore.getState().queue.map((track) => track.id)).toEqual([1, 2, 3, 0])
+    expect(usePlaylistStore.getState().queueIndex).toBe(1)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([1, 3, 2, 0])
+    expect(loadTrack).not.toHaveBeenCalled()
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queue[usePlaylistStore.getState().queueIndex].id).toBe(3)
+  })
+
+  it('随机模式拖动和设为下一首改变实际走序，不打乱原队列', async () => {
+    const { usePlaylistStore, loadTrack } = await setup()
+    useSettingsStore.setState({ playMode: 'shuffle' })
+    usePlaylistStore.setState({ shuffleOrder: [2, 0, 3, 1] })
+    usePlaylistStore.getState().moveQueueItem(3, 2)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([2, 0, 1, 3])
+    usePlaylistStore.getState().playNextInQueue(2)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([0, 2, 1, 3])
+    expect(usePlaylistStore.getState().queue.map((track) => track.id)).toEqual([0, 1, 2, 3])
+    expect(loadTrack).not.toHaveBeenCalled()
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queueIndex).toBe(2)
+  })
+
+  it('设为下一首可从当前位置之前移动歌曲，并处理列表末尾回绕', async () => {
+    const { usePlaylistStore } = await setup()
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.setState({ queueIndex: 2 })
+    usePlaylistStore.getState().playNextInQueue(0)
+    expect(usePlaylistStore.getState().queue.map((track) => track.id)).toEqual([1, 2, 0, 3])
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queue[usePlaylistStore.getState().queueIndex].id).toBe(0)
+
+    usePlaylistStore.setState({ queueIndex: 3 })
+    usePlaylistStore.getState().playNextInQueue(1)
+    expect(usePlaylistStore.getState().queue[0].id).toBe(2)
+    usePlaylistStore.getState().next()
+    expect(usePlaylistStore.getState().queue[usePlaylistStore.getState().queueIndex].id).toBe(2)
+  })
+
+  it('移除非当前曲目后保留播放目标，当前曲目不可移除', async () => {
+    const { usePlaylistStore, loadTrack } = await setup()
+    usePlaylistStore.setState({ queueIndex: 2, shuffleOrder: [3, 1, 2, 0] })
+    usePlaylistStore.getState().removeQueueItem(1)
+    expect(usePlaylistStore.getState().queue.map((track) => track.id)).toEqual([0, 2, 3])
+    expect(usePlaylistStore.getState().queueIndex).toBe(1)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([2, 1, 0])
+    usePlaylistStore.getState().removeQueueItem(1)
+    expect(usePlaylistStore.getState().queue).toHaveLength(3)
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
   it('单曲循环:自然播完原地重播,不切换曲目', async () => {
     const { usePlaylistStore, usePlayerStore, loadTrack } = await setup(3)
     useSettingsStore.setState({ playMode: 'one' })

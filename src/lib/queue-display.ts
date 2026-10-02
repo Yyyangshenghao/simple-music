@@ -5,7 +5,7 @@ export interface QueueDisplayOrder {
   currentDisplayIndex: number
 }
 
-function isValidPermutation(order: number[], length: number): boolean {
+export function isValidPermutation(order: number[], length: number): boolean {
   return order.length === length
     && new Set(order).size === length
     && order.every((index) => Number.isInteger(index) && index >= 0 && index < length)

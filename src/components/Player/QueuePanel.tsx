@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
@@ -11,6 +11,7 @@ import { QueueDiscovery } from './QueueDiscovery'
 import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
 import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
+import { isProviderId } from '../../providers/types'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -27,13 +28,20 @@ function QueueIcon() {
 /** 播放队列按钮 + 弹层：锚定在播放栏上方,展示当前队列,高亮当前曲目,点击切歌。 */
 export function QueuePanel() {
   const [open, setOpen] = useState(false)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+  const dragFrom = useRef<number | null>(null)
   const queue = usePlaylistStore((s) => s.queue)
   const queueIndex = usePlaylistStore((s) => s.queueIndex)
   const shuffleOrder = usePlaylistStore((s) => s.shuffleOrder)
   const playAt = usePlaylistStore((s) => s.playAt)
+  const moveQueueItem = usePlaylistStore((s) => s.moveQueueItem)
+  const playNextInQueue = usePlaylistStore((s) => s.playNextInQueue)
+  const removeQueueItem = usePlaylistStore((s) => s.removeQueueItem)
+  const ensureQueueDetails = usePlaylistStore((s) => s.ensureQueueDetails)
   const playMode = useSettingsStore((s) => s.playMode)
   const isPlaying = usePlayerStore((s) => s.status === 'playing')
   const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const providers = useProviderStore((s) => s.byId)
   const qqAvailable = useProviderStore((s) => s.byId.qq.enabled && s.byId.qq.auth === 'authenticated')
   const discoverySongId = qqRelatedSongId(currentTrack)
   const canDiscover = qqAvailable && discoverySongId !== null
@@ -45,6 +53,14 @@ export function QueuePanel() {
     () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
     [playMode, queue.length, queueIndex, shuffleOrder]
   )
+  const loadVisibleDetails = useCallback((start: number, end: number) => {
+    const indices = display.indices.slice(start, end).filter((index) => {
+      const track = queue[index]
+      return track?.pending && (!isProviderId(track.source)
+        || (providers[track.source].enabled && providers[track.source].auth === 'authenticated'))
+    })
+    void ensureQueueDetails(indices)
+  }, [display.indices, ensureQueueDetails, providers, queue])
 
   // Esc 关闭 + 点击弹层/按钮之外关闭
   useEffect(() => {
@@ -96,9 +112,10 @@ export function QueuePanel() {
         {open && (
           <motion.div
             className={styles.panel}
-            initial={{ opacity: 0, y: 12, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            // 缩放会让虚拟列表的视口坐标与 scrollTop 不一致，深队列打开时出现空白。
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
             transition={springGentle}
           >
             <div className={styles.header}>
@@ -113,41 +130,92 @@ export function QueuePanel() {
                   total={display.indices.length}
                   rowHeight={ROW_HEIGHT}
                   scrollRef={listRef}
+                  onRangeChange={loadVisibleDetails}
                   renderRow={(i) => {
                     const originalIndex = display.indices[i]
                     const t = queue[originalIndex]
                     const isCurrent = originalIndex === queueIndex
                     return (
-                      <button
-                        type="button"
+                      <div
                         className={styles.row}
                         data-current={isCurrent}
-                        onClick={() => {
-                          if (!isCurrent) playAt(originalIndex)
+                        data-drag-over={dragOver === i}
+                        draggable={queue.length > 1}
+                        onDragStart={(event) => {
+                          dragFrom.current = i
+                          event.dataTransfer.effectAllowed = 'move'
+                          event.dataTransfer.setData('text/plain', String(i))
+                        }}
+                        onDragOver={(event) => {
+                          if (dragFrom.current === null) return
+                          event.preventDefault()
+                          setDragOver(i)
+                        }}
+                        onDrop={(event) => {
+                          if (dragFrom.current === null) return
+                          event.preventDefault()
+                          moveQueueItem(dragFrom.current, i)
+                          dragFrom.current = null
+                          setDragOver(null)
+                        }}
+                        onDragEnd={() => {
+                          dragFrom.current = null
+                          setDragOver(null)
                         }}
                       >
-                        <span className={styles.index}>
-                          {isCurrent ? (
-                            <span className={styles.playingDot} data-playing={isPlaying} aria-hidden="true" />
-                          ) : (
-                            i + 1
-                          )}
-                        </span>
-                        <span className={styles.rowText}>
-                          {t.pending ? (
-                            <span className={styles.rowSkeleton} aria-hidden="true">
-                              <i />
-                              <i />
-                            </span>
-                          ) : (
-                            <>
-                              <span className={styles.rowName}>{t.name}</span>
-                              <span className={styles.rowArtist}>{t.artist}</span>
-                            </>
-                          )}
-                        </span>
-                        <SourceBadge source={t.source} compact />
-                      </button>
+                        <button
+                          type="button"
+                          className={styles.rowMain}
+                          onClick={() => { if (!isCurrent) playAt(originalIndex) }}
+                          onKeyDown={(event) => {
+                            if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
+                            event.preventDefault()
+                            const target = i + (event.key === 'ArrowUp' ? -1 : 1)
+                            if (target < 0 || target >= display.indices.length) return
+                            moveQueueItem(i, target)
+                            requestAnimationFrame(() => {
+                              listRef.current?.querySelector<HTMLButtonElement>(`[data-queue-display-index="${target}"]`)?.focus()
+                            })
+                          }}
+                          data-queue-display-index={i}
+                          title={`${t.name} · 拖动或 Alt + ↑/↓ 调整顺序`}
+                          aria-label={isCurrent ? `正在播放 ${t.name}` : `播放 ${t.name}`}
+                        >
+                          <span className={styles.index}>
+                            {isCurrent ? (
+                              <span className={styles.playingDot} data-playing={isPlaying} aria-hidden="true" />
+                            ) : (
+                              i + 1
+                            )}
+                          </span>
+                          <span className={styles.rowText}>
+                            {t.pending ? (
+                              <span className={styles.rowSkeleton} aria-hidden="true">
+                                <i />
+                                <i />
+                              </span>
+                            ) : (
+                              <>
+                                <span className={styles.rowName}>{t.name}</span>
+                                <span className={styles.rowArtist}>{t.artist}</span>
+                              </>
+                            )}
+                          </span>
+                          <SourceBadge source={t.source} compact />
+                        </button>
+                        {!isCurrent && (
+                          <>
+                            <button type="button" className={styles.rowAction}
+                              disabled={playMode === 'one'}
+                              title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
+                              aria-label={`将 ${t.name} 设为下一首`}
+                              onClick={() => playNextInQueue(originalIndex)}>下一首</button>
+                            <button type="button" className={styles.rowAction}
+                              title="从队列移除" aria-label={`从队列移除 ${t.name}`}
+                              onClick={() => removeQueueItem(originalIndex)}>×</button>
+                          </>
+                        )}
+                      </div>
                     )
                   }}
                 />
