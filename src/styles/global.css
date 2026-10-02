@@ -4,6 +4,9 @@
   color-scheme: light dark;
 }
 
+[data-theme='dark'] { color-scheme: dark; }
+[data-theme='light'] { color-scheme: light; }
+
 /* 氛围色切换的平滑过渡由 useAmbientPalette 的 JS 分步补间实现。
    不要在根元素上给 --ambient-* 挂 CSS transition:它们是全文档继承的注册属性,
    根上过渡的每一帧都会让整个文档重算样式,每次切歌瞬间产生上百 MB Blink 堆垃圾。 */
@@ -34,10 +37,24 @@ textarea {
   font-family: inherit;
 }
 
+:where(button, a, input, select, textarea, [role='button']):focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: var(--sm-text-primary);
+  background: color-mix(in srgb, var(--ambient-1) 30%, var(--sm-bg-base));
+}
+
 .desktop-shell {
   -webkit-app-region: drag;
 }
 
 button, input, a, .no-drag {
   -webkit-app-region: no-drag;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
 }

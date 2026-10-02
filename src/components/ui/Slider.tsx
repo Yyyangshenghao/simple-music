@@ -6,12 +6,13 @@ interface SliderProps {
   max?: number
   step?: number
   label?: string
+  ariaLabel?: string
   onChange: (value: number) => void
   className?: string
 }
 
 /** 受控滑块。range input 包一层标签与数值显示,轨道按当前值分色(已播放/已选 vs 未播放)。 */
-export function Slider({ value, min = 0, max = 1, step = 0.01, label, onChange, className }: SliderProps) {
+export function Slider({ value, min = 0, max = 1, step = 0.01, label, ariaLabel, onChange, className }: SliderProps) {
   const percent = max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0
   return (
     <label className={`${styles.wrap} no-drag${className ? ` ${className}` : ''}`}>
@@ -24,6 +25,7 @@ export function Slider({ value, min = 0, max = 1, step = 0.01, label, onChange, 
       <input
         className={styles.range}
         type="range"
+        aria-label={ariaLabel ?? label}
         min={min}
         max={max}
         step={step}

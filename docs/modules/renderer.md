@@ -8,6 +8,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
+页面只在访问时加载，不再启动后集中预热。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题与字体仅在相关设置变化时写根节点样式。
+
 ## stores(zustand,单文件单 store)
 
 | store | 职责 |
@@ -30,10 +32,10 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 - `useDesktopBridge` — 订阅窗口状态、热键和迷你条控制，桥接 player/playlist/window store。
 - `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider。
-- `useAudio` — 播放进度 → lyrics store tick。
+- `useAudio` — 播放进度 → lyrics store tick；MusicKit 仅播放时启动 50ms 连续时钟，暂停、拖动及歌词偏移变化即时同步。歌词行用二分定位，同值不通知订阅者。
 - `useLyricsFetch` — 换歌时拉歌词。
 - `useDesktopLyricsSync` / `useWallpaperSync` / `useMiniPlayerSync` — 把当前歌词、可视化与播放状态经 IPC 推给三个悬浮窗。
-- `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量。
+- `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollGradient` / `useScrollReveal` — 滚动渐隐边缘 / 入场 stagger。
@@ -51,7 +53,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `playback-resolver.ts` / `track-match.ts` / `track-preload.ts` — 多平台候选解析、保守同曲匹配和相邻曲目预加载。
 - `lyric-parser.ts` — LRC/逐字歌词解析。
 - `stack-pool.ts` — 探索页 Stack 卡片堆的池子管理(纯函数,有测试)。
-- `toplist-cache.ts` — 榜单预览的并发池 + 分组缓存,进榜单页即后台预取全部榜单 Top3(2026-07-24 加,滚动卡顿主因之一)。
+- `toplist-cache.ts` — 榜单预览最多 4 个并发请求、200 条缓存，分组缓存 5 分钟、预览缓存 10 分钟；可视卡片优先请求。
 - `motion-presets.ts` / `animation.ts` — 全项目动效预设;新动效必须引用而非自写参数。
 - `extract-color.ts` / `audio-energy.ts` — 取色与能量计算纯函数(均有测试)。
 
@@ -64,6 +66,10 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(在线歌单/收藏、最近播放、离线音乐、本地音乐)、`RoamPage`、`ShuangePage`、`ToplistPage`、`ArtistPage`、`SettingsPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。离线音乐独立于在线平台登录态，支持按标题、艺人或专辑搜索、按保存时间/标题/艺人排序、播放当前筛选列表与逐曲移除保存；移除只取消固定，文件保留为临时缓存。组件按域分目录:`Layout/`(WindowChrome、TopBar、AppShell 转场与背景层)、`Player/`、`Lyrics/`(LyricsPanel、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics)、`Explore/`、`Playlist/`、`Roam/`、`Shuange/`、`Search/`、`Shelf/`、`Visualizer/`、`Update/`、`ui/`。
 
 样式:CSS Modules 与组件同目录;设计 token 全部在 `src/styles/tokens.css`(`--sm-*` 基础、`--glass-*` 玻璃层级、`--ambient-*` 氛围色、`--audio-energy`),经 `@property` 注册可平滑过渡。`reduce-transparency` 开关(见 settings store)经 `App.tsx` 写 `data-reduce-transparency` 属性,tokens.css 内对应分支把玻璃 blur 降为纯色底、流体背景退化为静态霞光。
+
+我的库的本地、离线和最近播放列表复用 `VirtualList`，仅渲染可视区及 overscan；曲目行固定 56px，库列表步长为 58px（含 2px 间距）。筛选、排序与播放队列派生值复用，点击下标始终对应完整筛选结果。播放进度订阅集中在滑轨子组件，音量订阅集中在音量组，避免频繁唤醒封面、队列和菜单。播放持久化只缓存当前不可变队列与随机顺序的序列化结果，保持原 schema、断点恢复及配额不足的占位降级。
+
+导航、歌单卡片与播放控件统一间距和焦点轮廓，深浅主题沿用封面取色。设置页宽屏侧栏参与布局，1280px 及以下切为横向导航，避免展开导航遮挡内容。性能验收与维护边界见 [性能与界面维护](../performance.md)。
 
 ## 注意事项
 

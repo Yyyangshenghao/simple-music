@@ -1,7 +1,7 @@
 .bar {
   display: grid;
   /* 音质/倍速/定时收进「更多」菜单后,左列让出的宽度给右列,音量滑轨才拉得开 */
-  grid-template-columns: minmax(200px, 1fr) minmax(360px, 1.9fr) minmax(270px, 1.2fr);
+  grid-template-columns: minmax(180px, 1fr) minmax(300px, 1.9fr) minmax(250px, 1.2fr);
   align-items: center;
   gap: 24px;
 }
@@ -18,6 +18,10 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  min-width: 0;
+  justify-self: center;
 }
 
 .buttons {
@@ -51,6 +55,11 @@
   transform: scale(0.94);
 }
 
+.btn:focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 3px;
+}
+
 .playIconWrap,
 .volumeIconWrap {
   display: inline-flex;
@@ -68,7 +77,7 @@
 .modeBtn[data-mode='shuffle'],
 .modeBtn[data-mode='one'] {
   color: var(--sm-accent);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-accent) 35%, transparent));
+  background: var(--sm-fill-subtle);
 }
 
 /* 红心按钮:点亮时暖红,与整体玻璃风格保持低饱和 */
@@ -81,7 +90,6 @@
 
 .likeBtn[data-liked='true'] {
   color: var(--sm-color-like);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-color-like) 45%, transparent));
 }
 
 .playBtn {
@@ -89,15 +97,14 @@
   height: 46px;
   background: var(--sm-accent);
   color: var(--sm-text-on-accent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--sm-accent) 30%, transparent), 0 4px 12px rgba(0, 0, 0, 0.20);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
   border: 1px solid color-mix(in srgb, var(--sm-accent) 20%, transparent);
 }
 
 .playBtn:hover {
   background: var(--sm-accent);
   color: var(--sm-text-on-accent);
-  filter: brightness(1.08);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--sm-accent) 40%, transparent), 0 4px 14px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
 }
 
 .playBtn[data-loading='true'] {
@@ -163,7 +170,7 @@
 
 .miniPlayerBtn[data-active='true'] {
   color: var(--sm-accent);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-accent) 35%, transparent));
+  background: var(--sm-fill-subtle);
 }
 
 .divider {
@@ -171,4 +178,14 @@
   height: 20px;
   flex-shrink: 0;
   background: var(--sm-border);
+}
+
+@media (max-width: 1100px) {
+  .bar {
+    grid-template-columns: minmax(150px, 1fr) minmax(260px, 1.6fr) minmax(220px, 1.1fr);
+    gap: 16px;
+  }
+
+  .right { gap: 8px; }
+  .buttons { gap: 12px; }
 }

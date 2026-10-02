@@ -38,6 +38,10 @@
 
 ## 约定
 
+本地索引最多缓存 4 个目录快照，每次用异步文件指纹检查外部改动；同目录并发读取合并，按 ID 用 Map 查找。扫描和移除文件夹串行提交，索引先写临时文件再原子替换并失效缓存，公开返回值复制以免调用方污染缓存。
+
+更新安装包采用单遍流式 SHA256/SHA512 校验，避免整包同步读入主进程内存；长度、SHA256、SHA512 校验顺序及原错误代码保持一致。`startUpdateDownloadJob()` 返回 Promise，路由须 await；并发启动共享起步任务，缓存校验失败仍移出旧文件再下载。
+
 - Track/Playlist 的字段映射(`mapSongRecord`/`mapDiscoverPlaylist` 等)在 `lib/netease-client.ts`,是 `src/types/domain.ts` 领域类型的事实来源;改返回结构时两边同步。
 - `Track.duration` 统一映射为毫秒(网易 `dt` 原样,QQ `interval×1000`)。
 - qq-client / dj-analyzer / update / weather 均标注"忠实移植自参考项目",行为对齐优先,重构前先确认上游语义。

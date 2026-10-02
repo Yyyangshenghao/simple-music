@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { useNavigationStore } from '../../stores/navigation'
@@ -27,28 +27,6 @@ const pageVariants: Variants = {
 export function AppShell() {
   const view = useNavigationStore((s) => s.currentView)
   const lastAction = useNavigationStore((s) => s.lastAction)
-
-  // 空闲预热 lazy 页面 chunk：首次切页转场不再被模块加载打断
-  // requestIdleCallback 真正等浏览器空闲才跑，不像定时 setTimeout 会在主线程繁忙时抢占
-  useEffect(() => {
-    const preheat = () => {
-      void import('../../pages/ExplorePage')
-      void import('../../pages/LibraryPage')
-      void import('../../pages/RoamPage')
-      void import('../../pages/SettingsPage')
-      void import('../../pages/ArtistPage')
-      void import('../../pages/ArtistSongsPage')
-      void import('../../pages/ToplistPage')
-      void import('../../pages/AppleChartPage')
-      void import('../../pages/ShuangePage')
-    }
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(preheat, { timeout: 2000 })
-      return () => window.cancelIdleCallback(id)
-    }
-    const t = window.setTimeout(preheat, 2000)
-    return () => window.clearTimeout(t)
-  }, [])
 
   // 歌单详情复用宿主页(探索/我的库)的 key:同一组件实例内切换,
   // 封面 layoutId 共享元素动画不被页面级转场打断

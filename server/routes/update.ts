@@ -61,7 +61,7 @@ export const updateRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/update/download') {
     try {
       const info = await fetchLatestUpdateInfo()
-      const job = startUpdateDownloadJob(info, ctx)
+      const job = await startUpdateDownloadJob(info, ctx)
       sendJson(res, job, job.ok ? 200 : 400)
     } catch (err) {
       console.error('[UpdateDownload]', err)

@@ -128,7 +128,7 @@ player.loadTrack(网易云或 QQ 曲目)
 - 动效统一引用 `src/lib/motion-presets.ts`（springSnappy/springGentle/tapScale/fadeRise/iconSwap），禁止散落魔法数值。
 - 样式用 CSS Modules（`*.module.css` 与组件同目录）；主题切换靠 `<html data-theme>` + tokens 变量，`auto` 模式移除属性交给 `prefers-color-scheme`。
 - 页面宽度统一使用 `--sm-content-max-width`、`--sm-reading-max-width` 与 `--sm-page-gutter`；网格/列表按内容宽度展开，阅读型内容居中限宽，设置页在宽屏双列、窄屏单列。
-- **全屏 WebGL 同屏只跑一个**（单个窗口内）：氛围背景 LiquidEther 与歌词页 3D 场景互斥（歌词 3D 打开时 `AppShell backgroundHidden` 把背景 `display:none`，LiquidEther 靠 IntersectionObserver 自动暂停）。
+- **全屏 WebGL 同屏只跑一个**（单个窗口内）：氛围背景 LiquidEther 与歌词页 3D 场景互斥；`App` 在 3D 歌词或详情封面遮挡时传入 `AmbientBackground hidden`，卸载流体并释放场景资源。两种 WebGL 场景均按需加载。
 - 深入解析（流体模拟管线、GLSL、性能档位）见 `docs/superpowers/specs/` 下各期设计文档。
 
 ## 7. 验证方式

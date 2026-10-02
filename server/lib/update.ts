@@ -260,6 +260,7 @@ export type JobResult = PublicUpdateJob | JobError
 
 // ---------- 任务表 ----------
 export const updateDownloadJobs = new Map<string, UpdateJob>()
+const startingUpdateDownloads = new Map<string, Promise<JobResult>>()
 
 // ---------- digest / 镜像 / 候选线路 ----------
 function normalizeDigest(value: unknown, algorithm: string): string {
@@ -837,8 +838,33 @@ function verifyUpdateBuffer(buffer: Buffer, job: UpdateJob): void {
     }
   }
 }
-function verifyUpdateFile(filePath: string, job: UpdateJob): void {
-  verifyUpdateBuffer(fs.readFileSync(filePath), job)
+export async function verifyUpdateFile(
+  filePath: string,
+  job: Pick<UpdateJob, 'expectedSize' | 'total' | 'sha256' | 'sha512'>
+): Promise<void> {
+  const expectedSize = Number(job.expectedSize || job.total || 0) || 0
+  const expectedSha256 = normalizeDigest(job.sha256 || '', 'sha256').toLowerCase()
+  const expectedSha512 = normalizeDigest(job.sha512 || '', 'sha512')
+  const sha256 = expectedSha256 ? crypto.createHash('sha256') : null
+  const sha512 = expectedSha512 ? crypto.createHash('sha512') : null
+  let received = 0
+  for await (const chunk of fs.createReadStream(filePath)) {
+    received += chunk.length
+    sha256?.update(chunk)
+    sha512?.update(chunk)
+  }
+  if (expectedSize > 0 && received !== expectedSize) {
+    throw updateError('UPDATE_SIZE_MISMATCH', `Expected ${expectedSize} bytes, got ${received}`)
+  }
+  if (sha256 && sha256.digest('hex') !== expectedSha256) {
+    throw updateError('UPDATE_SHA256_MISMATCH', 'Downloaded sha256 mismatch')
+  }
+  if (sha512) {
+    const digest = sha512.digest()
+    if (digest.toString('base64') !== expectedSha512 && digest.toString('hex') !== expectedSha512.toLowerCase()) {
+      throw updateError('UPDATE_SHA512_MISMATCH', 'Downloaded sha512 mismatch')
+    }
+  }
 }
 function moveInvalidUpdateFile(filePath: string, reason?: string): void {
   try {
@@ -908,7 +934,7 @@ function safeUpdateFileName(name: unknown, version: string): string {
   return cleaned || `Simple Music-${version || APP_VERSION}.exe`
 }
 
-function reuseVerifiedInstallerJob(opts: {
+async function reuseVerifiedInstallerJob(opts: {
   filePath: string
   fileName: string
   version: string
@@ -920,7 +946,7 @@ function reuseVerifiedInstallerJob(opts: {
   sha512: string
   releaseUrl: string
   attempts: number
-}): UpdateJob | null {
+}): Promise<UpdateJob | null> {
   if (!opts || !opts.filePath || !fs.existsSync(opts.filePath)) return null
   if (!opts.expectedSize && !opts.sha256 && !opts.sha512) return null
   const now = Date.now()
@@ -958,7 +984,7 @@ function reuseVerifiedInstallerJob(opts: {
     updatedAt: now,
   }
   try {
-    verifyUpdateFile(opts.filePath, job)
+    await verifyUpdateFile(opts.filePath, job)
     updateDownloadJobs.set(job.id, job)
     trimUpdateJobs()
     return job
@@ -1113,7 +1139,7 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
         await once(writer, 'finish').catch(() => {})
       }
 
-      verifyUpdateFile(tmpPath, job)
+      await verifyUpdateFile(tmpPath, job)
       if (fs.existsSync(job.filePath)) fs.unlinkSync(job.filePath)
       fs.renameSync(tmpPath, job.filePath)
       job.status = 'ready'
@@ -1139,7 +1165,7 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
   }
 }
 
-export function startUpdateDownloadJob(info: UpdateInfo, ctx: ServerContext): JobResult {
+export async function startUpdateDownloadJob(info: UpdateInfo, ctx: ServerContext): Promise<JobResult> {
   const release = info && info.release ? info.release : ({} as UpdateRelease)
   const asset = release.asset || ({} as UpdateAsset)
   const downloadUrl = release.downloadUrl || asset.downloadUrl || ''
@@ -1150,7 +1176,25 @@ export function startUpdateDownloadJob(info: UpdateInfo, ctx: ServerContext): Jo
   const version = info.latestVersion || release.version || ''
   const existing = activeUpdateJobFor(version)
   if (existing) return publicUpdateJob(existing)
+  const pending = startingUpdateDownloads.get(version)
+  if (pending) return pending
 
+  const starting = createUpdateDownloadJob(release, asset, downloadUrl, version, ctx)
+  startingUpdateDownloads.set(version, starting)
+  try {
+    return await starting
+  } finally {
+    startingUpdateDownloads.delete(version)
+  }
+}
+
+async function createUpdateDownloadJob(
+  release: UpdateRelease,
+  asset: UpdateAsset,
+  downloadUrl: string,
+  version: string,
+  ctx: ServerContext
+): Promise<JobResult> {
   const downloadDir = updateDownloadDir(ctx)
   const fileName = safeUpdateFileName(asset.name || '', version)
   const filePath = path.join(downloadDir, fileName)
@@ -1160,7 +1204,7 @@ export function startUpdateDownloadJob(info: UpdateInfo, ctx: ServerContext): Jo
   const expectedSize = asset.size || 0
   const sha256 = normalizeDigest(asset.sha256 || '', 'sha256').toLowerCase()
   const sha512 = normalizeDigest(asset.sha512 || '', 'sha512')
-  const cached = reuseVerifiedInstallerJob({
+  const cached = await reuseVerifiedInstallerJob({
     fileName,
     filePath,
     version,

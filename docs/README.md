@@ -8,6 +8,7 @@
 | 文件与模块归属 | [目录结构](directory-structure.md)、[主进程](modules/electron-main.md)、[API Server](modules/server.md)、[渲染层](modules/renderer.md)、[悬浮窗](modules/overlays.md) |
 | 播放、跨源兜底与缓存 | [播放系统](playback-system.md) |
 | 依赖、开发环境 | [技术栈](tech-stack.md) |
+| 启动、渲染、内存与性能验收 | [性能与界面维护](performance.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |
 | Apple Music 的设计选择与验收边界 | [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md) |

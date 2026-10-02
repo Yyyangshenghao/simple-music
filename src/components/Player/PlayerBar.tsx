@@ -250,16 +250,52 @@ interface PlayerBarProps {
   hidden?: boolean
 }
 
+/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
+function PlaybackProgress() {
+  const position = usePlayerStore((s) => s.position)
+  const duration = usePlayerStore((s) => s.duration)
+  const seek = usePlayerStore((s) => s.seek)
+  return (
+    <div className={styles.progress}>
+      <span className={styles.time}>{formatTime(position)}</span>
+      <Slider
+        className={styles.progressSlider}
+        ariaLabel="播放进度"
+        value={position}
+        min={0}
+        max={duration > 0 ? duration : 1}
+        step={1}
+        onChange={seek}
+      />
+      <span className={styles.time}>{formatTime(duration)}</span>
+    </div>
+  )
+}
+
+function VolumeControl() {
+  const volume = usePlayerStore((s) => s.volume)
+  const setVolume = usePlayerStore((s) => s.setVolume)
+  return (
+    <div className={styles.volumeGroup}>
+      <VolumeButton />
+      <ElasticSlider
+        className={styles.volumeSlider}
+        leftIcon={null}
+        rightIcon={null}
+        defaultValue={Math.round(volume * 100)}
+        startingValue={0}
+        maxValue={100}
+        onChange={(v) => setVolume(v / 100)}
+      />
+    </div>
+  )
+}
+
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
-  const position = usePlayerStore((s) => s.position)
-  const duration = usePlayerStore((s) => s.duration)
-  const volume = usePlayerStore((s) => s.volume)
   const toggle = usePlayerStore((s) => s.toggle)
-  const seek = usePlayerStore((s) => s.seek)
-  const setVolume = usePlayerStore((s) => s.setVolume)
   const next = usePlaylistStore((s) => s.next)
   const prev = usePlaylistStore((s) => s.prev)
 
@@ -308,33 +344,11 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
             </motion.button>
           </div>
 
-          <div className={styles.progress}>
-            <span className={styles.time}>{formatTime(position)}</span>
-            <Slider
-              className={styles.progressSlider}
-              value={position}
-              min={0}
-              max={duration > 0 ? duration : 1}
-              step={1}
-              onChange={seek}
-            />
-            <span className={styles.time}>{formatTime(duration)}</span>
-          </div>
+          <PlaybackProgress />
         </div>
 
         <div className={styles.right}>
-          <div className={styles.volumeGroup}>
-            <VolumeButton />
-            <ElasticSlider
-              className={styles.volumeSlider}
-              leftIcon={null}
-              rightIcon={null}
-              defaultValue={Math.round(volume * 100)}
-              startingValue={0}
-              maxValue={100}
-              onChange={(v) => setVolume(v / 100)}
-            />
-          </div>
+          <VolumeControl />
           <span className={styles.divider} aria-hidden="true" />
           <SourceFallbackBadge />
           <MiniPlayerButton />

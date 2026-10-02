@@ -76,7 +76,7 @@
 
 .settingsLayout {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   align-items: start;
   gap: 26px;
 }
@@ -88,20 +88,15 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: 54px;
+  width: 100%;
   padding: 8px;
   overflow: hidden;
   border: 1px solid var(--sm-border);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--sm-bg-elevated) 94%, transparent);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: width 220ms var(--sm-ease-out);
+  background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
 }
 
-.tabBar:hover,
-.tabBar:focus-within { width: 224px; }
 
 .tab {
   display: flex;
@@ -142,12 +137,7 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 140ms ease, transform 180ms var(--sm-ease-out);
 }
-.tabBar:hover .tabCopy,
-.tabBar:focus-within .tabCopy { opacity: 1; transform: translateX(0); }
 .tabCopy strong { font-size: 13px; font-weight: 680; }
 .tabCopy small { color: var(--sm-text-muted); font-size: 10px; font-weight: 450; line-height: 1.45; }
 
@@ -843,8 +833,9 @@
   .lyricsExpanded { padding-left: 0; margin-left: 0; border-left: 0; }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1280px) {
   .settingsLayout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .settingsSection { scroll-margin-top: 88px; }
 
   .tabBar {
     position: sticky;

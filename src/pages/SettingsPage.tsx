@@ -570,7 +570,7 @@ export function SettingsPage() {
     const section = document.getElementById(`settings-section-${id}`)
     if (!page || !section) return
     selectedSectionRef.current = id
-    const top = section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 20
+    const top = section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - parseFloat(window.getComputedStyle(section).scrollMarginTop)
     page.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
     setActiveSection(id)
   }, [])
@@ -649,7 +649,7 @@ export function SettingsPage() {
     const page = pageRef.current
     const section = document.getElementById('settings-section-lyrics')
     const top = page && section
-      ? section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 20
+      ? section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - parseFloat(window.getComputedStyle(section).scrollMarginTop)
       : 0
     setPerformance({ lyrics3dEnabled: enabled })
     if (!page) return

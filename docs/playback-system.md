@@ -113,9 +113,10 @@ QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把�
 ## 6. 队列与走序（`src/stores/playlist.ts`）
 
 - `queue` + `queueIndex`；播放模式存在 settings（`order / shuffle / one`）。
-- **随机模式**用 Fisher-Yates 洗牌出的 `shuffleOrder`（下标排列）循环走序，而非每次随机跳——保证一轮内不重复、prev 可回溯。排列长度与队列失配时懒重建（addToQueue 之后）。
+- **随机模式**用 Fisher-Yates 洗牌出的 `shuffleOrder`（下标排列）循环走序，而非每次随机跳——保证一轮内不重复、prev 可回溯。新增曲目时延长排列；长度失配时懒重建。
+- 队列面板可将已有曲目设为下一首、拖动或用 Alt + ↑/↓ 调整顺序、移除非当前曲目。随机模式调整的是洗牌排列；单曲循环时“下一首”不可用。
 - `handleTrackEnded`：单曲循环原地 `seek(0)+play()`，其余走 `next()`。
-- **pending 占位曲目**（懒加载歌单/持久化降级产物，只有 id）：`playAt` 先 `getTracksByIds` 补详情再播；失败则去掉 pending 标记凭 id 兜底直接播（网易播放 URL 只需 id）。补详情期间用户已切歌/换队列则丢弃（比较 queueIndex 和 id）。
+- **pending 占位曲目**（懒加载歌单/持久化降级产物，只有 id）：`playAt` 先 `getTracksByIds` 补详情再播；失败则去掉 pending 标记凭 id 兜底直接播（网易播放 URL 只需 id）。补详情期间用户已切歌/换队列则丢弃；队列重排后仍按当前播放会话和曲目对象定位。
 
 ## 7. 相邻曲目预加载（`src/lib/track-preload.ts`）
 
@@ -150,12 +151,12 @@ URL TTL 5 分钟——网易 CDN 链约十几分钟过期，只作短期预热�
 
 ## 9. 播放持久化（`src/lib/playback-persistence.ts`）
 
-localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉时效 URL）+ queueIndex + 进度（秒）+ 音量。
+localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉时效 URL）+ queueIndex + 随机播放顺序 + 进度（秒）+ 音量。
 
-- **落盘时机**（合并调度，已有更早的待写任务则跳过）：暂停瞬间立即写、音量 800ms、播放中进度最多每 5s、队列变化 500ms、`beforeunload` 兜底。
+- **落盘时机**（合并调度，已有更早的待写任务则跳过）：暂停瞬间立即写、音量 800ms、播放中进度最多每 5s、队列或随机顺序变化 500ms、`beforeunload` 兜底。
 - **配额降级**：整队列 JSON 超配额时，降级为占位曲目（仅 id/name/mid 等必需字段，`pending: true`），恢复后播到再补详情。
 - **兼容与校验**：可读取 1.x 无 schema 存档；未知 schema 不恢复。坏条目会被过滤，并按原始对象重新定位当前曲，避免过滤后下标错位。
-- **恢复为暂停态**：混合平台队列保留实体来源，不解析 URL、不自动播；`actualSource` 清空，`shuffleOrder` 置空。用户再次播放时才按当时参与平台创建新解析会话，因此恢复阶段不会访问已禁用或尚未核实登录态的平台。
+- **恢复为暂停态**：混合平台队列保留实体来源，不解析 URL、不自动播；`actualSource` 清空，合法的 `shuffleOrder` 一并恢复，旧存档或损坏顺序置空。用户再次播放时才按当时参与平台创建新解析会话，因此恢复阶段不会访问已禁用或尚未核实登录态的平台。
 - `initPlaybackPersistence()` 幂等（防 React StrictMode 双跑）。
 
 ## 10. 睡眠定时器（`src/stores/sleep-timer.ts`）

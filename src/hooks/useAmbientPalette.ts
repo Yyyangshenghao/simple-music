@@ -63,11 +63,11 @@ function applyPalette(palette: AmbientPalette): void {
 /** 监听当前歌曲封面，提取霞光调色板并广播到全局（store + CSS 变量）。挂在 App 顶层。 */
 export function useAmbientPalette(): void {
   const cover = usePlayerStore((s) => s.currentTrack?.cover)
-  const currentView = useNavigationStore((s) => s.currentView)
+  const shuangeActive = useNavigationStore((s) => s.currentView === 'shuange')
 
   useEffect(() => {
     // 刷歌卡片自身已用封面营造背景；切歌时反复取色 + 12 次根变量更新会与滑动动画争抢主线程。
-    if (currentView === 'shuange') {
+    if (shuangeActive) {
       if (tweenTimer) clearInterval(tweenTimer)
       tweenTimer = null
       return
@@ -75,7 +75,10 @@ export function useAmbientPalette(): void {
     if (!cover) {
       applyPalette([...DEFAULT_PALETTE])
       useAmbientStore.getState().setCoverLuma(0)
-      return
+      return () => {
+        if (tweenTimer) clearInterval(tweenTimer)
+        tweenTimer = null
+      }
     }
     let cancelled = false
     const img = new Image()
@@ -97,6 +100,8 @@ export function useAmbientPalette(): void {
       img.onload = null
       img.onerror = null
       img.src = ''
+      if (tweenTimer) clearInterval(tweenTimer)
+      tweenTimer = null
     }
-  }, [cover, currentView])
+  }, [cover, shuangeActive])
 }
