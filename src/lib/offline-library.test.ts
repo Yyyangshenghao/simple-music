@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest'
+import { filterOfflineLibrary, offlineLibraryTrack, type OfflineLibraryItem } from './offline-library'
+
+const items: OfflineLibraryItem[] = [
+  { origin: { source: 'netease', id: '1', name: 'B song', artist: 'Amy', album: 'Summer', duration: 120000 }, entryId: 'one', savedAt: 10, size: 4, quality: 'standard' },
+  { origin: { source: 'qq', id: '1', name: 'A song', artist: 'Bob' }, entryId: 'two', savedAt: 20, size: 4, quality: 'lossless' },
+]
+
+describe('离线音乐列表和播放队列', () => {
+  it('搜索标题、艺人、专辑，忽略空白与大小写', () => {
+    expect(filterOfflineLibrary(items, ' SONG ', 'savedAt')).toEqual([items[1], items[0]])
+    expect(filterOfflineLibrary(items, 'amy', 'name')).toEqual([items[0]])
+    expect(filterOfflineLibrary(items, 'summer', 'name')).toEqual([items[0]])
+    expect(filterOfflineLibrary(items, 'missing', 'savedAt')).toEqual([])
+  })
+  it('按标题、艺人或保存时间排序，不改变原始列表', () => {
+    expect(filterOfflineLibrary(items, '', 'name')).toEqual([items[1], items[0]])
+    expect(filterOfflineLibrary(items, '', 'artist')).toEqual(items)
+    expect(items[0].entryId).toBe('one')
+  })
+  it('播放队列遵循当前筛选顺序，保留跨平台同 ID 和毫秒时长', () => {
+    const queue = filterOfflineLibrary(items, '', 'savedAt').map(offlineLibraryTrack)
+    expect(queue.map((track) => `${track.source}:${track.id}`)).toEqual(['qq:1', 'netease:1'])
+    expect(queue[1]).toMatchObject({ provider: 'netease', type: 'song', name: 'B song', duration: 120000 })
+    expect(queue[1].url).toBeUndefined()
+  })
+  it('旧索引资料缺失时仍保留可播放身份', () => {
+    expect(offlineLibraryTrack({ ...items[0], origin: { source: 'qq', id: 'old' } })).toMatchObject({ source: 'qq', id: 'old', name: '未知歌曲', artist: '未知艺人' })
+  })
+})

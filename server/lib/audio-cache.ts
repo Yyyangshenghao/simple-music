@@ -801,6 +801,54 @@ function pickOfflineEntry(entries: ManagedAudioCacheEntry[], source: OnlineSourc
   })[0] ?? null
 }
 
+export interface SavedAudioCacheItem {
+  origin: AudioCacheOriginInput
+  entryId: string
+  savedAt: number
+  size: number
+  quality: string
+}
+
+async function validateIndexFiles(dir: string, index: AudioCacheIndexV1): Promise<void> {
+  let changed = false
+  for (const entry of Object.values(index.entries)) {
+    try {
+      const stat = await fsp.stat(join(dir, entry.fileName))
+      if (stat.size !== entry.size) {
+        delete index.entries[entry.entryId]
+        changed = true
+      }
+    } catch {
+      delete index.entries[entry.entryId]
+      changed = true
+    }
+  }
+  if (changed) await writeIndex(dir, index)
+}
+
+/** 按原始曲目列出主动保存内容，不暴露文件路径或临时缓存。 */
+export async function listSavedAudioCache(userDataDir: string): Promise<SavedAudioCacheItem[]> {
+  const { dir } = await getAudioCacheConfig(userDataDir)
+  return withMutation(userDataDir, async () => {
+    if (maintenanceDirs.has(dir)) return []
+    const index = await loadIndex(userDataDir, dir)
+    await validateIndexFiles(dir, index)
+    const saved = new Map<string, SavedAudioCacheItem>()
+    for (const entry of Object.values(index.entries)) {
+      if (entry.legacy) continue
+      for (const origin of entry.origins) {
+        if (origin.savedAt == null) continue
+        const key = originKey(origin)
+        const previous = saved.get(key)
+        if (previous && previous.savedAt >= origin.savedAt) continue
+        const { lastUsedAt: _lastUsedAt, savedAt, ...snapshot } = origin
+        saved.set(key, { origin: snapshot, savedAt, entryId: entry.entryId, size: entry.size, quality: entry.quality })
+      }
+    }
+    return [...saved.values()].sort((a, b) => b.savedAt - a.savedAt || originKey(a.origin).localeCompare(originKey(b.origin)))
+  })
+}
+
 export async function getAudioCacheStatuses(
   userDataDir: string,
   refs: Array<{ source: OnlineSource; id: string }>
@@ -809,20 +857,7 @@ export async function getAudioCacheStatuses(
   return withMutation(userDataDir, async () => {
     if (maintenanceDirs.has(dir)) return refs.map(({ source, id }) => ({ source, id, state: 'missing' as const }))
     const index = await loadIndex(userDataDir, dir)
-    let changed = false
-    for (const entry of Object.values(index.entries)) {
-      try {
-        const stat = await fsp.stat(join(dir, entry.fileName))
-        if (stat.size !== entry.size) {
-          delete index.entries[entry.entryId]
-          changed = true
-        }
-      } catch {
-        delete index.entries[entry.entryId]
-        changed = true
-      }
-    }
-    if (changed) await writeIndex(dir, index)
+    await validateIndexFiles(dir, index)
 
     return refs.map((ref) => {
       const source = ref.source
