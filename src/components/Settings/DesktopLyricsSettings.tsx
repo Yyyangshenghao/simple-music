@@ -55,8 +55,8 @@ export function DesktopLyricsSettings() {
         <div className={`${styles.previewText} ${fx.desktopLyricsHighlight ? styles.glow : ''}`} style={previewStyle}>
           <span className={styles.previewLine}>{fx.desktopLyricsWordByWord ? <><span>{previewLine.slice(0, 4)}</span><span className={styles.previewPending}>{previewLine.slice(4)}</span></> : previewLine}</span>
           {lineMode === 'double' && <span className={`${styles.previewLine} ${styles.previewNext}`}>下一句，也有音乐相伴</span>}
-          {fx.desktopLyricsShowRoma && <span className={styles.previewTranslation}>ràng yīn yuè péi nǐ zǒu guò měi yì tiān</span>}
-          {fx.desktopLyricsShowTranslation && <span className={styles.previewTranslation}>Let music be with you every day</span>}
+          {fx.desktopLyricsShowRoma && <span className={styles.previewTranslation}><span className={styles.previewSecondaryLabel}>音译</span><span className={styles.previewSecondaryText}>ràng yīn yuè péi nǐ zǒu guò měi yì tiān</span></span>}
+          {fx.desktopLyricsShowTranslation && <span className={styles.previewTranslation}><span className={styles.previewSecondaryLabel}>翻译</span><span className={styles.previewSecondaryText}>Let music be with you every day</span></span>}
         </div>
       </div>
 

@@ -40,7 +40,9 @@
 .previewText { position: relative; display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; flex-shrink: 0; text-align: center; text-shadow: 0 2px 5px rgba(0, 0, 0, 0.85); }
 .previewLine { flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 32px; font-weight: 700; line-height: 1.2; }
 .previewPending, .previewNext { opacity: 0.45; }
-.previewTranslation { flex-shrink: 0; overflow-wrap: anywhere; font-size: 16px; line-height: 1.2; opacity: 0.82; }
+.previewTranslation { display: flex; align-items: center; justify-content: center; gap: 0.45em; flex-shrink: 0; font-size: 19.2px; font-weight: 500; line-height: 1.25; opacity: 0.9; }
+.previewSecondaryLabel { flex-shrink: 0; padding: 0.1em 0.35em; border: 1px solid color-mix(in srgb, currentColor 28%, transparent); border-radius: 0.35em; background: rgba(0, 0, 0, 0.22); font-size: 0.7em; font-weight: 600; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.previewSecondaryText { min-width: 0; overflow-wrap: anywhere; }
 .glow .previewLine:first-child {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   filter:
@@ -85,5 +87,6 @@
   .header { padding: 18px 16px; }
   .preview { margin: 0 16px; }
   .previewLine { font-size: 24px; }
+  .previewTranslation { font-size: 14.4px; }
   .columns { padding: 20px 16px; }
 }
