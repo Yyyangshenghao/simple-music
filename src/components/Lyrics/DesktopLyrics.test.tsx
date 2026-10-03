@@ -17,6 +17,7 @@ const harness = vi.hoisted(() => ({
 }))
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
+  useLayoutEffect: () => {},
   useRef: (initial: unknown) => {
     const index = harness.refCursor++
     return harness.refs[index] ||= { current: initial }

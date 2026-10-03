@@ -126,10 +126,10 @@ describe('桌面歌词窗口同步', () => {
     h.lyrics.lines = [{ text: '歌词', time: 0 }, { text: '下一句', time: 3 }]
     Object.assign(h.fx, { desktopLyricsLineMode: 'double', desktopLyricsBackgroundOpacity: 0.3, desktopLyricsBackgroundStyle: 'frosted' })
     render()
-    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '歌词', nextLine: '下一句', backgroundOpacity: 0.3, backgroundStyle: 'frosted' }))
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ trackKey: 'local:1', lineIndex: 0, lineMode: 'double', line: '歌词', nextLine: '下一句', backgroundOpacity: 0.3, backgroundStyle: 'frosted' }))
     h.lyrics.currentIndex = 1
     render()
-    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '下一句', nextLine: '' }))
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ lineIndex: 1, line: '下一句', nextLine: '' }))
     h.lyrics.currentIndex = 0
     h.fx.desktopLyricsLineMode = 'single'
     render()
@@ -137,7 +137,7 @@ describe('桌面歌词窗口同步', () => {
     h.fx.desktopLyricsLineMode = 'double'
     h.track.id = 2
     render()
-    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '' }))
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ trackKey: 'local:2', lineIndex: -1, nextLine: '' }))
   })
   it('宽度自适应开关同步到窗口', () => {
     h.fx.desktopLyricsAutoWidth = true

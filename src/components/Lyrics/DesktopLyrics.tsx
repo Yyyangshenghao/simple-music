@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { WordLyricLine } from '../../types/domain'
 import { createWordHighlightTimeline, hasWordTiming } from '../../lib/word-highlight-timeline'
 import styles from './DesktopLyrics.module.css'
 import { fontFamilyCssValue } from '../../lib/font-family'
 import { DESKTOP_LYRICS_GAP, DESKTOP_LYRICS_LINE_HEIGHT, DESKTOP_LYRICS_TRANSLATION_SCALE } from '../../lib/desktop-lyrics-layout'
+import { canScrollDesktopLyrics, scrollDesktopLyrics, type DesktopLyricsScrollFrame } from './desktop-lyrics-scroll'
 
 interface DesktopLyricsProps {
+  trackKey?: string
+  lineIndex?: number
+  lineMode?: 'single' | 'double'
   line: string
   nextLine?: string
   wordLine?: WordLyricLine
@@ -22,10 +26,13 @@ interface DesktopLyricsProps {
 }
 
 /** 桌面歌词展示（overlay 窗口内用，纯展示）。 */
-export function DesktopLyrics({ line, nextLine, wordLine, wordClock, translation, roma, size = 38, highlight = true, fontFamily = '', fontFamilyCjk = '', color = '#ffffff', opacity = 0.92, fitHeight = false }: DesktopLyricsProps) {
+export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'single', line, nextLine, wordLine, wordClock, translation, roma, size = 38, highlight = true, fontFamily = '', fontFamilyCjk = '', color = '#ffffff', opacity = 0.92, fitHeight = false }: DesktopLyricsProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
   const clockRef = useRef({ elapsedMs: 0, playing: false, rate: 1, receivedAt: 0 })
   const timelineRef = useRef<ReturnType<typeof createWordHighlightTimeline>>(null)
+  const previousFrameRef = useRef<DesktopLyricsScrollFrame | null>(null)
+  const outgoingRef = useRef<HTMLDivElement>(null)
+  const nextRef = useRef<HTMLDivElement>(null)
   // IPC 会重新序列化整份状态；相同时序复用词列表，避免每次时钟更新重建动画。
   const wordsKey = JSON.stringify(wordLine?.words || [])
   const words = useMemo(() => JSON.parse(wordsKey) as WordLyricLine['words'], [wordsKey])
@@ -60,6 +67,18 @@ export function DesktopLyrics({ line, nextLine, wordLine, wordClock, translation
     }
   }, [timed, words])
 
+  useLayoutEffect(() => {
+    const frame = { trackKey, lineIndex, double: lineMode === 'double', line, nextLine: nextLine || '' }
+    const previous = previousFrameRef.current
+    previousFrameRef.current = frame
+    if (!canScrollDesktopLyrics(previous, frame) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const current = wordsRef.current
+    const outgoing = outgoingRef.current
+    if (!current || !outgoing || !previous) return
+    // 只移动文字，外层行框保持稳定，供解锁热区和宽度自适应测量。
+    return scrollDesktopLyrics(outgoing, current, nextRef.current, previous.line, current.getBoundingClientRect().height + DESKTOP_LYRICS_GAP)
+  }, [trackKey, lineIndex, lineMode, line, nextLine, size, fontFamily, fontFamilyCjk, highlight, fitHeight])
+
   const secondaryLines = Number(!!translation) + Number(!!roma)
   const primaryLines = 1 + Number(!!nextLine)
   const gaps = primaryLines + secondaryLines - 1
@@ -68,19 +87,20 @@ export function DesktopLyrics({ line, nextLine, wordLine, wordClock, translation
     : size
   return (
     <div className={styles.wrap} style={{ fontSize, opacity: Number.isFinite(opacity) ? Math.max(0.28, Math.min(1, opacity)) : 0.92, fontFamily: fontFamilyCssValue(fontFamily, fontFamilyCjk), color: /^#[\da-f]{6}$/i.test(color) ? color : '#ffffff' }}>
-      <div
-        ref={wordsRef}
-        data-desktop-lyrics-text
-        className={`${styles.line}${highlight ? ` ${styles.glow}` : ''}`}
-      >
-        {timed ? words.map((word, index) => (
-          <span className={styles.word} key={index}>
-            <span className={styles.wordBase}>{word.text}</span>
-            <span data-desktop-lyrics-word-fill className={styles.wordFill} aria-hidden="true">{word.text}</span>
-          </span>
-        )) : line || '♪'}
+      <div className={styles.primaryLines}>
+        <div ref={outgoingRef} aria-hidden="true" className={`${styles.line} ${styles.text} ${styles.outgoingLine}${highlight ? ` ${styles.glow}` : ''}`} />
+        <div data-desktop-lyrics-text className={styles.line}>
+          <div ref={wordsRef} className={`${styles.text}${highlight ? ` ${styles.glow}` : ''}`}>
+            {timed ? words.map((word, index) => (
+              <span className={styles.word} key={index}>
+                <span className={styles.wordBase}>{word.text}</span>
+                <span data-desktop-lyrics-word-fill className={styles.wordFill} aria-hidden="true">{word.text}</span>
+              </span>
+            )) : line || '♪'}
+          </div>
+        </div>
+        {nextLine ? <div data-desktop-lyrics-text className={`${styles.line} ${styles.nextLine}`}><div ref={nextRef} className={styles.text}>{nextLine}</div></div> : null}
       </div>
-      {nextLine ? <div data-desktop-lyrics-text className={`${styles.line} ${styles.nextLine}`}>{nextLine}</div> : null}
       {roma ? <div data-desktop-lyrics-text className={styles.translation}>{roma}</div> : null}
       {translation ? (
         <div data-desktop-lyrics-text className={styles.translation}>

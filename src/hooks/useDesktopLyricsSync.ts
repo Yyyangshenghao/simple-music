@@ -63,6 +63,7 @@ export function useDesktopLyricsSync(): void {
     }
   }
   const payload: LyricsPayload = {
+    trackKey: currentKey, lineIndex: hasCurrentLyric ? currentIndex : -1, lineMode,
     line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || currentTrack?.name || fallback) : fallback,
     translation: matching && showTranslation && currentIndex >= 0 ? (translation[currentIndex]?.text ?? '') : '',
     roma: matching && showRoma && currentIndex >= 0 ? (romaji[currentIndex]?.text ?? '') : '',

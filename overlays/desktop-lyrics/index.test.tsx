@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({ payload: {} as LyricsPayload, render: vi.fn(
 vi.mock('react-dom/client', () => ({ createRoot: () => ({ render: harness.render }) }))
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
+  useLayoutEffect: () => {},
   useState: () => [harness.payload, vi.fn()]
 }))
 

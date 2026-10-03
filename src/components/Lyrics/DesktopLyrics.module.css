@@ -13,17 +13,41 @@
   padding: 4px 64px;
 }
 
+.primaryLines {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  margin: -4px 0;
+  overflow: hidden;
+}
+
 .line {
   flex-shrink: 0;
   max-width: 100%;
-  overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
   font-weight: 700;
   color: inherit;
   font-size: 1em;
   line-height: 1.25;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.95);
+}
+
+.text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.outgoingLine {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
 }
 
 .glow {
