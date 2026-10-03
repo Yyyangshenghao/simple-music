@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({
   fx: { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsFontFamilyCjk: '', desktopLyricsBackgroundOpacity: 0.68, desktopLyricsBackgroundStyle: 'dark', desktopLyricsAutoWidth: false, desktopLyricsLineMode: 'single', desktopLyricsWordByWord: false, desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false },
   player: { status: 'playing', position: 0, rate: 1, playbackTransport: 'local', _engine: () => ({ position: h.player.position }) },
   lyrics: { currentIndex: 0, offsetSec: 0, wordLines: [] as import('../types/domain').WordLyricLine[], lines: [{ text: '歌词', time: 0 }], translation: [{ text: '翻译', time: 0 }], romaji: [{ text: 'ongaku', time: 0 }], trackKey: 'local:1', loading: false },
-  track: { source: 'local', id: 1, name: '第一首' },
+  track: { source: 'local', id: 1, name: '第一首', artist: '' },
   updateFx: vi.fn(), setEnabled: vi.fn(),
   onEnabled: undefined as ((event: { enabled: boolean; requested?: boolean }) => void) | undefined,
   onLock: undefined as ((event: { locked: boolean }) => void) | undefined,
@@ -43,12 +43,12 @@ beforeEach(() => {
   h.effects.forEach((effect) => effect.cleanup?.())
   h.effects = []
   Object.assign(h.player, { status: 'playing', position: 0, rate: 1 })
-  Object.assign(h.lyrics, { currentIndex: 0, offsetSec: 0, wordLines: [], lines: [{ text: '歌词', time: 0 }] })
+  Object.assign(h.lyrics, { currentIndex: 0, offsetSec: 0, wordLines: [], loading: false, lines: [{ text: '歌词', time: 0 }] })
   h.sizeRef.current = null
   Object.assign(h.fx, { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsFontFamilyCjk: '', desktopLyricsBackgroundOpacity: 0.68, desktopLyricsBackgroundStyle: 'dark', desktopLyricsAutoWidth: false, desktopLyricsLineMode: 'single', desktopLyricsWordByWord: false, desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false })
   h.lyrics.romaji = [{ text: 'ongaku', time: 0 }]
   h.lyrics.trackKey = 'local:1'
-  h.track.id = 1
+  h.track = { source: 'local', id: 1, name: '第一首', artist: '' }
   vi.clearAllMocks()
   vi.stubGlobal('window', { desktop: {
     setDesktopLyricsEnabled: vi.fn(async () => ({ ok: true })), updateDesktopLyrics: vi.fn(async () => ({ ok: true })),
@@ -60,6 +60,51 @@ beforeEach(() => {
 afterEach(() => { h.effects.forEach((effect) => effect.cleanup?.()); h.effects = []; vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('桌面歌词窗口同步', () => {
+  it.each(['single', 'double'])('%s 模式在前奏、加载和无歌词占位时按行数显示歌手', (lineMode) => {
+    h.fx.desktopLyricsLineMode = lineMode
+    h.track.artist = '歌手甲 / 歌手乙'
+    h.lyrics.currentIndex = -1
+    render()
+    const nextLine = lineMode === 'double' ? h.track.artist : ''
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '第一首', nextLine }))
+    h.lyrics.loading = true
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '正在获取歌词…', nextLine }))
+    h.lyrics.loading = false
+    h.lyrics.lines = []
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '暂无歌词 · 第一首', nextLine }))
+    h.lyrics.currentIndex = 0
+    h.lyrics.lines = [{ text: '', time: 0 }]
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '第一首', nextLine }))
+  })
+  it('双行歌手占位随切歌更新，进入歌词、切成单行或缺少歌手时正确收起', () => {
+    h.fx.desktopLyricsLineMode = 'double'
+    h.track.artist = '歌手甲'
+    h.lyrics.currentIndex = -1
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '歌手甲' }))
+    h.track = { ...h.track, id: 2, name: '第二首', artist: '歌手乙' }
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '歌手乙', translation: '', roma: '' }))
+    h.lyrics.trackKey = 'local:2'
+    h.lyrics.currentIndex = 0
+    h.lyrics.lines = [{ text: '新歌词', time: 0 }, { text: '下一句', time: 3 }]
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '新歌词', nextLine: '下一句' }))
+    h.lyrics.currentIndex = 1
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '' }))
+    h.lyrics.currentIndex = -1
+    h.fx.desktopLyricsLineMode = 'single'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '第二首', nextLine: '' }))
+    h.fx.desktopLyricsLineMode = 'double'
+    h.track.artist = ''
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '' }))
+  })
   it.each([
     ['win32', 'frosted'],
     ['darwin', 'frosted'],

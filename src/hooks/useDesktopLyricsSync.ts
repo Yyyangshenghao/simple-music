@@ -47,6 +47,7 @@ export function useDesktopLyricsSync(): void {
   const fallback = currentTrack
     ? loading || !matching ? '正在获取歌词…' : lines.length ? currentTrack.name : '暂无歌词 · ' + currentTrack.name
     : '播放音乐后显示歌词'
+  const hasCurrentLyric = matching && currentIndex >= 0 && !!lines[currentIndex]?.text
   const candidate = matching && wordByWord && currentIndex >= 0 ? wordLines[currentIndex] : undefined
   const wordLine = candidate && hasWordTiming(candidate.words)
     && candidate.time === lines[currentIndex]?.time
@@ -65,7 +66,9 @@ export function useDesktopLyricsSync(): void {
     line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || currentTrack?.name || fallback) : fallback,
     translation: matching && showTranslation && currentIndex >= 0 ? (translation[currentIndex]?.text ?? '') : '',
     roma: matching && showRoma && currentIndex >= 0 ? (romaji[currentIndex]?.text ?? '') : '',
-    nextLine: matching && lineMode === 'double' && currentIndex >= 0 ? (lines[currentIndex + 1]?.text ?? '') : '',
+    nextLine: lineMode === 'double'
+      ? hasCurrentLyric ? (lines[currentIndex + 1]?.text ?? '') : (currentTrack?.artist ?? '')
+      : '',
     autoWidth, wordLine, wordClock: readWordClock(), backgroundOpacity, backgroundStyle,
     ...(size === sizeFromWindow.current ? {} : { size }), fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight
   }
