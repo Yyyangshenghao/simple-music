@@ -34,10 +34,15 @@ it('未锁定时保留锁定、关闭和调整大小控件，没有顶部提示�
 
 it('音译在主歌词和翻译之间显示，关闭时没有额外空行', () => {
   const html = renderOverlay({ line: '音楽', roma: 'ongaku', translation: '音乐' })
+  expect(html).toMatch(/>音译<\/span><span[^>]*>ongaku<\/span>/)
+  expect(html).toMatch(/>翻译<\/span><span[^>]*>音乐<\/span>/)
   expect(html.indexOf('音楽')).toBeLessThan(html.indexOf('ongaku'))
   expect(html.indexOf('ongaku')).toBeLessThan(html.indexOf('音乐'))
   expect(html.match(/data-desktop-lyrics-text/g)).toHaveLength(3)
-  expect(renderOverlay({ line: '音楽', roma: '', translation: '' }).match(/data-desktop-lyrics-text/g)).toHaveLength(1)
+  const empty = renderOverlay({ line: '音楽', roma: '', translation: '' })
+  expect(empty.match(/data-desktop-lyrics-text/g)).toHaveLength(1)
+  expect(empty).not.toContain('>音译</span>')
+  expect(empty).not.toContain('>翻译</span>')
 })
 
 it('锁定时隐藏编辑控件，悬停提示到达后才启用解锁图标', () => {

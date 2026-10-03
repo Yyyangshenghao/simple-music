@@ -58,16 +58,37 @@
 }
 
 .translation {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
   flex-shrink: 0;
   max-width: 100%;
+  white-space: nowrap;
+  color: inherit;
+  opacity: 0.9;
+  font-size: 0.6em;
+  font-weight: 500;
+  line-height: 1.25;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.secondaryLabel {
+  flex-shrink: 0;
+  padding: 0.1em 0.35em;
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 0.35em;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.7em;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.secondaryText {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: inherit;
-  opacity: 0.82;
-  font-size: 0.6em;
-  line-height: 1.25;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 .nextLine {

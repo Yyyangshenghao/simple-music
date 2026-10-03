@@ -122,6 +122,8 @@ describe('桌面歌词设置', () => {
         expect(html).toContain('让音乐陪你走过每一天')
         expect(html.includes('Let music be with you every day')).toBe(translation)
         expect(html.includes('ràng yīn yuè péi nǐ zǒu guò měi yì tiān')).toBe(roma)
+        expect(html.includes('>翻译</span>')).toBe(translation)
+        expect(html.includes('>音译</span>')).toBe(roma)
         expect(html.includes('下一句，也有音乐相伴')).toBe(lineMode === 'double')
       }
     }

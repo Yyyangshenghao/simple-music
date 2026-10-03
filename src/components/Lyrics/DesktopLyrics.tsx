@@ -101,10 +101,16 @@ export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'singl
         </div>
         {nextLine ? <div data-desktop-lyrics-text className={`${styles.line} ${styles.nextLine}`}><div ref={nextRef} className={styles.text}>{nextLine}</div></div> : null}
       </div>
-      {roma ? <div data-desktop-lyrics-text className={styles.translation}>{roma}</div> : null}
+      {roma ? (
+        <div data-desktop-lyrics-text className={styles.translation}>
+          <span className={styles.secondaryLabel}>音译</span>
+          <span className={styles.secondaryText}>{roma}</span>
+        </div>
+      ) : null}
       {translation ? (
         <div data-desktop-lyrics-text className={styles.translation}>
-          {translation}
+          <span className={styles.secondaryLabel}>翻译</span>
+          <span className={styles.secondaryText}>{translation}</span>
         </div>
       ) : null}
     </div>
