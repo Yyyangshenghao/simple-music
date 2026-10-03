@@ -41,7 +41,12 @@
 .previewLine { flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 32px; font-weight: 700; line-height: 1.2; }
 .previewPending, .previewNext { opacity: 0.45; }
 .previewTranslation { flex-shrink: 0; overflow-wrap: anywhere; font-size: 16px; line-height: 1.2; opacity: 0.82; }
-.glow { text-shadow: 0 0 12px color-mix(in srgb, var(--lyrics-preview-color) 60%, transparent), 0 2px 5px rgba(0, 0, 0, 0.85); }
+.glow .previewLine:first-child {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  filter:
+    drop-shadow(0 0 clamp(1px, 0.06em, 3px) color-mix(in srgb, var(--lyrics-preview-color) 35%, transparent))
+    drop-shadow(0 0 clamp(2px, 0.12em, 5px) color-mix(in srgb, var(--lyrics-preview-color) 18%, transparent));
+}
 
 .columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 22px 24px 24px; }
 .settings { min-width: 0; }

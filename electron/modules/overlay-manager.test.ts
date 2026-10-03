@@ -121,7 +121,7 @@ describe('桌面歌词窗口交互', () => {
   it('窗口紧凑，解锁时可直接交互，锁定穿透且不允许拖动', () => {
     setLyricsEnabled(true, { clickThrough: false, opacity: 0.92 })
     const win = harness.instances[0]
-    expect(win.bounds.height).toBe(90)
+    expect(win.bounds.height).toBe(96)
     expect(win.bounds.width).toBe(680)
     if (process.platform === 'darwin') {
       expect(win.setResizable).toHaveBeenCalledWith(true)
@@ -450,9 +450,9 @@ describe('桌面歌词窗口交互', () => {
     expect(next.bounds).toMatchObject({ width: 420, height: 90 })
     updateLyrics({ translation: '翻译' })
     setLyricsControlBounds({ left: 190, top: 2, right: 218, bottom: 30 })
-    expect(next.bounds).toMatchObject({ width: 420, height: Math.ceil(desktopLyricsHeight(38, true)) })
+    expect(next.bounds).toMatchObject({ width: 420, height: Math.ceil(desktopLyricsHeight(desktopLyricsSize(90, false), true)) })
     resizeLyrics(-100, -100)
-    expect(next.bounds).toMatchObject({ width: 280, height: 74 })
+    expect(next.bounds).toMatchObject({ width: 280, height: 76 })
     resizeLyrics(10000, 10000)
     expect(next.bounds).toMatchObject({ x: 0, y: 0, width: 1920, height: 1080 })
   })
@@ -487,9 +487,9 @@ describe('桌面歌词窗口交互', () => {
     expect(win.bounds.x + win.bounds.width).toBe(620)
     expect(win.bounds.y + win.bounds.height).toBe(380)
     expect(win.bounds.width).toBe(280)
-    expect(win.bounds.height).toBe(86)
+    expect(win.bounds.height).toBe(89)
     updateLyrics({ roma: '' })
-    const size = desktopLyricsSize(86, true, true)
+    const size = desktopLyricsSize(89, true, true)
     expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(size, true)))
     expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ roma: '', size }))
     setLyricsLock(true)

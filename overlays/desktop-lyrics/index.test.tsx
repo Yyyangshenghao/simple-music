@@ -62,7 +62,7 @@ it('双行显示下一句，音译和翻译继续作为独立辅助行', () => {
   expect(html.indexOf('第一句')).toBeLessThan(html.indexOf('第二句'))
   expect(html.indexOf('第二句')).toBeLessThan(html.indexOf('diyiju'))
   expect(html.match(/data-desktop-lyrics-text/g)).toHaveLength(4)
-  expect(html).toContain('calc((100cqh - 8px - 12px) / 3.5200000000000005)')
+  expect(html).toContain('calc((100cqh - 8px - 12px) / 4)')
 })
 
 it('底框传递透明度与毛玻璃样式，并限制透明度范围', () => {
