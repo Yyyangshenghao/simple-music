@@ -175,6 +175,150 @@ describe('播放器离线优先与回退', () => {
     expect(h.load).toHaveBeenCalledOnce()
     expect(usePlayerStore.getState().currentTrack?.id).toBe('new')
   })
+
+  it.each(['offline', 'online'] as const)('%s 等待期间暂停和拖动用于最终加载', async (phase) => {
+    let finish!: () => void
+    if (phase === 'offline') {
+      h.status.mockReturnValueOnce(new Promise(resolve => { finish = () => resolve(offline) }))
+    } else {
+      h.status.mockResolvedValue({ state: 'missing' })
+      h.next.mockReturnValueOnce(new Promise(resolve => { finish = () => resolve(online) }))
+    }
+    const loading = usePlayerStore.getState().loadTrack(track)
+    if (phase === 'online') await vi.waitFor(() => expect(h.next).toHaveBeenCalledOnce())
+    usePlayerStore.getState().toggle()
+    usePlayerStore.getState().seek(45)
+    expect(usePlayerStore.getState()).toMatchObject({ status: 'paused', position: 45 })
+    finish()
+    await loading
+    expect(h.load.mock.calls[0][1]).toBe(45)
+    expect(h.play).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState().status).toBe('paused')
+  })
+
+  it.each(['offline', 'online'] as const)('%s 等待期间暂停再恢复复用当前请求', async (phase) => {
+    let finish!: () => void
+    if (phase === 'offline') {
+      h.status.mockReturnValueOnce(new Promise(resolve => { finish = () => resolve(offline) }))
+    } else {
+      h.status.mockResolvedValue({ state: 'missing' })
+      h.next.mockReturnValueOnce(new Promise(resolve => { finish = () => resolve(online) }))
+    }
+    const loading = usePlayerStore.getState().loadTrack(track)
+    if (phase === 'online') await vi.waitFor(() => expect(h.next).toHaveBeenCalledOnce())
+    usePlayerStore.getState().pause()
+    usePlayerStore.getState().seek(25)
+    usePlayerStore.getState().play()
+    expect(h.status).toHaveBeenCalledOnce()
+    expect(h.next).toHaveBeenCalledTimes(phase === 'online' ? 1 : 0)
+    expect(h.play).not.toHaveBeenCalled()
+    finish()
+    await loading
+    expect(h.load.mock.calls[0][1]).toBe(25)
+    expect(h.play).toHaveBeenCalledOnce()
+  })
+
+  it('已加载候选暂停后失败回退保留暂停和最新拖动位置，恢复后可继续回退', async () => {
+    await usePlayerStore.getState().loadTrack(track)
+    h.play.mockClear()
+    usePlayerStore.getState().pause()
+    usePlayerStore.getState().seek(50)
+    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledTimes(2))
+    expect(h.load.mock.calls[1][1]).toBe(50)
+    expect(h.play).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState().status).toBe('paused')
+    usePlayerStore.getState().play()
+    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledTimes(3))
+    expect(h.play).toHaveBeenCalledTimes(2)
+  })
+
+  it('新曲等待离线查询时清除旧音轨，旧进度和结束事件不污染新目标', async () => {
+    await usePlayerStore.getState().loadTrack(track)
+    let finish!: (status: OfflineCacheStatus) => void
+    h.status.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const next = vi.fn()
+    registerTrackEndedHandler(next)
+    try {
+      const loading = usePlayerStore.getState().loadTrack({ ...track, id: 'new' })
+      expect(h.hasSource).toBe(false)
+      h.callbacks.onPosition?.(179)
+      h.callbacks.onDuration?.(888)
+      h.callbacks.onStatus?.('playing')
+      h.callbacks.onEnded?.()
+      expect(next).not.toHaveBeenCalled()
+      expect(usePlayerStore.getState()).toMatchObject({ status: 'loading', position: 0, duration: 180 })
+      finish(offline)
+      await loading
+      h.callbacks.onPosition?.(5)
+      h.callbacks.onStatus?.('playing')
+      expect(usePlayerStore.getState()).toMatchObject({ status: 'playing', position: 5 })
+    } finally {
+      registerTrackEndedHandler(() => {})
+    }
+  })
+
+  it('错误候选等待下一地址时丢弃结束事件，并保留暂停和拖动意图', async () => {
+    await usePlayerStore.getState().loadTrack(track)
+    let finish!: (candidate: PlaybackCandidate) => void
+    h.next.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const next = vi.fn()
+    registerTrackEndedHandler(next)
+    try {
+      h.callbacks.onPosition?.(20)
+      h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+      expect(h.hasSource).toBe(false)
+      usePlayerStore.getState().pause()
+      usePlayerStore.getState().seek(10)
+      h.callbacks.onEnded?.()
+      expect(next).not.toHaveBeenCalled()
+      finish(online)
+      await vi.waitFor(() => expect(h.load).toHaveBeenCalledTimes(2))
+      expect(h.load.mock.calls[1][1]).toBe(10)
+      expect(usePlayerStore.getState().status).toBe('paused')
+    } finally {
+      registerTrackEndedHandler(() => {})
+    }
+  })
+
+  it.each(['pause', 'switch'] as const)('设备恢复等待期间 %s 不自动开播或重载新曲目', async (action) => {
+    vi.useFakeTimers()
+    try {
+      await usePlayerStore.getState().loadTrack(track)
+      h.callbacks.onPosition?.(35)
+      h.callbacks.onStatus?.('playing')
+      h.callbacks.onOutputDeviceChange?.(true)
+      if (action === 'pause') usePlayerStore.getState().pause()
+      else await usePlayerStore.getState().loadTrack({ ...track, id: 'new' })
+      const requests = h.status.mock.calls.length
+      await vi.advanceTimersByTimeAsync(200)
+      expect(h.status).toHaveBeenCalledTimes(requests)
+      if (action === 'pause') expect(usePlayerStore.getState().status).toBe('paused')
+      else expect(usePlayerStore.getState().currentTrack?.id).toBe('new')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('设备恢复同一会话从防抖结束时的最新位置继续播放', async () => {
+    vi.useFakeTimers()
+    try {
+      await usePlayerStore.getState().loadTrack(track)
+      h.callbacks.onPosition?.(35)
+      h.callbacks.onStatus?.('playing')
+      h.callbacks.onOutputDeviceChange?.(true)
+      usePlayerStore.getState().seek(50)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(h.load).toHaveBeenCalledTimes(2)
+      expect(h.load.mock.calls[1][1]).toBe(50)
+      expect(h.play).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('Apple Music 官方播放通道', () => {

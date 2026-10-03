@@ -43,3 +43,24 @@
   line-height: 1.1;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
+
+.nextLine {
+  opacity: 0.62;
+}
+
+.word {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+}
+
+.wordBase {
+  opacity: 0.38;
+}
+
+.wordFill {
+  position: absolute;
+  inset: 0;
+  color: inherit;
+  clip-path: inset(0 100% 0 0);
+}

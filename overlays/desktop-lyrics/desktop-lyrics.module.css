@@ -31,7 +31,7 @@
   height: 100%;
   border: 1px solid transparent;
   border-radius: 10px;
-  background: transparent;
+  background: rgba(18, 22, 29, var(--frame-opacity, 0.68));
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
@@ -39,8 +39,12 @@
   --controls-opacity: 1;
   --controls-visibility: visible;
   border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(18, 22, 29, 0.68);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
+}
+
+.frame.frosted {
+  /* 真实桌面模糊由底框区域内的原生 NSVisualEffectView 提供。 */
+  background: transparent;
 }
 
 .overlay button {

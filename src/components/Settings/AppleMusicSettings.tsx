@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
-import { SourceName } from '../ui/SourceName'
+import { InfoButton } from '../ui/InfoButton'
 import styles from './AppleMusicSettings.module.css'
 
 export function AppleMusicSettings() {
@@ -20,36 +20,22 @@ export function AppleMusicSettings() {
 
   useEffect(() => { void refresh() }, [refresh])
 
+  const subscriptionHint = account?.loggedIn && subscription === 'inactive'
+    ? '无有效订阅：此账号没有有效的 Apple Music 订阅，Apple 音源已保持禁用。'
+    : account?.loggedIn && subscription === 'active'
+      ? '订阅有效，可播放完整歌曲。歌曲会直接在 Simple Music 内播放，可使用播放队列、快捷键和迷你播放器。'
+      : account?.loggedIn
+        ? '正在确认订阅状态，确认完成前不会启用 Apple 音源。'
+        : '完整播放需要有效的 Apple Music 订阅；没有订阅仍可登录，但 Apple 音源不会启用，也不能播放完整歌曲；免费广播暂未接入。完成 Apple 账号授权后，即可在 Simple Music 中选歌和播放。'
+
   return (
-    <section className={styles.panel} aria-label="Apple Music 账户">
-      <div className={styles.header}>
-        <div>
-          <h3><SourceName source="apple" /></h3>
-          <p>登录后即可在 Simple Music 使用 Apple Music 音源。</p>
-        </div>
-        <span className={styles.badge}>{badge}</span>
-      </div>
-      <div className={styles.actions}>
-        <button className={styles.primary} disabled={busy || !!(account?.loggedIn && account.connected)} onClick={() => void connect()}>
-          {account?.restoring ? '正在恢复 Apple Music…' : phase === 'opening' ? '正在打开…' : waiting ? '等待 Apple 授权…' : account?.loggedIn ? account.connected
-            ? subscription === 'inactive' ? '无有效订阅' : subscription === 'unknown' ? '正在确认订阅…' : '已连接 Apple Music'
-            : '重新连接' : '登录 Apple Music'}
-        </button>
-        {(account?.loggedIn || waiting) && <button disabled={phase === 'opening' || phase === 'disconnecting'} onClick={() => void disconnect()}>{waiting ? '取消登录' : '退出登录'}</button>}
-        {!account && <button disabled={busy} onClick={() => void refresh()}>重新检测</button>}
-      </div>
-      <div className={styles.subscriptionNotice} role="note">
-        <strong>{account?.loggedIn && subscription === 'inactive' ? '此账号没有有效的 Apple Music 订阅' : account?.loggedIn && subscription === 'active' ? '订阅有效，可播放完整歌曲' : account?.loggedIn ? '正在确认 Apple Music 订阅状态' : '完整播放需要有效的 Apple Music 订阅'}</strong>
-        <span>{account?.loggedIn && subscription === 'inactive'
-          ? '账号已登录，但不能播放完整歌曲；Apple 音源已保持禁用。'
-          : account?.loggedIn && subscription === 'active'
-            ? 'Apple 已确认该账号可播放订阅目录内容。'
-            : account?.loggedIn
-              ? '确认完成前不会启用 Apple 音源，避免点歌后才出现播放错误。'
-              : '没有订阅仍可完成账号登录，但 Apple 音源不会启用，也不能播放完整歌曲；免费广播暂未接入。'}</span>
-      </div>
-      <p>{account?.loggedIn && account.connected && subscription === 'active' ? '歌曲会直接在 Simple Music 内播放，可使用播放队列、快捷键和迷你播放器。' : '完成 Apple 账号授权后，即可在 Simple Music 中选歌和播放。'}</p>
-      {message && <p className={error ? styles.error : styles.message} role={error ? 'alert' : 'status'}>{message}</p>}
-    </section>
+    <div className={styles.actions} aria-label="Apple Music 账户">
+      <InfoButton label="Apple Music 登录与订阅" text={`${badge}。${subscriptionHint}${message ? ` ${message}` : ''}`} />
+      <button disabled={busy || !!(account?.loggedIn && account.connected)} onClick={() => void connect()} aria-label={account?.loggedIn && account.connected ? '已登录 Apple Music' : '登录 Apple Music'}>
+        {account?.restoring ? '恢复中…' : phase === 'opening' ? '打开中…' : waiting ? '等待授权…' : account?.loggedIn ? account.connected ? '已登录' : '重新连接' : '登录'}
+      </button>
+      {(account?.loggedIn || waiting) && <button disabled={phase === 'opening' || phase === 'disconnecting'} onClick={() => void disconnect()}>{waiting ? '取消登录' : '退出登录'}</button>}
+      {!account && error && <button disabled={busy} onClick={() => void refresh()}>重新检测</button>}
+    </div>
   )
 }

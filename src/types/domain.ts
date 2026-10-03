@@ -148,8 +148,14 @@ export interface FxSnapshot {
   desktopLyrics: boolean
   desktopLyricsSize: number
   desktopLyricsFontFamily: string
+  desktopLyricsFontFamilyCjk: string
   desktopLyricsColor: string
   desktopLyricsOpacity: number
+  desktopLyricsBackgroundOpacity: number
+  desktopLyricsBackgroundStyle: 'dark' | 'frosted'
+  desktopLyricsAutoWidth: boolean
+  desktopLyricsLineMode: 'single' | 'double'
+  desktopLyricsWordByWord: boolean
   desktopLyricsY: number
   desktopLyricsClickThrough: boolean
   desktopLyricsCinema: boolean

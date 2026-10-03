@@ -23,6 +23,7 @@ import {
   deleteAudioCacheEntry,
   clearAudioCacheScope,
   openAudioCacheEntry,
+  audioCacheEntryId,
 } from './audio-cache'
 
 describe('isFullStreamRequest', () => {
@@ -167,12 +168,33 @@ describe('磁盘读写(临时目录)', () => {
     const w = await openAudioCacheWriter(userData, 'a')
     w!.write(new Uint8Array(8))
     await w!.commit()
-    await writeFile(join(audioCacheDir(userData), 'leftover.part'), new Uint8Array(4))
+    await writeFile(join(audioCacheDir(userData), `${audioCacheEntryId('leftover')}.bin.part`), new Uint8Array(4))
     await clearAudioCache(userData)
     const stats = await audioCacheStats(userData)
     expect(stats.bytes).toBe(0)
     expect(stats.files).toBe(0)
     expect((await readdir(audioCacheDir(userData))).filter((n) => n.endsWith('.part'))).toEqual([])
+  })
+
+  it.each(['clear', 'move'])('%s 自定义缓存目录保留其他文件并清理新旧格式孤立缓存', async (action) => {
+    const userData = await makeUserDataDir()
+    try {
+      const shared = join(userData, 'shared')
+      await updateAudioCacheConfig(userData, { dir: shared })
+      const writer = await openAudioCacheWriter(userData, 'known-cache')
+      await writer!.write(new Uint8Array([1, 2, 3]))
+      await writer!.commit()
+      const entryId = audioCacheEntryId('known-cache')
+      const temporary = [`${entryId}.bin.part`, `${entryId}.123456abcdef.part`]
+      const unrelated = ['personal-data.bin', 'unfinished-work.part', '.audio-cache-index-v1.json.notes']
+      for (const file of [...temporary, ...unrelated]) await writeFile(join(shared, file), 'data')
+      if (action === 'clear') expect(await clearAudioCacheScope(userData, 'all')).toEqual({ ok: true })
+      else expect((await updateAudioCacheConfig(userData, { dir: join(userData, 'new') })).ok).toBe(true)
+      for (const file of unrelated) expect(await readFile(join(shared, file), 'utf8')).toBe('data')
+      for (const file of [`${entryId}.bin`, ...temporary]) await expect(fs.stat(join(shared, file))).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      await fs.rm(userData, { recursive: true, force: true })
+    }
   })
 
   it('主动保存写入固定状态，取消固定后降级为自动缓存', async () => {

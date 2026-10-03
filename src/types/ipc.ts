@@ -1,3 +1,5 @@
+import type { WordLyricLine } from './domain'
+
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
 // overlay 窗口的内部通道（见底部 OverlayChannels/OverlayEvents）不属于主契约。
 
@@ -44,10 +46,19 @@ export interface LoginResult {
 
 /** 桌面歌词 payload：已知控制字段 + 渲染层自定义内容字段。 */
 export interface LyricsPayload {
+  autoWidth?: boolean
   size?: number
   fontFamily?: string
+  fontFamilyCjk?: string
   color?: string
   roma?: string
+  nextLine?: string
+  wordLine?: WordLyricLine
+  wordClock?: { elapsedMs: number; playing: boolean; rate: number }
+  backgroundOpacity?: number
+  backgroundStyle?: 'dark' | 'frosted'
+  /** 主进程创建局部原生背景后的能力标记，非用户偏好。 */
+  nativeGlass?: boolean
   enabled?: boolean
   y?: number
   opacity?: number
@@ -221,7 +232,7 @@ export interface OverlayChannels {
   'overlay:lyrics-set-dragging': { req: { dragging: boolean }; res: OkResult }
   'overlay:lyrics-set-pointer-capture': { req: { active: boolean }; res: OkResult }
   'overlay:lyrics-set-hot-bounds': { req: HotBounds; res: OkResult }
-  'overlay:lyrics-set-control-bounds': { req: HotBounds & { hover?: HotBounds }; res: OkResult }
+  'overlay:lyrics-set-control-bounds': { req: HotBounds & { hover?: HotBounds; contentWidth?: number }; res: OkResult }
   'overlay:lyrics-set-lock': { req: { locked: boolean }; res: OkResult }
   'overlay:lyrics-move-by': { req: { dx: number; dy: number }; res: OkResult }
   'overlay:lyrics-resize': { req: { width: number; height: number; anchor?: 'top-left' }; res: OkResult }

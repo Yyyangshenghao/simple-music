@@ -38,6 +38,9 @@ describe('Apple Music 设置', () => {
   ])('%s始终说明订阅与播放边界', (_, account) => {
     h.account = account
     const html = renderToStaticMarkup(<AppleMusicSettings />)
+    expect(html).toContain('role="tooltip"')
+    expect(html).toContain('Apple Music 登录与订阅说明')
+    expect(html).not.toContain('<section')
 
     if (account) {
       expect(html).toContain('订阅有效，可播放完整歌曲')

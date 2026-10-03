@@ -17,6 +17,7 @@
 | `NeteaseCloudMusicApi` ^4.32 | `server/lib/netease-client.ts` | 网易云接口封装（Binaryify，MIT）。注意：CommonJS 包，ESM 下接口函数挂在 `default` 上，`netease-client.ts` 统一解包成 `ncmTable`，并用 `has()/call()` 做可用性探测（不同版本导出面不同）。 |
 | `mpg123-decoder` ^1 | `server/lib/dj-analyzer.ts` | WASM MP3 解码器，纯 Node 侧解码播客长音频做锁拍分析（不依赖浏览器 AudioContext）。动态 `import()` 按需加载。 |
 | `music-metadata` ^11 | `server/lib/local-library.ts` | 扫描本地音乐时读取标题、歌手、专辑、时长与内嵌封面；文件访问始终通过本地索引 id 反查。 |
+| `koffi` 2.16.3 | `electron/modules/macos-lyrics-window.ts`、`lyrics-native-backdrop.ts` | macOS 桌面歌词的非激活交互和局部 AppKit 毛玻璃；仅 macOS 按需加载，原生文件通过 `asarUnpack` 解包。非激活标记使用私有接口，升级系统或 Electron 后需实测；毛玻璃使用公开接口，失败回退暗灰底框。 |
 
 ## 开发依赖（devDependencies）
 

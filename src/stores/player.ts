@@ -299,7 +299,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       return
     }
     active.advancing = true
-    if (reason) active.startAt = Math.max(active.startAt, get().position)
+    if (reason) {
+      active.startAt = Math.max(active.startAt, get().position)
+      active.engineLoadId = 0
+      ensureEngine().clearSource()
+    }
     try {
       let candidate: PlaybackCandidate | null
       if (reason && active.candidateKind === 'external' && active.candidate) {
@@ -382,9 +386,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
     engine = new AudioEngine({
-      onPosition: (s) => { if (get().currentTrack?.source !== 'apple') set({ position: s }) },
-      onDuration: (d) => { if (get().currentTrack?.source !== 'apple') set({ duration: d }) },
-      onStatus: (status) => { if (get().currentTrack?.source !== 'apple') set({
+      onPosition: (s) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ position: s }) },
+      onDuration: (d) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ duration: d }) },
+      onStatus: (status) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({
         status: playbackStatusForEngineEvent(status, activePlayback?.autoplay ?? true),
       }) },
       onCanPlay: commitPlayableCandidate,
@@ -396,11 +400,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         if (get().currentTrack?.source === 'apple') return
         const state = get()
         if (!state.currentTrack || !shouldRecoverAfterOutputDeviceChange(state.status, wasPlaying)) return
+        const session = loadSession
         if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
         outputRecoveryTimer = setTimeout(() => {
           outputRecoveryTimer = null
           const latest = get()
-          if (!latest.currentTrack) return
+          if (session !== loadSession || !latest.currentTrack || !shouldAutoplayPlaybackReload(latest.status)) return
           void latest.loadTrack(latest.currentTrack, {
             startAt: latest.position,
             contextId: latest.contextId,
@@ -409,7 +414,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         }, 200)
       },
       onEnded: () => {
-        if (get().currentTrack?.source !== 'apple') trackEnded()
+        if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') trackEnded()
       }
     })
     return engine
@@ -434,8 +439,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
 
     play() {
       if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
-      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.autoplay = true
+      if (activePlayback) activePlayback.autoplay = true
+      if (activePlayback && !activePlayback.engineLoadId && (!activePlayback.candidate || activePlayback.advancing)) {
         set({ status: 'loading' })
         return
       }
@@ -449,24 +454,20 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       void eng.play()
     },
     pause() {
+      if (activePlayback) activePlayback.autoplay = false
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
-      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.autoplay = false
-        ensureEngine().pause()
-        set({ status: 'paused' })
-        return
-      }
       ensureEngine().pause()
+      set({ status: 'paused' })
     },
     toggle() {
       const s = get().status
-      if (s === 'playing' || (get().currentTrack?.source === 'apple' && s === 'loading')) get().pause()
+      if (s === 'playing' || s === 'loading') get().pause()
       else get().play()
     },
     seek(seconds) {
+      if (activePlayback) activePlayback.startAt = seconds
       if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
       if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.startAt = seconds
         set({ position: seconds })
         return
       }
@@ -499,6 +500,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
       activePlayback = null
+      eng.clearSource()
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
@@ -589,10 +591,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         appleAudioSpectrum.stop()
         active.candidateKind = 'offline'
         active.offlineStatus = offlineStatus
-        const loadId = eng.load(offlineUrl, startAt)
+        set({ status: active.autoplay ? 'loading' : 'paused' })
+        const loadId = eng.load(offlineUrl, active.startAt)
         active.engineLoadId = loadId
         eng.setVolume(get().volume)
-        if (autoplay) {
+        if (active.autoplay) {
           void eng.play().catch((error) => {
             const reason = mediaFailureReasonFromPlayError(error)
             if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return

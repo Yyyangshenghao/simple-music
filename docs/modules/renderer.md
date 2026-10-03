@@ -32,7 +32,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 - `useDesktopBridge` — 订阅窗口状态和迷你条控制，桥接 player/playlist/window store。
 - `useShortcuts` — 应用内键盘分发、全局热键注册与事件订阅；录入期间释放全局绑定，丢弃旧注册回复，同键只执行一次。
-- `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider。
+- `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider；账号身份变化或卸载后丢弃迟到结果，设置水合及单纯启停平台不使有效检测失效。
 - `useAudio` — 播放进度 → lyrics store tick；MusicKit 仅播放时启动 50ms 连续时钟，暂停、拖动及歌词偏移变化即时同步。歌词行用二分定位，同值不通知订阅者。
 - `useLyricsFetch` — 换歌时拉歌词。
 - `useDesktopLyricsSync` / `useWallpaperSync` / `useMiniPlayerSync` — 把当前歌词、可视化与播放状态经 IPC 推给三个悬浮窗。
@@ -64,6 +64,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## components / pages
 
+设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权保留在音源行，订阅要求及连接状态说明收进 i 浮层。
+
 顶栏 `TopBar` 使用常驻宽搜索栏（220～320px 自适应），聚焦不改变宽度；窄窗口让导航参与布局，避免挤占搜索及窗口按钮。空搜索通过可选 `catalog.getSearchHotkeys()` 展示当前内容平台的热词（网易云、QQ 均已接入），要求该平台已登录且已启用，不混入另一平台热搜。`SearchHotkeys` 点击填词后复用原跨平台防抖搜索，关闭、切平台或禁用时丢弃在途热词响应。下拉层使用实色背景打底，避免页面文字透入。
 
 播放队列 `QueuePanel` 底部的 `QueueDiscovery` 提供 QQ“发现相似音乐”：当前曲目具备有效数字 `qqId`、QQ 已登录且启用时可见，展开后才调用可选 `catalog.getSimilarTracks()` / `getRelatedPlaylists()`。歌曲仅追加并防重复，不打断播放；歌单可换批或打开详情。切歌恢复收起，关闭/禁用后丢弃旧响应，两类推荐独立失败；歌单换批失败保留原列表并提供重试。Esc 关闭时仅在焦点仍位于队列内的情况下返回队列按钮，不抢走外部焦点。
@@ -74,7 +76,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 我的库的本地、离线和最近播放列表复用 `VirtualList`，仅渲染可视区及 overscan；曲目行固定 56px，库列表步长为 58px（含 2px 间距）。筛选、排序与播放队列派生值复用，点击下标始终对应完整筛选结果。播放进度订阅集中在滑轨子组件，音量订阅集中在音量组，避免频繁唤醒封面、队列和菜单。播放持久化只缓存当前不可变队列与随机顺序的序列化结果，保持原 schema、断点恢复及配额不足的占位降级。
 
-导航、歌单卡片与播放控件统一间距和焦点轮廓，深浅主题沿用封面取色。设置页宽屏侧栏参与布局，1280px 及以下切为横向导航，避免展开导航遮挡内容。性能验收与维护边界见 [性能与界面维护](../performance.md)。
+导航、歌单卡片与播放控件统一间距和焦点轮廓，深浅主题沿用封面取色。设置页宽屏侧栏参与布局，1280px 及以下切为横向导航，避免展开导航遮挡内容。歌词页将桌面、普通与 3D 歌词的中文/西文字体集中为独立分组；3D 舞台开关独立成行，关闭时详细设置仍显示但原生禁用并置灰，字体选择保持可用。性能验收与维护边界见 [性能与界面维护](../performance.md)。
 
 ## 注意事项
 

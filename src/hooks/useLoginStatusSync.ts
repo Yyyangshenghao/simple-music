@@ -16,6 +16,13 @@ export function useLoginStatusSync(): void {
   useEffect(() => {
     let cancelled = false
     let appleTimer: ReturnType<typeof setTimeout>
+    const initialAccounts = { ...useProviderStore.getState().byId }
+    const accountUnchanged = (source: 'netease' | 'qq') => {
+      const current = useProviderStore.getState().byId[source]
+      const initial = initialAccounts[source]
+      // 水合和启停音源会替换 runtime，但不能使正在进行的账号检测失效。
+      return !cancelled && current.auth === initial.auth && current.profile === initial.profile
+    }
     const syncApple = async () => {
       await useAppleMusicConnection.getState().refresh()
       if (!cancelled) appleTimer = setTimeout(() => void syncApple(), 3000)
@@ -24,6 +31,7 @@ export function useLoginStatusSync(): void {
     void api
       .get<LoginStatusResponse>('/api/login/status')
       .then((r) => {
+        if (!accountUnchanged('netease')) return
         const store = useSettingsStore.getState()
         const loggedIn = !!r.loggedIn
         const profile = loggedIn ? { avatar: r.avatar || '', nickname: r.nickname || '' } : undefined
@@ -36,6 +44,7 @@ export function useLoginStatusSync(): void {
     void api
       .get<LoginStatusResponse>('/api/qq/login/status')
       .then((r) => {
+        if (!accountUnchanged('qq')) return
         const store = useSettingsStore.getState()
         const loggedIn = !!r.loggedIn
         const profile = loggedIn ? { avatar: r.avatar || '', nickname: r.nickname || '' } : undefined

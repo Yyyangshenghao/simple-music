@@ -2,9 +2,9 @@ import type { FxParams } from '../types/domain'
 import { DESKTOP_LYRICS_MAX_SIZE } from './desktop-lyrics-layout'
 
 export const DESKTOP_LYRICS_STORAGE_KEY = 'simplemusic-desktop-lyrics'
-const BOOLEAN_KEYS = ['desktopLyrics', 'desktopLyricsClickThrough', 'desktopLyricsHighlight', 'desktopLyricsShowTranslation', 'desktopLyricsShowRoma'] as const
-const NUMBER_LIMITS = { desktopLyricsSize: [12, DESKTOP_LYRICS_MAX_SIZE], desktopLyricsOpacity: [0.28, 1] } as const
-const STRING_KEYS = ['desktopLyricsFontFamily', 'desktopLyricsColor'] as const
+const BOOLEAN_KEYS = ['desktopLyrics', 'desktopLyricsClickThrough', 'desktopLyricsHighlight', 'desktopLyricsShowTranslation', 'desktopLyricsShowRoma', 'desktopLyricsWordByWord', 'desktopLyricsAutoWidth'] as const
+const NUMBER_LIMITS = { desktopLyricsSize: [12, DESKTOP_LYRICS_MAX_SIZE], desktopLyricsOpacity: [0.28, 1], desktopLyricsBackgroundOpacity: [0, 1] } as const
+const STRING_KEYS = ['desktopLyricsFontFamily', 'desktopLyricsFontFamilyCjk', 'desktopLyricsColor', 'desktopLyricsBackgroundStyle', 'desktopLyricsLineMode'] as const
 type DesktopLyricsSettings = Pick<FxParams, (typeof BOOLEAN_KEYS)[number] | keyof typeof NUMBER_LIMITS | (typeof STRING_KEYS)[number]>
 
 /** 只保留桌面歌词偏好，避免改变视觉场景和存档的加载行为。 */
@@ -25,6 +25,9 @@ export function readDesktopLyricsSettings(): Partial<DesktopLyricsSettings> {
       }
     }
     if (typeof data.desktopLyricsFontFamily === 'string') settings.desktopLyricsFontFamily = data.desktopLyricsFontFamily
+    if (typeof data.desktopLyricsFontFamilyCjk === 'string') settings.desktopLyricsFontFamilyCjk = data.desktopLyricsFontFamilyCjk
+    if (data.desktopLyricsBackgroundStyle === 'dark' || data.desktopLyricsBackgroundStyle === 'frosted') settings.desktopLyricsBackgroundStyle = data.desktopLyricsBackgroundStyle
+    if (data.desktopLyricsLineMode === 'single' || data.desktopLyricsLineMode === 'double') settings.desktopLyricsLineMode = data.desktopLyricsLineMode
     if (typeof data.desktopLyricsColor === 'string' && /^#[\da-f]{6}$/i.test(data.desktopLyricsColor)) settings.desktopLyricsColor = data.desktopLyricsColor
     return settings
   } catch {

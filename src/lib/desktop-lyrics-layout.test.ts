@@ -21,3 +21,15 @@ it('原文、音译和翻译三行共同分配高度，音译单独显示同样�
   }
   expect(desktopLyricsSize(180, true, true)).toBeLessThan(desktopLyricsSize(180, true))
 })
+
+it('双行原文与翻译/音译共同分配高度，缩放互逆且均保留最小字号', () => {
+  for (const translation of [false, true]) {
+    for (const roma of [false, true]) {
+      for (const size of [12, 38, 120]) {
+        expect(desktopLyricsSize(desktopLyricsHeight(size, translation, roma, true), translation, roma, true)).toBeCloseTo(size)
+      }
+    }
+  }
+  expect(desktopLyricsHeight(38, false, false, true)).toBeGreaterThan(desktopLyricsHeight(38, true))
+  expect(desktopLyricsSize(10, true, true, true)).toBe(12)
+})

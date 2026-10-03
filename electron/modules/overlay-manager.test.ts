@@ -11,13 +11,14 @@ const harness = vi.hoisted(() => {
     setIgnoreMouseEvents: ReturnType<typeof vi.fn>
     showInactive: ReturnType<typeof vi.fn>
     show: ReturnType<typeof vi.fn>
-    webContents: { send: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
+    webContents: { send: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
   }> = []
   const mainSend = vi.fn()
   const hideMainWindow = vi.fn()
   const focusMainWindow = vi.fn()
   const cursor = { x: -100, y: -100 }
   const getDisplayMatching = vi.fn((_bounds: Electron.Rectangle) => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+  const getDisplayNearestPoint = vi.fn((_point: Electron.Point) => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
 
   const BrowserWindow = vi.fn(function (options: Electron.BrowserWindowConstructorOptions) {
     const listeners = new Map<string, () => void>()
@@ -59,7 +60,7 @@ const harness = vi.hoisted(() => {
     return win
   })
 
-  return { BrowserWindow, instances, mainSend, hideMainWindow, focusMainWindow, cursor, getDisplayMatching }
+  return { BrowserWindow, instances, mainSend, hideMainWindow, focusMainWindow, cursor, getDisplayMatching, getDisplayNearestPoint }
 })
 
 vi.mock('electron', () => ({
@@ -67,7 +68,8 @@ vi.mock('electron', () => ({
   screen: {
     getCursorScreenPoint: () => harness.cursor,
     getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
-    getDisplayMatching: harness.getDisplayMatching
+    getDisplayMatching: harness.getDisplayMatching,
+    getDisplayNearestPoint: harness.getDisplayNearestPoint
   }
 }))
 
@@ -80,6 +82,8 @@ vi.mock('./window-manager', () => ({
 }))
 
 vi.mock('./safe-open', () => ({ openExternalSafely: vi.fn() }))
+const backdrop = vi.hoisted(() => ({ update: vi.fn(() => true), dispose: vi.fn() }))
+vi.mock('./lyrics-native-backdrop', () => ({ createLyricsNativeBackdrop: vi.fn(() => backdrop) }))
 vi.mock('./macos-lyrics-window', () => ({ preventLyricsActivation: vi.fn(() => true) }))
 vi.mock('../platform', () => ({
   getPlatform: () => ({
@@ -90,7 +94,7 @@ vi.mock('../platform', () => ({
   })
 }))
 
-import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsControlBounds, closeOverlays } from './overlay-manager'
+import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, hideMiniPlayerToTray, setMiniPlayerPopover, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsPointerCapture, setLyricsControlBounds, closeOverlays } from './overlay-manager'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
 import { desktopLyricsHeight, desktopLyricsSize } from '../../src/lib/desktop-lyrics-layout'
 import { preventLyricsActivation } from './macos-lyrics-window'
@@ -125,7 +129,8 @@ describe('桌面歌词窗口交互', () => {
     } else expect(win.setResizable).not.toHaveBeenCalled()
     expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true })
     updateLyrics({ opacity: 0.5 })
-    expect(win.setOpacity).toHaveBeenLastCalledWith(0.5)
+    expect(win.setOpacity).not.toHaveBeenCalled()
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ opacity: 0.5 }))
     setLyricsLock(true)
     expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true })
     expect(moveLyricsBy(30, 20)).toEqual({ ok: false, error: 'DESKTOP_LYRICS_LOCKED' })
@@ -135,6 +140,33 @@ describe('桌面歌词窗口交互', () => {
     moveLyricsBy(-160, -160)
     expect(win.bounds.x).toBe(0)
     expect(win.bounds.y).toBe(0)
+  })
+  it.each([
+    { fromX: 1240, cursorX: 1930, dx: 160, expectedX: 1920 },
+    { fromX: 1920, cursorX: 1910, dx: -160, expectedX: 1240 }
+  ])('拖动时光标跨屏可将宽歌词窗口移到相邻显示器（$dx）', ({ fromX, cursorX, dx, expectedX }) => {
+    const areas = [
+      { x: 0, y: 0, width: 1920, height: 1080 },
+      { x: 1920, y: 0, width: 1920, height: 1080 }
+    ]
+    harness.getDisplayMatching.mockImplementation(bounds => ({
+      workArea: areas.reduce((best, area) => {
+        const overlap = (rect: Electron.Rectangle) => Math.max(0, Math.min(rect.x + rect.width, bounds.x + bounds.width) - Math.max(rect.x, bounds.x))
+        return overlap(area) > overlap(best) ? area : best
+      })
+    }))
+    harness.getDisplayNearestPoint.mockImplementation(point => ({ workArea: areas[point.x >= 1920 ? 1 : 0] }))
+    try {
+      setLyricsEnabled(true, { clickThrough: false, size: 38, autoWidth: false })
+      const win = harness.instances[0]
+      win.bounds = { x: fromX, y: 100, width: 680, height: 90 }
+      Object.assign(harness.cursor, { x: cursorX, y: 145 })
+      moveLyricsBy(dx, 0)
+      expect(win.bounds).toEqual({ x: expectedX, y: 100, width: 680, height: 90 })
+    } finally {
+      harness.getDisplayMatching.mockImplementation(() => ({ workArea: areas[0] }))
+      harness.getDisplayNearestPoint.mockImplementation(() => ({ workArea: areas[0] }))
+    }
   })
   it('旧窗口延迟 closed 不影响新窗口，退出不清除开启偏好', () => {
     setLyricsEnabled(true, { clickThrough: false })
@@ -243,12 +275,132 @@ describe('桌面歌词窗口交互', () => {
     const centerY = win.bounds.y + win.bounds.height / 2
     win.webContents.getZoomFactor.mockReturnValue(1.25)
     setLyricsControlBounds({ left: 300, top: 8, right: 328, bottom: 36 })
-    expect(win.bounds.height).toBe(172)
+    expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(48, true) * 1.25))
     expect(win.bounds.width).toBe(680)
     expect(Math.abs(win.bounds.y + win.bounds.height / 2 - centerY)).toBeLessThanOrEqual(0.5)
     win.webContents.getZoomFactor.mockReturnValue(1)
     setLyricsControlBounds({ left: 300, top: 8, right: 328, bottom: 36 })
-    expect(win.bounds.height).toBe(138)
+    expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(48, true)))
+  })
+  it('原生毛玻璃常态显示，锁定与移出不隐藏，样式和透明度独立生效并随关闭释放', () => {
+    backdrop.update.mockClear()
+    backdrop.dispose.mockClear()
+    setLyricsEnabled(true, { clickThrough: false, backgroundStyle: 'frosted', backgroundOpacity: 0.3 })
+    expect(backdrop.update).toHaveBeenLastCalledWith({ visible: true, opacity: 0.3 })
+    setLyricsPointerCapture(false)
+    expect(backdrop.update).toHaveBeenLastCalledWith({ visible: true, opacity: 0.3 })
+    setLyricsPointerCapture(true)
+    expect(backdrop.update).toHaveBeenLastCalledWith({ visible: true, opacity: 0.3 })
+    setLyricsLock(true)
+    expect(backdrop.update).toHaveBeenLastCalledWith({ visible: true, opacity: 0.3 })
+    setLyricsLock(false)
+    setLyricsPointerCapture(true)
+    updateLyrics({ backgroundStyle: 'dark' })
+    expect(backdrop.update).toHaveBeenLastCalledWith({ visible: false, opacity: 0.3 })
+    setLyricsEnabled(false)
+    expect(backdrop.dispose).toHaveBeenCalledOnce()
+  })
+  it('原生底框更新失败时回退暗灰，设置页锁定仍保留常态底框', () => {
+    setLyricsEnabled(true, { clickThrough: false, backgroundStyle: 'frosted' })
+    const win = harness.instances[0]
+    setLyricsPointerCapture(true)
+    updateLyrics({ clickThrough: true })
+    expect(backdrop.update).toHaveBeenLastCalledWith(expect.objectContaining({ visible: true }))
+    updateLyrics({ clickThrough: false })
+    expect(backdrop.update).toHaveBeenLastCalledWith(expect.objectContaining({ visible: true }))
+    backdrop.update.mockReturnValueOnce(false)
+    updateLyrics({ backgroundOpacity: 0.2 })
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ nativeGlass: false }))
+  })
+  it('逐字时钟推送不调整窗口尺寸或鼠标穿透状态', () => {
+    setLyricsEnabled(true, { clickThrough: false })
+    const win = harness.instances[0]
+    win.setBounds.mockClear()
+    win.setIgnoreMouseEvents.mockClear()
+    updateLyrics({ wordClock: { elapsedMs: 500, playing: true, rate: 1 } })
+    expect(win.setBounds).not.toHaveBeenCalled()
+    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalled()
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ wordClock: { elapsedMs: 500, playing: true, rate: 1 } }))
+  })
+  it('双行切换按两个原文行调整高度，用户缩放后保留字号', () => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38, translation: '', roma: '', nextLine: '' })
+    const win = harness.instances[0]
+    updateLyrics({ nextLine: '下一句' })
+    expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(38, false, false, true)))
+    resizeLyrics(500, 200)
+    expect(harness.mainSend).toHaveBeenCalledWith('lyrics:size-changed', { size: desktopLyricsSize(200, false, false, true) })
+    updateLyrics({ nextLine: '' })
+    const size = desktopLyricsSize(200, false, false, true)
+    expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(size, false)))
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ size }))
+  })
+  it('切歌清空和恢复附加歌词不改写用户字号，重复更新不产生取整漂移', () => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38, translation: '译文', roma: '音译', nextLine: '下一句' })
+    const win = harness.instances[0]
+    resizeLyrics(500, 250)
+    const size = desktopLyricsSize(250, true, true, true)
+    harness.mainSend.mockClear()
+    for (let i = 0; i < 3; i++) {
+      updateLyrics({ line: '加载中', translation: '', roma: '', nextLine: '' })
+      expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(size, false)))
+      updateLyrics({ line: '新歌', translation: '新译文', roma: '新音译', nextLine: '下一句' })
+      setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28 })
+      expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ size }))
+    }
+    expect(harness.mainSend).not.toHaveBeenCalledWith('lyrics:size-changed', expect.anything())
+  })
+  it('非整数设置字号在反复切歌时保持原值', () => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38.25, translation: '', roma: '', nextLine: '' })
+    const win = harness.instances[0]
+    resizeLyrics(800, win.bounds.height)
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ size: 38.25 }))
+    for (let i = 0; i < 3; i++) {
+      updateLyrics({ line: '新歌词', translation: '译文' })
+      updateLyrics({ translation: '' })
+      expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ size: 38.25 }))
+    }
+  })
+  it('自适应按文字宽度伸缩，保持中心与字号，关闭恢复手动宽度', () => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38, autoWidth: false, translation: '', roma: '', nextLine: '' })
+    const win = harness.instances[0]
+    resizeLyrics(500, 160)
+    const size = desktopLyricsSize(160, false)
+    const center = win.bounds.x + win.bounds.width / 2
+    updateLyrics({ autoWidth: true })
+    harness.mainSend.mockClear()
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 250 })
+    expect(win.bounds.width).toBe(392)
+    expect(win.bounds.x + win.bounds.width / 2).toBe(center)
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 30 })
+    expect(win.bounds.width).toBe(180)
+    updateLyrics({ autoWidth: false })
+    expect(win.bounds.width).toBe(500)
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 1000 })
+    expect(win.bounds.width).toBe(500)
+    expect(harness.mainSend).not.toHaveBeenCalledWith('lyrics:size-changed', expect.anything())
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ size }))
+  })
+  it('关闭桌面歌词期间关闭自适应，重开仍恢复此前手动宽度', () => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38, autoWidth: false, translation: '', roma: '', nextLine: '' })
+    resizeLyrics(500, 160)
+    updateLyrics({ autoWidth: true })
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 250 })
+    setLyricsEnabled(false)
+    setLyricsEnabled(true, { clickThrough: false, autoWidth: false })
+    expect(harness.instances[1].bounds.width).toBe(500)
+  })
+  it('自适应宽度计入页面缩放且上限为当前显示器，不接受无效测量', () => {
+    setLyricsEnabled(true, { clickThrough: true, size: 38, autoWidth: true, translation: '', roma: '', nextLine: '' })
+    const win = harness.instances[0]
+    win.webContents.getZoomFactor.mockReturnValue(1.25)
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 250 })
+    expect(win.bounds.width).toBe(490)
+    setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth: 5000 })
+    expect(win.bounds).toMatchObject({ width: 1920, x: 0 })
+    for (const contentWidth of [NaN, Infinity, -10, 0]) {
+      setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28, contentWidth })
+      expect(win.bounds.width).toBe(1920)
+    }
   })
   it('自定义宽高不会被热区更新重置，锁定禁止缩放，重新开启保留尺寸', () => {
     setLyricsEnabled(true, { clickThrough: false, size: 38, translation: '' })
@@ -267,7 +419,7 @@ describe('桌面歌词窗口交互', () => {
     expect(next.bounds).toMatchObject({ width: 420, height: 90 })
     updateLyrics({ translation: '翻译' })
     setLyricsControlBounds({ left: 190, top: 2, right: 218, bottom: 30 })
-    expect(next.bounds).toMatchObject({ width: 420, height: 90 })
+    expect(next.bounds).toMatchObject({ width: 420, height: Math.ceil(desktopLyricsHeight(38, true)) })
     resizeLyrics(-100, -100)
     expect(next.bounds).toMatchObject({ width: 280, height: 74 })
     resizeLyrics(10000, 10000)
@@ -305,8 +457,9 @@ describe('桌面歌词窗口交互', () => {
     expect(win.bounds.width).toBe(280)
     expect(win.bounds.height).toBe(86)
     updateLyrics({ roma: '' })
-    expect(win.bounds.height).toBe(86)
-    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ roma: '', size: desktopLyricsSize(86, true) }))
+    const size = desktopLyricsSize(86, true, true)
+    expect(win.bounds.height).toBe(Math.ceil(desktopLyricsHeight(size, true)))
+    expect(win.webContents.send).toHaveBeenLastCalledWith('overlay:lyrics-state', expect.objectContaining({ roma: '', size }))
     setLyricsLock(true)
     expect(resizeLyrics(500, 200, 'top-left')).toMatchObject({ ok: false, error: 'DESKTOP_LYRICS_LOCKED' })
   })
@@ -435,6 +588,51 @@ describe('迷你播放器窗口尺寸', () => {
     expect(harness.focusMainWindow).toHaveBeenCalledOnce()
   })
 
+  it('系统关闭当前迷你窗时恢复主窗口、同步开关并清理弹层高度', () => {
+    setMiniPlayerEnabled(true, 360)
+    const win = harness.instances[0]
+    setMiniPlayerPopover(true)
+    win.listeners.get('closed')?.()
+    expect(harness.mainSend).toHaveBeenCalledWith('miniplayer:control', { action: 'sync-off' })
+    expect(harness.focusMainWindow).toHaveBeenCalledOnce()
+    expect(win.close).not.toHaveBeenCalled()
+    setMiniPlayerEnabled(true, 360)
+    expect(harness.instances[1].bounds.height).toBe(80)
+  })
+
+  it.each(['系统关闭', '显式返回'] as const)('音量弹层展开后%s，再次打开及反复开关保持底边', (path) => {
+    setMiniPlayerEnabled(true, 360)
+    let win = harness.instances[0]
+    const original = { ...win.bounds }
+    for (let index = 0; index < 3; index++) {
+      setMiniPlayerPopover(true)
+      expect(win.bounds.y + win.bounds.height).toBe(original.y + original.height)
+      if (path === '系统关闭') win.listeners.get('closed')?.()
+      else returnFromMiniPlayer()
+      setMiniPlayerEnabled(true, 360)
+      win = harness.instances.at(-1)!
+      expect(win.bounds).toEqual(original)
+    }
+  })
+
+  it.each([
+    { label: '返回主窗口', close: returnFromMiniPlayer, focusCount: 1, syncOff: true },
+    { label: '退居托盘', close: hideMiniPlayerToTray, focusCount: 0, syncOff: true },
+    { label: '应用退出', close: closeOverlays, focusCount: 0, syncOff: false }
+  ])('显式$label 不被同步或延迟的 closed 事件重复恢复窗口', ({ close, focusCount, syncOff }) => {
+    setMiniPlayerEnabled(true, 360)
+    const first = harness.instances[0]
+    first.close.mockImplementation(() => first.listeners.get('closed')?.())
+    close()
+    expect(harness.focusMainWindow).toHaveBeenCalledTimes(focusCount)
+    const notifications = () => harness.mainSend.mock.calls.filter(([channel]) => channel === 'miniplayer:control')
+    expect(notifications()).toHaveLength(Number(syncOff))
+    setMiniPlayerEnabled(true, 360)
+    first.listeners.get('closed')?.()
+    expect(harness.focusMainWindow).toHaveBeenCalledTimes(focusCount)
+    expect(notifications()).toHaveLength(Number(syncOff))
+  })
+
   it('反复启停后可以重新创建迷你窗口', () => {
     setMiniPlayerEnabled(true, 360)
     const first = harness.instances[0]
@@ -473,12 +671,31 @@ describe('迷你播放器窗口尺寸', () => {
     updateMiniPlayer({ trackTitle: '重新打开', position: 30, appearance: DEFAULT_MINI_PLAYER_APPEARANCE })
     setMiniPlayerEnabled(true, 360)
     const webContents = harness.instances[0].webContents
-    const onLoad = webContents.once.mock.calls.find(([event]) => event === 'did-finish-load')?.[1]
+    const onLoad = webContents.on.mock.calls.find(([event]) => event === 'did-finish-load')?.[1]
 
     onLoad()
 
     expect(webContents.send).toHaveBeenLastCalledWith('overlay:miniplayer-state', expect.objectContaining({
       trackTitle: '重新打开', position: 30, appearance: DEFAULT_MINI_PLAYER_APPEARANCE
+    }))
+  })
+
+  it('迷你页刷新后重放完整快照，保留未变化的曲目信息和返回快捷键', () => {
+    updateMiniPlayer({ trackTitle: '刷新测试', position: 30, returnShortcut: 'Command+Shift+P', appearance: DEFAULT_MINI_PLAYER_APPEARANCE })
+    setMiniPlayerEnabled(true, 360)
+    const webContents = harness.instances[0].webContents
+    const finishLoad = () => {
+      for (const [event, callback] of [...webContents.on.mock.calls, ...webContents.once.mock.calls]) {
+        if (event === 'did-finish-load') callback()
+      }
+      webContents.once.mockClear()
+    }
+    finishLoad()
+    updateMiniPlayer({ position: 31 })
+    webContents.send.mockClear()
+    finishLoad()
+    expect(webContents.send).toHaveBeenLastCalledWith('overlay:miniplayer-state', expect.objectContaining({
+      trackTitle: '刷新测试', position: 31, returnShortcut: 'Command+Shift+P', appearance: DEFAULT_MINI_PLAYER_APPEARANCE
     }))
   })
 })

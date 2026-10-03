@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { lyricPlaybackPosition } from '../lib/lyric-playback-position'
+import { hasWordTiming } from '../lib/word-highlight-timeline'
+import type { LyricsPayload } from '../types/ipc'
 import { useLyricsStore } from '../stores/lyrics'
 import { useVisualStore } from '../stores/visual'
 import { useToastStore } from '../stores/toast'
+import { useSettingsStore } from '../stores/settings'
 import { usePlayerStore } from '../stores/player'
 
 // 主窗口把当前歌词行推送给桌面歌词 overlay（窗口未开启时主进程仅缓存状态）。
@@ -12,16 +16,28 @@ export function useDesktopLyricsSync(): void {
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
   const trackKey = useLyricsStore((s) => s.trackKey)
+  const wordLines = useLyricsStore((s) => s.wordLines)
   const loading = useLyricsStore((s) => s.loading)
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const enabled = useVisualStore((s) => s.fx.desktopLyrics)
   const size = useVisualStore((s) => s.fx.desktopLyricsSize)
-  const fontFamily = useVisualStore((s) => s.fx.desktopLyricsFontFamily)
+  const desktopFontFamily = useVisualStore((s) => s.fx.desktopLyricsFontFamily)
+  const desktopFontFamilyCjk = useVisualStore((s) => s.fx.desktopLyricsFontFamilyCjk)
+  const interfaceFontFamily = useSettingsStore((s) => s.fontFamily)
+  const interfaceFontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
+  const fontFamily = desktopFontFamily || interfaceFontFamily
+  const fontFamilyCjk = desktopFontFamilyCjk || interfaceFontFamilyCjk
   const color = useVisualStore((s) => s.fx.desktopLyricsColor)
   const opacity = useVisualStore((s) => s.fx.desktopLyricsOpacity)
   const clickThrough = useVisualStore((s) => s.fx.desktopLyricsClickThrough)
   const highlight = useVisualStore((s) => s.fx.desktopLyricsHighlight)
   const showTranslation = useVisualStore((s) => s.fx.desktopLyricsShowTranslation)
+  const backgroundOpacity = useVisualStore((s) => s.fx.desktopLyricsBackgroundOpacity)
+  const savedBackgroundStyle = useVisualStore((s) => s.fx.desktopLyricsBackgroundStyle)
+  const backgroundStyle = window.desktop?.platform && window.desktop.platform !== 'darwin' ? 'dark' : savedBackgroundStyle
+  const autoWidth = useVisualStore((s) => s.fx.desktopLyricsAutoWidth)
+  const lineMode = useVisualStore((s) => s.fx.desktopLyricsLineMode)
+  const wordByWord = useVisualStore((s) => s.fx.desktopLyricsWordByWord)
   const showRoma = useVisualStore((s) => s.fx.desktopLyricsShowRoma)
   // 用户改字号后清除回传标记，之后调回旧值仍是新的窗口尺寸请求。
   if (sizeFromWindow.current !== null && size !== sizeFromWindow.current) sizeFromWindow.current = null
@@ -30,11 +46,27 @@ export function useDesktopLyricsSync(): void {
   const fallback = currentTrack
     ? loading || !matching ? '正在获取歌词…' : lines.length ? currentTrack.name : '暂无歌词 · ' + currentTrack.name
     : '播放音乐后显示歌词'
-  const payload = {
+  const candidate = matching && wordByWord && currentIndex >= 0 ? wordLines[currentIndex] : undefined
+  const wordLine = candidate && hasWordTiming(candidate.words)
+    && candidate.time === lines[currentIndex]?.time
+    && candidate.words.map((word) => word.text).join('') === lines[currentIndex]?.text
+    ? candidate : undefined
+  const readWordClock = (): LyricsPayload['wordClock'] => {
+    if (!wordLine) return undefined
+    const player = usePlayerStore.getState()
+    return {
+      elapsedMs: (lyricPlaybackPosition(player) + useLyricsStore.getState().offsetSec - wordLine.time) * 1000,
+      playing: player.status === 'playing',
+      rate: player.rate
+    }
+  }
+  const payload: LyricsPayload = {
     line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || currentTrack?.name || fallback) : fallback,
     translation: matching && showTranslation && currentIndex >= 0 ? (translation[currentIndex]?.text ?? '') : '',
     roma: matching && showRoma && currentIndex >= 0 ? (romaji[currentIndex]?.text ?? '') : '',
-    ...(size === sizeFromWindow.current ? {} : { size }), fontFamily, color, opacity, clickThrough, highlight
+    nextLine: matching && lineMode === 'double' && currentIndex >= 0 ? (lines[currentIndex + 1]?.text ?? '') : '',
+    autoWidth, wordLine, wordClock: readWordClock(), backgroundOpacity, backgroundStyle,
+    ...(size === sizeFromWindow.current ? {} : { size }), fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight
   }
 
   useEffect(() => {
@@ -68,8 +100,20 @@ export function useDesktopLyricsSync(): void {
   }, [])
 
   useEffect(() => {
+    if (!enabled || !wordLine || !window.desktop) return
+    // 仅启用且存在精准逐字时间轴时同步时钟，悬浮窗自行绘制动画。
+    const timer = setInterval(() => {
+      const player = usePlayerStore.getState()
+      const lyrics = useLyricsStore.getState()
+      if (!player.currentTrack || `${player.currentTrack.source}:${String(player.currentTrack.id)}` !== trackKey || lyrics.trackKey !== trackKey || lyrics.currentIndex !== currentIndex) return
+      void window.desktop.updateDesktopLyrics({ wordClock: readWordClock() }).catch(() => {})
+    }, 50)
+    return () => clearInterval(timer)
+  }, [enabled, wordLine, trackKey, currentIndex])
+
+  useEffect(() => {
     const d = window.desktop
     if (!d) return
     void d.updateDesktopLyrics(payload).catch(() => {})
-  }, [currentIndex, lines, translation, romaji, trackKey, loading, currentTrack, size, fontFamily, color, opacity, clickThrough, highlight, showTranslation, showRoma])
+  }, [currentIndex, lines, translation, romaji, trackKey, loading, currentTrack, size, fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight, showTranslation, showRoma, autoWidth, lineMode, wordLine, backgroundOpacity, backgroundStyle])
 }

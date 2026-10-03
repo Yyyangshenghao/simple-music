@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../../stores/settings'
 import { useProviderStore } from '../../stores/providers'
+import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
 import { api } from '../../lib/api'
-import type { LoginResult } from '../../types/ipc'
+import { loginMusicProvider } from '../../lib/provider-login'
 import type { ProviderId } from '../../providers/types'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
@@ -31,8 +32,6 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const qqLoggedIn = useSettingsStore((state) => state.qqLoggedIn)
   const setNeteaseLoggedIn = useSettingsStore((state) => state.setNeteaseLoggedIn)
   const setQQLoggedIn = useSettingsStore((state) => state.setQQLoggedIn)
-  const setNeteaseProfile = useSettingsStore((state) => state.setNeteaseProfile)
-  const setQQProfile = useSettingsStore((state) => state.setQQProfile)
   const navigateTo = useNavigationStore((state) => state.navigateTo)
   const requestSettingsMusic = useNavigationStore((state) => state.requestSettingsMusic)
   const [busySource, setBusySource] = useState<ProviderId | null>(null)
@@ -45,25 +44,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
     }
     setBusySource(source)
     try {
-      if (source === 'netease') {
-        const result = (await window.desktop?.openNeteaseLogin()) as LoginResult | undefined
-        if (result?.ok && result.cookie) {
-          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/login/cookie', { cookie: result.cookie })
-          const profile = { avatar: info.avatar || '', nickname: info.nickname || '' }
-          setNeteaseLoggedIn(true)
-          setNeteaseProfile(profile.avatar, profile.nickname)
-          useProviderStore.getState().setAccountState('netease', 'authenticated', profile)
-        }
-      } else {
-        const result = (await window.desktop?.openQQLogin()) as LoginResult | undefined
-        if (result?.ok && result.cookie) {
-          const info = await api.post<{ avatar?: string; nickname?: string }>('/api/qq/login/cookie', { cookie: result.cookie })
-          const profile = { avatar: info.avatar || '', nickname: info.nickname || '' }
-          setQQLoggedIn(true)
-          setQQProfile(profile.avatar, profile.nickname)
-          useProviderStore.getState().setAccountState('qq', 'authenticated', profile)
-        }
-      }
+      await loginMusicProvider(source)
+    } catch {
+      useToastStore.getState().show('登录失败，请重试')
     } finally {
       setBusySource(null)
     }

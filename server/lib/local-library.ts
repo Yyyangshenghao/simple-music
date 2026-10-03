@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
-import { join, extname, isAbsolute, basename } from 'node:path'
+import { join, extname, isAbsolute, basename, sep } from 'node:path'
 import { parseFile } from 'music-metadata'
 
 /**
@@ -180,6 +180,20 @@ async function scanLocalFolder(userDataDir: string, folder: string): Promise<Loc
   const byPath = new Map(index.tracks.map((t) => [t.path, t]))
   const files = await walkAudioFiles(folder)
   const folderTracks: LocalTrackRecord[] = []
+  const folderPrefix = folder.endsWith(sep) ? folder : folder + sep
+  const scannedPaths = new Set(files)
+  const removedIds: string[] = []
+  for (const [path, record] of byPath) {
+    if (!path.startsWith(folderPrefix) || scannedPaths.has(path)) continue
+    try {
+      await fsp.stat(path)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') continue
+      byPath.delete(path)
+      removedIds.push(record.id)
+    }
+  }
 
   for (const file of files) {
     const st = await fsp.stat(file).catch(() => null)
@@ -196,14 +210,16 @@ async function scanLocalFolder(userDataDir: string, folder: string): Promise<Loc
 
   const folders = index.folders.includes(folder) ? index.folders : [...index.folders, folder]
   await writeIndex(userDataDir, { folders, tracks: [...byPath.values()] })
+  await Promise.all(removedIds.map((id) => fsp.rm(coverPathFor(userDataDir, id), { force: true }).catch(() => {})))
   return folderTracks
 }
 
 export async function removeLocalFolder(userDataDir: string, folder: string): Promise<void> {
   await withMutation(userDataDir, async () => {
     const index = await readIndex(userDataDir)
+    const folderPrefix = folder.endsWith(sep) ? folder : folder + sep
     const removedIds = new Set(index.tracks
-      .filter((t) => t.path === folder || t.path.startsWith(folder + '/'))
+      .filter((t) => t.path === folder || t.path.startsWith(folderPrefix))
       .map((t) => t.id))
     const kept = index.tracks.filter((t) => !removedIds.has(t.id))
     await writeIndex(userDataDir, { folders: index.folders.filter((f) => f !== folder), tracks: kept })

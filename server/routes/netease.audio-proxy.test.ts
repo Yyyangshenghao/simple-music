@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import type { ServerResponse } from 'node:http'
-import { pipeReaderToResponse } from './netease'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { neteaseRoutes, pipeReaderToResponse } from './netease'
+import { clearAudioCacheScope, findCachedAudio, openAudioCacheWriter } from '../lib/audio-cache'
 
 /**
  * 模拟上游 CDN 返回的一首"歌"：totalChunks 个数据块，每块间用 setImmediate 让出一次事件循环，
@@ -67,6 +71,64 @@ async function legacyPipeWithoutCleanup(
 }
 
 describe('pipeReaderToResponse（/api/audio、/api/cover 代理转发 —— 切歌内存泄漏回归测试）', () => {
+  it.each(['上游中途报错', '客户端断连'])('音频%s时释放缓存写锁且不提交截断文件', async (failure) => {
+    const directory = await mkdtemp(join(tmpdir(), 'sm-audio-proxy-failed-'))
+    const error = new Error('connection reset')
+    let reads = 0
+    const reader = {
+      read: vi.fn(async () => {
+        if (reads++ === 0) return { done: false, value: new Uint8Array([1, 2, 3]) }
+        throw error
+      }),
+      cancel: vi.fn(async () => {}),
+    }
+    const emitter = new EventEmitter()
+    const response = {
+      headersSent: false,
+      destroyed: false,
+      writeHead: vi.fn(() => {
+        if (response.headersSent) throw new Error('ERR_HTTP_HEADERS_SENT')
+        response.headersSent = true
+      }),
+      write: vi.fn(() => {
+        if (failure === '客户端断连') {
+          response.destroyed = true
+          emitter.emit('close')
+        }
+        return true
+      }),
+      end: vi.fn(),
+      destroy: vi.fn(() => { response.destroyed = true }),
+      once: emitter.once.bind(emitter),
+      off: emitter.off.bind(emitter),
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200, headers: new Headers({ 'content-type': 'audio/mpeg' }),
+      body: { getReader: () => reader },
+    })))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const url = new URL('http://127.0.0.1/api/audio?url=https://example.com/song.mp3&cacheKey=netease:1:standard&originSource=netease&originId=1&resolvedSource=netease&resolvedId=1&quality=standard')
+      await expect(neteaseRoutes({ headers: {} } as IncomingMessage, response as unknown as ServerResponse, url, { userDataDir: directory, port: 0 })).resolves.toBe(true)
+      if (failure === '上游中途报错') {
+        expect(response.destroy).toHaveBeenCalled()
+        expect(response.end).not.toHaveBeenCalled()
+      } else {
+        expect(reader.cancel).toHaveBeenCalled()
+      }
+      expect(response.writeHead).toHaveBeenCalledTimes(1)
+      expect(await findCachedAudio(directory, 'netease:1:standard')).toBeNull()
+      expect(await clearAudioCacheScope(directory, 'all')).toEqual({ ok: true })
+      const writer = await openAudioCacheWriter(directory, 'netease:1:standard')
+      expect(writer).not.toBeNull()
+      writer?.abort()
+    } finally {
+      consoleError.mockRestore()
+      vi.unstubAllGlobals()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('客户端断开（切歌）后立即取消上游读取，不会在后台把剩余数据读完', async () => {
     const CHUNKS = 500
     const upstream = makeUpstreamStream(CHUNKS, 64 * 1024)

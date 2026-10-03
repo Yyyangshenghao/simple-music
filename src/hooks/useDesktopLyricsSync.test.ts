@@ -1,8 +1,10 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  fx: { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false },
-  lyrics: { currentIndex: 0, lines: [{ text: '歌词', time: 0 }], translation: [{ text: '翻译', time: 0 }], romaji: [{ text: 'ongaku', time: 0 }], trackKey: 'local:1', loading: false },
+  settings: { fontFamily: '', fontFamilyCjk: '' },
+  fx: { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsFontFamilyCjk: '', desktopLyricsBackgroundOpacity: 0.68, desktopLyricsBackgroundStyle: 'dark', desktopLyricsAutoWidth: false, desktopLyricsLineMode: 'single', desktopLyricsWordByWord: false, desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false },
+  player: { status: 'playing', position: 0, rate: 1, playbackTransport: 'local', _engine: () => ({ position: h.player.position }) },
+  lyrics: { currentIndex: 0, offsetSec: 0, wordLines: [] as import('../types/domain').WordLyricLine[], lines: [{ text: '歌词', time: 0 }], translation: [{ text: '翻译', time: 0 }], romaji: [{ text: 'ongaku', time: 0 }], trackKey: 'local:1', loading: false },
   track: { source: 'local', id: 1, name: '第一首' },
   updateFx: vi.fn(), setEnabled: vi.fn(),
   onEnabled: undefined as ((event: { enabled: boolean; requested?: boolean }) => void) | undefined,
@@ -23,19 +25,27 @@ vi.mock('../stores/visual', () => {
   const state = () => ({ fx: h.fx, updateFx: h.updateFx })
   return { useVisualStore: Object.assign((selector: (value: ReturnType<typeof state>) => unknown) => selector(state()), { getState: state }) }
 })
+vi.mock('../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof h.settings) => unknown) => selector(h.settings) }))
 vi.mock('../stores/lyrics', () => {
   const state = () => ({ ...h.lyrics, setDesktopLyricsEnabled: h.setEnabled })
   return { useLyricsStore: Object.assign((selector: (value: ReturnType<typeof state>) => unknown) => selector(state()), { getState: state }) }
 })
-vi.mock('../stores/player', () => ({ usePlayerStore: (selector: (value: { currentTrack: typeof h.track }) => unknown) => selector({ currentTrack: h.track }) }))
+vi.mock('../stores/player', () => {
+  const state = () => ({ ...h.player, currentTrack: h.track })
+  return { usePlayerStore: Object.assign((selector: (value: ReturnType<typeof state>) => unknown) => selector(state()), { getState: state }) }
+})
 vi.mock('../stores/toast', () => ({ useToastStore: { getState: () => ({ show: vi.fn() }) } }))
 import { useDesktopLyricsSync } from './useDesktopLyricsSync'
 const render = () => { h.cursor = 0; useDesktopLyricsSync() }
 
 beforeEach(() => {
+  Object.assign(h.settings, { fontFamily: '', fontFamilyCjk: '' })
+  h.effects.forEach((effect) => effect.cleanup?.())
   h.effects = []
+  Object.assign(h.player, { status: 'playing', position: 0, rate: 1 })
+  Object.assign(h.lyrics, { currentIndex: 0, offsetSec: 0, wordLines: [], lines: [{ text: '歌词', time: 0 }] })
   h.sizeRef.current = null
-  Object.assign(h.fx, { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false })
+  Object.assign(h.fx, { desktopLyrics: false, desktopLyricsSize: 24, desktopLyricsFontFamily: '', desktopLyricsFontFamilyCjk: '', desktopLyricsBackgroundOpacity: 0.68, desktopLyricsBackgroundStyle: 'dark', desktopLyricsAutoWidth: false, desktopLyricsLineMode: 'single', desktopLyricsWordByWord: false, desktopLyricsColor: '#ffffff', desktopLyricsOpacity: 0.92, desktopLyricsClickThrough: false, desktopLyricsHighlight: true, desktopLyricsShowTranslation: true, desktopLyricsShowRoma: false })
   h.lyrics.romaji = [{ text: 'ongaku', time: 0 }]
   h.lyrics.trackKey = 'local:1'
   h.track.id = 1
@@ -47,9 +57,90 @@ beforeEach(() => {
     onDesktopLyricsSizeState: (cb: typeof h.onSize) => { h.onSize = cb; return vi.fn() }
   } })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { h.effects.forEach((effect) => effect.cleanup?.()); h.effects = []; vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('桌面歌词窗口同步', () => {
+  it('双行是当前与下一句，关闭后或切歌清除旧下一句，并同步底框样式', () => {
+    h.lyrics.lines = [{ text: '歌词', time: 0 }, { text: '下一句', time: 3 }]
+    Object.assign(h.fx, { desktopLyricsLineMode: 'double', desktopLyricsBackgroundOpacity: 0.3, desktopLyricsBackgroundStyle: 'frosted' })
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '歌词', nextLine: '下一句', backgroundOpacity: 0.3, backgroundStyle: 'frosted' }))
+    h.lyrics.currentIndex = 1
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '下一句', nextLine: '' }))
+    h.lyrics.currentIndex = 0
+    h.fx.desktopLyricsLineMode = 'single'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '' }))
+    h.fx.desktopLyricsLineMode = 'double'
+    h.track.id = 2
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ nextLine: '' }))
+  })
+  it('宽度自适应开关同步到窗口', () => {
+    h.fx.desktopLyricsAutoWidth = true
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ autoWidth: true }))
+    h.fx.desktopLyricsAutoWidth = false
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ autoWidth: false }))
+  })
+  it('逐字开关使用真实时钟，暂停、跳播和偏移生效，关闭停止同步', () => {
+    vi.useFakeTimers()
+    h.fx.desktopLyrics = true
+    h.fx.desktopLyricsWordByWord = true
+    h.lyrics.wordLines = [{ time: 0, durationMs: 2000, words: [{ text: '歌', startMs: 0, durationMs: 1000 }, { text: '词', startMs: 1000, durationMs: 1000 }] }]
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ wordLine: h.lyrics.wordLines[0] }))
+    h.player.position = 0.5
+    vi.advanceTimersByTime(50)
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith({ wordClock: { elapsedMs: 500, playing: true, rate: 1 } })
+    h.player.status = 'paused'
+    h.player.position = 1.5
+    h.lyrics.offsetSec = -0.25
+    vi.advanceTimersByTime(50)
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith({ wordClock: { elapsedMs: 1250, playing: false, rate: 1 } })
+    h.fx.desktopLyricsWordByWord = false
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ wordLine: undefined, wordClock: undefined }))
+    vi.mocked(window.desktop.updateDesktopLyrics).mockClear()
+    vi.advanceTimersByTime(200)
+    expect(window.desktop.updateDesktopLyrics).not.toHaveBeenCalled()
+  })
+  it('无精准时序或旧词行不匹配时回退整句且不启动逐字时钟', () => {
+    vi.useFakeTimers()
+    h.fx.desktopLyrics = true
+    h.fx.desktopLyricsWordByWord = true
+    h.lyrics.wordLines = [{ time: 0, durationMs: 1000, words: [{ text: '歌词', startMs: 0 }] }]
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ wordLine: undefined }))
+    h.lyrics.wordLines = [{ time: 0, durationMs: 1000, words: [{ text: '旧词', startMs: 0, durationMs: 1000 }] }]
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ wordLine: undefined }))
+    vi.mocked(window.desktop.updateDesktopLyrics).mockClear()
+    vi.advanceTimersByTime(200)
+    expect(window.desktop.updateDesktopLyrics).not.toHaveBeenCalled()
+  })
+  it('中西文字体分别继承界面设置，独立修改后立即同步', () => {
+    Object.assign(h.settings, { fontFamily: 'Helvetica Neue', fontFamilyCjk: 'PingFang SC' })
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ fontFamily: 'Helvetica Neue', fontFamilyCjk: 'PingFang SC' }))
+    h.fx.desktopLyricsFontFamilyCjk = 'Songti SC'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ fontFamily: 'Helvetica Neue', fontFamilyCjk: 'Songti SC' }))
+    h.settings.fontFamily = 'Arial'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ fontFamily: 'Arial', fontFamilyCjk: 'Songti SC' }))
+    h.fx.desktopLyricsFontFamily = 'Georgia'
+    render()
+    vi.mocked(window.desktop.updateDesktopLyrics).mockClear()
+    Object.assign(h.settings, { fontFamily: 'Verdana', fontFamilyCjk: 'Microsoft YaHei' })
+    render()
+    expect(window.desktop.updateDesktopLyrics).not.toHaveBeenCalled()
+    h.fx.desktopLyricsFontFamilyCjk = ''
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ fontFamily: 'Georgia', fontFamilyCjk: 'Microsoft YaHei' }))
+  })
   it('音译开关立即生效，切歌或缺少音译数据时清除旧行', () => {
     render()
     expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ roma: '' }))

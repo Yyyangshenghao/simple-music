@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls, useReducedMotion } from 'motion/react'
 import { api } from '../lib/api'
+import { loginMusicProvider } from '../lib/provider-login'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { playbackStrategySummary } from '../lib/playback-preference-display'
+import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
@@ -17,6 +19,7 @@ import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSetti
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
+import { useVisualStore } from '../stores/visual'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
@@ -42,27 +45,6 @@ function SectionHeading({ section, index }: { section: (typeof SETTINGS_TABS)[nu
       <h2 id={`settings-heading-${section.id}`}>{section.label}</h2>
       <p>{section.description}</p>
     </div>
-  )
-}
-
-function InfoButton({ label, text: description }: { label: string; text: string }) {
-  const tooltipId = useId()
-  return (
-    <span className={styles.infoWrap}>
-      <button
-        type="button"
-        className={styles.infoButton}
-        aria-label={`${label}说明`}
-        aria-describedby={tooltipId}
-        onClick={(event) => event.currentTarget.focus()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') event.currentTarget.blur()
-        }}
-      >
-        i
-      </button>
-      <span id={tooltipId} className={styles.infoTooltip} role="tooltip">{description}</span>
-    </span>
   )
 }
 
@@ -595,6 +577,8 @@ export function SettingsPage() {
   const setLyrics3dFontFamily = useSettingsStore((s) => s.setLyrics3dFontFamily)
   const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
   const setLyrics3dFontFamilyCjk = useSettingsStore((s) => s.setLyrics3dFontFamilyCjk)
+  const fx = useVisualStore((s) => s.fx)
+  const updateFx = useVisualStore((s) => s.updateFx)
   const [systemFonts, setSystemFonts] = useState<SystemFontFamily[]>([])
   const [fontsLoading, setFontsLoading] = useState(true)
   const [fontsError, setFontsError] = useState(false)
@@ -630,6 +614,18 @@ export function SettingsPage() {
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
   const multiSourceFallback = useProviderStore((s) => s.multiSourceFallback)
   const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
+  const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
+  const loginProvider = async (source: 'netease' | 'qq'): Promise<void> => {
+    if (loginBusy !== null) return
+    setLoginBusy(source)
+    try {
+      await loginMusicProvider(source)
+    } catch {
+      useToastStore.getState().show('登录失败，请重试')
+    } finally {
+      setLoginBusy(null)
+    }
+  }
   const setProviderEnabled = useProviderStore((s) => s.setEnabled)
   const setPlaybackOrder = useProviderStore((s) => s.setPlaybackOrder)
   const setPreferOriginSource = useProviderStore((s) => s.setPreferOriginSource)
@@ -648,16 +644,7 @@ export function SettingsPage() {
   const activePerformancePreset = matchPerformancePreset(performance)
 
   const setLyrics3dEnabled = (enabled: boolean): void => {
-    const page = pageRef.current
-    const section = document.getElementById('settings-section-lyrics')
-    const top = page && section
-      ? section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - parseFloat(window.getComputedStyle(section).scrollMarginTop)
-      : 0
     setPerformance({ lyrics3dEnabled: enabled })
-    if (!page) return
-    selectedSectionRef.current = 'lyrics'
-    setActiveSection('lyrics')
-    requestAnimationFrame(() => page.scrollTo({ top, behavior: 'auto' }))
   }
 
   const [audioCache, setAudioCache] = useState<AudioCacheStatsInfo | null>(null)
@@ -798,7 +785,10 @@ export function SettingsPage() {
                     </span>
                   </div>
                   {listProviders().map((provider) => {
-                    const runtime = providerState[provider.descriptor.id]
+                    const source = provider.descriptor.id
+                    const runtime = providerState[source]
+                    const connected = runtime.auth === 'authenticated'
+                    const busy = loginBusy === source
                     return (
                       <div className={styles.providerRow} key={provider.descriptor.id}>
                         <SourceBadge source={provider.descriptor.id} displayMode="always" showInactive />
@@ -812,6 +802,15 @@ export function SettingsPage() {
                               : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
                           </small>
                         </div>
+                        {source === 'apple' ? <AppleMusicSettings /> : <button
+                          type="button"
+                          className={`${styles.providerLogin} no-drag`}
+                          disabled={connected || loginBusy !== null || busy}
+                          aria-label={`${connected ? '已登录' : '登录'}${provider.descriptor.label}`}
+                          onClick={() => void loginProvider(source)}
+                        >
+                          {connected ? '已登录' : busy ? '登录中…' : runtime.auth === 'expired' ? '重新登录' : '登录'}
+                        </button>}
                         <Switch
                           checked={runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false}
                           disabled={runtime.auth !== 'authenticated' || runtime.playbackAvailable === false}
@@ -821,7 +820,6 @@ export function SettingsPage() {
                       </div>
                     )
                   })}
-                  <AppleMusicSettings />
                 </section>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>播放</h3>
@@ -1114,80 +1112,86 @@ export function SettingsPage() {
             <section id="settings-section-lyrics" className={styles.settingsSection} aria-labelledby="settings-heading-lyrics">
               <SectionHeading section={SETTINGS_TABS[2]} index={2} />
               <div className={styles.lyricsPage}>
-                <DesktopLyricsSettings
-                  fonts={systemFonts}
-                  loading={fontsLoading}
-                  fontsError={fontsError}
-                  onRetryFonts={() => { void loadSystemFonts() }}
-                />
-                <div className={styles.lyricsOverview}>
-                  <div className={styles.lyricsColumn}>
-                    <section className={`${styles.group} ${styles.lyricsMasterGroup}`}>
-                      <h3 className={styles.groupTitle}>
-                        3D 歌词
-                        <InfoButton label="3D 歌词" text="启用后展开背景场景、文字演出和细节设置；关闭后播放页只保留普通歌词。" />
-                      </h3>
-                      <div className={styles.row}>
-                        <span className={styles.rowLabel}>启用 3D 歌词舞台</span>
-                        <Switch
-                          checked={performance.lyrics3dEnabled}
-                          onChange={setLyrics3dEnabled}
-                          aria-label="启用 3D 歌词舞台"
-                          aria-controls="settings-lyrics3d-details"
-                          aria-expanded={performance.lyrics3dEnabled}
-                        />
-                      </div>
-                    </section>
+                <DesktopLyricsSettings />
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>
+                    歌词字体
+                    <InfoButton label="歌词字体" text="桌面、普通和 3D 歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
+                  </h3>
+                  <div className={styles.fontGuide}>
+                    <span role="status" aria-live="polite">
+                      {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
+                    </span>
+                    {fontsError && (
+                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+                        重试
+                      </button>
+                    )}
                   </div>
-                  <div className={styles.lyricsColumn}>
-                    <section className={styles.group}>
-                      <h3 className={styles.groupTitle}>
-                        歌词字体
-                        <InfoButton label="歌词字体" text="普通歌词和 3D 歌词可分别选字体；留空时跟随界面字体。" />
-                      </h3>
-                      <div className={styles.fontGuide}>
-                        <span role="status" aria-live="polite">
-                          {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
-                        </span>
-                        {fontsError && (
-                          <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
-                            重试
-                          </button>
-                        )}
-                      </div>
-                      <FontPairSetting
-                        label="普通歌词"
-                        idPrefix="settings-lyrics-font"
-                        westernValue={lyricsFontFamily}
-                        cjkValue={lyricsFontFamilyCjk}
-                        fonts={systemFonts}
-                        loading={fontsLoading}
-                        westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
-                        cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
-                        onWesternChange={setLyricsFontFamily}
-                        onCjkChange={setLyricsFontFamilyCjk}
-                      />
-                      <FontPairSetting
-                        label="3D 歌词"
-                        idPrefix="settings-lyrics-3d-font"
-                        westernValue={lyrics3dFontFamily}
-                        cjkValue={lyrics3dFontFamilyCjk}
-                        fonts={systemFonts}
-                        loading={fontsLoading}
-                        westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
-                        cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
-                        onWesternChange={setLyrics3dFontFamily}
-                        onCjkChange={setLyrics3dFontFamilyCjk}
-                      />
-                    </section>
+                  <FontPairSetting
+                    label="桌面歌词"
+                    idPrefix="settings-desktop-lyrics-font"
+                    westernValue={fx.desktopLyricsFontFamily}
+                    cjkValue={fx.desktopLyricsFontFamilyCjk}
+                    fonts={systemFonts}
+                    loading={fontsLoading}
+                    westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+                    cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+                    onWesternChange={(value) => updateFx({ desktopLyricsFontFamily: value })}
+                    onCjkChange={(value) => updateFx({ desktopLyricsFontFamilyCjk: value })}
+                  />
+                  <FontPairSetting
+                    label="普通歌词"
+                    idPrefix="settings-lyrics-font"
+                    westernValue={lyricsFontFamily}
+                    cjkValue={lyricsFontFamilyCjk}
+                    fonts={systemFonts}
+                    loading={fontsLoading}
+                    westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+                    cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+                    onWesternChange={setLyricsFontFamily}
+                    onCjkChange={setLyricsFontFamilyCjk}
+                  />
+                  <FontPairSetting
+                    label="3D 歌词"
+                    idPrefix="settings-lyrics-3d-font"
+                    westernValue={lyrics3dFontFamily}
+                    cjkValue={lyrics3dFontFamilyCjk}
+                    fonts={systemFonts}
+                    loading={fontsLoading}
+                    westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
+                    cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
+                    onWesternChange={setLyrics3dFontFamily}
+                    onCjkChange={setLyrics3dFontFamilyCjk}
+                  />
+                </section>
+                <section className={styles.group}>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>
+                      启用 3D 歌词舞台
+                      <InfoButton label="3D 歌词" text="关闭后播放页使用普通歌词；下方场景与渲染设置保留，重新启用后生效。" />
+                    </span>
+                    <Switch
+                      checked={performance.lyrics3dEnabled}
+                      onChange={setLyrics3dEnabled}
+                      aria-label="启用 3D 歌词舞台"
+                      aria-controls="settings-lyrics3d-details"
+                    />
                   </div>
-                </div>
-                <div id="settings-lyrics3d-details" className={styles.lyricsExpanded} hidden={!performance.lyrics3dEnabled}>
-                  {performance.lyrics3dEnabled && <>
-                    <Lyrics3dSettings view="scene" />
-                    <Lyrics3dSettings view="tuning" />
-                  </>}
-                </div>
+                </section>
+                <fieldset
+                  id="settings-lyrics3d-details"
+                  className={styles.lyricsDetails}
+                  disabled={!performance.lyrics3dEnabled}
+                  aria-describedby="settings-lyrics3d-hint"
+                >
+                  <legend>3D 歌词详细设置</legend>
+                  <p id="settings-lyrics3d-hint" className={styles.lyricsDetailsHint}>
+                    {performance.lyrics3dEnabled ? '调整场景、文字与渲染效果。' : '启用 3D 歌词舞台后可调整；当前设置已保留，歌词字体仍可独立选择。'}
+                  </p>
+                  <Lyrics3dSettings view="scene" />
+                  <Lyrics3dSettings view="tuning" />
+                </fieldset>
               </div>
             </section>
             <section id="settings-section-cache" className={styles.settingsSection} aria-labelledby="settings-heading-cache">

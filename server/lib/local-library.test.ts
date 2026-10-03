@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { promises as fsp } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { addLocalFolder, findLocalTrack, listLocalLibrary, removeLocalFolder } from './local-library'
 
@@ -38,6 +38,32 @@ async function createFolder(name: string, fileName: string): Promise<string> {
 }
 
 describe('本地音乐索引快照', () => {
+  it('带尾部分隔符的文件夹移除也清理其曲目', async () => {
+    const folder = await createFolder('first', 'first.mp3') + sep
+    await addLocalFolder(directory, folder)
+    await removeLocalFolder(directory, folder)
+    expect(await listLocalLibrary(directory)).toEqual({ folders: [], tracks: [] })
+  })
+
+  it('重扫移除已删除曲目与封面，保留其他文件夹和仍存在的曲目', async () => {
+    const first = await createFolder('first', 'first.mp3')
+    const second = await createFolder('second', 'second.mp3')
+    await fsp.writeFile(join(first, 'second.mp3'), '')
+    const tracks = await addLocalFolder(directory, first)
+    await addLocalFolder(directory, second)
+    const deleted = tracks.find((track) => track.path === join(first, 'first.mp3'))!
+    const cover = join(directory, 'local-covers', `${deleted.id}.img`)
+    await fsp.mkdir(join(directory, 'local-covers'))
+    await fsp.writeFile(cover, 'cover')
+    await fsp.rm(deleted.path)
+    await addLocalFolder(directory, first)
+    const library = await listLocalLibrary(directory)
+    expect(library.folders).toEqual([first, second])
+    expect(library.tracks.map((track) => track.path)).toEqual([join(first, 'second.mp3'), join(second, 'second.mp3')])
+    expect(await findLocalTrack(directory, deleted.id)).toBeNull()
+    await expect(fsp.stat(cover)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('合并同目录并发读取，后续音频和封面查找不重复解析索引', async () => {
     await seedLibrary(directory)
     const readFile = vi.spyOn(fsp, 'readFile')
