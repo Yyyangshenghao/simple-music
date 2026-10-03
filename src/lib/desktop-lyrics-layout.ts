@@ -1,6 +1,6 @@
 export const DESKTOP_LYRICS_MIN_SIZE = 12
 export const DESKTOP_LYRICS_MAX_SIZE = 10000
-export const DESKTOP_LYRICS_LINE_HEIGHT = 1.1
+export const DESKTOP_LYRICS_LINE_HEIGHT = 1.25
 export const DESKTOP_LYRICS_TRANSLATION_SCALE = 0.6
 export const DESKTOP_LYRICS_GAP = 4
 // 顶部 32px 留给解锁图标，底部 6px；底框边框 2px、文字上下各 4px。

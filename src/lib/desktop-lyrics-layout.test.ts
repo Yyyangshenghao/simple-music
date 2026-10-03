@@ -1,6 +1,15 @@
 import { expect, it } from 'vitest'
 import { desktopLyricsHeight, desktopLyricsSize } from './desktop-lyrics-layout'
 
+it('默认字号为每行预留上下空间，窗口完整容纳原文和辅助行', () => {
+  expect(desktopLyricsHeight(38, false)).toBeCloseTo(95.5)
+  expect(desktopLyricsHeight(38, true)).toBeCloseTo(128)
+  expect(desktopLyricsHeight(38, false, true)).toBeCloseTo(128)
+  expect(desktopLyricsHeight(38, true, true)).toBeCloseTo(160.5)
+  expect(desktopLyricsHeight(38, false, false, true)).toBeCloseTo(147)
+  expect(desktopLyricsHeight(38, true, true, true)).toBeCloseTo(212)
+})
+
 it.each([false, true])('单行/翻译布局按高度等比例缩放且字号与高度互逆：%s', (translation) => {
   for (const size of [12, 38, 72, 240]) {
     expect(desktopLyricsSize(desktopLyricsHeight(size, translation), translation)).toBeCloseTo(size)
