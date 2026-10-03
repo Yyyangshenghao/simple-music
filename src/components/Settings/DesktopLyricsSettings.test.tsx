@@ -53,7 +53,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('桌面歌词设置', () => {
-  it.each(['win32', 'linux'])('在 %s 禁用毛玻璃并将旧保存效果回退为暗灰色预览', (platform) => {
+  it.each(['linux'])('在 %s 禁用毛玻璃并将旧保存效果回退为暗灰色预览', (platform) => {
     vi.stubGlobal('window', { desktop: { platform } })
     h.fx.desktopLyricsBackgroundStyle = 'frosted'
     const html = renderToStaticMarkup(<DesktopLyricsSettings />)
@@ -64,6 +64,16 @@ describe('桌面歌词设置', () => {
     expect(html).toContain('backdrop-filter:none')
     expect(html).not.toContain('backdrop-filter:blur(16px)')
     expect(h.fx.desktopLyricsBackgroundStyle).toBe('frosted')
+  })
+
+  it('Windows 可选择毛玻璃并预览，说明系统不可用时回退', () => {
+    vi.stubGlobal('window', { desktop: { platform: 'win32' } })
+    h.fx.desktopLyricsBackgroundStyle = 'frosted'
+    const html = renderToStaticMarkup(<DesktopLyricsSettings />)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>毛玻璃/)
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>毛玻璃/)
+    expect(html).toContain('backdrop-filter:blur(16px)')
+    expect(html).toContain('Windows 10 1803 及以上支持毛玻璃')
   })
 
   it('底框透明度与文字透明度独立，毛玻璃预览应用所选效果', () => {

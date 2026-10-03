@@ -23,7 +23,7 @@ export function DesktopLyricsSettings() {
   const color = fx.desktopLyricsColor || '#ffffff'
   const backgroundOpacity = fx.desktopLyricsBackgroundOpacity ?? 0.68
   const platform = typeof window !== 'undefined' ? window.desktop?.platform : undefined
-  const supportsFrosted = platform === undefined || platform === 'darwin'
+  const supportsFrosted = platform === undefined || platform === 'darwin' || platform === 'win32'
   const backgroundStyle = supportsFrosted ? fx.desktopLyricsBackgroundStyle || 'dark' : 'dark'
   const lineMode = fx.desktopLyricsLineMode || 'single'
   const previewLine = '让音乐陪你走过每一天'
@@ -172,7 +172,7 @@ export function DesktopLyricsSettings() {
             />
           </div>
           <div className={styles.row}>
-            <span className={styles.settingLabel}>底框效果<InfoButton label="桌面歌词底框效果" text={`${!supportsFrosted ? '此系统使用暗灰色底框。' : ''}底框常态显示，锁定后也保留；设为 0% 可隐藏底框。`} align="left" /></span>
+            <span className={styles.settingLabel}>底框效果<InfoButton label="桌面歌词底框效果" text={`${!supportsFrosted ? '此系统使用暗灰色底框。' : platform === 'win32' ? 'Windows 10 1803 及以上支持毛玻璃，系统效果不可用时回退暗灰色。' : ''}底框常态显示，锁定后也保留；设为 0% 可隐藏底框。`} align="left" /></span>
             <div className={styles.choices} role="group" aria-label="桌面歌词底框效果">
               <button type="button" className="no-drag" disabled={!supportsFrosted} title={!supportsFrosted ? '此系统使用暗灰色底框' : undefined} aria-pressed={backgroundStyle === 'frosted'} onClick={() => updateFx({ desktopLyricsBackgroundStyle: 'frosted' })}>毛玻璃</button>
               <button type="button" className="no-drag" aria-pressed={backgroundStyle === 'dark'} onClick={() => updateFx({ desktopLyricsBackgroundStyle: 'dark' })}>暗灰色</button>

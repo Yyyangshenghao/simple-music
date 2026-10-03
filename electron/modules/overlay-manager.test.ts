@@ -142,6 +142,36 @@ describe('桌面歌词窗口交互', () => {
     expect(win.bounds.y).toBe(0)
   })
   it.each([
+    { widthInset: 1, heightInset: 0 },
+    { widthInset: 16, heightInset: 8 }
+  ])('系统读回宽度偏大 $widthInset 时，拖动不反复累加尺寸偏差', ({ widthInset, heightInset }) => {
+    setLyricsEnabled(true, { clickThrough: false, size: 38, autoWidth: false, translation: '', roma: '', nextLine: '' })
+    const win = harness.instances[0]
+    resizeLyrics(680, 90)
+    win.bounds = { ...win.bounds, x: 200, y: 200 }
+    win.setBounds.mockClear()
+    // 模拟系统读回宽高偏大；热区上报、移动、设置更新都不能放大偏差。
+    win.setBounds.mockImplementation((bounds: Electron.Rectangle) => {
+      win.bounds = { ...bounds, width: bounds.width + widthInset, height: bounds.height + heightInset }
+    })
+    try {
+      for (let i = 0; i < 20; i++) {
+        moveLyricsBy(10, 5)
+        setLyricsControlBounds({ left: 0, top: 0, right: 28, bottom: 28 })
+      }
+      expect(win.bounds).toEqual({ x: 400, y: 300, width: 680 + widthInset, height: 90 + heightInset })
+      expect(win.setBounds).toHaveBeenCalledTimes(20)
+      for (const [bounds] of win.setBounds.mock.calls) expect(bounds).toMatchObject({ width: 680, height: 90 })
+      updateLyrics({ size: 48 })
+      expect(win.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ width: 680, height: Math.ceil(desktopLyricsHeight(48, false)) }), false)
+      setLyricsEnabled(false)
+      setLyricsEnabled(true, { clickThrough: false, size: 38 })
+      expect(harness.instances.at(-1)!.bounds.width).toBe(680)
+    } finally {
+      win.setBounds.mockImplementation((bounds: Electron.Rectangle) => { win.bounds = { ...bounds } })
+    }
+  })
+  it.each([
     { fromX: 1240, cursorX: 1930, dx: 160, expectedX: 1920 },
     { fromX: 1920, cursorX: 1910, dx: -160, expectedX: 1240 }
   ])('拖动时光标跨屏可将宽歌词窗口移到相邻显示器（$dx）', ({ fromX, cursorX, dx, expectedX }) => {
@@ -159,6 +189,7 @@ describe('桌面歌词窗口交互', () => {
     try {
       setLyricsEnabled(true, { clickThrough: false, size: 38, autoWidth: false })
       const win = harness.instances[0]
+      resizeLyrics(680, 90)
       win.bounds = { x: fromX, y: 100, width: 680, height: 90 }
       Object.assign(harness.cursor, { x: cursorX, y: 145 })
       moveLyricsBy(dx, 0)
@@ -445,7 +476,8 @@ describe('桌面歌词窗口交互', () => {
   it('三行歌词共用高度，左上角缩放保持右下角且避让屏幕边缘', () => {
     setLyricsEnabled(true, { clickThrough: false, size: 38, translation: '音乐', roma: 'ongaku' })
     const win = harness.instances[0]
-    win.bounds = { x: 200, y: 200, width: 420, height: 180 }
+    resizeLyrics(420, 180)
+    win.bounds = { ...win.bounds, x: 200, y: 200 }
     resizeLyrics(500, 210, 'top-left')
     expect(win.bounds).toMatchObject({ x: 120, y: 170, width: 500, height: 210 })
     expect(harness.mainSend).toHaveBeenCalledWith('lyrics:size-changed', { size: desktopLyricsSize(210, true, true) })
@@ -466,7 +498,8 @@ describe('桌面歌词窗口交互', () => {
   it('左上角扩展使用原屏约束，不被右侧较小屏幕截断', () => {
     setLyricsEnabled(true, { clickThrough: false, size: 38, translation: '', roma: '' })
     const win = harness.instances[0]
-    win.bounds = { x: 1500, y: 100, width: 400, height: 200 }
+    resizeLyrics(400, 200)
+    win.bounds = { ...win.bounds, x: 1500, y: 100 }
     harness.getDisplayMatching.mockImplementation(bounds => {
       const leftOverlap = Math.max(0, Math.min(1920, bounds.x + bounds.width) - bounds.x)
       const rightOverlap = Math.max(0, Math.min(3200, bounds.x + bounds.width) - Math.max(1920, bounds.x))

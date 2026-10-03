@@ -60,6 +60,23 @@ beforeEach(() => {
 afterEach(() => { h.effects.forEach((effect) => effect.cleanup?.()); h.effects = []; vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('桌面歌词窗口同步', () => {
+  it.each([
+    ['win32', 'frosted'],
+    ['darwin', 'frosted'],
+    ['linux', 'dark']
+  ])('%s 启用与切换底框时同步支持的样式', (platform, backgroundStyle) => {
+    Object.assign(window.desktop, { platform })
+    Object.assign(h.fx, { desktopLyrics: true, desktopLyricsBackgroundOpacity: 0.3, desktopLyricsBackgroundStyle: 'frosted' })
+    render()
+    expect(window.desktop.setDesktopLyricsEnabled).toHaveBeenLastCalledWith(true, expect.objectContaining({ backgroundOpacity: 0.3, backgroundStyle }))
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ backgroundOpacity: 0.3, backgroundStyle }))
+    h.fx.desktopLyricsBackgroundStyle = 'dark'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ backgroundStyle: 'dark' }))
+    h.fx.desktopLyricsBackgroundStyle = 'frosted'
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ backgroundStyle }))
+  })
   it('双行是当前与下一句，关闭后或切歌清除旧下一句，并同步底框样式', () => {
     h.lyrics.lines = [{ text: '歌词', time: 0 }, { text: '下一句', time: 3 }]
     Object.assign(h.fx, { desktopLyricsLineMode: 'double', desktopLyricsBackgroundOpacity: 0.3, desktopLyricsBackgroundStyle: 'frosted' })

@@ -91,8 +91,8 @@ describe('歌词局部原生毛玻璃', () => {
     expect(native.calls).toHaveBeenCalledWith(300n, 'removeFromSuperview')
   })
 
-  it('非 macOS 不加载依赖或访问窗口句柄', async () => {
-    vi.stubGlobal('process', Object.create(process, { platform: { value: 'win32' } }))
+  it('不支持的平台不加载依赖或访问窗口句柄', async () => {
+    vi.stubGlobal('process', Object.create(process, { platform: { value: 'linux' } }))
     const { createLyricsNativeBackdrop } = await import('./lyrics-native-backdrop')
     const win = windowWithHandle()
     expect(createLyricsNativeBackdrop(win as unknown as BrowserWindow)).toBeNull()

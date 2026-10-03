@@ -43,7 +43,7 @@
 }
 
 .frame.frosted {
-  /* 真实桌面模糊由底框区域内的原生 NSVisualEffectView 提供。 */
+  /* 真实桌面模糊由平台原生底框提供。 */
   background: transparent;
 }
 

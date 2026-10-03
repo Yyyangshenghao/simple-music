@@ -34,7 +34,8 @@ export function useDesktopLyricsSync(): void {
   const showTranslation = useVisualStore((s) => s.fx.desktopLyricsShowTranslation)
   const backgroundOpacity = useVisualStore((s) => s.fx.desktopLyricsBackgroundOpacity)
   const savedBackgroundStyle = useVisualStore((s) => s.fx.desktopLyricsBackgroundStyle)
-  const backgroundStyle = window.desktop?.platform && window.desktop.platform !== 'darwin' ? 'dark' : savedBackgroundStyle
+  const platform = window.desktop?.platform
+  const backgroundStyle = platform && platform !== 'darwin' && platform !== 'win32' ? 'dark' : savedBackgroundStyle
   const autoWidth = useVisualStore((s) => s.fx.desktopLyricsAutoWidth)
   const lineMode = useVisualStore((s) => s.fx.desktopLyricsLineMode)
   const wordByWord = useVisualStore((s) => s.fx.desktopLyricsWordByWord)

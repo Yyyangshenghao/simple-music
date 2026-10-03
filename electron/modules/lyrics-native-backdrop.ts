@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import type { BrowserWindow } from 'electron'
+import { createWindowsLyricsBackdrop } from './windows-lyrics-backdrop'
 
 const require = createRequire(import.meta.url)
 let objc: ReturnType<typeof bindObjc> | undefined
@@ -27,10 +28,11 @@ function bindObjc() {
 }
 
 /** 仅使用公开 AppKit API，在歌词内容后方添加局部毛玻璃，不改变窗口激活和输入行为。 */
-export function createLyricsNativeBackdrop(win: BrowserWindow): {
+export function createLyricsNativeBackdrop(win: BrowserWindow, onFailure?: () => void): {
   update(settings: { visible: boolean; opacity: number }): boolean
   dispose(): void
 } | null {
+  if (process.platform === 'win32') return createWindowsLyricsBackdrop(win, onFailure)
   if (process.platform !== 'darwin' || win.isDestroyed()) return null
   let view: unknown
   let api: ReturnType<typeof bindObjc> | undefined
