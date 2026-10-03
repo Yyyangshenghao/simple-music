@@ -1002,6 +1002,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         lyric: asStr(asObj(body.lrc).lyric),
         tlyric: asStr(asObj(body.tlyric).lyric),
         romalrc: asStr(asObj(body.romalrc).lyric),
+        yromalrc: asStr(asObj(body.yromalrc).lyric),
         yrc: asStr(asObj(body.yrc).lyric),
         source,
       })
