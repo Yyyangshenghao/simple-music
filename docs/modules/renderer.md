@@ -34,7 +34,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useShortcuts` — 应用内键盘分发、全局热键注册与事件订阅；录入期间释放全局绑定，丢弃旧注册回复，同键只执行一次。
 - `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider；账号身份变化或卸载后丢弃迟到结果，设置水合及单纯启停平台不使有效检测失效。
 - `useAudio` — 播放进度 → lyrics store tick；MusicKit 仅播放时启动 50ms 连续时钟，暂停、拖动及歌词偏移变化即时同步。歌词行用二分定位，同值不通知订阅者。
-- `useLyricsFetch` — 换歌时拉歌词。
+- `useLyricsFetch` — 换歌时拉歌词。网易逐字主歌词优先使用同时间轴的 `yromalrc` 音译，缺行或不可用时只补入时间匹配的旧 `romalrc`；普通 LRC 主歌词仍使用旧音译时间轴。
 - `useDesktopLyricsSync` / `useWallpaperSync` / `useMiniPlayerSync` — 把当前歌词、可视化与播放状态经 IPC 推给三个悬浮窗。
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。

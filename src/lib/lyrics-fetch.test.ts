@@ -106,6 +106,41 @@ describe('Apple Music 同曲歌词', () => {
 
 
 describe('原生逐字时间轴', () => {
+  it('网易逐字主歌词优先使用对应音译，避免旧时间轴偏移导致缺行', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      lyric: '[00:14.99]第一句\n[00:29.12]第二句',
+      yrc: '[15250,1000](15250,1000,0)第一句\n[29620,1000](29620,1000,0)第二句',
+      romalrc: '[00:14.99]old first\n[00:29.12]old second',
+      yromalrc: '[00:15.25]native first\n[00:29.62]native second',
+    })
+    const result = await fetchLyrics(song('netease'))
+    expect(result.roma).toEqual([{ time: 15.25, text: 'native first' }, { time: 29.62, text: 'native second' }])
+  })
+
+  it('对应音译缺少某行时保留时间匹配的旧音译', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      yrc: '[1000,500](1000,500,0)第一句\n[3000,500](3000,500,0)第二句',
+      romalrc: '[00:01.00]old first\n[00:03.00]old second',
+      yromalrc: '[00:01.00]native first',
+    })
+    expect((await fetchLyrics(song('netease'))).roma.map(line => line.text)).toEqual(['native first', 'old second'])
+  })
+
+  it.each([undefined, '', 'invalid'])('对应音译不可解析时回退到旧音译：%s', async yromalrc => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      yrc: '[1000,500](1000,500,0)正文', romalrc: '[00:01.00]old roma', yromalrc,
+    })
+    expect((await fetchLyrics(song('netease'))).roma).toEqual([{ time: 1, text: 'old roma' }])
+  })
+
+  it('普通 LRC 主歌词继续使用旧音译时间轴，不套用逐字音译', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      lyric: '[00:01.00]正文', yrc: 'invalid',
+      romalrc: '[00:01.00]old roma', yromalrc: '[00:01.50]native roma',
+    })
+    expect((await fetchLyrics(song('netease'))).roma).toEqual([{ time: 1, text: 'old roma' }])
+  })
+
   it('本地普通 LRC 保留逐句歌词，不再估算逐字时间', async () => {
     h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
     const result = await fetchLyrics({ ...apple, source: 'local', provider: 'local' })
