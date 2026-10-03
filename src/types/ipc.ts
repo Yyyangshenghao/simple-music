@@ -46,6 +46,10 @@ export interface LoginResult {
 
 /** 桌面歌词 payload：已知控制字段 + 渲染层自定义内容字段。 */
 export interface LyricsPayload {
+  /** 当前曲目与正文行序号，供双行歌词识别连续换句；占位行序号为 -1。 */
+  trackKey?: string | null
+  lineIndex?: number
+  lineMode?: 'single' | 'double'
   autoWidth?: boolean
   size?: number
   fontFamily?: string

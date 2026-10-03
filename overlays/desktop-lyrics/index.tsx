@@ -176,6 +176,9 @@ function OverlayApp() {
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
         </button>}
         <DesktopLyrics
+          trackKey={asStr(payload.trackKey)}
+          lineIndex={asNum(payload.lineIndex, -1)}
+          lineMode={payload.lineMode === 'double' ? 'double' : 'single'}
           line={asStr(payload.line)}
           nextLine={asStr(payload.nextLine)}
           wordLine={payload.wordLine}

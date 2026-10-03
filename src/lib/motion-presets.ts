@@ -18,6 +18,9 @@ export const tapScale = { scale: 0.94 }
 /** 图标切换快速淡入淡出（AnimatePresence 内的小图标 crossfade，如播放/暂停、音量档位）。 */
 export const iconSwap: Transition = { duration: 0.1, ease: 'easeOut' }
 
+/** 桌面双行歌词顺序换句：整行向上滚动，使用浏览器原生动画。 */
+export const desktopLyricsScrollTiming: KeyframeAnimationOptions = { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+
 /** 入场：淡入上移（配 initial="hidden" animate="visible"）。 */
 export const fadeRise: Variants = {
   hidden: { opacity: 0, y: 14 },
