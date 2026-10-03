@@ -371,6 +371,10 @@ function hasActiveEntriesInDir(dir: string): boolean {
   return [...activeReaders].some(([key, count]) => count > 0 && key.startsWith(prefix))
 }
 
+function isAudioCachePartFile(name: string): boolean {
+  return /^[a-f0-9]{40}(?:\.bin|\.[a-f0-9]{12})\.part$/i.test(name)
+}
+
 async function clearCacheFilesIn(dir: string): Promise<void> {
   let names: string[]
   try {
@@ -379,7 +383,9 @@ async function clearCacheFilesIn(dir: string): Promise<void> {
     return
   }
   await Promise.all(names
-    .filter((name) => name.endsWith('.bin') || name.endsWith('.part') || name.startsWith(`${INDEX_FILE}.`) || name === INDEX_FILE || name === INDEX_BACKUP_FILE)
+    .filter((name) => /^[a-f0-9]{40}\.bin$/i.test(name) || isAudioCachePartFile(name)
+      || [INDEX_FILE, INDEX_BACKUP_FILE].some((file) => name === file
+        || (name.startsWith(`${file}.`) && /^[a-f0-9]{12}\.tmp$/i.test(name.slice(file.length + 1)))))
     .map((name) => fsp.rm(join(dir, name), { force: true }).catch(() => {})))
 }
 
@@ -471,6 +477,11 @@ function mergeOrigin(
   const merged: CacheOrigin = {
     ...previous,
     ...input,
+    name: input.name ?? previous?.name,
+    artist: input.artist ?? previous?.artist,
+    album: input.album ?? previous?.album,
+    cover: input.cover ?? previous?.cover,
+    duration: input.duration ?? previous?.duration,
     lastUsedAt: now,
     savedAt: pinned ? now : previous?.savedAt,
   }
@@ -1037,7 +1048,7 @@ export async function clearAudioCacheScope(
         }
       }
       const names = await fsp.readdir(dir).catch(() => [] as string[])
-      await Promise.all(names.filter((name) => name.endsWith('.part')).map((name) => fsp.rm(join(dir, name), { force: true }).catch(() => {})))
+      await Promise.all(names.filter(isAudioCachePartFile).map((name) => fsp.rm(join(dir, name), { force: true }).catch(() => {})))
       await writeIndex(dir, index)
       return failed ? { ok: false, error: 'CACHE_BUSY' } : { ok: true }
     } finally {

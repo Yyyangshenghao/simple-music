@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { springGentle } from '../../lib/motion-presets'
@@ -12,16 +11,11 @@ import { useAmbientStore } from '../../stores/ambient'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
-import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
-import { Waveform3D } from '../Visualizer/Waveform3D'
-import { SpeakerParticles } from '../Visualizer/SpeakerParticles'
-import { CinemaCamera } from '../Visualizer/CinemaCamera'
-import { FrameLimiter } from '../Visualizer/FrameLimiter'
 import { EffectSwitcher } from './EffectSwitcher'
-import { StageLyrics3D } from './StageLyrics3D'
-import type { Lyrics3dEffect } from '../../types/domain'
 import styles from './LyricsPanel.module.css'
 import { sizedImage } from '../../lib/image-size'
+
+const LyricsScene = lazy(() => import('./LyricsScene'))
 
 interface LyricsPanelProps {
   open: boolean
@@ -98,13 +92,6 @@ function MarqueeTrackName({ text }: { text: string }) {
 /** 用户手动滚动歌词后,这么久没再滚动才恢复自动居中 */
 const USER_SCROLL_RESUME_MS = 4000
 
-// 3D 效果组件查找表
-const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
-  'cover-cloud': CoverParticleCloud,
-  'waveform-3d': Waveform3D,
-  'speaker-particles': SpeakerParticles
-}
-
 interface LayoutSliderProps {
   label: string
   value: number
@@ -165,9 +152,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
-  const renderScale = useSettingsStore((s) => s.lyrics3d.renderScale)
-  const EffectComponent = EFFECT_COMPONENTS[lyrics3dEffect]
   // 浅色封面判定:仅 cover-cloud 会把封面铺满背景,其他 3D 效果底色恒深,保持白字。
   // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
   const coverLuma = useAmbientStore((s) => s.coverLuma)
@@ -336,16 +320,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             >
               3D
             </button>
-            {mode === '3d' && <button
-              className={`${styles.modeAdjustBtn}${effectMenuOpen && effectMenuTab === 'adjust' ? ` ${styles.modeBtnActive}` : ''}`}
-              type="button"
-              aria-label="调节 3D 歌词"
-              title="调节当前 3D 场景和歌词"
-              onClick={() => {
-                setEffectMenuTab('adjust')
-                setEffectMenuOpen(effectMenuTab === 'adjust' ? !effectMenuOpen : true)
-              }}
-            >调节</button>}
             {effectMenuOpen && mode === '3d' && (
               <EffectSwitcher tab={effectMenuTab} onTabChange={setEffectMenuTab} onClose={() => setEffectMenuOpen(false)} />
             )}
@@ -587,17 +561,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           className={`${styles.scene3d} ${styles.scene3dGlow}`}
           style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
         >
-          <Canvas
-            camera={{ position: [0, 0, 14], fov: 60 }}
-            dpr={renderScale}
-            frameloop={fpsCap > 0 ? 'never' : 'always'}
-            gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
-          >
-            <FrameLimiter fps={fpsCap} />
-            <CinemaCamera />
-            <EffectComponent coverUrl={track?.cover} />
-            {lyrics3dStyle !== 'focus' && <StageLyrics3D />}
-          </Canvas>
+          <Suspense fallback={null}>
+            <LyricsScene coverUrl={track?.cover} />
+          </Suspense>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
           <div className={styles.sceneVignette} aria-hidden="true" />

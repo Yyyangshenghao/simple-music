@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
-import { join, extname, isAbsolute, basename } from 'node:path'
+import { join, extname, isAbsolute, basename, sep } from 'node:path'
 import { parseFile } from 'music-metadata'
 
 /**
@@ -28,6 +28,27 @@ interface LocalLibraryIndex {
   tracks: LocalTrackRecord[]
 }
 
+interface LibrarySnapshot {
+  index: LocalLibraryIndex
+  byId: Map<string, LocalTrackRecord>
+  fingerprint: string
+}
+
+const MAX_CACHED_LIBRARIES = 4
+const indexCache = new Map<string, LibrarySnapshot>()
+const pendingReads = new Map<string, Promise<LibrarySnapshot>>()
+const mutationTails = new Map<string, Promise<void>>()
+
+function snapshot(index: LocalLibraryIndex, fingerprint = ''): LibrarySnapshot {
+  return { index, fingerprint, byId: new Map(index.tracks.map((track) => [track.id, track])) }
+}
+
+function cacheSnapshot(userDataDir: string, value: LibrarySnapshot): void {
+  indexCache.delete(userDataDir)
+  indexCache.set(userDataDir, value)
+  if (indexCache.size > MAX_CACHED_LIBRARIES) indexCache.delete(indexCache.keys().next().value!)
+}
+
 function idFor(path: string): string {
   return createHash('sha1').update(path).digest('hex')
 }
@@ -36,18 +57,68 @@ function coverPathFor(userDataDir: string, id: string): string {
   return join(userDataDir, 'local-covers', `${id}.img`)
 }
 
-async function readIndex(userDataDir: string): Promise<LocalLibraryIndex> {
+async function readSnapshot(userDataDir: string): Promise<LibrarySnapshot> {
+  const pending = pendingReads.get(userDataDir)
+  if (pending) return pending
+  const loading: Promise<LibrarySnapshot> = Promise.resolve().then(async () => {
+    try {
+      const file = join(userDataDir, INDEX_FILE)
+      const stat = await fsp.stat(file)
+      const fingerprint = `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`
+      const cached = indexCache.get(userDataDir)
+      if (cached?.fingerprint === fingerprint) {
+        cacheSnapshot(userDataDir, cached)
+        return cached
+      }
+      const raw = JSON.parse(await fsp.readFile(file, 'utf8')) as Partial<LocalLibraryIndex>
+      const value = snapshot({ folders: raw.folders ?? [], tracks: raw.tracks ?? [] }, fingerprint)
+      // 写入会使在途读取失效，避免旧读取在提交后重新填入缓存。
+      if (pendingReads.get(userDataDir) === loading) cacheSnapshot(userDataDir, value)
+      return value
+    } catch {
+      if (pendingReads.get(userDataDir) === loading) indexCache.delete(userDataDir)
+      return snapshot({ folders: [], tracks: [] })
+    }
+  })
+  pendingReads.set(userDataDir, loading)
   try {
-    const raw = JSON.parse(await fsp.readFile(join(userDataDir, INDEX_FILE), 'utf8')) as Partial<LocalLibraryIndex>
-    return { folders: raw.folders ?? [], tracks: raw.tracks ?? [] }
-  } catch {
-    return { folders: [], tracks: [] }
+    return await loading
+  } finally {
+    if (pendingReads.get(userDataDir) === loading) pendingReads.delete(userDataDir)
   }
+}
+
+async function readIndex(userDataDir: string): Promise<LocalLibraryIndex> {
+  return (await readSnapshot(userDataDir)).index
 }
 
 async function writeIndex(userDataDir: string, index: LocalLibraryIndex): Promise<void> {
   await fsp.mkdir(userDataDir, { recursive: true })
-  await fsp.writeFile(join(userDataDir, INDEX_FILE), JSON.stringify(index, null, 2))
+  const file = join(userDataDir, INDEX_FILE)
+  const temporary = `${file}.${randomBytes(6).toString('hex')}.tmp`
+  try {
+    await fsp.writeFile(temporary, JSON.stringify(index, null, 2))
+    await fsp.rename(temporary, file)
+    pendingReads.delete(userDataDir)
+    indexCache.delete(userDataDir)
+  } finally {
+    await fsp.rm(temporary, { force: true }).catch(() => {})
+  }
+}
+
+async function withMutation<T>(userDataDir: string, task: () => Promise<T>): Promise<T> {
+  const previous = mutationTails.get(userDataDir) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.then(() => current)
+  mutationTails.set(userDataDir, tail)
+  await previous
+  try {
+    return await task()
+  } finally {
+    release()
+    if (mutationTails.get(userDataDir) === tail) mutationTails.delete(userDataDir)
+  }
 }
 
 /** 递归列出文件夹下的音频文件绝对路径(跳过隐藏目录)。 */
@@ -101,10 +172,28 @@ async function parseTrack(userDataDir: string, path: string, mtimeMs: number): P
 /** 扫描指定文件夹并合并进索引;已存在且 mtime 未变的文件跳过重新解析。返回扫描后该文件夹下的曲目。 */
 export async function addLocalFolder(userDataDir: string, folder: string): Promise<LocalTrackRecord[]> {
   if (!isAbsolute(folder)) throw new Error('INVALID_FOLDER')
+  return withMutation(userDataDir, () => scanLocalFolder(userDataDir, folder))
+}
+
+async function scanLocalFolder(userDataDir: string, folder: string): Promise<LocalTrackRecord[]> {
   const index = await readIndex(userDataDir)
   const byPath = new Map(index.tracks.map((t) => [t.path, t]))
   const files = await walkAudioFiles(folder)
   const folderTracks: LocalTrackRecord[] = []
+  const folderPrefix = folder.endsWith(sep) ? folder : folder + sep
+  const scannedPaths = new Set(files)
+  const removedIds: string[] = []
+  for (const [path, record] of byPath) {
+    if (!path.startsWith(folderPrefix) || scannedPaths.has(path)) continue
+    try {
+      await fsp.stat(path)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') continue
+      byPath.delete(path)
+      removedIds.push(record.id)
+    }
+  }
 
   for (const file of files) {
     const st = await fsp.stat(file).catch(() => null)
@@ -121,26 +210,33 @@ export async function addLocalFolder(userDataDir: string, folder: string): Promi
 
   const folders = index.folders.includes(folder) ? index.folders : [...index.folders, folder]
   await writeIndex(userDataDir, { folders, tracks: [...byPath.values()] })
+  await Promise.all(removedIds.map((id) => fsp.rm(coverPathFor(userDataDir, id), { force: true }).catch(() => {})))
   return folderTracks
 }
 
 export async function removeLocalFolder(userDataDir: string, folder: string): Promise<void> {
-  const index = await readIndex(userDataDir)
-  const removed = index.tracks.filter((t) => t.path === folder || t.path.startsWith(folder + '/'))
-  const kept = index.tracks.filter((t) => !removed.includes(t))
-  await writeIndex(userDataDir, { folders: index.folders.filter((f) => f !== folder), tracks: kept })
-  await Promise.all(
-    removed.map((t) => fsp.rm(coverPathFor(userDataDir, t.id), { force: true }).catch(() => {}))
-  )
+  await withMutation(userDataDir, async () => {
+    const index = await readIndex(userDataDir)
+    const folderPrefix = folder.endsWith(sep) ? folder : folder + sep
+    const removedIds = new Set(index.tracks
+      .filter((t) => t.path === folder || t.path.startsWith(folderPrefix))
+      .map((t) => t.id))
+    const kept = index.tracks.filter((t) => !removedIds.has(t.id))
+    await writeIndex(userDataDir, { folders: index.folders.filter((f) => f !== folder), tracks: kept })
+    await Promise.all(
+      [...removedIds].map((id) => fsp.rm(coverPathFor(userDataDir, id), { force: true }).catch(() => {}))
+    )
+  })
 }
 
 export async function listLocalLibrary(userDataDir: string): Promise<LocalLibraryIndex> {
-  return readIndex(userDataDir)
+  const index = await readIndex(userDataDir)
+  return { folders: [...index.folders], tracks: index.tracks.map((track) => ({ ...track })) }
 }
 
 export async function findLocalTrack(userDataDir: string, id: string): Promise<LocalTrackRecord | null> {
-  const index = await readIndex(userDataDir)
-  return index.tracks.find((t) => t.id === id) ?? null
+  const record = (await readSnapshot(userDataDir)).byId.get(id)
+  return record ? { ...record } : null
 }
 
 export function localCoverPath(userDataDir: string, id: string): string {

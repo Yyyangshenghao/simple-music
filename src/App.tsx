@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MotionConfig } from 'motion/react'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
+import { useShortcuts } from './hooks/useShortcuts'
 import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
@@ -34,6 +35,11 @@ import { ClickSpark } from './components/ui/ClickSpark'
 import { Toast } from './components/ui/Toast'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
+const APPEARANCE_KEYS = [
+  'themeMode', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
+  'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
+] as const
+
 export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
@@ -48,6 +54,7 @@ export default function App() {
   const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
+  useShortcuts()
   useLoginStatusSync()
   useAudio()
   useDesktopLyricsSync()
@@ -125,7 +132,10 @@ export default function App() {
       else root.removeAttribute('data-reduce-transparency')
     }
     sync()
-    const stopSettingsSync = useSettingsStore.subscribe(sync)
+    const stopSettingsSync = useSettingsStore.subscribe((state, previous) => {
+      if (state.performance.reduceTransparency !== previous.performance.reduceTransparency
+        || APPEARANCE_KEYS.some((key) => state[key] !== previous[key])) sync()
+    })
     return () => {
       stopSettingsSync()
       stopProviderAuthFailureSync()

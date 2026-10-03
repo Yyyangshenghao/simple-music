@@ -87,20 +87,59 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   width: 100%;
   height: 48px;
   box-sizing: border-box;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 7px 8px;
+  padding: 0 4px;
   border-radius: 10px;
-  text-align: left;
+  cursor: grab;
 }
 
 .row:hover {
   background: var(--sm-bg-elevated);
+}
+
+.row[data-drag-over='true'] {
+  box-shadow: inset 0 0 0 1px var(--sm-accent);
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowAction {
+  flex-shrink: 0;
+  min-width: 25px;
+  height: 28px;
+  padding: 0 3px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.rowAction:hover:not(:disabled),
+.rowAction:focus-visible {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}
+
+.rowAction:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .row[data-current='true'] .rowName {
@@ -135,6 +174,7 @@
 
 .rowText {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }

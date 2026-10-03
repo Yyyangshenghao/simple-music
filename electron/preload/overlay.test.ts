@@ -8,6 +8,57 @@ vi.mock('electron', () => ({
   ipcRenderer: { on: harness.on, removeListener: harness.removeListener, invoke: harness.invoke }
 }))
 
+describe('桌面歌词 preload 首屏状态重放', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  it('左上角缩放锚点透传主进程，旧调用保持兼容', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+
+    api.resizeLyrics(500, 120, 'top-left')
+    expect(harness.invoke).toHaveBeenLastCalledWith('overlay:lyrics-resize', { width: 500, height: 120, anchor: 'top-left' })
+    api.resizeLyrics(500, 120)
+    expect(harness.invoke).toHaveBeenLastCalledWith('overlay:lyrics-resize', { width: 500, height: 120 })
+  })
+
+  it('歌词快照早于页面订阅时仍可重放，增量更新保留字号与锁定状态', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+    const receive = harness.on.mock.calls.find(([channel]) => channel === 'overlay:lyrics-state')?.[1]
+    receive({}, { line: '首句歌词', size: 38, clickThrough: false, translation: '翻译' })
+    receive({}, { line: '下一句歌词' })
+    const callback = vi.fn()
+
+    api.onLyricsState(callback)
+
+    expect(callback).toHaveBeenCalledWith({ line: '下一句歌词', size: 38, clickThrough: false, translation: '翻译' })
+    receive({}, { clickThrough: true })
+    expect(callback).toHaveBeenLastCalledWith({ line: '下一句歌词', size: 38, clickThrough: true, translation: '翻译' })
+  })
+
+  it('取消订阅后不再通知，重新订阅时重放关闭翻译后的最新状态', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+    const receive = harness.on.mock.calls.find(([channel]) => channel === 'overlay:lyrics-state')?.[1]
+    const callback = vi.fn()
+    const stop = api.onLyricsState(callback)
+    receive({}, { line: '歌词', translation: '翻译' })
+    stop()
+    callback.mockClear()
+    receive({}, { translation: '' })
+    expect(callback).not.toHaveBeenCalled()
+
+    api.onLyricsState(callback)
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith({ line: '歌词', translation: '' })
+    expect(harness.on.mock.calls.filter(([channel]) => channel === 'overlay:lyrics-state')).toHaveLength(1)
+  })
+})
+
 describe('迷你条 preload 首屏状态重放', () => {
   beforeEach(() => {
     vi.resetModules()

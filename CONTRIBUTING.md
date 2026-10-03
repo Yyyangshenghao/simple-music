@@ -4,25 +4,27 @@ Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息�
 
 ## 一、分支模型
 
-- **`master` 是主干,始终保持可发布状态**。禁止直接向 master 推送提交(仓库管理员发版除外),所有改动一律走分支 + Pull Request。
-- 普通工作分支**从最新的 master 切出**,合并回 master 后即删除,不留长期分支。版本发布可在专用版本分支完成,以 [构建与发布规范](docs/build-and-release.md) 为准。
+- 固定流向：**`feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release**。
+- **`master` 是正式发布主干**，只接收完成版本验收的 dev 发布 PR，保持可发布状态。禁止直接提交或推送业务改动到 master；正式版本必须先合入 master，再从合并后的提交打标签构建。
+- **`dev/X.Y.Z` 是该版本唯一的集成分支**，例如 `dev/2.3.0`。版本启动时从最新 `origin/master` 创建，集中集成该版本功能、修复、版本文件和发行说明；允许构建、测试及明确标识的预发布，不直接发布稳定版。
+- **`feature/<简短描述>` 是单项工作分支**，从所属版本的最新 dev 创建，完成后通过 PR 合回同一个 dev。功能、修复、优化、重构和文档都使用此分支层级，以提交类型区分工作性质；不得跳过 dev 直接合入 master。
+- 默认只有一个正在开发的 dev；并行维护其他版本时必须明确各自范围，不能按分支名猜测发布内容。发布后的 dev 不继续承载下一版本，下一版本另建 dev。
 
-### 分支命名
+### 分支命名与职责
 
-```
-<类型>/<简短描述>          # 描述用小写英文/拼音短横线连接
-```
-
-| 类型 | 用途 | 示例 |
+| 分支 | 用途 | 示例 |
 |------|------|------|
-| `feat/` | 新功能 | `feat/desktop-lyrics-font` |
-| `fix/` | 修 bug | `fix/qq-search-empty` |
-| `perf/` | 性能优化 | `perf/playlist-cache-lru` |
-| `refactor/` | 重构(不改行为) | `refactor/split-player-store` |
-| `docs/` | 文档 | `docs/contributing` |
-| `chore/` | 构建/依赖/CI | `chore/bump-electron` |
+| `master` | 已验收版本及正式发布基准 | `master` |
+| `dev/X.Y.Z` | 一个目标版本的集成与验收 | `dev/2.3.0` |
+| `feature/<简短描述>` | 该版本中的单项改动 | `feature/queue-controls`、`feature/apple-icon-fix` |
 
-一个分支只做一件事。改到一半发现另一个 bug,另开分支修,不要顺手混进来。
+描述使用小写英文或拼音短横线连接。一个 feature 只做一件事；发现无关问题另建 feature。已有 `feat/*`、`fix/*`、`codex/*` 等分支不自动重命名，先确认所属 dev，再按本流程集成；新分支统一使用上述命名。
+
+### 同步与隔离
+
+- 创建、切换或合并分支前检查工作区；未提交改动不自动 stash、移动、提交或覆盖。需要并行工作时使用独立 worktree，先核对目标 dev 和已有工作区，防止跨版本混入。
+- feature 跟随所属 dev 同步。未共享的 feature 可 rebase；已共享分支的历史改写必须得到授权。dev 和 master 使用 merge 同步，禁止 rebase 或强推已共享的集成、发布历史。
+- 正式版本发布后，将最新 master 合入仍在维护的 dev，再继续创建 feature。远端分支清理需确认没有未合入工作，不自动删除。
 
 ## 二、Commit Message 规范
 
@@ -61,15 +63,17 @@ Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息�
 
 ## 三、Pull Request 流程
 
-1. **开工前**:确认 Issue / 需求已明确;从最新 master 切分支。
-2. **开发中**:小步提交;与 master 脱节太久时用 `git rebase master` 同步(工作分支上优先 rebase,保持线性历史;**不要 rebase 已合入 master 的提交**)。
+1. **开工前**：确认 Issue、目标版本和验收范围；版本 dev 尚不存在时从最新 master 创建，再从 dev 创建 feature。
+2. **开发中**：小步提交，只修改任务相关文件，及时同步所属 dev；不得在 dev 上叠加尚未拆分、未验收的个人开发工作。
 3. **提 PR 前自查**:
    - `npm run typecheck && npm test` 全绿(仓库无 lint,这两项就是验收线);
    - 涉及 UI 的改动,本地 `npm run dev` 实际跑一遍受影响的页面;
    - 自己先读一遍 diff,删掉调试代码与无关改动。
-4. **PR 描述**写三点:改了什么、为什么改、怎么验证的(测试/实测截图)。UI 改动附截图或录屏。
-5. **评审**:至少 1 人 approve 才可合并;评审关注正确性 > 约定一致性 > 风格。作者对每条评论要么改、要么回复理由,不要默默 resolve。
-6. **合并**:用 **Squash merge**(PR 内的过程提交压成一笔,标题按第二节规范写),合并后删分支。
+4. **PR 描述**写明改了什么、为什么改、怎么验证、所属版本和目标分支。feature PR 目标为对应 dev；发布 PR 目标为 master，必须列出完整版本范围、版本文件和发行说明。UI 变更附截图或录屏。
+5. **评审与门禁**：至少 1 人 approve 才可合并；自动检查必须通过，涉及行为的中高风险改动还要独立复核。评审意见逐条处理，不能因为尚未配置 GitHub 门禁而跳过验收。
+6. **feature → dev**：使用 **Squash merge**，将单项工作的过程提交压成一笔，标题按第二节规范写。
+7. **dev → master**：使用 **Merge commit**，保留功能提交及独立发布元数据提交，使 dev 与 master 保持共同历史；发布 PR 标题为 `chore(release): 发布 vX.Y.Z`。不得对整条 dev 使用 Squash merge 或 rebase merge。
+8. **合并后**：核对实际合并提交及文件范围。只有 master 合并后的发布提交允许创建正式版本 tag，具体步骤见 [构建与发布 §0](docs/build-and-release.md)。
 
 ## 四、代码约定(易踩坑必读)
 
@@ -93,7 +97,9 @@ Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息�
 
 版本号遵循 SemVer。完整流程见 [构建、打包与发布/更新流程](docs/build-and-release.md),其规则优先于本节摘要。
 
-发布元数据使用独立提交 `chore(release): 发布 vX.Y.Z`,并创建 annotated tag `vX.Y.Z`。tag 必须指向该发布提交；推送 tag 后需等待 `.github/workflows/release.yml` 完成，并核对 Release 的 macOS 双架构与 Windows 安装版/便携版产物。已推送 tag 不可移动或覆盖，发布失败需修复后递增版本。
+版本元数据在对应 dev 上形成独立提交 `chore(release): 发布 vX.Y.Z`。dev 的发布 PR 验收后合入 master，annotated tag `vX.Y.Z` 指向该 PR 合并后的 master 提交，不能提前打在 feature 或 dev 上。正式安装包构建该 tag 的固定源码，不跟随之后移动的 master。
+
+PR、dev 和 master 的 CI 验收目标与当前落地状态见 [构建与发布 §0.7](docs/build-and-release.md#07-ci-与发布门禁)。推送 tag 后等待 Release 工作流完成并核对所有产物；已推送 tag 不可移动或覆盖。紧急补丁也默认遵循 dev → master → tag，旧版本维护例外见 §0.8。
 
 ## 七、Issue 约定
 

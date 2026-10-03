@@ -1002,6 +1002,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         lyric: asStr(asObj(body.lrc).lyric),
         tlyric: asStr(asObj(body.tlyric).lyric),
         romalrc: asStr(asObj(body.romalrc).lyric),
+        yromalrc: asStr(asObj(body.yromalrc).lyric),
         yrc: asStr(asObj(body.yrc).lyric),
         source,
       })
@@ -1314,6 +1315,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   // ---------- 音频代理 (支持 Range + 磁盘缓存) ----------
   if (pn === '/api/audio') {
+    let writer: Awaited<ReturnType<typeof openAudioCacheWriter>> = null
     try {
       const audioUrl = url.searchParams.get('url')
       // 不校验就 fetch 等于开放代理:调用方能借它读回环/内网服务(SSRF)。
@@ -1365,7 +1367,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const cr = up.headers.get('content-range')
       if (cr) out['Content-Range'] = cr
       // 只有"从 0 起且上游覆盖完整文件"的整流才落盘;中段 Range(拖进度条)只透传
-      const writer =
+      writer =
         cacheKey && up.ok && isFullStreamRequest(range) && coversWholeFile(up.status, cr)
           ? await openAudioCacheWriter(ctx.userDataDir, cacheKey, cacheContext
             ? { ...cacheContext, contentType: out['Content-Type'] }
@@ -1374,7 +1376,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       res.writeHead(up.status, out)
       const reader = up.body?.getReader()
       if (reader) {
-        const completed = await pipeReaderToResponse(reader, res, writer ? (c) => writer.write(c) : undefined)
+        const activeWriter = writer
+        const completed = await pipeReaderToResponse(reader, res, activeWriter ? (c) => activeWriter.write(c) : undefined)
         if (writer) {
           if (completed) await writer.commit()
           else writer.abort()
@@ -1385,8 +1388,13 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       res.end()
     } catch (err) {
       console.error('[Audio]', err)
-      res.writeHead(500)
-      res.end()
+      if (res.headersSent) res.destroy()
+      else if (!res.destroyed) {
+        res.writeHead(500)
+        res.end()
+      }
+    } finally {
+      writer?.abort()
     }
     return true
   }

@@ -148,8 +148,10 @@ export function SystemFontPicker({
   }, [open])
 
   useEffect(() => {
-    setActiveIndex(0)
-  }, [query])
+    if (!open) return
+    const selectedIndex = query.trim() ? -1 : options.findIndex((option) => option.value === value)
+    setActiveIndex(Math.max(0, selectedIndex))
+  }, [open, query, options, value])
 
   useEffect(() => {
     if (activeIndex >= options.length) setActiveIndex(Math.max(0, options.length - 1))
@@ -161,11 +163,13 @@ export function SystemFontPicker({
   }, [activeIndex, listboxId, open, options])
 
   const selectedFont = fonts.find((font) => font.family === value)
-  const selectedLabel = loading
-    ? '正在读取…'
-    : value
-      ? selectedFont?.localizedName ? `${selectedFont.localizedName} · ${value}` : value
-      : defaultLabel
+  const selectedLabel = value
+    ? selectedFont?.localizedName || value
+    : defaultLabel
+  const selectedTitle = selectedFont?.localizedName && selectedFont.localizedName !== value
+    ? `${selectedFont.localizedName} · ${value}`
+    : selectedLabel
+
 
   return (
     <>
@@ -189,8 +193,7 @@ export function SystemFontPicker({
           setOpen(true)
         }}
       >
-        <span className={styles.preview} style={value ? { fontFamily: value } : undefined} aria-hidden="true">Aa</span>
-        <span className={styles.selectedLabel} title={selectedLabel}>{selectedLabel}</span>
+        <span className={styles.selectedLabel} title={selectedTitle}>{selectedLabel}</span>
         <svg className={styles.chevron} data-open={open} viewBox="0 0 16 16" aria-hidden="true">
           <path d="m4 6 4 4 4-4" />
         </svg>

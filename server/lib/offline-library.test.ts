@@ -15,6 +15,22 @@ async function save(dir: string, origin: AudioCacheOriginInput, pinned = true, k
 }
 
 describe('离线音乐库', () => {
+  it('播放命中缓存的身份上下文不会清空保存歌曲的资料', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sm-offline-metadata-'))
+    try {
+      const origin = { source: 'netease' as const, id: '1', name: '原始歌名', artist: '艺人', album: '专辑', cover: 'https://example.com/cover.jpg', duration: 123000 }
+      await save(dir, origin)
+      const before = (await listSavedAudioCache(dir))[0]
+      const hit = await findCachedAudio(dir, 'netease:1:standard', {
+        origin: { source: 'netease', id: '1' },
+        resolved: { source: 'netease', id: '1' },
+        quality: 'standard',
+      }, true)
+      hit?.release?.()
+      expect((await listSavedAudioCache(dir))[0]).toMatchObject({ origin, savedAt: before.savedAt })
+    } finally { await rm(dir, { recursive: true, force: true }) }
+  })
+
   it('只列主动保存内容，保留原始身份与资料且不暴露磁盘路径', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'sm-offline-library-'))
     try {

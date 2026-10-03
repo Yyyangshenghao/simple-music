@@ -15,6 +15,7 @@ import {
 } from '../lib/playback-load-policy'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { serviceFor } from '../lib/service-registry'
+import { resolvePending } from '../lib/queue-details'
 import { useSettingsStore } from './settings'
 import { useToastStore } from './toast'
 import { isProviderParticipating, useProviderStore } from './providers'
@@ -299,7 +300,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       return
     }
     active.advancing = true
-    if (reason) active.startAt = Math.max(active.startAt, get().position)
+    if (reason) {
+      active.startAt = Math.max(active.startAt, get().position)
+      active.engineLoadId = 0
+      ensureEngine().clearSource()
+    }
     try {
       let candidate: PlaybackCandidate | null
       if (reason && active.candidateKind === 'external' && active.candidate) {
@@ -382,9 +387,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   function ensureEngine(): AudioEngine {
     if (engine) return engine
     engine = new AudioEngine({
-      onPosition: (s) => { if (get().currentTrack?.source !== 'apple') set({ position: s }) },
-      onDuration: (d) => { if (get().currentTrack?.source !== 'apple') set({ duration: d }) },
-      onStatus: (status) => { if (get().currentTrack?.source !== 'apple') set({
+      onPosition: (s) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ position: s }) },
+      onDuration: (d) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ duration: d }) },
+      onStatus: (status) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({
         status: playbackStatusForEngineEvent(status, activePlayback?.autoplay ?? true),
       }) },
       onCanPlay: commitPlayableCandidate,
@@ -396,11 +401,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         if (get().currentTrack?.source === 'apple') return
         const state = get()
         if (!state.currentTrack || !shouldRecoverAfterOutputDeviceChange(state.status, wasPlaying)) return
+        const session = loadSession
         if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
         outputRecoveryTimer = setTimeout(() => {
           outputRecoveryTimer = null
           const latest = get()
-          if (!latest.currentTrack) return
+          if (session !== loadSession || !latest.currentTrack || !shouldAutoplayPlaybackReload(latest.status)) return
           void latest.loadTrack(latest.currentTrack, {
             startAt: latest.position,
             contextId: latest.contextId,
@@ -409,7 +415,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         }, 200)
       },
       onEnded: () => {
-        if (get().currentTrack?.source !== 'apple') trackEnded()
+        if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') trackEnded()
       }
     })
     return engine
@@ -434,8 +440,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
 
     play() {
       if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
-      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.autoplay = true
+      if (activePlayback) activePlayback.autoplay = true
+      if (activePlayback && !activePlayback.engineLoadId && (!activePlayback.candidate || activePlayback.advancing)) {
         set({ status: 'loading' })
         return
       }
@@ -449,24 +455,20 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       void eng.play()
     },
     pause() {
+      if (activePlayback) activePlayback.autoplay = false
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
-      if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.autoplay = false
-        ensureEngine().pause()
-        set({ status: 'paused' })
-        return
-      }
       ensureEngine().pause()
+      set({ status: 'paused' })
     },
     toggle() {
       const s = get().status
-      if (s === 'playing' || (get().currentTrack?.source === 'apple' && s === 'loading')) get().pause()
+      if (s === 'playing' || s === 'loading') get().pause()
       else get().play()
     },
     seek(seconds) {
+      if (activePlayback) activePlayback.startAt = seconds
       if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
       if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        activePlayback.startAt = seconds
         set({ position: seconds })
         return
       }
@@ -499,6 +501,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
       activePlayback = null
+      eng.clearSource()
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
@@ -535,6 +538,29 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         currentQuality: null,
       })
 
+      const active: ActivePlayback = {
+        session,
+        originTrack: track,
+        resolver: null,
+        candidate: null,
+        candidateKind: track.source === 'local' ? 'local' : 'resolver',
+        engineLoadId: 0,
+        startAt,
+        advancing: false,
+        fallbackNotified: false,
+        autoplay,
+        preferredSource: opts?.preferredSource,
+      }
+      activePlayback = active
+
+      // 补详情也属于当前播放会话；等待期间暂停、恢复和定位沿用同一份意图。
+      if (track.pending) {
+        track = await resolvePending(track)
+        if (activePlayback !== active || active.session !== loadSession) return
+        active.originTrack = track
+        set({ currentTrack: track, duration: (track.duration ?? 0) / 1000 })
+      }
+
       if (track.source === 'local') {
         // 本地音乐不依赖 track.url:最近播放等场景落盘会剥掉 url、或存的 url 绑定的是
         // 上一会话端口(端口每次随机注入),直接用 track.id 经本地 api 重建当前可用地址。
@@ -547,39 +573,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           useToastStore.getState().show(FALLBACK_UNPLAYABLE_MESSAGE)
           return
         }
-        const active: ActivePlayback = {
-          session,
-          originTrack: track,
-          resolver: null,
-          candidate: null,
-          candidateKind: 'local',
-          engineLoadId: 0,
-          startAt,
-          advancing: false,
-          fallbackNotified: false,
-          autoplay,
-        }
-        activePlayback = active
-        active.engineLoadId = eng.load(localUrl, startAt)
+        active.engineLoadId = eng.load(localUrl, active.startAt)
         eng.setVolume(get().volume)
-        if (autoplay) void eng.play().catch(() => {})
+        if (active.autoplay) void eng.play().catch(() => {})
         return
       }
-
-      const active: ActivePlayback = {
-        session,
-        originTrack: track,
-        resolver: null,
-        candidate: null,
-        candidateKind: 'resolver',
-        engineLoadId: 0,
-        startAt,
-        advancing: false,
-        fallbackNotified: false,
-        autoplay,
-        preferredSource: opts?.preferredSource,
-      }
-      activePlayback = active
 
       // 在线曲目先查本地离线索引；命中时不依赖平台登录或网络，媒体文件失效则回到解析器降级链。
       const offlineStatus = await fetchOfflineStatus(track).catch(() => null)
@@ -589,10 +587,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         appleAudioSpectrum.stop()
         active.candidateKind = 'offline'
         active.offlineStatus = offlineStatus
-        const loadId = eng.load(offlineUrl, startAt)
+        set({ status: active.autoplay ? 'loading' : 'paused' })
+        const loadId = eng.load(offlineUrl, active.startAt)
         active.engineLoadId = loadId
         eng.setVolume(get().volume)
-        if (autoplay) {
+        if (active.autoplay) {
           void eng.play().catch((error) => {
             const reason = mediaFailureReasonFromPlayError(error)
             if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return

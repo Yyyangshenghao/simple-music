@@ -203,7 +203,7 @@ export function MiniPlayerBar({
   const handleResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
     if (!resizeSession.current) return
-    // 松开键后 pointerup 不一定送得到（窗口 focusable:false，在窗外松开时 macOS 不派发），
+    // 在窗口外松开时 pointerup 不一定送得到，
     // 只靠 pointerup 清状态会让残留的 origin 把之后每次纯悬停都变成拖拽。
     if (e.buttons === 0) {
       resizeSession.current = null

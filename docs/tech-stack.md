@@ -7,18 +7,17 @@
 
 | 依赖 | 用在哪 | 说明 |
 |---|---|---|
-| `react` / `react-dom` ^18.3 | `src/`、`overlays/` | 渲染层框架。18 的并发特性未刻意使用，`lazy + Suspense` 用于页面代码分割（AppShell 空闲预热 chunk）。 |
+| `react` / `react-dom` ^18.3 | `src/`、`overlays/` | 渲染层框架。`lazy + Suspense` 按需加载页面、3D 歌词与流体背景；启动时不集中预热全部页面。 |
 | `zustand` ^4.5 | `src/stores/` | 状态管理。选它的原因：无 Provider、store 可在非组件环境 `getState()` 互调（player↔playlist↔settings 大量非 hook 调用）、`subscribe(fn)` 直接做持久化/联动订阅。 |
 | `motion` ^12 | 全渲染层 | framer-motion 的后继包（import 自 `motion/react`）。页面转场（AnimatePresence popLayout）、共享元素（layoutId `explore-cover-*`）、弹簧参数集中在 `src/lib/motion-presets.ts`。 |
 | `three` ^0.169 | Visualizer、LiquidEther | WebGL 基础库。LiquidEther 直接用裸 three（RawShaderMaterial + 自管渲染循环），不经 r3f。 |
-| `@react-three/fiber` ^8 | LyricsPanel 3D 场景、壁纸 Scene | three 的 React 绑定。`frameloop="demand"` + `FrameLimiter` 实现帧率钳制。 |
-| `@react-three/drei` ^9 | 当前无直接 import | 保留在依赖表中，但现有 Visualizer 未使用 drei helper；后续清理依赖前需先验证构建产物。 |
-| `@react-three/postprocessing` ^2 | 当前无直接 import | CoverParticleCloud 已把辉光贡献写入自身 shader，当前没有独立 postprocessing 管线。 |
+| `@react-three/fiber` ^8 | 按需加载的 LyricsScene、壁纸 Scene | three 的 React 绑定。有帧率上限时使用 `frameloop="never"` + `FrameLimiter` 主动推进；不限帧率时使用 `always`。 |
 | `gsap` ^3.15 | `components/Layout/FlowingMenu` | 与 motion 并存：motion 管声明式组件动效，gsap 只管 FlowingMenu 的命令式时间线。 |
 | `d3-force` ^3 | 漫游歌手关系图 | 对歌手节点执行力导向布局；可测试的图谱模拟逻辑在 `src/lib/artist-graph-sim.ts`。 |
 | `NeteaseCloudMusicApi` ^4.32 | `server/lib/netease-client.ts` | 网易云接口封装（Binaryify，MIT）。注意：CommonJS 包，ESM 下接口函数挂在 `default` 上，`netease-client.ts` 统一解包成 `ncmTable`，并用 `has()/call()` 做可用性探测（不同版本导出面不同）。 |
 | `mpg123-decoder` ^1 | `server/lib/dj-analyzer.ts` | WASM MP3 解码器，纯 Node 侧解码播客长音频做锁拍分析（不依赖浏览器 AudioContext）。动态 `import()` 按需加载。 |
 | `music-metadata` ^11 | `server/lib/local-library.ts` | 扫描本地音乐时读取标题、歌手、专辑、时长与内嵌封面；文件访问始终通过本地索引 id 反查。 |
+| `koffi` 2.16.3 | `electron/modules/macos-lyrics-window.ts`、`lyrics-native-backdrop.ts` | macOS 桌面歌词的非激活交互和局部 AppKit 毛玻璃；仅 macOS 按需加载，原生文件通过 `asarUnpack` 解包。非激活标记使用私有接口，升级系统或 Electron 后需实测；毛玻璃使用公开接口，失败回退暗灰底框。 |
 
 ## 开发依赖（devDependencies）
 

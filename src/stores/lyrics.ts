@@ -37,12 +37,19 @@ interface LyricsStore {
 }
 
 function indexForPosition(lines: LyricLine[], position: number): number {
-  let idx = -1
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].time <= position) idx = i
-    else break
+  let low = 0
+  let high = lines.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (lines[middle].time <= position) low = middle + 1
+    else high = middle
   }
-  return idx
+  return low - 1
+}
+
+function progressForPosition(line: WordLyricLine | undefined, position: number): number {
+  if (!line) return 0
+  return Math.min(1, Math.max(0, (position - line.time) * 1000 / (line.durationMs || 1)))
 }
 
 export const useLyricsStore = create<LyricsStore>((set, get) => ({
@@ -60,7 +67,7 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
   offsetSec: 0,
 
   setLines(lines, translation = [], romaji = []) {
-    set({ lines, translation, romaji, currentIndex: -1, offsetSec: 0 })
+    set({ lines, translation, romaji, currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
   },
 
   setOffsetSec(v) {
@@ -68,16 +75,12 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
   },
 
   tick(position) {
-    const { lines, wordLines, currentIndex, offsetSec } = get()
+    const { lines, wordLines, currentIndex, currentCharProgress, offsetSec } = get()
     const adjusted = position + offsetSec
     const next = indexForPosition(lines, adjusted)
-    if (next !== currentIndex) set({ currentIndex: next })
-    // 更新逐字进度
-    if (next >= 0 && next < wordLines.length) {
-      const line = wordLines[next]
-      const elapsed = (adjusted - line.time) * 1000
-      const progress = Math.min(1, Math.max(0, elapsed / (line.durationMs || 1)))
-      set({ currentCharProgress: progress })
+    const progress = progressForPosition(wordLines[next], adjusted)
+    if (next !== currentIndex || progress !== currentCharProgress) {
+      set({ currentIndex: next, currentCharProgress: progress })
     }
   },
 
@@ -94,14 +97,8 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
   },
 
   tickProgress(position) {
-    const { wordLines, currentIndex, offsetSec } = get()
-    if (currentIndex < 0 || currentIndex >= wordLines.length) {
-      set({ currentCharProgress: 0 })
-      return
-    }
-    const line = wordLines[currentIndex]
-    const elapsed = (position + offsetSec - line.time) * 1000
-    const progress = Math.min(1, Math.max(0, elapsed / (line.durationMs || 1)))
-    set({ currentCharProgress: progress })
+    const { wordLines, currentIndex, currentCharProgress, offsetSec } = get()
+    const progress = progressForPosition(wordLines[currentIndex], position + offsetSec)
+    if (progress !== currentCharProgress) set({ currentCharProgress: progress })
   },
 }))

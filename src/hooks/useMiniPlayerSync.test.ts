@@ -5,7 +5,9 @@ interface TestLyrics { currentIndex: number; lines: Array<{ text: string }> }
 interface TestPlayer { currentTrack: null | { source: string }; status: string; volume: number; duration: number; position: number }
 
 const harness = vi.hoisted(() => ({
-  settings: { miniPlayerEnabled: true, miniPlayerWidth: 360, miniPlayerAppearance: { showLyrics: true, showProgress: true } },
+  settings: { miniPlayerEnabled: true, miniPlayerWidth: 360, miniPlayerAppearance: { showLyrics: true, showProgress: true },
+    localHotkeys: [{ action: 'mini-player', accelerator: 'CommandOrControl+Shift+P' }], hotkeys: [] as Array<{ action: string; accelerator: string }>, globalHotkeysEnabled: false },
+  shortcuts: { recording: false, pending: false, results: [] as Array<{ action: string; accelerator: string; ok: boolean }> },
   player: { currentTrack: null as null | { source: string }, status: 'playing', volume: 1, duration: 240, position: 10 },
   playerListeners: new Set<(state: TestPlayer, previous: TestPlayer) => void>(),
   lyrics: { currentIndex: 0, lines: [{ text: '第一句' }, { text: '第二句' }] },
@@ -21,6 +23,7 @@ vi.mock('react', () => ({
   }
 }))
 vi.mock('../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof harness.settings) => unknown) => selector(harness.settings) }))
+vi.mock('../stores/shortcuts', () => ({ useShortcutStore: (selector: (state: typeof harness.shortcuts) => unknown) => selector(harness.shortcuts) }))
 vi.mock('../stores/player', () => ({ usePlayerStore: Object.assign(
   (selector: (state: typeof harness.player) => unknown) => selector(harness.player),
   { getState: () => harness.player, subscribe: (listener: (state: typeof harness.player, previous: typeof harness.player) => void) => {
@@ -42,11 +45,15 @@ describe('迷你条只同步实际展示的数据', () => {
     harness.settings.miniPlayerEnabled = true
     harness.settings.miniPlayerWidth = 360
     harness.settings.miniPlayerAppearance = { ...DEFAULT_MINI_PLAYER_APPEARANCE }
+    harness.settings.localHotkeys = [{ action: 'mini-player', accelerator: 'CommandOrControl+Shift+P' }]
+    harness.settings.hotkeys = []
+    harness.settings.globalHotkeysEnabled = false
+    Object.assign(harness.shortcuts, { recording: false, pending: false, results: [] })
     harness.player.status = 'playing'
     harness.player.currentTrack = null
     harness.player.position = 10
     harness.update.mockReset()
-    vi.stubGlobal('window', { desktop: { updateMiniPlayer: harness.update } })
+    vi.stubGlobal('window', { desktop: { platform: 'darwin', updateMiniPlayer: harness.update } })
   })
   afterEach(() => {
     harness.cleanups.splice(0).forEach((cleanup) => cleanup())
@@ -60,6 +67,50 @@ describe('迷你条只同步实际展示的数据', () => {
     expect(harness.lyricSelector?.(harness.lyrics)).toBe('')
     expect(harness.lyricSelector?.({ ...harness.lyrics, currentIndex: 1 })).toBe('')
     expect(harness.update).toHaveBeenCalledWith({ lyricLine: '' })
+  })
+
+  it('全局关闭时仍同步应用内返回键，自定义修改后使用新键', () => {
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: 'Command+Shift+P' })
+    harness.settings.localHotkeys = [{ action: 'mini-player', accelerator: 'Control+Shift+J' }]
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: 'Control+Shift+J' })
+  })
+
+  it('相同全局键注册中或成功时不由迷你窗口重复处理，失败后恢复本地键', () => {
+    harness.settings.globalHotkeysEnabled = true
+    harness.settings.hotkeys = [{ action: 'mini-player', accelerator: 'Command+Shift+P' }]
+    harness.shortcuts.pending = true
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: '' })
+    harness.shortcuts.pending = false
+    harness.shortcuts.results = [{ action: 'mini-player', accelerator: 'Command+Shift+P', ok: true }]
+    harness.update.mockClear()
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: '' })
+    harness.shortcuts.results[0].ok = false
+    harness.update.mockClear()
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: 'Command+Shift+P' })
+  })
+
+  it('录入、清除、系统保留键与关闭迷你窗口时不响应返回键', () => {
+    harness.shortcuts.recording = true
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: '' })
+    harness.shortcuts.recording = false
+    harness.settings.localHotkeys = []
+    harness.update.mockClear()
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: '' })
+    harness.settings.localHotkeys = [{ action: 'mini-player', accelerator: 'Command+M' }]
+    harness.update.mockClear()
+    useMiniPlayerSync()
+    expect(harness.update).toHaveBeenCalledWith({ returnShortcut: '' })
+    harness.settings.miniPlayerEnabled = false
+    harness.update.mockClear()
+    useMiniPlayerSync()
+    expect(harness.update).not.toHaveBeenCalled()
   })
 
   it('展开后同步当前歌词', () => {

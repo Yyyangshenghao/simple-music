@@ -44,6 +44,8 @@ export class AudioEngine {
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   /** 每次 load/clearSource 递增，用于上层拒绝上一地址迟到的媒体事件。 */
   private loadId = 0
+  /** 上下文恢复期间，暂停、换源或更新的播放请求会取代旧播放意图。 */
+  private playRevision = 0
   private readonly handleDeviceChange = (): void => {
     this.cbs.onOutputDeviceChange?.(!this.audio.paused)
   }
@@ -126,6 +128,7 @@ export class AudioEngine {
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
    * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
   load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext): number {
+    ++this.playRevision
     this.clearPauseTimer()
     const loadId = ++this.loadId
     // 新曲从静音起步,出声时经 playing 事件淡入
@@ -151,6 +154,7 @@ export class AudioEngine {
   }
 
   clearSource(): void {
+    ++this.playRevision
     this.clearPauseTimer()
     this.loadId++
     this.audio.pause()
@@ -160,9 +164,11 @@ export class AudioEngine {
   }
 
   async play(): Promise<void> {
+    const revision = ++this.playRevision
     this.clearPauseTimer()
     this.ensureContext()
     if (this.ctx?.state === 'suspended') await this.ctx.resume()
+    if (revision !== this.playRevision) return
     // 淡出进行中被恢复:元素未暂停不会再发 playing 事件,这里直接拉回
     if (!this.audio.paused) {
       this.rampGain(1, FADE_SEC)
@@ -172,6 +178,7 @@ export class AudioEngine {
   }
 
   pause(): void {
+    ++this.playRevision
     // 无 Web Audio 或本就暂停:直接暂停,不做包络
     if (!this.ctx || !this.gain || this.audio.paused) {
       this.audio.pause()
@@ -221,6 +228,7 @@ export class AudioEngine {
   }
 
   destroy(): void {
+    ++this.playRevision
     this.clearPauseTimer()
     if (typeof navigator !== 'undefined') {
       navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange)

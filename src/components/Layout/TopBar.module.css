@@ -45,14 +45,12 @@
 .navGroup {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 34px;
   margin-left: 8px;
   padding: 0 2px;
   background: var(--glass-bg-base);
   border: 1px solid var(--glass-border-base);
   border-radius: var(--sm-radius-pill);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
 }
 
 .navBtn {
@@ -60,7 +58,7 @@
   align-items: center;
   justify-content: center;
   width: 30px;
-  height: 26px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--sm-text-secondary);
@@ -107,15 +105,13 @@
   background: var(--glass-bg-base);
   border: 1px solid var(--glass-border-base);
   border-radius: var(--sm-radius-pill);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
 }
 
 .segItem {
   position: relative;
   border: none;
   background: transparent;
-  padding: 5px 16px;
+  padding: 8px 16px;
   border-radius: var(--sm-radius-pill);
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -131,7 +127,7 @@
   inset: 0;
   background: var(--sm-accent);
   border-radius: var(--sm-radius-pill);
-  box-shadow: 0 2px 14px color-mix(in srgb, var(--ambient-1) 40%, transparent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 .segLabel {
@@ -145,7 +141,7 @@
   transition: color 0.2s var(--sm-ease-out);
 }
 
-.segItem:hover .segLabel {
+.segItem:not(.segActive):hover .segLabel {
   color: var(--sm-text-primary);
 }
 
@@ -181,8 +177,6 @@
   width: clamp(220px, 24vw, 320px);
   overflow: hidden;
   cursor: pointer;
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
@@ -402,6 +396,13 @@
   background: var(--sm-bg-elevated);
 }
 
+.artistRow:focus-visible,
+.songRow:focus-visible {
+  background: var(--sm-bg-elevated);
+  outline: 2px solid var(--sm-accent);
+  outline-offset: -3px;
+}
+
 .rowAvatar,
 .rowCover {
   width: 32px;
@@ -431,6 +432,9 @@
 .songArtist {
   font-size: 11px;
   color: var(--sm-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Avatar */
@@ -480,4 +484,10 @@
 
 .avatarBtn:hover .avatarInner {
   color: var(--sm-text-primary);
+}
+
+@media (max-width: 1100px) {
+  .right { margin-left: 16px; }
+  .segItem { padding-inline: 10px; }
+  .searchForm { width: clamp(170px, 22vw, 240px); }
 }

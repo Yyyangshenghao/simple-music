@@ -10,7 +10,9 @@
 - `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
-- `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`。
+- `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`；返回每项注册结果，录入期间释放全局绑定。
+- `modules/settings-menu.ts` — 原生设置菜单与可配置快捷键（macOS 应用菜单，其他平台首个菜单）；输入框中保留正常文本编辑，同键已注册全局入口时避免重复触发。
+- `modules/macos-lyrics-window.ts` / `lyrics-native-backdrop.ts` — macOS 歌词窗的非激活交互与局部原生毛玻璃；关闭窗口时释放底框视图，不可用时回退，详见 [悬浮窗](overlays.md)。
 - `modules/tray-manager.ts` — 系统托盘菜单与主窗口恢复/隐藏、播放控制和退出。
 - `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
 - `modules/font-manager.ts` — 按平台枚举、归一化并缓存系统字体,供设置页三个字体域共用。
@@ -26,7 +28,7 @@
 
 - `window:*` — minimize / maximize / close / toggle-fullscreen / exit-fullscreen-windowed / get-state
 - `lyrics:*`(主窗口控制桌面歌词)— set-enabled / set-lock / move-by / update
-- `overlay:lyrics-*`(歌词悬浮窗自身)— close / move-by / set-dragging / set-lock / set-hot-bounds / set-pointer-capture
+- `overlay:lyrics-*`(歌词悬浮窗自身)— close / move-by / resize / set-dragging / set-lock / set-hot-bounds / set-control-bounds / set-pointer-capture
 - `wallpaper:*` — set-enabled / update
 - `miniplayer:*` — set-enabled / update
 - `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
@@ -34,7 +36,7 @@
 - `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`
 - `apple:audio-capture-start` — 主窗口对 Apple 后台音轨的定向频谱采集请求。
 
-主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。
+主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`、`lyrics:{lock-state-changed,size-changed,enabled-state-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。歌词 preload 缓存并向新订阅者重放完整快照，迷你条首屏重放完整快照、后续转发增量。
 
 ## 约定
 

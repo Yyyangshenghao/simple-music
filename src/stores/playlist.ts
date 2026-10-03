@@ -5,23 +5,11 @@ import { useSettingsStore } from './settings'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
 import { preloadTracks } from '../lib/track-preload'
+import { fetchQueueDetails, resolvePending } from '../lib/queue-details'
+import { isValidPermutation, queueDisplayOrder } from '../lib/queue-display'
 import { isProviderId } from '../providers/types'
 import type { ProviderId } from '../providers/types'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
-
-/** pending 占位曲目:先按 id 补详情;失败则去掉 pending 标记凭 id 兜底直接播(网易播放 URL 只需 id)。 */
-async function resolvePending(track: Track): Promise<Track> {
-  if (isProviderId(track.source) && !isProviderParticipating(track.source)) {
-    return { ...track, pending: false, name: track.name || '未知曲目' }
-  }
-  try {
-    const [full] = await serviceFor(track.source).getTracksByIds([track.id])
-    if (full) return full
-  } catch {
-    /* 详情失败走兜底 */
-  }
-  return { ...track, pending: false, name: track.name || '未知曲目' }
-}
 
 /** Fisher-Yates 洗牌出 [0, n) 的随机排列。 */
 function shuffledIndices(n: number): number[] {
@@ -31,6 +19,12 @@ function shuffledIndices(n: number): number[] {
     ;[order[i], order[j]] = [order[j], order[i]]
   }
   return order
+}
+
+function movedIndices(length: number, from: number, to: number): number[] {
+  const indices = Array.from({ length }, (_, index) => index)
+  indices.splice(to, 0, indices.splice(from, 1)[0])
+  return indices
 }
 
 interface PlaylistStore {
@@ -50,6 +44,12 @@ interface PlaylistStore {
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
   addToQueue(track: Track): void
+  /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
+  moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
+  playNextInQueue(index: number): void
+  removeQueueItem(index: number): void
+  /** 补全可见范围的占位曲目，不改变播放位置。 */
+  ensureQueueDetails(indices: number[]): Promise<void>
   playAt(index: number): void
   next(): void
   prev(): void
@@ -83,6 +83,7 @@ function stepIndex(
 // 快速连点只保留最后一次。走序与 next/prev 一致(含随机模式的洗牌排列)。
 let preloadTimer: ReturnType<typeof setTimeout> | null = null
 let userPlaylistsSession = 0
+let playAtSession = 0
 
 function schedulePreloadNeighbors() {
   if (preloadTimer) clearTimeout(preloadTimer)
@@ -161,26 +162,91 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     }))
   },
 
+  moveQueueItem(fromDisplayIndex, toDisplayIndex) {
+    const state = get()
+    const length = state.queue.length
+    if (!Number.isInteger(fromDisplayIndex) || !Number.isInteger(toDisplayIndex)
+      || fromDisplayIndex < 0 || fromDisplayIndex >= length
+      || toDisplayIndex < 0 || toDisplayIndex >= length
+      || fromDisplayIndex === toDisplayIndex) return
+
+    if (useSettingsStore.getState().playMode === 'shuffle') {
+      const display = queueDisplayOrder(length, state.queueIndex, state.shuffleOrder, 'shuffle').indices
+      const order = [...display]
+      order.splice(toDisplayIndex, 0, order.splice(fromDisplayIndex, 1)[0])
+      set({ shuffleOrder: order })
+    } else {
+      const indices = movedIndices(length, fromDisplayIndex, toDisplayIndex)
+      const nextIndex = new Map(indices.map((oldIndex, index) => [oldIndex, index]))
+      set({
+        queue: indices.map((index) => state.queue[index]),
+        queueIndex: nextIndex.get(state.queueIndex) ?? -1,
+        shuffleOrder: isValidPermutation(state.shuffleOrder, length)
+          ? state.shuffleOrder.map((index) => nextIndex.get(index)!)
+          : [],
+      })
+    }
+    schedulePreloadNeighbors()
+  },
+
+  playNextInQueue(index) {
+    const state = get()
+    if (useSettingsStore.getState().playMode === 'one') return
+    if (!Number.isInteger(index) || index < 0 || index >= state.queue.length || index === state.queueIndex) return
+    const display = queueDisplayOrder(
+      state.queue.length, state.queueIndex, state.shuffleOrder, useSettingsStore.getState().playMode
+    )
+    const from = display.indices.indexOf(index)
+    const current = display.currentDisplayIndex
+    if (from < 0 || current < 0) return
+    const to = current === state.queue.length - 1 ? 0 : from < current ? current : current + 1
+    get().moveQueueItem(from, to)
+  },
+
+  removeQueueItem(index) {
+    const state = get()
+    if (!Number.isInteger(index) || index < 0 || index >= state.queue.length || index === state.queueIndex) return
+    set({
+      queue: state.queue.filter((_, itemIndex) => itemIndex !== index),
+      queueIndex: state.queueIndex > index ? state.queueIndex - 1 : state.queueIndex,
+      shuffleOrder: isValidPermutation(state.shuffleOrder, state.queue.length)
+        ? state.shuffleOrder.filter((itemIndex) => itemIndex !== index).map((itemIndex) => itemIndex > index ? itemIndex - 1 : itemIndex)
+        : [],
+    })
+    schedulePreloadNeighbors()
+  },
+
+  async ensureQueueDetails(indices) {
+    const queue = get().queue
+    const tracks = [...new Set(indices.map((index) => queue[index]).filter((track) => track?.pending))]
+    if (!tracks.length) return
+    const details = await fetchQueueDetails(tracks)
+    if (!details.size) return
+    // 用原曲目对象定位，重排后仍可补全；换队列或移除后的旧响应不会写错位置。
+    set((state) => {
+      const nextQueue = state.queue.map((track) => details.get(track) ?? track)
+      return nextQueue.some((track, index) => track !== state.queue[index]) ? { queue: nextQueue } : state
+    })
+  },
+
   playAt(index) {
     const track = get().queue[index]
     if (!track) return
     // 网易/QQ 交给播放器先查离线文件；Apple 仍要求可用的官网会话。
     if (track.source === 'apple' && !isProviderParticipating(track.source)) return
+    const session = ++playAtSession
     set({ queueIndex: index })
     schedulePreloadNeighbors()
     const contextId = get().queueContextId
-    if (!track.pending) {
-      void usePlayerStore.getState().loadTrack(track, { contextId })
-      return
-    }
+    void usePlayerStore.getState().loadTrack(track, { contextId })
+    if (!track.pending) return
     void resolvePending(track).then((resolved) => {
       const { queue, queueIndex } = get()
-      // 等待补详情期间用户已切歌/换队列:丢弃
-      if (queueIndex !== index || String(queue[index]?.id) !== String(track.id)) return
+      // 等待补详情期间允许队列重排；若当前播放目标已变则丢弃。
+      if (session !== playAtSession || (queue[queueIndex] !== track && queue[queueIndex] !== resolved)) return
       const nextQueue = [...queue]
-      nextQueue[index] = resolved
+      nextQueue[queueIndex] = resolved
       set({ queue: nextQueue })
-      void usePlayerStore.getState().loadTrack(resolved, { contextId })
     })
   },
 

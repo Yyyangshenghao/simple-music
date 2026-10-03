@@ -19,6 +19,7 @@ interface NeteaseLyricResponse {
   lyric?: string
   tlyric?: string
   romalrc?: string
+  yromalrc?: string
   yrc?: string
   error?: string
 }
@@ -75,11 +76,17 @@ export async function fetchLyrics(track: Track, sources: ProviderId[] = [], sign
       if (!main.length) return emptyLyrics
       const trans = transText ? parseLrc(transText) : []
       const roma = romaText ? parseLrc(romaText) : []
+      // YRC 与旧 LRC 的行时间可能不同；优先匹配对应的音译，缺行再用旧音译补位。
+      const timedRoma = wordLines.length && typeof rec.yromalrc === 'string' ? parseLrc(rec.yromalrc) : []
+      const alignedRoma = roma.length ? alignTranslation(main, roma) : []
+      const nativeRoma = timedRoma.length ? alignTranslation(main, timedRoma) : []
       return {
         source: track.source,
         main,
         aligned: trans.length ? alignTranslation(main, trans) : [],
-        roma: roma.length ? alignTranslation(main, roma) : [],
+        roma: nativeRoma.length
+          ? nativeRoma.map((line, index) => line.text ? line : alignedRoma[index] || line)
+          : alignedRoma,
         wordLines,
       }
     }

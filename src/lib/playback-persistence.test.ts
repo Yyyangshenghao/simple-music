@@ -66,6 +66,21 @@ describe('playback persistence', () => {
     expect(p.currentQuality).toBeNull()
   })
 
+  it('恢复随机播放顺序，忽略损坏的顺序', () => {
+    const queue = [makeTrack(0), makeTrack(1), makeTrack(2)]
+    usePlaylistStore.setState({ queue, queueIndex: 1, shuffleOrder: [2, 1, 0] })
+    savePlayback()
+    usePlaylistStore.setState({ queue: [], queueIndex: -1, shuffleOrder: [] })
+    restorePlayback()
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([2, 1, 0])
+
+    const saved = JSON.parse(store[PLAYBACK_STORAGE_KEY])
+    saved.shuffleOrder = [0, 0, 2]
+    store[PLAYBACK_STORAGE_KEY] = JSON.stringify(saved)
+    restorePlayback()
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([])
+  })
+
   it('损坏数据与越界下标:不崩溃,不污染队列', () => {
     store[PLAYBACK_STORAGE_KEY] = 'not json'
     restorePlayback()
@@ -94,6 +109,40 @@ describe('playback persistence', () => {
     expect(saved.queue[0].pending).toBe(true)
     expect(saved.queue[0].mid).toBe('abc') // QQ 播放必需字段保留
     expect(saved.queue[0].album).toBeUndefined()
+  })
+
+  it('仅更新进度时复用队列序列化，替换队列后保存最新详情和随机顺序', () => {
+    const track = makeTrack(0)
+    const readName = vi.fn(() => '原曲目')
+    Object.defineProperty(track, 'name', { enumerable: true, get: readName })
+    usePlaylistStore.setState({ queue: [track, makeTrack(1)], queueIndex: 0, shuffleOrder: [1, 0] })
+    savePlayback()
+    const initialReads = readName.mock.calls.length
+    expect(initialReads).toBeGreaterThan(0)
+
+    usePlayerStore.setState({ position: 25.5, volume: 0.3 })
+    savePlayback()
+    expect(readName.mock.calls.length).toBe(initialReads)
+    expect(JSON.parse(store[PLAYBACK_STORAGE_KEY])).toMatchObject({
+      position: 25.5, volume: 0.3, queueIndex: 0, shuffleOrder: [1, 0]
+    })
+
+    usePlaylistStore.setState({ queue: [makeTrack(2, { name: '最新详情', url: 'expired' })], queueIndex: 0 })
+    savePlayback()
+    const saved = JSON.parse(store[PLAYBACK_STORAGE_KEY])
+    expect(saved.queue[0].name).toBe('最新详情')
+    expect(saved.queue[0].url).toBeUndefined()
+    expect(saved.shuffleOrder).toBeUndefined()
+  })
+
+  it('占位保存失败时不抛出，之后仍能保存新队列', () => {
+    vi.stubGlobal('localStorage', { setItem: () => { throw new Error('quota') } })
+    usePlaylistStore.setState({ queue: [makeTrack(0)], queueIndex: 0 })
+    expect(() => savePlayback()).not.toThrow()
+    vi.stubGlobal('localStorage', { setItem: (k: string, v: string) => { store[k] = v } })
+    usePlaylistStore.setState({ queue: [makeTrack(1)], queueIndex: 0 })
+    savePlayback()
+    expect(JSON.parse(store[PLAYBACK_STORAGE_KEY]).queue[0].id).toBe(1)
   })
 
   it('兼容 1.x 无 schema 的混合队列，并保留当前曲目来源', () => {

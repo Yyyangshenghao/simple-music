@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
+import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
@@ -167,6 +168,29 @@ function MiniPlayerIcon() {
   )
 }
 
+/** 桌面歌词开关：与设置及快捷键共用同一状态。 */
+function DesktopLyricsButton() {
+  const enabled = useVisualStore((s) => s.fx.desktopLyrics)
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
+      data-active={enabled}
+      onClick={() => useVisualStore.getState().updateFx({ desktopLyrics: !enabled })}
+      title={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
+      aria-label={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
+      aria-pressed={enabled}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2.5" />
+        <path d="M7 9h10M7 13h10M9 17h6" />
+      </svg>
+    </motion.button>
+  )
+}
+
 /** 迷你悬浮播放条开关:切换独立的置顶 overlay 窗口。 */
 function MiniPlayerButton() {
   const enabled = useSettingsStore((s) => s.miniPlayerEnabled)
@@ -250,16 +274,52 @@ interface PlayerBarProps {
   hidden?: boolean
 }
 
+/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
+function PlaybackProgress() {
+  const position = usePlayerStore((s) => s.position)
+  const duration = usePlayerStore((s) => s.duration)
+  const seek = usePlayerStore((s) => s.seek)
+  return (
+    <div className={styles.progress}>
+      <span className={styles.time}>{formatTime(position)}</span>
+      <Slider
+        className={styles.progressSlider}
+        ariaLabel="播放进度"
+        value={position}
+        min={0}
+        max={duration > 0 ? duration : 1}
+        step={1}
+        onChange={seek}
+      />
+      <span className={styles.time}>{formatTime(duration)}</span>
+    </div>
+  )
+}
+
+function VolumeControl() {
+  const volume = usePlayerStore((s) => s.volume)
+  const setVolume = usePlayerStore((s) => s.setVolume)
+  return (
+    <div className={styles.volumeGroup}>
+      <VolumeButton />
+      <ElasticSlider
+        className={styles.volumeSlider}
+        leftIcon={null}
+        rightIcon={null}
+        defaultValue={Math.round(volume * 100)}
+        startingValue={0}
+        maxValue={100}
+        onChange={(v) => setVolume(v / 100)}
+      />
+    </div>
+  )
+}
+
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
-  const position = usePlayerStore((s) => s.position)
-  const duration = usePlayerStore((s) => s.duration)
-  const volume = usePlayerStore((s) => s.volume)
   const toggle = usePlayerStore((s) => s.toggle)
-  const seek = usePlayerStore((s) => s.seek)
-  const setVolume = usePlayerStore((s) => s.setVolume)
   const next = usePlaylistStore((s) => s.next)
   const prev = usePlaylistStore((s) => s.prev)
 
@@ -308,35 +368,14 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
             </motion.button>
           </div>
 
-          <div className={styles.progress}>
-            <span className={styles.time}>{formatTime(position)}</span>
-            <Slider
-              className={styles.progressSlider}
-              value={position}
-              min={0}
-              max={duration > 0 ? duration : 1}
-              step={1}
-              onChange={seek}
-            />
-            <span className={styles.time}>{formatTime(duration)}</span>
-          </div>
+          <PlaybackProgress />
         </div>
 
         <div className={styles.right}>
-          <div className={styles.volumeGroup}>
-            <VolumeButton />
-            <ElasticSlider
-              className={styles.volumeSlider}
-              leftIcon={null}
-              rightIcon={null}
-              defaultValue={Math.round(volume * 100)}
-              startingValue={0}
-              maxValue={100}
-              onChange={(v) => setVolume(v / 100)}
-            />
-          </div>
+          <VolumeControl />
           <span className={styles.divider} aria-hidden="true" />
           <SourceFallbackBadge />
+          <DesktopLyricsButton />
           <MiniPlayerButton />
           <QueuePanel />
           <MoreMenu />

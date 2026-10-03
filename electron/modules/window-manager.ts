@@ -15,10 +15,16 @@ let mainServerPort = 0
 let mainServerToken = ''
 let htmlFullscreenActive = false
 let windowFullscreenActive = false
+let shortcutRecording = false
 let stateTimer: NodeJS.Timeout | null = null
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
+}
+
+export function setShortcutRecording(recording: boolean): void {
+  shortcutRecording = recording
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setIgnoreMenuShortcuts(recording)
 }
 
 export function getServerPort(): number {
@@ -280,7 +286,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
 
   mainWindow.webContents.once('did-finish-load', () => sendWindowState(mainWindow))
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
+    if (!shortcutRecording && input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
       event.preventDefault()
       exitFullscreenToWindow(mainWindow)
     }

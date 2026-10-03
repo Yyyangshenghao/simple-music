@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
@@ -14,9 +14,10 @@ import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { GradientText } from '../components/ui/GradientText'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { VirtualList } from '../components/ui/VirtualList'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import type { Playlist, Track } from '../types/domain'
-import type { MutableRefObject } from 'react'
+import type { MutableRefObject, RefObject } from 'react'
 import styles from './LibraryPage.module.css'
 import { OfflineMusicTab } from './OfflineMusicTab'
 
@@ -25,6 +26,9 @@ type SubTab = 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'loc
 /** 本地音乐排序字段。name/artist 为字符串序,mtimeMs 为文件修改时间(近似添加时间)。 */
 type LocalSortField = 'name' | 'artist' | 'mtimeMs'
 type LocalSortDir = 'asc' | 'desc'
+
+/** 56px 曲目行加 2px 行间距，与我的库原有列表尺寸一致。 */
+const TRACK_ROW_HEIGHT = 58
 
 const LOCAL_SORT_FIELDS: { field: LocalSortField; label: string }[] = [
   { field: 'name', label: '标题' },
@@ -86,6 +90,7 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 
 export function LibraryPage() {
   const [tab, setTab] = useState<SubTab>('playlists')
+  const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
   const albumsAvailable = !!contentSource && !!providerFor(contentSource).library?.getUserAlbums
   useEffect(() => {
@@ -108,7 +113,7 @@ export function LibraryPage() {
   }
 
   return (
-    <ScrollArea className={styles.page}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <div className={styles.inner}>
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
@@ -135,11 +140,11 @@ export function LibraryPage() {
         ? <ProviderLibraryGrid mode="favorites" source={contentSource} />
         : <OnlineLibraryUnavailable />)}
 
-      {tab === 'recent' && <RecentPlaysList />}
+      {tab === 'recent' && <RecentPlaysList scrollRef={scrollRef} />}
 
-      {tab === 'offline' && <OfflineMusicTab />}
+      {tab === 'offline' && <OfflineMusicTab scrollRef={scrollRef} />}
 
-      {tab === 'local' && <LocalMusicTab />}
+      {tab === 'local' && <LocalMusicTab scrollRef={scrollRef} />}
       </div>
     </ScrollArea>
   )
@@ -296,10 +301,10 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
 }
 
 /** 本地播放历史列表:点击整单入队从该曲播起。 */
-function RecentPlaysList() {
+function RecentPlaysList({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const items = useRecentPlaysStore((s) => s.items)
   const queueRef = useRef<Track[]>([])
-  queueRef.current = items.map((r) => r.track)
+  queueRef.current = useMemo(() => items.map((r) => r.track), [items])
 
   if (!items.length) {
     return (
@@ -317,14 +322,12 @@ function RecentPlaysList() {
           清空记录
         </button>
       </div>
-      {items.map((it, i) => (
-        <QueuedTrackRow
-          key={`${String(it.track.id)}-${it.playedAt}`}
-          track={it.track}
-          index={i}
-          queueRef={queueRef}
-        />
-      ))}
+      <VirtualList
+        total={items.length}
+        rowHeight={TRACK_ROW_HEIGHT}
+        scrollRef={scrollRef}
+        renderRow={(index) => <QueuedTrackRow track={items[index].track} index={index} queueRef={queueRef} />}
+      />
     </div>
   )
 }
@@ -405,7 +408,7 @@ function LocalSortMenu({
 }
 
 /** 本地音乐 tab:选文件夹批量导入,扁平列表播放;不接入在线音源的推荐/艺人体系。 */
-function LocalMusicTab() {
+function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const [folders, setFolders] = useState<string[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [keyword, setKeyword] = useState('')
@@ -444,14 +447,20 @@ function LocalMusicTab() {
     await refresh()
   }
 
-  const kw = keyword.trim().toLowerCase()
-  const matched = kw
-    ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
-    : tracks
   // 先过滤再排序:排序在搜索之后,确保显示顺序与当前排序一致。
-  const sorted = [...matched].sort((a, b) => compareTracks(a, b, sortField, sortDir))
+  const sorted = useMemo(() => {
+    const kw = keyword.trim().toLowerCase()
+    const matched = kw
+      ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
+      : tracks
+    return [...matched].sort((a, b) => compareTracks(a, b, sortField, sortDir))
+  }, [tracks, keyword, sortField, sortDir])
   const queueRef = useRef<Track[]>([])
   queueRef.current = sorted
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [scrollRef, keyword, sortField, sortDir])
 
   return (
     <div className={styles.trackList}>
@@ -500,9 +509,12 @@ function LocalMusicTab() {
           <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
         </div>
       ) : (
-        sorted.map((t, i) => (
-          <QueuedTrackRow key={String(t.id)} track={t} index={i} queueRef={queueRef} />
-        ))
+        <VirtualList
+          total={sorted.length}
+          rowHeight={TRACK_ROW_HEIGHT}
+          scrollRef={scrollRef}
+          renderRow={(index) => <QueuedTrackRow track={sorted[index]} index={index} queueRef={queueRef} />}
+        />
       )}
     </div>
   )

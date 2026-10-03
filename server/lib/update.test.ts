@@ -1,5 +1,18 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
-import { pickReleaseAsset, reorderCandidatesBySpeed, type DownloadCandidate } from './update'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import {
+  pickReleaseAsset,
+  reorderCandidatesBySpeed,
+  startUpdateDownloadJob,
+  updateDownloadJobs,
+  verifyUpdateFile,
+  UPDATE_CONFIG,
+  type DownloadCandidate,
+  type UpdateInfo,
+} from './update'
 
 function withPlatform<T>(platform: NodeJS.Platform, arch: NodeJS.Architecture, fn: () => T): T {
   const originalPlatform = process.platform
@@ -126,5 +139,175 @@ describe('reorderCandidatesBySpeed（下载前测速选线）', () => {
     const ordered = await reorderCandidatesBySpeed(single, 2000)
     expect(ordered).toBe(single)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('更新包流式校验与缓存复用', () => {
+  const bytes = Buffer.alloc(192 * 1024 + 17, 'installer data')
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex')
+  const sha512 = crypto.createHash('sha512').update(bytes).digest()
+  let dir: string
+  let filePath: string
+  let originalMirrors: string[]
+
+  function verification(overrides = {}) {
+    return { expectedSize: bytes.length, total: 0, sha256, sha512: sha512.toString('base64'), ...overrides }
+  }
+
+  function updateInfo(): UpdateInfo {
+    const downloadUrl = 'https://example.com/installer.exe'
+    return {
+      configured: true,
+      preview: false,
+      updateAvailable: true,
+      currentVersion: '1.0.0',
+      latestVersion: '2.0.0',
+      release: {
+        tagName: 'v2.0.0',
+        name: '2.0.0',
+        version: '2.0.0',
+        htmlUrl: 'https://example.com/release',
+        downloadUrl,
+        summary: '',
+        notes: [],
+        asset: {
+          name: 'installer.exe',
+          size: bytes.length,
+          contentType: 'application/octet-stream',
+          downloadUrl,
+          downloadUrls: [],
+          sha256,
+          sha512: sha512.toString('base64'),
+        },
+      },
+    }
+  }
+
+  beforeEach(async () => {
+    dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'simplemusic-update-test-'))
+    const downloadDir = path.join(dir, 'updates', 'downloads')
+    await fs.promises.mkdir(downloadDir, { recursive: true })
+    filePath = path.join(downloadDir, 'installer.exe')
+    await fs.promises.writeFile(filePath, bytes)
+    originalMirrors = UPDATE_CONFIG.mirrors
+    UPDATE_CONFIG.mirrors = []
+    updateDownloadJobs.clear()
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    UPDATE_CONFIG.mirrors = originalMirrors
+    updateDownloadJobs.clear()
+    await fs.promises.rm(dir, { recursive: true, force: true })
+  })
+
+  it('多块文件一次读取，同时校验 SHA256 和 base64 SHA512', async () => {
+    const read = vi.spyOn(fs, 'createReadStream')
+    const synchronousRead = vi.spyOn(fs, 'readFileSync')
+    await expect(verifyUpdateFile(filePath, verification())).resolves.toBeUndefined()
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(synchronousRead).not.toHaveBeenCalled()
+  })
+
+  it('保留 digest 前缀、大小写 hex SHA256/SHA512 的兼容性', async () => {
+    await expect(verifyUpdateFile(filePath, verification({
+      sha256: 'sha256:' + sha256.toUpperCase(),
+      sha512: 'SHA512:' + sha512.toString('hex').toUpperCase(),
+    }))).resolves.toBeUndefined()
+  })
+
+  it('仅有 SHA512 或长度时保持独立校验', async () => {
+    await expect(verifyUpdateFile(filePath, verification({ sha256: '' }))).resolves.toBeUndefined()
+    await expect(verifyUpdateFile(filePath, verification({ sha256: '', sha512: '' }))).resolves.toBeUndefined()
+    await expect(verifyUpdateFile(filePath, verification({ sha256: '', sha512: 'invalid' })))
+      .rejects.toMatchObject({ code: 'UPDATE_SHA512_MISMATCH' })
+  })
+
+  it('长度不符优先于两种摘要错误，并保留错误详情', async () => {
+    await expect(verifyUpdateFile(filePath, verification({
+      expectedSize: bytes.length + 1,
+      sha256: 'invalid',
+      sha512: 'invalid',
+    }))).rejects.toMatchObject({
+      code: 'UPDATE_SIZE_MISMATCH',
+      message: `Expected ${bytes.length + 1} bytes, got ${bytes.length}`,
+    })
+  })
+
+  it('缺少 expectedSize 时仍按 total 校验长度', async () => {
+    await expect(verifyUpdateFile(filePath, verification({
+      expectedSize: 0,
+      total: bytes.length + 1,
+    }))).rejects.toMatchObject({ code: 'UPDATE_SIZE_MISMATCH' })
+  })
+
+  it('长度正确时 SHA256 错误优先于 SHA512 错误', async () => {
+    await expect(verifyUpdateFile(filePath, verification({
+      sha256: 'invalid',
+      sha512: 'invalid',
+    }))).rejects.toMatchObject({ code: 'UPDATE_SHA256_MISMATCH', message: 'Downloaded sha256 mismatch' })
+  })
+
+  it('SHA256 正确时仍拒绝错误 SHA512', async () => {
+    await expect(verifyUpdateFile(filePath, verification({ sha512: 'invalid' })))
+      .rejects.toMatchObject({ code: 'UPDATE_SHA512_MISMATCH', message: 'Downloaded sha512 mismatch' })
+  })
+
+  it('文件读取错误向调用方传播', async () => {
+    await expect(verifyUpdateFile(path.join(dir, 'missing.exe'), verification()))
+      .rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('并发请求只校验一次缓存并复用同一 ready 任务，不下载', async () => {
+    const read = vi.spyOn(fs, 'createReadStream')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const ctx = { userDataDir: dir, port: 35530 }
+    const jobs = await Promise.all(Array.from({ length: 8 }, () => startUpdateDownloadJob(updateInfo(), ctx)))
+    expect(jobs[0]).toMatchObject({ ok: true, status: 'ready', cached: true, filePath, received: bytes.length })
+    for (const job of jobs) expect(job).toEqual(jobs[0])
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(updateDownloadJobs.size).toBe(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await startUpdateDownloadJob(updateInfo(), ctx)).toEqual(jobs[0])
+    expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['摘要', '长度'])('失效缓存（%s）移出后，并发请求只下载一次并校验新文件', async (reason) => {
+    await fs.promises.writeFile(filePath, reason === '摘要' ? Buffer.alloc(bytes.length) : bytes.subarray(0, 1024))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const fetchMock = vi.fn(async () => new Response(bytes, {
+      headers: { 'content-length': String(bytes.length) },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const ctx = { userDataDir: dir, port: 35530 }
+    const jobs = await Promise.all(Array.from({ length: 8 }, () => startUpdateDownloadJob(updateInfo(), ctx)))
+    for (const job of jobs) expect(job).toEqual(jobs[0])
+    expect(updateDownloadJobs.size).toBe(1)
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]?.status).toBe('ready')
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(await fs.promises.readFile(filePath)).toEqual(bytes)
+    expect((await fs.promises.readdir(path.dirname(filePath))).filter((name) => name.includes('.invalid-')))
+      .toHaveLength(1)
+  })
+
+  it('下载流结束后仍等待摘要校验，错误安装包不进入 ready', async () => {
+    await fs.promises.unlink(filePath)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.alloc(bytes.length), {
+      headers: { 'content-length': String(bytes.length) },
+    })))
+    await startUpdateDownloadJob(updateInfo(), { userDataDir: dir, port: 35530 })
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({
+        status: 'error',
+        error: 'UPDATE_SHA256_MISMATCH',
+      })
+    })
+    expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
   })
 })

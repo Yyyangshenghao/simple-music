@@ -1,7 +1,7 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.2.4",
+  "version": "2.3.0",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -23,11 +23,10 @@
     "server:dev": "tsx server/index.ts"
   },
   "dependencies": {
-    "@react-three/drei": "^9.114.0",
     "@react-three/fiber": "^8.17.0",
-    "@react-three/postprocessing": "^2.19.1",
     "d3-force": "^3.0.0",
     "gsap": "^3.15.0",
+    "koffi": "2.16.3",
     "motion": "^12.42.1",
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.14.0",
@@ -86,6 +85,9 @@
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/koffi/build/koffi/**/*.node"
+    ],
     "mac": {
       "target": [
         {

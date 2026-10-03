@@ -3,6 +3,8 @@ import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
 import { useAmbientStore } from '../stores/ambient'
 import { useSettingsStore } from '../stores/settings'
+import { useShortcutStore } from '../stores/shortcuts'
+import { normalizeAccelerator, isSystemReservedAccelerator } from '../lib/shortcuts'
 import { sizedImage } from '../lib/image-size'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 
@@ -15,6 +17,19 @@ export function useMiniPlayerSync(): void {
   const enabled = useSettingsStore((s) => s.miniPlayerEnabled)
   const appearance = useSettingsStore((s) => s.miniPlayerAppearance)
   const width = useSettingsStore((s) => s.miniPlayerWidth)
+  const localHotkeys = useSettingsStore((s) => s.localHotkeys)
+  const hotkeys = useSettingsStore((s) => s.hotkeys)
+  const globalEnabled = useSettingsStore((s) => s.globalHotkeysEnabled)
+  const recording = useShortcutStore((s) => s.recording)
+  const pending = useShortcutStore((s) => s.pending)
+  const results = useShortcutStore((s) => s.results)
+  const platform = window.desktop?.platform ?? 'win32'
+  const localReturn = normalizeAccelerator(localHotkeys.find((item) => item.action === 'mini-player')?.accelerator ?? '', platform)
+  // 与主窗口一样：已注册（或正在注册）的同键全局绑定负责分发，防止一次按键切换两次。
+  const registered = globalEnabled && !!localReturn && (pending
+    ? hotkeys.some((item) => normalizeAccelerator(item.accelerator, platform) === localReturn)
+    : results.some((item) => item.ok && normalizeAccelerator(item.accelerator, platform) === localReturn))
+  const returnShortcut = localReturn && !recording && !registered && !isSystemReservedAccelerator(localReturn, platform) ? localReturn : ''
   const showLyrics = appearance.showLyrics && width >= MINI_PLAYER_LYRICS_WIDTH
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const status = usePlayerStore((s) => s.status)
@@ -43,6 +58,10 @@ export function useMiniPlayerSync(): void {
       appearance
     })
   }, [enabled, currentTrack, status, volume, duration, accent, appearance])
+
+  useEffect(() => {
+    if (enabled) void window.desktop?.updateMiniPlayer({ returnShortcut })
+  }, [enabled, returnShortcut])
 
   // 进度:展示时播放中每秒推一次;暂停/切曲/重新展示时补推一次末态
   useEffect(() => {

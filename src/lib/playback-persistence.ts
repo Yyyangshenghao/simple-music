@@ -1,6 +1,7 @@
 import { usePlayerStore } from '../stores/player'
 import { usePlaylistStore } from '../stores/playlist'
 import type { Track } from '../types/domain'
+import { isValidPermutation } from './queue-display'
 
 /** 播放状态持久化:队列/当前曲/进度/音量落 localStorage,重启恢复为暂停态断点续播。 */
 
@@ -13,6 +14,7 @@ interface PersistedPlayback {
   schema: typeof PLAYBACK_STORAGE_SCHEMA
   queue: Track[]
   queueIndex: number
+  shuffleOrder?: number[]
   /** 秒。 */
   position: number
   volume: number
@@ -42,26 +44,47 @@ function toPlaceholder(track: Track): Track {
   }
 }
 
+// store 使用不可变队列；只保留当前队列的序列化结果，进度落盘复用它。
+let serializedQueue: {
+  queue: Track[]
+  full: string
+  compact?: string
+} | null = null
+let serializedOrder: { order: number[]; length: number; json?: string } | null = null
+
 export function savePlayback(): void {
   if (typeof localStorage === 'undefined') return
-  const { queue, queueIndex } = usePlaylistStore.getState()
+  const { queue, queueIndex, shuffleOrder } = usePlaylistStore.getState()
   const { position, volume } = usePlayerStore.getState()
-  const data: PersistedPlayback = {
+  const data = {
     schema: PLAYBACK_STORAGE_SCHEMA,
-    queue: queue.map(stripUrl),
     queueIndex,
     position,
     volume,
   }
   try {
-    localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify(data))
-  } catch {
-    // 超出配额:降级为占位曲目(仅 id 等必需字段),恢复后播到再补详情
-    try {
-      localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify({ ...data, queue: queue.map(toPlaceholder) }))
-    } catch {
-      /* 仍失败则放弃本次落盘 */
+    if (serializedQueue?.queue !== queue) {
+      serializedQueue = { queue, full: JSON.stringify(queue.map(stripUrl)) }
     }
+    if (serializedOrder?.order !== shuffleOrder || serializedOrder.length !== queue.length) {
+      serializedOrder = {
+        order: shuffleOrder,
+        length: queue.length,
+        json: isValidPermutation(shuffleOrder, queue.length) ? JSON.stringify(shuffleOrder) : undefined
+      }
+    }
+    const fields = JSON.stringify(data).slice(0, -1)
+    const orderField = serializedOrder.json ? `,"shuffleOrder":${serializedOrder.json}` : ''
+    const serialize = (queueJson: string) => `${fields},"queue":${queueJson}${orderField}}`
+    try {
+      localStorage.setItem(PLAYBACK_STORAGE_KEY, serialize(serializedQueue.full))
+    } catch {
+      // 超出配额时保留原有占位降级；同一队列不重复序列化。
+      serializedQueue.compact ??= JSON.stringify(queue.map(toPlaceholder))
+      localStorage.setItem(PLAYBACK_STORAGE_KEY, serialize(serializedQueue.compact))
+    }
+  } catch {
+    /* 序列化或占位落盘仍失败则放弃本次保存 */
   }
 }
 
@@ -100,7 +123,11 @@ export function restorePlayback(): void {
   const queueIndex = queue.indexOf(rawTrack as Track)
   const track = queue[queueIndex]
   if (!track) return
-  usePlaylistStore.setState({ queue, queueIndex, queueContextId: null, shuffleOrder: [] })
+  const shuffleOrder = rawQueue.length === queue.length
+    && Array.isArray(data.shuffleOrder)
+    && isValidPermutation(data.shuffleOrder, queue.length)
+    ? data.shuffleOrder : []
+  usePlaylistStore.setState({ queue, queueIndex, queueContextId: null, shuffleOrder })
   const position = typeof data.position === 'number' && data.position > 0 ? data.position : 0
   // 恢复为暂停态:不解析 URL 不自动播;点播放时 player.play() 检测到引擎无源,按断点重新加载
   usePlayerStore.setState({
@@ -148,7 +175,7 @@ export function initPlaybackPersistence(): void {
     else if (s.status === 'playing' && s.position !== prev.position) scheduleSave(POSITION_SAVE_MS)
   })
   usePlaylistStore.subscribe((s, prev) => {
-    if (s.queue !== prev.queue || s.queueIndex !== prev.queueIndex) scheduleSave(500)
+    if (s.queue !== prev.queue || s.queueIndex !== prev.queueIndex || s.shuffleOrder !== prev.shuffleOrder) scheduleSave(500)
   })
   window.addEventListener('beforeunload', savePlayback)
 }

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { TrackRow } from '../components/Explore/TrackRow'
+import { VirtualList } from '../components/ui/VirtualList'
 import { api } from '../lib/api'
 import { fetchOfflineLibrary, filterOfflineLibrary, offlineLibraryTrack, type OfflineLibraryItem, type OfflineLibrarySort } from '../lib/offline-library'
 import { useOfflineCacheStore } from '../stores/offline-cache'
@@ -8,7 +9,7 @@ import { useToastStore } from '../stores/toast'
 import styles from './OfflineMusicTab.module.css'
 import libraryStyles from './LibraryPage.module.css'
 
-export function OfflineMusicTab() {
+export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const [items, setItems] = useState<OfflineLibraryItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [sort, setSort] = useState<OfflineLibrarySort>('savedAt')
@@ -53,8 +54,12 @@ export function OfflineMusicTab() {
     }
   }
 
-  const visible = filterOfflineLibrary(items, keyword, sort)
-  const queue = visible.map(offlineLibraryTrack)
+  const visible = useMemo(() => filterOfflineLibrary(items, keyword, sort), [items, keyword, sort])
+  const queue = useMemo(() => visible.map(offlineLibraryTrack), [visible])
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [scrollRef, keyword, sort])
 
   return (
     <div className={libraryStyles.trackList}>
@@ -75,13 +80,14 @@ export function OfflineMusicTab() {
       {loading ? <div className={libraryStyles.emptyHint} role="status">加载中…</div>
         : error ? <div className={libraryStyles.emptyHint} role="alert"><p>离线音乐加载失败</p><button onClick={() => setRefresh((value) => value + 1)}>重试</button></div>
         : !visible.length ? <div className={libraryStyles.emptyHint}><p>{items.length ? '没有匹配的曲目' : '还没有离线音乐，在歌曲旁点击「保存到本地」开始'}</p></div>
-        : visible.map((item, index) => {
+        : <VirtualList total={visible.length} rowHeight={58} scrollRef={scrollRef} renderRow={(index) => {
+          const item = visible[index]
           const key = `${item.origin.source}:${item.origin.id}`
           return <div className={styles.row} key={key}>
             <TrackRow track={queue[index]} index={index} hideOfflineAction onPlay={() => usePlaylistStore.getState().setQueue(queue, index)} />
             <button className={`${libraryStyles.clearBtn} no-drag`} disabled={removing !== null} aria-label={`移除离线保存：${queue[index].name}`} onClick={() => void remove(item)}>{removing === key ? '移除中…' : '移除保存'}</button>
           </div>
-        })}
+        }} />}
     </div>
   )
 }

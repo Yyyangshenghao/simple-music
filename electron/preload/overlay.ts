@@ -8,6 +8,13 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 }
 
 // preload 早于页面脚本执行：先接住首屏快照，避免 React effect 尚未订阅时丢状态。
+let lyricsState: LyricsPayload = {}
+const lyricsListeners = new Set<(payload: LyricsPayload) => void>()
+ipcRenderer.on('overlay:lyrics-state', (_event, payload: LyricsPayload) => {
+  lyricsState = { ...lyricsState, ...payload }
+  for (const listener of lyricsListeners) listener(lyricsState)
+})
+
 let miniPlayerState: MiniPlayerPayload = {}
 const miniPlayerListeners = new Set<(payload: MiniPlayerPayload) => void>()
 ipcRenderer.on('overlay:miniplayer-state', (_event, payload: MiniPlayerPayload) => {
@@ -16,13 +23,20 @@ ipcRenderer.on('overlay:miniplayer-state', (_event, payload: MiniPlayerPayload) 
 })
 
 const api = {
-  onLyricsState: (cb: (p: LyricsPayload) => void) => on<LyricsPayload>('overlay:lyrics-state', cb),
+  platform: process.platform,
+  onLyricsState: (cb: (p: LyricsPayload) => void): (() => void) => {
+    lyricsListeners.add(cb)
+    if (Object.keys(lyricsState).length) cb(lyricsState)
+    return () => { lyricsListeners.delete(cb) }
+  },
   onWallpaperState: (cb: (p: WallpaperPayload) => void) => on<WallpaperPayload>('overlay:wallpaper-state', cb),
   setLyricsDrag: (dragging: boolean) => ipcRenderer.invoke('overlay:lyrics-set-dragging', { dragging }),
   setLyricsPointerCapture: (active: boolean) => ipcRenderer.invoke('overlay:lyrics-set-pointer-capture', { active }),
   setLyricsHotBounds: (bounds: HotBounds) => ipcRenderer.invoke('overlay:lyrics-set-hot-bounds', bounds),
+  setLyricsControlBounds: (bounds: HotBounds & { hover?: HotBounds; contentWidth?: number }) => ipcRenderer.invoke('overlay:lyrics-set-control-bounds', bounds),
   setLyricsLockState: (locked: boolean) => ipcRenderer.invoke('overlay:lyrics-set-lock', { locked }),
   moveLyricsBy: (dx: number, dy: number) => ipcRenderer.invoke('overlay:lyrics-move-by', { dx, dy }),
+  resizeLyrics: (width: number, height: number, anchor?: 'top-left') => ipcRenderer.invoke('overlay:lyrics-resize', { width, height, ...(anchor ? { anchor } : {}) }),
   closeLyrics: () => ipcRenderer.invoke('overlay:lyrics-close'),
 
   onMiniPlayerState: (cb: (p: MiniPlayerPayload) => void): (() => void) => {

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useSpring, useMotionValueEvent } from 'motion/react'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { gentleSpringValues } from '../../lib/motion-presets'
-import LiquidEther from '../Visualizer/LiquidEther'
 import styles from './AmbientBackground.module.css'
+
+const LiquidEther = lazy(() => import('../Visualizer/LiquidEther'))
 
 interface AmbientBackgroundProps {
   /** 为 true 时隐藏背景层（如歌词页 3D 模式打开，保证同屏只有一个全屏 WebGL）。 */
@@ -29,28 +30,32 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   }, [playing, playSpring])
   useMotionValueEvent(playSpring, 'change', (v) => setPlayAmount(v))
 
+  // 隐藏时释放 WebGL 上下文与纹理，避免与歌词场景同时占用显存。
+  if (hidden) return null
+
   return (
-    // display:none 时 LiquidEther 内置 IntersectionObserver 自动暂停渲染
-    <div className={styles.background} style={hidden ? { display: 'none' } : undefined}>
+    <div className={styles.background}>
       {!bgFluidMotion || reduceTransparency || performanceMode === 'eco' ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
-        <LiquidEther
-          colors={palette}
-          mouseForce={12}
-          cursorSize={80}
-          resolution={performanceMode === 'balanced' ? 0.4 : 0.5}
-          // 氛围背景是缓慢漂移的模糊流体,16 次 Poisson 迭代与 30fps 观感无差,
-          // 相比默认 32 次@刷新率(ProMotion 下 120fps)GPU 负载降约一个数量级
-          iterationsPoisson={16}
-          fpsCap={playing ? 30 : 20}
-          // 交互提帧:鼠标划过流体时临时升到 60fps 保证跟手,静置 2 秒回落省电
-          interactFpsCap={60}
-          autoDemo={true}
-          autoSpeed={0.25 + 0.2 * playAmount}
-          autoIntensity={1.2 + 0.6 * playAmount}
-          autoResumeDelay={2000}
-        />
+        <Suspense fallback={<div className={styles.auroraFallback} aria-hidden="true" />}>
+          <LiquidEther
+            colors={palette}
+            mouseForce={12}
+            cursorSize={80}
+            resolution={performanceMode === 'balanced' ? 0.4 : 0.5}
+            // 氛围背景是缓慢漂移的模糊流体,16 次 Poisson 迭代与 30fps 观感无差,
+            // 相比默认 32 次@刷新率(ProMotion 下 120fps)GPU 负载降约一个数量级
+            iterationsPoisson={16}
+            fpsCap={playing ? 30 : 20}
+            // 交互提帧:鼠标划过流体时临时升到 60fps 保证跟手,静置 2 秒回落省电
+            interactFpsCap={60}
+            autoDemo={true}
+            autoSpeed={0.25 + 0.2 * playAmount}
+            autoIntensity={1.2 + 0.6 * playAmount}
+            autoResumeDelay={2000}
+          />
+        </Suspense>
       )}
     </div>
   )

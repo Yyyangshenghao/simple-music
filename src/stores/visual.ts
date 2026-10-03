@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import defaultArchive from '../data/default-fx-archive.json'
+import { readDesktopLyricsSettings, saveDesktopLyricsSettings } from '../lib/desktop-lyrics-settings'
 import type { FxParams, FxSnapshot, FxArchive, PresetId, PerformanceMode, BackgroundMode } from '../types/domain'
 
 const DEFAULT_FX = (defaultArchive as FxArchive).snapshot
@@ -21,7 +22,7 @@ interface VisualStore {
 export const useVisualStore = create<VisualStore>((set, get) => ({
   preset: DEFAULT_FX.preset,
   playbackPreset: DEFAULT_FX.preset,
-  fx: { ...DEFAULT_FX },
+  fx: { ...DEFAULT_FX, ...readDesktopLyricsSettings() },
   performanceMode: 'balanced',
   backgroundMode: 'auto',
 
@@ -35,6 +36,7 @@ export const useVisualStore = create<VisualStore>((set, get) => ({
 
   updateFx(partial) {
     set((s) => ({ fx: { ...s.fx, ...partial } }))
+    saveDesktopLyricsSettings(get().fx, partial)
   },
 
   setPerformanceMode(mode) {
@@ -61,5 +63,6 @@ export const useVisualStore = create<VisualStore>((set, get) => ({
     // 合并到默认值，容忍旧存档缺字段，保证兼容。
     const fx: FxParams = { ...DEFAULT_FX, ...snapshot }
     set({ fx, preset: fx.preset, playbackPreset: fx.preset })
+    saveDesktopLyricsSettings(fx, snapshot)
   }
 }))

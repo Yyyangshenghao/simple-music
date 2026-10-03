@@ -52,6 +52,74 @@ describe('AudioEngine media callbacks', () => {
     vi.stubGlobal('window', { desktop: { serverPort: 35530, serverToken: 'token' } })
   })
 
+  function suspendedContext() {
+    const resumes: Array<() => void> = []
+    const context = {
+      state: 'suspended', currentTime: 0, destination: {},
+      resume: () => new Promise<void>(resolve => { resumes.push(resolve) }),
+      close: async () => {},
+      createMediaElementSource: () => ({ connect() {}, disconnect() {} }),
+      createAnalyser: () => ({ frequencyBinCount: 1, connect() {}, disconnect() {} }),
+      createGain: () => ({ connect() {}, disconnect() {}, gain: {
+        value: 1, cancelScheduledValues() {}, setValueAtTime() {}, linearRampToValueAtTime() {},
+      } }),
+    }
+    vi.stubGlobal('window', {
+      desktop: { serverPort: 35530, serverToken: 'token' },
+      AudioContext: vi.fn(function () { return context }),
+    })
+    return resumes
+  }
+
+  it.each(['pause', 'load', 'clearSource', 'destroy'] as const)('恢复音频上下文等待期间 %s 取消旧的播放意图', async (action) => {
+    const resumes = suspendedContext()
+    const play = vi.spyOn(audio, 'play')
+    const onStatus = vi.fn()
+    const engine = new AudioEngine({ onStatus })
+    engine.load('/api/local/audio?id=old')
+    const pending = engine.play()
+    if (action === 'load') engine.load('/api/local/audio?id=new')
+    else engine[action]()
+    onStatus.mockClear()
+    resumes[0]()
+    await pending
+    expect(play).not.toHaveBeenCalled()
+    expect(audio.paused).toBe(true)
+    expect(onStatus).not.toHaveBeenCalledWith('playing')
+  })
+
+  it('新的播放请求取代尚未恢复的旧请求，旧恢复不能提前开播', async () => {
+    const resumes = suspendedContext()
+    const play = vi.spyOn(audio, 'play')
+    const engine = new AudioEngine()
+    engine.load('/api/local/audio?id=one')
+    const first = engine.play()
+    const second = engine.play()
+    resumes[0]()
+    await first
+    expect(play).not.toHaveBeenCalled()
+    resumes[1]()
+    await second
+    expect(play).toHaveBeenCalledOnce()
+    expect(audio.paused).toBe(false)
+  })
+
+  it('暂停取消待恢复请求后，用户再次播放仍能恢复', async () => {
+    const resumes = suspendedContext()
+    const play = vi.spyOn(audio, 'play')
+    const engine = new AudioEngine()
+    engine.load('/api/local/audio?id=one')
+    const first = engine.play()
+    engine.pause()
+    const second = engine.play()
+    resumes[1]()
+    await second
+    resumes[0]()
+    await first
+    expect(play).toHaveBeenCalledOnce()
+    expect(audio.paused).toBe(false)
+  })
+
   it('canplay 通知解析器提交候选', () => {
     const onCanPlay = vi.fn()
     new AudioEngine({ onCanPlay })

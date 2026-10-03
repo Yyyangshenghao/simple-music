@@ -6,15 +6,37 @@ import { useLyricsStore } from '../stores/lyrics'
 // 把播放进度驱动到歌词滚动；卸载时不销毁引擎（单例随应用存活）。
 export function useAudio(): void {
   useEffect(() => {
-    useLyricsStore.getState().tick(usePlayerStore.getState().position)
-    const unsubscribe = usePlayerStore.subscribe((state, previous) => {
-      if (state.playbackTransport !== 'musickit' && state.position !== previous.position) useLyricsStore.getState().tick(state.position)
-    })
-    // 行切换与逐字高亮共用连续时钟，避免每秒换行与逐帧扫光不同步。
-    const timer = setInterval(() => {
+    let timer: ReturnType<typeof setInterval> | undefined
+    const tick = () => {
       const state = usePlayerStore.getState()
-      if (state.playbackTransport === 'musickit') useLyricsStore.getState().tick(lyricPlaybackPosition(state))
-    }, 50)
-    return () => { unsubscribe(); clearInterval(timer) }
+      useLyricsStore.getState().tick(state.playbackTransport === 'musickit'
+        ? lyricPlaybackPosition(state)
+        : state.position)
+    }
+    const syncTimer = () => {
+      const state = usePlayerStore.getState()
+      const continuous = state.playbackTransport === 'musickit' && state.status === 'playing'
+      // 行切换与逐字高亮共用连续时钟；暂停和普通音频由状态变化驱动。
+      if (continuous && timer === undefined) timer = setInterval(tick, 50)
+      else if (!continuous && timer !== undefined) {
+        clearInterval(timer)
+        timer = undefined
+      }
+    }
+    tick()
+    syncTimer()
+    const unsubscribe = usePlayerStore.subscribe((state, previous) => {
+      if (state.position !== previous.position || state.status !== previous.status
+        || state.playbackTransport !== previous.playbackTransport || state.currentTrack !== previous.currentTrack) tick()
+      if (state.status !== previous.status || state.playbackTransport !== previous.playbackTransport) syncTimer()
+    })
+    const unsubscribeOffset = useLyricsStore.subscribe((state, previous) => {
+      if (state.offsetSec !== previous.offsetSec) tick()
+    })
+    return () => {
+      unsubscribe()
+      unsubscribeOffset()
+      if (timer !== undefined) clearInterval(timer)
+    }
   }, [])
 }
