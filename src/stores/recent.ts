@@ -59,10 +59,11 @@ export const useRecentPlaysStore = create<RecentPlaysStore>((set, get) => ({
   }
 }))
 
-// 开始加载新曲目(status 'loading' 与 currentTrack 同时置入)时记录;
-// 重启恢复(status 'paused')不重复记录。
+// 开始加载完整曲目或当前占位曲目补全后记录，避免持久化空资料;
+// 详情等待期间暂停仍记录已选曲目，重启恢复(status 'paused')不重复记录。
 usePlayerStore.subscribe((s, prev) => {
-  if (s.currentTrack && s.currentTrack !== prev.currentTrack && s.status === 'loading') {
+  if (!s.currentTrack || s.currentTrack.pending || s.currentTrack === prev.currentTrack) return
+  if (s.status === 'loading' || (prev.currentTrack?.pending && keyOf(prev.currentTrack) === keyOf(s.currentTrack))) {
     useRecentPlaysStore.getState().record(s.currentTrack)
   }
 })

@@ -15,6 +15,7 @@ import {
 } from '../lib/playback-load-policy'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { serviceFor } from '../lib/service-registry'
+import { resolvePending } from '../lib/queue-details'
 import { useSettingsStore } from './settings'
 import { useToastStore } from './toast'
 import { isProviderParticipating, useProviderStore } from './providers'
@@ -537,6 +538,29 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         currentQuality: null,
       })
 
+      const active: ActivePlayback = {
+        session,
+        originTrack: track,
+        resolver: null,
+        candidate: null,
+        candidateKind: track.source === 'local' ? 'local' : 'resolver',
+        engineLoadId: 0,
+        startAt,
+        advancing: false,
+        fallbackNotified: false,
+        autoplay,
+        preferredSource: opts?.preferredSource,
+      }
+      activePlayback = active
+
+      // 补详情也属于当前播放会话；等待期间暂停、恢复和定位沿用同一份意图。
+      if (track.pending) {
+        track = await resolvePending(track)
+        if (activePlayback !== active || active.session !== loadSession) return
+        active.originTrack = track
+        set({ currentTrack: track, duration: (track.duration ?? 0) / 1000 })
+      }
+
       if (track.source === 'local') {
         // 本地音乐不依赖 track.url:最近播放等场景落盘会剥掉 url、或存的 url 绑定的是
         // 上一会话端口(端口每次随机注入),直接用 track.id 经本地 api 重建当前可用地址。
@@ -549,39 +573,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           useToastStore.getState().show(FALLBACK_UNPLAYABLE_MESSAGE)
           return
         }
-        const active: ActivePlayback = {
-          session,
-          originTrack: track,
-          resolver: null,
-          candidate: null,
-          candidateKind: 'local',
-          engineLoadId: 0,
-          startAt,
-          advancing: false,
-          fallbackNotified: false,
-          autoplay,
-        }
-        activePlayback = active
-        active.engineLoadId = eng.load(localUrl, startAt)
+        active.engineLoadId = eng.load(localUrl, active.startAt)
         eng.setVolume(get().volume)
-        if (autoplay) void eng.play().catch(() => {})
+        if (active.autoplay) void eng.play().catch(() => {})
         return
       }
-
-      const active: ActivePlayback = {
-        session,
-        originTrack: track,
-        resolver: null,
-        candidate: null,
-        candidateKind: 'resolver',
-        engineLoadId: 0,
-        startAt,
-        advancing: false,
-        fallbackNotified: false,
-        autoplay,
-        preferredSource: opts?.preferredSource,
-      }
-      activePlayback = active
 
       // 在线曲目先查本地离线索引；命中时不依赖平台登录或网络，媒体文件失效则回到解析器降级链。
       const offlineStatus = await fetchOfflineStatus(track).catch(() => null)
