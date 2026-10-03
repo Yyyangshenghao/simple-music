@@ -127,7 +127,9 @@ describe('播放队列可见曲目补详情', () => {
     usePlaylistStore.getState().moveQueueItem(0, 1)
     request.resolve([song(1)])
     await loading
-    await vi.waitFor(() => expect(loadTrack).toHaveBeenCalledWith(song(1), { contextId: '歌单' }))
+    await vi.waitFor(() => expect(usePlaylistStore.getState().queue[1]).toEqual(song(1)))
+    expect(loadTrack).toHaveBeenCalledOnce()
+    expect(loadTrack).toHaveBeenCalledWith(makePlaceholderTrack(1, 'netease'), { contextId: '歌单' })
     expect(services.netease.getTracksByIds).toHaveBeenCalledTimes(1)
     expect(usePlaylistStore.getState().queueIndex).toBe(1)
   })
@@ -142,8 +144,8 @@ describe('播放队列可见曲目补详情', () => {
     request.resolve([song(1)])
     await loading
     await Promise.resolve()
-    expect(loadTrack).toHaveBeenCalledTimes(1)
-    expect(loadTrack).toHaveBeenCalledWith(song(2), { contextId: null })
+    expect(loadTrack).toHaveBeenCalledTimes(2)
+    expect(loadTrack).toHaveBeenLastCalledWith(song(2), { contextId: null })
   })
 
   it('未参与的平台不请求，加载期间登录态变化会丢弃响应', async () => {
