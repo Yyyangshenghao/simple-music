@@ -583,7 +583,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       const offlineStatus = await fetchOfflineStatus(track).catch(() => null)
       if (activePlayback !== active || active.session !== loadSession) return
       const offlineUrl = offlineStatus ? offlineFileUrl(offlineStatus, track) : null
-      if (offlineStatus && offlineUrl) {
+      // 手动优先的平台与缓存实际音源不一致时，交给解析器按本次选择起播。
+      const canUseOfflineCache = !active.preferredSource
+        || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source)
+      if (offlineStatus && offlineUrl && canUseOfflineCache) {
         appleAudioSpectrum.stop()
         active.candidateKind = 'offline'
         active.offlineStatus = offlineStatus
@@ -605,7 +608,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       active.resolver = resolver
       // 自带直链或相邻曲目预解析命中时先起播；媒体失败仍会回到同一 resolver 会话继续降级。
       const originAvailable = isProviderParticipating(track.source)
-      const canUseOriginShortcut = canUseOriginPlaybackShortcut(track.source, opts?.preferredSource)
+      const canUseOriginShortcut = canUseOriginPlaybackShortcut(track.source, resolver.sourceOrder[0])
       const preloaded = track.source !== 'apple' && originAvailable && canUseOriginShortcut && !track.url
         ? getPreloadedResolution(track, get().quality)
         : undefined

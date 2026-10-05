@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AudioEngineCallbacks } from '../lib/audio-engine'
-import type { PlaybackCandidate } from '../providers/types'
+import type { PlaybackCandidate, ProviderId } from '../providers/types'
 import type { OfflineCacheStatus } from '../lib/offline-cache'
 import type { Track } from '../types/domain'
 import type { ApplePlaybackState } from '../lib/apple-music-playback'
@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   load: vi.fn(), play: vi.fn(), pause: vi.fn(), seek: vi.fn(), rate: vi.fn(),
   status: vi.fn(), next: vi.fn(), resolver: vi.fn(), participating: vi.fn(),
   report: vi.fn(), show: vi.fn(), complete: vi.fn(), abort: vi.fn(),
+  preloaded: vi.fn(),
+  preferences: { playbackOrder: ['qq', 'netease'] as ProviderId[], preferOriginSource: true, multiSourceFallback: true },
   appleLoad: vi.fn(), appleStop: vi.fn(), appleCommand: vi.fn(),
   appleState: null as ((state: ApplePlaybackState) => void) | null,
   providerChanged: null as (() => void) | null,
@@ -34,14 +36,22 @@ vi.mock('../lib/audio-engine', () => ({
     }
   }),
 }))
-vi.mock('../lib/playback-resolver', () => ({
-  PlaybackResolver: vi.fn(function () {
-    h.resolver()
-    return {
-      next: h.next, abort: h.abort, complete: h.complete, attempts: [],
-      completeExternal: h.complete, ignoreUrl: vi.fn(), recordExternalMediaFailure: vi.fn(),
-    }
-  }),
+vi.mock('../lib/playback-resolver', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../lib/playback-resolver')>()
+  return {
+    ...original,
+    PlaybackResolver: vi.fn(function (...args: ConstructorParameters<typeof original.PlaybackResolver>) {
+      h.resolver(...args)
+      return {
+        sourceOrder: original.buildPlaybackSourceOrder(args[0], args[2], args[3].isParticipating),
+        next: h.next, abort: h.abort, complete: h.complete, attempts: [],
+        completeExternal: h.complete, ignoreUrl: vi.fn(), recordExternalMediaFailure: vi.fn(),
+      }
+    }),
+  }
+})
+vi.mock('../lib/track-preload', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lib/track-preload')>(), getPreloadedResolution: h.preloaded,
 }))
 vi.mock('../lib/offline-cache', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/offline-cache')>(), fetchOfflineStatus: h.status,
@@ -51,9 +61,7 @@ vi.mock('./settings', () => ({ useSettingsStore: {
 } }))
 vi.mock('./providers', () => ({
   isProviderParticipating: h.participating,
-  useProviderStore: { getState: () => ({
-    playbackOrder: ['qq', 'netease'], preferOriginSource: true, multiSourceFallback: true,
-  }), subscribe: vi.fn((callback: () => void) => { h.providerChanged = callback }) },
+  useProviderStore: { getState: () => h.preferences, subscribe: vi.fn((callback: () => void) => { h.providerChanged = callback }) },
 }))
 vi.mock('./provider-auth', () => ({ expireProviderAccount: vi.fn() }))
 vi.mock('./toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
@@ -79,6 +87,8 @@ describe('播放器离线优先与回退', () => {
     vi.clearAllMocks()
     h.status.mockReset().mockResolvedValue(offline)
     h.next.mockReset().mockResolvedValue(online)
+    h.preloaded.mockReset()
+    h.preferences = { playbackOrder: ['qq', 'netease'], preferOriginSource: true, multiSourceFallback: true }
     h.participating.mockReset().mockReturnValue(true)
     h.load.mockImplementation(() => { h.hasSource = true; return ++h.loadId })
     h.play.mockReset().mockResolvedValue(undefined)
@@ -115,6 +125,112 @@ describe('播放器离线优先与回退', () => {
       currentTrack: track, actualSource: 'netease', currentQuality: 'lossless', playbackTransport: 'offline',
       resolvedTrack: { source: 'netease', provider: 'netease', id: 'resolved', name: '音频歌曲' },
     })
+  })
+
+  it.each(['playing', 'loading', 'paused'] as const)('%s 时本次优先绕过其他平台的缓存，保留进度和播放意图', async (status) => {
+    await usePlayerStore.getState().loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    const preferredCandidate: PlaybackCandidate = { ...online, source: 'qq', track }
+    h.next.mockResolvedValue(preferredCandidate)
+    h.complete.mockReturnValue({
+      actualSource: 'qq', resolvedTrack: track, quality: online.quality, attempts: [],
+    })
+    h.load.mockClear()
+    h.play.mockClear()
+    usePlayerStore.setState({ status, position: 42, contextId: 'playlist' })
+
+    usePlayerStore.getState().preferSourceOnce('qq')
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+
+    expect(h.resolver).toHaveBeenCalledWith(track, 'lossless', expect.objectContaining({ preferredSource: 'qq' }), expect.any(Object))
+    expect(h.load.mock.calls[0][0]).toBe(preferredCandidate.url)
+    expect(h.load.mock.calls[0][1]).toBe(42)
+    expect(h.play).toHaveBeenCalledTimes(status === 'paused' ? 0 : 1)
+    expect(h.report).not.toHaveBeenCalled()
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: track, actualSource: 'qq', playbackTransport: 'online',
+      position: 42, contextId: 'playlist', status: status === 'paused' ? 'paused' : 'loading',
+    })
+  })
+
+  it('本次优先与缓存实际平台一致时继续复用离线文件', async () => {
+    usePlayerStore.setState({ currentTrack: track, status: 'paused', position: 42 })
+    usePlayerStore.getState().preferSourceOnce('netease')
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    expect(h.load).toHaveBeenCalledWith(expect.stringContaining('/api/audio-cache/file?'), 42)
+    expect(h.resolver).not.toHaveBeenCalled()
+    expect(h.play).not.toHaveBeenCalled()
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(usePlayerStore.getState()).toMatchObject({ actualSource: 'netease', playbackTransport: 'offline' })
+  })
+
+  it('没有实际平台记录的缓存按原平台判断，不覆盖另一平台的本次优先', async () => {
+    h.status.mockResolvedValue({ ...offline, resolved: undefined })
+    await usePlayerStore.getState().loadTrack(track, { preferredSource: 'netease' })
+    expect(h.next).toHaveBeenCalledOnce()
+    expect(h.load.mock.calls[0][0]).toBe(online.url)
+  })
+
+  it('快速切换本次优先时，旧缓存查询不能覆盖最后的选择', async () => {
+    let finish!: (value: OfflineCacheStatus) => void
+    h.status.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    usePlayerStore.setState({ currentTrack: track, status: 'playing', position: 42 })
+    usePlayerStore.getState().preferSourceOnce('qq')
+    usePlayerStore.getState().preferSourceOnce('netease')
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    const latestLoadId = h.loadId
+    finish(offline)
+    await Promise.resolve()
+    await Promise.resolve()
+    h.callbacks.onCanPlay?.(latestLoadId)
+    expect(h.load).toHaveBeenCalledOnce()
+    expect(h.next).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState()).toMatchObject({ actualSource: 'netease', position: 42 })
+  })
+
+  it('本次优先不影响下一首的普通离线优先播放', async () => {
+    await usePlayerStore.getState().loadTrack(track, { preferredSource: 'qq' })
+    h.load.mockClear()
+    h.resolver.mockClear()
+    await usePlayerStore.getState().loadTrack({ ...track, id: 'next' })
+    expect(h.load).toHaveBeenCalledWith(expect.stringContaining('/api/audio-cache/file?'), 0)
+    expect(h.resolver).not.toHaveBeenCalled()
+  })
+
+  it.each(['direct', 'preloaded'] as const)('原平台 %s 不能绕过排在前面的本次优先平台', async (shortcut) => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    const originalUrl = 'https://cdn.example.com/original.mp3'
+    const origin = shortcut === 'direct' ? { ...track, url: originalUrl } : track
+    if (shortcut === 'preloaded') h.preloaded.mockReturnValue({ url: originalUrl })
+    await usePlayerStore.getState().loadTrack(origin, { preferredSource: 'netease' })
+    expect(h.next).toHaveBeenCalledOnce()
+    expect(h.load.mock.calls[0][0]).toBe(online.url)
+    expect(h.preloaded).not.toHaveBeenCalled()
+  })
+
+  it.each(['direct', 'preloaded'] as const)('原平台排在第一时仍可使用 %s 捷径', async (shortcut) => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    const originalUrl = 'https://cdn.example.com/original.mp3'
+    const origin = shortcut === 'direct' ? { ...track, url: originalUrl } : track
+    if (shortcut === 'preloaded') h.preloaded.mockReturnValue({ url: originalUrl, level: 'lossless' })
+    await usePlayerStore.getState().loadTrack(origin)
+    expect(h.next).not.toHaveBeenCalled()
+    expect(h.load.mock.calls[0][0]).toBe(originalUrl)
+  })
+
+  it.each([
+    ['direct', true], ['direct', false], ['preloaded', true], ['preloaded', false],
+  ] as const)('固定顺序不会被原平台 %s 绕过（自动换源：%s）', async (shortcut, multiSourceFallback) => {
+    h.preferences = { playbackOrder: ['netease', 'qq'], preferOriginSource: false, multiSourceFallback }
+    h.status.mockResolvedValue({ state: 'missing' })
+    const originalUrl = 'https://cdn.example.com/original.mp3'
+    const origin = shortcut === 'direct' ? { ...track, url: originalUrl } : track
+    if (shortcut === 'preloaded') h.preloaded.mockReturnValue({ url: originalUrl })
+    await usePlayerStore.getState().loadTrack(origin)
+    expect(h.next).toHaveBeenCalledOnce()
+    expect(h.load.mock.calls[0][0]).toBe(online.url)
+    expect(h.preloaded).not.toHaveBeenCalled()
   })
 
   it('坏离线文件只回退在线链一次，不重新查询或删除固定文件', async () => {

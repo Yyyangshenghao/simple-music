@@ -1,12 +1,60 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { expectedAudioLength, isSupportedAudioPayload } from './audio-cache'
 import { startServer } from '../index'
-import { mkdtemp, readdir } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { audioCacheDir } from '../lib/audio-cache'
+import { audioCacheDir, openAudioCacheWriter } from '../lib/audio-cache'
 
 afterEach(() => vi.unstubAllGlobals())
+
+describe('缓存清理与下载的隔离', () => {
+  it('清理自动缓存后，已下载音频及共享该文件的歌曲仍可播放', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'sm-audio-clear-test-'))
+    const bytes = new Uint8Array([0x49, 0x44, 0x33, 1])
+    for (const [id, pinned, resolvedId] of [
+      ['downloaded', true, 'shared'],
+      ['cached-alias', false, 'shared'],
+      ['automatic', false, 'temporary'],
+    ] as const) {
+      const writer = await openAudioCacheWriter(userDataDir, `qq:${resolvedId}:standard`, {
+        origin: { source: 'netease', id }, resolved: { source: 'qq', id: resolvedId },
+        quality: 'standard', expectedBytes: bytes.length, pinned,
+      })
+      await writer!.write(bytes)
+      expect(await writer!.commit()).toBe(true)
+    }
+    const server = await startServer({ userDataDir, port: 0 })
+    try {
+      const base = `http://127.0.0.1:${server.port}`
+      const cleared = await fetch(`${base}/api/audio-cache/clear`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scope: 'temporary' }),
+      })
+      expect(cleared.status).toBe(200)
+      expect(await cleared.json()).toEqual({ ok: true })
+      expect(await (await fetch(`${base}/api/audio-cache/stats`)).json()).toMatchObject({ temporaryFiles: 0, pinnedFiles: 1 })
+      const { items } = await (await fetch(`${base}/api/audio-cache/library`)).json() as { items: Array<{ origin: { id: string }; entryId: string }> }
+      expect(items).toHaveLength(1)
+      expect(items[0].origin.id).toBe('downloaded')
+      for (const id of ['downloaded', 'cached-alias']) {
+        const audio = await fetch(`${base}/api/audio-cache/file?entryId=${items[0].entryId}&source=netease&id=${id}`)
+        expect(audio.status).toBe(200)
+        expect(new Uint8Array(await audio.arrayBuffer())).toEqual(bytes)
+      }
+      const statuses = await fetch(`${base}/api/audio-cache/status`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tracks: [{ source: 'netease', id: 'automatic' }, { source: 'netease', id: 'downloaded' }] }),
+      })
+      expect(await statuses.json()).toMatchObject({ statuses: [
+        { id: 'automatic', state: 'missing' }, { id: 'downloaded', state: 'pinned' },
+      ] })
+    } finally {
+      server.close()
+      await rm(userDataDir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('主动保存上游校验', () => {
   it('只接受可证明完整的 200 或从零覆盖全文件的 206', () => {

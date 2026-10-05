@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
+import { useProviderStore } from '../stores/providers'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
@@ -33,6 +34,14 @@ vi.mock('../stores/update', async (importOriginal) => {
     store
   ) }
 })
+vi.mock('../stores/providers', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/providers')>()
+  const store = original.useProviderStore
+  return { ...original, useProviderStore: Object.assign(
+    (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()),
+    store
+  ) }
+})
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
 vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
@@ -40,6 +49,7 @@ vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: ()
 const initialSettings = useSettingsStore.getState()
 const initialVisual = useVisualStore.getState()
 const initialUpdate = useUpdateStore.getState()
+const initialProviders = useProviderStore.getState()
 
 beforeEach(() => {
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -50,7 +60,38 @@ afterEach(() => {
   useSettingsStore.setState(initialSettings, true)
   useVisualStore.setState(initialVisual, true)
   useUpdateStore.setState(initialUpdate, true)
+  useProviderStore.setState(initialProviders, true)
   vi.unstubAllGlobals()
+})
+
+describe('播放顺序中的参与平台', () => {
+  it('播放不可用的平台不出现在起播规则和排序列表中', () => {
+    useProviderStore.setState({
+      playbackOrder: ['netease', 'qq'], preferOriginSource: false,
+      byId: {
+        netease: { enabled: true, auth: 'authenticated', playbackAvailable: false },
+        qq: { enabled: true, auth: 'authenticated', playbackAvailable: true },
+        apple: { enabled: false, auth: 'anonymous' },
+      },
+    })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const currentRule = html.slice(html.indexOf('你的联网设置'), html.indexOf('两种方式'))
+    expect(currentRule).toContain('QQ音乐')
+    expect(currentRule).not.toContain('网易云')
+    expect(html).not.toContain('拖动网易云调整顺序')
+    expect(html).not.toContain('role="radiogroup" aria-label="起播方式"')
+  })
+})
+
+describe('缓存与下载的清理边界', () => {
+  it('缓存区域不提供同时删除下载歌曲的清空入口', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const storage = html.slice(html.indexOf('<section id="settings-section-cache"'), html.indexOf('<section id="settings-section-shortcuts"'))
+    expect(storage).not.toContain('清空全部')
+    expect(storage).toContain('清理自动缓存')
+    expect(storage).toContain('删除已下载歌曲')
+    expect(storage).toContain('清理缓存不会删除已下载歌曲')
+  })
 })
 
 describe('关于应用的更新日志', () => {

@@ -15,10 +15,10 @@ describe('playback reload policy', () => {
     expect(shouldAutoplayPlaybackReload('loading')).toBe(true)
   })
 
-  it('手动优先另一平台时禁用原源直链和预解析捷径', () => {
+  it('原平台不是当前会话首选时禁用直链和预解析捷径', () => {
     expect(canUseOriginPlaybackShortcut('netease', 'qq')).toBe(false)
     expect(canUseOriginPlaybackShortcut('netease', 'netease')).toBe(true)
-    expect(canUseOriginPlaybackShortcut('netease')).toBe(true)
+    expect(canUseOriginPlaybackShortcut('netease')).toBe(false)
   })
 
   it('只把明确不支持的媒体拒绝交给候选降级', () => {

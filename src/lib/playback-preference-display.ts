@@ -4,13 +4,13 @@ export function playbackStrategySummary(
   multiSourceFallback: boolean
 ): string {
   if (providerLabels.length === 0) return '暂无已启用的在线音源'
-  if (providerLabels.length === 1) return `所有在线歌曲使用 ${providerLabels[0]}`
+  if (providerLabels.length === 1) return `联网时使用 ${providerLabels[0]}`
   if (preferOriginSource) {
     return multiSourceFallback
-      ? `歌曲来源已启用时先用它；失败后按 ${providerLabels.join(' → ')} 中尚未尝试的平台接力`
-      : `只尝试一个平台：歌曲来源已启用时优先，否则使用 ${providerLabels[0]}`
+      ? `联网时歌曲来源已启用则先用它；失败后按 ${providerLabels.join(' → ')} 中尚未尝试的平台接力`
+      : `联网时只尝试一个平台：歌曲来源已启用时优先，否则使用 ${providerLabels[0]}`
   }
   return multiSourceFallback
-    ? `所有歌曲依次尝试：${providerLabels.join(' → ')}`
-    : `所有歌曲只尝试：${providerLabels[0]}`
+    ? `联网时依次尝试：${providerLabels.join(' → ')}`
+    : `联网时只尝试：${providerLabels[0]}`
 }

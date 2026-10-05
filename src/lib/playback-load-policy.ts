@@ -15,12 +15,12 @@ export function shouldRecoverAfterOutputDeviceChange(
   return wasPlaying || shouldAutoplayPlaybackReload(status)
 }
 
-/** 手动软优先另一个平台时，不能被原平台的直链或预解析缓存短路。 */
+/** 原平台只有排在当前会话首位时，才可用直链或预解析结果直接起播。 */
 export function canUseOriginPlaybackShortcut(
   originSource: MusicSource,
-  preferredSource?: ProviderId
+  firstSource?: ProviderId
 ): boolean {
-  return !preferredSource || preferredSource === originSource
+  return firstSource === originSource
 }
 
 /** 预载但不自动播放时，AudioEngine 的 loading/waiting 事件不得破坏暂停态。 */
