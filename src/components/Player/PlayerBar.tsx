@@ -4,6 +4,7 @@ import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
+import { useGameModeStore } from '../../stores/game-mode'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
@@ -216,6 +217,25 @@ function MiniPlayerButton() {
   )
 }
 
+function GameModeButton() {
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
+      onClick={() => void useGameModeStore.getState().configure({ enabled: true })}
+      title="进入游戏模式：后台播放，可从托盘返回"
+      aria-label="进入游戏模式"
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M7 7h10c2 0 3 2 3.5 5l.5 4c.3 2-2 3-3.3 1.5L15 15H9l-2.7 2.5C5 19 2.7 18 3 16l.5-4C4 9 5 7 7 7Z" />
+        <path d="M7 10v4m-2-2h4m7-1h.01m2 2h.01" />
+      </svg>
+    </motion.button>
+  )
+}
+
 const MODE_CYCLE: Record<PlayMode, PlayMode> = { order: 'shuffle', shuffle: 'one', one: 'order' }
 const MODE_LABEL: Record<PlayMode, string> = { order: '列表循环', shuffle: '随机播放', one: '单曲循环' }
 
@@ -377,6 +397,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
           <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
+          <GameModeButton />
           <QueuePanel />
           <MoreMenu />
         </div>

@@ -32,6 +32,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('歌词获取与统一展示', () => {
+  it('纯播放模式不请求歌词，恢复后按当前曲目重新获取', async () => {
+    useLyricsFetch(false)
+    await flush()
+    expect(h.fetch).not.toHaveBeenCalled()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: null, loading: false, lines: [] })
+    useLyricsFetch(true)
+    await flush()
+    expect(h.fetch).toHaveBeenCalledOnce()
+    expect(useLyricsStore.getState().trackKey).toBe('apple:a1')
+  })
   it('把匹配歌词写入Apple曲目归属，立即按当前暂停位置定位行', async () => {
     useLyricsFetch()
     expect(useLyricsStore.getState()).toMatchObject({ loading: true, trackKey: 'apple:a1', source: null })

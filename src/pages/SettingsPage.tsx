@@ -20,6 +20,7 @@ import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
+import { useGameModeStore } from '../stores/game-mode'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
@@ -964,6 +965,14 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} index={1} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>游戏模式</h3>
+                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，暂停界面动效，保留音乐播放和已启用的全局快捷键。可从托盘退出并恢复。</p>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>使用托盘或全局快捷键控制播放。</span>
+                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
+                    </div>
+                  </section>
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>主题</h3>
                     <div className={styles.row}>

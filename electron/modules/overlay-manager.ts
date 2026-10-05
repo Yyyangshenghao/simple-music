@@ -620,6 +620,13 @@ export function setMiniPlayerEnabled(enabled: boolean, width?: number): OkResult
   return { ok: true }
 }
 
+/** 游戏模式临时收起迷你条，保留用户开关，退出时可恢复。 */
+export function suspendMiniPlayer(): boolean {
+  const enabled = !!miniPlayerWindow && !miniPlayerWindow.isDestroyed()
+  closeMiniPlayerWindow()
+  return enabled
+}
+
 /** 迷你条“回到大播放器”：恢复主窗口 + 关闭迷你条 + 同步设置开关。 */
 export function returnFromMiniPlayer(): OkResult {
   closeMiniPlayerWindow()
@@ -812,6 +819,12 @@ export function setWallpaperEnabled(enabled: boolean, payload: WallpaperPayload 
   if (enabled) createWallpaperWindow(payload)
   else closeWallpaperWindow()
   return { ok: true }
+}
+
+export function suspendWallpaper(): boolean {
+  const enabled = !!wallpaperWindow && !wallpaperWindow.isDestroyed()
+  closeWallpaperWindow()
+  return enabled
 }
 
 export function updateWallpaper(payload: WallpaperPayload = {}): OkResult {

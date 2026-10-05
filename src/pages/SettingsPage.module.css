@@ -282,6 +282,14 @@
 .group:focus-within,
 .group:hover { z-index: 2; }
 
+.groupHint {
+  margin: 0;
+  padding: 14px 20px;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .groupTitle {
   display: flex;
   align-items: center;

@@ -9,12 +9,15 @@ import {
   returnFromMiniPlayer
 } from '../modules/overlay-manager'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
+import { getGameMode, setGameMode } from '../modules/game-mode'
 
 export function registerMiniPlayerIpc(): void {
   // 主契约通道
-  ipcMain.handle('miniplayer:set-enabled', (_e, arg: { enabled: boolean; width?: number }) =>
-    setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
-  )
+  ipcMain.handle('miniplayer:set-enabled', (_e, arg: { enabled: boolean; width?: number }) => {
+    const mode = getGameMode()
+    if (mode.enabled) setGameMode({ ...mode, enabled: false }, false)
+    return setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
+  })
   ipcMain.handle('miniplayer:update', (_e, payload: MiniPlayerPayload) => updateMiniPlayer(payload ?? {}))
 
   // overlay 内部通道

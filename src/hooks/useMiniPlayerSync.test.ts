@@ -61,6 +61,14 @@ describe('迷你条只同步实际展示的数据', () => {
     vi.unstubAllGlobals()
   })
 
+  it('游戏模式停止所有迷你条推送与进度计时，保留迷你条偏好', () => {
+    useMiniPlayerSync(true)
+    expect(harness.update).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(harness.settings.miniPlayerEnabled).toBe(true)
+    expect(harness.lyricSelector?.(harness.lyrics)).toBe('')
+  })
+
   it('紧凑条不订阅隐藏歌词的换行', () => {
     useMiniPlayerSync()
 

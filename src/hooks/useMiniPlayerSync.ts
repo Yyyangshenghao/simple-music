@@ -13,8 +13,8 @@ import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
  * 拆成三条独立 effect：元数据按需推、可见进度只在播放中 1Hz 推、歌词只在展开态推，
  * 避免每秒发送整包 payload。overlay 未开启时一律不推。
  */
-export function useMiniPlayerSync(): void {
-  const enabled = useSettingsStore((s) => s.miniPlayerEnabled)
+export function useMiniPlayerSync(suspended = false): void {
+  const enabled = useSettingsStore((s) => !suspended && s.miniPlayerEnabled)
   const appearance = useSettingsStore((s) => s.miniPlayerAppearance)
   const width = useSettingsStore((s) => s.miniPlayerWidth)
   const localHotkeys = useSettingsStore((s) => s.localHotkeys)

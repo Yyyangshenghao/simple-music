@@ -10,6 +10,7 @@ import {
 import { unregisterHotkeys } from './modules/hotkey-manager'
 import { createTray, destroyTray } from './modules/tray-manager'
 import { registerIpc } from './ipc'
+import { getGameMode, setGameMode } from './modules/game-mode'
 
 const APP_NAME = 'Simple Music'
 const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
@@ -45,6 +46,11 @@ let quitTimeout: ReturnType<typeof setTimeout> | undefined
 
 function createPlayerWindow(port: number, token: string): void {
   const win = createMainWindow(port, token)
+  // Dock、托盘或设置菜单显示主窗口时，统一结束游戏模式。
+  win.on('show', () => {
+    const mode = getGameMode()
+    if (mode.enabled) setGameMode({ ...mode, enabled: false }, false)
+  })
   if (process.platform === 'darwin') {
     // 音频引擎运行在主窗口中；关闭窗口只隐藏，真正退出时才销毁。
     win.on('close', (event) => {

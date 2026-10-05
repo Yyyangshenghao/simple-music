@@ -7,6 +7,7 @@ vi.mock('../lib/shortcut-actions', () => ({ runShortcutAction: h.action }))
 import { useSettingsStore } from '../stores/settings'
 import { useShortcutStore } from '../stores/shortcuts'
 import { useShortcuts } from './useShortcuts'
+import { useGameModeStore } from '../stores/game-mode'
 
 const initial = useSettingsStore.getState()
 let onKeyDown: (event: KeyboardEvent) => void
@@ -23,6 +24,7 @@ function key(extra: Record<string, unknown> = {}) {
   } as unknown as KeyboardEvent
 }
 beforeEach(() => {
+  useGameModeStore.setState({ enabled: false })
   useSettingsStore.setState(initial, true)
   useShortcutStore.setState({ recording: false, pending: true, results: [], error: '' })
   h.action.mockClear()
@@ -37,12 +39,24 @@ beforeEach(() => {
   vi.stubGlobal('document', { hasFocus: () => false, activeElement: null })
 })
 afterEach(() => {
+  useGameModeStore.setState({ enabled: false })
   h.cleanups.splice(0).forEach((cleanup) => cleanup())
   useSettingsStore.setState(initial, true)
   vi.unstubAllGlobals()
 })
 
 describe('快捷键真实分发链路', () => {
+  it('进入游戏模式保持已注册的全局快捷键，后台播放命令继续分发', async () => {
+    useSettingsStore.setState({ globalHotkeysEnabled: true })
+    useShortcuts()
+    await flush()
+    const calls = configure.mock.calls.length
+    useGameModeStore.setState({ enabled: true })
+    await flush()
+    expect(configure).toHaveBeenCalledTimes(calls)
+    for (const action of ['play-pause', 'prev', 'next', 'volume-up']) onHotkey({ action })
+    expect(h.action.mock.calls).toEqual([['play-pause'], ['prev'], ['next'], ['volume-up']])
+  })
   it('自定义设置单字符键不抢占输入框', async () => {
     useSettingsStore.setState({ localHotkeys: [{ action: 'settings', accelerator: ',' }] })
     useShortcuts()

@@ -10,13 +10,22 @@ import {
   setLyricsHotBounds
 } from '../modules/overlay-manager'
 import type { LyricsPayload, HotBounds } from '../../src/types/ipc'
+import { getGameMode } from '../modules/game-mode'
+
+function gameLyricsPayload(payload: LyricsPayload): LyricsPayload {
+  if (!getGameMode().enabled) return payload
+  return { ...payload, wordLine: undefined, wordClock: undefined,
+    highlight: false, backgroundStyle: 'dark', autoWidth: false, lineMode: 'single', nextLine: '' }
+}
 
 export function registerLyricsIpc(): void {
   // 主契约通道
   ipcMain.handle('lyrics:set-enabled', (_e, arg: { enabled: boolean; payload?: LyricsPayload }) =>
-    setLyricsEnabled(!!arg?.enabled, arg?.payload ?? {}, true)
+    setLyricsEnabled(!!arg?.enabled, gameLyricsPayload(arg?.payload ?? {}), true)
   )
-  ipcMain.handle('lyrics:update', (_e, payload: LyricsPayload) => updateLyrics(payload ?? {}))
+  ipcMain.handle('lyrics:update', (_e, payload: LyricsPayload) => {
+    return updateLyrics(gameLyricsPayload(payload ?? {}))
+  })
   ipcMain.handle('lyrics:set-lock', (_e, arg: { locked: boolean }) => setLyricsLock(!!arg?.locked))
   ipcMain.handle('lyrics:move-by', (_e, arg: { dx: number; dy: number }) =>
     moveLyricsBy(Number(arg?.dx) || 0, Number(arg?.dy) || 0)

@@ -60,6 +60,45 @@ beforeEach(() => {
 afterEach(() => { h.effects.forEach((effect) => effect.cleanup?.()); h.effects = []; vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('桌面歌词窗口同步', () => {
+  it('快速进退被合并为同一个最终开关时，仍同步原桌面歌词配置', () => {
+    h.fx.desktopLyrics = true
+    h.cursor = 0
+    useDesktopLyricsSync(false, 1)
+    vi.mocked(window.desktop.setDesktopLyricsEnabled).mockClear()
+    // React 未渲染中间的游戏模式；最终同步序号保证外观配置再次推送。
+    h.cursor = 0
+    useDesktopLyricsSync(false, 3)
+    expect(window.desktop.setDesktopLyricsEnabled).toHaveBeenCalledWith(true, expect.objectContaining({ line: '歌词' }))
+  })
+  it('游戏模式沿用原桌面歌词开关，自动降耗且不改外观偏好', () => {
+    vi.useFakeTimers()
+    Object.assign(h.fx, { desktopLyrics: false, desktopLyricsLineMode: 'double', desktopLyricsWordByWord: true,
+      desktopLyricsHighlight: true, desktopLyricsAutoWidth: true, desktopLyricsBackgroundStyle: 'frosted' })
+    h.lyrics.wordLines = [{ time: 0, durationMs: 3000, words: [{ text: '歌词', startMs: 0, durationMs: 3000 }] }]
+    h.cursor = 0
+    useDesktopLyricsSync(true)
+    expect(window.desktop.setDesktopLyricsEnabled).toHaveBeenLastCalledWith(false, expect.anything())
+    expect(vi.getTimerCount()).toBe(0)
+    h.cursor = 0
+    h.fx.desktopLyrics = true
+    useDesktopLyricsSync(true)
+    expect(window.desktop.setDesktopLyricsEnabled).toHaveBeenLastCalledWith(true, expect.objectContaining({
+      lineMode: 'single', nextLine: '', wordLine: undefined, wordClock: undefined,
+      highlight: false, autoWidth: false, backgroundStyle: 'dark'
+    }))
+    expect(vi.getTimerCount()).toBe(0)
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({
+      lineMode: 'double', highlight: true, autoWidth: true, backgroundStyle: 'frosted', wordLine: h.lyrics.wordLines[0]
+    }))
+    expect(vi.getTimerCount()).toBe(1)
+    expect(h.updateFx).not.toHaveBeenCalled()
+    h.cursor = 0
+    useDesktopLyricsSync(true)
+    h.onEnabled?.({ enabled: false })
+    expect(h.updateFx).toHaveBeenCalledWith({ desktopLyrics: false })
+    expect(h.setEnabled).toHaveBeenLastCalledWith(false)
+  })
   it.each(['single', 'double'])('%s 模式在前奏、加载和无歌词占位时按行数显示歌手', (lineMode) => {
     h.fx.desktopLyricsLineMode = lineMode
     h.track.artist = '歌手甲 / 歌手乙'

@@ -37,7 +37,8 @@ beforeEach(() => {
   }
   h.get.mockImplementation((path: string) => new Promise((resolve) => replies.set(path, resolve)))
   useLoginStatusSync()
-  cleanup = h.effects[0]() || undefined
+  const cleanups = h.effects.map(effect => effect()).filter((value): value is () => void => typeof value === 'function')
+  cleanup = () => cleanups.forEach(stop => stop())
 })
 afterEach(() => { cleanup?.(); vi.useRealTimers() })
 
@@ -77,4 +78,18 @@ it('设置水合与停用音源不丢弃有效检测，也不把用户停用偏�
   await flush()
   expect(h.settings.setNeteaseLoggedIn).toHaveBeenCalledWith(true)
   expect(h.providers.byId.netease).toMatchObject({ auth: 'authenticated', enabled: false })
+})
+
+it('游戏模式暂停 Apple 账户界面轮询，迟到刷新不能重建定时器', async () => {
+  cleanup?.()
+  await flush()
+  h.refresh.mockClear()
+  h.effects = []
+  useLoginStatusSync(true)
+  const cleanups = h.effects.map(effect => effect()).filter((value): value is () => void => typeof value === 'function')
+  cleanup = () => cleanups.forEach(stop => stop())
+  await flush()
+  vi.advanceTimersByTime(6000)
+  expect(h.refresh).not.toHaveBeenCalled()
+  expect(vi.getTimerCount()).toBe(0)
 })

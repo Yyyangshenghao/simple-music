@@ -33,6 +33,21 @@ export interface OkResult {
   message?: string
 }
 
+/** 游戏模式只在当前运行期间生效，不覆盖外观和快捷键偏好。 */
+export interface GameModeState {
+  enabled: boolean
+}
+
+export interface TrayPlaybackState {
+  title: string
+  artist: string
+  playing: boolean
+  hasTrack: boolean
+  canSkip: boolean
+  volume: number
+  desktopLyrics: boolean
+}
+
 /** 登录窗口返回的 cookie 头（由渲染层转发给 server 的 /api/login/cookie）。 */
 export interface LoginResult {
   ok: boolean
@@ -179,6 +194,9 @@ export interface SystemFontResult {
 
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
+  'game-mode:get-state': { req: void; res: GameModeState }
+  'game-mode:set-state': { req: GameModeState; res: GameModeState }
+  'tray:update-playback': { req: TrayPlaybackState; res: OkResult }
   'window:minimize': { req: void; res: void }
   'window:toggle-fullscreen': { req: void; res: void }
   'window:exit-fullscreen-windowed': { req: void; res: void }
@@ -214,6 +232,7 @@ export interface IpcChannels {
 }
 
 export interface IpcEvents {
+  'game-mode:state-changed': GameModeState
   'window:state-changed': WindowState
   'lyrics:lock-state-changed': { locked: boolean }
   'lyrics:size-changed': { size: number }

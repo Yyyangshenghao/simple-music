@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   WindowState,
+  GameModeState,
+  TrayPlaybackState,
   LoginResult,
   OkResult,
   LyricsPayload,
@@ -44,6 +46,10 @@ const api = {
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
   maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   onStateChange: (cb: (s: WindowState) => void) => on<WindowState>('window:state-changed', cb),
+  getGameMode: (): Promise<GameModeState> => ipcRenderer.invoke('game-mode:get-state'),
+  setGameMode: (state: GameModeState): Promise<GameModeState> => ipcRenderer.invoke('game-mode:set-state', state),
+  onGameModeChange: (cb: (state: GameModeState) => void) => on<GameModeState>('game-mode:state-changed', cb),
+  updateTrayPlayback: (state: TrayPlaybackState): Promise<OkResult> => ipcRenderer.invoke('tray:update-playback', state),
   startAppleAudioCapture: (): Promise<boolean> => ipcRenderer.invoke('apple:audio-capture-start'),
 
   // 登录
