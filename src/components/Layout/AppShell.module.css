@@ -6,6 +6,11 @@
   -webkit-app-region: no-drag;
 }
 
+/* 仅由 shell 排除内容区拖动；滚出视口的子元素仍会被 Electron 收集，不能再单独排除顶栏。 */
+.shell :is(button, input, a, :global(.no-drag)) {
+  -webkit-app-region: initial;
+}
+
 .loading {
   display: flex;
   flex-direction: column;
