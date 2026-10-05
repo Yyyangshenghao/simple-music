@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigationStore } from '../../stores/navigation'
 import type { ProviderId } from '../../providers/types'
 import { getCachedToplistGroups, loadToplistGroups } from '../../lib/toplist-cache'
-import { useScrollReveal } from '../../hooks/useScrollReveal'
 import { GradientText } from '../ui/GradientText'
 import { ToplistCard } from './ToplistCard'
 import type { ToplistGroup } from '../../lib/music-service'
@@ -22,7 +21,6 @@ const PREVIEW_COUNT = 4
  *  可选实现,未实现的音源(QQ)整栏不渲染。 */
 export function ToplistSection({ source, embedded = false, onOpen }: ToplistSectionProps) {
   const [groups, setGroups] = useState<ToplistGroup[]>(() => getCachedToplistGroups(source) ?? [])
-  const ref = useScrollReveal<HTMLElement>()
 
   useEffect(() => {
     // 音源切换时丢弃在途响应
@@ -38,7 +36,7 @@ export function ToplistSection({ source, embedded = false, onOpen }: ToplistSect
   if (entries.length === 0) return null
 
   return (
-    <section className={`${styles.section}${embedded ? ` ${styles.embedded}` : ''}`} ref={ref}>
+    <section className={`${styles.section}${embedded ? ` ${styles.embedded}` : ''}`}>
       <button
         className={`${styles.title} no-drag`}
         onClick={() => useNavigationStore.getState().navigateTo({ type: 'toplist', source })}

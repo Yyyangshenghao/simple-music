@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { requestProviderData } from '../../lib/provider-request-cache'
+import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
 import { providerFor } from '../../providers/registry'
 import type { Playlist } from '../../types/domain'
 import { PlaylistCard } from './PlaylistCard'
@@ -10,21 +10,19 @@ interface AppleHomeLibraryProps {
 }
 
 export function AppleHomeLibrary({ onOpen }: AppleHomeLibraryProps) {
-  const [liked, setLiked] = useState<Playlist | null>(null)
-  const [albums, setAlbums] = useState<Playlist[]>([])
+  const [liked, setLiked] = useState<Playlist | null>(() => getCachedProviderData<Playlist | null>('apple', 'library:liked-playlist') ?? null)
+  const [albums, setAlbums] = useState<Playlist[]>(() => getCachedProviderData<Playlist[]>('apple', 'library:user-albums')?.slice(0, 8) ?? [])
 
   useEffect(() => {
     let cancelled = false
     const library = providerFor('apple').library
-    setLiked(null)
-    setAlbums([])
     if (library?.getLikedPlaylist) {
-      void requestProviderData('apple', 'library:liked-playlist', library.getLikedPlaylist)
+      void requestProviderData('apple', 'library:liked-playlist', library.getLikedPlaylist, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
         .then((playlist) => { if (!cancelled) setLiked(playlist) })
         .catch(() => {})
     }
     if (library?.getUserAlbums) {
-      void requestProviderData('apple', 'library:user-albums', library.getUserAlbums)
+      void requestProviderData('apple', 'library:user-albums', library.getUserAlbums, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
         .then((items) => { if (!cancelled) setAlbums(items.slice(0, 8)) })
         .catch(() => {})
     }

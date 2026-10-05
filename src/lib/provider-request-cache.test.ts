@@ -1,8 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearProviderRequestCache, requestProviderData } from './provider-request-cache'
+import { clearProviderRequestCache, getCachedProviderData, requestProviderData } from './provider-request-cache'
 
 describe('provider request cache', () => {
   beforeEach(() => clearProviderRequestCache())
+
+  it('返回页面可同步读取成功结果，过期和账号切换后不可读取', async () => {
+    vi.useFakeTimers()
+    try {
+      await requestProviderData('qq', 'albums', () => Promise.resolve(['album']), { maxAgeMs: 1000 })
+      expect(getCachedProviderData('qq', 'albums')).toEqual(['album'])
+      expect(getCachedProviderData('netease', 'albums')).toBeUndefined()
+      vi.advanceTimersByTime(1000)
+      expect(getCachedProviderData('qq', 'albums')).toBeUndefined()
+      await requestProviderData('qq', 'albums', () => Promise.resolve(['new']))
+      clearProviderRequestCache('qq')
+      expect(getCachedProviderData('qq', 'albums')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('相同数据面的并发请求复用同一个在途任务', async () => {
     let resolveRequest: (value: string) => void = () => {}

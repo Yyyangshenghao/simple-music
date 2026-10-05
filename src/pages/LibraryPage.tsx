@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
-import { useNavigationStore } from '../stores/navigation'
+import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
 import { useProviderStore } from '../stores/providers'
 import { useContentProvider } from '../hooks/useContentProvider'
@@ -88,7 +88,7 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
   )
 })
 
-export function LibraryPage() {
+export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
   const [tab, setTab] = useState<SubTab>('playlists')
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
@@ -96,13 +96,6 @@ export function LibraryPage() {
   useEffect(() => {
     if (tab === 'albums' && !albumsAvailable) setTab('playlists')
   }, [tab, albumsAvailable])
-
-  // 歌单详情提升到导航 store：顶栏前进/后退可穿越
-  const currentView = useNavigationStore((s) => s.currentView)
-  const detail =
-    typeof currentView === 'object' && currentView.type === 'playlist' && currentView.from === 'library'
-      ? currentView
-      : null
 
   if (detail) {
     return <PlaylistDetailView

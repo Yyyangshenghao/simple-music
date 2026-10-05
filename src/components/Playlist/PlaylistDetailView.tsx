@@ -46,6 +46,11 @@ function SkeletonTrackRow({ index }: { index: number }) {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const active = useNavigationStore((state) => {
+    const view = state.currentView
+    return typeof view === 'object' && view.type === 'playlist'
+      && view.playlist.source === playlist.source && String(view.playlist.id) === String(playlist.id)
+  })
   const [query, setQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(false)
@@ -136,9 +141,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
 
   // 歌单封面模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
-    useBackdropStore.getState().setCover(displayCover)
-    return () => useBackdropStore.getState().setCover(null)
-  }, [displayCover])
+    if (active) return useBackdropStore.getState().setCover(displayCover)
+  }, [active, displayCover])
 
   function playAt(index: number) {
     usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
