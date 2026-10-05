@@ -796,6 +796,7 @@ export interface MappedArtistDetail {
   id: unknown
   name: string
   avatar: string
+  description: string
   musicSize: number
   songNum: number
   source: 'netease'
@@ -808,6 +809,7 @@ export function mapArtistDetail(raw: unknown): MappedArtistDetail {
     id: basic.id ?? basic.artistId,
     name: asStr(basic.name),
     avatar: asStr(basic.picUrl || basic.img1v1Url || basic.avatar || ''),
+    description: asStr(basic.briefDesc || basic.description || basic.desc),
     musicSize: asNum(basic.musicSize),
     songNum: asNum(basic.songNum || basic.musicSize),
     source: 'netease',

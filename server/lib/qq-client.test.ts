@@ -185,6 +185,7 @@ describe('QQ 标识与歌单详情契约', () => {
           code: 0,
           data: {
             singer_info: { id: 99, mid: 'artist-mid', name: '测试歌手' },
+            singer_brief: '公开的歌手简介',
             songlist: [{
               track_info: {
                 id: 123,
@@ -204,7 +205,7 @@ describe('QQ 标识与歌单详情契约', () => {
     const artist = result.artist as Record<string, unknown>
     const song = (result.songs as Record<string, unknown>[])[0]
 
-    expect(artist).toMatchObject({ id: 'artist-mid', mid: 'artist-mid', qqArtistId: 99 })
+    expect(artist).toMatchObject({ id: 'artist-mid', mid: 'artist-mid', qqArtistId: 99, description: '公开的歌手简介' })
     expect(song).toMatchObject({ id: 'song-mid', mid: 'song-mid', qqId: 123, mediaMid: 'media-mid' })
     expect(song.artists).toEqual([
       { id: 'artist-mid', mid: 'artist-mid', qqArtistId: 99, name: '测试歌手' },

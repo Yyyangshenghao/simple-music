@@ -1415,6 +1415,7 @@ export async function handleQQArtistDetail(
       qqArtistId: info.id || '',
       name: artistName,
       avatar: str(info.pic || info.avatar) || qqSingerAvatar(artistMid, 300),
+      description: str(data.singer_brief),
       fans: numOf(info.fans),
       musicSize: totalSong,
       albumSize: numOf(data.total_album),
