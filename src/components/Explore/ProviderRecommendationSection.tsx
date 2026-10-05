@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { providerErrorOf, type ProviderResult } from '../../lib/content-hub'
-import { requestProviderData } from '../../lib/provider-request-cache'
+import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
 import { createPool, needsRefill, redeal, refill, swipeTop, type StackPoolState } from '../../lib/stack-pool'
 import { springGentle } from '../../lib/motion-presets'
 import { providerFor } from '../../providers/registry'
@@ -23,6 +23,9 @@ import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import styles from './ProviderRecommendationSection.module.css'
 
 type SurfaceResult = ProviderResult<RecommendationPage> & { surface: RecommendationSurface }
+
+// 每个平台只保留最近一副牌；必须与仍有效的首页缓存对象相同才复用，最多 3 份。
+const deckSnapshots = new Map<ProviderId, { page: RecommendationPage; pool: StackPoolState<Playlist>; nextCursor?: string }>()
 
 const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
 
@@ -54,11 +57,22 @@ interface ProviderRecommendationSectionProps {
 export function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
   const provider = providerFor(source)
   const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
-  const [results, setResults] = useState<Record<string, SurfaceResult>>({})
-  const [pool, setPool] = useState<StackPoolState<Playlist>>(EMPTY_POOL)
+  const cachedResults = () => Object.fromEntries(surfaces.flatMap((surface) => {
+    const page = getCachedProviderData<RecommendationPage>(source, `recommendation:${surface.id}:root`)
+    return page ? [[surface.id, { surface, source, status: isEmptyPage(page) ? 'empty' : 'ready', data: page } as SurfaceResult]] : []
+  }))
+  const feedSurface = surfaces.find((surface) => surface.kind === 'playlist-feed')
+  const cachedFeed = feedSurface ? getCachedProviderData<RecommendationPage>(source, `recommendation:${feedSurface.id}:root`) : undefined
+  const savedDeck = deckSnapshots.get(source)
+  const initialDeck = cachedFeed && savedDeck?.page === cachedFeed ? savedDeck : undefined
+  const [results, setResults] = useState<Record<string, SurfaceResult>>(cachedResults)
+  const [pool, setPool] = useState<StackPoolState<Playlist>>(() => {
+    if (initialDeck) return initialDeck.pool
+    return cachedFeed?.content.type === 'playlists' ? createPool(cachedFeed.content.playlists) : EMPTY_POOL
+  })
   const [dealId, setDealId] = useState(0)
   const sessionRef = useRef(0)
-  const nextCursorRef = useRef<string | undefined>()
+  const nextCursorRef = useRef(initialDeck ? initialDeck.nextCursor : cachedFeed?.nextCursor)
   const refilling = useRef(false)
 
   const commit = useCallback((surface: RecommendationSurface, result: ProviderResult<RecommendationPage>) => {
@@ -66,13 +80,14 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
   }, [])
 
   const loadSurface = useCallback(async (surface: RecommendationSurface, session: number, force = false) => {
-    commit(surface, { source, status: 'loading', data: null })
+    const cached = !force && getCachedProviderData<RecommendationPage>(source, `recommendation:${surface.id}:root`)
+    if (!cached) commit(surface, { source, status: 'loading', data: null })
     try {
       const page = await requestProviderData(
         source,
         `recommendation:${surface.id}:root`,
         () => provider.recommendations!.load(surface.id),
-        { force }
+        { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS }
       )
       if (sessionRef.current !== session) return
       commit(surface, {
@@ -81,8 +96,11 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
         data: page,
       })
       if (surface.kind === 'playlist-feed' && page.content.type === 'playlists') {
-        setPool(createPool(page.content.playlists))
-        nextCursorRef.current = page.nextCursor
+        const saved = !force && deckSnapshots.get(source)
+        if (!saved || saved.page !== page) {
+          setPool(createPool(page.content.playlists))
+          nextCursorRef.current = page.nextCursor
+        }
       }
     } catch (error) {
       if (sessionRef.current !== session) return
@@ -97,16 +115,11 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
 
   useEffect(() => {
     const session = ++sessionRef.current
-    setResults({})
-    setPool(EMPTY_POOL)
-    nextCursorRef.current = undefined
     void Promise.all(surfaces.map((surface) => loadSurface(surface, session)))
     return () => { sessionRef.current++ }
     // provider 和 surfaces 由静态注册表提供，source 变化时才需重建会话。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source])
-
-  const feedSurface = surfaces.find((surface) => surface.kind === 'playlist-feed')
 
   useEffect(() => {
     if (!feedSurface || !nextCursorRef.current || pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
@@ -122,6 +135,8 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
         if (sessionRef.current !== session || page.content.type !== 'playlists') return
         const playlists = page.content.playlists
         nextCursorRef.current = page.nextCursor
+        const saved = deckSnapshots.get(source)
+        if (saved) saved.nextCursor = page.nextCursor
         setPool((current) => refill(current, playlists, (playlist) => `${playlist.source}:${String(playlist.id)}`))
       })
       .catch(() => {})
@@ -159,13 +174,20 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
     || Object.values(results).some((result) => result.status === 'loading')
   const top = pool.hand.at(-1) ?? null
   const feedPage = feedSurface ? results[feedSurface.id]?.data : null
+  useLayoutEffect(() => {
+    if (feedPage && getCachedProviderData(source, `recommendation:${feedSurface?.id}:root`) === feedPage) {
+      deckSnapshots.set(source, { page: feedPage, pool, nextCursor: nextCursorRef.current })
+    } else {
+      deckSnapshots.delete(source)
+    }
+  }, [source, feedPage, pool])
   const feedPlaylists = feedPage?.content.type === 'playlists' ? feedPage.content.playlists : []
   const showRecommendationStage = source !== 'apple' || loading || readyHeroes.length > 0 || pool.hand.length > 0
 
   return (
     <motion.section
       className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
-      initial={{ opacity: 0, y: 18 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={springGentle}
       aria-label={`${provider.descriptor.label}推荐`}

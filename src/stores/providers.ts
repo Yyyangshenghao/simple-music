@@ -111,6 +111,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   setEnabled(id, enabled) {
     if (enabled && (get().byId[id].auth !== 'authenticated' || get().byId[id].playbackAvailable === false)) return
+    clearProviderRequestCache(id)
     set((state) => {
       const byId = {
         ...state.byId,
@@ -126,7 +127,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         playbackOrder: normalizePlaybackOrder(state.playbackOrder, providers),
       }
     })
-    clearProviderRequestCache(id)
     persist(get())
   },
 
@@ -163,6 +163,8 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   setAccountState(id, auth, profile, options) {
     advanceProviderAccountSession(id)
+    // 同步通知页面前先失效缓存，避免新账号首帧读取上个会话的数据。
+    clearProviderRequestCache(id)
     set((state) => {
       const enabled = auth === 'authenticated' || options?.preserveEnabled ? state.byId[id].enabled : false
       const byId = {
@@ -179,7 +181,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         }),
       }
     })
-    clearProviderRequestCache(id)
     if (auth !== 'authenticated') persist(get())
   },
 
@@ -187,13 +188,13 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     const current = get().byId[id]
     const lastError = available ? undefined : message
     if (current.playbackAvailable === available && current.lastError === lastError) return
+    clearProviderRequestCache(id)
     set((state) => ({
       byId: {
         ...state.byId,
         [id]: { ...state.byId[id], playbackAvailable: available, lastError },
       },
     }))
-    clearProviderRequestCache(id)
   },
 }))
 

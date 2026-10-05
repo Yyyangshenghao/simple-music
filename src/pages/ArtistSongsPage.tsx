@@ -46,6 +46,10 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
   )
   const search = useArtistSearch(id, source, searching && participating)
   useEffect(() => { setQuery('') }, [id, source])
+  const active = useNavigationStore((state) => {
+    const view = state.currentView
+    return typeof view === 'object' && view.type === 'artistSongs' && view.source === source && String(view.id) === String(id)
+  })
   const goBack = useNavigationStore((state) => state.goBack)
 
   useEffect(() => {
@@ -86,9 +90,8 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
   }, [id, initialRetry, participating, service])
 
   useEffect(() => {
-    useBackdropStore.getState().setCover(artist?.avatar)
-    return () => useBackdropStore.getState().setCover(null)
-  }, [artist?.avatar])
+    if (active) return useBackdropStore.getState().setCover(artist?.avatar)
+  }, [active, artist?.avatar])
 
   const searchedSongs = searching
     ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index])

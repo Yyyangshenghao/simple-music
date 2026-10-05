@@ -1,8 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
+import { pageTransition } from '../../lib/motion-presets'
 import { useNavigationStore } from '../../stores/navigation'
-import { springGentle } from '../../lib/motion-presets'
 import styles from './AppShell.module.css'
 import { OfflineSaveStatus } from './OfflineSaveStatus'
 
@@ -18,11 +18,11 @@ const AppleChartPage = lazy(() => import('../../pages/AppleChartPage').then((m) 
 const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 const SearchPage = lazy(() => import('../../pages/SearchPage').then((m) => ({ default: m.SearchPage })))
 
-/** 纵深转场：新页从纵深浮上（scale 1.03→1），旧页缩小下沉；x 按 push/pop 反向。 */
+/** 页面往返只做短距离淡入淡出，避免内容缩放与子页面入场动画叠加。 */
 const pageVariants: Variants = {
-  enter: (dir: 1 | -1) => ({ opacity: 0, scale: 1.03, x: 24 * dir, y: 8 }),
-  center: { opacity: 1, scale: 1, x: 0, y: 0 },
-  exit: (dir: 1 | -1) => ({ opacity: 0, scale: 0.97, x: -24 * dir }),
+  enter: (dir: 1 | -1) => ({ opacity: 0, x: 8 * dir }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir: 1 | -1) => ({ opacity: 0, x: -8 * dir }),
 }
 
 export function AppShell() {
@@ -55,7 +55,7 @@ export function AppShell() {
       return <ArtistSongsPage id={view.id} source={view.source} />
     }
     if (typeof view === 'object' && view.type === 'playlist') {
-      return view.from === 'library' ? <LibraryPage /> : <ExplorePage />
+      return view.from === 'library' ? <LibraryPage detail={view} /> : <ExplorePage detail={view} />
     }
     return <ExplorePage />
   }
@@ -73,7 +73,7 @@ export function AppShell() {
           initial="enter"
           animate="center"
           exit="exit"
-          transition={springGentle}
+          transition={pageTransition}
         >
           <Suspense fallback={
             <div className={styles.loading} role="status">

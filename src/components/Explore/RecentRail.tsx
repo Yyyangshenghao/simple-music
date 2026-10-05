@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
 import { providerFor } from '../../providers/registry'
 import type { ProviderId } from '../../providers/types'
 import type { Playlist } from '../../types/domain'
@@ -16,13 +17,13 @@ interface RecentRailProps {
 /** 最近播放：网易账号级播放记录（record_recent_playlist）；未登录或无记录时整栏隐藏。 */
 export function RecentRail({ source, embedded = false, onOpen }: RecentRailProps) {
   const history = providerFor(source).history
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => getCachedProviderData<Playlist[]>(source, 'history:recent-playlists') ?? [])
 
   useEffect(() => {
     // 音源切换时丢弃在途响应
     let cancelled = false
-    setPlaylists([])
-    history?.getRecentPlaylists?.()
+    setPlaylists(getCachedProviderData<Playlist[]>(source, 'history:recent-playlists') ?? [])
+    if (history?.getRecentPlaylists) void requestProviderData(source, 'history:recent-playlists', history.getRecentPlaylists, { maxAgeMs: 30_000 })
       .then((pls) => { if (!cancelled) setPlaylists(pls) })
       .catch(() => {})
     return () => { cancelled = true }

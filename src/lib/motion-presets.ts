@@ -15,6 +15,9 @@ export const springBouncy: Transition = { type: 'spring', stiffness: 420, dampin
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }
 
+/** 页面往返短转场，避免缩放与栏目入场叠加。 */
+export const pageTransition: Transition = { duration: 0.18, ease: 'easeOut' }
+
 /** 图标切换快速淡入淡出（AnimatePresence 内的小图标 crossfade，如播放/暂停、音量档位）。 */
 export const iconSwap: Transition = { duration: 0.1, ease: 'easeOut' }
 

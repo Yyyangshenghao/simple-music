@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { requestProviderData } from '../../lib/provider-request-cache'
-import { appendUniqueAppleCharts, pickAppleRecommendationFeatures, type AppleRecommendationGroup } from '../../lib/apple-music-service'
+import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
+import { appendUniqueAppleCharts, pickAppleRecommendationFeatures, type AppleChartPlaylistsPage, type AppleRecommendationGroup } from '../../lib/apple-music-service'
 import { appleMusicService } from '../../providers/apple-music-provider'
 import { useNavigationStore } from '../../stores/navigation'
 import type { Playlist } from '../../types/domain'
@@ -17,19 +17,26 @@ interface ApplePlaylistRecommendationsProps {
 
 const CHART_PREVIEW = 12
 const STOREFRONT_PREVIEW = 8
+// 只保留最近一组推荐的抽样种子，返回时精选卡片不重新洗牌。
+let savedFeatureSeed: { groups: AppleRecommendationGroup[]; seed: number } | undefined
 export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRecommendationsProps) {
-  const [loadedCharts, setLoadedCharts] = useState<Playlist[]>([])
-  const [chartHasNext, setChartHasNext] = useState(false)
-  const [chartLoading, setChartLoading] = useState(true)
+  const [loadedCharts, setLoadedCharts] = useState<Playlist[]>(() => getCachedProviderData<AppleChartPlaylistsPage>('apple', 'charts:most-played:first')?.playlists ?? [])
+  const [chartHasNext, setChartHasNext] = useState(() => !!getCachedProviderData<AppleChartPlaylistsPage>('apple', 'charts:most-played:first')?.nextCursor)
+  const [chartLoading, setChartLoading] = useState(() => getCachedProviderData('apple', 'charts:most-played:first') === undefined)
   const [chartFailed, setChartFailed] = useState(false)
   const [chartRevision, setChartRevision] = useState(0)
-  const [storefrontCharts, setStorefrontCharts] = useState<Playlist[]>([])
-  const [storefrontLoading, setStorefrontLoading] = useState(true)
+  const [storefrontCharts, setStorefrontCharts] = useState<Playlist[]>(() => getCachedProviderData<Playlist[]>('apple', 'charts:storefront') ?? [])
+  const [storefrontLoading, setStorefrontLoading] = useState(() => getCachedProviderData('apple', 'charts:storefront') === undefined)
   const [storefrontFailed, setStorefrontFailed] = useState(false)
   const [storefrontRevision, setStorefrontRevision] = useState(0)
-  const [groups, setGroups] = useState<AppleRecommendationGroup[]>([])
-  const [featureSeed] = useState(() => Math.floor(Math.random() * 0x7fffffff))
-  const [loading, setLoading] = useState(true)
+  const cachedGroups = getCachedProviderData<AppleRecommendationGroup[]>('apple', 'recommendation:personal-groups')
+  const [groups, setGroups] = useState<AppleRecommendationGroup[]>(cachedGroups ?? [])
+  const [featureSeed] = useState(() => cachedGroups && savedFeatureSeed?.groups === cachedGroups
+    ? savedFeatureSeed.seed : Math.floor(Math.random() * 0x7fffffff))
+  useEffect(() => {
+    if (groups === getCachedProviderData('apple', 'recommendation:personal-groups')) savedFeatureSeed = { groups, seed: featureSeed }
+  }, [groups, featureSeed])
+  const [loading, setLoading] = useState(() => getCachedProviderData('apple', 'recommendation:personal-groups') === undefined)
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
@@ -39,9 +46,9 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
   const [carouselTouched, setCarouselTouched] = useState(false)
   useEffect(() => {
     let cancelled = false
-    setStorefrontLoading(true)
+    setStorefrontLoading(getCachedProviderData('apple', 'charts:storefront') === undefined)
     setStorefrontFailed(false)
-    void requestProviderData('apple', 'charts:storefront', () => appleMusicService.getStorefrontChartPlaylists(), { force: storefrontRevision > 0 })
+    void requestProviderData('apple', 'charts:storefront', () => appleMusicService.getStorefrontChartPlaylists(), { force: storefrontRevision > 0, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
       .then(items => { if (!cancelled) setStorefrontCharts(appendUniqueAppleCharts([], items)) })
       .catch(() => { if (!cancelled) setStorefrontFailed(true) })
       .finally(() => { if (!cancelled) setStorefrontLoading(false) })
@@ -50,9 +57,9 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
 
   useEffect(() => {
     let cancelled = false
-    setChartLoading(true)
+    setChartLoading(getCachedProviderData('apple', 'charts:most-played:first') === undefined)
     setChartFailed(false)
-    void requestProviderData('apple', 'charts:most-played:first', () => appleMusicService.getChartPlaylistsPage(), { force: chartRevision > 0 })
+    void requestProviderData('apple', 'charts:most-played:first', () => appleMusicService.getChartPlaylistsPage(), { force: chartRevision > 0, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
       .then(page => {
         if (cancelled) return
         setLoadedCharts(appendUniqueAppleCharts([], page.playlists))
@@ -65,9 +72,9 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setLoading(getCachedProviderData('apple', 'recommendation:personal-groups') === undefined)
     setFailed(false)
-    void requestProviderData('apple', 'recommendation:personal-groups', () => appleMusicService.getRecommendationGroups(), { force: revision > 0 })
+    void requestProviderData('apple', 'recommendation:personal-groups', () => appleMusicService.getRecommendationGroups(), { force: revision > 0, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
       .then(items => { if (!cancelled) setGroups(items) })
       .catch(() => { if (!cancelled) setFailed(true) })
       .finally(() => { if (!cancelled) setLoading(false) })
