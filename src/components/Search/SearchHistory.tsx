@@ -15,12 +15,14 @@ export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHist
         <h3>搜索历史</h3>
         <button type="button" onClick={onClear}>清空</button>
       </div>
-      {terms.map((term) => (
-        <div className={styles.row} key={term}>
-          <button type="button" className={styles.term} title={term} onClick={() => onSelect(term)}>{term}</button>
-          <button type="button" className={styles.remove} aria-label={`删除搜索历史：${term}`} onClick={() => onRemove(term)}>×</button>
-        </div>
-      ))}
+      <div className={styles.terms}>
+        {terms.map((term) => (
+          <div className={styles.bubble} key={term}>
+            <button type="button" className={styles.term} title={term} onClick={() => onSelect(term)}>{term}</button>
+            <button type="button" className={styles.remove} title={`删除：${term}`} aria-label={`删除搜索历史：${term}`} onClick={() => onRemove(term)}>×</button>
+          </div>
+        ))}
+      </div>
     </section>
   )
 }
