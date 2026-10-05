@@ -16,7 +16,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 |---|---|
 | `player.ts` | 播放状态/进度/音量/音质；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
-| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向 |
+| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置 |
 | `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
@@ -69,6 +69,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 「关于应用」保留版本信息、检查更新及安装入口；更新历史通过「更新日志」按钮进入按需加载的 `ReleaseHistoryPage`（`release-history` 视图），返回时恢复设置的关于应用区域。页面复用 `Update/ReleaseHistory` 展示离线更新历史，`lib/release-history.ts` 通过 Vite raw glob 打包 `docs/release-notes-*.md`，按版本倒序过滤当前及更早版本。摘要解析为类别与描述，并兼容旧条目的可选标题，按新增/优化/修复/说明分组，版本标题显示各类别数量，空类别不展示。当前版本默认展开，历史版本使用原生 `details/summary` 支持鼠标和键盘展开；只读取更新日志（兼容旧「主要变化」标题）与兼容说明，不展示开发验收记录。尚未取得更新检查结果时，版本号使用 `package.json` 的应用版本。
 
 顶栏 `TopBar` 使用常驻宽搜索栏（220～320px 自适应），聚焦不改变宽度；窄窗口让导航参与布局，避免挤占搜索及窗口按钮。空搜索通过可选 `catalog.getSearchHotkeys()` 展示当前内容平台的热词（网易云、QQ 均已接入），要求该平台已登录且已启用，不混入另一平台热搜。`SearchHotkeys` 点击填词后复用原跨平台防抖搜索，关闭、切平台或禁用时丢弃在途热词响应。下拉层使用实色背景打底，避免页面文字透入。
+
+空搜索同时展示本地搜索历史，复用 `lib/search-history.ts` 的去重、置顶与最多 15 条存储。明确提交搜索或选择歌曲/歌手后记录关键词，输入过程不记录；历史可再次搜索、单条删除或清空。歌手简介使用纯文本的 `details/summary` 展开，缺少简介时隐藏入口。歌手页返回时等待资料与当前标签数据完成后恢复滚动位置，用户主动操作会取消待恢复的位置。
 
 播放队列 `QueuePanel` 底部的 `QueueDiscovery` 提供 QQ“发现相似音乐”：当前曲目具备有效数字 `qqId`、QQ 已登录且启用时可见，展开后才调用可选 `catalog.getSimilarTracks()` / `getRelatedPlaylists()`。歌曲仅追加并防重复，不打断播放；歌单可换批或打开详情。切歌恢复收起，关闭/禁用后丢弃旧响应，两类推荐独立失败；歌单换批失败保留原列表并提供重试。Esc 关闭时仅在焦点仍位于队列内的情况下返回队列按钮，不抢走外部焦点。
 
