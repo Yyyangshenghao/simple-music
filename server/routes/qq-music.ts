@@ -2,6 +2,7 @@ import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import {
+  isQQNumericPlaylistId,
   handleQQSearch,
   handleQQSearchHotkeys,
   handleQQSimilarSongs,
@@ -311,12 +312,13 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
       const id = url.searchParams.get('id') || url.searchParams.get('disstid') || ''
       const invalidLikedId = id.startsWith('qq-liked:') && !isQQLikedPlaylistReference(id)
       const invalidToplistId = id.startsWith(QQ_TOPLIST_PREFIX) && !isQQToplistReference(id)
-      if (!id || invalidLikedId || invalidToplistId) {
+      const invalidPlaylistId = !isQQLikedPlaylistReference(id) && !isQQToplistReference(id) && !isQQNumericPlaylistId(id)
+      if (!id || invalidLikedId || invalidToplistId || invalidPlaylistId) {
         sendJson(res, {
           provider: 'qq',
           error: invalidLikedId
             ? 'INVALID_QQ_LIKED_PLAYLIST_ID'
-            : invalidToplistId ? 'INVALID_QQ_TOPLIST_ID' : 'Missing QQ playlist id',
+            : invalidToplistId ? 'INVALID_QQ_TOPLIST_ID' : id ? 'INVALID_QQ_PLAYLIST_ID' : 'Missing QQ playlist id',
           trackIds: [],
           tracks: [],
         }, 400)

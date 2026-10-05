@@ -441,6 +441,11 @@ export function isQQToplistReference(value: unknown): boolean {
   return /^qq-toplist:\d+$/.test(String(value || '').trim())
 }
 
+export function isQQNumericPlaylistId(value: unknown): boolean {
+  const id = String(value ?? '').trim()
+  return /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0
+}
+
 export type QQPlaylistReference =
   | { kind: 'playlist'; id: string }
   | { kind: 'liked'; id: '201' }
@@ -1086,6 +1091,7 @@ async function fetchQQDissPage(
   num = QQ_PLAYLIST_PAGE_SIZE
 ): Promise<{ data: Record<string, unknown>; detail: Record<string, unknown>; rawTracks: unknown[] }> {
   const liked = ref.kind === 'liked'
+  if (!liked && !isQQNumericPlaylistId(ref.id)) throw new Error('Invalid QQ playlist id')
   const json = rec(
     await qqMusicRequest(
       cookie,
@@ -1095,7 +1101,7 @@ async function fetchQQDissPage(
           module: 'music.srfDissInfo.DissInfo',
           method: 'CgiGetDiss',
           param: {
-            disstid: liked ? 0 : ref.id,
+            disstid: liked ? 0 : Number(ref.id),
             dirid: liked ? 201 : 0,
             tag: true,
             song_begin: offset,
