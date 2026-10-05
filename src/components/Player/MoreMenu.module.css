@@ -52,35 +52,75 @@
   bottom: calc(100% + 16px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: 268px;
-  max-height: min(60vh, 460px);
-  overflow-y: auto;
-  padding: 14px;
-  /* 父级 GlassPanel 已有 backdrop-filter,子级无法再模糊页面背景,须用高不透明底色 */
-  background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent);
+  width: min(320px, calc(100vw - 40px));
+  max-height: min(580px, calc(100dvh - 180px));
+  overflow: hidden;
+  /* 实色打底，避免下层歌曲列表透入面板。 */
+  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-card);
   box-shadow: var(--sm-shadow);
-  backdrop-filter: var(--sm-blur);
 }
+
+.panelHead {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.panelTitle { font-size: 14px; font-weight: 600; color: var(--sm-text-primary); }
+
+.closeBtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+
+.closeBtn:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+
+.content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border-strong) transparent;
+}
+
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-thumb { border-radius: var(--sm-radius-pill); background: var(--sm-border-strong); }
+.content::-webkit-scrollbar-track { background: transparent; }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding: 14px 0;
 }
+
+.section + .section { border-top: 1px solid var(--sm-border); }
 
 .sectionHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
 .sectionTitle {
-  font-size: 13px;
-  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--sm-text-primary);
 }
 
@@ -88,6 +128,10 @@
   font-size: 11px;
   color: var(--sm-text-secondary);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chips {
@@ -96,12 +140,21 @@
   gap: 6px;
 }
 
+.chips .chip { flex: 1; }
+
+.sourcePreference { display: flex; flex-direction: column; gap: 6px; }
+.sourceChoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.qualityChips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.qualityChips .tip { grid-column: span 2; }
+.sleepChips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.sleepChips .chip:last-child:nth-child(5) { grid-column: 1 / -1; }
+
 .sourceFacts {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 7px 10px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: 10px;
   background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
@@ -114,49 +167,73 @@
   justify-content: flex-end;
   gap: 6px;
   color: var(--sm-text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* 倍速五档等分一行,避免 flex-wrap 换出孤零零的一个 */
 .rateChips {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--sm-fill-subtle);
 }
 
 .rateChips .chip {
   min-width: 0;
   padding-inline: 2px;
+  border-color: transparent;
+  background: transparent;
 }
 
 .chip {
-  height: 28px;
-  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
+  border-radius: 8px;
   background: var(--sm-fill-subtle);
-  color: var(--sm-text-primary);
+  color: var(--sm-text-secondary);
+  font: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
 }
 
 .chip:hover {
   background: var(--sm-fill-hover);
   border-color: var(--sm-border-strong);
+  color: var(--sm-text-primary);
 }
 
 .chip[data-on='true'] {
-  color: var(--sm-accent);
-  border-color: color-mix(in srgb, var(--sm-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--sm-accent) 12%, transparent);
+  color: var(--sm-text-on-accent);
+  border-color: var(--sm-accent);
+  background: var(--sm-accent);
 }
 
+.sourceChoices .chip[data-on='true'] {
+  color: var(--sm-text-primary);
+  border-color: var(--sm-border-strong);
+  background: var(--sm-fill-active);
+}
+
+.toggleBtn:focus-visible,
+.closeBtn:focus-visible,
+.chip:focus-visible,
+.optionRow:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+
 .tip {
-  align-self: center;
   font-size: 11px;
   color: var(--sm-text-secondary);
+  line-height: 1.5;
 }
 
 .optionRow {
@@ -164,11 +241,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 8px;
+  padding: 8px 0;
   border: none;
   border-radius: 10px;
   background: none;
-  color: var(--sm-text-secondary);
+  color: var(--sm-text-primary);
+  font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
@@ -177,10 +255,31 @@
   background: var(--sm-bg-elevated);
 }
 
-.optionRow[data-on='true'] .optionState {
-  color: var(--sm-accent);
-}
+.gameModeRow { padding: 0; text-align: left; }
+.gameModeIcon { flex-shrink: 0; color: var(--sm-text-secondary); }
+.gameModeCopy { display: flex; flex: 1; flex-direction: column; gap: 4px; }
 
 .optionState {
-  font-weight: 600;
+  position: relative;
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-fill-active);
+  transition: background 0.15s ease;
 }
+
+.optionState::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sm-text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.optionRow[data-on='true'] .optionState { background: var(--sm-accent); }
+.optionRow[data-on='true'] .optionState::after { background: var(--sm-text-on-accent); transform: translateX(12px); }
