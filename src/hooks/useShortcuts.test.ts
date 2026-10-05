@@ -57,6 +57,21 @@ describe('快捷键真实分发链路', () => {
     for (const action of ['play-pause', 'prev', 'next', 'volume-up']) onHotkey({ action })
     expect(h.action.mock.calls).toEqual([['play-pause'], ['prev'], ['next'], ['volume-up']])
   })
+  it.each([
+    { key: ' ', code: 'Space', accelerator: 'Space' },
+    { key: 'Enter', code: 'Enter', accelerator: 'Enter' },
+  ])('更新日志标题聚焦时，$accelerator 保留原生展开行为', async (binding) => {
+    useSettingsStore.setState({ localHotkeys: [{ action: 'play-pause', accelerator: binding.accelerator }] })
+    useShortcuts()
+    await flush()
+    const event = key({ key: binding.key, code: binding.code, target: {
+      closest: (selector: string) => selector.split(', ').includes('summary') ? {} : null,
+    } })
+    onKeyDown(event)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(h.action).not.toHaveBeenCalled()
+  })
+
   it('自定义设置单字符键不抢占输入框', async () => {
     useSettingsStore.setState({ localHotkeys: [{ action: 'settings', accelerator: ',' }] })
     useShortcuts()

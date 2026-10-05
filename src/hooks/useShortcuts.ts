@@ -46,9 +46,9 @@ export function useShortcuts(): void {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
-      // 空格等无修饰键让按钮、滑杆保留原生操作，组合键仍可在聚焦控件时使用。
+      // 空格等无修饰键让按钮、滑杆和展开标题保留原生操作，组合键仍可在聚焦控件时使用。
       if (!event.metaKey && !event.ctrlKey && !event.altKey
-        && (event.target as Element | null)?.closest?.('button, [role="switch"], [role="slider"]')) return
+        && (event.target as Element | null)?.closest?.('button, summary, [role="switch"], [role="slider"]')) return
       const accelerator = acceleratorFromEvent(event, platform)
       if (!accelerator || isSystemReservedAccelerator(accelerator, platform)) return
       const settings = useSettingsStore.getState()

@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
+import { useUpdateStore } from '../stores/update'
+import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
 vi.mock('../stores/settings', async (importOriginal) => {
@@ -23,12 +25,21 @@ vi.mock('../stores/visual', async (importOriginal) => {
 vi.mock('../components/ui/SystemFontPicker', () => ({
   SystemFontPicker: (props: { value: string; ariaLabel: string }) => <button aria-label={props.ariaLabel}>{props.value || '跟随界面'}</button>
 }))
+vi.mock('../stores/update', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/update')>()
+  const store = original.useUpdateStore
+  return { ...original, useUpdateStore: Object.assign(
+    (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()),
+    store
+  ) }
+})
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
 vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
 
 const initialSettings = useSettingsStore.getState()
 const initialVisual = useVisualStore.getState()
+const initialUpdate = useUpdateStore.getState()
 
 beforeEach(() => {
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -38,7 +49,37 @@ beforeEach(() => {
 afterEach(() => {
   useSettingsStore.setState(initialSettings, true)
   useVisualStore.setState(initialVisual, true)
+  useUpdateStore.setState(initialUpdate, true)
   vi.unstubAllGlobals()
+})
+
+describe('关于应用的更新日志', () => {
+  it('未检查更新时使用应用版本，只显示日志按钮而不铺开版本记录', () => {
+    useUpdateStore.setState({ info: null, checking: false })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const about = html.slice(html.indexOf('<section id="settings-section-about"'))
+    expect(about).toContain(`v${version}`)
+    expect(about).toContain('尚未检查')
+    expect(about).toContain('检查更新')
+    expect(about).toContain('更新日志')
+    expect(about).toMatch(/<button[^>]*>更新日志<\/button>/)
+    expect(about).not.toContain('<details')
+    expect(about).not.toContain('v2.0.0')
+  })
+
+  it.each([true, false])('检查更新状态为 %s 时日志入口保持可用', (checking) => {
+    useUpdateStore.setState({ checking, info: {
+      configured: true, preview: false, updateAvailable: true,
+      currentVersion: version, latestVersion: '2.3.1',
+      release: { tagName: 'v2.3.1', version: '2.3.1', name: 'Simple Music', htmlUrl: '', downloadUrl: '', summary: '', notes: [] },
+    } })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const about = html.slice(html.indexOf('<section id="settings-section-about"'))
+    expect(about).toContain(checking ? '检查中…' : '发现新版本 v2.3.1')
+    expect(about).toContain('下载更新')
+    expect(about).toMatch(/<button[^>]*>更新日志<\/button>/)
+    expect(about).not.toContain('<details')
+  })
 })
 
 function lyricsMarkup(): string {

@@ -53,6 +53,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
 
   // 逐行红心:音源支持且已登录时显示。supports 只取决于 track.source(不变),用 getState 非响应式取即可。
   const liked = useLikesStore((s) => !!s.likedByKey[likeKeyOf(track)])
+  const likesRevision = useLikesStore((s) => s.revision)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const supported = useLikesStore.getState().supports(track)
   const visible = supported && (track.source !== 'netease' || neteaseLoggedIn)
@@ -72,7 +73,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
     if (visible) void useLikesStore.getState().ensureChecked(track)
-  }, [track, visible])
+  }, [track, visible, likesRevision])
   useEffect(() => {
     if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
   }, [offlineVisible, track.source, track.id, offlineRevision])

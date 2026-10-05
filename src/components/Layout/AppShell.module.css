@@ -7,10 +7,32 @@
 }
 
 .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   width: 100%;
   height: 100%;
-  background: var(--sm-bg-base);
+  color: var(--sm-text-secondary);
 }
+
+.loading p { margin: 0; font-size: 12px; }
+.loadingMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-card);
+  background: var(--glass-bg-base);
+}
+.loadingMark span { width: 3px; border-radius: var(--sm-radius-pill); background: var(--sm-accent-warm); }
+.loadingMark span:nth-child(1) { height: 12px; }
+.loadingMark span:nth-child(2) { height: 22px; }
+.loadingMark span:nth-child(3) { height: 16px; }
 
 .page {
   height: 100%;

@@ -1,6 +1,8 @@
 // API 客户端：从主进程注入的端口（window.desktop.serverPort）拼接 /api/* 请求。
 // 浏览器/非 Electron 环境回退到同源（便于纯前端调试）。
 
+import { providerAccountSession, ProviderAuthError } from './provider-account-session'
+
 export function apiBase(): string {
   const port = typeof window !== 'undefined' ? window.desktop?.serverPort : undefined
   return port ? `http://127.0.0.1:${port}` : ''
@@ -66,6 +68,8 @@ function buildUrl(path: string, params?: QueryParams): string {
 const DEFAULT_TIMEOUT_MS = 30_000
 
 async function request<T>(input: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const source = providerSourceForApiUrl(input)
+  const accountSession = source ? providerAccountSession(source) : 0
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchInit } = init ?? {}
   const controller = new AbortController()
   let timedOut = false
@@ -83,16 +87,16 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
     const res = await fetch(input, { ...fetchInit, signal: controller.signal })
     if (!res.ok) {
       // Apple Music 的配置、订阅和播放页错误由本地服务端转换为可操作的提示。
-      if (providerSourceForApiUrl(input) === 'apple') {
-        const body = await res.json().catch(() => null) as { error?: string } | null
-        if (res.status === 401 || res.status === 403) providerAuthFailureHandler?.('apple', res.status)
-        throw new Error(body?.error || `HTTP ${res.status}`)
+      const body = source === 'apple'
+        ? await res.json().catch(() => null) as { error?: string } | null
+        : null
+      const message = body?.error || `HTTP ${res.status}`
+      if (source && (res.status === 401 || res.status === 403)) {
+        const error = new ProviderAuthError(message, source, accountSession)
+        if (error.isCurrentAccount) providerAuthFailureHandler?.(source, res.status)
+        throw error
       }
-      if (res.status === 401 || res.status === 403) {
-        const source = providerSourceForApiUrl(input)
-        if (source) providerAuthFailureHandler?.(source, res.status)
-      }
-      throw new Error(`HTTP ${res.status}`)
+      throw new Error(message)
     }
     return (await res.json()) as T
   } catch (err) {

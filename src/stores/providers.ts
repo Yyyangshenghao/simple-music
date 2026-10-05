@@ -11,6 +11,7 @@ import {
 } from '../lib/provider-preferences'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
+import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
   readContentProviderPreference,
   writeContentProviderPreference,
@@ -161,6 +162,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   },
 
   setAccountState(id, auth, profile, options) {
+    advanceProviderAccountSession(id)
     set((state) => {
       const enabled = auth === 'authenticated' || options?.preserveEnabled ? state.byId[id].enabled : false
       const byId = {

@@ -10,6 +10,7 @@ const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ 
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
 const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const ReleaseHistoryPage = lazy(() => import('../../pages/ReleaseHistoryPage').then((m) => ({ default: m.ReleaseHistoryPage })))
 const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ default: m.ArtistPage })))
 const ArtistSongsPage = lazy(() => import('../../pages/ArtistSongsPage').then((m) => ({ default: m.ArtistSongsPage })))
 const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
@@ -44,6 +45,7 @@ export function AppShell() {
     if (view === 'roam') return <RoamPage />
     if (view === 'shuange') return <ShuangePage />
     if (view === 'settings') return <SettingsPage />
+    if (view === 'release-history') return <ReleaseHistoryPage />
     if (typeof view === 'object' && view.type === 'search') return <SearchPage keyword={view.keyword} />
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage /> : <ToplistPage />
     if (typeof view === 'object' && view.type === 'artist') {
@@ -73,7 +75,14 @@ export function AppShell() {
           exit="exit"
           transition={springGentle}
         >
-          <Suspense fallback={<div className={styles.loading} />}>
+          <Suspense fallback={
+            <div className={styles.loading} role="status">
+              <span className={styles.loadingMark} aria-hidden="true">
+                <span /><span /><span />
+              </span>
+              <p>正在加载页面…</p>
+            </div>
+          }>
             {renderPage()}
           </Suspense>
         </motion.div>

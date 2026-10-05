@@ -45,7 +45,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 - **为什么内嵌 HTTP server 而不是全走 IPC**：音源请求逻辑（cookie 管理、上游封装、字段映射、音频流代理）是纯 Node 逻辑，做成独立 server 后可以 `npm run server:dev` 脱离 Electron 单独跑、单独测（vitest 直接 import route/lib），渲染层在浏览器里也能调试（`api.ts` 无端口时回退同源）。IPC 只留给"必须由主进程做"的窗口/系统类操作。
 - **端口随机 + 参数注入**：server 监听 `127.0.0.1:0`（随机端口），端口与持久化在 `userData/api-token` 的访问 token 经 `BrowserWindow webPreferences.additionalArguments` 注入 preload，分别挂到 `window.desktop.serverPort` / `serverToken`。避免固定端口被占用，并阻止本机其它网页只靠扫描端口访问 API；server 仍只监听 loopback，不暴露到局域网。
-- **两套 tsconfig 隔离**：`tsconfig.node.json`（electron/ + server/，Node 环境）与 `tsconfig.json`（src/ + overlays/，DOM 环境），`npm run typecheck` 两套全跑。`src/types/ipc.ts` 是唯一被两侧共享的类型文件（主进程 import 渲染层类型，编译期共享、运行期无依赖）。
+- **两套 tsconfig 隔离**：`tsconfig.node.json`（electron/ + server/，Node 环境）与 `tsconfig.json`（src/ + overlays/，DOM 环境），`npm run typecheck` 两套全跑。`src/types/ipc.ts` 统一两侧的 IPC 类型契约；主进程还运行时复用 `src/lib/shortcuts.ts`、`desktop-lyrics-layout.ts` 与 `mini-player-state.ts` 等无 DOM 的纯逻辑模块，共享模块不能依赖浏览器或渲染层 store。
 
 ## 2. 四个顶层模块
 
@@ -124,7 +124,7 @@ player.loadTrack(网易云或 QQ 曲目)
 
 ## 6. 视觉体系速览
 
-- 设计方向见根目录 `DESIGN.md`（Spotify 深色内容优先体系）；token 全部在 `src/styles/tokens.css`（`--sm-*` 基础 / `--glass-*` 玻璃层级 / `--ambient-*` 封面取色氛围 / `--audio-energy` 音频能量），经 `@property` 注册。
+- 设计方向见根目录 `DESIGN.md`（Spotify 深色内容优先体系）；token 全部在 `src/styles/tokens.css`（`--sm-*` 基础 / `--glass-*` 玻璃层级 / `--ambient-*` 封面取色氛围 / `--audio-energy` 音频能量）。氛围色与音频能量变量经 `@property` 注册，其余变量沿用普通 CSS 自定义属性。
 - 动效统一引用 `src/lib/motion-presets.ts`（springSnappy/springGentle/tapScale/fadeRise/iconSwap），禁止散落魔法数值。
 - 样式用 CSS Modules（`*.module.css` 与组件同目录）；主题切换靠 `<html data-theme>` + tokens 变量，`auto` 模式移除属性交给 `prefers-color-scheme`。
 - 页面宽度统一使用 `--sm-content-max-width`、`--sm-reading-max-width` 与 `--sm-page-gutter`；网格/列表按内容宽度展开，阅读型内容居中限宽，设置页在宽屏双列、窄屏单列。
@@ -140,4 +140,4 @@ npm run typecheck   # tsconfig.node.json + tsconfig.json 两套全量
 npm test            # vitest run（测试与源码同目录，*.test.ts）
 ```
 
-测试与源码同目录，覆盖 server 路由/lib、Provider 契约、播放与推荐纯逻辑、stores、主进程模块和各 overlay 的可测试逻辑。具体清单以 `rg --files -g '*.test.ts'` 为准；涉及播放、窗口或视觉行为的改动仍需 `npm run dev` 实测。
+测试与源码同目录，覆盖 server 路由/lib、Provider 契约、播放与推荐纯逻辑、stores、主进程模块和各 overlay 的可测试逻辑。具体清单以 `rg --files -g '*.test.ts' -g '*.test.tsx'` 为准；涉及播放、窗口或视觉行为的改动仍需 `npm run dev` 实测。

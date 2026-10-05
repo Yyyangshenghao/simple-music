@@ -7,6 +7,7 @@ export type AppView =
   | 'roam'
   | 'shuange'
   | 'settings'
+  | 'release-history'
   | { type: 'search'; keyword: string }
   | { type: 'artist'; id: unknown; source: 'netease' | 'qq' | 'apple' }
   | { type: 'artistSongs'; id: unknown; source: 'netease' | 'qq' | 'apple' }

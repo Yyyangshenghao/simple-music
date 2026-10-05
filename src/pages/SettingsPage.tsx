@@ -25,6 +25,7 @@ import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
+import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -35,7 +36,7 @@ const SETTINGS_TABS = [
   { id: 'lyrics', label: '歌词与动效', description: '桌面歌词、字体与 3D 歌词舞台' },
   { id: 'cache', label: '音频缓存', description: '缓存位置、容量与清理' },
   { id: 'shortcuts', label: '快捷键', description: '应用内、全局快捷键与系统媒体键' },
-  { id: 'about', label: '关于应用', description: '版本信息与更新' },
+  { id: 'about', label: '关于应用', description: '版本信息、更新与更新日志' },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
@@ -560,6 +561,10 @@ export function SettingsPage() {
     setActiveSection(id)
   }, [])
   useEffect(() => {
+    const navigation = useNavigationStore.getState()
+    if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
+  }, [scrollToSection])
+  useEffect(() => {
     if (settingsMusicRequest === 0) return
     scrollToSection('music')
     useNavigationStore.setState({ settingsMusicRequest: 0 })
@@ -712,7 +717,7 @@ export function SettingsPage() {
   const installing = useUpdateStore((s) => s.installing)
   const installUpdate = useUpdateStore((s) => s.installUpdate)
 
-  const currentVersion = updateInfo?.currentVersion || '1.0.0'
+  const currentVersion = updateInfo?.currentVersion || appVersion
   const ready = job?.status === 'ready'
   const isMacUpdate = window.desktop?.platform === 'darwin'
   const updateStatusText = checking
@@ -1326,6 +1331,12 @@ export function SettingsPage() {
                         检查更新
                       </button>
                     )}
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>查看各版本的更新内容</span>
+                    <button type="button" className={`${styles.seg} no-drag`} onClick={() => useNavigationStore.getState().navigateTo('release-history')}>
+                      更新日志
+                    </button>
                   </div>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>开源项目</span>

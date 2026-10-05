@@ -221,7 +221,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
-                : currentView
+                : currentView === 'release-history' ? 'settings' : currentView
             const active = section === item.view
               || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange' && section !== 'settings')
             return (

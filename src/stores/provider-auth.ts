@@ -1,5 +1,6 @@
 import type { ProviderId } from '../providers/types'
 import { registerApiProviderAuthFailureHandler } from '../lib/api'
+import { ProviderAuthError } from '../lib/provider-account-session'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
@@ -10,6 +11,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function isProviderAuthFailure(error: unknown): boolean {
+  if (error instanceof ProviderAuthError && !error.isCurrentAccount) return false
   const message = errorMessage(error)
   return /\bHTTP\s+(401|403)\b/i.test(message)
     || /\b(AUTH_REQUIRED|AUTH_EXPIRED)\b/i.test(message)
@@ -20,6 +22,7 @@ export function isProviderAuthFailure(error: unknown): boolean {
  * 返回 true 表示已处理；普通网络/业务失败保持原平台参与状态。
  */
 export function expireProviderAccount(source: ProviderId, error: unknown): boolean {
+  if (error instanceof ProviderAuthError && error.source !== source) return false
   if (!isProviderAuthFailure(error)) return false
   const alreadyExpired = useProviderStore.getState().byId[source].auth === 'expired'
   const settings = useSettingsStore.getState()

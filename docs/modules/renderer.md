@@ -8,7 +8,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
-页面只在访问时加载，不再启动后集中预热。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题与字体仅在相关设置变化时写根节点样式。
+页面只在访问时加载，不再启动后集中预热。首次挂载等待模块时，转场内部的 Suspense 显示“正在加载页面…”及静态标记，避免空白等待。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题与字体仅在相关设置变化时写根节点样式。
 
 ## stores(zustand,单文件单 store)
 
@@ -16,7 +16,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 |---|---|
 | `player.ts` | 播放状态/进度/音量/音质；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
-| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings + artist/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向 |
+| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向 |
 | `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
@@ -66,13 +66,15 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权保留在音源行，订阅要求及连接状态说明收进 i 浮层。
 
+「关于应用」保留版本信息、检查更新及安装入口；更新历史通过「更新日志」按钮进入按需加载的 `ReleaseHistoryPage`（`release-history` 视图），返回时恢复设置的关于应用区域。页面复用 `Update/ReleaseHistory` 展示离线更新历史，`lib/release-history.ts` 通过 Vite raw glob 打包 `docs/release-notes-*.md`，按版本倒序过滤当前及更早版本。摘要解析为类别与描述，并兼容旧条目的可选标题，按新增/优化/修复/说明分组，版本标题显示各类别数量，空类别不展示。当前版本默认展开，历史版本使用原生 `details/summary` 支持鼠标和键盘展开；只读取更新日志（兼容旧「主要变化」标题）与兼容说明，不展示开发验收记录。尚未取得更新检查结果时，版本号使用 `package.json` 的应用版本。
+
 顶栏 `TopBar` 使用常驻宽搜索栏（220～320px 自适应），聚焦不改变宽度；窄窗口让导航参与布局，避免挤占搜索及窗口按钮。空搜索通过可选 `catalog.getSearchHotkeys()` 展示当前内容平台的热词（网易云、QQ 均已接入），要求该平台已登录且已启用，不混入另一平台热搜。`SearchHotkeys` 点击填词后复用原跨平台防抖搜索，关闭、切平台或禁用时丢弃在途热词响应。下拉层使用实色背景打底，避免页面文字透入。
 
 播放队列 `QueuePanel` 底部的 `QueueDiscovery` 提供 QQ“发现相似音乐”：当前曲目具备有效数字 `qqId`、QQ 已登录且启用时可见，展开后才调用可选 `catalog.getSimilarTracks()` / `getRelatedPlaylists()`。歌曲仅追加并防重复，不打断播放；歌单可换批或打开详情。切歌恢复收起，关闭/禁用后丢弃旧响应，两类推荐独立失败；歌单换批失败保留原列表并提供重试。Esc 关闭时仅在焦点仍位于队列内的情况下返回队列按钮，不抢走外部焦点。
 
-页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(在线歌单/收藏、最近播放、离线音乐、本地音乐)、`RoamPage`、`ShuangePage`、`ToplistPage`、`ArtistPage`、`SettingsPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。离线音乐独立于在线平台登录态，支持按标题、艺人或专辑搜索、按保存时间/标题/艺人排序、播放当前筛选列表与逐曲移除保存；移除只取消固定，文件保留为临时缓存。组件按域分目录:`Layout/`(WindowChrome、TopBar、AppShell 转场与背景层)、`Player/`、`Lyrics/`(LyricsPanel、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics)、`Explore/`、`Playlist/`、`Roam/`、`Shuange/`、`Search/`、`Shelf/`、`Visualizer/`、`Update/`、`ui/`。
+页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(在线歌单/收藏、最近播放、离线音乐、本地音乐)、`RoamPage`、`ShuangePage`、`ToplistPage`、`AppleChartPage`、`ArtistPage`、`ArtistSongsPage`、`SearchPage`、`SettingsPage` 与 `ReleaseHistoryPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。离线音乐独立于在线平台登录态，支持按标题、艺人或专辑搜索、按保存时间/标题/艺人排序、播放当前筛选列表与逐曲移除保存；移除只取消固定，文件保留为临时缓存。组件按域分目录:`Layout/`(WindowChrome、TopBar、AppShell 转场与背景层)、`Player/`、`Lyrics/`(LyricsPanel、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics)、`Explore/`、`Playlist/`、`Roam/`、`Shuange/`、`Search/`、`Shelf/`、`Visualizer/`、`Update/`、`ui/`。
 
-样式:CSS Modules 与组件同目录;设计 token 全部在 `src/styles/tokens.css`(`--sm-*` 基础、`--glass-*` 玻璃层级、`--ambient-*` 氛围色、`--audio-energy`),经 `@property` 注册可平滑过渡。`reduce-transparency` 开关(见 settings store)经 `App.tsx` 写 `data-reduce-transparency` 属性,tokens.css 内对应分支把玻璃 blur 降为纯色底、流体背景退化为静态霞光。
+样式:CSS Modules 与组件同目录;设计 token 全部在 `src/styles/tokens.css`(`--sm-*` 基础、`--glass-*` 玻璃层级、`--ambient-*` 氛围色、`--audio-energy`)；氛围色与音频能量变量经 `@property` 注册，其余使用普通 CSS 自定义属性。`reduce-transparency` 开关(见 settings store)经 `App.tsx` 写 `data-reduce-transparency` 属性,tokens.css 内对应分支把玻璃 blur 降为纯色底、流体背景退化为静态霞光。
 
 我的库的本地、离线和最近播放列表复用 `VirtualList`，仅渲染可视区及 overscan；曲目行固定 56px，库列表步长为 58px（含 2px 间距）。筛选、排序与播放队列派生值复用，点击下标始终对应完整筛选结果。播放进度订阅集中在滑轨子组件，音量订阅集中在音量组，避免频繁唤醒封面、队列和菜单。播放持久化只缓存当前不可变队列与随机顺序的序列化结果，保持原 schema、断点恢复及配额不足的占位降级。
 

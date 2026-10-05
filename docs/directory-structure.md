@@ -20,9 +20,12 @@ Mineradio-Next/
 │   │   ├── window-manager.ts  #   主窗口创建（无边框 16:9）、WindowState 计算与推送、dev/prod URL 解析
 │   │   ├── overlay-manager.ts #   桌面歌词/壁纸/迷你播放条三个 BrowserWindow 的生命周期、定位、状态缓存转发、鼠标穿透
 │   │   ├── hotkey-manager.ts  #   globalShortcut 注册/冲突上报，触发后发 hotkey:triggered
+│   │   ├── settings-menu.ts   #   原生设置菜单与可配置的应用内设置快捷键
 │   │   ├── login-manager.ts   #   独立登录窗口（session 分区），轮询抓 cookie 组装 Cookie 头
 │   │   ├── apple-music-web-session.ts # Apple 官网授权、MusicKit 后台播放及恢复
 │   │   ├── apple-music-chrome-page.ts # 开发态系统 Chrome 页面控制
+│   │   ├── macos-lyrics-window.ts # macOS 桌面歌词的非激活交互
+│   │   ├── lyrics-native-backdrop.ts # 桌面歌词局部原生毛玻璃及回退
 │   │   ├── tray-manager.ts    #   系统托盘：显示/隐藏主窗口、播放控制与退出
 │   │   ├── font-manager.ts    #   枚举、归一化并缓存系统字体
 │   │   ├── safe-open.ts       #   外部链接协议白名单与安全打开
@@ -74,7 +77,7 @@ Mineradio-Next/
 │   ├── lib/                   # 纯逻辑/服务层（api、audio-engine、music-service、各算法纯函数）
 │   │                          # Apple Music 播放与频谱、离线缓存逻辑也在此
 │   ├── pages/                 # Explore / Library / Roam / Shuange / Toplist / Artist / Settings
-│   │                          # 另有 AppleChartPage 与 SearchPage
+│   │                          # 另有 ArtistSongsPage、AppleChartPage、SearchPage 与 ReleaseHistoryPage
 │   ├── components/            # 按域分目录：Layout/ Player/ Lyrics/ Explore/ Playlist/ Search/ Shelf/ Artist/ Roam/ Shuange/ Update/ Visualizer/ ui/
 │   ├── styles/                # tokens.css（全部设计 token）/ global.css / scroll-gradients.css
 │   ├── data/                  # default-fx-archive.json（FxParams 默认值，须与 public/ 存档格式互通）
@@ -102,8 +105,10 @@ Mineradio-Next/
 
 测试与源码同目录（`*.test.ts` / `*.test.tsx`），Vitest 直接运行，无独立 test 目录。测试已分布在 `server/`、`src/lib/`、`src/providers/`、`src/stores/`、`src/pages/`、`src/components/`、`electron/modules/` 与 `overlays/`；以 `rg --files -g '*.test.ts' -g '*.test.tsx'` 获取实时清单。
 
-## 历史文档
+## 文档分类
 
 - `docs/specs/`、`docs/superpowers/{specs,plans}/`：按日期命名的各次改版设计/计划文档，是理解历史意图的一手资料（只增不改）。
 - `docs/roadmap.md`、`docs/项目梳理-2026-07.md`：带日期的旧路线图与盘点，保留作历史记录，不作为当前实现事实来源。
 - `docs/netease-music-api.md`、`docs/qq-music-api.md`：上游接口逆向笔记（接口来源、参数、坑）。
+- `docs/reviews/`：各版本独立审查与实际验证记录；未完成验收的版本明确保留待验状态。
+- `docs/release-notes-*.md`：各版本发行说明，同时作为应用内离线更新日志的数据来源。
