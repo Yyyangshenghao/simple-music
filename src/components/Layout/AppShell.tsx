@@ -36,7 +36,7 @@ export function AppShell() {
     : view.type === 'playlist' ? view.from
     : view.type === 'toplist' ? 'toplist'
     : view.type === 'search' ? `search-${view.keyword}`
-    : `${view.type}-${String(view.id)}`
+    : `${view.type}-${view.source}-${String(view.id)}`
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
   const renderPage = () => {
@@ -49,7 +49,7 @@ export function AppShell() {
     if (typeof view === 'object' && view.type === 'search') return <SearchPage keyword={view.keyword} />
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage /> : <ToplistPage />
     if (typeof view === 'object' && view.type === 'artist') {
-      return <ArtistPage id={view.id} source={view.source} />
+      return <ArtistPage id={view.id} source={view.source} initialState={useNavigationStore.getState().artistPageState} />
     }
     if (typeof view === 'object' && view.type === 'artistSongs') {
       return <ArtistSongsPage id={view.id} source={view.source} />

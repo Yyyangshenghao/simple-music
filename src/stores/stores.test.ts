@@ -203,14 +203,15 @@ describe('navigation store direction', () => {
     const { useNavigationStore } = await import('./navigation')
     const artist = { type: 'artist' as const, id: 5346, source: 'netease' as const }
     const artistSongs = { type: 'artistSongs' as const, id: 5346, source: 'netease' as const }
-    useNavigationStore.setState({ currentView: artist, history: [], future: [], lastAction: 'push' })
+    const pageState = { tab: 'songs' as const, query: '', scrollTop: 0 }
+    useNavigationStore.setState({ currentView: artist, artistPageState: pageState, history: [], future: [], lastAction: 'push' })
 
     useNavigationStore.getState().navigateTo(artistSongs)
     expect(useNavigationStore.getState().currentView).toEqual(artistSongs)
-    expect(useNavigationStore.getState().history).toEqual([artist])
+    expect(useNavigationStore.getState().history).toEqual([{ ...artist, pageState }])
 
     useNavigationStore.getState().goBack()
-    expect(useNavigationStore.getState().currentView).toEqual(artist)
+    expect(useNavigationStore.getState().currentView).toEqual({ ...artist, pageState })
   })
 
   it('history 有上限：超限后丢最早的，避免内嵌 tracks 的视图无限堆积', async () => {
