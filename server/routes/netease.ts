@@ -502,7 +502,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const resp = await call('album', { id, cookie })
       const body = asObj(resp.body)
       const songs = asArr(body.songs || []).map(mapSongRecord).filter((s) => s.id && s.name)
-      sendJson(res, { songs })
+      sendJson(res, { songs, playlist: body.album ? mapAlbum(body.album) : null })
     } catch (err) {
       console.error('[AlbumSongs]', err)
       sendJson(res, { songs: [] }, 500)

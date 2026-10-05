@@ -36,8 +36,8 @@
 | `GET /api/qq/recommend/songs` | 猜你喜欢 | — | `music.radioProxy.MbTrackRadioSvr/get_radio_track` | `{ songs }`;服务端循环最多 4 次按 mid 去重凑够 20 首。**已实测**:数组在 `data.tracks`(命中既有候选),每项是扁平结构(`mid`/`name`/`singer`/`album`/`interval`/`file`/`pay` 直接在顶层),与 `mapQQPlaylistTrack` 现有解析天然兼容,无需额外映射 | 已用 |
 | `GET /api/qq/toplist` | 排行榜分组与 Top3 | — | `music.musicToplist.Toplist/GetAll` | `{ groups: ToplistGroup[] }`;榜单 ID 编码为 `qq-toplist:<topId>` | 已用 |
 | `GET /api/qq/toplist/preview` | 补拉榜单 Top3 | `id`(`qq-toplist:<topId>`) | `music.musicToplist.Toplist/GetDetail` | `{ preview }`;仅请求前 3 首,GetAll 已带预览时客户端不会调用 | 已用 |
-| `GET /api/qq/playlist/tracks` | 歌单全量曲目 | `id`(`disstid`/`qq-liked:201`/`qq-toplist:<topId>`) | 普通歌单与“我喜欢”走 `CgiGetDiss`,榜单走 `Toplist/GetDetail` | 服务端按上游分页取全并返回有序 `trackIds`/`tracks` | 已用 |
-| `GET /api/qq/artist/detail` | 歌手详情+热门曲目 | `mid`、`limit`(10~80) | `music.web_singer_info_svr/get_singer_detail_info` | `{ artist, songs, total }`;客户端与服务端统一传歌手 MID | 已用 |
+| `GET /api/qq/playlist/tracks` | 歌单全量曲目 | `id`(`disstid`/`qq-liked:201`/`qq-toplist:<topId>`) | 普通歌单与“我喜欢”走 `CgiGetDiss`,榜单走 `Toplist/GetDetail` | 服务端按上游分页取全并返回有序 `trackIds`/`tracks`；普通 ID 必须为正安全整数的十进制串，上游 `disstid` 转为 JSON 数字，非法 ID 返回 400 | 已用 |
+| `GET /api/qq/artist/detail` | 歌手详情+热门曲目 | `mid`、`limit`(10~80) | `music.web_singer_info_svr/get_singer_detail_info` | `{ artist, songs, total }`;客户端与服务端统一传歌手 MID；简介从 `data.singer_brief` 映射至 `artist.description` | 已用 |
 | `GET /api/qq/artist/similar` | 相似歌手 | `mid`、`limit`(1~30) | `music.SimilarSingerSvr/GetSimilarSingerList` | `{ artists }`;按歌手 MID 去重并排除当前歌手；上游失败返回 502，明确鉴权错误返回 401/403 | 已用 |
 | `GET /api/qq/search/artists` | 搜索歌手 | `keywords`、`limit`(1~10) | `music.search.SearchCgiService/DoSearchForQQMusicDesktop`(`search_type:1`) | `{ artists: [{id,mid,name,avatar,musicSize}] }`;该模块信封 key 须与 module 同名且不能带顶层 `comm`,已实测确认 | 已用 |
 | `GET /api/qq/artist/songs` | 歌手歌曲(分页) | `id`(singermid)、`limit`(1~100)、`offset` | `musichall.song_list_server/GetSingerSongList` | `{ total, songs: Track[] }` | 已用 |

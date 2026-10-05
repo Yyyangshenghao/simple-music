@@ -92,6 +92,11 @@ export class NeteaseMusicService implements MusicService {
     return res.songs ?? []
   }
 
+  async getAlbumDetail(id: unknown): Promise<Playlist | null> {
+    const res = await api.get<{ playlist?: Playlist | null }>('/api/netease/album/songs', { id: String(id) })
+    return res.playlist ?? null
+  }
+
   async getAlbumTracks(id: unknown): Promise<Track[]> {
     const res = await api.get<{ songs: Track[] }>('/api/netease/album/songs', { id: String(id) })
     return res.songs ?? []

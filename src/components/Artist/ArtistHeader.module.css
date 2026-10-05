@@ -45,3 +45,8 @@
 }
 
 .playAll:hover { opacity: 0.88; }
+
+.description { margin: 0 48px 24px; font-size: 13px; line-height: 1.7; color: var(--sm-text-secondary); }
+.description summary { cursor: pointer; }
+.description summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 4px; }
+.description p { white-space: pre-line; overflow-wrap: anywhere; }

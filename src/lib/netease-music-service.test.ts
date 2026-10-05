@@ -47,3 +47,17 @@ describe('网易云歌单变更检查', () => {
     expect(get).toHaveBeenCalledWith('/api/playlist/revision', { id: 'playlist-id' })
   })
 })
+
+describe('网易云专辑简介', () => {
+  afterEach(() => vi.restoreAllMocks())
+  it('复用已有专辑接口返回的详情，不从其他专辑拼接', async () => {
+    const playlist = { id: 123, source: 'netease', type: 'album', description: '专辑简介' }
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ playlist })
+    await expect(new NeteaseMusicService().getAlbumDetail(123)).resolves.toEqual(playlist)
+    expect(get).toHaveBeenCalledWith('/api/netease/album/songs', { id: '123' })
+  })
+  it('缺少专辑元信息时返回 null，保留原有页面摘要', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ songs: [] })
+    await expect(new NeteaseMusicService().getAlbumDetail(123)).resolves.toBeNull()
+  })
+})

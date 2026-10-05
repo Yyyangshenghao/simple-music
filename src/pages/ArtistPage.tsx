@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
-import { useNavigationStore } from '../stores/navigation'
+import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
 import { ArtistHeader } from '../components/Artist/ArtistHeader'
@@ -26,19 +26,25 @@ const TRACK_ROW_HEIGHT = 56
 interface ArtistPageProps {
   id: unknown
   source: 'netease' | 'qq' | 'apple'
+  initialState?: ArtistPageState
 }
 
-export function ArtistPage({ id, source }: ArtistPageProps) {
-  const [query, setQuery] = useState('')
+export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
+  const savedState = useRef(initialState)
+  const scrollRestored = useRef(false)
+  const [query, setQuery] = useState(initialState?.query ?? '')
   const searching = Boolean(query.trim())
   const [artist, setArtist] = useState<ArtistInfo | null>(null)
+  const [artistLoaded, setArtistLoaded] = useState(false)
   const [songs, setSongs] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Playlist[]>([])
+  const [songsLoaded, setSongsLoaded] = useState(false)
+  const [albumsLoaded, setAlbumsLoaded] = useState(false)
   const [similar, setSimilar] = useState<ArtistInfo[]>([])
   const [similarLoaded, setSimilarLoaded] = useState(false)
   const [similarError, setSimilarError] = useState(false)
   const [similarRetry, setSimilarRetry] = useState(0)
-  const [tab, setTab] = useState<ArtistTab>('songs')
+  const [tab, setTab] = useState<ArtistTab>(initialState?.tab ?? 'songs')
   const [scrolled, setScrolled] = useState(false)
   const [songsHasMore, setSongsHasMore] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -49,19 +55,50 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
     state.byId[source].enabled && state.byId[source].auth === 'authenticated'
   )
   const search = useArtistSearch(id, source, tab === 'songs' && searching && participating)
-  useEffect(() => { setQuery('') }, [id, source])
   const goBack = useNavigationStore((s) => s.goBack)
   const navigateTo = useNavigationStore((s) => s.navigateTo)
+  const updatePageState = useNavigationStore((s) => s.updateArtistPageState)
+
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node) return
+    const saveScroll = () => {
+      if (scrollRestored.current) updatePageState(id, source, { scrollTop: node.scrollTop })
+    }
+    const cancelRestore = () => {
+      scrollRestored.current = true
+      updatePageState(id, source, { scrollTop: node.scrollTop })
+    }
+    node.addEventListener('scroll', saveScroll, { passive: true })
+    node.addEventListener('wheel', cancelRestore, { passive: true })
+    node.addEventListener('touchmove', cancelRestore, { passive: true })
+    return () => {
+      node.removeEventListener('scroll', saveScroll)
+      node.removeEventListener('wheel', cancelRestore)
+      node.removeEventListener('touchmove', cancelRestore)
+    }
+  }, [id, source, updatePageState])
+
+  useLayoutEffect(() => {
+    const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
+    if (scrollRestored.current || !artistLoaded || !ready || !scrollRef.current) return
+    scrollRef.current.scrollTop = savedState.current?.scrollTop ?? 0
+    setScrolled(scrollRef.current.scrollTop > 8)
+    scrollRestored.current = true
+  }, [artistLoaded, tab, albumsLoaded, similarLoaded, songsLoaded, search.loading])
 
   useEffect(() => {
     // 快速连点歌手时，先发的请求可能后返回；用 cancelled 丢弃过期响应
     let cancelled = false
     setArtist(null); setSongs([]); setAlbums([])
+    setArtistLoaded(false)
+    setSongsLoaded(false); setAlbumsLoaded(false)
     setSongsHasMore(false)
     if (!participating) {
       return () => { cancelled = true }
     }
     void service.getArtistDetail(id).then((v) => { if (!cancelled) setArtist(v) }).catch(() => {})
+      .finally(() => { if (!cancelled) setArtistLoaded(true) })
     void (async () => {
       if (!service.getArtistSongsPage) {
         const list = await service.getArtistSongs(id)
@@ -94,8 +131,9 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
       if (cancelled) return
       setSongs(available.slice(0, ARTIST_SONG_PAGE_SIZE))
       setSongsHasMore(hasMore || skippedUnavailable || available.length > ARTIST_SONG_PAGE_SIZE)
-    })().catch(() => {})
+    })().catch(() => {}).finally(() => { if (!cancelled) setSongsLoaded(true) })
     void service.getArtistAlbums(id).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
+      .finally(() => { if (!cancelled) setAlbumsLoaded(true) })
     return () => { cancelled = true }
   }, [id, participating, service])
 
@@ -131,7 +169,12 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
     <button
       key={t}
       className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
-      onClick={() => setTab(t)}
+      aria-pressed={tab === t}
+      onClick={() => {
+        scrollRestored.current = true
+        setTab(t)
+        updatePageState(id, source, { tab: t, scrollTop: scrollRef.current?.scrollTop ?? 0 })
+      }}
     >
       {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
     </button>
@@ -191,7 +234,11 @@ export function ArtistPage({ id, source }: ArtistPageProps) {
 
       <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
         {tab === 'songs' ? (
-          <TrackSearch value={query} onChange={setQuery} placeholder="搜索该歌手的歌曲"
+          <TrackSearch value={query} onChange={(value) => {
+            scrollRestored.current = true
+            setQuery(value)
+            updatePageState(id, source, { query: value, scrollTop: scrollRef.current?.scrollTop ?? 0 })
+          }} placeholder="搜索该歌手的歌曲"
             count={displayedSongs.length} loading={search.loading} error={search.error} onRetry={search.retry}>
             <div className={styles.tabGroup}>{tabButtons}</div>
           </TrackSearch>
