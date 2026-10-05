@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   captureFrame: vi.fn(),
   windowEvents: new Map<string, (event: { preventDefault(): void }) => void>(),
   hide: vi.fn(),
+  showMessageBox: vi.fn(async () => ({ response: 2, checkboxChecked: false })),
   windows: [] as object[],
   registerIpc: vi.fn(),
   bootServer: vi.fn(async () => ({ port: 35530, token: 'test-token' })),
@@ -28,6 +29,7 @@ vi.mock('electron', () => ({
     on: (event: string, listener: (event?: { preventDefault(): void }) => void) => h.events.set(event, listener)
   },
   BrowserWindow: { getAllWindows: () => h.windows },
+  dialog: { showMessageBox: h.showMessageBox },
   screen: { on: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDisplayMediaRequestHandler: vi.fn() } }
 }))
@@ -48,10 +50,20 @@ async function flush() {
   await new Promise<void>((resolve) => setTimeout(resolve, 0))
 }
 
+async function bootWindows() {
+  vi.resetModules()
+  vi.stubGlobal('process', { ...process, platform: 'win32' })
+  h.windowEvents.clear()
+  h.registerIpc.mockImplementationOnce(() => {})
+  await import('./main')
+  await flush()
+}
+
 describe('主窗口激活恢复', () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
+    h.showMessageBox.mockResolvedValue({ response: 2, checkboxChecked: false })
     vi.stubGlobal('process', { ...process, platform: 'darwin' })
     h.events.clear()
     h.windowEvents.clear()
@@ -157,14 +169,100 @@ describe('主窗口激活恢复', () => {
     expect(preventDefault).toHaveBeenCalledTimes(2)
   })
 
-  it('Windows 关闭主窗口后退出，不被隐藏的 Apple Music 窗口阻塞', async () => {
-    vi.resetModules()
-    vi.stubGlobal('process', { ...process, platform: 'win32' })
-    h.windowEvents.clear()
-    h.registerIpc.mockImplementationOnce(() => {})
-    await import('./main')
+  it('Windows 关闭前询问，缩回托盘保留窗口和播放服务', async () => {
+    await bootWindows()
+    h.showMessageBox.mockResolvedValueOnce({ response: 0, checkboxChecked: false })
+    const win = h.main
+    const preventDefault = vi.fn()
+    h.windowEvents.get('close')!({ preventDefault })
     await flush()
-    expect(h.windowEvents.has('close')).toBe(false)
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(h.showMessageBox).toHaveBeenCalledWith(win, expect.objectContaining({
+      buttons: ['缩回托盘', '退出应用', '取消'], defaultId: 0, cancelId: 2
+    }))
+    expect(h.hide).toHaveBeenCalledOnce()
+    expect(h.main).toBe(win)
+    expect(app.quit).not.toHaveBeenCalled()
+    expect(h.shutdown).not.toHaveBeenCalled()
+  })
+
+  it('Windows 选择退出应用走现有退出入口，不直接销毁窗口', async () => {
+    await bootWindows()
+    h.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+    h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+    await flush()
+    expect(app.quit).toHaveBeenCalledOnce()
+    expect(h.hide).not.toHaveBeenCalled()
+  })
+
+  it('Windows 取消保留主窗口，下次关闭仍询问', async () => {
+    await bootWindows()
+    h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+    await flush()
+    expect(h.hide).not.toHaveBeenCalled()
+    expect(app.quit).not.toHaveBeenCalled()
+    h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+    await flush()
+    expect(h.showMessageBox).toHaveBeenCalledTimes(2)
+  })
+
+  it('Windows 连续关闭只显示一个询问框', async () => {
+    await bootWindows()
+    let finish!: (value: { response: number; checkboxChecked: boolean }) => void
+    h.showMessageBox.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const preventDefault = vi.fn()
+    h.windowEvents.get('close')!({ preventDefault })
+    h.windowEvents.get('close')!({ preventDefault })
+    expect(preventDefault).toHaveBeenCalledTimes(2)
+    expect(h.showMessageBox).toHaveBeenCalledOnce()
+    finish({ response: 2, checkboxChecked: false })
+    await flush()
+  })
+
+  it('Windows 主动退出时放行关闭，不再弹框', async () => {
+    await bootWindows()
+    h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    const preventDefault = vi.fn()
+    h.windowEvents.get('close')!({ preventDefault })
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(h.showMessageBox).not.toHaveBeenCalled()
+    expect(h.hide).not.toHaveBeenCalled()
+    expect(h.shutdown).toHaveBeenCalledOnce()
+  })
+
+  it.each(['退出中', '已销毁'])('Windows 询问期间窗口%s时丢弃结果', async (state) => {
+    await bootWindows()
+    let finish!: (value: { response: number; checkboxChecked: boolean }) => void
+    h.showMessageBox.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+    if (state === '退出中') h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    else h.main!.isDestroyed = () => true
+    finish({ response: 0, checkboxChecked: false })
+    await flush()
+    expect(h.hide).not.toHaveBeenCalled()
+  })
+
+  it('Windows 询问失败保留窗口并允许重试', async () => {
+    await bootWindows()
+    const error = new Error('dialog failed')
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      h.showMessageBox.mockRejectedValueOnce(error)
+      h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+      await flush()
+      expect(h.hide).not.toHaveBeenCalled()
+      expect(app.quit).not.toHaveBeenCalled()
+      expect(log).toHaveBeenCalledWith('Window close confirmation failed:', error)
+      h.windowEvents.get('close')!({ preventDefault: vi.fn() })
+      await flush()
+      expect(h.showMessageBox).toHaveBeenCalledTimes(2)
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  it('Windows 主窗口已关闭时仍退出，不被隐藏的 Apple Music 窗口阻塞', async () => {
+    await bootWindows()
     expect(h.windowEvents.has('closed')).toBe(true)
     h.windowEvents.get('closed')!({ preventDefault: vi.fn() })
     expect(app.quit).toHaveBeenCalledOnce()
