@@ -140,7 +140,6 @@ function playlistWriterCapability(service: MusicService, source: ProviderId): Pl
           return result ? { ...result, tracks: normalizeTracks(result.tracks, source) } : null
         }
       : undefined,
-    addPlaylistTracks: service.addPlaylistTracks ? (playlistId, ids, signal) => service.addPlaylistTracks!(playlistId, ids, signal) : undefined,
     createPlaylist: (name, opts) => service.createPlaylist!(name, opts),
     replacePlaylistTracks: (playlistId, currentTrackIds, newTrackIds) =>
       service.replacePlaylistTracks!(playlistId, currentTrackIds, newTrackIds),

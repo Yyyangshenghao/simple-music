@@ -204,14 +204,6 @@ export class NeteaseMusicService implements MusicService {
     }
   }
 
-  async addPlaylistTracks(playlistId: unknown, ids: unknown[], signal?: AbortSignal): Promise<boolean> {
-    if (!ids.length) return true
-    const res = await api.post<{ success?: boolean }>('/api/playlist/add-song', {
-      pid: String(playlistId), ids: [...new Set(ids.map(String))].join(','),
-    }, undefined, { signal })
-    return res.success === true
-  }
-
   async createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }> {
     const res = await api.post<{ playlist?: { id?: unknown } }>('/api/playlist/create', {
       name,

@@ -27,7 +27,7 @@
   - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存由独立的 `routes/audio-cache.ts` 管理；`/api/audio` 仍负责完整音频经过时的自动落盘，拖进度条的中段 Range 只透传。
-  - `/api/user/playlists` 标记本人非收藏、非特殊歌单为可写；`/api/playlist/add-song` 写前再次核对所有者与 Cookie 会话，只追加曲目，不以替换接口覆盖原内容。
+  - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。既有漫游保存使用的 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口。
 - **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json

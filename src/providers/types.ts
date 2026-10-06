@@ -128,7 +128,6 @@ export interface HistoryCapability {
 }
 
 export interface PlaylistWriterCapability {
-  addPlaylistTracks?(playlistId: unknown, ids: unknown[], signal?: AbortSignal): Promise<boolean>
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
   createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }>

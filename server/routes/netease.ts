@@ -726,7 +726,6 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           playCount: asNum(pl.playCount),
           creator: asStr(asObj(pl.creator).nickname),
           subscribed: !!pl.subscribed,
-          writable: !pl.subscribed && asNum(pl.specialType) === 0 && String(asObj(pl.creator).userId) === String(info.userId),
           specialType: asNum(pl.specialType),
           description: asStr(pl.description),
         }
