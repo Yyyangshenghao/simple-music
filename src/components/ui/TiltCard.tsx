@@ -10,6 +10,7 @@ interface TiltCardProps {
   className?: string
   /** 最大倾斜角（度），默认 8。 */
   maxTilt?: number
+  disabled?: boolean
 }
 
 /**
@@ -17,7 +18,7 @@ interface TiltCardProps {
  * 卡片内光斑跟随光标（--spot-x/--spot-y），hover 上浮 + 氛围辉光。
  * reduced-motion 时不绑指针事件，仅保留辉光。
  */
-export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
+export function TiltCard({ children, className, maxTilt = 8, disabled = false }: TiltCardProps) {
   const ref = useRef<HTMLDivElement>(null)
   const px = useMotionValue(0.5)
   const py = useMotionValue(0.5)
@@ -28,7 +29,7 @@ export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
   // 运行时响应系统「减弱动态」切换，或设置里手动关掉跟光倾斜
   const systemReducedMotion = useReducedMotion()
   const cardTiltEffect = useSettingsStore((s) => s.performance.cardTiltEffect)
-  const reducedMotion = !!systemReducedMotion || !cardTiltEffect
+  const reducedMotion = disabled || !!systemReducedMotion || !cardTiltEffect
 
   // 切换减弱动态/关闭跟光时复位姿态，避免卡在倾斜状态
   useEffect(() => {
@@ -59,8 +60,8 @@ export function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {
       ref={ref}
       className={`${styles.tilt} ${className ?? ''}`}
       style={{ rotateX, rotateY, transformPerspective: 800 }}
-      whileHover={{ y: -4, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={disabled ? undefined : { y: -4, scale: 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
       transition={springGentle}
       onPointerMove={reducedMotion ? undefined : onPointerMove}
       onPointerLeave={reducedMotion ? undefined : onPointerLeave}

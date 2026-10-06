@@ -14,14 +14,15 @@ interface PlaylistCardProps {
   onClick(): void
   /** 上游没有可靠曲目数时，可传入辅助信息；空字符串隐藏辅助文字。 */
   meta?: string
+  selectionMode?: boolean
   /** 传入时封面参与共享元素转场（与详情页头部封面同 ID）。 */
   layoutId?: string
 }
 
-export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId }: PlaylistCardProps) {
+export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId, selectionMode = false }: PlaylistCardProps) {
   const displayMeta = meta ?? (playlist.trackCountKnown === false ? '查看歌曲' : `${playlist.trackCount} 首`)
   return (
-    <TiltCard className={styles.glowWrap}>
+    <TiltCard className={styles.glowWrap} disabled={selectionMode}>
       <BorderGlow borderRadius={16}>
         <button
           className={`${styles.card} no-drag`}

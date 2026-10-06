@@ -19,6 +19,11 @@ import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
+import { useProviderStore } from '../../stores/providers'
+import { isProviderId } from '../../providers/types'
+import { providerAccountSession } from '../../lib/provider-account-session'
+import { useMultiSelection } from '../../hooks/useMultiSelection'
+import { SelectionCheck, SelectionMarquee, SelectionToggle } from './SelectionControls'
 import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
@@ -54,7 +59,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   })
   const [query, setQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const [searchAttempt, setSearchAttempt] = useState(0)
@@ -66,6 +70,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const isAlbum = playlist.type === 'album'
   const coverLayoutId = isAlbum ? `album-cover-${playlist.source}-${String(playlist.id)}` : `${layoutIdPrefix}-${String(playlist.id)}`
   const pageRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
@@ -122,16 +127,20 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   }, [searching, loading, error, ensureAll, searchAttempt])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
   const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
-  const selectedTracks = selectionQueue.filter((track) => selected.has(String(track.id)))
-  useEffect(() => { setSelecting(false); setSelected(new Set()) }, [playlist.id, playlist.source])
-  useEffect(() => { setSelected(new Set()) }, [query])
-  const toggleSelection = (track: Track) => setSelected((current) => {
-    const next = new Set(current)
-    const id = String(track.id)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
+  const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
+  const accountSignature = useProviderStore(state => isProviderId(playlist.source)
+    ? `${state.byId[playlist.source].enabled}:${state.byId[playlist.source].auth}:${providerAccountSession(playlist.source)}` : 'local')
+  const selection = useMultiSelection({
+    enabled: selecting,
+    keys: visibleSelectionTracks.map(track => String(track.id)),
+    disabledKeys: visibleSelectionTracks.filter(track => track.playable === false).map(track => String(track.id)),
+    resetKey: `${playlist.source}:${String(playlist.id)}:${query}:${accountSignature}`,
+    onExit: () => setSelecting(false),
+    virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
   })
+  const { selected } = selection
+  const selectedTracks = selectionQueue.filter((track) => selected.has(String(track.id)))
+  useEffect(() => { setSelecting(false) }, [playlist.id, playlist.source])
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
   useEffect(() => {
@@ -169,7 +178,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   return (
     <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
-      <div className={styles.inner}>
+      <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
         <div className={styles.detailHeader}>
           <motion.button
             className={`${styles.backBtn} no-drag`}
@@ -229,11 +238,11 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
           </div>
         </div>
         {!selecting && <BatchTrackActions label={isAlbum ? '整张专辑' : '整个歌单'} tracks={[]} collections={loading || error ? [] : [displayPlaylist]} />}
-        <div className={styles.selectionControls}>
-          <button type="button" disabled={loading || error} onClick={() => { setSelecting(!selecting); setSelected(new Set()) }}>{selecting ? '退出多选' : '多选歌曲'}</button>
-          {selecting && <><button type="button" onClick={() => setSelected(new Set(selectionQueue.filter((track, index) => track.playable !== false && (!searching || matches.includes(index))).map((track) => String(track.id))))}>全选当前列表</button><button type="button" onClick={() => setSelected(new Set())}>清空选择</button></>}
-        </div>
-        {selecting && <BatchTrackActions tracks={selectedTracks} onDone={() => setSelected(new Set())} />}
+        {!selecting && <div className={styles.selectionControls}>
+          <SelectionToggle active={false} disabled={loading || error} label="多选歌曲" onClick={() => setSelecting(true)} />
+        </div>}
+        {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
+          selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
         <TrackSearch
           value={query}
           onChange={setQuery}
@@ -253,6 +262,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
         ) : (
           <motion.div
             className={styles.trackList}
+            ref={listRef}
             variants={fadeRise}
             initial="hidden"
             animate="visible"
@@ -269,9 +279,9 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                 if (selecting) {
                   const item = selectionQueue[originalIndex]
                   if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
-                  return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))}>
-                    <input type="checkbox" aria-label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} onChange={() => toggleSelection(item)} />
-                    {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction index={i} onPlay={() => toggleSelection(item)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                  return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
+                    <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} />
+                    {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
                   </div>
                 }
                 return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
@@ -280,6 +290,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
           </motion.div>
         )}
       </div>
+      <SelectionMarquee rect={selection.marquee} />
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
     </motion.div>
   )

@@ -17,6 +17,7 @@ interface TrackRowProps {
   onPlay(): void
   disabled?: boolean
   statusLabel?: string
+  hideLikeAction?: boolean
   hideOfflineAction?: boolean
   hideCover?: boolean
 }
@@ -40,7 +41,7 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideCover = false }: TrackRowProps) {
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false }: TrackRowProps) {
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -126,7 +127,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
         </span>
       )}
-      {visible && !disabled && (
+      {visible && !disabled && !hideLikeAction && (
         <span
           className={`${styles.likeBtn} no-drag`}
           role="button"

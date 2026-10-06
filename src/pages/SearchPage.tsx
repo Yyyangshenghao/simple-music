@@ -12,6 +12,8 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
+import { useMultiSelection } from '../hooks/useMultiSelection'
+import { SelectionCheck, SelectionMarquee, SelectionToggle } from '../components/Playlist/SelectionControls'
 import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
 import { providerAccountSession } from '../lib/provider-account-session'
 import type { ArtistInfo, Playlist, Track } from '../types/domain'
@@ -31,7 +33,6 @@ export function SearchPage({ keyword }: { keyword: string }) {
   const [playlists, setPlaylists] = useState<Results<Playlist>>({})
   const [category, setCategory] = useState<Category>('all')
   const [selecting, setSelecting] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(null)
   const [retry, setRetry] = useState(0)
   const navigateTo = useNavigationStore((state) => state.navigateTo)
@@ -48,7 +49,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
     setArtists({})
     setAlbums({})
     setPlaylists({})
-    setSelected(new Set())
+    selection.clear()
     setSelecting(false)
     if (!keyword.trim()) return () => controller.abort()
     const sessions = new Map(sources.map((source) => [source, providerAccountSession(source)]))
@@ -100,16 +101,17 @@ export function SearchPage({ keyword }: { keyword: string }) {
     ...(category === 'all' || category === 'albums' ? visibleAlbums : []),
     ...(category === 'all' || category === 'playlists' ? visiblePlaylists : []),
   ]
+  const selection = useMultiSelection({
+    enabled: selecting,
+    keys: [...displayedTracks.map(trackKey), ...displayedCollections.map(collectionKey)],
+    disabledKeys: displayedTracks.filter(isCatalogUnavailable).map(trackKey),
+    resetKey: `${keyword}:${enabledSignature}:${category}:${activeFilter}`,
+    onExit: () => setSelecting(false),
+  })
+  const { selected } = selection
+  const selectableCount = displayedTracks.filter((track) => !isCatalogUnavailable(track)).length + displayedCollections.length
   const selectedTracks = displayedTracks.filter((track) => selected.has(trackKey(track)))
   const selectedCollections = displayedCollections.filter((item) => selected.has(collectionKey(item)))
-  function toggle(key: string) {
-    setSelected((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
 
   function playSong(track: Track) {
     if (isCatalogUnavailable(track)) return
@@ -120,7 +122,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
   return (
     <ScrollArea className={styles.page}>
-      <div className={styles.content}>
+      <div className={styles.content} ref={selection.rootRef} {...selection.surfaceProps}>
         <header className={styles.header}>
           <p className={styles.eyebrow}>聚合搜索</p>
           <h1>“{keyword}”<span>的搜索结果</span></h1>
@@ -128,9 +130,9 @@ export function SearchPage({ keyword }: { keyword: string }) {
         </header>
 
         <div className={styles.filters} role="group" aria-label="筛选搜索来源">
-          <button type="button" aria-pressed={!activeFilter} onClick={() => { setSourceFilter(null); setSelected(new Set()) }}>全部平台</button>
+          <button type="button" aria-pressed={!activeFilter} onClick={() => { setSourceFilter(null); selection.clear() }}>全部平台</button>
           {sources.map((source) => (
-            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => { setSourceFilter(source); setSelected(new Set()) }}>
+            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => { setSourceFilter(source); selection.clear() }}>
               <SourceBadge source={source} compact reveal />
               <span><SourceName source={source} /></span>
             </button>
@@ -139,16 +141,13 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
         {sources.length > 0 && <>
           <div className={styles.categories} role="group" aria-label="筛选搜索类型">
-            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => { setCategory(item); setSelected(new Set()); setSelecting(false) }}>{categories[item]}</button>)}
+            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => { setCategory(item); selection.clear(); setSelecting(false) }}>{categories[item]}</button>)}
           </div>
-          {category !== 'artists' && <div className={styles.selectionControls}>
-            <button type="button" aria-pressed={selecting} onClick={() => { setSelecting((value) => !value); setSelected(new Set()) }}>{selecting ? '退出多选' : '多选'}</button>
-            {selecting && <><button type="button" onClick={() => setSelected(new Set([
-              ...displayedTracks.filter((track) => !isCatalogUnavailable(track)).map(trackKey),
-              ...displayedCollections.map(collectionKey),
-            ]))}>全选当前结果</button><button type="button" onClick={() => setSelected(new Set())}>清空选择</button></>}
+          {category !== 'artists' && !selecting && <div className={styles.selectionControls}>
+            <SelectionToggle active={false} onClick={() => setSelecting(true)} />
           </div>}
-          {selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={() => setSelected(new Set())} />}
+          {selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
+            selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
         </>}
 
         {sources.length === 0 ? (
@@ -189,9 +188,9 @@ export function SearchPage({ keyword }: { keyword: string }) {
             {(category === 'all' || category === 'songs') && <section className={styles.section} aria-label="歌曲搜索结果" aria-busy={songsLoading}>
               <div className={styles.sectionHeading}><h2>歌曲 <span>{visibleSongs.length}</span></h2>{songsLoading && <span role="status">搜索中…</span>}</div>
               {visibleSongs.length > 0 ? visibleSongs.map((song, index) => (
-                <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))}>
-                  {selecting && <input type="checkbox" aria-label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} disabled={isCatalogUnavailable(song)} onChange={() => toggle(trackKey(song))} />}
-                  <TrackRow track={song} index={index} hideOfflineAction={selecting} onPlay={() => selecting ? toggle(trackKey(song)) : playSong(song)} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} />
+                <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
+                  {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} disabled={isCatalogUnavailable(song)} />}
+                  <TrackRow track={song} index={index} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} />
                 </div>
               )) : <p className={styles.hint}>{songsLoading ? '正在搜索各平台的歌曲…' : failures.some((item) => item.label === '歌曲') ? '部分平台未能完成歌曲搜索，请重试。' : '没有找到相关歌曲，试试歌曲名或歌手名。'}</p>}
             </section>}
@@ -203,9 +202,9 @@ export function SearchPage({ keyword }: { keyword: string }) {
               return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
                 <div className={styles.sectionHeading}><h2>{label} <span>{items.length}</span></h2>{loading && <span role="status">搜索中…</span>}</div>
                 {items.length ? <div className={styles.collectionGrid}>
-                  {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))}>
-                    {selecting && <label className={styles.cardCheck}><input type="checkbox" aria-label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} onChange={() => toggle(collectionKey(item))} /></label>}
-                    <PlaylistCard playlist={item} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => selecting ? toggle(collectionKey(item)) : navigateTo({ type: 'playlist', from: 'explore', playlist: item })} />
+                  {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
+                    {selecting && <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>}
+                    <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
                   </div>)}
                 </div> : <p className={styles.hint}>{loading ? `正在寻找相关${label}…` : failures.some((item) => item.label === label) ? `部分平台未能完成${label}搜索，请重试。` : `没有找到相关${label}，试试其他关键词。`}</p>}
               </section>
@@ -213,6 +212,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
           </>
         )}
       </div>
+      <SelectionMarquee rect={selection.marquee} />
     </ScrollArea>
   )
 }
