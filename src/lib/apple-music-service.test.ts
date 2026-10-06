@@ -24,6 +24,8 @@ describe('Apple Music service', () => {
     const service = new AppleMusicService()
     await service.searchTracks('测试 & / ? 😀')
     await service.searchArtists('艺人')
+    await service.searchAlbums('专辑')
+    await service.searchPlaylists('歌单')
     await service.getArtistDetail(123)
     await service.getArtistSongs(123)
     await service.getArtistAlbums(123)
@@ -40,7 +42,7 @@ describe('Apple Music service', () => {
     await service.getChartPlaylistsPage()
     await service.getStorefrontChartPlaylists()
     await service.getRecommendationGroups()
-    expect(paths).toHaveLength(19)
+    expect(paths).toHaveLength(21)
     expect(paths.some((path) => path.includes('/artists/123/view/top-songs'))).toBe(true)
   })
 
@@ -315,5 +317,20 @@ describe('Apple Music service', () => {
     const controller = new AbortController()
     controller.abort()
     await expect(appleMusicProvider.playback.resolve(mapAppleTrack(song('1')), 'max', controller.signal)).rejects.toThrow('Aborted')
+  })
+})
+
+
+describe('Apple 专辑和歌单搜索', () => {
+  it('搜索歌单缺少曲目关系时数量为未知，保留独立 charts 返回结构', async () => {
+    get.mockResolvedValueOnce({ storefront: 'cn' }).mockResolvedValueOnce({ results: { playlists: { data: [{ id: 'pl.one', type: 'playlists', attributes: { name: '歌单' } }] } } })
+    const result = await new AppleMusicService().searchPlaylists('测试 & 😀')
+    expect(result[0]).toMatchObject({ source: 'apple', type: 'playlist', trackCountKnown: false })
+    expect(String(get.mock.calls.at(-1)?.[1]?.path)).toContain('types=playlists')
+    expect(String(get.mock.calls.at(-1)?.[1]?.path)).toContain(encodeURIComponent('测试 & 😀'))
+  })
+  it('搜索专辑保留总数和来源，不把专辑当歌单', async () => {
+    get.mockResolvedValueOnce({ storefront: 'cn' }).mockResolvedValueOnce({ results: { albums: { data: [{ id: '123', type: 'albums', attributes: { name: '专辑', trackCount: 12 } }] } } })
+    expect((await new AppleMusicService().searchAlbums('关键词'))[0]).toMatchObject({ source: 'apple', type: 'album', trackCount: 12, trackCountKnown: true })
   })
 })

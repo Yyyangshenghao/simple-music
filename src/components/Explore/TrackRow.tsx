@@ -18,6 +18,7 @@ interface TrackRowProps {
   disabled?: boolean
   statusLabel?: string
   hideOfflineAction?: boolean
+  hideCover?: boolean
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
@@ -39,7 +40,7 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false }: TrackRowProps) {
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideCover = false }: TrackRowProps) {
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -90,7 +91,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           ? <EqIndicator paused={!isPlaying} />
           : <span className={styles.index}>{index + 1}</span>
       )}
-      {track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
+      {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
       <div className={styles.info}>
         <span className={styles.name}>{track.name}</span>
         <span className={styles.artistLine}>
@@ -111,16 +112,14 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
           onClick={(e) => {
             e.stopPropagation()
-            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
           onKeyDown={(e) => {
             if (e.key !== 'Enter' && e.key !== ' ') return
             e.preventDefault()
             e.stopPropagation()
-            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
         >

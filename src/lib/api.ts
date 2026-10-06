@@ -87,7 +87,7 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
     const res = await fetch(input, { ...fetchInit, signal: controller.signal })
     if (!res.ok) {
       // Apple Music 的配置、订阅和播放页错误由本地服务端转换为可操作的提示。
-      const body = source === 'apple'
+      const body = source === 'apple' || new URL(input, 'http://127.0.0.1').pathname.startsWith('/api/downloads/')
         ? await res.json().catch(() => null) as { error?: string } | null
         : null
       const message = body?.error || `HTTP ${res.status}`

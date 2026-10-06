@@ -130,6 +130,13 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
   return buildQueue(entry.trackIds, entry.tracks, playlist.source)
 }
 
+/** 追加歌曲后下次打开详情重新读取骨架。 */
+export function invalidatePlaylistCache(playlist: Playlist): void {
+  const key = `${playlist.source}:${String(playlist.id)}`
+  cache.delete(key)
+  skeletonVersions.delete(key)
+}
+
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   // 必须绑定歌单自身的 source：
   // 切换音源后仍留在旧歌单页/预览弹窗时,用错 service 会请求错音源接口,

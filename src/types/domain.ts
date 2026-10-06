@@ -70,6 +70,8 @@ export interface Playlist {
   trackCount: number
   /** 歌单列表未返回数量且尚未读取曲目关系时，避免把未知显示成 0。 */
   trackCountKnown?: boolean
+  /** 当前账号本人创建且可追加歌曲的普通歌单。 */
+  writable?: boolean
   playCount: number
   creator: string
   tag?: string

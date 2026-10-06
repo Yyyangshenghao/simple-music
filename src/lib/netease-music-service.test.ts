@@ -61,3 +61,24 @@ describe('网易云专辑简介', () => {
     await expect(new NeteaseMusicService().getAlbumDetail(123)).resolves.toBeNull()
   })
 })
+
+describe('网易云专辑歌单搜索与批量追加', () => {
+  afterEach(() => vi.restoreAllMocks())
+  it('分类使用各自接口', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ albums: [], playlists: [] })
+    const service = new NeteaseMusicService()
+    await service.searchAlbums('关键词')
+    await service.searchPlaylists('关键词')
+    expect(get).toHaveBeenCalledWith('/api/netease/search/albums', { keywords: '关键词' })
+    expect(get).toHaveBeenCalledWith('/api/netease/search/playlists', { keywords: '关键词' })
+  })
+  it('去重 ID 后追加，传递取消信号并检查业务成功标记', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ success: true })
+    const signal = new AbortController().signal
+    const service = new NeteaseMusicService()
+    await expect(service.addPlaylistTracks(123, [1, '1', 2], signal)).resolves.toBe(true)
+    expect(post).toHaveBeenCalledWith('/api/playlist/add-song', { pid: '123', ids: '1,2' }, undefined, { signal })
+    post.mockResolvedValue({ success: false })
+    await expect(service.addPlaylistTracks(123, [3])).resolves.toBe(false)
+  })
+})

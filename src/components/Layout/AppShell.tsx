@@ -1,10 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { pageTransition } from '../../lib/motion-presets'
 import { useNavigationStore } from '../../stores/navigation'
 import styles from './AppShell.module.css'
-import { OfflineSaveStatus } from './OfflineSaveStatus'
+import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
@@ -37,6 +37,7 @@ export function AppShell() {
     : view.type === 'toplist' ? 'toplist'
     : view.type === 'search' ? `search-${view.keyword}`
     : `${view.type}-${view.source}-${String(view.id)}`
+  const albumDetail = typeof view === 'object' && view.type === 'playlist' && view.playlist.type === 'album'
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
 
   const renderPage = () => {
@@ -55,6 +56,7 @@ export function AppShell() {
       return <ArtistSongsPage id={view.id} source={view.source} />
     }
     if (typeof view === 'object' && view.type === 'playlist') {
+      if (view.from !== 'library' && view.playlist.type === 'album') return <PlaylistDetailView playlist={view.playlist} initialTracks={view.tracks} layoutIdPrefix="explore-cover" />
       return view.from === 'library' ? <LibraryPage detail={view} /> : <ExplorePage detail={view} />
     }
     return <ExplorePage />
@@ -64,30 +66,31 @@ export function AppShell() {
     <div className={styles.shell}>
       {/* Suspense 必须在 motion.div 内:lazy 页首挂载的挂起若发生在 AnimatePresence
           子节点层,会打断旧页 exit,旧页永久滞留盖住新页(首次导航跳转失效) */}
-      <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-        <motion.div
-          key={viewKey}
-          className={styles.page}
-          custom={dir}
-          variants={pageVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={pageTransition}
-        >
-          <Suspense fallback={
-            <div className={styles.loading} role="status">
-              <span className={styles.loadingMark} aria-hidden="true">
-                <span /><span /><span />
-              </span>
-              <p>正在加载页面…</p>
-            </div>
-          }>
-            {renderPage()}
-          </Suspense>
-        </motion.div>
-      </AnimatePresence>
-      <OfflineSaveStatus />
+      <LayoutGroup>
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <motion.div
+            key={viewKey}
+            className={styles.page}
+            custom={dir}
+            variants={pageVariants}
+            initial={albumDetail ? false : "enter"}
+            animate="center"
+            exit="exit"
+            transition={pageTransition}
+          >
+            <Suspense fallback={
+              <div className={styles.loading} role="status">
+                <span className={styles.loadingMark} aria-hidden="true">
+                  <span /><span /><span />
+                </span>
+                <p>正在加载页面…</p>
+              </div>
+            }>
+              {renderPage()}
+            </Suspense>
+          </motion.div>
+        </AnimatePresence>
+      </LayoutGroup>
     </div>
   )
 }

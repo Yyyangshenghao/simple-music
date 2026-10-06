@@ -160,11 +160,9 @@ function OfflineSection({ open }: { open: boolean }) {
         <span className={styles.sectionStatus}>{label}</span>
       </div>
       <div className={styles.chips}>
-        {(!cacheStatus || cacheStatus.state === 'missing') && (
-          <button type="button" className={styles.chip} onClick={() => void useOfflineCacheStore.getState().save(track)}>
-            保存到本地
-          </button>
-        )}
+        <button type="button" className={styles.chip} onClick={() => void useOfflineCacheStore.getState().save(track)}>
+          下载歌曲
+        </button>
         {cacheStatus?.state === 'cached' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
             保留此缓存

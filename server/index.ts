@@ -2,8 +2,10 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerContext, RouteHandler } from './types'
+import { catalogSearchRoutes } from './routes/catalog-search'
 import { neteaseRoutes } from './routes/netease'
 import { audioCacheRoutes } from './routes/audio-cache'
+import { songDownloadRoutes } from './routes/song-downloads'
 import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
@@ -21,6 +23,8 @@ const chain: RouteHandler[] = [
   appleMusicBridgeRoutes,
   appleMusicRoutes,
   audioCacheRoutes,
+  songDownloadRoutes,
+  catalogSearchRoutes,
   neteaseRoutes,
   podcastRoutes,
   beatmapRoutes,

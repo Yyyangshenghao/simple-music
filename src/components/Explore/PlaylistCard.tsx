@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { motion } from 'motion/react'
 import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
-import { springGentle } from '../../lib/motion-presets'
+import { albumCoverTransition, springGentle } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistCard.module.css'
 import { sizedImage } from '../../lib/image-size'
@@ -28,7 +28,12 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
           onClick={onClick}
           aria-label={`${playlist.type === 'album' ? '专辑' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
         >
-          <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
+          <motion.div
+            className={styles.coverWrap}
+            layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
+            transition={playlist.type === 'album' ? albumCoverTransition : springGentle}
+            style={{ borderRadius: 12 }}
+          >
             {playlist.cover
               ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
               : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}

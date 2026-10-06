@@ -52,3 +52,16 @@
   .artistGrid { grid-template-columns: 1fr; }
   .errors { align-items: flex-start; flex-direction: column; }
 }
+
+.categories, .selectionControls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.categories button, .selectionControls button { padding: 8px 16px; border: 1px solid transparent; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font-size: 13px; cursor: pointer; }
+.categories button[aria-pressed='true'] { color: var(--sm-text-primary); background: var(--sm-fill-active); }
+.selectionControls button { border-color: var(--sm-border); }
+.selectableRow { display: flex; align-items: center; gap: 8px; border-radius: 10px; }
+.selectableRow > input { margin-left: 12px; }
+.selectableRow[data-selected='true'] { background: var(--sm-fill-active); }
+.collectionGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 20px; }
+.selectableCard { position: relative; min-width: 0; border-radius: 16px; }
+.selectableCard[data-selected='true'] { outline: 2px solid var(--sm-accent); outline-offset: 4px; }
+.cardCheck { position: absolute; top: 10px; right: 10px; z-index: 3; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--sm-bg-base); border-radius: 8px; }
+.selectableRow input, .cardCheck input { width: 16px; height: 16px; accent-color: var(--sm-accent); cursor: pointer; flex-shrink: 0; }

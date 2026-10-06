@@ -5,6 +5,7 @@ import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
+import { DownloadQueue } from './DownloadQueue'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
 import { SearchHistory } from '../Search/SearchHistory'
 import { loadSearchHistory, saveSearchHistory, pushTerm, removeTerm } from '../../lib/search-history'
@@ -403,6 +404,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
           )}
         </div>
 
+        <DownloadQueue />
         <div className={styles.avatarWrap}>
           <motion.button
             className={styles.avatarBtn}

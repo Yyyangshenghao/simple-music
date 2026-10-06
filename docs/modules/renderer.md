@@ -8,7 +8,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
-页面只在访问时加载，不再启动后集中预热。首次挂载等待模块时，转场内部的 Suspense 显示“正在加载页面…”及静态标记，避免空白等待。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题与字体仅在相关设置变化时写根节点样式。
+大多数页面只在访问时加载，不再启动后集中预热；专辑详情组件随主界面加载，使歌手页和搜索页首次打开专辑时能直接承接封面共享元素转场。其他页面首次挂载等待模块时，转场内部的 Suspense 显示“正在加载页面…”及静态标记，避免空白等待。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题与字体仅在相关设置变化时写根节点样式。
 
 ## stores(zustand,单文件单 store)
 
@@ -26,7 +26,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
 | `roam.ts` / `shuange.ts` | 漫游歌手图谱与保存歌单、刷歌会话/自适应推荐状态 |
 | `sleep-timer.ts` / `update.ts` | 睡眠定时状态机、应用更新检查/下载任务 |
-| `apple-music-connection.ts` / `offline-cache.ts` | Apple Music 登录、订阅及连接状态；在线单曲离线保存状态 |
+| `apple-music-connection.ts` / `offline-cache.ts` | Apple Music 登录、订阅及连接状态；网易/QQ 下载队列，三首并发、目录快照、字节进度、暂停、取消和重试，保留最多 100 条终态记录 |
 
 ## hooks(全局副作用,大多在 App.tsx 挂载一次)
 
@@ -77,6 +77,10 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 播放队列 `QueuePanel` 底部的 `QueueDiscovery` 提供 QQ“发现相似音乐”：当前曲目具备有效数字 `qqId`、QQ 已登录且启用时可见，展开后才调用可选 `catalog.getSimilarTracks()` / `getRelatedPlaylists()`。歌曲仅追加并防重复，不打断播放；歌单可换批或打开详情。切歌恢复收起，关闭/禁用后丢弃旧响应，两类推荐独立失败；歌单换批失败保留原列表并提供重试。Esc 关闭时仅在焦点仍位于队列内的情况下返回队列按钮，不抢走外部焦点。
 
+`SearchPage` 按歌曲、歌手、专辑和歌单独立搜索，支持来源及类别筛选；账号或参与平台变化后丢弃旧结果。歌曲与集合支持多选，`BatchTrackActions` 按显示顺序展开专辑/歌单、按来源和 ID 去重，追加队列而不打断当前播放。加入歌单仅提供同来源且本人可写的网易云歌单，复用追加接口；写入提交后继续完成并失效相关缓存。网易/QQ 歌曲、专辑和歌单支持批量下载，歌单占位曲目在任务开始时补全详情，Apple Music 不进入普通下载。专辑/歌单详情提供整批及歌曲多选入口；专辑曲目行隐藏封面，详情封面最大 240px，窄窗口自适应。
+
+顶栏 `DownloadQueue` 常驻下载入口，显示进度、等待及终态记录，支持暂停开始新任务、取消、重试和目录管理；关闭面板不停止下载，队列在当前运行期间保留。首次下载目录沿用旧缓存配置，再独立保存；改下载目录只影响新任务，完整缓存可直接导出为可读文件名和真实音频扩展名。设置将歌曲下载和播放器离线音频分别展示，清理缓存不删除导出文件。
+
 页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(在线歌单/收藏、最近播放、离线音乐、本地音乐)、`RoamPage`、`ShuangePage`、`ToplistPage`、`AppleChartPage`、`ArtistPage`、`ArtistSongsPage`、`SearchPage`、`SettingsPage` 与 `ReleaseHistoryPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。离线音乐独立于在线平台登录态，支持按标题、艺人或专辑搜索、按保存时间/标题/艺人排序、播放当前筛选列表与逐曲移除保存；移除只取消固定，文件保留为临时缓存。组件按域分目录:`Layout/`(WindowChrome、TopBar、AppShell 转场与背景层)、`Player/`、`Lyrics/`(LyricsPanel、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics)、`Explore/`、`Playlist/`、`Roam/`、`Shuange/`、`Search/`、`Shelf/`、`Visualizer/`、`Update/`、`ui/`。
 
 样式:CSS Modules 与组件同目录;设计 token 全部在 `src/styles/tokens.css`(`--sm-*` 基础、`--glass-*` 玻璃层级、`--ambient-*` 氛围色、`--audio-energy`)；氛围色与音频能量变量经 `@property` 注册，其余使用普通 CSS 自定义属性。`reduce-transparency` 开关(见 settings store)经 `App.tsx` 写 `data-reduce-transparency` 属性,tokens.css 内对应分支把玻璃 blur 降为纯色底、流体背景退化为静态霞光。
@@ -87,7 +91,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## 注意事项
 
-- 封面共享元素转场依赖 layoutId 约定 `explore-cover-*` / `library-cover-*`。
+- 封面共享元素转场依赖 layoutId 约定：专辑统一 `album-cover-${source}-${String(id)}`，普通歌单沿用 `explore-cover-*` / `library-cover-*`；滚动容器使用 `layoutScroll`，AppShell 统一 `LayoutGroup`。
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。

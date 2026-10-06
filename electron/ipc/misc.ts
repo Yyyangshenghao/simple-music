@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, app } from 'electron'
-import { writeFileSync, readFileSync, existsSync } from 'node:fs'
-import { resolve, sep, join } from 'node:path'
+import { writeFileSync, readFileSync, existsSync, promises as fs } from 'node:fs'
+import { resolve, sep, join, isAbsolute } from 'node:path'
 import { getMainWindow, setShortcutRecording } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
 import { configureSettingsMenu } from '../modules/settings-menu'
@@ -83,6 +83,18 @@ export function registerMiscIpc(): void {
       return { ok: true, filePath: result.filePaths[0] }
     } catch (e) {
       return { ok: false, error: (e as Error).message || 'SELECT_DIRECTORY_FAILED' }
+    }
+  })
+
+  ipcMain.handle('file:open-directory', async (_e, arg: { path?: unknown }): Promise<OkResult> => {
+    try {
+      if (typeof arg?.path !== 'string' || !isAbsolute(arg.path) || !(await fs.stat(arg.path)).isDirectory()) {
+        return { ok: false, error: 'INVALID_DIRECTORY' }
+      }
+      const error = await shell.openPath(arg.path)
+      return error ? { ok: false, error } : { ok: true }
+    } catch {
+      return { ok: false, error: 'OPEN_DIRECTORY_FAILED' }
     }
   })
 

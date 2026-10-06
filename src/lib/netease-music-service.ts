@@ -50,6 +50,16 @@ export class NeteaseMusicService implements MusicService {
     return (res.artists ?? []).map((a) => ({ ...a, source: 'netease' as const }))
   }
 
+  async searchAlbums(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ albums: Playlist[] }>('/api/netease/search/albums', { keywords: keyword })
+    return res.albums ?? []
+  }
+
+  async searchPlaylists(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/netease/search/playlists', { keywords: keyword })
+    return res.playlists ?? []
+  }
+
   async getSearchHotkeys(): Promise<string[]> {
     const res = await api.get<{ keywords?: string[] }>('/api/search/hotkeys')
     return res.keywords ?? []
@@ -192,6 +202,14 @@ export class NeteaseMusicService implements MusicService {
       if (msg === 'HTTP 404') return null
       throw err
     }
+  }
+
+  async addPlaylistTracks(playlistId: unknown, ids: unknown[], signal?: AbortSignal): Promise<boolean> {
+    if (!ids.length) return true
+    const res = await api.post<{ success?: boolean }>('/api/playlist/add-song', {
+      pid: String(playlistId), ids: [...new Set(ids.map(String))].join(','),
+    }, undefined, { signal })
+    return res.success === true
   }
 
   async createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }> {

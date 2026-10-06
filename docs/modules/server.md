@@ -19,12 +19,15 @@
 
 - **`routes/apple-music.ts`** + `lib/apple-music.ts`：`/api/apple-music/{status,config,catalog,logout,lyrics}`，负责账号状态、受限目录路径、歌词与配置；`routes/apple-music-bridge.ts` 管理官网播放器页面、会话状态和播放命令。发布版使用主进程官网会话，开发版受保护播放使用系统 Chrome。`/apple-music-bridge/*` 只接受独立播放器会话凭据，不应改为复用桌面 API token。
 - **`routes/audio-cache.ts`** + `lib/audio-cache.ts`：`/api/audio-cache/*` 的离线歌曲列表（`GET /api/audio-cache/library`，仅列主动保存的原始曲目）、批量状态、保存、固定/取消固定、文件读取、统计、清理与目录配置；仅用于经音频代理解析的在线直链，不缓存 Apple Music 受保护音频。
+- **`routes/song-downloads.ts`** + `lib/song-downloads.ts`：`/api/downloads/{config,export}`，下载目录独立保存在 `song-downloads.json`，首次沿用现有缓存目录；按索引校验歌曲归属后导出真实扩展名文件，同名不覆盖。导出不改缓存配置，播放器缓存清理不处理这些歌曲文件；`GET /api/audio-cache/progress` 提供保存中的字节进度，任务结束后移除记录。
+- **`routes/catalog-search.ts`**：网易云 `/api/search/{albums,playlists}` 和 QQ `/api/qq/search/{albums,playlists}`，仅映射各自上游目录结果；网易云搜索类型为 10/1000，QQ SearchCgiService 类型为 2/3。沿用公共 API 的 Origin/token 边界，失败不混入另一平台结果。
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
   - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`、`/api/netease/{banner,toplist,toplist/preview,record,recent/playlists,scrobble}`、`/api/netease/artist/{detail,songs,albums,similar}`、`/api/netease/album/songs`
   - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存由独立的 `routes/audio-cache.ts` 管理；`/api/audio` 仍负责完整音频经过时的自动落盘，拖进度条的中段 Range 只透传。
+  - `/api/user/playlists` 标记本人非收藏、非特殊歌单为可写；`/api/playlist/add-song` 写前再次核对所有者与 Cookie 会话，只追加曲目，不以替换接口覆盖原内容。
 - **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json

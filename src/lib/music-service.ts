@@ -11,6 +11,8 @@ export interface MusicService {
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>
+  searchAlbums?(keyword: string): Promise<Playlist[]>
+  searchPlaylists?(keyword: string): Promise<Playlist[]>
   /** 公开热搜词（可选；只作快捷填词，不预搜索）。 */
   getSearchHotkeys?(): Promise<string[]>
   getSimilarTracks?(track: Track): Promise<Track[]>
@@ -55,6 +57,8 @@ export interface MusicService {
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   /** 按 id 取歌单当前 meta(含 description)+ 全部曲目（可选;仅网易实现）。找不到返回 null。 */
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
+  /** 追加到本人普通歌单，不删除或替换原曲目。 */
+  addPlaylistTracks?(playlistId: unknown, ids: unknown[], signal?: AbortSignal): Promise<boolean>
   /** 建歌单,返回新歌单 id（可选;仅网易实现）。 */
   createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
   /** 清空歌单当前曲目并替换为新的一批（可选;仅网易实现）。 */

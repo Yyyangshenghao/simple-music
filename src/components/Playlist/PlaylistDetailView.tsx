@@ -2,7 +2,7 @@
 // 全骨架懒加载(useLazyPlaylist)+ 虚拟列表(VirtualList),未加载行显示 shimmer 占位。
 // 播放任意一行时按完整 trackIds 入队,未加载详情的为 pending 占位曲目。
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
@@ -17,8 +17,9 @@ import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
-import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
+import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
+import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
@@ -32,11 +33,11 @@ interface PlaylistDetailViewProps {
   layoutIdPrefix: string
 }
 
-function SkeletonTrackRow({ index }: { index: number }) {
+function SkeletonTrackRow({ index, hideCover }: { index: number; hideCover?: boolean }) {
   return (
     <div className={styles.skeletonRow} aria-hidden="true">
       <span className={styles.skeletonIndex}>{index + 1}</span>
-      <span className={styles.skeletonCover} />
+      {!hideCover && <span className={styles.skeletonCover} />}
       <span className={styles.skeletonLines}>
         <i />
         <i />
@@ -52,6 +53,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       && view.playlist.source === playlist.source && String(view.playlist.id) === String(playlist.id)
   })
   const [query, setQuery] = useState('')
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const [searchAttempt, setSearchAttempt] = useState(0)
@@ -60,6 +63,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const refreshInFlight = useRef(false)
   const checkInFlight = useRef(false)
   const searching = Boolean(query.trim())
+  const isAlbum = playlist.type === 'album'
+  const coverLayoutId = isAlbum ? `album-cover-${playlist.source}-${String(playlist.id)}` : `${layoutIdPrefix}-${String(playlist.id)}`
   const pageRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
@@ -116,6 +121,17 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     return () => { cancelled = true }
   }, [searching, loading, error, ensureAll, searchAttempt])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
+  const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
+  const selectedTracks = selectionQueue.filter((track) => selected.has(String(track.id)))
+  useEffect(() => { setSelecting(false); setSelected(new Set()) }, [playlist.id, playlist.source])
+  useEffect(() => { setSelected(new Set()) }, [query])
+  const toggleSelection = (track: Track) => setSelected((current) => {
+    const next = new Set(current)
+    const id = String(track.id)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
   useEffect(() => {
@@ -151,7 +167,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   if (!available) return null
 
   return (
-    <div className={styles.page} ref={pageRef} onScroll={handleScroll}>
+    <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
       <div className={styles.inner}>
         <div className={styles.detailHeader}>
@@ -179,23 +195,16 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             <span>返回</span>
           </motion.button>
           <div className={styles.detailMeta}>
-            {displayCover ? (
-              <motion.img
-                className={styles.detailCover}
-                src={sizedImage(displayCover, 176)}
-                alt=""
-                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
-                transition={springGentle}
-              />
-            ) : (
-              <motion.div
-                className={styles.detailCover}
-                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
-                transition={springGentle}
-              >
-                <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />
-              </motion.div>
-            )}
+            <motion.div
+              className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
+              layoutId={coverLayoutId}
+              transition={isAlbum ? albumCoverTransition : springGentle}
+              style={{ borderRadius: isAlbum ? 16 : 12 }}
+            >
+              {displayCover
+                ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
+                : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
+            </motion.div>
             <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
               <h1 className={styles.detailTitle}>
                 <GradientText>{displayPlaylist.name}</GradientText>
@@ -219,10 +228,16 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             </motion.div>
           </div>
         </div>
+        {!selecting && <BatchTrackActions label={isAlbum ? '整张专辑' : '整个歌单'} tracks={[]} collections={loading || error ? [] : [displayPlaylist]} />}
+        <div className={styles.selectionControls}>
+          <button type="button" disabled={loading || error} onClick={() => { setSelecting(!selecting); setSelected(new Set()) }}>{selecting ? '退出多选' : '多选歌曲'}</button>
+          {selecting && <><button type="button" onClick={() => setSelected(new Set(selectionQueue.filter((track, index) => track.playable !== false && (!searching || matches.includes(index))).map((track) => String(track.id))))}>全选当前列表</button><button type="button" onClick={() => setSelected(new Set())}>清空选择</button></>}
+        </div>
+        {selecting && <BatchTrackActions tracks={selectedTracks} onDone={() => setSelected(new Set())} />}
         <TrackSearch
           value={query}
           onChange={setQuery}
-          placeholder="搜索歌单内的歌曲或歌手"
+          placeholder={isAlbum ? "搜索专辑内的歌曲或歌手" : "搜索歌单内的歌曲或歌手"}
           count={searching ? matches.length : total}
           loading={searchLoading || loading}
           error={searchError}
@@ -251,13 +266,21 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               renderRow={(i) => {
                 const originalIndex = searching ? matches[i] : i
                 const t = tracks[originalIndex]
-                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} />
+                if (selecting) {
+                  const item = selectionQueue[originalIndex]
+                  if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                  return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))}>
+                    <input type="checkbox" aria-label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} onChange={() => toggleSelection(item)} />
+                    {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction index={i} onPlay={() => toggleSelection(item)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                  </div>
+                }
+                return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
               }}
             />
           </motion.div>
         )}
       </div>
       <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
-    </div>
+    </motion.div>
   )
 }

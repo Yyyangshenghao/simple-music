@@ -22,6 +22,8 @@ import { audioContentTypeForUrl, audioProxyHeadersFor } from '../lib/netease-cli
 
 type OnlineSource = 'netease' | 'qq'
 
+const saveProgress = new Map<string, { receivedBytes: number; totalBytes: number }>()
+
 function isOnlineSource(value: unknown): value is OnlineSource {
   return value === 'netease' || value === 'qq'
 }
@@ -78,6 +80,12 @@ function mutationStatus(error: string): number {
 export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
 
+  if (pn === '/api/audio-cache/progress' && req.method === 'GET') {
+    const id = url.searchParams.get('id') || ''
+    sendJson(res, saveProgress.get(`${ctx.userDataDir}:${id}`) ?? {})
+    return true
+  }
+
   if (pn === '/api/audio-cache/library' && req.method === 'GET') {
     sendJson(res, { items: await listSavedAudioCache(ctx.userDataDir) })
     return true
@@ -128,6 +136,13 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
     }
 
     const aborter = new AbortController()
+    const progressId = typeof body.progressId === 'string' && /^[a-z0-9-]{1,64}$/i.test(body.progressId) ? body.progressId : ''
+    const progressKey = progressId ? `${ctx.userDataDir}:${progressId}` : ''
+    const reportProgress = (receivedBytes: number, totalBytes: number) => {
+      if (!progressKey) return
+      if (!saveProgress.has(progressKey) && saveProgress.size >= 256) return
+      saveProgress.set(progressKey, { receivedBytes, totalBytes })
+    }
     const onClose = () => aborter.abort()
     res.once('close', onClose)
     let writer: Awaited<ReturnType<typeof openAudioCacheWriter>> = null
@@ -159,10 +174,14 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
       writer = await openAudioCacheWriter(ctx.userDataDir, cacheKey, context)
       if (!writer) throw new Error('CACHE_BUSY')
       await writer.write(first.value)
+      let receivedBytes = first.value.byteLength
+      reportProgress(receivedBytes, expectedBytes)
       while (true) {
         const chunk = await reader.read()
         if (chunk.done) break
         await writer.write(chunk.value)
+        receivedBytes += chunk.value.byteLength
+        reportProgress(receivedBytes, expectedBytes)
       }
       const committed = await writer.commit()
       writer = null
@@ -176,6 +195,7 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { ok: false, error: message }, message === 'CACHE_BUSY' ? 409 : 502)
       }
     } finally {
+      if (progressKey) saveProgress.delete(progressKey)
       res.off('close', onClose)
     }
     return true

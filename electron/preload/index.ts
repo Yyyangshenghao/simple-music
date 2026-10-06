@@ -90,6 +90,7 @@ const api = {
   importJson: (): Promise<ImportResult> => ipcRenderer.invoke('file:import-json'),
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
+  openDirectory: (path: string): Promise<OkResult> => ipcRenderer.invoke('file:open-directory', { path }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
   installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })

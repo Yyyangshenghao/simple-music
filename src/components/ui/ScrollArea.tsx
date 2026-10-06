@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { motion } from 'motion/react'
 import styles from './ScrollArea.module.css'
 
 interface ScrollAreaProps {
@@ -134,9 +135,9 @@ export function ScrollArea({ children, className, scrollRef, onScrolledChange }:
 
   return (
     <div className={styles.root}>
-      <div ref={nodeRef} className={`${styles.viewport} ${className ?? ''}`}>
+      <motion.div layoutScroll ref={nodeRef} className={`${styles.viewport} ${className ?? ''}`}>
         {children}
-      </div>
+      </motion.div>
       <div className={`${styles.track} ${visible || dragging ? styles.visible : ''} ${thumb.height > 0 ? '' : styles.hidden}`} aria-hidden="true">
         <div
           ref={thumbRef}

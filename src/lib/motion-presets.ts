@@ -29,3 +29,6 @@ export const fadeRise: Variants = {
   hidden: { opacity: 0, y: 14 },
   visible: { opacity: 1, y: 0 }
 }
+
+/** 专辑封面连续移动并放大，使用高阻尼避免落位后弹跳。 */
+export const albumCoverTransition: Transition = { type: 'spring', stiffness: 170, damping: 28, mass: 1 }
