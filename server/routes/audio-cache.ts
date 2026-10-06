@@ -218,11 +218,11 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
     const body = await bodyOf(req)
     const origin = originFrom(body.origin)
     const entryId = typeof body.entryId === 'string' ? body.entryId : ''
-    if (!origin || !entryId) {
+    if (!origin || !entryId || (body.savedAt !== undefined && (typeof body.savedAt !== 'number' || !Number.isFinite(body.savedAt) || body.savedAt < 0))) {
       sendJson(res, { ok: false, error: 'INVALID_CACHE_ENTRY' }, 400)
       return true
     }
-    const result = await deleteAudioCacheEntry(ctx.userDataDir, entryId, origin, body.confirmShared === true)
+    const result = await deleteAudioCacheEntry(ctx.userDataDir, entryId, origin, body.confirmShared === true, body.savedAt as number | undefined)
     sendJson(res, result, result.ok ? 200 : mutationStatus(result.error))
     return true
   }

@@ -19,9 +19,11 @@ interface Props {
   onSelect?(): void
   selection?: { total: number; onSelectAll(): void; onClear(): void; onExit(): void }
   onDone?(): void
+  offline?: boolean
+  onDelete?(signal: AbortSignal): Promise<void>
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, floating = false, menuLabel = '更多操作', onSelect, selection, onDone }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, floating = false, menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -30,10 +32,10 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const operation = useRef<AbortController | null>(null)
-  const accountSignature = useProviderStore((state) => PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
+  const accountSignature = useProviderStore((state) => offline ? '' : PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
   const signature = [...tracks, ...collections].map((item) => `${item.source}:${item.type}:${String(item.id)}`).join('|')
   const sourceSet = new Set([...tracks, ...collections].map((item) => item.source))
-  const canSave = sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq')
+  const canSave = !offline && (sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq'))
   const count = tracks.length + collections.length
 
   useEffect(() => {
@@ -106,9 +108,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
 
   const commands = <>
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
-      const resolved = await resolveBatchTracks(tracks, collections, signal)
+      const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return
-      const added = usePlaylistStore.getState().addManyToQueue(resolved)
+      const added = usePlaylistStore.getState().addManyToQueue(resolved, offline)
       useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含所选歌曲')
       onDone?.()
     })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h7m7-3v8m-4-4h8" strokeLinecap="round" /></svg>添加到播放队列</button>
@@ -120,6 +122,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
       useToastStore.getState().show(added ? `${added} 首已加入下载队列` : '所选歌曲已在下载队列中')
       onDone?.()
     })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 18v3h14v-3" strokeLinecap="round" strokeLinejoin="round" /></svg>批量下载</button>}
+    {onDelete && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onDelete)}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" strokeLinecap="round" strokeLinejoin="round" /></svg>批量删除
+    </button>}
     {busy && <><span className={styles.processing} role="status">处理中…</span><button type="button" role={compact ? 'menuitem' : undefined} onClick={() => { operation.current?.abort(); setBusy(false); if (compact) closeMenu() }}>取消操作</button></>}
   </>
 

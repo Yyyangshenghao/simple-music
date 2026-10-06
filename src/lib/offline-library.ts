@@ -24,6 +24,26 @@ export async function fetchOfflineLibrary(signal?: AbortSignal): Promise<Offline
   return result.items
 }
 
+/** 顺序删除已确认的离线列表快照；取消后不再开始后续请求，部分失败不阻断其他歌曲。 */
+export async function deleteOfflineLibraryItems(items: OfflineLibraryItem[], signal: AbortSignal): Promise<{
+  removed: OfflineLibraryItem[]; failed: OfflineLibraryItem[]; cancelled: boolean
+}> {
+  const removed: OfflineLibraryItem[] = []
+  const failed: OfflineLibraryItem[] = []
+  const unique = new Map(items.map(item => [`${item.origin.source}:${item.origin.id}`, item]))
+  for (const item of unique.values()) {
+    if (signal.aborted) break
+    try {
+      await api.post('/api/audio-cache/delete', { entryId: item.entryId, origin: item.origin, savedAt: item.savedAt }, undefined, { signal })
+      removed.push(item)
+    } catch {
+      if (signal.aborted) break
+      failed.push(item)
+    }
+  }
+  return { removed, failed, cancelled: signal.aborted }
+}
+
 export function offlineLibraryTrack(item: OfflineLibraryItem): Track {
   return {
     ...item.origin,

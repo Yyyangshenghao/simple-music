@@ -44,7 +44,7 @@ interface PlaylistStore {
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
   addToQueue(track: Track): void
-  addManyToQueue(tracks: Track[]): number
+  addManyToQueue(tracks: Track[], offline?: boolean): number
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
   moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
   playNextInQueue(index: number): void
@@ -163,12 +163,13 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     }))
   },
 
-  addManyToQueue(tracks) {
+  addManyToQueue(tracks, offline = false) {
     const state = get()
     const known = new Set(state.queue.map((track) => `${track.source}:${String(track.id)}`))
     const incoming = tracks.filter((track) => {
       const key = `${track.source}:${String(track.id)}`
-      if (known.has(key) || track.playable === false || (isProviderId(track.source) && !isProviderParticipating(track.source))) return false
+      // 离线列表已确认网易/QQ 文件可用，不要求账号参与；Apple 仍依赖官网会话。
+      if (known.has(key) || track.playable === false || ((!offline || track.source === 'apple') && isProviderId(track.source) && !isProviderParticipating(track.source))) return false
       known.add(key)
       return true
     })

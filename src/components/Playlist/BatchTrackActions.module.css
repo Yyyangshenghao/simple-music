@@ -25,6 +25,7 @@
 .bar button:disabled { opacity: .35; cursor: default; }
 .bar .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); border-color: transparent; }
 .bar .primary:hover { opacity: .85; }
+.bar .danger { color: var(--sm-color-danger); }
 .selectionTools button { border: 0; background: none; color: var(--sm-text-secondary); padding: 0 8px; }
 .bar .exit { width: 32px; min-height: 32px; padding: 0; flex-shrink: 0; border: 0; background: none; color: var(--sm-text-secondary); }
 .processing { font-size: 11px; color: var(--sm-text-secondary); }

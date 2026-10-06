@@ -23,4 +23,14 @@ describe('批量追加队列', () => {
     expect(usePlaylistStore.getState().addManyToQueue([{ ...track, id: 3, playable: false }, { ...track, provider: 'qq', source: 'qq' }, { ...track, provider: 'local', source: 'local' }])).toBe(1)
     expect(usePlaylistStore.getState().queue.at(-1)?.source).toBe('local')
   })
+  it('离线网易/QQ 在未登录或禁用平台时仍可追加，Apple 与不可播歌曲仍受限制', () => {
+    useProviderStore.setState((state) => ({ byId: { ...state.byId,
+      netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: true, auth: 'expired' }, apple: { enabled: false, auth: 'anonymous' },
+    } }))
+    const incoming: Track[] = [{ ...track, id: 3 }, { ...track, provider: 'qq', source: 'qq' }, { ...track, provider: 'apple', source: 'apple' }, { ...track, id: 4, playable: false }]
+    expect(usePlaylistStore.getState().addManyToQueue(incoming)).toBe(0)
+    expect(usePlaylistStore.getState().addManyToQueue(incoming, true)).toBe(2)
+    expect(usePlaylistStore.getState()).toMatchObject({ queueIndex: 1, queueContextId: 'album', shuffleOrder: [1, 0, 2, 3] })
+    expect(usePlaylistStore.getState().queue.map(item => `${item.source}:${String(item.id)}`)).toEqual(['netease:1', 'netease:2', 'netease:3', 'qq:1'])
+  })
 })

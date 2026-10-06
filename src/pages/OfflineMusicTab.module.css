@@ -44,3 +44,10 @@
 .row > :first-child { flex: 1; min-width: 0; }
 .row > :last-child { flex-shrink: 0; }
 .row > :last-child:disabled { opacity: 0.5; cursor: default; }
+
+.root[data-selecting='true'] { user-select: none; }
+.selectableRow { display: flex; align-items: center; height: 56px; gap: 10px; border-radius: 12px; transition: background 140ms; }
+.selectableRow > button[role='checkbox'] { margin-left: 12px; }
+.selectableRow > button:not([role='checkbox']) { flex: 1; min-width: 0; }
+.selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); }
+@media (prefers-reduced-motion: reduce) { .selectableRow { transition: none; } }

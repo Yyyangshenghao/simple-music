@@ -19,6 +19,7 @@
 
 - **`routes/apple-music.ts`** + `lib/apple-music.ts`：`/api/apple-music/{status,config,catalog,logout,lyrics}`，负责账号状态、受限目录路径、歌词与配置；`routes/apple-music-bridge.ts` 管理官网播放器页面、会话状态和播放命令。发布版使用主进程官网会话，开发版受保护播放使用系统 Chrome。`/apple-music-bridge/*` 只接受独立播放器会话凭据，不应改为复用桌面 API token。
 - **`routes/audio-cache.ts`** + `lib/audio-cache.ts`：`/api/audio-cache/*` 的离线歌曲列表（`GET /api/audio-cache/library`，仅列主动保存的原始曲目）、批量状态、保存、固定/取消固定、文件读取、统计、清理与目录配置；仅用于经音频代理解析的在线直链，不缓存 Apple Music 受保护音频。
+  - 离线列表批量删除逐项调用 `POST /api/audio-cache/delete`，携带原始曲目、索引 ID 与 `savedAt` 快照；在索引锁内校验，过期保存拒绝删除。其他主动保存的歌曲共用同一音频时只取消所选保存，最后一个保存才删除内部文件；读写中的文件拒绝物理删除。该路径不处理独立导出的歌曲文件。
 - **`routes/song-downloads.ts`** + `lib/song-downloads.ts`：`/api/downloads/{config,export}`，下载目录独立保存在 `song-downloads.json`，桌面应用首次配置默认使用系统音乐目录下的 `Simple Music` 文件夹，系统目录不可用或不可写时沿用缓存位置；已有下载配置（包括与缓存同目录的配置）保留，损坏或不可读的配置不自动改写；按索引校验歌曲归属后导出真实扩展名文件，同名不覆盖。导出不改缓存配置，播放器缓存清理不处理这些歌曲文件；`GET /api/audio-cache/progress` 提供保存中的字节进度，任务结束后移除记录。
 - **`routes/catalog-search.ts`**：网易云 `/api/search/{albums,playlists}` 和 QQ `/api/qq/search/{albums,playlists}`，仅映射各自上游目录结果；网易云搜索类型为 10/1000，QQ SearchCgiService 类型为 2/3。沿用公共 API 的 Origin/token 边界，失败不混入另一平台结果。
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):

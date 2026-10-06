@@ -978,7 +978,8 @@ export async function deleteAudioCacheEntry(
   userDataDir: string,
   entryId: string,
   originInput: Pick<AudioCacheOriginInput, 'source' | 'id'>,
-  confirmShared = false
+  confirmShared = false,
+  expectedSavedAt?: number
 ): Promise<CacheMutationResult> {
   const origin = normalizeOrigin(originInput as AudioCacheOriginInput)
   if (!origin) return { ok: false, error: 'NOT_FOUND' }
@@ -989,8 +990,15 @@ export async function deleteAudioCacheEntry(
     const entry = index.entries[entryId]
     if (!entry || entry.legacy) return { ok: false, error: 'NOT_FOUND' }
     const key = originKey(origin)
-    if (!entry.origins.some((item) => originKey(item) === key)) return { ok: false, error: 'NOT_FOUND' }
+    const alias = entry.origins.find((item) => originKey(item) === key)
+    if (!alias || (expectedSavedAt != null && alias.savedAt !== expectedSavedAt)) return { ok: false, error: 'NOT_FOUND' }
     const otherSaved = entry.origins.filter((item) => item.savedAt != null && originKey(item) !== key).length
+    // 按离线列表快照删除时，只移除所选保存；其他歌曲仍使用的共享音频必须保留。
+    if (expectedSavedAt != null && otherSaved > 0) {
+      alias.savedAt = undefined
+      await writeIndex(dir, index)
+      return { ok: true }
+    }
     if (otherSaved > 0 && !confirmShared) {
       return { ok: false, error: 'CACHE_SHARED', savedAliasCount: savedAliasCount(entry) }
     }
