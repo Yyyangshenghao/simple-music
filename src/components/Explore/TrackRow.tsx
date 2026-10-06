@@ -25,7 +25,7 @@ interface TrackRowProps {
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
 function EqIndicator({ paused }: { paused: boolean }) {
   return (
-    <span className={`${styles.eq}${paused ? ` ${styles.eqPaused}` : ''}`} data-track-index="" aria-hidden="true">
+    <span className={`${styles.eq}${paused ? ` ${styles.eqPaused}` : ''}`} aria-hidden="true">
       <i /><i /><i />
     </span>
   )
@@ -90,7 +90,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
       {index !== undefined && (
         isCurrent
           ? <EqIndicator paused={!isPlaying} />
-          : <span className={styles.index} data-track-index="">{index + 1}</span>
+          : <span className={styles.index}>{index + 1}</span>
       )}
       {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
       <div className={styles.info}>

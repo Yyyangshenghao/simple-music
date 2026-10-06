@@ -7,7 +7,6 @@ interface Options {
   disabledKeys?: string[]
   resetKey: string
   onExit(): void
-  onEnter?(): void
   virtual?: { listRef: RefObject<HTMLDivElement>; rowHeight: number }
 }
 
@@ -16,7 +15,6 @@ export function useMultiSelection(options: Options) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [marquee, setMarquee] = useState<SelectionRect | null>(null)
   const anchor = useRef<string | null>(null)
-  const initialSelection = useRef<{ key: string; resetKey: string } | null>(null)
   const finish = useRef<(() => void) | null>(null)
   const suppressClick = useRef(false)
   const current = useRef({ options, selected })
@@ -25,11 +23,8 @@ export function useMultiSelection(options: Options) {
 
   useEffect(() => {
     finish.current?.()
-    const initial = initialSelection.current
-    initialSelection.current = null
-    const key = options.enabled && initial?.resetKey === options.resetKey && allowedKeys().includes(initial.key) ? initial.key : null
-    setSelected(new Set(key ? [key] : []))
-    anchor.current = key
+    setSelected(new Set())
+    anchor.current = null
     return () => { finish.current?.() }
   }, [options.enabled, options.resetKey])
   useEffect(() => {
@@ -48,8 +43,7 @@ export function useMultiSelection(options: Options) {
   function exit() { finish.current?.(); clear(); current.current.options.onExit() }
 
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
-    const { enabled, onEnter, resetKey } = current.current.options
-    if (!enabled && (!onEnter || !(event.target as Element).closest('[role="checkbox"]'))) return
+    if (!current.current.options.enabled) return
     if (suppressClick.current) { suppressClick.current = false; event.preventDefault(); event.stopPropagation(); return }
     const item = (event.target as Element).closest<HTMLElement>('[data-selection-key]')
     if (!item || !rootRef.current?.contains(item)) return
@@ -58,13 +52,6 @@ export function useMultiSelection(options: Options) {
     const key = item.dataset.selectionKey!
     const keys = allowedKeys()
     if (!keys.includes(key)) return
-    if (!enabled) {
-      initialSelection.current = { key, resetKey }
-      setSelected(new Set([key]))
-      anchor.current = key
-      onEnter?.()
-      return
-    }
     if (event.shiftKey) {
       const range = rangeSelection(keys, anchor.current, key)
       setSelected(previous => applySelection(previous, range, event.metaKey || event.ctrlKey ? 'add' : 'replace'))

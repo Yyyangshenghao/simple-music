@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
@@ -35,8 +35,6 @@ export function SearchPage({ keyword }: { keyword: string }) {
   const [selecting, setSelecting] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(null)
   const [retry, setRetry] = useState(0)
-  const actionsRef = useRef<HTMLDivElement>(null)
-  const selectionFocus = useRef<HTMLElement | null>(null)
   const navigateTo = useNavigationStore((state) => state.navigateTo)
   const enabledSignature = useProviderStore((state) => PROVIDER_IDS.map((source) =>
     `${state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0'}:${providerAccountSession(source)}`
@@ -108,41 +106,16 @@ export function SearchPage({ keyword }: { keyword: string }) {
     keys: [...displayedTracks.map(trackKey), ...displayedCollections.map(collectionKey)],
     disabledKeys: displayedTracks.filter(isCatalogUnavailable).map(trackKey),
     resetKey: `${keyword}:${enabledSignature}:${category}:${activeFilter}`,
-    onExit: () => {
-      setSelecting(false)
-      if (actionsRef.current?.contains(document.activeElement)) {
-        const target = selectionFocus.current
-        if (target?.isConnected) target.focus()
-        else selection.rootRef.current?.focus()
-      }
-    },
-    onEnter: () => setSelecting(true),
+    onExit: () => setSelecting(false),
   })
   const { selected } = selection
   const selectableCount = displayedTracks.filter((track) => !isCatalogUnavailable(track)).length + displayedCollections.length
   const selectedTracks = displayedTracks.filter((track) => selected.has(trackKey(track)))
   const selectedCollections = displayedCollections.filter((item) => selected.has(collectionKey(item)))
 
-  function onSelectionKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    selection.surfaceProps.onKeyDownCapture(event)
-    if (!selecting || event.defaultPrevented || event.key !== 'F6' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
-    const target = event.target as HTMLElement
-    if (target.closest('input, textarea, select, [contenteditable="true"]')) return
-    const action = actionsRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
-    if (!target || !action) return
-    event.preventDefault()
-    selectionFocus.current = target
-    action.focus()
-  }
-
-  function onActionsKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    selection.surfaceProps.onKeyDownCapture(event)
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
-    const first = actionsRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
-    if ((event.key === 'F6' || (event.key === 'Tab' && event.shiftKey && event.target === first)) && selectionFocus.current?.isConnected) {
-      event.preventDefault()
-      selectionFocus.current.focus()
-    }
+  function enterSelection() {
+    setSelecting(true)
+    selection.rootRef.current?.focus({ preventScroll: true })
   }
 
   function playSong(track: Track) {
@@ -153,102 +126,109 @@ export function SearchPage({ keyword }: { keyword: string }) {
   }
 
   return (
-    <div className={styles.page} data-selecting={selecting}>
-      <ScrollArea>
-        <div className={styles.content} ref={selection.rootRef} {...selection.surfaceProps} onKeyDownCapture={onSelectionKeyDown}>
-          <header className={styles.header}>
-            <p className={styles.eyebrow}>聚合搜索</p>
-            <h1>“{keyword}”<span>的搜索结果</span></h1>
-            <p className={styles.summary}>在 {sources.length} 个音乐平台中发现歌曲、歌手、专辑与歌单</p>
-          </header>
+    <ScrollArea className={styles.page}>
+      <div className={styles.content} ref={selection.rootRef} {...selection.surfaceProps}>
+        <header className={styles.header}>
+          <p className={styles.eyebrow}>聚合搜索</p>
+          <h1>“{keyword}”<span>的搜索结果</span></h1>
+          <p className={styles.summary}>在 {sources.length} 个音乐平台中发现歌曲、歌手、专辑与歌单</p>
+        </header>
 
-          <div className={styles.filters} role="group" aria-label="筛选搜索来源">
-            <button type="button" aria-pressed={!activeFilter} onClick={() => { setSourceFilter(null); selection.clear(); setSelecting(false) }}>全部平台</button>
-            {sources.map((source) => (
-              <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => { setSourceFilter(source); selection.clear(); setSelecting(false) }}>
-                <SourceBadge source={source} compact reveal />
-                <span><SourceName source={source} /></span>
-              </button>
-            ))}
-          </div>
-
-          {sources.length > 0 && <>
-            <div className={styles.categoryBar}>
-              <div className={styles.categories} role="group" aria-label="筛选搜索类型">
-                {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => { setCategory(item); selection.clear(); setSelecting(false) }}>{categories[item]}</button>)}
-              </div>
-              {category !== 'artists' && selectableCount > 0 && <span className={styles.selectionHint}>{selecting ? 'Shift 连选 · 拖动框选 · F6 批量操作' : '悬停勾选可多选'}</span>}
-            </div>
-          </>}
-
-          {sources.length === 0 ? (
-            <div className={styles.empty}>
-              <h2>启用音乐平台，开始搜索</h2>
-              <p>请先登录并启用至少一个音乐平台。</p>
-              <button type="button" onClick={() => navigateTo('settings')}>前往设置</button>
-            </div>
-          ) : (
-            <>
-              {failures.length > 0 && (
-                <div className={styles.errors} role="status">
-                  <div>{failures.map(({ source, label, error }) => (
-                    <p key={`${source}:${label}`}><SourceName source={source} /> · {label}：{error?.message ?? '搜索失败'}</p>
-                  ))}</div>
-                  <button type="button" onClick={() => setRetry((value) => value + 1)}>重新搜索</button>
-                </div>
-              )}
-
-              {(category === 'all' || category === 'artists') && <section className={styles.section} aria-label="歌手搜索结果" aria-busy={artistsLoading}>
-                <div className={styles.sectionHeading}><h2>歌手 <span>{visibleArtists.length}</span></h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
-                {visibleArtists.length > 0 ? (
-                  <div className={styles.artistGrid}>
-                    {visibleArtists.map((artist) => (
-                      <button key={`${artist.source}:${String(artist.id)}`} className={styles.artist} type="button" onClick={() => {
-                        if (artist.source !== 'local') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
-                      }}>
-                        {artist.avatar
-                          ? <img src={sizedImage(artist.avatar, 160)} alt="" loading="lazy" />
-                          : <span className={styles.avatarFallback} aria-hidden="true">{artist.name.slice(0, 1)}</span>}
-                        <span className={styles.artistInfo}><strong>{artist.name}</strong><span><SourceBadge source={artist.source} compact reveal /><SourceName source={artist.source} /></span></span>
-                      </button>
-                    ))}
-                  </div>
-                ) : <p className={styles.hint}>{artistsLoading ? '正在寻找相关歌手…' : failures.some((item) => item.label === '歌手') ? '部分平台未能完成歌手搜索，请重试。' : '没有找到相关歌手，试试其他关键词。'}</p>}
-              </section>}
-
-              {(category === 'all' || category === 'songs') && <section className={styles.section} aria-label="歌曲搜索结果" aria-busy={songsLoading}>
-                <div className={styles.sectionHeading}><h2>歌曲 <span>{visibleSongs.length}</span></h2>{songsLoading && <span role="status">搜索中…</span>}</div>
-                {visibleSongs.length > 0 ? visibleSongs.map((song, index) => (
-                  <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
-                    <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} disabled={isCatalogUnavailable(song)} />
-                    <TrackRow track={song} index={index} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} />
-                  </div>
-                )) : <p className={styles.hint}>{songsLoading ? '正在搜索各平台的歌曲…' : failures.some((item) => item.label === '歌曲') ? '部分平台未能完成歌曲搜索，请重试。' : '没有找到相关歌曲，试试歌曲名或歌手名。'}</p>}
-              </section>}
-
-              {(['albums', 'playlists'] as const).filter((kind) => category === 'all' || category === kind).map((kind) => {
-                const items = kind === 'albums' ? visibleAlbums : visiblePlaylists
-                const loading = kind === 'albums' ? albumsLoading : playlistsLoading
-                const label = categories[kind]
-                return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
-                  <div className={styles.sectionHeading}><h2>{label} <span>{items.length}</span></h2>{loading && <span role="status">搜索中…</span>}</div>
-                  {items.length ? <div className={styles.collectionGrid}>
-                    {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
-                      <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>
-                      <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
-                    </div>)}
-                  </div> : <p className={styles.hint}>{loading ? `正在寻找相关${label}…` : failures.some((item) => item.label === label) ? `部分平台未能完成${label}搜索，请重试。` : `没有找到相关${label}，试试其他关键词。`}</p>}
-                </section>
-              })}
-            </>
-          )}
+        <div className={styles.filters} role="group" aria-label="筛选搜索来源">
+          <button type="button" aria-pressed={!activeFilter} onClick={() => { setSourceFilter(null); selection.clear(); setSelecting(false) }}>全部平台</button>
+          {sources.map((source) => (
+            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => { setSourceFilter(source); selection.clear(); setSelecting(false) }}>
+              <SourceBadge source={source} compact reveal />
+              <span><SourceName source={source} /></span>
+            </button>
+          ))}
         </div>
-      </ScrollArea>
-      {selecting && <div className={styles.floatingActions} ref={actionsRef} onKeyDownCapture={onActionsKeyDown}>
-        <BatchTrackActions floating tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
-          selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />
-      </div>}
+
+        {sources.length > 0 && <>
+          <div className={styles.categories} role="group" aria-label="筛选搜索类型">
+            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => { setCategory(item); selection.clear(); setSelecting(false) }}>{categories[item]}</button>)}
+          </div>
+          {selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
+            selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+        </>}
+
+        {sources.length === 0 ? (
+          <div className={styles.empty}>
+            <h2>启用音乐平台，开始搜索</h2>
+            <p>请先登录并启用至少一个音乐平台。</p>
+            <button type="button" onClick={() => navigateTo('settings')}>前往设置</button>
+          </div>
+        ) : (
+          <>
+            {failures.length > 0 && (
+              <div className={styles.errors} role="status">
+                <div>{failures.map(({ source, label, error }) => (
+                  <p key={`${source}:${label}`}><SourceName source={source} /> · {label}：{error?.message ?? '搜索失败'}</p>
+                ))}</div>
+                <button type="button" onClick={() => setRetry((value) => value + 1)}>重新搜索</button>
+              </div>
+            )}
+
+            {(category === 'all' || category === 'artists') && <section className={styles.section} aria-label="歌手搜索结果" aria-busy={artistsLoading}>
+              <div className={styles.sectionHeading}><h2>歌手 <span>{visibleArtists.length}</span></h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
+              {visibleArtists.length > 0 ? (
+                <div className={styles.artistGrid}>
+                  {visibleArtists.map((artist) => (
+                    <button key={`${artist.source}:${String(artist.id)}`} className={styles.artist} type="button" onClick={() => {
+                      if (artist.source !== 'local') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
+                    }}>
+                      {artist.avatar
+                        ? <img src={sizedImage(artist.avatar, 160)} alt="" loading="lazy" />
+                        : <span className={styles.avatarFallback} aria-hidden="true">{artist.name.slice(0, 1)}</span>}
+                      <span className={styles.artistInfo}><strong>{artist.name}</strong><span><SourceBadge source={artist.source} compact reveal /><SourceName source={artist.source} /></span></span>
+                    </button>
+                  ))}
+                </div>
+              ) : <p className={styles.hint}>{artistsLoading ? '正在寻找相关歌手…' : failures.some((item) => item.label === '歌手') ? '部分平台未能完成歌手搜索，请重试。' : '没有找到相关歌手，试试其他关键词。'}</p>}
+            </section>}
+
+            {(category === 'all' || category === 'songs') && <section className={styles.section} aria-label="歌曲搜索结果" aria-busy={songsLoading}>
+              <div className={styles.sectionHeading}>
+                <h2>歌曲 <span>{visibleSongs.length}</span></h2>
+                <div className={styles.sectionActions}>
+                  {songsLoading && <span role="status">搜索中…</span>}
+                  {!selecting && <BatchTrackActions compact menuLabel="歌曲搜索结果更多操作" label="当前歌曲搜索结果" selectLabel="多选搜索结果"
+                    tracks={visibleSongs.filter(song => !isCatalogUnavailable(song))} onSelect={enterSelection} />}
+                </div>
+              </div>
+              {visibleSongs.length > 0 ? visibleSongs.map((song, index) => (
+                <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
+                  {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} disabled={isCatalogUnavailable(song)} />}
+                  <TrackRow track={song} index={index} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} />
+                </div>
+              )) : <p className={styles.hint}>{songsLoading ? '正在搜索各平台的歌曲…' : failures.some((item) => item.label === '歌曲') ? '部分平台未能完成歌曲搜索，请重试。' : '没有找到相关歌曲，试试歌曲名或歌手名。'}</p>}
+            </section>}
+
+            {(['albums', 'playlists'] as const).filter((kind) => category === 'all' || category === kind).map((kind) => {
+              const items = kind === 'albums' ? visibleAlbums : visiblePlaylists
+              const loading = kind === 'albums' ? albumsLoading : playlistsLoading
+              const label = categories[kind]
+              return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
+                <div className={styles.sectionHeading}>
+                  <h2>{label} <span>{items.length}</span></h2>
+                  <div className={styles.sectionActions}>
+                    {loading && <span role="status">搜索中…</span>}
+                    {!selecting && <BatchTrackActions compact menuLabel={`${label}搜索结果更多操作`} label={`当前${label}搜索结果`} selectLabel="多选搜索结果"
+                      tracks={[]} collections={items} onSelect={enterSelection} />}
+                  </div>
+                </div>
+                {items.length ? <div className={styles.collectionGrid}>
+                  {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
+                    {selecting && <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>}
+                    <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
+                  </div>)}
+                </div> : <p className={styles.hint}>{loading ? `正在寻找相关${label}…` : failures.some((item) => item.label === label) ? `部分平台未能完成${label}搜索，请重试。` : `没有找到相关${label}，试试其他关键词。`}</p>}
+              </section>
+            })}
+          </>
+        )}
+      </div>
       <SelectionMarquee rect={selection.marquee} />
-    </div>
+    </ScrollArea>
   )
 }

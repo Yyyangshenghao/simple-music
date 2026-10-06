@@ -14,7 +14,7 @@ interface Props {
   collections?: Playlist[]
   label?: string
   compact?: boolean
-  floating?: boolean
+  selectLabel?: string
   menuLabel?: string
   onSelect?(): void
   selection?: { total: number; onSelectAll(): void; onClear(): void; onExit(): void }
@@ -23,7 +23,7 @@ interface Props {
   onDelete?(signal: AbortSignal): Promise<void>
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, floating = false, menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -141,17 +141,17 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {label && <span className={styles.menuHeading}>{label}</span>}
         {commands}
         {onSelect && <button type="button" role="menuitem" disabled={busy || !count} className={styles.selectItem} onClick={() => { closeMenu(); onSelect() }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>多选歌曲
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>{selectLabel}
         </button>}
       </div>}
     </div>
   )
 
   return (
-    <div className={`${styles.actions}${floating ? ` ${styles.floating}` : ''}`} data-selecting={!!selection} role="region" aria-label={selection ? '多选操作' : '集合操作'}>
+    <div className={styles.actions} data-selecting={!!selection} role="region" aria-label={selection ? '多选操作' : '集合操作'}>
       <div className={styles.bar}>
         <div className={styles.identity}>
-          {selection ? floating ? <span className={styles.label} role="status">已选 <strong>{count}</strong> 项</span> : <><strong className={styles.count}>{count}</strong><div><span className={styles.label}>已选项目</span><span className={styles.hint} title="⌘/Ctrl+A 全选 · Esc 退出 · ⌘/Ctrl 框选反选">共 {selection.total} 项 · 拖动框选 / Shift 连选</span></div></> : <span className={styles.label}>{label ?? `${count} 项已选`}</span>}
+          {selection ? <><strong className={styles.count}>{count}</strong><div><span className={styles.label}>已选项目</span><span className={styles.hint} title="⌘/Ctrl+A 全选 · Esc 退出 · ⌘/Ctrl 框选反选">共 {selection.total} 项 · 拖动框选 / Shift 连选</span></div></> : <span className={styles.label}>{label ?? `${count} 项已选`}</span>}
         </div>
         {selection && <div className={styles.selectionTools}>
           <button type="button" disabled={busy || !selection.total} onClick={selection.onSelectAll}>全选</button>

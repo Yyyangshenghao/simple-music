@@ -30,23 +30,11 @@
 .bar .exit { width: 32px; min-height: 32px; padding: 0; flex-shrink: 0; border: 0; background: none; color: var(--sm-text-secondary); }
 .processing { font-size: 11px; color: var(--sm-text-secondary); }
 .error { font-size: 12px; color: var(--sm-color-danger); margin: 8px 16px; }
-.actions.floating { position: static; margin: 0; }
-.floating .bar { min-height: 52px; padding: 10px 12px; gap: 10px; border-radius: 16px; background: var(--glass-bg-modal); box-shadow: var(--sm-shadow); }
-.floating .label { white-space: nowrap; }
-.floating .label strong { margin: 0 3px; color: var(--sm-accent); font-variant-numeric: tabular-nums; }
-.floating .error { margin: 0; padding: 10px 16px; border-radius: 12px; background: var(--sm-bg-elevated); }
 @media (max-width: 880px) {
   .bar { gap: 10px; flex-wrap: wrap; }
   .commands { order: 3; flex-basis: 100%; margin-left: 0; }
   .bar .exit { margin-left: auto; }
   .selectionTools { margin-left: auto; }
-  .floating .commands { order: 0; flex-basis: auto; margin-left: auto; }
-  .floating .exit { margin-left: 0; }
-  .floating .selectionTools { margin-left: 0; }
-}
-@media (max-width: 680px) {
-  .floating .commands { order: 3; flex-basis: 100%; margin-left: 0; }
-  .floating .exit { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .bar button { transition: none; } }
 
