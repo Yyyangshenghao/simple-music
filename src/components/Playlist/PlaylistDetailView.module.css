@@ -173,10 +173,10 @@
 .titleRow { display: flex; align-items: flex-start; gap: 16px; }
 .titleRow > h1 { flex: 1; min-width: 0; }
 .inner[data-selecting='true'] { user-select: none; }
-.selectableRow { display: flex; align-items: center; height: 56px; gap: 10px; border-radius: 12px; transition: background 140ms; }
+.selectableRow { display: flex; align-items: center; height: 56px; gap: 10px; border-radius: 12px; transition: background 220ms var(--sm-ease-out), box-shadow 220ms var(--sm-ease-out); }
 .selectableRow > button[role='checkbox'] { margin-left: 12px; }
 .selectableRow > div, .selectableRow > button:not([role='checkbox']) { flex: 1; min-width: 0; }
-.selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); }
+.selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-accent) 16%, transparent); }
 @media (prefers-reduced-motion: reduce) { .selectableRow { transition: none; } }
 .albumCover { width: clamp(160px, 22vw, 240px); height: auto; aspect-ratio: 1; box-shadow: var(--sm-shadow); }
 .detailMeta > div:last-child { min-width: 0; }

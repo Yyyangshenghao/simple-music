@@ -58,10 +58,10 @@
 .categories button { padding: 8px 16px; border: 1px solid transparent; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font-size: 13px; cursor: pointer; }
 .categories button[aria-pressed='true'] { color: var(--sm-text-primary); background: var(--sm-fill-active); }
 .content[data-selecting='true'] { user-select: none; }
-.selectableRow { display: flex; align-items: center; gap: 10px; border-radius: 12px; transition: background 140ms; }
+.selectableRow { display: flex; align-items: center; gap: 10px; border-radius: 12px; transition: background 220ms var(--sm-ease-out), box-shadow 220ms var(--sm-ease-out); }
 .selectableRow > button[role='checkbox'] { margin-left: 12px; }
 .selectableRow > button:not([role='checkbox']) { flex: 1; min-width: 0; }
-.selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); }
+.selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-accent) 16%, transparent); }
 .collectionGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 20px; }
 .selectableCard { position: relative; min-width: 0; border-radius: 16px; transition: box-shadow 140ms; }
 .selectableCard[data-selected='true'] { box-shadow: 0 0 0 2px var(--sm-accent), 0 0 0 6px color-mix(in srgb, var(--sm-accent) 10%, transparent); }

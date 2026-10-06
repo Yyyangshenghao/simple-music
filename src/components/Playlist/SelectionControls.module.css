@@ -28,9 +28,28 @@
   background: var(--sm-bg-elevated);
   color: transparent;
   cursor: pointer;
-  transition: background 140ms, color 140ms, border-color 140ms;
+  transition: background 180ms var(--sm-ease-out), color 180ms, border-color 180ms;
 }
-.check[aria-checked='true'] { background: var(--sm-accent); border-color: transparent; color: var(--sm-text-on-accent); }
+.check svg {
+  opacity: 0;
+  transform: scale(.65);
+  transition: opacity 180ms var(--sm-ease-out), transform 180ms var(--sm-ease-out);
+}
+.check[aria-checked='true'] {
+  background: var(--sm-accent);
+  border-color: transparent;
+  color: var(--sm-text-on-accent);
+  animation: checkSelect 240ms var(--sm-ease-out);
+}
+.check[aria-checked='true'] svg { opacity: 1; transform: scale(1); }
+@keyframes checkSelect {
+  0% { transform: scale(.86); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
 .check:disabled { opacity: .3; cursor: default; }
 .marquee { position: fixed; z-index: 90; pointer-events: none; border: 1px solid var(--sm-accent); border-radius: 5px; background: color-mix(in srgb, var(--sm-accent) 10%, transparent); }
-@media (prefers-reduced-motion: reduce) { .toggle, .check { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .toggle, .check, .check svg { transition: none; }
+  .check[aria-checked='true'] { animation: none; }
+}
