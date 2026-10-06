@@ -23,7 +23,7 @@ import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { useMultiSelection } from '../../hooks/useMultiSelection'
-import { SelectionCheck, SelectionMarquee, SelectionToggle } from './SelectionControls'
+import { SelectionCheck, SelectionMarquee } from './SelectionControls'
 import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
@@ -214,10 +214,12 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                 ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
                 : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
             </motion.div>
-            <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-              <h1 className={styles.detailTitle}>
-                <GradientText>{displayPlaylist.name}</GradientText>
-              </h1>
+            <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+              <div className={styles.titleRow}>
+                <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
+                {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
+                  tracks={[]} collections={loading || error ? [] : [displayPlaylist]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+              </div>
               <SourceBadge source={displayPlaylist.source} reveal />
               <p className={styles.detailSub}>
                 {displayPlaylist.type === 'album'
@@ -237,10 +239,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             </motion.div>
           </div>
         </div>
-        {!selecting && <BatchTrackActions label={isAlbum ? '整张专辑' : '整个歌单'} tracks={[]} collections={loading || error ? [] : [displayPlaylist]} />}
-        {!selecting && <div className={styles.selectionControls}>
-          <SelectionToggle active={false} disabled={loading || error} label="多选歌曲" onClick={() => setSelecting(true)} />
-        </div>}
         {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
           selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
         <TrackSearch

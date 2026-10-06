@@ -36,3 +36,20 @@
   .selectionTools { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .bar button { transition: none; } }
+
+.compact { position: relative; flex-shrink: 0; }
+.more { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--sm-text-secondary); cursor: pointer; transition: background 160ms, color 160ms; }
+.more:hover, .more[aria-expanded='true'] { background: var(--sm-fill-hover); color: var(--sm-text-primary); border-color: var(--sm-border); }
+.more:disabled { opacity: .35; cursor: default; }
+.menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 224px; padding: 6px; border: 1px solid var(--glass-border-card); border-radius: 14px; background: var(--glass-bg-modal); backdrop-filter: var(--glass-blur-modal); box-shadow: var(--sm-shadow); animation: menuEnter 140ms var(--sm-ease-out); }
+.menuHeading { display: block; padding: 8px 10px; color: var(--sm-text-tertiary); font-size: 10px; letter-spacing: .04em; }
+.menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--sm-text-primary); font-size: 12px; text-align: left; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--sm-fill-hover); }
+.menu button:disabled { opacity: .35; cursor: default; }
+.menu button > svg { color: var(--sm-text-secondary); flex-shrink: 0; }
+.menu .selectItem { border-top: 1px solid var(--sm-border); margin-top: 5px; padding-top: 4px; border-radius: 0 0 8px 8px; }
+.menu .processing { display: block; padding: 8px 10px 0; }
+.spinner { width: 14px; height: 14px; border: 1.5px solid var(--sm-border-strong); border-top-color: var(--sm-text-primary); border-radius: 50%; animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes menuEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .more { transition: none; } .menu, .spinner { animation: none; } }
