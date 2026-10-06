@@ -218,7 +218,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               <div className={styles.titleRow}>
                 <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
                 {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
-                  tracks={[]} collections={loading || error ? [] : [displayPlaylist]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+                  tracks={[]} collections={loading || error ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
               </div>
               <SourceBadge source={displayPlaylist.source} reveal />
               <p className={styles.detailSub}>

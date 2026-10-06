@@ -37,6 +37,13 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const sourceSet = new Set([...tracks, ...collections].map((item) => item.source))
   const canSave = !offline && (sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq'))
   const count = tracks.length + collections.length
+  const downloadTrackCount = new Set(tracks.filter(track => track.playable !== false).map(track => `${track.source}:${String(track.id)}`)).size
+  const downloadCountLabel = collections.length
+    ? collections.every(collection => collection.trackCountKnown !== false && (collection.trackCount > 0 || collection.trackCountKnown === true))
+      ? `约 ${downloadTrackCount + collections.reduce((total, collection) => total + collection.trackCount, 0)} 首`
+      : '曲数待确认'
+    : `${downloadTrackCount} 首`
+  const downloadLabel = `${compact ? '全部下载' : '下载所选'}（${downloadCountLabel}）`
 
   useEffect(() => {
     operation.current?.abort()
@@ -117,11 +124,13 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {canSave && <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
       const resolved = await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return
+      if (!resolved.length) { useToastStore.getState().show('没有可下载的歌曲'); return }
+      if ((compact || collections.length) && !window.confirm(`确认下载${compact ? label ?? '当前列表' : '所选项目'}中的全部 ${resolved.length} 首歌曲？`)) return
       const added = await useOfflineCacheStore.getState().saveMany(resolved, signal)
       if (signal.aborted) return
       useToastStore.getState().show(added ? `${added} 首已加入下载队列` : '所选歌曲已在下载队列中')
       onDone?.()
-    })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 18v3h14v-3" strokeLinecap="round" strokeLinejoin="round" /></svg>批量下载</button>}
+    })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 18v3h14v-3" strokeLinecap="round" strokeLinejoin="round" /></svg>{downloadLabel}</button>}
     {onDelete && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onDelete)}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" strokeLinecap="round" strokeLinejoin="round" /></svg>批量删除
     </button>}
