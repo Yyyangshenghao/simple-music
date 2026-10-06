@@ -10,7 +10,7 @@ export function SelectionToggle({ active, disabled, onClick, label = '多选' }:
 }
 
 export function SelectionCheck({ checked, disabled, label }: { checked: boolean; disabled?: boolean; label: string }) {
-  return <button type="button" role="checkbox" aria-label={label} aria-checked={checked} disabled={disabled} className={styles.check}>
+  return <button type="button" role="checkbox" aria-label={label} title={label} aria-checked={checked} disabled={disabled} className={styles.check}>
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="m4 10 4 4 8-8" strokeLinecap="round" strokeLinejoin="round" /></svg>
   </button>
 }

@@ -14,13 +14,14 @@ interface Props {
   collections?: Playlist[]
   label?: string
   compact?: boolean
+  floating?: boolean
   menuLabel?: string
   onSelect?(): void
   selection?: { total: number; onSelectAll(): void; onClear(): void; onExit(): void }
   onDone?(): void
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, menuLabel = '更多操作', onSelect, selection, onDone }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, floating = false, menuLabel = '更多操作', onSelect, selection, onDone }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -142,10 +143,10 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   )
 
   return (
-    <div className={styles.actions} data-selecting={!!selection} role="region" aria-label={selection ? '多选操作' : '集合操作'}>
+    <div className={`${styles.actions}${floating ? ` ${styles.floating}` : ''}`} data-selecting={!!selection} role="region" aria-label={selection ? '多选操作' : '集合操作'}>
       <div className={styles.bar}>
         <div className={styles.identity}>
-          {selection ? <><strong className={styles.count}>{count}</strong><div><span className={styles.label}>已选项目</span><span className={styles.hint} title="⌘/Ctrl+A 全选 · Esc 退出 · ⌘/Ctrl 框选反选">共 {selection.total} 项 · 拖动框选 / Shift 连选</span></div></> : <span className={styles.label}>{label ?? `${count} 项已选`}</span>}
+          {selection ? floating ? <span className={styles.label} role="status">已选 <strong>{count}</strong> 项</span> : <><strong className={styles.count}>{count}</strong><div><span className={styles.label}>已选项目</span><span className={styles.hint} title="⌘/Ctrl+A 全选 · Esc 退出 · ⌘/Ctrl 框选反选">共 {selection.total} 项 · 拖动框选 / Shift 连选</span></div></> : <span className={styles.label}>{label ?? `${count} 项已选`}</span>}
         </div>
         {selection && <div className={styles.selectionTools}>
           <button type="button" disabled={busy || !selection.total} onClick={selection.onSelectAll}>全选</button>

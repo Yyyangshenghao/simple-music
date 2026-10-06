@@ -1,4 +1,4 @@
-.page { height: 100%; }
+.page { height: 100%; position: relative; }
 .content {
   width: min(var(--sm-content-max-width), calc(100% - var(--sm-page-gutter) * 2));
   margin: 0 auto;
@@ -53,17 +53,32 @@
   .errors { align-items: flex-start; flex-direction: column; }
 }
 
-.categories, .selectionControls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.categoryBar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; }
+.categories { display: flex; flex-wrap: wrap; gap: 8px; }
+.selectionHint { color: var(--sm-text-secondary); font-size: 11px; }
 .categories button { padding: 8px 16px; border: 1px solid transparent; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font-size: 13px; cursor: pointer; }
 .categories button[aria-pressed='true'] { color: var(--sm-text-primary); background: var(--sm-fill-active); }
 .content[data-selecting='true'] { user-select: none; }
-.selectableRow { display: flex; align-items: center; gap: 10px; border-radius: 12px; transition: background 140ms; }
-.selectableRow > button[role='checkbox'] { margin-left: 12px; }
-.selectableRow > button:not([role='checkbox']) { flex: 1; min-width: 0; }
+.selectableRow { position: relative; border-radius: 12px; transition: background 140ms; }
+.selectableRow > button[role='checkbox'] { position: absolute; left: 12px; top: 14px; z-index: 2; opacity: 0; pointer-events: none; }
+.selectableRow[data-unavailable='false']:hover > button[role='checkbox'],
+.selectableRow[data-unavailable='false']:focus-within > button[role='checkbox'],
+.content[data-selecting='true'] .selectableRow[data-unavailable='false'] > button[role='checkbox'] { opacity: 1; pointer-events: auto; }
+.selectableRow[data-unavailable='false']:is(:hover, :focus-within) [data-track-index],
+.content[data-selecting='true'] .selectableRow[data-unavailable='false'] [data-track-index] { visibility: hidden; }
 .selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); }
 .collectionGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 20px; }
 .selectableCard { position: relative; min-width: 0; border-radius: 16px; transition: box-shadow 140ms; }
 .selectableCard[data-selected='true'] { box-shadow: 0 0 0 2px var(--sm-accent), 0 0 0 6px color-mix(in srgb, var(--sm-accent) 10%, transparent); }
-.cardCheck { position: absolute; top: 12px; right: 12px; z-index: 3; }
+.cardCheck { position: absolute; top: 20px; right: 20px; z-index: 3; opacity: 0; pointer-events: none; }
+.selectableCard:hover .cardCheck, .selectableCard:focus-within .cardCheck,
+.content[data-selecting='true'] .cardCheck { opacity: 1; pointer-events: auto; }
 .content[data-selecting='true'] .selectableCard img { -webkit-user-drag: none; }
+.page[data-selecting='true'] .content { padding-bottom: 180px; }
+.floatingActions { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(940px, calc(100% - var(--sm-page-gutter) * 2)); z-index: 15; }
+@media (hover: none) {
+  .selectableRow[data-unavailable='false'] > button[role='checkbox'], .cardCheck { opacity: 1; pointer-events: auto; }
+  .selectableRow[data-unavailable='false'] [data-track-index] { visibility: hidden; }
+  .selectionHint { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .selectableRow, .selectableCard { transition: none; } }
