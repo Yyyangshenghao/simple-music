@@ -1217,7 +1217,7 @@ export function SettingsPage() {
                 <section className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>歌曲下载</h3>
                   <p className={styles.groupHint}>歌曲按名称保存为音频文件，支持批量加入下载队列、三首并发、暂停和重试。更改下载目录保留已有文件，清理播放器缓存不会删除这些文件。</p>
-                  <div className={styles.row}>
+                  <div className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={downloadDir}>{downloadDir || '在下载队列中选择'}</span>
                     <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载与目录</button>
@@ -1271,7 +1271,7 @@ export function SettingsPage() {
                 <section className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>播放器缓存位置</h3>
                   <p className={styles.groupHint}>自动缓存与播放器离线音乐共用此位置，分别统计和清理。更改位置会清除原目录中的缓存、离线音频及未识别旧文件，不影响独立下载目录中的歌曲文件。</p>
-                  <div className={styles.row}>
+                  <div className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>缓存文件夹</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
                       {cacheConfig?.dir ?? '—'}

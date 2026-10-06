@@ -40,6 +40,10 @@ function loadOrCreateToken(userDataDir: string): string {
 export async function bootServer(): Promise<{ port: number; token: string }> {
   if (handle) return { port: handle.port, token: apiToken }
   const userDataDir = app.getPath('userData')
+  let defaultSongDownloadDir: string | undefined
+  try {
+    defaultSongDownloadDir = join(app.getPath('music'), 'Simple Music')
+  } catch { /* 系统音乐目录不可用时，下载配置继续沿用原缓存位置。 */ }
   apiToken = loadOrCreateToken(userDataDir)
   // Apple 的生产许可证服务拒绝 CastLabs 开发 VMP 签名。开发态改用系统 Chrome
   // 的正式 Widevine 客户端；发布包经 EVS 生产签名后继续使用应用内隐藏窗口。
@@ -50,6 +54,7 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
   handle = await startServer({
     appleMusicWeb,
     userDataDir,
+    defaultSongDownloadDir,
     token: apiToken,
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged

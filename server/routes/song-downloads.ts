@@ -5,7 +5,7 @@ import { exportDownloadedSong, getSongDownloadConfig, setSongDownloadDir } from 
 export const songDownloadRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname === '/api/downloads/config') {
     try {
-      if (req.method === 'GET') sendJson(res, await getSongDownloadConfig(ctx.userDataDir))
+      if (req.method === 'GET') sendJson(res, await getSongDownloadConfig(ctx.userDataDir, ctx.defaultSongDownloadDir))
       else if (req.method === 'POST') {
         const body = await readJson<{ dir?: unknown }>(req)
         if (typeof body?.dir !== 'string') throw new Error('请选择下载文件夹')

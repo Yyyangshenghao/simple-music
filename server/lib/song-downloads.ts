@@ -5,44 +5,77 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { getAudioCacheConfig, openAudioCacheEntry, type AudioCacheOriginInput } from './audio-cache'
 
 const CONFIG_FILE = 'song-downloads.json'
+const configTails = new Map<string, Promise<void>>()
 
-export async function getSongDownloadConfig(userDataDir: string): Promise<{ dir: string }> {
-  // 升级后继续沿用用户现有音频目录；不改写缓存配置或移动旧文件。
-  const fallback = (await getAudioCacheConfig(userDataDir)).dir
+async function withConfigMutation<T>(userDataDir: string, task: () => Promise<T>): Promise<T> {
+  const previous = configTails.get(userDataDir) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.then(() => current)
+  configTails.set(userDataDir, tail)
+  await previous
   try {
-    const config = JSON.parse(await fs.readFile(join(userDataDir, CONFIG_FILE), 'utf8'))
-    return { dir: typeof config.dir === 'string' && isAbsolute(config.dir) ? config.dir : fallback }
-  } catch { /* 首次使用沿用已有路径，再独立保存，不受后续缓存目录更改影响。 */ }
-  await fs.mkdir(userDataDir, { recursive: true })
-  try {
-    await fs.writeFile(join(userDataDir, CONFIG_FILE), JSON.stringify({ dir: fallback }), { flag: 'wx' })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-    // 同时选择新目录时只读取已经提交的配置，不能用初始值覆盖它。
+    return await task()
+  } finally {
+    release()
+    if (configTails.get(userDataDir) === tail) configTails.delete(userDataDir)
+  }
+}
+
+async function prepareDownloadDir(dir: string): Promise<void> {
+  await fs.mkdir(dir, { recursive: true })
+  const probe = join(dir, `.simplemusic-write-${randomBytes(8).toString('hex')}`)
+  await fs.writeFile(probe, '', { flag: 'wx' })
+  await fs.unlink(probe)
+}
+
+export async function getSongDownloadConfig(userDataDir: string, defaultDir?: string): Promise<{ dir: string }> {
+  return withConfigMutation(userDataDir, async () => {
+    const fallback = (await getAudioCacheConfig(userDataDir)).dir
     try {
       const config = JSON.parse(await fs.readFile(join(userDataDir, CONFIG_FILE), 'utf8'))
-      if (typeof config.dir === 'string' && isAbsolute(config.dir)) return { dir: config.dir }
-    } catch { /* 无效旧下载配置仍使用缓存路径，不改写原配置。 */ }
-  }
-  return { dir: fallback }
+      return { dir: typeof config?.dir === 'string' && isAbsolute(config.dir) ? config.dir : fallback }
+    } catch (error) {
+      // 仅无配置时启用新默认值；损坏或不可读的旧配置原样保留。
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return { dir: fallback }
+    }
+    let dir = fallback
+    if (defaultDir && isAbsolute(defaultDir)) {
+      try {
+        await prepareDownloadDir(defaultDir)
+        dir = resolve(defaultDir)
+      } catch { /* 新目录不可写时继续使用原缓存位置，不移动或删除旧音频。 */ }
+    }
+    await fs.mkdir(userDataDir, { recursive: true })
+    try {
+      await fs.writeFile(join(userDataDir, CONFIG_FILE), JSON.stringify({ dir, mode: 'default' }), { flag: 'wx' })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      try {
+        const config = JSON.parse(await fs.readFile(join(userDataDir, CONFIG_FILE), 'utf8'))
+        if (typeof config?.dir === 'string' && isAbsolute(config.dir)) return { dir: config.dir }
+      } catch { /* 并发出现的旧配置不可读时保留原文件并使用缓存位置。 */ }
+      return { dir: fallback }
+    }
+    return { dir }
+  })
 }
 
 export async function setSongDownloadDir(userDataDir: string, dir: string): Promise<{ dir: string }> {
   if (!isAbsolute(dir)) throw new Error('请选择有效的下载文件夹')
   const target = resolve(dir)
-  await fs.mkdir(target, { recursive: true })
-  const probe = join(target, `.simplemusic-write-${randomBytes(8).toString('hex')}`)
-  await fs.writeFile(probe, '', { flag: 'wx' })
-  await fs.unlink(probe)
-  await fs.mkdir(userDataDir, { recursive: true })
-  const temporary = join(userDataDir, `${CONFIG_FILE}.${randomBytes(8).toString('hex')}.tmp`)
-  try {
-    await fs.writeFile(temporary, JSON.stringify({ dir: target }), { flag: 'wx' })
-    await fs.rename(temporary, join(userDataDir, CONFIG_FILE))
-  } finally {
-    await fs.unlink(temporary).catch(() => {})
-  }
-  return { dir: target }
+  return withConfigMutation(userDataDir, async () => {
+    await prepareDownloadDir(target)
+    await fs.mkdir(userDataDir, { recursive: true })
+    const temporary = join(userDataDir, `${CONFIG_FILE}.${randomBytes(8).toString('hex')}.tmp`)
+    try {
+      await fs.writeFile(temporary, JSON.stringify({ dir: target, mode: 'custom' }), { flag: 'wx' })
+      await fs.rename(temporary, join(userDataDir, CONFIG_FILE))
+    } finally {
+      await fs.unlink(temporary).catch(() => {})
+    }
+    return { dir: target }
+  })
 }
 
 function safeName(text: string): string {

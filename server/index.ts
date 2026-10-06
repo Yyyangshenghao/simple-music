@@ -40,6 +40,7 @@ export function startServer(
 ): Promise<{ port: number; close(): void }> {
   const ctx: ServerContext = {
     userDataDir: partial.userDataDir ?? join(tmpdir(), 'simplemusic'),
+    defaultSongDownloadDir: partial.defaultSongDownloadDir,
     port: partial.port ?? 0,
     // 独立跑(npm run server:dev)与 electron dev 默认放行 localhost;打包应用由主进程传 false
     allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,

@@ -652,8 +652,11 @@
 }
 
 /* 缓存目录路径:过长时省略头部、保留更有辨识度的尾段(rtl 截断技巧) */
+.pathRow .rowLabel { flex: 0 0 auto; }
+
 .pathValue {
-  max-width: 300px;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -800,7 +803,6 @@
   .groupTitle { padding-right: 16px; padding-left: 16px; }
   .groupHint { padding-right: 16px; padding-left: 16px; }
   .providerRow { padding-right: 16px; padding-left: 16px; }
-  .pathValue { max-width: 210px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,6 +5,8 @@ export interface ServerContext {
   appleMusicWeb?: AppleMusicWebSession
   appleMusicLoginMode?: 'web' | 'developer'
   userDataDir: string
+  /** 主进程解析的系统音乐目录下歌曲文件夹；缺省时沿用缓存位置。 */
+  defaultSongDownloadDir?: string
   port: number
   /** 是否放行 http://localhost 来源(仅开发需要;打包应用只认 file:// 的 "null")。缺省视为放行。 */
   allowLocalhostOrigins?: boolean
