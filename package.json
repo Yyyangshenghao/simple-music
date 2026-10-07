@@ -118,6 +118,9 @@
       ],
       "icon": "build/icon.ico"
     },
+    "dmg": {
+      "artifactName": "Simple-Music-${version}-${arch}.${ext}"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -125,10 +128,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Simple Music",
-      "artifactName": "Simple Music-${version}-Setup.${ext}"
+      "artifactName": "Simple-Music-${version}-Setup.${ext}"
     },
     "portable": {
-      "artifactName": "Simple Music-${version}-portable.${ext}"
+      "artifactName": "Simple-Music-${version}-portable.${ext}"
     }
   }
 }
