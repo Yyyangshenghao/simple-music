@@ -93,13 +93,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 16px 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border-strong) transparent;
 }
-
-.content::-webkit-scrollbar { width: 4px; }
-.content::-webkit-scrollbar-thumb { border-radius: var(--sm-radius-pill); background: var(--sm-border-strong); }
-.content::-webkit-scrollbar-track { background: transparent; }
 
 .section {
   display: flex;

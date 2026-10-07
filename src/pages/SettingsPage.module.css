@@ -3,8 +3,6 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border) transparent;
 }
 
 .shell {
@@ -764,15 +762,10 @@
     flex-direction: row;
     width: 100%;
     overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--sm-border-strong) transparent;
   }
 
   .tabBar:hover,
   .tabBar:focus-within { width: 100%; }
-
-  .tabBar::-webkit-scrollbar { display: block; height: 4px; }
-  .tabBar::-webkit-scrollbar-thumb { background: var(--sm-border-strong); border-radius: 4px; }
 
   .tab { flex: 0 0 auto; width: auto; align-items: center; white-space: nowrap; }
   .tabCopy { opacity: 1; transform: none; }

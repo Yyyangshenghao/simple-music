@@ -96,15 +96,6 @@
   padding: 6px;
 }
 
-.body::-webkit-scrollbar {
-  width: 3px;
-}
-
-.body::-webkit-scrollbar-thumb {
-  background: var(--sm-border-strong);
-  border-radius: 2px;
-}
-
 .hint {
   padding: 32px 0;
   text-align: center;

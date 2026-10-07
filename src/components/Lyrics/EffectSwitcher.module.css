@@ -20,14 +20,15 @@
   padding: 6px;
   /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
   background: rgba(24, 26, 32, 0.82);
+  --sm-scrollbar-thumb: rgba(255, 255, 255, 0.20);
+  --sm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+  --sm-scrollbar-thumb-active: rgba(255, 255, 255, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
   pointer-events: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .menuTabs {
