@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { promises as fs } from 'node:fs'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { join, dirname } from 'node:path'
+import { join, dirname, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { audioCacheEntryId, clearAudioCacheScope, getAudioCacheConfig, openAudioCacheWriter, updateAudioCacheConfig } from './audio-cache'
 import { exportDownloadedSong, getSongDownloadConfig, setSongDownloadDir, songExtension } from './song-downloads'
@@ -198,7 +198,7 @@ describe('歌曲下载目录与文件', () => {
     const dir = join(userDataDir, 'songs')
     const result = await exportDownloadedSong(userDataDir, entryId, { ...origin, artist: '../../', name: `${'歌'.repeat(200)}:/*?` }, dir)
     expect(dirname(result.filePath)).toBe(dir)
-    expect(Buffer.byteLength(result.filePath.split('/').at(-1)!)).toBeLessThan(255)
+    expect(Buffer.byteLength(basename(result.filePath))).toBeLessThan(255)
     expect(await readFile(result.filePath)).toEqual(bytes)
   })
 
