@@ -21,9 +21,11 @@
 ::-webkit-scrollbar {
   width: var(--sm-scrollbar-size);
   height: var(--sm-scrollbar-size);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
