@@ -51,7 +51,6 @@
 .modeBtn[data-mode='shuffle'],
 .modeBtn[data-mode='one'] {
   color: var(--sm-accent);
-  --player-control-rest-opacity: 1;
   --player-control-hover-color: var(--sm-accent);
 }
 
@@ -69,11 +68,10 @@
 }
 
 .playBtn {
-  --player-control-radius: 50%;
-  --player-control-surface-opacity: 0;
   --player-control-hover-color: var(--sm-text-on-accent);
   width: 46px;
   height: 46px;
+  border-radius: 50%;
   background: var(--sm-accent);
   color: var(--sm-text-on-accent);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
@@ -84,7 +82,7 @@
 .playBtn:hover {
   background: var(--sm-accent);
   color: var(--sm-text-on-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sm-accent) 9%, transparent), 0 5px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
 }
 
 .playBtn[data-loading='true'] {
@@ -150,7 +148,6 @@
 
 .miniPlayerBtn[data-active='true'] {
   color: var(--sm-accent);
-  --player-control-rest-opacity: 1;
   --player-control-hover-color: var(--sm-accent);
 }
 

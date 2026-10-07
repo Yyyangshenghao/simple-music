@@ -10,7 +10,6 @@
 
 .toggleBtn[data-active='true'] {
   color: var(--sm-accent);
-  --player-control-rest-opacity: 1;
   --player-control-hover-color: var(--sm-accent);
 }
 
