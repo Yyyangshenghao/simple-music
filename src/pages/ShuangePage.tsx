@@ -3,9 +3,10 @@ import { motion, type PanInfo } from 'motion/react'
 import { ShuangeCard } from '../components/Shuange/ShuangeCard'
 import { useShuangeStore } from '../stores/shuange'
 import { useShuangePlayer } from '../hooks/useShuangePlayer'
-import { usePlayerStore } from '../stores/player'
 import { useLikesStore } from '../stores/likes'
 import { useNavigationStore } from '../stores/navigation'
+import { useShortcutStore } from '../stores/shortcuts'
+import { shouldIgnoreShortcut } from '../lib/shortcuts'
 import styles from './ShuangePage.module.css'
 
 export function ShuangePage() {
@@ -59,14 +60,13 @@ export function ShuangePage() {
   useEffect(() => {
     if (!active) return
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229
+        || event.metaKey || event.ctrlKey || event.altKey
+        || (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))
+        || useShortcutStore.getState().recording || shouldIgnoreShortcut(event.target)) return
       const shuange = useShuangeStore.getState()
-      const player = usePlayerStore.getState()
-      if (event.key === 'ArrowDown') { event.preventDefault(); step(1) }
-      else if (event.key === 'ArrowUp') { event.preventDefault(); step(-1) }
-      else if (event.key === ' ') {
-        event.preventDefault()
-        if (!shuange.loading && player.status !== 'loading') player.toggle()
-      }
+      if (event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) step(1) }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) step(-1) }
       else if (event.key === 'Escape') exit()
       else if (event.key === 'f' || event.key === 'F') shuange.playFullCurrent()
       else if (event.key === 'l' || event.key === 'L') {
@@ -75,8 +75,15 @@ export function ShuangePage() {
         if (useLikesStore.getState().supports(target)) void shuange.toggleLike(target)
       }
     }
+    const onArrowKey = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') onKey(event)
+    }
+    document.addEventListener('keydown', onArrowKey, true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onArrowKey, true)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [active, exit, step])
 
   function handleWheel(event: React.WheelEvent) {

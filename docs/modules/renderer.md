@@ -45,6 +45,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 快捷键设置位于「设置 → 快捷键」，支持播放/暂停、切歌、音量、喜欢、桌面歌词、迷你模式与打开设置的应用内和全局绑定。点击录入，Esc 取消，Delete/Backspace 或行内清除按钮取消绑定；修改即时保存，启动恢复。录入期间暂停应用菜单快捷键；刷新、退出等菜单组合及常见系统保留键不能绑定。打开设置默认是 macOS `⌘+,` / Windows `Ctrl+,`，默认不注册全局键；同步到原生设置菜单，输入框内也可使用。旧存档补上此入口，自定义或清除此项会保留。默认用 `CommandOrControl` 适配 macOS / Windows，全局组合增加 Alt 与 Shift；迷你模式应用内为 `CommandOrControl+Shift+P`。系统和其他软件的自定义占用由注册结果提示。完整的旧默认配置会升级，自定义与主动清除的配置保留。输入框、可编辑区与输入法组合输入期间避让应用内动作。
 
+主窗口阻止 Tab / Shift+Tab 遍历控件及非输入区的普通方向键导航。非输入区的空格优先使用配置的播放快捷键，不触发聚焦按钮、展开标题或多选区域；清除空格绑定后也不激活控件。输入框、可编辑区、原生选择器与滑块保留键盘操作，录入快捷键时不拦截。爽歌页保留上下方向键切换，系统组合和带修饰键的播放快捷键仍按原配置处理。
+
 系统媒体键开关控制网易云、QQ 和本地播放的 Media Session；关闭时保留空处理器，防止浏览器默认媒体动作继续控制音频。Apple Music 官网会话独立管理媒体键，本开关不控制它；应用内与全局快捷键仍复用 player/playlist store 控制 Apple 播放。全局注册失败逐行显示原因，不猜测占用它的软件。
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
