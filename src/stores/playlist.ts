@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
-import { usePlayerStore, registerTrackEndedHandler } from './player'
+import { usePlayerStore, registerTrackEndedHandler, registerPlayFromQueueHandler } from './player'
 import { useSettingsStore } from './settings'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
@@ -43,6 +43,7 @@ interface PlaylistStore {
   loadUserPlaylists(source: ProviderId): Promise<void>
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
+  clearQueue(): void
   addToQueue(track: Track): void
   addManyToQueue(tracks: Track[], offline?: boolean): number
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
@@ -152,6 +153,14 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   setQueue(tracks, startIndex = 0, contextId = null) {
     set({ queue: tracks, queueIndex: -1, queueContextId: contextId, shuffleOrder: shuffledIndices(tracks.length) })
     if (tracks.length) get().playAt(startIndex)
+  },
+
+  clearQueue() {
+    ++playAtSession
+    if (preloadTimer) clearTimeout(preloadTimer)
+    preloadTimer = null
+    set({ queue: [], queueIndex: -1, queueContextId: null, shuffleOrder: [] })
+    usePlayerStore.getState().stop()
   },
 
   addToQueue(track) {
@@ -301,3 +310,4 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
 // 自然播完后的走序(列表循环/随机切下一首,单曲循环原地重播)
 registerTrackEndedHandler(() => usePlaylistStore.getState().handleTrackEnded())
+registerPlayFromQueueHandler(() => usePlaylistStore.getState().next())

@@ -32,6 +32,14 @@ describe('歌手页返回首帧', () => {
     expect(html).toContain('已浏览专辑')
   })
 
+  it('缓存命中但搜索尚未开始时仍显示加载态，滚动恢复等待完整搜索', async () => {
+    await seed()
+    await requestProviderData('qq', 'artist:artist:songs', () => Promise.resolve({ songs: [], hasMore: false }))
+    const html = renderToStaticMarkup(<ArtistPage id="artist" source="qq" initialState={{ tab: 'songs', query: '晴天', scrollTop: 500 }} />)
+    expect(html).toContain('正在搜索完整列表')
+    expect(html).not.toContain('没有找到匹配的歌曲')
+  })
+
   it('账号变更和禁用后不渲染此前缓存的资料', async () => {
     await seed()
     useProviderStore.getState().setAccountState('qq', 'anonymous')

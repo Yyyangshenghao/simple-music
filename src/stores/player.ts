@@ -74,6 +74,7 @@ interface PlayerStore {
   rate: number
   play(): void
   pause(): void
+  stop(): void
   toggle(): void
   seek(seconds: number): void
   setVolume(v: number): void
@@ -94,6 +95,12 @@ let engine: AudioEngine | null = null
 let onTrackEnded: (() => void) | null = null
 export function registerTrackEndedHandler(cb: () => void): void {
   onTrackEnded = cb
+}
+
+// 尚未选曲时由队列决定首次播放目标，所有播放入口共用此路径。
+let onPlayFromQueue: (() => void) | null = null
+export function registerPlayFromQueueHandler(cb: () => void): void {
+  onPlayFromQueue = cb
 }
 
 // 特殊播放模式可在自然结束时优先接管走序；返回 true 表示已处理，不再落到普通队列。
@@ -439,6 +446,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     rate: 1,
 
     play() {
+      if (!get().currentTrack) { onPlayFromQueue?.(); return }
       if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
       if (activePlayback) activePlayback.autoplay = true
       if (activePlayback && !activePlayback.engineLoadId && (!activePlayback.candidate || activePlayback.advancing)) {
@@ -459,6 +467,27 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
       ensureEngine().pause()
       set({ status: 'paused' })
+    },
+    stop() {
+      ++loadSession
+      activePlayback?.resolver?.abort()
+      activePlayback = null
+      if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
+      outputRecoveryTimer = null
+      const playback = applePlayback
+      applePlayback = null
+      playback?.stop()
+      appleAudioSpectrum.stop()
+      engine?.clearSource()
+      set({
+        currentTrack: null, status: 'idle', position: 0, duration: 0,
+        actualSource: null, resolvedTrack: null, resolution: null,
+        playbackTransport: null, playbackAttempts: [], currentQuality: null, contextId: null,
+      })
+      // 当前曲已主动停止，结束“播完当前曲再停”的一次性等待。
+      const afterStop = stopAfterCurrentCb
+      stopAfterCurrentCb = null
+      afterStop?.()
     },
     toggle() {
       const s = get().status

@@ -21,9 +21,14 @@ function updateMetadata(track: Track | null): void {
 }
 
 function syncPositionState(): void {
-  const { position, duration, status, rate } = usePlayerStore.getState()
-  if (!Number.isFinite(duration) || duration <= 0) return
+  const { currentTrack, position, duration, status, rate } = usePlayerStore.getState()
+  navigator.mediaSession.playbackState = !currentTrack ? 'none'
+    : status === 'playing' || status === 'loading' ? 'playing' : 'paused'
   try {
+    if (!currentTrack || !Number.isFinite(duration) || duration <= 0) {
+      navigator.mediaSession.setPositionState()
+      return
+    }
     navigator.mediaSession.setPositionState({
       duration,
       position: Math.min(Math.max(position, 0), duration),
@@ -32,7 +37,6 @@ function syncPositionState(): void {
   } catch {
     /* 参数瞬时越界(切歌间隙)时忽略 */
   }
-  navigator.mediaSession.playbackState = status === 'playing' || status === 'loading' ? 'playing' : 'paused'
 }
 
 let initialized = false
@@ -85,7 +89,7 @@ export function initMediaSession(): void {
   usePlayerStore.subscribe((s, prev) => {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
     if (s.currentTrack !== prev.currentTrack) updateMetadata(s.currentTrack)
-    if (s.status !== prev.status || s.duration !== prev.duration) {
+    if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration) {
       syncPositionState()
       lastPositionSync = Date.now()
       return

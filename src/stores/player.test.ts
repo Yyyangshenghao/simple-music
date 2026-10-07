@@ -117,6 +117,20 @@ describe('播放器离线优先与回退', () => {
     expect(usePlayerStore.getState().playbackTransport).toBe('offline')
   })
 
+  it('停止播放后迟到的离线查询不加载音频或恢复播放', async () => {
+    let finish!: (value: OfflineCacheStatus) => void
+    h.status.mockReturnValue(new Promise<OfflineCacheStatus>((resolve) => { finish = resolve }))
+    const loading = usePlayerStore.getState().loadTrack(track)
+    usePlayerStore.getState().stop()
+    finish(offline)
+    await loading
+
+    expect(h.load).not.toHaveBeenCalled()
+    expect(h.play).not.toHaveBeenCalled()
+    expect(h.resolver).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState()).toMatchObject({ currentTrack: null, status: 'idle', position: 0 })
+  })
+
   it('跨源离线保留原内容曲目，提交实际音源身份和音质', async () => {
     await usePlayerStore.getState().loadTrack(track)
     expect(usePlayerStore.getState().playbackTransport).toBeNull()
@@ -524,6 +538,20 @@ describe('Apple Music 官方播放通道', () => {
     expect(h.appleCommand).toHaveBeenCalledWith({ type: 'pause' })
     expect(h.appleCommand).toHaveBeenCalledWith({ type: 'seek', seconds: 70 })
     expect(h.appleCommand).toHaveBeenCalledWith({ type: 'volume', volume: .3 })
+  })
+
+  it('主动停止 Apple 会话后迟到播放状态和结束事件不能回写', async () => {
+    await loadApple()
+    const stale = h.appleState!
+    const ended = vi.fn()
+    registerTrackEndedHandler(ended)
+    usePlayerStore.getState().stop()
+    stale({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'playing', position: 50, duration: 180 })
+    stale({ connected: true, loggedIn: true, subscription: 'active', playbackId: 'one', status: 'ended', position: 180, duration: 180 })
+
+    expect(h.appleStop).toHaveBeenCalled()
+    expect(ended).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState()).toMatchObject({ currentTrack: null, status: 'idle', position: 0, playbackTransport: null })
   })
 
   it('Apple Music 播放时可视化读取独立窗口的频谱', async () => {

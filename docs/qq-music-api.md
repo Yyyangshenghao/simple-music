@@ -133,7 +133,7 @@
 
 ### 2.5 项目接入落点
 
-- 正式搜索:已替换 `handleQQSearch` 的 smartbox + N 次歌曲详情请求；本地 `/api/qq/search` 路由与 `QQMusicService.searchTracks()` 签名保持不变。
+- 正式搜索:已替换 `handleQQSearch` 的 smartbox + N 次歌曲详情请求；本地 `/api/qq/search` 路由与 `QQMusicService.searchTracks()` 签名保持不变。歌曲与歌手搜索统一检查外层及模块业务码，实测间歇出现的 `2001` 间隔 300ms 重试，含首次最多请求 5 次；第五次仍失败或遇到其他错误直接报错，不伪装为空结果。
 - 排行榜:已接入 QQ toplist 分组与预览路由，`QQMusicService.getToplists()`/`getToplistPreview()` 复用现有 `ToplistSection`、`ToplistCard` 与 `ToplistPage`。
 - “我喜欢”:已实现只读 `getLikedPlaylist()` 与 `qq-liked:201` 详情分流；本轮不声明 `checkLiked()`/`likeTrack()`，避免出现不可写的红心交互。后续实现状态查询时应按歌曲 MID 回填，确认写接口后再使用完整 `Track` 上的 `qqId` + `songType` 写入。
 - “我喜欢”详情:实现 `getLikedPlaylist()` 时必须同时保证入口可打开。可新增专用 `/api/qq/liked/tracks`,或让 `/api/qq/playlist/tracks` 对 liked 虚拟 ID 特判转调 `CgiGetDiss(dirid:201)`；不能只返回一个歌单 meta,否则探索快捷入口和“我的库”能显示但无法加载曲目。

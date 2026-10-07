@@ -81,6 +81,18 @@ describe('playback persistence', () => {
     expect(usePlaylistStore.getState().shuffleOrder).toEqual([])
   })
 
+  it('仅追加但尚未播放的队列重启后仍保留，不自动选曲或起播', () => {
+    const queue = [makeTrack(0), makeTrack(1)]
+    usePlaylistStore.setState({ queue, queueIndex: -1, shuffleOrder: [1, 0] })
+    savePlayback()
+    usePlaylistStore.setState({ queue: [], queueIndex: -1, shuffleOrder: [] })
+
+    restorePlayback()
+
+    expect(usePlaylistStore.getState()).toMatchObject({ queue, queueIndex: -1, shuffleOrder: [1, 0] })
+    expect(usePlayerStore.getState()).toMatchObject({ currentTrack: null, status: 'idle' })
+  })
+
   it('损坏数据与越界下标:不崩溃,不污染队列', () => {
     store[PLAYBACK_STORAGE_KEY] = 'not json'
     restorePlayback()

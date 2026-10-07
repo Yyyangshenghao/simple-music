@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   handleQQArtistDetail,
+  handleQQArtistSearch,
   handleQQArtistSimilar,
   handleQQAlbumDetail,
   handleQQLikedPlaylist,
@@ -705,6 +706,89 @@ describe('handleQQSearch 正式歌曲搜索', () => {
     const songs = await handleQQSearch('', '测试', 20)
 
     expect(songs.map((song) => song.id)).toEqual(['song-a', 'song-b'])
+  })
+})
+
+describe.each([
+  { label: '歌曲', search: handleQQSearch, kind: 'song', item: { mid: 'song-mid', name: '测试歌曲' } },
+  { label: '歌手', search: handleQQArtistSearch, kind: 'singer', item: { singerMID: 'artist-mid', singerName: '测试歌手' } },
+])('QQ $label 搜索上游错误', ({ search, kind, item }) => {
+  const module = 'music.search.SearchCgiService'
+  const response = (json: unknown) => ({ status: 200, text: async () => JSON.stringify(json) })
+  const success = () => response({ code: 0, [module]: { code: 0, data: { body: { [kind]: { list: [item] } } } } })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    { code: 0, [module]: { code: 2001 } },
+    { code: 2001 },
+  ])('2001 响应 %j 稍后重试一次并恢复结果', async (failure) => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValueOnce(response(failure)).mockResolvedValueOnce(success())
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = search('', '测试', 5)
+    await vi.advanceTimersByTimeAsync(299)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(pending).resolves.toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1][1].body).toBe(fetchMock.mock.calls[0][1].body)
+  })
+
+  it('持续 2001 最多请求五次，保留错误码且不再等待', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(response({ code: 0, [module]: { code: 2001 } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = expect(search('', '测试', 5)).rejects.toThrow('2001')
+    await vi.advanceTimersByTimeAsync(1200)
+    await pending
+    await vi.advanceTimersByTimeAsync(300)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('前四次 2001，第五次成功仍返回结果', async () => {
+    vi.useFakeTimers()
+    const failure = response({ code: 0, [module]: { code: 2001 } })
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(success())
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = search('', '测试', 5)
+    await vi.advanceTimersByTimeAsync(1200)
+    await expect(pending).resolves.toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
+
+  it.each([
+    { code: 10000, [module]: { code: 0 } },
+    { code: 0, [module]: { code: 10000 } },
+    { code: 0 },
+  ])('其他失败 %j 不重试，也不伪装为空结果', async (failure) => {
+    const fetchMock = vi.fn().mockResolvedValue(response(failure))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(search('', '测试', 5)).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('网络失败直接报错，不额外重试', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('fetch failed'))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(search('', '测试', 5)).rejects.toThrow('fetch failed')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('合法空结果不重试', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({ code: 0, [module]: { code: 0, data: { body: { [kind]: { list: [] } } } } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(search('', '测试', 5)).resolves.toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 

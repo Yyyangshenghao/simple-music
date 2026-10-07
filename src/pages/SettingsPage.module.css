@@ -301,6 +301,12 @@
 .group:has(:global([data-settings-info]:focus-within)),
 .group:has(:global([data-settings-info]:hover)) { z-index: 2; }
 
+/* 操作按钮重绘时不重新采样玻璃背景，避免卡片边缘出现异常亮块。 */
+.storageGrid .group {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .groupHint {
   margin: 0;
   padding: 14px 20px;
