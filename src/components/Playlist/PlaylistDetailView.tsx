@@ -176,121 +176,123 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   if (!available) return null
 
   return (
-    <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
-      <div className="topGradient" style={{ opacity: topOpacity }} />
-      <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
-        <div className={styles.detailHeader}>
-          <motion.button
-            className={`${styles.backBtn} no-drag`}
-            onClick={() => useNavigationStore.getState().goBack()}
-            aria-label="返回上一页"
-            whileTap={tapScale}
-            transition={springSnappy}
-          >
-            <svg
-              className={styles.backIcon}
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+    <div className={styles.root}>
+      <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
+        <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
+          <div className={styles.detailHeader}>
+            <motion.button
+              className={`${styles.backBtn} no-drag`}
+              onClick={() => useNavigationStore.getState().goBack()}
+              aria-label="返回上一页"
+              whileTap={tapScale}
+              transition={springSnappy}
             >
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-            <span>返回</span>
-          </motion.button>
-          <div className={styles.detailMeta}>
+              <svg
+                className={styles.backIcon}
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              <span>返回</span>
+            </motion.button>
+            <div className={styles.detailMeta}>
+              <motion.div
+                className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
+                layoutId={coverLayoutId}
+                transition={isAlbum ? albumCoverTransition : springGentle}
+                style={{ borderRadius: isAlbum ? 16 : 12 }}
+              >
+                {displayCover
+                  ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
+                  : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
+              </motion.div>
+              <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+                <div className={styles.titleRow}>
+                  <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
+                  {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
+                    tracks={loading || error || !initialTracks?.length ? [] : makeQueue()}
+                    collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+                </div>
+                <SourceBadge source={displayPlaylist.source} reveal />
+                <p className={styles.detailSub}>
+                  {displayPlaylist.type === 'album'
+                    ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : loading ? '加载中…' : `${total} 首`}
+                </p>
+                {canRefresh && (
+                  <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
+                    {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
+                  </button>
+                )}
+                {displayPlaylist.type === 'album' && displayPlaylist.description && (
+                  <p className={styles.detailDescription}>{displayPlaylist.description}</p>
+                )}
+              </motion.div>
+            </div>
+          </div>
+          {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
+            selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+          <TrackSearch
+            value={query}
+            onChange={setQuery}
+            placeholder={isAlbum ? "搜索专辑内的歌曲或歌手" : "搜索歌单内的歌曲或歌手"}
+            count={searching ? matches.length : total}
+            loading={searchLoading || loading}
+            error={searchError}
+            onRetry={() => setSearchAttempt((value) => value + 1)}
+          />
+          {error ? (
+            <div className={styles.errorHint}>
+              <p>歌单加载失败</p>
+              <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
+                重试
+              </button>
+            </div>
+          ) : (
             <motion.div
-              className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
-              layoutId={coverLayoutId}
-              transition={isAlbum ? albumCoverTransition : springGentle}
-              style={{ borderRadius: isAlbum ? 16 : 12 }}
+              className={styles.trackList}
+              ref={listRef}
+              variants={fadeRise}
+              initial="hidden"
+              animate="visible"
+              transition={{ ...springGentle, delay: 0.15 }}
             >
-              {displayCover
-                ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
-                : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
+              <VirtualList
+                total={searching ? matches.length : total}
+                rowHeight={TRACK_ROW_HEIGHT}
+                scrollRef={pageRef}
+                onRangeChange={searching ? undefined : ensureRange}
+                renderRow={(i) => {
+                  const originalIndex = searching ? matches[i] : i
+                  const t = tracks[originalIndex]
+                  if (selecting) {
+                    const item = selectionQueue[originalIndex]
+                    if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                    return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
+                      <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} />
+                      {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                    </div>
+                  }
+                  return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                }}
+              />
             </motion.div>
-            <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-              <div className={styles.titleRow}>
-                <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
-                {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
-                  tracks={loading || error || !initialTracks?.length ? [] : makeQueue()}
-                  collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
-              </div>
-              <SourceBadge source={displayPlaylist.source} reveal />
-              <p className={styles.detailSub}>
-                {displayPlaylist.type === 'album'
-                  ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : loading ? '加载中…' : `${total} 首`}
-              </p>
-              {canRefresh && (
-                <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
-                  {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
-                </button>
-              )}
-              {displayPlaylist.type === 'album' && displayPlaylist.description && (
-                <p className={styles.detailDescription}>{displayPlaylist.description}</p>
-              )}
-            </motion.div>
-          </div>
+          )}
         </div>
-        {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
-          selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
-        <TrackSearch
-          value={query}
-          onChange={setQuery}
-          placeholder={isAlbum ? "搜索专辑内的歌曲或歌手" : "搜索歌单内的歌曲或歌手"}
-          count={searching ? matches.length : total}
-          loading={searchLoading || loading}
-          error={searchError}
-          onRetry={() => setSearchAttempt((value) => value + 1)}
-        />
-        {error ? (
-          <div className={styles.errorHint}>
-            <p>歌单加载失败</p>
-            <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
-              重试
-            </button>
-          </div>
-        ) : (
-          <motion.div
-            className={styles.trackList}
-            ref={listRef}
-            variants={fadeRise}
-            initial="hidden"
-            animate="visible"
-            transition={{ ...springGentle, delay: 0.15 }}
-          >
-            <VirtualList
-              total={searching ? matches.length : total}
-              rowHeight={TRACK_ROW_HEIGHT}
-              scrollRef={pageRef}
-              onRangeChange={searching ? undefined : ensureRange}
-              renderRow={(i) => {
-                const originalIndex = searching ? matches[i] : i
-                const t = tracks[originalIndex]
-                if (selecting) {
-                  const item = selectionQueue[originalIndex]
-                  if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
-                  return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
-                    <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} />
-                    {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
-                  </div>
-                }
-                return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
-              }}
-            />
-          </motion.div>
-        )}
-      </div>
-      <SelectionMarquee rect={selection.marquee} />
-      <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
-    </motion.div>
+        <SelectionMarquee rect={selection.marquee} />
+      </motion.div>
+      <div className={`topGradient ${styles.gradient}`} style={{ opacity: topOpacity }} />
+      <div className={`bottomGradient ${styles.gradient}`} style={{ opacity: bottomOpacity }} />
+    </div>
   )
 }

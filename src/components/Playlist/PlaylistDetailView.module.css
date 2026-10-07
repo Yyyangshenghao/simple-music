@@ -1,9 +1,20 @@
-/* padding 必须放内层 .inner:滚动容器带 padding 时,Chromium 的 sticky
-   约束矩形按内容盒收缩,顶/底渐变遮罩会悬空在视口内形成一条压暗横边。 */
+.root {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
 .page {
   position: relative;
   height: 100%;
   overflow-y: auto;
+}
+
+/* 遮罩放在滚动视口外，覆盖完整宽度，避免原生滚动条占位露出封面亮边。 */
+.gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .inner { padding: 24px 24px 80px; }
