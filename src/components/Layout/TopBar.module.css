@@ -24,6 +24,13 @@
   backdrop-filter: var(--glass-blur-base);
   -webkit-backdrop-filter: var(--glass-blur-base);
   mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  transition: opacity 180ms var(--sm-ease-out);
+}
+
+:global([data-app-root]:has([data-artist-toolbar-pinned='true'])) .bar::before { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar::before { transition: none; }
 }
 
 /* macOS 交通灯内嵌在左上角，顶栏内容需相应右移 */
