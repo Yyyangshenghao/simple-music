@@ -8,13 +8,13 @@ interface ArtistToolbarProps {
   scrollRef: RefObject<HTMLDivElement>
   active: boolean
   onUserScroll(): void
+  anchorRef: RefObject<HTMLDivElement>
 }
 
 /** 控件始终在同一层，避开页面渐隐蒙版；吸顶时与主导航共用一层玻璃背景。 */
-export function ArtistToolbar({ children, className, scrollRef, active, onUserScroll }: ArtistToolbarProps) {
+export function ArtistToolbar({ children, className, scrollRef, active, onUserScroll, anchorRef }: ArtistToolbarProps) {
   const onUserScrollRef = useRef(onUserScroll)
   onUserScrollRef.current = onUserScroll
-  const anchorRef = useRef<HTMLDivElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
   const syncRef = useRef<(() => void) | null>(null)

@@ -9,8 +9,10 @@ export function useArtistSearch(id: unknown, source: OnlineMusicSource, active: 
   const [loading, setLoading] = useState(active)
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [started, setStarted] = useState({ id, source, active, attempt })
   useEffect(() => {
     let cancelled = false
+    setStarted({ id, source, active, attempt })
     setSongs([])
     setError(false)
     setLoading(active)
@@ -42,5 +44,6 @@ export function useArtistSearch(id: unknown, source: OnlineMusicSource, active: 
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [id, source, active, attempt])
-  return { songs, loading, error, retry: () => setAttempt((value) => value + 1) }
+  const starting = active && (started.id !== id || started.source !== source || started.active !== active || started.attempt !== attempt)
+  return { songs, loading: loading || starting, error, retry: () => setAttempt((value) => value + 1) }
 }
