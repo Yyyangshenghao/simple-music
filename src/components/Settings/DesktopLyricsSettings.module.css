@@ -4,8 +4,6 @@
   border: 1px solid var(--glass-border-card);
   border-radius: 22px;
   background: color-mix(in srgb, var(--glass-bg-card) 86%, transparent);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
   overflow: visible;
 }
 
