@@ -1,16 +1,32 @@
 .anchor {
-  position: sticky;
-  top: var(--sm-topbar-height, 52px);
+  position: relative;
 }
 
 .layer {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
   pointer-events: none;
   z-index: 90;
   isolation: isolate;
   -webkit-app-region: initial;
+  transform: translateY(var(--artist-toolbar-origin, 0px));
+}
+
+.layer[data-artist-toolbar-scrollable='true'] {
+  animation-name: follow-scroll;
+  animation-duration: auto;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: --artist-page;
+  animation-range: 0px var(--artist-toolbar-sticky-distance);
+}
+
+/* 原生滚动时间线同步合成位置，吸顶后不再逐帧追随脚本测量。 */
+@keyframes follow-scroll {
+  from { transform: translateY(var(--artist-toolbar-origin)); }
+  to { transform: translateY(var(--sm-topbar-height, 52px)); }
 }
 
 .layer > * { pointer-events: auto; -webkit-app-region: no-drag; }
