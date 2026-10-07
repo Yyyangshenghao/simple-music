@@ -52,21 +52,15 @@
 }
 
 .subTabs {
-  display: flow-root;
   padding: 0 24px;
-  position: sticky;
-  top: var(--sm-topbar-height, 0px);
-  z-index: 10;
-}
-
-/* 只给悬浮控件承托背景，不在整行铺实色；滚动后增强底色避免歌曲文字透入。 */
-.subTabsScrolled {
+  --track-toolbar-height: 56px;
+  --track-toolbar-padding: 8px 0;
+  --track-toolbar-margin: 0px;
   --track-toolbar-divider: transparent;
-  --track-search-background: color-mix(in srgb, var(--sm-bg-base) 92%, var(--glass-bg-card));
-  --track-search-blur: var(--glass-blur-card);
+  --track-search-background: var(--glass-bg-base);
+  --track-search-border: var(--glass-border-base);
+  --track-search-radius: var(--sm-radius-pill);
 }
-
-.subTabsScrolled .tabGroup { background: var(--track-search-background); }
 
 .subTab {
   padding: 9px 8px;
@@ -87,21 +81,10 @@
 .tabGroup {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 1px solid var(--glass-border-base);
-  border-radius: var(--sm-radius-pill);
-  background: var(--glass-bg-base);
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
-  transition: background 200ms ease;
+  gap: 16px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tabGroup { transition: none; }
-}
-
-.tabsOnly { display: flex; align-items: center; gap: 8px; min-height: 72px; margin-bottom: 12px; border-bottom: 1px solid var(--track-toolbar-divider, var(--sm-border)); }
+.tabsOnly { display: flex; align-items: center; min-height: 56px; }
 
 .viewAllSongs {
   display: block;

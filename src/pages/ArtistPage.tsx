@@ -7,6 +7,7 @@ import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
+import { ArtistToolbar } from '../components/Artist/ArtistToolbar'
 import { ArtistHeader } from '../components/Artist/ArtistHeader'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
@@ -56,7 +57,6 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const [similarError, setSimilarError] = useState(false)
   const [similarRetry, setSimilarRetry] = useState(0)
   const [tab, setTab] = useState<ArtistTab>(initialState?.tab ?? 'songs')
-  const [scrolled, setScrolled] = useState(false)
   const [songsHasMore, setSongsHasMore] = useState(cachedSongs?.hasMore ?? false)
   const scrollRef = useRef<HTMLDivElement>(null)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
@@ -95,7 +95,6 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
     if (scrollRestored.current || !artistLoaded || !ready || !scrollRef.current) return
     scrollRef.current.scrollTop = savedState.current?.scrollTop ?? 0
-    setScrolled(scrollRef.current.scrollTop > 8)
     scrollRestored.current = true
   }, [artistLoaded, tab, albumsLoaded, similarLoaded, songsLoaded, search.loading])
 
@@ -220,7 +219,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   }
 
   return (
-    <ScrollArea className={styles.page} scrollRef={scrollRef} onScrolledChange={setScrolled}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <motion.button
         className={`${styles.back} no-drag`}
         onClick={goBack}
@@ -247,7 +246,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
-      <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
+      <ArtistToolbar className={styles.subTabs} scrollRef={scrollRef} active={active} onUserScroll={() => { scrollRestored.current = true }}>
         {tab === 'songs' ? (
           <TrackSearch value={query} onChange={(value) => {
             scrollRestored.current = true
@@ -260,7 +259,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
         ) : (
           <div className={styles.tabsOnly}><div className={styles.tabGroup}>{tabButtons}</div></div>
         )}
-      </div>
+      </ArtistToolbar>
 
       {tab === 'songs' && (
         <div className={styles.trackList}>
