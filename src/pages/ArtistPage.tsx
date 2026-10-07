@@ -258,7 +258,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
             <div className={styles.tabGroup}>{tabButtons}</div>
           </TrackSearch>
         ) : (
-          <div className={styles.tabsOnly}>{tabButtons}</div>
+          <div className={styles.tabsOnly}><div className={styles.tabGroup}>{tabButtons}</div></div>
         )}
       </div>
 
