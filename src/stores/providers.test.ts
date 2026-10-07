@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PROVIDER_SETTINGS_SCHEMA, PROVIDER_SETTINGS_STORAGE_KEY } from '../lib/provider-preferences'
 import { CONTENT_PROVIDER_STORAGE_KEY } from '../lib/content-provider-preference'
 import { SETTINGS_STORAGE_KEY, useSettingsStore } from './settings'
+import { getCachedProviderData, requestProviderData } from '../lib/provider-request-cache'
 import { enabledProviderIds, initProviderStore, participatingProviderIds, useProviderStore } from './providers'
 
 let dispose: (() => void) | null = null
@@ -45,6 +46,22 @@ describe('provider store', () => {
     dispose?.()
     dispose = null
     vi.unstubAllGlobals()
+  })
+
+  it.each(['account', 'enabled', 'playback'] as const)('公布 %s 状态前已清除旧浏览缓存', async (change) => {
+    await requestProviderData('qq', 'recommendation:test', () => Promise.resolve('旧账号内容'), { force: true })
+    const seen: unknown[] = []
+    const unsubscribe = useProviderStore.subscribe(() => {
+      seen.push(getCachedProviderData('qq', 'recommendation:test'))
+    })
+    try {
+      if (change === 'account') useProviderStore.getState().setAccountState('qq', 'authenticated')
+      if (change === 'enabled') useProviderStore.getState().setEnabled('qq', false)
+      if (change === 'playback') useProviderStore.getState().setPlaybackAvailability('qq', false)
+      expect(seen).toEqual([undefined])
+    } finally {
+      unsubscribe()
+    }
   })
 
   it('首次初始化迁移旧设置、备份原文并写入新 schema', () => {

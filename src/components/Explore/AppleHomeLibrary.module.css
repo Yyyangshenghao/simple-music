@@ -28,7 +28,7 @@
 
 .heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .heading h3 { margin: 0; color: var(--sm-text-primary); font-size: 16px; }
-.row { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 12px; overflow-x: auto; overflow-y: hidden; margin-top: -11px; padding: 12px 1px 8px; scrollbar-width: thin; scrollbar-color: var(--sm-border) transparent; }
+.row { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 12px; overflow-x: auto; overflow-y: hidden; margin-top: -11px; padding: 12px 1px 8px; }
 .album { width: 148px; }
 
 @media (max-width: 600px) {

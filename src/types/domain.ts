@@ -28,6 +28,7 @@ export interface ArtistInfo {
   mid?: string
   name: string
   avatar: string
+  description?: string
   musicSize?: number
   songNum?: number
   source: MusicSource

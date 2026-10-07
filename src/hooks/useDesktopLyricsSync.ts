@@ -9,7 +9,7 @@ import { useSettingsStore } from '../stores/settings'
 import { usePlayerStore } from '../stores/player'
 
 // 主窗口把当前歌词行推送给桌面歌词 overlay（窗口未开启时主进程仅缓存状态）。
-export function useDesktopLyricsSync(): void {
+export function useDesktopLyricsSync(gameEnabled = false, gameSequence = 0): void {
   const sizeFromWindow = useRef<number | null>(null)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const lines = useLyricsStore((s) => s.lines)
@@ -30,15 +30,15 @@ export function useDesktopLyricsSync(): void {
   const color = useVisualStore((s) => s.fx.desktopLyricsColor)
   const opacity = useVisualStore((s) => s.fx.desktopLyricsOpacity)
   const clickThrough = useVisualStore((s) => s.fx.desktopLyricsClickThrough)
-  const highlight = useVisualStore((s) => s.fx.desktopLyricsHighlight)
+  const highlight = useVisualStore((s) => !gameEnabled && s.fx.desktopLyricsHighlight)
   const showTranslation = useVisualStore((s) => s.fx.desktopLyricsShowTranslation)
   const backgroundOpacity = useVisualStore((s) => s.fx.desktopLyricsBackgroundOpacity)
   const savedBackgroundStyle = useVisualStore((s) => s.fx.desktopLyricsBackgroundStyle)
   const platform = window.desktop?.platform
-  const backgroundStyle = platform && platform !== 'darwin' && platform !== 'win32' ? 'dark' : savedBackgroundStyle
-  const autoWidth = useVisualStore((s) => s.fx.desktopLyricsAutoWidth)
-  const lineMode = useVisualStore((s) => s.fx.desktopLyricsLineMode)
-  const wordByWord = useVisualStore((s) => s.fx.desktopLyricsWordByWord)
+  const backgroundStyle = gameEnabled || (platform && platform !== 'darwin' && platform !== 'win32') ? 'dark' : savedBackgroundStyle
+  const autoWidth = useVisualStore((s) => !gameEnabled && s.fx.desktopLyricsAutoWidth)
+  const lineMode = useVisualStore((s) => gameEnabled ? 'single' : s.fx.desktopLyricsLineMode)
+  const wordByWord = useVisualStore((s) => !gameEnabled && s.fx.desktopLyricsWordByWord)
   const showRoma = useVisualStore((s) => s.fx.desktopLyricsShowRoma)
   // 用户改字号后清除回传标记，之后调回旧值仍是新的窗口尺寸请求。
   if (sizeFromWindow.current !== null && size !== sizeFromWindow.current) sizeFromWindow.current = null
@@ -79,7 +79,7 @@ export function useDesktopLyricsSync(): void {
       useToastStore.getState().show('桌面歌词切换失败，请重试')
     })
     useLyricsStore.getState().setDesktopLyricsEnabled(enabled)
-  }, [enabled])
+  }, [enabled, gameSequence])
 
   useEffect(() => {
     return window.desktop?.onDesktopLyricsEnabledState(({ enabled: next, requested }) => {
@@ -120,5 +120,5 @@ export function useDesktopLyricsSync(): void {
     const d = window.desktop
     if (!d) return
     void d.updateDesktopLyrics(payload).catch(() => {})
-  }, [currentIndex, lines, translation, romaji, trackKey, loading, currentTrack, size, fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight, showTranslation, showRoma, autoWidth, lineMode, wordLine, backgroundOpacity, backgroundStyle])
+  }, [gameSequence, currentIndex, lines, translation, romaji, trackKey, loading, currentTrack, size, fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight, showTranslation, showRoma, autoWidth, lineMode, wordLine, backgroundOpacity, backgroundStyle])
 }

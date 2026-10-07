@@ -67,10 +67,11 @@ interface UpdateStore {
   dismiss(): void
 }
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let downloadSession = 0
 
 function stopPolling(): void {
-  if (pollTimer) clearInterval(pollTimer)
+  if (pollTimer) clearTimeout(pollTimer)
   pollTimer = null
 }
 
@@ -98,31 +99,39 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
 
   async startDownload() {
     if (get().downloading) return
+    const session = ++downloadSession
+    stopPolling()
     set({ downloading: true })
     try {
       const job = await api.post<DownloadJob>('/api/update/download')
+      if (session !== downloadSession) return
       set({ job })
       if (job.ok && job.status !== 'ready' && job.status !== 'error') {
-        stopPolling()
-        pollTimer = setInterval(async () => {
-          const current = get().job
+        const jobId = job.id
+        const poll = async () => {
+          if (session !== downloadSession) return
           try {
-            const next = await api.get<DownloadJob>('/api/update/download/status', { id: current?.id })
+            const next = await api.get<DownloadJob>('/api/update/download/status', { id: jobId })
+            if (session !== downloadSession) return
             set({ job: next })
             if (next.status === 'ready' || next.status === 'error') {
               stopPolling()
               set({ downloading: false })
+            } else {
+              pollTimer = setTimeout(() => void poll(), POLL_INTERVAL_MS)
             }
           } catch {
+            if (session !== downloadSession) return
             stopPolling()
             set({ downloading: false })
           }
-        }, POLL_INTERVAL_MS)
+        }
+        pollTimer = setTimeout(() => void poll(), POLL_INTERVAL_MS)
       } else {
         set({ downloading: false })
       }
     } catch {
-      set({ downloading: false })
+      if (session === downloadSession) set({ downloading: false })
     }
   },
 

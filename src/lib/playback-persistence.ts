@@ -122,12 +122,14 @@ export function restorePlayback(): void {
   })
   const queueIndex = queue.indexOf(rawTrack as Track)
   const track = queue[queueIndex]
-  if (!track) return
+  // -1 是只追加、尚未选曲的有效状态；其他越界下标仍按损坏存档处理。
+  if (!track && data.queueIndex !== -1) return
   const shuffleOrder = rawQueue.length === queue.length
     && Array.isArray(data.shuffleOrder)
     && isValidPermutation(data.shuffleOrder, queue.length)
     ? data.shuffleOrder : []
   usePlaylistStore.setState({ queue, queueIndex, queueContextId: null, shuffleOrder })
+  if (!track) return
   const position = typeof data.position === 'number' && data.position > 0 ? data.position : 0
   // 恢复为暂停态:不解析 URL 不自动播;点播放时 player.play() 检测到引擎无源,按断点重新加载
   usePlayerStore.setState({

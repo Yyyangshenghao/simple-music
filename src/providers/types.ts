@@ -42,6 +42,8 @@ export interface CatalogCapability {
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>
+  searchAlbums?(keyword: string): Promise<Playlist[]>
+  searchPlaylists?(keyword: string): Promise<Playlist[]>
   getSearchHotkeys?(): Promise<string[]>
   getSimilarTracks?(track: Track): Promise<Track[]>
   getRelatedPlaylists?(track: Track, previousIds?: string[]): Promise<RelatedPlaylistsPage>

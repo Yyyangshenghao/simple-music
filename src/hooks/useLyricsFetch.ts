@@ -10,7 +10,7 @@ function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
 }
 
-export function useLyricsFetch(): void {
+export function useLyricsFetch(enabled = true): void {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const resolvedTrack = usePlayerStore((s) => s.resolvedTrack)
   const playbackOrder = useProviderStore((state) => state.playbackOrder)
@@ -21,7 +21,7 @@ export function useLyricsFetch(): void {
   }))
 
   useEffect(() => {
-    if (!currentTrack) {
+    if (!enabled || !currentTrack) {
       useLyricsStore.setState({ trackKey: null, source: null, loading: false, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
       return
     }
@@ -57,5 +57,5 @@ export function useLyricsFetch(): void {
       cancelled = true
       controller.abort()
     }
-  }, [currentTrack, participation.netease, participation.qq, participation.apple, playbackOrder, resolvedTrack])
+  }, [enabled, currentTrack, participation.netease, participation.qq, participation.apple, playbackOrder, resolvedTrack])
 }

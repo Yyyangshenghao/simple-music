@@ -17,7 +17,9 @@ interface TrackRowProps {
   onPlay(): void
   disabled?: boolean
   statusLabel?: string
+  hideLikeAction?: boolean
   hideOfflineAction?: boolean
+  hideCover?: boolean
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
@@ -39,7 +41,7 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false }: TrackRowProps) {
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false }: TrackRowProps) {
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -53,6 +55,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
 
   // 逐行红心:音源支持且已登录时显示。supports 只取决于 track.source(不变),用 getState 非响应式取即可。
   const liked = useLikesStore((s) => !!s.likedByKey[likeKeyOf(track)])
+  const likesRevision = useLikesStore((s) => s.revision)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const supported = useLikesStore.getState().supports(track)
   const visible = supported && (track.source !== 'netease' || neteaseLoggedIn)
@@ -72,7 +75,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
     if (visible) void useLikesStore.getState().ensureChecked(track)
-  }, [track, visible])
+  }, [track, visible, likesRevision])
   useEffect(() => {
     if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
   }, [offlineVisible, track.source, track.id, offlineRevision])
@@ -89,7 +92,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           ? <EqIndicator paused={!isPlaying} />
           : <span className={styles.index}>{index + 1}</span>
       )}
-      {track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
+      {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
       <div className={styles.info}>
         <span className={styles.name}>{track.name}</span>
         <span className={styles.artistLine}>
@@ -110,23 +113,21 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
           onClick={(e) => {
             e.stopPropagation()
-            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
           onKeyDown={(e) => {
             if (e.key !== 'Enter' && e.key !== ' ') return
             e.preventDefault()
             e.stopPropagation()
-            if (visibleOffline?.state === 'cached') void useOfflineCacheStore.getState().setPinned(track, true)
-            else if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
+            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
         >
           <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
         </span>
       )}
-      {visible && !disabled && (
+      {visible && !disabled && !hideLikeAction && (
         <span
           className={`${styles.likeBtn} no-drag`}
           role="button"

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
+import { useToastStore } from '../../stores/toast'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
@@ -37,6 +38,7 @@ export function QueuePanel() {
   const moveQueueItem = usePlaylistStore((s) => s.moveQueueItem)
   const playNextInQueue = usePlaylistStore((s) => s.playNextInQueue)
   const removeQueueItem = usePlaylistStore((s) => s.removeQueueItem)
+  const clearQueue = usePlaylistStore((s) => s.clearQueue)
   const ensureQueueDetails = usePlaylistStore((s) => s.ensureQueueDetails)
   const playMode = useSettingsStore((s) => s.playMode)
   const isPlaying = usePlayerStore((s) => s.status === 'playing')
@@ -121,6 +123,14 @@ export function QueuePanel() {
             <div className={styles.header}>
               <span className={styles.title}>播放队列</span>
               <span className={styles.count}>{queue.length} 首</span>
+              <button type="button" className={styles.clearBtn} disabled={!queue.length}
+                title="清空队列并停止播放" aria-label="清空播放队列并停止播放"
+                onClick={() => {
+                  clearQueue()
+                  dragFrom.current = null
+                  setDragOver(null)
+                  useToastStore.getState().show('已清空播放队列')
+                }}>清空</button>
             </div>
             <div className={styles.list} ref={listRef}>
               {queue.length === 0 ? (

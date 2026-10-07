@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
+import { useGameModeStore } from '../../stores/game-mode'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
@@ -47,6 +48,27 @@ function formatCountdown(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+function GameModeSection() {
+  const enabled = useGameModeStore((s) => s.enabled)
+  return (
+    <section className={styles.section}>
+      <button type="button" className={`${styles.optionRow} ${styles.gameModeRow}`} role="switch"
+        aria-label="游戏模式" aria-checked={enabled} data-on={enabled}
+        onClick={() => void useGameModeStore.getState().configure({ enabled: !enabled })}>
+        <svg className={styles.gameModeIcon} viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 7h10c2 0 3 2 3.5 5l.5 4c.3 2-2 3-3.3 1.5L15 15H9l-2.7 2.5C5 19 2.7 18 3 16l.5-4C4 9 5 7 7 7Z" />
+          <path d="M7 10v4m-2-2h4m7-1h.01m2 2h.01" />
+        </svg>
+        <span className={styles.gameModeCopy}>
+          <span className={styles.sectionTitle}>游戏模式</span>
+          <span className={styles.tip}>后台播放，可从托盘返回</span>
+        </span>
+        <span className={styles.optionState} aria-hidden="true" />
+      </button>
+    </section>
+  )
+}
+
 /** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
 function PlaybackSourceSection() {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
@@ -75,7 +97,7 @@ function PlaybackSourceSection() {
         <span className={styles.sourceFactValue}>
           {originVisible ? (
             <>
-              <SourceBadge source={currentTrack.source} reveal />
+              <SourceBadge source={currentTrack.source} compact reveal />
               <SourceName source={currentTrack.source} />
             </>
           ) : '当前不可用'}
@@ -84,26 +106,32 @@ function PlaybackSourceSection() {
         <span className={styles.sourceFactValue}>
           {actualSource ? (
             <>
-              <SourceBadge source={actualSource} reveal />
+              <SourceBadge source={actualSource} compact reveal />
               <SourceName source={actualSource} />
             </>
           ) : '尚未确定'}
         </span>
       </div>
       {isProviderId(currentTrack.source) && currentTrack.source !== 'apple' && participants.length > 0 && (
-        <div className={styles.chips}>
-          {participants.map((source) => (
-            <button
-              key={source}
-              type="button"
-              className={styles.chip}
-              data-on={actualSource === source}
-              onClick={() => preferSourceOnce(source)}
-              title={`当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`}
-            >
-              本次优先 {SOURCE_BRAND[source].label}
-            </button>
-          ))}
+        <div className={styles.sourcePreference}>
+          <span className={styles.tip}>本次优先</span>
+          <div className={styles.sourceChoices}>
+            {participants.map((source) => (
+              <button
+                key={source}
+                type="button"
+                className={styles.chip}
+                data-on={actualSource === source}
+                aria-pressed={actualSource === source}
+                aria-label={`本次优先使用${SOURCE_BRAND[source].label}`}
+                onClick={() => preferSourceOnce(source)}
+                title={`当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`}
+              >
+                <SourceBadge source={source} compact reveal />
+                <SourceName source={source} />
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </section>
@@ -132,11 +160,9 @@ function OfflineSection({ open }: { open: boolean }) {
         <span className={styles.sectionStatus}>{label}</span>
       </div>
       <div className={styles.chips}>
-        {(!cacheStatus || cacheStatus.state === 'missing') && (
-          <button type="button" className={styles.chip} onClick={() => void useOfflineCacheStore.getState().save(track)}>
-            保存到本地
-          </button>
-        )}
+        <button type="button" className={styles.chip} onClick={() => void useOfflineCacheStore.getState().save(track)}>
+          下载歌曲
+        </button>
         {cacheStatus?.state === 'cached' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
             保留此缓存
@@ -218,15 +244,16 @@ function QualitySection({ open }: { open: boolean }) {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>音质</span>
-        <span className={styles.sectionStatus}>
-          {currentQuality ? `当前播放:${currentQuality}` : QUALITY_LABELS[quality]}
+        <span className={styles.sectionStatus} title={currentQuality ?? QUALITY_LABELS[quality]}>
+          {currentQuality ? `当前 · ${currentQuality}` : QUALITY_LABELS[quality]}
         </span>
       </div>
-      <div className={styles.chips}>
+      <div className={styles.qualityChips}>
         <button
           type="button"
           className={styles.chip}
           data-on={quality === 'max'}
+          aria-pressed={quality === 'max'}
           onClick={() => setQuality('max')}
           title="自动取本曲最高档"
         >
@@ -243,6 +270,7 @@ function QualitySection({ open }: { open: boolean }) {
               type="button"
               className={styles.chip}
               data-on={quality === opt.level}
+              aria-pressed={quality === opt.level}
               onClick={() => setQuality(opt.level as AudioQuality)}
               title={opt.br ? `${Math.round(opt.br / 1000)} kbps` : opt.label}
             >
@@ -267,7 +295,7 @@ function RateSection() {
       </div>
       <div className={styles.rateChips}>
         {RATE_OPTIONS.map((r) => (
-          <button key={r} type="button" className={styles.chip} data-on={rate === r} onClick={() => setRate(r)}>
+          <button key={r} type="button" className={styles.chip} data-on={rate === r} aria-pressed={rate === r} onClick={() => setRate(r)}>
             {r}x
           </button>
         ))}
@@ -296,7 +324,7 @@ function SleepSection() {
         <span className={styles.sectionTitle}>定时关闭</span>
         <span className={styles.sectionStatus}>{statusText}</span>
       </div>
-      <div className={styles.chips}>
+      <div className={styles.sleepChips}>
         {SLEEP_PRESETS.map((m) => (
           <button
             key={m}
@@ -316,31 +344,39 @@ function SleepSection() {
       <button
         type="button"
         className={styles.optionRow}
+        role="switch"
+        aria-checked={finishTrack}
         data-on={finishTrack}
         onClick={() => useSleepTimerStore.getState().setFinishTrack(!finishTrack)}
       >
         <span>到点后播完当前曲</span>
-        <span className={styles.optionState}>{finishTrack ? '开' : '关'}</span>
+        <span className={styles.optionState} aria-hidden="true" />
       </button>
     </section>
   )
 }
 
-/** 「更多」菜单:把不常用的音质 / 倍速 / 定时关闭整合到一个弹层,给播放栏右侧腾出空间。 */
+/** 「更多」菜单:整合游戏模式与播放设置，给播放栏右侧腾出空间。 */
 export function MoreMenu() {
   const [open, setOpen] = useState(false)
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
 
   const hasActive = rate !== 1 || sleepPhase !== 'idle'
+
+  function closeMenu() {
+    setOpen(false)
+    toggleRef.current?.focus()
+  }
 
   // Esc 关闭 + 点击弹层/按钮之外关闭(与 QueuePanel 同款交互)
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closeMenu()
     }
     function onPointerDown(e: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
@@ -356,11 +392,12 @@ export function MoreMenu() {
   return (
     <div className={styles.root} ref={rootRef}>
       <motion.button
+        ref={toggleRef}
         type="button"
         className={`${styles.toggleBtn} no-drag`}
         data-active={open || hasActive}
         onClick={() => setOpen((v) => !v)}
-        title="更多:来源 / 离线 / 音质 / 倍速 / 定时关闭"
+        title="更多:游戏模式 / 来源 / 离线 / 音质 / 倍速 / 定时关闭"
         aria-label="更多"
         aria-expanded={open}
         whileTap={tapScale}
@@ -374,16 +411,29 @@ export function MoreMenu() {
         {open && (
           <motion.div
             className={styles.panel}
+            role="dialog"
+            aria-label="播放设置"
             initial={{ opacity: 0, y: 12, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={springGentle}
           >
-            <PlaybackSourceSection />
-            <OfflineSection open={open} />
-            <QualitySection open={open} />
-            {!apple && <RateSection />}
-            <SleepSection />
+            <div className={styles.panelHead}>
+              <span className={styles.panelTitle}>播放设置</span>
+              <button type="button" className={styles.closeBtn} onClick={closeMenu} aria-label="关闭播放设置">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className={styles.content}>
+              <GameModeSection />
+              <PlaybackSourceSection />
+              <OfflineSection open={open} />
+              <QualitySection open={open} />
+              {!apple && <RateSection />}
+              <SleepSection />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

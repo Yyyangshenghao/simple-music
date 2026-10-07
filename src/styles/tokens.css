@@ -25,6 +25,11 @@
   --sm-blur:           blur(12px);
   --sm-radius-card:    16px;
   --sm-radius-pill:    999px;
+  /* 滚动条与正文主题同步，歌词深色浮层可局部覆盖颜色。 */
+  --sm-scrollbar-size: 10px;
+  --sm-scrollbar-thumb: color-mix(in srgb, var(--sm-text-primary) 18%, transparent);
+  --sm-scrollbar-thumb-hover: color-mix(in srgb, var(--sm-text-primary) 28%, transparent);
+  --sm-scrollbar-thumb-active: color-mix(in srgb, var(--sm-text-primary) 38%, transparent);
   /* 页面宽度体系:宽窗口提高信息密度,同时保留统一边距和阅读重心。 */
   --sm-content-max-width: 1440px;
   --sm-reading-max-width: 960px;

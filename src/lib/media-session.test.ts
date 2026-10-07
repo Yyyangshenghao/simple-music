@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Track } from '../types/domain'
 
 const h = vi.hoisted(() => ({
   enabled: true, play: vi.fn(), pause: vi.fn(), seek: vi.fn(), next: vi.fn(), prev: vi.fn(),
+  player: { currentTrack: null as Track | null, duration: 0, position: 0, status: 'idle', rate: 1 },
   onSettings: undefined as ((state: { mediaKeysEnabled: boolean }, previous: { mediaKeysEnabled: boolean }) => void) | undefined,
   onPlayer: undefined as ((state: unknown, prev: unknown) => void) | undefined
 }))
@@ -9,7 +11,7 @@ vi.mock('../stores/settings', () => ({ useSettingsStore: {
   getState: () => ({ mediaKeysEnabled: h.enabled }), subscribe: (cb: typeof h.onSettings) => { h.onSettings = cb }
 } }))
 vi.mock('../stores/player', () => ({ usePlayerStore: {
-  getState: () => ({ currentTrack: null, duration: 0, play: h.play, pause: h.pause, seek: h.seek }),
+  getState: () => ({ ...h.player, play: h.play, pause: h.pause, seek: h.seek }),
   subscribe: (cb: typeof h.onPlayer) => { h.onPlayer = cb }
 } }))
 vi.mock('../stores/playlist', () => ({ usePlaylistStore: { getState: () => ({ next: h.next, prev: h.prev }) } }))
@@ -18,12 +20,14 @@ beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   h.enabled = true
+  h.player = { currentTrack: null, duration: 0, position: 0, status: 'idle', rate: 1 }
 })
+afterEach(() => vi.unstubAllGlobals())
 
 describe('系统媒体键开关', () => {
   it('播放/切歌/定位/停止沿用播放器动作，关闭后阻止媒体键和默认 HTML audio 控制', async () => {
     const handlers = new Map<string, MediaSessionActionHandler>()
-    const ms = { metadata: null, playbackState: 'none', setActionHandler: vi.fn((action, handler) => handlers.set(action, handler)) }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn((action, handler) => handlers.set(action, handler)) }
     vi.stubGlobal('navigator', { mediaSession: ms })
     const { initMediaSession } = await import('./media-session')
     initMediaSession()
@@ -46,5 +50,39 @@ describe('系统媒体键开关', () => {
     handlers.get('play')?.({ action: 'play' })
     expect(h.play).toHaveBeenCalledTimes(2)
     vi.unstubAllGlobals()
+  })
+
+  it('播放后清空队列时清除系统曲目信息、播放状态与旧进度', async () => {
+    const track = { provider: 'netease', source: 'netease', type: 'track', id: 1, name: '晴天', artist: '周杰伦', artists: [] } as Track
+    h.player = { currentTrack: track, duration: 180, position: 30, status: 'playing', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    initMediaSession()
+    expect(ms.playbackState).toBe('playing')
+    expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position: 30, playbackRate: 1 })
+
+    const previous = h.player
+    h.player = { ...h.player, currentTrack: null, duration: 0, position: 0, status: 'idle' }
+    h.onPlayer?.(h.player, previous)
+
+    expect(ms.metadata).toBeNull()
+    expect(ms.playbackState).toBe('none')
+    expect(ms.setPositionState).toHaveBeenLastCalledWith()
+  })
+
+  it('新曲目时长尚未到达时也同步播放状态并清除旧进度', async () => {
+    h.player = { currentTrack: { id: 1, name: '歌曲', artist: '歌手' } as Track, duration: 180, position: 30, status: 'playing', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    initMediaSession()
+    const previous = h.player
+    h.player = { ...h.player, duration: 0, position: 0, status: 'paused' }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.playbackState).toBe('paused')
+    expect(ms.setPositionState).toHaveBeenLastCalledWith()
   })
 })

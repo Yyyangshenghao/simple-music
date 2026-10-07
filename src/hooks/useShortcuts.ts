@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useSettingsStore } from '../stores/settings'
 import { useShortcutStore } from '../stores/shortcuts'
+import { useShuangeStore } from '../stores/shuange'
 import { acceleratorFromEvent, isShortcutAction, isSettingsMenuAccelerator, isSystemReservedAccelerator, normalizeAccelerator, shouldIgnoreShortcut } from '../lib/shortcuts'
 import { runShortcutAction } from '../lib/shortcut-actions'
 
@@ -43,12 +44,12 @@ export function useShortcuts(): void {
       if (action !== 'settings' && document.hasFocus() && shouldIgnoreShortcut(document.activeElement)) return
       if (isShortcutAction(action)) runShortcutAction(action)
     })
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent, captured = false) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
-      // 空格等无修饰键让按钮、滑杆保留原生操作，组合键仍可在聚焦控件时使用。
-      if (!event.metaKey && !event.ctrlKey && !event.altKey
-        && (event.target as Element | null)?.closest?.('button, [role="switch"], [role="slider"]')) return
+      // Enter 等按键保留控件原生操作；空格优先走播放快捷键。
+      if (!captured && event.key !== ' ' && event.code !== 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey
+        && (event.target as Element | null)?.closest?.('button, summary, [role="switch"], [role="slider"]')) return
       const accelerator = acceleratorFromEvent(event, platform)
       if (!accelerator || isSystemReservedAccelerator(accelerator, platform)) return
       const settings = useSettingsStore.getState()
@@ -65,10 +66,29 @@ export function useShortcuts(): void {
       }
       if (!binding || !isShortcutAction(binding.action)) return
       // 菜单需要继续接收事件，preventDefault 会取消原生菜单快捷键。
-      if (runtime.menuAccelerators.includes(accelerator)) return
+      if (!captured && runtime.menuAccelerators.includes(accelerator)) return
       event.preventDefault()
       if (!event.repeat) runShortcutAction(binding.action)
     }
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229
+        || useShortcutStore.getState().recording) return
+      const tab = event.key === 'Tab'
+      if (!tab && shouldIgnoreShortcut(event.target)) return
+      const space = event.key === ' ' || event.code === 'Space'
+      const arrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
+      if (!tab && !space && !arrow) return
+      // 用户绑定优先执行，再取消控件的默认导航与激活；菜单同键也由本次事件执行一次。
+      onKeyDown(event, true)
+      // 系统组合及未配置的修饰键操作继续交给系统或原控件。
+      if ((event.metaKey || event.ctrlKey || event.altKey) && !event.defaultPrevented) return
+      // 爽歌页面在捕获阶段处理上下切换，避免先触发聚焦控件的导航。
+      if (!event.defaultPrevented && arrow && !event.shiftKey && useShuangeStore.getState().active
+        && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) return
+      if (!event.defaultPrevented) event.preventDefault()
+      event.stopPropagation()
+    }
+    window.addEventListener('keydown', onKeyDownCapture, true)
     window.addEventListener('keydown', onKeyDown)
     sync()
     return () => {
@@ -77,6 +97,7 @@ export function useShortcuts(): void {
       offSettings()
       offRecording()
       offHotkey?.()
+      window.removeEventListener('keydown', onKeyDownCapture, true)
       window.removeEventListener('keydown', onKeyDown)
       void desktop?.configureHotkeys([]).catch(() => {})
     }

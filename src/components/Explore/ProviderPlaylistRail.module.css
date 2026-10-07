@@ -19,8 +19,6 @@
   overflow-y: hidden;
   margin-top: -11px;
   padding: 12px 1px 8px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border) transparent;
 }
 
 .card { width: 148px; }

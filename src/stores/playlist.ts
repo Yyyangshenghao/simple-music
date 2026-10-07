@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
-import { usePlayerStore, registerTrackEndedHandler } from './player'
+import { usePlayerStore, registerTrackEndedHandler, registerPlayFromQueueHandler } from './player'
 import { useSettingsStore } from './settings'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
@@ -43,7 +43,9 @@ interface PlaylistStore {
   loadUserPlaylists(source: ProviderId): Promise<void>
   setCurrentPlaylist(p: Playlist | null): void
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
+  clearQueue(): void
   addToQueue(track: Track): void
+  addManyToQueue(tracks: Track[], offline?: boolean): number
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
   moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
   playNextInQueue(index: number): void
@@ -153,6 +155,14 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     if (tracks.length) get().playAt(startIndex)
   },
 
+  clearQueue() {
+    ++playAtSession
+    if (preloadTimer) clearTimeout(preloadTimer)
+    preloadTimer = null
+    set({ queue: [], queueIndex: -1, queueContextId: null, shuffleOrder: [] })
+    usePlayerStore.getState().stop()
+  },
+
   addToQueue(track) {
     set((s) => ({
       queue: [...s.queue, track],
@@ -160,6 +170,26 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
         ? [...s.shuffleOrder, s.queue.length]
         : shuffledIndices(s.queue.length + 1),
     }))
+  },
+
+  addManyToQueue(tracks, offline = false) {
+    const state = get()
+    const known = new Set(state.queue.map((track) => `${track.source}:${String(track.id)}`))
+    const incoming = tracks.filter((track) => {
+      const key = `${track.source}:${String(track.id)}`
+      // 离线列表已确认网易/QQ 文件可用，不要求账号参与；Apple 仍依赖官网会话。
+      if (known.has(key) || track.playable === false || ((!offline || track.source === 'apple') && isProviderId(track.source) && !isProviderParticipating(track.source))) return false
+      known.add(key)
+      return true
+    })
+    if (!incoming.length) return 0
+    set({
+      queue: [...state.queue, ...incoming],
+      shuffleOrder: isValidPermutation(state.shuffleOrder, state.queue.length)
+        ? [...state.shuffleOrder, ...incoming.map((_, index) => state.queue.length + index)]
+        : shuffledIndices(state.queue.length + incoming.length),
+    })
+    return incoming.length
   },
 
   moveQueueItem(fromDisplayIndex, toDisplayIndex) {
@@ -280,3 +310,4 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
 // 自然播完后的走序(列表循环/随机切下一首,单曲循环原地重播)
 registerTrackEndedHandler(() => usePlaylistStore.getState().handleTrackEnded())
+registerPlayFromQueueHandler(() => usePlaylistStore.getState().next())

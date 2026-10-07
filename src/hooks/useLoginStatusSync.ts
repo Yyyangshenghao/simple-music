@@ -12,10 +12,21 @@ interface LoginStatusResponse {
   nickname?: string
 }
 
-export function useLoginStatusSync(): void {
+export function useLoginStatusSync(suspended = false): void {
+  useEffect(() => {
+    if (suspended) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const syncApple = async () => {
+      await useAppleMusicConnection.getState().refresh()
+      if (!cancelled) timer = setTimeout(() => void syncApple(), 3000)
+    }
+    void syncApple()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [suspended])
+
   useEffect(() => {
     let cancelled = false
-    let appleTimer: ReturnType<typeof setTimeout>
     const initialAccounts = { ...useProviderStore.getState().byId }
     const accountUnchanged = (source: 'netease' | 'qq') => {
       const current = useProviderStore.getState().byId[source]
@@ -23,11 +34,6 @@ export function useLoginStatusSync(): void {
       // 水合和启停音源会替换 runtime，但不能使正在进行的账号检测失效。
       return !cancelled && current.auth === initial.auth && current.profile === initial.profile
     }
-    const syncApple = async () => {
-      await useAppleMusicConnection.getState().refresh()
-      if (!cancelled) appleTimer = setTimeout(() => void syncApple(), 3000)
-    }
-    void syncApple()
     void api
       .get<LoginStatusResponse>('/api/login/status')
       .then((r) => {
@@ -53,6 +59,6 @@ export function useLoginStatusSync(): void {
         useProviderStore.getState().setAccountState('qq', loggedIn ? 'authenticated' : 'anonymous', profile)
       })
       .catch(() => {})
-    return () => { cancelled = true; clearTimeout(appleTimer) }
+    return () => { cancelled = true }
   }, [])
 }

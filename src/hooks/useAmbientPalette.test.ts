@@ -42,6 +42,19 @@ class TestImage {
 }
 
 describe('封面取色与导航', () => {
+  it('游戏模式停止补间，丢弃旧封面结果，切歌不采样，退出恢复当前封面', () => {
+    useAmbientPalette()
+    TestImage.instances[0].onload?.()
+    expect(vi.getTimerCount()).toBe(1)
+    useAmbientPalette(false)
+    expect(vi.getTimerCount()).toBe(0)
+    h.cover = 'new.jpg'
+    useAmbientPalette(false)
+    expect(TestImage.instances).toHaveLength(1)
+    useAmbientPalette(true)
+    expect(TestImage.instances).toHaveLength(2)
+    expect(TestImage.instances[1].src).toContain('new.jpg')
+  })
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()

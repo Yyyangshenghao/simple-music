@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { filterOfflineLibrary, offlineLibraryTrack, type OfflineLibraryItem } from './offline-library'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { deleteOfflineLibraryItems, filterOfflineLibrary, offlineLibraryTrack, type OfflineLibraryItem } from './offline-library'
+
+const h = vi.hoisted(() => ({ post: vi.fn() }))
+vi.mock('./api', () => ({ api: { post: h.post } }))
+beforeEach(() => { h.post.mockReset(); h.post.mockResolvedValue({ ok: true }) })
 
 const items: OfflineLibraryItem[] = [
   { origin: { source: 'netease', id: '1', name: 'B song', artist: 'Amy', album: 'Summer', duration: 120000 }, entryId: 'one', savedAt: 10, size: 4, quality: 'standard' },
@@ -26,5 +30,38 @@ describe('离线音乐列表和播放队列', () => {
   })
   it('旧索引资料缺失时仍保留可播放身份', () => {
     expect(offlineLibraryTrack({ ...items[0], origin: { source: 'qq', id: 'old' } })).toMatchObject({ source: 'qq', id: 'old', name: '未知歌曲', artist: '未知艺人' })
+  })
+
+  it('批量删除按来源和 ID 去重，传递已确认的保存时间与文件归属', async () => {
+    const signal = new AbortController().signal
+    const result = await deleteOfflineLibraryItems([items[0], items[0], items[1]], signal)
+    expect(result).toEqual({ removed: items, failed: [], cancelled: false })
+    expect(h.post).toHaveBeenCalledTimes(2)
+    expect(h.post).toHaveBeenNthCalledWith(1, '/api/audio-cache/delete', {
+      entryId: items[0].entryId, origin: items[0].origin, savedAt: items[0].savedAt,
+    }, undefined, { signal })
+  })
+
+  it('部分失败继续删除其余项并返回失败项供界面重试', async () => {
+    h.post.mockRejectedValueOnce(new Error('HTTP 409'))
+    expect(await deleteOfflineLibraryItems(items, new AbortController().signal)).toEqual({ removed: [items[1]], failed: [items[0]], cancelled: false })
+    expect(h.post).toHaveBeenCalledTimes(2)
+  })
+
+  it('取消操作后不开始后续请求，并保留已成功删除的结果', async () => {
+    const controller = new AbortController()
+    h.post.mockImplementationOnce(async () => { controller.abort(); return { ok: true } })
+    expect(await deleteOfflineLibraryItems(items, controller.signal)).toEqual({ removed: [items[0]], failed: [], cancelled: true })
+    expect(h.post).toHaveBeenCalledTimes(1)
+    h.post.mockClear()
+    expect(await deleteOfflineLibraryItems(items, controller.signal)).toEqual({ removed: [], failed: [], cancelled: true })
+    expect(h.post).not.toHaveBeenCalled()
+  })
+
+  it('取消中的请求失败不误报删除成功，也不继续下一首', async () => {
+    const controller = new AbortController()
+    h.post.mockImplementationOnce(async () => { controller.abort(); throw new DOMException('Aborted', 'AbortError') })
+    expect(await deleteOfflineLibraryItems(items, controller.signal)).toEqual({ removed: [], failed: [], cancelled: true })
+    expect(h.post).toHaveBeenCalledTimes(1)
   })
 })

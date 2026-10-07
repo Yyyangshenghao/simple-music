@@ -114,8 +114,6 @@
   position: relative;
   overflow: auto;
   cursor: grab;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border) transparent;
 }
 
 .canvasScroll:active { cursor: grabbing; }

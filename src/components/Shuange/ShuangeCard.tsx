@@ -70,6 +70,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
   const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const liked = useLikesStore((s) => s.likedByKey[likeKeyOf(track)] ?? false)
+  const likesRevision = useLikesStore((s) => s.revision)
   const supports = useLikesStore((s) => s.supports)
   const matchesPlayer = trackKey(track) === trackKey(currentTrack)
   const matchesLyrics = lyricsTrackKey === trackKey(track)
@@ -82,7 +83,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
 
   useEffect(() => {
     void useLikesStore.getState().ensureChecked(track)
-  }, [track])
+  }, [track, likesRevision])
 
   useEffect(() => {
     const viewport = titleViewportRef.current

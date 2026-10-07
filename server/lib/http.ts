@@ -6,19 +6,30 @@ export const MAX_BODY_BYTES = 2 * 1024 * 1024
 /** 读取请求体。累加前先卡上限,避免超大 body 把整个 body 攒在内存里撑爆进程。 */
 export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
-    let data = ''
+    const chunks: Buffer[] = []
     let size = 0
+    let settled = false
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      if (error) reject(error)
+      else resolve(Buffer.concat(chunks, size).toString('utf8'))
+      chunks.length = 0
+    }
     req.on('data', (c) => {
+      if (settled) return
       size += c.length
       if (size > MAX_BODY_BYTES) {
+        finish(new Error('BODY_TOO_LARGE'))
         req.destroy()
-        reject(new Error('BODY_TOO_LARGE'))
         return
       }
-      data += c
+      chunks.push(c)
     })
-    req.on('end', () => resolve(data))
-    req.on('error', reject)
+    req.once('end', () => finish())
+    req.once('error', finish)
+    req.once('aborted', () => finish(new Error('REQUEST_ABORTED')))
+    if (req.aborted) finish(new Error('REQUEST_ABORTED'))
   })
 }
 

@@ -5,7 +5,8 @@ import type { OnlineMusicSource, Track } from '../types/domain'
 /** 仅搜索时补齐歌手曲库；切换歌手、清空搜索或离开页面后停止后续分页。 */
 export function useArtistSearch(id: unknown, source: OnlineMusicSource, active: boolean) {
   const [songs, setSongs] = useState<Track[]>([])
-  const [loading, setLoading] = useState(false)
+  // 返回带搜索条件的页面时，首帧也必须等待完整曲库，避免过早恢复滚动。
+  const [loading, setLoading] = useState(active)
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {

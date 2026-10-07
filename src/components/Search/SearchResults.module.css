@@ -7,15 +7,6 @@
   overscroll-behavior: contain;
 }
 
-.list::-webkit-scrollbar {
-  width: 3px;
-}
-
-.list::-webkit-scrollbar-thumb {
-  background: var(--sm-border-strong);
-  border-radius: 2px;
-}
-
 .item {
   display: flex;
   align-items: center;

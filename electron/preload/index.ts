@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   WindowState,
+  GameModeState,
+  TrayPlaybackState,
   LoginResult,
   OkResult,
   LyricsPayload,
@@ -44,6 +46,10 @@ const api = {
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
   maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   onStateChange: (cb: (s: WindowState) => void) => on<WindowState>('window:state-changed', cb),
+  getGameMode: (): Promise<GameModeState> => ipcRenderer.invoke('game-mode:get-state'),
+  setGameMode: (state: GameModeState): Promise<GameModeState> => ipcRenderer.invoke('game-mode:set-state', state),
+  onGameModeChange: (cb: (state: GameModeState) => void) => on<GameModeState>('game-mode:state-changed', cb),
+  updateTrayPlayback: (state: TrayPlaybackState): Promise<OkResult> => ipcRenderer.invoke('tray:update-playback', state),
   startAppleAudioCapture: (): Promise<boolean> => ipcRenderer.invoke('apple:audio-capture-start'),
 
   // 登录
@@ -84,6 +90,7 @@ const api = {
   importJson: (): Promise<ImportResult> => ipcRenderer.invoke('file:import-json'),
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
+  openDirectory: (path: string): Promise<OkResult> => ipcRenderer.invoke('file:open-directory', { path }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
   installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })

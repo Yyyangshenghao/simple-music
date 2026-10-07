@@ -32,6 +32,7 @@ export default defineConfig({
     // ERR_CONNECTION_REFUSED。显式绑 127.0.0.1 确保 IPv4 回环可连。
     server: { host: '127.0.0.1' },
     build: {
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           index: resolve('index.html'),

@@ -62,15 +62,6 @@
   perspective-origin: 50% 30%;
 }
 
-.viewport::-webkit-scrollbar {
-  width: 4px;
-}
-
-.viewport::-webkit-scrollbar-thumb {
-  background: var(--sm-border-strong);
-  border-radius: 2px;
-}
-
 .empty {
   padding: 64px 0;
   text-align: center;

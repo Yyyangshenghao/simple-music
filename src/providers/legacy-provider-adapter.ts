@@ -177,6 +177,8 @@ export function createLegacyProvider(options: LegacyProviderOptions): MusicProvi
       searchTracks: async (keyword) => normalizeTracks(await service.searchTracks(keyword), descriptor.id),
       searchArtists: async (keyword) => (await service.searchArtists(keyword))
         .map((artist) => normalizeArtist(artist, descriptor.id)),
+      searchAlbums: service.searchAlbums ? async (keyword) => normalizePlaylists(await service.searchAlbums!(keyword), descriptor.id) : undefined,
+      searchPlaylists: service.searchPlaylists ? async (keyword) => normalizePlaylists(await service.searchPlaylists!(keyword), descriptor.id) : undefined,
       getSearchHotkeys: service.getSearchHotkeys ? () => service.getSearchHotkeys!() : undefined,
       getSimilarTracks: service.getSimilarTracks
         ? async (track) => normalizeTracks(await service.getSimilarTracks!(track), descriptor.id)

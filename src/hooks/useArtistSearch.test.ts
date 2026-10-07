@@ -23,6 +23,10 @@ const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve()
 
 describe('歌手完整曲库搜索', () => {
   beforeEach(() => { harness.setters = []; harness.page.mockReset(); harness.songs.mockReset() })
+  it('恢复搜索页时首帧即为加载态，不能在搜索结果到达前恢复滚动', () => {
+    expect(useArtistSearch('artist', 'netease', true).loading).toBe(true)
+    expect(harness.page).not.toHaveBeenCalled()
+  })
   it('只有启用搜索才读取完整曲库', async () => {
     useArtistSearch('artist', 'netease', false)
     harness.effect?.()

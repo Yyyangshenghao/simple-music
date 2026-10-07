@@ -36,8 +36,8 @@
 | `GET /api/qq/recommend/songs` | 猜你喜欢 | — | `music.radioProxy.MbTrackRadioSvr/get_radio_track` | `{ songs }`;服务端循环最多 4 次按 mid 去重凑够 20 首。**已实测**:数组在 `data.tracks`(命中既有候选),每项是扁平结构(`mid`/`name`/`singer`/`album`/`interval`/`file`/`pay` 直接在顶层),与 `mapQQPlaylistTrack` 现有解析天然兼容,无需额外映射 | 已用 |
 | `GET /api/qq/toplist` | 排行榜分组与 Top3 | — | `music.musicToplist.Toplist/GetAll` | `{ groups: ToplistGroup[] }`;榜单 ID 编码为 `qq-toplist:<topId>` | 已用 |
 | `GET /api/qq/toplist/preview` | 补拉榜单 Top3 | `id`(`qq-toplist:<topId>`) | `music.musicToplist.Toplist/GetDetail` | `{ preview }`;仅请求前 3 首,GetAll 已带预览时客户端不会调用 | 已用 |
-| `GET /api/qq/playlist/tracks` | 歌单全量曲目 | `id`(`disstid`/`qq-liked:201`/`qq-toplist:<topId>`) | 普通歌单与“我喜欢”走 `CgiGetDiss`,榜单走 `Toplist/GetDetail` | 服务端按上游分页取全并返回有序 `trackIds`/`tracks` | 已用 |
-| `GET /api/qq/artist/detail` | 歌手详情+热门曲目 | `mid`、`limit`(10~80) | `music.web_singer_info_svr/get_singer_detail_info` | `{ artist, songs, total }`;客户端与服务端统一传歌手 MID | 已用 |
+| `GET /api/qq/playlist/tracks` | 歌单全量曲目 | `id`(`disstid`/`qq-liked:201`/`qq-toplist:<topId>`) | 普通歌单与“我喜欢”走 `CgiGetDiss`,榜单走 `Toplist/GetDetail` | 服务端按上游分页取全并返回有序 `trackIds`/`tracks`；普通 ID 必须为正安全整数的十进制串，上游 `disstid` 转为 JSON 数字，非法 ID 返回 400 | 已用 |
+| `GET /api/qq/artist/detail` | 歌手详情+热门曲目 | `mid`、`limit`(10~80) | `music.web_singer_info_svr/get_singer_detail_info` | `{ artist, songs, total }`;客户端与服务端统一传歌手 MID；简介从 `data.singer_brief` 映射至 `artist.description` | 已用 |
 | `GET /api/qq/artist/similar` | 相似歌手 | `mid`、`limit`(1~30) | `music.SimilarSingerSvr/GetSimilarSingerList` | `{ artists }`;按歌手 MID 去重并排除当前歌手；上游失败返回 502，明确鉴权错误返回 401/403 | 已用 |
 | `GET /api/qq/search/artists` | 搜索歌手 | `keywords`、`limit`(1~10) | `music.search.SearchCgiService/DoSearchForQQMusicDesktop`(`search_type:1`) | `{ artists: [{id,mid,name,avatar,musicSize}] }`;该模块信封 key 须与 module 同名且不能带顶层 `comm`,已实测确认 | 已用 |
 | `GET /api/qq/artist/songs` | 歌手歌曲(分页) | `id`(singermid)、`limit`(1~100)、`offset` | `musichall.song_list_server/GetSingerSongList` | `{ total, songs: Track[] }` | 已用 |
@@ -133,7 +133,7 @@
 
 ### 2.5 项目接入落点
 
-- 正式搜索:已替换 `handleQQSearch` 的 smartbox + N 次歌曲详情请求；本地 `/api/qq/search` 路由与 `QQMusicService.searchTracks()` 签名保持不变。
+- 正式搜索:已替换 `handleQQSearch` 的 smartbox + N 次歌曲详情请求；本地 `/api/qq/search` 路由与 `QQMusicService.searchTracks()` 签名保持不变。歌曲与歌手搜索统一检查外层及模块业务码，实测间歇出现的 `2001` 间隔 300ms 重试，含首次最多请求 5 次；第五次仍失败或遇到其他错误直接报错，不伪装为空结果。
 - 排行榜:已接入 QQ toplist 分组与预览路由，`QQMusicService.getToplists()`/`getToplistPreview()` 复用现有 `ToplistSection`、`ToplistCard` 与 `ToplistPage`。
 - “我喜欢”:已实现只读 `getLikedPlaylist()` 与 `qq-liked:201` 详情分流；本轮不声明 `checkLiked()`/`likeTrack()`，避免出现不可写的红心交互。后续实现状态查询时应按歌曲 MID 回填，确认写接口后再使用完整 `Track` 上的 `qqId` + `songType` 写入。
 - “我喜欢”详情:实现 `getLikedPlaylist()` 时必须同时保证入口可打开。可新增专用 `/api/qq/liked/tracks`,或让 `/api/qq/playlist/tracks` 对 liked 虚拟 ID 特判转调 `CgiGetDiss(dirid:201)`；不能只返回一个歌单 meta,否则探索快捷入口和“我的库”能显示但无法加载曲目。

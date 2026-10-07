@@ -502,7 +502,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const resp = await call('album', { id, cookie })
       const body = asObj(resp.body)
       const songs = asArr(body.songs || []).map(mapSongRecord).filter((s) => s.id && s.name)
-      sendJson(res, { songs })
+      sendJson(res, { songs, playlist: body.album ? mapAlbum(body.album) : null })
     } catch (err) {
       console.error('[AlbumSongs]', err)
       sendJson(res, { songs: [] }, 500)
@@ -884,6 +884,18 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       let finalMessage = ''
       let success = false
 
+      const detail = await call('playlist_detail', { id: String(pid), s: 0, cookie })
+      const target = asObj(asObj(detail.body).playlist)
+      if (String(asObj(target.creator).userId) !== String(info.userId) || target.subscribed === true || asNum(target.specialType) !== 0) {
+        sendJson(res, { error: 'PLAYLIST_NOT_WRITABLE' }, 409)
+        return true
+      }
+      // 归属检查期间切换账号后，不能再用旧账号发起写入。
+      if (getCookie(ctx, 'netease') !== cookie) {
+        sendJson(res, { error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      if (res.destroyed) return true
       const primary = await call('playlist_tracks', { op: 'add', pid, tracks: String(id), cookie, timestamp: Date.now() })
       finalBody = primary.body || primary
       finalCode = normalizeApiCode(primary)
@@ -891,7 +903,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       success = finalCode === 200 && !asObj(finalBody).error
       attempts.push({ api: 'playlist_tracks', code: finalCode, message: finalMessage, body: finalBody })
 
-      if (!success && has('playlist_track_add')) {
+      if (!success && !res.destroyed && getCookie(ctx, 'netease') === cookie && has('playlist_track_add')) {
         try {
           const fallback = await call('playlist_track_add', { pid, ids: String(id), cookie, timestamp: Date.now() })
           finalBody = fallback.body || fallback

@@ -7,7 +7,6 @@ import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
-import { playbackStrategySummary } from '../lib/playback-preference-display'
 import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
@@ -16,14 +15,17 @@ import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
+import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
+import { useGameModeStore } from '../stores/game-mode'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
+import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
@@ -32,9 +34,9 @@ const SETTINGS_TABS = [
   { id: 'music', label: '音源与播放', description: '账户、来源标识、播放顺序与音质' },
   { id: 'visual', label: '界面与窗口', description: '主题、字体、迷你播放条与界面动效' },
   { id: 'lyrics', label: '歌词与动效', description: '桌面歌词、字体与 3D 歌词舞台' },
-  { id: 'cache', label: '音频缓存', description: '缓存位置、容量与清理' },
+  { id: 'cache', label: '缓存与下载', description: '自动缓存、已下载歌曲与存储位置' },
   { id: 'shortcuts', label: '快捷键', description: '应用内、全局快捷键与系统媒体键' },
-  { id: 'about', label: '关于应用', description: '版本信息与更新' },
+  { id: 'about', label: '关于应用', description: '版本信息、更新与更新日志' },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
@@ -559,6 +561,10 @@ export function SettingsPage() {
     setActiveSection(id)
   }, [])
   useEffect(() => {
+    const navigation = useNavigationStore.getState()
+    if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
+  }, [scrollToSection])
+  useEffect(() => {
     if (settingsMusicRequest === 0) return
     scrollToSection('music')
     useNavigationStore.setState({ settingsMusicRequest: 0 })
@@ -632,7 +638,7 @@ export function SettingsPage() {
   const setMultiSourceFallback = useProviderStore((s) => s.setMultiSourceFallback)
   const setSourceBadgeMode = useProviderStore((s) => s.setSourceBadgeMode)
   const participatingPlaybackOrder = playbackOrder.filter((source) => (
-    source !== 'apple' && providerState[source].enabled && providerState[source].auth === 'authenticated'
+    source !== 'apple' && providerState[source].enabled && providerState[source].auth === 'authenticated' && providerState[source].playbackAvailable !== false
   ))
   const playbackAuthPending = playbackOrder.some((source) => (
     source !== 'apple' && providerState[source].enabled && providerState[source].auth === 'unknown'
@@ -648,6 +654,7 @@ export function SettingsPage() {
   }
 
   const [audioCache, setAudioCache] = useState<AudioCacheStatsInfo | null>(null)
+  const downloadDir = useOfflineCacheStore((state) => state.downloadDir)
   const [cacheConfig, setCacheConfig] = useState<AudioCacheConfigInfo | null>(null)
   const [clearingCache, setClearingCache] = useState(false)
   async function refreshCacheInfo(): Promise<void> {
@@ -666,15 +673,15 @@ export function SettingsPage() {
     void refreshCacheInfo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  async function handleClearAudioCache(scope: 'temporary' | 'pinned' | 'unmanaged' | 'all'): Promise<void> {
-    if ((scope === 'pinned' || scope === 'all') && audioCache?.pinnedFiles) {
-      if (!window.confirm('这会删除已保存歌曲的本地文件，仍要继续吗？')) return
-    }
+  async function handleClearAudioCache(scope: 'temporary' | 'pinned' | 'unmanaged'): Promise<void> {
+    if (scope === 'pinned' && !window.confirm('这会删除播放器中的离线音频，需要时要重新保存。下载目录中的歌曲文件会保留。仍要删除吗？')) return
+    if (scope === 'unmanaged' && !window.confirm('这些文件无法识别是否曾经下载保存，删除后无法恢复。仍要删除吗？')) return
     setClearingCache(true)
     try {
       await api.post('/api/audio-cache/clear', { scope }, undefined, { timeoutMs: 120_000 })
       useOfflineCacheStore.getState().invalidate()
       await refreshCacheInfo()
+      useToastStore.getState().show(scope === 'temporary' ? '自动缓存已清理，已下载歌曲已保留' : '本地文件已删除')
     } catch {
       useToastStore.getState().show('清理失败：缓存正在播放或保存中')
     } finally {
@@ -693,10 +700,10 @@ export function SettingsPage() {
   async function handlePickCacheDir(): Promise<void> {
     const picker = window.desktop?.selectDirectory
     if (!picker) return
-    const r = await picker({ title: '选择音频缓存文件夹', defaultPath: cacheConfig?.dir })
+    const r = await picker({ title: '选择音频存储文件夹', defaultPath: cacheConfig?.dir })
     if (!r.ok || !r.filePath) return
     const hasSaved = !!audioCache?.pinnedFiles
-    if (hasSaved && !window.confirm('更改位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
+    if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('更改缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
     await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
   }
   const miniPlayerAppearance = useSettingsStore((s) => s.miniPlayerAppearance)
@@ -711,7 +718,7 @@ export function SettingsPage() {
   const installing = useUpdateStore((s) => s.installing)
   const installUpdate = useUpdateStore((s) => s.installUpdate)
 
-  const currentVersion = updateInfo?.currentVersion || '1.0.0'
+  const currentVersion = updateInfo?.currentVersion || appVersion
   const ready = job?.status === 'ready'
   const isMacUpdate = window.desktop?.platform === 'darwin'
   const updateStatusText = checking
@@ -763,8 +770,11 @@ export function SettingsPage() {
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>
                     音源与账户
-                    <InfoButton label="音源与账户" text="平台必须先登录，再由你明确启用；退出登录后会立即停止参与内容与播放。" />
+                    <InfoButton label="音源与账户" text="登录并启用后，平台才会参与浏览和联网播放。停用或退出登录后不再向它获取歌曲，但已有本地缓存仍可播放。来源标识只控制角标显示，不改变播放平台。" />
                   </h3>
+                  <p className={styles.providerExplanation}>
+                    登录后启用，才参与浏览与联网播放。
+                  </p>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>来源标识</span>
                     <div className={styles.segControl}>
@@ -822,28 +832,31 @@ export function SettingsPage() {
                   })}
                 </section>
                 <section className={styles.group}>
-                  <h3 className={styles.groupTitle}>播放</h3>
+                  <div className={`${styles.groupTitle} ${styles.playbackCardHeader}`}>
+                    <h3>播放偏好</h3>
+                    <div className={styles.playbackHeadingActions}>
+                      <span className={styles.playbackProviderCount}>
+                        {playbackAuthPending ? '正在核实' : `${participatingPlaybackOrder.length} 个平台`}
+                      </span>
+                      <PlaybackLogicHelp
+                        providerLabels={visiblePlaybackOrder.map(providerLabel)}
+                        preferOriginSource={preferOriginSource}
+                        multiSourceFallback={multiSourceFallback}
+                        authPending={playbackAuthPending}
+                      />
+                    </div>
+                  </div>
                   <div className={styles.playbackStrategyRow}>
                     <div className={styles.playbackStrategy}>
-                      <div className={styles.playbackStrategyHeading}>
-                        <div>
-                          <span className={styles.playbackStrategyKicker}>播放接力</span>
-                          <strong>决定歌曲默认从哪里开始播放</strong>
-                        </div>
-                        <span className={styles.playbackProviderCount}>
-                          {playbackAuthPending ? '正在核实' : `${participatingPlaybackOrder.length} 个平台`}
-                        </span>
-                      </div>
-
                       {visiblePlaybackOrder.length > 1 ? (
                         <div className={styles.playbackModeBlock}>
                           <span className={styles.playbackFieldLabel}>
-                            起播方式
+                            没有缓存时的起播方式
                             <InfoButton
                               label="起播方式"
                               text={preferOriginSource
-                                ? '未指定本次优先时，先尝试歌曲所属平台，再按下方顺序补位。'
-                                : '未指定本次优先时，所有歌曲都从下方第一个平台开始。'}
+                                ? '需要联网且未指定本次优先时，先尝试已启用的歌曲所属平台，再按下方顺序补位。'
+                                : '需要联网且未指定本次优先时，从下方第一个平台开始。'}
                             />
                           </span>
                           <div className={styles.playbackModeControl} role="radiogroup" aria-label="起播方式">
@@ -890,21 +903,15 @@ export function SettingsPage() {
                               固定播放顺序
                             </motion.button>
                           </div>
+                          <p className={styles.playbackModeExplanation}>
+                            {preferOriginSource
+                              ? '先用歌曲原平台，下方顺序用于补位。'
+                              : '先用排名第一的平台，与歌曲来源无关。'}
+                          </p>
                         </div>
                       ) : visiblePlaybackOrder.length === 1 ? (
                         <div className={styles.playbackSingleProviderHint}>当前只有一个已启用平台，无需设置接力方式。</div>
                       ) : null}
-
-                      <div className={styles.playbackRulePreview} aria-live="polite">
-                        <span>全局规则</span>
-                        <strong>
-                          {playbackStrategySummary(
-                            visiblePlaybackOrder.map(providerLabel),
-                            preferOriginSource,
-                            multiSourceFallback
-                          )}
-                        </strong>
-                      </div>
 
                       <div className={styles.playbackOrderBlock}>
                         <div className={styles.playbackOrderHeading}>
@@ -928,8 +935,8 @@ export function SettingsPage() {
                           <strong>播放失败后自动换源</strong>
                           <small>
                             {multiSourceFallback
-                              ? '当前平台没有版权、会员受限或地址失效时，继续接力。'
-                              : '关闭后只在当前平台内部降低音质，不再切换平台。'}
+                              ? '当前平台失败后，按排序尝试其他平台。'
+                              : '当前平台仍无法播放就停止。'}
                           </small>
                         </div>
                         <Switch
@@ -938,6 +945,8 @@ export function SettingsPage() {
                           aria-label="播放失败后自动换源"
                         />
                       </div>}
+
+                      <p className={styles.playbackSingleProviderHint}>已有缓存优先播放 · 新设置下次起播生效</p>
                     </div>
                   </div>
                   <div className={styles.row}>
@@ -964,6 +973,14 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} index={1} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>游戏模式</h3>
+                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，暂停界面动效，保留音乐播放和已启用的全局快捷键。可从托盘退出并恢复。</p>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>使用托盘或全局快捷键控制播放。</span>
+                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
+                    </div>
+                  </section>
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>主题</h3>
                     <div className={styles.row}>
@@ -1196,34 +1213,30 @@ export function SettingsPage() {
             </section>
             <section id="settings-section-cache" className={styles.settingsSection} aria-labelledby="settings-heading-cache">
               <SectionHeading section={SETTINGS_TABS[3]} index={3} />
-              <div className={styles.settingsGrid}>
+              <div className={`${styles.settingsGrid} ${styles.storageGrid}`}>
+                <section className={`${styles.group} ${styles.storageShared}`}>
+                  <h3 className={styles.groupTitle}>歌曲下载</h3>
+                  <p className={styles.groupHint}>歌曲按名称保存为音频文件，支持批量加入下载队列、三首并发、暂停和重试。更改下载目录保留已有文件，清理播放器缓存不会删除这些文件。</p>
+                  <div className={`${styles.row} ${styles.pathRow}`}>
+                    <span className={styles.rowLabel}>下载目录</span>
+                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={downloadDir}>{downloadDir || '在下载队列中选择'}</span>
+                    <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载与目录</button>
+                  </div>
+                </section>
                 <section className={styles.group}>
-                  <h3 className={styles.groupTitle}>缓存管理</h3>
+                  <h3 className={styles.groupTitle}>自动缓存</h3>
+                  <p className={styles.groupHint}>播放时自动产生，容量满后可自动清理。清理缓存不会删除已下载歌曲。</p>
                   <div className={styles.row}>
-                    <span className={styles.rowLabel}>
-                      缓存位置
-                      <InfoButton label="缓存位置" text="已播放的整曲缓存在此文件夹，重复播放不再消耗流量；更改位置会清空原文件夹中的缓存。" />
+                    <span className={styles.rowLabel}>缓存占用</span>
+                    <span className={styles.rowValue}>
+                      {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 个文件` : '—'}
                     </span>
-                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
-                      {cacheConfig?.dir ?? '—'}
-                    </span>
-                    {!!window.desktop?.selectDirectory && (
-                      <button className={`${styles.seg} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
-                        更改
-                      </button>
-                    )}
-                    {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
-                      <button className={`${styles.seg} no-drag`} onClick={() => {
-                        const hasSaved = !!audioCache?.pinnedFiles
-                        if (hasSaved && !window.confirm('恢复默认位置会清除当前目录中已保存的歌曲，仍要继续吗？')) return
-                        void postCacheConfig({ dir: '', confirmPinned: hasSaved })
-                      }}>
-                        恢复默认
-                      </button>
-                    )}
+                    <button className={`${styles.storageAction} no-drag`} disabled={clearingCache || !audioCache?.temporaryFiles} title={audioCache?.temporaryFiles === 0 ? '暂无自动缓存可清理' : undefined} onClick={() => void handleClearAudioCache('temporary')}>
+                      {clearingCache ? '处理中…' : '清理自动缓存'}
+                    </button>
                   </div>
                   <div className={styles.row}>
-                    <span className={styles.rowLabel}>缓存上限</span>
+                    <span className={styles.rowLabel}>自动缓存上限</span>
                     <div className={styles.segControl}>
                       {CACHE_LIMIT_PRESETS_GB.map((gb) => (
                         <motion.button
@@ -1238,43 +1251,58 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </div>
+                </section>
+                <section className={styles.group}>
+                  <h3 className={styles.groupTitle}>播放器离线音乐</h3>
+                  <p className={styles.groupHint}>播放器中保留的离线音频，不占自动缓存额度，可在“我的库 → 离线音乐”中查看；与下载目录中的歌曲文件分别管理。</p>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>离线音频占用</span>
+                    <span className={styles.rowValue}>
+                      {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 个文件` : '—'}
+                    </span>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowValue}>删除前会再次确认</span>
+                    <button className={`${styles.storageAction} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
+                      删除离线音频
+                    </button>
+                  </div>
+                </section>
+                <section className={`${styles.group} ${styles.storageShared}`}>
+                  <h3 className={styles.groupTitle}>播放器缓存位置</h3>
+                  <p className={styles.groupHint}>自动缓存与播放器离线音乐共用此位置，分别统计和清理。更改位置会清除原目录中的缓存、离线音频及未识别旧文件，不影响独立下载目录中的歌曲文件。</p>
+                  <div className={`${styles.row} ${styles.pathRow}`}>
+                    <span className={styles.rowLabel}>缓存文件夹</span>
+                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
+                      {cacheConfig?.dir ?? '—'}
+                    </span>
+                    {!!window.desktop?.selectDirectory && (
+                      <button className={`${styles.storageAction} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
+                        更改
+                      </button>
+                    )}
+                    {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
+                      <button className={`${styles.storageAction} no-drag`} onClick={() => {
+                        const hasSaved = !!audioCache?.pinnedFiles
+                        if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('恢复默认缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
+                        void postCacheConfig({ dir: '', confirmPinned: hasSaved })
+                      }}>
+                        恢复默认
+                      </button>
+                    )}
+                  </div>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>总占用</span>
                     <span className={styles.rowValue}>
                       {audioCache ? `${formatCacheSize(audioCache.bytes)} · ${audioCache.files} 个文件` : '—'}
                     </span>
-                    <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.files} onClick={() => void handleClearAudioCache('all')}>
-                      清空全部
-                    </button>
-                  </div>
-                  <div className={styles.row}>
-                    <span className={styles.rowLabel}>自动缓存</span>
-                    <span className={styles.rowValue}>
-                      {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 首` : '—'}
-                    </span>
-                    <button
-                      className={`${styles.seg} no-drag`}
-                      disabled={clearingCache || !audioCache?.temporaryFiles}
-                      onClick={() => void handleClearAudioCache('temporary')}
-                    >
-                      {clearingCache ? '清理中…' : '清理'}
-                    </button>
-                  </div>
-                  <div className={styles.row}>
-                    <span className={styles.rowLabel}>已保存歌曲</span>
-                    <span className={styles.rowValue}>
-                      {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 首` : '—'}
-                    </span>
-                    <button className={`${styles.seg} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
-                      删除全部
-                    </button>
                   </div>
                   {!!audioCache?.unmanagedFiles && (
                     <div className={styles.row}>
-                      <span className={styles.rowLabel}>未识别旧文件</span>
+                      <span className={styles.rowLabel}>未识别旧文件<InfoButton label="未识别旧文件" text="这些文件缺少可用记录，无法判断是否曾经保存下载；不会随自动缓存清理，手动删除需要确认。" /></span>
                       <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
-                      <button className={`${styles.seg} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
-                        清理
+                      <button className={`${styles.storageAction} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
+                        删除未识别文件
                       </button>
                     </div>
                   )}
@@ -1317,6 +1345,12 @@ export function SettingsPage() {
                         检查更新
                       </button>
                     )}
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>查看各版本的更新内容</span>
+                    <button type="button" className={`${styles.seg} no-drag`} onClick={() => useNavigationStore.getState().navigateTo('release-history')}>
+                      更新日志
+                    </button>
                   </div>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>开源项目</span>

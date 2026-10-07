@@ -2,7 +2,7 @@
 // 全骨架懒加载(useLazyPlaylist)+ 虚拟列表(VirtualList),未加载行显示 shimmer 占位。
 // 播放任意一行时按完整 trackIds 入队,未加载详情的为 pending 占位曲目。
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
@@ -17,8 +17,14 @@ import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
-import { fadeRise, springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
+import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
+import { useProviderStore } from '../../stores/providers'
+import { isProviderId } from '../../providers/types'
+import { providerAccountSession } from '../../lib/provider-account-session'
+import { useMultiSelection } from '../../hooks/useMultiSelection'
+import { SelectionCheck, SelectionMarquee } from './SelectionControls'
+import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
@@ -32,11 +38,11 @@ interface PlaylistDetailViewProps {
   layoutIdPrefix: string
 }
 
-function SkeletonTrackRow({ index }: { index: number }) {
+function SkeletonTrackRow({ index, hideCover }: { index: number; hideCover?: boolean }) {
   return (
     <div className={styles.skeletonRow} aria-hidden="true">
       <span className={styles.skeletonIndex}>{index + 1}</span>
-      <span className={styles.skeletonCover} />
+      {!hideCover && <span className={styles.skeletonCover} />}
       <span className={styles.skeletonLines}>
         <i />
         <i />
@@ -46,7 +52,13 @@ function SkeletonTrackRow({ index }: { index: number }) {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const active = useNavigationStore((state) => {
+    const view = state.currentView
+    return typeof view === 'object' && view.type === 'playlist'
+      && view.playlist.source === playlist.source && String(view.playlist.id) === String(playlist.id)
+  })
   const [query, setQuery] = useState('')
+  const [selecting, setSelecting] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const [searchAttempt, setSearchAttempt] = useState(0)
@@ -55,7 +67,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const refreshInFlight = useRef(false)
   const checkInFlight = useRef(false)
   const searching = Boolean(query.trim())
+  const isAlbum = playlist.type === 'album'
+  const coverLayoutId = isAlbum ? `album-cover-${playlist.source}-${String(playlist.id)}` : `${layoutIdPrefix}-${String(playlist.id)}`
   const pageRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
@@ -111,6 +126,21 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     return () => { cancelled = true }
   }, [searching, loading, error, ensureAll, searchAttempt])
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
+  const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
+  const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
+  const accountSignature = useProviderStore(state => isProviderId(playlist.source)
+    ? `${state.byId[playlist.source].enabled}:${state.byId[playlist.source].auth}:${providerAccountSession(playlist.source)}` : 'local')
+  const selection = useMultiSelection({
+    enabled: selecting,
+    keys: visibleSelectionTracks.map(track => String(track.id)),
+    disabledKeys: visibleSelectionTracks.filter(track => track.playable === false).map(track => String(track.id)),
+    resetKey: `${playlist.source}:${String(playlist.id)}:${query}:${accountSignature}`,
+    onExit: () => setSelecting(false),
+    virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
+  })
+  const { selected } = selection
+  const selectedTracks = selectionQueue.filter((track) => selected.has(String(track.id)))
+  useEffect(() => { setSelecting(false) }, [playlist.id, playlist.source])
   const displayCover = displayPlaylist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
   useEffect(() => {
@@ -136,9 +166,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
 
   // 歌单封面模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
-    useBackdropStore.getState().setCover(displayCover)
-    return () => useBackdropStore.getState().setCover(null)
-  }, [displayCover])
+    if (active) return useBackdropStore.getState().setCover(displayCover)
+  }, [active, displayCover])
 
   function playAt(index: number) {
     usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
@@ -147,113 +176,123 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   if (!available) return null
 
   return (
-    <div className={styles.page} ref={pageRef} onScroll={handleScroll}>
-      <div className="topGradient" style={{ opacity: topOpacity }} />
-      <div className={styles.inner}>
-        <div className={styles.detailHeader}>
-          <motion.button
-            className={`${styles.backBtn} no-drag`}
-            onClick={() => useNavigationStore.getState().goBack()}
-            aria-label="返回上一页"
-            whileTap={tapScale}
-            transition={springSnappy}
-          >
-            <svg
-              className={styles.backIcon}
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+    <div className={styles.root}>
+      <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
+        <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
+          <div className={styles.detailHeader}>
+            <motion.button
+              className={`${styles.backBtn} no-drag`}
+              onClick={() => useNavigationStore.getState().goBack()}
+              aria-label="返回上一页"
+              whileTap={tapScale}
+              transition={springSnappy}
             >
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-            <span>返回</span>
-          </motion.button>
-          <div className={styles.detailMeta}>
-            {displayCover ? (
-              <motion.img
-                className={styles.detailCover}
-                src={sizedImage(displayCover, 176)}
-                alt=""
-                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
-                transition={springGentle}
-              />
-            ) : (
-              <motion.div
-                className={styles.detailCover}
-                layoutId={`${layoutIdPrefix}-${String(playlist.id)}`}
-                transition={springGentle}
+              <svg
+                className={styles.backIcon}
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              <span>返回</span>
+            </motion.button>
+            <div className={styles.detailMeta}>
+              <motion.div
+                className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
+                layoutId={coverLayoutId}
+                transition={isAlbum ? albumCoverTransition : springGentle}
+                style={{ borderRadius: isAlbum ? 16 : 12 }}
+              >
+                {displayCover
+                  ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
+                  : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
               </motion.div>
-            )}
-            <motion.div variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
-              <h1 className={styles.detailTitle}>
-                <GradientText>{displayPlaylist.name}</GradientText>
-              </h1>
-              <SourceBadge source={displayPlaylist.source} reveal />
-              <p className={styles.detailSub}>
-                {displayPlaylist.type === 'album'
-                  ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : loading ? '加载中…' : `${total} 首`}
-              </p>
-              {canRefresh && (
-                <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
-                  {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
-                </button>
-              )}
-              {displayPlaylist.type === 'album' && displayPlaylist.description && (
-                <p className={styles.detailDescription}>{displayPlaylist.description}</p>
-              )}
+              <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+                <div className={styles.titleRow}>
+                  <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
+                  {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
+                    tracks={loading || error || !initialTracks?.length ? [] : makeQueue()}
+                    collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+                </div>
+                <SourceBadge source={displayPlaylist.source} reveal />
+                <p className={styles.detailSub}>
+                  {displayPlaylist.type === 'album'
+                    ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : loading ? '加载中…' : `${total} 首`}
+                </p>
+                {canRefresh && (
+                  <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
+                    {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
+                  </button>
+                )}
+                {displayPlaylist.type === 'album' && displayPlaylist.description && (
+                  <p className={styles.detailDescription}>{displayPlaylist.description}</p>
+                )}
+              </motion.div>
+            </div>
+          </div>
+          {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
+            selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+          <TrackSearch
+            value={query}
+            onChange={setQuery}
+            placeholder={isAlbum ? "搜索专辑内的歌曲或歌手" : "搜索歌单内的歌曲或歌手"}
+            count={searching ? matches.length : total}
+            loading={searchLoading || loading}
+            error={searchError}
+            onRetry={() => setSearchAttempt((value) => value + 1)}
+          />
+          {error ? (
+            <div className={styles.errorHint}>
+              <p>歌单加载失败</p>
+              <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
+                重试
+              </button>
+            </div>
+          ) : (
+            <motion.div
+              className={styles.trackList}
+              ref={listRef}
+              variants={fadeRise}
+              initial="hidden"
+              animate="visible"
+              transition={{ ...springGentle, delay: 0.15 }}
+            >
+              <VirtualList
+                total={searching ? matches.length : total}
+                rowHeight={TRACK_ROW_HEIGHT}
+                scrollRef={pageRef}
+                onRangeChange={searching ? undefined : ensureRange}
+                renderRow={(i) => {
+                  const originalIndex = searching ? matches[i] : i
+                  const t = tracks[originalIndex]
+                  if (selecting) {
+                    const item = selectionQueue[originalIndex]
+                    if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                    return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
+                      <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} />
+                      {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                    </div>
+                  }
+                  return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                }}
+              />
             </motion.div>
-          </div>
+          )}
         </div>
-        <TrackSearch
-          value={query}
-          onChange={setQuery}
-          placeholder="搜索歌单内的歌曲或歌手"
-          count={searching ? matches.length : total}
-          loading={searchLoading || loading}
-          error={searchError}
-          onRetry={() => setSearchAttempt((value) => value + 1)}
-        />
-        {error ? (
-          <div className={styles.errorHint}>
-            <p>歌单加载失败</p>
-            <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
-              重试
-            </button>
-          </div>
-        ) : (
-          <motion.div
-            className={styles.trackList}
-            variants={fadeRise}
-            initial="hidden"
-            animate="visible"
-            transition={{ ...springGentle, delay: 0.15 }}
-          >
-            <VirtualList
-              total={searching ? matches.length : total}
-              rowHeight={TRACK_ROW_HEIGHT}
-              scrollRef={pageRef}
-              onRangeChange={searching ? undefined : ensureRange}
-              renderRow={(i) => {
-                const originalIndex = searching ? matches[i] : i
-                const t = tracks[originalIndex]
-                return t ? <TrackRow track={t} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} />
-              }}
-            />
-          </motion.div>
-        )}
-      </div>
-      <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
+        <SelectionMarquee rect={selection.marquee} />
+      </motion.div>
+      <div className={`topGradient ${styles.gradient}`} style={{ opacity: topOpacity }} />
+      <div className={`bottomGradient ${styles.gradient}`} style={{ opacity: bottomOpacity }} />
     </div>
   )
 }

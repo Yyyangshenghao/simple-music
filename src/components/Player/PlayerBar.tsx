@@ -244,12 +244,13 @@ function LikeButton() {
   const track = usePlayerStore((s) => s.currentTrack)
   const neteaseLoggedIn = useSettingsStore((s) => s.neteaseLoggedIn)
   const liked = useLikesStore((s) => (track ? !!s.likedByKey[likeKeyOf(track)] : false))
+  const likesRevision = useLikesStore((s) => s.revision)
   const supported = !!track && useLikesStore.getState().supports(track)
   const visible = supported && (track?.source !== 'netease' || neteaseLoggedIn)
 
   useEffect(() => {
     if (track && visible) void useLikesStore.getState().ensureChecked(track)
-  }, [track, visible])
+  }, [track, visible, likesRevision])
 
   if (!track || !visible) return null
   return (

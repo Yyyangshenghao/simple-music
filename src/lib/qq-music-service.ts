@@ -40,6 +40,16 @@ export class QQMusicService implements MusicService {
     return (res.artists ?? []).map((a) => ({ ...a, source: 'qq' as const }))
   }
 
+  async searchAlbums(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ albums: Playlist[] }>('/api/qq/search/albums', { keywords: keyword })
+    return res.albums ?? []
+  }
+
+  async searchPlaylists(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/qq/search/playlists', { keywords: keyword })
+    return res.playlists ?? []
+  }
+
   async getSearchHotkeys(): Promise<string[]> {
     const res = await api.get<{ keywords?: string[] }>('/api/qq/search/hotkeys')
     return res.keywords ?? []

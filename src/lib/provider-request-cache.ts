@@ -1,5 +1,7 @@
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 
+export const BROWSE_CACHE_MAX_AGE_MS = 5 * 60_000
+
 const DEFAULT_MAX_AGE_MS = 15_000
 const MAX_CACHE_ENTRIES = 64
 
@@ -14,6 +16,18 @@ const generations = new Map<ProviderId, number>()
 
 function requestKey(source: ProviderId, scope: string): string {
   return `${source}:${scope}`
+}
+
+/** 返回页面首帧直接读取已完成数据；与请求共用容量、过期和账号失效边界。 */
+export function getCachedProviderData<T>(source: ProviderId, scope: string): T | undefined {
+  const key = requestKey(source, scope)
+  const entry = cache.get(key)
+  if (!entry) return undefined
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key)
+    return undefined
+  }
+  return entry.value as T
 }
 
 /**

@@ -13,6 +13,52 @@
 
 * {
   box-sizing: border-box;
+  --sm-scrollbar-current: transparent;
+}
+
+/* 统一 Chromium 滚动条外观；原本隐藏滚动条的容器继续由局部样式控制。
+   不设置 scrollbar-width/color，避免覆盖自定义圆角、尺寸与悬停状态。 */
+::-webkit-scrollbar {
+  width: var(--sm-scrollbar-size);
+  height: var(--sm-scrollbar-size);
+  background: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-track {
+  margin: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  min-width: 32px;
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-scrollbar-current);
+  background-clip: padding-box;
+}
+
+/* 全部滚动区域使用同一显隐规则，拖动时由 :active 保持可见。 */
+:hover,
+[data-sm-scrolling] {
+  --sm-scrollbar-current: var(--sm-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sm-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--sm-scrollbar-thumb-active);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
 }
 
 html, body, #root {

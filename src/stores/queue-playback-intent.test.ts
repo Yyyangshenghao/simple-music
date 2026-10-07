@@ -32,6 +32,7 @@ import { usePlayerStore } from './player'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
 import { useRecentPlaysStore } from './recent'
+import { useSleepTimerStore } from './sleep-timer'
 
 function song(id: string): Track {
   return { provider: 'netease', source: 'netease', type: 'song', id, name: id, artist: '歌手', artists: [], duration: 180_000 }
@@ -65,9 +66,75 @@ describe('队列详情等待期间的播放意图', () => {
   })
 
   afterEach(() => {
+    useSleepTimerStore.getState().cancel()
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.unstubAllGlobals()
+  })
+
+  it('空队列追加歌曲不自动播放，点击播放后从队列首曲起播', async () => {
+    usePlayerStore.setState({ currentTrack: null, status: 'idle' })
+    expect(usePlaylistStore.getState().addManyToQueue([song('B'), song('C')])).toBe(2)
+    expect(h.load).not.toHaveBeenCalled()
+    expect(usePlaylistStore.getState().queueIndex).toBe(-1)
+
+    usePlayerStore.getState().play()
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    expect(usePlayerStore.getState().currentTrack).toEqual(song('B'))
+    expect(h.play).toHaveBeenCalledOnce()
+  })
+
+  it('清空正在播放的队列后释放音轨和播放信息，再次播放不恢复旧歌曲', () => {
+    usePlaylistStore.setState({ queue: [song('A'), song('B')], queueIndex: 0, queueContextId: 'album', shuffleOrder: [1, 0] })
+    usePlayerStore.setState({ position: 30, duration: 180 })
+    usePlaylistStore.getState().clearQueue()
+
+    expect(h.hasSource).toBe(false)
+    expect(usePlaylistStore.getState()).toMatchObject({ queue: [], queueIndex: -1, queueContextId: null, shuffleOrder: [] })
+    expect(usePlayerStore.getState()).toMatchObject({ currentTrack: null, status: 'idle', position: 0, duration: 0, actualSource: null, contextId: null })
+    h.callbacks.onPosition?.(80)
+    h.callbacks.onEnded?.()
+    usePlayerStore.getState().toggle()
+    expect(h.load).not.toHaveBeenCalled()
+    expect(h.play).not.toHaveBeenCalled()
+    expect(usePlayerStore.getState().status).toBe('idle')
+  })
+
+  it('等待播完当前曲的睡眠定时器在清空时结束，不影响之后追加的歌曲', async () => {
+    useSleepTimerStore.getState().start(1)
+    vi.advanceTimersByTime(60_000)
+    expect(useSleepTimerStore.getState().phase).toBe('finishing-track')
+    usePlaylistStore.getState().clearQueue()
+    expect(useSleepTimerStore.getState().phase).toBe('idle')
+
+    usePlaylistStore.getState().addManyToQueue([song('B'), song('C')])
+    usePlayerStore.getState().play()
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    h.callbacks.onEnded?.()
+    expect(usePlaylistStore.getState().queueIndex).toBe(1)
+    expect(usePlayerStore.getState().currentTrack).toEqual(song('C'))
+  })
+
+  it('等待详情时清空并追加同一占位曲目，迟到响应不重新起播或选曲', async () => {
+    const request = deferred<Track[]>()
+    h.details.mockReturnValue(request.promise)
+    const pending = makePlaceholderTrack('B', 'netease')
+    usePlaylistStore.setState({ queue: [pending] })
+    usePlaylistStore.getState().playAt(0)
+    usePlaylistStore.getState().clearQueue()
+    usePlaylistStore.getState().addManyToQueue([pending])
+    request.resolve([song('B')])
+    await usePlaylistStore.getState().ensureQueueDetails([0])
+    await Promise.resolve()
+
+    expect(h.load).not.toHaveBeenCalled()
+    expect(h.play).not.toHaveBeenCalled()
+    expect(usePlaylistStore.getState().queueIndex).toBe(-1)
+    expect(usePlayerStore.getState()).toMatchObject({ currentTrack: null, status: 'idle' })
+    usePlayerStore.getState().play()
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    expect(usePlayerStore.getState().currentTrack).toEqual(song('B'))
   })
 
   it('点击占位曲目后暂停，迟到详情不会自动开播并保留定位', async () => {

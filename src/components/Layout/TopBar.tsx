@@ -5,7 +5,10 @@ import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
+import { DownloadQueue } from './DownloadQueue'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
+import { SearchHistory } from '../Search/SearchHistory'
+import { loadSearchHistory, saveSearchHistory, pushTerm, removeTerm } from '../../lib/search-history'
 import { SourceName } from '../ui/SourceName'
 import { providerFor } from '../../providers/registry'
 import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/types'
@@ -44,6 +47,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const goForward = useNavigationStore((s) => s.goForward)
 
   const [keyword, setKeyword] = useState('')
+  const [searchHistory, setSearchHistory] = useState<string[]>(loadSearchHistory)
   const [searchResults, setSearchResults] = useState<Partial<Record<ProviderId, ProviderResult<SearchPayload>>>>({})
   const [searchFocused, setSearchFocused] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
@@ -142,18 +146,30 @@ export function TopBar({ hidden = false }: TopBarProps) {
     const songs = searchResults[track.source]?.data?.songs ?? []
     const index = songs.findIndex((item) => item.source === track.source && String(item.id) === String(track.id))
     usePlaylistStore.getState().setQueue(songs, Math.max(index, 0))
+    rememberSearch(keyword)
     closeSearch()
   }
 
-  function openSearchPage() {
-    const query = keyword.trim()
+  function updateSearchHistory(next: string[]) {
+    saveSearchHistory(next)
+    setSearchHistory(next)
+  }
+
+  function rememberSearch(term: string) {
+    updateSearchHistory(pushTerm(loadSearchHistory(), term))
+  }
+
+  function openSearchPage(term = keyword) {
+    const query = term.trim()
     if (!query) return
+    rememberSearch(query)
     navigateTo({ type: 'search', keyword: query })
     closeSearch()
   }
 
   function pickArtist(artist: ArtistInfo) {
     if (artist.source === 'local') return
+    rememberSearch(keyword)
     navigateTo({ type: 'artist', id: artist.id, source: artist.source })
     closeSearch()
   }
@@ -169,7 +185,8 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const hotkeySource = contentSource && enabledSources.includes(contentSource)
     && providerFor(contentSource).catalog.getSearchHotkeys ? contentSource : null
   const showHotkeys = keyword.trim() === '' && hotkeySource !== null
-  const showDropdown = isExpanded && searchFocused && (showHotkeys || keyword.length > 0 || loading || hasResults)
+  const showHistory = keyword.trim() === '' && searchHistory.length > 0
+  const showDropdown = isExpanded && searchFocused && (showHistory || showHotkeys || keyword.length > 0 || loading || hasResults)
 
   const platform = window.desktop?.platform
   const isMac = platform === 'darwin'
@@ -221,7 +238,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
-                : currentView
+                : currentView === 'release-history' ? 'settings' : currentView
             const active = section === item.view
               || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange' && section !== 'settings')
             return (
@@ -285,7 +302,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
                 className={styles.searchInput}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
+                onFocus={() => {
+                  setSearchFocused(true)
+                  setSearchHistory(loadSearchHistory())
+                }}
                 aria-label="搜索歌曲、歌手"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
@@ -306,10 +326,15 @@ export function TopBar({ hidden = false }: TopBarProps) {
           {showDropdown && (
             <div className={styles.searchDropdown}>
               {keyword.trim() && (
-                <button type="button" className={styles.searchAll} onClick={openSearchPage}>
+                <button type="button" className={styles.searchAll} onClick={() => openSearchPage()}>
                   <span>查看聚合搜索结果</span>
                   <span className={styles.searchAllKey} aria-hidden="true">Enter ↵</span>
                 </button>
+              )}
+              {showHistory && (
+                <SearchHistory terms={searchHistory} onSelect={openSearchPage}
+                  onRemove={(term) => updateSearchHistory(removeTerm(searchHistory, term))}
+                  onClear={() => updateSearchHistory([])} />
               )}
               {showHotkeys && hotkeySource ? (
                 <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {
@@ -379,6 +404,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
           )}
         </div>
 
+        <DownloadQueue />
         <div className={styles.avatarWrap}>
           <motion.button
             className={styles.avatarBtn}

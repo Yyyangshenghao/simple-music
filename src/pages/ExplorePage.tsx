@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useScrollGradient } from '../hooks/useScrollGradient'
-import { useNavigationStore } from '../stores/navigation'
+import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
 import { GradientText } from '../components/ui/GradientText'
-import { fadeRise, springGentle } from '../lib/motion-presets'
+import { pageTransition } from '../lib/motion-presets'
+import { providerAccountSession } from '../lib/provider-account-session'
 import type { Playlist } from '../types/domain'
 import styles from './ExplorePage.module.css'
 
-const scrollPositions = new Map<string, number>()
+const scrollPositions = new Map<string, { session: number; top: number }>()
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -21,19 +22,14 @@ function greeting(): string {
   return '晚上好'
 }
 
-export function ExplorePage() {
+export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
   const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
+  const accountSession = activeHomeSource ? providerAccountSession(activeHomeSource) : 0
   const [preview, setPreview] = useState<Playlist | null>(null)
   const previousSourceRef = useRef(activeHomeSource)
   const pageRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const restoringScrollRef = useRef(false)
-  const currentView = useNavigationStore((state) => state.currentView)
-  const detail = typeof currentView === 'object'
-    && currentView.type === 'playlist'
-    && currentView.from === 'explore'
-    ? currentView
-    : null
   const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
 
   useEffect(() => {
@@ -50,10 +46,11 @@ export function ExplorePage() {
     previousSourceRef.current = activeHomeSource
   }, [activeHomeSource])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const page = pageRef.current
     const content = contentRef.current
-    const target = activeHomeSource ? scrollPositions.get(activeHomeSource) ?? 0 : 0
+    const saved = activeHomeSource ? scrollPositions.get(activeHomeSource) : undefined
+    const target = activeHomeSource && saved?.session === accountSession ? saved.top : 0
     if (!page || !content || !target || detail) {
       restoringScrollRef.current = false
       return
@@ -92,11 +89,11 @@ export function ExplorePage() {
     page.addEventListener('touchstart', cancel, { once: true })
     page.addEventListener('pointerdown', cancel, { once: true })
     document.addEventListener('keydown', cancelOnScrollKey)
-    timeout = setTimeout(() => { restored = true; observer.disconnect() }, 5000)
+    timeout = setTimeout(cancel, 5000)
     return () => {
       cancel()
     }
-  }, [activeHomeSource, detail])
+  }, [activeHomeSource, accountSession, detail])
 
   if (detail) {
     return <PlaylistDetailView playlist={detail.playlist} initialTracks={detail.tracks} layoutIdPrefix="explore-cover" />
@@ -105,16 +102,12 @@ export function ExplorePage() {
   return (
     <div ref={pageRef} className={styles.page} onScroll={(event) => {
       handleScroll(event)
-      if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, event.currentTarget.scrollTop)
+      if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, { session: providerAccountSession(activeHomeSource), top: event.currentTarget.scrollTop })
     }}>
       <div className="topGradient" style={{ opacity: topOpacity }} />
 
       <motion.header
         className={styles.intro}
-        variants={fadeRise}
-        initial="hidden"
-        animate="visible"
-        transition={springGentle}
       >
         <p className={styles.kicker}>YOUR MUSIC CONSTELLATION</p>
         <h1 className={styles.greeting}><GradientText>{greeting()}</GradientText></h1>
@@ -124,11 +117,11 @@ export function ExplorePage() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             ref={contentRef}
-            key={activeHomeSource}
-            initial={{ opacity: 0, y: switchDirection * 44, filter: 'blur(7px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: switchDirection * -36, filter: 'blur(5px)' }}
-            transition={springGentle}
+            key={`${activeHomeSource}:${accountSession}`}
+            initial={{ opacity: 0, x: switchDirection * 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: switchDirection * -12 }}
+            transition={pageTransition}
           >
             <ProviderRecommendationSection
               source={activeHomeSource}

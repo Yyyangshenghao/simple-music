@@ -24,8 +24,17 @@ describe('聚合搜索页面', () => {
 
   it('默认聚合已启用且已登录的平台，首屏提供独立加载提示', () => {
     const html = renderToStaticMarkup(<SearchPage keyword="周杰伦" />)
-    expect(html).toContain('在 2 个音乐平台中发现歌曲与歌手')
+    expect(html).toContain('在 2 个音乐平台中发现歌曲、歌手、专辑与歌单')
     expect(html).toContain('全部平台')
+    expect(html).toContain('专辑搜索结果')
+    expect(html).toContain('歌单搜索结果')
+    expect(html).not.toContain('aria-label="多选操作"')
+    expect(html).not.toContain('>多选</button>')
+    expect(html).not.toContain('role="checkbox"')
+    expect(html).not.toContain('悬停勾选')
+    expect(html).toContain('歌曲搜索结果更多操作')
+    expect(html).toContain('专辑搜索结果更多操作')
+    expect(html).toContain('歌单搜索结果更多操作')
     expect(html).toContain('网易云')
     expect(html).toContain('QQ音乐')
     expect(html).not.toContain('Apple Music')

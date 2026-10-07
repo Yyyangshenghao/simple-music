@@ -10,6 +10,7 @@ interface ArtistHeaderProps {
 
 export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
   return (
+    <>
     <div className={styles.header}>
       <div className={styles.content}>
         {artist.avatar && (
@@ -25,5 +26,12 @@ export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
         </div>
       </div>
     </div>
+    {artist.description?.trim() && (
+      <details className={styles.description}>
+        <summary>歌手简介</summary>
+        <p>{artist.description}</p>
+      </details>
+    )}
+    </>
   )
 }

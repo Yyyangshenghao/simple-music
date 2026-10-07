@@ -441,6 +441,11 @@ export function isQQToplistReference(value: unknown): boolean {
   return /^qq-toplist:\d+$/.test(String(value || '').trim())
 }
 
+export function isQQNumericPlaylistId(value: unknown): boolean {
+  const id = String(value ?? '').trim()
+  return /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0
+}
+
 export type QQPlaylistReference =
   | { kind: 'playlist'; id: string }
   | { kind: 'liked'; id: '201' }
@@ -1086,6 +1091,7 @@ async function fetchQQDissPage(
   num = QQ_PLAYLIST_PAGE_SIZE
 ): Promise<{ data: Record<string, unknown>; detail: Record<string, unknown>; rawTracks: unknown[] }> {
   const liked = ref.kind === 'liked'
+  if (!liked && !isQQNumericPlaylistId(ref.id)) throw new Error('Invalid QQ playlist id')
   const json = rec(
     await qqMusicRequest(
       cookie,
@@ -1095,7 +1101,7 @@ async function fetchQQDissPage(
           module: 'music.srfDissInfo.DissInfo',
           method: 'CgiGetDiss',
           param: {
-            disstid: liked ? 0 : ref.id,
+            disstid: liked ? 0 : Number(ref.id),
             dirid: liked ? 201 : 0,
             tag: true,
             song_begin: offset,
@@ -1409,6 +1415,7 @@ export async function handleQQArtistDetail(
       qqArtistId: info.id || '',
       name: artistName,
       avatar: str(info.pic || info.avatar) || qqSingerAvatar(artistMid, 300),
+      description: str(data.singer_brief),
       fans: numOf(info.fans),
       musicSize: totalSong,
       albumSize: numOf(data.total_album),
@@ -1481,6 +1488,31 @@ interface QQArtistSearchResult {
   musicSize: number
 }
 
+async function requestQQSearch(cookie: string, query: string, searchType: 0 | 1, limit: number): Promise<Record<string, unknown>> {
+  const module = 'music.search.SearchCgiService'
+  // 搜索要求信封 key 与 module 同名，且不能附加顶层 comm。
+  const payload = {
+    [module]: {
+      module,
+      method: 'DoSearchForQQMusicDesktop',
+      param: { search_type: searchType, query, page_num: 1, num_per_page: limit },
+    },
+  }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const json = rec(await qqMusicRequest(cookie, payload))
+    const block = rec(json[module])
+    const code = Number(json.code || 0) || Number(block.code || 0)
+    if (code === 0 && json[module]) return block
+    // 实测 2001 会间歇出现；仅此业务码延迟重试，含首次最多请求 5 次。
+    if (code === 2001 && attempt < 4) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+    throw new Error(code ? `QQ_SEARCH_FAILED (${code})` : 'QQ_SEARCH_FAILED')
+  }
+  throw new Error('QQ_SEARCH_FAILED')
+}
+
 export async function handleQQArtistSearch(
   cookie: string,
   keywords: string,
@@ -1489,17 +1521,7 @@ export async function handleQQArtistSearch(
   const kw = String(keywords || '').trim()
   if (!kw) return []
   const num = Math.max(1, Math.min(limit || 5, 10))
-  // 该模块要求信封 key 与 module 同名(且不能带顶层 comm),与本文件其余接口的 req_1/自定义 key 约定不同,已实测确认。
-  const json = rec(
-    await qqMusicRequest(cookie, {
-      'music.search.SearchCgiService': {
-        module: 'music.search.SearchCgiService',
-        method: 'DoSearchForQQMusicDesktop',
-        param: { search_type: 1, query: kw, page_num: 1, num_per_page: num },
-      },
-    })
-  )
-  const block = rec(json['music.search.SearchCgiService'])
+  const block = await requestQQSearch(cookie, kw, 1, num)
   const list = arr(rec(rec(rec(block.data).body).singer).list)
   return list
     .map((raw) => {
@@ -1783,21 +1805,7 @@ export async function handleQQSearch(
   if (!kw) return []
   const num = Math.max(1, Math.min(20, parseInt(String(limit || '20'), 10) || 20))
   console.log('[QQSearch]', kw, 'limit:', num)
-  const module = 'music.search.SearchCgiService'
-  // 该模块要求信封 key 与 module 同名，且不能附加顶层 comm；否则 Web 通道可能返回空结果。
-  const json = rec(
-    await qqMusicRequest(cookie, {
-      [module]: {
-        module,
-        method: 'DoSearchForQQMusicDesktop',
-        param: { search_type: 0, query: kw, page_num: 1, num_per_page: num },
-      },
-    })
-  )
-  const block = rec(json[module])
-  if (!json[module] || Number(block.code || 0) !== 0) {
-    throw new Error(str(block.message || block.msg || block.code) || 'QQ_SEARCH_FAILED')
-  }
+  const block = await requestQQSearch(cookie, kw, 0, num)
   const list = arr(rec(rec(rec(block.data).body).song).list)
   const mapped = list
     .map((raw) => mapQQTrack(raw, {}))

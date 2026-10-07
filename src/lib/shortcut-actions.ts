@@ -5,6 +5,7 @@ import { useVisualStore } from '../stores/visual'
 import { useSettingsStore } from '../stores/settings'
 import { useToastStore } from '../stores/toast'
 import { useNavigationStore } from '../stores/navigation'
+import { useGameModeStore } from '../stores/game-mode'
 import type { ShortcutAction } from './shortcuts'
 
 /** 应用内与全局快捷键共用播放器原有动作，保留各音源的播放和红心边界。 */
@@ -12,6 +13,9 @@ export function runShortcutAction(action: ShortcutAction): void {
   const player = usePlayerStore.getState()
   switch (action) {
     case 'settings': {
+      if (useGameModeStore.getState().enabled) {
+        void useGameModeStore.getState().configure({ enabled: false })
+      }
       const navigation = useNavigationStore.getState()
       if (navigation.currentView !== 'settings') navigation.navigateTo('settings')
       break

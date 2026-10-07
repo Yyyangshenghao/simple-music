@@ -83,7 +83,7 @@ function mapPlaylist(resource: AppleResource): Playlist {
     provider: 'apple', source: 'apple', type: resource.type.includes('albums') ? 'album' : 'playlist',
     id: resource.id, name: a.name ?? '', cover: artwork(resource),
     trackCount: count ?? 0,
-    ...(resource.type === 'library-playlists' ? { trackCountKnown: count !== undefined } : {}),
+    ...(resource.type.includes('playlists') || resource.type.includes('albums') ? { trackCountKnown: count !== undefined } : {}),
     playCount: 0, creator: a.curatorName ?? a.artistName ?? 'Apple Music',
     description: a.description?.standard,
   }
@@ -209,6 +209,16 @@ export class AppleMusicService implements MusicService {
   async searchArtists(keyword: string): Promise<ArtistInfo[]> {
     const result = await this.request<AppleSearch>(await this.catalog(`search?types=artists&limit=10&term=${encodeURIComponent(keyword)}`))
     return (result.results?.artists?.data ?? []).map(mapArtist)
+  }
+
+  async searchAlbums(keyword: string): Promise<Playlist[]> {
+    const result = await this.request<{ results?: { albums?: ApplePage } }>(await this.catalog(`search?types=albums&limit=20&term=${encodeURIComponent(keyword)}`))
+    return (result.results?.albums?.data ?? []).map(mapPlaylist)
+  }
+
+  async searchPlaylists(keyword: string): Promise<Playlist[]> {
+    const result = await this.request<{ results?: { playlists?: ApplePage } }>(await this.catalog(`search?types=playlists&limit=20&term=${encodeURIComponent(keyword)}`))
+    return (result.results?.playlists?.data ?? []).map(mapPlaylist)
   }
 
   async getArtistDetail(id: unknown): Promise<ArtistInfo> {

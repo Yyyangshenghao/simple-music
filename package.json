@@ -1,7 +1,7 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -23,20 +23,13 @@
     "server:dev": "tsx server/index.ts"
   },
   "dependencies": {
-    "@react-three/fiber": "^8.17.0",
-    "d3-force": "^3.0.0",
-    "gsap": "^3.15.0",
     "koffi": "2.16.3",
-    "motion": "^12.42.1",
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.14.0",
-    "NeteaseCloudMusicApi": "^4.32.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "three": "^0.169.0",
-    "zustand": "^4.5.0"
+    "NeteaseCloudMusicApi": "^4.32.0"
   },
   "devDependencies": {
+    "@react-three/fiber": "^8.17.0",
     "@types/d3-force": "^3.0.10",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",
@@ -44,13 +37,19 @@
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.0",
     "@xmldom/xmldom": "^0.8.13",
+    "d3-force": "^3.0.0",
     "electron": "git+https://github.com/castlabs/electron-releases.git#v42.11.0+wvcus",
     "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
+    "motion": "^12.42.1",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "three": "^0.169.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
     "vite": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "zustand": "^4.5.0"
   },
   "simplemusic": {
     "update": {

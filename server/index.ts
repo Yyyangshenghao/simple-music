@@ -2,8 +2,10 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerContext, RouteHandler } from './types'
+import { catalogSearchRoutes } from './routes/catalog-search'
 import { neteaseRoutes } from './routes/netease'
 import { audioCacheRoutes } from './routes/audio-cache'
+import { songDownloadRoutes } from './routes/song-downloads'
 import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
@@ -21,6 +23,8 @@ const chain: RouteHandler[] = [
   appleMusicBridgeRoutes,
   appleMusicRoutes,
   audioCacheRoutes,
+  songDownloadRoutes,
+  catalogSearchRoutes,
   neteaseRoutes,
   podcastRoutes,
   beatmapRoutes,
@@ -36,6 +40,7 @@ export function startServer(
 ): Promise<{ port: number; close(): void }> {
   const ctx: ServerContext = {
     userDataDir: partial.userDataDir ?? join(tmpdir(), 'simplemusic'),
+    defaultSongDownloadDir: partial.defaultSongDownloadDir,
     port: partial.port ?? 0,
     // 独立跑(npm run server:dev)与 electron dev 默认放行 localhost;打包应用由主进程传 false
     allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,

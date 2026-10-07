@@ -1,0 +1,121 @@
+.history {
+  container-type: inline-size;
+  container-name: release-history;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--glass-bg-card) 86%, transparent);
+  backdrop-filter: var(--glass-blur-base);
+  -webkit-backdrop-filter: var(--glass-blur-base);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+}
+
+.header h3 {
+  margin: 0;
+  color: var(--sm-text-primary);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.offline {
+  flex-shrink: 0;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+}
+
+.release { border-top: 1px solid var(--sm-border); }
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  list-style: none;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+
+.summary::-webkit-details-marker { display: none; }
+.summary:hover { background: var(--sm-fill-subtle); }
+.summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -3px; }
+
+.version {
+  color: var(--sm-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+
+.current {
+  padding: 3px 7px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-text-primary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.mix { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; margin-left: auto; }
+.chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--change-color) 10%, transparent);
+  color: var(--change-color);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.chip b { margin-left: 3px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.chip[data-change-type='feat'], .changeGroup[data-change-type='feat'] { --change-color: var(--sm-color-success); }
+.chip[data-change-type='perf'], .changeGroup[data-change-type='perf'] { --change-color: var(--sm-color-gold); }
+.chip[data-change-type='fix'], .changeGroup[data-change-type='fix'] { --change-color: var(--sm-color-danger); }
+.chip[data-change-type='note'], .changeGroup[data-change-type='note'] { --change-color: var(--sm-text-secondary); }
+.chevron { flex-shrink: 0; color: var(--sm-text-secondary); transition: transform 160ms var(--sm-ease-out); }
+.release[open] .chevron { transform: rotate(90deg); }
+.body { padding: 4px 20px 20px; overflow-wrap: anywhere; }
+.body ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.65; }
+.body li + li { margin-top: 10px; }
+.changeGroup + .changeGroup { margin-top: 20px; }
+.groupHeading { display: flex; align-items: center; gap: 7px; margin: 0 0 11px; color: var(--change-color); font-size: 12px; font-weight: 650; }
+.groupIcon { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 6px; background: color-mix(in srgb, var(--change-color) 10%, transparent); font-size: 14px; }
+.updates { color: var(--sm-text-primary); }
+.updates li::marker { color: var(--change-color); }
+.updateTitle { display: block; font-size: 14px; font-weight: 650; line-height: 1.6; }
+.updates p { margin: 3px 0 0; color: var(--sm-text-secondary); font-size: 13px; }
+
+.compatibility {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-left: 2px solid var(--sm-border-strong);
+  border-radius: 0 10px 10px 0;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-secondary);
+}
+
+.compatibility h4 { margin: 0 0 8px; font-size: 11px; font-weight: 650; }
+.compatibility ul { font-size: 12px; }
+.compatibility li + li { margin-top: 6px; }
+.empty { margin: 0; padding: 0 20px 20px; color: var(--sm-text-secondary); font-size: 13px; }
+
+@container release-history (max-width: 560px) {
+  .header, .summary { padding: 16px; }
+  .header { align-items: flex-start; }
+  .summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .current { justify-self: start; }
+  .mix { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+  .chevron { grid-column: 3; grid-row: 1; }
+  .body { padding: 0 16px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+}

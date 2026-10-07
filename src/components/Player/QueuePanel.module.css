@@ -69,12 +69,32 @@
   color: var(--sm-text-secondary);
 }
 
+.clearBtn {
+  margin-left: auto;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.clearBtn:hover:not(:disabled),
+.clearBtn:focus-visible {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}
+
+.clearBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .list {
   min-height: 48px;
   overflow-y: auto;
   padding: 0 8px 10px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border) transparent;
 }
 
 .empty {

@@ -19,8 +19,6 @@
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 6px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sm-border) transparent;
 }
 
 .card {

@@ -150,7 +150,6 @@
   padding-right: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
 }
 
 .option {

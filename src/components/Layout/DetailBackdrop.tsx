@@ -13,16 +13,17 @@ export function DetailBackdrop() {
         {cover && (
           <motion.div
             key={cover}
-            className={styles.layer}
-            style={{ backgroundImage: `url(${cover})` }}
+            className={styles.scene}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
-          />
+          >
+            <div className={styles.layer} style={{ backgroundImage: `url(${cover})` }} />
+            <div className={styles.scrim} />
+          </motion.div>
         )}
       </AnimatePresence>
-      {cover && <div className={styles.scrim} />}
     </div>
   )
 }

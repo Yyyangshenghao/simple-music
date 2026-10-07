@@ -50,6 +50,16 @@ export class NeteaseMusicService implements MusicService {
     return (res.artists ?? []).map((a) => ({ ...a, source: 'netease' as const }))
   }
 
+  async searchAlbums(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ albums: Playlist[] }>('/api/netease/search/albums', { keywords: keyword })
+    return res.albums ?? []
+  }
+
+  async searchPlaylists(keyword: string): Promise<Playlist[]> {
+    const res = await api.get<{ playlists: Playlist[] }>('/api/netease/search/playlists', { keywords: keyword })
+    return res.playlists ?? []
+  }
+
   async getSearchHotkeys(): Promise<string[]> {
     const res = await api.get<{ keywords?: string[] }>('/api/search/hotkeys')
     return res.keywords ?? []
@@ -90,6 +100,11 @@ export class NeteaseMusicService implements MusicService {
   async getListeningRanking(): Promise<Track[]> {
     const res = await api.get<{ songs: Track[] }>('/api/netease/record')
     return res.songs ?? []
+  }
+
+  async getAlbumDetail(id: unknown): Promise<Playlist | null> {
+    const res = await api.get<{ playlist?: Playlist | null }>('/api/netease/album/songs', { id: String(id) })
+    return res.playlist ?? null
   }
 
   async getAlbumTracks(id: unknown): Promise<Track[]> {

@@ -11,6 +11,8 @@ export interface MusicService {
   getTracksByIds(ids: unknown[]): Promise<Track[]>
   searchTracks(keyword: string): Promise<Track[]>
   searchArtists(keyword: string): Promise<ArtistInfo[]>
+  searchAlbums?(keyword: string): Promise<Playlist[]>
+  searchPlaylists?(keyword: string): Promise<Playlist[]>
   /** 公开热搜词（可选；只作快捷填词，不预搜索）。 */
   getSearchHotkeys?(): Promise<string[]>
   getSimilarTracks?(track: Track): Promise<Track[]>

@@ -31,6 +31,24 @@ import { useLyricsStore } from '../stores/lyrics'
 import { useAudio } from './useAudio'
 
 describe('歌词时钟调度', () => {
+  it('纯播放模式不运行歌词时钟，也不订阅播放位置', () => {
+    usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
+    useAudio(false, true)
+    usePlayerStore.setState({ position: 8 })
+    vi.advanceTimersByTime(1000)
+    expect(harness.tick).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('游戏桌面歌词降低 MusicKit 时钟频率，并保留行同步', () => {
+    usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
+    useAudio(true, true)
+    harness.tick.mockClear()
+    harness.lyricPosition = 5
+    vi.advanceTimersByTime(1000)
+    expect(harness.tick).toHaveBeenCalledTimes(4)
+    expect(harness.tick).toHaveBeenLastCalledWith(5)
+  })
   beforeEach(() => {
     vi.useFakeTimers()
     harness.lyricPosition = 0

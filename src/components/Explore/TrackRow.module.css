@@ -146,6 +146,10 @@
 .rowActive { background: var(--sm-fill-subtle); }
 .rowActive .name { font-weight: 600; }
 
+/* 多选由外层选区提供反馈，保留当前播放标记和键盘焦点轮廓。 */
+:global([data-selecting='true']) .row { background: none; }
+:global([data-selecting='true']) .row:not(.rowActive)::before { opacity: 0; }
+
 /* 迷你均衡器：3 根动画柱 */
 .eq {
   width: 20px;
