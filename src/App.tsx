@@ -3,6 +3,7 @@ import { MotionConfig } from 'motion/react'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
+import { useScrollbarActivity } from './hooks/useScrollbarActivity'
 import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
@@ -64,6 +65,7 @@ export default function App() {
   useGameModeSync()
   useTraySync()
   useShortcuts()
+  useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
   useAudio(!gameEnabled || desktopLyricsEnabled, gameEnabled)
   useDesktopLyricsSync(gameEnabled, gameSequence)
