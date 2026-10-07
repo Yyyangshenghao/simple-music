@@ -1,33 +1,22 @@
-/* 播放栏共用的轻薄玻璃高光；点击反馈继续由按钮原有的 Motion 动效承担。 */
+/* 普通按钮以图标本身反馈悬停，点击缩放沿用原有 Motion 动效。 */
 .control {
   position: relative;
-  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: var(--player-control-radius, 10px);
+  border-radius: 10px;
   background: transparent;
   color: var(--sm-accent-warm);
   cursor: pointer;
   transition: color 180ms var(--sm-ease-out);
 }
 
-.control::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border: 1px solid var(--sm-border);
-  border-radius: inherit;
-  background: linear-gradient(155deg, var(--sm-fill-active), var(--sm-fill-subtle) 55%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sm-text-primary) 8%, transparent), 0 3px 8px rgba(0, 0, 0, 0.08);
-  opacity: var(--player-control-rest-opacity, 0);
-  transform: scale(0.92);
-  transition: opacity 180ms var(--sm-ease-out), transform 220ms var(--sm-ease-out);
+.control svg {
+  transform-origin: center;
+  transition: transform 180ms var(--sm-ease-out);
 }
 
 .control:hover:not(:disabled),
@@ -35,10 +24,8 @@
   color: var(--player-control-hover-color, var(--sm-text-primary));
 }
 
-.control:hover:not(:disabled)::before,
-.control:focus-visible::before {
-  opacity: var(--player-control-surface-opacity, 1);
-  transform: scale(1);
+.control:hover:not(:disabled) svg {
+  transform: scale(1.08);
 }
 
 .control:focus-visible {
@@ -48,6 +35,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .control,
-  .control::before { transition: none; }
-  .control::before { transform: none; }
+  .control svg { transition: none; }
+  .control:hover:not(:disabled) svg { transform: none; }
 }
