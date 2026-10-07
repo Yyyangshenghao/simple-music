@@ -1,0 +1,16 @@
+/* 页面视口延伸到悬浮控制栏背后，渐隐只作用于内容，不给全窗背景叠实色条。 */
+.viewport {
+  scroll-padding-top: calc(var(--sm-topbar-height, 0px) + 12px);
+  scroll-padding-bottom: var(--sm-player-clearance, 0px);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--sm-topbar-height, 0px), #000 calc(100% - var(--sm-player-clearance, 0px)), transparent);
+}
+
+/* 留白在滚动内容内，首尾项能滚到控制栏之外；原有页面间距继续保留。 */
+.viewport::before,
+.viewport::after {
+  content: '';
+  display: block;
+}
+
+.viewport::before { height: var(--sm-topbar-height, 0px); }
+.viewport::after { height: var(--sm-player-clearance, 0px); }

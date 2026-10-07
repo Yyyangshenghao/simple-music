@@ -10,13 +10,6 @@
   overflow-y: auto;
 }
 
-/* 遮罩放在滚动视口外，覆盖完整宽度，避免原生滚动条占位露出封面亮边。 */
-.gradient {
-  position: absolute;
-  left: 0;
-  right: 0;
-}
-
 .inner { padding: 24px 24px 80px; }
 
 .detailHeader { position: relative; z-index: 2; margin-bottom: 24px; }

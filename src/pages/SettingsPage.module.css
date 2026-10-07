@@ -81,7 +81,7 @@
 
 .tabBar {
   position: sticky;
-  top: 22px;
+  top: calc(var(--sm-topbar-height, 0px) + 22px);
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -140,7 +140,7 @@
 .tabCopy small { color: var(--sm-text-muted); font-size: 10px; font-weight: 450; line-height: 1.45; }
 
 .settingsContent { display: grid; gap: 38px; min-width: 0; }
-.settingsSection { min-width: 0; scroll-margin-top: 22px; }
+.settingsSection { min-width: 0; scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 22px); }
 
 .sectionHeading {
   margin: 2px 0 18px;
@@ -748,11 +748,11 @@
 
 @media (max-width: 1280px) {
   .settingsLayout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .settingsSection { scroll-margin-top: 88px; }
+  .settingsSection { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 88px); }
 
   .tabBar {
     position: sticky;
-    top: 0;
+    top: var(--sm-topbar-height, 0px);
     flex-direction: row;
     width: 100%;
     overflow-x: auto;

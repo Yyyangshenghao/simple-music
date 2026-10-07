@@ -1,8 +1,8 @@
 .dock {
   padding: 10px 16px;
   pointer-events: none;
-  flex-shrink: 0;
-  position: relative;
+  position: absolute;
+  inset: auto 0 0;
   /* 悬浮于歌词面板(200)之上,歌词全屏时播放栏仍可用 */
   z-index: 210;
   /* 不要给 --audio-energy 挂 transition:它每帧被 JS 改写,注册属性的过渡会每帧
@@ -12,7 +12,7 @@
     transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* 沉浸模式:淡出下沉,占位不变避免布局跳动 */
+/* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
   opacity: 0;
   transform: translateY(10px);
@@ -26,6 +26,7 @@
   pointer-events: auto;
   -webkit-app-region: no-drag;
   padding: 12px 20px;
+  background: linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
   /* 确保面板内容绘制在音频辉光之上 */
   position: relative;
   z-index: 1;

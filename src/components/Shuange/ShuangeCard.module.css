@@ -1,6 +1,6 @@
 .card {
   position: absolute;
-  inset: 14px 18px 18px;
+  inset: calc(var(--sm-topbar-height, 0px) + 14px) 18px 18px;
   overflow: hidden;
   border: 1px solid var(--glass-border-card);
   border-radius: 26px;

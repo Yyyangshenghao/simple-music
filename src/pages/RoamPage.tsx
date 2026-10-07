@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useScrollGradient } from '../hooks/useScrollGradient'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
@@ -15,6 +14,7 @@ import { GradientText } from '../components/ui/GradientText'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './RoamPage.module.css'
+import pageScroll from '../styles/page-scroll.module.css'
 
 type SavedPlaylistSlot = 'netease' | 'local'
 
@@ -74,7 +74,6 @@ export function RoamPage() {
     return mergeSavedPlaylist(saved, playlist, playlist === localPlaylist ? 'local' : 'netease')
   })
 
-  const { topOpacity, bottomOpacity, handleScroll } = useScrollGradient()
   const scopeSources = scope === 'all' ? enabledSources : enabledSources.filter((source) => source === scope)
   const hasInactiveEntries = entries.some((entry) =>
     entry.artist.source !== 'local' && !enabledSources.includes(entry.artist.source)
@@ -150,8 +149,7 @@ export function RoamPage() {
 
   if (openedPlaylist) {
     return (
-      <div className={styles.page} onScroll={handleScroll}>
-        <div className="topGradient" style={{ opacity: topOpacity }} />
+      <div className={`${styles.page} ${pageScroll.viewport}`}>
         <div className={styles.inner}>
           <motion.div
             className={styles.resultHeader}
@@ -218,14 +216,12 @@ export function RoamPage() {
             ))}
           </motion.div>
         </div>
-        <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       </div>
     )
   }
 
   return (
-    <div className={styles.page} onScroll={handleScroll}>
-      <div className="topGradient" style={{ opacity: topOpacity }} />
+    <div className={`${styles.page} ${pageScroll.viewport}`}>
       <div className={styles.inner}>
         <motion.div
           className={styles.roamHero}
@@ -354,7 +350,6 @@ export function RoamPage() {
           </>
         )}
       </div>
-      <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
 
       <AnimatePresence>
         {pickerOpen && (

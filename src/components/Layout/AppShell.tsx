@@ -64,6 +64,7 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
+      <div className={styles.contentRegion} aria-hidden="true" />
       {/* Suspense 必须在 motion.div 内:lazy 页首挂载的挂起若发生在 AnimatePresence
           子节点层,会打断旧页 exit,旧页永久滞留盖住新页(首次导航跳转失效) */}
       <LayoutGroup>
