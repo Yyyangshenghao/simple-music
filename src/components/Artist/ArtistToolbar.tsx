@@ -29,15 +29,26 @@ export function ArtistToolbar({ children, className, scrollRef, active, onUserSc
     const layer = layerRef.current
     const viewport = scrollRef.current
     if (!host || !anchor || !layer || !viewport || !active) return
+    layer.style.removeProperty('top')
     let frame = 0
+    let distance = 0
+    let scrollable = false
+    const onScroll = () => {
+      layer.dataset.artistToolbarPinned = String(scrollable && viewport.scrollTop >= distance - 0.5)
+    }
     const sync = () => {
       const height = `${layer.offsetHeight}px`
       if (anchor.style.height !== height) anchor.style.height = height
       const rect = anchor.getBoundingClientRect()
       const root = host.getBoundingClientRect()
-      const top = parseFloat(getComputedStyle(anchor).top) || 0
-      layer.style.top = `${rect.top - root.top}px`
-      layer.dataset.artistToolbarPinned = String(rect.top <= root.top + top + 0.5)
+      const top = parseFloat(getComputedStyle(host).getPropertyValue('--sm-topbar-height')) || 52
+      const origin = rect.top - root.top + viewport.scrollTop
+      distance = Math.max(0, origin - top)
+      scrollable = viewport.scrollHeight > viewport.clientHeight
+      layer.dataset.artistToolbarScrollable = String(scrollable)
+      layer.style.setProperty('--artist-toolbar-origin', `${origin}px`)
+      layer.style.setProperty('--artist-toolbar-sticky-distance', `${distance}px`)
+      onScroll()
     }
     const schedule = () => {
       if (frame) return
@@ -51,13 +62,14 @@ export function ArtistToolbar({ children, className, scrollRef, active, onUserSc
       event.preventDefault()
     }
     layer.addEventListener('wheel', onWheel, { passive: false })
+    viewport.style.setProperty('scroll-timeline', '--artist-page block')
     syncRef.current = sync
     sync()
     const observer = new ResizeObserver(schedule)
     observerRef.current = observer
     observer.observe(layer)
     observer.observe(viewport)
-    viewport.addEventListener('scroll', schedule, { passive: true })
+    viewport.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', schedule)
     return () => {
       layer.removeEventListener('wheel', onWheel)
@@ -65,7 +77,8 @@ export function ArtistToolbar({ children, className, scrollRef, active, onUserSc
       cancelAnimationFrame(frame)
       observerRef.current = null
       observer.disconnect()
-      viewport.removeEventListener('scroll', schedule)
+      viewport.style.removeProperty('scroll-timeline')
+      viewport.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', schedule)
     }
   }, [host, scrollRef, active])
@@ -88,13 +101,14 @@ export function ArtistToolbar({ children, className, scrollRef, active, onUserSc
     if (!host || !anchor || !viewport) return
     // Portal 不再是滚动区的子节点，聚焦屏幕外输入框时由原页面承接滚动。
     host.scrollTop = 0
-    const rect = anchor.getBoundingClientRect()
+    const rect = layerRef.current?.getBoundingClientRect()
+    if (!rect) return
     const bounds = viewport.getBoundingClientRect()
-    const top = parseFloat(getComputedStyle(anchor).top) || 0
+    const top = parseFloat(getComputedStyle(host).getPropertyValue('--sm-topbar-height')) || 52
     const clearance = parseFloat(getComputedStyle(host).getPropertyValue('--sm-player-clearance')) || 0
     if (rect.top < bounds.top + top || rect.bottom > bounds.bottom - clearance) {
       onUserScrollRef.current()
-      viewport.scrollTop += rect.top - bounds.top - top
+      viewport.scrollTop += anchor.getBoundingClientRect().top - bounds.top - top
     }
     syncRef.current?.()
   }
