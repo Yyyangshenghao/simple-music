@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
@@ -90,7 +91,7 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
     return () => window.removeEventListener('keydown', onKey)
   }, [playlist, onClose])
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {playlist && (
         <motion.div
@@ -103,6 +104,7 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
           <PreviewPanel playlist={playlist} onClose={onClose} />
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

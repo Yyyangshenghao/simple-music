@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { applySelection, intersectsSelection, rangeSelection, selectionRect, virtualSelectionKeys } from './multi-selection'
+import { applySelection, intersectsSelection, rangeSelection, selectionRect, selectionScrollDelta, virtualSelectionKeys } from './multi-selection'
 
 describe('多选范围与框选', () => {
+  it('在悬浮顶栏和播放器之外的可见内容边缘自动滚动，中央不滚动', () => {
+    const viewport = { left: 0, right: 1200, top: 0, bottom: 800 }
+    const visible = { ...viewport, top: 64, bottom: 676 }
+    expect(selectionScrollDelta(72, viewport)).toBe(0)
+    expect(selectionScrollDelta(668, viewport)).toBe(0)
+    expect(selectionScrollDelta(72, visible)).toBeLessThan(0)
+    expect(selectionScrollDelta(668, visible)).toBeGreaterThan(0)
+    expect(selectionScrollDelta(400, visible)).toBe(0)
+    expect(selectionScrollDelta(0, visible)).toBe(-18)
+    expect(selectionScrollDelta(800, visible)).toBe(18)
+  })
   it('向左上拖动与正向拖动产生同一区域，仅接触边缘不会误选', () => {
     const rect = selectionRect(120, 300, 20, 100)
     expect(rect).toEqual(selectionRect(20, 100, 120, 300))

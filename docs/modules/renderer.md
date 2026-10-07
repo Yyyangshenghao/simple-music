@@ -39,7 +39,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
-- `useScrollGradient` / `useScrollReveal` — 滚动渐隐边缘 / 入场 stagger。
+- `useScrollReveal` — 滚动内容入场 stagger。
 
 ## providers / lib
 
@@ -69,7 +69,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 主窗口滚动条由 `styles/global.css` 统一定制，尺寸与普通、悬停、拖动颜色复用 `--sm-scrollbar-*` token；页面、弹窗、队列和横向列表跟随深浅主题，歌词固定深色浮层局部覆盖颜色。外层、轨道与轨道片段均显式透明，滑块使用低透明度中性色，悬停和拖动逐级加深，避免滚动条底色与氛围背景断开。`ScrollArea` 复用同一滚动条，保留滚动引用、共享布局动画及吸顶回调；不再单独测量或绘制滑块。悬停或滚动时显示，停止滚动 800ms 且鼠标离开后收起；`useScrollbarActivity` 捕获内层滚动并按容器独立计时，卸载时清理。歌词正文和轮播等原本隐藏滚动条的区域保持隐藏。
 
-歌单和专辑详情的上下渐变遮罩位于滚动视口外，覆盖包括滚动条占位在内的完整宽度，避免封面背景在右侧露出亮边；遮罩不接收鼠标事件，滚动引用与虚拟列表仍绑定内部视口。
+页面视口贯穿整窗，顶栏与播放栏悬浮于页面上方：顶栏玻璃层向下渐隐，播放栏保留圆角玻璃面板。`styles/page-scroll.module.css` 统一页面内容的上下渐隐、滚动留白与安全区；渐隐不叠加实色背景条，滚动引用与虚拟列表仍绑定原视口。吸顶工具栏和设置导航停在顶栏下方，框选按可见安全区裁剪与自动滚动；歌单预览弹窗通过 portal 挂到 body，避免被页面遮罩裁剪。刷歌隐藏播放栏时取消底部安全区，卡片仍避开顶栏。
 
 播放栏右下角「…」打开 `Player/MoreMenu` 播放设置面板：游戏模式入口位于顶部，开启后后台播放，可从托盘返回。面板固定标题与关闭入口，内容区独立滚动；来源以图标和名称展示一次，音质按网格排列，倍速等宽分段，定时关闭支持播完当前曲再停。
 

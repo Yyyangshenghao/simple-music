@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject, type MouseEvent, type PointerEvent, type KeyboardEvent, type DragEvent } from 'react'
-import { applySelection, intersectsSelection, rangeSelection, selectionRect, virtualSelectionKeys, type SelectionRect } from '../lib/multi-selection'
+import { applySelection, intersectsSelection, rangeSelection, selectionRect, selectionScrollDelta, virtualSelectionKeys, type SelectionRect } from '../lib/multi-selection'
 
 interface Options {
   enabled: boolean
@@ -84,10 +84,15 @@ export function useMultiSelection(options: Options) {
 
     function update(scrollEdge = true) {
       if (!active) return
-      const bounds = viewport.getBoundingClientRect()
-      const edge = 40
-      const delta = lastY < bounds.top + edge ? -Math.min(18, (bounds.top + edge - lastY) / 3)
-        : lastY > bounds.bottom - edge ? Math.min(18, (lastY - bounds.bottom + edge) / 3) : 0
+      const viewportBounds = viewport.getBoundingClientRect()
+      const viewportStyle = getComputedStyle(viewport)
+      const bounds = {
+        left: viewportBounds.left,
+        right: viewportBounds.right,
+        top: viewportBounds.top + (parseFloat(viewportStyle.scrollPaddingTop) || 0),
+        bottom: viewportBounds.bottom - (parseFloat(viewportStyle.scrollPaddingBottom) || 0),
+      }
+      const delta = selectionScrollDelta(lastY, bounds)
       if (delta && scrollEdge) viewport.scrollTop += delta
       const rect = selectionRect(x, y - (viewport.scrollTop - startScroll), lastX, lastY)
       rect.right = Math.max(rect.right, rect.left + 1)

@@ -1,4 +1,4 @@
-/* padding 必须放内层 .inner,不能放 .page(否则顶/底渐变遮罩悬空压出暗边,见 PlaylistDetailView.module.css 教训) */
+/* 页面间距放在内容层，滚动视口共用悬浮控制栏的安全留白。 */
 .page {
   position: relative;
   height: 100%;

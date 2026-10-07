@@ -27,6 +27,7 @@ import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
+import pageScroll from '../styles/page-scroll.module.css'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
@@ -518,7 +519,8 @@ export function SettingsPage() {
         setActiveSection(SETTINGS_TABS[SETTINGS_TABS.length - 1].id)
         return
       }
-      const threshold = page.getBoundingClientRect().top + 120
+      const topbarHeight = parseFloat(getComputedStyle(page).getPropertyValue('--sm-topbar-height')) || 0
+      const threshold = page.getBoundingClientRect().top + topbarHeight + 120
       let current: SettingsTab = 'music'
       for (const section of SETTINGS_TABS) {
         const node = document.getElementById(`settings-section-${section.id}`)
@@ -730,7 +732,7 @@ export function SettingsPage() {
         : '尚未检查'
 
   return (
-    <div className={styles.page} ref={pageRef}>
+    <div className={`${styles.page} ${pageScroll.viewport}`} ref={pageRef}>
       <div className={styles.shell}>
         <header className={styles.hero}>
           <div className={styles.heroCopy}>

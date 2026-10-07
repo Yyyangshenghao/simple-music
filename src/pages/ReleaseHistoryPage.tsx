@@ -4,6 +4,7 @@ import { ReleaseHistory } from '../components/Update/ReleaseHistory'
 import { useNavigationStore } from '../stores/navigation'
 import { useUpdateStore } from '../stores/update'
 import styles from './ReleaseHistoryPage.module.css'
+import pageScroll from '../styles/page-scroll.module.css'
 
 export function ReleaseHistoryPage() {
   const currentVersion = useUpdateStore((state) => state.info?.currentVersion) || appVersion
@@ -13,7 +14,7 @@ export function ReleaseHistoryPage() {
   useEffect(() => { headingRef.current?.focus({ preventScroll: true }) }, [])
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${pageScroll.viewport}`}>
       <div className={styles.content}>
         <button type="button" className={`${styles.back} no-drag`} onClick={goBack}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

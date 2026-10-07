@@ -169,7 +169,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <WindowChrome>
-        <div className={styles.root}>
+        <div className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
           <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />

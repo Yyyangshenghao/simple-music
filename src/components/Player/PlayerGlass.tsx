@@ -7,7 +7,7 @@ import styles from './PlayerGlass.module.css'
 
 interface PlayerGlassProps {
   children?: ReactNode
-  /** 沉浸模式:整体淡出并禁用交互,布局占位不变 */
+  /** 沉浸模式:整体淡出并禁用交互，页面视口保持不变 */
   hidden?: boolean
 }
 
