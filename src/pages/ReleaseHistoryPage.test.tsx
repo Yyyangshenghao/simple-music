@@ -21,12 +21,12 @@ describe('独立更新日志页面', () => {
   it('各版本按新增、优化、修复分组，修复版不会显示不存在的新功能分组', () => {
     const html = renderToStaticMarkup(<ReleaseHistoryPage />)
     const releases = html.split('<details').slice(1)
-    const current = releases.find((release) => release.includes(`>v${version}<`))!
-    expect(current).toContain('aria-label="新增"')
-    expect(current).toContain('aria-label="优化"')
-    expect(current).toContain('aria-label="修复"')
-    expect(current).toContain('data-change-type="feat"')
-    expect(current).toContain('data-change-type="fix"')
+    const feature = releases.find((release) => release.includes('>v2.3.0<'))!
+    expect(feature).toContain('aria-label="新增"')
+    expect(feature).toContain('aria-label="优化"')
+    expect(feature).toContain('aria-label="修复"')
+    expect(feature).toContain('data-change-type="feat"')
+    expect(feature).toContain('data-change-type="fix"')
     const patch = releases.find((release) => release.includes('>v2.2.4<'))!
     expect(patch).toContain('aria-label="修复"')
     expect(patch).not.toContain('aria-label="新增"')
