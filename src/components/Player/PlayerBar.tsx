@@ -271,6 +271,7 @@ function LikeButton() {
 
 interface PlayerBarProps {
   onOpenLyrics?: () => void
+  onArtistNavigate?: () => void
   /** 沉浸模式:淡出整个播放栏(布局占位不变) */
   hidden?: boolean
 }
@@ -317,7 +318,7 @@ function VolumeControl() {
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
+export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -331,7 +332,7 @@ export function PlayerBar({ onOpenLyrics, hidden }: PlayerBarProps) {
     <PlayerGlass hidden={hidden}>
       <div className={styles.bar}>
         <div className={styles.left}>
-          <TrackInfo onCoverClick={onOpenLyrics} />
+          <TrackInfo onCoverClick={onOpenLyrics} onArtistNavigate={onArtistNavigate} />
           <LikeButton />
         </div>
 
