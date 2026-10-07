@@ -196,8 +196,9 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 - `appId: com.simplemusic.desktop`，产物输出 `dist/`，资源目录 `build/`（icon.ico/icon.icns）。
 - `files`: `out/**/*` + `build/icon.ico` + `package.json`（**package.json 必须进 asar**——server/lib/update.ts 运行时 `import pkgJson from '../../package.json'` 读版本与更新配置）。
-- **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple Music-<v>-arm64.dmg` / `Simple Music-<v>.dmg`。
-- **win**：NSIS（`Simple Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
+- **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple-Music-<v>-arm64.dmg` / `Simple-Music-<v>-x64.dmg`。
+- **win**：NSIS（`Simple-Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple-Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
+- 安装包名称显式使用连字符，避免 GitHub 上传时替换空格，导致 `latest*.yml` 中的文件名与 Release 资源不一致。
 - **Apple Music DRM**：桌面运行时使用 CastLabs ECS。发布流水线固定 Node 22.12，并在 macOS 的 `afterPack`（系统代码签名前）和 Windows 的 `afterSign`（系统代码签名后）调用 EVS，生成 streaming VMP 生产签名。CI 缺少 `EVS_ACCOUNT_NAME` 或 `EVS_PASSWD` 时必须中止，禁止发布只能使用开发 DRM 签名的安装包；本地普通打包默认跳过，设置 `VMP_SIGN=1` 可强制执行。
 
 ## 4. 发布约定

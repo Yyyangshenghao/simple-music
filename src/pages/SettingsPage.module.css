@@ -176,7 +176,8 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 18px;
-  animation: settingsEnter 420ms var(--sm-ease-out) both;
+  /* 入场后释放变换层，避免滚动裁剪边缘持续参与独立合成。 */
+  animation: settingsEnter 420ms var(--sm-ease-out) backwards;
 }
 
 .settingsGrid {
@@ -290,20 +291,13 @@
   min-width: 0;
   border: 1px solid var(--glass-border-card);
   border-radius: 22px;
+  /* 保留半透明底色，不在滚动边缘对动态背景逐卡片重采样。 */
   background: color-mix(in srgb, var(--glass-bg-card) 86%, transparent);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .group:has(:global([data-settings-info]:focus-within)),
 .group:has(:global([data-settings-info]:hover)) { z-index: 2; }
-
-/* 操作按钮重绘时不重新采样玻璃背景，避免卡片边缘出现异常亮块。 */
-.storageGrid .group {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
 
 .groupHint {
   margin: 0;
