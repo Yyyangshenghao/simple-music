@@ -11,6 +11,7 @@
 | 启动、渲染、内存与性能验收 | [性能与界面维护](performance.md) |
 | 2.3.0 整合范围、深审修复与验收边界 | [2.3.0 审查记录](reviews/2.3.0-code-review.md) |
 | 2.3.1 开发中的全面检查、优化与待验事项 | [2.3.1 审查记录](reviews/2.3.1-code-review.md) |
+| 2.3.4 整体代码审查与按优先级修复 | [2.3.4 审查记录](reviews/2.3.4-code-review.md) |
 | 发行说明与开发中的更新内容 | [2.3.0](release-notes-2.3.0.md)、[2.3.1 草稿](release-notes-2.3.1.md) |
 | 2.4.0 应用聚合歌单的范围约定 | [聚合歌单规划](specs/2026-10-06-aggregate-playlists-2.4.0.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
