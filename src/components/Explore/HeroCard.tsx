@@ -25,7 +25,7 @@ export function HeroCard({ title, subtitle, cover, source, badge, layoutId, onCl
     <TiltCard className={styles.wrap}>
       <BorderGlow borderRadius={16}>
         <button className={`${styles.card} no-drag`} onClick={onClick}>
-          <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
+          <motion.div className={styles.coverWrap} layoutId={layoutId} layoutCrossfade={false} transition={springGentle} style={{ borderRadius: 16 }}>
             {cover
               ? <img className={styles.cover} src={sizedImage(cover, 320)} alt="" loading="lazy" />
               : <div className={styles.coverFallback} />}

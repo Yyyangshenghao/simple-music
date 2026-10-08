@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useIsPresent } from 'motion/react'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
@@ -40,6 +41,9 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
   const artistScrollRestored = useRef(false)
   const savedArtistScrollTop = useRef(initialState?.artistScrollTop ?? 0)
   const route = useRef(useNavigationStore.getState().currentView)
+  const present = useIsPresent()
+  const currentView = useNavigationStore.getState().currentView
+  if (present && typeof currentView === 'object' && currentView.type === 'search' && currentView.keyword === keyword) route.current = currentView
   const savedScrollTop = useRef(initialState?.scrollTop ?? 0)
   const scrollRestored = useRef(false)
   const navigateTo = useNavigationStore((state) => state.navigateTo)

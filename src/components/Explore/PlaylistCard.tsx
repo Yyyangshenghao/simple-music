@@ -32,6 +32,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
           <motion.div
             className={styles.coverWrap}
             layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
+            layoutCrossfade={false}
             transition={playlist.type === 'album' ? albumCoverTransition : springGentle}
             style={{ borderRadius: 12 }}
           >

@@ -94,7 +94,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   }
 
   return (
-    <div ref={pageRef} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
+    <motion.div layoutScroll ref={pageRef} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
       if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, { session: providerAccountSession(activeHomeSource), top: event.currentTarget.scrollTop })
     }}>
 
@@ -132,6 +132,6 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
 
       <div className={styles.bottomSpace} />
       <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
-    </div>
+    </motion.div>
   )
 }

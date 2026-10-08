@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   width: min(420px, calc(100vw - 48px));
-  max-height: min(560px, calc(100vh - 96px));
+  height: min(560px, calc(100vh - 96px));
   overflow: hidden;
   background: var(--sm-bg-overlay);
   border: 1px solid var(--sm-border);
@@ -25,16 +25,19 @@
   box-shadow: var(--sm-shadow);
 }
 
-.header { display: flex; gap: 14px; padding: 16px 16px 12px; }
+.header { display: flex; flex-shrink: 0; gap: 14px; padding: 16px 16px 12px; }
 
 .cover {
   width: 84px;
   height: 84px;
   border-radius: 12px;
   object-fit: cover;
+  overflow: hidden;
   flex-shrink: 0;
   background: var(--sm-bg-elevated);
 }
+
+.cover > img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 .meta { flex: 1; min-width: 0; }
 
@@ -64,7 +67,7 @@
   padding: 4px;
 }
 
-.actions { display: flex; align-items: center; gap: 10px; padding: 0 16px 12px; }
+.actions { display: flex; flex-shrink: 0; align-items: center; gap: 10px; padding: 0 16px 12px; }
 
 .playAll {
   border: none;
@@ -95,9 +98,18 @@
 .count { font-size: 12px; color: var(--sm-text-secondary); }
 
 .list {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 8px 12px;
 }
+
+.empty { padding: 28px 12px; text-align: center; font-size: 12px; color: var(--sm-text-secondary); }
+.skeletonRow { display: flex; align-items: center; gap: 10px; height: 44px; padding: 8px; }
+.skeletonIndex { width: 22px; height: 12px; border-radius: 4px; background: var(--sm-fill-subtle); }
+.skeletonText { display: grid; flex: 1; gap: 6px; }
+.skeletonText i { display: block; width: 58%; height: 12px; border-radius: 4px; background: var(--sm-fill-subtle); }
+.skeletonText i:last-child { width: 32%; height: 10px; }
 
 .row {
   display: flex;

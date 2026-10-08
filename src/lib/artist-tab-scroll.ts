@@ -1,3 +1,8 @@
+/** 分类栏进入顶栏下方后，切换分类才自动定位；资料区可见时保持原位。 */
+export function shouldScrollArtistTabToStart(scrollTop: number, listTop: number): boolean {
+  return scrollTop >= listTop
+}
+
 /** 目标分类已完成切换，再定位；完成后释放暂存的滚动空间。 */
 export function scrollArtistTabToStart(
   viewport: HTMLDivElement,

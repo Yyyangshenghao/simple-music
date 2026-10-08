@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { artistTabContentHeight, scrollArtistTabToStart } from './artist-tab-scroll'
+import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from './artist-tab-scroll'
 
 function page(top = 1000, height = 3000) {
   const node = Object.assign(new EventTarget(), {
@@ -7,6 +7,21 @@ function page(top = 1000, height = 3000) {
   })
   return node as unknown as HTMLDivElement
 }
+
+describe('歌手分类自动定位边界', () => {
+  it.each([0, 100, 330])('歌手资料仍可见时保持当前位置（scrollTop=%s）', (top) => {
+    expect(shouldScrollArtistTabToStart(top, 330.5)).toBe(false)
+  })
+
+  it.each([330.5, 331, 1000])('进入分类列表区域后才自动回首行（scrollTop=%s）', (top) => {
+    expect(shouldScrollArtistTabToStart(top, 330.5)).toBe(true)
+  })
+
+  it('简介展开后的边界跟随实际布局，而非固定高度', () => {
+    expect(shouldScrollArtistTabToStart(500, 330.5)).toBe(true)
+    expect(shouldScrollArtistTabToStart(500, 650)).toBe(false)
+  })
+})
 
 describe('歌手分类切换后定位', () => {
   it('目标列表滚动完成后只释放一次临时空间', () => {

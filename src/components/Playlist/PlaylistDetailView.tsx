@@ -200,6 +200,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               <motion.div
                 className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
                 layoutId={coverLayoutId}
+                layoutCrossfade={false}
                 transition={isAlbum ? albumCoverTransition : springGentle}
                 style={{ borderRadius: isAlbum ? 16 : 12 }}
               >

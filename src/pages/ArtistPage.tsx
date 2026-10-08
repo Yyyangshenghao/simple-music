@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
-import { artistTabContentHeight, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
+import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
@@ -66,7 +66,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const toolbarAnchorRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const cancelTabScroll = useRef<(() => void) | null>(null)
-  const tabScrollTarget = useRef<ArtistTab | null>(null)
+  const tabScrollTarget = useRef<{ tab: ArtistTab; scrollToStart: boolean } | null>(null)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
   // 跨平台导航留下的历史条目也必须按实体自身 source 查询，避免把网易 id 发给 QQ。
   const service = useMemo(() => serviceFor(source), [source])
@@ -126,7 +126,12 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     const viewport = scrollRef.current
     const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
     if (!active || !viewport || switchingTab || tabScrollTarget.current === null || !artistLoaded || !ready) return
-    const top = tabScrollTop(tabScrollTarget.current)
+    if (!tabScrollTarget.current.scrollToStart) {
+      tabScrollTarget.current = null
+      setHeldContentHeight(retainedContentHeight() || undefined)
+      return
+    }
+    const top = tabScrollTop(tabScrollTarget.current.tab)
     if (viewport.scrollHeight - viewport.clientHeight < top) {
       setHeldContentHeight(retainedContentHeight(top))
       return
@@ -259,11 +264,11 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     const viewport = scrollRef.current
     const anchor = toolbarAnchorRef.current
     if (!viewport || !anchor) return
-    // 切换前保留滚动范围，短列表也能从当前位置平滑回到顶部。
+    // 切换前保留滚动范围，短列表也不会裁掉资料区的当前位置。
     setHeldContentHeight(contentRef.current?.getBoundingClientRect().height)
     setSlideDirection(tabs.indexOf(next) >= tabs.indexOf(tab) ? 1 : -1)
     setSwitchingTab(next !== tab && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-    tabScrollTarget.current = next
+    tabScrollTarget.current = { tab: next, scrollToStart: shouldScrollArtistTabToStart(viewport.scrollTop, tabScrollTop('songs')) }
     setTab(next)
     updatePageState(id, source, { tab: next, scrollTop: viewport.scrollTop })
   }
@@ -350,7 +355,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
       <div key={tab} className={switchingTab ? styles.tabContentSwitching : undefined}
         data-direction={slideDirection}
         onAnimationEnd={(event) => {
-          if (event.target === event.currentTarget && tabScrollTarget.current === tab) setSwitchingTab(false)
+          if (event.target === event.currentTarget && tabScrollTarget.current?.tab === tab) setSwitchingTab(false)
         }}
       >
         {tab === 'songs' && (

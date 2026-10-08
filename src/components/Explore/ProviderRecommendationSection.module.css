@@ -18,9 +18,13 @@
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 34%);
 }
+
+/* 每日推荐/私人雷达的封面返回时会经过栏目外，不能被栏目边界截断。 */
+.section:has(.heroCards) { overflow: visible; }
 
 .appleSection {
   padding: 20px 10px 24px;

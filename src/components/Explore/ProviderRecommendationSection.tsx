@@ -29,6 +29,11 @@ const deckSnapshots = new Map<ProviderId, { page: RecommendationPage; pool: Stac
 
 const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
 
+function discoveryPlaylists(playlists: Playlist[]): Playlist[] {
+  // 网易云私人雷达已有独立入口，不重复放入发现歌单牌堆。
+  return playlists.filter((playlist) => playlist.source !== 'netease' || String(playlist.id) !== '3136952023')
+}
+
 function isEmptyPage(page: RecommendationPage): boolean {
   if (page.content.type === 'tracks') return page.content.tracks.length === 0
   if (page.content.type === 'playlists') return page.content.playlists.length === 0
@@ -68,7 +73,7 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
   const [results, setResults] = useState<Record<string, SurfaceResult>>(cachedResults)
   const [pool, setPool] = useState<StackPoolState<Playlist>>(() => {
     if (initialDeck) return initialDeck.pool
-    return cachedFeed?.content.type === 'playlists' ? createPool(cachedFeed.content.playlists) : EMPTY_POOL
+    return cachedFeed?.content.type === 'playlists' ? createPool(discoveryPlaylists(cachedFeed.content.playlists)) : EMPTY_POOL
   })
   const [dealId, setDealId] = useState(0)
   const sessionRef = useRef(0)
@@ -98,7 +103,7 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
       if (surface.kind === 'playlist-feed' && page.content.type === 'playlists') {
         const saved = !force && deckSnapshots.get(source)
         if (!saved || saved.page !== page) {
-          setPool(createPool(page.content.playlists))
+          setPool(createPool(discoveryPlaylists(page.content.playlists)))
           nextCursorRef.current = page.nextCursor
         }
       }
@@ -133,7 +138,7 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
     )
       .then((page) => {
         if (sessionRef.current !== session || page.content.type !== 'playlists') return
-        const playlists = page.content.playlists
+        const playlists = discoveryPlaylists(page.content.playlists)
         nextCursorRef.current = page.nextCursor
         const saved = deckSnapshots.get(source)
         if (saved) saved.nextCursor = page.nextCursor

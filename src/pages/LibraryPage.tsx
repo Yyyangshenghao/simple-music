@@ -239,7 +239,9 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
 
   useEffect(() => {
     if (!participating) return
-    const onFocus = () => retryProvider(source)
+    const onFocus = () => {
+      if (useNavigationStore.getState().currentView === 'library') retryProvider(source)
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [mode, participating, source]) // eslint-disable-line react-hooks/exhaustive-deps
