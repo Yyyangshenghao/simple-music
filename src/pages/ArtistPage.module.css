@@ -78,10 +78,14 @@
 
 .trackList { padding: 0 24px 32px; }
 
-.tabContent { animation: content-in 180ms var(--sm-ease-out); }
-@keyframes content-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-  .tabContent { animation: none; }
+.tabContentSwitching {
+  --tab-enter-x: 18px;
+  animation: content-in 180ms var(--sm-ease-out);
+}
+.tabContentSwitching[data-direction='-1'] { --tab-enter-x: -18px; }
+@keyframes content-in {
+  from { opacity: 0; transform: translateX(var(--tab-enter-x)); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 .tabGroup {

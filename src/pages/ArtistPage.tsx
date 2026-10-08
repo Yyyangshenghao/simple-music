@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
-import { scrollBeforeArtistTabChange } from '../lib/artist-tab-scroll'
+import { artistTabContentHeight, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
@@ -58,10 +58,13 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const [similarError, setSimilarError] = useState(false)
   const [similarRetry, setSimilarRetry] = useState(0)
   const [tab, setTab] = useState<ArtistTab>(initialState?.tab ?? 'songs')
-  const [pendingTab, setPendingTab] = useState<ArtistTab | null>(null)
+  const [heldContentHeight, setHeldContentHeight] = useState<number | undefined>()
+  const [switchingTab, setSwitchingTab] = useState(false)
+  const [slideDirection, setSlideDirection] = useState(1)
   const [songsHasMore, setSongsHasMore] = useState(cachedSongs?.hasMore ?? false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const toolbarAnchorRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const cancelTabScroll = useRef<(() => void) | null>(null)
   const tabScrollTarget = useRef<ArtistTab | null>(null)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
@@ -81,6 +84,10 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     if (!node) return
     const saveScroll = () => {
       if (scrollRestored.current) updatePageState(id, source, { scrollTop: node.scrollTop })
+      if (!cancelTabScroll.current && tabScrollTarget.current === null) {
+        const height = retainedContentHeight()
+        setHeldContentHeight(previous => previous === undefined ? undefined : Math.min(previous, height) || undefined)
+      }
     }
     const cancelRestore = () => {
       cancelTabNavigation()
@@ -118,10 +125,17 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   useLayoutEffect(() => {
     const viewport = scrollRef.current
     const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
-    if (!active || !viewport || tabScrollTarget.current === null || !artistLoaded || !ready) return
+    if (!active || !viewport || switchingTab || tabScrollTarget.current === null || !artistLoaded || !ready) return
     const top = tabScrollTop(tabScrollTarget.current)
+    if (viewport.scrollHeight - viewport.clientHeight < top) {
+      setHeldContentHeight(retainedContentHeight(top))
+      return
+    }
     tabScrollTarget.current = null
-    viewport.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', () => {
+      cancelTabScroll.current = null
+      setHeldContentHeight(retainedContentHeight() || undefined)
+    })
   })
 
   useLayoutEffect(() => {
@@ -217,7 +231,18 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     cancelTabScroll.current?.()
     cancelTabScroll.current = null
     tabScrollTarget.current = null
-    setPendingTab(null)
+    setSwitchingTab(false)
+    setHeldContentHeight(retainedContentHeight() || undefined)
+  }
+
+  function retainedContentHeight(top = scrollRef.current?.scrollTop ?? 0) {
+    const viewport = scrollRef.current
+    const content = contentRef.current
+    if (!viewport || !content) return 0
+    const origin = content.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
+    const clearance = parseFloat(getComputedStyle(viewport).getPropertyValue('--sm-player-clearance')) || 0
+    // 只留足维持当前位置的空间；短列表结束回滚后不保留旧列表的整块高度。
+    return artistTabContentHeight(top, viewport.clientHeight, origin, clearance)
   }
 
   function tabScrollTop(next: ArtistTab) {
@@ -234,30 +259,20 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     const viewport = scrollRef.current
     const anchor = toolbarAnchorRef.current
     if (!viewport || !anchor) return
-    const top = tabScrollTop(next)
-    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-    const commit = () => {
-      cancelTabScroll.current = null
-      setPendingTab(null)
-      const ready = next === 'albums' ? albumsLoaded : next === 'similar' ? similarLoaded : songsLoaded && !search.loading
-      if (next === tab && artistLoaded && ready) viewport.scrollTo({ top: tabScrollTop(next), behavior })
-      else {
-        tabScrollTarget.current = next
-        setTab(next)
-      }
-      updatePageState(id, source, { tab: next, scrollTop: viewport.scrollTop })
-    }
-    if (viewport.scrollTop > top + 1) {
-      setPendingTab(next)
-      cancelTabScroll.current = scrollBeforeArtistTabChange(viewport, top, behavior, commit)
-    } else commit()
+    // 切换前保留滚动范围，短列表也能从当前位置平滑回到顶部。
+    setHeldContentHeight(contentRef.current?.getBoundingClientRect().height)
+    setSlideDirection(tabs.indexOf(next) >= tabs.indexOf(tab) ? 1 : -1)
+    setSwitchingTab(next !== tab && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    tabScrollTarget.current = next
+    setTab(next)
+    updatePageState(id, source, { tab: next, scrollTop: viewport.scrollTop })
   }
 
   const tabButtons = tabs.map((t) => (
     <button
       key={t}
-      className={`${styles.subTab} no-drag ${(pendingTab ?? tab) === t ? styles.active : ''}`}
-      aria-pressed={(pendingTab ?? tab) === t}
+      className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
+      aria-pressed={tab === t}
       onClick={() => selectTab(t)}
     >
       {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
@@ -331,7 +346,13 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
         )}
       </ArtistToolbar>
 
-      <div key={tab} className={styles.tabContent}>
+      <div ref={contentRef} style={{ minHeight: heldContentHeight }}>
+      <div key={tab} className={switchingTab ? styles.tabContentSwitching : undefined}
+        data-direction={slideDirection}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget && tabScrollTarget.current === tab) setSwitchingTab(false)
+        }}
+      >
         {tab === 'songs' && (
           <div className={styles.trackList}>
             <VirtualList
@@ -389,6 +410,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
             )}
           </div>
         )}
+      </div>
       </div>
     </ScrollArea>
   )
