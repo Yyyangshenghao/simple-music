@@ -28,6 +28,8 @@ export interface ArtistInfo {
   mid?: string
   name: string
   avatar: string
+  /** 歌手主页封面，与头像分开用于页面背景。 */
+  cover?: string
   description?: string
   musicSize?: number
   songNum?: number

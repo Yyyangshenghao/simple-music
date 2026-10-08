@@ -622,7 +622,7 @@ export async function handleArtistSearch(keywords: string, limit: number, cookie
       return {
         id: obj.id,
         name: asStr(obj.name),
-        avatar: asStr(obj.picUrl || obj.img1v1Url),
+        avatar: asStr(obj.avatar || obj.img1v1Url || obj.picUrl),
         musicSize: asNum(obj.musicSize || obj.songSize || 0),
       }
     })
@@ -806,6 +806,7 @@ export interface MappedArtistDetail {
   id: unknown
   name: string
   avatar: string
+  cover: string
   description: string
   musicSize: number
   songNum: number
@@ -818,7 +819,8 @@ export function mapArtistDetail(raw: unknown): MappedArtistDetail {
   return {
     id: basic.id ?? basic.artistId,
     name: asStr(basic.name),
-    avatar: asStr(basic.picUrl || basic.img1v1Url || basic.avatar || ''),
+    avatar: asStr(basic.avatar || basic.img1v1Url || basic.picUrl || ''),
+    cover: asStr(basic.cover || basic.picUrl),
     description: asStr(basic.briefDesc || basic.description || basic.desc),
     musicSize: asNum(basic.musicSize),
     songNum: asNum(basic.songNum || basic.musicSize),

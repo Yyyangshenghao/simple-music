@@ -284,10 +284,10 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     </button>
   ))
 
-  // 歌手头像模糊后作为全局背景(铺满整个应用);离开详情页时清空
+  // 歌手封面作为柔和的全局背景，缺少封面时回退到头像；离开详情页时清空。
   useEffect(() => {
-    if (active) return useBackdropStore.getState().setCover(artist?.avatar)
-  }, [active, artist?.avatar])
+    if (active) return useBackdropStore.getState().setCover(artist?.cover || artist?.avatar, 'artist')
+  }, [active, artist?.cover, artist?.avatar])
 
   const displayedSongs = searching
     ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index]).filter((song) => !isCatalogUnavailable(song))
