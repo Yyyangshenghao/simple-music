@@ -105,13 +105,16 @@
 /* Apple Music 式左右分栏容器(纯歌词模式)。
    整体左移:右侧留出悬停控制栏(.sideRail 84px)的位置,歌词列因此更宽 */
 .splitLayout {
+  --lyrics-right-space: calc(1.5vw + 84px);
   flex: 1;
   width: 100%;
   min-height: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56%;
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 3.5vw;
-  padding: 12px calc(1.5vw + 84px) 0 4.5vw;
+  padding: 12px var(--lyrics-right-space) 0 4.5vw;
   position: relative;
   z-index: 1;
 }
@@ -276,8 +279,10 @@
 
 /* Scrollable lyrics area(右栏) */
 .lyricsScroll {
-  flex: 0 1 var(--lyrics-column-width, 56%);
-  width: var(--lyrics-column-width, 56%);
+  /* 固定默认分栏，仅让歌词区域以自身中心扩缩，不挤压或移动封面。 */
+  width: calc(var(--lyrics-column-width, 56%) / 0.56);
+  max-width: calc(100% + 2 * var(--lyrics-right-space));
+  justify-self: center;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -872,6 +877,7 @@
 /* 窄窗口兜底:回退为上下布局,封面缩小 */
 @media (max-width: 900px) {
   .splitLayout {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
