@@ -11,6 +11,7 @@ import { usePlayerStore } from '../stores/player'
 import { useShuangeStore } from '../stores/shuange'
 import { useProviderStore } from '../stores/providers'
 import type { Track } from '../types/domain'
+import { api, isLocalApiUrl } from './api'
 
 vi.mock('./service-registry', () => ({
   serviceFor: () => ({
@@ -123,6 +124,35 @@ describe('playback persistence', () => {
     savePlayback()
 
     expect(JSON.parse(store[PLAYBACK_STORAGE_KEY])).toMatchObject({ queue: feed, queueIndex: 0, position: 8 })
+  })
+
+  it.each([false, true])('恢复旧会话本地封面时重建端口和 token，配额降级=%s', (compact) => {
+    vi.stubGlobal('window', { desktop: { serverPort: 40001, serverToken: 'old-token' } })
+    const local = makeTrack(7, { provider: 'local', source: 'local', type: 'local',
+      cover: api.url('/api/local/cover', { id: 7 }), url: api.url('/api/local/audio', { id: 7 }) })
+    const online = makeTrack(8, { cover: 'https://cdn.example.com/online.jpg' })
+    usePlaylistStore.setState({ queue: [local, online], queueIndex: 0 })
+    usePlayerStore.setState({ position: 42 })
+    if (compact) {
+      let attempts = 0
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => store[key] ?? null,
+        setItem: (key: string, value: string) => {
+          if (++attempts === 1) throw new Error('quota')
+          store[key] = value
+        },
+      })
+    }
+    savePlayback()
+    vi.stubGlobal('window', { desktop: { serverPort: 40002, serverToken: 'new-token' } })
+    restorePlayback()
+    const restored = usePlayerStore.getState().currentTrack!
+    expect(restored.cover).toBe(api.url('/api/local/cover', { id: 7 }))
+    expect(isLocalApiUrl(restored.cover!)).toBe(true)
+    expect(api.coverImage(restored.cover!)).toBe(restored.cover)
+    expect(usePlayerStore.getState()).toMatchObject({ status: 'paused', position: 42 })
+    expect(usePlaylistStore.getState().queue[0]).toBe(restored)
+    expect(usePlaylistStore.getState().queue[1].cover).toBe(online.cover)
   })
 
   it('存取回路:队列/下标/进度/音量恢复,状态为暂停,URL 被剥离', () => {

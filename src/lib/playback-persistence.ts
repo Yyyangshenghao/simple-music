@@ -3,6 +3,7 @@ import { usePlaylistStore } from '../stores/playlist'
 import { getShuangePlaybackSnapshot } from '../stores/shuange'
 import type { Track } from '../types/domain'
 import { isValidPermutation } from './queue-display'
+import { restoreLocalTrackUrls } from './local-track-urls'
 
 /** 播放状态持久化:队列/当前曲/进度/音量落 localStorage,重启恢复为暂停态断点续播。 */
 
@@ -112,7 +113,7 @@ export function restorePlayback(): void {
     ? data.queueIndex
     : -1
   const rawTrack = rawQueue[rawQueueIndex]
-  const queue = rawQueue.filter((track): track is Track => {
+  const validQueue = rawQueue.filter((track): track is Track => {
     if (!track || typeof track !== 'object') return false
     if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'apple' && track.source !== 'local') return false
     return track.provider === track.source
@@ -123,7 +124,8 @@ export function restorePlayback(): void {
       && typeof track.artist === 'string'
       && Array.isArray(track.artists)
   })
-  const queueIndex = queue.indexOf(rawTrack as Track)
+  const queueIndex = validQueue.indexOf(rawTrack as Track)
+  const queue = validQueue.map(restoreLocalTrackUrls)
   const track = queue[queueIndex]
   // -1 是只追加、尚未选曲的有效状态；其他越界下标仍按损坏存档处理。
   if (!track && data.queueIndex !== -1) return

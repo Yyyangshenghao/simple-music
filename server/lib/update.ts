@@ -1138,29 +1138,37 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
       let speedWindowAt = Date.now()
       let speedWindowBytes = 0
 
-      await pipeline(Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>), async function* (source) {
-        for await (const chunk of source) {
-          const buf = Buffer.from(chunk)
-          job.received += buf.length
-          speedWindowBytes += buf.length
-          const now = Date.now()
-          if (now - speedWindowAt >= 900) {
-            job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000))
-            speedWindowAt = now
-            speedWindowBytes = 0
+      const output = fs.createWriteStream(tmpPath)
+      const closed = new Promise<void>(resolve => output.once('close', resolve))
+      try {
+        await pipeline(Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>), async function* (source) {
+          for await (const chunk of source) {
+            const buf = Buffer.from(chunk)
+            job.received += buf.length
+            speedWindowBytes += buf.length
+            const now = Date.now()
+            if (now - speedWindowAt >= 900) {
+              job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000))
+              speedWindowAt = now
+              speedWindowBytes = 0
+            }
+            if (job.total > 0) {
+              job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)))
+              job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0
+            } else {
+              const kb = Math.max(1, job.received / 1024)
+              job.progress = Math.max(1, Math.min(88, Math.round(Math.log10(kb + 1) * 24)))
+            }
+            job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小'
+            job.updatedAt = Date.now()
+            yield buf
           }
-          if (job.total > 0) {
-            job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)))
-            job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0
-          } else {
-            const kb = Math.max(1, job.received / 1024)
-            job.progress = Math.max(1, Math.min(88, Math.round(Math.log10(kb + 1) * 24)))
-          }
-          job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小'
-          job.updatedAt = Date.now()
-          yield buf
-        }
-      }, fs.createWriteStream(tmpPath))
+        }, output)
+      } finally {
+        // pipeline 可能在文件异步 open/close 完成前拒绝，清理及下一线路必须等待旧句柄关闭。
+        output.destroy()
+        await closed
+      }
 
       await verifyUpdateFile(tmpPath, job)
       if (fs.existsSync(job.filePath)) fs.unlinkSync(job.filePath)

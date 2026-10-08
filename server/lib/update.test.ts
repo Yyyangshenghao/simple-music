@@ -440,6 +440,58 @@ describe('更新包流式校验与缓存复用', () => {
     }
   })
 
+  it.each([false, true])('网络失败且文件尚未打开时等待关闭后清理，重试=%s', async (retry) => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    let releaseOpen!: () => void
+    let firstWriter!: fs.WriteStream
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    let signalOpened!: () => void
+    const opening = new Promise<void>(resolve => { signalOpened = resolve })
+    let closed!: Promise<void>
+    const write = vi.spyOn(fs, 'createWriteStream').mockImplementationOnce((file) => {
+      firstWriter = createWriter(file, { fs: {
+        open(filePath: fs.PathLike, flags: string, mode: number, callback: (error: NodeJS.ErrnoException | null, fd: number) => void) {
+          releaseOpen = () => fs.open(filePath, flags, mode, callback)
+          signalOpened()
+        },
+        write: fs.write,
+        close: fs.close,
+      } })
+      closed = new Promise<void>(resolve => firstWriter.once('close', resolve))
+      return firstWriter
+    }).mockImplementation((...args) => createWriter(...args))
+    const backup = vi.fn(async () => {
+      expect(firstWriter.closed).toBe(true)
+      return new Response(bytes, { headers: { 'content-length': String(bytes.length) } })
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: string, options?: RequestInit) => {
+      if (new Headers(options?.headers).has('range')) return new Response(null, { status: input.includes('backup') ? 404 : 200 })
+      if (input.includes('backup')) return backup()
+      return new Response(new ReadableStream<Uint8Array>({ start(value) { controller = value } }))
+    }))
+    const info = updateInfo()
+    if (retry) info.release.asset!.downloadUrls = ['https://backup.example.com/installer.exe']
+    await startUpdateDownloadJob(info, { userDataDir: dir, port: 35530 })
+    await opening
+    controller.error(new Error('network connection reset'))
+    try {
+      await new Promise<void>(resolve => setImmediate(resolve))
+      expect(firstWriter.closed).toBe(false)
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'downloading', attempt: 1 })
+      expect(backup).not.toHaveBeenCalled()
+    } finally {
+      releaseOpen()
+      await closed
+      await vi.waitFor(() => expect(['error', 'ready']).toContain(Array.from(updateDownloadJobs.values())[0].status))
+    }
+    expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: retry ? 'ready' : 'error', attempt: retry ? 2 : 1 })
+    expect(write).toHaveBeenCalledTimes(retry ? 2 : 1)
+    if (retry) expect(await fs.promises.readFile(filePath)).toEqual(bytes)
+    else expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
   it('网络读取失败时关闭文件并清理未完成的安装包', async () => {
     await fs.promises.unlink(filePath)
     const createWriter = fs.createWriteStream.bind(fs)
