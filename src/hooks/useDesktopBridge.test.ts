@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const harness = vi.hoisted(() => ({
   onMiniPlayerControl: undefined as ((payload: { action: string; value?: number }) => void) | undefined,
   setMiniPlayerEnabled: vi.fn(),
-  toggle: vi.fn(), volume: vi.fn(), next: vi.fn(), prev: vi.fn()
+  toggle: vi.fn(), volume: vi.fn(), next: vi.fn(), prev: vi.fn(),
+  shuangeActive: false, feedNext: vi.fn(), feedPrev: vi.fn()
 }))
 
 vi.mock('react', () => ({
@@ -23,6 +24,7 @@ vi.mock('../stores/player', () => ({
 vi.mock('../stores/playlist', () => ({
   usePlaylistStore: { getState: () => ({ next: harness.next, prev: harness.prev }) }
 }))
+vi.mock('../stores/shuange', () => ({ useShuangeStore: { getState: () => ({ active: harness.shuangeActive, next: harness.feedNext, prev: harness.feedPrev }) } }))
 
 vi.mock('../stores/settings', () => ({
   useSettingsStore: {
@@ -35,6 +37,7 @@ import { useDesktopBridge } from './useDesktopBridge'
 describe('桌面桥接的迷你播放器状态同步', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    harness.shuangeActive = false
     harness.onMiniPlayerControl = undefined
     harness.setMiniPlayerEnabled.mockReset()
     vi.stubGlobal('window', {
@@ -57,6 +60,20 @@ describe('桌面桥接的迷你播放器状态同步', () => {
 
     expect(harness.setMiniPlayerEnabled).toHaveBeenCalledOnce()
     expect(harness.setMiniPlayerEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('迷你播放器和托盘上下首在刷歌期间只切换 feed，退出后恢复普通队列', () => {
+    useDesktopBridge()
+    harness.shuangeActive = true
+    harness.onMiniPlayerControl?.({ action: 'next' })
+    harness.onMiniPlayerControl?.({ action: 'prev' })
+    expect(harness.feedNext).toHaveBeenCalledOnce()
+    expect(harness.feedPrev).toHaveBeenCalledOnce()
+    expect(harness.next).not.toHaveBeenCalled()
+    expect(harness.prev).not.toHaveBeenCalled()
+    harness.shuangeActive = false
+    harness.onMiniPlayerControl?.({ action: 'prev' })
+    expect(harness.prev).toHaveBeenCalledOnce()
   })
 
   it('托盘基础命令调用播放器与队列，音量命令保持原数值范围', () => {

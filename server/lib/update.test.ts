@@ -6,6 +6,7 @@ import { Writable } from 'node:stream'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   pickReleaseAsset,
+  fetchLatestUpdateInfo,
   reorderCandidatesBySpeed,
   startUpdateDownloadJob,
   updateDownloadJobs,
@@ -81,6 +82,93 @@ describe('pickReleaseAsset（更新检测按平台选资源 —— 回归 mac �
     const assets = releaseAssets().filter((a) => a.name !== 'Simple Music-1.0.1-Setup.exe')
     const picked = withPlatform('win32', 'x64', () => pickReleaseAsset(assets))
     expect(picked?.name).toBe('Simple Music-1.0.1-portable.exe')
+  })
+})
+
+describe('更新备用清单按平台与架构选择安装包', () => {
+  const originalPlatform = process.platform
+  const originalArch = process.arch
+  const originalConfig = { ...UPDATE_CONFIG }
+  const macManifest = `version: 9.0.0
+files:
+  - url: Simple-Music-9.0.0-x64.dmg
+    sha512: x64-digest
+    size: 101
+  - url: Simple-Music-9.0.0-arm64.dmg
+    sha512: arm64-digest
+    size: 202
+path: Simple-Music-9.0.0-x64.dmg
+sha512: x64-digest
+releaseDate: '2026-10-08T00:00:00.000Z'
+`
+  function usePlatform(platform: NodeJS.Platform, arch: NodeJS.Architecture) {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+    Object.defineProperty(process, 'arch', { value: arch, configurable: true })
+  }
+  function mockFallback(manifest: string) {
+    const mock = vi.fn(async (url: string) => {
+      if (url.startsWith('https://api.github.com/')) return new Response('', { status: 403 })
+      return new Response(manifest)
+    })
+    vi.stubGlobal('fetch', mock)
+    return mock
+  }
+  beforeEach(() => {
+    Object.assign(UPDATE_CONFIG, { configured: true, provider: 'github', manifest: '', mirrors: [] })
+  })
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    Object.defineProperty(process, 'arch', { value: originalArch, configurable: true })
+    Object.assign(UPDATE_CONFIG, originalConfig)
+    vi.unstubAllGlobals()
+  })
+
+  it.each(['arm64', 'x64'] as const)('Mac %s 选自身 dmg 和其独立摘要/长度', async (arch) => {
+    usePlatform('darwin', arch)
+    const mock = mockFallback(macManifest)
+    const info = await fetchLatestUpdateInfo()
+    expect(mock.mock.calls[1][0]).toMatch(/\/latest-mac\.yml$/)
+    expect(info.release.asset).toMatchObject({
+      name: `Simple-Music-9.0.0-${arch}.dmg`, sha512: `${arch}-digest`, size: arch === 'arm64' ? 202 : 101,
+    })
+  })
+
+  it('Mac 缺少本机架构资源时不退回其他架构或 exe', async () => {
+    usePlatform('darwin', 'arm64')
+    mockFallback(macManifest.replace(/  - url: Simple-Music-9.0.0-arm64.dmg\n    sha512: arm64-digest\n    size: 202\n/, ''))
+    const info = await fetchLatestUpdateInfo()
+    expect(info.release.asset).toBeNull()
+    expect(info.release.downloadUrl).toBe('')
+    mockFallback('version: 9.0.0\npath: Simple-Music-9.0.0-Setup.exe\nsha512: windows-digest\n')
+    expect((await fetchLatestUpdateInfo()).release.asset).toBeNull()
+  })
+
+  it('Windows 继续读取 latest.yml 和 Setup.exe，优先使用顶层摘要', async () => {
+    usePlatform('win32', 'x64')
+    const mock = mockFallback(`version: 9.0.0
+files:
+  - url: other.exe
+    sha512: other-digest
+    size: 123
+path: Simple-Music-9.0.0-Setup.exe
+sha512: windows-digest
+size: 456
+`)
+    const info = await fetchLatestUpdateInfo()
+    expect(mock.mock.calls[1][0]).toMatch(/\/latest\.yml$/)
+    expect(info.release.asset).toMatchObject({ name: 'Simple-Music-9.0.0-Setup.exe', sha512: 'windows-digest', size: 456 })
+  })
+
+  it('Mac 镜像清单降级仍保留所选资源的镜像下载地址和摘要', async () => {
+    usePlatform('darwin', 'arm64')
+    UPDATE_CONFIG.mirrors = ['https://mirror.example/']
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.startsWith('https://mirror.example/')) return new Response(macManifest)
+      return new Response('', { status: 403 })
+    }))
+    const info = await fetchLatestUpdateInfo()
+    expect(info.release.asset?.downloadUrls.some((url) => url.startsWith('https://mirror.example/'))).toBe(true)
+    expect(info.release.asset?.sha512).toBe('arm64-digest')
   })
 })
 

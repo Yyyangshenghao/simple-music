@@ -209,7 +209,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   - win：优先 `-Setup.exe`，其次非 portable 的 `.exe`、`.msi`；
   - **找不到匹配当前平台的资源返回 null → 前端收到 `UPDATE_ASSET_MISSING`**，不会错发别的平台安装包（曾有给 mac 用户发 portable.exe 的教训，pickReleaseAsset 的平台过滤即为此而生）。
 - Release body 前几行会被 `extractReleaseNotes` 提取为更新弹窗要点（每行 ≤72 字符、最多 4 条、跳过链接和 "What's Changed" 标题）。
-- electron-builder 生成的 `latest.yml` 必须一并上传：GitHub API 被限流/失败时更新检查会退回 `releases/latest/download/latest.yml` 线路。
+- electron-builder 生成的 `latest.yml` 与 `latest-mac.yml` 必须一并上传：GitHub API 被限流/失败时按平台读取对应备用清单；macOS 从清单中选择当前架构的 dmg，并使用该文件自身的摘要和大小，没有匹配资源时不返回其他平台安装包。
 
 ## 5. 半自动更新全链路
 
@@ -218,7 +218,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 ```
 渲染层 update store（App 启动即 checkForUpdate）
   → GET /api/update/latest
-      server: manifest 覆盖(env) → GitHub API /releases/latest → 失败退 latest.yml 线路 → 再失败本地回退(不报可用更新)
+      server: manifest 覆盖(env) → GitHub API /releases/latest → 失败退对应平台的 latest.yml / latest-mac.yml → 再失败本地回退(不报可用更新)
   → UpdateBanner / 设置页显示「发现新版本」
   → POST /api/update/download        # 创建下载任务(有同版本活跃任务则复用;本地已有校验通过的缓存包直接 ready)
   → 轮询 GET /api/update/download/status?id=   # 800ms，进度/速度/ETA/当前线路/失败原因
@@ -228,13 +228,14 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   → job.status === 'ready' → 用户点「重启并安装」
   → window.desktop.installUpdate(filePath) → IPC app:install-update
       主进程校验 filePath 必须位于 userData/updates/ 内 →
-      · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.exit(0)
-      · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.exit(0)
+      · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.quit()
+      · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.quit()
                  用户手动把新版本拖到 Applications 并确认替换；主进程不再原地改写 .app
 ```
 
 补充细节：
 
+- 更新安装成功与应用重启复用 `before-quit` 清理悬浮窗和 Apple 播放会话；清理卡住时保留 8 秒强制退出兜底。
 - **补丁热更新（/api/update/patch）在新架构不支持**：原项目"源码即运行文件"，补丁按文件名写回；本项目源码经打包后与产物不对应。端点与任务队列结构保留，但应用补丁一步显式抛 `PATCH_NOT_SUPPORTED`（不静默成功、不写文件、不换线路重试）。
 - **macOS 不做原地静默替换**：应用未签名，旧版 hdiutil + shell 脚本方案在权限或进程中断时可能留下孤儿目录，现只打开已校验 dmg，替换动作交给 Finder 和用户。
 - 下载错误分类（`classifyUpdateError`）：hash/size 不符、超时、DNS、网络中断、HTTP 403/404/5xx 均映射为中文原因给 UI；失败线路记录在 `failedAttempts`（最多 6 条）。

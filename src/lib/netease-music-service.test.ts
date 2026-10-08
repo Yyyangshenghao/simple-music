@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import { NeteaseMusicService } from './netease-music-service'
+import type { Track } from '../types/domain'
 
 describe('网易云热搜服务', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -71,5 +72,60 @@ describe('网易云专辑歌单搜索', () => {
     await service.searchPlaylists('关键词')
     expect(get).toHaveBeenCalledWith('/api/netease/search/albums', { keywords: '关键词' })
     expect(get).toHaveBeenCalledWith('/api/netease/search/playlists', { keywords: '关键词' })
+  })
+})
+
+describe('网易云漫游完整歌单', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const song = (id: number): Track => ({ provider: 'netease', source: 'netease', type: 'song', id, name: `歌曲${id}`, artist: '歌手', artists: [] })
+
+  it('补齐超过 100 首的歌单，按骨架顺序返回全部曲目', async () => {
+    const songs = Array.from({ length: 350 }, (_, index) => song(index + 1))
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path, params) => {
+      if (path === '/api/playlist/tracks') return { playlist: { id: 'roam' }, trackIds: songs.map(track => String(track.id)), tracks: songs.slice(0, 100).reverse() } as never
+      const ids = String(params?.ids).split(',')
+      return { tracks: songs.filter(track => ids.includes(String(track.id))).reverse() } as never
+    })
+
+    const found = await new NeteaseMusicService().getPlaylistWithDescription('roam')
+    expect(found?.tracks).toEqual(songs)
+    expect(get.mock.calls.filter(([path]) => path === '/api/song/detail').map(([, params]) => String(params?.ids).split(',').length)).toEqual([200, 50])
+  })
+
+  it('前缀中缺少的详情也按 ID 补齐，不把下标错位当作完整歌单', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path) => (path === '/api/playlist/tracks'
+      ? { playlist: { id: 'roam' }, trackIds: [1, 2, 3], tracks: [song(3), song(1)] }
+      : { tracks: [song(2)] }) as never)
+    await expect(new NeteaseMusicService().getPlaylistWithDescription('roam')).resolves.toMatchObject({ tracks: [song(1), song(2), song(3)] })
+  })
+
+  it('补齐后仍缺少曲目时抛错，不能用截断歌单覆盖远端', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path) => (path === '/api/playlist/tracks'
+      ? { playlist: { id: 'roam' }, trackIds: [1, 2], tracks: [song(1)] }
+      : { tracks: [] }) as never)
+    await expect(new NeteaseMusicService().getPlaylistWithDescription('roam')).rejects.toThrow('歌单歌曲详情不完整')
+  })
+
+  it.each(['HTTP 404', 'offline'])('补详情失败 %s 不误判为原歌单已删除', async (message) => {
+    vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      if (path === '/api/playlist/tracks') return { playlist: { id: 'roam' }, trackIds: [1, 2], tracks: [song(1)] } as never
+      throw new Error(message)
+    })
+    await expect(new NeteaseMusicService().getPlaylistWithDescription('roam')).rejects.toThrow(message)
+  })
+
+  it('只有原歌单查询 404 才返回 null', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(new Error('HTTP 404'))
+    await expect(new NeteaseMusicService().getPlaylistWithDescription('deleted')).resolves.toBeNull()
+  })
+
+  it('完整小歌单和空歌单不额外请求详情', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ playlist: { id: 'small' }, trackIds: [1], tracks: [song(1)] })
+      .mockResolvedValueOnce({ playlist: { id: 'empty' }, trackIds: [], tracks: [] })
+    const service = new NeteaseMusicService()
+    await expect(service.getPlaylistWithDescription('small')).resolves.toMatchObject({ tracks: [song(1)] })
+    await expect(service.getPlaylistWithDescription('empty')).resolves.toMatchObject({ tracks: [] })
+    expect(get).toHaveBeenCalledTimes(2)
   })
 })

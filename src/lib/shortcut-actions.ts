@@ -1,5 +1,5 @@
 import { usePlayerStore } from '../stores/player'
-import { usePlaylistStore } from '../stores/playlist'
+import { stepPlayback } from './playback-controls'
 import { useLikesStore } from '../stores/likes'
 import { useVisualStore } from '../stores/visual'
 import { useSettingsStore } from '../stores/settings'
@@ -24,10 +24,10 @@ export function runShortcutAction(action: ShortcutAction): void {
       player.toggle()
       break
     case 'prev':
-      usePlaylistStore.getState().prev()
+      stepPlayback(-1)
       break
     case 'next':
-      usePlaylistStore.getState().next()
+      stepPlayback(1)
       break
     case 'volume-up':
       player.setVolume(Math.min(1, player.volume + 0.05))

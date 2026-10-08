@@ -1,5 +1,41 @@
 import { describe, it, expect } from 'vitest'
+import { spawn } from 'node:child_process'
 import { startServer } from './index'
+
+it('畸形请求返回 400，服务继续响应并保留 Origin/token 边界', async () => {
+  const script = `
+    import http from 'node:http'
+    import { startServer } from './server/index.ts'
+    const server = await startServer({ token: 'test-token', allowLocalhostOrigins: false })
+    try {
+      const invalid = await new Promise((resolve, reject) => {
+        http.get({ hostname: '127.0.0.1', port: server.port, path: '//[', headers: { Origin: 'https://untrusted.example' } }, res => {
+          res.resume()
+          res.on('end', () => resolve(res.statusCode))
+        }).on('error', reject)
+      })
+      const base = 'http://127.0.0.1:' + server.port
+      const healthy = await fetch(base + '/api/app/version?token=test-token')
+      const noToken = await fetch(base + '/api/app/version')
+      const badOrigin = await fetch(base + '/api/app/version?token=test-token', { headers: { Origin: 'https://untrusted.example' } })
+      console.log(JSON.stringify({ invalid, healthy: healthy.status, noToken: noToken.status, badOrigin: badOrigin.status }))
+    } finally { server.close() }
+  `
+  const result = await new Promise<{ code: number | null; output: string; error: string }>((resolve) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+      cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let output = ''
+    let error = ''
+    const timeout = setTimeout(() => child.kill(), 8000)
+    child.stdout.on('data', (chunk) => { output += chunk })
+    child.stderr.on('data', (chunk) => { error += chunk })
+    child.on('close', (code) => { clearTimeout(timeout); resolve({ code, output, error }) })
+  })
+  expect(result.error).toBe('')
+  expect(result.code).toBe(0)
+  expect(JSON.parse(result.output.trim())).toEqual({ invalid: 400, healthy: 200, noToken: 401, badOrigin: 403 })
+}, 10000)
 
 /**
  * 回归测试：打包应用(token 生效、allowLocalhostOrigins=false)下,渲染层 file:// 页面

@@ -3,6 +3,7 @@ import type { Track } from '../types/domain'
 
 const h = vi.hoisted(() => ({
   enabled: true, play: vi.fn(), pause: vi.fn(), seek: vi.fn(), next: vi.fn(), prev: vi.fn(),
+  shuangeActive: false, feedNext: vi.fn(), feedPrev: vi.fn(),
   player: { currentTrack: null as Track | null, duration: 0, position: 0, status: 'idle', rate: 1 },
   onSettings: undefined as ((state: { mediaKeysEnabled: boolean }, previous: { mediaKeysEnabled: boolean }) => void) | undefined,
   onPlayer: undefined as ((state: unknown, prev: unknown) => void) | undefined
@@ -15,16 +16,34 @@ vi.mock('../stores/player', () => ({ usePlayerStore: {
   subscribe: (cb: typeof h.onPlayer) => { h.onPlayer = cb }
 } }))
 vi.mock('../stores/playlist', () => ({ usePlaylistStore: { getState: () => ({ next: h.next, prev: h.prev }) } }))
+vi.mock('../stores/shuange', () => ({ useShuangeStore: { getState: () => ({ active: h.shuangeActive, next: h.feedNext, prev: h.feedPrev }) } }))
 
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   h.enabled = true
+  h.shuangeActive = false
   h.player = { currentTrack: null, duration: 0, position: 0, status: 'idle', rate: 1 }
 })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('系统媒体键开关', () => {
+  it('媒体键在刷歌会话中切换 feed，退出后恢复普通队列控制', async () => {
+    const handlers = new Map<string, MediaSessionActionHandler>()
+    vi.stubGlobal('navigator', { mediaSession: { setPositionState: vi.fn(), setActionHandler: (action: string, handler: MediaSessionActionHandler) => handlers.set(action, handler) } })
+    const { initMediaSession } = await import('./media-session')
+    initMediaSession()
+    h.shuangeActive = true
+    handlers.get('nexttrack')?.({ action: 'nexttrack' })
+    handlers.get('previoustrack')?.({ action: 'previoustrack' })
+    expect(h.feedNext).toHaveBeenCalledOnce()
+    expect(h.feedPrev).toHaveBeenCalledOnce()
+    expect(h.next).not.toHaveBeenCalled()
+    expect(h.prev).not.toHaveBeenCalled()
+    h.shuangeActive = false
+    handlers.get('nexttrack')?.({ action: 'nexttrack' })
+    expect(h.next).toHaveBeenCalledOnce()
+  })
   it('播放/切歌/定位/停止沿用播放器动作，关闭后阻止媒体键和默认 HTML audio 控制', async () => {
     const handlers = new Map<string, MediaSessionActionHandler>()
     const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn((action, handler) => handlers.set(action, handler)) }

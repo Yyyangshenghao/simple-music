@@ -67,7 +67,7 @@ vi.mock('./provider-auth', () => ({ expireProviderAccount: vi.fn() }))
 vi.mock('./toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ reportPlayback: h.report }) }))
 
-import { usePlayerStore, registerTrackEndedHandler, setStopAfterCurrent } from './player'
+import { usePlayerStore, registerTrackEndedHandler, registerTrackEndedInterceptor, setStopAfterCurrent } from './player'
 
 const track: Track = {
   provider: 'qq', source: 'qq', type: 'song', id: 'origin', mid: 'original-mid',
@@ -85,6 +85,8 @@ const online: PlaybackCandidate = {
 describe('播放器离线优先与回退', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    registerTrackEndedHandler(() => {})
+    setStopAfterCurrent(null)
     h.status.mockReset().mockResolvedValue(offline)
     h.next.mockReset().mockResolvedValue(online)
     h.preloaded.mockReset()
@@ -280,6 +282,83 @@ describe('播放器离线优先与回退', () => {
     await usePlayerStore.getState().loadTrack({ ...track, id: 'third' })
     expect(h.report).toHaveBeenCalledOnce()
     expect(h.report).toHaveBeenCalledWith('online', expect.objectContaining({ seconds: 60 }))
+  })
+
+  it('自然播完先上报完整播放，再加载下一首且不重复上报', async () => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    await usePlayerStore.getState().loadTrack(track, { contextId: 'playlist' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    usePlayerStore.setState({ position: 180, duration: 180 })
+    let nextLoad: Promise<void> | undefined
+    registerTrackEndedHandler(() => { nextLoad = usePlayerStore.getState().loadTrack({ ...track, id: 'next' }) })
+    h.callbacks.onEnded?.()
+    await nextLoad
+    expect(h.report).toHaveBeenCalledOnce()
+    expect(h.report).toHaveBeenCalledWith('online', { sourceId: undefined, seconds: 180 })
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('next')
+    registerTrackEndedHandler(() => {})
+  })
+
+  it('播完即停也上报，之后切歌不重复上报已结束曲目', async () => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    await usePlayerStore.getState().loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    usePlayerStore.setState({ position: 180, duration: 180 })
+    const stopped = vi.fn()
+    setStopAfterCurrent(stopped)
+    h.callbacks.onEnded?.()
+    expect(stopped).toHaveBeenCalledOnce()
+    expect(h.report).toHaveBeenCalledOnce()
+    usePlayerStore.getState().seek(60)
+    await usePlayerStore.getState().loadTrack({ ...track, id: 'after-sleep' })
+    expect(h.report).toHaveBeenCalledOnce()
+  })
+
+  it('单曲循环每次完整播放分别上报，手动提前切歌仍遵守门槛', async () => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    await usePlayerStore.getState().loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    registerTrackEndedHandler(() => {
+      usePlayerStore.getState().seek(0)
+      usePlayerStore.getState().play()
+    })
+    for (let count = 1; count <= 2; count++) {
+      usePlayerStore.setState({ position: 180, duration: 180 })
+      h.callbacks.onEnded?.()
+      expect(h.report).toHaveBeenCalledTimes(count)
+    }
+    usePlayerStore.setState({ position: 5 })
+    await usePlayerStore.getState().loadTrack({ ...track, id: 'early-skip' })
+    expect(h.report).toHaveBeenCalledTimes(2)
+    registerTrackEndedHandler(() => {})
+  })
+
+  it('特殊播放模式接管结束时立即加载下一首，也只上报一次', async () => {
+    h.status.mockResolvedValue({ state: 'missing' })
+    await usePlayerStore.getState().loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    usePlayerStore.setState({ position: 180, duration: 180 })
+    let nextLoad: Promise<void> | undefined
+    const unregister = registerTrackEndedInterceptor(() => {
+      nextLoad = usePlayerStore.getState().loadTrack({ ...track, id: 'intercepted-next' })
+      return true
+    })
+    try {
+      h.callbacks.onEnded?.()
+      await nextLoad
+      expect(h.report).toHaveBeenCalledOnce()
+    } finally {
+      unregister()
+    }
+  })
+
+  it.each(['local', 'offline', 'below-threshold'] as const)('%s 自然结束不新增在线听歌记录', async (kind) => {
+    if (kind === 'below-threshold') h.status.mockResolvedValue({ state: 'missing' })
+    await usePlayerStore.getState().loadTrack(kind === 'local' ? { ...track, source: 'local', provider: 'local' } : track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    usePlayerStore.setState({ position: kind === 'below-threshold' ? 5 : 180, duration: 180 })
+    h.callbacks.onEnded?.()
+    expect(h.report).not.toHaveBeenCalled()
   })
 
   it('暂停恢复态播放从断点读取离线文件，并支持暂停、拖动和倍速', async () => {
@@ -600,6 +679,7 @@ describe('Apple Music 官方播放通道', () => {
     expect(next).toHaveBeenCalledOnce()
     expect(stopCapture).toHaveBeenCalledOnce()
     expect(usePlayerStore.getState()).toMatchObject({ status: 'paused', position: 0 })
+    expect(h.report).not.toHaveBeenCalled()
     stopCapture.mockRestore()
   })
 

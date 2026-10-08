@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import type { RouteHandler } from '../types'
 import { readJson, sendJson } from '../lib/http'
 import { isSafeUpstreamUrl } from '../lib/security'
+import { fetchSafeUpstream } from '../lib/upstream-fetch'
 import {
   audioCacheDir,
   audioCacheStats,
@@ -147,7 +148,7 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
     res.once('close', onClose)
     let writer: Awaited<ReturnType<typeof openAudioCacheWriter>> = null
     try {
-      const upstream = await fetch(audioUrl, {
+      const upstream = await fetchSafeUpstream(audioUrl, {
         headers: audioProxyHeadersFor(audioUrl, ''),
         signal: aborter.signal,
       })

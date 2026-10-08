@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ArtistInfo, Track } from '../types/domain'
 import type { MusicService } from '../lib/music-service'
+import { api } from '../lib/api'
+import { NeteaseMusicService } from '../lib/netease-music-service'
 
 function mkTrack(artistId: number, i: number): Track {
   return {
@@ -303,6 +305,51 @@ describe('roam store — 网易云真实歌单分支', () => {
 
   afterEach(() => {
     currentService = localOnlyService
+    vi.restoreAllMocks()
+  })
+
+  function completePlaylistService() {
+    const service = new NeteaseMusicService()
+    return { ...neteaseRealService, getPlaylistWithDescription: vi.fn(service.getPlaylistWithDescription.bind(service)) }
+  }
+
+  it('真实服务恢复超过 100 首的漫游时保留全量曲目与顺序', async () => {
+    const tracks = Array.from({ length: 150 }, (_, index) => mkTrack(9, index))
+    const playlist = mkNeteasePlaylist({ description: 'Simple Music · 2000-01-01 · 歌手' })
+    vi.spyOn(api, 'get').mockImplementation(async path => (path === '/api/playlist/tracks'
+      ? { playlist, trackIds: tracks.map(track => track.id), tracks: tracks.slice(0, 100) }
+      : { tracks: tracks.slice(100).reverse() }) as never)
+    findUserPlaylistsByName.mockResolvedValue([playlist])
+    useRoamStore.setState({ neteasePlaylistId: playlist.id })
+    await useRoamStore.getState().ensureNeteaseHydrated(completePlaylistService() as unknown as MusicService)
+    expect(useRoamStore.getState().playlist?.tracks.map(track => track.id)).toEqual(tracks.map(track => track.id))
+  })
+
+  it('真实服务重新生成时删除全部旧曲目，超过 100 首的尾段不会残留', async () => {
+    const tracks = Array.from({ length: 150 }, (_, index) => mkTrack(9, index))
+    vi.spyOn(api, 'get').mockImplementation(async path => (path === '/api/playlist/tracks'
+      ? { playlist: mkNeteasePlaylist(), trackIds: tracks.map(track => track.id), tracks: tracks.slice(0, 100) }
+      : { tracks: tracks.slice(100) }) as never)
+    currentService = completePlaylistService()
+    useRoamStore.setState({ neteasePlaylistId: 'pid-1', entries: [mkEntry(1)] })
+    await useRoamStore.getState().generate()
+    expect(replacePlaylistTracks.mock.calls[0][1]).toEqual(tracks.map(track => track.id))
+  })
+
+  it.each(['missing', 'failed'])('完整详情不可用（%s）时不调用任何远端覆盖操作', async state => {
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (path === '/api/playlist/tracks') return { playlist: mkNeteasePlaylist(), trackIds: ['9-0', '9-1'], tracks: [mkTrack(9, 0)] } as never
+      if (state === 'failed') throw new Error('offline')
+      return { tracks: [] } as never
+    })
+    currentService = completePlaylistService()
+    useRoamStore.setState({ neteasePlaylistId: 'pid-1', entries: [mkEntry(1)] })
+    await useRoamStore.getState().generate()
+    expect(replacePlaylistTracks).not.toHaveBeenCalled()
+    expect(updatePlaylistDescription).not.toHaveBeenCalled()
+    expect(createPlaylist).not.toHaveBeenCalled()
+    expect(useRoamStore.getState().entries).toHaveLength(1)
+    expect(useRoamStore.getState().error).toBeTruthy()
   })
 
   it('ensureNeteaseHydrated:无缓存 id、账号里也没有匹配歌单 → 留在选歌手态', async () => {
