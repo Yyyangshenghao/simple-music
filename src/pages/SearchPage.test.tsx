@@ -61,15 +61,30 @@ describe('聚合搜索页面', () => {
     expect(html).not.toContain('<script>')
   })
 
+  it.each(['artists', 'albums', 'playlists'] as const)('返回时首帧恢复 %s 分类和平台筛选', (category) => {
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category, sourceFilter: 'qq', scrollTop: 420 }} />)
+    const label = { artists: '歌手', albums: '专辑', playlists: '歌单' }[category]
+    expect(html).toContain(`aria-label="${label}搜索结果"`)
+    expect(html).not.toContain('aria-label="歌曲搜索结果"')
+    expect(html).toContain(`aria-pressed="true">${label}</button>`)
+    expect(html).toContain('aria-pressed="false">全部平台</button>')
+  })
+
+  it('返回时已禁用的平台筛选回退到全部平台', () => {
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category: 'artists', sourceFilter: 'apple', scrollTop: 420 }} />)
+    expect(html).toContain('aria-pressed="true">全部平台</button>')
+    expect(html).toContain('aria-pressed="true">歌手</button>')
+  })
+
   it('搜索词随导航历史保留，支持歌手页返回和前进', () => {
     const navigation = useNavigationStore.getState()
     navigation.navigateTo({ type: 'search', keyword: '晴天' })
     navigation.navigateTo({ type: 'artist', id: '1', source: 'qq' })
     navigation.goBack()
-    expect(useNavigationStore.getState().currentView).toEqual({ type: 'search', keyword: '晴天' })
+    expect(useNavigationStore.getState().currentView).toMatchObject({ type: 'search', keyword: '晴天' })
     navigation.goBack()
     expect(useNavigationStore.getState().currentView).toBe('explore')
     navigation.goForward()
-    expect(useNavigationStore.getState().currentView).toEqual({ type: 'search', keyword: '晴天' })
+    expect(useNavigationStore.getState().currentView).toMatchObject({ type: 'search', keyword: '晴天' })
   })
 })

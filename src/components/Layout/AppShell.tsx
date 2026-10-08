@@ -35,7 +35,7 @@ export function AppShell() {
     typeof view === 'string' ? view
     : view.type === 'playlist' ? view.from
     : view.type === 'toplist' ? 'toplist'
-    : view.type === 'search' ? `search-${view.keyword}`
+    : view.type === 'search' ? `search-${view.keyword}-${useNavigationStore.getState().navigationRevision}`
     : `${view.type}-${view.source}-${String(view.id)}`
   const albumDetail = typeof view === 'object' && view.type === 'playlist' && view.playlist.type === 'album'
   const dir: 1 | -1 = lastAction === 'pop' ? -1 : 1
@@ -47,7 +47,9 @@ export function AppShell() {
     if (view === 'shuange') return <ShuangePage />
     if (view === 'settings') return <SettingsPage />
     if (view === 'release-history') return <ReleaseHistoryPage />
-    if (typeof view === 'object' && view.type === 'search') return <SearchPage keyword={view.keyword} />
+    if (typeof view === 'object' && view.type === 'search') {
+      return <SearchPage keyword={view.keyword} initialState={useNavigationStore.getState().searchPageState} />
+    }
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage /> : <ToplistPage />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} initialState={useNavigationStore.getState().artistPageState} />
