@@ -47,6 +47,7 @@ interface ShuangeSnapshot {
   currentTrack: Track | null
   queue: Track[]
   queueIndex: number
+  shuffleOrder: number[]
   queueContextId: unknown
   position: number
   volume: number
@@ -168,6 +169,11 @@ function prepareWindow(feed: Track[], index: number): void {
 
 let snapshot: ShuangeSnapshot | null = null
 
+/** 刷歌期间持久化原队列及其断点，整曲接管或退出后恢复正常保存。 */
+export function getShuangePlaybackSnapshot(): Pick<ShuangeSnapshot, 'queue' | 'queueIndex' | 'shuffleOrder' | 'position'> | null {
+  return useShuangeStore.getState().active ? snapshot : null
+}
+
 function resetCurrentListen(): void {
   currentFeedbackKey = ''
   currentMaxProgressSec = 0
@@ -199,6 +205,7 @@ function takeSnapshot(): ShuangeSnapshot {
     currentTrack: p.currentTrack ?? null,
     queue: pl.queue,
     queueIndex: pl.queueIndex,
+    shuffleOrder: pl.shuffleOrder,
     queueContextId: pl.queueContextId,
     position: p.position ?? 0,
     volume: p.volume ?? 0.8,
@@ -374,6 +381,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     usePlaylistStore.setState({
       queue: snap.queue,
       queueIndex: snap.queueIndex,
+      shuffleOrder: snap.shuffleOrder,
       queueContextId: snap.queueContextId,
     })
     const p = usePlayerStore.getState()

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { Writable } from 'node:stream'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   pickReleaseAsset,
@@ -308,6 +309,97 @@ describe('更新包流式校验与缓存复用', () => {
       })
     })
     expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
+  it.each(['打开', '写入'])('等待上游数据时文件%s失败，取消读取并结束任务', async (stage) => {
+    await fs.promises.unlink(filePath)
+    const error = Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    const cancel = vi.fn()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value
+        if (stage === '写入') value.enqueue(bytes.subarray(0, 1024))
+      },
+      cancel,
+    })
+    const writer = new Writable({
+      construct(callback) {
+        setImmediate(() => callback(stage === '打开' ? error : undefined))
+      },
+      write(_chunk, _encoding, callback) {
+        setImmediate(() => callback(error))
+      },
+    })
+    vi.spyOn(fs, 'createWriteStream').mockReturnValue(writer as fs.WriteStream)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body)))
+    try {
+      await startUpdateDownloadJob(updateInfo(), { userDataDir: dir, port: 35530 })
+      await vi.waitFor(() => {
+        expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({
+          status: 'error',
+          errorDetail: error.message,
+        })
+      })
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(writer.closed).toBe(true)
+      expect(fs.existsSync(filePath)).toBe(false)
+      expect(fs.existsSync(filePath + '.download')).toBe(false)
+    } finally {
+      try { controller.close() } catch { /* 已被失败流程取消。 */ }
+      writer.destroy()
+    }
+  })
+
+  it('网络读取失败时关闭文件并清理未完成的安装包', async () => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    let writer!: fs.WriteStream
+    vi.spyOn(fs, 'createWriteStream').mockImplementation((...args) => {
+      writer = createWriter(...args)
+      return writer
+    })
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.subarray(0, 1024))
+        setImmediate(() => controller.error(new Error('network connection reset')))
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body)))
+    await startUpdateDownloadJob(updateInfo(), { userDataDir: dir, port: 35530 })
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'error' })
+    })
+    expect(writer.closed).toBe(true)
+    expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
+  it('文件写入失败后沿用候选降级，成功线路仍校验完整安装包', async () => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    const failedWriter = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(new Error('ENOSPC: temporary write failure'))
+      },
+    })
+    const write = vi.spyOn(fs, 'createWriteStream')
+      .mockImplementationOnce(() => failedWriter as fs.WriteStream)
+      .mockImplementation((...args) => createWriter(...args))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(bytes, {
+      headers: { 'content-length': String(bytes.length) },
+    })))
+    const info = updateInfo()
+    info.release.asset!.downloadUrls = ['https://backup.example.com/installer.exe']
+    await startUpdateDownloadJob(info, { userDataDir: dir, port: 35530 })
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'ready', attempt: 2 })
+    })
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(failedWriter.closed).toBe(true)
+    expect(Array.from(updateDownloadJobs.values())[0].failedAttempts).toHaveLength(1)
+    expect(await fs.promises.readFile(filePath)).toEqual(bytes)
     expect(fs.existsSync(filePath + '.download')).toBe(false)
   })
 })

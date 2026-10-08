@@ -389,7 +389,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     const queued = Symbol()
     if (replaceable) this.queuedControls.set(command.type, queued)
     if (command.type === 'load') this.snapshot = { ...this.snapshot, playbackId: command.playbackId, status: 'loading', position: command.startAt || 0, controlSequence: 0, error: undefined }
-    const invalidated = cancels ? this.evaluate({ type: 'invalidate', generation }) : command.type === 'pause' ? this.evaluate({ type: 'suspend', playbackId: command.playbackId }) : Promise.resolve()
+    const invalidated = cancels ? this.evaluate({ type: 'invalidate', generation }) : command.type === 'pause' ? this.evaluate({ type: 'suspend', playbackId: command.playbackId, controlSequence: command.controlSequence }) : Promise.resolve()
     void invalidated.catch(() => {})
     this.queue = this.queue.catch(() => {}).then(async () => {
       if (generation !== this.generation || backend !== (this.chrome ?? this.window)) return

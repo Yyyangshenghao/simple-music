@@ -1,5 +1,6 @@
 import { usePlayerStore } from '../stores/player'
 import { usePlaylistStore } from '../stores/playlist'
+import { getShuangePlaybackSnapshot } from '../stores/shuange'
 import type { Track } from '../types/domain'
 import { isValidPermutation } from './queue-display'
 
@@ -54,8 +55,10 @@ let serializedOrder: { order: number[]; length: number; json?: string } | null =
 
 export function savePlayback(): void {
   if (typeof localStorage === 'undefined') return
-  const { queue, queueIndex, shuffleOrder } = usePlaylistStore.getState()
-  const { position, volume } = usePlayerStore.getState()
+  const snapshot = getShuangePlaybackSnapshot()
+  const { queue, queueIndex, shuffleOrder } = snapshot ?? usePlaylistStore.getState()
+  const { volume } = usePlayerStore.getState()
+  const position = snapshot?.position ?? usePlayerStore.getState().position
   const data = {
     schema: PLAYBACK_STORAGE_SCHEMA,
     queueIndex,

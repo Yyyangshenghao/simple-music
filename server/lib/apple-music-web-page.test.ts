@@ -20,6 +20,62 @@ function harness() {
 }
 
 describe('官网内 MusicKit 会话适配', () => {
+  it('订阅检查期间收到的新暂停优先于旧播放，随后显式播放仍可恢复', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180, autoplay: false })
+    h.context.__simpleMusicSession.subscriptionCheckedAt = Date.now() - 300_001
+    let finish!: (active: boolean) => void
+    h.music.hasMusicSubscription.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const pending = h.command('play', { controlSequence: 1 })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    await h.call({ type: 'suspend', playbackId: 'p1', controlSequence: 2 })
+    finish(true)
+    await pending
+    expect(h.music.play).not.toHaveBeenCalled()
+    await h.command('pause', { controlSequence: 2 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'paused', controlSequence: 2 })
+    await h.command('play', { controlSequence: 3 })
+    expect(h.music.play).toHaveBeenCalledOnce()
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'playing', controlSequence: 3 })
+  })
+  it('排队的暂停、播放、暂停不会让中间的旧播放覆盖最新暂停', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180, autoplay: false })
+    await h.call({ type: 'suspend', playbackId: 'p1', controlSequence: 1 })
+    let finish!: () => void
+    h.music.pause.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const pending = h.command('pause', { controlSequence: 1 })
+    await h.call({ type: 'suspend', playbackId: 'p1', controlSequence: 3 })
+    finish()
+    await pending
+    await h.command('play', { controlSequence: 2 })
+    expect(h.music.play).not.toHaveBeenCalled()
+    await h.command('pause', { controlSequence: 3 })
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'paused', controlSequence: 3 })
+  })
+  it('普通暂停后的更新播放指令可以清除暂停标记并恢复', async () => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180 })
+    await h.call({ type: 'suspend', playbackId: 'p1', controlSequence: 1 })
+    await h.command('pause', { controlSequence: 1 })
+    await h.command('play', { controlSequence: 2 })
+    expect(h.music.play).toHaveBeenCalledTimes(2)
+    expect(await h.call({ type: 'state' })).toMatchObject({ status: 'playing', controlSequence: 2 })
+  })
+  it.each(['load', 'play'])('订阅检查期间作废的旧 %s 不会重新发声', async type => {
+    const h = harness()
+    await h.command('load', { id: '123', duration: 180, autoplay: false })
+    h.context.__simpleMusicSession.subscriptionCheckedAt = Date.now() - 300_001
+    let finish!: (active: boolean) => void
+    h.music.hasMusicSubscription.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const pending = h.command(type, { id: '456', duration: 180, controlSequence: 1 })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    await h.call({ type: 'invalidate', generation: 1 })
+    finish(true)
+    await pending
+    expect(h.music.setQueue).toHaveBeenCalledOnce()
+    expect(h.music.play).not.toHaveBeenCalled()
+  })
   it('控制序号仅在成功完成后确认，加载新歌重置确认', async () => {
     const h = harness()
     await h.command('load', { id: '123', duration: 180 })

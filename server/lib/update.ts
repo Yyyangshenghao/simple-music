@@ -8,7 +8,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { once } from 'node:events'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
 // 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
@@ -1108,13 +1110,9 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
       let speedWindowAt = Date.now()
       let speedWindowBytes = 0
 
-      const writer = fs.createWriteStream(tmpPath)
-      const reader = resp.body.getReader()
-      try {
-        for (;;) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          const buf = Buffer.from(chunk.value)
+      await pipeline(Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>), async function* (source) {
+        for await (const chunk of source) {
+          const buf = Buffer.from(chunk)
           job.received += buf.length
           speedWindowBytes += buf.length
           const now = Date.now()
@@ -1132,12 +1130,9 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
           }
           job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小'
           job.updatedAt = Date.now()
-          if (!writer.write(buf)) await once(writer, 'drain')
+          yield buf
         }
-      } finally {
-        writer.end()
-        await once(writer, 'finish').catch(() => {})
-      }
+      }, fs.createWriteStream(tmpPath))
 
       await verifyUpdateFile(tmpPath, job)
       if (fs.existsSync(job.filePath)) fs.unlinkSync(job.filePath)

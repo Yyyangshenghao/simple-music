@@ -564,11 +564,11 @@ describe('应用内 Apple Music 会话', () => {
     const win = h.windows[0]
 
     apple.command({ type: 'load', playbackId: 'new', id: '123' })
-    apple.command({ type: 'pause', playbackId: 'new' })
+    apple.command({ type: 'pause', playbackId: 'new', controlSequence: 1 })
     await vi.advanceTimersByTimeAsync(0)
     const scripts = win.webContents.executeJavaScript.mock.calls.map(call => call[0])
     expect(scripts.some(script => script.includes('"type":"invalidate"'))).toBe(true)
-    expect(scripts.some(script => script.includes('"type":"suspend"'))).toBe(true)
+    expect(scripts.some(script => script.includes('"type":"suspend","playbackId":"new","controlSequence":1'))).toBe(true)
     expect(scripts.filter(script => script.includes('"type":"command"'))).toHaveLength(2)
   })
 
