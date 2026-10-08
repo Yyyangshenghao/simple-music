@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useIsPresent } from 'motion/react'
+import { LayoutGroup, useIsPresent } from 'motion/react'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
@@ -201,7 +201,6 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
         <header className={styles.header}>
           <p className={styles.eyebrow}>聚合搜索</p>
           <h1>“{keyword}”<span>的搜索结果</span></h1>
-          <p className={styles.summary}>在 {sources.length} 个音乐平台中发现歌曲、歌手、专辑与歌单</p>
         </header>
 
         <div className={styles.filters} role="group" aria-label="筛选搜索来源">
@@ -240,9 +239,9 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
             )}
 
             {(category === 'all' || category === 'artists') && <section className={styles.section} aria-label="歌手搜索结果" aria-busy={artistsLoading}>
-              <div className={styles.sectionHeading}><h2>歌手 <span>{visibleArtists.length}</span></h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
+              <div className={styles.sectionHeading}><h2>歌手</h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
               {visibleArtists.length > 0 ? (
-                <div className={styles.artistGrid} ref={artistScrollRef} onScroll={(event) => {
+                <div className={`${styles.artistGrid}${visibleArtists.length <= 10 ? ` ${styles.artistGridFit}` : ''}`} ref={artistScrollRef} onScroll={(event) => {
                   if (artistScrollRestored.current && useNavigationStore.getState().currentView === route.current) {
                     updatePageState(keyword, { artistScrollTop: event.currentTarget.scrollTop })
                   }
@@ -263,7 +262,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
 
             {(category === 'all' || category === 'songs') && <section className={styles.section} aria-label="歌曲搜索结果" aria-busy={songsLoading}>
               <div className={styles.sectionHeading}>
-                <h2>歌曲 <span>{visibleSongs.length}</span></h2>
+                <h2>歌曲</h2>
                 <div className={styles.sectionActions}>
                   {songsLoading && <span role="status">搜索中…</span>}
                   {!selecting && <BatchTrackActions compact menuLabel="歌曲搜索结果更多操作" label="当前歌曲搜索结果" selectLabel="多选搜索结果"
@@ -284,7 +283,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
               const label = categories[kind]
               return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
                 <div className={styles.sectionHeading}>
-                  <h2>{label} <span>{items.length}</span></h2>
+                  <h2>{label}</h2>
                   <div className={styles.sectionActions}>
                     {loading && <span role="status">搜索中…</span>}
                     {!selecting && <BatchTrackActions compact menuLabel={`${label}搜索结果更多操作`} label={`当前${label}搜索结果`} selectLabel="多选搜索结果"
@@ -294,7 +293,10 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
                 {items.length ? <div className={styles.collectionGrid}>
                   {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
                     {selecting && <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>}
-                    <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
+                    {/* 隔离布局测量，筛选增删卡片时不触发其他封面的转场。 */}
+                    <LayoutGroup inherit="id">
+                      <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} layoutDependency="search-results" onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
+                    </LayoutGroup>
                   </div>)}
                 </div> : <p className={styles.hint}>{loading ? `正在寻找相关${label}…` : failures.some((item) => item.label === label) ? `部分平台未能完成${label}搜索，请重试。` : `没有找到相关${label}，试试其他关键词。`}</p>}
               </section>

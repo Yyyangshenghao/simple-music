@@ -190,7 +190,7 @@
   border: 1px solid var(--glass-border-base);
   border-radius: var(--sm-radius-pill);
   padding: 0 14px;
-  width: clamp(220px, 24vw, 320px);
+  width: clamp(300px, 28vw, 360px);
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
@@ -201,8 +201,7 @@
   border-color: var(--glass-border-card);
 }
 
-.searchForm:hover:not(.searchExpanded) .searchIcon,
-.searchForm:hover:not(.searchExpanded) .searchPlaceholder {
+.searchForm:hover:not(.searchExpanded) .searchIcon {
   color: var(--sm-text-primary);
 }
 
@@ -233,32 +232,6 @@
   width: 100%;
 }
 
-.searchInput::placeholder {
-  color: var(--sm-text-secondary);
-}
-
-.searchPlaceholder {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  color: var(--sm-text-secondary);
-  white-space: nowrap;
-  user-select: none;
-  transition: color 0.2s;
-}
-
-.searchHotkeyBadge {
-  flex-shrink: 0;
-  padding: 2px 6px;
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-fill-subtle);
-  color: var(--sm-text-secondary);
-  font-size: 10px;
-  line-height: 1.4;
-}
-
 .searchAll {
   display: flex;
   align-items: center;
@@ -279,18 +252,27 @@
 
 .searchDropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 10px);
   right: 0;
-  width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   /* overlay 是透明叠色，必须以实色打底，避免页面文字透入搜索结果。 */
   background: linear-gradient(var(--sm-bg-overlay), var(--sm-bg-overlay)), var(--sm-bg-base);
   border: 1px solid var(--sm-border);
-  border-radius: 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  padding: 4px;
+  box-sizing: border-box;
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--sm-bg-base) 28%, transparent), 0 4px 12px color-mix(in srgb, var(--sm-bg-base) 12%, transparent), inset 0 1px 0 var(--sm-fill-hover);
   overflow: hidden;
-  max-height: min(400px, calc(100vh - 80px));
+  max-height: min(560px, calc(100vh - 100px));
   overflow-y: auto;
   z-index: 500;
+}
+
+.searchSuggestions {
+  display: flex;
+  flex-direction: column;
+  max-height: min(560px, calc(100vh - var(--sm-topbar-height, 52px) - var(--sm-player-clearance, 124px) - 20px));
+  overflow: hidden;
 }
 
 /* 窄窗口让导航参与布局，给常驻搜索栏和 Windows 窗口按钮留出空间。 */
@@ -307,6 +289,20 @@
   }
 
   .segItem { padding-inline: 12px; }
+}
+
+/* Windows 右侧需预留窗口控制区，更宽的搜索栏提前进入流式布局。 */
+@media (max-width: 1520px) {
+  .barWin .center {
+    position: static;
+    transform: none;
+    margin-left: auto;
+  }
+
+  .barWin .right {
+    margin-left: clamp(16px, 3vw, 32px);
+    flex-shrink: 0;
+  }
 }
 
 .searchSourceTabs {
@@ -505,5 +501,4 @@
 @media (max-width: 1100px) {
   .right { margin-left: 16px; }
   .segItem { padding-inline: 10px; }
-  .searchForm { width: clamp(170px, 22vw, 240px); }
 }

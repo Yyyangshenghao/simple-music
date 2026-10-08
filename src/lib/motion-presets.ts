@@ -32,3 +32,6 @@ export const fadeRise: Variants = {
 
 /** 专辑封面连续移动并放大，使用高阻尼避免落位后弹跳。 */
 export const albumCoverTransition: Transition = { type: 'spring', stiffness: 170, damping: 28, mass: 1 }
+
+/** 返回列表时封面快速收回，避免弹簧收尾拖慢返回反馈。 */
+export const coverReturnTransition: Transition = { type: 'tween', duration: 0.24, ease: [0.22, 1, 0.36, 1] }

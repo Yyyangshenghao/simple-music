@@ -2,7 +2,8 @@ import { memo } from 'react'
 import { motion } from 'motion/react'
 import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
-import { albumCoverTransition, springGentle } from '../../lib/motion-presets'
+import { albumCoverTransition, coverReturnTransition, springGentle } from '../../lib/motion-presets'
+import { useNavigationStore } from '../../stores/navigation'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistCard.module.css'
 import { sizedImage } from '../../lib/image-size'
@@ -17,9 +18,12 @@ interface PlaylistCardProps {
   selectionMode?: boolean
   /** 传入时封面参与共享元素转场（与详情页头部封面同 ID）。 */
   layoutId?: string
+  /** 指定时仅在依赖变化时测量布局，避免异步结果到达时封面自行移动。 */
+  layoutDependency?: string
 }
 
-export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId, selectionMode = false }: PlaylistCardProps) {
+export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId, layoutDependency, selectionMode = false }: PlaylistCardProps) {
+  const returning = useNavigationStore((state) => state.lastAction === 'pop')
   const displayMeta = meta ?? (playlist.trackCountKnown === false ? '查看歌曲' : `${playlist.trackCount} 首`)
   return (
     <TiltCard className={styles.glowWrap} disabled={selectionMode}>
@@ -32,8 +36,9 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
           <motion.div
             className={styles.coverWrap}
             layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
+            layoutDependency={layoutDependency}
             layoutCrossfade={false}
-            transition={playlist.type === 'album' ? albumCoverTransition : springGentle}
+            transition={returning ? coverReturnTransition : playlist.type === 'album' ? albumCoverTransition : springGentle}
             style={{ borderRadius: 12 }}
           >
             {playlist.cover

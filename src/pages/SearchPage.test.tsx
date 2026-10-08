@@ -24,7 +24,8 @@ describe('聚合搜索页面', () => {
 
   it('默认聚合已启用且已登录的平台，首屏提供独立加载提示', () => {
     const html = renderToStaticMarkup(<SearchPage keyword="周杰伦" />)
-    expect(html).toContain('在 2 个音乐平台中发现歌曲、歌手、专辑与歌单')
+    expect(html).not.toContain('个音乐平台中发现')
+    expect(html.match(/<h2>.*?<\/h2>/g)).toEqual(['<h2>歌手</h2>', '<h2>歌曲</h2>', '<h2>专辑</h2>', '<h2>歌单</h2>'])
     expect(html).toContain('全部平台')
     expect(html).toContain('专辑搜索结果')
     expect(html).toContain('歌单搜索结果')
