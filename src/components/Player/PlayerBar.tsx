@@ -274,6 +274,7 @@ interface PlayerBarProps {
   onArtistNavigate?: () => void
   /** 沉浸模式:淡出整个播放栏(布局占位不变) */
   hidden?: boolean
+  lyricsOpen?: boolean
 }
 
 /** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
@@ -318,7 +319,7 @@ function VolumeControl() {
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden }: PlayerBarProps) {
+export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -329,7 +330,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden }: PlayerBarP
   const isLoading = status === 'loading'
 
   return (
-    <PlayerGlass hidden={hidden}>
+    <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen}>
       <div className={styles.bar}>
         <div className={styles.left}>
           <TrackInfo onCoverClick={onOpenLyrics} onArtistNavigate={onArtistNavigate} />

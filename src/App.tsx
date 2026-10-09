@@ -175,7 +175,7 @@ export default function App() {
           <TopBar hidden={lyricsOpen} />
           <AppShell />
           <GlobalContentProviderDock />
-          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} />}
+          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
           <Toast />
