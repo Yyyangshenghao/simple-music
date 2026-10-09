@@ -28,6 +28,7 @@
 .header { display: flex; flex-shrink: 0; gap: 14px; padding: 16px 16px 12px; }
 
 .cover {
+  position: relative;
   width: 84px;
   height: 84px;
   border-radius: 12px;

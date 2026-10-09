@@ -3,12 +3,11 @@
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--sm-color-like);
+  color: rgba(255, 255, 255, 0.94);
   pointer-events: none;
 }
 
 .overlay > svg {
   width: 42%;
   height: 42%;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }

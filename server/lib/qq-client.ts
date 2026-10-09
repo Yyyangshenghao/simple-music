@@ -411,6 +411,7 @@ function qualityCandidatesFrom(target: unknown, candidates: QualityTemplate[]): 
 interface QQPlaylist {
   provider: string
   source: string
+  type: 'playlist'
   id: string
   name: string
   cover: string
@@ -593,9 +594,10 @@ function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<s
 function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
   const pl = rec(raw)
   const upstreamId = pl.dissid || pl.tid || pl.dirid || pl.id || pl.diss_id
-  const playlist = {
+  const playlist: QQPlaylist = {
     provider: 'qq',
     source: 'qq',
+    type: 'playlist',
     id: upstreamId ? String(upstreamId) : '',
     name: str(pl.diss_name || pl.name || pl.title),
     cover: pickQQImageUrl(pl.diss_cover, pl.logo, pl.picurl, pl.cover),
@@ -931,6 +933,15 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
       return true
     })
     .sort((a, b) => Number(b.id === QQ_LIKED_PLAYLIST_ID) - Number(a.id === QQ_LIKED_PLAYLIST_ID))
+  const liked = playlists.find((playlist) => playlist.id === QQ_LIKED_PLAYLIST_ID)
+  if (liked && !liked.cover) {
+    try {
+      const detail = await handleQQLikedPlaylist(cookie)
+      liked.cover = str(rec(detail.playlist).cover)
+    } catch {
+      // 补图失败时保留歌单列表，仍可使用现有占位封面。
+    }
+  }
   return { loggedIn: true, provider: 'qq', userId: uin, playlists }
 }
 

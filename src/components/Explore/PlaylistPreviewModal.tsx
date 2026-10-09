@@ -12,6 +12,7 @@ import type { Playlist } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
@@ -61,6 +62,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
           {displayCover
             ? <img src={sizedImage(displayCover, 176)} alt="" />
             : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
+          {displayCover && <QQLikedCoverOverlay playlist={playlist} />}
         </motion.div>
         <div className={styles.meta}>
           <h3 className={styles.name}>{playlist.name}</h3>

@@ -500,6 +500,57 @@ describe('QQ 标识与歌单详情契约', () => {
 
     expect(playlists.filter((playlist) => playlist.id === 'qq-liked:201')).toHaveLength(1)
     expect(playlists.map((playlist) => playlist.id)).toContain('123')
+    expect(playlists.every((playlist) => playlist.type === 'playlist')).toBe(true)
+  })
+
+  it.each(['album', 'empty', 'failed'] as const)('账号歌单缺少我喜欢封面时补取首曲专辑图：%s', async (outcome) => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => {
+      const url = String(input)
+      let body: Record<string, unknown> = {}
+      if (url.includes('fcg_user_created_diss')) {
+        body = { data: { disslist: [
+          { dissid: 201, dirid: 201, diss_name: '收藏歌曲', song_cnt: 162 },
+          { dissid: 123, diss_name: '普通歌单', logo: '//y.qq.com/normal.jpg' },
+        ] } }
+      } else if (url.includes('musicu.fcg')) {
+        if (outcome === 'failed') return Promise.reject(new Error('cover unavailable'))
+        body = { playlist: { code: 0, data: {
+          dirinfo: { title: '我喜欢', total_song_num: 162 },
+          songlist: outcome === 'album' ? [{ mid: 'song-mid', name: '首曲', album: { mid: 'album-mid' } }] : [],
+        } } }
+      }
+      return Promise.resolve({ status: 200, text: async () => JSON.stringify(body) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQUserPlaylists(LOGGED_IN_COOKIE)
+    const playlists = result.playlists as Record<string, unknown>[]
+
+    expect(playlists[0]).toMatchObject({
+      id: 'qq-liked:201', type: 'playlist', name: '收藏歌曲', trackCount: 162,
+      cover: outcome === 'album' ? 'https://y.qq.com/music/photo_new/T002R300x300M000album-mid.jpg?max_age=2592000' : '',
+    })
+    expect(playlists[1]).toMatchObject({ id: '123', type: 'playlist', cover: 'https://y.qq.com/normal.jpg' })
+    const detailCall = fetchMock.mock.calls.find(([url]) => String(url).includes('musicu.fcg'))
+    expect(detailCall).toBeDefined()
+    expect(JSON.parse(String(detailCall![1]?.body)).playlist.param).toMatchObject({ dirid: 201, song_num: 1 })
+  })
+
+  it('我喜欢已有列表封面时保留封面且不追加详情请求', async () => {
+    const fetchMock = vi.fn().mockImplementation((input: string) => Promise.resolve({
+      status: 200,
+      text: async () => JSON.stringify(String(input).includes('fcg_user_created_diss')
+        ? { data: { disslist: [{ dissid: 201, dirid: 201, diss_name: '我喜欢', logo: '//y.qq.com/liked.jpg' }] } }
+        : {}),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQUserPlaylists(LOGGED_IN_COOKIE)
+
+    expect((result.playlists as Record<string, unknown>[])[0]).toMatchObject({
+      id: 'qq-liked:201', type: 'playlist', cover: 'https://y.qq.com/liked.jpg',
+    })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('musicu.fcg'))).toBe(false)
   })
 
   it('歌单中的合法重复歌曲保持原始位置和数量', async () => {

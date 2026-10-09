@@ -11,7 +11,7 @@ vi.mock('react-dom', async (importOriginal) => ({
 }))
 
 const playlist: Playlist = { provider: 'netease', source: 'netease', type: 'playlist', id: 'preview', name: '预览歌单', cover: '', trackCount: 2, playCount: 0, creator: '' }
-const render = () => renderToStaticMarkup(<PlaylistPreviewModal playlist={playlist} onClose={() => {}} />)
+const render = (entry: Playlist = playlist) => renderToStaticMarkup(<PlaylistPreviewModal playlist={entry} onClose={() => {}} />)
 
 describe('歌单预览加载状态', () => {
   beforeEach(() => {
@@ -44,5 +44,18 @@ describe('歌单预览加载状态', () => {
     const html = render()
     expect(html).toContain(message)
     expect(html).not.toContain('role="status"')
+  })
+
+  it.each(['https://example.com/album.jpg', ''])('QQ 我喜欢预览的歌单封面和曲目补图均显示白心（cover=%s）', (cover) => {
+    state.tracks = [{ id: 1, provider: 'qq', source: 'qq', type: 'track', name: '歌曲', artist: '歌手', artists: [], cover: 'https://example.com/album.jpg' }]
+    const html = render({ ...playlist, provider: 'qq', source: 'qq', id: 'qq-liked:201', cover })
+    expect(html).toContain('src="https://example.com/album.jpg"')
+    expect(html).toContain('data-kind="liked-cover-overlay"')
+  })
+
+  it('普通 QQ 歌单预览保留原封面', () => {
+    const html = render({ ...playlist, provider: 'qq', source: 'qq', name: '我喜欢的跑步歌单', cover: 'https://example.com/album.jpg' })
+    expect(html).toContain('src="https://example.com/album.jpg"')
+    expect(html).not.toContain('data-kind="liked-cover-overlay"')
   })
 })
