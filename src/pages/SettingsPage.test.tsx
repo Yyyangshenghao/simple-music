@@ -43,7 +43,7 @@ vi.mock('../stores/providers', async (importOriginal) => {
   ) }
 })
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
-vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null }))
+vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null, AppleMusicAccountInfo: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
 
 const initialSettings = useSettingsStore.getState()
@@ -62,6 +62,28 @@ afterEach(() => {
   useUpdateStore.setState(initialUpdate, true)
   useProviderStore.setState(initialProviders, true)
   vi.unstubAllGlobals()
+})
+
+describe('音源账户入口', () => {
+  it('已登录账户提供退出入口，停用后仍可退出；未登录账户提供登录入口', () => {
+    useProviderStore.setState({ byId: {
+      netease: { enabled: true, auth: 'authenticated', profile: { nickname: '云音乐用户', avatar: '' } },
+      qq: { enabled: false, auth: 'authenticated', profile: { nickname: 'QQ用户', avatar: '' } },
+      apple: { enabled: false, auth: 'anonymous' },
+    } })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*aria-label="退出登录网易云"/)
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*aria-label="退出登录QQ音乐"/)
+    expect(html).toContain('云音乐用户')
+    expect(html).toContain('QQ用户')
+    expect(html).toContain('aria-label="停用网易云"')
+    expect(html).toContain('aria-label="启用QQ音乐"')
+    useProviderStore.getState().setAccountState('qq', 'anonymous')
+    const loggedOut = renderToStaticMarkup(<SettingsPage />)
+    expect(loggedOut).toContain('aria-label="登录QQ音乐"')
+    expect(loggedOut).not.toContain('aria-label="退出登录QQ音乐"')
+    expect(loggedOut).not.toContain('QQ用户')
+  })
 })
 
 describe('播放顺序中的参与平台', () => {

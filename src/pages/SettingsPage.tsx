@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls, useReducedMotion } from 'motion/react'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
+import { logoutMusicProvider } from '../lib/provider-logout'
 import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
@@ -12,12 +13,15 @@ import { Switch } from '../components/ui/Switch'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
-import { AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AccountButton } from '../components/Settings/AccountButton'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
+import { useAppleMusicConnection } from '../stores/apple-music-connection'
 import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
@@ -622,14 +626,16 @@ export function SettingsPage() {
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
   const multiSourceFallback = useProviderStore((s) => s.multiSourceFallback)
   const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
+  const apple = useAppleMusicConnection()
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
-  const loginProvider = async (source: 'netease' | 'qq'): Promise<void> => {
+  const changeProviderAccount = async (source: 'netease' | 'qq', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
     setLoginBusy(source)
     try {
-      await loginMusicProvider(source)
+      if (connected) await logoutMusicProvider(source)
+      else await loginMusicProvider(source)
     } catch {
-      useToastStore.getState().show('登录失败，请重试')
+      useToastStore.getState().show(connected ? '退出登录失败，请重试' : '登录失败，请重试')
     } finally {
       setLoginBusy(null)
     }
@@ -801,34 +807,42 @@ export function SettingsPage() {
                     const runtime = providerState[source]
                     const connected = runtime.auth === 'authenticated'
                     const busy = loginBusy === source
+                    const active = connected && runtime.enabled && runtime.playbackAvailable !== false
+                    const accountLabel = source === 'apple' && apple.account?.restoring ? '恢复登录中'
+                      : source === 'apple' && apple.phase === 'waiting' && !connected ? '等待授权'
+                      : connected
+                        ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
+                          : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
+                        : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
+                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : AppleMusicIcon
                     return (
-                      <div className={styles.providerRow} key={provider.descriptor.id}>
-                        <SourceBadge source={provider.descriptor.id} displayMode="always" showInactive />
+                      <div className={styles.providerRow} key={source}>
+                        <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
                         <div className={styles.providerAccount}>
-                          <span><SourceName source={provider.descriptor.id} /></span>
-                          <small>
-                            {runtime.auth === 'authenticated'
-                              ? runtime.playbackAvailable === false
-                                ? `${runtime.profile?.nickname || '账号已连接'} · ${runtime.lastError || '当前不可播放'}`
-                                : `${runtime.profile?.nickname || '账号已连接'} · ${runtime.enabled ? '已参与' : '未启用'}`
-                              : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录，不参与应用内容'}
+                          <div className={styles.providerName}>
+                            <strong><SourceName source={source} /></strong>
+                            {source === 'apple' && <AppleMusicAccountInfo />}
+                          </div>
+                          <small title={`${accountLabel}${connected ? active ? ' · 已启用' : ' · 未启用' : ''}`}>
+                            <span className={styles.providerStatus} data-connected={connected} data-active={active} aria-hidden="true" />
+                            <span className={styles.providerAccountName}>{accountLabel}</span>
                           </small>
                         </div>
-                        {source === 'apple' ? <AppleMusicSettings /> : <button
-                          type="button"
-                          className={`${styles.providerLogin} no-drag`}
-                          disabled={connected || loginBusy !== null || busy}
-                          aria-label={`${connected ? '已登录' : '登录'}${provider.descriptor.label}`}
-                          onClick={() => void loginProvider(source)}
-                        >
-                          {connected ? '已登录' : busy ? '登录中…' : runtime.auth === 'expired' ? '重新登录' : '登录'}
-                        </button>}
-                        <Switch
-                          checked={runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false}
-                          disabled={runtime.auth !== 'authenticated' || runtime.playbackAvailable === false}
-                          onChange={(enabled) => setProviderEnabled(provider.descriptor.id, enabled)}
-                          aria-label={`${enabledLabel(runtime.auth === 'authenticated' && runtime.enabled && runtime.playbackAvailable !== false)}${provider.descriptor.label}`}
-                        />
+                        <div className={styles.providerActions}>
+                          <Switch
+                            checked={active}
+                            disabled={!connected || runtime.playbackAvailable === false || busy}
+                            onChange={(enabled) => setProviderEnabled(source, enabled)}
+                            aria-label={`${enabledLabel(active)}${provider.descriptor.label}`}
+                          />
+                          {source === 'apple' ? <AppleMusicSettings /> : <AccountButton
+                            label={`${busy ? connected ? '退出中' : '登录中' : connected ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
+                            exit={connected}
+                            busy={busy}
+                            disabled={loginBusy !== null}
+                            onClick={() => void changeProviderAccount(source, connected)}
+                          />}
+                        </div>
                       </div>
                     )
                   })}
