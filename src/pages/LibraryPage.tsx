@@ -266,7 +266,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                   ? '加载中…'
                   : result.status === 'error'
                     ? result.error?.message
-                    : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : mode === 'albums' ? '专辑' : '歌单'}`}
+                    : mode === 'playlists' ? null : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '专辑'}`}
               </span>
               {mode === 'playlists' && result?.status !== 'loading' && (
                 <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>
