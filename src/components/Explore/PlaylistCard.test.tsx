@@ -23,4 +23,26 @@ describe('PlaylistCard', () => {
     expect(html).not.toContain('0 首')
     expect(html).toContain('aria-label="歌单：喜爱歌曲"')
   })
+
+  it('QQ 我喜欢的专辑封面叠加红心，歌单改名后仍保留', () => {
+    const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, source: 'qq', provider: 'qq', id: 'qq-liked:201', name: '收藏歌曲', cover: 'https://example.com/album.jpg' }} onClick={() => {}} />)
+    expect(html).toContain('src="https://example.com/album.jpg"')
+    expect(html).toContain('data-kind="liked-cover-overlay"')
+  })
+
+  it('名称相似的普通 QQ 歌单和其他平台不叠加红心', () => {
+    for (const entry of [
+      { ...playlist, source: 'qq' as const, provider: 'qq' as const, id: 123, name: '我喜欢的跑步歌单' },
+      { ...playlist, id: 'qq-liked:201' },
+    ]) {
+      const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...entry, cover: 'https://example.com/album.jpg' }} onClick={() => {}} />)
+      expect(html).not.toContain('data-kind="liked-cover-overlay"')
+    }
+  })
+
+  it('QQ 我喜欢缺图时保留现有占位封面，不重复叠加红心', () => {
+    const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, source: 'qq', provider: 'qq', id: 'qq-liked:201', name: '我喜欢' }} onClick={() => {}} />)
+    expect(html).toContain('data-kind="favorite"')
+    expect(html).not.toContain('data-kind="liked-cover-overlay"')
+  })
 })

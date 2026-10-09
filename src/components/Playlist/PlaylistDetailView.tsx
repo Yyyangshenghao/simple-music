@@ -16,6 +16,7 @@ import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
 import { useProviderStore } from '../../stores/providers'
@@ -207,6 +208,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                 {displayCover
                   ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
                   : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
+                {displayCover && <QQLikedCoverOverlay playlist={displayPlaylist} />}
               </motion.div>
               <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
                 <div className={styles.titleRow}>

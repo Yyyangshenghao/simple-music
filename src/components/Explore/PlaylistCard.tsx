@@ -9,6 +9,7 @@ import styles from './PlaylistCard.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 
 interface PlaylistCardProps {
   playlist: Playlist
@@ -44,6 +45,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
             {playlist.cover
               ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
               : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
+            {playlist.cover && <QQLikedCoverOverlay playlist={playlist} />}
             <SourceBadge source={playlist.source} className={styles.sourceBadge} />
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>
