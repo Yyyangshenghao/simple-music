@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolve } from 'node:path'
 import { registerMiscIpc } from './misc'
 
 const h = vi.hoisted(() => ({
@@ -46,7 +47,7 @@ describe('应用重启和更新退出', () => {
   it.each(['win32', 'darwin'])('%s 安装成功走正常退出，不绕过 before-quit 清理', async platform => {
     vi.stubGlobal('process', { ...process, platform })
     await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer' })).resolves.toEqual({ ok: true })
-    expect(platform === 'win32' ? h.installWindows : h.installMac).toHaveBeenCalledWith('/user-data/updates/installer')
+    expect(platform === 'win32' ? h.installWindows : h.installMac).toHaveBeenCalledWith(resolve('/user-data/updates/installer'))
     expect(h.quit).toHaveBeenCalledOnce()
     expect((platform === 'win32' ? h.installWindows : h.installMac).mock.invocationCallOrder[0]).toBeLessThan(h.quit.mock.invocationCallOrder[0])
     expect(h.relaunch).not.toHaveBeenCalled()
