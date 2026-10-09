@@ -1,29 +1,34 @@
 # Simple Music
 
-把网易云音乐、QQ 音乐、Apple Music 和本地音乐放进同一个桌面播放器。浏览熟悉的歌单与推荐，整理播放队列，也可以打开歌词、迷你播放条或动态壁纸，换一种方式听歌。
+**把喜欢的音乐放在一起，让听歌回到听歌本身。**
+
+Simple Music 是一款支持网易云音乐、QQ 音乐、Apple Music 与本地文件的桌面播放器。从每日推荐里遇见新歌，从歌手页继续探索，或打开整屏歌词，让封面、文字和音乐一起流动。
 
 支持 **macOS 与 Windows**。在线平台需要分别登录并启用，歌曲与音质的可用范围取决于账号权限和平台服务。
 
-[下载安装](https://github.com/Yyyangshenghao/simple-music/releases/latest) · [首次使用](#首次使用) · [功能与边界](#功能与边界) · [参与开发](#参与开发)
+[下载安装](https://github.com/Yyyangshenghao/simple-music/releases/latest) · [首次使用](#首次使用) · [功能与边界](#功能与边界) · [2.3.4 更新日志（开发中）](./docs/release-notes-2.3.4.md) · [参与开发](#参与开发)
 
 ## 界面一览
 
-从找歌到跟唱，再到整理自己的音乐，每个场景都有适合它的界面。以下为当前开发版本的实际界面截图；歌单、曲目、封面与歌词使用演示数据。点击图片可查看大图。
+以下画面来自 macOS 上的 2.3.4 开发分支，使用作者已登录的网易云账号与平台真实内容，在播放颜人中《My love》时直接截取。封面、推荐与歌词均来自实际使用，未使用模拟数据。点击图片可查看原图。
 
-| 探索音乐 · 发现下一首喜欢的歌 | 普通歌词 · 把注意力交给这一句 |
-|---|---|
-| [![探索页：每日推荐、私人雷达与歌单叠卡](./docs/screenshots/explore.png)](./docs/screenshots/explore.png) | [![普通歌词页：封面氛围背景与当前句高亮](./docs/screenshots/lyrics.png)](./docs/screenshots/lyrics.png) |
-| 每日推荐、私人雷达和歌单叠卡，让找歌多一点惊喜。 | 封面氛围色与滚动歌词相伴，当前一句始终清晰。 |
+### 一首歌，一整屏的陪伴
 
-| 3D 歌词 · 让文字走进舞台 | 我的库 · 留住自己的音乐 |
-|---|---|
-| [![3D 歌词页：封面粒子云与立体歌词舞台](./docs/screenshots/lyrics-3d.png)](./docs/screenshots/lyrics-3d.png) | [![我的库：本地音乐列表、搜索与排序](./docs/screenshots/library.png)](./docs/screenshots/library.png) |
-| 封面化成粒子云，歌词在有深度的空间里浮动。 | 歌单、收藏、离线与本地音乐各就各位；图中展示本地音乐。 |
+[![正在播放颜人中《My love》：真实封面、同步歌词与封面氛围背景](./docs/screenshots/2.3.4/lyrics.jpg)](./docs/screenshots/2.3.4/lyrics.jpg)
 
-| 设置 · 调成你喜欢的样子 | 更新日志 · 看见每一次变化 |
+普通歌词跟随播放进度滚动，逐字高亮当前一句；想换个氛围，也可以切到封面粒子与立体文字组成的 3D 舞台。
+
+| 探索音乐 · 从真实推荐开始 | 3D 歌词 · 让音乐拥有舞台 |
 |---|---|
-| [![设置页：桌面歌词预览、外观与字体调整](./docs/screenshots/settings.png)](./docs/screenshots/settings.png) | [![更新日志页：新增、优化、修复分组与历史版本](./docs/screenshots/update-history.png)](./docs/screenshots/update-history.png) |
-| 字体、颜色、歌词与动效，边预览边调整。 | 从独立页面查看各版本，按新增、优化与修复读懂变化。 |
+| [![真实账号探索页：每日推荐、私人雷达与发现歌单](./docs/screenshots/2.3.4/explore.jpg)](./docs/screenshots/2.3.4/explore.jpg) | [![《My love》实际播放中的封面粒子与 3D 歌词](./docs/screenshots/2.3.4/lyrics-3d.jpg)](./docs/screenshots/2.3.4/lyrics-3d.jpg) |
+| 每日推荐、私人雷达与歌单叠卡，接着熟悉的听歌口味继续发现。 | 同一首歌、同一份歌词，在有深度的空间里呈现。 |
+
+| 歌手页 · 顺着喜欢继续听 | 歌单详情 · 把下一首安排好 |
+|---|---|
+| [![颜人中歌手页：真实头像、简介、热门单曲与专辑入口](./docs/screenshots/2.3.4/artist.jpg)](./docs/screenshots/2.3.4/artist.jpg) | [![真实账号的每日推荐歌单与正在播放的《My love》](./docs/screenshots/2.3.4/playlist.jpg)](./docs/screenshots/2.3.4/playlist.jpg) |
+| 看简介、听热门单曲，再从专辑或相似歌手找到新的方向。 | 搜索歌单内的歌曲、整理队列，或把可保存的歌曲留下来离线听。 |
+
+截图展示开发中的界面，正式版本以 Releases 为准；推荐内容随账号与日期变化。截图来源见 [拍摄记录](./docs/screenshots/2.3.4/README.md)。
 
 ## 下载安装
 
@@ -31,10 +36,10 @@
 
 | 系统 | 下载文件 | 安装方式 |
 |---|---|---|
-| macOS · Apple 芯片 | `Simple Music-<version>-arm64.dmg` | 打开镜像，将应用拖入「应用程序」 |
-| macOS · Intel 芯片 | `Simple Music-<version>.dmg`（不带 `arm64`） | 同上 |
-| Windows · x64 安装版 | `Simple Music-<version>-Setup.exe` | 按安装向导操作，推荐日常使用 |
-| Windows · x64 便携版 | `Simple Music-<version>-portable.exe` | 双击运行，更新时手动下载新版 |
+| macOS · Apple 芯片 | `Simple-Music-<version>-arm64.dmg` | 打开镜像，将应用拖入「应用程序」 |
+| macOS · Intel 芯片 | `Simple-Music-<version>-x64.dmg` | 同上 |
+| Windows · x64 安装版 | `Simple-Music-<version>-Setup.exe` | 按安装向导操作，推荐日常使用 |
+| Windows · x64 便携版 | `Simple-Music-<version>-portable.exe` | 双击运行，更新时手动下载新版 |
 
 Mac 的芯片类型可在苹果菜单 →「关于本机」查看。应用内「设置 → 关于应用」提供检查更新入口；macOS 下载后需要手动完成安装包替换，Windows 便携版需要自行更新。
 
@@ -51,7 +56,8 @@ Mac 的芯片类型可在苹果菜单 →「关于本机」查看。应用内「
 
 ### 找歌与整理
 
-- **探索与我的库**：保留各平台自己的推荐与资料库内容，不提供「全部平台」视图；搜索可以从已启用平台寻找歌曲。
+- **探索与我的库**：按平台浏览推荐、收藏与歌单；搜索支持歌曲、歌手、专辑与歌单，可按类型及平台筛选。搜索历史保存在本机，详情返回后保留筛选与滚动位置。
+- **歌手与专辑**：查看歌手简介、热门单曲、专辑与相似歌手；在歌曲列表中搜索，或从播放栏的歌手名字直接跳转。
 - **漫游与刷歌**：沿歌手关系探索、生成漫游歌单，或逐首试听推荐歌曲。
 - **播放队列**：设为下一首、调整顺序、移除曲目，搭配断点续播与睡眠定时。
 
@@ -81,6 +87,8 @@ Mac 的芯片类型可在苹果菜单 →「关于本机」查看。应用内「
 Apple Music 的可视化频谱取决于系统是否允许捕获受保护音频；无法捕获时仍可正常播放。在线接口可能随平台改版失效，本项目不保证所有平台功能始终可用。
 
 ## 更新日志与反馈
+
+**2.3.4 开发中**：重点改善搜索历史、详情返回、歌手页和歌词排版，并修复刷歌控制、播放恢复、本地音乐与应用更新中的问题。完整范围与待验事项见 [2.3.4 更新日志](./docs/release-notes-2.3.4.md)。
 
 点击「设置 → 关于应用 → 更新日志」，进入独立页面，按新增、优化、修复等类别查看当前版本与历史版本的变化，也可阅读兼容说明。记录离线可读，旧版本可展开查看。新版本的安装包和发行说明发布在 [Releases](https://github.com/Yyyangshenghao/simple-music/releases)。
 
