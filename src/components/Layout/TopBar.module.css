@@ -13,14 +13,14 @@
   transition: opacity 0.3s ease;
 }
 
-/* 玻璃渐隐在控件背后，避免整条标题栏在页面背景上留下横向硬边。 */
+/* 保留毛玻璃模糊与渐隐，去掉提亮深色背景的白色蒙层。 */
 .bar::before {
   content: '';
   position: absolute;
   inset: 0 0 -18px;
   z-index: -1;
   pointer-events: none;
-  background: var(--glass-bg-base);
+  background: transparent;
   backdrop-filter: var(--glass-blur-base);
   -webkit-backdrop-filter: var(--glass-blur-base);
   mask-image: linear-gradient(to bottom, #000 55%, transparent);
