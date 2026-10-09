@@ -14,14 +14,14 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     env:
-      RELEASE_COMMIT: b5dbbd2d7f7f4bc7dbe983238975d2af19b26aae
+      RELEASE_COMMIT: 7def59a0b506fee325a27a71e722665caf017d92
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b5dbbd2d7f7f4bc7dbe983238975d2af19b26aae
+          ref: 7def59a0b506fee325a27a71e722665caf017d92
       - name: Verify exact source and release metadata
         run: |
           git log -1 --format='%H %s'
