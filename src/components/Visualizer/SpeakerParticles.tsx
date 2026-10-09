@@ -67,7 +67,7 @@ function averageFrequency(): number {
   return sum / data.length / 255
 }
 
-export function SpeakerParticles() {
+export function SpeakerParticles({ lightBackground = false }: { lightBackground?: boolean }) {
   const pointsRef = useRef<THREE.Points>(null)
   const energyRef = useRef(0)
   const performanceMode = useVisualStore((s) => s.performanceMode)
@@ -127,7 +127,9 @@ export function SpeakerParticles() {
     uniforms.uColor.value.setHSL(
       (0.55 + energyRef.current * 0.15) % 1,
       0.72,
-      Math.min(0.92, (0.42 + energyRef.current * 0.28) * brightnessScale)
+      lightBackground
+        ? Math.min(0.78, (0.58 + energyRef.current * 0.16) * brightnessScale)
+        : Math.min(0.92, (0.42 + energyRef.current * 0.28) * brightnessScale)
     )
 
     if (pointsRef.current) {
@@ -144,7 +146,7 @@ export function SpeakerParticles() {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={lightBackground ? THREE.NormalBlending : THREE.AdditiveBlending}
       />
     </points>
   )

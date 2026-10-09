@@ -14,7 +14,7 @@ const VERTICES_BY_MODE: Record<PerformanceMode, number> = {
   ultra: 320
 }
 
-export function Waveform3D() {
+export function Waveform3D({ lightBackground = false }: { lightBackground?: boolean }) {
   const ringLowRef = useRef<THREE.LineLoop>(null)
   const ringHighRef = useRef<THREE.LineLoop>(null)
   const lowMatRef = useRef<THREE.LineBasicMaterial>(null)
@@ -98,10 +98,10 @@ export function Waveform3D() {
     // 亮度倍率抬升 HSL 亮度,上限 0.95 防止过曝成纯白
     const hue = hueRef.current % 1
     if (lowMatRef.current) {
-      lowMatRef.current.color.setHSL(hue, 0.8, Math.min(0.95, (0.45 + energy * 0.35) * params.particleBrightness))
+      lowMatRef.current.color.setHSL(hue, 0.8, Math.min(lightBackground ? 0.5 : 0.95, (0.45 + energy * 0.35) * params.particleBrightness * (lightBackground ? 0.66 : 1)))
     }
     if (highMatRef.current) {
-      highMatRef.current.color.setHSL((hue + 0.3) % 1, 0.7, Math.min(0.95, (0.4 + energy * 0.3) * params.particleBrightness))
+      highMatRef.current.color.setHSL((hue + 0.3) % 1, 0.7, Math.min(lightBackground ? 0.5 : 0.95, (0.4 + energy * 0.3) * params.particleBrightness * (lightBackground ? 0.66 : 1)))
     }
 
     if (ringLowRef.current) {

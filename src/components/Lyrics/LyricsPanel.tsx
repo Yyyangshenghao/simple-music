@@ -8,6 +8,9 @@ import { SourceName } from '../ui/SourceName'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
+import { useLightTheme } from '../../hooks/useLightTheme'
+import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
+import { lightLyricPalette } from '../../lib/lyric-palette'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -148,14 +151,17 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
   const mode = lyrics3dEnabled ? storedMode : 'lyrics'
+  const lightTheme = useLightTheme()
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  // 浅色封面判定:仅 cover-cloud 会把封面铺满背景,其他 3D 效果底色恒深,保持白字。
+  // 浅色主题使用深色叠层文字；深色主题下仍按封面粒子墙的亮度补偿。
   // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
   const coverLuma = useAmbientStore((s) => s.coverLuma)
-  const lightCover = lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65
+  const lightCover = lightTheme || (lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65)
+  const focusPalette = useCoverLyricPalette(open && mode === '3d' && lyrics3dStyle === 'focus' ? track?.cover : undefined)
+  const focusTextPalette = lightTheme ? lightLyricPalette(focusPalette) : undefined
 
   // 面板常驻挂载,关闭时仅 translateY(100%) 移出视口——若内容照常渲染,
   // 激活行 KtvLine 的 rAF 扫光、封面模糊层、数百行歌词节点会在后台空转。
@@ -278,7 +284,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const backdropOccluded = contentMounted && ((mode === 'lyrics' && !!track?.cover) || mode === '3d')
 
   return (
-    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
+    <div className={`${styles.panel}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
@@ -555,7 +561,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
         >
           <Suspense fallback={null}>
-            <LyricsScene coverUrl={track?.cover} />
+            <LyricsScene coverUrl={track?.cover} lightBackground={lightTheme} />
           </Suspense>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
@@ -573,7 +579,19 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           {/* 聚焦叠层：居中大字 + 上下文预览 */}
           {lyrics3dStyle === 'focus' && (
-          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}>
+          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}
+            style={focusTextPalette ? {
+              '--lyric-fill-hi': focusTextPalette.highlight,
+              '--lyric-fill-lo': focusTextPalette.primary,
+              '--lyric-active-color': focusTextPalette.highlight,
+              '--lyric-active-fill': `linear-gradient(${focusTextPalette.primary}, ${focusTextPalette.highlight})`,
+              '--lyric-active-glow': 'none',
+              '--lyric-active-drop': 'none',
+              '--lyric-trans-active': focusTextPalette.primary,
+              '--lyric-trans': focusTextPalette.primary,
+              '--lyric-roma': focusTextPalette.primary,
+              '--overlay-context-color': focusTextPalette.primary
+            } as React.CSSProperties : undefined}>
             <div className={styles.overlayLineStack}>
               <motion.div key={`previous-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayPreviousLine}`}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={springGentle}>
