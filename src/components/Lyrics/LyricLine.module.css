@@ -5,8 +5,8 @@
   gap: 6px;
   padding: 10px 24px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.42);
-  opacity: 0.6;
+  color: var(--lyric-inactive-color, rgba(255, 255, 255, 0.42));
+  opacity: var(--lyric-inactive-opacity, 0.6);
   transform: scale(0.92);
   transform-origin: center;
   /* 不加 will-change:歌词行数量大,常驻合成层代价远高于切行时的临时提升 */
@@ -82,14 +82,14 @@
 /* 普通歌词保留清晰字面，用低亮度柔光衬托，避免整行滤镜再次栅格化文字。 */
 .alignLeft.active {
   filter: none;
-  color: #f5f6f7;
+  color: var(--lyric-plain-active-color, #f5f6f7);
 }
 
 .alignLeft.active .main {
   background: none;
   -webkit-text-fill-color: currentColor;
-  text-shadow: 0 0 12px rgba(232, 240, 248, 0.12),
-    0 0 32px rgba(211, 226, 242, 0.08);
+  text-shadow: var(--lyric-plain-active-glow, 0 0 12px rgba(232, 240, 248, 0.12),
+    0 0 32px rgba(211, 226, 242, 0.08));
 }
 
 /* 3D 叠加层模式:字号/透明度由外层容器(.overlayCurrentLine/.overlayNextLine)控制,

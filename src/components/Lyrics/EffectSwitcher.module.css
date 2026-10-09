@@ -18,14 +18,14 @@
   max-height: min(680px, calc(100vh - 120px));
   overflow-y: auto;
   padding: 6px;
-  /* 歌词面板常年深色,不跟主题走:固定深色玻璃字面量,不用会随浅色主题变白底的 --glass-bg-card */
-  background: rgba(24, 26, 32, 0.82);
-  --sm-scrollbar-thumb: rgba(255, 255, 255, 0.16);
-  --sm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
-  --sm-scrollbar-thumb-active: rgba(255, 255, 255, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* 复用歌词舞台的局部配色，菜单与页头同步。 */
+  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), var(--lyrics-pop-opacity, 0.82));
+  --sm-scrollbar-thumb: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
+  --sm-scrollbar-thumb-hover: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.24);
+  --sm-scrollbar-thumb-active: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.32);
+  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
   border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--lyrics-shadow-strength, 1)));
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
   pointer-events: auto;
@@ -38,7 +38,7 @@
   padding: 3px;
   margin-bottom: 4px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.06);
 }
 
 .menuTabs button {
@@ -46,14 +46,14 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
   font-size: 11px;
   cursor: pointer;
 }
 
 .menuTabs .menuTabActive {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.15);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
 }
 
 .tuningPanel {
@@ -67,14 +67,14 @@
   padding: 7px 4px 12px;
 }
 
-.tuningHeading strong { color: #fff; font-size: 13px; }
-.tuningHeading span { color: rgba(255, 255, 255, 0.48); font-size: 10px; }
+.tuningHeading strong { color: rgb(var(--lyrics-ink-rgb, 255, 255, 255)); font-size: 13px; }
+.tuningHeading span { color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.48); font-size: 10px; }
 
 .tuningDivider {
   margin: 12px 2px 5px;
   padding-top: 11px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.7);
   font-size: 11px;
   font-weight: 620;
 }
@@ -85,12 +85,12 @@
   align-items: center;
   gap: 9px;
   min-height: 34px;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.78);
   font-size: 10px;
 }
 
-.tuningRow input { width: 100%; accent-color: #fff; }
-.tuningRow output { color: rgba(255, 255, 255, 0.52); text-align: right; font-variant-numeric: tabular-nums; }
+.tuningRow input { width: 100%; accent-color: rgb(var(--lyrics-ink-rgb, 255, 255, 255)); }
+.tuningRow output { color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.52); text-align: right; font-variant-numeric: tabular-nums; }
 
 .item {
   display: flex;
@@ -100,7 +100,7 @@
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.65);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.3px;
@@ -111,7 +111,7 @@
 
 .sectionLabel {
   padding: 7px 11px 4px;
-  color: rgba(255, 255, 255, 0.34);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.34);
   font-size: 9px;
   font-weight: 680;
   letter-spacing: 0.18em;
@@ -128,43 +128,43 @@
   padding: 7px 2px;
   border: 0;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.62);
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.05);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.62);
   font-size: 11px;
   cursor: pointer;
 }
 
 .displayModeBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
 }
 
 .displayModeBtnActive {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.18);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
 }
 
 .item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.9);
 }
 
 /* 效果单选与舞台歌词开关之间的分隔线 */
 .divider {
   height: 1px;
   margin: 6px 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
 }
 
 .itemActive {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.14);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
   box-shadow: var(--glow-ring);
 }
 
 .itemActive:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.18);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
 }
 
 .icon {
@@ -187,7 +187,7 @@
 
 .hint {
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.34);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.34);
   font-size: 9px;
   font-weight: 450;
   letter-spacing: 0;
@@ -196,5 +196,5 @@
 }
 
 .itemActive .hint {
-  color: rgba(255, 255, 255, 0.56);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.56);
 }

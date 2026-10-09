@@ -16,7 +16,7 @@
 }
 
 .dim {
-  opacity: 0.36;
+  opacity: var(--lyric-dim-opacity, 0.36);
   transform: scale(0.92);
   filter: blur(0.6px);
 }
@@ -74,9 +74,9 @@
 
 /* 柔光只绘制一次；亮字层仅负责进度，避免光晕被逐字裁剪成硬边。 */
 .alignLeft.active {
-  --lyric-fill-hi: #f5f6f7;
-  text-shadow: 0 0 12px rgba(232, 240, 248, 0.12),
-    0 0 32px rgba(211, 226, 242, 0.08);
+  --lyric-fill-hi: var(--lyric-plain-active-color, #f5f6f7);
+  text-shadow: var(--lyric-plain-active-glow, 0 0 12px rgba(232, 240, 248, 0.12),
+    0 0 32px rgba(211, 226, 242, 0.08));
 }
 
 .alignLeft .charFill {

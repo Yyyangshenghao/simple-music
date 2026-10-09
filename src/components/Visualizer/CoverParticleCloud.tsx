@@ -208,7 +208,7 @@ const particleVertexShader = /* glsl */ `
 
 const particleFragmentShader = /* glsl */ `
   uniform sampler2D uDotTex;
-  uniform float uBloomStrength;
+  uniform float uBloomStrength, uThemeOpacity;
 
   varying vec3 vColor;
   varying float vBright, vRipple, vEdgeBoost, vSourceLum;
@@ -235,7 +235,7 @@ const particleFragmentShader = /* glsl */ `
     // 自发光在片元内完成(原版为省 GPU 移除了独立辉光 pass)
     float bloomContrib = vBright * vBright * uBloomStrength * 0.04;
     col += col * bloomContrib;
-    gl_FragColor = vec4(col, tex.a);
+    gl_FragColor = vec4(col, tex.a * uThemeOpacity);
   }
 `
 
@@ -282,9 +282,10 @@ interface RippleState {
 
 interface CoverParticleCloudProps {
   coverUrl?: string
+  lightBackground?: boolean
 }
 
-export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
+export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverParticleCloudProps) {
   const performanceMode = useVisualStore((s) => s.performanceMode)
   // 粒子数量倍率作用于总粒子数(gridSize²),故对 gridSize 开平方;变化时重建 geometry
   const countScale = useSettingsStore((s) => s.lyrics3d.particleCount)
@@ -384,6 +385,7 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
       uBgFade: { value: 0.2 },
       uUserBright: { value: 1 },
       uBloomStrength: { value: 0.62 },
+      uThemeOpacity: { value: 1 },
       uHasCover: { value: 0 },
       uHasDepth: { value: 0 },
       uEdgeEnabled: { value: 1 },
@@ -400,6 +402,11 @@ export function CoverParticleCloud({ coverUrl }: CoverParticleCloudProps) {
     }),
     [textures]
   )
+
+  useEffect(() => {
+    // 浅色舞台透出更多底色，封面保持原色，避免深色像素吞掉深色歌词。
+    uniforms.uThemeOpacity.value = lightBackground ? 0.88 : 1
+  }, [lightBackground, uniforms])
 
   // gl_PointSize 以物理像素计
   const dpr = useThree((s) => s.viewport.dpr)

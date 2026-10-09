@@ -5,13 +5,13 @@ import * as THREE from 'three'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
-import { api } from '../../lib/api'
+import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
 import { StageGlassBackdrop } from './stage-glass-backdrop'
 import { frameBlend } from '../../lib/frame-blend'
 import { bandEnergiesFrom } from '../../lib/audio-energy'
 import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
 import { getDotSpriteTexture } from '../../lib/dot-texture'
-import { lyricPaletteFromCoverPixels, silverBlueLyricPalette, type LyricPalette } from '../../lib/lyric-palette'
+import { lightLyricPalette, silverBlueLyricPalette, type LyricPalette } from '../../lib/lyric-palette'
 import {
   makeLyricMask,
   makeReadabilityTexture,
@@ -20,7 +20,6 @@ import {
   invalidateLyricFontCache
 } from './stage-lyric-textures'
 import type { Lyrics3dDisplayMode, Lyrics3dStyle, WordLyricLine } from '../../types/domain'
-import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
 import { createLyricStarRiver } from './stage-lyric-river'
 import { LYRIC_STYLE_LOOKS, lyricStyleFrame } from './stage-lyric-motion'
 import { advanceLyricScroll } from './stage-lyric-scroll'
@@ -88,6 +87,7 @@ function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPale
       uSweep: { value: -1 },
       uSheen: { value: 0 },
       uGlass: { value: 0 },
+      uLightTheme: { value: 0 },
       uBackdrop: { value: null },
       uResolution: { value: new THREE.Vector2(1, 1) },
       uBevel: { value: new THREE.Vector2(Math.max(1, mask.fontSize * 0.006) / mask.width, Math.max(1, mask.fontSize * 0.006) / mask.height) },
@@ -101,7 +101,7 @@ function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPale
       uniform float uWordCount, uElapsed;
       uniform float uProgress, uTextMin, uTextMax, uOpacity, uPlaybackLight, uFeather, uSolar;
       uniform float uTime, uSweep, uSheen, uPrism, uGlitch;
-      uniform float uGlass, uTextHeight, uWrapped;
+      uniform float uGlass, uTextHeight, uWrapped, uLightTheme;
       uniform vec2 uBevel, uResolution, uRow1, uRow2;
       uniform sampler2D uBackdrop;
       uniform vec3 uBaseColor, uHiColor, uGlowColor, uSolarColor;
@@ -178,20 +178,35 @@ function makeTextMaterial(mask: ReturnType<typeof makeLyricMask>, pal: LyricPale
           vec3 glass = mix(pearl, backdrop.rgb, backdrop.a * (0.56-filled*0.08));
           glass += mix(pearl,uGlowColor,0.25) * (lightEdge*0.48+reflection*0.11);
           float alpha = (0.38+filled*0.17+rim*0.14) * centerMask*uOpacity;
+          if (uLightTheme > 0.5) {
+            glass = mix(palette, backdrop.rgb, backdrop.a * 0.14) + palette * (lightEdge * 0.12 + reflection * 0.06);
+            alpha = (0.62+filled*0.17+rim*0.10) * centerMask*uOpacity;
+          }
           gl_FragColor = vec4(glass * mix(0.62,1.0,uPlaybackLight), alpha);
+          if (uLightTheme > 0.5) gl_FragColor = linearToOutputTexel(gl_FragColor);
           return;
         }
         vec3 color = mix(uBaseColor, uHiColor, filled * 0.88);
         color += uGlowColor * edge * 0.14;
         color = mix(color, color + uSolarColor * 0.34, uSolar * (0.25 + filled * 0.45));
         color += uSolarColor * edge * uSolar * 0.22;
-        float sweep = 1.0 - smoothstep(0.0, 0.075, abs(p + (uv.y - 0.5) * 0.16 - uSweep));
-        color += uHiColor * sweep * uSheen;
+        float sweepWidth = uLightTheme > 0.5 ? 0.11 : 0.075;
+        float sweep = 1.0 - smoothstep(0.0, sweepWidth, abs(p + (uv.y - 0.5) * 0.16 - uSweep));
+        if (uLightTheme > 0.5) {
+          // 浅底的深彩色字面需要独立亮带，不能再用深色高亮色叠加微弱亮度。
+          vec3 sheenColor = uHiColor / max(0.001, max(uHiColor.r, max(uHiColor.g, uHiColor.b))) * 0.8 + vec3(0.12);
+          color = mix(color, sheenColor, clamp(sweep * uSheen, 0.0, 1.0));
+        } else {
+          color += uHiColor * sweep * uSheen;
+        }
         color += vec3(leftMask - centerMask, 0.0, rightMask - centerMask) * 0.42;
         float lum = dot(color, vec3(0.299, 0.587, 0.114));
-        // 保留色相并抬高字面最低亮度，与下层中性暗影共同分离同色背景。
-        color = mix(color, vec3(1.0), clamp((0.58-lum)/max(0.001,1.0-lum),0.0,1.0));
+        // 深色舞台保留原有亮度补偿；浅色字面直接使用封面深彩色调色板。
+        if (uLightTheme < 0.5) {
+          color = mix(color, vec3(1.0), clamp((0.58-lum)/max(0.001,1.0-lum),0.0,1.0));
+        }
         gl_FragColor = vec4(color * mix(0.62,1.0,uPlaybackLight), mask * uOpacity);
+        if (uLightTheme > 0.5) gl_FragColor = linearToOutputTexel(gl_FragColor);
       }
     `,
     transparent: true,
@@ -630,18 +645,41 @@ function disposeContextMesh(mesh: ContextLyricMesh | null): void {
   for (const disposable of mesh.disposables) disposable.dispose()
 }
 
-function applyPaletteToMesh(mesh: ActiveLyricMesh | null, pal: LyricPalette): void {
+function syncTextToneMapping(material: THREE.MeshBasicMaterial, lightBackground: boolean): void {
+  if (material.toneMapped === !lightBackground) return
+  material.toneMapped = !lightBackground
+  material.needsUpdate = true
+}
+
+function applyPaletteToMesh(mesh: ActiveLyricMesh | null, pal: LyricPalette, lightBackground = false): void {
   if (!mesh) return
+  const textPalette = lightBackground ? lightLyricPalette(pal) : pal
+  const base = lyricColor(textPalette.primary, '#d6f8ff', lightBackground ? 0 : 0.38)
+  const hi = lyricColor(textPalette.highlight || textPalette.primary, '#fff0b8', lightBackground ? 0 : 0.48)
   const u = mesh.data.textMat.uniforms
-  mesh.data.accentMat.uniforms.uColor.value.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
-  u.uBaseColor.value.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
-  u.uHiColor.value.copy(lyricColor(pal.highlight || pal.primary, '#fff0b8', 0.48))
-  u.uGlowColor.value.copy(lyricColor(pal.glowColor || pal.secondary, '#9cffdf', 0.36))
-  u.uSolarColor.value.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5))
+  u.uLightTheme.value = lightBackground ? 1 : 0
+  mesh.data.accentMat.uniforms.uColor.value.copy(lightBackground ? base.clone().convertLinearToSRGB() : base)
+  u.uBaseColor.value.copy(base)
+  u.uHiColor.value.copy(hi)
+  u.uGlowColor.value.copy(lyricColor(lightBackground ? textPalette.secondary : pal.glowColor || pal.secondary, '#9cffdf', lightBackground ? 0 : 0.36))
+  u.uSolarColor.value.copy(lightBackground ? hi : lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5))
   mesh.data.glowMat.color.copy(lyricColor(pal.glowColor || pal.secondary, '#9cffdf', 0.36))
   mesh.data.sparkMat.uniforms.uColor.value.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.46))
   mesh.data.sunMat.color.copy(lyricColor(pal.highlight || pal.secondary || pal.primary, '#fff0b8', 0.5))
-  if (mesh.data.transMat) mesh.data.transMat.color.copy(lyricColor(pal.highlight || pal.primary, '#d6f8ff', 0.44))
+  if (mesh.data.transMat) {
+    mesh.data.transMat.color.copy(lightBackground ? base : lyricColor(pal.highlight || pal.primary, '#d6f8ff', 0.44))
+    syncTextToneMapping(mesh.data.transMat, lightBackground)
+  }
+}
+
+function applyPaletteToContext(mesh: ContextLyricMesh, pal: LyricPalette, lightBackground: boolean): void {
+  const textPalette = lightBackground ? lightLyricPalette(pal) : pal
+  mesh.baseColor.copy(lyricColor(textPalette.primary, '#d6f8ff', lightBackground ? 0 : 0.38))
+  mesh.material.color.copy(mesh.baseColor)
+  syncTextToneMapping(mesh.material, lightBackground)
+  mesh.glowMaterial.color.copy(lyricColor(pal.highlight || pal.secondary, '#d6f8ff', 0.44))
+  mesh.transMaterial?.color.copy(lyricColor(lightBackground ? textPalette.primary : pal.highlight || pal.primary, '#d6f8ff', lightBackground ? 0 : 0.44))
+  if (mesh.transMaterial) syncTextToneMapping(mesh.transMaterial, lightBackground)
 }
 
 function disposeMesh(mesh: ActiveLyricMesh | null): void {
@@ -650,7 +688,9 @@ function disposeMesh(mesh: ActiveLyricMesh | null): void {
   for (const d of mesh.data.disposables) d.dispose()
 }
 
-export function StageLyrics3D() {
+export function StageLyrics3D({ lightBackground = false }: { lightBackground?: boolean }) {
+  const lightBackgroundRef = useRef(lightBackground)
+  lightBackgroundRef.current = lightBackground
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<THREE.Group>(null)
   const glassBackdropRef = useRef<StageGlassBackdrop | null>(null)
@@ -710,6 +750,7 @@ export function StageLyrics3D() {
   const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
   const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
   const coverUrl = usePlayerStore((s) => s.currentTrack?.cover)
+  const coverPalette = useCoverLyricPalette(coverUrl)
 
   // 切换样式立即重播入场，让当前歌词即可展示差异，不必等下一句。
   useEffect(() => {
@@ -721,45 +762,15 @@ export function StageLyrics3D() {
     }
   }, [selectedStyle])
 
-  // 封面调色板:64×64 采样推导,应用到在场的所有歌词面板
+  // 与聚焦歌词使用同一封面调色板，异步切歌由 hook 丢弃过期结果。
   useEffect(() => {
-    if (!coverUrl) {
-      palRef.current = silverBlueLyricPalette()
-      return
-    }
-    let cancelled = false
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      if (cancelled) return
-      try {
-        const cv = document.createElement('canvas')
-        cv.width = cv.height = 64
-        const ctx = cv.getContext('2d', { willReadFrequently: true })
-        if (!ctx) return
-        ctx.drawImage(img, 0, 0, 64, 64)
-        const pal = lyricPaletteFromCoverPixels(ctx.getImageData(0, 0, 64, 64).data, 64, 64)
-        palRef.current = pal
-        sunColorRef.current.copy(lyricColor(pal.glowColor || pal.secondary || pal.primary, '#ffe6a4', 0.44))
-        sunHotColorRef.current.copy(lyricColor(pal.highlight || pal.primary, '#fff4cc', 0.54))
-        applyPaletteToMesh(currentRef.current, pal)
-        for (const m of outgoingRef.current) applyPaletteToMesh(m, pal)
-        for (const context of contextRef.current.values()) {
-          context.baseColor.copy(lyricColor(pal.primary, '#d6f8ff', 0.38))
-          context.glowMaterial.color.copy(lyricColor(pal.highlight || pal.secondary, '#d6f8ff', 0.44))
-          context.transMaterial?.color.copy(lyricColor(pal.highlight || pal.primary, '#d6f8ff', 0.44))
-        }
-      } catch {
-        /* 跨域污染等:保留旧调色板 */
-      }
-    }
-    img.src = api.coverImage(sizedImage(coverUrl, CANVAS_COVER_PX))
-    return () => {
-      cancelled = true
-      img.onload = null
-      img.src = ''
-    }
-  }, [coverUrl])
+    palRef.current = coverPalette
+    sunColorRef.current.copy(lyricColor(coverPalette.glowColor || coverPalette.secondary || coverPalette.primary, '#ffe6a4', 0.44))
+    sunHotColorRef.current.copy(lyricColor(coverPalette.highlight || coverPalette.primary, '#fff4cc', 0.54))
+    applyPaletteToMesh(currentRef.current, coverPalette, lightBackgroundRef.current)
+    for (const mesh of outgoingRef.current) applyPaletteToMesh(mesh, coverPalette, lightBackgroundRef.current)
+    for (const mesh of contextRef.current.values()) applyPaletteToContext(mesh, coverPalette, lightBackgroundRef.current)
+  }, [coverPalette])
 
   // 字体设置变化时先清缓存；下方 mesh effect 同时依赖这些字段，当前行会立即重建。
   useEffect(() => {
@@ -830,6 +841,7 @@ export function StageLyrics3D() {
         entryDirection,
         lyricLineStep(useSettingsStore.getState().lyrics3d.contextSpread)
       )
+      applyPaletteToMesh(mesh, palRef.current, lightBackgroundRef.current)
       const start = replacementState ?? incomingState
       if (start) {
         mesh.group.position.copy(start.position)
@@ -837,7 +849,7 @@ export function StageLyrics3D() {
         mesh.entryOpacity = start.opacity
         mesh.entryScale = start.scale
         mesh.data.textMat.uniforms.uOpacity.value = start.opacity
-        mesh.data.readabilityMat.opacity = start.opacity * 0.72
+        mesh.data.readabilityMat.opacity = start.opacity * 0.72 * (lightBackgroundRef.current ? 0.12 : 1)
         if (mesh.data.transMat) mesh.data.transMat.opacity = start.opacity * 0.62
       }
       if (replacementState) mesh.age = motionProfile(useSettingsStore.getState().lyrics3dStyle, useSettingsStore.getState().lyrics3d.motionSoftness).enter
@@ -884,6 +896,7 @@ export function StageLyrics3D() {
       const delta = lineIndex - currentIndex
       const initialY = 0.18 - delta * step
       const mesh = buildContextLyricMesh(lineText, lineTrans, palRef.current, lineIndex, initialY)
+      applyPaletteToContext(mesh, palRef.current, lightBackgroundRef.current)
       contextRef.current.set(lineIndex, mesh)
       root.add(mesh.group)
     }
@@ -900,6 +913,14 @@ export function StageLyrics3D() {
     lyrics3dFontFamily,
     lyrics3dFontFamilyCjk
   ])
+
+  // 切换主题只更新已有材质，保留歌词轨道、扫光时间和纹理。
+  useEffect(() => {
+    const pal = palRef.current
+    applyPaletteToMesh(currentRef.current, pal, lightBackground)
+    for (const mesh of outgoingRef.current) applyPaletteToMesh(mesh, pal, lightBackground)
+    for (const mesh of contextRef.current.values()) applyPaletteToContext(mesh, pal, lightBackground)
+  }, [lightBackground])
 
   // 卸载清场
   useEffect(
@@ -974,7 +995,7 @@ export function StageLyrics3D() {
 
     // 辉光驱动:glowStrength 滑块(默认 1)→ 原版 lyricGlowStrength 默认 0.5
     const lyricGlowStrength = Math.min(0.85, Math.max(0, 0.5 * params.glowStrength))
-    const glowDrive = Math.min(1.7, lyricGlowStrength / 0.5)
+    const glowDrive = Math.min(1.7, lyricGlowStrength / 0.5) * (lightBackground ? 0.35 : 1)
     const glowBreath = lyricGlowStrength > 0 ? 0.5 + 0.5 * Math.sin(t * 1.05) : 0
     const musicBloom = Math.max(energySmoothRef.current, beatPulse * 0.1)
     const beatGlowRaw = lyricGlowStrength > 0 ? beatPulse * 1.22 : 0
@@ -1045,7 +1066,8 @@ export function StageLyrics3D() {
       const styleFrame = lyricStyleFrame(style, cur.age, profile.enter, t, beatPulse, motion, playing)
       d.textMat.uniforms.uTime.value = t
       d.textMat.uniforms.uSweep.value = styleFrame.sweep
-      d.textMat.uniforms.uSheen.value = styleFrame.sheen * glowDrive
+      const sheenDrive = lightBackground && style === 'shine' ? Math.min(1.7, lyricGlowStrength / 0.5) : glowDrive
+      d.textMat.uniforms.uSheen.value = styleFrame.sheen * sheenDrive
       d.textMat.uniforms.uGlass.value = style === 'glass' ? 1 : 0
       d.textMat.uniforms.uPlaybackLight.value = playbackLightRef.current
       d.textMat.uniforms.uPrism.value = styleFrame.prism
@@ -1062,10 +1084,10 @@ export function StageLyrics3D() {
       )
       d.textMat.uniforms.uOpacity.value = opacity
       d.accentMat.uniforms.uOpacity.value = opacity
-      d.readabilityMat.opacity += (opacity * (style === 'glass' ? 0.42 : 0.9) - d.readabilityMat.opacity) * frameBlend(0.16, dt)
+      d.readabilityMat.opacity += (opacity * (style === 'glass' ? 0.42 : 0.9) * (lightBackground ? 0.12 : 1) - d.readabilityMat.opacity) * frameBlend(0.16, dt)
       const styledSolar = solar * look.glow
       d.textMat.uniforms.uSolar.value += (styledSolar - d.textMat.uniforms.uSolar.value) * frameBlend(0.12, dt)
-      if (d.transMat) d.transMat.opacity += (opacity * 0.72 - d.transMat.opacity) * frameBlend(0.16, dt)
+      if (d.transMat) d.transMat.opacity += (opacity * (lightBackground ? 0.9 : 0.72) - d.transMat.opacity) * frameBlend(0.16, dt)
 
       const warmth = Math.max(0, Math.min(1, solar * 1.1))
       const glowTarget = lyricGlowStrength > 0
@@ -1140,7 +1162,8 @@ export function StageLyrics3D() {
       const targetY = 0.18 + (trackIndex - mesh.lineIndex) * lineStep + drift
       const targetZ = 1.24 - distance * look.depth + (upcoming ? 0.04 : -0.08)
       const targetScale = Math.max(0.72, (upcoming ? 0.99 : 0.87) - distance * 0.055)
-      mesh.material.color.copy(mesh.baseColor).lerp(upcoming ? sunHotColorRef.current : PAST_LYRIC_TINT, upcoming ? 0.18 : 0.42)
+      mesh.material.color.copy(mesh.baseColor)
+      if (!lightBackground) mesh.material.color.lerp(upcoming ? sunHotColorRef.current : PAST_LYRIC_TINT, upcoming ? 0.18 : 0.42)
       const opacityEase = outgoing ? 1 : contextEase
       mesh.material.opacity += (targetOpacity - mesh.material.opacity) * opacityEase
       const glowTarget = upcoming && distance === 1 && lyricGlowStrength > 0
@@ -1172,7 +1195,7 @@ export function StageLyrics3D() {
       const d = m.data
       d.textMat.uniforms.uOpacity.value = opacity
       d.accentMat.uniforms.uOpacity.value = opacity * (1 - a)
-      d.readabilityMat.opacity = opacity * (1 - a) * (d.textMat.uniforms.uGlass.value > 0.5 ? 0.42 : 0.9)
+      d.readabilityMat.opacity = opacity * (1 - a) * (d.textMat.uniforms.uGlass.value > 0.5 ? 0.42 : 0.9) * (lightBackground ? 0.12 : 1)
       d.textMat.uniforms.uSolar.value *= 1 - frameBlend(0.14, dt)
       d.glowMat.opacity = lyricGlowStrength > 0 ? opacity * (1 - a) * 0.08 * lyricGlowStrength * look.glow : 0
       d.sparkMat.uniforms.uOpacity.value = sparksOn ? opacity * (1 - a) * 0.24 * lyricGlowStrength * look.particles : 0
