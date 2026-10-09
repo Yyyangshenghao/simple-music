@@ -1,0 +1,49 @@
+name: Release preflight 2.3.4
+on:
+  push:
+    branches:
+      - feature/release-validation-2-3-4
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify fixed release source (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_COMMIT: 1d1442c5160c2585b03b2cb46fd45af75b52f0d3
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1d1442c5160c2585b03b2cb46fd45af75b52f0d3
+      - name: Verify exact source and release metadata
+        run: |
+          git log -1 --format='%H %s'
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs'
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
+          if (pkg.version !== '2.3.4' || lock.version !== pkg.version || lock.packages[''].version !== pkg.version) throw new Error('Release version mismatch')
+          const lines = fs.readFileSync('docs/release-notes-2.3.4.md', 'utf8').split(/\r?\n/)
+          const updates = lines.findIndex(line => line.trim() === '## 更新日志')
+          const compat = lines.findIndex(line => line.trim() === '## 兼容说明')
+          const verification = lines.findIndex(line => line.trim() === '## 验证情况')
+          const summaries = lines.slice(updates + 1, compat).filter(line => line.trim())
+          if (lines.find(line => line.trim())?.trim() !== '## 更新日志' || updates < 0 || compat <= updates || verification <= compat || summaries.length !== 4 || summaries.some(line => !/^-\s+\S/.test(line.trim()) || line.length > 72) || !lines.slice(compat + 1, verification).some(line => line.trim()) || !lines.slice(verification + 1).some(line => line.trim())) throw new Error('Release notes invalid')
+          console.log('Release metadata valid: 2.3.4')
+          JS
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
