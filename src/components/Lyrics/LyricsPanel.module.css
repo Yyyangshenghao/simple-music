@@ -16,13 +16,18 @@
   -webkit-backdrop-filter: var(--glass-blur-modal);
   -webkit-app-region: no-drag;
   pointer-events: none;
+  /* 裁切外扩的封面/霞光，收起完成后隐藏整层，避免离屏模糊残留。 */
+  overflow: hidden;
+  visibility: hidden;
   transform: translateY(100%);
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), visibility 0s 0.42s;
 }
 
 .panel.open {
+  visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
+  transition-delay: 0s;
 }
 
 /* 有封面的纯歌词模式/3D 场景时,全屏 modal 级 backdrop-filter 的取样结果
