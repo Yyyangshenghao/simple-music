@@ -476,8 +476,7 @@ function miniPlayerDefaultBounds(): Electron.Rectangle {
 }
 
 /** 宽度可调、高度锁死；位置夹在所在显示器内。 */
-function constrainMiniPlayerBounds(bounds: Electron.Rectangle): Electron.Rectangle {
-  const area = screen.getDisplayMatching(bounds).workArea
+function constrainMiniPlayerBounds(bounds: Electron.Rectangle, area = screen.getDisplayMatching(bounds).workArea): Electron.Rectangle {
   const width = Math.round(clampNumber(bounds.width, MINI_PLAYER_MIN_WIDTH, MINI_PLAYER_MAX_WIDTH, MINI_PLAYER_MIN_WIDTH))
   const height = miniPlayerHeight()
   const maxX = area.x + Math.max(0, area.width - width)
@@ -490,9 +489,9 @@ function constrainMiniPlayerBounds(bounds: Electron.Rectangle): Electron.Rectang
   }
 }
 
-function setMiniPlayerBounds(bounds: Electron.Rectangle): void {
+function setMiniPlayerBounds(bounds: Electron.Rectangle, area?: Electron.Rectangle): void {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return
-  const next = constrainMiniPlayerBounds(bounds)
+  const next = constrainMiniPlayerBounds(bounds, area)
   miniPlayerProgrammaticMove = true
   // 非 resizable 窗口在 macOS 上会把 min/max 尺寸钉死在当前值,setBounds 改尺寸会被忽略,故临时放开
   const cur = miniPlayerWindow.getBounds()
@@ -655,13 +654,14 @@ export function updateMiniPlayer(payload: MiniPlayerPayload): OkResult {
 export function moveMiniPlayerBy(dx: number, dy: number): OkResult {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return { ok: false, error: 'NO_MINI_PLAYER_WINDOW' }
   const b = miniPlayerWindow.getBounds()
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
   setMiniPlayerBounds({
     ...b,
     x: b.x + Math.round(clampNumber(dx, -200, 200, 0)),
     y: b.y + Math.round(clampNumber(dy, -200, 200, 0)),
     width: miniPlayerWidth,
     height: miniPlayerHeight()
-  })
+  }, area)
   return { ok: true }
 }
 

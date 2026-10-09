@@ -8,7 +8,6 @@
 .eyebrow { margin: 0 0 12px; color: var(--sm-text-secondary); font-size: 12px; letter-spacing: 0.15em; }
 .header h1 { margin: 0; color: var(--sm-text-primary); font-size: clamp(26px, 3vw, 40px); font-weight: 750; overflow-wrap: anywhere; }
 .header h1 > span { display: inline-block; margin-left: 12px; color: var(--sm-text-secondary); font-size: 16px; font-weight: 400; }
-.summary { margin: 14px 0 0; color: var(--sm-text-secondary); font-size: 13px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 24px; border-bottom: 1px solid var(--sm-border); }
 .filters button, .empty button, .errors button {
   display: inline-flex;
@@ -30,10 +29,10 @@
 .sectionHeading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .sectionActions { display: flex; align-items: center; gap: 10px; }
 .sectionHeading h2 { margin: 0; color: var(--sm-text-primary); font-size: 19px; font-weight: 650; }
-.sectionHeading h2 span { margin-left: 8px; color: var(--sm-text-secondary); font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .sectionHeading > span, .sectionActions > span, .hint { color: var(--sm-text-secondary); font-size: 13px; }
 .hint { padding: 20px 0; }
 .artistGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; max-height: 280px; overflow-y: auto; padding: 4px; }
+.artistGridFit { max-height: none; overflow-y: visible; }
 .artist { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 14px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-card); background: var(--glass-bg-base); color: var(--sm-text-primary); text-align: left; cursor: pointer; transition: background 150ms; }
 .artist:hover { background: var(--sm-fill-hover); }
 .artist > img, .avatarFallback { flex-shrink: 0; width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }

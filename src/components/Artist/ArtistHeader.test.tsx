@@ -7,7 +7,10 @@ const artist: ArtistInfo = { id: 1, name: '歌手', avatar: '', source: 'netease
 describe('歌手简介展示', () => {
   it('有简介时可展开阅读，作为纯文本转义显示', () => {
     const html = renderToStaticMarkup(<ArtistHeader artist={{ ...artist, description: '<script>介绍</script>' }} onPlayAll={() => {}} />)
-    expect(html).toContain('<summary>歌手简介</summary>')
+    expect(html).toContain('<span>歌手简介</span>')
+    expect(html).toContain('>展开</span>')
+    expect(html).toContain('aria-label="完整歌手简介"')
+    expect(html).toContain('tabindex="0"')
     expect(html).toContain('&lt;script&gt;介绍&lt;/script&gt;')
     expect(html).not.toContain('<script>')
   })

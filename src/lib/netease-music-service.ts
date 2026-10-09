@@ -191,10 +191,9 @@ export class NeteaseMusicService implements MusicService {
   }
 
   async getPlaylistWithDescription(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null> {
+    let res: { playlist?: PlaylistMeta | null; trackIds?: unknown[]; tracks?: Track[] }
     try {
-      const res = await api.get<{ playlist?: PlaylistMeta | null; tracks?: Track[] }>('/api/playlist/tracks', { id: id as string | number })
-      if (!res.playlist || !res.playlist.id) return null
-      return { playlist: res.playlist, tracks: res.tracks ?? [] }
+      res = await api.get<typeof res>('/api/playlist/tracks', { id: id as string | number })
     } catch (err) {
       // 只有"歌单确实不存在"(server 判上游 404)才按未找到处理,让调用方清缓存/新建;
       // 超时/网络抖动等必须抛给上层 —— 误判成"被删"会往账号里再建一个同名孤儿歌单
@@ -202,6 +201,19 @@ export class NeteaseMusicService implements MusicService {
       if (msg === 'HTTP 404') return null
       throw err
     }
+    if (!res.playlist || !res.playlist.id) return null
+    const tracks = res.tracks ?? []
+    const trackIds = res.trackIds ?? tracks.map(track => track.id)
+    const byId = new Map(tracks.map(track => [String(track.id), track]))
+    const missing = trackIds.filter(trackId => !byId.has(String(trackId)))
+    for (const track of await this.getTracksByIds(missing)) byId.set(String(track.id), track)
+    // 漫游会按返回曲目清空旧歌单；详情不全时必须中止，不能静默留下尾段。
+    const complete = trackIds.map(trackId => {
+      const track = byId.get(String(trackId))
+      if (!track) throw new Error('歌单歌曲详情不完整，请稍后重试')
+      return track
+    })
+    return { playlist: res.playlist, tracks: complete }
   }
 
   async createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }> {

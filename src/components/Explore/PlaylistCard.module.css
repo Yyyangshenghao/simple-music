@@ -56,3 +56,6 @@
 .meta { margin: 0 2px; font-size: 11px; color: var(--sm-text-secondary); }
 
 .glowWrap { width: 100%; }
+
+/* 返回时封面会越过卡片边界，封面自身负责圆角裁切。 */
+.glowWrap :global(.border-glow-inner) { overflow: visible; }

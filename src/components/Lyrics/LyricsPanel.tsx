@@ -8,6 +8,9 @@ import { SourceName } from '../ui/SourceName'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
+import { useLightTheme } from '../../hooks/useLightTheme'
+import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
+import { lightLyricPalette } from '../../lib/lyric-palette'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -148,14 +151,17 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
   const mode = lyrics3dEnabled ? storedMode : 'lyrics'
+  const lightTheme = useLightTheme()
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  // 浅色封面判定:仅 cover-cloud 会把封面铺满背景,其他 3D 效果底色恒深,保持白字。
+  // 浅色主题使用深色叠层文字；深色主题下仍按封面粒子墙的亮度补偿。
   // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
   const coverLuma = useAmbientStore((s) => s.coverLuma)
-  const lightCover = lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65
+  const lightCover = lightTheme || (lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65)
+  const focusPalette = useCoverLyricPalette(open && mode === '3d' && lyrics3dStyle === 'focus' ? track?.cover : undefined)
+  const focusTextPalette = lightTheme ? lightLyricPalette(focusPalette) : undefined
 
   // 面板常驻挂载,关闭时仅 translateY(100%) 移出视口——若内容照常渲染,
   // 激活行 KtvLine 的 rAF 扫光、封面模糊层、数百行歌词节点会在后台空转。
@@ -191,28 +197,43 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     }
   }
 
+  const scrollToLine = (index: number, behavior: ScrollBehavior) => {
+    const container = scrollRef.current
+    if (!container) return
+    const el = container.querySelector<HTMLElement>(`[data-line='${index}']`)
+    if (!el && index >= 0) return
+    const top = el ? el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2 : 0
+    container.scrollTo({ top, behavior })
+  }
+
   // 面板收起/切模式时顺带收起下拉与浮层,避免下次打开残留展开态
   useEffect(() => {
     if (!open) setEffectMenuOpen(false)
     if (!open || mode !== 'lyrics') setSettingsPopOpen(false)
   }, [open, mode])
 
+  // 歌词就位、重新打开或切回普通模式时，按当前播放行恢复定位。
+  // 先解除浏览挂起；只有尚未进入第一句时才回到开头，避免覆盖当前行定位。
+  useEffect(() => {
+    userScrollUntilRef.current = 0
+    clearResumeTimer()
+    setBrowsing(false)
+    if (open && mode === 'lyrics' && contentMounted) {
+      scrollToLine(useLyricsStore.getState().currentIndex, 'instant')
+    }
+  }, [lines, mode, open, contentMounted])
+
   // 平滑滚动到当前行（仅纯歌词模式;用户正在浏览歌词时挂起,不抢滚动位置）
   useEffect(() => {
-    if (mode !== 'lyrics') return
-    const container = scrollRef.current
-    if (!container || currentIndex < 0 || !open) return
+    if (mode !== 'lyrics' || currentIndex < 0 || !open) return
     if (Date.now() < userScrollUntilRef.current) return
-    const el = container.querySelector<HTMLElement>(`[data-line='${currentIndex}']`)
-    if (!el) return
-    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
-    container.scrollTo({ top, behavior: 'smooth' })
+    scrollToLine(currentIndex, 'smooth')
   }, [currentIndex, open, mode])
 
   // 手动滚动检测:wheel/touchmove 只来自用户(程序 scrollTo 不触发),
   // 挂起自动居中,停止滚动 4s 后恢复并平滑回到当前行
   useEffect(() => {
-    if (mode !== 'lyrics') return
+    if (mode !== 'lyrics' || !open) return
     const container = scrollRef.current
     if (!container) return
     const onUserScroll = () => {
@@ -222,12 +243,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       resumeTimerRef.current = setTimeout(() => {
         userScrollUntilRef.current = 0
         setBrowsing(false)
-        const c = scrollRef.current
         const idx = useLyricsStore.getState().currentIndex
-        if (!c || idx < 0) return
-        const el = c.querySelector<HTMLElement>(`[data-line='${idx}']`)
-        if (!el) return
-        c.scrollTo({ top: el.offsetTop - c.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' })
+        if (idx >= 0) scrollToLine(idx, 'smooth')
       }, USER_SCROLL_RESUME_MS)
     }
     container.addEventListener('wheel', onUserScroll, { passive: true })
@@ -239,37 +256,19 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     }
     // lines.length 影响滚动容器是否渲染(空歌词是 .empty 占位),变化时需重新挂监听;
     // contentMounted 变化意味着容器刚重建,同样要重挂
-  }, [mode, lines.length, contentMounted])
-
-  // 切歌后新歌词就位时立即回到开头,不等第一句激活才跳(那之前 currentIndex 是 -1,上面的 effect 不动)
-  useEffect(() => {
-    if (mode !== 'lyrics') return
-    userScrollUntilRef.current = 0
-    clearResumeTimer()
-    setBrowsing(false)
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' })
-  }, [lines, mode])
-
-  // 面板打开时立即定位
-  useEffect(() => {
-    if (!open || mode !== 'lyrics') return
-    const container = scrollRef.current
-    if (!container || currentIndex < 0) return
-    const el = container.querySelector<HTMLElement>(`[data-line='${currentIndex}']`)
-    if (!el) return
-    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
-    container.scrollTo({ top, behavior: 'instant' })
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, open, lines.length, contentMounted])
 
   // 点击歌词行跳转:仅浏览态(滚动过)可点——没滚动过说明用户没有跳转意图。
   // 行时间是"歌词时间轴"上的值,换算回播放位置要减去用户偏移;
   // 加 10ms 保证落点在该行内而不是压在边界上。点击即表达了"回到跟唱位置",立即解除滚动挂起
-  const seekToLine = (lineTime: number) => {
+  const seekToLine = (lineTime: number, index: number) => {
     if (!browsing) return
     userScrollUntilRef.current = 0
     clearResumeTimer()
     setBrowsing(false)
     usePlayerStore.getState().seek(Math.max(0, lineTime - offsetSec + 0.01))
+    // 点击当前高亮行时行号可能不变，也需要主动恢复定位。
+    scrollToLine(index, 'smooth')
   }
 
   // 当前行的逐字数据
@@ -285,7 +284,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const backdropOccluded = contentMounted && ((mode === 'lyrics' && !!track?.cover) || mode === '3d')
 
   return (
-    <div className={`${styles.panel}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
+    <div className={`${styles.panel}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
@@ -405,7 +404,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                         key={`${line.time}-${i}`}
                         data-line={i}
                         className={styles.ktvLineWrap}
-                        onClick={() => seekToLine(line.time)}
+                        onClick={() => seekToLine(line.time, i)}
                       >
                         <KtvLine
                           words={wordLine.words}
@@ -422,7 +421,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   }
 
                   return (
-                    <div key={`${line.time}-${i}`} data-line={i} onClick={() => seekToLine(line.time)}>
+                    <div key={`${line.time}-${i}`} data-line={i} onClick={() => seekToLine(line.time, i)}>
                       <LyricLine
                         text={line.text}
                         translation={showTranslation ? translation[i]?.text || undefined : undefined}
@@ -562,7 +561,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
         >
           <Suspense fallback={null}>
-            <LyricsScene coverUrl={track?.cover} />
+            <LyricsScene coverUrl={track?.cover} lightBackground={lightTheme} />
           </Suspense>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
@@ -580,7 +579,19 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           {/* 聚焦叠层：居中大字 + 上下文预览 */}
           {lyrics3dStyle === 'focus' && (
-          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}>
+          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}
+            style={focusTextPalette ? {
+              '--lyric-fill-hi': focusTextPalette.highlight,
+              '--lyric-fill-lo': focusTextPalette.primary,
+              '--lyric-active-color': focusTextPalette.highlight,
+              '--lyric-active-fill': `linear-gradient(${focusTextPalette.primary}, ${focusTextPalette.highlight})`,
+              '--lyric-active-glow': 'none',
+              '--lyric-active-drop': 'none',
+              '--lyric-trans-active': focusTextPalette.primary,
+              '--lyric-trans': focusTextPalette.primary,
+              '--lyric-roma': focusTextPalette.primary,
+              '--overlay-context-color': focusTextPalette.primary
+            } as React.CSSProperties : undefined}>
             <div className={styles.overlayLineStack}>
               <motion.div key={`previous-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayPreviousLine}`}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={springGentle}>

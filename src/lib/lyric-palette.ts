@@ -43,7 +43,7 @@ function hslCss(h: number, s: number, l: number): string {
     if (t < 1 / 6) return p + (q - p) * 6 * t
     if (t < 1 / 2) return q
     if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-    return p + (q - p) * 6 * t
+    return p
   }
   let r: number, g: number, b: number
   if (s === 0) {
@@ -66,6 +66,35 @@ export function silverBlueLyricPalette(): LyricPalette {
     highlight: '#eef7ff',
     shadow: 'rgba(0,7,12,0.48)',
     glow: 'rgba(138,190,255,0.26)'
+  }
+}
+
+/** 浅色舞台保留封面色相与饱和度，用深彩色而非等比例压暗到近黑。 */
+export function lightLyricPalette(palette: LyricPalette): LyricPalette {
+  const shade = (css: string, lightness: number) => {
+    const rgb = css.startsWith('#')
+      ? [1, 3, 5].map(offset => parseInt(css.slice(offset, offset + 2), 16))
+      : css.match(/[\d.]+/g)!.slice(0, 3).map(Number)
+    const hsl = rgbToHsl01(rgb[0], rgb[1], rgb[2])
+    const saturation = clamp(hsl.s, 0.62, 0.86)
+    let color = hslCss(hsl.h, saturation, lightness)
+    // 黄/黄绿相同 HSL 亮度时更亮，单独限制相对亮度，避免小号译文失去对比。
+    while (lightness > 0.01) {
+      const linear = color.match(/\d+/g)!.map(value => {
+        const channel = Number(value) / 255
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      })
+      if (linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722 <= 0.12) break
+      lightness -= 0.01
+      color = hslCss(hsl.h, saturation, lightness)
+    }
+    return color
+  }
+  return {
+    ...palette,
+    primary: shade(palette.primary, 0.30),
+    secondary: shade(palette.secondary, 0.34),
+    highlight: shade(palette.highlight, 0.25)
   }
 }
 

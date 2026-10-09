@@ -731,4 +731,56 @@ describe('迷你播放器窗口尺寸', () => {
       trackTitle: '刷新测试', position: 31, returnShortcut: 'Command+Shift+P', appearance: DEFAULT_MINI_PLAYER_APPEARANCE
     }))
   })
+  it.each([
+    { fromX: 1420, cursorX: 1930, dx: 12, expectedX: 1920 },
+    { fromX: 1920, cursorX: 1910, dx: -12, expectedX: 1420 },
+    { fromX: 0, cursorX: -10, dx: -12, expectedX: -500 },
+    { fromX: -500, cursorX: 10, dx: 12, expectedX: 0 },
+    { fromX: 1420, cursorX: 1930, dx: 12, expectedX: 1920, popover: true }
+  ])('普通拖动跟随光标跨屏并支持负坐标（$fromX → $expectedX）', ({ fromX, cursorX, dx, expectedX, popover = false }) => {
+    const areas = [
+      { x: -1920, y: 0, width: 1920, height: 1080 },
+      { x: 0, y: 0, width: 1920, height: 1080 },
+      { x: 1920, y: 0, width: 1920, height: 1080 }
+    ]
+    harness.getDisplayMatching.mockImplementation(bounds => ({
+      workArea: areas.reduce((best, area) => {
+        const overlap = (rect: Electron.Rectangle) => Math.max(0, Math.min(rect.x + rect.width, bounds.x + bounds.width) - Math.max(rect.x, bounds.x))
+        return overlap(area) > overlap(best) ? area : best
+      })
+    }))
+    harness.getDisplayNearestPoint.mockImplementation(point => ({ workArea: areas[point.x < 0 ? 0 : point.x >= 1920 ? 2 : 1] }))
+    try {
+      setMiniPlayerEnabled(true, 500)
+      const win = harness.instances[0]
+      win.bounds = { x: fromX, y: 100, width: 500, height: 80 }
+      if (popover) setMiniPlayerPopover(true)
+      Object.assign(harness.cursor, { x: cursorX, y: 140 })
+
+      moveMiniPlayerBy(dx, 0)
+
+      expect(win.bounds).toEqual({ x: expectedX, y: popover ? 44 : 100, width: 500, height: popover ? 136 : 80 })
+      expect(harness.mainSend).not.toHaveBeenCalledWith('miniplayer:width-changed', expect.anything())
+    } finally {
+      harness.getDisplayMatching.mockImplementation(() => ({ workArea: areas[1] }))
+      harness.getDisplayNearestPoint.mockImplementation(() => ({ workArea: areas[1] }))
+      setMiniPlayerPopover(false)
+    }
+  })
+
+  it('缩放和展开弹层仍按窗口所在屏约束，不跟随另一屏的光标', () => {
+    setMiniPlayerEnabled(true, 500)
+    const win = harness.instances[0]
+    win.bounds = { x: 1000, y: 300, width: 500, height: 80 }
+    harness.getDisplayNearestPoint.mockImplementation(() => ({ workArea: { x: -1920, y: 0, width: 1920, height: 1080 } }))
+    try {
+      resizeMiniPlayerBy(12)
+      expect(win.bounds).toEqual({ x: 1000, y: 300, width: 512, height: 80 })
+      setMiniPlayerPopover(true)
+      expect(win.bounds).toEqual({ x: 1000, y: 244, width: 512, height: 136 })
+    } finally {
+      harness.getDisplayNearestPoint.mockImplementation(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+      setMiniPlayerPopover(false)
+    }
+  })
 })

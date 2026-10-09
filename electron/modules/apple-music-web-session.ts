@@ -65,6 +65,11 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   async open(): Promise<void> {
     this.finishRestore()
     this.interactive = true
+    if (this.window && !this.snapshot.loggedIn) {
+      this.backgrounded = false
+      this.authorizationShown = false
+      this.showAuthorization(this.window)
+    }
     return this.beginOpen()
   }
 
@@ -123,30 +128,17 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     if (this.useChromeForDrm) return this.openChromeWindow(cancellation, signal)
     const existing = this.window
     if (existing && !existing.isDestroyed()) {
-      if (!existing.webContents.getURL().startsWith(APPLE_MUSIC_URL)) {
-        await withTimeout(Promise.race([existing.loadURL(APPLE_MUSIC_URL), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
-      }
       if (!this.snapshot.loggedIn && this.interactive) {
         this.backgrounded = false
-        this.authorizationShown = true
-        existing.setSkipTaskbar(false); existing.show(); existing.focus()
+        this.showAuthorization(existing)
+      }
+      if (!existing.webContents.getURL().startsWith(APPLE_MUSIC_URL)) {
+        await withTimeout(Promise.race([existing.loadURL(APPLE_MUSIC_URL), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
       }
       return
     }
 
     const lifecycle = this.lifecycle
-    const components = (electron as ProtectedElectron).components
-    if (components) {
-      try {
-        await withTimeout(Promise.race([components.whenReady(), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 受保护媒体组件加载超时，请检查网络后重试')
-      } catch (error) {
-        if (error instanceof Error && error.message === '连接已取消') throw error
-        if (error instanceof Error && error.message.includes('超时')) throw error
-        throw new Error('Apple Music 受保护媒体组件加载失败，请检查网络后重试')
-      }
-    }
-    if (lifecycle !== this.lifecycle) throw new Error('连接已取消')
-
     const appleSession = session.fromPartition(PLAYBACK_PARTITION)
     appleSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => isAllowedApplePermission(permission, requestingOrigin))
     appleSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
@@ -189,8 +181,22 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       clearTimeout(this.timer)
       this.snapshot = { ...this.snapshot, connected: false, loggedIn: false }
       ++this.generation
+      this.openingCancel?.()
     })
+    if (this.interactive) this.showAuthorization(win)
     try {
+      const components = (electron as ProtectedElectron).components
+      if (components) {
+        try {
+          await withTimeout(Promise.race([components.whenReady(), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 受保护媒体组件加载超时，请检查网络后重试')
+        } catch (error) {
+          if (error instanceof Error && error.message === '连接已取消') throw error
+          if (error instanceof Error && error.message.includes('超时')) throw error
+          throw new Error('Apple Music 受保护媒体组件加载失败，请检查网络后重试')
+        }
+      }
+      if (lifecycle !== this.lifecycle || win.isDestroyed()) throw new Error('连接已取消')
+      this.pageReadyDeadline = Date.now() + OPEN_TIMEOUT_MS
       await withTimeout(Promise.race([win.loadURL(APPLE_MUSIC_URL), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
       if (lifecycle !== this.lifecycle) { win.destroy(); throw new Error('连接已取消') }
       await Promise.race([this.poll(win), cancellation])
@@ -198,6 +204,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       if (!win.isDestroyed()) win.destroy()
       if (error instanceof Error && error.message === '连接已取消') throw error
       if (error instanceof Error && error.message.includes('超时')) throw error
+      if (error instanceof Error && error.message.includes('受保护媒体组件')) throw error
       throw new Error('Apple Music 官网加载失败，请检查网络后重试')
     }
   }
@@ -258,7 +265,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     if (this.chrome?.isAlive()) return this.chrome.evaluate(script)
     const win = this.window
     if (!win || win.isDestroyed()) throw new Error('Apple Music 播放页面未连接')
-    return win.webContents.executeJavaScript(script, true)
+    return withTimeout(win.webContents.executeJavaScript(script, true), 15000, 'Apple Music 登录操作超时，请重新连接')
   }
 
   private async poll(win: BrowserWindow) {
@@ -389,7 +396,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     const queued = Symbol()
     if (replaceable) this.queuedControls.set(command.type, queued)
     if (command.type === 'load') this.snapshot = { ...this.snapshot, playbackId: command.playbackId, status: 'loading', position: command.startAt || 0, controlSequence: 0, error: undefined }
-    const invalidated = cancels ? this.evaluate({ type: 'invalidate', generation }) : command.type === 'pause' ? this.evaluate({ type: 'suspend', playbackId: command.playbackId }) : Promise.resolve()
+    const invalidated = cancels ? this.evaluate({ type: 'invalidate', generation }) : command.type === 'pause' ? this.evaluate({ type: 'suspend', playbackId: command.playbackId, controlSequence: command.controlSequence }) : Promise.resolve()
     void invalidated.catch(() => {})
     this.queue = this.queue.catch(() => {}).then(async () => {
       if (generation !== this.generation || backend !== (this.chrome ?? this.window)) return
@@ -428,6 +435,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   private invalidateWindow(win: BrowserWindow) {
     if (this.window !== win) return
     this.finishRestore()
+    this.openingCancel?.()
     this.window = undefined
     clearTimeout(this.timer)
     ++this.generation

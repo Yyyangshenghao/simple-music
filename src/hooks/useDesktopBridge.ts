@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useWindowStore } from '../stores/window'
 import { usePlayerStore } from '../stores/player'
-import { usePlaylistStore } from '../stores/playlist'
+import { stepPlayback } from '../lib/playback-controls'
 import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 
@@ -18,16 +18,15 @@ export function useDesktopBridge(): void {
 
     const offMiniPlayerControl = d.onMiniPlayerControl(({ action, value }) => {
       const player = usePlayerStore.getState()
-      const playlist = usePlaylistStore.getState()
       switch (action) {
         case 'play-pause':
           player.toggle()
           break
         case 'next':
-          playlist.next()
+          stepPlayback(1)
           break
         case 'prev':
-          playlist.prev()
+          stepPlayback(-1)
           break
         case 'seek':
           if (typeof value === 'number') player.seek(value)

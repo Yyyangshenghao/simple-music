@@ -1148,10 +1148,10 @@ export function serveFileWithRange(
     onDone?.()
   }
   stream.once('error', () => {
-    res.end()
-    finish()
+    res.destroy()
   })
   stream.once('close', finish)
-  res.once('close', finish)
-  stream.pipe(res)
+  res.once('close', () => stream.destroy())
+  if (res.destroyed) stream.destroy()
+  else stream.pipe(res)
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { usePlayerStore } from './player'
+import { restoreLocalTrackUrls } from '../lib/local-track-urls'
 import type { Track } from '../types/domain'
 
 /** 本地曲目级播放历史:不依赖登录、跨音源,localStorage 持久化,上限 200 条按 source+id 去重。 */
@@ -20,7 +21,8 @@ function loadFromLocal(): RecentPlay[] {
   if (typeof localStorage === 'undefined') return []
   try {
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as RecentPlay[]
-    return Array.isArray(data) ? data.filter((it) => it?.track) : []
+    return Array.isArray(data) ? data.filter((it) => it?.track)
+      .map((it) => ({ ...it, track: restoreLocalTrackUrls(it.track) })) : []
   } catch {
     return []
   }

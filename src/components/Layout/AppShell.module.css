@@ -1,12 +1,19 @@
 .shell {
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* 页面覆盖整窗，但非拖动矩形从顶栏下方开始，不让滚出视口的控件抵消拖窗区域。 */
+.contentRegion {
+  position: absolute;
+  inset: var(--sm-topbar-height) 0 0;
+  pointer-events: none;
   -webkit-app-region: no-drag;
 }
 
-/* 仅由 shell 排除内容区拖动；滚出视口的子元素仍会被 Electron 收集，不能再单独排除顶栏。 */
+/* 子控件由 contentRegion 统一排除拖动，不能在顶栏背后留下独立 no-drag 矩形。 */
 .shell :is(button, input, a, :global(.no-drag)) {
   -webkit-app-region: initial;
 }
@@ -43,4 +50,11 @@
   height: 100%;
   position: relative;
   z-index: 1;
+}
+
+.retainedPage {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
 }

@@ -1,8 +1,13 @@
 .root {
+  --sm-topbar-height: 52px;
+  --sm-player-clearance: 124px;
   display: flex;
   flex-direction: column;
   height: 100%;
   position: relative;
+  timeline-scope: --artist-page;
   overflow: hidden;
   background: var(--sm-bg-base);
 }
+
+.root[data-view='shuange'] { --sm-player-clearance: 0px; }

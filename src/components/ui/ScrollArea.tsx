@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { motion } from 'motion/react'
 import styles from './ScrollArea.module.css'
+import pageScroll from '../../styles/page-scroll.module.css'
 
 interface ScrollAreaProps {
   children: ReactNode
@@ -40,7 +41,7 @@ export function ScrollArea({ children, className, scrollRef, onScrolledChange }:
 
   return (
     <div className={styles.root}>
-      <motion.div layoutScroll ref={nodeRef} className={`${styles.viewport} ${className ?? ''}`}>
+      <motion.div layoutScroll ref={nodeRef} className={`${styles.viewport} ${pageScroll.viewport} ${className ?? ''}`}>
         {children}
       </motion.div>
     </div>

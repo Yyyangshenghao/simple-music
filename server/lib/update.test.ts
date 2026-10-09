@@ -2,9 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { Writable } from 'node:stream'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   pickReleaseAsset,
+  fetchLatestUpdateInfo,
   reorderCandidatesBySpeed,
   startUpdateDownloadJob,
   updateDownloadJobs,
@@ -80,6 +82,93 @@ describe('pickReleaseAsset（更新检测按平台选资源 —— 回归 mac �
     const assets = releaseAssets().filter((a) => a.name !== 'Simple Music-1.0.1-Setup.exe')
     const picked = withPlatform('win32', 'x64', () => pickReleaseAsset(assets))
     expect(picked?.name).toBe('Simple Music-1.0.1-portable.exe')
+  })
+})
+
+describe('更新备用清单按平台与架构选择安装包', () => {
+  const originalPlatform = process.platform
+  const originalArch = process.arch
+  const originalConfig = { ...UPDATE_CONFIG }
+  const macManifest = `version: 9.0.0
+files:
+  - url: Simple-Music-9.0.0-x64.dmg
+    sha512: x64-digest
+    size: 101
+  - url: Simple-Music-9.0.0-arm64.dmg
+    sha512: arm64-digest
+    size: 202
+path: Simple-Music-9.0.0-x64.dmg
+sha512: x64-digest
+releaseDate: '2026-10-08T00:00:00.000Z'
+`
+  function usePlatform(platform: NodeJS.Platform, arch: NodeJS.Architecture) {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+    Object.defineProperty(process, 'arch', { value: arch, configurable: true })
+  }
+  function mockFallback(manifest: string) {
+    const mock = vi.fn(async (url: string) => {
+      if (url.startsWith('https://api.github.com/')) return new Response('', { status: 403 })
+      return new Response(manifest)
+    })
+    vi.stubGlobal('fetch', mock)
+    return mock
+  }
+  beforeEach(() => {
+    Object.assign(UPDATE_CONFIG, { configured: true, provider: 'github', manifest: '', mirrors: [] })
+  })
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    Object.defineProperty(process, 'arch', { value: originalArch, configurable: true })
+    Object.assign(UPDATE_CONFIG, originalConfig)
+    vi.unstubAllGlobals()
+  })
+
+  it.each(['arm64', 'x64'] as const)('Mac %s 选自身 dmg 和其独立摘要/长度', async (arch) => {
+    usePlatform('darwin', arch)
+    const mock = mockFallback(macManifest)
+    const info = await fetchLatestUpdateInfo()
+    expect(mock.mock.calls[1][0]).toMatch(/\/latest-mac\.yml$/)
+    expect(info.release.asset).toMatchObject({
+      name: `Simple-Music-9.0.0-${arch}.dmg`, sha512: `${arch}-digest`, size: arch === 'arm64' ? 202 : 101,
+    })
+  })
+
+  it('Mac 缺少本机架构资源时不退回其他架构或 exe', async () => {
+    usePlatform('darwin', 'arm64')
+    mockFallback(macManifest.replace(/  - url: Simple-Music-9.0.0-arm64.dmg\n    sha512: arm64-digest\n    size: 202\n/, ''))
+    const info = await fetchLatestUpdateInfo()
+    expect(info.release.asset).toBeNull()
+    expect(info.release.downloadUrl).toBe('')
+    mockFallback('version: 9.0.0\npath: Simple-Music-9.0.0-Setup.exe\nsha512: windows-digest\n')
+    expect((await fetchLatestUpdateInfo()).release.asset).toBeNull()
+  })
+
+  it('Windows 继续读取 latest.yml 和 Setup.exe，优先使用顶层摘要', async () => {
+    usePlatform('win32', 'x64')
+    const mock = mockFallback(`version: 9.0.0
+files:
+  - url: other.exe
+    sha512: other-digest
+    size: 123
+path: Simple-Music-9.0.0-Setup.exe
+sha512: windows-digest
+size: 456
+`)
+    const info = await fetchLatestUpdateInfo()
+    expect(mock.mock.calls[1][0]).toMatch(/\/latest\.yml$/)
+    expect(info.release.asset).toMatchObject({ name: 'Simple-Music-9.0.0-Setup.exe', sha512: 'windows-digest', size: 456 })
+  })
+
+  it('Mac 镜像清单降级仍保留所选资源的镜像下载地址和摘要', async () => {
+    usePlatform('darwin', 'arm64')
+    UPDATE_CONFIG.mirrors = ['https://mirror.example/']
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.startsWith('https://mirror.example/')) return new Response(macManifest)
+      return new Response('', { status: 403 })
+    }))
+    const info = await fetchLatestUpdateInfo()
+    expect(info.release.asset?.downloadUrls.some((url) => url.startsWith('https://mirror.example/'))).toBe(true)
+    expect(info.release.asset?.sha512).toBe('arm64-digest')
   })
 })
 
@@ -308,6 +397,149 @@ describe('更新包流式校验与缓存复用', () => {
       })
     })
     expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
+  it.each(['打开', '写入'])('等待上游数据时文件%s失败，取消读取并结束任务', async (stage) => {
+    await fs.promises.unlink(filePath)
+    const error = Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    const cancel = vi.fn()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value
+        if (stage === '写入') value.enqueue(bytes.subarray(0, 1024))
+      },
+      cancel,
+    })
+    const writer = new Writable({
+      construct(callback) {
+        setImmediate(() => callback(stage === '打开' ? error : undefined))
+      },
+      write(_chunk, _encoding, callback) {
+        setImmediate(() => callback(error))
+      },
+    })
+    vi.spyOn(fs, 'createWriteStream').mockReturnValue(writer as fs.WriteStream)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body)))
+    try {
+      await startUpdateDownloadJob(updateInfo(), { userDataDir: dir, port: 35530 })
+      await vi.waitFor(() => {
+        expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({
+          status: 'error',
+          errorDetail: error.message,
+        })
+      })
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(writer.closed).toBe(true)
+      expect(fs.existsSync(filePath)).toBe(false)
+      expect(fs.existsSync(filePath + '.download')).toBe(false)
+    } finally {
+      try { controller.close() } catch { /* 已被失败流程取消。 */ }
+      writer.destroy()
+    }
+  })
+
+  it.each([false, true])('网络失败且文件尚未打开时等待关闭后清理，重试=%s', async (retry) => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    let releaseOpen!: () => void
+    let firstWriter!: fs.WriteStream
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    let signalOpened!: () => void
+    const opening = new Promise<void>(resolve => { signalOpened = resolve })
+    let closed!: Promise<void>
+    const write = vi.spyOn(fs, 'createWriteStream').mockImplementationOnce((file) => {
+      firstWriter = createWriter(file, { fs: {
+        open(filePath: fs.PathLike, flags: string, mode: number, callback: (error: NodeJS.ErrnoException | null, fd: number) => void) {
+          releaseOpen = () => fs.open(filePath, flags, mode, callback)
+          signalOpened()
+        },
+        write: fs.write,
+        close: fs.close,
+      } })
+      closed = new Promise<void>(resolve => firstWriter.once('close', resolve))
+      return firstWriter
+    }).mockImplementation((...args) => createWriter(...args))
+    const backup = vi.fn(async () => {
+      expect(firstWriter.closed).toBe(true)
+      return new Response(bytes, { headers: { 'content-length': String(bytes.length) } })
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: string, options?: RequestInit) => {
+      if (new Headers(options?.headers).has('range')) return new Response(null, { status: input.includes('backup') ? 404 : 200 })
+      if (input.includes('backup')) return backup()
+      return new Response(new ReadableStream<Uint8Array>({ start(value) { controller = value } }))
+    }))
+    const info = updateInfo()
+    if (retry) info.release.asset!.downloadUrls = ['https://backup.example.com/installer.exe']
+    await startUpdateDownloadJob(info, { userDataDir: dir, port: 35530 })
+    await opening
+    controller.error(new Error('network connection reset'))
+    try {
+      await new Promise<void>(resolve => setImmediate(resolve))
+      expect(firstWriter.closed).toBe(false)
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'downloading', attempt: 1 })
+      expect(backup).not.toHaveBeenCalled()
+    } finally {
+      releaseOpen()
+      await closed
+      await vi.waitFor(() => expect(['error', 'ready']).toContain(Array.from(updateDownloadJobs.values())[0].status))
+    }
+    expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: retry ? 'ready' : 'error', attempt: retry ? 2 : 1 })
+    expect(write).toHaveBeenCalledTimes(retry ? 2 : 1)
+    if (retry) expect(await fs.promises.readFile(filePath)).toEqual(bytes)
+    else expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
+  it('网络读取失败时关闭文件并清理未完成的安装包', async () => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    let writer!: fs.WriteStream
+    vi.spyOn(fs, 'createWriteStream').mockImplementation((...args) => {
+      writer = createWriter(...args)
+      return writer
+    })
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.subarray(0, 1024))
+        setImmediate(() => controller.error(new Error('network connection reset')))
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body)))
+    await startUpdateDownloadJob(updateInfo(), { userDataDir: dir, port: 35530 })
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'error' })
+    })
+    expect(writer.closed).toBe(true)
+    expect(fs.existsSync(filePath)).toBe(false)
+    expect(fs.existsSync(filePath + '.download')).toBe(false)
+  })
+
+  it('文件写入失败后沿用候选降级，成功线路仍校验完整安装包', async () => {
+    await fs.promises.unlink(filePath)
+    const createWriter = fs.createWriteStream.bind(fs)
+    const failedWriter = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(new Error('ENOSPC: temporary write failure'))
+      },
+    })
+    const write = vi.spyOn(fs, 'createWriteStream')
+      .mockImplementationOnce(() => failedWriter as fs.WriteStream)
+      .mockImplementation((...args) => createWriter(...args))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(bytes, {
+      headers: { 'content-length': String(bytes.length) },
+    })))
+    const info = updateInfo()
+    info.release.asset!.downloadUrls = ['https://backup.example.com/installer.exe']
+    await startUpdateDownloadJob(info, { userDataDir: dir, port: 35530 })
+    await vi.waitFor(() => {
+      expect(Array.from(updateDownloadJobs.values())[0]).toMatchObject({ status: 'ready', attempt: 2 })
+    })
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(failedWriter.closed).toBe(true)
+    expect(Array.from(updateDownloadJobs.values())[0].failedAttempts).toHaveLength(1)
+    expect(await fs.promises.readFile(filePath)).toEqual(bytes)
     expect(fs.existsSync(filePath + '.download')).toBe(false)
   })
 })

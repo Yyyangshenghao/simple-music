@@ -16,6 +16,7 @@ import {
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { serviceFor } from '../lib/service-registry'
 import { resolvePending } from '../lib/queue-details'
+import { beginPlaybackIntent } from '../lib/playback-intent'
 import { useSettingsStore } from './settings'
 import { useToastStore } from './toast'
 import { isProviderParticipating, useProviderStore } from './providers'
@@ -72,7 +73,7 @@ interface PlayerStore {
   contextId: unknown
   /** 播放速度(保留音高),不持久化,重启回 1。 */
   rate: number
-  play(): void
+  play(opts?: { preservePlaybackIntent?: boolean }): void
   pause(): void
   stop(): void
   toggle(): void
@@ -80,7 +81,7 @@ interface PlayerStore {
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
   setRate(r: number): void
-  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean }): Promise<void>
+  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean }): Promise<void>
   /** 当前曲目仅本次重载时软优先指定平台，不改变全局播放顺序。 */
   preferSourceOnce(source: ProviderId): void
   _lyricPosition(): number
@@ -128,6 +129,8 @@ interface ActivePlayback {
   autoplay: boolean
   preferredSource?: ProviderId
   offlineFailed?: boolean
+  /** 自然结束已处理上报；切歌不重复上报，单曲重播时重置。 */
+  scrobbledOnEnd?: boolean
 }
 
 let activePlayback: ActivePlayback | null = null
@@ -143,6 +146,19 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   let applePlayback: AppleMusicPlayback | null = null
 
   function trackEnded(): void {
+    const state = get()
+    if (activePlayback && !activePlayback.scrobbledOnEnd) {
+      activePlayback.scrobbledOnEnd = true
+      if (state.playbackTransport === 'online') {
+        maybeScrobble(
+          state.resolvedTrack ?? state.currentTrack,
+          state.currentTrack?.source,
+          state.contextId,
+          state.position,
+          state.duration
+        )
+      }
+    }
     if (stopAfterCurrentCb) {
       set({ status: 'paused', position: 0 })
       const cb = stopAfterCurrentCb
@@ -418,6 +434,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
             startAt: latest.position,
             contextId: latest.contextId,
             autoplay: true,
+            preservePlaybackIntent: true,
           })
         }, 200)
       },
@@ -445,10 +462,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     contextId: null,
     rate: 1,
 
-    play() {
+    play(opts) {
+      if (!opts?.preservePlaybackIntent) beginPlaybackIntent()
       if (!get().currentTrack) { onPlayFromQueue?.(); return }
       if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
-      if (activePlayback) activePlayback.autoplay = true
+      if (activePlayback) {
+        activePlayback.autoplay = true
+        activePlayback.scrobbledOnEnd = false
+      }
       if (activePlayback && !activePlayback.engineLoadId && (!activePlayback.candidate || activePlayback.advancing)) {
         set({ status: 'loading' })
         return
@@ -457,18 +478,20 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
       const { currentTrack, position, contextId } = get()
       if (!eng.hasSource && currentTrack) {
-        void get().loadTrack(currentTrack, { startAt: position, contextId })
+        void get().loadTrack(currentTrack, { startAt: position, contextId, preservePlaybackIntent: opts?.preservePlaybackIntent })
         return
       }
       void eng.play()
     },
     pause() {
+      beginPlaybackIntent()
       if (activePlayback) activePlayback.autoplay = false
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
       ensureEngine().pause()
       set({ status: 'paused' })
     },
     stop() {
+      beginPlaybackIntent()
       ++loadSession
       activePlayback?.resolver?.abort()
       activePlayback = null
@@ -523,6 +546,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     async loadTrack(track, opts) {
+      if (!opts?.preservePlaybackIntent) beginPlaybackIntent()
+      const scrobbledOnEnd = activePlayback?.scrobbledOnEnd
       if (track.source !== 'apple') appleAudioSpectrum.stop()
       applePlayback?.stop()
       applePlayback = null
@@ -541,7 +566,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         prev.currentTrack &&
         `${prev.currentTrack.source}:${String(prev.currentTrack.id)}` !== `${track.source}:${String(track.id)}`
       ) {
-        if (prev.playbackTransport === 'online') {
+        if (prev.playbackTransport === 'online' && !scrobbledOnEnd) {
           maybeScrobble(
             prev.resolvedTrack ?? prev.currentTrack,
             prev.currentTrack.source,
@@ -689,7 +714,7 @@ useSettingsStore.subscribe((s) => {
     usePlayerStore.setState({ quality: s.audioQuality })
     const st = usePlayerStore.getState()
     if (st.currentTrack && st.currentTrack.source !== 'apple' && !st.currentTrack.url && (st.status === 'playing' || st.status === 'loading')) {
-      void st.loadTrack(st.currentTrack, { startAt: st.position, contextId: st.contextId })
+      void st.loadTrack(st.currentTrack, { startAt: st.position, contextId: st.contextId, preservePlaybackIntent: true })
     }
   }
 })
@@ -706,5 +731,6 @@ useProviderStore.subscribe(() => {
     startAt: state.position,
     contextId: state.contextId,
     autoplay: shouldAutoplayPlaybackReload(state.status),
+    preservePlaybackIntent: true,
   })
 })

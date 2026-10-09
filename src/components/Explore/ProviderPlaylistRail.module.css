@@ -17,8 +17,9 @@
   gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  margin-top: -11px;
-  padding: 12px 1px 8px;
+  /* 横向滚动也会裁切纵向溢出，为卡片阴影和悬停上浮预留空间。 */
+  margin: -23px -20px -24px;
+  padding: 24px 21px 48px;
 }
 
 .card { width: 148px; }

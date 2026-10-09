@@ -21,9 +21,18 @@
   transform: scale(1.06);
 }
 
+.artist .layer {
+  filter: var(--detail-cover-filter) blur(16px) saturate(0.8);
+  opacity: 0.55;
+}
+
 /* 根据主题压住封面明暗，保持文字对比度和背景层次一致。 */
 .scrim {
   position: absolute;
   inset: 0;
   background: var(--detail-cover-scrim);
+}
+
+.artist .scrim {
+  opacity: var(--artist-cover-scrim-opacity);
 }

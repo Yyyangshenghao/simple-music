@@ -41,7 +41,7 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
     <section className={styles.rail} aria-label={`${source}账号歌单`}>
       <div className={styles.header}>
         <h3>你的歌单</h3>
-        <span>{loaded ? `${playlists.length} 个快捷入口` : '加载中…'}</span>
+        {!loaded && <span>加载中…</span>}
       </div>
       {failed ? (
         <div className={styles.error}>

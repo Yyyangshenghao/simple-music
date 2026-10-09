@@ -101,7 +101,7 @@ export function registerMiscIpc(): void {
   ipcMain.handle('app:restart', async (): Promise<OkResult> => {
     try {
       app.relaunch()
-      app.exit(0)
+      app.quit()
       return { ok: true }
     } catch (e) {
       return { ok: false, error: (e as Error).message || 'RESTART_FAILED' }
@@ -118,13 +118,13 @@ export function registerMiscIpc(): void {
       if (process.platform === 'win32') {
         const result = await installUpdateWindows(target)
         if (!result.ok) return result
-        app.exit(0)
+        app.quit()
         return { ok: true }
       }
       if (process.platform === 'darwin') {
         const result = await installUpdateMac(target)
         if (!result.ok) return result
-        app.exit(0)
+        app.quit()
         return { ok: true }
       }
       // 其它平台没有对应的打包产物，保留旧行为兜底

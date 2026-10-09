@@ -169,13 +169,13 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <WindowChrome>
-        <div className={styles.root}>
+        <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
           <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />
           <GlobalContentProviderDock />
-          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} hidden={controlsHidden} />}
+          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <ClickSpark />
           <Toast />

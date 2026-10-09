@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useScrollGradient } from '../hooks/useScrollGradient'
 import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
@@ -11,6 +10,7 @@ import { pageTransition } from '../lib/motion-presets'
 import { providerAccountSession } from '../lib/provider-account-session'
 import type { Playlist } from '../types/domain'
 import styles from './ExplorePage.module.css'
+import pageScroll from '../styles/page-scroll.module.css'
 
 const scrollPositions = new Map<string, { session: number; top: number }>()
 
@@ -30,12 +30,6 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   const pageRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const restoringScrollRef = useRef(false)
-  const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
-
-  useEffect(() => {
-    setTopOpacity(0)
-    setBottomOpacity(0)
-  }, [detail, setTopOpacity, setBottomOpacity])
 
   const previousSource = previousSourceRef.current
   const previousIndex = previousSource ? enabledSources.indexOf(previousSource) : 0
@@ -100,11 +94,9 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   }
 
   return (
-    <div ref={pageRef} className={styles.page} onScroll={(event) => {
-      handleScroll(event)
+    <motion.div layoutScroll ref={pageRef} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
       if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, { session: providerAccountSession(activeHomeSource), top: event.currentTarget.scrollTop })
     }}>
-      <div className="topGradient" style={{ opacity: topOpacity }} />
 
       <motion.header
         className={styles.intro}
@@ -139,8 +131,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
       )}
 
       <div className={styles.bottomSpace} />
-      <div className="bottomGradient" style={{ opacity: bottomOpacity }} />
       <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
-    </div>
+    </motion.div>
   )
 }

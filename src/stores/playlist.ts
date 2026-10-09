@@ -8,6 +8,7 @@ import { preloadTracks } from '../lib/track-preload'
 import { fetchQueueDetails, resolvePending } from '../lib/queue-details'
 import { isValidPermutation, queueDisplayOrder } from '../lib/queue-display'
 import { isProviderId } from '../providers/types'
+import { beginPlaybackIntent } from '../lib/playback-intent'
 import type { ProviderId } from '../providers/types'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
 
@@ -52,7 +53,7 @@ interface PlaylistStore {
   removeQueueItem(index: number): void
   /** 补全可见范围的占位曲目，不改变播放位置。 */
   ensureQueueDetails(indices: number[]): Promise<void>
-  playAt(index: number): void
+  playAt(index: number, opts?: { preservePlaybackIntent?: boolean }): void
   next(): void
   prev(): void
   /** 自然播完的走序:单曲循环原地重播,其余同 next()。 */
@@ -151,6 +152,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   setQueue(tracks, startIndex = 0, contextId = null) {
+    beginPlaybackIntent()
     set({ queue: tracks, queueIndex: -1, queueContextId: contextId, shuffleOrder: shuffledIndices(tracks.length) })
     if (tracks.length) get().playAt(startIndex)
   },
@@ -259,7 +261,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     })
   },
 
-  playAt(index) {
+  playAt(index, opts) {
     const track = get().queue[index]
     if (!track) return
     // 网易/QQ 交给播放器先查离线文件；Apple 仍要求可用的官网会话。
@@ -268,7 +270,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     set({ queueIndex: index })
     schedulePreloadNeighbors()
     const contextId = get().queueContextId
-    void usePlayerStore.getState().loadTrack(track, { contextId })
+    void usePlayerStore.getState().loadTrack(track, { contextId, ...opts })
     if (!track.pending) return
     void resolvePending(track).then((resolved) => {
       const { queue, queueIndex } = get()
@@ -293,10 +295,10 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
       const player = usePlayerStore.getState()
       if (!player.currentTrack) return
       player.seek(0)
-      player.play()
+      player.play({ preservePlaybackIntent: true })
       return
     }
-    get().next()
+    get().playAt(stepIndex(get(), set, +1), { preservePlaybackIntent: true })
   },
 
   toggleShelf() {

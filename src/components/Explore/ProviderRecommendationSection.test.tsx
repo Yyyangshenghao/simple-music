@@ -52,4 +52,30 @@ describe('探索页返回首帧', () => {
     expect(html).not.toContain('正在连接平台')
   })
 
+  it.each([3136952023, '3136952023'])('网易云发现歌单排除私人雷达（id=%s），保留独立入口及普通同名歌单', async (id) => {
+    for (const surface of providerFor('netease').recommendations!.listSurfaces()) {
+      const page = { content: surface.kind === 'playlist-feed'
+        ? { type: 'playlists', playlists: [
+          { id, source: 'netease', name: '私人雷达重复卡片' },
+          { id: 'ordinary', source: 'netease', name: '私人雷达同名普通歌单' },
+        ] }
+        : surface.kind === 'radar'
+          ? { type: 'radar', radar: { playlist: { id, source: 'netease', name: '私人雷达' }, tracks: [{ id: 't', cover: '' }] } }
+          : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
+      await requestProviderData('netease', `recommendation:${surface.id}:root`, () => Promise.resolve(page))
+    }
+    const html = renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)
+    expect(html).not.toContain('私人雷达重复卡片')
+    expect(html).toContain('私人雷达同名普通歌单')
+    expect(html).toContain('根据你的口味')
+  })
+
+  it('其他平台的同 ID 歌单仍保留在发现歌单中', async () => {
+    await requestProviderData('qq', 'recommendation:qq:playlist-feed:root', () => Promise.resolve({
+      content: { type: 'playlists', playlists: [{ id: '3136952023', source: 'qq', name: 'QQ 推荐歌单' }] },
+    } as unknown as RecommendationPage))
+    const html = renderToStaticMarkup(<ProviderRecommendationSection source="qq" onPreview={() => {}} />)
+    expect(html).toContain('QQ 推荐歌单')
+  })
+
 })

@@ -24,7 +24,10 @@ vi.mock('../../lib/provider-account-session', () => ({ providerAccountSession: (
 vi.mock('../../providers/registry', () => ({ providerFor: () => ({ catalog: { getPlaylistSkeleton: h.skeleton } }) }))
 vi.mock('../../stores/providers', () => ({
   isProviderParticipating: () => true,
-  useProviderStore: (selector: (state: unknown) => unknown) => selector({ byId: { netease: { enabled: true, auth: 'authenticated' } } }),
+  useProviderStore: (selector: (state: unknown) => unknown) => selector({ byId: {
+    netease: { enabled: true, auth: 'authenticated' },
+    qq: { enabled: true, auth: 'authenticated' },
+  } }),
 }))
 vi.mock('../../components/ui/VirtualList', () => ({ VirtualList: () => null }))
 
@@ -64,5 +67,12 @@ describe('歌单详情整列表批量操作', () => {
     renderToStaticMarkup(<PlaylistDetailView playlist={playlist} initialTracks={tracks} layoutIdPrefix="explore-cover" />)
     expect(h.batch?.tracks).toEqual([])
     expect(h.batch?.collections ?? []).toEqual([])
+  })
+
+  it.each(['', 'https://example.com/playlist.jpg'])('QQ 我喜欢详情封面叠加红心，包括曲目封面补位（cover=%s）', cover => {
+    h.preview = [{ ...tracks[0], source: 'qq', provider: 'qq', cover: 'https://example.com/first-album.jpg' }]
+    const html = renderToStaticMarkup(<PlaylistDetailView playlist={{ ...playlist, source: 'qq', provider: 'qq', id: 'qq-liked:201', cover }} layoutIdPrefix="library-cover-qq" />)
+    expect(html).toContain(`src="${cover || h.preview[0].cover}"`)
+    expect(html).toContain('data-kind="liked-cover-overlay"')
   })
 })

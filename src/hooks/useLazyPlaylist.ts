@@ -1,5 +1,5 @@
 // 歌单懒加载:全骨架(trackIds 全量)+ 按 100 首窗口补详情。
-// 模块级缓存按 `${source}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
+// 模块级缓存按 `${source}:${type}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
 // 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源丢弃在途响应。
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
@@ -25,6 +25,10 @@ interface LazyEntry {
 const cache = new Map<string, LazyEntry>()
 const skeletonVersions = new Map<string, number>()
 let nextSkeletonVersion = 0
+
+function playlistCacheKey(playlist: Playlist): string {
+  return `${playlist.source}:${playlist.type}:${String(playlist.id)}`
+}
 
 /** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。
  *  4 份已够覆盖「详情页↔预览弹窗↔顶栏前进后退」的往返;再多只是堆内存。 */
@@ -105,7 +109,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
   }
   // 同样必须绑定歌单自身的 source，不能用其他平台的 service。
   const service = serviceFor(playlist.source)
-  const key = `${playlist.source}:${String(playlist.id)}`
+  const key = playlistCacheKey(playlist)
   evictIfStale(key)
   let entry = cache.get(key)
   if (!entry) {
@@ -132,7 +136,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
 
 /** 追加歌曲后下次打开详情重新读取骨架。 */
 export function invalidatePlaylistCache(playlist: Playlist): void {
-  const key = `${playlist.source}:${String(playlist.id)}`
+  const key = playlistCacheKey(playlist)
   cache.delete(key)
   skeletonVersions.delete(key)
 }
@@ -146,7 +150,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     !isProviderId(playlist.source)
       || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated')
   )
-  const key = `${playlist.source}:${String(playlist.id)}`
+  const key = playlistCacheKey(playlist)
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
   const sessionRef = useRef(0)
@@ -155,13 +159,12 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   if (!cache.has(key)) {
     cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
   } else if (initialTracks?.length) {
-    // 每日推荐/雷达等 key 固定但内容会变(例如跨天刷新):对比首尾曲目 id 与长度判断是否过期,
-    // 过期则用新 initialTracks 重新播种。seededEntry 是纯内存同步操作,幂等,在渲染阶段调用是安全的。
+    // 每日推荐/雷达等 key 固定但内容会变:按不可变曲目对象及顺序比较,同时感知换歌和资料更新。
+    // 对象与顺序未变时复用缓存,即使调用方复制了数组也无需重新播种。
     const entry = cache.get(key)!
     const stale =
       entry.trackIds.length !== initialTracks.length ||
-      String(entry.trackIds[0]) !== String(initialTracks[0].id) ||
-      String(entry.trackIds[entry.trackIds.length - 1]) !== String(initialTracks[initialTracks.length - 1].id)
+      initialTracks.some((track, index) => entry.tracks[index] !== track)
     if (stale) cache.set(key, seededEntry(initialTracks))
   }
   touchAndEvict(key)

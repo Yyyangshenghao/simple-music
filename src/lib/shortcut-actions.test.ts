@@ -1,16 +1,40 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
 import { runShortcutAction } from './shortcut-actions'
+import { usePlaylistStore } from '../stores/playlist'
+import { useShuangeStore } from '../stores/shuange'
 
 const initial = useNavigationStore.getState()
 const initialVisual = useVisualStore.getState()
 const initialGame = useGameModeStore.getState()
+const initialShuange = useShuangeStore.getState()
 afterEach(() => {
+  vi.restoreAllMocks()
+  useShuangeStore.setState(initialShuange, true)
   useNavigationStore.setState(initial, true)
   useVisualStore.setState(initialVisual, true)
   useGameModeStore.setState(initialGame, true)
+})
+
+it('刷歌期间上下首快捷键只操作刷歌 feed，退出后仍操作普通队列', () => {
+  const queueNext = vi.spyOn(usePlaylistStore.getState(), 'next').mockImplementation(() => {})
+  const queuePrev = vi.spyOn(usePlaylistStore.getState(), 'prev').mockImplementation(() => {})
+  const feedNext = vi.fn().mockResolvedValue(undefined)
+  const feedPrev = vi.fn().mockResolvedValue(undefined)
+  useShuangeStore.setState({ active: true, next: feedNext, prev: feedPrev })
+  runShortcutAction('next')
+  runShortcutAction('prev')
+  expect(feedNext).toHaveBeenCalledOnce()
+  expect(feedPrev).toHaveBeenCalledOnce()
+  expect(queueNext).not.toHaveBeenCalled()
+  expect(queuePrev).not.toHaveBeenCalled()
+  useShuangeStore.setState({ active: false })
+  runShortcutAction('next')
+  runShortcutAction('prev')
+  expect(queueNext).toHaveBeenCalledOnce()
+  expect(queuePrev).toHaveBeenCalledOnce()
 })
 
 it('设置动作打开设置，重复触发不新增导航历史', () => {

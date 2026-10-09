@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
-import { springGentle } from '../../lib/motion-presets'
+import { coverReturnTransition, springGentle } from '../../lib/motion-presets'
+import { useNavigationStore } from '../../stores/navigation'
 import styles from './HeroCard.module.css'
 import { sizedImage } from '../../lib/image-size'
 import type { MusicSource } from '../../types/domain'
@@ -21,11 +22,12 @@ interface HeroCardProps {
 }
 
 export function HeroCard({ title, subtitle, cover, source, badge, layoutId, onClick }: HeroCardProps) {
+  const returning = useNavigationStore((state) => state.lastAction === 'pop')
   return (
     <TiltCard className={styles.wrap}>
       <BorderGlow borderRadius={16}>
         <button className={`${styles.card} no-drag`} onClick={onClick}>
-          <motion.div className={styles.coverWrap} layoutId={layoutId} transition={springGentle}>
+          <motion.div className={styles.coverWrap} layoutId={layoutId} layoutCrossfade={false} transition={returning ? coverReturnTransition : springGentle} style={{ borderRadius: 16 }}>
             {cover
               ? <img className={styles.cover} src={sizedImage(cover, 320)} alt="" loading="lazy" />
               : <div className={styles.coverFallback} />}

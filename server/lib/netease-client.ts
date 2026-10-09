@@ -555,10 +555,12 @@ const LOGGED_OUT: LoginInfo = {
 export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   const cookie = getCookie(ctx, 'netease')
   if (!cookie) return { ...LOGGED_OUT }
+  const staleInfo = (): LoginInfo => ({ ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') })
 
   // login_status 对二维码 cookie 的资料刷新通常更及时；失败时再降级到 user_account。
   try {
     const st = await call('login_status', { cookie, timestamp: Date.now() })
+    if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
     const body = asObj(st.body)
     const data = isObj(body.data) ? body.data : body
     const info = normalizeLoginInfo(data.profile || body.profile, data.account || body.account, data)
@@ -566,9 +568,11 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   } catch (e) {
     console.warn('[Login] login_status failed:', (e as Error).message)
   }
+  if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
 
   try {
     const acc = await call('user_account', { cookie, timestamp: Date.now() })
+    if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
     const body = asObj(acc.body)
     const info = normalizeLoginInfo(body.profile, body.account, body)
     if (info.loggedIn) return info
@@ -576,7 +580,7 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
     return { ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') }
   } catch (e) {
     console.warn('[Login] account check failed:', (e as Error).message)
-    return { ...LOGGED_OUT, hasCookie: !!cookie }
+    return staleInfo()
   }
 }
 
@@ -585,7 +589,13 @@ export async function requireLogin(
   ctx: ServerContext,
   sendJson: (res: import('node:http').ServerResponse, data: unknown, status?: number) => void
 ): Promise<LoginInfo | null> {
+  const cookie = getCookie(ctx, 'netease')
   const info = await getLoginInfo(ctx)
+  // 当前会话确实失效时会自行清 Cookie，继续使用原有的 401 登录失效响应。
+  if (getCookie(ctx, 'netease') !== cookie && (info.loggedIn || info.hasCookie)) {
+    sendJson(res, { error: 'ACCOUNT_CHANGED', loggedIn: false }, 409)
+    return null
+  }
   if (!info.loggedIn || !info.userId) {
     sendJson(res, { error: 'LOGIN_REQUIRED', loggedIn: false }, 401)
     return null
@@ -612,7 +622,7 @@ export async function handleArtistSearch(keywords: string, limit: number, cookie
       return {
         id: obj.id,
         name: asStr(obj.name),
-        avatar: asStr(obj.picUrl || obj.img1v1Url),
+        avatar: asStr(obj.avatar || obj.img1v1Url || obj.picUrl),
         musicSize: asNum(obj.musicSize || obj.songSize || 0),
       }
     })
@@ -796,6 +806,7 @@ export interface MappedArtistDetail {
   id: unknown
   name: string
   avatar: string
+  cover: string
   description: string
   musicSize: number
   songNum: number
@@ -808,7 +819,8 @@ export function mapArtistDetail(raw: unknown): MappedArtistDetail {
   return {
     id: basic.id ?? basic.artistId,
     name: asStr(basic.name),
-    avatar: asStr(basic.picUrl || basic.img1v1Url || basic.avatar || ''),
+    avatar: asStr(basic.avatar || basic.img1v1Url || basic.picUrl || ''),
+    cover: asStr(basic.cover || basic.picUrl),
     description: asStr(basic.briefDesc || basic.description || basic.desc),
     musicSize: asNum(basic.musicSize),
     songNum: asNum(basic.songNum || basic.musicSize),

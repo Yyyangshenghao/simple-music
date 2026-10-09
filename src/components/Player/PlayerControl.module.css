@@ -1,0 +1,40 @@
+/* 普通按钮以图标本身反馈悬停，点击缩放沿用原有 Motion 动效。 */
+.control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--sm-accent-warm);
+  cursor: pointer;
+  transition: color 180ms var(--sm-ease-out);
+}
+
+.control svg {
+  transform-origin: center;
+  transition: transform 180ms var(--sm-ease-out);
+}
+
+.control:hover:not(:disabled),
+.control:focus-visible {
+  color: var(--player-control-hover-color, var(--sm-text-primary));
+}
+
+.control:hover:not(:disabled) svg {
+  transform: scale(1.08);
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control,
+  .control svg { transition: none; }
+  .control:hover:not(:disabled) svg { transform: none; }
+}

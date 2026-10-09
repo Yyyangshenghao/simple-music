@@ -1,6 +1,1 @@
-.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.actions button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--sm-border-strong); background: var(--glass-bg-card); color: var(--sm-text-primary); font: inherit; font-size: 11px; cursor: pointer; -webkit-app-region: no-drag; }
-.actions button:disabled { color: var(--sm-text-secondary); opacity: .6; cursor: default; }
-.actions button:hover:not(:disabled) { background: var(--sm-bg-overlay); }
-.actions button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.actions [data-settings-info] button { padding: 0; border-radius: 50%; }
+.actions { display: flex; align-items: center; gap: 8px; }

@@ -38,6 +38,38 @@ async function createFolder(name: string, fileName: string): Promise<string> {
 }
 
 describe('本地音乐索引快照', () => {
+  it.each(['父目录', '子目录', '带分隔符的子目录'])('移除%s 时保留其他目录覆盖的曲目和封面', async (removed) => {
+    const parent = await createFolder('music', 'first.mp3')
+    const child = join(parent, 'album')
+    await fsp.mkdir(child)
+    await fsp.writeFile(join(child, 'second.mp3'), '')
+    const registeredChild = removed === '带分隔符的子目录' ? child + sep : child
+    const tracks = await addLocalFolder(directory, parent)
+    await addLocalFolder(directory, registeredChild)
+    const covers = join(directory, 'local-covers')
+    await fsp.mkdir(covers)
+    for (const track of tracks) await fsp.writeFile(join(covers, `${track.id}.img`), track.name)
+
+    await removeLocalFolder(directory, removed === '父目录' ? parent : registeredChild)
+
+    const kept = removed === '父目录' ? tracks.filter(track => track.path.startsWith(child + sep)) : tracks
+    const library = await listLocalLibrary(directory)
+    expect(library.folders).toEqual([removed === '父目录' ? registeredChild : parent])
+    expect(library.tracks).toEqual(kept)
+    for (const track of kept) {
+      expect(await findLocalTrack(directory, track.id)).toEqual(track)
+      expect(await fsp.readFile(join(covers, `${track.id}.img`), 'utf8')).toBe(track.name)
+    }
+    for (const track of tracks) expect((await fsp.stat(track.path)).isFile()).toBe(true)
+    for (const track of tracks.filter(track => !kept.includes(track))) {
+      await expect(fsp.stat(join(covers, `${track.id}.img`))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+
+    await removeLocalFolder(directory, library.folders[0])
+    expect(await listLocalLibrary(directory)).toEqual({ folders: [], tracks: [] })
+    for (const track of tracks) await expect(fsp.stat(join(covers, `${track.id}.img`))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('带尾部分隔符的文件夹移除也清理其曲目', async () => {
     const folder = await createFolder('first', 'first.mp3') + sep
     await addLocalFolder(directory, folder)

@@ -8,7 +8,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { once } from 'node:events'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
 // 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
@@ -686,10 +688,29 @@ async function fetchTextFromCandidates(
 
 // ---------- latest.yml 备用线路 ----------
 function yamlScalar(text: string, key: string): string {
-  const pattern = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:\\s*(.+?)\\s*$', 'm')
+  const pattern = new RegExp('^' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:\\s*(.+?)\\s*$', 'm')
   const match = String(text || '').match(pattern)
   if (!match) return ''
   return match[1].trim().replace(/^['"]|['"]$/g, '')
+}
+function latestYmlFiles(text: string): Array<{ url: string; sha512: string; size: number }> {
+  const blocks: string[][] = []
+  let inFiles = false
+  for (const line of text.split(/\r?\n/)) {
+    if (/^files:\s*$/.test(line)) {
+      inFiles = true
+      continue
+    }
+    if (!inFiles) continue
+    if (/^\S/.test(line)) break
+    const item = /^\s+-\s+(.+)$/.exec(line)
+    if (item) blocks.push([item[1]])
+    else blocks[blocks.length - 1]?.push(line.trimStart())
+  }
+  return blocks.map((lines) => {
+    const block = lines.join('\n')
+    return { url: yamlScalar(block, 'url'), sha512: yamlScalar(block, 'sha512'), size: Number(yamlScalar(block, 'size')) || 0 }
+  })
 }
 function githubReleaseDownloadUrl(version: string, fileName: string): string {
   const tag = 'v' + normalizeVersion(version)
@@ -703,21 +724,29 @@ function githubReleaseDownloadUrl(version: string, fileName: string): string {
 }
 function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
   const latestVersion = normalizeVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION
-  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `Simple Music-${latestVersion}-Setup.exe`
-  const sha512 = normalizeDigest(yamlScalar(text, 'sha512'), 'sha512')
-  const size = Number(yamlScalar(text, 'size') || 0) || 0
+  const files = latestYmlFiles(text)
+  const path = yamlScalar(text, 'path') || yamlScalar(text, 'url')
+  const pathFile = files.find((file) => file.url === path)
+  const primary = {
+    url: path || `Simple Music-${latestVersion}-Setup.exe`,
+    sha512: yamlScalar(text, 'sha512') || pathFile?.sha512 || '',
+    size: Number(yamlScalar(text, 'size')) || pathFile?.size || 0,
+  }
+  const macFile = (file: { url: string }) => new RegExp(`-${process.arch}\\.dmg$`, 'i').test(file.url)
+  const selected = process.platform === 'darwin'
+    ? files.find(macFile) || (macFile(primary) ? primary : null)
+    : primary
   const releaseDate = yamlScalar(text, 'releaseDate')
-  const downloadUrl = githubReleaseDownloadUrl(latestVersion, assetPath)
-  const candidates = uniqueDownloadCandidates(downloadUrl)
-  const asset: UpdateAsset = {
-    name: updateAssetNameFromUrl(downloadUrl) || assetPath,
-    size,
+  const downloadUrl = selected ? githubReleaseDownloadUrl(latestVersion, selected.url) : ''
+  const asset: UpdateAsset | null = selected ? {
+    name: updateAssetNameFromUrl(downloadUrl) || selected.url,
+    size: selected.size,
     contentType: 'application/octet-stream',
     downloadUrl,
-    downloadUrls: publicDownloadUrls(candidates),
+    downloadUrls: publicDownloadUrls(uniqueDownloadCandidates(downloadUrl)),
     sha256: '',
-    sha512,
-  }
+    sha512: normalizeDigest(selected.sha512, 'sha512'),
+  } : null
   return {
     configured: true,
     preview: false,
@@ -744,9 +773,10 @@ function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
 async function fetchLatestYmlUpdateInfo(reason?: string): Promise<UpdateInfo> {
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github')
     throw updateError('UPDATE_REPOSITORY_NOT_CONFIGURED')
+  const manifestName = process.platform === 'darwin' ? 'latest-mac.yml' : 'latest.yml'
   const latestYmlUrl = `https://github.com/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(
     UPDATE_CONFIG.repo
-  )}/releases/latest/download/latest.yml`
+  )}/releases/latest/download/${manifestName}`
   const candidates = uniqueDownloadCandidates(latestYmlUrl)
   const result = await fetchTextFromCandidates(candidates, 6500)
   return parseLatestYmlUpdateInfo(result.text, reason)
@@ -1108,35 +1138,36 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
       let speedWindowAt = Date.now()
       let speedWindowBytes = 0
 
-      const writer = fs.createWriteStream(tmpPath)
-      const reader = resp.body.getReader()
+      const output = fs.createWriteStream(tmpPath)
+      const closed = new Promise<void>(resolve => output.once('close', resolve))
       try {
-        for (;;) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          const buf = Buffer.from(chunk.value)
-          job.received += buf.length
-          speedWindowBytes += buf.length
-          const now = Date.now()
-          if (now - speedWindowAt >= 900) {
-            job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000))
-            speedWindowAt = now
-            speedWindowBytes = 0
+        await pipeline(Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>), async function* (source) {
+          for await (const chunk of source) {
+            const buf = Buffer.from(chunk)
+            job.received += buf.length
+            speedWindowBytes += buf.length
+            const now = Date.now()
+            if (now - speedWindowAt >= 900) {
+              job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000))
+              speedWindowAt = now
+              speedWindowBytes = 0
+            }
+            if (job.total > 0) {
+              job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)))
+              job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0
+            } else {
+              const kb = Math.max(1, job.received / 1024)
+              job.progress = Math.max(1, Math.min(88, Math.round(Math.log10(kb + 1) * 24)))
+            }
+            job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小'
+            job.updatedAt = Date.now()
+            yield buf
           }
-          if (job.total > 0) {
-            job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)))
-            job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0
-          } else {
-            const kb = Math.max(1, job.received / 1024)
-            job.progress = Math.max(1, Math.min(88, Math.round(Math.log10(kb + 1) * 24)))
-          }
-          job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小'
-          job.updatedAt = Date.now()
-          if (!writer.write(buf)) await once(writer, 'drain')
-        }
+        }, output)
       } finally {
-        writer.end()
-        await once(writer, 'finish').catch(() => {})
+        // pipeline 可能在文件异步 open/close 完成前拒绝，清理及下一线路必须等待旧句柄关闭。
+        output.destroy()
+        await closed
       }
 
       await verifyUpdateFile(tmpPath, job)

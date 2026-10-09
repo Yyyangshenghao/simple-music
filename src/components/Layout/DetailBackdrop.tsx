@@ -6,14 +6,15 @@ import styles from './DetailBackdrop.module.css'
  * 仅当某个详情页写入 cover 时才显示,列表/探索等页面沿用原本的氛围背景。 */
 export function DetailBackdrop() {
   const cover = useBackdropStore((s) => s.cover)
+  const variant = useBackdropStore((s) => s.variant)
 
   return (
     <div className={styles.root} aria-hidden="true">
       <AnimatePresence>
         {cover && (
           <motion.div
-            key={cover}
-            className={styles.scene}
+            key={`${variant}:${cover}`}
+            className={`${styles.scene} ${variant === 'artist' ? styles.artist : ''}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

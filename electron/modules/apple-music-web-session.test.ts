@@ -42,11 +42,12 @@ const h = vi.hoisted(() => {
       options,
       webContents,
       loadURL: vi.fn(async (next: string) => { url = next; await loadBehavior?.() }),
-      show: vi.fn(), hide: vi.fn(), focus: vi.fn(), setSkipTaskbar: vi.fn(),
+      show: vi.fn(), hide: vi.fn(), focus: vi.fn(), minimize: vi.fn(), setSkipTaskbar: vi.fn(),
       isDestroyed: vi.fn(() => destroyed),
       on: vi.fn((event: string, listener: () => void) => events.set(event, listener)),
       destroy: vi.fn(() => { if (destroyed) return; destroyed = true; events.get('closed')?.() }),
       setUrl: (next: string) => { url = next },
+      emit: (event: string) => events.get(event)?.(),
       emitWebContents: (event: string, ...args: any[]) => webContentsEvents.get(event)?.(...args),
     }
   }
@@ -101,6 +102,91 @@ beforeEach(() => {
 afterEach(async () => { await apple.close(); vi.useRealTimers() })
 
 describe('应用内 Apple Music 会话', () => {
+  it('显式登录在受保护媒体组件就绪前立即显示窗口', async () => {
+    let finish!: () => void
+    h.componentReady.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const opening = apple.open()
+    void opening.catch(() => {})
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    const win = h.windows[0]
+    expect(win.show).toHaveBeenCalledOnce()
+    expect(win.focus).toHaveBeenCalledOnce()
+    expect(win.loadURL).not.toHaveBeenCalled()
+    finish()
+    await opening
+    expect(win.loadURL).toHaveBeenCalledWith('https://music.apple.com/')
+    expect(win.show).toHaveBeenCalledOnce()
+  })
+
+  it('显式登录在官网仍加载时显示窗口且不重复抢焦点', async () => {
+    let finish!: () => void
+    h.setLoadBehavior(() => new Promise<void>(resolve => { finish = resolve }))
+    const opening = apple.open()
+    void opening.catch(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const win = h.windows[0]
+    expect(win.show).toHaveBeenCalledOnce()
+    expect(win.focus).toHaveBeenCalledOnce()
+    finish()
+    await opening
+    expect(win.show).toHaveBeenCalledOnce()
+    expect(win.focus).toHaveBeenCalledOnce()
+  })
+
+  it('未登录窗口最小化后再次显式登录会重显并聚焦同一窗口', async () => {
+    await apple.open()
+    const win = h.windows[0]
+    win.minimize()
+    await apple.open()
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    expect(win.show).toHaveBeenCalledTimes(2)
+    expect(win.focus).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(win.show).toHaveBeenCalledTimes(2)
+    expect(win.focus).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['组件', '官网'])('显式登录立即接管仍等待%s的静默恢复窗口', async waiting => {
+    h.readFile.mockReturnValue('true')
+    let finish!: () => void
+    const pending = () => new Promise<void>(resolve => { finish = resolve })
+    if (waiting === '组件') h.componentReady.mockImplementationOnce(pending)
+    else h.setLoadBehavior(pending)
+    const restoring = apple.restore()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    const win = h.windows[0]
+    expect(win.show).not.toHaveBeenCalled()
+    const opening = apple.open()
+    void opening.catch(() => {})
+    expect(win.show).toHaveBeenCalledOnce()
+    expect(win.focus).toHaveBeenCalledOnce()
+    expect(apple.state().restoring).toBe(false)
+    finish()
+    await Promise.all([restoring, opening])
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    expect(win.show).toHaveBeenCalledOnce()
+  })
+
+  it('登录按钮脚本无响应时连接有界完成并继续轮询授权', async () => {
+    h.setLoadBehavior(async () => {
+      const win = h.windows[0]
+      const execute = win.webContents.executeJavaScript.getMockImplementation()!
+      win.webContents.executeJavaScript.mockImplementation(script => script.includes("document.querySelectorAll('button')")
+        ? new Promise<never>(() => {}) : execute(script))
+    })
+    const opening = apple.open()
+    let opened = false
+    void opening.then(() => { opened = true }, () => {})
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(opened).toBe(true)
+    await opening
+    h.setState(signedIn)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(apple.state().loggedIn).toBe(true)
+    expect(h.windows[0].hide).toHaveBeenCalledOnce()
+  })
+
   it('登录启动中退出会取消启动并等待晚到的 Chrome 清理', async () => {
     apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
     let finish!: (value: typeof h.chrome) => void
@@ -236,12 +322,12 @@ describe('应用内 Apple Music 会话', () => {
     expect(apple.state()).toMatchObject({ connected: true, loggedIn: true, status: 'idle' })
   })
 
-  it('已登录窗口首次连接不显示或抢占焦点，后续轮询不反复隐藏', async () => {
+  it('显式登录窗口立即显示，确认已有授权后隐藏且不重复抢焦点', async () => {
     h.setState(signedIn)
     await apple.open()
     await vi.advanceTimersByTimeAsync(2000)
-    expect(h.windows[0].show).not.toHaveBeenCalled()
-    expect(h.windows[0].focus).not.toHaveBeenCalled()
+    expect(h.windows[0].show).toHaveBeenCalledOnce()
+    expect(h.windows[0].focus).toHaveBeenCalledOnce()
     expect(h.windows[0].hide).toHaveBeenCalledOnce()
   })
 
@@ -336,7 +422,7 @@ describe('应用内 Apple Music 会话', () => {
     expect(h.writeFile).toHaveBeenLastCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'false', expect.any(Object))
   })
 
-  it('恢复期间退出登录后不会迟到创建窗口或重新记录登录', async () => {
+  it('恢复期间退出登录后销毁隐藏窗口且不迟到导航或重新记录登录', async () => {
     h.readFile.mockReturnValue('true')
     let finish!: () => void
     h.componentReady.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
@@ -345,7 +431,10 @@ describe('应用内 Apple Music 会话', () => {
     finish()
     await restoring
     expect(apple.state().restoring).toBe(false)
-    expect(h.BrowserWindow).not.toHaveBeenCalled()
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    expect(h.windows[0].destroy).toHaveBeenCalledOnce()
+    expect(h.windows[0].show).not.toHaveBeenCalled()
+    expect(h.windows[0].loadURL).not.toHaveBeenCalled()
     expect(h.writeFile).not.toHaveBeenCalledWith(expect.any(String), 'true', expect.any(Object))
   })
 
@@ -504,7 +593,9 @@ describe('应用内 Apple Music 会话', () => {
     finish()
     await closing
     await result
-    expect(h.BrowserWindow).not.toHaveBeenCalled()
+    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    expect(h.windows[0].destroy).toHaveBeenCalledOnce()
+    expect(h.windows[0].loadURL).not.toHaveBeenCalled()
   })
 
   it('受保护媒体组件无响应时有界失败，取消不会卡住', async () => {
@@ -513,6 +604,8 @@ describe('应用内 Apple Music 会话', () => {
     const failed = expect(opening).rejects.toThrow('组件加载超时')
     await vi.advanceTimersByTimeAsync(30000)
     await failed
+    expect(h.windows[0].destroy).toHaveBeenCalledOnce()
+    expect(h.windows[0].loadURL).not.toHaveBeenCalled()
     await expect(apple.close()).resolves.toBeUndefined()
   })
 
@@ -524,7 +617,45 @@ describe('应用内 Apple Music 会话', () => {
     await cancelled
 
     await apple.open()
-    expect(h.BrowserWindow).toHaveBeenCalledOnce()
+    expect(h.BrowserWindow).toHaveBeenCalledTimes(2)
+    expect(h.windows[0].destroy).toHaveBeenCalledOnce()
+    expect(h.windows[1].isDestroyed()).toBe(false)
+  })
+
+  it('用户关闭仍等待媒体组件的授权窗口立即取消连接', async () => {
+    h.componentReady.mockImplementationOnce(() => new Promise<void>(() => {}))
+    const opening = apple.open()
+    const cancelled = expect(opening).rejects.toThrow('连接已取消')
+    h.windows[0].destroy()
+    await cancelled
+    expect(h.windows[0].loadURL).not.toHaveBeenCalled()
+    await apple.open()
+    expect(h.BrowserWindow).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['render-process-gone', 'unresponsive'])('等待媒体组件时发生 %s 会立即取消连接并允许重试', async event => {
+    h.componentReady.mockImplementationOnce(() => new Promise<void>(() => {}))
+    const opening = apple.open()
+    let error = ''
+    const cancelled = opening.catch(reason => { error = reason.message })
+    const win = h.windows[0]
+    if (event === 'render-process-gone') win.emitWebContents(event)
+    else win.emit(event)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(error).toBe('连接已取消')
+    await cancelled
+    expect(win.loadURL).not.toHaveBeenCalled()
+    expect(win.destroy).toHaveBeenCalledOnce()
+    await apple.open()
+    expect(h.BrowserWindow).toHaveBeenCalledTimes(2)
+    expect(h.windows[1].isDestroyed()).toBe(false)
+  })
+
+  it('媒体组件加载失败保留明确原因并销毁已显示窗口', async () => {
+    h.componentReady.mockRejectedValueOnce(new Error('component unavailable'))
+    await expect(apple.open()).rejects.toThrow('受保护媒体组件加载失败')
+    expect(h.windows[0].destroy).toHaveBeenCalledOnce()
+    expect(h.windows[0].loadURL).not.toHaveBeenCalled()
   })
 
   it('官网加载无响应时销毁窗口并返回明确错误', async () => {
@@ -564,11 +695,11 @@ describe('应用内 Apple Music 会话', () => {
     const win = h.windows[0]
 
     apple.command({ type: 'load', playbackId: 'new', id: '123' })
-    apple.command({ type: 'pause', playbackId: 'new' })
+    apple.command({ type: 'pause', playbackId: 'new', controlSequence: 1 })
     await vi.advanceTimersByTimeAsync(0)
     const scripts = win.webContents.executeJavaScript.mock.calls.map(call => call[0])
     expect(scripts.some(script => script.includes('"type":"invalidate"'))).toBe(true)
-    expect(scripts.some(script => script.includes('"type":"suspend"'))).toBe(true)
+    expect(scripts.some(script => script.includes('"type":"suspend","playbackId":"new","controlSequence":1'))).toBe(true)
     expect(scripts.filter(script => script.includes('"type":"command"'))).toHaveLength(2)
   })
 

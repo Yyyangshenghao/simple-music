@@ -16,7 +16,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 |---|---|
 | `player.ts` | 播放状态/进度/音量/音质；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
-| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置 |
+| `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置，搜索页保存分类、平台筛选与页面及歌手列表的滚动位置 |
 | `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
@@ -39,7 +39,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
-- `useScrollGradient` / `useScrollReveal` — 滚动渐隐边缘 / 入场 stagger。
+- `useScrollReveal` — 滚动内容入场 stagger。
 
 ## providers / lib
 
@@ -67,19 +67,23 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## components / pages
 
-主窗口滚动条由 `styles/global.css` 统一定制，尺寸与普通、悬停、拖动颜色复用 `--sm-scrollbar-*` token；页面、弹窗、队列和横向列表跟随深浅主题，歌词固定深色浮层局部覆盖颜色。外层、轨道与轨道片段均显式透明，滑块使用低透明度中性色，悬停和拖动逐级加深，避免滚动条底色与氛围背景断开。`ScrollArea` 复用同一滚动条，保留滚动引用、共享布局动画及吸顶回调；不再单独测量或绘制滑块。悬停或滚动时显示，停止滚动 800ms 且鼠标离开后收起；`useScrollbarActivity` 捕获内层滚动并按容器独立计时，卸载时清理。歌词正文和轮播等原本隐藏滚动条的区域保持隐藏。
+主窗口滚动条由 `styles/global.css` 统一定制，尺寸与普通、悬停、拖动颜色复用 `--sm-scrollbar-*` token；页面、弹窗、队列和横向列表跟随深浅主题，歌词浮层按当前歌词模式局部覆盖颜色。外层、轨道与轨道片段均显式透明，滑块使用低透明度中性色，悬停和拖动逐级加深，避免滚动条底色与氛围背景断开。`ScrollArea` 复用同一滚动条，保留滚动引用、共享布局动画及吸顶回调；不再单独测量或绘制滑块。悬停或滚动时显示，停止滚动 800ms 且鼠标离开后收起；`useScrollbarActivity` 捕获内层滚动并按容器独立计时，卸载时清理。歌词正文和轮播等原本隐藏滚动条的区域保持隐藏。
 
-歌单和专辑详情的上下渐变遮罩位于滚动视口外，覆盖包括滚动条占位在内的完整宽度，避免封面背景在右侧露出亮边；遮罩不接收鼠标事件，滚动引用与虚拟列表仍绑定内部视口。
+页面视口贯穿整窗，顶栏与播放栏悬浮于页面上方：顶栏玻璃层向下渐隐，播放栏保留圆角玻璃面板。`styles/page-scroll.module.css` 统一页面内容的上下渐隐、滚动留白与安全区；渐隐不叠加实色背景条，滚动引用与虚拟列表仍绑定原视口。吸顶工具栏和设置导航停在顶栏下方，框选按可见安全区裁剪与自动滚动；歌单预览弹窗通过 portal 挂到 body，避免被页面遮罩裁剪。预览面板按视口固定高度，加载时显示歌曲占位，列表独立滚动，加载完成后封面与顶部信息保持原位。刷歌隐藏播放栏时取消底部安全区，卡片仍避开顶栏。
+
+普通与 3D 歌词页均跟随手动或系统主题：浅色使用柔和氛围底、深色歌词与控件，3D 保留封面粒子的色彩，舞台与聚焦歌词经 `useCoverLyricPalette` 使用同一取色结果；浅色歌词保留封面色相并调整亮度，当前行、逐字高亮、上下文与翻译使用一致的调色板。深色保留沉浸舞台。Canvas 通过 `useLightTheme` 同步系统变化，主题切换就地更新材质，不重建歌词轨道与纹理。播放栏保留主题明暗，歌词展开时将封面氛围色混入玻璃底色。
 
 播放栏右下角「…」打开 `Player/MoreMenu` 播放设置面板：游戏模式入口位于顶部，开启后后台播放，可从托盘返回。面板固定标题与关闭入口，内容区独立滚动；来源以图标和名称展示一次，音质按网格排列，倍速等宽分段，定时关闭支持播完当前曲再停。
 
-设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权保留在音源行，订阅要求及连接状态说明收进 i 浮层。
+歌手页分类栏保留顶栏下方吸顶，背景仅承托圆角标签组与搜索框，避免全宽深色横条截断封面氛围色；滚动后增强局部底色，防止歌曲文字透入。热门单曲、专辑与相似歌手复用同一标签容器，搜索框的背景与模糊覆盖仅在歌手页局部生效。
+
+设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权在设置音源行和右上角头像菜单共用连接状态；头像菜单直接打开授权窗口，无需跳转设置。订阅要求及连接状态说明收进设置页的 i 浮层。
 
 「关于应用」保留版本信息、检查更新及安装入口；更新历史通过「更新日志」按钮进入按需加载的 `ReleaseHistoryPage`（`release-history` 视图），返回时恢复设置的关于应用区域。页面复用 `Update/ReleaseHistory` 展示离线更新历史，`lib/release-history.ts` 通过 Vite raw glob 打包 `docs/release-notes-*.md`，按版本倒序过滤当前及更早版本。摘要解析为类别与描述，并兼容旧条目的可选标题，按新增/优化/修复/说明分组，版本标题显示各类别数量，空类别不展示。当前版本默认展开，历史版本使用原生 `details/summary` 支持鼠标和键盘展开；只读取更新日志（兼容旧「主要变化」标题）与兼容说明，不展示开发验收记录。尚未取得更新检查结果时，版本号使用 `package.json` 的应用版本。
 
-顶栏 `TopBar` 使用常驻宽搜索栏（220～320px 自适应），聚焦不改变宽度；窄窗口让导航参与布局，避免挤占搜索及窗口按钮。空搜索通过可选 `catalog.getSearchHotkeys()` 展示当前内容平台的热词（网易云、QQ 均已接入），要求该平台已登录且已启用，不混入另一平台热搜。`SearchHotkeys` 点击填词后复用原跨平台防抖搜索，关闭、切平台或禁用时丢弃在途热词响应。下拉层使用实色背景打底，避免页面文字透入。
+顶栏 `TopBar` 使用常驻宽搜索栏（300～360px 自适应），聚焦不改变宽度，空输入仅保留搜索图标；窄窗口让导航参与布局，避免挤占搜索及窗口按钮。空搜索通过可选 `catalog.getSearchHotkeys()` 展示当前内容平台的热词（网易云、QQ 均已接入），要求该平台已登录且已启用，不混入另一平台热搜。`SearchHotkeys` 点击填词后复用原跨平台防抖搜索，关闭、切平台或禁用时丢弃在途热词响应。下拉层使用实色背景打底，避免页面文字透入。历史与热搜面板外框不滚动，内容区避开底部播放栏，按窗口可用高度收缩并各自内部滚动，标题和历史操作保持可见；输入关键词后的搜索结果仍支持面板滚动。
 
-空搜索同时展示本地搜索历史，复用 `lib/search-history.ts` 的去重、置顶与最多 10 条存储，以自动换行的圆角气泡展示，长词省略；气泡悬停或键盘聚焦时显示删除按钮。明确提交搜索或选择歌曲/歌手后记录关键词，输入过程不记录；历史可再次搜索、单条删除或清空。歌手简介使用纯文本的 `details/summary` 展开，缺少简介时隐藏入口。歌手页资料、热门歌曲预览、专辑和相似歌手复用最多 5 分钟的浏览缓存，返回首帧直接显示已有数据，再于绘制前恢复滚动位置；缓存未命中时仍等待当前标签数据，用户主动滚动会取消恢复。探索推荐与个人栏目也同步读取缓存，推荐牌堆每个平台只保留最近一份，并以有效缓存对象校验；页面往返使用短距离淡入淡出，探索/库详情由宿主的路由快照驱动，退出中的页面不重建列表。背景仅由当前活动详情申请，封面与遮罩一起淡出。
+空搜索同时展示本地搜索历史，复用 `lib/search-history.ts` 的去重、置顶与最多 10000 条关键词存储，默认只显示最近 10 条；仅点击“查看更多”才按顺序追加 10 条，滚动不触发加载；追加后自动将新一批的开头滚至列表视口中部，保留上方旧记录衔接，支持上下回看和收起。历史以自动换行的柔和圆角标签展示，长词省略；下拉面板统一内边距与分区标题，热搜使用双列序号列表与悬停反馈；气泡悬停或键盘聚焦时显示删除按钮。明确提交搜索或选择歌曲/歌手后记录关键词，输入过程不记录；历史可再次搜索、单条删除或清空。歌手简介位于头像与资料右侧，左侧按内容占宽并限制长名字的最大宽度，长名字自动换行；简介使用固定高度区域，默认显示四行纯文本摘要，`details/summary` 展开后内部滚动，标题和外部布局保持原位；歌手页及简介内部预留滚动条空间，避免分类切换和展开时改变文字换行；窄窗口改为上下排列，缺少简介时隐藏入口。歌手页资料、热门歌曲预览、专辑和相似歌手复用最多 5 分钟的浏览缓存，返回首帧直接显示已有数据，再于绘制前恢复滚动位置；缓存未命中时仍等待当前标签数据，用户主动滚动会取消恢复。探索推荐与个人栏目也同步读取缓存，推荐牌堆每个平台只保留最近一份，并以有效缓存对象校验；普通页面往返使用短距离淡入淡出。歌单/专辑详情打开期间，AppShell 最多保留一个隐藏且不可交互的来源页，返回时复用原卡片和滚动位置，承接封面逆向共享元素转场；离开详情去其他页面时释放来源页。隐藏库页暂停窗口聚焦刷新，避免列表重载打断返回落位。背景仅由当前活动详情申请，封面与遮罩一起淡出。
 
 播放队列 `QueuePanel` 底部的 `QueueDiscovery` 提供 QQ“发现相似音乐”：当前曲目具备有效数字 `qqId`、QQ 已登录且启用时可见，展开后才调用可选 `catalog.getSimilarTracks()` / `getRelatedPlaylists()`。歌曲仅追加并防重复，不打断播放；歌单可换批或打开详情。切歌恢复收起，关闭/禁用后丢弃旧响应，两类推荐独立失败；歌单换批失败保留原列表并提供重试。Esc 关闭时仅在焦点仍位于队列内的情况下返回队列按钮，不抢走外部焦点。
 
@@ -97,7 +101,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## 注意事项
 
-- 封面共享元素转场依赖 layoutId 约定：专辑统一 `album-cover-${source}-${String(id)}`，普通歌单沿用 `explore-cover-*` / `library-cover-*`；滚动容器使用 `layoutScroll`，AppShell 统一 `LayoutGroup`。
+- 封面共享元素转场依赖 layoutId 约定：专辑统一 `album-cover-${source}-${String(id)}`，普通歌单沿用 `explore-cover-*` / `library-cover-*`；滚动容器使用 `layoutScroll`，AppShell 统一 `LayoutGroup`。封面圆角在 motion 节点的 `style` 中显式设置，避免返回后被投影样式覆盖为 0。探索页预览弹窗使用相同标识交接封面，进入详情时即时退出遮罩，避免遮挡封面移动；每日推荐和私人雷达的栏目边界不裁切返回中的封面。
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。

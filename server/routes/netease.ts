@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { isSafeUpstreamUrl } from '../lib/security'
+import { abortOnResponseClose, fetchSafeUpstream } from '../lib/upstream-fetch'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import {
   findCachedAudio,
@@ -78,12 +79,15 @@ export async function pipeReaderToResponse(
   onChunk?: (chunk: Uint8Array) => void | Promise<void>
 ): Promise<boolean> {
   let aborted = false
+  let completed = false
   const onClose = () => {
+    if (aborted) return
     aborted = true
     void reader.cancel().catch(() => {})
   }
   res.once('close', onClose)
   try {
+    if (res.destroyed) onClose()
     while (!aborted) {
       let c: ReadableStreamReadResult<Uint8Array>
       try {
@@ -92,7 +96,10 @@ export async function pipeReaderToResponse(
         if (aborted) return false
         throw error
       }
-      if (c.done) return !aborted
+      if (c.done) {
+        completed = !aborted
+        return completed
+      }
       await onChunk?.(c.value)
       if (aborted || res.destroyed) return false
       if (!res.write(c.value)) {
@@ -114,6 +121,7 @@ export async function pipeReaderToResponse(
     return false
   } finally {
     res.off('close', onClose)
+    if (!completed && !aborted) onClose()
   }
 }
 
@@ -1027,6 +1035,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   // ---------- 封面图片代理（解决跨域采样限制） ----------
   if (pn === '/proxy/cover') {
+    const request = abortOnResponseClose(res)
     try {
       const targetUrl = url.searchParams.get('url')
       if (!targetUrl || !isSafeUpstreamUrl(targetUrl)) {
@@ -1034,8 +1043,9 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         res.end(targetUrl ? 'Invalid url param' : 'Missing url param')
         return true
       }
-      const r = await fetch(targetUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SimpleMusic)' }
+      const r = await fetchSafeUpstream(targetUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SimpleMusic)' },
+        signal: request.signal,
       })
       if (!r.ok) {
         res.writeHead(r.status)
@@ -1051,8 +1061,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       })
       res.end(buffer)
     } catch (err) {
-      res.writeHead(500)
-      res.end((err as Error).message)
+      if (!res.destroyed) {
+        res.writeHead(500)
+        res.end((err as Error).message)
+      }
+    } finally {
+      request.cleanup()
     }
     return true
   }
@@ -1296,6 +1310,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   // ---------- 封面代理 (带 CORS 头, 给 canvas 提取像素用) ----------
   if (pn === '/api/cover') {
+    const request = abortOnResponseClose(res)
     try {
       const coverUrl = url.searchParams.get('url')
       if (!coverUrl || !isSafeUpstreamUrl(coverUrl)) {
@@ -1303,7 +1318,9 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         res.end('Invalid cover url')
         return true
       }
-      const resp = await fetch(coverUrl, { headers: { 'User-Agent': UA, Referer: 'https://music.163.com/' } })
+      const resp = await fetchSafeUpstream(coverUrl, {
+        headers: { 'User-Agent': UA, Referer: 'https://music.163.com/' }, signal: request.signal,
+      })
       const ct = resp.headers.get('content-type') || 'image/jpeg'
       const cl = resp.headers.get('content-length')
       const hdr: Record<string, string> = {
@@ -1318,15 +1335,23 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       if (reader) await pipeReaderToResponse(reader, res)
       res.end()
     } catch (err) {
-      console.error('[Cover]', err)
-      res.writeHead(500)
-      res.end()
+      if (!request.signal.aborted) console.error('[Cover]', err)
+      if (!res.destroyed) {
+        if (res.headersSent) res.destroy()
+        else {
+          res.writeHead(500)
+          res.end()
+        }
+      }
+    } finally {
+      request.cleanup()
     }
     return true
   }
 
   // ---------- 音频代理 (支持 Range + 磁盘缓存) ----------
   if (pn === '/api/audio') {
+    const request = abortOnResponseClose(res)
     let writer: Awaited<ReturnType<typeof openAudioCacheWriter>> = null
     try {
       const audioUrl = url.searchParams.get('url')
@@ -1359,6 +1384,10 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       // 命中磁盘缓存:本地文件直接服务(含 Range),不走上游
       if (cacheKey) {
         const hit = await findCachedAudio(ctx.userDataDir, cacheKey, cacheContext, true)
+        if (request.signal.aborted) {
+          hit?.release?.()
+          return true
+        }
         if (hit) {
           serveFileWithRange(res, hit.path, hit.size, range, audioContentTypeForUrl(audioUrl, null), hit.release)
           return true
@@ -1366,7 +1395,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
 
       const hdr = audioProxyHeadersFor(audioUrl, range)
-      const up = await fetch(audioUrl, { headers: hdr })
+      const up = await fetchSafeUpstream(audioUrl, { headers: hdr, signal: request.signal })
       const out: Record<string, string> = {
         'Content-Type': audioContentTypeForUrl(audioUrl, up.headers.get('content-type')),
         'Access-Control-Allow-Origin': '*',
@@ -1385,6 +1414,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             ? { ...cacheContext, contentType: out['Content-Type'] }
             : undefined)
           : null
+      request.signal.throwIfAborted()
       res.writeHead(up.status, out)
       const reader = up.body?.getReader()
       if (reader) {
@@ -1399,7 +1429,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
       res.end()
     } catch (err) {
-      console.error('[Audio]', err)
+      if (!request.signal.aborted) console.error('[Audio]', err)
       if (res.headersSent) res.destroy()
       else if (!res.destroyed) {
         res.writeHead(500)
@@ -1407,6 +1437,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
     } finally {
       writer?.abort()
+      request.cleanup()
     }
     return true
   }

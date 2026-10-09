@@ -24,6 +24,7 @@ interface PageState {
   failures: number
   queueReady: boolean
   pausedId: string
+  pausedControlSequence?: number
   playbackId: string
   status: 'idle' | 'loading' | 'playing' | 'paused' | 'ended' | 'error'
   error?: string
@@ -35,7 +36,7 @@ interface PageState {
   wasAuthorized: boolean
 }
 export type WebPageTask = { type: 'state' } | { type: 'catalog'; path: string }
-  | { type: 'invalidate'; generation: number } | { type: 'suspend'; playbackId: string } | { type: 'command'; command: AppleMusicCommand; generation: number }
+  | { type: 'invalidate'; generation: number } | { type: 'suspend'; playbackId: string; controlSequence?: number } | { type: 'command'; command: AppleMusicCommand; generation: number }
 
 // 由应用内隔离的官网窗口执行；此函数必须自包含，不能引用主进程变量或凭据。
 export async function appleMusicWebPage(task: WebPageTask) {
@@ -105,8 +106,8 @@ export async function appleMusicWebPage(task: WebPageTask) {
     if (subscription === 'inactive') throw new Error('此 Apple 账号没有有效的 Apple Music 订阅，无法播放完整歌曲')
     if (subscription !== 'active') throw new Error('暂时无法确认 Apple Music 订阅状态，请检查网络后重试')
   }
-  if (task.type === 'invalidate') { state.generation = task.generation; state.pausedId = ''; return null }
-  if (task.type === 'suspend') { state.pausedId = task.playbackId; return null }
+  if (task.type === 'invalidate') { state.generation = task.generation; state.pausedId = ''; state.pausedControlSequence = undefined; return null }
+  if (task.type === 'suspend') { state.pausedId = task.playbackId; state.pausedControlSequence = task.controlSequence; return null }
   if (task.type === 'catalog') {
     // api.music 在官网自身来源下运行，凭据不离开浏览器，也不伪造 Origin。
     return (await music.api.music(task.path.replace(/^\//, ''))).data
@@ -188,7 +189,14 @@ export async function appleMusicWebPage(task: WebPageTask) {
       if (c.volume !== undefined) music.volume = c.volume
       if (c.autoplay === false) state.status = 'paused'
       else await play()
-    } else if (c.type === 'play') { await requireSubscription(); state.pausedId = ''; if (await play()) confirmControl() }
+    } else if (c.type === 'play') {
+      // 即时暂停可能已越过命令队列；只有更新的播放意图才能清除它。
+      if (state.pausedId === c.playbackId && state.pausedControlSequence !== undefined && c.controlSequence !== undefined && c.controlSequence <= state.pausedControlSequence) return null
+      state.pausedId = ''
+      state.pausedControlSequence = undefined
+      await requireSubscription()
+      if (await play()) confirmControl()
+    }
     else if (c.type === 'pause') { await music.pause(); if (current()) { state.status = 'paused'; confirmControl() } }
     else if (c.type === 'stop') {
       await music.stop()

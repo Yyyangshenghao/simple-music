@@ -1,0 +1,13 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.94);
+  pointer-events: none;
+}
+
+.overlay > svg {
+  width: 42%;
+  height: 42%;
+}

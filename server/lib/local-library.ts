@@ -218,11 +218,14 @@ export async function removeLocalFolder(userDataDir: string, folder: string): Pr
   await withMutation(userDataDir, async () => {
     const index = await readIndex(userDataDir)
     const folderPrefix = folder.endsWith(sep) ? folder : folder + sep
+    const folders = index.folders.filter((f) => f !== folder)
+    const remainingPrefixes = folders.map((f) => f.endsWith(sep) ? f : f + sep)
     const removedIds = new Set(index.tracks
-      .filter((t) => t.path === folder || t.path.startsWith(folderPrefix))
+      .filter((t) => (t.path === folder || t.path.startsWith(folderPrefix))
+        && !remainingPrefixes.some((prefix) => t.path.startsWith(prefix)))
       .map((t) => t.id))
     const kept = index.tracks.filter((t) => !removedIds.has(t.id))
-    await writeIndex(userDataDir, { folders: index.folders.filter((f) => f !== folder), tracks: kept })
+    await writeIndex(userDataDir, { folders, tracks: kept })
     await Promise.all(
       [...removedIds].map((id) => fsp.rm(coverPathFor(userDataDir, id), { force: true }).catch(() => {}))
     )

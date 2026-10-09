@@ -194,7 +194,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
   return (
     <div
-      className={`${styles.bar}${currentView === 'shuange' ? ` ${styles.barShuange}` : ''}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
+      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
       onDoubleClick={(e) => {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}
@@ -296,7 +296,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
-            {isExpanded ? (
+            {isExpanded && (
               <input
                 ref={inputRef}
                 className={styles.searchInput}
@@ -313,18 +313,12 @@ export function TopBar({ hidden = false }: TopBarProps) {
                     openSearchPage()
                   }
                 }}
-                placeholder="搜索歌曲、歌手…"
               />
-            ) : (
-              <>
-                <span className={styles.searchPlaceholder}>搜索歌曲、歌手</span>
-                {hotkeySource && <span className={styles.searchHotkeyBadge} aria-label={`${providerFor(hotkeySource).descriptor.label}热搜`}>热搜</span>}
-              </>
             )}
           </div>
 
           {showDropdown && (
-            <div className={styles.searchDropdown}>
+            <div className={`${styles.searchDropdown}${keyword.trim() === '' ? ` ${styles.searchSuggestions}` : ''}`}>
               {keyword.trim() && (
                 <button type="button" className={styles.searchAll} onClick={() => openSearchPage()}>
                   <span>查看聚合搜索结果</span>
@@ -333,8 +327,14 @@ export function TopBar({ hidden = false }: TopBarProps) {
               )}
               {showHistory && (
                 <SearchHistory terms={searchHistory} onSelect={openSearchPage}
-                  onRemove={(term) => updateSearchHistory(removeTerm(searchHistory, term))}
-                  onClear={() => updateSearchHistory([])} />
+                  onRemove={(term) => {
+                    updateSearchHistory(removeTerm(searchHistory, term))
+                    inputRef.current?.focus()
+                  }}
+                  onClear={() => {
+                    updateSearchHistory([])
+                    inputRef.current?.focus()
+                  }} />
               )}
               {showHotkeys && hotkeySource ? (
                 <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {

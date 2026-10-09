@@ -1,0 +1,54 @@
+.anchor {
+  position: relative;
+}
+
+.layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 90;
+  isolation: isolate;
+  -webkit-app-region: initial;
+  transform: translateY(var(--artist-toolbar-origin, 0px));
+}
+
+.layer[data-artist-toolbar-scrollable='true'] {
+  animation-name: follow-scroll;
+  animation-duration: auto;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: --artist-page;
+  animation-range: 0px var(--artist-toolbar-sticky-distance);
+}
+
+/* 原生滚动时间线同步合成位置，吸顶后不再逐帧追随脚本测量。 */
+@keyframes follow-scroll {
+  from { transform: translateY(var(--artist-toolbar-origin)); }
+  to { transform: translateY(var(--sm-topbar-height, 52px)); }
+}
+
+.layer > * { pointer-events: auto; -webkit-app-region: no-drag; }
+
+/* 与上方主导航连成一张玻璃，下缘渐隐到列表，保留封面氛围。 */
+.layer::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sm-topbar-height, 52px)) 0 -18px;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-app-region: initial;
+  background: linear-gradient(to bottom, var(--glass-bg-card), var(--glass-bg-base));
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  opacity: 0;
+  transition: opacity 180ms var(--sm-ease-out);
+}
+
+.layer[data-artist-toolbar-pinned='true']::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .layer::before { transition: none; }
+}

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AudioEngineCallbacks } from '../lib/audio-engine'
 import type { Track } from '../types/domain'
 import { makePlaceholderTrack } from '../lib/lazy-window'
+import { beginPlaybackIntent, isCurrentPlaybackIntent } from '../lib/playback-intent'
 
 const h = vi.hoisted(() => ({
   callbacks: {} as AudioEngineCallbacks,
@@ -70,6 +71,34 @@ describe('队列详情等待期间的播放意图', () => {
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.unstubAllGlobals()
+  })
+
+  it.each(['loadTrack', 'play', 'pause', 'stop', 'setQueue', 'clearQueue', 'playAt', 'next', 'prev'] as const)('%s 的新用户意图使外部等待中的榜单失效', async action => {
+    usePlaylistStore.setState({ queue: [song('A'), song('B')], queueIndex: 0 })
+    const intent = beginPlaybackIntent()
+    if (action === 'loadTrack') await usePlayerStore.getState().loadTrack(song('C'))
+    else if (action === 'setQueue') usePlaylistStore.getState().setQueue([])
+    else if (action === 'playAt') usePlaylistStore.getState().playAt(1)
+    else if (action === 'clearQueue' || action === 'next' || action === 'prev') usePlaylistStore.getState()[action]()
+    else usePlayerStore.getState()[action]()
+    expect(isCurrentPlaybackIntent(intent)).toBe(false)
+  })
+
+  it.each(['order', 'one'] as const)('自然结束的 %s 走序不抢占等待中的榜单意图', async playMode => {
+    useSettingsStore.setState({ playMode })
+    usePlaylistStore.setState({ queue: [song('A'), song('B')], queueIndex: 0 })
+    const intent = beginPlaybackIntent()
+    h.callbacks.onEnded?.()
+    if (playMode === 'order') await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    expect(isCurrentPlaybackIntent(intent)).toBe(true)
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(playMode === 'one' ? 'A' : 'B')
+  })
+
+  it('自动音质重载保留等待中的榜单意图', async () => {
+    const intent = beginPlaybackIntent()
+    useSettingsStore.getState().setAudioQuality('standard')
+    await vi.waitFor(() => expect(h.load).toHaveBeenCalledOnce())
+    expect(isCurrentPlaybackIntent(intent)).toBe(true)
   })
 
   it('空队列追加歌曲不自动播放，点击播放后从队列首曲起播', async () => {

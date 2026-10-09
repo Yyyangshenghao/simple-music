@@ -50,7 +50,13 @@ export function startServer(
   }
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
-      const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      let url: URL
+      try {
+        url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      } catch {
+        sendError(res, 400, 'Invalid URL')
+        return
+      }
       // 浏览器播放页仅持有 Apple 专用会话凭据；不得取得桌面 API token。
       try {
         if (await publicAppleMusicBridgeRoutes(req, res, url, ctx)) return

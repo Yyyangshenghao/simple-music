@@ -81,7 +81,7 @@
 
 .tabBar {
   position: sticky;
-  top: 22px;
+  top: calc(var(--sm-topbar-height, 0px) + 22px);
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -140,7 +140,7 @@
 .tabCopy small { color: var(--sm-text-muted); font-size: 10px; font-weight: 450; line-height: 1.45; }
 
 .settingsContent { display: grid; gap: 38px; min-width: 0; }
-.settingsSection { min-width: 0; scroll-margin-top: 22px; }
+.settingsSection { min-width: 0; scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 22px); }
 
 .sectionHeading {
   margin: 2px 0 18px;
@@ -366,39 +366,35 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 62px;
-  padding: 13px 20px;
+  min-height: 82px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--sm-border);
 }
 
 .providerRow:last-child { border-bottom: none; }
 
-.providerLogin {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  border: 1px solid var(--sm-border-strong);
-  border-radius: 8px;
-  background: var(--glass-bg-card);
-  color: var(--sm-text-primary);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-.providerLogin:hover:not(:disabled) { background: var(--sm-bg-overlay); }
-.providerLogin:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
-.providerLogin:disabled { color: var(--sm-text-secondary); opacity: 0.6; cursor: default; }
+.providerMark { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; }
+.providerMark svg,
+.providerMark img { display: block; width: 36px; height: 36px; }
+.providerActions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 
 .providerAccount {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
   color: var(--sm-text-primary);
   font-size: 13px;
 }
 
-.providerAccount small { color: var(--sm-text-secondary); font-size: 10px; line-height: 1.5; }
+.providerAccount strong { font-size: 14px; font-weight: 680; }
+.providerName { display: flex; align-items: center; gap: 8px; }
+.providerAccount small { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--sm-text-secondary); font-size: 11px; line-height: 1.5; }
+.providerAccountName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.providerStatus { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--sm-text-muted); }
+.providerStatus[data-connected='true'] { background: var(--sm-color-gold); }
+.providerStatus[data-active='true'] { background: var(--sm-color-success); }
 
 .providerExplanation {
   margin: 0;
@@ -748,11 +744,11 @@
 
 @media (max-width: 1280px) {
   .settingsLayout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .settingsSection { scroll-margin-top: 88px; }
+  .settingsSection { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 88px); }
 
   .tabBar {
     position: sticky;
-    top: 0;
+    top: var(--sm-topbar-height, 0px);
     flex-direction: row;
     width: 100%;
     overflow-x: auto;

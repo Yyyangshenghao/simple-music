@@ -23,11 +23,15 @@ describe('pushTerm', () => {
     expect(next).not.toContain(`t${MAX_HISTORY - 1}`)
   })
 
-  it('连续搜索只保留最近 10 条，重复搜索置顶且不占额外名额', () => {
+  it('超过十条后继续保留，重复搜索置顶且不占额外名额', () => {
     let history: string[] = []
     for (let i = 0; i < 20; i++) history = pushTerm(history, `t${i}`)
-    expect(history).toEqual(['t19', 't18', 't17', 't16', 't15', 't14', 't13', 't12', 't11', 't10'])
-    expect(pushTerm(history, 't10')).toEqual(['t10', 't19', 't18', 't17', 't16', 't15', 't14', 't13', 't12', 't11'])
+    expect(history).toHaveLength(20)
+    expect(history[19]).toBe('t0')
+    const next = pushTerm(history, 't0')
+    expect(next).toHaveLength(20)
+    expect(next[0]).toBe('t0')
+    expect(next[1]).toBe('t19')
   })
 })
 
@@ -41,17 +45,21 @@ describe('removeTerm', () => {
 describe('搜索历史持久化上限', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('读取旧版超量历史时只返回最近 10 条', () => {
-    const history = Array.from({ length: 15 }, (_, i) => `t${i}`)
+  it('兼容已有历史，读取超过 10000 条时保留最近的 10000 条', () => {
+    const history = Array.from({ length: 10005 }, (_, i) => `t${i}`)
     vi.stubGlobal('localStorage', { getItem: () => JSON.stringify(history) })
-    expect(loadSearchHistory()).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'])
+    const loaded = loadSearchHistory()
+    expect(loaded).toHaveLength(10000)
+    expect(loaded[0]).toBe('t0')
+    expect(loaded[9999]).toBe('t9999')
   })
 
-  it('保存超量历史时只存最近 10 条，清空后保存空列表', () => {
+  it('保存最多 10000 条，清空后保存空列表', () => {
     const setItem = vi.fn()
     vi.stubGlobal('localStorage', { setItem })
-    saveSearchHistory(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'])
-    expect(setItem).toHaveBeenLastCalledWith('simplemusic-search-history', JSON.stringify(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']))
+    const history = Array.from({ length: 10005 }, (_, i) => `t${i}`)
+    saveSearchHistory(history)
+    expect(setItem).toHaveBeenLastCalledWith('simplemusic-search-history', JSON.stringify(history.slice(0, 10000)))
     saveSearchHistory([])
     expect(setItem).toHaveBeenLastCalledWith('simplemusic-search-history', '[]')
   })

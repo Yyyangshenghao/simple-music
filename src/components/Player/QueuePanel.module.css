@@ -6,32 +6,12 @@
 }
 
 .toggleBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--sm-accent-warm);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
-}
-
-.toggleBtn:hover {
-  color: var(--sm-text-primary);
-  background: var(--sm-fill-hover);
-  transform: translateY(-1px);
-}
-
-.toggleBtn:active {
-  transform: scale(0.94);
+  composes: control from './PlayerControl.module.css';
 }
 
 .toggleBtn[data-active='true'] {
   color: var(--sm-accent);
-  background: var(--sm-fill-hover);
+  --player-control-hover-color: var(--sm-accent);
 }
 
 .panel {

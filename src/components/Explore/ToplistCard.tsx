@@ -5,6 +5,10 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { getCachedToplistPreview, requestToplistPreview } from '../../lib/toplist-cache'
 import { sizedImage } from '../../lib/image-size'
 import { springGentle } from '../../lib/motion-presets'
+import { beginPlaybackIntent, isCurrentPlaybackIntent } from '../../lib/playback-intent'
+import { providerAccountSession } from '../../lib/provider-account-session'
+import { isProviderId } from '../../providers/types'
+import { isProviderParticipating, useProviderStore } from '../../stores/providers'
 import type { ToplistEntry, ToplistPreviewTrack } from '../../lib/music-service'
 import styles from './ToplistCard.module.css'
 
@@ -39,6 +43,20 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
   /** 预览是否已有定论：false 时铺骨架行，避免补拉期间卡片先塌成一行又弹回去。 */
   const [resolved, setResolved] = useState(() => initialPreview(entry).length > 0)
   const cardRef = useRef<HTMLElement>(null)
+  const playRequest = useRef(0)
+
+  useEffect(() => {
+    const source = playlist.source
+    let accountSession = isProviderId(source) ? providerAccountSession(source) : 0
+    const unsubscribe = useProviderStore.subscribe(() => {
+      if (isProviderId(source) && (!isProviderParticipating(source) || providerAccountSession(source) !== accountSession)) {
+        playRequest.current++
+        accountSession = providerAccountSession(source)
+        setLoading(false)
+      }
+    })
+    return () => { playRequest.current++; unsubscribe() }
+  }, [playlist.source, playlist.id])
 
   // 上游只对少数榜单直接给 Top3。其余走 toplist-cache 的并发池：卡片一挂载就排队后台预取，
   // 用户滚到下面时通常已经就绪；进视口的卡片再插队到队首，保证看得见的先出。
@@ -72,14 +90,18 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
     // 播放钮嵌在可点击的卡片里,不拦截会连带触发详情导航
     e.stopPropagation()
     if (loading) return
+    if (isProviderId(playlist.source) && !isProviderParticipating(playlist.source)) return
+    const request = ++playRequest.current
+    const intent = beginPlaybackIntent()
     setLoading(true)
     try {
       const queue = await loadPlaylistQueue(playlist)
+      if (request !== playRequest.current || !isCurrentPlaybackIntent(intent)) return
       if (queue.length) usePlaylistStore.getState().setQueue(queue, 0, playlist.id)
     } catch {
       // 拉取失败静默忽略:详情页里还能重试
     } finally {
-      setLoading(false)
+      if (request === playRequest.current) setLoading(false)
     }
   }
 

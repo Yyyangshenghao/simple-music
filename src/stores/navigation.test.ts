@@ -46,3 +46,57 @@ describe('歌手页导航状态', () => {
     expect(useNavigationStore.getState().artistPageState.scrollTop).toBe(420)
   })
 })
+
+describe('搜索页导航状态', () => {
+  beforeEach(() => useNavigationStore.setState({ currentView: 'explore', history: [], future: [] }))
+
+  it.each(['artist', 'album', 'playlist'] as const)('从 %s 返回时恢复搜索筛选和位置，前进后再次返回仍保留', (kind) => {
+    const nav = useNavigationStore.getState()
+    const pageState = { category: kind === 'artist' ? 'artists' as const : kind === 'album' ? 'albums' as const : 'playlists' as const, sourceFilter: 'qq' as const, scrollTop: 420 }
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    nav.updateSearchPageState('晴天', pageState)
+    const view = useNavigationStore.getState().currentView
+    nav.navigateTo(kind === 'artist' ? { type: 'artist', id: 1, source: 'qq' } : {
+      type: 'playlist', from: 'explore', playlist: {
+        id: 'collection', provider: 'qq', source: 'qq', type: kind, name: '集合', cover: '',
+        trackCount: 1, playCount: 0, creator: '',
+      },
+    })
+    nav.goBack()
+    expect(useNavigationStore.getState().searchPageState).toEqual(pageState)
+    expect(useNavigationStore.getState().currentView).toEqual({ ...view as object, pageState })
+    nav.goForward()
+    nav.goBack()
+    expect(useNavigationStore.getState().searchPageState).toEqual(pageState)
+  })
+
+  it('不同历史条目独立保存筛选，同词新搜索也从默认状态开始', () => {
+    const nav = useNavigationStore.getState()
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    nav.updateSearchPageState('晴天', { category: 'artists', sourceFilter: 'qq', scrollTop: 200, artistScrollTop: 120 })
+    nav.navigateTo({ type: 'search', keyword: '夜曲' })
+    nav.updateSearchPageState('夜曲', { category: 'playlists', scrollTop: 300 })
+    nav.updateSearchPageState('晴天', { scrollTop: 900 })
+    expect(useNavigationStore.getState().searchPageState.scrollTop).toBe(300)
+    nav.goBack()
+    expect(useNavigationStore.getState().searchPageState).toEqual({ category: 'artists', sourceFilter: 'qq', scrollTop: 200, artistScrollTop: 120 })
+    const revision = useNavigationStore.getState().navigationRevision
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    expect(useNavigationStore.getState().navigationRevision).toBeGreaterThan(revision)
+    expect(useNavigationStore.getState().searchPageState).toEqual({ category: 'all', sourceFilter: null, scrollTop: 0 })
+  })
+
+  it('保存滚动位置不改变路由引用、不清空前进栈，离开后的事件被忽略', () => {
+    const nav = useNavigationStore.getState()
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    const view = useNavigationStore.getState().currentView
+    nav.updateSearchPageState('晴天', { scrollTop: 420 })
+    expect(useNavigationStore.getState().currentView).toBe(view)
+    nav.navigateTo('library')
+    nav.updateSearchPageState('晴天', { scrollTop: 0 })
+    nav.goBack()
+    expect(useNavigationStore.getState().searchPageState.scrollTop).toBe(420)
+    nav.updateSearchPageState('晴天', { scrollTop: 200 })
+    expect(useNavigationStore.getState().future).toHaveLength(1)
+  })
+})

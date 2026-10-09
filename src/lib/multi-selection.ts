@@ -1,5 +1,12 @@
 export interface SelectionRect { left: number; top: number; right: number; bottom: number }
 
+/** 在可见内容的边缘自动滚动，悬浮控制栏覆盖的区域不算可见边界。 */
+export function selectionScrollDelta(y: number, bounds: SelectionRect): number {
+  const edge = 40
+  return y < bounds.top + edge ? -Math.min(18, (bounds.top + edge - y) / 3)
+    : y > bounds.bottom - edge ? Math.min(18, (y - bounds.bottom + edge) / 3) : 0
+}
+
 export function selectionRect(x1: number, y1: number, x2: number, y2: number): SelectionRect {
   return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) }
 }

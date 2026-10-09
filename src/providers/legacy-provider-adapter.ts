@@ -56,7 +56,7 @@ function normalizePlaylists(playlists: Playlist[], source: ProviderId): Playlist
 }
 
 function normalizeArtist(artist: ArtistInfo, source: ProviderId): ArtistInfo {
-  return { ...artist, source, avatar: normalizeImageUrl(artist.avatar) }
+  return { ...artist, source, avatar: normalizeImageUrl(artist.avatar), cover: normalizeImageUrl(artist.cover) || undefined }
 }
 
 function recommendationCapability(

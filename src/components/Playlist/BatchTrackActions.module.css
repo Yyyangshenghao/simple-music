@@ -1,5 +1,5 @@
 .actions { margin: 16px 0; }
-.actions[data-selecting='true'] { position: sticky; top: 12px; z-index: 12; }
+.actions[data-selecting='true'] { position: sticky; top: calc(var(--sm-topbar-height, 0px) + 12px); z-index: 12; }
 .bar {
   display: flex;
   align-items: center;

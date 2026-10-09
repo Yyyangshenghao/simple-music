@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { LayoutGroup, useIsPresent } from 'motion/react'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
 import { sizedImage } from '../lib/image-size'
 import { isCatalogUnavailable } from '../lib/track-availability'
 import { useProviderStore } from '../stores/providers'
-import { useNavigationStore } from '../stores/navigation'
+import { useNavigationStore, type SearchPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { SourceBadge } from '../components/ui/SourceBadge'
@@ -19,23 +20,34 @@ import { providerAccountSession } from '../lib/provider-account-session'
 import type { ArtistInfo, Playlist, Track } from '../types/domain'
 import styles from './SearchPage.module.css'
 
-type Category = 'all' | 'songs' | 'artists' | 'albums' | 'playlists'
+type Category = SearchPageState['category']
 const categories: Record<Category, string> = { all: '全部', songs: '歌曲', artists: '歌手', albums: '专辑', playlists: '歌单' }
 const trackKey = (track: Track) => `track:${track.source}:${String(track.id)}`
 const collectionKey = (item: Playlist) => `${item.type}:${item.source}:${String(item.id)}`
 
 type Results<T> = Partial<Record<ProviderId, ProviderResult<T[]>>>
 
-export function SearchPage({ keyword }: { keyword: string }) {
+export function SearchPage({ keyword, initialState }: { keyword: string; initialState?: SearchPageState }) {
   const [songs, setSongs] = useState<Results<Track>>({})
   const [artists, setArtists] = useState<Results<ArtistInfo>>({})
   const [albums, setAlbums] = useState<Results<Playlist>>({})
   const [playlists, setPlaylists] = useState<Results<Playlist>>({})
-  const [category, setCategory] = useState<Category>('all')
+  const [category, setCategory] = useState<Category>(initialState?.category ?? 'all')
   const [selecting, setSelecting] = useState(false)
-  const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(initialState?.sourceFilter ?? null)
   const [retry, setRetry] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const artistScrollRef = useRef<HTMLDivElement>(null)
+  const artistScrollRestored = useRef(false)
+  const savedArtistScrollTop = useRef(initialState?.artistScrollTop ?? 0)
+  const route = useRef(useNavigationStore.getState().currentView)
+  const present = useIsPresent()
+  const currentView = useNavigationStore.getState().currentView
+  if (present && typeof currentView === 'object' && currentView.type === 'search' && currentView.keyword === keyword) route.current = currentView
+  const savedScrollTop = useRef(initialState?.scrollTop ?? 0)
+  const scrollRestored = useRef(false)
   const navigateTo = useNavigationStore((state) => state.navigateTo)
+  const updatePageState = useNavigationStore((state) => state.updateSearchPageState)
   const enabledSignature = useProviderStore((state) => PROVIDER_IDS.map((source) =>
     `${state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0'}:${providerAccountSession(source)}`
   ).join('|'))
@@ -89,6 +101,51 @@ export function SearchPage({ keyword }: { keyword: string }) {
   const playlistsLoading = visibleSources.some((source) => !playlists[source] || playlists[source]?.status === 'loading')
   const songsLoading = visibleSources.some((source) => !songs[source] || songs[source]?.status === 'loading')
   const artistsLoading = visibleSources.some((source) => !artists[source] || artists[source]?.status === 'loading')
+  const resultsLoading = category === 'all' ? songsLoading || artistsLoading || albumsLoading || playlistsLoading
+    : category === 'songs' ? songsLoading : category === 'artists' ? artistsLoading : category === 'albums' ? albumsLoading : playlistsLoading
+
+  useLayoutEffect(() => {
+    if (scrollRestored.current || resultsLoading || !scrollRef.current) return
+    scrollRef.current.scrollTop = savedScrollTop.current
+    scrollRestored.current = true
+  }, [resultsLoading])
+
+  useLayoutEffect(() => {
+    if (artistScrollRestored.current || artistsLoading || !artistScrollRef.current) return
+    artistScrollRef.current.scrollTop = savedArtistScrollTop.current
+    artistScrollRestored.current = true
+  }, [artistsLoading, category])
+
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node) return
+    const saveScroll = () => {
+      if (scrollRestored.current && useNavigationStore.getState().currentView === route.current) updatePageState(keyword, { scrollTop: node.scrollTop })
+    }
+    const cancelRestore = () => {
+      scrollRestored.current = true
+      artistScrollRestored.current = true
+      if (useNavigationStore.getState().currentView === route.current) {
+        updatePageState(keyword, { scrollTop: node.scrollTop, artistScrollTop: artistScrollRef.current?.scrollTop ?? 0 })
+      }
+    }
+    const cancelKeyboardRestore = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)
+        && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) cancelRestore()
+    }
+    node.addEventListener('scroll', saveScroll, { passive: true })
+    node.addEventListener('wheel', cancelRestore, { passive: true })
+    node.addEventListener('touchstart', cancelRestore, { passive: true })
+    node.addEventListener('pointerdown', cancelRestore)
+    node.addEventListener('keydown', cancelKeyboardRestore)
+    return () => {
+      node.removeEventListener('scroll', saveScroll)
+      node.removeEventListener('wheel', cancelRestore)
+      node.removeEventListener('touchstart', cancelRestore)
+      node.removeEventListener('pointerdown', cancelRestore)
+      node.removeEventListener('keydown', cancelKeyboardRestore)
+    }
+  }, [keyword, updatePageState])
   const failures = visibleSources.flatMap((source) => [
     ...(songs[source]?.status === 'error' ? [{ source, label: '歌曲', error: songs[source]?.error }] : []),
     ...(albums[source]?.status === 'error' ? [{ source, label: '专辑', error: albums[source]?.error }] : []),
@@ -118,6 +175,19 @@ export function SearchPage({ keyword }: { keyword: string }) {
     selection.rootRef.current?.focus({ preventScroll: true })
   }
 
+  function changeFilters(patch: Partial<Pick<SearchPageState, 'category' | 'sourceFilter'>>) {
+    if (useNavigationStore.getState().currentView !== route.current) return
+    scrollRestored.current = true
+    savedArtistScrollTop.current = 0
+    artistScrollRestored.current = true
+    if (artistScrollRef.current) artistScrollRef.current.scrollTop = 0
+    if (patch.category !== undefined) setCategory(patch.category)
+    if (patch.sourceFilter !== undefined) setSourceFilter(patch.sourceFilter)
+    updatePageState(keyword, { ...patch, scrollTop: scrollRef.current?.scrollTop ?? 0, artistScrollTop: 0 })
+    selection.clear()
+    setSelecting(false)
+  }
+
   function playSong(track: Track) {
     if (isCatalogUnavailable(track)) return
     const queue = visibleSongs.filter((song) => !isCatalogUnavailable(song))
@@ -126,18 +196,17 @@ export function SearchPage({ keyword }: { keyword: string }) {
   }
 
   return (
-    <ScrollArea className={styles.page}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <div className={styles.content} ref={selection.rootRef} {...selection.surfaceProps}>
         <header className={styles.header}>
           <p className={styles.eyebrow}>聚合搜索</p>
           <h1>“{keyword}”<span>的搜索结果</span></h1>
-          <p className={styles.summary}>在 {sources.length} 个音乐平台中发现歌曲、歌手、专辑与歌单</p>
         </header>
 
         <div className={styles.filters} role="group" aria-label="筛选搜索来源">
-          <button type="button" aria-pressed={!activeFilter} onClick={() => { setSourceFilter(null); selection.clear(); setSelecting(false) }}>全部平台</button>
+          <button type="button" aria-pressed={!activeFilter} onClick={() => changeFilters({ sourceFilter: null })}>全部平台</button>
           {sources.map((source) => (
-            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => { setSourceFilter(source); selection.clear(); setSelecting(false) }}>
+            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => changeFilters({ sourceFilter: source })}>
               <SourceBadge source={source} compact reveal />
               <span><SourceName source={source} /></span>
             </button>
@@ -146,7 +215,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
         {sources.length > 0 && <>
           <div className={styles.categories} role="group" aria-label="筛选搜索类型">
-            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => { setCategory(item); selection.clear(); setSelecting(false) }}>{categories[item]}</button>)}
+            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => changeFilters({ category: item })}>{categories[item]}</button>)}
           </div>
           {selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
             selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
@@ -170,9 +239,13 @@ export function SearchPage({ keyword }: { keyword: string }) {
             )}
 
             {(category === 'all' || category === 'artists') && <section className={styles.section} aria-label="歌手搜索结果" aria-busy={artistsLoading}>
-              <div className={styles.sectionHeading}><h2>歌手 <span>{visibleArtists.length}</span></h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
+              <div className={styles.sectionHeading}><h2>歌手</h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
               {visibleArtists.length > 0 ? (
-                <div className={styles.artistGrid}>
+                <div className={`${styles.artistGrid}${visibleArtists.length <= 10 ? ` ${styles.artistGridFit}` : ''}`} ref={artistScrollRef} onScroll={(event) => {
+                  if (artistScrollRestored.current && useNavigationStore.getState().currentView === route.current) {
+                    updatePageState(keyword, { artistScrollTop: event.currentTarget.scrollTop })
+                  }
+                }}>
                   {visibleArtists.map((artist) => (
                     <button key={`${artist.source}:${String(artist.id)}`} className={styles.artist} type="button" onClick={() => {
                       if (artist.source !== 'local') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
@@ -189,7 +262,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
 
             {(category === 'all' || category === 'songs') && <section className={styles.section} aria-label="歌曲搜索结果" aria-busy={songsLoading}>
               <div className={styles.sectionHeading}>
-                <h2>歌曲 <span>{visibleSongs.length}</span></h2>
+                <h2>歌曲</h2>
                 <div className={styles.sectionActions}>
                   {songsLoading && <span role="status">搜索中…</span>}
                   {!selecting && <BatchTrackActions compact menuLabel="歌曲搜索结果更多操作" label="当前歌曲搜索结果" selectLabel="多选搜索结果"
@@ -210,7 +283,7 @@ export function SearchPage({ keyword }: { keyword: string }) {
               const label = categories[kind]
               return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
                 <div className={styles.sectionHeading}>
-                  <h2>{label} <span>{items.length}</span></h2>
+                  <h2>{label}</h2>
                   <div className={styles.sectionActions}>
                     {loading && <span role="status">搜索中…</span>}
                     {!selecting && <BatchTrackActions compact menuLabel={`${label}搜索结果更多操作`} label={`当前${label}搜索结果`} selectLabel="多选搜索结果"
@@ -220,7 +293,10 @@ export function SearchPage({ keyword }: { keyword: string }) {
                 {items.length ? <div className={styles.collectionGrid}>
                   {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
                     {selecting && <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>}
-                    <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
+                    {/* 隔离布局测量，筛选增删卡片时不触发其他封面的转场。 */}
+                    <LayoutGroup inherit="id">
+                      <PlaylistCard playlist={item} selectionMode={selecting} meta={[item.creator, item.trackCountKnown === false ? '' : `${item.trackCount} 首`].filter(Boolean).join(' · ')} layoutId={`explore-cover-${String(item.id)}`} layoutDependency="search-results" onClick={() => { if (!selecting) navigateTo({ type: 'playlist', from: 'explore', playlist: item }) }} />
+                    </LayoutGroup>
                   </div>)}
                 </div> : <p className={styles.hint}>{loading ? `正在寻找相关${label}…` : failures.some((item) => item.label === label) ? `部分平台未能完成${label}搜索，请重试。` : `没有找到相关${label}，试试其他关键词。`}</p>}
               </section>

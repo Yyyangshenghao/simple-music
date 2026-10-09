@@ -4,7 +4,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { useScrollGradient } from '../../hooks/useScrollGradient'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
@@ -17,6 +16,7 @@ import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
 import { useProviderStore } from '../../stores/providers'
@@ -28,6 +28,7 @@ import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
 import styles from './PlaylistDetailView.module.css'
+import pageScroll from '../../styles/page-scroll.module.css'
 
 /** TrackRow 实测高度:上下 padding 8×2 + 封面 40。虚拟列表按此定位,改 TrackRow 尺寸需同步。 */
 export const TRACK_ROW_HEIGHT = 56
@@ -73,7 +74,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const listRef = useRef<HTMLDivElement>(null)
   const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
   const service = serviceFor(playlist.source)
-  const { topOpacity, bottomOpacity, handleScroll, setTopOpacity, setBottomOpacity } = useScrollGradient()
   const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
   const canRefresh = playlist.type !== 'album' && !initialTracks?.length
   const refreshPlaylist = useCallback(async () => {
@@ -158,12 +158,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     if (!available) useNavigationStore.getState().goBack()
   }, [available])
 
-  // 进入/切换详情时重置滚动渐变遮罩
-  useEffect(() => {
-    setTopOpacity(0)
-    setBottomOpacity(0)
-  }, [playlist, setTopOpacity, setBottomOpacity])
-
   // 歌单封面模糊后作为全局背景(铺满整个应用);离开详情页时清空
   useEffect(() => {
     if (active) return useBackdropStore.getState().setCover(displayCover)
@@ -177,7 +171,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
 
   return (
     <div className={styles.root}>
-      <motion.div layoutScroll className={styles.page} ref={pageRef} onScroll={handleScroll}>
+      <motion.div layoutScroll className={`${styles.page} ${pageScroll.viewport}`} ref={pageRef}>
         <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
           <div className={styles.detailHeader}>
             <motion.button
@@ -207,12 +201,14 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               <motion.div
                 className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
                 layoutId={coverLayoutId}
+                layoutCrossfade={false}
                 transition={isAlbum ? albumCoverTransition : springGentle}
                 style={{ borderRadius: isAlbum ? 16 : 12 }}
               >
                 {displayCover
                   ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
                   : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
+                {displayCover && <QQLikedCoverOverlay playlist={displayPlaylist} />}
               </motion.div>
               <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
                 <div className={styles.titleRow}>
@@ -291,8 +287,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
         </div>
         <SelectionMarquee rect={selection.marquee} />
       </motion.div>
-      <div className={`topGradient ${styles.gradient}`} style={{ opacity: topOpacity }} />
-      <div className={`bottomGradient ${styles.gradient}`} style={{ opacity: bottomOpacity }} />
     </div>
   )
 }

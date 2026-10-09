@@ -8,14 +8,14 @@ import { CinemaCamera } from '../Visualizer/CinemaCamera'
 import { FrameLimiter } from '../Visualizer/FrameLimiter'
 import { StageLyrics3D } from './StageLyrics3D'
 
-const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string }>> = {
+const EFFECT_COMPONENTS: Record<Lyrics3dEffect, React.FC<{ coverUrl?: string; lightBackground?: boolean }>> = {
   'cover-cloud': CoverParticleCloud,
   'waveform-3d': Waveform3D,
   'speaker-particles': SpeakerParticles
 }
 
 /** 仅进入 3D 模式时加载 Three.js、歌词舞台与效果场景。 */
-export default function LyricsScene({ coverUrl }: { coverUrl?: string }) {
+export default function LyricsScene({ coverUrl, lightBackground = false }: { coverUrl?: string; lightBackground?: boolean }) {
   const effect = useSettingsStore((s) => s.lyrics3dEffect)
   const style = useSettingsStore((s) => s.lyrics3dStyle)
   const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
@@ -31,8 +31,8 @@ export default function LyricsScene({ coverUrl }: { coverUrl?: string }) {
     >
       <FrameLimiter fps={fpsCap} />
       <CinemaCamera />
-      <EffectComponent coverUrl={coverUrl} />
-      {style !== 'focus' && <StageLyrics3D />}
+      <EffectComponent coverUrl={coverUrl} lightBackground={lightBackground} />
+      {style !== 'focus' && <StageLyrics3D lightBackground={lightBackground} />}
     </Canvas>
   )
 }

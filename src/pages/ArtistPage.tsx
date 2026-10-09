@@ -2,11 +2,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
+import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
+import { ArtistToolbar } from '../components/Artist/ArtistToolbar'
 import { ArtistHeader } from '../components/Artist/ArtistHeader'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { PlaylistCard } from '../components/Explore/PlaylistCard'
@@ -56,9 +58,15 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const [similarError, setSimilarError] = useState(false)
   const [similarRetry, setSimilarRetry] = useState(0)
   const [tab, setTab] = useState<ArtistTab>(initialState?.tab ?? 'songs')
-  const [scrolled, setScrolled] = useState(false)
+  const [heldContentHeight, setHeldContentHeight] = useState<number | undefined>()
+  const [switchingTab, setSwitchingTab] = useState(false)
+  const [slideDirection, setSlideDirection] = useState(1)
   const [songsHasMore, setSongsHasMore] = useState(cachedSongs?.hasMore ?? false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const toolbarAnchorRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const cancelTabScroll = useRef<(() => void) | null>(null)
+  const tabScrollTarget = useRef<{ tab: ArtistTab; scrollToStart: boolean } | null>(null)
   // 必须按导航条目自带的 source 取 service：歌手可能来自另一音源（跨音源兜底的曲目、
   // 跨平台导航留下的历史条目也必须按实体自身 source 查询，避免把网易 id 发给 QQ。
   const service = useMemo(() => serviceFor(source), [source])
@@ -76,26 +84,69 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     if (!node) return
     const saveScroll = () => {
       if (scrollRestored.current) updatePageState(id, source, { scrollTop: node.scrollTop })
+      if (!cancelTabScroll.current && tabScrollTarget.current === null) {
+        const height = retainedContentHeight()
+        setHeldContentHeight(previous => previous === undefined ? undefined : Math.min(previous, height) || undefined)
+      }
     }
     const cancelRestore = () => {
+      cancelTabNavigation()
       scrollRestored.current = true
       updatePageState(id, source, { scrollTop: node.scrollTop })
+    }
+    const cancelKeyboardScroll = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) return
+      if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) return
+      if (cancelTabScroll.current || tabScrollTarget.current !== null) cancelRestore()
     }
     node.addEventListener('scroll', saveScroll, { passive: true })
     node.addEventListener('wheel', cancelRestore, { passive: true })
     node.addEventListener('touchmove', cancelRestore, { passive: true })
+    node.addEventListener('pointerdown', cancelRestore, { passive: true })
+    window.addEventListener('keydown', cancelKeyboardScroll)
     return () => {
       node.removeEventListener('scroll', saveScroll)
       node.removeEventListener('wheel', cancelRestore)
       node.removeEventListener('touchmove', cancelRestore)
+      node.removeEventListener('pointerdown', cancelRestore)
+      window.removeEventListener('keydown', cancelKeyboardScroll)
     }
   }, [id, source, updatePageState])
+
+  useEffect(() => {
+    if (!active) cancelTabNavigation()
+    return () => {
+      cancelTabScroll.current?.()
+      cancelTabScroll.current = null
+      tabScrollTarget.current = null
+    }
+  }, [active])
+
+  useLayoutEffect(() => {
+    const viewport = scrollRef.current
+    const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
+    if (!active || !viewport || switchingTab || tabScrollTarget.current === null || !artistLoaded || !ready) return
+    if (!tabScrollTarget.current.scrollToStart) {
+      tabScrollTarget.current = null
+      setHeldContentHeight(retainedContentHeight() || undefined)
+      return
+    }
+    const top = tabScrollTop(tabScrollTarget.current.tab)
+    if (viewport.scrollHeight - viewport.clientHeight < top) {
+      setHeldContentHeight(retainedContentHeight(top))
+      return
+    }
+    tabScrollTarget.current = null
+    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', () => {
+      cancelTabScroll.current = null
+      setHeldContentHeight(retainedContentHeight() || undefined)
+    })
+  })
 
   useLayoutEffect(() => {
     const ready = tab === 'albums' ? albumsLoaded : tab === 'similar' ? similarLoaded : songsLoaded && !search.loading
     if (scrollRestored.current || !artistLoaded || !ready || !scrollRef.current) return
     scrollRef.current.scrollTop = savedState.current?.scrollTop ?? 0
-    setScrolled(scrollRef.current.scrollTop > 8)
     scrollRestored.current = true
   }, [artistLoaded, tab, albumsLoaded, similarLoaded, songsLoaded, search.loading])
 
@@ -181,25 +232,62 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
   const tabs: ArtistTab[] = service.getSimilarArtists ? ['songs', 'albums', 'similar'] : ['songs', 'albums']
 
+  function cancelTabNavigation() {
+    cancelTabScroll.current?.()
+    cancelTabScroll.current = null
+    tabScrollTarget.current = null
+    setSwitchingTab(false)
+    setHeldContentHeight(retainedContentHeight() || undefined)
+  }
+
+  function retainedContentHeight(top = scrollRef.current?.scrollTop ?? 0) {
+    const viewport = scrollRef.current
+    const content = contentRef.current
+    if (!viewport || !content) return 0
+    const origin = content.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
+    const clearance = parseFloat(getComputedStyle(viewport).getPropertyValue('--sm-player-clearance')) || 0
+    // 只留足维持当前位置的空间；短列表结束回滚后不保留旧列表的整块高度。
+    return artistTabContentHeight(top, viewport.clientHeight, origin, clearance)
+  }
+
+  function tabScrollTop(next: ArtistTab) {
+    const viewport = scrollRef.current
+    const anchor = toolbarAnchorRef.current
+    if (next === 'similar' || !viewport || !anchor) return 0
+    const inset = parseFloat(getComputedStyle(viewport).getPropertyValue('--sm-topbar-height')) || 52
+    return Math.max(0, anchor.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop - inset)
+  }
+
+  function selectTab(next: ArtistTab) {
+    cancelTabNavigation()
+    scrollRestored.current = true
+    const viewport = scrollRef.current
+    const anchor = toolbarAnchorRef.current
+    if (!viewport || !anchor) return
+    // 切换前保留滚动范围，短列表也不会裁掉资料区的当前位置。
+    setHeldContentHeight(contentRef.current?.getBoundingClientRect().height)
+    setSlideDirection(tabs.indexOf(next) >= tabs.indexOf(tab) ? 1 : -1)
+    setSwitchingTab(next !== tab && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    tabScrollTarget.current = { tab: next, scrollToStart: shouldScrollArtistTabToStart(viewport.scrollTop, tabScrollTop('songs')) }
+    setTab(next)
+    updatePageState(id, source, { tab: next, scrollTop: viewport.scrollTop })
+  }
+
   const tabButtons = tabs.map((t) => (
     <button
       key={t}
       className={`${styles.subTab} no-drag ${tab === t ? styles.active : ''}`}
       aria-pressed={tab === t}
-      onClick={() => {
-        scrollRestored.current = true
-        setTab(t)
-        updatePageState(id, source, { tab: t, scrollTop: scrollRef.current?.scrollTop ?? 0 })
-      }}
+      onClick={() => selectTab(t)}
     >
       {{ songs: '热门单曲', albums: '专辑', similar: '相似歌手' }[t]}
     </button>
   ))
 
-  // 歌手头像模糊后作为全局背景(铺满整个应用);离开详情页时清空
+  // 歌手封面作为柔和的全局背景，缺少封面时回退到头像；离开详情页时清空。
   useEffect(() => {
-    if (active) return useBackdropStore.getState().setCover(artist?.avatar)
-  }, [active, artist?.avatar])
+    if (active) return useBackdropStore.getState().setCover(artist?.cover || artist?.avatar, 'artist')
+  }, [active, artist?.cover, artist?.avatar])
 
   const displayedSongs = searching
     ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index]).filter((song) => !isCatalogUnavailable(song))
@@ -220,7 +308,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   }
 
   return (
-    <ScrollArea className={styles.page} scrollRef={scrollRef} onScrolledChange={setScrolled}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <motion.button
         className={`${styles.back} no-drag`}
         onClick={goBack}
@@ -247,9 +335,10 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
       {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
 
-      <div className={`${styles.subTabs} ${scrolled ? styles.subTabsScrolled : ''}`}>
+      <ArtistToolbar className={styles.subTabs} scrollRef={scrollRef} anchorRef={toolbarAnchorRef} active={active} onUserScroll={() => { cancelTabNavigation(); scrollRestored.current = true }}>
         {tab === 'songs' ? (
           <TrackSearch value={query} onChange={(value) => {
+            cancelTabNavigation()
             scrollRestored.current = true
             setQuery(value)
             updatePageState(id, source, { query: value, scrollTop: scrollRef.current?.scrollTop ?? 0 })
@@ -258,67 +347,76 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
             <div className={styles.tabGroup}>{tabButtons}</div>
           </TrackSearch>
         ) : (
-          <div className={styles.tabsOnly}>{tabButtons}</div>
+          <div className={styles.tabsOnly}><div className={styles.tabGroup}>{tabButtons}</div></div>
+        )}
+      </ArtistToolbar>
+
+      <div ref={contentRef} style={{ minHeight: heldContentHeight }}>
+      <div key={tab} className={switchingTab ? styles.tabContentSwitching : undefined}
+        data-direction={slideDirection}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget && tabScrollTarget.current?.tab === tab) setSwitchingTab(false)
+        }}
+      >
+        {tab === 'songs' && (
+          <div className={styles.trackList}>
+            <VirtualList
+              total={displayedSongs.length}
+              rowHeight={TRACK_ROW_HEIGHT}
+              scrollRef={scrollRef}
+              renderRow={(index) => {
+                const song = displayedSongs[index]
+                return <TrackRow
+                  track={song}
+                  index={index}
+                  onPlay={() => playTrack(song)}
+                  disabled={isCatalogUnavailable(song)}
+                  statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
+                />
+              }}
+            />
+            {!searching && songsHasMore && (
+              <button
+                type="button"
+                className={`${styles.viewAllSongs} no-drag`}
+                onClick={() => navigateTo({ type: 'artistSongs', id, source })}
+              >
+                查看全部歌曲
+              </button>
+            )}
+          </div>
+        )}
+
+        {tab === 'albums' && albums.length > 0 && (
+          <div className={styles.albumGrid}>
+            {albums.map((a, i) => (
+              <PlaylistCard
+                key={String(a.id) + i}
+                playlist={a}
+                meta={a.trackCount > 0 ? `${a.trackCount} 首` : '专辑'}
+                onClick={() => useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: a })}
+              />
+            ))}
+          </div>
+        )}
+
+        {tab === 'similar' && (
+          <div className={styles.similarGrid}>
+            {similar.map((a, i) => (
+              <ArtistPill key={String(a.id) + i} artist={a} onClick={() => openArtist(a.id, a.source)} />
+            ))}
+            {similarError ? (
+              <div className={styles.similarError}>
+                <p>相似歌手暂时无法加载。</p>
+                <button type="button" onClick={() => setSimilarRetry((value) => value + 1)}>重试</button>
+              </div>
+            ) : similarLoaded && similar.length === 0 && (
+              <p className={styles.similarEmpty}>暂无相似歌手数据</p>
+            )}
+          </div>
         )}
       </div>
-
-      {tab === 'songs' && (
-        <div className={styles.trackList}>
-          <VirtualList
-            total={displayedSongs.length}
-            rowHeight={TRACK_ROW_HEIGHT}
-            scrollRef={scrollRef}
-            renderRow={(index) => {
-              const song = displayedSongs[index]
-              return <TrackRow
-                track={song}
-                index={index}
-                onPlay={() => playTrack(song)}
-                disabled={isCatalogUnavailable(song)}
-                statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
-              />
-            }}
-          />
-          {!searching && songsHasMore && (
-            <button
-              type="button"
-              className={`${styles.viewAllSongs} no-drag`}
-              onClick={() => navigateTo({ type: 'artistSongs', id, source })}
-            >
-              查看全部歌曲
-            </button>
-          )}
-        </div>
-      )}
-
-      {tab === 'albums' && albums.length > 0 && (
-        <div className={styles.albumGrid}>
-          {albums.map((a, i) => (
-            <PlaylistCard
-              key={String(a.id) + i}
-              playlist={a}
-              meta={a.trackCount > 0 ? `${a.trackCount} 首` : '专辑'}
-              onClick={() => useNavigationStore.getState().navigateTo({ type: 'playlist', from: 'explore', playlist: a })}
-            />
-          ))}
-        </div>
-      )}
-
-      {tab === 'similar' && (
-        <div className={styles.similarGrid}>
-          {similar.map((a, i) => (
-            <ArtistPill key={String(a.id) + i} artist={a} onClick={() => openArtist(a.id, a.source)} />
-          ))}
-          {similarError ? (
-            <div className={styles.similarError}>
-              <p>相似歌手暂时无法加载。</p>
-              <button type="button" onClick={() => setSimilarRetry((value) => value + 1)}>重试</button>
-            </div>
-          ) : similarLoaded && similar.length === 0 && (
-            <p className={styles.similarEmpty}>暂无相似歌手数据</p>
-          )}
-        </div>
-      )}
+      </div>
     </ScrollArea>
   )
 }

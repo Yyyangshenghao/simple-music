@@ -1,24 +1,31 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import type { Variants } from 'motion/react'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useNavigationStore } from '../../stores/navigation'
-import { springGentle } from '../../lib/motion-presets'
+import { albumCoverTransition, springGentle } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
 import { SourceBadge } from '../ui/SourceBadge'
 import type { Playlist } from '../../types/domain'
 import styles from './PlaylistPreviewModal.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
   onClose(): void
 }
 
+const overlayVariants: Variants = {
+  exit: (openingDetail: boolean) => ({ opacity: 0, ...(openingDetail ? { transition: { duration: 0 } } : {}) }),
+}
+
 /** 面板内容：拆出来保证 useLazyPlaylist 拿到非空 playlist（与详情页共用缓存，进详情零请求）。 */
 function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): void }) {
-  const { total, tracks, loading, makeQueue } = useLazyPlaylist(playlist)
+  const { total, tracks, loading, error, makeQueue } = useLazyPlaylist(playlist)
   const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
   function playAll() {
@@ -47,9 +54,16 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
       onClick={(e) => e.stopPropagation()}
     >
       <div className={styles.header}>
-        {displayCover
-          ? <img className={styles.cover} src={sizedImage(displayCover, 176)} alt="" />
-          : <PlaylistCoverFallback className={styles.cover} name={playlist.name} source={playlist.source} />}
+        <motion.div className={styles.cover}
+          layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : `explore-cover-${String(playlist.id)}`}
+          layoutCrossfade={false}
+          transition={playlist.type === 'album' ? albumCoverTransition : springGentle}
+          style={{ borderRadius: 12 }}>
+          {displayCover
+            ? <img src={sizedImage(displayCover, 176)} alt="" />
+            : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
+          {displayCover && <QQLikedCoverOverlay playlist={playlist} />}
+        </motion.div>
         <div className={styles.meta}>
           <h3 className={styles.name}>{playlist.name}</h3>
           <SourceBadge source={playlist.source} reveal />
@@ -62,7 +76,16 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
         <button className={styles.openBtn} onClick={openDetail} disabled={total === 0}>{playlist.type === 'album' ? '进入专辑' : '进入歌单'}</button>
         <span className={styles.count}>{loading ? '加载中…' : `${total} 首`}</span>
       </div>
-      <div className={styles.list}>
+      <div className={styles.list} aria-busy={loading}>
+        {loading && <div role="status" aria-label="正在加载歌曲">
+          {Array.from({ length: 6 }, (_, index) => <div className={styles.skeletonRow} key={index} aria-hidden="true">
+            <span className={styles.skeletonIndex} />
+            <span className={styles.skeletonText}><i /><i /></span>
+          </div>)}
+        </div>}
+        {!loading && !tracks.some(Boolean) && <p className={styles.empty}>
+          {error ? '歌曲暂时无法加载，请稍后重新打开' : '暂无可预览的歌曲'}
+        </p>}
         {/* 预览只展示已加载详情的前缀批次；完整列表进详情页看 */}
         {tracks.map((t, i) =>
           t ? (
@@ -83,6 +106,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
 
 /** 歌单和专辑小卡预览：简介 + 可滚动曲目，可播放全部或进入完整详情页。 */
 export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModalProps) {
+  const openingDetail = useNavigationStore(state => typeof state.currentView === 'object' && state.currentView.type === 'playlist')
   useEffect(() => {
     if (!playlist) return
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -90,19 +114,23 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
     return () => window.removeEventListener('keydown', onKey)
   }, [playlist, onClose])
 
-  return (
-    <AnimatePresence>
+  return createPortal(
+    <AnimatePresence custom={openingDetail}>
       {playlist && (
         <motion.div
           className={styles.overlay}
+          layoutRoot
+          data-framer-portal-id="playlist-preview"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          variants={overlayVariants}
+          exit="exit"
           onClick={onClose}
         >
           <PreviewPanel playlist={playlist} onClose={onClose} />
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

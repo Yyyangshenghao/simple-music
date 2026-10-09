@@ -1,7 +1,7 @@
-/** 搜索历史:localStorage 持久化,去重、新词置顶、上限 10 条。 */
+/** 搜索历史:localStorage 持久化,去重、新词置顶、上限 10000 条。 */
 
 const STORAGE_KEY = 'simplemusic-search-history'
-export const MAX_HISTORY = 10
+export const MAX_HISTORY = 10000
 
 /** 纯函数:把新词插到最前,去掉重复(不区分首尾空白),超上限截断。 */
 export function pushTerm(history: string[], term: string, max = MAX_HISTORY): string[] {

@@ -9,7 +9,6 @@ const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
 const appIconIco = () => join(app.getAppPath(), 'build', 'icon.ico')
 
 let mousePoller: ChildProcess | null = null
-let mousePollerBuffer = ''
 
 // 通过 PowerShell GetAsyncKeyState 轮询鼠标中键（VK=4）。
 export const win32Adapter: PlatformAdapter = {
@@ -36,40 +35,42 @@ while ($true) {
 }
 `
     try {
-      mousePoller = spawn(
+      const poller = spawn(
         'powershell.exe',
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
         { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
       )
-      mousePoller.stdout?.on('data', (chunk: Buffer) => {
-        mousePollerBuffer += chunk.toString('utf8')
-        const lines = mousePollerBuffer.split(/\r?\n/)
-        mousePollerBuffer = lines.pop() ?? ''
+      mousePoller = poller
+      let buffer = ''
+      poller.stdout?.on('data', (chunk: Buffer) => {
+        if (mousePoller !== poller) return
+        buffer += chunk.toString('utf8')
+        const lines = buffer.split(/\r?\n/)
+        buffer = lines.pop() ?? ''
         for (const line of lines) {
+          if (mousePoller !== poller) return
           if (line.trim() === 'MMB') onMiddleClick()
         }
       })
       const reset = () => {
-        mousePoller = null
-        mousePollerBuffer = ''
+        if (mousePoller === poller) mousePoller = null
       }
-      mousePoller.on('exit', reset)
-      mousePoller.on('error', reset)
+      poller.on('exit', reset)
+      poller.on('error', reset)
     } catch {
       mousePoller = null
-      mousePollerBuffer = ''
     }
   },
 
   stopMousePoller(): void {
     if (!mousePoller) return
+    const poller = mousePoller
+    mousePoller = null
     try {
-      mousePoller.kill()
+      poller.kill()
     } catch {
       /* ignore */
     }
-    mousePoller = null
-    mousePollerBuffer = ''
   },
 
   attachWallpaperToDesktop(hwnd: string): void {

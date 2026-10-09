@@ -24,7 +24,8 @@ describe('聚合搜索页面', () => {
 
   it('默认聚合已启用且已登录的平台，首屏提供独立加载提示', () => {
     const html = renderToStaticMarkup(<SearchPage keyword="周杰伦" />)
-    expect(html).toContain('在 2 个音乐平台中发现歌曲、歌手、专辑与歌单')
+    expect(html).not.toContain('个音乐平台中发现')
+    expect(html.match(/<h2>.*?<\/h2>/g)).toEqual(['<h2>歌手</h2>', '<h2>歌曲</h2>', '<h2>专辑</h2>', '<h2>歌单</h2>'])
     expect(html).toContain('全部平台')
     expect(html).toContain('专辑搜索结果')
     expect(html).toContain('歌单搜索结果')
@@ -61,15 +62,30 @@ describe('聚合搜索页面', () => {
     expect(html).not.toContain('<script>')
   })
 
+  it.each(['artists', 'albums', 'playlists'] as const)('返回时首帧恢复 %s 分类和平台筛选', (category) => {
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category, sourceFilter: 'qq', scrollTop: 420 }} />)
+    const label = { artists: '歌手', albums: '专辑', playlists: '歌单' }[category]
+    expect(html).toContain(`aria-label="${label}搜索结果"`)
+    expect(html).not.toContain('aria-label="歌曲搜索结果"')
+    expect(html).toContain(`aria-pressed="true">${label}</button>`)
+    expect(html).toContain('aria-pressed="false">全部平台</button>')
+  })
+
+  it('返回时已禁用的平台筛选回退到全部平台', () => {
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category: 'artists', sourceFilter: 'apple', scrollTop: 420 }} />)
+    expect(html).toContain('aria-pressed="true">全部平台</button>')
+    expect(html).toContain('aria-pressed="true">歌手</button>')
+  })
+
   it('搜索词随导航历史保留，支持歌手页返回和前进', () => {
     const navigation = useNavigationStore.getState()
     navigation.navigateTo({ type: 'search', keyword: '晴天' })
     navigation.navigateTo({ type: 'artist', id: '1', source: 'qq' })
     navigation.goBack()
-    expect(useNavigationStore.getState().currentView).toEqual({ type: 'search', keyword: '晴天' })
+    expect(useNavigationStore.getState().currentView).toMatchObject({ type: 'search', keyword: '晴天' })
     navigation.goBack()
     expect(useNavigationStore.getState().currentView).toBe('explore')
     navigation.goForward()
-    expect(useNavigationStore.getState().currentView).toEqual({ type: 'search', keyword: '晴天' })
+    expect(useNavigationStore.getState().currentView).toMatchObject({ type: 'search', keyword: '晴天' })
   })
 })

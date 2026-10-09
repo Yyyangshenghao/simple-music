@@ -5,10 +5,11 @@ import { sizedImage } from '../../lib/image-size'
 
 interface TrackInfoProps {
   onCoverClick?: () => void
+  onArtistNavigate?: () => void
 }
 
 /** 播放栏左侧：封面 + 曲名 + 歌手。无当前曲目时显示占位。封面可点击打开歌词面板。 */
-export function TrackInfo({ onCoverClick }: TrackInfoProps) {
+export function TrackInfo({ onCoverClick, onArtistNavigate }: TrackInfoProps) {
   const track = usePlayerStore((s) => s.currentTrack)
 
   return (
@@ -45,6 +46,7 @@ export function TrackInfo({ onCoverClick }: TrackInfoProps) {
           artists={track?.artists}
           fallback={track?.artist ?? '—'}
           source={track?.source ?? 'netease'}
+          onBeforeNavigate={onArtistNavigate}
         />
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { usePlayerStore } from '../stores/player'
-import { usePlaylistStore } from '../stores/playlist'
+import { stepPlayback } from './playback-controls'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
@@ -50,8 +50,8 @@ export function initMediaSession(): void {
   const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
     play: () => usePlayerStore.getState().play(),
     pause: () => usePlayerStore.getState().pause(),
-    previoustrack: () => usePlaylistStore.getState().prev(),
-    nexttrack: () => usePlaylistStore.getState().next(),
+    previoustrack: () => stepPlayback(-1),
+    nexttrack: () => stepPlayback(1),
     stop: () => {
       usePlayerStore.getState().pause()
       usePlayerStore.getState().seek(0)
