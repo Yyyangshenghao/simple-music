@@ -1,4 +1,31 @@
+@property --player-lyrics-blend {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
 .dock {
+  /* 在父层保存页面配色，供子面板与歌词舞台色混合，收起时可原路返回。 */
+  --player-page-sm-bg-base: var(--sm-bg-base);
+  --player-page-sm-bg-elevated: var(--sm-bg-elevated);
+  --player-page-sm-bg-overlay: var(--sm-bg-overlay);
+  --player-page-sm-accent: var(--sm-accent);
+  --player-page-sm-accent-warm: var(--sm-accent-warm);
+  --player-page-sm-text-primary: var(--sm-text-primary);
+  --player-page-sm-text-secondary: var(--sm-text-secondary);
+  --player-page-sm-text-on-accent: var(--sm-text-on-accent);
+  --player-page-sm-border: var(--sm-border);
+  --player-page-sm-border-strong: var(--sm-border-strong);
+  --player-page-sm-fill-subtle: var(--sm-fill-subtle);
+  --player-page-sm-fill-hover: var(--sm-fill-hover);
+  --player-page-sm-fill-active: var(--sm-fill-active);
+  --player-page-sm-color-like: var(--sm-color-like);
+  --player-page-sm-scrollbar-thumb: var(--sm-scrollbar-thumb);
+  --player-page-sm-scrollbar-thumb-hover: var(--sm-scrollbar-thumb-hover);
+  --player-page-sm-scrollbar-thumb-active: var(--sm-scrollbar-thumb-active);
+  --player-page-glass-bg-card: var(--glass-bg-card);
+  --player-page-glass-bg-base: var(--glass-bg-base);
+  --player-page-glass-border-base: var(--glass-border-base);
   padding: 10px 16px;
   pointer-events: none;
   position: absolute;
@@ -12,6 +39,65 @@
     transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* 只在播放栏面板内补间，避免根节点或音频能量变量参与逐帧过渡。 */
+.panel {
+  --player-lyrics-card: rgba(18, 20, 26, 0.82);
+  --player-lyrics-base: rgba(18, 20, 26, 0.72);
+  /* 反相前景在底色越过中间亮度时切换，避免播放图标与底色一起变灰。 */
+  --player-contrast-blend: round(down, calc(var(--player-lyrics-blend) + 55%), 100%);
+  --sm-bg-base: color-mix(in srgb, var(--player-page-sm-bg-base), #12141a var(--player-lyrics-blend));
+  --sm-bg-elevated: color-mix(in srgb, var(--player-page-sm-bg-elevated), rgba(255, 255, 255, 0.06) var(--player-lyrics-blend));
+  --sm-bg-overlay: color-mix(in srgb, var(--player-page-sm-bg-overlay), rgba(255, 255, 255, 0.10) var(--player-lyrics-blend));
+  --sm-accent: color-mix(in srgb, var(--player-page-sm-accent), rgba(255, 255, 255, 0.92) var(--player-lyrics-blend));
+  --sm-accent-warm: color-mix(in srgb, var(--player-page-sm-accent-warm), rgba(255, 255, 255, 0.70) var(--player-lyrics-blend));
+  --sm-text-primary: color-mix(in srgb, var(--player-page-sm-text-primary), rgba(255, 255, 255, 0.92) var(--player-lyrics-blend));
+  --sm-text-secondary: color-mix(in srgb, var(--player-page-sm-text-secondary), rgba(255, 255, 255, 0.60) var(--player-lyrics-blend));
+  --sm-text-on-accent: color-mix(in srgb, var(--player-page-sm-text-on-accent), #12141a var(--player-contrast-blend));
+  --sm-border: color-mix(in srgb, var(--player-page-sm-border), rgba(255, 255, 255, 0.10) var(--player-lyrics-blend));
+  --sm-border-strong: color-mix(in srgb, var(--player-page-sm-border-strong), rgba(255, 255, 255, 0.22) var(--player-lyrics-blend));
+  --sm-fill-subtle: color-mix(in srgb, var(--player-page-sm-fill-subtle), rgba(255, 255, 255, 0.06) var(--player-lyrics-blend));
+  --sm-fill-hover: color-mix(in srgb, var(--player-page-sm-fill-hover), rgba(255, 255, 255, 0.10) var(--player-lyrics-blend));
+  --sm-fill-active: color-mix(in srgb, var(--player-page-sm-fill-active), rgba(255, 255, 255, 0.14) var(--player-lyrics-blend));
+  --sm-color-like: color-mix(in srgb, var(--player-page-sm-color-like), #ff6b81 var(--player-lyrics-blend));
+  --sm-scrollbar-thumb: color-mix(in srgb, var(--player-page-sm-scrollbar-thumb), rgba(255, 255, 255, 0.16) var(--player-lyrics-blend));
+  --sm-scrollbar-thumb-hover: color-mix(in srgb, var(--player-page-sm-scrollbar-thumb-hover), rgba(255, 255, 255, 0.24) var(--player-lyrics-blend));
+  --sm-scrollbar-thumb-active: color-mix(in srgb, var(--player-page-sm-scrollbar-thumb-active), rgba(255, 255, 255, 0.32) var(--player-lyrics-blend));
+  --glass-bg-card: color-mix(in srgb, var(--player-page-glass-bg-card), var(--player-lyrics-card) var(--player-lyrics-blend));
+  --glass-bg-base: color-mix(in srgb, var(--player-page-glass-bg-base), var(--player-lyrics-base) var(--player-lyrics-blend));
+  --glass-border-base: color-mix(in srgb, var(--player-page-glass-border-base), rgba(255, 255, 255, 0.12) var(--player-lyrics-blend));
+  transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
+  /* 确保面板内容绘制在音频辉光之上 */
+  position: relative;
+  z-index: 1;
+}
+
+.dock.lyrics {
+  color-scheme: dark;
+  --sm-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.dock.lyrics .panel {
+  --player-lyrics-blend: 100%;
+}
+
+/* 调色期间直接消费父层混色，保留按钮阴影与 SVG 自身的缩放过渡。 */
+.dock[data-palette-transitioning] .panel button {
+  transition-property: box-shadow;
+}
+
+.dock[data-palette-transitioning] .panel [role='switch'] > span[aria-hidden='true'] {
+  transition-property: none;
+}
+
+:global([data-reduce-transparency='1']) .panel {
+  --player-lyrics-card: rgba(24, 26, 32, 0.96);
+  --player-lyrics-base: rgba(24, 26, 32, 0.94);
+}
+
 /* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
   opacity: 0;
@@ -20,16 +106,6 @@
 
 .dock.hidden .panel {
   pointer-events: none;
-}
-
-.panel {
-  pointer-events: auto;
-  -webkit-app-region: no-drag;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
-  /* 确保面板内容绘制在音频辉光之上 */
-  position: relative;
-  z-index: 1;
 }
 
 /* 音频响应辉光：opacity 由 --audio-energy（useAudioEnergy 每帧写入）驱动 */
