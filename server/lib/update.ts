@@ -13,6 +13,7 @@ import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
+import { updateDownloadDir } from './update-download-dir'
 // 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
 import pkgJson from '../../package.json' with { type: 'json' }
 
@@ -130,14 +131,6 @@ export const APP_INFO = {
 
 const PATCH_MAX_BYTES = 12 * 1024 * 1024
 const UPDATE_FALLBACK_NOTES = ['电影镜头节奏更松', '音源失败自动换源', '右上角更新提示']
-
-// 下载目录落到 ctx.userDataDir 下，不硬编码绝对路径。
-function updateWorkDir(ctx: ServerContext): string {
-  return process.env.SIMPLEMUSIC_UPDATE_DIR || path.join(ctx.userDataDir, 'updates')
-}
-function updateDownloadDir(ctx: ServerContext): string {
-  return process.env.SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR || path.join(updateWorkDir(ctx), 'downloads')
-}
 
 // ---------- 类型定义 ----------
 interface DigestInfo {
@@ -1226,7 +1219,7 @@ async function createUpdateDownloadJob(
   version: string,
   ctx: ServerContext
 ): Promise<JobResult> {
-  const downloadDir = updateDownloadDir(ctx)
+  const downloadDir = updateDownloadDir(ctx.userDataDir)
   const fileName = safeUpdateFileName(asset.name || '', version)
   const filePath = path.join(downloadDir, fileName)
   const downloadCandidates = uniqueDownloadCandidates(
@@ -1455,7 +1448,7 @@ export function startUpdatePatchJob(info: UpdateInfo, ctx: ServerContext): JobRe
     version,
     downloadUrl,
     downloadCandidates,
-    downloadDir: updateDownloadDir(ctx),
+    downloadDir: updateDownloadDir(ctx.userDataDir),
     expectedSize: patch.size || 0,
     sha256: normalizeDigest(patch.sha256 || '', 'sha256').toLowerCase(),
     sha512: normalizeDigest(patch.sha512 || '', 'sha512'),

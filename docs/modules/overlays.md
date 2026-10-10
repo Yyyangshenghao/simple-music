@@ -21,7 +21,7 @@
 
 `overlays/wallpaper/index.tsx` + `wallpaper.html`。直接渲染 `src/components/Visualizer/Scene.tsx`。
 
-- 壁纸窗口是独立渲染进程,自带一份 visual store;主窗口 `useWallpaperSync` 经 `wallpaper:update` 推送 FxParams,入口处 `useVisualStore.getState().updateFx()` 同步到本地 store。
+- 壁纸窗口是独立渲染进程,自带一份 visual store;主窗口 `useWallpaperSync` 经 `wallpaper:update` 推送 FxParams,入口处 `useVisualStore.getState().updateFx()` 同步到本地 store。preload 提前缓存并合并状态，向新订阅者重放完整快照，避免首屏配置早于 React 订阅时丢失。
 - 注意:主窗口与壁纸各自可能跑全屏 WebGL,"同屏只跑一个"的约束指单个窗口内。
 
 ## mini-player(迷你悬浮播放条)

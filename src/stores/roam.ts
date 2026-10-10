@@ -44,6 +44,7 @@ let suggestionsSession = 0
 
 /** generate 的过期守卫:reset(含切音源)/重选歌手时自增;在途生成迟到落地前核对,避免拿旧音源结果冲掉新会话。 */
 let generateSession = 0
+let neteaseGeneration: Promise<void> | null = null
 
 /** 网易云漫游歌单水合会话；切换候选范围或重置时作废迟到响应。 */
 let hydrationSession = 0
@@ -317,6 +318,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
       scope,
       entries: [],
       error: null,
+      generating: false,
       loading: false,
       neteaseHydrated: false,
       suggestions: [],
@@ -395,12 +397,19 @@ export const useRoamStore = create<RoamStore>((set, get) => {
     const date = todayKey()
 
     if (source === 'netease' && useSettingsStore.getState().neteaseLoggedIn && service?.createPlaylist) {
-      // 网易云:写回真实歌单
+      // 远端事务串行：新会话须等旧写完成后再读曲目，避免使用旧删除快照或被迟到写覆盖。
+      const previousGeneration = neteaseGeneration
+      let releaseGeneration: () => void = () => {}
+      const pendingGeneration = new Promise<void>((resolve) => { releaseGeneration = resolve })
+      neteaseGeneration = pendingGeneration
       try {
+        if (previousGeneration) await previousGeneration
+        if (generateSession !== session) return
         let id = get().neteasePlaylistId
         let currentTrackIds: unknown[] = []
         if (id) {
           const found = await service.getPlaylistWithDescription!(id)
+          if (generateSession !== session) return
           if (found) {
             currentTrackIds = found.tracks.map((t) => t.id)
           } else {
@@ -409,9 +418,11 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         }
         if (!id) {
           const created = await service.createPlaylist!(NETEASE_PLAYLIST_NAME, { private: true })
+          if (generateSession !== session) return
           id = created.id
         }
         await service.replacePlaylistTracks!(id, currentTrackIds, tracks.map((t) => t.id))
+        if (generateSession !== session) return
         await service.updatePlaylistDescription!(
           id,
           buildRoamDescription(date, artists.map((a) => a.name))
@@ -433,6 +444,9 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         expireProviderAccount('netease', err)
         // 失败:留在选歌手态,不清 entries,方便重试;错误上页面,不再静默
         set({ generating: false, error: describeGenerateError(err) })
+      } finally {
+        releaseGeneration()
+        if (neteaseGeneration === pendingGeneration) neteaseGeneration = null
       }
       return
     }

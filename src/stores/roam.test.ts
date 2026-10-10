@@ -520,4 +520,106 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(s.entries).toHaveLength(1) // 新会话的 entries 未被清空
     expect(s.entries[0].artist.id).toBe(2)
   })
+
+  it.each(['success', 'failure'] as const)('generate 新建歌单时切换候选范围，旧请求 %s 不影响新会话', async (outcome) => {
+    setNeteaseLoggedIn.mockClear()
+    setAccountState.mockClear()
+    let resolveCreate: (value: { id: string }) => void = () => {}
+    let rejectCreate: (reason: Error) => void = () => {}
+    createPlaylist.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      resolveCreate = resolve
+      rejectCreate = reject
+    }))
+    useRoamStore.setState({ entries: [mkEntry(1)] })
+    const pending = useRoamStore.getState().generate()
+    expect(createPlaylist).toHaveBeenCalledTimes(1)
+    expect(useRoamStore.getState().generating).toBe(true)
+
+    useRoamStore.getState().setScope('netease')
+    expect(useRoamStore.getState().generating).toBe(false)
+    useRoamStore.getState().confirmArtists([mkArtist(2)])
+    await flush()
+    const nextGeneration = useRoamStore.getState().generate()
+    expect(useRoamStore.getState().generating).toBe(true)
+    expect(createPlaylist).toHaveBeenCalledTimes(1)
+
+    if (outcome === 'success') resolveCreate({ id: 'stale-pid' })
+    else rejectCreate(new Error('HTTP 401'))
+    await Promise.all([pending, nextGeneration])
+
+    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist2' }])
+    expect(useRoamStore.getState().neteasePlaylistId).toBe('new-pid')
+    expect(useRoamStore.getState().generating).toBe(false)
+    expect(useRoamStore.getState().error).toBeNull()
+    expect(setNeteaseLoggedIn).not.toHaveBeenCalled()
+    expect(setAccountState).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { stage: 'read', outcome: 'success' },
+    { stage: 'replace', outcome: 'success' },
+    { stage: 'replace', outcome: 'failure' },
+    { stage: 'description', outcome: 'success' },
+    { stage: 'description', outcome: 'failure' },
+  ] as const)('generate 旧会话 $stage 请求 $outcome 后，新会话保留服务器上的最终曲目与简介', async ({ stage, outcome }) => {
+    let remoteIds: unknown[] = [mkTrack(9, 0).id]
+    let remoteDescription = ''
+    let release: () => void = () => {}
+    let reject: (reason: Error) => void = () => {}
+    const blocked = new Promise<void>((resolve, fail) => { release = resolve; reject = fail })
+    getPlaylistWithDescription.mockImplementation(async () => ({
+      playlist: mkNeteasePlaylist(),
+      tracks: remoteIds.map(id => ({ ...mkTrack(9, 0), id })),
+    }))
+    replacePlaylistTracks.mockImplementation(async (_id, currentIds, nextIds) => {
+      remoteIds = [...remoteIds.filter(id => !currentIds.includes(id)), ...nextIds]
+      return true
+    })
+    updatePlaylistDescription.mockImplementation(async (_id, description) => {
+      remoteDescription = description
+      return true
+    })
+    if (stage === 'read') {
+      getPlaylistWithDescription.mockImplementationOnce(async () => {
+        await blocked
+        return { playlist: mkNeteasePlaylist(), tracks: [mkTrack(9, 0)] }
+      })
+    } else if (stage === 'replace') {
+      replacePlaylistTracks.mockImplementationOnce(async (_id, currentIds, nextIds) => {
+        await blocked
+        remoteIds = [...remoteIds.filter(id => !currentIds.includes(id)), ...nextIds]
+        return true
+      })
+    } else {
+      updatePlaylistDescription.mockImplementationOnce(async (_id, description) => {
+        await blocked
+        remoteDescription = description
+        return true
+      })
+    }
+    useRoamStore.setState({ entries: [mkEntry(1)], neteasePlaylistId: 'pid-1' })
+    const oldGeneration = useRoamStore.getState().generate()
+    await flush()
+    useRoamStore.getState().setScope('netease')
+    useRoamStore.getState().confirmArtists([mkArtist(2)])
+    await flush()
+    const newGeneration = useRoamStore.getState().generate()
+    await flush()
+    const readsBeforeOldRequestSettles = getPlaylistWithDescription.mock.calls.length
+
+    if (outcome === 'success') release()
+    else reject(new Error('old request failed'))
+    await Promise.all([oldGeneration, newGeneration])
+
+    expect(readsBeforeOldRequestSettles).toBe(1)
+    expect([...remoteIds].sort()).toEqual(POOLS['2'].map(track => track.id).sort())
+    expect(remoteIds).toEqual(useRoamStore.getState().playlist?.tracks.map(track => track.id))
+    expect(remoteDescription).toContain('artist2')
+    expect(remoteDescription).not.toContain('artist1')
+    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist2' }])
+    expect(useRoamStore.getState().generating).toBe(false)
+    expect(useRoamStore.getState().error).toBeNull()
+    expect(replacePlaylistTracks).toHaveBeenCalledTimes(stage === 'read' ? 1 : 2)
+    expect(updatePlaylistDescription).toHaveBeenCalledTimes(stage === 'description' ? 2 : 1)
+  })
 })

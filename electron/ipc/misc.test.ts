@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolve } from 'node:path'
+import { join, parse, resolve } from 'node:path'
 import { registerMiscIpc } from './misc'
 
 const h = vi.hoisted(() => ({
@@ -32,9 +32,14 @@ describe('应用重启和更新退出', () => {
     h.exists.mockReturnValue(true)
     h.installWindows.mockResolvedValue({ ok: true })
     h.installMac.mockResolvedValue({ ok: true })
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', '')
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', '')
     registerMiscIpc()
   })
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
 
   it('重启先安排重新启动，再走正常退出清理入口', async () => {
     await expect(h.handlers.get('app:restart')!({})).resolves.toEqual({ ok: true })
@@ -69,5 +74,74 @@ describe('应用重启和更新退出', () => {
     expect(h.installWindows).not.toHaveBeenCalled()
     expect(h.quit).not.toHaveBeenCalled()
     expect(h.exit).not.toHaveBeenCalled()
+  })
+
+  it.each(['win32', 'darwin'])('%s 支持工作目录和下载目录覆盖，下载目录优先', async platform => {
+    vi.stubGlobal('process', { ...process, platform })
+    const installer = platform === 'win32' ? h.installWindows : h.installMac
+    for (const [workDir, downloadDir, filePath] of [
+      ['', '', '/user-data/updates/downloads/installer'],
+      ['/custom-updates', '', '/custom-updates/downloads/installer'],
+      ['', '/custom-downloads', '/custom-downloads/installer'],
+      ['/custom-updates', '/custom-downloads', '/custom-downloads/installer']
+    ]) {
+      vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', workDir)
+      vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', downloadDir)
+      await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
+      expect(installer).toHaveBeenLastCalledWith(resolve(filePath))
+    }
+  })
+
+  it.each([
+    '/custom-downloads-other/installer',
+    '/custom-downloads/../installer',
+    '/custom-updates/downloads/installer',
+    '/user-data/updates/downloads/installer'
+  ])('下载目录覆盖后拒绝其它目录 %s', async filePath => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', '/custom-updates')
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', '/custom-downloads')
+    await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: false, error: 'INVALID_UPDATE_PATH' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it.each(['win32', 'darwin'])('%s 自定义下载目录为宿主盘符根时允许安装包', async platform => {
+    vi.stubGlobal('process', { ...process, platform })
+    const root = parse(resolve('installer')).root
+    const filePath = join(root, 'installer')
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', root)
+
+    await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
+    expect(platform === 'win32' ? h.installWindows : h.installMac).toHaveBeenCalledWith(filePath)
+    expect(h.quit).toHaveBeenCalledOnce()
+  })
+
+  it('下载目录为宿主盘符根时仍拒绝根目录本身', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    const root = parse(resolve('installer')).root
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', root)
+
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: root })).resolves.toEqual({ ok: false, error: 'INVALID_UPDATE_PATH' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it('自定义目录安装失败保留应用和会话', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', '/custom-updates')
+    h.installWindows.mockResolvedValueOnce({ ok: false, error: 'INSTALL_FAILED' })
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/custom-updates/downloads/installer' })).resolves.toEqual({ ok: false, error: 'INSTALL_FAILED' })
+    expect(h.quit).not.toHaveBeenCalled()
+    expect(h.exit).not.toHaveBeenCalled()
+  })
+
+  it('自定义目录更新包缺失时不安装或退出', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', '/custom-downloads')
+    h.exists.mockReturnValueOnce(false)
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/custom-downloads/installer' })).resolves.toEqual({ ok: false, error: 'UPDATE_FILE_MISSING' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
   })
 })
