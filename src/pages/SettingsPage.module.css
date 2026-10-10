@@ -343,6 +343,18 @@
 
 .rowValue { color: var(--sm-text-secondary); font-size: 12px; }
 
+.effectPresetOptions { padding: 16px 20px 0; }
+
+.effectPresetControl { width: 100%; }
+.effectPresetControl .seg { flex: 1; padding: 7px 8px; text-align: center; }
+
+.effectReason {
+  display: block;
+  margin-top: 5px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+}
+
 .aboutLink {
   display: grid;
   flex: 0 0 auto;

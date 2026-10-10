@@ -48,6 +48,10 @@
   -webkit-backdrop-filter: none;
 }
 
+:global([data-reduce-transparency="1"]) .panel {
+  background: var(--lyrics-solid-bg);
+}
+
 /* 歌词页跟随主题明暗；普通歌词用柔和封面色铺底。 */
 :global([data-theme="light"]) .panel {
   --lyrics-ink-rgb: 20, 28, 40;
@@ -594,6 +598,10 @@
   flex-direction: column;
   gap: 14px;
   white-space: nowrap;
+}
+
+:global([data-reduce-transparency="1"]) .lyricsSettingsPop {
+  background: rgb(var(--lyrics-surface-rgb));
 }
 
 .popHeader {

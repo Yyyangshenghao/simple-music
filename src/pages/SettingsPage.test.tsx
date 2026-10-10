@@ -7,6 +7,11 @@ import { useProviderStore } from '../stores/providers'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
+const reducedMotion = vi.hoisted(() => ({ value: false }))
+vi.mock('../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => reducedMotion.value
+}))
+
 vi.mock('../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/settings')>()
   const store = original.useSettingsStore
@@ -52,6 +57,7 @@ const initialUpdate = useUpdateStore.getState()
 const initialProviders = useProviderStore.getState()
 
 beforeEach(() => {
+  reducedMotion.value = false
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
   useSettingsStore.setState((state) => ({ performance: { ...state.performance, lyrics3dEnabled: false } }))
   useVisualStore.setState((state) => ({ fx: { ...state.fx, desktopLyricsFontFamily: 'Helvetica Neue', desktopLyricsFontFamilyCjk: 'Songti SC' } }))
@@ -152,7 +158,112 @@ function lyricsMarkup(): string {
   return html.slice(html.indexOf('<section id="settings-section-lyrics"'), html.indexOf('<section id="settings-section-cache"'))
 }
 
+function visualMarkup(): string {
+  const html = renderToStaticMarkup(<SettingsPage />)
+  return html.slice(html.indexOf('<section id="settings-section-visual"'), html.indexOf('<section id="settings-section-lyrics"'))
+}
+
+function effectSwitch(html: string, label: string): string {
+  const button = html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0]
+  expect(button).toBeDefined()
+  return button!
+}
+
+describe('动效设置的实际生效状态', () => {
+  it('按影响区域分组，卡片倾斜和光斑分别提供开关', () => {
+    const html = visualMarkup()
+    for (const title of ['可读性', '动效预设', '背景氛围', '交互反馈', '播放视觉']) {
+      expect(html).toMatch(new RegExp(`<h3[^>]*>${title}`))
+    }
+    expect(effectSwitch(html, '卡片倾斜')).toBeDefined()
+    expect(effectSwitch(html, '卡片跟手光斑')).toBeDefined()
+    expect(html).not.toContain('点击火花')
+    expect(html).toContain('保留按钮与卡片的基本悬停、按压反馈。')
+    expect(html.indexOf('可读性')).toBeLessThan(html.indexOf('界面字体'))
+    expect(html.indexOf('游戏模式')).toBeGreaterThan(html.indexOf('播放视觉'))
+  })
+
+  it('关闭流体背景只暂停鼠标跟随，保留跟随偏好供重新开启时恢复', () => {
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: false, bgPointerMotion: true } }))
+    const html = visualMarkup()
+    expect(effectSwitch(html, '背景鼠标跟随')).toContain('disabled=""')
+    expect(effectSwitch(html, '背景鼠标跟随')).toContain('aria-checked="true"')
+    expect(html).toContain('开启流体背景后生效')
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: true } }))
+    expect(effectSwitch(visualMarkup(), '背景鼠标跟随')).not.toContain('disabled=')
+    expect(useSettingsStore.getState().performance.bgPointerMotion).toBe(true)
+  })
+
+  it('独立透明度和 3D 歌词偏好不改变装饰预设匹配', () => {
+    useSettingsStore.getState().applyPerformancePreset('standard')
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: true, lyrics3dEnabled: false } }))
+    expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false, lyrics3dEnabled: true } }))
+    expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
+  })
+
+  it('减少透明度时禁用流体并解释原因，关闭后仍保留原偏好', () => {
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: true, reduceTransparency: true } }))
+    const suppressed = visualMarkup()
+    expect(effectSwitch(suppressed, '流体背景')).toContain('disabled=""')
+    expect(effectSwitch(suppressed, '流体背景')).toContain('aria-checked="true"')
+    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('disabled=""')
+    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('aria-checked="true"')
+    expect(suppressed).toContain('减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。')
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
+    expect(effectSwitch(visualMarkup(), '流体背景')).not.toContain('disabled=')
+    expect(useSettingsStore.getState().performance.bgFluidMotion).toBe(true)
+  })
+
+  it('系统减弱动态时解释受限效果，并保留已开启偏好', () => {
+    reducedMotion.value = true
+    const html = visualMarkup()
+    for (const label of ['流体背景', '背景鼠标跟随', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) {
+      expect(effectSwitch(html, label)).toContain('disabled=""')
+      expect(effectSwitch(html, label)).toContain('aria-checked="true"')
+    }
+    expect(html).toContain('系统已开启减弱动态，相关装饰动效暂不生效；原设置已保留。')
+    expect(effectSwitch(html, '减少透明度')).not.toContain('disabled=')
+  })
+
+  it('节能档禁用背景流体和音频辉光，但不影响卡片开关', () => {
+    useVisualStore.setState({ performanceMode: 'eco' })
+    const html = visualMarkup()
+    expect(effectSwitch(html, '流体背景')).toContain('disabled=""')
+    expect(effectSwitch(html, '背景鼠标跟随')).toContain('disabled=""')
+    expect(effectSwitch(html, '卡片跟手光斑')).not.toContain('disabled=')
+    expect(effectSwitch(html, '音频辉光')).toContain('disabled=""')
+    expect(effectSwitch(html, '卡片倾斜')).not.toContain('disabled=')
+    expect(html).toContain('当前为节能档，背景流体与音频辉光暂不生效；原设置已保留。')
+  })
+
+  it('预设展示选择状态、各档范围与独立的 3D 歌词说明', () => {
+    const html = visualMarkup()
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
+    expect(html).toContain('标准：开启全部装饰动效；简单：静止背景；极简：关闭全部装饰动效。')
+    expect(html).toContain('透明度与 3D 歌词独立设置，切换预设不会改变。')
+  })
+})
+
 describe('歌词设置分组', () => {
+  it('减少透明度时禁用简洁叠层模糊，原数值仍保留', () => {
+    useSettingsStore.setState((state) => ({
+      lyrics3dStyle: 'focus', lyricsOverlayBlur: 0.8,
+      performance: { ...state.performance, lyrics3dEnabled: true, reduceTransparency: true }
+    }))
+    const html = lyricsMarkup()
+    const blurRow = html.slice(html.indexOf('当前歌词底部模糊'), html.indexOf('当前歌词底部模糊') + 500)
+    expect(blurRow).toMatch(/<input[^>]*disabled=""/)
+    expect(html).toContain('减少透明度已开启，歌词底部模糊暂不生效；原数值已保留。')
+    expect(useSettingsStore.getState().lyricsOverlayBlur).toBe(0.8)
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
+    const restored = lyricsMarkup()
+    const restoredRow = restored.slice(restored.indexOf('当前歌词底部模糊'), restored.indexOf('当前歌词底部模糊') + 500)
+    expect(restoredRow).not.toMatch(/<input[^>]*disabled=/)
+    expect(restoredRow).toContain('value="0.8"')
+  })
+
   it('字体合并到独立卡片，桌面和 3D 字体在禁用详情之外仍可选择', () => {
     const html = lyricsMarkup()
     const [beforeDetails] = html.split('<fieldset')

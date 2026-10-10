@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
-import { motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react'
+import { motion, useMotionValue, useTransform } from 'motion/react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import type { PanInfo } from 'motion/react'
 import type { Playlist } from '../../types/domain'
 import styles from './Stack.module.css'

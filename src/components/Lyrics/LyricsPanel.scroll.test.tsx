@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   effects: [] as Effect[],
   pending: [] as Array<() => void>,
   stateCursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
+  reducedMotion: false,
   lyrics: { lines: Array.from({ length: 30 }, (_, i) => ({ time: i * 10, text: `歌词 ${i}` })),
     currentIndex: 15, translation: [], romaji: [], wordLines: [], offsetSec: 0, loading: false, source: null },
   settings: { lyricsPanelMode: 'lyrics', performance: { lyrics3dEnabled: true }, lyricsFontScale: 1,
@@ -42,6 +43,9 @@ vi.mock('react', async (importOriginal) => ({
       })
     }
   },
+}))
+vi.mock('../../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => h.reducedMotion,
 }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: Object.assign(
   (selector: (state: typeof h.lyrics) => unknown) => selector(h.lyrics), { getState: () => h.lyrics }
@@ -78,13 +82,13 @@ function find(node: unknown, predicate: (element: ReactElement<Record<string, un
 let container: ScrollContainer | null
 let tree: ReactElement
 let scrollRef: { current: unknown } | undefined
-function render(open = true) {
+function render(open = true, controlsHidden = false) {
   let iterations = 0
   do {
     if (++iterations > 10) throw new Error('组件反复重渲染')
     h.dirty = false
     h.stateCursor = h.refCursor = h.effectCursor = 0
-    tree = LyricsPanel({ open, onClose: vi.fn() })
+    tree = LyricsPanel({ open, controlsHidden, onClose: vi.fn() })
     if (h.dirty) {
       h.pending = []
       continue
@@ -122,6 +126,7 @@ beforeEach(() => {
   h.refs = []
   h.effects = []
   h.pending = []
+  h.reducedMotion = false
   h.lyrics.lines = Array.from({ length: 30 }, (_, i) => ({ time: i * 10, text: `歌词 ${i}` }))
   h.lyrics.currentIndex = 15
   h.lyrics.offsetSec = 0
@@ -139,6 +144,66 @@ afterEach(() => {
 })
 
 describe('普通歌词定位', () => {
+  it.each(['lyrics', '3d'])('%s 设置展开期间不随空闲隐藏，关闭后恢复沉浸', (mode) => {
+    h.settings.lyricsPanelMode = mode
+    render()
+    const trigger = find(tree, element => mode === '3d'
+      ? element.props.title === '选择 3D 场景与文字'
+      : element.props['aria-label'] === '歌词设置')!
+    const toggle = trigger.props.onClick as () => void
+    toggle()
+    render(true, true)
+    expect(tree.props.className).not.toContain(styles.immersive)
+    if (mode === '3d') {
+      const menu = find(tree, element => typeof element.props.onClose === 'function' && element.props.tab === 'scene')!
+      const close = menu.props.onClose as () => void
+      close()
+    } else {
+      toggle()
+    }
+    render(true, true)
+    expect(tree.props.className).toContain(styles.immersive)
+  })
+
+  it('系统减少动态时自动跟唱立即定位', () => {
+    h.reducedMotion = true
+    render()
+    container!.scrollTo.mockClear()
+    h.lyrics.currentIndex = 18
+    render()
+    expect(container!.scrollTo).toHaveBeenLastCalledWith({ top: center(18), behavior: 'instant' })
+  })
+
+  it('运行时开启减少动态，当前歌词立即结束平滑定位', () => {
+    render()
+    container!.scrollTo.mockClear()
+    h.reducedMotion = true
+    render()
+    expect(container!.scrollTo).toHaveBeenLastCalledWith({ top: center(15), behavior: 'instant' })
+  })
+
+  it.each([true, false])('浏览期间系统减少动态切换为 %s，恢复跟唱采用最新偏好', (reducedMotion) => {
+    h.reducedMotion = !reducedMotion
+    render()
+    browse(23)
+    h.reducedMotion = reducedMotion
+    render()
+    expect(container!.scrollTo).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(4000)
+    render()
+    expect(container!.scrollTo).toHaveBeenLastCalledWith({
+      top: center(15), behavior: reducedMotion ? 'instant' : 'smooth'
+    })
+  })
+
+  it('系统减少动态时点击歌词立即定位', () => {
+    h.reducedMotion = true
+    render()
+    browse(23)
+    clickLine(24)
+    expect(container!.scrollTo).toHaveBeenLastCalledWith({ top: center(24), behavior: 'instant' })
+  })
+
   it('首次打开定位到正在播放的歌词', () => {
     render()
     expect(container!.scrollTop).toBe(center(15))

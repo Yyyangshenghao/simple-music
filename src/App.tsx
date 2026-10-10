@@ -36,7 +36,6 @@ import { AmbientBackground } from './components/Layout/AmbientBackground'
 import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
-import { ClickSpark } from './components/ui/ClickSpark'
 import { Toast } from './components/ui/Toast'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
@@ -177,7 +176,6 @@ export default function App() {
           <GlobalContentProviderDock />
           {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
-          <ClickSpark />
           <Toast />
           <UpdateBanner />
         </div>

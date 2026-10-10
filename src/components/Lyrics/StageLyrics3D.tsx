@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useReducedMotion } from 'motion/react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import * as THREE from 'three'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'

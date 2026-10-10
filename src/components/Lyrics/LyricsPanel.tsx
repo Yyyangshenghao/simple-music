@@ -9,6 +9,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
 import { useLightTheme } from '../../hooks/useLightTheme'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
 import { lightLyricPalette } from '../../lib/lyric-palette'
 import { LyricLine } from './LyricLine'
@@ -126,6 +127,10 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 }
 
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
+  const reducedMotion = useReducedMotion()
+  // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新系统偏好。
+  const reducedMotionRef = useRef(reducedMotion)
+  reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
   const lyricSource = useLyricsStore((s) => s.source)
@@ -203,7 +208,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     const el = container.querySelector<HTMLElement>(`[data-line='${index}']`)
     if (!el && index >= 0) return
     const top = el ? el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2 : 0
-    container.scrollTo({ top, behavior })
+    container.scrollTo({ top, behavior: reducedMotionRef.current ? 'instant' : behavior })
   }
 
   // 面板收起/切模式时顺带收起下拉与浮层,避免下次打开残留展开态
@@ -228,7 +233,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     if (mode !== 'lyrics' || currentIndex < 0 || !open) return
     if (Date.now() < userScrollUntilRef.current) return
     scrollToLine(currentIndex, 'smooth')
-  }, [currentIndex, open, mode])
+  }, [currentIndex, open, mode, reducedMotion])
 
   // 手动滚动检测:wheel/touchmove 只来自用户(程序 scrollTo 不触发),
   // 挂起自动居中,停止滚动 4s 后恢复并平滑回到当前行
@@ -282,9 +287,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
   const backdropOccluded = contentMounted && ((mode === 'lyrics' && !!track?.cover) || mode === '3d')
+  // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
+  const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
 
   return (
-    <div className={`${styles.panel}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${controlsHidden ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
+    <div className={`${styles.panel}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">

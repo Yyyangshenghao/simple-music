@@ -204,16 +204,18 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 
-/** 单项性能开关,设置页「性能」预设(标准/简单/极简)本质是这组开关的批量赋值。 */
+/** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
 export interface PerformanceFlags {
-  /** 氛围背景 LiquidEther 跟手流体效果,关闭后退化为静态渐变。 */
+  /** 氛围背景 LiquidEther 自动流动,关闭后退化为静态渐变。 */
   bgFluidMotion: boolean
+  /** 流体背景跟随鼠标/触摸；关闭后仍自动流动。 */
+  bgPointerMotion: boolean
   /** 歌词页 3D 模式(封面粒子云等)整体可用性,关闭后歌词页只剩纯文字滚动。 */
   lyrics3dEnabled: boolean
-  /** 卡片跟随鼠标的 3D 倾斜追光(TiltCard)。 */
+  /** 卡片跟随鼠标的 3D 倾斜(TiltCard)。 */
   cardTiltEffect: boolean
-  /** 点击火花特效。 */
-  clickSparkEffect: boolean
+  /** 卡片内跟随鼠标的光斑，与倾斜独立。 */
+  cardSpotlightEffect: boolean
   /** 标题流光渐变呼吸动画。 */
   gradientTextMotion: boolean
   /** 播放栏底部随低频能量呼吸的氛围辉光。辉光垫在毛玻璃面板后方,

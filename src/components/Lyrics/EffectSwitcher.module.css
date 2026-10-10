@@ -15,7 +15,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: min(680px, calc(100vh - 120px));
+  /* 留出歌词页头与播放栏，长菜单在可用区域内滚动。 */
+  max-height: min(680px, calc(100vh - var(--sm-player-clearance, 124px) - 100px));
   overflow-y: auto;
   padding: 6px;
   /* 复用歌词舞台的局部配色，菜单与页头同步。 */
@@ -29,6 +30,10 @@
   backdrop-filter: var(--glass-blur-card);
   -webkit-backdrop-filter: var(--glass-blur-card);
   pointer-events: auto;
+}
+
+:global([data-reduce-transparency="1"]) .menu {
+  background: rgb(var(--lyrics-menu-rgb, 24, 26, 32));
 }
 
 .menuTabs {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { AnimatePresence, motion, Reorder, useDragControls, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
@@ -199,7 +200,7 @@ function PlaybackOrderEditor({
 }
 
 /** 通用滑杆行:label + range + 格式化后的当前值。 */
-function SliderRow({ label, min, max, step, value, format, onChange }: {
+function SliderRow({ label, min, max, step, value, format, onChange, disabled }: {
   label: string
   min: number
   max: number
@@ -207,6 +208,7 @@ function SliderRow({ label, min, max, step, value, format, onChange }: {
   value: number
   format: (v: number) => string
   onChange: (v: number) => void
+  disabled?: boolean
 }) {
   const inputId = useId()
 
@@ -220,6 +222,7 @@ function SliderRow({ label, min, max, step, value, format, onChange }: {
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         aria-valuetext={format(value)}
         onChange={(e) => onChange(Number(e.target.value))}
         className="no-drag"
@@ -322,13 +325,35 @@ const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
   minimal: '极简模式',
 }
 
-const PERFORMANCE_FLAG_LABELS: { key: keyof PerformanceFlags; label: string; hint: string }[] = [
-  { key: 'bgFluidMotion', label: '背景跟手流体动效', hint: '关闭后氛围背景改用静态渐变,不再跟随鼠标' },
-  { key: 'cardTiltEffect', label: '卡片跟光 3D 倾斜', hint: '歌单/推荐卡片跟随鼠标倾斜追光' },
-  { key: 'clickSparkEffect', label: '点击火花特效', hint: '' },
-  { key: 'gradientTextMotion', label: '标题流光呼吸动画', hint: '' },
-  { key: 'audioGlowEffect', label: '播放栏音频辉光', hint: '播放时随低频呼吸的底部辉光,关闭可降低持续 GPU 占用' },
-  { key: 'reduceTransparency', label: '减少透明度', hint: '开启后关闭背景流体并把玻璃层去模糊转不透明,消除毛玻璃随动态背景逐帧重取样的 GPU 大头' },
+const PERFORMANCE_EFFECT_GROUPS: {
+  title: string
+  hint: string
+  effects: { key: keyof PerformanceFlags; label: string; hint: string }[]
+}[] = [
+  {
+    title: '背景氛围',
+    hint: '流体变化与鼠标跟随分别控制；关闭流体后使用静态渐变。',
+    effects: [
+      { key: 'bgFluidMotion', label: '流体背景', hint: '让氛围背景缓慢流动' },
+      { key: 'bgPointerMotion', label: '背景鼠标跟随', hint: '让流体随鼠标移动，需要先开启流体背景' },
+    ],
+  },
+  {
+    title: '交互反馈',
+    hint: '倾斜与光斑分别控制，保留按钮与卡片的基本悬停、按压反馈。',
+    effects: [
+      { key: 'cardTiltEffect', label: '卡片倾斜', hint: '歌单与推荐卡片随鼠标轻微倾斜' },
+      { key: 'cardSpotlightEffect', label: '卡片跟手光斑', hint: '光斑沿卡片表面跟随鼠标，可独立于倾斜启用' },
+    ],
+  },
+  {
+    title: '播放视觉',
+    hint: '调整标题与播放栏的装饰效果。',
+    effects: [
+      { key: 'gradientTextMotion', label: '标题流光', hint: '页面标题的渐变流动与呼吸' },
+      { key: 'audioGlowEffect', label: '音频辉光', hint: '播放栏辉光随低频呼吸，关闭可减少持续渲染' },
+    ],
+  },
 ]
 
 /** 当前开关组合与某预设完全一致时返回该预设 id,否则返回 null(自定义组合,不高亮任何预设)。 */
@@ -352,6 +377,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
   const resetParams = useSettingsStore((s) => s.resetLyrics3dParams)
   const lyricsOverlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const setLyricsOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
+  const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
 
   const patch = (key: keyof Lyrics3dParams) => (v: number) => setParams({ [key]: v })
   const percent = (v: number): string => `${Math.round(v * 100)}%`
@@ -379,7 +405,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
           value={params.renderScale} format={(v) => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
         <div className={styles.lyricsSubheading}>恢复设置</div>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>恢复场景、歌词层次与渲染参数</span>
+          <span className={styles.rowLabel}>恢复数值参数，保留场景与文字风格</span>
           <button className={`${styles.seg} no-drag`} onClick={resetParams}>
             恢复默认
           </button>
@@ -449,10 +475,11 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
           {lyrics3dStyle === 'focus' ? '简洁叠层 · 歌词' : '3D 歌词 · 文字层次'}
           <InfoButton label="3D 歌词文字层次" text="调整歌词的亮度、间距、切换过渡和辉光。辉光强度也会影响封面粒子云；简洁叠层只显示居中的当前歌词。" />
         </h3>
-        {lyrics3dStyle === 'focus' ? (
+        {lyrics3dStyle === 'focus' ? <>
           <SliderRow label="当前歌词底部模糊" min={0} max={1} step={0.01}
-            value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} />
-        ) : <>
+            value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} disabled={reduceTransparency} />
+          {reduceTransparency && <p className={styles.groupHint}>减少透明度已开启，歌词底部模糊暂不生效；原数值已保留。</p>}
+        </> : <>
           <SliderRow label="前后歌词亮度" min={0.25} max={1} step={0.01}
             value={params.contextOpacity} format={percent} onChange={patch('contextOpacity')} />
           <SliderRow label="歌词行间距" min={0.6} max={2.4} step={0.02}
@@ -509,6 +536,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
 }
 
 export function SettingsPage() {
+  const reducedMotion = useReducedMotion()
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedSectionRef = useRef<SettingsTab | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -656,6 +684,7 @@ export function SettingsPage() {
   const setPerformance = useSettingsStore((s) => s.setPerformance)
   const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
   const activePerformancePreset = matchPerformancePreset(performance)
+  const eco = useVisualStore((s) => s.performanceMode === 'eco')
 
   const setLyrics3dEnabled = (enabled: boolean): void => {
     setPerformance({ lyrics3dEnabled: enabled })
@@ -990,14 +1019,6 @@ export function SettingsPage() {
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
                   <section className={styles.group}>
-                    <h3 className={styles.groupTitle}>游戏模式</h3>
-                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，暂停界面动效，保留音乐播放和已启用的全局快捷键。可从托盘退出并恢复。</p>
-                    <div className={styles.row}>
-                      <span className={styles.rowLabel}>使用托盘或全局快捷键控制播放。</span>
-                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
-                    </div>
-                  </section>
-                  <section className={styles.group}>
                     <h3 className={styles.groupTitle}>主题</h3>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
@@ -1015,6 +1036,20 @@ export function SettingsPage() {
                         ))}
                       </div>
                     </div>
+                  </section>
+
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>可读性</h3>
+                    <p className={styles.groupHint}>使用更实的面板底色并关闭背景模糊，方便阅读。</p>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>减少透明度</span>
+                      <Switch
+                        checked={performance.reduceTransparency}
+                        onChange={(v) => setPerformance({ reduceTransparency: v })}
+                        aria-label="减少透明度"
+                      />
+                    </div>
+                    {performance.reduceTransparency && <p className={styles.groupHint}>减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。</p>}
                   </section>
 
                   <section className={styles.group}>
@@ -1104,16 +1139,16 @@ export function SettingsPage() {
                 <div className={styles.visualColumn}>
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>
-                      界面动效
-                      <InfoButton label="动效预设" text="预设只调整界面动效；3D 歌词可在歌词设置中单独启用。" />
+                      动效预设
+                      <InfoButton label="动效预设" text="批量调整下方六项装饰效果，随后仍可单独调整每一项。" />
                     </h3>
-                    <div className={styles.row}>
-                      <span className={styles.rowLabel}>动效预设</span>
-                      <div className={styles.segControl}>
+                    <div className={styles.effectPresetOptions}>
+                      <div className={`${styles.segControl} ${styles.effectPresetControl}`} role="group" aria-label="动效预设">
                         {(Object.keys(PERFORMANCE_PRESET_LABELS) as PerformancePreset[]).map((id) => (
                           <motion.button
                             key={id}
                             className={`${styles.seg} no-drag ${activePerformancePreset === id ? styles.segActive : ''}`}
+                            aria-pressed={activePerformancePreset === id}
                             onClick={() => applyPerformancePreset(id)}
                             whileTap={tapScale}
                             transition={springSnappy}
@@ -1129,15 +1164,43 @@ export function SettingsPage() {
                         </span>
                       </div>
                     </div>
-                    {PERFORMANCE_FLAG_LABELS.map(({ key, label, hint }) => (
-                      <div className={styles.row} key={key}>
-                        <span className={styles.rowLabel}>
-                          {label}
-                          {hint && <InfoButton label={label} text={hint} />}
-                        </span>
-                        <Switch checked={performance[key]} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
-                      </div>
-                    ))}
+                    <p className={styles.groupHint}>
+                      标准：开启全部装饰动效；简单：静止背景；极简：关闭全部装饰动效。
+                      <br />透明度与 3D 歌词独立设置，切换预设不会改变。
+                    </p>
+                    {reducedMotion && <p className={styles.groupHint}>系统已开启减弱动态，相关装饰动效暂不生效；原设置已保留。</p>}
+                    {eco && <p className={styles.groupHint}>当前为节能档，背景流体与音频辉光暂不生效；原设置已保留。</p>}
+                  </section>
+                  {PERFORMANCE_EFFECT_GROUPS.map((group) => (
+                    <section className={styles.group} key={group.title}>
+                      <h3 className={styles.groupTitle}>{group.title}</h3>
+                      <p className={styles.groupHint}>{group.hint}</p>
+                      {group.effects.map(({ key, label, hint }) => {
+                        const background = key === 'bgFluidMotion' || key === 'bgPointerMotion'
+                        const reason = reducedMotion ? '已随系统暂停'
+                          : background && performance.reduceTransparency ? '已随减少透明度暂停'
+                            : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
+                              : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''
+                        return (
+                          <div className={styles.row} key={key}>
+                            <span className={styles.rowLabel}>
+                              {label}
+                              <InfoButton label={label} text={hint} />
+                              {reason && <small className={styles.effectReason}>{reason}</small>}
+                            </span>
+                            <Switch checked={performance[key]} disabled={Boolean(reason)} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+                          </div>
+                        )
+                      })}
+                    </section>
+                  ))}
+                  <section className={styles.group}>
+                    <h3 className={styles.groupTitle}>游戏模式</h3>
+                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，暂停界面动效，保留音乐播放和已启用的全局快捷键。可从托盘退出并恢复。</p>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>使用托盘或全局快捷键控制播放。</span>
+                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
+                    </div>
                   </section>
                 </div>
               </div>

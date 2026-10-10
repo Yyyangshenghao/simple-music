@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useSpring, useMotionValueEvent } from 'motion/react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
@@ -19,7 +20,9 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const palette = useAmbientStore((s) => s.palette)
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
+  const bgPointerMotion = useSettingsStore((s) => s.performance.bgPointerMotion)
   const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
+  const reducedMotion = useReducedMotion()
   const playing = usePlayerStore((s) => s.status === 'playing')
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
@@ -35,12 +38,13 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
 
   return (
     <div className={styles.background}>
-      {!bgFluidMotion || reduceTransparency || performanceMode === 'eco' ? (
+      {!bgFluidMotion || reduceTransparency || reducedMotion || performanceMode === 'eco' ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
         <Suspense fallback={<div className={styles.auroraFallback} aria-hidden="true" />}>
           <LiquidEther
             colors={palette}
+            pointerInteraction={bgPointerMotion}
             mouseForce={12}
             cursorSize={80}
             resolution={performanceMode === 'balanced' ? 0.4 : 0.5}

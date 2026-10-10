@@ -38,6 +38,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useDesktopLyricsSync` / `useWallpaperSync` / `useMiniPlayerSync` — 把当前歌词、可视化与播放状态经 IPC 推给三个悬浮窗。
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
+- `useReducedMotion` — 订阅系统减少动态效果偏好，运行时暂停装饰效果并让歌词直接定位，保留用户原设置。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollReveal` — 滚动内容入场 stagger。
 
