@@ -245,6 +245,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
         .filter((e) => e.loadFailed && e.pool.length === 0)
         .map((e) => `${e.artist.source}:${String(e.artist.id)}`))
       return {
+        generating: false,
         error: null,
         entries: capped.map((artist) => {
           const key = `${artist.source}:${String(artist.id)}`
