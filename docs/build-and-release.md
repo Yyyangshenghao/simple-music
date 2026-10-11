@@ -227,7 +227,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
               下载完成后 size + sha256 + sha512 三重校验，.download 临时文件 rename 落位 userData/updates/downloads/
   → job.status === 'ready' → 用户点「重启并安装」
   → window.desktop.installUpdate(filePath) → IPC app:install-update
-      主进程校验 filePath 必须位于 userData/updates/ 内 →
+      主进程校验 filePath 必须位于配置的更新目录内（默认 userData/updates/）→
       · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.quit()
       · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.quit()
                  用户手动把新版本拖到 Applications 并确认替换；主进程不再原地改写 .app
@@ -240,7 +240,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - **macOS 不做原地静默替换**：应用未签名，旧版 hdiutil + shell 脚本方案在权限或进程中断时可能留下孤儿目录，现只打开已校验 dmg，替换动作交给 Finder 和用户。
 - 下载错误分类（`classifyUpdateError`）：hash/size 不符、超时、DNS、网络中断、HTTP 403/404/5xx 均映射为中文原因给 UI；失败线路记录在 `failedAttempts`（最多 6 条）。
 - 任务表 `updateDownloadJobs` 是内存 Map，保留最近 8 个任务。
-- `electron/ipc/misc.ts` 的更新目录**不读** `SIMPLEMUSIC_UPDATE_DIR` 等 env（server 侧读）：手动覆盖下载目录调试时，install 会稳定返回 `INVALID_UPDATE_PATH`，属已知不对齐（源码注释有说明）。
+- 下载与安装共用更新目录计算：显式 `SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR` 优先作为下载及安装允许目录；未设置时，下载位于更新工作目录的 `downloads/` 子目录，安装仍限定在工作目录内（`SIMPLEMUSIC_UPDATE_DIR` 或默认 `userData/updates/`）。目录外及路径越界的安装请求继续拒绝。
 
 ## 6. 环境变量（构建/更新相关）
 
@@ -252,7 +252,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 | `SIMPLEMUSIC_UPDATE_REPOSITORY` / `_OWNER` / `_REPO` | 覆盖更新仓库 |
 | `SIMPLEMUSIC_UPDATE_MIRRORS`（或 `_MIRROR`） | 覆盖镜像列表（逗号/分号/换行分隔） |
 | `SIMPLEMUSIC_UPDATE_MANIFEST`（`_URL`/`_FILE`） | 指向自托管更新 manifest（http(s)/file/本地路径），设置后跳过 GitHub 检查 |
-| `SIMPLEMUSIC_UPDATE_DIR` / `SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR` | 覆盖更新工作/下载目录（注意 §5 的 install 校验不对齐） |
+| `SIMPLEMUSIC_UPDATE_DIR` / `SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR` | 覆盖更新工作/下载目录，下载目录覆盖优先，安装校验沿用同一配置（见 §5） |
 | `SIMPLEMUSIC_BEAT_CACHE_DIR` | 覆盖节拍图缓存目录（默认 userData/beatmaps） |
 | `SIMPLEMUSIC_NO_DESKTOP_SHORTCUT` / `SIMPLEMUSIC_CREATE_DESKTOP_SHORTCUT` | win32 桌面快捷方式开关（未打包默认不建） |
 | `EVS_ACCOUNT_NAME` / `EVS_PASSWD` | CastLabs EVS 生产 VMP 签名账号；发布 CI 必填并保存为同名 GitHub Actions secrets |

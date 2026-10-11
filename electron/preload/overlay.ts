@@ -1,18 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds } from '../../src/types/ipc'
 
-function on<T>(channel: string, cb: (payload: T) => void): () => void {
-  const listener = (_e: Electron.IpcRendererEvent, payload: T) => cb(payload)
-  ipcRenderer.on(channel, listener)
-  return () => ipcRenderer.removeListener(channel, listener)
-}
-
 // preload 早于页面脚本执行：先接住首屏快照，避免 React effect 尚未订阅时丢状态。
 let lyricsState: LyricsPayload = {}
 const lyricsListeners = new Set<(payload: LyricsPayload) => void>()
 ipcRenderer.on('overlay:lyrics-state', (_event, payload: LyricsPayload) => {
   lyricsState = { ...lyricsState, ...payload }
   for (const listener of lyricsListeners) listener(lyricsState)
+})
+
+let wallpaperState: WallpaperPayload = {}
+const wallpaperListeners = new Set<(payload: WallpaperPayload) => void>()
+ipcRenderer.on('overlay:wallpaper-state', (_event, payload: WallpaperPayload) => {
+  wallpaperState = { ...wallpaperState, ...payload }
+  for (const listener of wallpaperListeners) listener(wallpaperState)
 })
 
 let miniPlayerState: MiniPlayerPayload = {}
@@ -29,7 +30,11 @@ const api = {
     if (Object.keys(lyricsState).length) cb(lyricsState)
     return () => { lyricsListeners.delete(cb) }
   },
-  onWallpaperState: (cb: (p: WallpaperPayload) => void) => on<WallpaperPayload>('overlay:wallpaper-state', cb),
+  onWallpaperState: (cb: (p: WallpaperPayload) => void): (() => void) => {
+    wallpaperListeners.add(cb)
+    if (Object.keys(wallpaperState).length) cb(wallpaperState)
+    return () => { wallpaperListeners.delete(cb) }
+  },
   setLyricsDrag: (dragging: boolean) => ipcRenderer.invoke('overlay:lyrics-set-dragging', { dragging }),
   setLyricsPointerCapture: (active: boolean) => ipcRenderer.invoke('overlay:lyrics-set-pointer-capture', { active }),
   setLyricsHotBounds: (bounds: HotBounds) => ipcRenderer.invoke('overlay:lyrics-set-hot-bounds', bounds),

@@ -110,6 +110,7 @@ export type CacheMutationResult =
 
 const configMemo = new Map<string, AudioCacheConfig>()
 const mutationTails = new Map<string, Promise<void>>()
+const configMutationTails = new Map<string, Promise<void>>()
 const entryLockTails = new Map<string, Promise<void>>()
 const activeWriters = new Set<string>()
 const activeReaders = new Map<string, number>()
@@ -298,18 +299,22 @@ async function loadIndex(userDataDir: string, dir: string): Promise<AudioCacheIn
   return index
 }
 
-async function withMutation<T>(userDataDir: string, task: () => Promise<T>): Promise<T> {
-  const previous = mutationTails.get(userDataDir) ?? Promise.resolve()
+async function withMutation<T>(
+  userDataDir: string,
+  task: () => Promise<T>,
+  tails = mutationTails
+): Promise<T> {
+  const previous = tails.get(userDataDir) ?? Promise.resolve()
   let release!: () => void
   const current = new Promise<void>((resolve) => { release = resolve })
   const tail = previous.then(() => current)
-  mutationTails.set(userDataDir, tail)
+  tails.set(userDataDir, tail)
   await previous
   try {
     return await task()
   } finally {
     release()
-    if (mutationTails.get(userDataDir) === tail) mutationTails.delete(userDataDir)
+    if (tails.get(userDataDir) === tail) tails.delete(userDataDir)
   }
 }
 
@@ -393,56 +398,59 @@ export async function updateAudioCacheConfig(
   userDataDir: string,
   patch: { dir?: string; limitBytes?: number; confirmPinned?: boolean }
 ): Promise<{ ok: true; config: AudioCacheConfig } | { ok: false; error: string }> {
-  const current = await getAudioCacheConfig(userDataDir)
-  const next: AudioCacheConfig = { ...current }
-  if (patch.limitBytes != null) {
-    if (typeof patch.limitBytes !== 'number' || !Number.isFinite(patch.limitBytes)) {
-      return { ok: false, error: 'INVALID_LIMIT' }
+  // 配置更新单独串行，目录维护和限额清理仍可获取索引锁。
+  return withMutation(userDataDir, async () => {
+    const current = await getAudioCacheConfig(userDataDir)
+    const next: AudioCacheConfig = { ...current }
+    if (patch.limitBytes != null) {
+      if (typeof patch.limitBytes !== 'number' || !Number.isFinite(patch.limitBytes)) {
+        return { ok: false, error: 'INVALID_LIMIT' }
+      }
+      next.limitBytes = clampLimit(patch.limitBytes)
     }
-    next.limitBytes = clampLimit(patch.limitBytes)
-  }
-  if (patch.dir != null) {
-    const dir = String(patch.dir).trim() || audioCacheDir(userDataDir)
-    if (!isAbsolute(dir)) return { ok: false, error: 'DIR_NOT_ABSOLUTE' }
-    if (!(await probeWritable(dir))) return { ok: false, error: 'DIR_NOT_WRITABLE' }
-    next.dir = dir
-  }
+    if (patch.dir != null) {
+      const dir = String(patch.dir).trim() || audioCacheDir(userDataDir)
+      if (!isAbsolute(dir)) return { ok: false, error: 'DIR_NOT_ABSOLUTE' }
+      if (!(await probeWritable(dir))) return { ok: false, error: 'DIR_NOT_WRITABLE' }
+      next.dir = dir
+    }
 
-  if (next.dir !== current.dir) {
-    let preflight: string | null
+    if (next.dir !== current.dir) {
+      let preflight: string | null
+      try {
+        preflight = await withMutation(userDataDir, async () => {
+          maintenanceDirs.add(current.dir)
+          if (hasActiveEntriesInDir(current.dir)) return 'CACHE_BUSY'
+          const index = await loadIndex(userDataDir, current.dir)
+          if (!patch.confirmPinned && Object.values(index.entries).some(hasSavedOrigin)) return 'PINNED_CONTENT'
+          return null
+        })
+      } catch (error) {
+        maintenanceDirs.delete(current.dir)
+        throw error
+      }
+      if (preflight) {
+        maintenanceDirs.delete(current.dir)
+        return { ok: false, error: preflight }
+      }
+    }
+
     try {
-      preflight = await withMutation(userDataDir, async () => {
-        maintenanceDirs.add(current.dir)
-        if (hasActiveEntriesInDir(current.dir)) return 'CACHE_BUSY'
-        const index = await loadIndex(userDataDir, current.dir)
-        if (!patch.confirmPinned && Object.values(index.entries).some(hasSavedOrigin)) return 'PINNED_CONTENT'
-        return null
-      })
-    } catch (error) {
+      await fsp.mkdir(userDataDir, { recursive: true })
+      await writeJsonAtomic(join(userDataDir, CONFIG_FILE), next)
+    } catch {
       maintenanceDirs.delete(current.dir)
-      throw error
+      return { ok: false, error: 'CONFIG_SAVE_FAILED' }
     }
-    if (preflight) {
+
+    configMemo.set(userDataDir, next)
+    if (next.dir !== current.dir) {
+      await clearCacheFilesIn(current.dir)
       maintenanceDirs.delete(current.dir)
-      return { ok: false, error: preflight }
     }
-  }
-
-  try {
-    await fsp.mkdir(userDataDir, { recursive: true })
-    await writeJsonAtomic(join(userDataDir, CONFIG_FILE), next)
-  } catch {
-    maintenanceDirs.delete(current.dir)
-    return { ok: false, error: 'CONFIG_SAVE_FAILED' }
-  }
-
-  configMemo.set(userDataDir, next)
-  if (next.dir !== current.dir) {
-    await clearCacheFilesIn(current.dir)
-    maintenanceDirs.delete(current.dir)
-  }
-  if (next.limitBytes < current.limitBytes) await enforceAudioCacheLimit(userDataDir)
-  return { ok: true, config: next }
+    if (next.limitBytes < current.limitBytes) await enforceAudioCacheLimit(userDataDir)
+    return { ok: true, config: next }
+  }, configMutationTails)
 }
 
 export function isFullStreamRequest(range: string): boolean {

@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   WindowState,
+  WindowCloseState,
+  WindowCloseBehavior,
+  WindowCloseChoice,
   GameModeState,
   TrayPlaybackState,
   LoginResult,
@@ -44,6 +47,10 @@ const api = {
   exitFullscreenWindowed: (): Promise<void> => ipcRenderer.invoke('window:exit-fullscreen-windowed'),
   getState: (): Promise<WindowState> => ipcRenderer.invoke('window:get-state'),
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+  getWindowCloseState: (): Promise<WindowCloseState> => ipcRenderer.invoke('window:get-close-state'),
+  setWindowCloseBehavior: (behavior: WindowCloseBehavior): Promise<WindowCloseState> => ipcRenderer.invoke('window:set-close-behavior', behavior),
+  resolveWindowClose: (choice: WindowCloseChoice): Promise<WindowCloseState> => ipcRenderer.invoke('window:resolve-close', choice),
+  onWindowCloseState: (cb: (state: WindowCloseState) => void) => on<WindowCloseState>('window:close-state-changed', cb),
   maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   onStateChange: (cb: (s: WindowState) => void) => on<WindowState>('window:state-changed', cb),
   getGameMode: (): Promise<GameModeState> => ipcRenderer.invoke('game-mode:get-state'),

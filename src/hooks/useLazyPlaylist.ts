@@ -154,8 +154,13 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
   const sessionRef = useRef(0)
+  const visitedKeyRef = useRef<string | null>(null)
 
-  evictIfStale(key)
+  // TTL 在进入集合时校验；原地交互不能淘汰当前 entry，未变的 effect 不会重新拉取。
+  if (visitedKeyRef.current !== key) {
+    evictIfStale(key)
+    visitedKeyRef.current = key
+  }
   if (!cache.has(key)) {
     cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
   } else if (initialTracks?.length) {

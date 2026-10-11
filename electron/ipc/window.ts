@@ -1,4 +1,6 @@
 import { ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import { getWindowCloseState, resolveWindowClose, setWindowCloseBehavior } from '../modules/window-close'
 import {
   getMainWindow,
   getWindowState,
@@ -7,6 +9,25 @@ import {
 } from '../modules/window-manager'
 
 export function registerWindowIpc(): void {
+  const requireMainFrame = (event: IpcMainInvokeEvent): void => {
+    const win = getMainWindow()
+    if (process.platform !== 'win32' || !win || win.isDestroyed()
+      || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) {
+      throw new Error('Window close preferences are only available to the Windows main window')
+    }
+  }
+  ipcMain.handle('window:get-close-state', (event) => {
+    requireMainFrame(event)
+    return getWindowCloseState()
+  })
+  ipcMain.handle('window:set-close-behavior', (event, behavior) => {
+    requireMainFrame(event)
+    return setWindowCloseBehavior(behavior)
+  })
+  ipcMain.handle('window:resolve-close', (event, choice) => {
+    requireMainFrame(event)
+    return resolveWindowClose(choice)
+  })
   ipcMain.handle('window:minimize', () => {
     getMainWindow()?.minimize()
   })

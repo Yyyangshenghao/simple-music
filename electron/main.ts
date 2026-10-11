@@ -1,4 +1,4 @@
-import { app, dialog, screen, session } from 'electron'
+import { app, screen, session } from 'electron'
 import { bootServer, getAppleMusicCaptureFrame, shutdownServer } from './server-host'
 import { createMainWindow, scheduleWindowStateSend, getMainWindow, getServerPort, getServerToken } from './modules/window-manager'
 import {
@@ -11,6 +11,7 @@ import { unregisterHotkeys } from './modules/hotkey-manager'
 import { createTray, destroyTray } from './modules/tray-manager'
 import { registerIpc } from './ipc'
 import { getGameMode, setGameMode } from './modules/game-mode'
+import { attachWindowClose } from './modules/window-close'
 
 const APP_NAME = 'Simple Music'
 const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
@@ -60,32 +61,7 @@ function createPlayerWindow(port: number, token: string): void {
     })
   } else {
     if (process.platform === 'win32') {
-      let closePromptOpen = false
-      win.on('close', async (event) => {
-        if (isQuitting) return
-        event.preventDefault()
-        if (closePromptOpen) return
-        closePromptOpen = true
-        try {
-          const { response } = await dialog.showMessageBox(win, {
-            type: 'question',
-            title: APP_NAME,
-            message: '关闭窗口后，你希望如何处理？',
-            detail: '缩回托盘将继续在后台播放音乐；退出应用将停止播放并关闭整个应用。',
-            buttons: ['缩回托盘', '退出应用', '取消'],
-            defaultId: 0,
-            cancelId: 2,
-            noLink: true
-          })
-          if (isQuitting || win.isDestroyed()) return
-          if (response === 0) win.hide()
-          else if (response === 1) app.quit()
-        } catch (error) {
-          console.error('Window close confirmation failed:', error)
-        } finally {
-          closePromptOpen = false
-        }
-      })
+      attachWindowClose(win, () => isQuitting)
     }
     // Apple Music 播放窗口会在后台隐藏；主窗口关闭后主动退出，避免只剩后台窗口驻留。
     win.on('closed', () => {

@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { openExternalSafely } from './safe-open'
+import { isWindowClosePending } from './window-close'
 import type { WindowState, DisplayBounds } from '../../src/types/ipc'
 
 const APP_NAME = 'Simple Music'
@@ -287,6 +288,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
   mainWindow.webContents.once('did-finish-load', () => sendWindowState(mainWindow))
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (!shortcutRecording && input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
+      if (process.platform === 'win32' && isWindowClosePending(mainWindow)) return
       event.preventDefault()
       exitFullscreenToWindow(mainWindow)
     }

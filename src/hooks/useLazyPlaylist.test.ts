@@ -6,7 +6,7 @@ vi.mock('react', () => ({
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => effect(),
   useReducer: () => [0, vi.fn()],
-  useRef: () => harness.session,
+  useRef: (value: unknown) => value === 0 ? harness.session : { current: value },
   useState: (value: unknown) => [value, vi.fn()],
 }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }) }))

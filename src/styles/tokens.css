@@ -229,7 +229,10 @@
   }
 }
 /* 兜底：彻底关掉 backdrop-filter，消除 saturate()/blur() 的逐帧重取样成本 */
-[data-reduce-transparency="1"] * {
+[data-reduce-transparency="1"] *,
+[data-reduce-transparency="1"] *::before,
+[data-reduce-transparency="1"] *::after,
+[data-reduce-transparency="1"] *::backdrop {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

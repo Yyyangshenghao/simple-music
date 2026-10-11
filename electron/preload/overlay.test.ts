@@ -99,3 +99,47 @@ describe('迷你条 preload 首屏状态重放', () => {
     expect(harness.on.mock.calls.filter(([channel]) => channel === 'overlay:miniplayer-state')).toHaveLength(1)
   })
 })
+
+describe('动态壁纸 preload 首屏状态重放', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  it('完整快照早于页面订阅时仍可重放，增量保留原有视觉参数', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+    const receive = harness.on.mock.calls.find(([channel]) => channel === 'overlay:wallpaper-state')?.[1]
+    expect(receive).toBeTypeOf('function')
+    receive({}, { enabled: true, scene: 'stars', exposure: 1.2 })
+    receive({}, { exposure: 1.5 })
+    const callback = vi.fn()
+
+    api.onWallpaperState(callback)
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith({ enabled: true, scene: 'stars', exposure: 1.5 })
+    receive({}, { enabled: false })
+    expect(callback).toHaveBeenLastCalledWith({ enabled: false, scene: 'stars', exposure: 1.5 })
+  })
+
+  it('取消订阅后不再通知，重新订阅时重放最新状态', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+    const callback = vi.fn()
+    const stop = api.onWallpaperState(callback)
+    expect(callback).not.toHaveBeenCalled()
+    const receive = harness.on.mock.calls.find(([channel]) => channel === 'overlay:wallpaper-state')?.[1]
+    receive({}, { enabled: true, exposure: 1.2 })
+    stop()
+    callback.mockClear()
+    receive({}, { enabled: false })
+    expect(callback).not.toHaveBeenCalled()
+
+    api.onWallpaperState(callback)
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith({ enabled: false, exposure: 1.2 })
+    expect(harness.on.mock.calls.filter(([channel]) => channel === 'overlay:wallpaper-state')).toHaveLength(1)
+  })
+})

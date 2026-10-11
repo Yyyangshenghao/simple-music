@@ -60,9 +60,10 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
 
 export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   bgFluidMotion: true,
+  bgPointerMotion: true,
   lyrics3dEnabled: true,
   cardTiltEffect: true,
-  clickSparkEffect: true,
+  cardSpotlightEffect: true,
   gradientTextMotion: true,
   audioGlowEffect: true,
   reduceTransparency: false,
@@ -75,11 +76,11 @@ function normalizeLyrics3dFpsCap(fps: number): number {
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 
-/** 界面动效预设只控制外观；3D 歌词有独立总开关。 */
-export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'lyrics3dEnabled'>> = {
-  standard: { bgFluidMotion: true, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true, reduceTransparency: false },
-  simple: { bgFluidMotion: false, cardTiltEffect: true, clickSparkEffect: true, gradientTextMotion: true, audioGlowEffect: true, reduceTransparency: false },
-  minimal: { bgFluidMotion: false, cardTiltEffect: false, clickSparkEffect: false, gradientTextMotion: false, audioGlowEffect: false, reduceTransparency: true },
+/** 动效预设只控制装饰效果；透明度与 3D 歌词保持独立。 */
+export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'lyrics3dEnabled' | 'reduceTransparency'>> = {
+  standard: { bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  simple: { bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  minimal: { bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
 
 interface PersistedSettings {
@@ -296,7 +297,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   resetLyrics3dParams() {
-    set({ lyrics3d: { ...DEFAULT_LYRICS_3D } })
+    set({ lyrics3d: { ...DEFAULT_LYRICS_3D }, lyricsOverlayBlur: 0.4 })
     get().saveToLocal()
   },
   setLyricsFontScale(v) {
@@ -450,13 +451,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         // 关掉了流光呼吸(极简/自定义省电组合)的用户,默认也不要音频辉光
         performance: (() => {
           // 旧存档字段可能不全,按 Partial 处理
-          const stored = data.performance as Partial<PerformanceFlags> | undefined
+          // 移除旧全局火花；新拆出的跟随/光斑继承旧组合选择，已单独配置时原样保留。
+          const { clickSparkEffect: _removed, ...stored } = (data.performance ?? {}) as Partial<PerformanceFlags> & { clickSparkEffect?: boolean }
           return {
             ...DEFAULT_PERFORMANCE,
-            ...(stored && stored.audioGlowEffect === undefined
-              ? { audioGlowEffect: stored.gradientTextMotion ?? true }
-              : null),
             ...stored,
+            bgPointerMotion: stored.bgPointerMotion ?? stored.bgFluidMotion ?? DEFAULT_PERFORMANCE.bgPointerMotion,
+            cardSpotlightEffect: stored.cardSpotlightEffect ?? stored.cardTiltEffect ?? DEFAULT_PERFORMANCE.cardSpotlightEffect,
+            audioGlowEffect: stored.audioGlowEffect ?? stored.gradientTextMotion ?? DEFAULT_PERFORMANCE.audioGlowEffect,
           }
         })(),
         miniPlayerEnabled: data.miniPlayerEnabled ?? false,

@@ -2,7 +2,7 @@
 
 入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，主窗口与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
-Windows 关闭主窗口时弹出原生询问框：可选择“缩回托盘”保留窗口及后台播放，或“退出应用”执行完整退出清理；“取消”、Esc 和关闭询问框均保留主窗口。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
+Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘”或“退出应用”，点击“确定”后保留后台播放或执行完整退出清理；“取消”和 Esc 均保留主窗口。勾选“记住选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
 
 > **安全约定(2026-07-24 加,2026-07-27 文档补录)**:全窗口 `sandbox: true`(主窗 `window-manager`、三个悬浮窗 `overlay-manager`、登录窗 `login-manager`)—— preload 本就是纯 IPC 转发无 node 依赖,沙盒下 `electron.vite.config.ts` preload 输出改 CommonJS(`.cjs`)即可,`process.argv` 端口/token 注入在沙盒下仍可用。API token 由主进程 `randomBytes(32)` 生成、持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 与端口一并注入渲染层,server 侧 `isAllowedToken` 校验(详见 [server.md](server.md) 安全边界)。
 
@@ -11,6 +11,7 @@ Windows 关闭主窗口时弹出原生询问框：可选择“缩回托盘”保
 - `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
 - `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
+- `modules/window-close.ts` — Windows 关闭确认、记住偏好与原生兜底；待确认请求带序号，重载后可恢复、过期结果丢弃。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`；返回每项注册结果，录入期间释放全局绑定。
 - `modules/settings-menu.ts` — 原生设置菜单与可配置快捷键（macOS 应用菜单，其他平台首个菜单）；输入框中保留正常文本编辑，同键已注册全局入口时避免重复触发。
@@ -28,7 +29,7 @@ Windows 关闭主窗口时弹出原生询问框：可选择“缩回托盘”保
 
 ## IPC 通道(invoke)
 
-- `window:*` — minimize / maximize / close / toggle-fullscreen / exit-fullscreen-windowed / get-state
+- `window:*` — minimize / maximize / close / toggle-fullscreen / exit-fullscreen-windowed / get-state / get-close-state / set-close-behavior / resolve-close（关闭偏好通道只接受 Windows 主窗口主 frame）
 - `lyrics:*`(主窗口控制桌面歌词)— set-enabled / set-lock / move-by / update
 - `overlay:lyrics-*`(歌词悬浮窗自身)— close / move-by / resize / set-dragging / set-lock / set-hot-bounds / set-control-bounds / set-pointer-capture
 - `wallpaper:*` — set-enabled / update

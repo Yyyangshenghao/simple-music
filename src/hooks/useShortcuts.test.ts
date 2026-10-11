@@ -67,6 +67,23 @@ afterEach(() => {
 })
 
 describe('快捷键真实分发链路', () => {
+  it('关闭确认中保留 Tab、空格、Esc 的原生操作，避免本地和菜单命令穿透', async () => {
+    vi.stubGlobal('document', { hasFocus: () => true, activeElement: null, querySelector: () => ({}) })
+    useSettingsStore.setState({ localHotkeys: [
+      { action: 'play-pause', accelerator: 'Space' }, { action: 'next', accelerator: 'Tab' },
+      { action: 'settings', accelerator: 'Escape' },
+    ] })
+    useShortcuts()
+    await flush()
+    for (const pressed of [' ', 'Tab', 'Escape']) {
+      const event = key({ key: pressed, code: pressed === ' ' ? 'Space' : pressed, target: target('button') })
+      expect(dispatch(event)).toHaveBeenCalledOnce()
+      expect(event.preventDefault).not.toHaveBeenCalled()
+    }
+    onHotkey({ action: 'settings', source: 'menu' })
+    onHotkey({ action: 'play-pause' })
+    expect(h.action).not.toHaveBeenCalled()
+  })
   it('进入游戏模式保持已注册的全局快捷键，后台播放命令继续分发', async () => {
     useSettingsStore.setState({ globalHotkeysEnabled: true })
     useShortcuts()

@@ -163,6 +163,76 @@ describe('磁盘读写(临时目录)', () => {
     expect(reset.ok && reset.config.dir).toBe(audioCacheDir(userData))
   })
 
+  it('目录保存未完成时并发修改容量，两个更新都保留', async () => {
+    const userData = await makeUserDataDir()
+    const nextDir = join(userData, 'elsewhere')
+    const limitBytes = 5 * 1024 * 1024 * 1024
+    let entered!: () => void
+    let resume!: () => void
+    const reached = new Promise<void>((resolve) => { entered = resolve })
+    const gate = new Promise<void>((resolve) => { resume = resolve })
+    const original = fs.rename
+    let paused = false
+    const rename = vi.spyOn(fs, 'rename').mockImplementation(async (oldPath, newPath) => {
+      if (!paused && newPath === join(userData, 'audio-cache-config.json')) {
+        paused = true
+        entered()
+        await gate
+      }
+      return original(oldPath, newPath)
+    })
+    const moving = updateAudioCacheConfig(userData, { dir: nextDir })
+    let updatingLimit: ReturnType<typeof updateAudioCacheConfig> | undefined
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    try {
+      await reached
+      updatingLimit = updateAudioCacheConfig(userData, { limitBytes })
+      // 旧实现会先保存容量再恢复目录保存；串行实现等待目录请求释放后继续。
+      await Promise.race([
+        updatingLimit,
+        new Promise<void>((resolve) => { timeout = setTimeout(resolve, 100) }),
+      ])
+      resume()
+      expect((await moving).ok).toBe(true)
+      expect((await updatingLimit).ok).toBe(true)
+      expect(await getAudioCacheConfig(userData)).toEqual({ dir: nextDir, limitBytes })
+      expect(JSON.parse(await readFile(join(userData, 'audio-cache-config.json'), 'utf8'))).toEqual({ dir: nextDir, limitBytes })
+    } finally {
+      if (timeout) clearTimeout(timeout)
+      resume()
+      await moving
+      await updatingLimit
+      rename.mockRestore()
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
+
+  it('目录配置保存失败后释放维护状态和更新队列', async () => {
+    const userData = await makeUserDataDir()
+    const original = fs.rename
+    const rename = vi.spyOn(fs, 'rename').mockImplementation(async (oldPath, newPath) => {
+      if (newPath === join(userData, 'audio-cache-config.json')) throw new Error('save failed')
+      return original(oldPath, newPath)
+    })
+    try {
+      expect(await updateAudioCacheConfig(userData, { dir: join(userData, 'elsewhere') })).toEqual({
+        ok: false, error: 'CONFIG_SAVE_FAILED',
+      })
+      rename.mockRestore()
+      const writer = await openAudioCacheWriter(userData, 'after-failure')
+      expect(writer).not.toBeNull()
+      await writer!.write(new Uint8Array([1, 2, 3]))
+      expect(await writer!.commit()).toBe(true)
+      const limitBytes = 5 * 1024 * 1024 * 1024
+      expect(await updateAudioCacheConfig(userData, { limitBytes })).toEqual({
+        ok: true, config: { dir: audioCacheDir(userData), limitBytes },
+      })
+    } finally {
+      rename.mockRestore()
+      await fs.rm(userData, { recursive: true, force: true })
+    }
+  })
+
   it('clearAudioCache 清空 .bin 与 .part', async () => {
     const userData = await makeUserDataDir()
     const w = await openAudioCacheWriter(userData, 'a')

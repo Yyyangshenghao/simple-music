@@ -1,11 +1,12 @@
 import { ipcMain, dialog, shell, app } from 'electron'
 import { writeFileSync, readFileSync, existsSync, promises as fs } from 'node:fs'
-import { resolve, sep, join, isAbsolute } from 'node:path'
+import { resolve, sep, isAbsolute } from 'node:path'
 import { getMainWindow, setShortcutRecording } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
 import { configureSettingsMenu } from '../modules/settings-menu'
 import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
 import { listSystemFonts } from '../modules/font-manager'
+import { updateWorkDir } from '../../server/lib/update-download-dir'
 import type {
   HotkeyConfiguration,
   ExportPayload,
@@ -15,11 +16,8 @@ import type {
   SystemFontResult
 } from '../../src/types/ipc'
 
-// 必须与 server/lib/update.ts 的 updateWorkDir() 同源：那边支持 SIMPLEMUSIC_UPDATE_DIR
-// 等环境变量覆盖下载目录，这里没有跟着读——生产默认路径下两者一致，但手动指定下载目录
-// 调试/测试时，安装包会落在这里校验不到的地方，app:install-update 会稳定返回 INVALID_UPDATE_PATH。
 function getUpdateDownloadDir(): string {
-  return join(app.getPath('userData'), 'updates')
+  return process.env.SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR || updateWorkDir(app.getPath('userData'))
 }
 
 export function registerMiscIpc(): void {
@@ -112,7 +110,8 @@ export function registerMiscIpc(): void {
     try {
       const target = resolve(String(arg?.filePath ?? ''))
       const updateDir = resolve(getUpdateDownloadDir())
-      if (!target || !target.startsWith(updateDir + sep)) return { ok: false, error: 'INVALID_UPDATE_PATH' }
+      const updatePrefix = updateDir.endsWith(sep) ? updateDir : updateDir + sep
+      if (!target || target === updateDir || !target.startsWith(updatePrefix)) return { ok: false, error: 'INVALID_UPDATE_PATH' }
       if (!existsSync(target)) return { ok: false, error: 'UPDATE_FILE_MISSING' }
 
       if (process.platform === 'win32') {

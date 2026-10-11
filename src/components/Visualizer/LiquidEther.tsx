@@ -47,6 +47,8 @@ interface LiquidEtherProps {
   style?: React.CSSProperties;
   className?: string;
   autoDemo?: boolean;
+  /** 仅控制鼠标/触摸跟随，关闭后仍保留自动漂流。 */
+  pointerInteraction?: boolean;
   autoSpeed?: number;
   autoIntensity?: number;
   takeoverDuration?: number;
@@ -79,6 +81,7 @@ export default function LiquidEther({
   style = {},
   className = '',
   autoDemo = true,
+  pointerInteraction = true,
   autoSpeed = 0.5,
   autoIntensity = 2.2,
   takeoverDuration = 0.25,
@@ -179,6 +182,7 @@ export default function LiquidEther({
       takeoverFrom = new THREE.Vector2();
       takeoverTo = new THREE.Vector2();
       onInteract: (() => void) | null = null;
+      pointerInteraction = false;
 
       init(container: HTMLElement) {
         this.container = container;
@@ -187,24 +191,34 @@ export default function LiquidEther({
           (this.docTarget && this.docTarget.defaultView) || (typeof window !== 'undefined' ? window : null);
         if (!defaultView) return;
         this.listenerTarget = defaultView as Window;
-        this.listenerTarget.addEventListener('mousemove', this._onMouseMove);
-        this.listenerTarget.addEventListener('touchstart', this._onTouchStart, { passive: true });
-        this.listenerTarget.addEventListener('touchmove', this._onTouchMove, { passive: true });
-        this.listenerTarget.addEventListener('touchend', this._onTouchEnd);
-        if (this.docTarget) {
-          this.docTarget.addEventListener('mouseleave', this._onDocumentLeave);
+      }
+      setPointerInteraction(enabled: boolean) {
+        if (this.pointerInteraction === enabled) return;
+        this.pointerInteraction = enabled;
+        if (enabled) {
+          this.listenerTarget?.addEventListener('mousemove', this._onMouseMove);
+          this.listenerTarget?.addEventListener('touchstart', this._onTouchStart, { passive: true });
+          this.listenerTarget?.addEventListener('touchmove', this._onTouchMove, { passive: true });
+          this.listenerTarget?.addEventListener('touchend', this._onTouchEnd);
+          this.docTarget?.addEventListener('mouseleave', this._onDocumentLeave);
+        } else {
+          this.listenerTarget?.removeEventListener('mousemove', this._onMouseMove);
+          this.listenerTarget?.removeEventListener('touchstart', this._onTouchStart);
+          this.listenerTarget?.removeEventListener('touchmove', this._onTouchMove);
+          this.listenerTarget?.removeEventListener('touchend', this._onTouchEnd);
+          this.docTarget?.removeEventListener('mouseleave', this._onDocumentLeave);
+          if (this.timer !== null) window.clearTimeout(this.timer);
+          this.timer = null;
+          this.mouseMoved = false;
+          this.isHoverInside = false;
+          this.hasUserControl = false;
+          this.takeoverActive = false;
+          this.coords_old.copy(this.coords);
+          this.diff.set(0, 0);
         }
       }
       dispose() {
-        if (this.listenerTarget) {
-          this.listenerTarget.removeEventListener('mousemove', this._onMouseMove);
-          this.listenerTarget.removeEventListener('touchstart', this._onTouchStart);
-          this.listenerTarget.removeEventListener('touchmove', this._onTouchMove);
-          this.listenerTarget.removeEventListener('touchend', this._onTouchEnd);
-        }
-        if (this.docTarget) {
-          this.docTarget.removeEventListener('mouseleave', this._onDocumentLeave);
-        }
+        this.setPointerInteraction(false);
         this.listenerTarget = null;
         this.docTarget = null;
         this.container = null;
@@ -237,6 +251,7 @@ export default function LiquidEther({
         this.mouseMoved = true;
       }
       _onMouseMove = (event: MouseEvent) => {
+        if (!this.pointerInteraction) return;
         if (!this.updateHoverState(event.clientX, event.clientY)) return;
         if (this.onInteract) this.onInteract();
         if (this.isAutoActive && !this.hasUserControl && !this.takeoverActive) {
@@ -257,6 +272,7 @@ export default function LiquidEther({
         this.hasUserControl = true;
       };
       _onTouchStart = (event: TouchEvent) => {
+        if (!this.pointerInteraction) return;
         if (event.touches.length !== 1) return;
         const t = event.touches[0];
         if (!this.updateHoverState(t.clientX, t.clientY)) return;
@@ -265,6 +281,7 @@ export default function LiquidEther({
         this.hasUserControl = true;
       };
       _onTouchMove = (event: TouchEvent) => {
+        if (!this.pointerInteraction) return;
         if (event.touches.length !== 1) return;
         const t = event.touches[0];
         if (!this.updateHoverState(t.clientX, t.clientY)) return;
@@ -1063,6 +1080,7 @@ export default function LiquidEther({
       props: {
         $wrapper: HTMLElement;
         autoDemo: boolean;
+        pointerInteraction: boolean;
         autoSpeed: number;
         autoIntensity: number;
         takeoverDuration: number;
@@ -1081,9 +1099,10 @@ export default function LiquidEther({
         this.props = props;
         Common.init(props.$wrapper);
         Mouse.init(props.$wrapper);
+        Mouse.setPointerInteraction(props.pointerInteraction);
         Mouse.autoIntensity = props.autoIntensity;
         Mouse.takeoverDuration = props.takeoverDuration;
-        this.lastUserInteraction = performance.now();
+        this.lastUserInteraction = props.pointerInteraction ? performance.now() : -Infinity;
         Mouse.onInteract = () => {
           this.lastUserInteraction = performance.now();
           if (this.autoDriver) this.autoDriver.forceStop();
@@ -1105,6 +1124,15 @@ export default function LiquidEther({
         Common.resize();
         this.output.resize();
       };
+      setPointerInteraction(enabled: boolean) {
+        if (Mouse.pointerInteraction === enabled) return;
+        Mouse.setPointerInteraction(enabled);
+        if (!enabled) {
+          // 清掉旧悬停、接管和提帧窗口，自动漂流从当前位置继续。
+          this.lastUserInteraction = -Infinity;
+          this.autoDriver.forceStop();
+        }
+      }
       _onVisibility = () => {
         const hidden = document.hidden;
         if (hidden) {
@@ -1140,7 +1168,7 @@ export default function LiquidEther({
         // 交互提帧:交互后的短窗口内改用 interactFpsCap,静置超时自动回落
         const boost = interactFpsCapRef.current;
         if (
-          boost !== undefined &&
+          Mouse.pointerInteraction && boost !== undefined &&
           performance.now() - this.lastUserInteraction < interactBoostMsRef.current
         ) {
           cap = boost;
@@ -1191,6 +1219,7 @@ export default function LiquidEther({
     const webgl = new WebGLManager({
       $wrapper: container,
       autoDemo,
+      pointerInteraction,
       autoSpeed,
       autoIntensity,
       takeoverDuration,
@@ -1291,6 +1320,11 @@ export default function LiquidEther({
     autoResumeDelay,
     autoRampDuration
   ]);
+
+  // 跟随开关只更新输入监听，不重建流体场景与 WebGL 上下文。
+  useEffect(() => {
+    webglRef.current?.setPointerInteraction(pointerInteraction);
+  }, [pointerInteraction]);
 
   // colors 变化：补间旧→新调色板并热替换 palette uniform，避免重建整个模拟
   useEffect(() => {

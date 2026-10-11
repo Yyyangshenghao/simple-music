@@ -82,6 +82,15 @@ describe('3D 歌词帧率', () => {
 })
 
 describe('界面动效预设', () => {
+  it.each([true, false])('所有预设都保留独立的减少透明度选择 %s', (reduceTransparency) => {
+    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+    useSettingsStore.getState().setPerformance({ reduceTransparency })
+    for (const preset of ['standard', 'simple', 'minimal'] as const) {
+      useSettingsStore.getState().applyPerformancePreset(preset)
+      expect(useSettingsStore.getState().performance.reduceTransparency).toBe(reduceTransparency)
+    }
+  })
+
   it('切换预设不会改变 3D 歌词总开关', () => {
     vi.stubGlobal('localStorage', { setItem: vi.fn() })
     useSettingsStore.getState().setPerformance({ lyrics3dEnabled: false })
@@ -91,5 +100,49 @@ describe('界面动效预设', () => {
     useSettingsStore.getState().setPerformance({ lyrics3dEnabled: true })
     useSettingsStore.getState().applyPerformancePreset('minimal')
     expect(useSettingsStore.getState().performance.lyrics3dEnabled).toBe(true)
+  })
+})
+
+describe('视觉设置解耦与升级', () => {
+  it.each([true, false])('旧组合开关为 %s 时，新选项继承原选择，废弃火花不再保存', (enabled) => {
+    let saved = JSON.stringify({ performance: { cardTiltEffect: enabled, bgFluidMotion: enabled, clickSparkEffect: true } })
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance).toMatchObject({
+      cardTiltEffect: enabled, cardSpotlightEffect: enabled, bgFluidMotion: enabled, bgPointerMotion: enabled
+    })
+    useSettingsStore.getState().saveToLocal()
+    expect(JSON.parse(saved).performance).not.toHaveProperty('clickSparkEffect')
+  })
+
+  it('光斑与倾斜、跟随与流动各自保存，重载后不会重新捆绑', () => {
+    let saved = ''
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().setPerformance({ cardTiltEffect: false, cardSpotlightEffect: true, bgFluidMotion: true, bgPointerMotion: false })
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance).toMatchObject({
+      cardTiltEffect: false, cardSpotlightEffect: true, bgFluidMotion: true, bgPointerMotion: false
+    })
+  })
+})
+
+describe('3D 歌词数值恢复', () => {
+  it('恢复默认数值也恢复简洁叠层模糊，并保留场景和文字风格', () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { setItem })
+    const settings = useSettingsStore.getState()
+    settings.setLyrics3dEffect('waveform-3d')
+    settings.setLyrics3dStyle('focus')
+    settings.setLyricsOverlayBlur(0.8)
+    settings.setLyrics3dParams({ particleCount: 1.7, renderScale: 1.8 })
+    settings.resetLyrics3dParams()
+    expect(useSettingsStore.getState().lyrics3d).toEqual(DEFAULT_LYRICS_3D)
+    expect(useSettingsStore.getState().lyricsOverlayBlur).toBe(0.4)
+    expect(useSettingsStore.getState().lyrics3dEffect).toBe('waveform-3d')
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
+    expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toMatchObject({
+      lyrics3d: DEFAULT_LYRICS_3D, lyricsOverlayBlur: 0.4, lyrics3dEffect: 'waveform-3d', lyrics3dStyle: 'focus'
+    })
   })
 })

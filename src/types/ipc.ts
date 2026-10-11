@@ -38,6 +38,19 @@ export interface GameModeState {
   enabled: boolean
 }
 
+export type WindowCloseBehavior = 'ask' | 'tray' | 'quit'
+
+export interface WindowCloseState {
+  behavior: WindowCloseBehavior
+  promptId: number | null
+}
+
+export interface WindowCloseChoice {
+  promptId: number
+  action: 'tray' | 'quit' | 'cancel'
+  remember: boolean
+}
+
 export interface TrayPlaybackState {
   title: string
   artist: string
@@ -202,6 +215,9 @@ export interface IpcChannels {
   'window:exit-fullscreen-windowed': { req: void; res: void }
   'window:get-state': { req: void; res: WindowState }
   'window:close': { req: void; res: void }
+  'window:get-close-state': { req: void; res: WindowCloseState }
+  'window:set-close-behavior': { req: WindowCloseBehavior; res: WindowCloseState }
+  'window:resolve-close': { req: WindowCloseChoice; res: WindowCloseState }
 
   'login:netease-open': { req: void; res: LoginResult }
   'login:netease-clear': { req: void; res: OkResult }
@@ -235,6 +251,7 @@ export interface IpcChannels {
 export interface IpcEvents {
   'game-mode:state-changed': GameModeState
   'window:state-changed': WindowState
+  'window:close-state-changed': WindowCloseState
   'lyrics:lock-state-changed': { locked: boolean }
   'lyrics:size-changed': { size: number }
   'lyrics:enabled-state-changed': { enabled: boolean; requested?: boolean }

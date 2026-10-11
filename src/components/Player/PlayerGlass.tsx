@@ -1,7 +1,9 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useAudioEnergy } from '../../hooks/useAudioEnergy'
 import { useSettingsStore } from '../../stores/settings'
+import { useVisualStore } from '../../stores/visual'
 import { GlassPanel } from '../ui/GlassPanel'
 import styles from './PlayerGlass.module.css'
 
@@ -20,7 +22,10 @@ export function PlayerGlass({ children, hidden, lyricsOpen }: PlayerGlassProps) 
   // Blink 堆垃圾以数十 MB/s 产生且 V8 GC 很少触发,内存随播放无限涨。
   // 辉光垫在玻璃面板后方,30fps 的能量呼吸会迫使面板 backdrop-filter 持续重取样,
   // 极简模式(audioGlowEffect=false)整个元素不渲染,归零这份 GPU 常驻负载
-  const glowEnabled = useSettingsStore((s) => s.performance.audioGlowEffect)
+  const glowRequested = useSettingsStore((s) => s.performance.audioGlowEffect)
+  const reducedMotion = useReducedMotion()
+  const eco = useVisualStore((s) => s.performanceMode === 'eco')
+  const glowEnabled = glowRequested && !reducedMotion && !eco && !hidden
   const glowRef = useRef<HTMLDivElement>(null)
   useAudioEnergy(glowRef, glowEnabled)
 

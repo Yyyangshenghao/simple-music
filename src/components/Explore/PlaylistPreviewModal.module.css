@@ -25,6 +25,11 @@
   box-shadow: var(--sm-shadow);
 }
 
+/* 去掉背景模糊后，用随主题调整的不透明底色隔开页面内容。 */
+[data-reduce-transparency="1"] .panel {
+  background: var(--sm-bg-base);
+}
+
 .header { display: flex; flex-shrink: 0; gap: 14px; padding: 16px 16px 12px; }
 
 .cover {

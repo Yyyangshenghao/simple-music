@@ -23,6 +23,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |
 | `lyrics.ts` | 歌词行 + 当前行 tick(由播放进度驱动)+ 3D 歌词布局 |
 | `window.ts` | 只读窗口状态,由主进程经 `useDesktopBridge` 推送 |
+| `window-close.ts` | Windows 关闭偏好与待确认状态，订阅主进程广播；持久化由主进程负责，应用内确认框在主可视层之外常驻 |
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
 | `roam.ts` / `shuange.ts` | 漫游歌手图谱与保存歌单、刷歌会话/自适应推荐状态 |
 | `sleep-timer.ts` / `update.ts` | 睡眠定时状态机、应用更新检查/下载任务 |
@@ -38,10 +39,13 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useDesktopLyricsSync` / `useWallpaperSync` / `useMiniPlayerSync` — 把当前歌词、可视化与播放状态经 IPC 推给三个悬浮窗。
 - `useAmbientPalette` — 封面取色(`lib/extract-color.ts`)→ ambient store → `--ambient-1/2/3` CSS 变量；普通页面切换不重复采样，退出刷歌时恢复取色，切歌或卸载时取消旧结果与补间。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
+- `useReducedMotion` — 订阅系统减少动态效果偏好，运行时暂停装饰效果并让歌词直接定位，保留用户原设置。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollReveal` — 滚动内容入场 stagger。
 
 ## providers / lib
+
+Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或退出应用后，点击“确定”才执行，支持记住选择；「设置 → 界面与窗口 → 关闭窗口」可调整默认行为。确认期间保留方向键切换选项、Tab 焦点循环、空格操作复选框和 Esc 取消，暂停应用内及菜单快捷键分发，全屏 Esc 也优先交给确认框。
 
 快捷键设置位于「设置 → 快捷键」，支持播放/暂停、切歌、音量、喜欢、桌面歌词、迷你模式与打开设置的应用内和全局绑定。点击录入，Esc 取消，Delete/Backspace 或行内清除按钮取消绑定；修改即时保存，启动恢复。录入期间暂停应用菜单快捷键；刷新、退出等菜单组合及常见系统保留键不能绑定。打开设置默认是 macOS `⌘+,` / Windows `Ctrl+,`，默认不注册全局键；同步到原生设置菜单，输入框内也可使用。旧存档补上此入口，自定义或清除此项会保留。默认用 `CommandOrControl` 适配 macOS / Windows，全局组合增加 Alt 与 Shift；迷你模式应用内为 `CommandOrControl+Shift+P`。系统和其他软件的自定义占用由注册结果提示。完整的旧默认配置会升级，自定义与主动清除的配置保留。输入框、可编辑区与输入法组合输入期间避让应用内动作。
 

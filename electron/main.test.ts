@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   main: null as null | {
     isDestroyed(): boolean
     hide(): void
-    webContents: { mainFrame: object }
+    webContents: { mainFrame: object; on: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> }
     on(event: string, listener: (event: { preventDefault(): void }) => void): void
   },
   appleFrame: { id: 'apple-frame' },
@@ -77,7 +77,7 @@ describe('主窗口激活恢复', () => {
       h.main = {
         isDestroyed: () => false,
         hide: h.hide,
-        webContents: { mainFrame: { id: 'main-frame' } },
+        webContents: { mainFrame: { id: 'main-frame' }, on: vi.fn(), send: vi.fn() },
         on: (event, listener) => { h.windowEvents.set(event, listener) }
       }
       h.windows = [h.main]
@@ -123,14 +123,14 @@ describe('主窗口激活恢复', () => {
     const request = vi.mocked(session.defaultSession.setPermissionRequestHandler).mock.calls.at(-1)![0]!
     const display = vi.mocked(session.defaultSession.setDisplayMediaRequestHandler).mock.calls.at(-1)![0]!
     const callback = vi.fn()
-    request(h.main!.webContents as Electron.WebContents, 'display-capture', callback, {} as never)
+    request(h.main!.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
     expect(callback).toHaveBeenCalledWith(true)
     display({ frame: h.main!.webContents.mainFrame, audioRequested: true, videoRequested: true } as never, callback)
     expect(callback).toHaveBeenLastCalledWith({ video: h.main!.webContents.mainFrame, audio: h.appleFrame, enableLocalEcho: true })
     display({ frame: { id: 'foreign' }, audioRequested: true, videoRequested: true } as never, callback)
     expect(callback).toHaveBeenLastCalledWith(null)
     h.captureFrame.mockReturnValue(null)
-    request(h.main!.webContents as Electron.WebContents, 'display-capture', callback, {} as never)
+    request(h.main!.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
     expect(callback).toHaveBeenLastCalledWith(false)
   })
 
