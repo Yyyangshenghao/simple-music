@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import path from 'node:path'
 import type { BrowserWindow } from 'electron'
 
 const h = vi.hoisted(() => ({
@@ -64,11 +65,12 @@ describe('Windows 关闭偏好与确认', () => {
   })
 
   it.each(['tray', 'quit'] as const)('记住 %s 后跳过下次询问，并跨模块重启读取', async (action) => {
+    const preferencesPath = path.join('/test/user-data', 'window-close.json')
     const { api, win, close } = await setup()
     close()
     api.resolveWindowClose({ promptId: api.getWindowCloseState().promptId!, action, remember: true })
-    expect(h.write).toHaveBeenCalledWith('/test/user-data/window-close.json.tmp', JSON.stringify({ behavior: action }), { mode: 0o600 })
-    expect(h.rename).toHaveBeenCalledWith('/test/user-data/window-close.json.tmp', '/test/user-data/window-close.json')
+    expect(h.write).toHaveBeenCalledWith(`${preferencesPath}.tmp`, JSON.stringify({ behavior: action }), { mode: 0o600 })
+    expect(h.rename).toHaveBeenCalledWith(`${preferencesPath}.tmp`, preferencesPath)
     close()
     expect(action === 'tray' ? win.hide : h.quit).toHaveBeenCalledTimes(2)
     h.read.mockReturnValue(JSON.stringify({ behavior: action }))
