@@ -5,6 +5,10 @@ import { useShuangeStore } from '../stores/shuange'
 import { acceleratorFromEvent, isShortcutAction, isSettingsMenuAccelerator, isSystemReservedAccelerator, normalizeAccelerator, shouldIgnoreShortcut } from '../lib/shortcuts'
 import { runShortcutAction } from '../lib/shortcut-actions'
 
+function windowCloseDialogOpen(): boolean {
+  return !!document.querySelector?.('dialog[open][data-window-close]')
+}
+
 /** 启动、设置变更及按键录入时同步注册；响应只接受最新配置。 */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -40,11 +44,13 @@ export function useShortcuts(): void {
       if (state.recording !== previous.recording) sync()
     })
     const offHotkey = desktop?.onHotkey(({ action, source }) => {
+      if (windowCloseDialogOpen()) return
       if (useShortcutStore.getState().recording || (source !== 'menu' && !useSettingsStore.getState().globalHotkeysEnabled)) return
       if (action !== 'settings' && document.hasFocus() && shouldIgnoreShortcut(document.activeElement)) return
       if (isShortcutAction(action)) runShortcutAction(action)
     })
     const onKeyDown = (event: KeyboardEvent, captured = false) => {
+      if (windowCloseDialogOpen()) return
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
       // Enter 等按键保留控件原生操作；空格优先走播放快捷键。
@@ -71,6 +77,7 @@ export function useShortcuts(): void {
       if (!event.repeat) runShortcutAction(binding.action)
     }
     const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (windowCloseDialogOpen()) return
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
       const tab = event.key === 'Tab'

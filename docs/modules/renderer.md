@@ -23,6 +23,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |
 | `lyrics.ts` | 歌词行 + 当前行 tick(由播放进度驱动)+ 3D 歌词布局 |
 | `window.ts` | 只读窗口状态,由主进程经 `useDesktopBridge` 推送 |
+| `window-close.ts` | Windows 关闭偏好与待确认状态，订阅主进程广播；持久化由主进程负责，应用内确认框在主可视层之外常驻 |
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
 | `roam.ts` / `shuange.ts` | 漫游歌手图谱与保存歌单、刷歌会话/自适应推荐状态 |
 | `sleep-timer.ts` / `update.ts` | 睡眠定时状态机、应用更新检查/下载任务 |
@@ -43,6 +44,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useScrollReveal` — 滚动内容入场 stagger。
 
 ## providers / lib
+
+Windows 的关闭确认使用原生 `<dialog>` 承载应用主题面板，支持记住选择；「设置 → 界面与窗口 → 关闭窗口」可切换每次询问、缩回托盘和退出应用。确认期间保留 Tab 焦点循环、空格操作复选框和 Esc 取消，暂停应用内及菜单快捷键分发，全屏 Esc 也优先交给确认框。
 
 快捷键设置位于「设置 → 快捷键」，支持播放/暂停、切歌、音量、喜欢、桌面歌词、迷你模式与打开设置的应用内和全局绑定。点击录入，Esc 取消，Delete/Backspace 或行内清除按钮取消绑定；修改即时保存，启动恢复。录入期间暂停应用菜单快捷键；刷新、退出等菜单组合及常见系统保留键不能绑定。打开设置默认是 macOS `⌘+,` / Windows `Ctrl+,`，默认不注册全局键；同步到原生设置菜单，输入框内也可使用。旧存档补上此入口，自定义或清除此项会保留。默认用 `CommandOrControl` 适配 macOS / Windows，全局组合增加 Alt 与 Shift；迷你模式应用内为 `CommandOrControl+Shift+P`。系统和其他软件的自定义占用由注册结果提示。完整的旧默认配置会升级，自定义与主动清除的配置保留。输入框、可编辑区与输入法组合输入期间避让应用内动作。
 

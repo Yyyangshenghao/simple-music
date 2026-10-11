@@ -22,6 +22,7 @@ import { useBackdropStore } from './stores/backdrop'
 import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { useGameModeStore } from './stores/game-mode'
+import { initWindowCloseSync } from './stores/window-close'
 import { useVisualStore } from './stores/visual'
 import { initPlaybackPersistence } from './lib/playback-persistence'
 import { initMediaSession } from './lib/media-session'
@@ -29,6 +30,7 @@ import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
 import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
+import { WindowCloseDialog } from './components/Layout/WindowCloseDialog'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
 import { GlobalContentProviderDock } from './components/Layout/GlobalContentProviderDock'
@@ -72,6 +74,8 @@ export default function App() {
   useMiniPlayerSync(gameEnabled)
   useLyricsFetch(!gameEnabled || desktopLyricsEnabled)
   useAmbientPalette(!gameEnabled)
+
+  useEffect(() => initWindowCloseSync(), [])
 
   useEffect(() => {
     if (gameEnabled) appleAudioSpectrum.stop()
@@ -163,10 +167,10 @@ export default function App() {
     void useUpdateStore.getState().checkForUpdate()
   }, [])
 
-  if (!mainVisible || gameEnabled) return null
-
   return (
-    <MotionConfig reducedMotion="user">
+    <>
+      <WindowCloseDialog />
+      {mainVisible && !gameEnabled && <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
           <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
@@ -180,6 +184,7 @@ export default function App() {
           <UpdateBanner />
         </div>
       </WindowChrome>
-    </MotionConfig>
+      </MotionConfig>}
+    </>
   )
 }

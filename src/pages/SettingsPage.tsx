@@ -26,6 +26,7 @@ import { useAppleMusicConnection } from '../stores/apple-music-connection'
 import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
+import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
 import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
@@ -83,6 +84,38 @@ interface AudioCacheStatsInfo {
 
 function enabledLabel(enabled: boolean): string {
   return enabled ? '停用' : '启用'
+}
+
+function WindowCloseSettings() {
+  const behavior = useWindowCloseStore((s) => s.behavior)
+  const initialized = useWindowCloseStore((s) => s.initialized)
+  const pending = useWindowCloseStore((s) => s.pending)
+  const error = useWindowCloseStore((s) => s.error)
+  const configure = useWindowCloseStore((s) => s.configure)
+  const refresh = useWindowCloseStore((s) => s.refresh)
+
+  return (
+    <section className={styles.group}>
+      <h3 className={styles.groupTitle}>关闭窗口</h3>
+      <p className={styles.groupHint}>选择点击关闭按钮时的行为。缩回托盘会继续播放，退出应用会停止播放。</p>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>关闭时</span>
+        <div className={styles.segControl} role="group" aria-label="关闭窗口方式">
+          {(['ask', 'tray', 'quit'] as const).map((value) => (
+            <button key={value} type="button" className={`${styles.seg} ${initialized && behavior === value ? styles.segActive : ''}`}
+              disabled={!initialized || pending} aria-pressed={initialized && behavior === value} onClick={() => void configure(value)}>
+              {{ ask: '每次询问', tray: '缩回托盘', quit: '退出应用' }[value]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!initialized && !error && <p className={styles.groupHint} role="status">正在读取关闭方式…</p>}
+      {error && <div className={styles.row}>
+        <span className={styles.rowLabel} role="alert">{error}</span>
+        <button type="button" className={`${styles.seg} no-drag`} disabled={pending} onClick={() => void refresh()}>重新读取</button>
+      </div>}
+    </section>
+  )
 }
 
 function providerLabel(source: ProviderId): string {
@@ -1018,6 +1051,7 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} index={1} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
+                  {window.desktop?.platform === 'win32' && <WindowCloseSettings />}
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>主题</h3>
                     <div className={styles.row}>

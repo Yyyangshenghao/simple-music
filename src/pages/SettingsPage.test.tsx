@@ -4,10 +4,19 @@ import { useSettingsStore } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { useProviderStore } from '../stores/providers'
+import { useWindowCloseStore } from '../stores/window-close'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
 const reducedMotion = vi.hoisted(() => ({ value: false }))
+vi.mock('../stores/window-close', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/window-close')>()
+  const store = original.useWindowCloseStore
+  return { ...original, useWindowCloseStore: Object.assign(
+    (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()),
+    store
+  ) }
+})
 vi.mock('../hooks/useReducedMotion', () => ({
   useReducedMotion: () => reducedMotion.value
 }))
@@ -55,6 +64,7 @@ const initialSettings = useSettingsStore.getState()
 const initialVisual = useVisualStore.getState()
 const initialUpdate = useUpdateStore.getState()
 const initialProviders = useProviderStore.getState()
+const initialWindowClose = useWindowCloseStore.getState()
 
 beforeEach(() => {
   reducedMotion.value = false
@@ -67,6 +77,7 @@ afterEach(() => {
   useVisualStore.setState(initialVisual, true)
   useUpdateStore.setState(initialUpdate, true)
   useProviderStore.setState(initialProviders, true)
+  useWindowCloseStore.setState(initialWindowClose, true)
   vi.unstubAllGlobals()
 })
 
@@ -162,6 +173,29 @@ function visualMarkup(): string {
   const html = renderToStaticMarkup(<SettingsPage />)
   return html.slice(html.indexOf('<section id="settings-section-visual"'), html.indexOf('<section id="settings-section-lyrics"'))
 }
+
+describe('Windows 关闭方式设置', () => {
+  it('macOS 不展示关闭方式，Windows 加载完成后展示当前选择', () => {
+    expect(visualMarkup()).not.toContain('关闭窗口方式')
+    window.desktop.platform = 'win32'
+    useWindowCloseStore.setState({ behavior: 'tray', initialized: true })
+    const html = visualMarkup()
+    expect(html).toContain('关闭窗口方式')
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>缩回托盘<\/button>/)
+    expect(html).toContain('每次询问')
+    expect(html).toContain('退出应用')
+  })
+
+  it('读取未完成和保存期间禁用选项，读取失败提供重试', () => {
+    window.desktop.platform = 'win32'
+    expect(visualMarkup()).toContain('正在读取关闭方式…')
+    expect(visualMarkup()).toMatch(/<button[^>]*disabled=""[^>]*>每次询问<\/button>/)
+    useWindowCloseStore.setState({ initialized: true, pending: true })
+    expect(visualMarkup()).toMatch(/<button[^>]*disabled=""[^>]*>每次询问<\/button>/)
+    useWindowCloseStore.setState({ pending: false, error: '无法读取关闭方式，请重试。' })
+    expect(visualMarkup()).toContain('重新读取')
+  })
+})
 
 function effectSwitch(html: string, label: string): string {
   const button = html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0]
