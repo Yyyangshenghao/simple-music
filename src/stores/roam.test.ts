@@ -521,6 +521,37 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(s.entries[0].artist.id).toBe(2)
   })
 
+  it.each(['success', 'failure'] as const)('generate 在途时直接确认歌手，旧请求 %s 后仍可重新生成', async (outcome) => {
+    let resolveCreate: (value: { id: string }) => void = () => {}
+    let rejectCreate: (reason: Error) => void = () => {}
+    createPlaylist.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      resolveCreate = resolve
+      rejectCreate = reject
+    }))
+    useRoamStore.setState({ entries: [mkEntry(1)] })
+    const pending = useRoamStore.getState().generate()
+    expect(useRoamStore.getState().generating).toBe(true)
+
+    useRoamStore.getState().confirmArtists([mkArtist(1)])
+    const generatingAfterConfirm = useRoamStore.getState().generating
+    if (outcome === 'success') resolveCreate({ id: 'stale-pid' })
+    else rejectCreate(new Error('HTTP 401'))
+    await pending
+
+    expect(generatingAfterConfirm).toBe(false)
+    expect(useRoamStore.getState().generating).toBe(false)
+    expect(useRoamStore.getState().entries[0].artist.id).toBe(1)
+    expect(useRoamStore.getState().playlist).toBeNull()
+    expect(useRoamStore.getState().error).toBeNull()
+    expect(setNeteaseLoggedIn).not.toHaveBeenCalled()
+    expect(setAccountState).not.toHaveBeenCalled()
+    expect(replacePlaylistTracks).not.toHaveBeenCalled()
+
+    await useRoamStore.getState().generate()
+    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist1' }])
+    expect(useRoamStore.getState().generating).toBe(false)
+  })
+
   it.each(['success', 'failure'] as const)('generate 新建歌单时切换候选范围，旧请求 %s 不影响新会话', async (outcome) => {
     setNeteaseLoggedIn.mockClear()
     setAccountState.mockClear()
