@@ -2,7 +2,7 @@
 
 入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，主窗口与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
-Windows 关闭主窗口时默认弹出应用内确认框：可选择“缩回托盘”保留窗口及后台播放，或“退出应用”执行完整退出清理；“取消”和 Esc 均保留主窗口。勾选“记住这次选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
+Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘”或“退出应用”，点击“确定”后保留后台播放或执行完整退出清理；“取消”和 Esc 均保留主窗口。勾选“记住选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
 
 > **安全约定(2026-07-24 加,2026-07-27 文档补录)**:全窗口 `sandbox: true`(主窗 `window-manager`、三个悬浮窗 `overlay-manager`、登录窗 `login-manager`)—— preload 本就是纯 IPC 转发无 node 依赖,沙盒下 `electron.vite.config.ts` preload 输出改 CommonJS(`.cjs`)即可,`process.argv` 端口/token 注入在沙盒下仍可用。API token 由主进程 `randomBytes(32)` 生成、持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 与端口一并注入渲染层,server 侧 `isAllowedToken` 校验(详见 [server.md](server.md) 安全边界)。
 
