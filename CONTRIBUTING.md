@@ -75,6 +75,8 @@ Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息�
 7. **dev → master**：使用 **Merge commit**，保留功能提交及独立发布元数据提交，使 dev 与 master 保持共同历史；发布 PR 标题为 `chore(release): 发布 vX.Y.Z`。不得对整条 dev 使用 Squash merge 或 rebase merge。
 8. **合并后**：核对实际合并提交及文件范围。只有 master 合并后的发布提交允许创建正式版本 tag，具体步骤见 [构建与发布 §0](docs/build-and-release.md)。
 
+用户默认在版本 dev 上测试。已授权的版本开发中，阶段完成必要检查与独立复核后，主动提交、提 PR 并合入目标 dev，无需重复请求阶段集成确认；仍遵守上述评审、检查及分支保护要求。主工作区保持在 dev，后续工作从最新 dev 创建独立 feature/worktree，未验收部分继续隔离。阶段集成不等同于版本发布，不自动升级版本、合入 master 或创建 tag/Release。
+
 ## 四、代码约定(易踩坑必读)
 
 完整清单见 [CLAUDE.md](CLAUDE.md),评审时重点盯这些历史踩过的坑:
