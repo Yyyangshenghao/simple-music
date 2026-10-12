@@ -7,6 +7,7 @@ import {
   removeLocalFolder,
   listLocalLibrary,
   findLocalTrack,
+  availableLocalTrackIds,
   localCoverPath,
   readLocalLyric,
   localAudioContentType,
@@ -19,6 +20,18 @@ export const localMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/local/tracks') {
     const { folders, tracks } = await listLocalLibrary(ctx.userDataDir)
     sendJson(res, { folders, tracks })
+    return true
+  }
+
+  if (pn === '/api/local/availability') {
+    if (req.method !== 'POST') return sendError(res, 405, 'METHOD_NOT_ALLOWED'), true
+    try {
+      const body = JSON.parse(await readBody(req) || '{}') as { ids?: unknown }
+      if (!Array.isArray(body.ids) || body.ids.length > 100 || !body.ids.every(id => typeof id === 'string' && id.length > 0)) {
+        return sendError(res, 400, 'INVALID_TRACK_IDS'), true
+      }
+      sendJson(res, { availableIds: await availableLocalTrackIds(ctx.userDataDir, body.ids) })
+    } catch { sendError(res, 500, 'LOCAL_STATUS_FAILED') }
     return true
   }
 

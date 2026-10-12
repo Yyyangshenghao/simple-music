@@ -242,6 +242,18 @@ export async function findLocalTrack(userDataDir: string, id: string): Promise<L
   return record ? { ...record } : null
 }
 
+/** 只接受索引 ID，检查文件仍存在；不修改索引或应用收藏。调用端每批最多 100 个。 */
+export async function availableLocalTrackIds(userDataDir: string, ids: string[]): Promise<string[]> {
+  const records = (await readSnapshot(userDataDir)).byId
+  const available = await Promise.all([...new Set(ids)].map(async id => {
+    const record = records.get(id)
+    if (!record) return null
+    try { return (await fsp.stat(record.path)).isFile() ? id : null }
+    catch { return null }
+  }))
+  return available.filter((id): id is string => id !== null)
+}
+
 export function localCoverPath(userDataDir: string, id: string): string {
   return coverPathFor(userDataDir, id)
 }

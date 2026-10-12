@@ -9,6 +9,7 @@ import { initialPageTransition, isDetailView, nextPageTransition } from './page-
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
+const AppPlaylistPage = lazy(() => import('../../pages/AppPlaylistPage').then((m) => ({ default: m.AppPlaylistPage })))
 const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ReleaseHistoryPage = lazy(() => import('../../pages/ReleaseHistoryPage').then((m) => ({ default: m.ReleaseHistoryPage })))
@@ -39,6 +40,7 @@ export function AppShell() {
   const renderPage = (view: AppView) => {
     if (view === 'explore') return <ExplorePage />
     if (view === 'library') return <LibraryPage />
+    if (typeof view === 'object' && view.type === 'app-playlist') return <AppPlaylistPage id={view.id} />
     if (view === 'roam') return <RoamPage />
     if (view === 'shuange') return <ShuangePage />
     if (view === 'settings') return <SettingsPage />

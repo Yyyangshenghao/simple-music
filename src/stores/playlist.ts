@@ -6,39 +6,26 @@ import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
 import { preloadTracks } from '../lib/track-preload'
 import { fetchQueueDetails, resolvePending } from '../lib/queue-details'
-import { isValidPermutation, queueDisplayOrder } from '../lib/queue-display'
+import {
+  appendQueueTrack,
+  appendQueueTracks,
+  createQueueState,
+  getQueueStep,
+  moveQueueTrack,
+  moveQueueTrackNext,
+  removeQueueTrack,
+  type QueueState,
+} from '../lib/queue-state'
 import { isProviderId } from '../providers/types'
 import { beginPlaybackIntent } from '../lib/playback-intent'
 import type { ProviderId } from '../providers/types'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
 
-/** Fisher-Yates 洗牌出 [0, n) 的随机排列。 */
-function shuffledIndices(n: number): number[] {
-  const order = Array.from({ length: n }, (_, i) => i)
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[order[i], order[j]] = [order[j], order[i]]
-  }
-  return order
-}
-
-function movedIndices(length: number, from: number, to: number): number[] {
-  const indices = Array.from({ length }, (_, index) => index)
-  indices.splice(to, 0, indices.splice(from, 1)[0])
-  return indices
-}
-
-interface PlaylistStore {
+interface PlaylistStore extends QueueState {
   playlists: Playlist[]
   /** 这批用户歌单属于哪个平台；平台入口切换后 UI 需显式重拉。 */
   playlistsSource: ProviderId | null
   currentPlaylist: Playlist | null
-  queue: Track[]
-  queueIndex: number
-  /** 当前队列的播放语境(来源歌单/专辑 id);供听歌打卡上报用,没有语境(搜索/歌手页)则为 null。 */
-  queueContextId: unknown
-  /** 随机模式的洗牌排列(队列下标序列);长度与 queue 不一致时懒重建。 */
-  shuffleOrder: number[]
   shelfVisible: boolean
   shelfMode: ShelfMode
   loadUserPlaylists(source: ProviderId): Promise<void>
@@ -62,24 +49,15 @@ interface PlaylistStore {
   setShelfMode(mode: ShelfMode): void
 }
 
-/** 按播放模式算 next/prev 的目标下标;随机模式沿洗牌排列循环走,长度失配时懒重建。 */
+/** 计算目标时只回写懒重建的随机顺序，预加载不改变当前播放下标。 */
 function stepIndex(
   s: Pick<PlaylistStore, 'queue' | 'queueIndex' | 'shuffleOrder'>,
   set: (partial: Partial<PlaylistStore>) => void,
   dir: 1 | -1
 ): number {
-  const len = s.queue.length
-  if (!len) return -1
-  if (useSettingsStore.getState().playMode !== 'shuffle') {
-    return (s.queueIndex + dir + len) % len
-  }
-  let order = s.shuffleOrder
-  if (order.length !== len) {
-    order = shuffledIndices(len)
-    set({ shuffleOrder: order })
-  }
-  const pos = order.indexOf(s.queueIndex)
-  return order[(pos + dir + len) % len]
+  const step = getQueueStep(s, useSettingsStore.getState().playMode, dir)
+  if (step.shuffleOrder !== s.shuffleOrder) set({ shuffleOrder: step.shuffleOrder })
+  return step.index
 }
 
 // 切歌落定 1 秒后预载前/后曲目(URL 预解析 + 封面预热),不与当前曲目起播抢网络;
@@ -118,10 +96,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   playlists: [],
   playlistsSource: null,
   currentPlaylist: null,
-  queue: [],
-  queueIndex: -1,
-  queueContextId: null,
-  shuffleOrder: [],
+  ...createQueueState([]),
   shelfVisible: false,
   shelfMode: 'dynamic',
 
@@ -153,7 +128,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
   setQueue(tracks, startIndex = 0, contextId = null) {
     beginPlaybackIntent()
-    set({ queue: tracks, queueIndex: -1, queueContextId: contextId, shuffleOrder: shuffledIndices(tracks.length) })
+    set(createQueueState(tracks, contextId))
     if (tracks.length) get().playAt(startIndex)
   },
 
@@ -161,90 +136,44 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     ++playAtSession
     if (preloadTimer) clearTimeout(preloadTimer)
     preloadTimer = null
-    set({ queue: [], queueIndex: -1, queueContextId: null, shuffleOrder: [] })
+    set(createQueueState([]))
     usePlayerStore.getState().stop()
   },
 
   addToQueue(track) {
-    set((s) => ({
-      queue: [...s.queue, track],
-      shuffleOrder: s.shuffleOrder.length === s.queue.length
-        ? [...s.shuffleOrder, s.queue.length]
-        : shuffledIndices(s.queue.length + 1),
-    }))
+    set((state) => appendQueueTrack(state, track))
   },
 
   addManyToQueue(tracks, offline = false) {
     const state = get()
-    const known = new Set(state.queue.map((track) => `${track.source}:${String(track.id)}`))
     const incoming = tracks.filter((track) => {
-      const key = `${track.source}:${String(track.id)}`
       // 离线列表已确认网易/QQ 文件可用，不要求账号参与；Apple 仍依赖官网会话。
-      if (known.has(key) || track.playable === false || ((!offline || track.source === 'apple') && isProviderId(track.source) && !isProviderParticipating(track.source))) return false
-      known.add(key)
-      return true
+      return (offline && track.source !== 'apple') || !isProviderId(track.source) || isProviderParticipating(track.source)
     })
-    if (!incoming.length) return 0
-    set({
-      queue: [...state.queue, ...incoming],
-      shuffleOrder: isValidPermutation(state.shuffleOrder, state.queue.length)
-        ? [...state.shuffleOrder, ...incoming.map((_, index) => state.queue.length + index)]
-        : shuffledIndices(state.queue.length + incoming.length),
-    })
-    return incoming.length
+    const update = appendQueueTracks(state, incoming)
+    if (!update) return 0
+    set(update)
+    return update.queue.length - state.queue.length
   },
 
   moveQueueItem(fromDisplayIndex, toDisplayIndex) {
-    const state = get()
-    const length = state.queue.length
-    if (!Number.isInteger(fromDisplayIndex) || !Number.isInteger(toDisplayIndex)
-      || fromDisplayIndex < 0 || fromDisplayIndex >= length
-      || toDisplayIndex < 0 || toDisplayIndex >= length
-      || fromDisplayIndex === toDisplayIndex) return
-
-    if (useSettingsStore.getState().playMode === 'shuffle') {
-      const display = queueDisplayOrder(length, state.queueIndex, state.shuffleOrder, 'shuffle').indices
-      const order = [...display]
-      order.splice(toDisplayIndex, 0, order.splice(fromDisplayIndex, 1)[0])
-      set({ shuffleOrder: order })
-    } else {
-      const indices = movedIndices(length, fromDisplayIndex, toDisplayIndex)
-      const nextIndex = new Map(indices.map((oldIndex, index) => [oldIndex, index]))
-      set({
-        queue: indices.map((index) => state.queue[index]),
-        queueIndex: nextIndex.get(state.queueIndex) ?? -1,
-        shuffleOrder: isValidPermutation(state.shuffleOrder, length)
-          ? state.shuffleOrder.map((index) => nextIndex.get(index)!)
-          : [],
-      })
-    }
+    const update = moveQueueTrack(get(), fromDisplayIndex, toDisplayIndex, useSettingsStore.getState().playMode)
+    if (!update) return
+    set(update)
     schedulePreloadNeighbors()
   },
 
   playNextInQueue(index) {
-    const state = get()
-    if (useSettingsStore.getState().playMode === 'one') return
-    if (!Number.isInteger(index) || index < 0 || index >= state.queue.length || index === state.queueIndex) return
-    const display = queueDisplayOrder(
-      state.queue.length, state.queueIndex, state.shuffleOrder, useSettingsStore.getState().playMode
-    )
-    const from = display.indices.indexOf(index)
-    const current = display.currentDisplayIndex
-    if (from < 0 || current < 0) return
-    const to = current === state.queue.length - 1 ? 0 : from < current ? current : current + 1
-    get().moveQueueItem(from, to)
+    const update = moveQueueTrackNext(get(), index, useSettingsStore.getState().playMode)
+    if (!update) return
+    set(update)
+    schedulePreloadNeighbors()
   },
 
   removeQueueItem(index) {
-    const state = get()
-    if (!Number.isInteger(index) || index < 0 || index >= state.queue.length || index === state.queueIndex) return
-    set({
-      queue: state.queue.filter((_, itemIndex) => itemIndex !== index),
-      queueIndex: state.queueIndex > index ? state.queueIndex - 1 : state.queueIndex,
-      shuffleOrder: isValidPermutation(state.shuffleOrder, state.queue.length)
-        ? state.shuffleOrder.filter((itemIndex) => itemIndex !== index).map((itemIndex) => itemIndex > index ? itemIndex - 1 : itemIndex)
-        : [],
-    })
+    const update = removeQueueTrack(get(), index)
+    if (!update) return
+    set(update)
     schedulePreloadNeighbors()
   },
 

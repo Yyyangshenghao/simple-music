@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveBatchTracks } from './batch-tracks'
+import { resolveAppPlaylistTracks, resolveBatchTracks } from './batch-tracks'
 import { advanceProviderAccountSession } from './provider-account-session'
 import type { Playlist, Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ album: vi.fn(), skeleton: vi.fn(), participating: vi.fn(() => true) }))
-vi.mock('../providers/registry', () => ({ providerFor: () => ({ catalog: { getAlbumTracks: h.album, getPlaylistSkeleton: h.skeleton } }) }))
+const h = vi.hoisted(() => ({ album: vi.fn(), skeleton: vi.fn(), details: vi.fn(), participating: vi.fn((_source: string) => true) }))
+vi.mock('../providers/registry', () => ({ providerFor: () => ({ catalog: { getAlbumTracks: h.album, getPlaylistSkeleton: h.skeleton, getTracksByIds: h.details } }) }))
 vi.mock('../stores/providers', () => ({ isProviderParticipating: h.participating }))
 const track: Track = { provider: 'netease', source: 'netease', type: 'song', id: 1, name: 'A', artist: '', artists: [] }
 const album: Playlist = { provider: 'netease', source: 'netease', type: 'album', id: 2, name: '专辑', cover: '', creator: '', trackCount: 2, playCount: 0 }
@@ -33,5 +33,42 @@ describe('批量操作展开曲目', () => {
     h.participating.mockReturnValue(false)
     await expect(resolveBatchTracks([], [album], new AbortController().signal)).rejects.toThrow('账号或平台状态已变化')
     expect(h.album).not.toHaveBeenCalled()
+  })
+  it('收藏已有曲目允许停用平台、Apple 和本地曲目，并保留不可播歌曲', async () => {
+    h.participating.mockReturnValue(false)
+    const result = await resolveAppPlaylistTracks([track, { ...track, playable: false, source: 'apple', provider: 'apple' }, { ...track, source: 'local', provider: 'local' }], [], new AbortController().signal)
+    expect(result.map(item => item.source)).toEqual(['netease', 'apple', 'local'])
+    expect(result[1].playable).toBe(false)
+    expect(h.participating).not.toHaveBeenCalled()
+  })
+  it('收藏集合仍丢弃账号切换的迟到结果，取消后也不保存', async () => {
+    h.album.mockImplementation(async () => { advanceProviderAccountSession('netease'); return [track] })
+    await expect(resolveAppPlaylistTracks([], [album], new AbortController().signal)).rejects.toThrow('账号或平台状态已变化')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(resolveAppPlaylistTracks([track], [], controller.signal)).rejects.toThrow('Aborted')
+  })
+  it('收藏展开保留不可播和待补全曲目，不要求直接选中歌曲的平台参与', async () => {
+    h.participating.mockImplementation(source => source === 'netease')
+    h.album.mockResolvedValue([{ ...track, playable: false }])
+    const result = await resolveAppPlaylistTracks([{ ...track, source: 'qq', provider: 'qq' }], [album], new AbortController().signal)
+    expect(result.map(item => item.source)).toEqual(['qq', 'netease'])
+    expect(result[1].playable).toBe(false)
+  })
+  it('收藏整单或占位选区时补全已有平台的元数据，仍保留查不到的原始身份', async () => {
+    h.skeleton.mockResolvedValue({ trackIds: [1, 2, 3], tracks: [track] })
+    h.details.mockResolvedValue([{ ...track, id: 2, name: 'B' }])
+    const result = await resolveAppPlaylistTracks([], [{ ...album, type: 'playlist' }], new AbortController().signal)
+    expect(h.details).toHaveBeenCalledWith([2, 3])
+    expect(result.map(item => item.name)).toEqual(['A', 'B', ''])
+    expect(result.at(-1)).toMatchObject({ id: 3, source: 'netease', pending: true })
+  })
+  it('补全收藏期间账号变化不能保存旧账号结果；停用平台的占位收藏不发请求', async () => {
+    h.details.mockImplementation(async () => { advanceProviderAccountSession('netease'); return [track] })
+    await expect(resolveAppPlaylistTracks([{ ...track, pending: true }], [], new AbortController().signal)).rejects.toThrow('账号或平台状态已变化')
+    h.details.mockClear()
+    h.participating.mockReturnValue(false)
+    expect(await resolveAppPlaylistTracks([{ ...track, pending: true }], [], new AbortController().signal)).toHaveLength(1)
+    expect(h.details).not.toHaveBeenCalled()
   })
 })

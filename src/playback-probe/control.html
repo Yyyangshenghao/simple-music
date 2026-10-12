@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'" />
+<title>Simple Music · 音频宿主验证</title></head><body>
+<main>
+  <header><div><p class="eyebrow">2.4.0 · 开发验证原型</p><h1>独立音频宿主</h1><p class="hint">关闭控制界面，检查播放能否继续。默认播放器和个人资料库不受影响。</p></div><button id="quit">退出原型</button></header>
+  <section aria-label="测试音频"><h2>选择测试音频</h2><div class="actions"><button id="folder">选择音乐文件夹</button><span class="hint">导入后保持停止，点击播放开始。</span></div>
+    <form id="stream-form"><label for="stream">公开音频直链</label><div class="actions"><input id="stream" type="url" placeholder="https://…" required autocomplete="off" /><button type="submit">测试代理流</button></div></form>
+  </section>
+  <section aria-label="播放状态"><div class="heading"><h2 id="track">未选择音频</h2><span id="status">正在连接宿主…</span></div>
+    <p id="position" class="position">00:00 / 00:00</p>
+    <div class="actions playback"><button data-command="previous">上一首</button><button data-command="play" class="primary">播放</button><button data-command="pause">暂停</button><button data-command="stop">停止</button><button data-command="next">下一首</button></div>
+    <div class="settings"><div><label for="seek">定位（秒）</label><input id="seek" type="number" min="0" max="86400" value="0" /><button id="seek-button">定位</button></div>
+      <label>音量<input id="volume" type="range" min="0" max="1" step="0.05" value="0.2" /></label>
+      <label>倍速<select id="rate"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div>
+    <p class="hint" id="counters">队列 0 首 · 加载 0 次 · 自然结束 0 次</p><p class="hint" id="session"></p>
+  </section>
+  <section aria-label="生命周期实验"><h2>界面销毁与返回</h2><div class="actions"><label>无控制界面时长（秒）<input id="detach-seconds" type="number" min="1" max="120" value="10" /></label><button id="detach">销毁控制界面并自动返回</button></div>
+    <div class="actions"><label>定时停止（秒，0 为取消）<input id="sleep-seconds" type="number" min="0" max="3600" value="0" /></label><button id="sleep">设置定时停止</button></div><p id="sleep-state" class="hint">未设置定时停止</p>
+  </section>
+  <section aria-label="验证报告"><div class="heading"><h2>资源与会话记录</h2><div class="actions"><button id="refresh-report">读取记录</button><button id="export">导出报告</button></div></div><p class="hint">开发构建每 2 秒采样，报告不包含音频地址和访问令牌。数据不代表正式游戏模式的资源收益。</p><pre id="report">点击「读取记录」查看资源与窗口事件。</pre></section>
+  <p id="message" role="status" aria-live="polite"></p>
+</main><script type="module" src="./control.ts"></script></body></html>

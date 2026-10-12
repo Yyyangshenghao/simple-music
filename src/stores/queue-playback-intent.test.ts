@@ -29,11 +29,13 @@ vi.mock('../lib/offline-cache', async (importOriginal) => ({
 }))
 
 import { usePlaylistStore } from './playlist'
-import { usePlayerStore } from './player'
+import { usePlayerStore, startPlaybackCore } from './player'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
 import { useRecentPlaysStore } from './recent'
 import { useSleepTimerStore } from './sleep-timer'
+
+startPlaybackCore()
 
 function song(id: string): Track {
   return { provider: 'netease', source: 'netease', type: 'song', id, name: id, artist: '歌手', artists: [], duration: 180_000 }

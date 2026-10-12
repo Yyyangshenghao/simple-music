@@ -67,8 +67,8 @@ afterEach(() => {
 })
 
 describe('快捷键真实分发链路', () => {
-  it('关闭确认中保留 Tab、空格、Esc 的原生操作，避免本地和菜单命令穿透', async () => {
-    vi.stubGlobal('document', { hasFocus: () => true, activeElement: null, querySelector: () => ({}) })
+  it('任意模态对话框中保留 Tab、空格、Esc 的原生操作，避免本地和菜单命令穿透', async () => {
+    vi.stubGlobal('document', { hasFocus: () => true, activeElement: null, querySelector: (selector: string) => selector === 'dialog[open]' ? {} : null })
     useSettingsStore.setState({ localHotkeys: [
       { action: 'play-pause', accelerator: 'Space' }, { action: 'next', accelerator: 'Tab' },
       { action: 'settings', accelerator: 'Escape' },

@@ -161,12 +161,11 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
   const selection = useMultiSelection({
     enabled: selecting,
     keys: [...displayedTracks.map(trackKey), ...displayedCollections.map(collectionKey)],
-    disabledKeys: displayedTracks.filter(isCatalogUnavailable).map(trackKey),
     resetKey: `${keyword}:${enabledSignature}:${category}:${activeFilter}`,
     onExit: () => setSelecting(false),
   })
   const { selected } = selection
-  const selectableCount = displayedTracks.filter((track) => !isCatalogUnavailable(track)).length + displayedCollections.length
+  const selectableCount = displayedTracks.length + displayedCollections.length
   const selectedTracks = displayedTracks.filter((track) => selected.has(trackKey(track)))
   const selectedCollections = displayedCollections.filter((item) => selected.has(collectionKey(item)))
 
@@ -266,12 +265,12 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
                 <div className={styles.sectionActions}>
                   {songsLoading && <span role="status">搜索中…</span>}
                   {!selecting && <BatchTrackActions compact menuLabel="歌曲搜索结果更多操作" label="当前歌曲搜索结果" selectLabel="多选搜索结果"
-                    tracks={visibleSongs.filter(song => !isCatalogUnavailable(song))} onSelect={enterSelection} />}
+                    tracks={visibleSongs} onSelect={enterSelection} />}
                 </div>
               </div>
               {visibleSongs.length > 0 ? visibleSongs.map((song, index) => (
                 <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
-                  {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} disabled={isCatalogUnavailable(song)} />}
+                  {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} />}
                   <TrackRow track={song} index={index} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} />
                 </div>
               )) : <p className={styles.hint}>{songsLoading ? '正在搜索各平台的歌曲…' : failures.some((item) => item.label === '歌曲') ? '部分平台未能完成歌曲搜索，请重试。' : '没有找到相关歌曲，试试歌曲名或歌手名。'}</p>}

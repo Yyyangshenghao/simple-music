@@ -128,6 +128,10 @@
   width: 100%;
 }
 
+.selectableRow { display: flex; align-items: center; gap: 8px; height: 58px; border-radius: 10px; }
+.selectableRow > button:last-child { flex: 1; min-width: 0; }
+.selectableRow[data-selected='true'] { background: var(--sm-fill-active); }
+
 @media (max-width: 640px) {
   .inner { width: calc(100% - 28px); padding-top: 20px; }
   .header { align-items: flex-start; flex-direction: column; gap: 14px; }
