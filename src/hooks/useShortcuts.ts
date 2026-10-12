@@ -9,46 +9,11 @@ function modalDialogOpen(): boolean {
   return !!document.querySelector?.('dialog[open]')
 }
 
-/** 启动、设置变更及按键录入时同步注册；响应只接受最新配置。 */
+/** 主窗口的应用内按键与控件避让；全局注册由播放宿主持有。 */
 export function useShortcuts(): void {
   useEffect(() => {
     const desktop = window.desktop
     const platform = desktop?.platform ?? 'win32'
-    let session = 0
-    let disposed = false
-    const sync = () => {
-      const currentSession = ++session
-      const settings = useSettingsStore.getState()
-      const { recording } = useShortcutStore.getState()
-      const bindings = settings.globalHotkeysEnabled && !recording ? settings.hotkeys : []
-      useShortcutStore.setState({ pending: true, results: [], error: '' })
-      if (!desktop?.configureHotkeys) {
-        useShortcutStore.setState({ pending: false, error: '全局快捷键仅在桌面应用中可用' })
-        return
-      }
-      const settingsAccelerator = settings.localHotkeys.find((item) => item.action === 'settings')?.accelerator ?? ''
-      void desktop.configureHotkeys(bindings, recording, settingsAccelerator).then((result) => {
-        if (disposed || currentSession !== session) return
-        useShortcutStore.setState({ pending: false, results: result.results, menuAccelerators: result.menuAccelerators ?? [], error: result.ok ? '' : '全局快捷键注册失败，请重试' })
-      }).catch(() => {
-        if (!disposed && currentSession === session) {
-          useShortcutStore.setState({ pending: false, error: '全局快捷键注册失败，请重试' })
-        }
-      })
-    }
-    const offSettings = useSettingsStore.subscribe((state, previous) => {
-      if (state.hotkeys !== previous.hotkeys || state.globalHotkeysEnabled !== previous.globalHotkeysEnabled
-        || state.localHotkeys !== previous.localHotkeys) sync()
-    })
-    const offRecording = useShortcutStore.subscribe((state, previous) => {
-      if (state.recording !== previous.recording) sync()
-    })
-    const offHotkey = desktop?.onHotkey(({ action, source }) => {
-      if (modalDialogOpen()) return
-      if (useShortcutStore.getState().recording || (source !== 'menu' && !useSettingsStore.getState().globalHotkeysEnabled)) return
-      if (action !== 'settings' && document.hasFocus() && shouldIgnoreShortcut(document.activeElement)) return
-      if (isShortcutAction(action)) runShortcutAction(action)
-    })
     const onKeyDown = (event: KeyboardEvent, captured = false) => {
       if (modalDialogOpen()) return
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
@@ -97,16 +62,9 @@ export function useShortcuts(): void {
     }
     window.addEventListener('keydown', onKeyDownCapture, true)
     window.addEventListener('keydown', onKeyDown)
-    sync()
     return () => {
-      disposed = true
-      ++session
-      offSettings()
-      offRecording()
-      offHotkey?.()
       window.removeEventListener('keydown', onKeyDownCapture, true)
       window.removeEventListener('keydown', onKeyDown)
-      void desktop?.configureHotkeys([]).catch(() => {})
     }
   }, [])
 }

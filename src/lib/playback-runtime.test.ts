@@ -23,11 +23,21 @@ it('不挂载React也能恢复暂停态、记历史和同步系统；重复启�
   const tray = vi.fn(async () => ({ ok: true }))
   const stopFlush = vi.fn()
   const onFlush = vi.fn(() => stopFlush)
+  const stopControls = vi.fn()
+  const stopHotkeys = vi.fn()
+  let onControl: ((payload: { action: string; value?: number }) => void) | undefined
+  let onHotkey: ((payload: { action: string }) => void) | undefined
+  const controls = vi.fn((callback: typeof onControl) => { onControl = callback; return stopControls })
+  const hotkeys = vi.fn((callback: typeof onHotkey) => { onHotkey = callback; return stopHotkeys })
+  const configureHotkeys = vi.fn(async () => ({ ok: true, results: [] }))
   vi.stubGlobal('window', {
-    desktop: { updateTrayPlayback: tray, onFlushListeningReports: onFlush },
+    desktop: { updateTrayPlayback: tray, onFlushListeningReports: onFlush, onMiniPlayerControl: controls, onHotkey: hotkeys, configureHotkeys },
     addEventListener: (name: string, listener: () => void) => events.set(name, listener),
     removeEventListener: (name: string) => events.delete(name),
   })
+  vi.stubGlobal('document', { hasFocus: () => false })
+  const audio = { volume: 1, addEventListener: vi.fn(), pause: vi.fn() }
+  vi.stubGlobal('Audio', vi.fn(function () { return audio }))
   const handlers = new Map<MediaSessionAction, MediaSessionActionHandler | null>()
   const media = { metadata: null, playbackState: 'none', setPositionState: vi.fn(),
     setActionHandler: (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => handlers.set(action, handler) }
@@ -44,6 +54,13 @@ it('不挂载React也能恢复暂停态、记历史和同步系统；重复启�
   expect(tray).toHaveBeenCalledOnce()
   expect(tray).toHaveBeenCalledWith(expect.objectContaining({ title: '恢复歌曲', playing: false, volume: 0.4 }))
   expect(media.metadata).toMatchObject({ title: '恢复歌曲' })
+  onControl?.({ action: 'volume', value: 0.8 })
+  onHotkey?.({ action: 'volume-down' })
+  expect(usePlayerStore.getState().volume).toBe(0.75)
+  expect(audio.volume).toBe(0.75)
+  expect(controls).toHaveBeenCalledOnce()
+  expect(hotkeys).toHaveBeenCalledOnce()
+  expect(configureHotkeys).toHaveBeenCalledOnce()
 
   const next = { ...track, id: 2, name: '新歌曲' }
   usePlaylistStore.setState({ queue: [next] })
@@ -65,6 +82,9 @@ it('不挂载React也能恢复暂停态、记历史和同步系统；重复启�
   expect(JSON.parse(storage.get('simplemusic-playback')!)).toMatchObject({ queue: [next], position: 100 })
   expect(events.has('beforeunload')).toBe(false)
   expect(stopFlush).toHaveBeenCalledOnce()
+  expect(stopControls).toHaveBeenCalledOnce()
+  expect(stopHotkeys).toHaveBeenCalledOnce()
+  expect(configureHotkeys).toHaveBeenLastCalledWith([])
   expect(handlers.get('play')).toBeNull()
   expect(media.metadata).toBeNull()
   expect(media.playbackState).toBe('none')
@@ -73,6 +93,9 @@ it('不挂载React也能恢复暂停态、记历史和同步系统；重复启�
   usePlayerStore.setState({ currentTrack: { ...next, id: 3 }, status: 'loading', volume: 0.2 })
   vi.runAllTimers()
   stalePlay({ action: 'play' })
+  onControl?.({ action: 'volume', value: 1 })
+  onHotkey?.({ action: 'volume-down' })
+  expect(usePlayerStore.getState().volume).toBe(0.2)
   expect(play).toHaveBeenCalledOnce()
   expect(write).toHaveBeenCalledTimes(writeCount)
   expect(tray).toHaveBeenCalledTimes(trayCount)

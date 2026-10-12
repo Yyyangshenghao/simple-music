@@ -34,9 +34,9 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 
 单例 zustand store 仍是唯一播放状态容器，通过 `createPlaybackCore` 编排会话。核心实例持有懒创建的普通引擎、Apple 会话、解析器及恢复计时器；`player.ts` 提供引擎工厂、平台/音质状态、API、预加载、通知和听歌上报等宿主能力，既有 store 调用接口保持不变。
 
-核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。创建时不注册订阅；`main.tsx` 在渲染 React 前调用 `startPlaybackRuntime()`（`src/lib/playback-runtime.ts`）：先水合设置与 Provider，再启动核心、最近播放、首次暂停态恢复与存档，最后同步托盘和 Media Session 并注册退出收听补报。最近播放不等待我的库懒加载，暂停态恢复不新增历史；重复启动复用同一运行时，不覆盖活跃状态。
+核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。创建时不注册订阅；`main.tsx` 在渲染 React 前调用 `startPlaybackRuntime()`（`src/lib/playback-runtime.ts`）：先水合设置与 Provider，再启动核心、最近播放、首次暂停态恢复与存档，注册桌面播放命令与全局快捷键，最后同步托盘和 Media Session 并注册退出收听补报。最近播放不等待我的库懒加载，暂停态恢复不新增历史；重复启动复用同一运行时，不覆盖活跃状态。
 
-React 挂载/卸载不启停运行时。窗口退出先由 `beforeunload` 保存播放快照，再在 `unload` 统一停止存档与展示订阅、注销媒体动作并释放核心资源；存档停止时清除待写定时器并最后保存一次。核心释放后迟到结果不得写回，也不触发自然结束或睡眠回调，同一已终止宿主不重启核心。状态与默认音频后端仍在原渲染进程，托盘命令、全局快捷键、刷歌和下载等尚未迁移，本阶段不实现正式后台宿主或主窗口销毁后的 UI 重连。
+React 挂载/卸载不启停运行时。窗口退出先由 `beforeunload` 保存播放快照，再在 `unload` 统一停止存档、播放命令与展示订阅，注销全局快捷键和媒体动作并释放核心资源；存档停止时清除待写定时器并最后保存一次。核心释放后迟到结果不得写回，也不触发自然结束或睡眠回调，同一已终止宿主不重启核心。状态与默认音频后端仍在原渲染进程，桌面命令和全局快捷键仍经现有主窗口 IPC；歌词/迷你条展示同步、刷歌和下载尚未迁移到后台，本阶段不实现正式后台宿主或主窗口销毁后的 UI 重连。
 
 **关键字段**：
 
@@ -185,6 +185,8 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 ## 11. 系统媒体集成（`src/lib/media-session.ts`）
 
 `navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。
+
+托盘和迷你条的 `miniplayer:control` 由 `desktop-playback-controls.ts` 监听；全局快捷键的注册、设置/录入同步及 `hotkey:triggered` 菜单分发由 `global-shortcuts.ts` 持有，两者均随播放运行时启停。React 只保留应用内按键监听，重新挂载不注销全局键；菜单不受全局开关限制，录入、输入区与 dialog 避让及同键去重保持原规则。停止后旧事件和迟到注册回复不再生效。
 
 ## 12. Apple Music 专用播放
 
