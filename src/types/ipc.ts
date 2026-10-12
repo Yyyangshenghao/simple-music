@@ -1,4 +1,5 @@
 import type { WordLyricLine } from './domain'
+export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeControlApi, ProbeHostApi } from './playback-probe'
 
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
 // overlay 窗口的内部通道（见底部 OverlayChannels/OverlayEvents）不属于主契约。

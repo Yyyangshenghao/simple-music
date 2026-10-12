@@ -1,0 +1,26 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sm-bg-base); color: var(--sm-text-primary); font: 14px/1.5 var(--sm-font-sans); }
+main { max-width: 1000px; margin: auto; padding: 30px 32px 50px; }
+header, .heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+header { align-items: flex-start; margin-bottom: 24px; }
+h1 { margin: 4px 0 8px; font-size: 28px; letter-spacing: -0.02em; }
+h2 { margin: 0 0 12px; font-size: 16px; }
+p { margin: 8px 0; }
+.eyebrow { margin: 0; font-size: 11px; color: var(--sm-text-secondary); letter-spacing: 0.08em; }
+.hint { font-size: 12px; color: var(--sm-text-secondary); }
+section { margin-top: 16px; padding: 20px; background: var(--sm-bg-elevated); border: 1px solid var(--sm-border); border-radius: 16px; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+button { padding: 8px 14px; border: 1px solid var(--sm-border-strong); border-radius: 10px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--sm-fill-hover); }
+button:disabled { opacity: 0.4; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--sm-accent-warm); outline-offset: 2px; }
+.primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
+input, select { padding: 7px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; }
+input[type='url'] { flex: 1; min-width: 260px; }
+input[type='number'] { width: 84px; margin-left: 8px; }
+input[type='range'] { width: 120px; padding: 0; vertical-align: middle; accent-color: var(--sm-accent-warm); }
+.settings { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; margin: 16px 0; }
+.position { font-size: 24px; font-variant-numeric: tabular-nums; }
+#status { font-size: 12px; color: var(--sm-text-secondary); }
+pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.7 ui-monospace, monospace; color: var(--sm-text-secondary); }
+#message { color: var(--sm-color-gold); min-height: 24px; }

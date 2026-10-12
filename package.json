@@ -15,6 +15,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:playback-probe": "electron-vite dev --config electron/playback-probe/vite.config.ts --entry out-probe/main/index.js",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
