@@ -14,6 +14,7 @@
 | 2.3.4 整体代码审查与按优先级修复 | [2.3.4 审查记录](reviews/2.3.4-code-review.md) |
 | 发行说明与开发中的更新内容 | [2.3.0](release-notes-2.3.0.md)、[2.3.1](release-notes-2.3.1.md)、[2.3.2](release-notes-2.3.2.md)、[2.3.3](release-notes-2.3.3.md)、[2.3.4 开发中](release-notes-2.3.4.md) |
 | 2.4.0 应用聚合歌单的范围约定 | [聚合歌单规划](specs/2026-10-06-aggregate-playlists-2.4.0.md) |
+| 2.4.0 当前架构核对与分阶段重构范围 | [架构梳理与重构范围](specs/2026-10-12-simple-music-2.4.0-refactor-scope.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |
 | Apple Music 的设计选择与验收边界 | [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md) |
