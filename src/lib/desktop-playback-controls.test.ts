@@ -1,18 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const harness = vi.hoisted(() => ({
   onMiniPlayerControl: undefined as ((payload: { action: string; value?: number }) => void) | undefined,
   setMiniPlayerEnabled: vi.fn(),
   toggle: vi.fn(), volume: vi.fn(), next: vi.fn(), prev: vi.fn(),
   shuangeActive: false, feedNext: vi.fn(), feedPrev: vi.fn()
-}))
-
-vi.mock('react', () => ({
-  useEffect: (effect: () => void | (() => void)) => effect()
-}))
-
-vi.mock('../stores/window', () => ({
-  useWindowStore: { getState: () => ({ setState: vi.fn() }) }
 }))
 
 vi.mock('../stores/player', () => ({
@@ -32,9 +24,12 @@ vi.mock('../stores/settings', () => ({
   }
 }))
 
-import { useDesktopBridge } from './useDesktopBridge'
+import { initDesktopPlaybackControls } from './desktop-playback-controls'
 
-describe('桌面桥接的迷你播放器状态同步', () => {
+let stopControls: (() => void) | undefined
+afterEach(() => { stopControls?.(); stopControls = undefined; vi.unstubAllGlobals() })
+
+describe('宿主持有的托盘和迷你播放器命令', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     harness.shuangeActive = false
@@ -42,9 +37,6 @@ describe('桌面桥接的迷你播放器状态同步', () => {
     harness.setMiniPlayerEnabled.mockReset()
     vi.stubGlobal('window', {
       desktop: {
-        onStateChange: vi.fn(() => vi.fn()),
-        getState: vi.fn(() => Promise.resolve({})),
-        onHotkey: vi.fn(() => vi.fn()),
         onMiniPlayerControl: vi.fn((callback: (payload: { action: string; value?: number }) => void) => {
           harness.onMiniPlayerControl = callback
           return vi.fn()
@@ -54,7 +46,7 @@ describe('桌面桥接的迷你播放器状态同步', () => {
   })
 
   it('收到 sync-off 时仅把持久化设置落回关闭', () => {
-    useDesktopBridge()
+    stopControls = initDesktopPlaybackControls()
 
     harness.onMiniPlayerControl?.({ action: 'sync-off' })
 
@@ -62,8 +54,23 @@ describe('桌面桥接的迷你播放器状态同步', () => {
     expect(harness.setMiniPlayerEnabled).toHaveBeenCalledWith(false)
   })
 
+  it('重复启动只订阅一次；停止幂等且迟到命令不能再控制播放', () => {
+    stopControls = initDesktopPlaybackControls()
+    expect(initDesktopPlaybackControls()).toBe(stopControls)
+    expect(window.desktop!.onMiniPlayerControl).toHaveBeenCalledOnce()
+    harness.onMiniPlayerControl?.({ action: 'play-pause' })
+    expect(harness.toggle).toHaveBeenCalledOnce()
+    stopControls()
+    stopControls()
+    harness.onMiniPlayerControl?.({ action: 'play-pause' })
+    harness.onMiniPlayerControl?.({ action: 'sync-off' })
+    expect(harness.toggle).toHaveBeenCalledOnce()
+    expect(harness.setMiniPlayerEnabled).not.toHaveBeenCalled()
+    expect(vi.mocked(window.desktop!.onMiniPlayerControl).mock.results[0].value).toHaveBeenCalledOnce()
+  })
+
   it('迷你播放器和托盘上下首在刷歌期间只切换 feed，退出后恢复普通队列', () => {
-    useDesktopBridge()
+    stopControls = initDesktopPlaybackControls()
     harness.shuangeActive = true
     harness.onMiniPlayerControl?.({ action: 'next' })
     harness.onMiniPlayerControl?.({ action: 'prev' })
@@ -77,7 +84,7 @@ describe('桌面桥接的迷你播放器状态同步', () => {
   })
 
   it('托盘基础命令调用播放器与队列，音量命令保持原数值范围', () => {
-    useDesktopBridge()
+    stopControls = initDesktopPlaybackControls()
     for (const action of ['play-pause', 'next', 'prev', 'volume-up', 'volume-down']) harness.onMiniPlayerControl?.({ action })
     harness.onMiniPlayerControl?.({ action: 'volume', value: 2 })
     expect(harness.toggle).toHaveBeenCalledOnce()

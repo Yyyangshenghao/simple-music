@@ -6,6 +6,8 @@ import { initRecentPlaysTracking } from '../stores/recent'
 import { initPlaybackPersistence } from './playback-persistence'
 import { initMediaSession } from './media-session'
 import { initTraySync } from './tray-sync'
+import { initDesktopPlaybackControls } from './desktop-playback-controls'
+import { initGlobalShortcuts } from './global-shortcuts'
 
 let stopRuntime: (() => void) | undefined
 
@@ -18,6 +20,8 @@ export function startPlaybackRuntime(): () => void {
   const stopCore = startPlaybackCore()
   const stopRecent = initRecentPlaysTracking()
   const stopPersistence = initPlaybackPersistence()
+  const stopDesktopControls = initDesktopPlaybackControls()
+  const stopShortcuts = initGlobalShortcuts()
   // 初始展示读取已经恢复的暂停态，不先向系统发布空状态。
   const stopTray = initTraySync()
   const stopMedia = initMediaSession()
@@ -29,6 +33,8 @@ export function startPlaybackRuntime(): () => void {
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     stopRecent()
+    stopDesktopControls()
+    stopShortcuts()
     stopTray()
     stopMedia()
     stopListeningFlush?.()
