@@ -25,6 +25,7 @@ function createHost() {
   let appleState: (state: ApplePlaybackState) => void = () => {}
   let loadId = 0
   let hasSource = false
+  let time = 0
   let qualityListener: (quality: AudioQuality) => void = () => {}
   let providerListener: () => void = () => {}
   const engine = {
@@ -34,7 +35,7 @@ function createHost() {
     clearSource: vi.fn(() => { hasSource = false }),
     destroy: vi.fn(), getFrequencyData: vi.fn(() => new Uint8Array([32])),
     get hasSource() { return hasSource },
-    position: 0,
+    get position() { return state.position },
   }
   const candidate: PlaybackCandidate = {
     source: 'netease', track, url: 'https://cdn.example.com/song.mp3',
@@ -77,6 +78,9 @@ function createHost() {
     offlineFileUrl: (status) => status.state === 'missing' ? null : 'http://127.0.0.1/api/audio-cache/file?entryId=test',
     getPreloadedResolution: vi.fn(() => undefined),
     audioDiskCacheKey: (next, level) => `${next.source}:${String(next.id)}:${level}`,
+    accountSession: vi.fn(() => 1),
+    capturePlaybackAccount: vi.fn(async () => 'account-token'),
+    now: () => time,
     reportPlayback: vi.fn(), beginIntent: vi.fn(), notify: vi.fn(),
     appleSpectrum: { requestCapture: vi.fn(), stop: vi.fn(), read: () => new Uint8Array([64]) },
   }
@@ -88,6 +92,12 @@ function createHost() {
     get callbacks() { return callbacks },
     get loadId() { return loadId },
     patch: deps.setState,
+    listen: (seconds: number) => {
+      callbacks.onStatus?.('playing')
+      time += seconds * 1000
+      callbacks.onPosition?.(state.position + seconds * state.rate)
+    },
+    wait: (seconds: number) => { time += seconds * 1000 },
     emitQuality: (next: AudioQuality) => { quality = next; qualityListener(next) },
     emitProviders: () => providerListener(),
     emitApple: (patch: Partial<ApplePlaybackState>) => appleState({
@@ -100,6 +110,146 @@ function createHost() {
 afterEach(() => { vi.useRealTimers() })
 
 describe('无界面播放核心', () => {
+  it('真实收听排除断点位置、拖动、暂停和缓冲，停止时上报一次', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track, { startAt: 60, contextId: 'list' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(10)
+    h.state.pause()
+    h.wait(90)
+    h.state.seek(150)
+    h.callbacks.onSeeking?.()
+    h.wait(30)
+    h.callbacks.onSeeked?.()
+    h.listen(15)
+    h.callbacks.onStatus?.('loading')
+    h.wait(50)
+    h.state.stop()
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).toHaveBeenCalledOnce()
+    expect(h.deps.reportPlayback).toHaveBeenCalledWith(track, {
+      sourceId: 'list', seconds: 25, accountToken: 'account-token',
+    })
+    h.core.dispose()
+    expect(h.deps.reportPlayback).toHaveBeenCalledTimes(1)
+  })
+
+  it('同曲重载累计不中断，自然结束与单曲循环各上报一次', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(15)
+    await h.state.loadTrack(track, { startAt: 15 })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(10)
+    h.callbacks.onStatus?.('paused')
+    h.callbacks.onEnded?.()
+    h.callbacks.onEnded?.()
+    h.state.seek(0)
+    h.state.play()
+    h.listen(30)
+    h.callbacks.onEnded?.()
+    await h.core.flushListeningReports()
+    expect(vi.mocked(h.deps.reportPlayback).mock.calls.map(([, opts]) => opts.seconds)).toEqual([25, 30])
+  })
+
+  it('切账号丢弃旧累计，账号token迟到也不能写给新账号', async () => {
+    const h = createHost()
+    const token = deferred<string | null>()
+    vi.mocked(h.deps.capturePlaybackAccount).mockReturnValue(token.promise)
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(25)
+    h.state.stop()
+    vi.mocked(h.deps.accountSession).mockReturnValue(2)
+    token.resolve('old-account')
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).not.toHaveBeenCalled()
+  })
+
+  it('跨源播放上报实际QQ曲目，不能带网易歌单语境；手动重播同曲结算上一轮', async () => {
+    const h = createHost()
+    const actual = { ...track, source: 'qq' as const, provider: 'qq' as const, id: 'qq-mid', qqId: 123 }
+    h.candidate.source = 'qq'
+    h.candidate.track = actual
+    await h.state.loadTrack(track, { contextId: 'netease-list' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(25)
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(30)
+    await h.core.flushListeningReports()
+    expect(h.deps.capturePlaybackAccount).toHaveBeenCalledWith('qq')
+    expect(h.deps.reportPlayback).toHaveBeenNthCalledWith(1, actual, { sourceId: undefined, seconds: 25, accountToken: 'account-token' })
+    expect(h.deps.reportPlayback).toHaveBeenNthCalledWith(2, actual, { sourceId: undefined, seconds: 30, accountToken: 'account-token' })
+  })
+
+  it('拖到结尾但没有真正播放不记录，倍速只计实际经过时间', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.seek(179)
+    h.callbacks.onEnded?.()
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).not.toHaveBeenCalled()
+    h.state.seek(0)
+    h.state.play()
+    h.state.setRate(2)
+    h.listen(25)
+    h.state.stop()
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).toHaveBeenCalledOnce()
+    expect(h.deps.reportPlayback).toHaveBeenCalledWith(track, expect.objectContaining({ seconds: 25 }))
+  })
+
+  it('缓冲中定位，即使playing先于seeked到达也不累计等待或跳过的进度', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(20)
+    h.callbacks.onStatus?.('loading')
+    h.wait(30)
+    h.patch({ position: 150 })
+    h.callbacks.onSeeking?.()
+    h.callbacks.onStatus?.('playing')
+    h.wait(30)
+    h.callbacks.onPosition?.(150)
+    h.callbacks.onSeeked?.()
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(5)
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).toHaveBeenCalledWith(track, expect.objectContaining({ seconds: 25 }))
+  })
+
+  it('同曲重载后实际平台改变，分别结算两平台并保留实际QQ数字ID', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track, { contextId: 'origin-list' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(25)
+    const actual = { ...track, source: 'qq' as const, provider: 'qq' as const, id: 'qq-mid', qqId: 123 }
+    h.candidate.source = 'qq'
+    h.candidate.track = actual
+    await h.state.loadTrack(track, { startAt: 25, contextId: 'origin-list' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(30)
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).toHaveBeenNthCalledWith(1, track, { sourceId: 'origin-list', seconds: 25, accountToken: 'account-token' })
+    expect(h.deps.reportPlayback).toHaveBeenNthCalledWith(2, actual, { sourceId: undefined, seconds: 30, accountToken: 'account-token' })
+  })
+
+  it('倍速完整听完短歌仍满足播放比例门槛，上报实际收听秒数', async () => {
+    const h = createHost()
+    const short = { ...track, duration: 30_000 }
+    h.candidate.track = short
+    await h.state.loadTrack(short)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.setRate(2)
+    h.listen(15)
+    h.callbacks.onEnded?.()
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).toHaveBeenCalledWith(short, expect.objectContaining({ seconds: 15 }))
+  })
+
   it('创建不绑定宿主，显式启动幂等；释放取消订阅并拒绝旧回调和新命令', async () => {
     const h = createHost()
     expect(h.deps.createEngine).not.toHaveBeenCalled()

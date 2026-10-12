@@ -208,6 +208,7 @@ export interface SystemFontResult {
 
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
+  'playback:listening-flushed': { req: string; res: void }
   'game-mode:get-state': { req: void; res: GameModeState }
   'game-mode:set-state': { req: GameModeState; res: GameModeState }
   'tray:update-playback': { req: TrayPlaybackState; res: OkResult }
@@ -250,6 +251,7 @@ export interface IpcChannels {
 }
 
 export interface IpcEvents {
+  'playback:flush-listening': string
   'game-mode:state-changed': GameModeState
   'window:state-changed': WindowState
   'window:close-state-changed': WindowCloseState

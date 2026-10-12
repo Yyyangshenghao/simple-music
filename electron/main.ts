@@ -12,6 +12,7 @@ import { createTray, destroyTray } from './modules/tray-manager'
 import { registerIpc } from './ipc'
 import { getGameMode, setGameMode } from './modules/game-mode'
 import { attachWindowClose } from './modules/window-close'
+import { flushRendererListeningReports } from './modules/listening-flush'
 
 const APP_NAME = 'Simple Music'
 const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
@@ -146,7 +147,10 @@ if (!gotLock) {
     destroyTray()
     // 应用内后台 MusicKit 窗口承载独立音频，等待关闭后才允许 Electron 退出。
     void (async () => {
-      try { await shutdownServer() } catch (error) { console.error('Application cleanup failed:', error) }
+      try {
+        await flushRendererListeningReports(getMainWindow())
+        await shutdownServer()
+      } catch (error) { console.error('Application cleanup failed:', error) }
       finally { quitReady = true; app.quit() }
     })()
   })

@@ -11,13 +11,14 @@ import {
   shouldAutoplayPlaybackReload,
 } from './playback-load-policy'
 import { SOURCE_BRAND } from './source-brand'
+import { ListeningClock } from './listening-clock'
 import { isProviderId, type PlaybackCandidate, type ProviderId, type QualityOption } from '../providers/types'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
 const FALLBACK_UNPLAYABLE_MESSAGE = '这首歌暂时无法播放，可以换一首试试'
 const EMPTY_FREQUENCY = new Uint8Array(0)
 
-// 听歌打卡门槛:播满 20 秒或过半(取更短者)才算"真的听了",避免快速切歌也上报打卡
+// 实际听满 20 秒或播放过歌曲的 60%，避免快速切歌也上报。
 const SCROBBLE_MIN_SECONDS = 20
 
 export type PlaybackEngine = Pick<AudioEngine,
@@ -48,7 +49,10 @@ export interface PlaybackCoreDependencies {
   offlineFileUrl(status: OfflineCacheStatus, track: Track): string | null
   getPreloadedResolution(track: Track, quality: AudioQuality): PreloadedResolution | undefined
   audioDiskCacheKey(track: Track, quality: string): string
-  reportPlayback(track: Track, options: { sourceId: unknown; seconds: number }): void
+  accountSession(source: 'netease' | 'qq'): number | null
+  capturePlaybackAccount(source: 'netease' | 'qq'): Promise<string | null>
+  reportPlayback(track: Track, options: { sourceId: unknown; seconds: number; accountToken: string }): Promise<void> | void
+  now?(): number
   beginIntent(): void
   notify(message: string): void
   appleSpectrum: {
@@ -104,22 +108,73 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   let disposed = false
   let subscriptions: Array<() => void> | null = null
 
-  /** 切歌前把上一首上报听歌打卡(可选实现,如 QQ/本地无对应接口时静默跳过)。 */
-  function maybeScrobble(
-    track: Track | null,
-    originSource: MusicSource | undefined,
-    contextId: unknown,
-    elapsedSeconds: number,
-    durationSeconds: number
-  ): void {
-    if (!track || durationSeconds <= 0) return
-    if (isProviderId(track.source) && !deps.isParticipating(track.source)) return
-    if (elapsedSeconds < Math.min(SCROBBLE_MIN_SECONDS, durationSeconds * 0.6)) return
-    const sourceId = originSource === track.source ? contextId ?? undefined : undefined
-    deps.reportPlayback(track, { sourceId, seconds: elapsedSeconds })
+  let engine: PlaybackEngine | null = null
+  const now = deps.now ?? (() => performance.now())
+  const reports = new Set<Promise<void>>()
+  let reportingFlushed = false
+  let seeking = false
+  let listening: {
+    track: Track & { source: 'netease' | 'qq' }
+    sourceId: unknown
+    accountSession: number
+    accountToken: Promise<string | null>
+    duration: number
+    clock: ListeningClock
+  } | null = null
+
+  function listeningPosition(): number {
+    const position = engine?.position
+    return Number.isFinite(position) ? position! : get().position
   }
 
-  let engine: PlaybackEngine | null = null
+  function suspendListening(): void {
+    listening?.clock.update(false, listeningPosition(), now(), get().rate)
+  }
+
+  function finishListening(): void {
+    suspendListening()
+    const finished = listening
+    listening = null
+    if (!finished || finished.duration <= 0) return
+    const seconds = Math.floor(finished.clock.seconds)
+    if (seconds < 1 || (seconds < SCROBBLE_MIN_SECONDS && finished.clock.mediaSeconds < finished.duration * 0.6)) return
+    const { track, accountSession, sourceId } = finished
+    const report = finished.accountToken.then((accountToken) => {
+      if (!accountToken || deps.accountSession(track.source) !== accountSession) return
+      return deps.reportPlayback(track, { sourceId, seconds, accountToken })
+    }).catch(() => { /* 上报失败不打断播放；不自动重试造成重复记录。 */ }).finally(() => reports.delete(report))
+    reports.add(report)
+  }
+
+  function resumeListening(): void {
+    if (disposed || reportingFlushed || seeking) return
+    const state = get()
+    const track = state.resolvedTrack
+    if (state.playbackTransport !== 'online' || !track || (track.source !== 'netease' && track.source !== 'qq')) return
+    const source = track.source
+    const accountSession = deps.accountSession(source)
+    if (listening && listening.accountSession !== deps.accountSession(listening.track.source)) listening = null
+    if (listening && (listening.track.source !== source || String(listening.track.id) !== String(track.id))) finishListening()
+    if (accountSession === null || state.status !== 'playing') return
+    if (!listening) {
+      listening = {
+        track: { ...track, source },
+        sourceId: state.currentTrack?.source === source ? state.contextId ?? undefined : undefined,
+        accountSession,
+        accountToken: deps.capturePlaybackAccount(source).catch(() => null),
+        duration: state.duration,
+        clock: new ListeningClock(),
+      }
+      listening.clock.rebase(listeningPosition(), now())
+    }
+    listening.clock.update(true, listeningPosition(), now(), state.rate)
+  }
+
+  async function flushListeningReports(): Promise<void> {
+    finishListening()
+    reportingFlushed = true
+    await Promise.allSettled([...reports])
+  }
 
   // 自然播完的后续走序（切下一首/单曲重播）由 playlist store 决定;
   // 用注册回调解耦,避免 player → playlist 反向导入成环。
@@ -175,18 +230,9 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   let applePlayback: ApplePlayback | null = null
 
   function trackEnded(): void {
-    const state = get()
     if (activePlayback && !activePlayback.scrobbledOnEnd) {
       activePlayback.scrobbledOnEnd = true
-      if (state.playbackTransport === 'online') {
-        maybeScrobble(
-          state.resolvedTrack ?? state.currentTrack,
-          state.currentTrack?.source,
-          state.contextId,
-          state.position,
-          state.duration
-        )
-      }
+      finishListening()
     }
     if (stopAfterCurrentCb) {
       set({ status: 'paused', position: 0 })
@@ -226,6 +272,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
 
   function failPlayback(active: ActivePlayback): void {
     if (activePlayback !== active || active.session !== loadSession) return
+    finishListening()
     active.resolver?.abort()
     activePlayback = null
     const eng = ensureEngine()
@@ -248,9 +295,11 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     cacheable = true
   ): void {
     if (activePlayback !== active || active.session !== loadSession) return
+    suspendListening()
     active.candidate = candidate
     active.candidateKind = kind
     if (candidate.source === 'apple') {
+      finishListening()
       ensureEngine().clearSource()
       ensureEngine().setPlaybackRate(1)
       const library = candidate.url.startsWith('apple-music:library:')
@@ -352,6 +401,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     }
     active.advancing = true
     if (reason) {
+      suspendListening()
       active.startAt = Math.max(active.startAt, get().position)
       active.engineLoadId = 0
       ensureEngine().clearSource()
@@ -380,6 +430,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     const active = activePlayback
     if (!active || active.session !== loadSession || active.engineLoadId !== loadId) return
     if (active.candidateKind === 'local') {
+      finishListening()
       set({
         actualSource: 'local',
         resolvedTrack: active.originTrack,
@@ -390,6 +441,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       return
     }
     if (active.candidateKind === 'offline') {
+      finishListening()
       const status = active.offlineStatus
       const resolved = status?.resolved
       const origin = active.originTrack
@@ -429,6 +481,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       playbackAttempts: [...resolution.attempts],
       playbackTransport: 'online',
     })
+    resumeListening()
     if (resolution.actualSource !== active.originTrack.source && !active.fallbackNotified) {
       active.fallbackNotified = true
       deps.notify(`已从${SOURCE_BRAND[resolution.actualSource].label}换源播放`)
@@ -439,11 +492,33 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     if (disposed) throw new Error('播放核心已释放')
     if (engine) return engine
     engine = deps.createEngine({
-      onPosition: (s) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ position: s }) },
-      onDuration: (d) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({ duration: d }) },
-      onStatus: (status) => { if (activePlayback?.engineLoadId && get().currentTrack?.source !== 'apple') set({
-        status: playbackStatusForEngineEvent(status, activePlayback?.autoplay ?? true),
-      }) },
+      onPosition: (s) => {
+        if (!activePlayback?.engineLoadId || get().currentTrack?.source === 'apple') return
+        listening?.clock.sample(s, now())
+        set({ position: s })
+        resumeListening()
+      },
+      onDuration: (d) => {
+        if (!activePlayback?.engineLoadId || get().currentTrack?.source === 'apple') return
+        set({ duration: d })
+        if (listening) listening.duration = d
+      },
+      onStatus: (status) => {
+        if (!activePlayback?.engineLoadId || get().currentTrack?.source === 'apple') return
+        suspendListening()
+        set({ status: playbackStatusForEngineEvent(status, activePlayback.autoplay) })
+        resumeListening()
+      },
+      onSeeking: () => {
+        seeking = true
+        listening?.clock.rebase(listeningPosition(), now())
+        suspendListening()
+      },
+      onSeeked: () => {
+        seeking = false
+        listening?.clock.rebase(listeningPosition(), now())
+        resumeListening()
+      },
       onCanPlay: commitPlayableCandidate,
       onError: (reason, loadId) => {
         if (activePlayback?.engineLoadId !== loadId) return
@@ -493,6 +568,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
 
     play(opts) {
       if (disposed) return
+      reportingFlushed = false
       if (!opts?.preservePlaybackIntent) deps.beginIntent()
       if (!get().currentTrack) { onPlayFromQueue?.(); return }
       if (applePlayback) { appleCommand({ type: 'play' }); set({ status: 'loading' }); return }
@@ -515,6 +591,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     },
     pause() {
       if (disposed) return
+      suspendListening()
       deps.beginIntent()
       if (activePlayback) activePlayback.autoplay = false
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
@@ -523,6 +600,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     },
     stop() {
       if (disposed) return
+      finishListening()
       deps.beginIntent()
       ++loadSession
       activePlayback?.resolver?.abort()
@@ -552,6 +630,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     },
     seek(seconds) {
       if (disposed) return
+      suspendListening()
+      listening?.clock.rebase(seconds, now())
       if (activePlayback) activePlayback.startAt = seconds
       if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
       if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
@@ -574,18 +654,25 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     },
     setRate(r) {
       if (disposed) return
+      suspendListening()
       if (applePlayback) {
         deps.notify('当前音源暂不支持倍速')
         return
       }
       ensureEngine().setPlaybackRate(r)
       set({ rate: r })
+      resumeListening()
     },
 
     async loadTrack(track, opts) {
       if (disposed) return
+      reportingFlushed = false
+      seeking = false
+      suspendListening()
+      const previous = get().currentTrack
+      if (!previous || previous.source !== track.source || String(previous.id) !== String(track.id)
+        || opts?.startAt === undefined) finishListening()
       if (!opts?.preservePlaybackIntent) deps.beginIntent()
-      const scrobbledOnEnd = activePlayback?.scrobbledOnEnd
       if (track.source !== 'apple') deps.appleSpectrum.stop()
       applePlayback?.stop()
       applePlayback = null
@@ -598,22 +685,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
       const nextContextId = opts?.contextId ?? null
-      const prev = get()
-      // 真正切歌(而非同曲重载:音质切换/断线恢复)才上报上一首的听歌打卡
-      if (
-        prev.currentTrack &&
-        `${prev.currentTrack.source}:${String(prev.currentTrack.id)}` !== `${track.source}:${String(track.id)}`
-      ) {
-        if (prev.playbackTransport === 'online' && !scrobbledOnEnd) {
-          maybeScrobble(
-            prev.resolvedTrack ?? prev.currentTrack,
-            prev.currentTrack.source,
-            prev.contextId,
-            prev.position,
-            prev.duration
-          )
-        }
-      }
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
       set({
         currentTrack: track,
@@ -760,6 +831,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   }
 
   function syncProviders(): void {
+    if (listening && listening.accountSession !== deps.accountSession(listening.track.source)) listening = null
     const active = activePlayback
     const candidateSource = active?.candidate?.source
     if (disposed || !active || !candidateSource || deps.isParticipating(candidateSource)) return
@@ -784,6 +856,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   /** 终止本实例；不触发睡眠回调或改写最后快照，宿主可先持久化再释放。 */
   function dispose(): void {
     if (disposed) return
+    finishListening()
     disposed = true
     ++loadSession
     for (const unsubscribe of subscriptions ?? []) unsubscribe()
@@ -809,6 +882,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     player,
     start,
     dispose,
+    flushListeningReports,
     registerTrackEndedHandler,
     registerPlayFromQueueHandler,
     registerTrackEndedInterceptor,

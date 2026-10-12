@@ -20,7 +20,8 @@ const h = vi.hoisted(() => ({
   createMainWindow: vi.fn(),
   createTray: vi.fn(),
   restore: vi.fn(),
-  shutdown: vi.fn()
+  shutdown: vi.fn(),
+  flushListening: vi.fn(async () => {})
 }))
 vi.mock('electron', () => ({
   app: {
@@ -34,6 +35,7 @@ vi.mock('electron', () => ({
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDisplayMediaRequestHandler: vi.fn() } }
 }))
 vi.mock('./server-host', () => ({ bootServer: h.bootServer, shutdownServer: h.shutdown, getAppleMusicCaptureFrame: h.captureFrame }))
+vi.mock('./modules/listening-flush', () => ({ flushRendererListeningReports: h.flushListening }))
 vi.mock('./ipc', () => ({ registerIpc: h.registerIpc }))
 vi.mock('./modules/window-manager', () => ({
   getMainWindow: () => h.main, createMainWindow: h.createMainWindow,
@@ -97,6 +99,19 @@ describe('主窗口激活恢复', () => {
     expect(app.exit).toHaveBeenCalledWith(0)
   })
 
+  it('先等待主窗口上报完成，再关闭 API；重复退出只补报一次', async () => {
+    let finish!: () => void
+    h.flushListening.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve }))
+    h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    h.events.get('before-quit')!({ preventDefault: vi.fn() })
+    expect(h.flushListening).toHaveBeenCalledOnce()
+    expect(h.shutdown).not.toHaveBeenCalled()
+    finish()
+    await flush()
+    expect(h.shutdown).toHaveBeenCalledOnce()
+    expect(app.quit).toHaveBeenCalledOnce()
+  })
+
   it('服务关闭报错仍继续退出，正常退出后取消兜底', async () => {
     vi.useFakeTimers()
     h.shutdown.mockRejectedValueOnce(new Error('cleanup failed'))
@@ -143,13 +158,14 @@ describe('主窗口激活恢复', () => {
     expect(h.createMainWindow).toHaveBeenCalledTimes(1)
   })
 
-  it('macOS 真正退出时允许关闭窗口，不再隐藏', () => {
+  it('macOS 真正退出时允许关闭窗口，不再隐藏', async () => {
     h.events.get('before-quit')!()
     const preventDefault = vi.fn()
     expect(h.windowEvents.has('close')).toBe(true)
     h.windowEvents.get('close')!({ preventDefault })
     expect(preventDefault).not.toHaveBeenCalled()
     expect(h.hide).not.toHaveBeenCalled()
+    await flush()
     expect(h.shutdown).toHaveBeenCalledTimes(1)
   })
 
@@ -160,6 +176,7 @@ describe('主窗口激活恢复', () => {
     h.events.get('before-quit')!({ preventDefault })
     h.events.get('before-quit')!({ preventDefault })
     expect(preventDefault).toHaveBeenCalledTimes(2)
+    await flush()
     expect(h.shutdown).toHaveBeenCalledOnce()
     expect(app.quit).not.toHaveBeenCalled()
     finish()
@@ -227,6 +244,7 @@ describe('主窗口激活恢复', () => {
     expect(preventDefault).not.toHaveBeenCalled()
     expect(h.showMessageBox).not.toHaveBeenCalled()
     expect(h.hide).not.toHaveBeenCalled()
+    await flush()
     expect(h.shutdown).toHaveBeenCalledOnce()
   })
 

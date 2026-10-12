@@ -15,6 +15,7 @@ import { useSettingsStore } from './settings'
 import { useToastStore } from './toast'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
+import { providerAccountSession } from '../lib/provider-account-session'
 
 let core: ReturnType<typeof createPlaybackCore>
 
@@ -40,10 +41,12 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
     offlineFileUrl,
     getPreloadedResolution: (track, quality) => getPreloadedResolution(track, quality),
     audioDiskCacheKey: (track, quality) => audioDiskCacheKey(track, quality),
-    reportPlayback: (track, options) => {
-      const report = serviceFor(track.source).reportPlayback
-      if (!report) return
-      void report(track.id, options).catch((error) => {
+    accountSession: (source) => isProviderParticipating(source) ? providerAccountSession(source) : null,
+    capturePlaybackAccount: async (source) => serviceFor(source).getPlaybackAccountToken?.() ?? null,
+    reportPlayback: async (track, options) => {
+      const service = serviceFor(track.source)
+      if (!service.reportPlayback) return
+      await service.reportPlayback(track.id, track.source === 'qq' ? { ...options, songId: track.qqId } : options).catch((error) => {
         if (isProviderId(track.source)) expireProviderAccount(track.source, error)
       })
     },
@@ -62,6 +65,11 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
 export function startPlaybackCore(): () => void {
   core.start()
   return core.dispose
+}
+
+/** 主进程关闭 API 前等待当前收听与已发出的上报完成。 */
+export function flushListeningReports(): Promise<void> {
+  return core.flushListeningReports()
 }
 
 export function registerTrackEndedHandler(cb: () => void): void {

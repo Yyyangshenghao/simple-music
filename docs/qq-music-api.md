@@ -19,6 +19,8 @@
 
 | 本地路由 | 用途 | 关键参数 | 上游接口 | 返回要点 | 状态 |
 |---|---|---|---|---|---|
+| `GET /api/qq/playback/session` | 捕获收听账号凭证 | — | 本地 Cookie HMAC | `accountToken` 或 null；不缓存、不暴露 Cookie | 已用 |
+| `POST /api/qq/scrobble` | 有效收听上报 | mid `id`、可选数字 `songId`、实际秒 `time`、`accountToken` | 官网 `stat6.y.qq.com/pc/fcgi-bin/cgi_music_webreport.fcg` | 换号拒绝；缺数字 ID 时补同一 mid 的详情；`submitted` 仅表示提交，账号时长待实测 | 已接入，统计待验证 |
 | `GET /api/qq/search` | 关键词搜索歌曲 | `keywords`、`limit`(4~20) | `music.search.SearchCgiService/DoSearchForQQMusicDesktop`(`search_type:0`) | 单次请求映射完整 `Track`,不再逐首补详情 | 已用 |
 | `GET /api/qq/search/hotkeys` | 空搜索热词 | — | `music.musicsearch.HotkeyService/GetHotkeyForQQMusicMobile` | `{ provider:'qq', keywords:string[] }`；匿名请求，按 `query` 去空、去重、保序取前 10，失败返回 502 与空数组 | 已用 |
 | `GET /api/qq/song/url` | 取播放直链 | `mid`(或`id`)、`mediaMid`、`quality` | `vkey.GetVkeyServer/CgiGetVkey`(musicu.fcg) | `{ url, playable, level, quality, filename }`,失败带 `restriction`(login_required/copyright_unavailable/paid_required/url_unavailable) | 已用 |
