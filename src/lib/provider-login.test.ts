@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { loginMusicProvider } from './provider-login'
+import { providerAccountSession } from './provider-account-session'
 
 const h = vi.hoisted(() => ({
   post: vi.fn(),
@@ -42,6 +43,15 @@ it('Cookie 交换失败不标记登录成功', async () => {
   await expect(loginMusicProvider('qq')).rejects.toThrow('login failed')
   expect(h.settings.setQQLoggedIn).not.toHaveBeenCalled()
   expect(h.setAccountState).not.toHaveBeenCalled()
+})
+
+it('服务端交换新Cookie之前截断旧账号播放会话', async () => {
+  const previous = providerAccountSession('netease')
+  h.post.mockImplementationOnce(async () => {
+    expect(providerAccountSession('netease')).toBe(previous + 1)
+    return { avatar: '', nickname: '' }
+  })
+  await loginMusicProvider('netease')
 })
 
 it('原生窗口返回失败时报告错误，保留原账号状态', async () => {

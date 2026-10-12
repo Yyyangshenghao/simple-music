@@ -125,6 +125,7 @@ function historyCapability(service: MusicService, source: ProviderId): HistoryCa
       ? async () => normalizePlaylists(await service.getRecentPlaylists!(), source)
       : undefined,
     reportPlayback: service.reportPlayback ? (trackId, opts) => service.reportPlayback!(trackId, opts) : undefined,
+    getPlaybackAccountToken: service.getPlaybackAccountToken ? () => service.getPlaybackAccountToken!() : undefined,
   }
 }
 

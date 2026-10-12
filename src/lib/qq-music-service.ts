@@ -13,6 +13,18 @@ import type {
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 
 export class QQMusicService implements MusicService {
+  async getPlaybackAccountToken(): Promise<string | null> {
+    const result = await api.get<{ accountToken: string | null }>('/api/qq/playback/session')
+    return result.accountToken
+  }
+
+  async reportPlayback(trackId: unknown, opts: { seconds: number; accountToken?: string; songId?: unknown }): Promise<void> {
+    const result = await api.post<{ ok: boolean }>('/api/qq/scrobble', {
+      id: trackId, songId: opts.songId, time: Math.floor(opts.seconds), accountToken: opts.accountToken,
+    })
+    if (!result.ok) throw new Error('PLAYBACK_REPORT_REJECTED')
+  }
+
   async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
     const res = await api.get<{ playlists: Playlist[] }>('/api/qq/recommend/playlists', { page })
     return res.playlists ?? []

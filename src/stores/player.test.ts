@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   callbacks: {} as AudioEngineCallbacks,
   loadId: 0,
   hasSource: false,
+  now: 0,
   load: vi.fn(), play: vi.fn(), pause: vi.fn(), seek: vi.fn(), rate: vi.fn(),
   status: vi.fn(), next: vi.fn(), resolver: vi.fn(), participating: vi.fn(),
   report: vi.fn(), show: vi.fn(), complete: vi.fn(), abort: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('../lib/audio-engine', () => ({
       setVolume: vi.fn(), setPlaybackRate: h.rate,
       clearSource: () => { h.hasSource = false },
       get hasSource() { return h.hasSource },
+      get position() { return usePlayerStore.getState().position },
     }
   }),
 }))
@@ -65,7 +67,9 @@ vi.mock('./providers', () => ({
 }))
 vi.mock('./provider-auth', () => ({ expireProviderAccount: vi.fn() }))
 vi.mock('./toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
-vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ reportPlayback: h.report }) }))
+vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({
+  reportPlayback: h.report, getPlaybackAccountToken: async () => 'account-token',
+}) }))
 
 import { usePlayerStore, startPlaybackCore, registerTrackEndedHandler, registerTrackEndedInterceptor, setStopAfterCurrent } from './player'
 
@@ -84,9 +88,17 @@ const online: PlaybackCandidate = {
   url: 'https://cdn.example.com/song.mp3', quality: { id: 'lossless', label: '无损', rank: 1 }, trial: false,
 }
 
+function listen(seconds: number): void {
+  h.callbacks.onStatus?.('playing')
+  h.now += seconds * 1000
+  h.callbacks.onPosition?.(usePlayerStore.getState().position + seconds)
+}
+
 describe('播放器离线优先与回退', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    h.now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => h.now)
     registerTrackEndedHandler(() => {})
     setStopAfterCurrent(null)
     h.status.mockReset().mockResolvedValue(offline)
@@ -275,28 +287,42 @@ describe('播放器离线优先与回退', () => {
   it('离线切到在线曲目不补报打卡，在线再切歌仍正常上报', async () => {
     await usePlayerStore.getState().loadTrack(track)
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: 60, duration: 180 })
+    listen(60)
     h.status.mockResolvedValue({ source: 'qq', id: 'next', state: 'missing' })
     await usePlayerStore.getState().loadTrack({ ...track, id: 'next' })
     expect(h.report).not.toHaveBeenCalled()
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: 60, duration: 180 })
+    listen(60)
     await usePlayerStore.getState().loadTrack({ ...track, id: 'third' })
     expect(h.report).toHaveBeenCalledOnce()
     expect(h.report).toHaveBeenCalledWith('online', expect.objectContaining({ seconds: 60 }))
+  })
+
+  it('跨源实际QQ曲目的数字ID与mid一并传入上报服务', async () => {
+    const actual = { ...track, id: 'actual-mid', mid: 'actual-mid', qqId: 123 }
+    h.status.mockResolvedValue({ state: 'missing' })
+    h.next.mockResolvedValue({ ...online, source: 'qq', track: actual })
+    h.complete.mockReturnValue({ actualSource: 'qq', resolvedTrack: actual, quality: online.quality, attempts: [] })
+    await usePlayerStore.getState().loadTrack({ ...track, source: 'netease', provider: 'netease', id: 'origin' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    listen(25)
+    usePlayerStore.getState().stop()
+    await vi.waitFor(() => expect(h.report).toHaveBeenCalledWith('actual-mid', {
+      sourceId: undefined, seconds: 25, accountToken: 'account-token', songId: 123,
+    }))
   })
 
   it('自然播完先上报完整播放，再加载下一首且不重复上报', async () => {
     h.status.mockResolvedValue({ state: 'missing' })
     await usePlayerStore.getState().loadTrack(track, { contextId: 'playlist' })
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: 180, duration: 180 })
+    listen(180)
     let nextLoad: Promise<void> | undefined
     registerTrackEndedHandler(() => { nextLoad = usePlayerStore.getState().loadTrack({ ...track, id: 'next' }) })
     h.callbacks.onEnded?.()
     await nextLoad
     expect(h.report).toHaveBeenCalledOnce()
-    expect(h.report).toHaveBeenCalledWith('online', { sourceId: undefined, seconds: 180 })
+    expect(h.report).toHaveBeenCalledWith('online', { sourceId: undefined, seconds: 180, accountToken: 'account-token' })
     expect(usePlayerStore.getState().currentTrack?.id).toBe('next')
     registerTrackEndedHandler(() => {})
   })
@@ -305,12 +331,12 @@ describe('播放器离线优先与回退', () => {
     h.status.mockResolvedValue({ state: 'missing' })
     await usePlayerStore.getState().loadTrack(track)
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: 180, duration: 180 })
+    listen(180)
     const stopped = vi.fn()
     setStopAfterCurrent(stopped)
     h.callbacks.onEnded?.()
     expect(stopped).toHaveBeenCalledOnce()
-    expect(h.report).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(h.report).toHaveBeenCalledOnce())
     usePlayerStore.getState().seek(60)
     await usePlayerStore.getState().loadTrack({ ...track, id: 'after-sleep' })
     expect(h.report).toHaveBeenCalledOnce()
@@ -325,11 +351,11 @@ describe('播放器离线优先与回退', () => {
       usePlayerStore.getState().play()
     })
     for (let count = 1; count <= 2; count++) {
-      usePlayerStore.setState({ position: 180, duration: 180 })
+      listen(180)
       h.callbacks.onEnded?.()
-      expect(h.report).toHaveBeenCalledTimes(count)
+      await vi.waitFor(() => expect(h.report).toHaveBeenCalledTimes(count))
     }
-    usePlayerStore.setState({ position: 5 })
+    listen(5)
     await usePlayerStore.getState().loadTrack({ ...track, id: 'early-skip' })
     expect(h.report).toHaveBeenCalledTimes(2)
     registerTrackEndedHandler(() => {})
@@ -339,7 +365,7 @@ describe('播放器离线优先与回退', () => {
     h.status.mockResolvedValue({ state: 'missing' })
     await usePlayerStore.getState().loadTrack(track)
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: 180, duration: 180 })
+    listen(180)
     let nextLoad: Promise<void> | undefined
     const unregister = registerTrackEndedInterceptor(() => {
       nextLoad = usePlayerStore.getState().loadTrack({ ...track, id: 'intercepted-next' })
@@ -358,7 +384,7 @@ describe('播放器离线优先与回退', () => {
     if (kind === 'below-threshold') h.status.mockResolvedValue({ state: 'missing' })
     await usePlayerStore.getState().loadTrack(kind === 'local' ? { ...track, source: 'local', provider: 'local' } : track)
     h.callbacks.onCanPlay?.(h.loadId)
-    usePlayerStore.setState({ position: kind === 'below-threshold' ? 5 : 180, duration: 180 })
+    listen(kind === 'below-threshold' ? 5 : 180)
     h.callbacks.onEnded?.()
     expect(h.report).not.toHaveBeenCalled()
   })

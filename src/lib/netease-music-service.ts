@@ -159,12 +159,19 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists?.[0] ?? null
   }
 
-  async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void> {
-    await api.post('/api/netease/scrobble', {
+  async getPlaybackAccountToken(): Promise<string | null> {
+    const result = await api.get<{ accountToken: string | null }>('/api/netease/playback/session')
+    return result.accountToken
+  }
+
+  async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string }): Promise<void> {
+    const result = await api.post<{ ok: boolean }>('/api/netease/scrobble', {
       id: trackId,
       sourceId: opts.sourceId,
-      time: Math.round(opts.seconds),
+      time: Math.floor(opts.seconds),
+      accountToken: opts.accountToken,
     })
+    if (!result.ok) throw new Error('PLAYBACK_REPORT_REJECTED')
   }
 
   async getToplists(): Promise<ToplistGroup[]> {

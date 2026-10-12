@@ -63,9 +63,10 @@ export interface MusicService {
   replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   /** 覆盖歌单简介（可选;仅网易实现）。 */
   updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
-  /** 听歌打卡上报（可选;仅网易实现）。更新账号端"最近播放歌单"/"听歌排行"等真实数据；
-   *  sourceId 为播放来源的歌单/专辑 id，缺省时上游按歌曲自身 id 兜底。失败静默忽略,不影响播放。 */
-  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
+  /** 捕获本次播放对应的服务端账号，不将旧收听发送给后来登录的账号。 */
+  getPlaybackAccountToken?(): Promise<string | null>
+  /** seconds 是真实收听秒数；失败不打断播放。 */
+  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string; songId?: unknown }): Promise<void>
 }
 
 export interface RelatedPlaylistsPage {

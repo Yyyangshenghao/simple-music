@@ -2,6 +2,7 @@ import { api } from './api'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
 import type { LoginResult } from '../types/ipc'
+import { advanceProviderAccountSession } from './provider-account-session'
 
 /** 设置页与头像菜单复用现有原生登录窗口及 Cookie 交换流程。 */
 export async function loginMusicProvider(source: 'netease' | 'qq'): Promise<void> {
@@ -11,6 +12,8 @@ export async function loginMusicProvider(source: 'netease' | 'qq'): Promise<void
   if (result?.cancelled) return
   if (result?.error) throw new Error(result.error)
   if (!result?.ok || !result.cookie) return
+  // 服务端保存新 Cookie 前即截断旧播放的账号身份。
+  advanceProviderAccountSession(source)
   const info = await api.post<{ avatar?: string; nickname?: string }>(
     source === 'netease' ? '/api/login/cookie' : '/api/qq/login/cookie',
     { cookie: result.cookie }

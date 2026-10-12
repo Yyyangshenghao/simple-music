@@ -4,6 +4,7 @@ import { readBody, sendJson } from '../lib/http'
 import { isSafeUpstreamUrl } from '../lib/security'
 import { abortOnResponseClose, fetchSafeUpstream } from '../lib/upstream-fetch'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
+import { playbackAccountToken, validListeningSeconds } from '../lib/playback-account'
 import {
   findCachedAudio,
   openAudioCacheWriter,
@@ -133,6 +134,12 @@ function saveNeteaseCookie(ctx: { userDataDir: string; port: number }, raw: unkn
 
 export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
+
+  if (pn === '/api/netease/playback/session') {
+    res.setHeader('Cache-Control', 'no-store')
+    sendJson(res, { accountToken: playbackAccountToken(getCookie(ctx, 'netease')) })
+    return true
+  }
 
   // ---------- 发现页 ----------
   if (pn === '/api/discover/home') {
@@ -824,27 +831,56 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   // ---------- 听歌打卡（更新账号"最近播放歌单"/"听歌排行"）----------
   if (pn === '/api/netease/scrobble') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'METHOD_NOT_ALLOWED' }, 405)
+      return true
+    }
     try {
+      const body = await readRequestBody(req)
       const cookie = getCookie(ctx, 'netease')
       if (!cookie) {
         // 未登录静默跳过：这是播放路径上的背景上报，不应该对未登录用户报错
         sendJson(res, { ok: false })
         return true
       }
-      const body = req.method === 'POST' ? await readRequestBody(req) : {}
-      const id = body.id || url.searchParams.get('id')
-      // 无歌单/专辑语境（如搜索结果、单曲循环）时用歌曲自身 id 兜底，仍能计入听歌排行
-      const sourceId = body.sourceId || url.searchParams.get('sourceId') || id
-      const time = Math.max(0, Math.round(Number(body.time ?? url.searchParams.get('time') ?? 0)))
-      if (!id) {
-        sendJson(res, { ok: false, error: 'Missing song id' }, 400)
+      if (body.accountToken !== playbackAccountToken(cookie)) {
+        sendJson(res, { ok: false, error: 'ACCOUNT_CHANGED' }, 409)
         return true
       }
-      await call('scrobble', { id, sourceid: sourceId, time, cookie, timestamp: Date.now() })
+      const id = String(body.id ?? '')
+      const contextId = String(body.sourceId ?? '')
+      const sourceId = /^[1-9]\d{0,19}$/.test(contextId) ? contextId : id
+      const time = validListeningSeconds(body.time)
+      if (!/^[1-9]\d{0,19}$/.test(id) || !time) {
+        sendJson(res, { ok: false, error: 'INVALID_PLAYBACK_REPORT' }, 400)
+        return true
+      }
+      // 使用维护中的上游 scrobble 协议；本地锁定的 NCM 已支持这些请求选项。
+      const reportOptions = {
+        cookie: normalizeCookieHeader(`${cookie}; os=osx`),
+        crypto: 'eapi', domain: 'https://clientlog.music.163.com', timestamp: Date.now(),
+      }
+      // 最近播放与排行使用不同日志；只报告已真实收听的曲目和秒数。
+      const started = await call('weblog', {
+        data: { logs: JSON.stringify([{ action: 'startplay', json: { id, type: 'song', mainsite: 1, mainsiteWeb: 1, content: `id=${sourceId}` } }]) },
+        ...reportOptions,
+      })
+      if (asNum(asObj(started.body).code) !== 200) throw new Error('PLAYBACK_REPORT_REJECTED')
+      if (cookie !== getCookie(ctx, 'netease')) {
+        sendJson(res, { ok: false, error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      const reported = await call('weblog', {
+        data: { logs: JSON.stringify([{ action: 'play', json: {
+          id, sourceId, time, type: 'song', end: 'playend', source: 'list',
+          download: 0, wifi: 0, mainsite: 1, mainsiteWeb: 1, content: `id=${sourceId}`,
+        } }]) },
+        ...reportOptions,
+      })
+      if (asNum(asObj(reported.body).code) !== 200) throw new Error('PLAYBACK_REPORT_REJECTED')
       sendJson(res, { ok: true })
     } catch (err) {
-      console.error('[Scrobble]', err)
-      sendJson(res, { ok: false, error: (err as Error).message })
+      sendJson(res, { ok: false, error: err instanceof Error ? err.message : 'PLAYBACK_REPORT_FAILED' }, 502)
     }
     return true
   }

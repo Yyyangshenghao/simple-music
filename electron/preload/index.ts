@@ -58,6 +58,10 @@ const api = {
   onGameModeChange: (cb: (state: GameModeState) => void) => on<GameModeState>('game-mode:state-changed', cb),
   updateTrayPlayback: (state: TrayPlaybackState): Promise<OkResult> => ipcRenderer.invoke('tray:update-playback', state),
   startAppleAudioCapture: (): Promise<boolean> => ipcRenderer.invoke('apple:audio-capture-start'),
+  onFlushListeningReports: (cb: () => Promise<void>): (() => void) => on<unknown>('playback:flush-listening', (id) => {
+    if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id)) return
+    void Promise.resolve().then(cb).catch(() => {}).finally(() => ipcRenderer.send('playback:listening-flushed', id))
+  }),
 
   // 登录
   openNeteaseLogin: (): Promise<LoginResult> => ipcRenderer.invoke('login:netease-open'),

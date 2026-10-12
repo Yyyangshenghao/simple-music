@@ -15,6 +15,8 @@ export interface AudioEngineCallbacks {
   onDuration?: (seconds: number) => void
   onEnded?: () => void
   onStatus?: (status: PlaybackStatus) => void
+  onSeeking?: () => void
+  onSeeked?: () => void
   /** 当前候选已进入浏览器可播放态；解析器此时才提交实际音源。 */
   onCanPlay?: (loadId: number) => void
   /** URL 非空但媒体加载/解码失败，交回解析器尝试下一候选。 */
@@ -80,6 +82,8 @@ export class AudioEngine {
       if (!a.ended) this.cbs.onStatus?.('paused')
     })
     a.addEventListener('waiting', () => this.cbs.onStatus?.('loading'))
+    a.addEventListener('seeking', () => this.cbs.onSeeking?.())
+    a.addEventListener('seeked', () => this.cbs.onSeeked?.())
     a.addEventListener('canplay', () => this.cbs.onCanPlay?.(this.loadId))
     a.addEventListener('error', () => {
       const code = a.error?.code

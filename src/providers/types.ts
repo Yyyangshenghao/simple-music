@@ -124,7 +124,8 @@ export interface LibraryCapability {
 export interface HistoryCapability {
   getListeningRanking?(): Promise<Track[]>
   getRecentPlaylists?(): Promise<Playlist[]>
-  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
+  getPlaybackAccountToken?(): Promise<string | null>
+  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string; songId?: unknown }): Promise<void>
 }
 
 export interface PlaylistWriterCapability {

@@ -36,6 +36,12 @@
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
 - **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `simplemusic.update` 字段(GitHub Release + 国内镜像列表)
 
+### 平台收听上报
+
+网易云与 QQ 提供 `GET /api/{netease,qq}/playback/session`（`no-store`，返回当前 Cookie 的进程内 HMAC `accountToken`）和 `POST /api/{netease,qq}/scrobble`。POST 必须携带同一账号凭证、实际曲目 ID 与有效收听秒数；Cookie 变化返回 409，非法时长返回 400，未登录不调用上游。端点沿用统一 Origin/token 校验。
+
+网易通过 `weblog` 的 eapi/clientlog 通道依次发送 `startplay` 和 `play`，逐次检查业务码并在两次间复核 Cookie。QQ 传 mid 与可选数字 `songId`，缺数字 ID 时查询同一 mid 的详情，发送到官网固定 `cgi_music_webreport.fcg`；响应 `{ ok:true, status:'submitted' }` 只表示收集请求完成，不能证明账号等级或累计时长已更新。
+
 ## lib 辅助
 
 `http.ts`(sendJson/sendError 等)、`cookie.ts`(cookie 落盘)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`)、`local-library.ts`(本地音乐索引与 `music-metadata` 标签/封面解析；音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。Apple Music 的路径约束和播放会话逻辑位于 `apple-music.ts`、`apple-music-bridge.ts` 与主进程 `apple-music-web-session.ts`。这些关键逻辑均有同目录测试。

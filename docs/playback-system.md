@@ -56,6 +56,10 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 
 **loadTrack 的竞态守卫**：核心实例内的 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
 
+**平台收听上报**：只统计实际在线出声的网易云/QQ 曲目。`ListeningClock` 同时记录真实收听秒数与有效媒体进度，排除断点位置、暂停、缓冲和 seek 跳跃；倍速按实际经过时间上报，门槛为实际听满 20 秒或有效播放达到曲长的 60%。自然结束、切歌、停止与正常退出结算；同曲音质/设备重载继续累计，实际平台变化分别结算，单曲循环重新累计。账号会话序号与服务端 Cookie 的进程内 HMAC 凭证共同阻止旧收听写入新账号；凭证不包含原始 Cookie。失败静默跳过且不自动重试。
+
+主进程正常退出先通过 preload 请求 `flushListeningReports`，等主 frame 回执后再关 API，最多等待 1.8 秒，沿用整体 8 秒退出兜底。强制结束进程或慢于等待预算的上报可能丢失。网易发送 `startplay`/`play` 日志；QQ 使用官网 `listenReport` 收集通道，返回“已提交”不代表官方账号统计已累计。平台记录/时长仍须在官方入口分别实测，见[需求与验证边界](specs/2026-10-12-listening-records-2.4.0.md)。
+
 **恢复态起播**：重启后 restorePlayback 只回填元数据（引擎无源）。`play()` 检测 `!eng.hasSource && currentTrack` 时转调 `loadTrack(currentTrack, { startAt: position })` 按断点重新解析加载——URL 有时效，持久化里从不存 URL。
 
 ## 3. AudioEngine（`src/lib/audio-engine.ts`）
