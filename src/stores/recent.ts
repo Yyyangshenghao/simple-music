@@ -61,11 +61,24 @@ export const useRecentPlaysStore = create<RecentPlaysStore>((set, get) => ({
   }
 }))
 
-// 开始加载完整曲目或当前占位曲目补全后记录，避免持久化空资料;
-// 详情等待期间暂停仍记录已选曲目，重启恢复(status 'paused')不重复记录。
-usePlayerStore.subscribe((s, prev) => {
-  if (!s.currentTrack || s.currentTrack.pending || s.currentTrack === prev.currentTrack) return
-  if (s.status === 'loading' || (prev.currentTrack?.pending && keyOf(prev.currentTrack) === keyOf(s.currentTrack))) {
-    useRecentPlaysStore.getState().record(s.currentTrack)
+let stopTracking: (() => void) | undefined
+
+/** 由播放宿主启动，不等待我的库页面加载；暂停态恢复不补记一次播放。 */
+export function initRecentPlaysTracking(): () => void {
+  if (stopTracking) return stopTracking
+  const unsubscribe = usePlayerStore.subscribe((s, prev) => {
+    if (!s.currentTrack || s.currentTrack.pending || s.currentTrack === prev.currentTrack) return
+    // 详情等待期间暂停仍记录已选曲目，避免持久化空资料。
+    if (s.status === 'loading' || (prev.currentTrack?.pending && keyOf(prev.currentTrack) === keyOf(s.currentTrack))) {
+      useRecentPlaysStore.getState().record(s.currentTrack)
+    }
+  })
+  let stopped = false
+  stopTracking = () => {
+    if (stopped) return
+    stopped = true
+    unsubscribe()
+    stopTracking = undefined
   }
-})
+  return stopTracking
+}

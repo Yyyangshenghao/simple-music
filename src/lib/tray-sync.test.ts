@@ -1,7 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ cleanup: undefined as (() => void) | undefined }))
-vi.mock('react', () => ({ useEffect: (effect: () => (() => void) | undefined) => { h.cleanup = effect() } }))
 vi.mock('../stores/player', async () => {
   const { create } = await import('zustand')
   return { usePlayerStore: create(() => ({ currentTrack: null, status: 'idle', volume: 0.5, position: 0 })) }
@@ -12,14 +11,15 @@ vi.mock('../stores/playlist', async () => {
 })
 import { usePlayerStore } from '../stores/player'
 import { useVisualStore } from '../stores/visual'
-import { useTraySync } from './useTraySync'
+import { initTraySync } from './tray-sync'
 
 afterEach(() => { h.cleanup?.(); vi.unstubAllGlobals() })
 
 it('后台托盘只同步控制状态，高频播放进度不产生推送，卸载释放订阅', () => {
   const update = vi.fn(async () => ({ ok: true }))
   vi.stubGlobal('window', { desktop: { updateTrayPlayback: update } })
-  useTraySync()
+  h.cleanup = initTraySync()
+  expect(initTraySync()).toBe(h.cleanup)
   expect(update).toHaveBeenCalledOnce()
   for (let position = 1; position <= 100; position++) usePlayerStore.setState({ position })
   expect(update).toHaveBeenCalledOnce()

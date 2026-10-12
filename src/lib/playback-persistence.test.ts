@@ -36,6 +36,7 @@ function makeTrack(i: number, extra: Partial<Track> = {}): Track {
 
 describe('playback persistence', () => {
   let store: Record<string, string>
+  let stopPersistence: (() => void) | undefined
 
   beforeEach(() => {
     store = {}
@@ -62,6 +63,8 @@ describe('playback persistence', () => {
   })
 
   afterEach(async () => {
+    stopPersistence?.()
+    stopPersistence = undefined
     if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
     await Promise.resolve()
     usePlaylistStore.getState().clearQueue()
@@ -313,11 +316,34 @@ describe('playback persistence', () => {
     expect(usePlayerStore.getState().currentTrack).toBeNull()
   })
 
+  it('重复启动不恢复旧存档；释放保存最新断点、取消定时器与监听，之后变化不写盘', () => {
+    vi.useFakeTimers()
+    const listeners = new Map<string, () => void>()
+    vi.stubGlobal('window', {
+      addEventListener: (name: string, callback: () => void) => listeners.set(name, callback),
+      removeEventListener: (name: string) => listeners.delete(name),
+    })
+    stopPersistence = initPlaybackPersistence()
+    const queue = [makeTrack(4)]
+    usePlaylistStore.setState({ queue, queueIndex: 0, shuffleOrder: [0] })
+    usePlayerStore.setState({ currentTrack: queue[0], status: 'playing', position: 12 })
+    expect(initPlaybackPersistence()).toBe(stopPersistence)
+    expect(usePlayerStore.getState().position).toBe(12)
+    stopPersistence()
+    expect(JSON.parse(store[PLAYBACK_STORAGE_KEY])).toMatchObject({ queue, position: 12 })
+    expect(listeners.has('beforeunload')).toBe(false)
+    const saved = store[PLAYBACK_STORAGE_KEY]
+    usePlayerStore.setState({ position: 20, volume: 0.1, status: 'paused' })
+    usePlaylistStore.setState({ queue: [] })
+    vi.runAllTimers()
+    expect(store[PLAYBACK_STORAGE_KEY]).toBe(saved)
+  })
+
   it('刷歌期间节流写入及卸载保存使用原断点，同时保留最新音量', () => {
     vi.useFakeTimers()
     const listeners = new Map<string, () => void>()
-    vi.stubGlobal('window', { addEventListener: (name: string, callback: () => void) => listeners.set(name, callback) })
-    initPlaybackPersistence()
+    vi.stubGlobal('window', { addEventListener: (name: string, callback: () => void) => listeners.set(name, callback), removeEventListener: (name: string) => listeners.delete(name) })
+    stopPersistence = initPlaybackPersistence()
     const queue = [makeTrack(0)]
     usePlaylistStore.setState({ queue, queueIndex: 0, shuffleOrder: [0] })
     usePlayerStore.setState({ currentTrack: queue[0], position: 20, status: 'playing' })

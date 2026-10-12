@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
 import type { Track } from '../types/domain'
 
-vi.mock('./player', () => ({ usePlayerStore: { subscribe: () => () => {} } }))
+vi.mock('./player', async () => {
+  const { create } = await import('zustand')
+  return { usePlayerStore: create(() => ({ currentTrack: null as Track | null, status: 'idle' })) }
+})
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -28,4 +31,29 @@ describe('最近播放恢复本地资源', () => {
     expect(items[1].track.cover).toBeUndefined()
     expect(items[2].track.cover).toBe(history[2].track.cover)
   })
+})
+
+
+it('导入历史不隐式监听；显式启动后记录，暂停态恢复和重复启动不重复记录，释放后停止', async () => {
+  vi.resetModules()
+  const writes = vi.fn()
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: writes })
+  const { usePlayerStore } = await import('./player')
+  const { useRecentPlaysStore, initRecentPlaysTracking } = await import('./recent')
+  const track: Track = { provider: 'netease', source: 'netease', type: 'song', id: 1, name: '歌曲', artist: '歌手', artists: [] }
+  usePlayerStore.setState({ currentTrack: track, status: 'loading' })
+  expect(useRecentPlaysStore.getState().items).toEqual([])
+  const stop = initRecentPlaysTracking()
+  const duplicate = initRecentPlaysTracking()
+  usePlayerStore.setState({ currentTrack: { ...track, id: 2 }, status: 'paused' })
+  expect(writes).not.toHaveBeenCalled()
+  const pending = { ...track, id: 3, pending: true }
+  usePlayerStore.setState({ currentTrack: pending, status: 'loading' })
+  usePlayerStore.setState({ currentTrack: { ...pending, pending: false }, status: 'paused' })
+  expect(writes).toHaveBeenCalledOnce()
+  expect(useRecentPlaysStore.getState().items[0].track.id).toBe(3)
+  stop()
+  duplicate()
+  usePlayerStore.setState({ currentTrack: { ...track, id: 4 }, status: 'loading' })
+  expect(writes).toHaveBeenCalledOnce()
 })
