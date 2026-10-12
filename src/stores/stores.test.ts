@@ -393,7 +393,8 @@ describe('recent plays store', () => {
       setItem: () => {},
       removeItem: () => {}
     })
-    const { useRecentPlaysStore } = await import('./recent')
+    const { useRecentPlaysStore, initRecentPlaysTracking } = await import('./recent')
+    const stopTracking = initRecentPlaysTracking()
     const { usePlayerStore } = await import('./player')
     const mk = (i: number) => ({
       provider: 'netease' as const,
@@ -420,5 +421,6 @@ describe('recent plays store', () => {
     // 恢复态(paused)不记录
     usePlayerStore.setState({ currentTrack: mk(8), status: 'paused' })
     expect(String(useRecentPlaysStore.getState().items[0].track.id)).toBe('9')
+    stopTracking()
   })
 })

@@ -32,7 +32,7 @@ import { usePlaylistStore } from './playlist'
 import { usePlayerStore, startPlaybackCore } from './player'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
-import { useRecentPlaysStore } from './recent'
+import { initRecentPlaysTracking, useRecentPlaysStore } from './recent'
 import { useSleepTimerStore } from './sleep-timer'
 
 startPlaybackCore()
@@ -48,6 +48,8 @@ function deferred<T>() {
 }
 
 describe('队列详情等待期间的播放意图', () => {
+  let stopRecent: () => void
+
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
@@ -65,10 +67,12 @@ describe('队列详情等待期间的播放意图', () => {
     await usePlayerStore.getState().loadTrack(song('A'))
     h.callbacks.onStatus?.('playing')
     useRecentPlaysStore.setState({ items: [] })
+    stopRecent = initRecentPlaysTracking()
     vi.clearAllMocks()
   })
 
   afterEach(() => {
+    stopRecent()
     useSleepTimerStore.getState().cancel()
     vi.clearAllTimers()
     vi.useRealTimers()

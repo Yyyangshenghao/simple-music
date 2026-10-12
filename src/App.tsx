@@ -9,14 +9,11 @@ import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useMiniPlayerSync } from './hooks/useMiniPlayerSync'
 import { useGameModeSync } from './hooks/useGameModeSync'
-import { useTraySync } from './hooks/useTraySync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
-import { initProviderStore } from './stores/providers'
-import { initProviderAuthFailureSync } from './stores/provider-auth'
 import { useUpdateStore } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
 import { useNavigationStore } from './stores/navigation'
@@ -24,8 +21,6 @@ import { useWindowStore } from './stores/window'
 import { useGameModeStore } from './stores/game-mode'
 import { initWindowCloseSync } from './stores/window-close'
 import { useVisualStore } from './stores/visual'
-import { initPlaybackPersistence } from './lib/playback-persistence'
-import { initMediaSession } from './lib/media-session'
 import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
 import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
@@ -64,7 +59,6 @@ export default function App() {
 
   useDesktopBridge()
   useGameModeSync()
-  useTraySync()
   useShortcuts()
   useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
@@ -108,11 +102,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    useSettingsStore.getState().loadFromLocal()
-    const stopProviderStore = initProviderStore()
-    const stopProviderAuthFailureSync = initProviderAuthFailureSync()
-    initPlaybackPersistence()
-    initMediaSession()
     // 主进程状态不跨重启保留,迷你播放条开关需要在加载完本地设置后重放一次
     {
       const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
@@ -158,8 +147,6 @@ export default function App() {
     })
     return () => {
       stopSettingsSync()
-      stopProviderAuthFailureSync()
-      stopProviderStore()
     }
   }, [])
 

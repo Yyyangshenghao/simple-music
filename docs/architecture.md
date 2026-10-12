@@ -62,8 +62,8 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
 3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen、净化后的剪贴板写入及主窗口对 Apple 后台音频的定向捕获；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，创建 Apple Music 会话，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
-5. 渲染层 `App.tsx` 挂载：先加载通用设置，再用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），随后恢复播放队列为暂停态并初始化 Media Session。各在线平台的登录与参与状态独立核实；Apple Music 还需确认订阅状态。
-6. `before-quit`：注销热键 → 关闭悬浮窗 → 销毁托盘 → 关闭 server。
+5. 渲染层 `main.tsx` 先启动播放运行时：加载通用设置，用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），启动核心与最近播放，首次恢复队列为暂停态，再同步托盘、Media Session 并注册退出补报。随后挂载 `App.tsx`，独立核实各在线平台登录与参与状态；Apple Music 还需确认订阅状态。React 重新挂载不重启播放运行时或重新恢复存档。
+6. `before-quit`：注销热键、关闭悬浮窗、销毁托盘，然后请求渲染层补报有效收听，最多等待 1.8 秒，再关闭 server；沿用整体 8 秒退出兜底。主窗口卸载时保存播放快照并统一释放播放运行时。
 
 **后台降耗约定**：主窗口隐藏、最小化或切到迷你播放条时，`App.tsx` 卸载可视层，保留全局 hooks 与 AudioEngine；WebGL/rAF 循环仍需使用 visibility、IntersectionObserver 或窗口状态自行暂停。壁纸窗口因长期处于桌面底层而单独禁用 Chromium 后台节流，不能依赖“被遮挡即自动停帧”。
 

@@ -6,7 +6,9 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
 
-`App.tsx` 挂载桥接、登录态、播放、歌词、桌面歌词、壁纸、迷你播放条和氛围色等全局 hooks，并初始化 Provider、播放持久化、Media Session 与更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。
+`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
+
+`App.tsx` 挂载桥接、登录态、播放进度、歌词、桌面歌词、壁纸、迷你播放条和氛围色等全局 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，托盘命令、全局快捷键等仍依赖 App hooks；正式销毁主窗口尚未开放。
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
@@ -64,6 +66,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
 - `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证，当前仍运行在主窗口渲染进程。
+- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `tray-sync.ts` — 从 player、队列和桌面歌词开关推送托盘状态，进度变化不重复发送；托盘命令仍由 `useDesktopBridge` 接收。
 - `apple-music-playback.ts` / `apple-audio-spectrum.ts` — Apple Music 播放命令与后台状态同步；按系统权限尝试采集只读音轨供可视化使用，采集失败不阻断播放。
 - `playback-resolver.ts` / `track-match.ts` / `track-preload.ts` — 多平台候选解析、保守同曲匹配和相邻曲目预加载。
 - `queue-state.ts` — 不依赖 DOM 或 store 的队列创建、追加、走序与编辑规则；`playlist` store 保留平台参与判断、详情请求、播放调用和预加载调度。

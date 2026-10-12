@@ -168,21 +168,38 @@ function scheduleSave(delayMs: number): void {
   }, delayMs)
 }
 
-let initialized = false
+let restored = false
+let stopPersistence: (() => void) | undefined
 
-/** 启动时调用:恢复上次播放状态,并订阅后续变化持续落盘。重复调用无效果(防 StrictMode 双跑)。 */
-export function initPlaybackPersistence(): void {
-  if (initialized) return
-  initialized = true
-  restorePlayback()
+/** 宿主首次启动恢复暂停态；重复启动或重绑订阅不能以旧存档覆盖活跃状态。 */
+export function initPlaybackPersistence(): () => void {
+  if (stopPersistence) return stopPersistence
+  if (!restored) {
+    restored = true
+    restorePlayback()
+  }
 
-  usePlayerStore.subscribe((s, prev) => {
+  const stopPlayer = usePlayerStore.subscribe((s, prev) => {
     if (s.status === 'paused' && prev.status === 'playing') scheduleSave(0)
     else if (s.volume !== prev.volume) scheduleSave(800)
     else if (s.status === 'playing' && s.position !== prev.position) scheduleSave(POSITION_SAVE_MS)
   })
-  usePlaylistStore.subscribe((s, prev) => {
+  const stopQueue = usePlaylistStore.subscribe((s, prev) => {
     if (s.queue !== prev.queue || s.queueIndex !== prev.queueIndex || s.shuffleOrder !== prev.shuffleOrder) scheduleSave(500)
   })
   window.addEventListener('beforeunload', savePlayback)
+  let stopped = false
+  stopPersistence = () => {
+    if (stopped) return
+    stopped = true
+    stopPlayer()
+    stopQueue()
+    window.removeEventListener('beforeunload', savePlayback)
+    if (timer != null) clearTimeout(timer)
+    timer = null
+    timerDeadline = Infinity
+    savePlayback()
+    stopPersistence = undefined
+  }
+  return stopPersistence
 }

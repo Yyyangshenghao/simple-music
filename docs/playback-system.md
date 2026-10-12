@@ -34,7 +34,9 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 
 单例 zustand store 仍是唯一播放状态容器，通过 `createPlaybackCore` 编排会话。核心实例持有懒创建的普通引擎、Apple 会话、解析器及恢复计时器；`player.ts` 提供引擎工厂、平台/音质状态、API、预加载、通知和听歌上报等宿主能力，既有 store 调用接口保持不变。
 
-核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。创建时不注册订阅；`main.tsx` 在渲染前显式启动音质与平台同步，可视层隐藏或卸载不释放核心。窗口退出先由 `beforeunload` 保存播放快照，再在 `unload` 释放订阅、恢复计时器、解析请求及音频资源；释放后迟到结果不得写回，也不触发自然结束或睡眠回调。状态与默认音频后端仍在原渲染进程，此次拆分尚未实现后台宿主或 UI 重连。
+核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。创建时不注册订阅；`main.tsx` 在渲染 React 前调用 `startPlaybackRuntime()`（`src/lib/playback-runtime.ts`）：先水合设置与 Provider，再启动核心、最近播放、首次暂停态恢复与存档，最后同步托盘和 Media Session 并注册退出收听补报。最近播放不等待我的库懒加载，暂停态恢复不新增历史；重复启动复用同一运行时，不覆盖活跃状态。
+
+React 挂载/卸载不启停运行时。窗口退出先由 `beforeunload` 保存播放快照，再在 `unload` 统一停止存档与展示订阅、注销媒体动作并释放核心资源；存档停止时清除待写定时器并最后保存一次。核心释放后迟到结果不得写回，也不触发自然结束或睡眠回调，同一已终止宿主不重启核心。状态与默认音频后端仍在原渲染进程，托盘命令、全局快捷键、刷歌和下载等尚未迁移，本阶段不实现正式后台宿主或主窗口销毁后的 UI 重连。
 
 **关键字段**：
 
@@ -172,7 +174,7 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 - **配额降级**：整队列 JSON 超配额时，降级为占位曲目（仅 id/name/mid 等必需字段，`pending: true`），恢复后播到再补详情。
 - **兼容与校验**：可读取 1.x 无 schema 存档；未知 schema 不恢复。坏条目会被过滤，并按原始对象重新定位当前曲，避免过滤后下标错位。
 - **恢复为暂停态**：混合平台队列保留实体来源，不解析 URL、不自动播；`actualSource` 清空，合法的 `shuffleOrder` 一并恢复，旧存档或损坏顺序置空。用户再次播放时才按当时参与平台创建新解析会话，因此恢复阶段不会访问已禁用或尚未核实登录态的平台。
-- `initPlaybackPersistence()` 幂等（防 React StrictMode 双跑）。
+- `initPlaybackPersistence()` 由运行时启动，重复调用返回同一释放函数；只在该宿主首次启动恢复存档。释放后取消订阅、`beforeunload` 和待写定时器并保存最后快照，重新绑定监听不重新恢复旧档。
 
 ## 10. 睡眠定时器（`src/stores/sleep-timer.ts`）
 
@@ -182,7 +184,7 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 ## 11. 系统媒体集成（`src/lib/media-session.ts`）
 
-`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。启动时调用一次，环境不支持静默跳过。
+`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。
 
 ## 12. Apple Music 专用播放
 
