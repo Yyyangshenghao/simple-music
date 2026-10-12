@@ -67,7 +67,9 @@ vi.mock('./provider-auth', () => ({ expireProviderAccount: vi.fn() }))
 vi.mock('./toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ reportPlayback: h.report }) }))
 
-import { usePlayerStore, registerTrackEndedHandler, registerTrackEndedInterceptor, setStopAfterCurrent } from './player'
+import { usePlayerStore, startPlaybackCore, registerTrackEndedHandler, registerTrackEndedInterceptor, setStopAfterCurrent } from './player'
+
+startPlaybackCore()
 
 const track: Track = {
   provider: 'qq', source: 'qq', type: 'song', id: 'origin', mid: 'original-mid',
