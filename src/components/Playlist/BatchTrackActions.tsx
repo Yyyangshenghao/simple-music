@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { PROVIDER_IDS } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
-import { resolveBatchTracks } from '../../lib/batch-tracks'
+import { resolveAppPlaylistTracks, resolveBatchTracks } from '../../lib/batch-tracks'
+import { AddToAppPlaylistDialog } from './AppPlaylistDialog'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -31,6 +32,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const panelRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [choosingPlaylist, setChoosingPlaylist] = useState(false)
   const operation = useRef<AbortController | null>(null)
   const accountSignature = useProviderStore((state) => offline ? '' : PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
   const signature = [...tracks, ...collections].map((item) => `${item.source}:${item.type}:${String(item.id)}`).join('|')
@@ -50,6 +52,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     setBusy(false)
     setOpen(false)
     setError('')
+    setChoosingPlaylist(false)
     return () => { operation.current?.abort() }
   }, [signature, accountSignature])
 
@@ -114,6 +117,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   }
 
   const commands = <>
+    <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlaylist(true) }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 7v10M7 12h10" strokeLinecap="round" /></svg>加入应用歌单
+    </button>
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
       const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return
@@ -137,6 +143,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {busy && <><span className={styles.processing} role="status">处理中…</span><button type="button" role={compact ? 'menuitem' : undefined} onClick={() => { operation.current?.abort(); setBusy(false); if (compact) closeMenu() }}>取消操作</button></>}
   </>
 
+  const picker = choosingPlaylist && <AddToAppPlaylistDialog
+    loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />
+
   if (compact) return (
     <div className={styles.compact} ref={rootRef}>
       <button ref={triggerRef} type="button" className={styles.more} aria-label={menuLabel} title={busy ? '处理中，可打开菜单取消' : menuLabel}
@@ -153,6 +162,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>{selectLabel}
         </button>}
       </div>}
+      {picker}
     </div>
   )
 
@@ -172,6 +182,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {selection && <button type="button" className={styles.exit} aria-label="退出多选" title="退出多选（Esc）" onClick={selection.onExit}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" /></svg></button>}
       </div>
       {error && <p className={styles.error} role="alert">{error}</p>}
+      {picker}
     </div>
   )
 }

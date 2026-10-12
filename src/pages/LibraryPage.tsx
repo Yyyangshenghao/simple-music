@@ -20,8 +20,13 @@ import type { Playlist, Track } from '../types/domain'
 import type { MutableRefObject, RefObject } from 'react'
 import styles from './LibraryPage.module.css'
 import { OfflineMusicTab } from './OfflineMusicTab'
+import { AppPlaylistsTab } from './AppPlaylistsTab'
+import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
+import { SelectionCheck, SelectionMarquee } from '../components/Playlist/SelectionControls'
+import { useMultiSelection } from '../hooks/useMultiSelection'
+import { appPlaylistTrackKey } from '../stores/app-playlists'
 
-type SubTab = 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'local'
+type SubTab = 'app-playlists' | 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'local'
 
 /** 本地音乐排序字段。name/artist 为字符串序,mtimeMs 为文件修改时间(近似添加时间)。 */
 type LocalSortField = 'name' | 'artist' | 'mtimeMs'
@@ -111,17 +116,19 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
         <div className={styles.subTabs}>
-          {(['playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map((t) => (
+          {(['app-playlists', 'playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map((t) => (
             <button
               key={t}
               className={`${styles.subTab} no-drag ${tab === t ? styles.subTabActive : ''}`}
               onClick={() => setTab(t)}
             >
-              {{ playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[t]}
+              {{ 'app-playlists': '应用歌单', playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[t]}
             </button>
           ))}
         </div>
       </div>
+
+      {tab === 'app-playlists' && <AppPlaylistsTab />}
 
       {tab === 'playlists' && (contentSource
         ? <ProviderLibraryGrid mode="playlists" source={contentSource} />
@@ -410,6 +417,8 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
   const [scanning, setScanning] = useState(false)
   const [sortField, setSortField] = useState<LocalSortField>('name')
   const [sortDir, setSortDir] = useState<LocalSortDir>('asc')
+  const [selecting, setSelecting] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
 
   async function refresh(): Promise<void> {
     const [f, t] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
@@ -452,19 +461,28 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
   }, [tracks, keyword, sortField, sortDir])
   const queueRef = useRef<Track[]>([])
   queueRef.current = sorted
+  const selection = useMultiSelection({
+    enabled: selecting,
+    keys: sorted.map(appPlaylistTrackKey),
+    resetKey: `${keyword}:${sortField}:${sortDir}`,
+    onExit: () => setSelecting(false),
+    virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
+  })
+  const selectedTracks = sorted.filter(track => selection.selected.has(appPlaylistTrackKey(track)))
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [scrollRef, keyword, sortField, sortDir])
 
   return (
-    <div className={styles.trackList}>
+    <div className={styles.trackList} ref={selection.rootRef} {...selection.surfaceProps}>
       <div className={styles.trackListToolbar}>
         <span className={styles.trackListCount}>{tracks.length} 首</span>
         <div className={styles.toolbarActions}>
           <input
             className={styles.searchInput}
             placeholder="搜索本地音乐"
+            aria-label="搜索本地音乐"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -479,8 +497,13 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
           <button className={`${styles.clearBtn} no-drag`} onClick={() => void handleAddFolder()} disabled={scanning}>
             {scanning ? '导入中…' : '添加文件夹'}
           </button>
+          {!selecting && <BatchTrackActions compact tracks={sorted} label="当前本地音乐列表" menuLabel="本地音乐更多操作"
+            onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
         </div>
       </div>
+
+      {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
+        selection={{ total: sorted.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
 
       {folders.length > 0 && (
         <div className={styles.folderList}>
@@ -504,13 +527,21 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
           <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
         </div>
       ) : (
-        <VirtualList
+        <div ref={listRef}><VirtualList
           total={sorted.length}
           rowHeight={TRACK_ROW_HEIGHT}
           scrollRef={scrollRef}
-          renderRow={(index) => <QueuedTrackRow track={sorted[index]} index={index} queueRef={queueRef} />}
-        />
+          renderRow={(index) => {
+            const track = sorted[index]
+            const key = appPlaylistTrackKey(track)
+            return selecting ? <div className={styles.selectableRow} key={key} data-selection-key={key} data-selected={selection.selected.has(key)}>
+              <SelectionCheck label={`选择歌曲：${track.name}`} checked={selection.selected.has(key)} />
+              <TrackRow track={track} index={index} hideLikeAction hideOfflineAction onPlay={() => {}} />
+            </div> : <QueuedTrackRow track={track} index={index} queueRef={queueRef} />
+          }}
+        /></div>
       )}
+      <SelectionMarquee rect={selection.marquee} />
     </div>
   )
 }

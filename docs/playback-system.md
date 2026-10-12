@@ -2,7 +2,7 @@
 
 > 从「点击一首歌」到「扬声器出声」的全链路设计文档：URL 解析、跨音源兜底、音频引擎、
 > 代理与磁盘缓存、队列走序、预加载、持久化、睡眠定时器、系统媒体集成。
-> 相关代码：`src/stores/player.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
+> 相关代码：`src/stores/player.ts`、`src/lib/playback-core.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
 > `src/lib/playback-resolver.ts`、`src/lib/track-match.ts`、`src/lib/track-preload.ts`、`src/lib/playback-persistence.ts`、
 > `server/routes/netease.ts`（/api/audio）、`server/routes/audio-cache.ts`、`server/lib/audio-cache.ts`。
 
@@ -32,7 +32,9 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 
 ## 2. player store（`src/stores/player.ts`）
 
-单例 zustand store，持有懒创建的 `AudioEngine` 单例（模块级变量，非 state）。
+单例 zustand store 仍是唯一播放状态容器，通过 `createPlaybackCore` 编排会话。核心实例持有懒创建的普通引擎、Apple 会话、解析器及恢复计时器；`player.ts` 提供引擎工厂、平台/音质状态、API、预加载、通知和听歌上报等宿主能力，既有 store 调用接口保持不变。
+
+核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。创建时不注册订阅；`main.tsx` 在渲染前显式启动音质与平台同步，可视层隐藏或卸载不释放核心。窗口退出先由 `beforeunload` 保存播放快照，再在 `unload` 释放订阅、恢复计时器、解析请求及音频资源；释放后迟到结果不得写回，也不触发自然结束或睡眠回调。状态与默认音频后端仍在原渲染进程，此次拆分尚未实现后台宿主或 UI 重连。
 
 **关键字段**：
 
@@ -52,7 +54,7 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 - `registerTrackEndedHandler(cb)`：自然播完后的走序由 playlist store 决定（player 不知道队列存在）。playlist.ts 底部注册。
 - `setStopAfterCurrent(cb)`：睡眠定时器「播完当前曲再停」的一次性闸门。置位后 `onEnded` 不走 next，改调该回调并自动清除。
 
-**loadTrack 的竞态守卫**：模块级 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
+**loadTrack 的竞态守卫**：核心实例内的 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
 
 **恢复态起播**：重启后 restorePlayback 只回填元数据（引擎无源）。`play()` 检测 `!eng.hasSource && currentTrack` 时转调 `loadTrack(currentTrack, { startAt: position })` 按断点重新解析加载——URL 有时效，持久化里从不存 URL。
 
@@ -115,6 +117,8 @@ QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把�
 暂停、恢复和定位更新当前播放会话的最新意图；等待离线查询、在线解析及失败候选时，迟到响应不能恢复已暂停的播放或覆盖新定位。切歌与媒体失败候选等待时清除旧音轨，等待期间的旧媒体事件不推进队列。音频输出恢复只作用于同一仍在播放的会话，并使用最新位置；AudioContext 异步恢复也必须服从暂停、换源、清源和销毁操作。
 
 ## 6. 队列与走序（`src/stores/playlist.ts`）
+
+队列状态与走序、追加、重排、设为下一首及移除规则位于 `src/lib/queue-state.ts`，不依赖 DOM 或 store。`playlist` store 沿用现有接口，负责平台可用性、异步详情、播放意图与预加载调度；队列仍由渲染层持有，尚未迁移到后台。
 
 - `queue` + `queueIndex`；播放模式存在 settings（`order / shuffle / one`）。
 - **随机模式**用 Fisher-Yates 洗牌出的 `shuffleOrder`（下标排列）循环走序，而非每次随机跳——保证一轮内不重复、prev 可回溯。新增曲目时延长排列；长度失配时懒重建。

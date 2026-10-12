@@ -7,6 +7,13 @@ const playlist: Playlist = { source: 'netease', provider: 'netease', type: 'play
 const detail: AppView = { type: 'playlist', from: 'library', playlist }
 
 describe('歌单和专辑往返页面', () => {
+  it('应用歌单详情保留我的库分类实例，且与同 ID 的平台歌单具有独立路由', () => {
+    const origin = initialPageTransition('library', 0)
+    const opened = nextPageTransition(origin, { type: 'app-playlist', id: '1' }, 1, 'push')
+    expect(opened.origin).toBe(origin.current)
+    expect(opened.current.key).not.toBe(nextPageTransition(origin, detail, 1, 'push').current.key)
+    expect(nextPageTransition(opened, 'library', 2, 'pop').current.key).toBe(origin.current.key)
+  })
   it.each(['playlist', 'album'] as const)('打开 %s 时保留来源页，返回和再次前进沿用同一列表实例', type => {
     const origin = initialPageTransition('library', 0)
     const view: AppView = { ...detail, playlist: { ...playlist, type } }

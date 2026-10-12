@@ -133,7 +133,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const selection = useMultiSelection({
     enabled: selecting,
     keys: visibleSelectionTracks.map(track => String(track.id)),
-    disabledKeys: visibleSelectionTracks.filter(track => track.playable === false).map(track => String(track.id)),
     resetKey: `${playlist.source}:${String(playlist.id)}:${query}:${accountSignature}`,
     onExit: () => setSelecting(false),
     virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
@@ -237,7 +236,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             </div>
           </div>
           {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
-            selection={{ total: visibleSelectionTracks.filter(track => track.playable !== false).length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+            selection={{ total: visibleSelectionTracks.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
           <TrackSearch
             value={query}
             onChange={setQuery}
@@ -275,7 +274,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                     const item = selectionQueue[originalIndex]
                     if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
                     return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
-                      <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} disabled={item.playable === false} />
+                      <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} />
                       {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
                     </div>
                   }
