@@ -50,6 +50,7 @@ export function initMiniPlayerSync(): () => void {
       : shortcuts.results.some(item => item.ok && normalizeAccelerator(item.accelerator, platform) === localReturn))
     const returnShortcut = localReturn && !shortcuts.recording && !registered && !isSystemReservedAccelerator(localReturn, platform) ? localReturn : ''
     const lyrics = useLyricsStore.getState()
+    const trackKey = player.currentTrack ? `${player.currentTrack.source}:${String(player.currentTrack.id)}` : null
     const showLyrics = settings.miniPlayerAppearance.showLyrics && settings.miniPlayerWidth >= MINI_PLAYER_LYRICS_WIDTH
     const payload: MiniPlayerPayload = {
       trackTitle: player.currentTrack?.name ?? '',
@@ -61,7 +62,7 @@ export function initMiniPlayerSync(): () => void {
       accent: useAmbientStore.getState().palette[0],
       appearance: settings.miniPlayerAppearance,
       returnShortcut,
-      lyricLine: showLyrics && lyrics.currentIndex >= 0 ? lyrics.lines[lyrics.currentIndex]?.text ?? '' : ''
+      lyricLine: showLyrics && !!trackKey && lyrics.trackKey === trackKey && lyrics.currentIndex >= 0 ? lyrics.lines[lyrics.currentIndex]?.text ?? '' : ''
     }
     const patch = miniPlayerPatch(previousPayload, payload)
     previousPayload = payload
@@ -96,7 +97,7 @@ export function initMiniPlayerSync(): () => void {
     const settings = useSettingsStore.getState()
     if (settings.miniPlayerEnabled && !useGameModeStore.getState().enabled
       && settings.miniPlayerAppearance.showLyrics && settings.miniPlayerWidth >= MINI_PLAYER_LYRICS_WIDTH
-      && (state.currentIndex !== previous.currentIndex || state.lines !== previous.lines)) sync()
+      && (state.trackKey !== previous.trackKey || state.currentIndex !== previous.currentIndex || state.lines !== previous.lines)) sync()
   })
   const stopAmbient = useAmbientStore.subscribe((state, previous) => {
     if (state.palette[0] !== previous.palette[0]) sync()

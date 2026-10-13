@@ -11,6 +11,8 @@ import { initGlobalShortcuts } from './global-shortcuts'
 import { initGameModeSync } from './game-mode-sync'
 import { initMiniPlayerSync } from './mini-player-sync'
 import { useGameModeStore } from '../stores/game-mode'
+import { initLyricsClock } from './lyrics-clock'
+import { initLyricsLoader } from './lyrics-loader'
 
 let stopRuntime: (() => void) | undefined
 
@@ -23,6 +25,8 @@ export function startPlaybackRuntime(): () => void {
   const stopCore = startPlaybackCore()
   const stopRecent = initRecentPlaysTracking()
   const stopPersistence = initPlaybackPersistence()
+  const stopLyricsClock = initLyricsClock()
+  const stopLyricsLoader = initLyricsLoader()
   const stopDesktopControls = initDesktopPlaybackControls()
   const stopShortcuts = initGlobalShortcuts()
   const stopMiniPlayer = initMiniPlayerSync()
@@ -42,6 +46,8 @@ export function startPlaybackRuntime(): () => void {
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     stopRecent()
+    stopLyricsLoader()
+    stopLyricsClock()
     stopMiniPlayer()
     stopGameMode()
     stopDesktopControls()

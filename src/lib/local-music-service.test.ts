@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { localMusicService } from './local-music-service'
+import type { Track } from '../types/domain'
 
 const h = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: h.get, post: h.post, url: (path: string) => path } }))
@@ -22,5 +23,13 @@ describe('本地收藏可用性查询', () => {
     h.post.mockImplementation(async () => { controller.abort(); return { availableIds: ['1'] } })
     await expect(localMusicService.getAvailableTracks(Array.from({ length: 101 }, (_, index) => String(index)), controller.signal)).rejects.toThrow('Aborted')
     expect(h.post).toHaveBeenCalledOnce()
+  })
+
+  it('歌词请求透传取消信号到本地API', async () => {
+    const signal = new AbortController().signal
+    const track: Track = { source: 'local', provider: 'local', type: 'local', id: 'file1', name: '歌曲', artist: '', artists: [] }
+    h.get.mockResolvedValueOnce({ lyric: '[00:01.00]本地歌词' })
+    expect(await localMusicService.getLyrics(track, signal)).toEqual([{ time: 1, text: '本地歌词' }])
+    expect(h.get).toHaveBeenCalledWith('/api/local/lyric', { id: 'file1' }, { signal })
   })
 })
