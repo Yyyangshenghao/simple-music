@@ -1,14 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  cover: 'first.jpg' as string | undefined,
+  palette: ['#112233', '#445566', '#778899'],
   view: 'explore' as string,
   dependencies: undefined as unknown[] | undefined,
-  cleanup: undefined as (() => void) | undefined,
-  palette: vi.fn(() => ['#112233', '#445566', '#778899']),
-  luma: vi.fn(() => 0.7)
+  cleanup: undefined as (() => void) | undefined
 }))
-
 vi.mock('react', () => ({
   useEffect: (effect: () => (() => void) | undefined, dependencies: unknown[]) => {
     if (h.dependencies && dependencies.every((value, index) => Object.is(value, h.dependencies![index]))) return
@@ -17,101 +14,79 @@ vi.mock('react', () => ({
     h.cleanup = effect()
   }
 }))
-vi.mock('../stores/player', () => ({
-  usePlayerStore: (selector: (state: unknown) => unknown) => selector({ currentTrack: { cover: h.cover } })
+vi.mock('../stores/ambient', () => ({
+  useAmbientStore: (selector: (state: unknown) => unknown) => selector({ palette: h.palette })
 }))
 vi.mock('../stores/navigation', () => ({
   useNavigationStore: (selector: (state: unknown) => unknown) => selector({ currentView: h.view })
 }))
-vi.mock('../lib/api', () => ({ api: { coverImage: (url: string) => url } }))
-vi.mock('../lib/extract-color', () => ({
-  extractPalette: h.palette,
-  extractLuma: h.luma,
-  DEFAULT_PALETTE: ['#000000', '#000000', '#000000']
-}))
-
 import { useAmbientPalette } from './useAmbientPalette'
 
-class TestImage {
-  static instances: TestImage[] = []
-  onload: (() => void) | null = null
-  onerror: (() => void) | null = null
-  crossOrigin = ''
-  src = ''
-  constructor() { TestImage.instances.push(this) }
-}
+const setProperty = vi.fn()
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.clearAllMocks()
+  h.palette = ['#112233', '#445566', '#778899']
+  h.view = 'explore'
+  h.dependencies = undefined
+  h.cleanup = undefined
+  vi.stubGlobal('document', { documentElement: { style: {
+    getPropertyValue: () => '#000000', setProperty
+  } } })
+})
+afterEach(() => {
+  h.cleanup?.()
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
-describe('封面取色与导航', () => {
-  it('游戏模式停止补间，丢弃旧封面结果，切歌不采样，退出恢复当前封面', () => {
+describe('界面消费氛围色', () => {
+  it('只把已有颜色补间为12步，普通切页不重启，完成时准确落到目标色', () => {
     useAmbientPalette()
-    TestImage.instances[0].onload?.()
-    expect(vi.getTimerCount()).toBe(1)
-    useAmbientPalette(false)
-    expect(vi.getTimerCount()).toBe(0)
-    h.cover = 'new.jpg'
-    useAmbientPalette(false)
-    expect(TestImage.instances).toHaveLength(1)
-    useAmbientPalette(true)
-    expect(TestImage.instances).toHaveLength(2)
-    expect(TestImage.instances[1].src).toContain('new.jpg')
-  })
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    h.cover = 'first.jpg'
-    h.view = 'explore'
-    h.dependencies = undefined
-    h.cleanup = undefined
-    TestImage.instances = []
-    vi.stubGlobal('Image', TestImage)
-    vi.stubGlobal('document', { documentElement: { style: {
-      getPropertyValue: () => '', setProperty: vi.fn()
-    } } })
-  })
-
-  afterEach(() => {
-    h.cleanup?.()
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
-
-  it('普通切页不重复采样，退出刷歌时恢复封面取色', () => {
-    useAmbientPalette()
-    TestImage.instances[0].onload?.()
-    expect(h.palette).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(66)
+    const first = setProperty.mock.calls[0][1]
+    expect(first).not.toBe('#112233')
+    expect(first).not.toBe('#000000')
     h.view = 'library'
     useAmbientPalette()
     h.view = 'settings'
     useAmbientPalette()
-    expect(TestImage.instances).toHaveLength(1)
-
-    h.view = 'shuange'
-    useAmbientPalette()
+    vi.advanceTimersByTime(66 * 11)
+    expect(setProperty).toHaveBeenCalledTimes(36)
+    expect(setProperty.mock.calls.slice(-3)).toEqual([
+      ['--ambient-1', '#112233'], ['--ambient-2', '#445566'], ['--ambient-3', '#778899']
+    ])
     expect(vi.getTimerCount()).toBe(0)
-    expect(TestImage.instances).toHaveLength(1)
-    h.view = 'explore'
-    useAmbientPalette()
-    expect(TestImage.instances).toHaveLength(2)
-    TestImage.instances[1].onload?.()
-    expect(h.palette).toHaveBeenCalledTimes(2)
   })
 
-  it('切歌丢弃旧图片结果，卸载和移除封面时释放补间', () => {
+  it('游戏或刷歌停止补间，恢复时消费最新颜色', () => {
     useAmbientPalette()
-    const oldLoad = TestImage.instances[0].onload!
-    h.cover = 'second.jpg'
-    useAmbientPalette()
-    oldLoad()
-    expect(h.palette).not.toHaveBeenCalled()
-    TestImage.instances[1].onload?.()
-    expect(vi.getTimerCount()).toBe(1)
-    h.cleanup?.()
+    vi.advanceTimersByTime(66)
+    useAmbientPalette(false)
     expect(vi.getTimerCount()).toBe(0)
+    h.palette = ['#abcdef', '#123456', '#987654']
+    useAmbientPalette(false)
+    vi.advanceTimersByTime(1000)
+    expect(setProperty).toHaveBeenCalledTimes(3)
+    h.view = 'shuange'
+    useAmbientPalette(true)
+    expect(vi.getTimerCount()).toBe(0)
+    h.view = 'explore'
+    useAmbientPalette(true)
+    vi.advanceTimersByTime(66 * 12)
+    expect(setProperty).toHaveBeenLastCalledWith('--ambient-3', '#987654')
+  })
 
-    h.cover = undefined
+  it('卸载清理补间，重挂直接消费最新颜色，不创建图片或修改store', () => {
     useAmbientPalette()
-    expect(vi.getTimerCount()).toBe(1)
     h.cleanup?.()
+    h.dependencies = undefined
     expect(vi.getTimerCount()).toBe(0)
+    h.palette = ['#aabbcc', '#ddeeff', '#123456']
+    useAmbientPalette()
+    vi.advanceTimersByTime(66 * 12)
+    expect(setProperty.mock.calls.slice(-3)).toEqual([
+      ['--ambient-1', '#aabbcc'], ['--ambient-2', '#ddeeff'], ['--ambient-3', '#123456']
+    ])
   })
 })

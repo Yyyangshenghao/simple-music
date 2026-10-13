@@ -164,6 +164,48 @@ it('无React时桌面歌词消费真实LRC，原生字号/锁定/关闭回写且
   expect(useVisualStore.getState().fx).toMatchObject({ desktopLyrics: false, desktopLyricsSize: 41.5, desktopLyricsClickThrough: true })
 })
 
+it('无React时封面像素经真实取色管线更新迷你条，重复启动不重取且停止后旧结果无效', async () => {
+  const images: { src: string; onload: (() => void) | null; onerror: (() => void) | null }[] = []
+  vi.stubGlobal('Image', class {
+    src = ''
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    constructor() { images.push(this) }
+  })
+  vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({
+    drawImage: vi.fn(), getImageData: () => ({ data: new Uint8ClampedArray([255, 0, 0, 255]) })
+  }) }) })
+  const h = await runtimeWithPendingGameMode()
+  const { usePlayerStore } = await import('../stores/player')
+  const { useAmbientStore } = await import('../stores/ambient')
+  const { DEFAULT_PALETTE } = await import('./extract-color')
+  const { api } = await import('./api')
+  vi.spyOn(api, 'get').mockResolvedValue({ lyric: '' })
+  h.resolve({ enabled: false })
+  await Promise.resolve()
+  const track: Track = { source: 'local', provider: 'local', type: 'local', id: 'cover1', name: '本地封面', artist: '', artists: [], cover: 'https://example.com/cover.jpg' }
+  usePlayerStore.setState({ currentTrack: track })
+  images[0].onload!()
+  const palette = useAmbientStore.getState().palette
+  expect(palette[0]).not.toBe(DEFAULT_PALETTE[0])
+  expect(useAmbientStore.getState().coverLuma).toBeCloseTo(0.2126)
+  expect(h.mini).toHaveBeenLastCalledWith({ accent: palette[0] })
+  const { startPlaybackRuntime } = await import('./playback-runtime')
+  expect(startPlaybackRuntime()).toBe(stopRuntime)
+  expect(images).toHaveLength(1)
+  const lateLoad = images[0].onload!
+  const lateError = images[0].onerror!
+  stopRuntime!()
+  const pushes = h.mini.mock.calls.length
+  expect(images[0]).toMatchObject({ src: '', onload: null, onerror: null })
+  lateLoad()
+  lateError()
+  usePlayerStore.setState({ currentTrack: { ...track, cover: 'https://example.com/new.jpg' } })
+  expect(images).toHaveLength(1)
+  expect(h.mini).toHaveBeenCalledTimes(pushes)
+  expect(useAmbientStore.getState().palette).toBe(palette)
+})
+
 it('不挂载React也能恢复暂停态、记历史和同步系统；重复启动不重置，释放后停止副作用', async () => {
   vi.resetModules()
   vi.useFakeTimers()
