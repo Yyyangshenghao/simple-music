@@ -7,8 +7,6 @@ import { useScrollbarActivity } from './hooks/useScrollbarActivity'
 import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
-import { useMiniPlayerSync } from './hooks/useMiniPlayerSync'
-import { useGameModeSync } from './hooks/useGameModeSync'
 import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
@@ -58,14 +56,12 @@ export default function App() {
   const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
-  useGameModeSync()
   useShortcuts()
   useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
   useAudio(!gameEnabled || desktopLyricsEnabled, gameEnabled)
   useDesktopLyricsSync(gameEnabled, gameSequence)
   useWallpaperSync(gameEnabled)
-  useMiniPlayerSync(gameEnabled)
   useLyricsFetch(!gameEnabled || desktopLyricsEnabled)
   useAmbientPalette(!gameEnabled)
 
@@ -102,11 +98,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // 主进程状态不跨重启保留,迷你播放条开关需要在加载完本地设置后重放一次
-    {
-      const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
-      if (miniPlayerEnabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth)
-    }
     const sync = () => {
       const {
         themeMode,

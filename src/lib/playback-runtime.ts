@@ -8,6 +8,9 @@ import { initMediaSession } from './media-session'
 import { initTraySync } from './tray-sync'
 import { initDesktopPlaybackControls } from './desktop-playback-controls'
 import { initGlobalShortcuts } from './global-shortcuts'
+import { initGameModeSync } from './game-mode-sync'
+import { initMiniPlayerSync } from './mini-player-sync'
+import { useGameModeStore } from '../stores/game-mode'
 
 let stopRuntime: (() => void) | undefined
 
@@ -22,6 +25,12 @@ export function startPlaybackRuntime(): () => void {
   const stopPersistence = initPlaybackPersistence()
   const stopDesktopControls = initDesktopPlaybackControls()
   const stopShortcuts = initGlobalShortcuts()
+  const stopMiniPlayer = initMiniPlayerSync()
+  const stopGameMode = initGameModeSync(() => {
+    // 开窗 IPC 会退出游戏模式；只有初值先完成且期间没有模式广播时恢复一次。
+    const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
+    if (miniPlayerEnabled && !useGameModeStore.getState().enabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth).catch(() => {})
+  })
   // 初始展示读取已经恢复的暂停态，不先向系统发布空状态。
   const stopTray = initTraySync()
   const stopMedia = initMediaSession()
@@ -33,6 +42,8 @@ export function startPlaybackRuntime(): () => void {
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     stopRecent()
+    stopMiniPlayer()
+    stopGameMode()
     stopDesktopControls()
     stopShortcuts()
     stopTray()
