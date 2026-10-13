@@ -62,7 +62,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
 3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen、净化后的剪贴板写入及主窗口对 Apple 后台音频的定向捕获；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，创建 Apple Music 会话，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
-5. 渲染层 `main.tsx` 先启动播放运行时：加载通用设置，用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），启动核心与最近播放，首次恢复队列为暂停态，启动刷歌会话导航与续播，再启动歌词获取、歌词时钟、桌面歌词/壁纸参数同步与封面取色，注册桌面播放命令与全局快捷键，启动游戏模式状态监听和迷你条同步，再同步托盘、Media Session 并注册退出补报。随后挂载 `App.tsx`，独立核实各在线平台登录与参与状态；Apple Music 还需确认订阅状态。React 重新挂载不重启播放运行时、不重新恢复存档，也不重新注册全局键或重放迷你条开窗偏好。
+5. 渲染层 `main.tsx` 先启动播放运行时：加载通用设置，用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），启动核心与最近播放，首次恢复队列为暂停态，启动刷歌会话导航与续播、未完成下载的暂停恢复，再启动歌词获取、歌词时钟、桌面歌词/壁纸参数同步与封面取色，注册桌面播放命令与全局快捷键，启动游戏模式状态监听和迷你条同步，再同步托盘、Media Session 并注册退出补报。随后挂载 `App.tsx`，独立核实各在线平台登录与参与状态；Apple Music 还需确认订阅状态。React 重新挂载不重启播放运行时、不重新恢复存档，也不重新注册全局键或重放迷你条开窗偏好。
 6. `before-quit`：注销热键、关闭悬浮窗、销毁托盘，然后请求渲染层补报有效收听，最多等待 1.8 秒，再关闭 server；沿用整体 8 秒退出兜底。主窗口卸载时保存播放快照并统一释放播放运行时。
 
 **后台降耗约定**：主窗口隐藏、最小化或切到迷你播放条时，`App.tsx` 卸载可视层，保留全局 hooks 与 AudioEngine；WebGL/rAF 循环仍需使用 visibility、IntersectionObserver 或窗口状态自行暂停。壁纸窗口因长期处于桌面底层而单独禁用 Chromium 后台节流，不能依赖“被遮挡即自动停帧”。
@@ -119,7 +119,7 @@ player.loadTrack(网易云或 QQ 曲目)
 - **zustand 单文件单 store**，无全局 Provider；store 之间用 `getState()` 直接互调，环形依赖用注册回调解耦（player 播完 → playlist 走序，经 `registerTrackEndedHandler` 注入，避免 player→playlist 反向 import 成环）。
 - **provider store 是平台参与状态的唯一事实来源**：`byId` 保存启用、登录与资料，`contentSource` 保存探索与我的库共用的全局浏览来源，`playbackOrder` 保存播放优先级；内容平台不会关闭其他平台，也不会改变播放顺序。
 - **导航是自研的**（`stores/navigation.ts`）：`AppView` 联合类型 + history/future 双栈（上限 50 防内嵌全量 tracks 的 playlist 视图涨内存），没有引 react-router——视图形态少、需要携带对象参数（playlist 详情带已拉取的 tracks 避免重复请求）、转场方向（push/pop）要喂给 motion。
-- **持久化分层**：通用设置走 `simplemusic-settings`；平台偏好走带 schema 的 `simplemusic-provider-settings`；播放态走带 schema 的 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）。首次迁移会把 1.x 设置原文保存到 `simplemusic-settings-v1-backup`，新运行时代码不再读写旧二选一字段。
+- **持久化分层**：通用设置走 `simplemusic-settings`；平台偏好走带 schema 的 `simplemusic-provider-settings`；播放态走带 schema 的 `simplemusic-playback`（节流落盘，恢复为暂停态断点续播）；未完成下载走 `simplemusic-download-queue`，保留曲目与各自目录，重启后等待手动继续。首次迁移会把 1.x 设置原文保存到 `simplemusic-settings-v1-backup`，新运行时代码不再读写旧二选一字段。
 - **异步竞态守卫是全项目模式**：任何"响应回来时上下文可能已变"的异步加载，都用会话计数 ref（`loadSession`/`sessionRef`/`searchSeq`）判断响应是否过期后丢弃。player.loadTrack、ExplorePage、useLazyPlaylist、RoamPage 搜索、封面取色均如此；新加异步 setter 沿用该模式。
 
 ## 6. 视觉体系速览

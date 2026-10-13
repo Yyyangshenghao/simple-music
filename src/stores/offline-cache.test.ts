@@ -288,6 +288,18 @@ describe('单曲离线保存会话', () => {
     expect(useOfflineCacheStore.getState().directoryError).toBe('')
   })
 
+  it('取消或退出后的旧下载目录失败不再弹出下载提示', async () => {
+    useOfflineCacheStore.setState({ downloadDir: '' })
+    let reject!: (error: Error) => void
+    h.get.mockReturnValueOnce(new Promise((_, fail) => { reject = fail }))
+    const saving = useOfflineCacheStore.getState().save(track)
+    useOfflineCacheStore.getState().cancelSave()
+    reject(new Error('迟到目录失败'))
+    await saving
+    expect(h.show).not.toHaveBeenCalled()
+    expect(useOfflineCacheStore.getState().jobs).toEqual([])
+  })
+
   it('浏览大量歌曲后只保留有限的近期离线状态', async () => {
     const tracks = Array.from({ length: 2300 }, (_, id) => ({ ...track, id: String(id) }))
     h.statuses.mockResolvedValue(tracks.map((item) => ({ ...missing, id: item.id })))

@@ -10,11 +10,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function runtimeWithPendingGameMode() {
+async function runtimeWithPendingGameMode(downloads?: string) {
   vi.resetModules()
   vi.useFakeTimers()
   const settings = JSON.stringify({ globalHotkeysEnabled: false, miniPlayerEnabled: true, miniPlayerWidth: 360 })
-  vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'simplemusic-settings' ? settings : null, setItem: vi.fn() })
+  vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'simplemusic-settings' ? settings : key === 'simplemusic-download-queue' ? downloads ?? null : null, setItem: vi.fn() })
   let resolve!: (state: GameModeState) => void
   let notify!: (state: GameModeState) => void
   let control!: (payload: { action: string }) => void
@@ -50,6 +50,30 @@ async function runtimeWithPendingGameMode() {
   return { resolve, notify, control, mini, enableMini, wallpaper, useGameModeStore, useSettingsStore,
     lyrics, enableLyrics, enabledState, lockState, sizeState, stopLyricsEvents }
 }
+
+it('播放宿主无React时恢复下载队列，重复启动不覆盖，退出中止请求并保留原目录', async () => {
+  const track: Track = { source: 'qq', provider: 'qq', type: 'song', id: 'download', name: '下载歌曲', artist: '', artists: [] }
+  await runtimeWithPendingGameMode(JSON.stringify({ schema: 1, jobs: [{ track, directory: '/old-downloads' }] }))
+  const { useOfflineCacheStore } = await import('../stores/offline-cache')
+  const { api } = await import('./api')
+  const post = vi.spyOn(api, 'post').mockImplementation(async path => {
+    if (path === '/api/audio-cache/status') return { statuses: [{ source: 'qq', id: 'download', state: 'pinned', entryId: 'cached' }] }
+    return new Promise(() => {})
+  })
+  expect(useOfflineCacheStore.getState()).toMatchObject({ paused: true, jobs: [{ status: 'queued', directory: '/old-downloads' }] })
+  expect(post).not.toHaveBeenCalled()
+  useOfflineCacheStore.getState().setPaused(false)
+  for (let i = 0; i < 8; i++) await Promise.resolve()
+  expect(useOfflineCacheStore.getState().jobs[0].status).toBe('exporting')
+  const { startPlaybackRuntime } = await import('./playback-runtime')
+  expect(startPlaybackRuntime()).toBe(stopRuntime)
+  expect(post).toHaveBeenCalledTimes(2)
+  stopRuntime!()
+  expect(post.mock.lastCall?.[3]?.signal?.aborted).toBe(true)
+  expect(useOfflineCacheStore.getState().jobs).toEqual([])
+  const saved = vi.mocked(localStorage.setItem).mock.calls.filter(call => call[0] === 'simplemusic-download-queue').at(-1)
+  expect(JSON.parse(saved![1]).jobs).toEqual([{ track, directory: '/old-downloads' }])
+})
 
 it.each([true, false])('主进程初值确认游戏模式 %s 后才决定冷启动是否恢复迷你条', async enabled => {
   const h = await runtimeWithPendingGameMode()
