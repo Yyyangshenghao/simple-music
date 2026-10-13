@@ -13,6 +13,7 @@ import { initMiniPlayerSync } from './mini-player-sync'
 import { useGameModeStore } from '../stores/game-mode'
 import { initLyricsClock } from './lyrics-clock'
 import { initLyricsLoader } from './lyrics-loader'
+import { initDesktopLyricsSync } from './desktop-lyrics-sync'
 
 let stopRuntime: (() => void) | undefined
 
@@ -27,6 +28,7 @@ export function startPlaybackRuntime(): () => void {
   const stopPersistence = initPlaybackPersistence()
   const stopLyricsClock = initLyricsClock()
   const stopLyricsLoader = initLyricsLoader()
+  const stopDesktopLyrics = initDesktopLyricsSync()
   const stopDesktopControls = initDesktopPlaybackControls()
   const stopShortcuts = initGlobalShortcuts()
   const stopMiniPlayer = initMiniPlayerSync()
@@ -48,6 +50,7 @@ export function startPlaybackRuntime(): () => void {
     stopRecent()
     stopLyricsLoader()
     stopLyricsClock()
+    stopDesktopLyrics()
     stopMiniPlayer()
     stopGameMode()
     stopDesktopControls()
