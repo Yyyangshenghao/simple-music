@@ -6,9 +6,9 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
 
-`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、歌词获取/时钟、桌面歌词同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
+`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
 
-`App.tsx` 挂载窗口状态、应用内按键、登录态、壁纸和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词展示同步及封面取色由运行时持有；氛围色 CSS 补间和壁纸同步仍由 App hooks 管理，刷歌和下载尚未迁移到后台；正式销毁主窗口尚未开放。
+`App.tsx` 挂载窗口状态、应用内按键、登录态和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步及封面取色由运行时持有；氛围色 CSS 补间仍由 App hooks 管理，刷歌和下载尚未迁移到后台；正式销毁主窗口尚未开放。
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
@@ -39,7 +39,6 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useDesktopBridge` — 订阅并初次读取主窗口状态，写入 window store；不接收播放命令。
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
 - `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider；账号身份变化或卸载后丢弃迟到结果，设置水合及单纯启停平台不使有效检测失效。
-- `useWallpaperSync` — 把可视化状态经 IPC 推给壁纸悬浮窗；桌面歌词和迷你条由运行时同步。
 - `useAmbientPalette` — 只消费 ambient store，把 `--ambient-1/2/3` CSS 变量分 12 步补间到当前颜色；游戏/刷歌及卸载时停止补间，重挂直接消费最新颜色，不取图或改写 store。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
 - `useReducedMotion` — 订阅系统减少动态效果偏好，运行时暂停装饰效果并让歌词直接定位，保留用户原设置。
@@ -64,13 +63,14 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
 - `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证，当前仍运行在主窗口渲染进程。
-- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、歌词获取/时钟、桌面歌词同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
 - `tray-sync.ts` — 从 player、队列和桌面歌词开关推送托盘状态，进度变化不重复发送。
 - `desktop-playback-controls.ts` — 宿主持有托盘与迷你条的共用命令订阅；上下首保留刷歌分发，`sync-off` 只落回设置。
 - `global-shortcuts.ts` — 宿主持有全局热键注册和原生菜单命令，设置/录入变化时同步；丢弃旧注册回复，停止后解除订阅与绑定，界面重新挂载不重新注册。
 - `lyrics-loader.ts` — 宿主持有歌词请求；原曲与实际曲按来源/ID 去重，保留原曲归属与实际歌词来源。切歌、参与平台、顺序及相关账号会话变化时取消旧请求，过期成功/失败不回写；账号交换中失效的活跃请求降为空词并结束加载。本地 LRC 取消信号透传本地 API；网易逐字音译沿用同时间轴的 `yromalrc` 优先及旧 `romalrc` 补位规则。
 - `lyrics-clock.ts` — 播放进度与歌词偏移驱动行/逐字进度；普通音频不创建定时器，MusicKit 仅 playing 时使用 50ms 连续时钟，暂停/拖动即时定位。游戏纯播放取消位置订阅，保留桌面歌词时降低到 250ms；停止时释放订阅和时钟，不创建或销毁音频引擎。
 - `desktop-lyrics-sync.ts` — 宿主持有桌面歌词开关、外观、逐字时钟与原生字号/锁定/关闭回写；高频仅发送单字段时钟，关闭或游戏模式停逐字同步。拖框回传后普通更新省略字号，用户改字号及游戏确认序号重配仍发送完整配置；停止后旧事件和迟到失败提示失效，原生窗口由主进程关闭且保留开启偏好。
+- `wallpaper-sync.ts` — 宿主持有完整 Fx 参数同步；游戏中暂停，每次退出/确认补发最新快照。React 卸载不停止推送，重挂不重发，停止解除 store 订阅并接住迟到 IPC 失败；不改变主进程壁纸开关与恢复职责。
 - `ambient-palette-sync.ts` — 宿主持有当前封面的 Image/Canvas 采样与平均亮度，保留游戏/刷歌暂停、普通切页和同封面不重取规则；取消图片并丢弃旧回调，无封面或失败回退默认值。React 卸载不停止生产，停止运行时解除订阅并保留末态，不运行 CSS 补间计时器。
 - `mini-player-sync.ts` — 宿主持有迷你条状态、返回快捷键、1Hz 进度及拖宽回写；游戏模式暂停推送且保留偏好；冷偏好由运行时在初值查询先完成时恢复一次，停止后取消所有订阅和计时。歌词和封面氛围色由运行时生产，CSS 颜色补间仍由 App hooks 管理。
 - `game-mode-sync.ts` — 宿主持有游戏模式广播与初值查询；先订阅后读取，确认初值后才允许恢复迷你窗口，丢弃迟到初值及停止后的事件。

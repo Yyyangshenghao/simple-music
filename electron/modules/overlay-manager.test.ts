@@ -94,10 +94,56 @@ vi.mock('../platform', () => ({
   })
 }))
 
-import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, hideMiniPlayerToTray, setMiniPlayerPopover, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsPointerCapture, setLyricsControlBounds, closeOverlays } from './overlay-manager'
+import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, hideMiniPlayerToTray, setMiniPlayerPopover, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsPointerCapture, setLyricsControlBounds, setWallpaperEnabled, updateWallpaper, closeOverlays } from './overlay-manager'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
 import { desktopLyricsHeight, desktopLyricsSize } from '../../src/lib/desktop-lyrics-layout'
 import { preventLyricsActivation } from './macos-lyrics-window'
+
+it('壁纸页刷新后重放完整快照，保留未变化的外观和最新速度', () => {
+  setWallpaperEnabled(false)
+  harness.instances.length = 0
+  try {
+    updateWallpaper({ speed: 0.4, backgroundColor: '#18324f', backgroundOpacity: 0.7 })
+    setWallpaperEnabled(true)
+    const webContents = harness.instances[0].webContents
+    const finishLoad = () => {
+      for (const [event, callback] of [...webContents.on.mock.calls, ...webContents.once.mock.calls]) {
+        if (event === 'did-finish-load') callback()
+      }
+      webContents.once.mockClear()
+    }
+    finishLoad()
+    updateWallpaper({ speed: 0.9 })
+    webContents.send.mockClear()
+    finishLoad()
+    expect(webContents.send).toHaveBeenLastCalledWith('overlay:wallpaper-state', expect.objectContaining({
+      enabled: true, speed: 0.9, backgroundColor: '#18324f', backgroundOpacity: 0.7
+    }))
+  } finally {
+    setWallpaperEnabled(false)
+  }
+})
+
+it('旧壁纸窗口延迟关闭不清除新窗口引用，更新和关闭仍指向当前窗口', () => {
+  setWallpaperEnabled(false)
+  harness.instances.length = 0
+  try {
+    setWallpaperEnabled(true, { speed: 0.4 })
+    const first = harness.instances[0]
+    setWallpaperEnabled(false)
+    setWallpaperEnabled(true)
+    const second = harness.instances[1]
+    first.listeners.get('closed')?.()
+    updateWallpaper({ speed: 0.9 })
+    expect(harness.instances).toHaveLength(2)
+    expect(second.webContents.send).toHaveBeenLastCalledWith('overlay:wallpaper-state', expect.objectContaining({ enabled: true, speed: 0.9 }))
+    setWallpaperEnabled(false)
+    expect(first.close).toHaveBeenCalledOnce()
+    expect(second.close).toHaveBeenCalledOnce()
+  } finally {
+    setWallpaperEnabled(false)
+  }
+})
 
 it('歌词请求确认与悬浮窗主动关闭使用不同通知，避免旧确认覆盖最新意图', () => {
   setLyricsEnabled(false, {}, true)

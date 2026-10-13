@@ -4,7 +4,6 @@ import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
-import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
@@ -53,7 +52,6 @@ export default function App() {
   useShortcuts()
   useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
-  useWallpaperSync(gameEnabled)
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])

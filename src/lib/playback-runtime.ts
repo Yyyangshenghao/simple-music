@@ -15,6 +15,7 @@ import { initLyricsClock } from './lyrics-clock'
 import { initLyricsLoader } from './lyrics-loader'
 import { initDesktopLyricsSync } from './desktop-lyrics-sync'
 import { initAmbientPaletteSync } from './ambient-palette-sync'
+import { initWallpaperSync } from './wallpaper-sync'
 
 let stopRuntime: (() => void) | undefined
 
@@ -31,6 +32,7 @@ export function startPlaybackRuntime(): () => void {
   const stopLyricsLoader = initLyricsLoader()
   const stopDesktopLyrics = initDesktopLyricsSync()
   const stopAmbientPalette = initAmbientPaletteSync()
+  const stopWallpaper = initWallpaperSync()
   const stopDesktopControls = initDesktopPlaybackControls()
   const stopShortcuts = initGlobalShortcuts()
   const stopMiniPlayer = initMiniPlayerSync()
@@ -54,6 +56,7 @@ export function startPlaybackRuntime(): () => void {
     stopLyricsClock()
     stopDesktopLyrics()
     stopAmbientPalette()
+    stopWallpaper()
     stopMiniPlayer()
     stopGameMode()
     stopDesktopControls()

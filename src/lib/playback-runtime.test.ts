@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
-import type { GameModeState, LyricsPayload } from '../types/ipc'
+import type { GameModeState, LyricsPayload, WallpaperPayload } from '../types/ipc'
 
 let stopRuntime: (() => void) | undefined
 afterEach(() => {
@@ -20,6 +20,7 @@ async function runtimeWithPendingGameMode() {
   let control!: (payload: { action: string }) => void
   const enableMini = vi.fn(async () => ({ ok: true }))
   const mini = vi.fn(async () => ({ ok: true }))
+  const wallpaper = vi.fn(async (_payload: WallpaperPayload) => ({ ok: true }))
   const lyrics = vi.fn(async (_payload: LyricsPayload) => ({ ok: true }))
   const enableLyrics = vi.fn(async (_enabled: boolean, _payload: LyricsPayload) => ({ ok: true }))
   let enabledState!: (state: { enabled: boolean; requested?: boolean }) => void
@@ -29,6 +30,7 @@ async function runtimeWithPendingGameMode() {
   vi.stubGlobal('window', {
     desktop: {
       updateMiniPlayer: mini, setMiniPlayerEnabled: enableMini, onMiniPlayerWidthChanged: () => vi.fn(),
+      updateWallpaper: wallpaper,
       onGameModeChange: (callback: typeof notify) => { notify = callback; return vi.fn() },
       getGameMode: () => new Promise<GameModeState>(done => { resolve = done }),
       onMiniPlayerControl: (callback: typeof control) => { control = callback; return vi.fn() },
@@ -45,7 +47,7 @@ async function runtimeWithPendingGameMode() {
   stopRuntime = startPlaybackRuntime()
   const { useGameModeStore } = await import('../stores/game-mode')
   const { useSettingsStore } = await import('../stores/settings')
-  return { resolve, notify, control, mini, enableMini, useGameModeStore, useSettingsStore,
+  return { resolve, notify, control, mini, enableMini, wallpaper, useGameModeStore, useSettingsStore,
     lyrics, enableLyrics, enabledState, lockState, sizeState, stopLyricsEvents }
 }
 
@@ -204,6 +206,30 @@ it('无React时封面像素经真实取色管线更新迷你条，重复启动�
   expect(images).toHaveLength(1)
   expect(h.mini).toHaveBeenCalledTimes(pushes)
   expect(useAmbientStore.getState().palette).toBe(palette)
+})
+
+it('无React时壁纸随设置更新，游戏恢复补完整快照，重启入口与停止均不重复副作用', async () => {
+  const h = await runtimeWithPendingGameMode()
+  const { useVisualStore } = await import('../stores/visual')
+  expect(h.wallpaper).toHaveBeenLastCalledWith(useVisualStore.getState().fx)
+  h.resolve({ enabled: true })
+  await Promise.resolve()
+  const suspendedPushes = h.wallpaper.mock.calls.length
+  useVisualStore.getState().updateFx({ speed: 0.65, bloom: false })
+  expect(h.wallpaper).toHaveBeenCalledTimes(suspendedPushes)
+  h.notify({ enabled: false })
+  expect(h.wallpaper).toHaveBeenCalledTimes(suspendedPushes + 1)
+  expect(h.wallpaper).toHaveBeenLastCalledWith(useVisualStore.getState().fx)
+  const { startPlaybackRuntime } = await import('./playback-runtime')
+  expect(startPlaybackRuntime()).toBe(stopRuntime)
+  expect(h.wallpaper).toHaveBeenCalledTimes(suspendedPushes + 1)
+  useVisualStore.getState().updateFx({ speed: 0.85 })
+  expect(h.wallpaper.mock.lastCall![0]).toMatchObject({ speed: 0.85, bloom: false })
+  stopRuntime!()
+  const pushes = h.wallpaper.mock.calls.length
+  useVisualStore.getState().updateFx({ speed: 0.2 })
+  h.notify({ enabled: false })
+  expect(h.wallpaper).toHaveBeenCalledTimes(pushes)
 })
 
 it('不挂载React也能恢复暂停态、记历史和同步系统；重复启动不重置，释放后停止副作用', async () => {
