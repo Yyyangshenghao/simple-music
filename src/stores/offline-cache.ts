@@ -35,6 +35,7 @@ interface OfflineCacheStore {
   queueOpen: boolean
   downloadDir: string
   directoryError: string
+  recoveryError: string
   ensure(track: Track): Promise<OfflineCacheStatus | null>
   ensureMany(tracks: Track[]): Promise<void>
   save(track: Track): Promise<void>
@@ -308,6 +309,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   queueOpen: false,
   downloadDir: '',
   directoryError: '',
+  recoveryError: '',
 
   setPaused(paused) { set({ paused }); if (!paused) pumpSaves() },
   setQueueOpen(queueOpen) { set({ queueOpen }) },
@@ -368,7 +370,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
       if (version !== queueVersion) return
       return await enqueueSave(track, directory)
     } catch {
-      useToastStore.getState().show('下载目录不可用，请在下载队列中重新选择')
+      if (version === queueVersion) useToastStore.getState().show('下载目录不可用，请在下载队列中重新选择')
     }
   },
 
