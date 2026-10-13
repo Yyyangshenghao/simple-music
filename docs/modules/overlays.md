@@ -22,7 +22,8 @@
 
 `overlays/wallpaper/index.tsx` + `wallpaper.html`。直接渲染 `src/components/Visualizer/Scene.tsx`。
 
-- 壁纸窗口是独立渲染进程,自带一份 visual store;主窗口 `useWallpaperSync` 经 `wallpaper:update` 推送 FxParams,入口处 `useVisualStore.getState().updateFx()` 同步到本地 store。preload 提前缓存并合并状态，向新订阅者重放完整快照，避免首屏配置早于 React 订阅时丢失。
+- 壁纸窗口是独立渲染进程,自带一份 visual store;主窗口播放运行时的 `wallpaper-sync.ts` 经 `wallpaper:update` 推送完整 FxParams,入口处 `useVisualStore.getState().updateFx()` 同步到本地 store。主进程在每次页面加载完成后发送缓存快照，preload 提前缓存并合并状态，向新订阅者重放完整快照，首屏及页面重载均可恢复配置。
+- 同步器只随运行时启动/停止，不随 App 挂载/卸载；游戏模式暂停参数推送，确认序号变化时在非游戏状态补发完整最新值。开关及游戏退出后的窗口恢复仍由主进程处理，关闭期间更新只缓存参数，不会自动开窗。加载、展示及关闭回调校验窗口身份，旧窗口的延迟事件不会覆盖新窗口引用。
 - 注意:主窗口与壁纸各自可能跑全屏 WebGL,"同屏只跑一个"的约束指单个窗口内。
 
 ## mini-player(迷你悬浮播放条)
@@ -32,7 +33,7 @@
 - 开关在**播放栏右侧**的 `MiniPlayerButton`(不在设置页);设置页只留外观项(不透明度/模糊/色调/进度条/歌词)。
 - 开启后主窗口隐藏、迷你播放条显示；点击封面或关闭按钮会退出迷你模式并恢复主窗口，二者保持互斥。
 - 进入迷你模式时迷你窗口承接键盘焦点，再按应用内「迷你 / 完整模式」快捷键可返回主窗口；自定义按键同步生效。与全局绑定同键且注册成功时由全局入口处理，避免双触发。焦点切换到其他应用后，需使用全局快捷键返回。
-- 数据流:主窗口播放运行时的 `mini-player-sync.ts` 按字段变化推送曲目态、外观、返回快捷键及已有歌词行，展示中的播放进度按 1Hz 推送 → `miniplayer:update`；回程控制走 `overlay:miniplayer-control` → 主进程转 `miniplayer:control` 事件 → 运行时的 `desktop-playback-controls.ts` 落到 player/playlist store。React 卸载不停止同步，重新挂载不重放开窗偏好；游戏模式暂停推送并保留开关，退出后补最新状态。歌词获取/时钟由同一运行时生产，按当前曲目归属过滤歌词；桌面歌词展示也由运行时同步；封面氛围色由运行时的 `ambient-palette-sync.ts` 使用 Image/Canvas 生产，App 卸载后切曲仍更新迷你条颜色；氛围色 CSS 补间及壁纸同步仍依赖 App hooks，尚非完整后台展示链路。
+- 数据流:主窗口播放运行时的 `mini-player-sync.ts` 按字段变化推送曲目态、外观、返回快捷键及已有歌词行，展示中的播放进度按 1Hz 推送 → `miniplayer:update`；回程控制走 `overlay:miniplayer-control` → 主进程转 `miniplayer:control` 事件 → 运行时的 `desktop-playback-controls.ts` 落到 player/playlist store。React 卸载不停止同步，重新挂载不重放开窗偏好；游戏模式暂停推送并保留开关，退出后补最新状态。歌词获取/时钟由同一运行时生产，按当前曲目归属过滤歌词；桌面歌词展示也由运行时同步；封面氛围色由运行时的 `ambient-palette-sync.ts` 使用 Image/Canvas 生产，App 卸载后切曲仍更新迷你条颜色；壁纸参数同步也由运行时持有；氛围色 CSS 补间仍依赖 App hooks，正式后台宿主尚未迁移。
 - 尺寸:高度锁死(常态 80,音量弹层展开 136,底边不动);宽度由自绘右边缘手柄经 `overlay:miniplayer-resize-by` 改窗口,主进程再用 `miniplayer:width-changed` 回传主窗口持久化。宽度 ≥ `MINI_PLAYER_LYRICS_WIDTH` 时展开歌词行。
 - 窗口 `resizable: false`,尺寸只由 `setBounds` 改(改尺寸前临时 `setResizable(true)`,否则 macOS 会忽略);放开 OS 边缘拖拽会与自绘手柄同帧各改一次宽度而抖动。
 - 透明留白区在 OS 层面同样挡桌面点击(CSS `pointer-events: none` 不解决),所以弹层空间是按需长高而非常驻。
