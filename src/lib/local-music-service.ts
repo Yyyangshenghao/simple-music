@@ -114,8 +114,8 @@ export class LocalMusicService implements MusicService {
     return track.url ?? ''
   }
 
-  async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lyric: string }>('/api/local/lyric', { id: String(track.id) })
+  async getLyrics(track: Track, signal?: AbortSignal): Promise<LyricLine[]> {
+    const res = await api.get<{ lyric: string }>('/api/local/lyric', { id: String(track.id) }, { signal })
     return res.lyric ? parseLrc(res.lyric) : []
   }
 }

@@ -4,10 +4,8 @@ import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
-import { useAudio } from './hooks/useAudio'
 import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
-import { useLyricsFetch } from './hooks/useLyricsFetch'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useLoginStatusSync } from './hooks/useLoginStatusSync'
@@ -18,7 +16,6 @@ import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { useGameModeStore } from './stores/game-mode'
 import { initWindowCloseSync } from './stores/window-close'
-import { useVisualStore } from './stores/visual'
 import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
 import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
@@ -41,7 +38,6 @@ const APPEARANCE_KEYS = [
 
 export default function App() {
   const gameEnabled = useGameModeStore((s) => s.enabled)
-  const desktopLyricsEnabled = useVisualStore((s) => s.fx.desktopLyrics)
   const gameSequence = useGameModeStore((s) => s.sequence)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
@@ -52,17 +48,15 @@ export default function App() {
   const detailBackdropCover = useBackdropStore((s) => s.cover)
   const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
-  // 顶层 hooks 与 AudioEngine 单例不在此子树,音频与迷你条同步照常。
+  // 播放运行时与保留的顶层 hooks 不在此子树,音频与迷你条同步照常。
   const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
   useShortcuts()
   useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
-  useAudio(!gameEnabled || desktopLyricsEnabled, gameEnabled)
   useDesktopLyricsSync(gameEnabled, gameSequence)
   useWallpaperSync(gameEnabled)
-  useLyricsFetch(!gameEnabled || desktopLyricsEnabled)
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])

@@ -115,10 +115,10 @@ export async function fetchLyrics(track: Track, sources: ProviderId[] = [], sign
     }
 
     // 本地音乐:曲目同目录的同名 .lrc。server 端点与 localMusicService.getLyrics 一直都在,
-    // 但这条管线（App 里唯一的歌词入口）此前只有网易/QQ 两个分支,本地曲目直接落到下面的
+    // 但这条管线此前只有网易/QQ 两个分支,本地曲目直接落到下面的
     // return emptyLyrics —— 表现为本地音乐永远没有歌词。
     if (track.source === 'local') {
-      const main = await localMusicService.getLyrics(track)
+      const main = await localMusicService.getLyrics(track, signal)
       if (!main.length) return emptyLyrics
       return { source: track.source, main, aligned: [], roma: [], wordLines: [] }
     }

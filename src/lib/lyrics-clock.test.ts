@@ -3,12 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const harness = vi.hoisted(() => ({
   tick: vi.fn(),
   lyricPosition: 0,
-  cleanup: undefined as (() => void) | undefined,
 }))
 
-vi.mock('react', () => ({
-  useEffect: (effect: () => () => void) => { harness.cleanup = effect() },
-}))
 vi.mock('../stores/player', async () => {
   const { create } = await import('zustand')
   return { usePlayerStore: create(() => ({
@@ -28,12 +24,45 @@ vi.mock('../stores/lyrics', async () => {
 
 import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
-import { useAudio } from './useAudio'
+import { initLyricsClock } from './lyrics-clock'
+import { useGameModeStore } from '../stores/game-mode'
+import { useVisualStore } from '../stores/visual'
+
+let stopClock: (() => void) | undefined
 
 describe('歌词时钟调度', () => {
+  it('运行中切换游戏/桌面歌词会替换频率，重复启动不增加订阅或时钟', () => {
+    usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
+    stopClock = initLyricsClock()
+    expect(initLyricsClock()).toBe(stopClock)
+    harness.tick.mockClear()
+    vi.advanceTimersByTime(1000)
+    expect(harness.tick).toHaveBeenCalledTimes(20)
+    useGameModeStore.setState({ enabled: true })
+    expect(vi.getTimerCount()).toBe(0)
+    harness.tick.mockClear()
+    usePlayerStore.setState({ position: 8 })
+    expect(harness.tick).not.toHaveBeenCalled()
+    useVisualStore.getState().updateFx({ desktopLyrics: true })
+    expect(vi.getTimerCount()).toBe(1)
+    harness.tick.mockClear()
+    vi.advanceTimersByTime(1000)
+    expect(harness.tick).toHaveBeenCalledTimes(4)
+    useGameModeStore.setState({ enabled: false })
+    expect(vi.getTimerCount()).toBe(1)
+    harness.tick.mockClear()
+    vi.advanceTimersByTime(1000)
+    expect(harness.tick).toHaveBeenCalledTimes(20)
+    stopClock()
+    stopClock()
+    useVisualStore.getState().updateFx({ desktopLyrics: false })
+    useGameModeStore.setState({ enabled: true })
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('纯播放模式不运行歌词时钟，也不订阅播放位置', () => {
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
-    useAudio(false, true)
+    useGameModeStore.setState({ enabled: true })
+    stopClock = initLyricsClock()
     usePlayerStore.setState({ position: 8 })
     vi.advanceTimersByTime(1000)
     expect(harness.tick).not.toHaveBeenCalled()
@@ -42,7 +71,9 @@ describe('歌词时钟调度', () => {
 
   it('游戏桌面歌词降低 MusicKit 时钟频率，并保留行同步', () => {
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
-    useAudio(true, true)
+    useGameModeStore.setState({ enabled: true })
+    useVisualStore.getState().updateFx({ desktopLyrics: true })
+    stopClock = initLyricsClock()
     harness.tick.mockClear()
     harness.lyricPosition = 5
     vi.advanceTimersByTime(1000)
@@ -51,6 +82,8 @@ describe('歌词时钟调度', () => {
   })
   beforeEach(() => {
     vi.useFakeTimers()
+    useGameModeStore.setState({ enabled: false })
+    useVisualStore.getState().updateFx({ desktopLyrics: false })
     harness.lyricPosition = 0
     useLyricsStore.getState().setLines([])
     useLyricsStore.getState().setWordLines([])
@@ -59,13 +92,13 @@ describe('歌词时钟调度', () => {
   })
 
   afterEach(() => {
-    harness.cleanup?.()
-    harness.cleanup = undefined
+    stopClock?.()
+    stopClock = undefined
     vi.useRealTimers()
   })
 
   it('普通播放和空闲状态不创建定时器，位置变化仍更新歌词', () => {
-    useAudio()
+    stopClock = initLyricsClock()
     expect(vi.getTimerCount()).toBe(0)
     usePlayerStore.setState({ playbackTransport: 'online', status: 'playing', position: 3 })
     expect(harness.tick).toHaveBeenLastCalledWith(3)
@@ -76,7 +109,7 @@ describe('歌词时钟调度', () => {
 
   it('MusicKit 播放才运行连续时钟，暂停后停止，恢复时只有一个时钟', () => {
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
-    useAudio()
+    stopClock = initLyricsClock()
     expect(vi.getTimerCount()).toBe(1)
     harness.lyricPosition = 3.25
     vi.advanceTimersByTime(50)
@@ -98,7 +131,7 @@ describe('歌词时钟调度', () => {
 
   it('暂停时前后拖动立即更新歌词，无需等待时钟', () => {
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'paused' })
-    useAudio()
+    stopClock = initLyricsClock()
     harness.lyricPosition = 80
     usePlayerStore.setState({ position: 80 })
     expect(harness.tick).toHaveBeenLastCalledWith(80)
@@ -110,7 +143,7 @@ describe('歌词时钟调度', () => {
 
   it.each(['idle', 'loading'] as const)('MusicKit 进入 %s 时停止连续时钟', status => {
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'playing' })
-    useAudio()
+    stopClock = initLyricsClock()
     expect(vi.getTimerCount()).toBe(1)
     usePlayerStore.setState({ status })
     expect(vi.getTimerCount()).toBe(0)
@@ -124,7 +157,7 @@ describe('歌词时钟调度', () => {
     ])
     harness.lyricPosition = 2.5
     usePlayerStore.setState({ playbackTransport: 'musickit', status: 'paused', position: 2.5 })
-    useAudio()
+    stopClock = initLyricsClock()
     expect(useLyricsStore.getState()).toMatchObject({ currentIndex: 0, currentCharProgress: 0.75 })
     harness.tick.mockClear()
     useLyricsStore.getState().setOffsetSec(1)
@@ -136,14 +169,14 @@ describe('歌词时钟调度', () => {
     expect(useLyricsStore.getState()).toMatchObject({ currentIndex: 0, currentCharProgress: 0.25 })
     expect(harness.tick).toHaveBeenCalledTimes(2)
     expect(vi.getTimerCount()).toBe(0)
-    harness.cleanup?.()
+    stopClock?.()
     useLyricsStore.getState().setOffsetSec(0)
     expect(harness.tick).toHaveBeenCalledTimes(2)
   })
 
   it('切换传输立即采用对应位置，退出 MusicKit 或卸载时释放时钟', () => {
     usePlayerStore.setState({ playbackTransport: 'online', status: 'playing', position: 8 })
-    useAudio()
+    stopClock = initLyricsClock()
     harness.lyricPosition = 11.5
     usePlayerStore.setState({ playbackTransport: 'musickit' })
     expect(harness.tick).toHaveBeenLastCalledWith(11.5)
@@ -152,7 +185,7 @@ describe('歌词时钟调度', () => {
     expect(harness.tick).toHaveBeenLastCalledWith(8)
     expect(vi.getTimerCount()).toBe(0)
     usePlayerStore.setState({ playbackTransport: 'musickit' })
-    harness.cleanup?.()
+    stopClock?.()
     expect(vi.getTimerCount()).toBe(0)
     const calls = harness.tick.mock.calls.length
     usePlayerStore.setState({ position: 30 })

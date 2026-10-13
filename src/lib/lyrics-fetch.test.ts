@@ -143,7 +143,10 @@ describe('原生逐字时间轴', () => {
 
   it('本地普通 LRC 保留逐句歌词，不再估算逐字时间', async () => {
     h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
-    const result = await fetchLyrics({ ...apple, source: 'local', provider: 'local' })
+    const track: Track = { ...apple, source: 'local', provider: 'local' }
+    const signal = new AbortController().signal
+    const result = await fetchLyrics(track, [], signal)
+    expect(h.local).toHaveBeenCalledWith(track, signal)
     expect(result.main).toEqual([{ time: 1, text: '本地歌词' }])
     expect(result.wordLines).toEqual([])
   })

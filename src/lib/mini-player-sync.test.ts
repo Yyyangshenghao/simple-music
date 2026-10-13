@@ -26,8 +26,8 @@ describe('宿主持有迷你条同步，只推送实际展示的数据', () => {
       miniPlayerAppearance: { ...DEFAULT_MINI_PLAYER_APPEARANCE },
       localHotkeys: [{ action: 'mini-player', accelerator: 'CommandOrControl+Shift+P' }], hotkeys: [], globalHotkeysEnabled: false })
     useShortcutStore.setState({ recording: false, pending: false, results: [] })
-    usePlayerStore.setState({ currentTrack: null, status: 'playing', volume: 1, duration: 240, position: 10 })
-    useLyricsStore.setState({ currentIndex: 0, lines: [{ time: 0, text: '第一句' }, { time: 12, text: '第二句' }] })
+    usePlayerStore.setState({ currentTrack: track, status: 'playing', volume: 1, duration: 240, position: 10 })
+    useLyricsStore.setState({ trackKey: 'netease:1', currentIndex: 0, lines: [{ time: 0, text: '第一句' }, { time: 12, text: '第二句' }] })
     useAmbientStore.setState({ palette: ['#5227ff', '#000000', '#ffffff'] })
     useGameModeStore.setState({ enabled: false, initialized: true })
     vi.stubGlobal('window', { desktop: { platform: 'darwin', updateMiniPlayer: update, setMiniPlayerEnabled: enable, onMiniPlayerWidthChanged: widthChanged } })
@@ -120,6 +120,16 @@ describe('宿主持有迷你条同步，只推送实际展示的数据', () => {
     update.mockClear()
     useLyricsStore.setState({ currentCharProgress: 0.7 })
     expect(update).not.toHaveBeenCalled()
+  })
+
+  it('曲目先切换而歌词尚未更新时清空旧词，只消费当前曲目归属', () => {
+    useSettingsStore.setState({ miniPlayerWidth: MINI_PLAYER_LYRICS_WIDTH })
+    stopSync = initMiniPlayerSync()
+    update.mockClear()
+    usePlayerStore.setState({ currentTrack: { ...track, id: 2, name: '新歌曲' }, status: 'loading', position: 0 })
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ trackTitle: '新歌曲', lyricLine: '' }))
+    useLyricsStore.setState({ trackKey: 'netease:2', currentIndex: 0, lines: [{ time: 0, text: '新歌词' }] })
+    expect(update).toHaveBeenLastCalledWith({ lyricLine: '新歌词' })
   })
 
   it('关闭进度不启动计时，运行中开关按当前进度恢复', () => {
