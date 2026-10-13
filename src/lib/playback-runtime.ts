@@ -16,6 +16,7 @@ import { initLyricsLoader } from './lyrics-loader'
 import { initDesktopLyricsSync } from './desktop-lyrics-sync'
 import { initAmbientPaletteSync } from './ambient-palette-sync'
 import { initWallpaperSync } from './wallpaper-sync'
+import { initShuangePlayback } from './shuange-playback'
 
 let stopRuntime: (() => void) | undefined
 
@@ -28,6 +29,7 @@ export function startPlaybackRuntime(): () => void {
   const stopCore = startPlaybackCore()
   const stopRecent = initRecentPlaysTracking()
   const stopPersistence = initPlaybackPersistence()
+  const stopShuange = initShuangePlayback()
   const stopLyricsClock = initLyricsClock()
   const stopLyricsLoader = initLyricsLoader()
   const stopDesktopLyrics = initDesktopLyricsSync()
@@ -52,6 +54,7 @@ export function startPlaybackRuntime(): () => void {
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     stopRecent()
+    stopShuange()
     stopLyricsLoader()
     stopLyricsClock()
     stopDesktopLyrics()

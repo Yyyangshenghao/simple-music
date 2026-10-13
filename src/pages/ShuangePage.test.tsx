@@ -8,7 +8,6 @@ vi.mock('react', async (importOriginal) => ({
   useRef: (current: unknown) => ({ current }),
   useEffect: (effect: () => (() => void) | undefined) => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) },
 }))
-vi.mock('../hooks/useShuangePlayer', () => ({ useShuangePlayer: () => {} }))
 vi.mock('../stores/shuange', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/shuange')>()
   const store = original.useShuangeStore
@@ -58,6 +57,14 @@ afterEach(() => {
 })
 
 describe('爽歌键盘与主窗口导航拦截协作', () => {
+  it('界面卸载只清理按键和手势计时，不结束刷歌会话', () => {
+    capture(key())
+    h.cleanups.splice(0).forEach(cleanup => cleanup())
+    expect(useShuangeStore.getState().leave).not.toHaveBeenCalled()
+    expect(useShuangeStore.getState().active).toBe(true)
+    expect(window.removeEventListener).toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('聚焦按钮时，上下键在控件处理前消费，只切换一首', () => {
     const down = key()
     capture(down)
