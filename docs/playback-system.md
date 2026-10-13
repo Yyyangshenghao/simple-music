@@ -207,6 +207,8 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 ## 12. Apple Music 专用播放
 
+平台留存登录态由 `login-status-sync.ts` 随播放运行时核实，不依赖 App 挂载。网易/QQ 仅在宿主启动查询一次，账号会话变化后丢弃旧回复；Apple 状态每次完成后等待 3 秒再刷新，游戏中取消请求和计时，返回重新读取。界面重建不重查，宿主停止取消所有状态请求；取消的 Apple 刷新不更新账号、订阅或错误提示，实际 MusicKit 播放会话不受此轮询取消影响。
+
 `src/lib/apple-music-playback.ts` 接受 player store 的加载与控制命令，经 `/api/apple-music/bridge/*` 到主进程管理的官网 MusicKit 会话。发布版使用应用内隔离窗口；开发态的受保护播放由系统 Chrome 承载。`src/stores/apple-music-connection.ts` 只有在账号已登录且订阅明确有效时才让 Apple 参与播放；订阅未知或无效时不把试听当完整播放，也不静默换到其他音源。
 
 主播放栏、队列、热键、迷你条和睡眠定时器复用 player store 状态。Apple 不使用音质档位、倍速或离线保存；歌词先查 Apple 原生数据，失败时可以从已启用的网易云或 QQ 匹配同曲歌词，此过程不改变音频来源。`src/lib/apple-audio-spectrum.ts` 可尝试采集后台窗口的只读音轨，供现有可视化使用；捕获失败时音频仍由 MusicKit 正常播放。

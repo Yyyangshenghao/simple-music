@@ -22,6 +22,21 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('Apple Music 登录流程', () => {
+  it.each(['success', 'failure'] as const)('宿主取消刷新后忽略迟到的 %s，不改写账号或错误提示', async result => {
+    let resolve!: (status: AppleMusicAccountStatus) => void
+    let reject!: (error: Error) => void
+    vi.mocked(api.get).mockImplementationOnce(() => new Promise((done, fail) => { resolve = done; reject = fail }))
+    const controller = new AbortController()
+    const refreshing = connection().refresh(controller.signal)
+    expect(api.get).toHaveBeenCalledWith('/api/apple-music/status', undefined, { signal: controller.signal })
+    controller.abort()
+    if (result === 'success') resolve(connected)
+    else reject(new Error('迟到错误'))
+    await refreshing
+    expect(connection()).toMatchObject({ account: null, error: false, statusError: false, message: '' })
+    expect(useProviderStore.getState().byId.apple.auth).toBe('anonymous')
+  })
+
   it('授权窗口已失败时立即恢复登录按钮并显示原因', async () => {
     await connection().connect()
     vi.mocked(api.get).mockResolvedValue({ ...ready, error: 'Apple Music 官网加载超时，请重试' })

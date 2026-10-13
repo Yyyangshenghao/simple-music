@@ -3,6 +3,14 @@ import type { Track } from '../types/domain'
 import type { GameModeState, LyricsPayload, WallpaperPayload } from '../types/ipc'
 
 let stopRuntime: (() => void) | undefined
+const anonymousApple = { loginMode: 'web', configured: false, ready: true, managed: false, connected: false, loggedIn: false, subscription: 'unknown', storefront: 'cn' }
+
+function mockLocalLyrics(api: typeof import('./api').api, lyric: string) {
+  const get = api.get
+  const request = vi.fn(async (..._args: Parameters<typeof api.get>) => ({ lyric }))
+  vi.spyOn(api, 'get').mockImplementation((...args) => args[0] === '/api/local/lyric' ? request(...args) : get(...args))
+  return request
+}
 afterEach(() => {
   stopRuntime?.()
   vi.restoreAllMocks()
@@ -10,7 +18,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function runtimeWithPendingGameMode(downloads?: string) {
+async function runtimeWithPendingGameMode(downloads?: string, accounts: Record<string, object> = {}) {
   vi.resetModules()
   vi.useFakeTimers()
   const settings = JSON.stringify({ globalHotkeysEnabled: false, miniPlayerEnabled: true, miniPlayerWidth: 360 })
@@ -43,13 +51,48 @@ async function runtimeWithPendingGameMode(downloads?: string) {
     addEventListener: vi.fn(), removeEventListener: vi.fn()
   })
   vi.stubGlobal('navigator', {})
+  const accountFetch = vi.fn(async (input: string) => {
+    const path = new URL(input, 'http://127.0.0.1').pathname
+    return new Response(JSON.stringify(accounts[path] ?? (path === '/api/apple-music/status' ? anonymousApple : { loggedIn: false })))
+  })
+  vi.stubGlobal('fetch', accountFetch)
   const { startPlaybackRuntime } = await import('./playback-runtime')
   stopRuntime = startPlaybackRuntime()
+  for (let i = 0; i < 20; i++) await Promise.resolve()
   const { useGameModeStore } = await import('../stores/game-mode')
   const { useSettingsStore } = await import('../stores/settings')
-  return { resolve, notify, control, mini, enableMini, wallpaper, useGameModeStore, useSettingsStore,
+  return { resolve, notify, control, mini, enableMini, wallpaper, useGameModeStore, useSettingsStore, accountFetch,
     lyrics, enableLyrics, enabledState, lockState, sizeState, stopLyricsEvents }
 }
+
+it('无React时核实留存账号并更新真实Provider，重复启动不重查，游戏暂停轮询且停止无残留', async () => {
+  const h = await runtimeWithPendingGameMode(undefined, {
+    '/api/login/status': { loggedIn: true, nickname: '留存网易', avatar: 'netease-avatar' },
+    '/api/qq/login/status': { loggedIn: true, nickname: '留存QQ', avatar: 'qq-avatar' }
+  })
+  const { useProviderStore } = await import('../stores/providers')
+  expect(useProviderStore.getState().byId).toMatchObject({
+    netease: { auth: 'authenticated', profile: { nickname: '留存网易' } },
+    qq: { auth: 'authenticated', profile: { nickname: '留存QQ' } },
+    apple: { auth: 'anonymous' }
+  })
+  expect(h.useSettingsStore.getState()).toMatchObject({ neteaseLoggedIn: true, qqLoggedIn: true })
+  const { startPlaybackRuntime } = await import('./playback-runtime')
+  expect(startPlaybackRuntime()).toBe(stopRuntime)
+  expect(h.accountFetch).toHaveBeenCalledTimes(3)
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(h.accountFetch).toHaveBeenCalledTimes(4)
+  h.notify({ enabled: true })
+  await vi.advanceTimersByTimeAsync(6000)
+  expect(h.accountFetch).toHaveBeenCalledTimes(4)
+  h.notify({ enabled: false })
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  expect(h.accountFetch).toHaveBeenCalledTimes(5)
+  stopRuntime!()
+  await vi.advanceTimersByTimeAsync(6000)
+  expect(h.accountFetch).toHaveBeenCalledTimes(5)
+  expect(vi.getTimerCount()).toBe(0)
+})
 
 it('播放宿主无React时恢复下载队列，重复启动不覆盖，退出中止请求并保留原目录', async () => {
   const track: Track = { source: 'qq', provider: 'qq', type: 'song', id: 'download', name: '下载歌曲', artist: '', artists: [] }
@@ -118,7 +161,7 @@ it('无React时本地歌词经真实管线解析、随位置换行并同步迷�
   const { usePlayerStore } = await import('../stores/player')
   const { useLyricsStore } = await import('../stores/lyrics')
   const { api } = await import('./api')
-  const lyricRequest = vi.spyOn(api, 'get').mockResolvedValue({ lyric: '[00:00.00]第一句\n[00:10.00]第二句' })
+  const lyricRequest = mockLocalLyrics(api, '[00:00.00]第一句\n[00:10.00]第二句')
   h.useSettingsStore.getState().setMiniPlayerWidth(620)
   h.resolve({ enabled: false })
   await Promise.resolve()
@@ -156,7 +199,7 @@ it('无React时桌面歌词消费真实LRC，原生字号/锁定/关闭回写且
   const { useLyricsStore } = await import('../stores/lyrics')
   const { useVisualStore } = await import('../stores/visual')
   const { api } = await import('./api')
-  vi.spyOn(api, 'get').mockResolvedValue({ lyric: '[00:00.00]第一句\n[00:10.00]第二句' })
+  mockLocalLyrics(api, '[00:00.00]第一句\n[00:10.00]第二句')
   h.resolve({ enabled: false })
   await Promise.resolve()
   useVisualStore.getState().updateFx({ desktopLyrics: true, desktopLyricsLineMode: 'double' })
@@ -206,7 +249,7 @@ it('无React时封面像素经真实取色管线更新迷你条，重复启动�
   const { useAmbientStore } = await import('../stores/ambient')
   const { DEFAULT_PALETTE } = await import('./extract-color')
   const { api } = await import('./api')
-  vi.spyOn(api, 'get').mockResolvedValue({ lyric: '' })
+  mockLocalLyrics(api, '')
   h.resolve({ enabled: false })
   await Promise.resolve()
   const track: Track = { source: 'local', provider: 'local', type: 'local', id: 'cover1', name: '本地封面', artist: '', artists: [], cover: 'https://example.com/cover.jpg' }
@@ -264,7 +307,6 @@ it('无React时真实刷歌会话按片段续播、接收外部上下首，导�
   const { useNavigationStore } = await import('../stores/navigation')
   const { useShuangeStore } = await import('../stores/shuange')
   const { neteaseService } = await import('./service-registry')
-  const { api } = await import('./api')
   const preload = await import('./track-preload')
   const original: Track = { source: 'netease', provider: 'netease', type: 'song', id: 'original', name: '原队列', artist: '', artists: [], duration: 180_000 }
   const feed = [1, 2].map(id => ({ ...original, id, name: `刷歌${id}` }))
@@ -275,7 +317,6 @@ it('无React时真实刷歌会话按片段续播、接收外部上下首，导�
   vi.spyOn(neteaseService, 'getLikedPlaylist').mockResolvedValue(null)
   vi.spyOn(neteaseService, 'getLyrics').mockResolvedValue([])
   vi.spyOn(preload, 'preloadTracks').mockImplementation(() => {})
-  vi.spyOn(api, 'get').mockResolvedValue({ lines: [] })
   const load = vi.spyOn(usePlayerStore.getState(), 'loadTrack').mockImplementation(async (currentTrack, options) => {
     usePlayerStore.setState({ currentTrack, position: options?.startAt ?? 0, status: options?.autoplay === false ? 'paused' : 'playing' })
   })

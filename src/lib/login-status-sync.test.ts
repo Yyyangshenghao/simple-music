@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  effects: [] as Array<() => void | (() => void)>,
   get: vi.fn(),
-  refresh: vi.fn(async () => {}),
+  refresh: vi.fn(async (_signal?: AbortSignal) => {}),
   settings: {
     setNeteaseLoggedIn: vi.fn(), setNeteaseProfile: vi.fn(),
     setQQLoggedIn: vi.fn(), setQQProfile: vi.fn()
@@ -16,12 +15,13 @@ const h = vi.hoisted(() => ({
     setAccountState: vi.fn()
   }
 }))
-vi.mock('react', () => ({ useEffect: (effect: () => void | (() => void)) => h.effects.push(effect) }))
 vi.mock('../lib/api', () => ({ api: { get: h.get } }))
 vi.mock('../stores/settings', () => ({ useSettingsStore: { getState: () => h.settings } }))
 vi.mock('../stores/providers', () => ({ useProviderStore: { getState: () => h.providers } }))
 vi.mock('../stores/apple-music-connection', () => ({ useAppleMusicConnection: { getState: () => ({ refresh: h.refresh }) } }))
-import { useLoginStatusSync } from './useLoginStatusSync'
+import { initLoginStatusSync } from './login-status-sync'
+import { useGameModeStore } from '../stores/game-mode'
+import { advanceProviderAccountSession } from './provider-account-session'
 
 const replies = new Map<string, (value: { loggedIn: boolean; avatar?: string; nickname?: string }) => void>()
 let cleanup: (() => void) | undefined
@@ -30,15 +30,13 @@ const flush = async () => { await Promise.resolve(); await Promise.resolve() }
 beforeEach(() => {
   vi.useFakeTimers()
   vi.clearAllMocks()
-  h.effects = []
+  useGameModeStore.setState({ enabled: false })
   replies.clear()
   for (const source of ['netease', 'qq'] as const) {
     h.providers.byId[source] = { auth: 'unknown', enabled: true, profile: undefined }
   }
   h.get.mockImplementation((path: string) => new Promise((resolve) => replies.set(path, resolve)))
-  useLoginStatusSync()
-  const cleanups = h.effects.map(effect => effect()).filter((value): value is () => void => typeof value === 'function')
-  cleanup = () => cleanups.forEach(stop => stop())
+  cleanup = initLoginStatusSync()
 })
 afterEach(() => { cleanup?.(); vi.useRealTimers() })
 
@@ -58,7 +56,7 @@ it.each(['netease', 'qq'] as const)('%s 注销后丢弃迟到的启动已登录�
   expect(source === 'netease' ? h.settings.setNeteaseLoggedIn : h.settings.setQQLoggedIn).not.toHaveBeenCalled()
 })
 
-it('卸载后不再改写账号或继续轮询 Apple 状态', async () => {
+it('宿主停止后取消请求，不再改写账号或继续轮询 Apple 状态', async () => {
   cleanup?.()
   replies.get('/api/login/status')?.({ loggedIn: true })
   replies.get('/api/qq/login/status')?.({ loggedIn: true })
@@ -66,6 +64,7 @@ it('卸载后不再改写账号或继续轮询 Apple 状态', async () => {
   vi.advanceTimersByTime(6000)
   expect(h.providers.setAccountState).not.toHaveBeenCalled()
   expect(h.refresh).toHaveBeenCalledOnce()
+  expect(h.get.mock.calls.every(call => call[2].signal.aborted)).toBe(true)
 })
 
 it('设置水合与停用音源不丢弃有效检测，也不把用户停用偏好改回启用', async () => {
@@ -84,12 +83,41 @@ it('游戏模式暂停 Apple 账户界面轮询，迟到刷新不能重建定时
   cleanup?.()
   await flush()
   h.refresh.mockClear()
-  h.effects = []
-  useLoginStatusSync(true)
-  const cleanups = h.effects.map(effect => effect()).filter((value): value is () => void => typeof value === 'function')
-  cleanup = () => cleanups.forEach(stop => stop())
+  useGameModeStore.setState({ enabled: true })
+  cleanup = initLoginStatusSync()
   await flush()
   vi.advanceTimersByTime(6000)
   expect(h.refresh).not.toHaveBeenCalled()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it.each(['netease', 'qq'] as const)('%s 账号退出后状态回到初值，仍丢弃先前会话的迟到登录结果', async source => {
+  advanceProviderAccountSession(source)
+  advanceProviderAccountSession(source)
+  replies.get(source === 'netease' ? '/api/login/status' : '/api/qq/login/status')?.({ loggedIn: true, nickname: 'old-account' })
+  await flush()
+  expect(h.providers.setAccountState).not.toHaveBeenCalled()
+})
+
+it('无界面轮询且重复启动不重查，进入游戏取消在途请求，退出后仅保留新一轮', async () => {
+  await flush()
+  expect(initLoginStatusSync()).toBe(cleanup)
+  expect(h.get).toHaveBeenCalledTimes(2)
+  expect(h.refresh).toHaveBeenCalledOnce()
+  let finish!: () => void
+  h.refresh.mockImplementationOnce(() => new Promise<void>(done => { finish = done }))
+  await vi.advanceTimersByTimeAsync(3000)
+  const oldSignal = h.refresh.mock.lastCall?.[0] as AbortSignal
+  expect(oldSignal.aborted).toBe(false)
+  useGameModeStore.setState({ enabled: true })
+  expect(oldSignal.aborted).toBe(true)
+  useGameModeStore.setState({ enabled: false })
+  await flush()
+  expect(h.refresh).toHaveBeenCalledTimes(3)
+  finish()
+  await flush()
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(h.refresh).toHaveBeenCalledTimes(4)
+  cleanup?.()
   expect(vi.getTimerCount()).toBe(0)
 })
