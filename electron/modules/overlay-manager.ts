@@ -421,7 +421,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     return wallpaperWindow
   }
   const bounds = screen.getPrimaryDisplay().bounds
-  wallpaperWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     ...bounds,
     frame: false,
     transparent: false,
@@ -436,23 +436,26 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     // 壁纸贴桌面底层,被其他窗口完全遮挡是常态,必须关闭后台节流否则动画被节流停摆
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
-  hardenOverlayWindow(wallpaperWindow)
-  wallpaperWindow.setIgnoreMouseEvents(true, { forward: true })
-  wallpaperWindow.once('ready-to-show', () => {
-    if (!wallpaperWindow || wallpaperWindow.isDestroyed()) return
+  wallpaperWindow = win
+  hardenOverlayWindow(win)
+  win.setIgnoreMouseEvents(true, { forward: true })
+  win.once('ready-to-show', () => {
+    if (wallpaperWindow !== win || win.isDestroyed()) return
     positionWallpaperWindow()
-    wallpaperWindow.showInactive()
-    platform.attachWallpaperToDesktop(nativeWindowHandleDecimal(wallpaperWindow))
+    win.showInactive()
+    platform.attachWallpaperToDesktop(nativeWindowHandleDecimal(win))
     sendWallpaperState()
   })
-  wallpaperWindow.webContents.once('did-finish-load', sendWallpaperState)
-  wallpaperWindow.on('closed', () => {
-    wallpaperWindow = null
+  win.webContents.on('did-finish-load', () => {
+    if (wallpaperWindow === win && !win.isDestroyed()) sendWallpaperState()
   })
-  wallpaperWindow.loadURL(resolveRendererUrl('overlays/wallpaper/wallpaper.html')).catch((e) =>
+  win.on('closed', () => {
+    if (wallpaperWindow === win) wallpaperWindow = null
+  })
+  win.loadURL(resolveRendererUrl('overlays/wallpaper/wallpaper.html')).catch((e) =>
     console.warn('Wallpaper load failed:', (e as Error).message)
   )
-  return wallpaperWindow
+  return win
 }
 
 function closeWallpaperWindow(): void {
