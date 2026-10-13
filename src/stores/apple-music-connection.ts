@@ -22,7 +22,7 @@ interface ConnectionState {
   message: string
   error: boolean
   statusError: boolean
-  refresh(): Promise<void>
+  refresh(signal?: AbortSignal): Promise<void>
   connect(config?: { developerToken: string; storefront: string }): Promise<void>
   disconnect(clearConfig?: boolean): Promise<void>
 }
@@ -35,12 +35,12 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 // 登录状态独立于设置页，切换页面后仍可完成授权并启用音源。
 export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
   account: null, phase: 'idle', message: '', error: false, statusError: false,
-  async refresh() {
+  async refresh(signal) {
     const version = revision
     const sequence = ++requestSequence
     try {
-      const account = await api.get<AppleMusicAccountStatus>('/api/apple-music/status')
-      if (version !== revision || sequence !== requestSequence || ['opening', 'disconnecting'].includes(get().phase)) return
+      const account = await api.get<AppleMusicAccountStatus>('/api/apple-music/status', undefined, { signal })
+      if (signal?.aborted || version !== revision || sequence !== requestSequence || ['opening', 'disconnecting'].includes(get().phase)) return
       set({ account, ...(get().statusError ? { error: false, statusError: false, message: '' } : {}) })
       if (account.restoring) return
       const store = useProviderStore.getState()
@@ -82,7 +82,7 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
         set({ error: false, message: '' })
       }
     } catch {
-      if (version !== revision || sequence !== requestSequence || ['opening', 'disconnecting'].includes(get().phase)) return
+      if (signal?.aborted || version !== revision || sequence !== requestSequence || ['opening', 'disconnecting'].includes(get().phase)) return
       if (get().phase === 'waiting' && Date.now() >= deadline) set({ phase: 'idle', error: true, message: '连接超时，请检查网络后重新登录。' })
       else if (!get().account) set({ error: true, statusError: true, message: '无法读取 Apple Music 状态，请重试。' })
     }

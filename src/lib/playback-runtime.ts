@@ -18,6 +18,7 @@ import { initAmbientPaletteSync } from './ambient-palette-sync'
 import { initWallpaperSync } from './wallpaper-sync'
 import { initShuangePlayback } from './shuange-playback'
 import { initDownloadQueueRuntime } from './download-queue-runtime'
+import { initLoginStatusSync } from './login-status-sync'
 
 let stopRuntime: (() => void) | undefined
 
@@ -45,6 +46,7 @@ export function startPlaybackRuntime(): () => void {
     const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
     if (miniPlayerEnabled && !useGameModeStore.getState().enabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth).catch(() => {})
   })
+  const stopLoginStatus = initLoginStatusSync()
   // 初始展示读取已经恢复的暂停态，不先向系统发布空状态。
   const stopTray = initTraySync()
   const stopMedia = initMediaSession()
@@ -53,6 +55,7 @@ export function startPlaybackRuntime(): () => void {
   stopRuntime = () => {
     if (stopped) return
     stopped = true
+    stopLoginStatus()
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     stopDownloads()

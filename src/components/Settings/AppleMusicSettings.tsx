@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
 import { InfoButton } from '../ui/InfoButton'
 import { AccountButton } from './AccountButton'
@@ -37,9 +36,8 @@ export function AppleMusicAccountInfo() {
 }
 
 export function AppleMusicSettings() {
-  const { account, phase, refresh, connect, disconnect } = useAppleMusicConnection()
+  const { account, phase, connect, disconnect } = useAppleMusicConnection()
   const waiting = phase === 'waiting'
-  useEffect(() => { void refresh() }, [refresh])
 
   return (
     <span className={styles.actions} aria-label="Apple Music 账户">

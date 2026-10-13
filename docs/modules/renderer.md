@@ -6,9 +6,9 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
 
-`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、刷歌会话/续播、下载队列恢复与保存、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
+`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、刷歌会话/续播、下载队列恢复与保存、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、账号核实/轮询、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
 
-`App.tsx` 挂载窗口状态、应用内按键、登录态和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、刷歌会话/续播及下载恢复生命周期由运行时持有；氛围色 CSS 补间仍由 App hooks 管理。下载调度仍在原渲染进程，正式销毁主窗口尚未开放。
+`App.tsx` 挂载窗口状态、应用内按键和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、刷歌会话/续播、下载恢复及账号状态生命周期由运行时持有；氛围色 CSS 补间仍由 App hooks 管理。下载调度仍在原渲染进程，正式销毁主窗口尚未开放。
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
@@ -38,7 +38,6 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 - `useDesktopBridge` — 订阅并初次读取主窗口状态，写入 window store；不接收播放命令。
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
-- `useLoginStatusSync` — 独立核实每个在线平台登录态，并只更新对应 Provider；账号身份变化或卸载后丢弃迟到结果，设置水合及单纯启停平台不使有效检测失效。
 - `useAmbientPalette` — 只消费 ambient store，把 `--ambient-1/2/3` CSS 变量分 12 步补间到当前颜色；游戏/刷歌及卸载时停止补间，重挂直接消费最新颜色，不取图或改写 store。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
 - `useReducedMotion` — 订阅系统减少动态效果偏好，运行时暂停装饰效果并让歌词直接定位，保留用户原设置。
@@ -63,7 +62,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
 - `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证，当前仍运行在主窗口渲染进程。
-- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、刷歌会话/续播、下载恢复、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、刷歌会话/续播、下载恢复、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、账号核实/轮询、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `login-status-sync.ts` — 宿主持有网易/QQ 启动账号核实及 Apple 的 3 秒状态轮询，界面/设置页重挂不重新查询。账号会话序号及身份守卫共同过滤旧回复，偏好水合或平台启停不丢弃有效结果；游戏模式取消 Apple 在途刷新和计时，退出只启动新一轮，停止后所有请求/计时失效。Apple 登录/退出及手动重试继续由连接 store 管理。
 - `download-queue-runtime.ts` — 立即保存未完成任务的曲目和原目录，剥除旧 URL，终态/主动取消从恢复存档移除。冷启动按来源身份去重，恢复为暂停队列，不自动访问音源；宿主退出先存档再中止请求。终态清档失败会在退出重试；读取异常提示风险并保护未恢复的旧存档，新任务暂不覆盖，需重启重试。损坏或未知格式不恢复，未操作队列时保留原文。
 - `shuange-playback.ts` — 宿主持有真实导航进入/离开、片段末尾和媒体自然结束续播；界面卸载不退出会话，重挂不重载当前卡。按当前原曲身份和加载状态过滤旧进度，片段变化使旧推进锁失效；`shuange.ts` 的画像/音源监听显式随宿主启停，退出先保存原队列快照，再使在途响应失效并补写画像，不调用会恢复音频的 leave。
 - `tray-sync.ts` — 从 player、队列和桌面歌词开关推送托盘状态，进度变化不重复发送。
