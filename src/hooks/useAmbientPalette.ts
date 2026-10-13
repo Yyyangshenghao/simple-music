@@ -1,10 +1,6 @@
 import { useEffect } from 'react'
-import { usePlayerStore } from '../stores/player'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
 import { useNavigationStore } from '../stores/navigation'
-import { api } from '../lib/api'
-import { extractPalette, extractLuma, DEFAULT_PALETTE } from '../lib/extract-color'
-import { sizedImage, CANVAS_COVER_PX } from '../lib/image-size'
 
 function setAmbientVars(colors: string[]): void {
   const root = document.documentElement
@@ -32,13 +28,12 @@ function lerpHex(from: string, to: string, t: number): string {
 let tweenTimer: ReturnType<typeof setInterval> | null = null
 
 /**
- * 把调色板写入 store,并把根节点 CSS 变量分步补间到新色(约 800ms/12 步)。
+ * 把运行时产出的调色板分步补间到根节点 CSS 变量(约 800ms/12 步)。
  * 不能用根元素 CSS transition 做这件事:--ambient-* 是全文档继承的注册属性,
  * 过渡的每一帧都会触发整文档样式重算,一次切歌就产生上百 MB Blink 堆垃圾。
  * JS 分步把重算次数从 ~48 帧降到 12 步,视觉上色彩渐变几乎无差别。
  */
 function applyPalette(palette: AmbientPalette): void {
-  useAmbientStore.getState().setPalette(palette)
   if (tweenTimer) clearInterval(tweenTimer)
   const root = document.documentElement
   const from = [1, 2, 3].map((i) => root.style.getPropertyValue(`--ambient-${i}`).trim() || '#5227ff')
@@ -60,48 +55,21 @@ function applyPalette(palette: AmbientPalette): void {
   }, INTERVAL)
 }
 
-/** 监听当前歌曲封面，提取霞光调色板并广播到全局（store + CSS 变量）。挂在 App 顶层。 */
+/** 只消费运行时调色板更新界面颜色；卸载不停止取色或重置全局颜色。 */
 export function useAmbientPalette(enabled = true): void {
-  const cover = usePlayerStore((s) => s.currentTrack?.cover)
+  const palette = useAmbientStore((s) => s.palette)
   const shuangeActive = useNavigationStore((s) => s.currentView === 'shuange')
 
   useEffect(() => {
-    // 刷歌卡片自身已用封面营造背景；切歌时反复取色 + 12 次根变量更新会与滑动动画争抢主线程。
     if (!enabled || shuangeActive) {
       if (tweenTimer) clearInterval(tweenTimer)
       tweenTimer = null
       return
     }
-    if (!cover) {
-      applyPalette([...DEFAULT_PALETTE])
-      useAmbientStore.getState().setCoverLuma(0)
-      return () => {
-        if (tweenTimer) clearInterval(tweenTimer)
-        tweenTimer = null
-      }
-    }
-    let cancelled = false
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.src = api.coverImage(sizedImage(cover, CANVAS_COVER_PX))
-    img.onload = () => {
-      if (cancelled) return
-      applyPalette(extractPalette(img))
-      useAmbientStore.getState().setCoverLuma(extractLuma(img))
-    }
-    img.onerror = () => {
-      if (cancelled) return
-      applyPalette([...DEFAULT_PALETTE])
-      useAmbientStore.getState().setCoverLuma(0)
-    }
-    // 切歌竞态：只认最新封面的结果
+    applyPalette(palette)
     return () => {
-      cancelled = true
-      img.onload = null
-      img.onerror = null
-      img.src = ''
       if (tweenTimer) clearInterval(tweenTimer)
       tweenTimer = null
     }
-  }, [enabled, cover, shuangeActive])
+  }, [enabled, palette, shuangeActive])
 }

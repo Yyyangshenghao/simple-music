@@ -14,6 +14,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { initLyricsClock } from './lyrics-clock'
 import { initLyricsLoader } from './lyrics-loader'
 import { initDesktopLyricsSync } from './desktop-lyrics-sync'
+import { initAmbientPaletteSync } from './ambient-palette-sync'
 
 let stopRuntime: (() => void) | undefined
 
@@ -29,6 +30,7 @@ export function startPlaybackRuntime(): () => void {
   const stopLyricsClock = initLyricsClock()
   const stopLyricsLoader = initLyricsLoader()
   const stopDesktopLyrics = initDesktopLyricsSync()
+  const stopAmbientPalette = initAmbientPaletteSync()
   const stopDesktopControls = initDesktopPlaybackControls()
   const stopShortcuts = initGlobalShortcuts()
   const stopMiniPlayer = initMiniPlayerSync()
@@ -51,6 +53,7 @@ export function startPlaybackRuntime(): () => void {
     stopLyricsLoader()
     stopLyricsClock()
     stopDesktopLyrics()
+    stopAmbientPalette()
     stopMiniPlayer()
     stopGameMode()
     stopDesktopControls()
