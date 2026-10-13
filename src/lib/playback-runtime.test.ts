@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
-import type { GameModeState } from '../types/ipc'
+import type { GameModeState, LyricsPayload } from '../types/ipc'
 
 let stopRuntime: (() => void) | undefined
 afterEach(() => {
@@ -20,12 +20,22 @@ async function runtimeWithPendingGameMode() {
   let control!: (payload: { action: string }) => void
   const enableMini = vi.fn(async () => ({ ok: true }))
   const mini = vi.fn(async () => ({ ok: true }))
+  const lyrics = vi.fn(async (_payload: LyricsPayload) => ({ ok: true }))
+  const enableLyrics = vi.fn(async (_enabled: boolean, _payload: LyricsPayload) => ({ ok: true }))
+  let enabledState!: (state: { enabled: boolean; requested?: boolean }) => void
+  let lockState!: (state: { locked: boolean }) => void
+  let sizeState!: (state: { size: number }) => void
+  const stopLyricsEvents = { enabled: vi.fn(), lock: vi.fn(), size: vi.fn() }
   vi.stubGlobal('window', {
     desktop: {
       updateMiniPlayer: mini, setMiniPlayerEnabled: enableMini, onMiniPlayerWidthChanged: () => vi.fn(),
       onGameModeChange: (callback: typeof notify) => { notify = callback; return vi.fn() },
       getGameMode: () => new Promise<GameModeState>(done => { resolve = done }),
       onMiniPlayerControl: (callback: typeof control) => { control = callback; return vi.fn() },
+      updateDesktopLyrics: lyrics, setDesktopLyricsEnabled: enableLyrics,
+      onDesktopLyricsEnabledState: (callback: typeof enabledState) => { enabledState = callback; return stopLyricsEvents.enabled },
+      onDesktopLyricsLockState: (callback: typeof lockState) => { lockState = callback; return stopLyricsEvents.lock },
+      onDesktopLyricsSizeState: (callback: typeof sizeState) => { sizeState = callback; return stopLyricsEvents.size },
       configureHotkeys: async () => ({ ok: true, results: [] }), onHotkey: () => vi.fn(), onFlushListeningReports: () => vi.fn()
     },
     addEventListener: vi.fn(), removeEventListener: vi.fn()
@@ -35,7 +45,8 @@ async function runtimeWithPendingGameMode() {
   stopRuntime = startPlaybackRuntime()
   const { useGameModeStore } = await import('../stores/game-mode')
   const { useSettingsStore } = await import('../stores/settings')
-  return { resolve, notify, control, mini, enableMini, useGameModeStore, useSettingsStore }
+  return { resolve, notify, control, mini, enableMini, useGameModeStore, useSettingsStore,
+    lyrics, enableLyrics, enabledState, lockState, sizeState, stopLyricsEvents }
 }
 
 it.each([true, false])('主进程初值确认游戏模式 %s 后才决定冷启动是否恢复迷你条', async enabled => {
@@ -111,6 +122,46 @@ it('无React时本地歌词经真实管线解析、随位置换行并同步迷�
   stopRuntime!()
   usePlayerStore.setState({ position: 0 })
   expect(useLyricsStore.getState().currentIndex).toBe(1)
+})
+
+it('无React时桌面歌词消费真实LRC，原生字号/锁定/关闭回写且宿主停止解除监听', async () => {
+  const h = await runtimeWithPendingGameMode()
+  const { usePlayerStore } = await import('../stores/player')
+  const { useLyricsStore } = await import('../stores/lyrics')
+  const { useVisualStore } = await import('../stores/visual')
+  const { api } = await import('./api')
+  vi.spyOn(api, 'get').mockResolvedValue({ lyric: '[00:00.00]第一句\n[00:10.00]第二句' })
+  h.resolve({ enabled: false })
+  await Promise.resolve()
+  useVisualStore.getState().updateFx({ desktopLyrics: true, desktopLyricsLineMode: 'double' })
+  expect(h.enableLyrics).toHaveBeenLastCalledWith(true, expect.anything())
+  const track: Track = { source: 'local', provider: 'local', type: 'local', id: 'file1', name: '本地曲目', artist: '', artists: [] }
+  usePlayerStore.setState({ currentTrack: track, status: 'playing', position: 0 })
+  for (let i = 0; i < 8; i++) await Promise.resolve()
+  expect(h.lyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '第一句', nextLine: '第二句', trackKey: 'local:file1' }))
+  usePlayerStore.setState({ position: 12 })
+  expect(h.lyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '第二句', nextLine: '' }))
+  h.sizeState({ size: 41.5 })
+  expect(useVisualStore.getState().fx.desktopLyricsSize).toBe(41.5)
+  expect(h.lyrics.mock.lastCall?.[0]).not.toHaveProperty('size')
+  h.lockState({ locked: true })
+  expect(h.lyrics).toHaveBeenLastCalledWith(expect.objectContaining({ clickThrough: true }))
+  h.enabledState({ enabled: false, requested: true })
+  expect(useVisualStore.getState().fx.desktopLyrics).toBe(true)
+  h.enabledState({ enabled: false })
+  expect(useVisualStore.getState().fx.desktopLyrics).toBe(false)
+  expect(useLyricsStore.getState().desktopLyricsEnabled).toBe(false)
+  stopRuntime!()
+  expect(h.stopLyricsEvents.enabled).toHaveBeenCalledOnce()
+  expect(h.stopLyricsEvents.lock).toHaveBeenCalledOnce()
+  expect(h.stopLyricsEvents.size).toHaveBeenCalledOnce()
+  const pushes = h.lyrics.mock.calls.length
+  h.sizeState({ size: 90 })
+  h.lockState({ locked: false })
+  h.enabledState({ enabled: true })
+  usePlayerStore.setState({ position: 0 })
+  expect(h.lyrics).toHaveBeenCalledTimes(pushes)
+  expect(useVisualStore.getState().fx).toMatchObject({ desktopLyrics: false, desktopLyricsSize: 41.5, desktopLyricsClickThrough: true })
 })
 
 it('不挂载React也能恢复暂停态、记历史和同步系统；重复启动不重置，释放后停止副作用', async () => {

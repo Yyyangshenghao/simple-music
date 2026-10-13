@@ -4,7 +4,6 @@ import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
-import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
 import { useWallpaperSync } from './hooks/useWallpaperSync'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
@@ -38,7 +37,6 @@ const APPEARANCE_KEYS = [
 
 export default function App() {
   const gameEnabled = useGameModeStore((s) => s.enabled)
-  const gameSequence = useGameModeStore((s) => s.sequence)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
@@ -55,7 +53,6 @@ export default function App() {
   useShortcuts()
   useScrollbarActivity()
   useLoginStatusSync(gameEnabled)
-  useDesktopLyricsSync(gameEnabled, gameSequence)
   useWallpaperSync(gameEnabled)
   useAmbientPalette(!gameEnabled)
 

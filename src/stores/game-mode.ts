@@ -13,7 +13,7 @@ export const useGameModeStore = create<GameModeStore>((set, get) => ({
   enabled: false,
   initialized: false,
   sequence: 0,
-  // React 可能合并连续进/退，序号保证原生窗口仍收到最终恢复配置。
+  // 每次主进程确认都递增，确保原生悬浮窗配置可完整重放。
   setState(state) { set(current => ({ ...state, initialized: true, sequence: current.sequence + 1 })) },
   async configure(patch) {
     const desktop = window.desktop
