@@ -9,6 +9,7 @@ import { useProviderStore } from './providers'
 import { preloadTracks } from '../lib/track-preload'
 import {
   recordShuangeExposure,
+  flushShuangeRecommendationProfile,
   recordShuangeFeedback,
   seedShuangeTaste,
   stashShuangeCandidates,
@@ -29,6 +30,7 @@ export const SHUANGE_COVER_PX = 768
 /** 竞态守卫:每次 enter / loadIndex 递增,leave 也递增以作废在途异步 */
 let shuangeSession = 0
 let feedSession = 0
+let hostSession = 0
 const nextRecommendPage: Partial<Record<MusicSource, number>> = {}
 let currentFeedbackKey = ''
 let currentMaxProgressSec = 0
@@ -249,8 +251,9 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
       }
       set({ feed: songs, index: -1, loading: false, error: null })
       await get().loadIndex(0)
+      if (feedId !== feedSession || !get().active) return
       void hydrateShuangeTaste(svc, source)
-      if (feedId === feedSession && get().active) void refillCandidatePool(svc, source, false)
+      void refillCandidatePool(svc, source, false)
     } catch (e) {
       if (my !== shuangeSession) return
       set({ loading: false, error: (e as Error)?.message || '加载失败' })
@@ -415,24 +418,46 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
   },
 }))
 
-// 只累计真正处于 playing 的片段进度；loading、暂停和后台挂起都不计入画像。
-usePlayerStore.subscribe((player) => {
-  const state = useShuangeStore.getState()
-  const track = state.feed[state.index]
-  if (!state.active || !track || currentFeedbackKey !== cacheKey(track) || player.status !== 'playing') return
-  currentHadPlayback = true
-  currentMaxProgressSec = Math.max(
-    currentMaxProgressSec,
-    player.position - (state.offset?.startSec ?? 0)
-  )
-})
+let stopShuangeSession: (() => void) | undefined
 
-// 首选启用音源变化 → 刷歌页重置 feed。
-useProviderStore.subscribe((state, previous) => {
-  if (state.playbackOrder[0] !== previous.playbackOrder[0] && useShuangeStore.getState().active) {
-    void useShuangeStore.getState().enter()
+/** 宿主持有画像/音源订阅；停止作废在途会话，不恢复原队列或重新加载音频。 */
+export function initShuangeSession(): () => void {
+  if (stopShuangeSession) return stopShuangeSession
+  let stopped = false
+  // 只累计真正处于 playing 的片段进度，暂停/加载不计入画像。
+  const stopPlayer = usePlayerStore.subscribe((player) => {
+    if (stopped) return
+    const state = useShuangeStore.getState()
+    const track = state.feed[state.index]
+    if (!state.active || !track || !player.currentTrack || cacheKey(player.currentTrack) !== cacheKey(track)
+      || currentFeedbackKey !== cacheKey(track) || player.status !== 'playing') return
+    currentHadPlayback = true
+    currentMaxProgressSec = Math.max(currentMaxProgressSec, player.position - (state.offset?.startSec ?? 0))
+  })
+  const stopProvider = useProviderStore.subscribe((state, previous) => {
+    if (!stopped && state.playbackOrder[0] !== previous.playbackOrder[0] && useShuangeStore.getState().active) {
+      void useShuangeStore.getState().enter()
+    }
+  })
+  stopShuangeSession = () => {
+    if (stopped) return
+    stopped = true
+    stopPlayer()
+    stopProvider()
+    ++shuangeSession
+    ++feedSession
+    ++hostSession
+    recordCurrentListen(useShuangeStore.getState())
+    flushShuangeRecommendationProfile()
+    snapshot = null
+    appendInFlight = null
+    candidateRefills.clear()
+    tasteHydrations.clear()
+    useShuangeStore.setState({ active: false, loading: false })
+    stopShuangeSession = undefined
   }
-})
+  return stopShuangeSession
+}
 
 // feed 补充优先消费本地候选池；只有库存不足时才等待网络补货。
 async function appendMoreFeed(get: () => ShuangeStore, set: (p: Partial<ShuangeStore>) => void): Promise<void> {
@@ -494,10 +519,12 @@ interface FeedCandidateResult {
 }
 
 async function fetchFeedCandidates(svc: MusicService, page: number, includeRadar: boolean): Promise<FeedCandidateResult> {
+  const host = hostSession
   const [radarResult, playlistsResult] = await Promise.allSettled([
     includeRadar && svc.getRadarPlaylist ? svc.getRadarPlaylist() : Promise.resolve(null),
     svc.getRecommendPlaylists(page),
   ])
+  if (host !== hostSession) return { tracks: [], pageReady: false }
   const radarTracks = radarResult.status === 'fulfilled' ? radarResult.value?.tracks ?? [] : []
   const playlists = playlistsResult.status === 'fulfilled' ? playlistsResult.value : []
   const selectedPlaylists = pickPlaylists(playlists, 2)
@@ -519,11 +546,13 @@ async function fetchFeedCandidates(svc: MusicService, page: number, includeRadar
 async function hydrateShuangeTaste(svc: MusicService, source: ProviderId): Promise<void> {
   const pending = tasteHydrations.get(source)
   if (pending) return pending
+  const host = hostSession
   const task = (async () => {
     const [rankingResult, likedResult] = await Promise.allSettled([
       svc.getListeningRanking?.() ?? Promise.resolve([]),
       svc.getLikedPlaylist?.() ?? Promise.resolve(null),
     ])
+    if (host !== hostSession) return
     const rankedTracks = rankingResult.status === 'fulfilled' ? rankingResult.value : []
     let likedTracks: Track[] = []
     if (likedResult.status === 'fulfilled' && likedResult.value) {
@@ -533,7 +562,7 @@ async function hydrateShuangeTaste(svc: MusicService, source: ProviderId): Promi
         // 口味导入失败不影响刷歌首屏和候选补货。
       }
     }
-    seedShuangeTaste(source, rankedTracks, likedTracks)
+    if (host === hostSession) seedShuangeTaste(source, rankedTracks, likedTracks)
   })()
   tasteHydrations.set(source, task)
   void task.finally(() => {
@@ -547,9 +576,11 @@ async function takeOrRefillCandidateBatch(
   source: ProviderId,
   count: number
 ): Promise<Track[]> {
+  const host = hostSession
   let batch = takeShuangeCandidateBatch(source, count)
   if (batch.length >= count) return batch
   await refillCandidatePool(svc, source, true)
+  if (host !== hostSession) return []
   batch = [...batch, ...takeShuangeCandidateBatch(source, count - batch.length)]
   return batch
 }
@@ -561,6 +592,7 @@ async function refillCandidatePool(
 ): Promise<void> {
   const pending = candidateRefills.get(source)
   if (pending) return pending
+  const host = hostSession
   const page = nextRecommendPage[source] ?? 0
   const task = (async () => {
     const [dailyResult, feedResult] = await Promise.allSettled([
@@ -569,6 +601,7 @@ async function refillCandidatePool(
     ])
     const daily = dailyResult.status === 'fulfilled' ? dailyResult.value : []
     const feed = feedResult.status === 'fulfilled' ? feedResult.value.tracks : []
+    if (host !== hostSession) return
     if (includeDaily && dailyResult.status === 'rejected' && feed.length === 0) throw dailyResult.reason
     if (feedResult.status === 'fulfilled' && feedResult.value.pageReady) nextRecommendPage[source] = page + 1
     stashShuangeCandidates([...daily, ...feed])

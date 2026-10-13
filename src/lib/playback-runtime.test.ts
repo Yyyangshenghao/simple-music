@@ -232,6 +232,69 @@ it('无React时壁纸随设置更新，游戏恢复补完整快照，重启入�
   expect(h.wallpaper).toHaveBeenCalledTimes(pushes)
 })
 
+it('无React时真实刷歌会话按片段续播、接收外部上下首，导航恢复原暂停队列且退出先保存快照', async () => {
+  const h = await runtimeWithPendingGameMode()
+  const { usePlayerStore } = await import('../stores/player')
+  const { usePlaylistStore } = await import('../stores/playlist')
+  const { useProviderStore } = await import('../stores/providers')
+  const { useNavigationStore } = await import('../stores/navigation')
+  const { useShuangeStore } = await import('../stores/shuange')
+  const { neteaseService } = await import('./service-registry')
+  const { api } = await import('./api')
+  const preload = await import('./track-preload')
+  const original: Track = { source: 'netease', provider: 'netease', type: 'song', id: 'original', name: '原队列', artist: '', artists: [], duration: 180_000 }
+  const feed = [1, 2].map(id => ({ ...original, id, name: `刷歌${id}` }))
+  vi.spyOn(neteaseService, 'getDailySongs').mockResolvedValue(feed)
+  vi.spyOn(neteaseService, 'getRecommendPlaylists').mockResolvedValue([])
+  vi.spyOn(neteaseService, 'getRadarPlaylist').mockResolvedValue(null)
+  vi.spyOn(neteaseService, 'getListeningRanking').mockResolvedValue([])
+  vi.spyOn(neteaseService, 'getLikedPlaylist').mockResolvedValue(null)
+  vi.spyOn(neteaseService, 'getLyrics').mockResolvedValue([])
+  vi.spyOn(preload, 'preloadTracks').mockImplementation(() => {})
+  vi.spyOn(api, 'get').mockResolvedValue({ lines: [] })
+  const load = vi.spyOn(usePlayerStore.getState(), 'loadTrack').mockImplementation(async (currentTrack, options) => {
+    usePlayerStore.setState({ currentTrack, position: options?.startAt ?? 0, status: options?.autoplay === false ? 'paused' : 'playing' })
+  })
+  vi.spyOn(usePlayerStore.getState(), 'pause').mockImplementation(() => { usePlayerStore.setState({ status: 'paused' }) })
+  vi.spyOn(usePlayerStore.getState(), 'setVolume').mockImplementation(volume => { usePlayerStore.setState({ volume }) })
+  const queue = [original]
+  usePlaylistStore.setState({ queue, queueIndex: 0, shuffleOrder: [0], queueContextId: 'original-list' })
+  usePlayerStore.setState({ currentTrack: original, position: 17, status: 'paused', volume: 0.4 })
+  useProviderStore.setState({ playbackOrder: ['netease'], byId: {
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }
+  } })
+  h.resolve({ enabled: false })
+  const flush = async () => { for (let i = 0; i < 40; i++) await Promise.resolve() }
+  useNavigationStore.getState().navigateTo('shuange')
+  await flush()
+  expect(useShuangeStore.getState()).toMatchObject({ active: true, index: 0, loading: false })
+  const clips = useShuangeStore.getState().feed
+  expect(usePlayerStore.getState().currentTrack).toBe(clips[0])
+  usePlayerStore.setState({ position: useShuangeStore.getState().offset!.endSec })
+  await flush()
+  expect(usePlayerStore.getState().currentTrack).toBe(clips[1])
+  h.control({ action: 'prev' })
+  await flush()
+  expect(usePlayerStore.getState().currentTrack).toBe(clips[0])
+  const { startPlaybackRuntime } = await import('./playback-runtime')
+  const loads = load.mock.calls.length
+  startPlaybackRuntime()
+  expect(load).toHaveBeenCalledTimes(loads)
+  expect(usePlaylistStore.getState().queue).toBe(queue)
+  useNavigationStore.getState().navigateTo('library')
+  await flush()
+  expect(usePlayerStore.getState()).toMatchObject({ currentTrack: original, position: 17, status: 'paused' })
+  useNavigationStore.getState().navigateTo('shuange')
+  await flush()
+  const beforeStop = load.mock.calls.length
+  const write = vi.spyOn(localStorage, 'setItem')
+  stopRuntime!()
+  const saved = write.mock.calls.filter(([key]) => key === 'simplemusic-playback').at(-1)![1]
+  expect(JSON.parse(saved)).toMatchObject({ queue, queueIndex: 0, shuffleOrder: [0], position: 17 })
+  expect(load).toHaveBeenCalledTimes(beforeStop)
+  expect(useShuangeStore.getState().active).toBe(false)
+})
+
 it('不挂载React也能恢复暂停态、记历史和同步系统；重复启动不重置，释放后停止副作用', async () => {
   vi.resetModules()
   vi.useFakeTimers()

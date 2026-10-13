@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // 桩 player / playlist / navigation / service
 // vi.mock 工厂会被提升到文件顶部,引用普通 const 会落入 TDZ;用 vi.hoisted 保证工厂可访问。
@@ -33,7 +33,7 @@ const {
   getPlaylistSkeleton: vi.fn(),
   getListeningRanking: vi.fn(),
   getLikedPlaylist: vi.fn(),
-  playerSubscriptions: [] as Array<(state: { status: string; position: number }) => void>,
+  playerSubscriptions: [] as Array<(state: { status: string; position: number; currentTrack?: Track }) => void>,
 }))
 
 // 可变 player 状态:测试可改写以触发 leave 恢复分支
@@ -58,9 +58,9 @@ vi.mock('../lib/track-preload', () => ({ preloadTracks: vi.fn() }))
 
 vi.mock('./player', () => ({
   usePlayerStore: {
-    subscribe: (callback: (state: { status: string; position: number }) => void) => {
+    subscribe: (callback: (state: { status: string; position: number; currentTrack?: Track }) => void) => {
       playerSubscriptions.push(callback)
-      return () => {}
+      return () => { const index = playerSubscriptions.indexOf(callback); if (index >= 0) playerSubscriptions.splice(index, 1) }
     },
     getState: () => ({
       loadTrack,
@@ -94,8 +94,9 @@ import {
   __getShuangeRecommendationProfile,
   __resetShuangeRecommendationProfile,
   stashShuangeCandidates,
+  takeShuangeCandidateBatch,
 } from '../lib/shuange-recommendation'
-import { useShuangeStore, __resetOffsetCache } from './shuange'
+import { useShuangeStore, __resetOffsetCache, initShuangeSession } from './shuange'
 import { useProviderStore } from './providers'
 import type { Track } from '../types/domain'
 
@@ -106,11 +107,13 @@ function mkTrack(id: string, durMs = 180_000): Track {
 function emitPlayer(status: typeof mockStatus, position: number): void {
   mockStatus = status
   mockPosition = position
-  const state = { status, position }
+  const state = { status, position, currentTrack: useShuangeStore.getState().feed[useShuangeStore.getState().index] }
   playerSubscriptions.forEach((callback) => callback(state))
 }
 
 describe('shuange store', () => {
+  let stopSession: (() => void) | undefined
+  afterEach(() => { stopSession?.(); stopSession = undefined })
   beforeEach(() => {
     if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
     useShuangeStore.setState({ active: false, feed: [], index: -1, direction: 1, offset: null, loading: false, error: null })
@@ -140,6 +143,7 @@ describe('shuange store', () => {
       },
       playbackOrder: ['netease', 'qq'],
     })
+    stopSession = initShuangeSession()
   })
 
   it('enter 拉首屏并 loadIndex(0) 调 loadTrack 带 startAt', async () => {
@@ -457,5 +461,42 @@ describe('shuange store', () => {
 
     // enter 在 await 后检测到 session 过期,应提前 return,不调 loadTrack
     expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it('宿主停止不恢复原音频，迟到推荐不写feed或候选池，反馈订阅也被解除', async () => {
+    let resolveSongs!: (value: Track[]) => void
+    getDailySongs.mockReturnValue(new Promise(resolve => { resolveSongs = resolve }))
+    getRecommendPlaylists.mockResolvedValue([])
+    mockCurrentTrack = mkTrack('original')
+    const task = useShuangeStore.getState().enter()
+    expect(initShuangeSession()).toBe(stopSession)
+    expect(playerSubscriptions).toHaveLength(1)
+    stopSession!()
+    stopSession!()
+    resolveSongs([mkTrack('late')])
+    await task
+    expect(loadTrack).not.toHaveBeenCalled()
+    expect(playlistSetState).not.toHaveBeenCalled()
+    expect(playerSubscriptions).toHaveLength(0)
+    expect(useShuangeStore.getState()).toMatchObject({ active: false, loading: false, feed: [] })
+    expect(takeShuangeCandidateBatch('netease', 12)).toEqual([])
+  })
+
+  it('停止等待首曲加载后，迟到完成不再发起画像或补货任务', async () => {
+    getDailySongs.mockResolvedValue([mkTrack('first')])
+    getRecommendPlaylists.mockResolvedValue([])
+    getLyrics.mockResolvedValue([])
+    let resolveLoad!: () => void
+    loadTrack.mockReturnValueOnce(new Promise<void>(resolve => { resolveLoad = resolve }))
+    const task = useShuangeStore.getState().enter()
+    for (let i = 0; i < 40; i++) await Promise.resolve()
+    expect(loadTrack).toHaveBeenCalledOnce()
+    stopSession!()
+    const refills = getRecommendPlaylists.mock.calls.length
+    resolveLoad()
+    await task
+    expect(getListeningRanking).not.toHaveBeenCalled()
+    expect(getLikedPlaylist).not.toHaveBeenCalled()
+    expect(getRecommendPlaylists).toHaveBeenCalledTimes(refills)
   })
 })

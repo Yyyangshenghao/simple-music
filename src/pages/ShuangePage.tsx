@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import { motion, type PanInfo } from 'motion/react'
 import { ShuangeCard } from '../components/Shuange/ShuangeCard'
 import { useShuangeStore } from '../stores/shuange'
-import { useShuangePlayer } from '../hooks/useShuangePlayer'
 import { useLikesStore } from '../stores/likes'
 import { useNavigationStore } from '../stores/navigation'
 import { useShortcutStore } from '../stores/shortcuts'
@@ -21,7 +20,6 @@ export function ShuangePage() {
   const wheelReset = useRef<number | null>(null)
   const gestureUnlock = useRef<number | null>(null)
   const gestureLocked = useRef(false)
-  useShuangePlayer()
 
   const exit = useCallback(() => {
     const navigation = useNavigationStore.getState()
@@ -43,17 +41,11 @@ export function ShuangePage() {
     else void state.prev()
   }, [])
 
-  // mount 进一次、unmount leave 一次；active 不能作为依赖，否则 enter/cleanup 会互相触发。
-  const enterOnce = useRef(false)
+  // 卸载只释放界面交互；会话由宿主按真实导航进入/离开管理。
   useEffect(() => {
-    if (!enterOnce.current) {
-      enterOnce.current = true
-      if (!useShuangeStore.getState().active) void useShuangeStore.getState().enter()
-    }
     return () => {
       if (wheelReset.current != null) window.clearTimeout(wheelReset.current)
       if (gestureUnlock.current != null) window.clearTimeout(gestureUnlock.current)
-      if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
     }
   }, [])
 

@@ -6,9 +6,9 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
 
-`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
+`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、刷歌会话/续播、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
 
-`App.tsx` 挂载窗口状态、应用内按键、登录态和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步及封面取色由运行时持有；氛围色 CSS 补间仍由 App hooks 管理，刷歌和下载尚未迁移到后台；正式销毁主窗口尚未开放。
+`App.tsx` 挂载窗口状态、应用内按键、登录态和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步及封面取色由运行时持有；刷歌会话与续播也由运行时持有；氛围色 CSS 补间仍由 App hooks 管理，下载尚未迁移到后台；正式销毁主窗口尚未开放。
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 
@@ -63,7 +63,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
 - `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证，当前仍运行在主窗口渲染进程。
-- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、刷歌会话/续播、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `shuange-playback.ts` — 宿主持有真实导航进入/离开、片段末尾和媒体自然结束续播；界面卸载不退出会话，重挂不重载当前卡。按当前原曲身份和加载状态过滤旧进度，片段变化使旧推进锁失效；`shuange.ts` 的画像/音源监听显式随宿主启停，退出先保存原队列快照，再使在途响应失效并补写画像，不调用会恢复音频的 leave。
 - `tray-sync.ts` — 从 player、队列和桌面歌词开关推送托盘状态，进度变化不重复发送。
 - `desktop-playback-controls.ts` — 宿主持有托盘与迷你条的共用命令订阅；上下首保留刷歌分发，`sync-off` 只落回设置。
 - `global-shortcuts.ts` — 宿主持有全局热键注册和原生菜单命令，设置/录入变化时同步；丢弃旧注册回复，停止后解除订阅与绑定，界面重新挂载不重新注册。

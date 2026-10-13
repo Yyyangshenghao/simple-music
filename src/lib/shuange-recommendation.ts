@@ -115,15 +115,20 @@ function readCandidateCache(): ShuangeCandidateCache {
 function persistProfile(): void {
   if (typeof localStorage === 'undefined') return
   if (persistTimer) clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
-    persistTimer = null
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
-      localStorage.setItem(CANDIDATE_CACHE_KEY, JSON.stringify(candidateCache))
-    } catch {
-      // 推荐画像丢失不影响播放
-    }
-  }, 300)
+  persistTimer = setTimeout(flushShuangeRecommendationProfile, 300)
+}
+
+/** 宿主退出时完成待写画像与候选池，不留下依赖存活页面的计时器。 */
+export function flushShuangeRecommendationProfile(): void {
+  if (persistTimer === null) return
+  clearTimeout(persistTimer)
+  persistTimer = null
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+    localStorage.setItem(CANDIDATE_CACHE_KEY, JSON.stringify(candidateCache))
+  } catch {
+    // 推荐画像丢失不影响播放
+  }
 }
 
 function trimScores(scores: Record<string, number>): Record<string, number> {

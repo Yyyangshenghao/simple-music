@@ -6,6 +6,7 @@ import {
   rankShuangeCandidates,
   recordShuangeExposure,
   recordShuangeFeedback,
+  flushShuangeRecommendationProfile,
   seedShuangeTaste,
   stashShuangeCandidates,
   takeShuangeCandidateBatch,
@@ -20,6 +21,25 @@ function track(id: string, artist = id, recommendationHints: string[] = []): Tra
 }
 
 describe('shuange recommendation', () => {
+  it('宿主结束时立即落盘待写画像与候选池，取消计时且重复flush不再写', () => {
+    vi.useFakeTimers()
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+    try {
+      recordShuangeFeedback(track('finish'), 'listened')
+      expect(setItem).not.toHaveBeenCalled()
+      flushShuangeRecommendationProfile()
+      expect(setItem).toHaveBeenCalledTimes(2)
+      expect(JSON.parse(setItem.mock.calls[0][1]).trackScores['netease:finish']).toBeGreaterThan(0)
+      expect(vi.getTimerCount()).toBe(0)
+      flushShuangeRecommendationProfile()
+      vi.advanceTimersByTime(1000)
+      expect(setItem).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
+  })
   beforeEach(() => {
     vi.unstubAllGlobals()
     __resetShuangeRecommendationProfile()
