@@ -1,5 +1,6 @@
 import { globalShortcut, Menu } from 'electron'
-import { getMainWindow } from './window-manager'
+import { sendMainWindowEvent } from './window-manager'
+import { sendPlaybackEvent } from './playback-host'
 import { returnFromMiniPlayer } from './overlay-manager'
 import { isShortcutAction, isSafeGlobalAccelerator, isSystemReservedAccelerator, normalizeAccelerator } from '../../src/lib/shortcuts'
 import type { HotkeyBinding, HotkeyResult, HotkeyOutcome } from '../../src/types/ipc'
@@ -7,10 +8,11 @@ import type { HotkeyBinding, HotkeyResult, HotkeyOutcome } from '../../src/types
 const registered = new Map<string, string>()
 
 function triggerAction(action: string): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed() || !action) return
-  if (action === 'settings') returnFromMiniPlayer()
-  win.webContents.send('hotkey:triggered', { action })
+  if (!action) return
+  if (action === 'settings') {
+    returnFromMiniPlayer()
+    sendMainWindowEvent('hotkey:triggered', { action })
+  } else sendPlaybackEvent('hotkey:triggered', { action })
 }
 
 export function unregisterHotkeys(): void {

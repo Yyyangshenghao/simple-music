@@ -11,7 +11,7 @@ vi.mock('electron', () => ({
     buildFromTemplate: (items: Template[]): TestMenu => fromTemplate(items)
   }
 }))
-vi.mock('./window-manager', () => ({ getMainWindow: () => ({ isDestroyed: () => false, webContents: { send: h.send } }) }))
+vi.mock('./window-manager', () => ({ sendMainWindowEvent: h.send }))
 vi.mock('./overlay-manager', () => ({ returnFromMiniPlayer: h.restore }))
 import { configureSettingsMenu } from './settings-menu'
 

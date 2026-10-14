@@ -1,3 +1,4 @@
+import { registerPlaybackHostIpc } from '../modules/playback-host'
 import { registerWindowIpc } from './window'
 import { registerLyricsIpc } from './lyrics'
 import { registerWallpaperIpc } from './wallpaper'
@@ -8,6 +9,7 @@ import { registerAppleAudioIpc } from './apple-audio'
 import { registerGameModeIpc } from './game-mode'
 
 export function registerIpc(): void {
+  registerPlaybackHostIpc()
   registerWindowIpc()
   registerLyricsIpc()
   registerWallpaperIpc()

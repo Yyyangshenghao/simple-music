@@ -60,3 +60,13 @@ it('原生窗口返回失败时报告错误，保留原账号状态', async () =
   expect(h.post).not.toHaveBeenCalled()
   expect(h.setAccountState).not.toHaveBeenCalled()
 })
+
+it('独立播放时把Cookie提交交给宿主，不在UI提前修改账号epoch', async () => {
+  const request = vi.fn().mockResolvedValue(undefined)
+  Object.assign(window.desktop!, { playbackRole: 'ui', playbackRequest: request })
+  const epoch = providerAccountSession('netease')
+  await loginMusicProvider('netease')
+  expect(request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'loginCookie', args: ['netease', 'test-cookie'] })
+  expect(h.post).not.toHaveBeenCalled()
+  expect(providerAccountSession('netease')).toBe(epoch)
+})

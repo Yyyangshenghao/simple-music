@@ -1,5 +1,6 @@
-import { getMainWindow, hideMainWindow, focusMainWindow } from './window-manager'
+import { getMainWindow, hideMainWindow, focusMainWindow, releaseMainWindow } from './window-manager'
 import { suspendMiniPlayer, suspendWallpaper, setMiniPlayerEnabled, setWallpaperEnabled } from './overlay-manager'
+import { isPlaybackHostReady, sendPlaybackEvent } from './playback-host'
 import type { GameModeState } from '../../src/types/ipc'
 
 let state: GameModeState = { enabled: false }
@@ -27,10 +28,12 @@ export function setGameMode(next: GameModeState, restoreWindow = true): GameMode
   }
   if (state.enabled) {
     setWallpaperEnabled(false)
-    hideMainWindow()
+    if (isPlaybackHostReady()) releaseMainWindow()
+    else hideMainWindow()
   }
   const main = getMainWindow()
   if (main && !main.isDestroyed()) main.webContents.send('game-mode:state-changed', getGameMode())
+  sendPlaybackEvent('game-mode:state-changed', getGameMode())
   listeners.forEach(listener => listener())
   if (leaving) {
     if (restoreWallpaper) setWallpaperEnabled(true)

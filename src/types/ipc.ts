@@ -4,6 +4,22 @@ export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeC
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
 // overlay 窗口的内部通道（见底部 OverlayChannels/OverlayEvents）不属于主契约。
 
+export type PlaybackRequest =
+  | { type: 'connect'; storage: Record<string, string> }
+  | { type: 'action'; store: string; action: string; args: unknown[]; requestId?: string }
+  | { type: 'observe'; visible: boolean; spectrum?: boolean }
+  | { type: 'cancel'; requestId: string }
+
+export interface PlaybackHostCommand {
+  id: string
+  request: PlaybackRequest
+}
+
+export interface PlaybackHostReply {
+  value?: unknown
+  error?: string
+}
+
 export interface DisplayBounds {
   x: number
   y: number
@@ -208,6 +224,9 @@ export interface SystemFontResult {
 
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
+  'playback:request': { req: PlaybackRequest; res: unknown }
+  'playback:reply': { req: { id: string; result: PlaybackHostReply }; res: void }
+  'playback:publish': { req: unknown; res: void }
   'playback:listening-flushed': { req: string; res: void }
   'game-mode:get-state': { req: void; res: GameModeState }
   'game-mode:set-state': { req: GameModeState; res: GameModeState }
@@ -251,6 +270,8 @@ export interface IpcChannels {
 }
 
 export interface IpcEvents {
+  'playback:command': PlaybackHostCommand
+  'playback:snapshot': unknown
   'playback:flush-listening': string
   'game-mode:state-changed': GameModeState
   'window:state-changed': WindowState

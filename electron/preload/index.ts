@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  PlaybackRequest,
+  PlaybackHostCommand,
+  PlaybackHostReply,
   WindowState,
   WindowCloseState,
   WindowCloseBehavior,
@@ -37,6 +40,12 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api = {
   isDesktop: true,
+  playbackRole: process.argv.includes('--simplemusic-playback-host') ? 'host' as const : 'ui' as const,
+  playbackRequest: (request: PlaybackRequest): Promise<unknown> => ipcRenderer.invoke('playback:request', request),
+  onPlaybackCommand: (cb: (command: PlaybackHostCommand) => void) => on('playback:command', cb),
+  playbackReply: (id: string, result: PlaybackHostReply): void => ipcRenderer.send('playback:reply', { id, result }),
+  publishPlayback: (snapshot: unknown): void => ipcRenderer.send('playback:publish', snapshot),
+  onPlaybackSnapshot: (cb: (snapshot: unknown) => void) => on('playback:snapshot', cb),
   platform: process.platform,
   serverPort: readServerPort(),
   serverToken: readServerToken(),

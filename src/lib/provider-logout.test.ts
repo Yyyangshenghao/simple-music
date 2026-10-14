@@ -60,3 +60,12 @@ it('切到其他入口重新登录后，旧退出回调不覆盖新账号', asyn
   expect(h.settings.setQQLoggedIn).not.toHaveBeenCalled()
   expect(h.setAccountState).not.toHaveBeenCalled()
 })
+
+it('独立播放时由宿主统一清除会话，UI不另起退出请求', async () => {
+  const request = vi.fn().mockResolvedValue(undefined)
+  Object.assign(window.desktop!, { playbackRole: 'ui', playbackRequest: request })
+  await logoutMusicProvider('qq')
+  expect(request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'logout', args: ['qq'] })
+  expect(h.post).not.toHaveBeenCalled()
+  expect(h.setAccountState).not.toHaveBeenCalled()
+})

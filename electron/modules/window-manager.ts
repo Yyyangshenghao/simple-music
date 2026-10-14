@@ -12,6 +12,31 @@ const MIN_WINDOWED_WIDTH = 960
 const MIN_WINDOWED_HEIGHT = 540
 
 let mainWindow: BrowserWindow | null = null
+let restoreMainWindow: (() => void) | undefined
+const releasedWindows = new WeakSet<BrowserWindow>()
+let releasedBounds: Electron.Rectangle | undefined
+
+export function setMainWindowRestorer(restore: () => void): void { restoreMainWindow = restore }
+export function isReleasedMainWindow(win: BrowserWindow): boolean { return releasedWindows.has(win) }
+export function releaseMainWindow(): boolean {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return false
+  releasedBounds = win.getNormalBounds()
+  releasedWindows.add(win)
+  win.destroy()
+  return true
+}
+
+export function sendMainWindowEvent(channel: string, payload: unknown): void {
+  focusMainWindow()
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  const send = () => {
+    if (mainWindow === win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+  if (win.webContents.isLoadingMainFrame()) win.webContents.once('did-finish-load', send)
+  else send()
+}
 let mainServerPort = 0
 let mainServerToken = ''
 let htmlFullscreenActive = false
@@ -218,6 +243,7 @@ export function toggleFullscreen(win: BrowserWindow | null): void {
 }
 
 export function focusMainWindow(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) restoreMainWindow?.()
   if (!mainWindow || mainWindow.isDestroyed()) return false
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (!mainWindow.isVisible()) mainWindow.show()
@@ -241,14 +267,14 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
   htmlFullscreenActive = false
   windowFullscreenActive = false
 
-  const initialBounds = getWindowedBounds(null)
+  const initialBounds = releasedBounds ?? getWindowedBounds(null)
   // macOS 用原生 hiddenInset + 内嵌交通灯；其余平台没有该 API，改用完全无边框窗口，
   // 顶栏自绘的最小化/最大化/关闭按钮见 WindowChrome。
   const platformChrome: Electron.BrowserWindowConstructorOptions =
     process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } }
       : { frame: false }
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     ...initialBounds,
     minWidth: MIN_WINDOWED_WIDTH,
     minHeight: MIN_WINDOWED_HEIGHT,
@@ -264,7 +290,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false,
+      backgroundThrottling: true,
       additionalArguments: [
         `--simplemusic-server-port=${serverPort}`,
         `--simplemusic-server-token=${serverToken}`
@@ -272,60 +298,64 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow = win
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
     openExternalSafely(url)
     return { action: 'deny' }
   })
 
   // 渲染层不应导航离开应用入口；一旦离开，外部页面就继承了 preload 暴露的 desktop 桥。
   // 站内导航（hash 路由、dev 下的整页重载）放行，其余交给系统浏览器。
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  win.webContents.on('will-navigate', (event, url) => {
     if (isInAppUrl(url)) return
     event.preventDefault()
     openExternalSafely(url)
   })
 
-  mainWindow.webContents.once('did-finish-load', () => sendWindowState(mainWindow))
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (!shortcutRecording && input.type === 'keyDown' && input.key === 'Escape' && mainWindow?.isFullScreen()) {
-      if (process.platform === 'win32' && isWindowClosePending(mainWindow)) return
+  win.webContents.once('did-finish-load', () => sendWindowState(win))
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!shortcutRecording && input.type === 'keyDown' && input.key === 'Escape' && win?.isFullScreen()) {
+      if (process.platform === 'win32' && isWindowClosePending(win)) return
       event.preventDefault()
-      exitFullscreenToWindow(mainWindow)
+      exitFullscreenToWindow(win)
     }
   })
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
-    sendWindowState(mainWindow)
+  win.once('ready-to-show', () => {
+    if (mainWindow !== win || win.isDestroyed()) return
+    win.show()
+    sendWindowState(win)
   })
 
-  const pushState = () => sendWindowState(mainWindow)
-  mainWindow.on('maximize', pushState)
-  mainWindow.on('unmaximize', pushState)
-  mainWindow.on('minimize', pushState)
-  mainWindow.on('restore', pushState)
-  mainWindow.on('show', pushState)
-  mainWindow.on('hide', pushState)
-  mainWindow.on('focus', pushState)
-  mainWindow.on('blur', pushState)
-  mainWindow.on('move', () => scheduleWindowStateSend(mainWindow))
-  mainWindow.on('resize', () => scheduleWindowStateSend(mainWindow))
-  mainWindow.on('enter-full-screen', () => {
+  const pushState = () => sendWindowState(win)
+  win.on('maximize', pushState)
+  win.on('unmaximize', pushState)
+  win.on('minimize', pushState)
+  win.on('restore', pushState)
+  win.on('show', pushState)
+  win.on('hide', pushState)
+  win.on('focus', pushState)
+  win.on('blur', pushState)
+  win.on('move', () => scheduleWindowStateSend(win))
+  win.on('resize', () => scheduleWindowStateSend(win))
+  win.on('enter-full-screen', () => {
     windowFullscreenActive = true
-    sendWindowState(mainWindow)
+    sendWindowState(win)
   })
-  mainWindow.on('leave-full-screen', () => {
+  win.on('leave-full-screen', () => {
     windowFullscreenActive = false
-    setTimeout(() => applyWindowedBounds(mainWindow), 50)
+    setTimeout(() => { if (mainWindow === win && !win.isDestroyed()) applyWindowedBounds(win) }, 50)
   })
-  mainWindow.on('enter-html-full-screen', () => {
+  win.on('enter-html-full-screen', () => {
     htmlFullscreenActive = true
-    sendWindowState(mainWindow)
+    sendWindowState(win)
   })
-  mainWindow.on('leave-html-full-screen', () => {
+  win.on('leave-html-full-screen', () => {
     htmlFullscreenActive = false
-    setTimeout(() => applyWindowedBounds(mainWindow), 50)
+    setTimeout(() => { if (mainWindow === win && !win.isDestroyed()) applyWindowedBounds(win) }, 50)
   })
-  mainWindow.on('closed', () => {
+  win.on('closed', () => {
+    if (mainWindow !== win) return
     if (stateTimer) {
       clearTimeout(stateTimer)
       stateTimer = null
@@ -333,6 +363,6 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
     mainWindow = null
   })
 
-  mainWindow.loadURL(resolveRendererUrl('index.html'))
-  return mainWindow
+  win.loadURL(resolveRendererUrl('index.html'))
+  return win
 }

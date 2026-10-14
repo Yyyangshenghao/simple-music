@@ -11,6 +11,11 @@ export function advanceProviderAccountSession(source: ProviderId): void {
   sessions[source]++
 }
 
+/** UI 只投影后台的账号会话；必须先更新 epoch，再通知 provider store。 */
+export function hydrateProviderAccountSessions(next: Record<ProviderId, number>): void {
+  for (const source of ['netease', 'qq', 'apple'] as const) sessions[source] = next[source]
+}
+
 export class ProviderAuthError extends Error {
   constructor(message: string, readonly source: ProviderId, readonly accountSession: number) {
     super(message)

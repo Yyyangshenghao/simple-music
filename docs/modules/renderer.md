@@ -6,9 +6,9 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
 
-`main.tsx` 先调用 `startPlaybackRuntime()` 水合设置与 Provider，启动播放核心、最近播放、存档、刷歌会话/续播、下载队列恢复与保存、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面播放命令、全局快捷键、迷你条同步、游戏模式状态、账号核实/轮询、托盘状态、Media Session 和退出收听补报，再渲染 React。最近播放从宿主启动时开始监听，不等待首次打开我的库；暂停态恢复不补记历史。上述能力由宿主在退出时统一释放，重复启动不重新恢复旧存档。
+`main.tsx` 在桌面环境先启动 `playback-client.ts`，订阅并读取后台的完整活快照后才挂载 React。正式核心在 `playback-host.html` → `src/playback-host.ts` → `playback-host-runtime.ts` 中启动，独立分区保存播放、设置、历史、下载与刷歌存档。首次迁移确认写入成功后才装配读取存档的模块；冷启恢复暂停，UI 重连不运行存档恢复。浏览器调试环境仍可直接启动原运行时。协议、迁移与验证边界见 [独立播放宿主](../playback-host.md)。
 
-`App.tsx` 挂载窗口状态、应用内按键和氛围色 CSS 投影等 hooks，并初始化更新检查。可视层由 `WindowChrome` 包裹 `AmbientBackground` / `DetailBackdrop` / `TopBar` / `AppShell` / `GlobalContentProviderDock` / `PlayerBar` / `LyricsPanel` / Toast / UpdateBanner；主窗口隐藏、最小化或切到迷你播放条时卸载整棵可视层降耗，但保留全局 hooks 与 AudioEngine。播放运行时仍在主窗口渲染进程，迷你条、游戏模式状态、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、刷歌会话/续播、下载恢复及账号状态生命周期由运行时持有；氛围色 CSS 补间仍由 App hooks 管理。下载调度仍在原渲染进程，正式销毁主窗口尚未开放。
+`App.tsx` 挂载窗口状态、应用内按键和氛围色 CSS 投影等 hooks，并初始化更新检查。主窗口隐藏或最小化时卸载可视层；游戏模式在后台就绪后销毁整个主窗口，释放 React、WebGL 和其渲染进程。播放器、队列、刷歌、睡眠、下载、历史、账号、歌词及桌面控制由独立后台持有。UI store 是宿主快照投影，动作按白名单发送命令；频谱和时钟使用只读缓存与插值，不在 UI 创建音频引擎。
 
 主题经 `data-theme` 写到 `<html>`，`auto` 模式移除属性交给 CSS 媒体查询。界面、普通歌词和 3D 歌词的中西文字体分别同步到 `--sm-font-sans`、`--sm-lyrics-font-sans` 与 `--sm-lyrics-3d-font-sans`。
 

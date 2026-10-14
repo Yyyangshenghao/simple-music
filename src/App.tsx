@@ -13,8 +13,6 @@ import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { useGameModeStore } from './stores/game-mode'
 import { initWindowCloseSync } from './stores/window-close'
-import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
-import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { WindowCloseDialog } from './components/Layout/WindowCloseDialog'
@@ -53,36 +51,6 @@ export default function App() {
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])
-
-  useEffect(() => {
-    if (gameEnabled) appleAudioSpectrum.stop()
-  }, [gameEnabled])
-
-  useEffect(() => {
-    const handleCapture = () => {
-      if (!useGameModeStore.getState().enabled) appleAudioSpectrum.start()
-    }
-    const resumeSpectrum = () => {
-      if (!useGameModeStore.getState().enabled && !document.hidden && usePlayerStore.getState().playbackTransport === 'musickit') {
-        void window.desktop?.startAppleAudioCapture?.().catch(() => {})
-      }
-    }
-    window.addEventListener('simplemusic:apple-audio-capture', handleCapture)
-    window.addEventListener('pointerdown', resumeSpectrum)
-    window.addEventListener('pointerup', resumeSpectrum)
-    window.addEventListener('keydown', resumeSpectrum)
-    window.addEventListener('focus', resumeSpectrum)
-    document.addEventListener('visibilitychange', resumeSpectrum)
-    return () => {
-      window.removeEventListener('simplemusic:apple-audio-capture', handleCapture)
-      window.removeEventListener('pointerdown', resumeSpectrum)
-      window.removeEventListener('pointerup', resumeSpectrum)
-      window.removeEventListener('keydown', resumeSpectrum)
-      window.removeEventListener('focus', resumeSpectrum)
-      document.removeEventListener('visibilitychange', resumeSpectrum)
-      appleAudioSpectrum.stop()
-    }
-  }, [])
 
   useEffect(() => {
     const sync = () => {

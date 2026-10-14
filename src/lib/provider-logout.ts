@@ -5,6 +5,10 @@ import { providerAccountSession } from './provider-account-session'
 
 /** 清除原生登录窗口和 API 会话后，再更新对应平台的账户状态。 */
 export async function logoutMusicProvider(source: 'netease' | 'qq'): Promise<void> {
+  if (window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
+    await window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'logout', args: [source] })
+    return
+  }
   const accountSession = providerAccountSession(source)
   const results = await Promise.allSettled([
     source === 'netease' ? window.desktop?.clearNeteaseLogin() : window.desktop?.clearQQLogin(),
