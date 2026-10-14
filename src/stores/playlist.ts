@@ -18,6 +18,7 @@ import {
 } from '../lib/queue-state'
 import { isProviderId } from '../providers/types'
 import { beginPlaybackIntent } from '../lib/playback-intent'
+import { queueDisplayOrder } from '../lib/queue-display'
 import type { ProviderId } from '../providers/types'
 import type { Playlist, Track, ShelfMode } from '../types/domain'
 
@@ -35,19 +36,24 @@ interface PlaylistStore extends QueueState {
   addToQueue(track: Track): void
   addManyToQueue(tracks: Track[], offline?: boolean): number | Promise<number>
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
-  moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
-  playNextInQueue(index: number): void
+  moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number, expectedTracks?: { from: string; to: string }): void
+  playNextInQueue(index: number, expectedTrackKey?: string): void
   /** 界面命令携带来源与 ID，避免旧下标误删另一首歌曲。 */
   removeQueueItem(index: number, expectedTrackKey?: string): void
   /** 补全可见范围的占位曲目，不改变播放位置。 */
   ensureQueueDetails(indices: number[]): Promise<void>
-  playAt(index: number, opts?: { preservePlaybackIntent?: boolean }): void
+  playAt(index: number, opts?: { preservePlaybackIntent?: boolean; expectedTrackKey?: string }): void
   next(): void
   prev(): void
   /** 自然播完的走序:单曲循环原地重播,其余同 next()。 */
   handleTrackEnded(): void
   toggleShelf(): void
   setShelfMode(mode: ShelfMode): void
+}
+
+/** 旧界面发来的下标只有仍指向所选歌曲时才可操作；内部调用可省略预期身份。 */
+function matchesQueueTrack(track: Track | undefined, expected?: string): boolean {
+  return expected === undefined || (!!track && `${track.source}:${String(track.id)}` === expected)
 }
 
 /** 计算目标时只回写懒重建的随机顺序，预加载不改变当前播放下标。 */
@@ -157,15 +163,24 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     return update.queue.length - state.queue.length
   },
 
-  moveQueueItem(fromDisplayIndex, toDisplayIndex) {
-    const update = moveQueueTrack(get(), fromDisplayIndex, toDisplayIndex, useSettingsStore.getState().playMode)
+  moveQueueItem(fromDisplayIndex, toDisplayIndex, expectedTracks) {
+    const state = get()
+    const mode = useSettingsStore.getState().playMode
+    if (expectedTracks) {
+      const { indices } = queueDisplayOrder(state.queue.length, state.queueIndex, state.shuffleOrder, mode)
+      if (!matchesQueueTrack(state.queue[indices[fromDisplayIndex]], expectedTracks.from)
+        || !matchesQueueTrack(state.queue[indices[toDisplayIndex]], expectedTracks.to)) return
+    }
+    const update = moveQueueTrack(state, fromDisplayIndex, toDisplayIndex, mode)
     if (!update) return
     set(update)
     schedulePreloadNeighbors()
   },
 
-  playNextInQueue(index) {
-    const update = moveQueueTrackNext(get(), index, useSettingsStore.getState().playMode)
+  playNextInQueue(index, expectedTrackKey) {
+    const state = get()
+    if (!matchesQueueTrack(state.queue[index], expectedTrackKey)) return
+    const update = moveQueueTrackNext(state, index, useSettingsStore.getState().playMode)
     if (!update) return
     set(update)
     schedulePreloadNeighbors()
@@ -173,8 +188,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
   removeQueueItem(index, expectedTrackKey) {
     const state = get()
-    const track = state.queue[index]
-    if (expectedTrackKey !== undefined && (!track || `${track.source}:${String(track.id)}` !== expectedTrackKey)) return
+    if (!matchesQueueTrack(state.queue[index], expectedTrackKey)) return
     const update = removeQueueTrack(state, index)
     if (!update) return
     set(update)
@@ -196,14 +210,15 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
   playAt(index, opts) {
     const track = get().queue[index]
-    if (!track) return
+    const { expectedTrackKey, ...loadOptions } = opts ?? {}
+    if (!track || !matchesQueueTrack(track, expectedTrackKey)) return
     // 网易/QQ 交给播放器先查离线文件；Apple 仍要求可用的官网会话。
     if (track.source === 'apple' && !isProviderParticipating(track.source)) return
     const session = ++playAtSession
     set({ queueIndex: index })
     schedulePreloadNeighbors()
     const contextId = get().queueContextId
-    void usePlayerStore.getState().loadTrack(track, { contextId, ...opts })
+    void usePlayerStore.getState().loadTrack(track, { contextId, ...loadOptions })
     if (!track.pending) return
     void resolvePending(track).then((resolved) => {
       const { queue, queueIndex } = get()
