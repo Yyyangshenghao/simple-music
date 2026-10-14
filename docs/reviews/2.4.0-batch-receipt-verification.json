@@ -1,0 +1,80 @@
+{
+  "checks": [
+    "验证入口位于真实主窗口，动作使用已安装的播放代理",
+    "取消前动作已通过真实 IPC 受理到后台队列",
+    "取消后的迟到回执不提示、不完成、不清空所选",
+    "改选后旧回执不提示、不完成、不清空新选区",
+    "取消等待回执不会撤销后台已受理的追加",
+    "正常回执仅提示一次、完成一次并清空当前选择",
+    "后台真实队列保留两次已受理追加与正常追加共三曲",
+    "原生运行未捕获渲染异常"
+  ],
+  "method": "Actual BatchTrackActions mounted in a temporary React fixture; UI addManyToQueue wraps the existing IPC proxy and gates only its already accepted receipt. Local tracks are indexed through the real API. This verifies the Batch component and fixture parent selection, not complete SearchPage interaction.",
+  "states": {
+    "canceled": {
+      "toast": [],
+      "done": 0,
+      "selected": [
+        "8c0047d8c361b0e009424a98ef65574125cfed03"
+      ],
+      "accepted": 1
+    },
+    "selectionBefore": {
+      "toast": [],
+      "done": 0,
+      "selected": [
+        "2f9b3e29548da1cfc0346404b2f6e5c19334b03d"
+      ],
+      "accepted": 2
+    },
+    "changed": {
+      "toast": [],
+      "done": 0,
+      "selected": [
+        "2f9b3e29548da1cfc0346404b2f6e5c19334b03d"
+      ],
+      "accepted": 2
+    },
+    "normal": {
+      "toast": [
+        "已追加 1 首到播放队列"
+      ],
+      "done": 1,
+      "selected": [],
+      "accepted": 3
+    },
+    "queue": [
+      {
+        "id": "8c0047d8c361b0e009424a98ef65574125cfed03",
+        "name": "a-short"
+      },
+      {
+        "id": "151579e61916c44cb4fc6112640e4229eb24313c",
+        "name": "b-short"
+      },
+      {
+        "id": "2f9b3e29548da1cfc0346404b2f6e5c19334b03d",
+        "name": "c-long"
+      }
+    ]
+  },
+  "errors": [],
+  "passed": true,
+  "date": "2026-10-15",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; normal React imports; silent local WAV fixtures"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 254,
+      "tests": 2224
+    },
+    "independentReview": "passed",
+    "regression": "cancel, changed selection and unmount fail before the guard; all pass after; normal completion once"
+  },
+  "screenshot": "assets/2.4.0-batch-receipt.png"
+}
