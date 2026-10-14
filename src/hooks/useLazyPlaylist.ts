@@ -1,11 +1,12 @@
 // 歌单懒加载:全骨架(trackIds 全量)+ 按 100 首窗口补详情。
-// 模块级缓存按 `${source}:${type}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
-// 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源丢弃在途响应。
+// 模块级缓存按 `${source}:${accountSession}:${type}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
+// 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源/账号丢弃在途响应。
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { serviceFor } from '../lib/service-registry'
 import { TRACK_WINDOW, windowIndicesFor, windowSpan, buildQueue } from '../lib/lazy-window'
 import type { Playlist, Track } from '../types/domain'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { isProviderId } from '../providers/types'
 import { isProviderParticipating, useProviderStore } from '../stores/providers'
 
@@ -26,8 +27,16 @@ const cache = new Map<string, LazyEntry>()
 const skeletonVersions = new Map<string, number>()
 let nextSkeletonVersion = 0
 
-function playlistCacheKey(playlist: Playlist): string {
-  return `${playlist.source}:${playlist.type}:${String(playlist.id)}`
+function playlistAccountSession(playlist: Playlist): number {
+  return isProviderId(playlist.source) ? providerAccountSession(playlist.source) : 0
+}
+
+function playlistCacheKey(playlist: Playlist, session = playlistAccountSession(playlist)): string {
+  return `${playlist.source}:${session}:${playlist.type}:${String(playlist.id)}`
+}
+
+function isCurrentPlaylistSession(playlist: Playlist, key: string): boolean {
+  return playlistCacheKey(playlist) === key && (!isProviderId(playlist.source) || isProviderParticipating(playlist.source))
 }
 
 /** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。
@@ -119,10 +128,14 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
   touchAndEvict(key)
   if (!entry.skeletonLoaded) {
     if (playlist.type === 'album') {
-      entry = seededEntry(await service.getAlbumTracks(playlist.id))
+      const tracks = await service.getAlbumTracks(playlist.id)
+      if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
+      entry = seededEntry(tracks)
       cache.set(key, entry)
+      touchAndEvict(key)
     } else {
       const sk = await service.getPlaylistSkeleton(playlist.id)
+      if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
       entry.trackIds = sk.trackIds
       entry.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
       markPrefixWindows(entry, sk.tracks.length)
@@ -131,6 +144,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
       entry.updatedAt = sk.updatedAt ?? null
     }
   }
+  if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
   return buildQueue(entry.trackIds, entry.tracks, playlist.source)
 }
 
@@ -148,9 +162,10 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   const service = serviceFor(playlist.source)
   const available = useProviderStore((state) =>
     !isProviderId(playlist.source)
-      || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated')
+      || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated' && state.byId[playlist.source].playbackAvailable !== false)
   )
-  const key = playlistCacheKey(playlist)
+  const accountSession = useProviderStore(() => playlistAccountSession(playlist))
+  const key = playlistCacheKey(playlist, accountSession)
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
   const sessionRef = useRef(0)
@@ -187,7 +202,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     skeletonVersions.set(key, version)
     try {
       const sk = await service.getPlaylistSkeleton(playlist.id)
-      if (sessionRef.current !== session || skeletonVersions.get(key) !== version || cache.get(key) !== previous) return
+      if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session || skeletonVersions.get(key) !== version || cache.get(key) !== previous) return
       const next = emptyEntry()
       next.trackIds = sk.trackIds
       next.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
@@ -198,7 +213,8 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       cache.set(key, next)
       bump()
     } catch (error) {
-      if (sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous && !previous.skeletonLoaded) {
+      if (!isCurrentPlaylistSession(playlist, key)) return
+      if (isCurrentPlaylistSession(playlist, key) && sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous && !previous.skeletonLoaded) {
         previous.error = true
         bump()
       }
@@ -215,7 +231,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     }
     const session = sessionRef.current
     const revision = await service.getPlaylistRevision(playlist.id)
-    if (sessionRef.current !== session || cache.get(key) !== current) return
+    if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session || cache.get(key) !== current) return
     const timeChanged = current.updatedAt !== null && revision.updatedAt !== null && current.updatedAt !== revision.updatedAt
     const idsChanged = current.trackIds.length !== revision.trackIds.length
       || current.trackIds.some((id, index) => String(id) !== String(revision.trackIds[index]))
@@ -241,12 +257,13 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       service
         .getAlbumTracks(playlist.id)
         .then((tracks) => {
-          if (sessionRef.current !== session) return
+          if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session) return
           cache.set(key, seededEntry(tracks))
+          touchAndEvict(key)
           bump()
         })
         .catch(() => {
-          if (sessionRef.current !== session) return
+          if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session) return
           e.error = true
           bump()
         })
@@ -267,6 +284,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const span = windowSpan(w, TRACK_WINDOW, e.trackIds.length)
     const request = service.getTracksByIds(e.trackIds.slice(span.start, span.end))
       .then((fetched) => {
+        if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
         const byId = new Map(fetched.map((t) => [String(t.id), t]))
         for (let i = span.start; i < span.end; i++) {
           e.tracks[i] = byId.get(String(e.trackIds[i])) ?? e.tracks[i]
@@ -278,10 +296,10 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       .finally(() => { e.inflightWindows.delete(w) })
     e.inflightWindows.set(w, request)
     return request
-  }, [service])
+  }, [service, key])
 
   const ensureRange = useCallback((start: number, end: number) => {
-    if (!available) return
+    if (!available || !isCurrentPlaylistSession(playlist, key)) return
     const e = cache.get(key)
     if (!e?.skeletonLoaded) return
     for (const w of windowIndicesFor(start, end, TRACK_WINDOW, e.trackIds.length)) {
@@ -290,12 +308,12 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   }, [available, key, loadWindow, entry])
 
   const ensureAll = useCallback(async (cancelled: () => boolean) => {
-    if (!available) return
+    if (!available || !isCurrentPlaylistSession(playlist, key)) return
     const e = cache.get(key)
     if (!e?.skeletonLoaded) return
     // 串行补齐，复用可见区域的在途请求，避免大歌单同时发出大量请求。
     for (const w of windowIndicesFor(0, e.trackIds.length, TRACK_WINDOW, e.trackIds.length)) {
-      if (cancelled()) return
+      if (cancelled() || !isCurrentPlaylistSession(playlist, key)) return
       await loadWindow(e, w)
     }
   }, [available, key, loadWindow, entry])
@@ -309,6 +327,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     ensureRange,
     ensureAll,
     makeQueue: () => {
+      if (!isCurrentPlaylistSession(playlist, key)) return []
       const current = cache.get(key) ?? entry
       return buildQueue(current.trackIds, current.tracks, playlist.source)
     },
