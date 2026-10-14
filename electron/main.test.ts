@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
   restore: vi.fn(),
   shutdown: vi.fn(),
   stopApple: vi.fn(async () => {}),
+  stopOverlays: vi.fn(),
   hostFailure: undefined as (() => void) | undefined,
   flushListening: vi.fn(async () => {})
 }))
@@ -51,7 +52,7 @@ vi.mock('./modules/window-manager', () => ({
   setMainWindowRestorer: vi.fn(), isReleasedMainWindow: () => h.released
 }))
 vi.mock('./modules/overlay-manager', () => ({
-  returnFromMiniPlayer: h.restore, closeOverlays: vi.fn(),
+  returnFromMiniPlayer: h.restore, closeOverlays: vi.fn(), stopPlaybackOverlays: h.stopOverlays,
   positionDesktopLyricsWindow: vi.fn(), positionWallpaperWindow: vi.fn()
 }))
 vi.mock('./modules/hotkey-manager', () => ({ unregisterHotkeys: vi.fn() }))
@@ -416,9 +417,13 @@ describe('主窗口激活恢复', () => {
 
 it('播放宿主失联时关闭独立Apple音频，不关闭仍供错误界面使用的API', async () => {
   await bootWindows()
+  const clearRestore = vi.spyOn(await import('./modules/game-mode'), 'clearGameModeOverlayRestore')
   h.stopApple.mockClear()
+  h.stopOverlays.mockClear()
   h.shutdown.mockClear()
   h.hostFailure?.()
   expect(h.stopApple).toHaveBeenCalledOnce()
+  expect(h.stopOverlays).toHaveBeenCalledOnce()
+  expect(clearRestore).toHaveBeenCalledOnce()
   expect(h.shutdown).not.toHaveBeenCalled()
 })

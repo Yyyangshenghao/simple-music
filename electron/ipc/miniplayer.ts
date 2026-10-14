@@ -14,9 +14,10 @@ import { getGameMode, setGameMode } from '../modules/game-mode'
 export function registerMiniPlayerIpc(): void {
   // 主契约通道
   ipcMain.handle('miniplayer:set-enabled', (_e, arg: { enabled: boolean; width?: number }) => {
+    const result = setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
     const mode = getGameMode()
-    if (mode.enabled) setGameMode({ ...mode, enabled: false }, false)
-    return setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
+    if (result.ok && mode.enabled) setGameMode({ ...mode, enabled: false }, false)
+    return result
   })
   ipcMain.handle('miniplayer:update', (_e, payload: MiniPlayerPayload) => updateMiniPlayer(payload ?? {}))
 

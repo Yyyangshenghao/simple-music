@@ -14,7 +14,7 @@ vi.mock('./overlay-manager', () => ({
   suspendMiniPlayer: h.mini, suspendWallpaper: h.wallpaper,
   setMiniPlayerEnabled: h.setMini, setWallpaperEnabled: h.setWallpaper, setLyricsEnabled: h.setLyrics
 }))
-import { getGameMode, setGameMode, onGameModeChange } from './game-mode'
+import { getGameMode, setGameMode, onGameModeChange, clearGameModeOverlayRestore } from './game-mode'
 
 beforeEach(() => {
   setGameMode({ enabled: false }, false)
@@ -57,6 +57,17 @@ describe('游戏模式窗口生命周期', () => {
     expect(h.setMini).toHaveBeenCalledWith(true)
     expect(h.setWallpaper).toHaveBeenCalledWith(true)
     expect(h.focus).not.toHaveBeenCalled()
+  })
+
+  it('后台失联后清除悬浮窗恢复快照，退出游戏只恢复主窗口', () => {
+    setGameMode({ enabled: true })
+    clearGameModeOverlayRestore()
+    expect(getGameMode().enabled).toBe(true)
+    expect(h.focus).not.toHaveBeenCalled()
+    setGameMode({ enabled: false })
+    expect(h.setMini).not.toHaveBeenCalled()
+    expect(h.setWallpaper).not.toHaveBeenCalledWith(true)
+    expect(h.focus).toHaveBeenCalledOnce()
   })
 
   it('原来没有迷你条时恢复主窗口，显式显示主窗口不恢复迷你条', () => {

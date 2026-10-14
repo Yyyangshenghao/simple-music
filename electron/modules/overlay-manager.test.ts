@@ -831,3 +831,37 @@ describe('迷你播放器窗口尺寸', () => {
     }
   })
 })
+
+it('后台失联关闭全部悬浮窗且不再接受重开或迟到的开启更新，保留用户偏好并不抢焦点', async () => {
+  closeOverlays()
+  vi.resetModules()
+  const overlays = await import('./overlay-manager')
+  harness.instances.length = 0
+  overlays.setMiniPlayerEnabled(true)
+  overlays.setLyricsEnabled(true)
+  overlays.setWallpaperEnabled(true)
+  const windows = [...harness.instances]
+  harness.mainSend.mockClear()
+  harness.focusMainWindow.mockClear()
+  for (const win of windows) win.close.mockImplementation(() => win.listeners.get('closed')?.())
+
+  overlays.stopPlaybackOverlays()
+
+  for (const win of windows) {
+    expect(win.close).toHaveBeenCalledOnce()
+    win.listeners.get('closed')?.()
+  }
+  expect(harness.focusMainWindow).not.toHaveBeenCalled()
+  expect(harness.mainSend).toHaveBeenCalledWith('lyrics:enabled-state-changed', { enabled: false, requested: true })
+  expect(harness.mainSend.mock.calls.some(([channel]) => channel === 'miniplayer:control')).toBe(false)
+  const failure = { ok: false, error: '播放后台已停止，请重启应用' }
+  expect(overlays.setMiniPlayerEnabled(true)).toEqual(failure)
+  expect(overlays.setLyricsEnabled(true)).toEqual(failure)
+  expect(overlays.setWallpaperEnabled(true)).toEqual(failure)
+  expect(overlays.updateLyrics({ enabled: true, text: '旧歌词' })).toEqual(failure)
+  expect(overlays.updateWallpaper({ enabled: true })).toEqual(failure)
+  expect(harness.instances).toHaveLength(3)
+  // 关闭命令仍可执行，故障不会阻止返回错误界面。
+  expect(overlays.setMiniPlayerEnabled(false)).toEqual({ ok: true })
+  expect(harness.focusMainWindow).toHaveBeenCalledOnce()
+})

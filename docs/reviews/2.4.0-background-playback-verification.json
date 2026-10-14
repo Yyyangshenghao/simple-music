@@ -1,0 +1,134 @@
+{
+  "date": "2026-10-15",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; renderer and main CDP attached"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 253,
+      "tests": 2218,
+      "result": "passed"
+    },
+    "independentReview": "passed after fixing late mini-player enable IPC"
+  },
+  "downloads": {
+    "fixture": "Six existing pinned silent WAV cache entries with QQ/Netease domain metadata; no logged-in account or external audio request.",
+    "method": "Hold real /api/downloads/export HTTP responses in CDP until game mode destroys the main UI, then release responses; normally quit with another four queued tasks; restart the same isolated profile and click Continue queue in the actual UI.",
+    "inFlightWhenUiDestroyed": [
+      "exporting",
+      "exporting"
+    ],
+    "completedWithoutUi": [
+      "done",
+      "done"
+    ],
+    "coldRestore": {
+      "jobs": [
+        "queued",
+        "queued",
+        "queued",
+        "queued"
+      ],
+      "paused": true,
+      "exportsBeforeContinue": 0
+    },
+    "afterContinue": {
+      "jobs": [
+        "done",
+        "done",
+        "done",
+        "done"
+      ],
+      "persistedJobs": 0
+    },
+    "fileHashesMatchedCache": [
+      {
+        "name": "本地音频夹具 - 下载恢复测试 1.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      },
+      {
+        "name": "本地音频夹具 - 下载恢复测试 2.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      },
+      {
+        "name": "本地音频夹具 - 下载恢复测试 3.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      },
+      {
+        "name": "本地音频夹具 - 下载恢复测试 4.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      },
+      {
+        "name": "本地音频夹具 - 下载恢复测试 5.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      },
+      {
+        "name": "本地音频夹具 - 下载恢复测试 6.wav",
+        "sha256": "3f257e52584f47ddc010e44d9602511a4900e970d4046cd92f171f03f597cf1b"
+      }
+    ],
+    "rendererErrors": [],
+    "limitations": "Cached file export only; not real provider-authenticated downloading or HTTP byte-range resumption."
+  },
+  "overlays": {
+    "method": "Open actual mini-player, desktop lyrics and wallpaper windows; pause via mini-player preload; return to UI; reopen mini-player; forcefullyCrashRenderer on the real playback host, once normally and once after game mode releases the UI. Recover through registered Dock activation; try enabled and late update IPC.",
+    "normalChecks": [
+      "真实创建主界面、播放宿主、歌词、壁纸和迷你条",
+      "迷你条实际暂停独立宿主",
+      "迷你条返回主界面成功",
+      "宿主真实崩溃后关闭全部悬浮窗，没有新建音频或抢回主界面",
+      "恢复主界面显示可理解的停止提示",
+      "恢复主界面结束游戏模式",
+      "失联后显式开启及迟到更新均被拒绝",
+      "退出游戏后没有从旧快照重建悬浮窗"
+    ],
+    "gameChecks": [
+      "真实创建主界面、播放宿主、歌词、壁纸和迷你条",
+      "迷你条实际暂停独立宿主",
+      "迷你条返回主界面成功",
+      "游戏模式释放主界面并临时收起迷你条和壁纸",
+      "宿主真实崩溃后关闭全部悬浮窗，没有新建音频或抢回主界面",
+      "恢复主界面显示可理解的停止提示",
+      "恢复主界面结束游戏模式",
+      "失联后显式开启及迟到更新均被拒绝",
+      "退出游戏后没有从旧快照重建悬浮窗"
+    ],
+    "normalFailureRemainingWindows": 1,
+    "normalFailureMainUiVisible": false,
+    "gameFailureRemainingWindows": 0,
+    "reopenResults": [
+      {
+        "ok": false,
+        "error": "播放后台已停止，请重启应用"
+      },
+      {
+        "ok": false,
+        "error": "播放后台已停止，请重启应用"
+      },
+      {
+        "ok": false,
+        "error": "播放后台已停止，请重启应用"
+      },
+      {
+        "ok": false,
+        "error": "播放后台已停止，请重启应用"
+      },
+      {
+        "ok": false,
+        "error": "播放后台已停止，请重启应用"
+      }
+    ],
+    "limitations": "Darwin does not provide Windows wallpaper desktop injection or middle-button lyric polling; these platform behaviors are not accepted by this test."
+  },
+  "remainingAcceptance": [
+    "Windows device and installer",
+    "Real Netease/QQ listening statistics and authenticated downloads",
+    "Apple protected playback and spectrum",
+    "Device switching and physical media keys",
+    "Target-game CPU/GPU/memory and frame-time budgets"
+  ]
+}
