@@ -46,6 +46,7 @@ interface NavigationStore {
   updateArtistPageState(id: unknown, source: 'netease' | 'qq' | 'apple', patch: Partial<ArtistPageState>): void
   updateSearchPageState(keyword: string, patch: Partial<SearchPageState>): void
   requestSettingsMusic(): void
+  consumeSettingsMusicRequest(request: number): void
   goBack(): void
   goForward(): void
 }
@@ -109,6 +110,10 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 
   requestSettingsMusic() {
     set((s) => ({ settingsMusicRequest: s.settingsMusicRequest + 1 }))
+  },
+
+  consumeSettingsMusicRequest(request) {
+    if (get().settingsMusicRequest === request) set({ settingsMusicRequest: 0 })
   },
 
   goBack() {

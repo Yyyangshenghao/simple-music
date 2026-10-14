@@ -3,6 +3,8 @@ import { app, session } from 'electron'
 
 const h = vi.hoisted(() => ({
   events: new Map<string, (event?: { preventDefault(): void }) => void>(),
+  released: false,
+  host: { isDestroyed: () => false, webContents: { mainFrame: { id: 'host-frame' }, session: undefined as unknown, on: vi.fn(), send: vi.fn() } },
   main: null as null | {
     isDestroyed(): boolean
     hide(): void
@@ -21,6 +23,8 @@ const h = vi.hoisted(() => ({
   createTray: vi.fn(),
   restore: vi.fn(),
   shutdown: vi.fn(),
+  stopApple: vi.fn(async () => {}),
+  hostFailure: undefined as (() => void) | undefined,
   flushListening: vi.fn(async () => {})
 }))
 vi.mock('electron', () => ({
@@ -34,19 +38,24 @@ vi.mock('electron', () => ({
   screen: { on: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDisplayMediaRequestHandler: vi.fn() } }
 }))
-vi.mock('./server-host', () => ({ bootServer: h.bootServer, shutdownServer: h.shutdown, getAppleMusicCaptureFrame: h.captureFrame }))
+vi.mock('./server-host', () => ({ bootServer: h.bootServer, shutdownServer: h.shutdown, getAppleMusicCaptureFrame: h.captureFrame, stopAppleMusicPlayback: h.stopApple }))
+vi.mock('./modules/playback-host', () => ({
+  createPlaybackHost: () => h.host, getPlaybackHost: () => h.host, closePlaybackHost: vi.fn(), attachPlaybackUi: vi.fn(), onPlaybackHostFailure: (listener: () => void) => { h.hostFailure = listener },
+  sendPlaybackEvent: vi.fn(), isPlaybackHostReady: () => true
+}))
 vi.mock('./modules/listening-flush', () => ({ flushRendererListeningReports: h.flushListening }))
 vi.mock('./ipc', () => ({ registerIpc: h.registerIpc }))
 vi.mock('./modules/window-manager', () => ({
   getMainWindow: () => h.main, createMainWindow: h.createMainWindow,
-  getServerPort: () => 35530, getServerToken: () => 'test-token', scheduleWindowStateSend: vi.fn()
+  getServerPort: () => 35530, getServerToken: () => 'test-token', scheduleWindowStateSend: vi.fn(),
+  setMainWindowRestorer: vi.fn(), isReleasedMainWindow: () => h.released
 }))
 vi.mock('./modules/overlay-manager', () => ({
   returnFromMiniPlayer: h.restore, closeOverlays: vi.fn(),
   positionDesktopLyricsWindow: vi.fn(), positionWallpaperWindow: vi.fn()
 }))
 vi.mock('./modules/hotkey-manager', () => ({ unregisterHotkeys: vi.fn() }))
-vi.mock('./modules/tray-manager', () => ({ createTray: h.createTray, destroyTray: vi.fn() }))
+vi.mock('./modules/tray-manager', () => ({ createTray: h.createTray, destroyTray: vi.fn(), updateTrayPlayback: vi.fn() }))
 
 async function flush() {
   await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -70,6 +79,8 @@ describe('主窗口激活恢复', () => {
     h.events.clear()
     h.windowEvents.clear()
     h.main = null
+    h.released = false
+    h.host.webContents.session = session.defaultSession
     h.windows = []
     h.captureFrame.mockReturnValue(h.appleFrame)
     h.registerIpc.mockImplementationOnce(() => {}).mockImplementation(() => {
@@ -99,7 +110,7 @@ describe('主窗口激活恢复', () => {
     expect(app.exit).toHaveBeenCalledWith(0)
   })
 
-  it('先等待主窗口上报完成，再关闭 API；重复退出只补报一次', async () => {
+  it('先等待后台宿主上报完成，再关闭 API；重复退出只补报一次', async () => {
     let finish!: () => void
     h.flushListening.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve }))
     h.events.get('before-quit')!({ preventDefault: vi.fn() })
@@ -134,18 +145,20 @@ describe('主窗口激活恢复', () => {
     expect(h.shutdown).not.toHaveBeenCalled()
   })
 
-  it('只允许主窗口捕获 Apple Music 音频，且保留原窗口出声', () => {
+  it('只允许后台宿主捕获 Apple Music 音频，且保留原窗口出声', () => {
     const request = vi.mocked(session.defaultSession.setPermissionRequestHandler).mock.calls.at(-1)![0]!
     const display = vi.mocked(session.defaultSession.setDisplayMediaRequestHandler).mock.calls.at(-1)![0]!
     const callback = vi.fn()
-    request(h.main!.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
+    request(h.host.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
     expect(callback).toHaveBeenCalledWith(true)
-    display({ frame: h.main!.webContents.mainFrame, audioRequested: true, videoRequested: true } as never, callback)
-    expect(callback).toHaveBeenLastCalledWith({ video: h.main!.webContents.mainFrame, audio: h.appleFrame, enableLocalEcho: true })
+    display({ frame: h.host.webContents.mainFrame, audioRequested: true, videoRequested: true } as never, callback)
+    expect(callback).toHaveBeenLastCalledWith({ video: h.host.webContents.mainFrame, audio: h.appleFrame, enableLocalEcho: true })
+    request(h.main!.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
+    expect(callback).toHaveBeenLastCalledWith(false)
     display({ frame: { id: 'foreign' }, audioRequested: true, videoRequested: true } as never, callback)
     expect(callback).toHaveBeenLastCalledWith(null)
     h.captureFrame.mockReturnValue(null)
-    request(h.main!.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
+    request(h.host.webContents as unknown as Electron.WebContents, 'display-capture', callback, {} as never)
     expect(callback).toHaveBeenLastCalledWith(false)
   })
 
@@ -279,6 +292,14 @@ describe('主窗口激活恢复', () => {
     }
   })
 
+  it('游戏模式计划销毁 Windows 主窗口不退出后台播放', async () => {
+    await bootWindows()
+    h.released = true
+    h.windowEvents.get('closed')!({ preventDefault: vi.fn() })
+    expect(app.quit).not.toHaveBeenCalled()
+    expect(h.shutdown).not.toHaveBeenCalled()
+  })
+
   it('Windows 主窗口已关闭时仍退出，不被隐藏的 Apple Music 窗口阻塞', async () => {
     await bootWindows()
     expect(h.windowEvents.has('closed')).toBe(true)
@@ -378,4 +399,13 @@ describe('主窗口激活恢复', () => {
     expect(h.createMainWindow).toHaveBeenCalledTimes(1)
     expect(h.shutdown).toHaveBeenCalledTimes(1)
   })
+})
+
+it('播放宿主失联时关闭独立Apple音频，不关闭仍供错误界面使用的API', async () => {
+  await bootWindows()
+  h.stopApple.mockClear()
+  h.shutdown.mockClear()
+  h.hostFailure?.()
+  expect(h.stopApple).toHaveBeenCalledOnce()
+  expect(h.shutdown).not.toHaveBeenCalled()
 })

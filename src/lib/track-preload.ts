@@ -144,7 +144,7 @@ export function preloadTracks(
   const keepCovers = new Set<string>()
   for (const t of windowTracks) {
     keep.add(trackKey(t, quality))
-    if (typeof t.cover === 'string') keepCovers.add(sizedImage(t.cover, coverPx))
+    if (typeof t.cover === 'string' && (typeof window === 'undefined' || window.desktop?.playbackRole !== 'host')) keepCovers.add(sizedImage(t.cover, coverPx))
   }
   latestKeep = keep
 
@@ -170,7 +170,7 @@ export function preloadTracks(
     if (track.pending) continue
 
     const coverUrl = track.cover ? sizedImage(track.cover, coverPx) : ''
-    if (coverUrl && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
+    if (coverUrl && keepCovers.has(coverUrl) && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
       const img = new Image()
       img.decoding = 'async'
       img.src = coverUrl

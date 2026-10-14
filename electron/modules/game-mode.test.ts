@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  hide: vi.fn(), focus: vi.fn(), send: vi.fn(),
+  hide: vi.fn(), release: vi.fn(), ready: false, hostSend: vi.fn(), focus: vi.fn(), send: vi.fn(),
   mini: vi.fn(() => true), wallpaper: vi.fn(() => true),
   setMini: vi.fn(), setWallpaper: vi.fn(), setLyrics: vi.fn()
 }))
 vi.mock('./window-manager', () => ({
   getMainWindow: () => ({ isDestroyed: () => false, webContents: { send: h.send } }),
-  hideMainWindow: h.hide, focusMainWindow: h.focus
+  hideMainWindow: h.hide, releaseMainWindow: h.release, focusMainWindow: h.focus
 }))
+vi.mock('./playback-host', () => ({ isPlaybackHostReady: () => h.ready, sendPlaybackEvent: h.hostSend }))
 vi.mock('./overlay-manager', () => ({
   suspendMiniPlayer: h.mini, suspendWallpaper: h.wallpaper,
   setMiniPlayerEnabled: h.setMini, setWallpaperEnabled: h.setWallpaper, setLyricsEnabled: h.setLyrics
@@ -18,11 +19,20 @@ import { getGameMode, setGameMode, onGameModeChange } from './game-mode'
 beforeEach(() => {
   setGameMode({ enabled: false }, false)
   vi.clearAllMocks()
+  h.ready = false
   h.mini.mockReturnValue(true)
   h.wallpaper.mockReturnValue(true)
 })
 
 describe('游戏模式窗口生命周期', () => {
+  it('后台就绪才销毁主 UI，并通知独立运行时继续游戏策略', () => {
+    h.ready = true
+    setGameMode({ enabled: true })
+    expect(h.release).toHaveBeenCalledOnce()
+    expect(h.hide).not.toHaveBeenCalled()
+    expect(h.hostSend).toHaveBeenCalledWith('game-mode:state-changed', { enabled: true })
+  })
+
   it('收起主窗口、迷你条与壁纸，保留原有桌面歌词状态', () => {
     const notify = vi.fn()
     const stop = onGameModeChange(notify)

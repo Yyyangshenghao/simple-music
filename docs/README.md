@@ -7,6 +7,7 @@
 | 进程、数据流、启动顺序 | [架构总览](architecture.md) |
 | 文件与模块归属 | [目录结构](directory-structure.md)、[主进程](modules/electron-main.md)、[API Server](modules/server.md)、[渲染层](modules/renderer.md)、[悬浮窗](modules/overlays.md) |
 | 播放、跨源兜底与缓存 | [播放系统](playback-system.md) |
+| 独立后台播放、游戏模式释放 UI 与重连 | [独立播放宿主](playback-host.md) |
 | 依赖、开发环境 | [技术栈](tech-stack.md) |
 | 启动、渲染、内存与性能验收 | [性能与界面维护](performance.md) |
 | 2.3.0 整合范围、深审修复与验收边界 | [2.3.0 审查记录](reviews/2.3.0-code-review.md) |

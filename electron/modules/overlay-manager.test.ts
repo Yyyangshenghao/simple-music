@@ -81,6 +81,7 @@ vi.mock('./window-manager', () => ({
   isInAppUrl: () => true
 }))
 
+vi.mock('./playback-host', () => ({ sendPlaybackEvent: (...args: unknown[]) => { harness.mainSend(...args); return true } }))
 vi.mock('./safe-open', () => ({ openExternalSafely: vi.fn() }))
 const backdrop = vi.hoisted(() => ({ update: vi.fn(() => true), dispose: vi.fn() }))
 vi.mock('./lyrics-native-backdrop', () => ({ createLyricsNativeBackdrop: vi.fn(() => backdrop) }))

@@ -4,6 +4,15 @@ import { useShortcutStore } from '../stores/shortcuts'
 import { useShuangeStore } from '../stores/shuange'
 import { acceleratorFromEvent, isShortcutAction, isSettingsMenuAccelerator, isSystemReservedAccelerator, normalizeAccelerator, shouldIgnoreShortcut } from '../lib/shortcuts'
 import { runShortcutAction } from '../lib/shortcut-actions'
+import { useToastStore } from '../stores/toast'
+import type { ShortcutAction } from '../lib/shortcuts'
+
+function runLocalShortcut(action: ShortcutAction): void {
+  if (typeof window.desktop?.playbackRequest === 'function') {
+    void window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'shortcut', args: [action] })
+      .catch(() => useToastStore.getState().show('快捷键执行失败，请检查播放器状态'))
+  } else runShortcutAction(action)
+}
 
 function modalDialogOpen(): boolean {
   return !!document.querySelector?.('dialog[open]')
@@ -39,7 +48,7 @@ export function useShortcuts(): void {
       // 菜单需要继续接收事件，preventDefault 会取消原生菜单快捷键。
       if (!captured && runtime.menuAccelerators.includes(accelerator)) return
       event.preventDefault()
-      if (!event.repeat) runShortcutAction(binding.action)
+      if (!event.repeat) runLocalShortcut(binding.action)
     }
     const onKeyDownCapture = (event: KeyboardEvent) => {
       if (modalDialogOpen()) return

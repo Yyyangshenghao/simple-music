@@ -2,6 +2,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useShortcutStore } from '../stores/shortcuts'
 import { isShortcutAction, shouldIgnoreShortcut } from './shortcuts'
 import { runShortcutAction } from './shortcut-actions'
+import { isPlaybackShortcutBlocked } from './playback-host-observation'
 
 let stopGlobalShortcuts: (() => void) | undefined
 
@@ -39,7 +40,7 @@ export function initGlobalShortcuts(): () => void {
     if (state.recording !== previous.recording) sync()
   })
   const offHotkey = desktop?.onHotkey(({ action, source }) => {
-    if (disposed || document.querySelector?.('dialog[open]')) return
+    if (disposed || isPlaybackShortcutBlocked() || document.querySelector?.('dialog[open]')) return
     if (useShortcutStore.getState().recording || (source !== 'menu' && !useSettingsStore.getState().globalHotkeysEnabled)) return
     if (action !== 'settings' && document.hasFocus() && shouldIgnoreShortcut(document.activeElement)) return
     if (isShortcutAction(action)) runShortcutAction(action)

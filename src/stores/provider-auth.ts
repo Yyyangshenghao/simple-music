@@ -1,6 +1,7 @@
 import type { ProviderId } from '../providers/types'
 import { registerApiProviderAuthFailureHandler } from '../lib/api'
 import { ProviderAuthError } from '../lib/provider-account-session'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
@@ -24,6 +25,11 @@ export function isProviderAuthFailure(error: unknown): boolean {
 export function expireProviderAccount(source: ProviderId, error: unknown): boolean {
   if (error instanceof ProviderAuthError && error.source !== source) return false
   if (!isProviderAuthFailure(error)) return false
+  if (typeof window !== 'undefined' && window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
+    void window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'expireAccount',
+      args: [source, errorMessage(error), providerAccountSession(source)] }).catch(() => {})
+    return true
+  }
   const alreadyExpired = useProviderStore.getState().byId[source].auth === 'expired'
   const settings = useSettingsStore.getState()
   if (source === 'netease') settings.setNeteaseLoggedIn(false)

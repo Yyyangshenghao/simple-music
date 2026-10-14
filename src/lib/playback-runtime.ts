@@ -51,7 +51,12 @@ export function startPlaybackRuntime(): () => void {
   // 初始展示读取已经恢复的暂停态，不先向系统发布空状态。
   const stopTray = initTraySync()
   const stopMedia = initMediaSession()
-  const stopListeningFlush = window.desktop?.onFlushListeningReports(flushListeningReports)
+  const stopListeningFlush = window.desktop?.onFlushListeningReports(async () => {
+    // 主进程随后会强制销毁隐藏窗口，不能依赖 unload 才保存断点/取消任务。
+    stopPersistence()
+    await flushListeningReports()
+    stopRuntime?.()
+  })
   let stopped = false
   stopRuntime = () => {
     if (stopped) return

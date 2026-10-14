@@ -33,7 +33,7 @@ interface PlaylistStore extends QueueState {
   setQueue(tracks: Track[], startIndex?: number, contextId?: unknown): void
   clearQueue(): void
   addToQueue(track: Track): void
-  addManyToQueue(tracks: Track[], offline?: boolean): number
+  addManyToQueue(tracks: Track[], offline?: boolean): number | Promise<number>
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
   moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
   playNextInQueue(index: number): void

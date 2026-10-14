@@ -5,8 +5,8 @@ import { useProviderStore } from '../../stores/providers'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
 import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
-import { api } from '../../lib/api'
 import { loginMusicProvider } from '../../lib/provider-login'
+import { logoutMusicProvider } from '../../lib/provider-logout'
 import type { ProviderId } from '../../providers/types'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
@@ -31,8 +31,6 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const setEnabled = useProviderStore((state) => state.setEnabled)
   const neteaseLoggedIn = useSettingsStore((state) => state.neteaseLoggedIn)
   const qqLoggedIn = useSettingsStore((state) => state.qqLoggedIn)
-  const setNeteaseLoggedIn = useSettingsStore((state) => state.setNeteaseLoggedIn)
-  const setQQLoggedIn = useSettingsStore((state) => state.setQQLoggedIn)
   const navigateTo = useNavigationStore((state) => state.navigateTo)
   const requestSettingsMusic = useNavigationStore((state) => state.requestSettingsMusic)
   const apple = useAppleMusicConnection()
@@ -62,21 +60,11 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         await useAppleMusicConnection.getState().disconnect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else if (source === 'netease') {
-        setNeteaseLoggedIn(false)
-        useProviderStore.getState().setAccountState('netease', 'anonymous')
-        await Promise.allSettled([
-          window.desktop?.clearNeteaseLogin(),
-          api.post('/api/logout'),
-        ])
       } else {
-        setQQLoggedIn(false)
-        useProviderStore.getState().setAccountState('qq', 'anonymous')
-        await Promise.allSettled([
-          window.desktop?.clearQQLogin(),
-          api.post('/api/qq/logout'),
-        ])
+        await logoutMusicProvider(source)
       }
+    } catch {
+      useToastStore.getState().show('退出登录失败，请重试')
     } finally {
       setBusySource(null)
     }

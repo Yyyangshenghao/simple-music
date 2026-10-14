@@ -634,7 +634,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (settingsMusicRequest === 0) return
     scrollToSection('music')
-    useNavigationStore.setState({ settingsMusicRequest: 0 })
+    useNavigationStore.getState().consumeSettingsMusicRequest(settingsMusicRequest)
   }, [settingsMusicRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)

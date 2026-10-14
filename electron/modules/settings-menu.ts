@@ -1,5 +1,5 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron'
-import { getMainWindow } from './window-manager'
+import { sendMainWindowEvent } from './window-manager'
 import { returnFromMiniPlayer } from './overlay-manager'
 import { isSettingsMenuAccelerator, isSystemReservedAccelerator, normalizeAccelerator } from '../../src/lib/shortcuts'
 
@@ -42,8 +42,7 @@ export function configureSettingsMenu(value: string): void {
       && !isSystemReservedAccelerator(accelerator, process.platform) && !occupied(menu.items) ? accelerator : undefined,
     click: () => {
       returnFromMiniPlayer()
-      const win = getMainWindow()
-      if (win && !win.isDestroyed()) win.webContents.send('hotkey:triggered', { action: 'settings', source: 'menu' })
+      sendMainWindowEvent('hotkey:triggered', { action: 'settings', source: 'menu' })
     }
   })
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))

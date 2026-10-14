@@ -100,3 +100,14 @@ describe('搜索页导航状态', () => {
     expect(useNavigationStore.getState().future).toHaveLength(1)
   })
 })
+
+it('音源设置定位由权威导航消费，迟到消费不清除更新请求', () => {
+  useNavigationStore.setState({ settingsMusicRequest: 0 })
+  const navigation = useNavigationStore.getState()
+  navigation.requestSettingsMusic()
+  navigation.requestSettingsMusic()
+  navigation.consumeSettingsMusicRequest(1)
+  expect(useNavigationStore.getState().settingsMusicRequest).toBe(2)
+  navigation.consumeSettingsMusicRequest(2)
+  expect(useNavigationStore.getState().settingsMusicRequest).toBe(0)
+})

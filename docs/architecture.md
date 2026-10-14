@@ -14,6 +14,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 │  electron/main.ts                                                   │
 │  ├─ server-host.ts ──► 内嵌 HTTP API server（server/，127.0.0.1 随机端口）│
 │  │                    Apple Music 官网会话（授权、曲库、受保护播放）       │
+│  ├─ modules/playback-host.ts ──► 独立隐藏播放渲染进程                 │
 │  ├─ modules/window-manager.ts ──► 主窗口（无边框，16:9）               │
 │  ├─ modules/overlay-manager.ts ──► 桌面歌词/壁纸/迷你播放条窗（三个独立渲染进程）│
 │  ├─ modules/hotkey-manager.ts（globalShortcut）                       │
@@ -43,7 +44,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 
 关键决策：
 
-- **为什么内嵌 HTTP server 而不是全走 IPC**：音源请求逻辑（cookie 管理、上游封装、字段映射、音频流代理）是纯 Node 逻辑，做成独立 server 后可以 `npm run server:dev` 脱离 Electron 单独跑、单独测（vitest 直接 import route/lib），渲染层在浏览器里也能调试（`api.ts` 无端口时回退同源）。IPC 只留给"必须由主进程做"的窗口/系统类操作。
+- **为什么内嵌 HTTP server 而不是全走 IPC**：音源请求逻辑（cookie 管理、上游封装、字段映射、音频流代理）是纯 Node 逻辑，做成独立 server 后可以 `npm run server:dev` 脱离 Electron 单独跑、单独测（vitest 直接 import route/lib），渲染层在浏览器里也能调试（`api.ts` 无端口时回退同源）。IPC 用于窗口/系统类操作，以及主界面与独立播放宿主之间的命令、回执和状态快照。
 - **端口随机 + 参数注入**：server 监听 `127.0.0.1:0`（随机端口），端口与持久化在 `userData/api-token` 的访问 token 经 `BrowserWindow webPreferences.additionalArguments` 注入 preload，分别挂到 `window.desktop.serverPort` / `serverToken`。避免固定端口被占用，并阻止本机其它网页只靠扫描端口访问 API；server 仍只监听 loopback，不暴露到局域网。
 - **两套 tsconfig 隔离**：`tsconfig.node.json`（electron/ + server/，Node 环境）与 `tsconfig.json`（src/ + overlays/，DOM 环境），`npm run typecheck` 两套全跑。`src/types/ipc.ts` 统一两侧的 IPC 类型契约；主进程还运行时复用 `src/lib/shortcuts.ts`、`desktop-lyrics-layout.ts` 与 `mini-player-state.ts` 等无 DOM 的纯逻辑模块，共享模块不能依赖浏览器或渲染层 store。
 
@@ -53,19 +54,19 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 |---|---|---|---|
 | `electron/` | 主进程 | 窗口/悬浮窗/热键/登录/更新安装 + IPC + preload 桥 | [modules/electron-main.md](modules/electron-main.md) |
 | `server/` | 主进程内嵌（可独立） | `/api/*` 全部数据端点、上游音源封装、音频代理与缓存、更新检查/下载、DJ 锁拍、天气电台 | [modules/server.md](modules/server.md) |
-| `src/` | 主窗口渲染进程 | React UI：stores（zustand）/hooks/lib/components/pages | [modules/renderer.md](modules/renderer.md) |
+| `src/` | UI 与独立播放渲染进程 | React 界面投影 + 后台核心/队列/运行时；通过命令与快照连接 | [modules/renderer.md](modules/renderer.md) |
 | `overlays/` | 三个独立渲染进程 | 桌面歌词、动态壁纸、迷你播放条入口（复用 `src/` 组件与 store） | [modules/overlays.md](modules/overlays.md) |
 
 ## 3. 启动时序
 
-1. `electron/main.ts` 顶层：追加 Chromium 开关——`autoplay-policy=no-user-gesture-required`、GPU 光栅化/zero-copy、50MB Chromium 磁盘缓存，ANGLE 后端按平台选 `d3d11`（win32）/`metal`（darwin）。不再全局关闭后台节流；只在主窗口与长期被遮挡的壁纸窗口设置 `backgroundThrottling: false`。
+1. `electron/main.ts` 顶层：追加 Chromium 开关——`autoplay-policy=no-user-gesture-required`、GPU 光栅化/zero-copy、50MB Chromium 磁盘缓存，ANGLE 后端按平台选 `d3d11`（win32）/`metal`（darwin）。不再全局关闭后台节流；只在播放宿主与长期被遮挡的壁纸窗口设置 `backgroundThrottling: false`。
 2. `requestSingleInstanceLock()`：拿不到锁直接退出；`second-instance` 事件聚焦已有窗口。
-3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen、净化后的剪贴板写入及主窗口对 Apple 后台音频的定向捕获；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，创建 Apple Music 会话，返回端口/token）→ `createMainWindow(port, token)` → `createTray()`。
+3. `app.whenReady`：先收紧默认 session 权限，只放行 fullscreen、净化后的剪贴板写入及播放宿主对 Apple 后台音频的定向捕获；随后 `boot()` 执行 `registerIpc()` → `bootServer()`（注入 `userDataDir` 与 API token，创建 Apple Music 会话，返回端口/token）→ `createPlaybackHost(port, token)` → `createMainWindow(port, token)` → `createTray()`。
 4. 主窗口 `ready-to-show` 后显示；`screen` 的显示器变更事件驱动悬浮窗重定位与窗口状态推送。
-5. 渲染层 `main.tsx` 先启动播放运行时：加载通用设置，用 `initProviderStore()` 读取多平台 schema（首次升级从 1.x 设置只读迁移并备份原文），启动核心与最近播放，首次恢复队列为暂停态，启动刷歌会话导航与续播、未完成下载的暂停恢复，再启动歌词获取、歌词时钟、桌面歌词/壁纸参数同步与封面取色，注册桌面播放命令与全局快捷键，启动游戏模式状态监听、迷你条同步及账号状态同步，由宿主核实各在线平台留存登录态和 Apple 订阅状态，再同步托盘、Media Session 并注册退出补报。随后挂载 `App.tsx`。React 重新挂载不重启播放运行时、不重新恢复存档，也不重新核实账号、注册全局键或重放迷你条开窗偏好。
-6. `before-quit`：注销热键、关闭悬浮窗、销毁托盘，然后请求渲染层补报有效收听，最多等待 1.8 秒，再关闭 server；沿用整体 8 秒退出兜底。主窗口卸载时保存播放快照并统一释放播放运行时。
+5. 独立播放入口先完成存档迁移确认，再装配唯一运行时，负责核心、队列、历史、刷歌、下载、歌词、桌面控制、账号核实与听歌补报。主界面 `main.tsx` 先订阅再连接后台，水合活快照后挂载 `App.tsx`；界面重建不重启核心或覆盖队列。
+6. `before-quit`：注销热键、关闭悬浮窗、销毁托盘，请求播放宿主保存断点并补报有效收听，最多等待 1.8 秒；随后释放后台并关闭 server，沿用整体 8 秒退出兜底。
 
-**后台降耗约定**：主窗口隐藏、最小化或切到迷你播放条时，`App.tsx` 卸载可视层，保留全局 hooks 与 AudioEngine；WebGL/rAF 循环仍需使用 visibility、IntersectionObserver 或窗口状态自行暂停。壁纸窗口因长期处于桌面底层而单独禁用 Chromium 后台节流，不能依赖“被遮挡即自动停帧”。
+**后台降耗约定**：隐藏/最小化主窗口时卸载可视层并接受 Chromium 后台节流；游戏模式在播放宿主就绪后销毁 UI 窗口及其进程，保留独立音频宿主。没有可见 UI 时停止向它传输快照和频谱；游戏纯播放暂停歌词请求/时钟、封面取色与壁纸，用户保留的桌面歌词继续按降耗规则运行。壁纸窗口单独禁用后台节流。详见 [独立播放宿主](playback-host.md)。
 
 ## 4. 数据流
 
@@ -108,7 +109,7 @@ player.loadTrack(网易云或 QQ 曲目)
 - 音频代理为什么存在：上游 CDN 有 Referer/UA 校验且跨域，`<audio>` 直连拿不到；代理统一补 header、加 CORS、顺带做磁盘缓存（2GB LRU）。
 - 详见 [playback-system.md](playback-system.md)。
 
-本地曲目按索引 ID 读取本地 API，不进入跨源匹配。Apple Music 的 `apple-music:` 候选由 `AppleMusicPlayback` 控制后台 MusicKit 会话，播放进度回写同一个 player store；音频不经 `/api/audio`，也不写入离线缓存。主窗口可尝试捕获该窗口的只读音轨供频谱使用，捕获失败不影响播放。原生歌词不可用时，可从已启用的网易云或 QQ 音乐匹配同曲歌词。开发态使用系统 Chrome 承载受保护播放；正式包使用 EVS 签名的应用内窗口。详见 [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md)。
+本地曲目按索引 ID 读取本地 API，不进入跨源匹配。Apple Music 的 `apple-music:` 候选由 `AppleMusicPlayback` 控制后台 MusicKit 会话，播放进度回写同一个 player store；音频不经 `/api/audio`，也不写入离线缓存。播放宿主在可见 UI 按需订阅时尝试捕获该窗口的只读音轨供频谱使用，捕获失败不影响播放。原生歌词不可用时，可从已启用的网易云或 QQ 音乐匹配同曲歌词。开发态使用系统 Chrome 承载受保护播放；正式包使用 EVS 签名的应用内窗口。详见 [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md)。
 
 ### 4.3 控制类通信（IPC）
 

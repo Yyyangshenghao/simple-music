@@ -16,6 +16,7 @@ import { useToastStore } from './toast'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
+import { isPlaybackSpectrumRequested } from '../lib/playback-host-observation'
 
 let core: ReturnType<typeof createPlaybackCore>
 
@@ -53,7 +54,10 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
     beginIntent: (kind) => { beginPlaybackIntent(kind) },
     notify: (message) => useToastStore.getState().show(message),
     appleSpectrum: {
-      requestCapture: () => { void window.desktop?.startAppleAudioCapture?.().catch(() => {}) },
+      requestCapture: () => {
+        if (window.desktop?.playbackRole === 'host' && !isPlaybackSpectrumRequested()) return
+        void window.desktop?.startAppleAudioCapture?.().catch(() => {})
+      },
       stop: () => appleAudioSpectrum.stop(),
       read: () => appleAudioSpectrum.read(),
     },

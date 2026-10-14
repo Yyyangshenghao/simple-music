@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), send: vi.fn(), restore: vi.fn(), destroyed: false, menu: [] as Array<{ accelerator: string }> }))
 vi.mock('electron', () => ({ globalShortcut: { register: h.register, unregister: h.unregister }, Menu: { getApplicationMenu: () => ({ items: h.menu }) } }))
-vi.mock('./window-manager', () => ({ getMainWindow: () => ({ isDestroyed: () => h.destroyed, webContents: { send: h.send } }) }))
+vi.mock('./window-manager', () => ({ sendMainWindowEvent: h.send }))
+vi.mock('./playback-host', () => ({ sendPlaybackEvent: h.send }))
 vi.mock('./overlay-manager', () => ({ returnFromMiniPlayer: h.restore }))
 import { configureHotkeys, unregisterHotkeys } from './hotkey-manager'
 

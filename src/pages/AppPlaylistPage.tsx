@@ -87,9 +87,11 @@ export function AppPlaylistPage({ id }: { id: string }) {
           <div className={styles.identity}><span className={styles.eyebrow}>应用歌单</span><h1>{item.name}</h1><p className={styles.hint}>{item.tracks.length} 首歌曲 · 当前可播放 {availableCount} 首</p>
             <div className={styles.buttons}>
               <button className={styles.primary} disabled={!availableCount} onClick={() => play()}>播放全部</button>
-              <button disabled={!availableCount} onClick={() => {
-                const added = usePlaylistStore.getState().addManyToQueue(playbackTracks(), true)
-                useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
+              <button disabled={!availableCount} onClick={async () => {
+                try {
+                  const added = await usePlaylistStore.getState().addManyToQueue(playbackTracks(), true)
+                  useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
+                } catch { /* 播放客户端已显示失败原因。 */ }
               }}>添加到播放队列</button>
               <button onClick={() => setEditing('rename')}>重命名</button>
               <button onClick={() => setEditing('delete')}>删除歌单</button>

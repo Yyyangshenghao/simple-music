@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
-import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
+import { sendPlaybackEvent } from './playback-host'
+import { resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
 import { openExternalSafely } from './safe-open'
 import { createLyricsNativeBackdrop } from './lyrics-native-backdrop'
 import { preventLyricsActivation } from './macos-lyrics-window'
@@ -162,8 +163,7 @@ function syncLyricsSize(): void {
   const size = desktopLyricsSize(getLyricsBounds(lyricsWindow).height / lyricsWindow.webContents.getZoomFactor(), !!lyricsState.translation, !!lyricsState.roma, !!lyricsState.nextLine)
   if (Math.abs(size - (lyricsState.size ?? 38)) < 0.01) return
   lyricsState = { ...lyricsState, size }
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:size-changed', { size })
+  sendPlaybackEvent('lyrics:size-changed', { size })
 }
 
 function stopLyricsControlPoller(): void {
@@ -250,14 +250,12 @@ function handleMiddleClick(): void {
 
 function broadcastLyricsLockState(): void {
   const locked = lyricsState.clickThrough !== false
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:lock-state-changed', { locked })
+  sendPlaybackEvent('lyrics:lock-state-changed', { locked })
   sendLyricsState()
 }
 
 function broadcastLyricsEnabledState(enabled: boolean, requested = false): void {
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:enabled-state-changed', { enabled, ...(requested ? { requested: true } : {}) })
+  sendPlaybackEvent('lyrics:enabled-state-changed', { enabled, ...(requested ? { requested: true } : {}) })
 }
 
 function sendLyricsState(): void {
@@ -518,9 +516,7 @@ function rememberMiniPlayerBounds(): void {
 
 /** 宽度回传主窗口持久化；同一宽度不重复通知。 */
 function notifyMiniPlayerWidth(width: number): void {
-  const main = getMainWindow()
-  if (!main || main.isDestroyed()) return
-  main.webContents.send('miniplayer:width-changed', { width })
+  sendPlaybackEvent('miniplayer:width-changed', { width })
 }
 
 function sendMiniPlayerState(): void {
@@ -602,8 +598,7 @@ function closeMiniPlayerWindow(): void {
 
 /** 迷你条与主窗口互斥：开启时把设置开关同步为关（供主进程主动收起迷你时用）。 */
 function notifyRendererMiniOff(): void {
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('miniplayer:control', { action: 'sync-off' })
+  sendPlaybackEvent('miniplayer:control', { action: 'sync-off' })
 }
 
 export function setMiniPlayerEnabled(enabled: boolean, width?: number): OkResult {
@@ -691,10 +686,8 @@ export function setMiniPlayerPopover(open: boolean): OkResult {
 }
 
 export function triggerMiniPlayerControl(action: string, value?: number): OkResult {
-  const main = getMainWindow()
-  if (!main || main.isDestroyed() || !action) return { ok: false, error: 'NO_MAIN_WINDOW' }
-  main.webContents.send('miniplayer:control', { action, value })
-  return { ok: true }
+  return action && sendPlaybackEvent('miniplayer:control', { action, value })
+    ? { ok: true } : { ok: false, error: 'PLAYBACK_HOST_GONE' }
 }
 
 // ---------- 对外 API（供 ipc 调用） ----------
