@@ -201,7 +201,7 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 ## 11. 系统媒体集成（`src/lib/media-session.ts`）
 
-`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。
+`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack，普通播放进度按 1s 同步；暂停定位、倍速、状态与曲目变化立即更新 positionState（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。
 
 托盘和迷你条的 `miniplayer:control` 由 `desktop-playback-controls.ts` 监听；全局快捷键的注册、设置/录入同步及 `hotkey:triggered` 菜单分发由 `global-shortcuts.ts` 持有，两者均随播放运行时启停。React 只保留应用内按键监听，重新挂载不注销全局键；菜单不受全局开关限制，录入、输入区与 dialog 避让及同键去重保持原规则。停止后旧事件和迟到注册回复不再生效。
 
