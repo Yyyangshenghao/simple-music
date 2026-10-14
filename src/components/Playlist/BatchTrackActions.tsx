@@ -124,6 +124,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
       const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return
       const added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      if (signal.aborted) return
       useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含所选歌曲')
       onDone?.()
     })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h7m7-3v8m-4-4h8" strokeLinecap="round" /></svg>添加到播放队列</button>
