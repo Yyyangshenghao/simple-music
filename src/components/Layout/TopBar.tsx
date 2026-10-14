@@ -14,6 +14,7 @@ import { providerFor } from '../../providers/registry'
 import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { useContentProvider } from '../../hooks/useContentProvider'
+import { providerAccountSession } from '../../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
@@ -59,6 +60,9 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
+  const accountSignature = useProviderStore((state) => PROVIDER_IDS
+    .filter((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated')
+    .map((source) => `${source}:${providerAccountSession(source)}`).join('|'))
   const enabledSources = useMemo(
     () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
     [enabledSignature]
@@ -102,8 +106,9 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   useEffect(() => {
-    // 输入或启用平台变化时立即让上一批请求过期，避免 250ms 防抖窗口内落入旧结果。
+    // 输入、平台或账号变化时立即让上一批请求过期；换号不保留旧建议。
     searchSeq.current++
+    setSearchResults({})
     const q = keyword.trim()
     if (!q) {
       searchSeq.current++
@@ -113,7 +118,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
     const timer = setTimeout(() => { void runSearch(q) }, 250)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, enabledSignature])
+  }, [keyword, enabledSignature, accountSignature])
 
   function handleSearchClick() {
     if (!isExpanded) setIsExpanded(true)

@@ -6,6 +6,7 @@ import { useProviderStore } from '../stores/providers'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { useToastStore } from '../stores/toast'
 import { localMusicService } from '../lib/local-music-service'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
@@ -97,6 +98,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
   const [tab, setTab] = useState<SubTab>('playlists')
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
+  const accountSession = contentSource ? providerAccountSession(contentSource) : 0
   const albumsAvailable = !!contentSource && !!providerFor(contentSource).library?.getUserAlbums
   useEffect(() => {
     if (tab === 'albums' && !albumsAvailable) setTab('playlists')
@@ -131,13 +133,13 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
       {tab === 'app-playlists' && <AppPlaylistsTab />}
 
       {tab === 'playlists' && (contentSource
-        ? <ProviderLibraryGrid mode="playlists" source={contentSource} />
+        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:playlists`} mode="playlists" source={contentSource} />
         : <OnlineLibraryUnavailable />)}
 
-      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid mode="albums" source={contentSource} />}
+      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid key={`${contentSource}:${accountSession}:albums`} mode="albums" source={contentSource} />}
 
       {tab === 'favorites' && (contentSource
-        ? <ProviderLibraryGrid mode="favorites" source={contentSource} />
+        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:favorites`} mode="favorites" source={contentSource} />
         : <OnlineLibraryUnavailable />)}
 
       {tab === 'recent' && <RecentPlaysList scrollRef={scrollRef} />}
