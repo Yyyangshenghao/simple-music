@@ -1,0 +1,94 @@
+{
+  "checks": [
+    "删除B后旧UI点击C不会误播原下标上的D",
+    "D设为下一首后旧UI的C命令不会错误操作B",
+    "B拖拽开始后后台重排并真实重渲染，迟到drop不会移动D",
+    "正常点击仍可播放目标C",
+    "正常设为下一首仍把C放到A之后",
+    "正常拖拽仍可将B移到D之后",
+    "随机模式按显示位置核对两端，拖拽只改变走序并保持物理队列和当前曲目",
+    "原生流程未捕获渲染异常"
+  ],
+  "method": "Actual QueuePanel mounted in a React fixture and original playback IPC proxy. Delayed mirror is modeled by replaying only old UI queue data after an actual host mutation; proxy methods stay intact. Drag uses DOM DragEvent/DataTransfer, including a real React rerender between dragstart and drop. Four indexed local 120-second WAV tracks avoid platform accounts. Targets distinguish source+ID, not identical duplicate instances.",
+  "stalePlay": {
+    "queue": [
+      "a-current",
+      "c-target",
+      "d-other"
+    ],
+    "current": "a-current",
+    "status": "playing",
+    "order": [
+      0,
+      2,
+      1
+    ]
+  },
+  "staleNext": {
+    "queue": [
+      "a-current",
+      "d-other",
+      "b-target",
+      "c-target"
+    ],
+    "current": "a-current",
+    "status": "playing",
+    "order": [
+      3,
+      1,
+      2,
+      0
+    ]
+  },
+  "staleDrag": {
+    "queue": [
+      "a-current",
+      "d-other",
+      "b-target",
+      "c-target"
+    ],
+    "current": "a-current",
+    "status": "playing",
+    "order": [
+      2,
+      0,
+      3,
+      1
+    ]
+  },
+  "shuffle": {
+    "queue": [
+      "a-current",
+      "b-target",
+      "c-target",
+      "d-other"
+    ],
+    "current": "a-current",
+    "status": "playing",
+    "order": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "errors": [],
+  "passed": true,
+  "date": "2026-10-15",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; normal React imports; generated local WAV"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 254,
+      "tests": 2232
+    },
+    "independentReview": "passed",
+    "regression": "old-index play, next and order/shuffle move guards fail before fixes and pass after; normal calls and internal play intent unchanged"
+  },
+  "screenshot": "assets/2.4.0-queue-targets.png"
+}

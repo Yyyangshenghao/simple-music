@@ -30,7 +30,7 @@ function QueueIcon() {
 export function QueuePanel() {
   const [open, setOpen] = useState(false)
   const [dragOver, setDragOver] = useState<number | null>(null)
-  const dragFrom = useRef<number | null>(null)
+  const dragFrom = useRef<{ index: number; key: string } | null>(null)
   const queue = usePlaylistStore((s) => s.queue)
   const queueIndex = usePlaylistStore((s) => s.queueIndex)
   const shuffleOrder = usePlaylistStore((s) => s.shuffleOrder)
@@ -152,7 +152,7 @@ export function QueuePanel() {
                         data-drag-over={dragOver === i}
                         draggable={queue.length > 1}
                         onDragStart={(event) => {
-                          dragFrom.current = i
+                          dragFrom.current = { index: i, key: `${t.source}:${String(t.id)}` }
                           event.dataTransfer.effectAllowed = 'move'
                           event.dataTransfer.setData('text/plain', String(i))
                         }}
@@ -164,7 +164,7 @@ export function QueuePanel() {
                         onDrop={(event) => {
                           if (dragFrom.current === null) return
                           event.preventDefault()
-                          moveQueueItem(dragFrom.current, i)
+                          moveQueueItem(dragFrom.current.index, i, { from: dragFrom.current.key, to: `${t.source}:${String(t.id)}` })
                           dragFrom.current = null
                           setDragOver(null)
                         }}
@@ -176,13 +176,14 @@ export function QueuePanel() {
                         <button
                           type="button"
                           className={styles.rowMain}
-                          onClick={() => { if (!isCurrent) playAt(originalIndex) }}
+                          onClick={() => { if (!isCurrent) playAt(originalIndex, { expectedTrackKey: `${t.source}:${String(t.id)}` }) }}
                           onKeyDown={(event) => {
                             if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
                             event.preventDefault()
                             const target = i + (event.key === 'ArrowUp' ? -1 : 1)
                             if (target < 0 || target >= display.indices.length) return
-                            moveQueueItem(i, target)
+                            const targetTrack = queue[display.indices[target]]
+                            moveQueueItem(i, target, { from: `${t.source}:${String(t.id)}`, to: `${targetTrack.source}:${String(targetTrack.id)}` })
                             requestAnimationFrame(() => {
                               listRef.current?.querySelector<HTMLButtonElement>(`[data-queue-display-index="${target}"]`)?.focus()
                             })
@@ -219,7 +220,7 @@ export function QueuePanel() {
                               disabled={playMode === 'one'}
                               title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
                               aria-label={`将 ${t.name} 设为下一首`}
-                              onClick={() => playNextInQueue(originalIndex)}>下一首</button>
+                              onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>下一首</button>
                             <button type="button" className={styles.rowAction}
                               title="从队列移除" aria-label={`从队列移除 ${t.name}`}
                               onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
