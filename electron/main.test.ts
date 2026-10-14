@@ -321,6 +321,19 @@ describe('主窗口激活恢复', () => {
     expect(h.createMainWindow).toHaveBeenLastCalledWith(35530, 'test-token')
   })
 
+  it.each(['activate', 'second-instance'])('%s 恢复时先结束游戏模式，不依赖系统show事件', async (event) => {
+    const game = await import('./modules/game-mode')
+    const get = vi.spyOn(game, 'getGameMode').mockReturnValue({ enabled: true })
+    const set = vi.spyOn(game, 'setGameMode').mockReturnValue({ enabled: false })
+    try {
+      h.main = null
+      h.events.get(event)!()
+      await flush()
+      expect(set).toHaveBeenCalledWith({ enabled: false }, false)
+      expect(h.createMainWindow).toHaveBeenCalledTimes(2)
+    } finally { get.mockRestore(); set.mockRestore() }
+  })
+
   it('仅有悬浮窗时仍重建主窗口', async () => {
     h.main = null
     h.windows = [{}]

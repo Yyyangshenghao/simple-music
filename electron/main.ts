@@ -139,6 +139,8 @@ if (!gotLock) {
   const restoreMainWindow = () => {
     void startup.then(() => {
       if (isQuitting) return
+      // 后台/被遮挡窗口未必及时发 show；恢复入口先结束模式，避免重建UI仍被卸载。
+      if (getGameMode().enabled) setGameMode({ enabled: false }, false)
       const win = getMainWindow()
       if (!win || win.isDestroyed()) createPlayerWindow(getServerPort(), getServerToken())
       returnFromMiniPlayer()

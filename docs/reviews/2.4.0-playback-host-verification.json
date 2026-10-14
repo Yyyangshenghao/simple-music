@@ -12,105 +12,105 @@
   "samples": {
     "visible": [
       {
-        "workingSetMiB": 728.641,
-        "cpuPercent": 1.368692,
+        "workingSetMiB": 727.375,
+        "cpuPercent": 1.31055,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 729.203,
-        "cpuPercent": 1.335848,
+        "workingSetMiB": 727.953,
+        "cpuPercent": 1.324533,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 729.719,
-        "cpuPercent": 1.312446,
+        "workingSetMiB": 728.594,
+        "cpuPercent": 1.389332,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 719.812,
-        "cpuPercent": 1.742009,
+        "workingSetMiB": 729.078,
+        "cpuPercent": 1.32324,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 715.906,
-        "cpuPercent": 2.410513,
+        "workingSetMiB": 729.688,
+        "cpuPercent": 1.397711,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 716.328,
-        "cpuPercent": 1.048318,
+        "workingSetMiB": 730.141,
+        "cpuPercent": 1.27959,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 716.828,
-        "cpuPercent": 1.04785,
+        "workingSetMiB": 730.219,
+        "cpuPercent": 1.315175,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 717.453,
-        "cpuPercent": 1.071067,
+        "workingSetMiB": 730.984,
+        "cpuPercent": 1.417367,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 718.062,
-        "cpuPercent": 1.106455,
+        "workingSetMiB": 731.625,
+        "cpuPercent": 1.351196,
         "rendererCount": 2
       },
       {
-        "workingSetMiB": 718.562,
-        "cpuPercent": 1.080309,
+        "workingSetMiB": 732.203,
+        "cpuPercent": 1.526248,
         "rendererCount": 2
       }
     ],
     "game": [
       {
-        "workingSetMiB": 570.719,
-        "cpuPercent": 0.197673,
+        "workingSetMiB": 578.359,
+        "cpuPercent": 0.19831,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.719,
-        "cpuPercent": 0.186496,
+        "workingSetMiB": 578.328,
+        "cpuPercent": 0.170685,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.734,
-        "cpuPercent": 0.197452,
+        "workingSetMiB": 578.328,
+        "cpuPercent": 0.195808,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.734,
-        "cpuPercent": 0.199977,
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.188127,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.734,
-        "cpuPercent": 0.199765,
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.196788,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.734,
-        "cpuPercent": 0.186952,
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.195681,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.75,
-        "cpuPercent": 0.189233,
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.194252,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.766,
-        "cpuPercent": 0.195544,
+        "workingSetMiB": 569.703,
+        "cpuPercent": 0.686776,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 570.969,
-        "cpuPercent": 0.228686,
+        "workingSetMiB": 568.688,
+        "cpuPercent": 0.721597,
         "rendererCount": 1
       },
       {
-        "workingSetMiB": 571.016,
-        "cpuPercent": 0.216127,
+        "workingSetMiB": 568.703,
+        "cpuPercent": 0.235549,
         "rendererCount": 1
       }
     ]
@@ -124,6 +124,7 @@
     "无UI持续播放没有重新请求音频",
     "生产界面恢复后接回连续播放进度",
     "生产界面恢复不重载音频",
+    "恢复界面实际挂载内容，没有游戏模式空白",
     "生产构建无UI睡眠停止成功"
   ],
   "errors": [],
