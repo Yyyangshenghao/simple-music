@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { advanceProviderAccountSession } from './provider-account-session'
 import { providerErrorOf, runProviderTasks } from './content-hub'
 
 describe('content hub', () => {
@@ -62,6 +63,42 @@ describe('content hub', () => {
 
     await expect(running).resolves.toEqual([])
     expect(onUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['success', 'error'] as const)('换号后丢弃旧账号的 %s 结果，即使平台仍启用', async outcome => {
+    let resolve!: (value: string[]) => void
+    let reject!: (error: Error) => void
+    const task = new Promise<string[]>((done, fail) => { resolve = done; reject = fail })
+    const onUpdate = vi.fn()
+    const running = runProviderTasks(['netease'], () => task, { isEnabled: () => true, onUpdate })
+    advanceProviderAccountSession('netease')
+    if (outcome === 'success') resolve(['旧账号歌单'])
+    else reject(new Error('HTTP 401'))
+    await expect(running).resolves.toEqual([])
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    expect(onUpdate).toHaveBeenLastCalledWith({ source: 'netease', status: 'loading', data: null })
+  })
+
+  it('退出后重登回同一状态仍丢弃旧账号请求，但保留另一平台结果', async () => {
+    let resolve!: (value: string[]) => void
+    const task = new Promise<string[]>((done) => { resolve = done })
+    const running = runProviderTasks(['qq', 'netease'], source => source === 'qq' ? task : Promise.resolve(['网易当前歌单']))
+    advanceProviderAccountSession('qq')
+    advanceProviderAccountSession('qq')
+    resolve(['QQ旧歌单'])
+    await expect(running).resolves.toEqual([{ source: 'netease', status: 'ready', data: ['网易当前歌单'] }])
+  })
+
+  it('并发批次等待另一平台期间换号，最终返回值也排除已完成的旧账号结果', async () => {
+    let resolve!: (value: string[]) => void
+    const pending = new Promise<string[]>(done => { resolve = done })
+    const onUpdate = vi.fn()
+    const running = runProviderTasks(['apple', 'netease'], source => source === 'apple' ? Promise.resolve(['旧专辑']) : pending, { onUpdate })
+    await Promise.resolve()
+    expect(onUpdate).toHaveBeenCalledWith({ source: 'apple', status: 'ready', data: ['旧专辑'] })
+    advanceProviderAccountSession('apple')
+    resolve(['当前网易歌单'])
+    await expect(running).resolves.toEqual([{ source: 'netease', status: 'ready', data: ['当前网易歌单'] }])
   })
 
   it('归一常见错误且不泄露原始原因到用户文案', () => {

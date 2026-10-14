@@ -1,3 +1,4 @@
+import { providerAccountSession } from './provider-account-session'
 import type { ProviderId } from '../providers/types'
 
 export type ProviderErrorCode =
@@ -73,7 +74,7 @@ export function providerErrorOf(source: ProviderId, error: unknown): ProviderErr
 }
 
 /**
- * 并发运行多个 provider 任务。每个平台独立落地结果；中途取消或被禁用的平台会丢弃迟到响应。
+ * 并发运行多个 provider 任务。每个平台独立落地结果；中途取消、停用或更换账号的平台会丢弃迟到响应。
  * 返回值始终按输入 provider 顺序排列，避免请求完成顺序改变 UI。
  */
 export async function runProviderTasks<T>(
@@ -83,6 +84,9 @@ export async function runProviderTasks<T>(
 ): Promise<ProviderResult<T>[]> {
   const isEnabled = options.isEnabled ?? (() => true)
   const activeSources = sources.filter(isEnabled)
+  const sessions = new Map(activeSources.map(source => [source, providerAccountSession(source)]))
+  const current = (source: ProviderId) => !options.signal?.aborted && isEnabled(source)
+    && sessions.get(source) === providerAccountSession(source)
   const terminal = new Map<ProviderId, ProviderResult<T>>()
 
   for (const source of activeSources) {
@@ -92,7 +96,7 @@ export async function runProviderTasks<T>(
   await Promise.all(activeSources.map(async (source) => {
     try {
       const data = await task(source)
-      if (options.signal?.aborted || !isEnabled(source)) return
+      if (!current(source)) return
       const result: ProviderResult<T> = {
         source,
         status: options.isEmpty?.(data) ? 'empty' : 'ready',
@@ -101,7 +105,7 @@ export async function runProviderTasks<T>(
       terminal.set(source, result)
       options.onUpdate?.(result)
     } catch (error) {
-      if (options.signal?.aborted || !isEnabled(source)) return
+      if (!current(source)) return
       const result: ProviderResult<T> = {
         source,
         status: 'error',
@@ -114,6 +118,7 @@ export async function runProviderTasks<T>(
   }))
 
   return activeSources.flatMap((source) => {
+    if (!current(source)) return []
     const result = terminal.get(source)
     return result ? [result] : []
   })
