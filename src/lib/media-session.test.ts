@@ -25,7 +25,7 @@ beforeEach(() => {
   h.shuangeActive = false
   h.player = { currentTrack: null, duration: 0, position: 0, status: 'idle', rate: 1 }
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('系统媒体键开关', () => {
   it('媒体键在刷歌会话中切换 feed，退出后恢复普通队列控制', async () => {
@@ -89,6 +89,57 @@ describe('系统媒体键开关', () => {
     expect(handlers.get('play')).toBeNull()
     stalePlay({ action: 'play' })
     expect(h.play).not.toHaveBeenCalled()
+  })
+
+  it('刚暂停后连续定位立即更新系统进度，不被播放进度的一秒节流丢弃', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10000)
+    h.player = { currentTrack: { id: 1, name: '歌曲', artist: '歌手' } as Track, duration: 180, position: 30, status: 'playing', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    let previous = h.player
+    h.player = { ...h.player, status: 'paused' }
+    h.onPlayer?.(h.player, previous)
+    for (const position of [42, 55]) {
+      previous = h.player
+      h.player = { ...h.player, position }
+      h.onPlayer?.(h.player, previous)
+      expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position, playbackRate: 1 })
+    }
+    expect(ms.playbackState).toBe('paused')
+    stop()
+  })
+
+  it('暂停时修改倍速立即更新系统时钟，正常播放进度仍按一秒同步', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10000)
+    h.player = { currentTrack: { id: 1, name: '歌曲', artist: '歌手' } as Track, duration: 180, position: 30, status: 'paused', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    let previous = h.player
+    h.player = { ...h.player, rate: 2 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position: 30, playbackRate: 2 })
+    previous = h.player
+    h.player = { ...h.player, status: 'playing' }
+    h.onPlayer?.(h.player, previous)
+    ms.setPositionState.mockClear()
+    previous = h.player
+    h.player = { ...h.player, position: 31 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).not.toHaveBeenCalled()
+    vi.setSystemTime(11000)
+    previous = h.player
+    h.player = { ...h.player, position: 32 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position: 32, playbackRate: 2 })
+    stop()
   })
 
   it('播放后清空队列时清除系统曲目信息、播放状态与旧进度', async () => {

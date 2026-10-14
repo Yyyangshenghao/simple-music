@@ -90,7 +90,8 @@ export function initMediaSession(): () => void {
   const stopPlayer = usePlayerStore.subscribe((s, prev) => {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
     if (s.currentTrack !== prev.currentTrack) updateMetadata(s.currentTrack)
-    if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration) {
+    if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration
+      || s.rate !== prev.rate || (s.status !== 'playing' && s.position !== prev.position)) {
       syncPositionState()
       lastPositionSync = Date.now()
       return

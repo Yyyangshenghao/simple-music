@@ -1,0 +1,132 @@
+{
+  "checks": [
+    "实际本地音频和系统媒体信息已起播",
+    "游戏模式主界面已销毁",
+    "无UI暂停后同一轮连续定位和倍速均即时送达原生系统时钟",
+    "无UI系统暂停保持暂停",
+    "无UI系统播放从定位断点继续",
+    "无UI系统下一首推进实际队列及媒体标题",
+    "无UI系统上一首回到原曲",
+    "关闭媒体键后旧回调不会播放或定位",
+    "恢复主界面接回系统控制后的暂停倍速和队列",
+    "恢复界面未重新请求音频",
+    "恢复界面实际挂载"
+  ],
+  "method": "Actual hidden playback host and AudioEngine; wrap native MediaSession registration/position methods and invoke the captured registered handlers. No physical media keys or device switching.",
+  "immediate": {
+    "samples": [
+      {
+        "duration": 120,
+        "position": 12,
+        "playbackRate": 1
+      },
+      {
+        "duration": 120,
+        "position": 25,
+        "playbackRate": 1
+      },
+      {
+        "duration": 120,
+        "position": 25,
+        "playbackRate": 2
+      }
+    ],
+    "status": "paused",
+    "systemStatus": "paused"
+  },
+  "final": {
+    "position": 1.468191,
+    "status": "paused",
+    "rate": 2,
+    "index": 0,
+    "systemStatus": "none",
+    "samples": [
+      {
+        "duration": 6,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0.457109,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 1.468191,
+        "playbackRate": 2
+      },
+      null
+    ],
+    "audioRequests": 3
+  },
+  "disabled": {
+    "position": 0.457109,
+    "status": "paused",
+    "rate": 2,
+    "index": 0,
+    "systemStatus": "none",
+    "samples": [
+      {
+        "duration": 120,
+        "position": 25,
+        "playbackRate": 2
+      },
+      {
+        "duration": 6,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 6,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0,
+        "playbackRate": 2
+      },
+      {
+        "duration": 120,
+        "position": 0.457109,
+        "playbackRate": 2
+      }
+    ],
+    "audioRequests": 3
+  },
+  "passed": true,
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; local silent WAV"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 253,
+      "tests": 2220
+    },
+    "independentReview": "passed"
+  },
+  "limitations": [
+    "Native MediaSession methods invoked with captured registered action handlers, not physical keys or control-center clicks",
+    "No real provider accounts, Windows device, audio output switching, or target-game benchmark"
+  ]
+}
