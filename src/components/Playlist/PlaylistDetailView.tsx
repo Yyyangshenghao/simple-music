@@ -58,6 +58,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     return typeof view === 'object' && view.type === 'playlist'
       && view.playlist.source === playlist.source && String(view.playlist.id) === String(playlist.id)
   })
+  const accountSignature = useProviderStore(state => isProviderId(playlist.source)
+    ? `${state.byId[playlist.source].enabled}:${state.byId[playlist.source].auth}:${providerAccountSession(playlist.source)}` : 'local')
+  const accountSession = isProviderId(playlist.source) ? providerAccountSession(playlist.source) : 0
+  const requestScope = `${playlist.source}:${playlist.type}:${String(playlist.id)}:${accountSignature}`
   const [query, setQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -67,40 +71,57 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const [refreshError, setRefreshError] = useState(false)
   const refreshInFlight = useRef(false)
   const checkInFlight = useRef(false)
+  const scopeRef = useRef<string | null>(requestScope)
+  if (scopeRef.current !== requestScope) {
+    scopeRef.current = requestScope
+    refreshInFlight.current = false
+    checkInFlight.current = false
+  }
+  const currentRequest = () => scopeRef.current === requestScope
+    && (!isProviderId(playlist.source) || accountSession === providerAccountSession(playlist.source))
+  useEffect(() => {
+    scopeRef.current = requestScope
+    setRefreshing(false)
+    setRefreshError(false)
+    return () => { scopeRef.current = null }
+  }, [requestScope])
   const searching = Boolean(query.trim())
   const isAlbum = playlist.type === 'album'
   const coverLayoutId = isAlbum ? `album-cover-${playlist.source}-${String(playlist.id)}` : `${layoutIdPrefix}-${String(playlist.id)}`
   const pageRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const [albumDetail, setAlbumDetail] = useState<Playlist | null>(null)
+  const [albumSnapshot, setAlbumDetail] = useState<{ scope: string; playlist: Playlist } | null>(null)
+  const albumDetail = albumSnapshot?.scope === requestScope ? albumSnapshot.playlist : null
   const service = serviceFor(playlist.source)
   const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
   const canRefresh = playlist.type !== 'album' && !initialTracks?.length
   const refreshPlaylist = useCallback(async () => {
-    if (!canRefresh || refreshInFlight.current) return
+    if (!canRefresh || !currentRequest() || refreshInFlight.current) return
     refreshInFlight.current = true
     setRefreshing(true)
     setRefreshError(false)
     try {
       await refresh()
     } catch {
-      setRefreshError(true)
+      if (currentRequest()) setRefreshError(true)
     } finally {
-      refreshInFlight.current = false
-      setRefreshing(false)
+      if (currentRequest()) {
+        refreshInFlight.current = false
+        setRefreshing(false)
+      }
     }
-  }, [canRefresh, refresh])
+  }, [canRefresh, refresh, requestScope])
   const checkPlaylist = useCallback(async () => {
-    if (!canRefresh || checkInFlight.current || refreshInFlight.current) return
+    if (!canRefresh || !currentRequest() || checkInFlight.current || refreshInFlight.current) return
     checkInFlight.current = true
     try {
       await checkForUpdates()
     } catch {
       // 自动检查失败时保留现有歌曲；下次回到前台或定时检查会重试。
     } finally {
-      checkInFlight.current = false
+      if (currentRequest()) checkInFlight.current = false
     }
-  }, [canRefresh, checkForUpdates])
+  }, [canRefresh, checkForUpdates, requestScope])
   useEffect(() => {
     if (!canRefresh) return
     const onFocus = () => { void checkPlaylist() }
@@ -128,8 +149,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
   const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
   const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
-  const accountSignature = useProviderStore(state => isProviderId(playlist.source)
-    ? `${state.byId[playlist.source].enabled}:${state.byId[playlist.source].auth}:${providerAccountSession(playlist.source)}` : 'local')
   const selection = useMultiSelection({
     enabled: selecting,
     keys: visibleSelectionTracks.map(track => String(track.id)),
@@ -147,10 +166,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     setAlbumDetail(null)
     if (!available || playlist.type !== 'album' || !service.getAlbumDetail) return () => { cancelled = true }
     void service.getAlbumDetail(playlist.id)
-      .then((detail) => { if (!cancelled && detail) setAlbumDetail(detail) })
+      .then((detail) => { if (!cancelled && currentRequest() && detail) setAlbumDetail({ scope: requestScope, playlist: detail }) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [available, playlist.id, playlist.source, playlist.type, service])
+  }, [available, playlist.id, playlist.source, playlist.type, service, requestScope])
 
   // 平台一旦停止参与，立即退出其详情页；避免保留来源标识、重试按钮等失效交互。
   useEffect(() => {
@@ -163,7 +182,9 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   }, [active, displayCover])
 
   function playAt(index: number) {
-    usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
+    const queue = makeQueue()
+    if (!queue.length) return
+    usePlaylistStore.getState().setQueue(queue, index, playlist.id)
   }
 
   if (!available) return null

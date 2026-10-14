@@ -30,12 +30,16 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
 
   function playAll() {
     if (total === 0) return
-    usePlaylistStore.getState().setQueue(makeQueue(), 0, playlist.id)
+    const queue = makeQueue()
+    if (!queue.length) return
+    usePlaylistStore.getState().setQueue(queue, 0, playlist.id)
     onClose()
   }
 
   function playTrack(index: number) {
-    usePlaylistStore.getState().setQueue(makeQueue(), index, playlist.id)
+    const queue = makeQueue()
+    if (!queue.length) return
+    usePlaylistStore.getState().setQueue(queue, index, playlist.id)
   }
 
   function openDetail() {

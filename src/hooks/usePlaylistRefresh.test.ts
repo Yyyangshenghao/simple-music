@@ -14,7 +14,9 @@ vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({
   getPlaylistRevision: harness.revision,
   getTracksByIds: harness.details,
 }) }))
-vi.mock('../stores/providers', () => ({ useProviderStore: () => true, isProviderParticipating: () => true }))
+vi.mock('../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
+  netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+} }), isProviderParticipating: () => true }))
 import { useLazyPlaylist } from './useLazyPlaylist'
 
 let id = 0

@@ -11,7 +11,9 @@ vi.mock('react', () => ({
 }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }) }))
 vi.mock('../stores/providers', () => ({
-  useProviderStore: () => true,
+  useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+  } }),
   isProviderParticipating: () => true,
 }))
 import { invalidatePlaylistCache, loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
