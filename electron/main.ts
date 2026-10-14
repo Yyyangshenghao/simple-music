@@ -5,12 +5,13 @@ import {
   positionDesktopLyricsWindow,
   positionWallpaperWindow,
   closeOverlays,
+  stopPlaybackOverlays,
   returnFromMiniPlayer
 } from './modules/overlay-manager'
 import { unregisterHotkeys } from './modules/hotkey-manager'
 import { createTray, destroyTray, updateTrayPlayback } from './modules/tray-manager'
 import { registerIpc } from './ipc'
-import { getGameMode, setGameMode } from './modules/game-mode'
+import { getGameMode, setGameMode, clearGameModeOverlayRestore } from './modules/game-mode'
 import { attachWindowClose } from './modules/window-close'
 import { createPlaybackHost, getPlaybackHost, closePlaybackHost, attachPlaybackUi, onPlaybackHostFailure } from './modules/playback-host'
 import { flushRendererListeningReports } from './modules/listening-flush'
@@ -81,6 +82,8 @@ async function boot(): Promise<void> {
     return
   }
   onPlaybackHostFailure(() => {
+    clearGameModeOverlayRestore()
+    stopPlaybackOverlays()
     void stopAppleMusicPlayback()
     updateTrayPlayback({ title: '播放后台已停止', artist: '', playing: false, hasTrack: false, canSkip: false, volume: 1, desktopLyrics: false })
   })

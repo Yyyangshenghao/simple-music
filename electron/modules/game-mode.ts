@@ -17,6 +17,12 @@ export function onGameModeChange(listener: () => void): () => void {
   return () => { listeners.delete(listener) }
 }
 
+/** 后台失联后不再恢复依赖旧播放状态的窗口，不主动打断游戏。 */
+export function clearGameModeOverlayRestore(): void {
+  restoreMiniPlayer = false
+  restoreWallpaper = false
+}
+
 export function setGameMode(next: GameModeState, restoreWindow = true): GameModeState {
   if (state.enabled === !!next.enabled) return getGameMode()
   const entering = next.enabled && !state.enabled

@@ -12,6 +12,9 @@ import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkR
 
 const platform = getPlatform()
 
+// 宿主失联后需重启应用；阻止显式开启和在途更新重建失效悬浮窗。
+let playbackStopped = false
+
 let lyricsWindow: BrowserWindow | null = null
 let lyricsBackdrop: ReturnType<typeof createLyricsNativeBackdrop> = null
 let lyricsBackdropAttempted = false
@@ -602,6 +605,7 @@ function notifyRendererMiniOff(): void {
 }
 
 export function setMiniPlayerEnabled(enabled: boolean, width?: number): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (width !== undefined) {
     miniPlayerWidth = Math.round(clampNumber(width, MINI_PLAYER_MIN_WIDTH, MINI_PLAYER_MAX_WIDTH, MINI_PLAYER_DEFAULT_WIDTH))
     if (miniPlayerUserBounds) miniPlayerUserBounds = { ...miniPlayerUserBounds, width: miniPlayerWidth }
@@ -692,6 +696,7 @@ export function triggerMiniPlayerControl(action: string, value?: number): OkResu
 
 // ---------- 对外 API（供 ipc 调用） ----------
 export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}, requested = false): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (enabled) {
     createLyricsWindow(payload)
     broadcastLyricsEnabledState(true, requested)
@@ -702,6 +707,7 @@ export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}, 
 }
 
 export function updateLyrics(payload: LyricsPayload = {}): OkResult {
+  if (playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   const next = { ...lyricsState, ...payload }
   // 高频逐字时钟只更新绘制状态，避免重复调整窗口与鼠标穿透。
   if (Object.keys(payload).length === 1 && Object.hasOwn(payload, 'wordClock')) {
@@ -812,6 +818,7 @@ export function setLyricsControlBounds(bounds: Partial<HotBounds> & { hover?: Ho
 }
 
 export function setWallpaperEnabled(enabled: boolean, payload: WallpaperPayload = {}): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (enabled) createWallpaperWindow(payload)
   else closeWallpaperWindow()
   return { ok: true }
@@ -824,6 +831,7 @@ export function suspendWallpaper(): boolean {
 }
 
 export function updateWallpaper(payload: WallpaperPayload = {}): OkResult {
+  if (playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   wallpaperState = { ...wallpaperState, ...payload }
   if (wallpaperState.enabled) {
     createWallpaperWindow(wallpaperState)
@@ -842,4 +850,9 @@ export function closeOverlays(): void {
   closeLyricsWindow(true)
   closeWallpaperWindow()
   closeMiniPlayerWindow()
+}
+
+export function stopPlaybackOverlays(): void {
+  playbackStopped = true
+  closeOverlays()
 }
