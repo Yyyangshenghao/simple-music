@@ -1,0 +1,59 @@
+{
+  "checks": [
+    "真实推荐 helper 连续调用两次，后台原子追加只保留一份",
+    "两个动作都通过尚未刷新的UI预检并发送",
+    "真实 QueuePanel 同一按钮同轮双击，只删除B并保留移位到该下标的C",
+    "当前长曲仍为playing，队列播放目标保持",
+    "游戏模式已释放真实主窗口",
+    "重建的主界面已挂载，经其IPC读取后台队列与playing状态正确",
+    "原生流程未捕获渲染异常"
+  ],
+  "method": "Actual queue-discovery helper and QueuePanel mounted in temporary React fixture, using the original UI playback IPC proxy and actual host queue. Fake QQ participation and one recommendation are metadata-only, with no account or provider playback. Expected removal target is source+ID, not a unique duplicate-instance identity.",
+  "recommendations": [
+    {
+      "source": "qq",
+      "id": "queue-command-recommendation",
+      "name": "推荐曲目夹具（只追加）"
+    }
+  ],
+  "afterDoubleRemoval": [
+    {
+      "source": "local",
+      "id": "2f9b3e29548da1cfc0346404b2f6e5c19334b03d",
+      "name": "c-long"
+    },
+    {
+      "source": "local",
+      "id": "151579e61916c44cb4fc6112640e4229eb24313c",
+      "name": "b-short"
+    }
+  ],
+  "restored": {
+    "queue": [
+      "c-long",
+      "b-short"
+    ],
+    "index": 0,
+    "status": "playing"
+  },
+  "errors": [],
+  "passed": true,
+  "date": "2026-10-15",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; normal React imports; silent local WAV and metadata-only QQ fixture"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 254,
+      "tests": 2228
+    },
+    "independentReview": "passed",
+    "regression": "stale-mirror double recommendation, double removal and different-source same-ID guards fail before fixes and pass after"
+  },
+  "restoredObservability": "Recreated main UI DOM mounted; restored values read via raw playbackRequest reflect the host, not a separate assertion of client mirror fields.",
+  "screenshot": "assets/2.4.0-queue-command.png"
+}

@@ -347,6 +347,30 @@ describe('playlist 播放模式走序', () => {
     expect(loadTrack).not.toHaveBeenCalled()
   })
 
+  it.each([1, '1'])('旧移除回执未更新界面时，重复移除 %s 不误删相邻曲目', async id => {
+    const { usePlaylistStore, loadTrack } = await setup(3)
+    const tracks = [...usePlaylistStore.getState().queue]
+    tracks[1] = { ...tracks[1], id }
+    usePlaylistStore.setState({ queue: tracks, queueIndex: 0, shuffleOrder: [0, 2, 1] })
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 2])
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([0, 1])
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it('相同 ID 的来源变化后旧移除命令无效，正确目标仍可移除', async () => {
+    const { usePlaylistStore } = await setup(3)
+    const tracks = [...usePlaylistStore.getState().queue]
+    tracks[1] = { ...tracks[1], source: 'qq', provider: 'qq' }
+    usePlaylistStore.setState({ queue: tracks, queueIndex: 0 })
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    expect(usePlaylistStore.getState().queue).toEqual(tracks)
+    usePlaylistStore.getState().removeQueueItem(1, 'qq:1')
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 2])
+  })
+
   it('单曲循环:自然播完原地重播,不切换曲目', async () => {
     const { usePlaylistStore, usePlayerStore, loadTrack } = await setup(3)
     useSettingsStore.setState({ playMode: 'one' })

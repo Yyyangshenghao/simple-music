@@ -37,7 +37,8 @@ interface PlaylistStore extends QueueState {
   /** 按面板显示位置移动曲目；随机模式下移动实际洗牌顺序。 */
   moveQueueItem(fromDisplayIndex: number, toDisplayIndex: number): void
   playNextInQueue(index: number): void
-  removeQueueItem(index: number): void
+  /** 界面命令携带来源与 ID，避免旧下标误删另一首歌曲。 */
+  removeQueueItem(index: number, expectedTrackKey?: string): void
   /** 补全可见范围的占位曲目，不改变播放位置。 */
   ensureQueueDetails(indices: number[]): Promise<void>
   playAt(index: number, opts?: { preservePlaybackIntent?: boolean }): void
@@ -170,8 +171,11 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
     schedulePreloadNeighbors()
   },
 
-  removeQueueItem(index) {
-    const update = removeQueueTrack(get(), index)
+  removeQueueItem(index, expectedTrackKey) {
+    const state = get()
+    const track = state.queue[index]
+    if (expectedTrackKey !== undefined && (!track || `${track.source}:${String(track.id)}` !== expectedTrackKey)) return
+    const update = removeQueueTrack(state, index)
     if (!update) return
     set(update)
     schedulePreloadNeighbors()
