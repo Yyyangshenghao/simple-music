@@ -222,7 +222,7 @@ export function QueuePanel() {
                               onClick={() => playNextInQueue(originalIndex)}>下一首</button>
                             <button type="button" className={styles.rowAction}
                               title="从队列移除" aria-label={`从队列移除 ${t.name}`}
-                              onClick={() => removeQueueItem(originalIndex)}>×</button>
+                              onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
                           </>
                         )}
                       </div>

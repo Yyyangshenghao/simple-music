@@ -30,6 +30,20 @@ describe('appendDiscoveredTrack', () => {
     expect(appendDiscoveredTrack(next)).toBe(false)
     expect(usePlaylistStore.getState().queue).toHaveLength(2)
   })
+  it('主窗口镜像未更新时连点仍由后台按来源与 ID 原子去重', () => {
+    usePlaylistStore.setState({ queue: [{ ...next, source: 'netease' }], shuffleOrder: [0] })
+    const readHostState = usePlaylistStore.getState
+    const snapshot = readHostState()
+    const addManyToQueue = vi.fn(async (tracks: Track[]) => snapshot.addManyToQueue(tracks))
+    vi.spyOn(usePlaylistStore, 'getState').mockReturnValue({ ...snapshot, addManyToQueue })
+
+    expect(appendDiscoveredTrack(next)).toBe(true)
+    expect(appendDiscoveredTrack(next)).toBe(true)
+
+    expect(readHostState().queue).toEqual([{ ...next, source: 'netease' }, next])
+    expect(addManyToQueue).toHaveBeenCalledTimes(2)
+    expect(readHostState().shuffleOrder).toEqual([0, 1])
+  })
   it('QQ 被禁用或登录失效后不追加旧推荐', () => {
     for (const qq of [{ enabled: false, auth: 'authenticated' as const }, { enabled: true, auth: 'expired' as const }]) {
       useProviderStore.setState((s) => ({ byId: { ...s.byId, qq } }))
