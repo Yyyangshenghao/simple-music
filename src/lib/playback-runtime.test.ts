@@ -94,6 +94,20 @@ it('无React时核实留存账号并更新真实Provider，重复启动不重查
   expect(vi.getTimerCount()).toBe(0)
 })
 
+it('宿主停止取消睡眠倒计时，退出后的旧时钟不再尝试暂停已释放的播放器', async () => {
+  await runtimeWithPendingGameMode()
+  const { useSleepTimerStore } = await import('../stores/sleep-timer')
+  const { usePlayerStore } = await import('../stores/player')
+  const pause = vi.spyOn(usePlayerStore.getState(), 'pause')
+  useSleepTimerStore.getState().start(10)
+  expect(useSleepTimerStore.getState().phase).toBe('counting')
+  stopRuntime!()
+  expect(useSleepTimerStore.getState()).toMatchObject({ phase: 'idle', endAt: null, remainingSec: 0 })
+  expect(vi.getTimerCount()).toBe(0)
+  await vi.advanceTimersByTimeAsync(60 * 60_000)
+  expect(pause).not.toHaveBeenCalled()
+})
+
 it('播放宿主无React时恢复下载队列，重复启动不覆盖，退出中止请求并保留原目录', async () => {
   const track: Track = { source: 'qq', provider: 'qq', type: 'song', id: 'download', name: '下载歌曲', artist: '', artists: [] }
   await runtimeWithPendingGameMode(JSON.stringify({ schema: 1, jobs: [{ track, directory: '/old-downloads' }] }))

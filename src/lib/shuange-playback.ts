@@ -1,6 +1,8 @@
 import { initShuangeSession, useShuangeStore } from '../stores/shuange'
 import { registerTrackEndedInterceptor, usePlayerStore } from '../stores/player'
 import { useNavigationStore } from '../stores/navigation'
+import { useSleepTimerStore } from '../stores/sleep-timer'
+import { currentPlaybackIntent, isCurrentPlaybackIntent } from './playback-intent'
 import { shouldAdvanceShuangeClip, shouldReleaseShuangeAdvanceLock } from './shuange-playback-policy'
 
 let stopShuangePlayback: (() => void) | undefined
@@ -13,7 +15,8 @@ export function initShuangePlayback(): () => void {
   let revision = 0
   let advancing = false
   const advance = (ended = false) => {
-    if (stopped) return false
+    // 到点后等待整曲自然结束，由播放核心的播完即停闸门接管。
+    if (stopped || useSleepTimerStore.getState().phase === 'finishing-track') return false
     const state = useShuangeStore.getState()
     const track = state.feed[state.index]
     const player = usePlayerStore.getState()
@@ -27,12 +30,14 @@ export function initShuangePlayback(): () => void {
     if (advancing) return true
     advancing = true
     const request = revision
+    const intent = currentPlaybackIntent()
     const beforeIndex = state.index
     const release = () => {
       const latest = useShuangeStore.getState()
       if (!stopped && revision === request && shouldReleaseShuangeAdvanceLock(beforeIndex, latest.index, latest.active)) advancing = false
     }
-    void state.next().then(release, release)
+    void state.next(() => !stopped && revision === request && isCurrentPlaybackIntent(intent)
+      && useSleepTimerStore.getState().phase !== 'finishing-track').then(release, release)
     return true
   }
   const stopState = useShuangeStore.subscribe((state, previous) => {
@@ -44,7 +49,12 @@ export function initShuangePlayback(): () => void {
   const stopPlayer = usePlayerStore.subscribe((player) => {
     if (shouldAdvanceShuangeClip(player.position, player.status, useShuangeStore.getState().offset)) advance()
   })
-  const stopEnded = registerTrackEndedInterceptor(() => advance(true))
+  const stopEnded = registerTrackEndedInterceptor(() => {
+    const consumed = advance(true)
+    // 已播完但仍在等补货时确实没有出声；到点应立即结束，不能再等一次 ended。
+    if (consumed && !useShuangeStore.getState().loading) usePlayerStore.setState({ status: 'paused', position: 0 })
+    return consumed
+  })
   const syncNavigation = () => {
     if (stopped) return
     const state = useShuangeStore.getState()

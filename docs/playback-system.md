@@ -197,6 +197,8 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 到点时若 `finishTrack` 开启且正在播（**loading 也算在播**——此刻 pause 会被起播中的 loadTrack 覆盖，挂闸门等播完更稳），不打断当前曲，经 `setStopAfterCurrent` 挂播完即停闸门；否则立即 pause。`finishing-track` 阶段用户关掉「播完再停」= 立即停。
 
+刷歌进入 `finishing-track` 后暂停片段自动推进，让当前整曲自然结束，由同一个播完即停闸门停止，卡片改为整曲进度与“当前歌曲播完后停止”提示；取消等待后恢复正常片段推进。自动补货完成前复核播放意图与等待状态；片段定位期间发生暂停时，已选卡载入为暂停，停止或新的播放则作废旧切卡。整曲结束闸门也使在途起播失效，避免旧音频结束后新卡重新出声。最小化或卸载界面不取消定时，宿主退出在最后存档后清理倒计时与闸门，旧时钟不再操作已释放的播放器。
+
 ## 11. 系统媒体集成（`src/lib/media-session.ts`）
 
 `navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。

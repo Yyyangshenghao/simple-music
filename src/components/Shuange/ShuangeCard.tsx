@@ -5,6 +5,7 @@ import { sizedImage } from '../../lib/image-size'
 import { SourceName } from '../ui/SourceName'
 import { SHUANGE_COVER_PX, useShuangeStore } from '../../stores/shuange'
 import { usePlayerStore } from '../../stores/player'
+import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useLyricsStore } from '../../stores/lyrics'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { HeartIcon } from '../ui/HeartIcon'
@@ -38,7 +39,7 @@ function RefreshIcon() {
   return <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-4M4 5v4h4m-4 4a8 8 0 0 0 14.9 4M20 19v-4h-4" /></svg>
 }
 
-function ClipProgress({ track, startSec, endSec }: { track: Track; startSec: number; endSec: number }) {
+function ClipProgress({ track, startSec, endSec, label = '精彩片段播放进度' }: { track: Track; startSec: number; endSec: number; label?: string }) {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const position = usePlayerStore((s) => s.position)
   const duration = endSec - startSec
@@ -46,7 +47,7 @@ function ClipProgress({ track, startSec, endSec }: { track: Track; startSec: num
     ? Math.max(0, Math.min(1, (position - startSec) / duration))
     : 0
   return (
-    <div className={styles.progress} aria-label="精彩片段播放进度">
+    <div className={styles.progress} aria-label={label}>
       <span style={{ transform: `scaleX(${progress})` }} />
     </div>
   )
@@ -58,6 +59,8 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
   const [titleOverflow, setTitleOverflow] = useState(false)
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const status = usePlayerStore((s) => s.status)
+  const duration = usePlayerStore((s) => s.duration)
+  const finishingTrack = useSleepTimerStore((s) => s.phase === 'finishing-track')
   const toggle = usePlayerStore((s) => s.toggle)
   const index = useShuangeStore((s) => s.index)
   const offset = useShuangeStore((s) => s.offset)
@@ -162,10 +165,10 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
             </AnimatePresence>
           </div>
 
-          <ClipProgress track={track} startSec={offset?.startSec ?? 0} endSec={offset?.endSec ?? 0} />
+          <ClipProgress track={track} startSec={finishingTrack ? 0 : offset?.startSec ?? 0} endSec={finishingTrack ? duration : offset?.endSec ?? 0} label={finishingTrack ? '当前歌曲播放进度' : undefined} />
           <div className={styles.progressMeta}>
             <span>{offset?.kind === 'refrain' ? '副歌候选' : '精彩片段'}</span>
-            <span>{Math.round(clipDuration || 30)} 秒后自动下一首</span>
+            <span>{finishingTrack ? '当前歌曲播完后停止' : `${Math.round(clipDuration || 30)} 秒后自动下一首`}</span>
           </div>
 
           <div className={styles.actions}>

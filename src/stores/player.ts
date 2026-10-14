@@ -50,7 +50,7 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
         if (isProviderId(track.source)) expireProviderAccount(track.source, error)
       })
     },
-    beginIntent: () => { beginPlaybackIntent() },
+    beginIntent: (kind) => { beginPlaybackIntent(kind) },
     notify: (message) => useToastStore.getState().show(message),
     appleSpectrum: {
       requestCapture: () => { void window.desktop?.startAppleAudioCapture?.().catch(() => {}) },

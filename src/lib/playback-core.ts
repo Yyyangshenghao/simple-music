@@ -53,7 +53,7 @@ export interface PlaybackCoreDependencies {
   capturePlaybackAccount(source: 'netease' | 'qq'): Promise<string | null>
   reportPlayback(track: Track, options: { sourceId: unknown; seconds: number; accountToken: string }): Promise<void> | void
   now?(): number
-  beginIntent(): void
+  beginIntent(kind?: 'pause'): void
   notify(message: string): void
   appleSpectrum: {
     requestCapture(): void
@@ -235,6 +235,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       finishListening()
     }
     if (stopAfterCurrentCb) {
+      deps.beginIntent('pause')
       set({ status: 'paused', position: 0 })
       const cb = stopAfterCurrentCb
       stopAfterCurrentCb = null
@@ -592,7 +593,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     pause() {
       if (disposed) return
       suspendListening()
-      deps.beginIntent()
+      deps.beginIntent('pause')
       if (activePlayback) activePlayback.autoplay = false
       if (applePlayback) { appleCommand({ type: 'pause' }); set({ status: 'paused' }); return }
       ensureEngine().pause()

@@ -19,6 +19,7 @@ import { initWallpaperSync } from './wallpaper-sync'
 import { initShuangePlayback } from './shuange-playback'
 import { initDownloadQueueRuntime } from './download-queue-runtime'
 import { initLoginStatusSync } from './login-status-sync'
+import { useSleepTimerStore } from '../stores/sleep-timer'
 
 let stopRuntime: (() => void) | undefined
 
@@ -58,6 +59,7 @@ export function startPlaybackRuntime(): () => void {
     stopLoginStatus()
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
+    useSleepTimerStore.getState().cancel()
     stopDownloads()
     stopRecent()
     stopShuange()

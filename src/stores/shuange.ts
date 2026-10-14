@@ -18,6 +18,7 @@ import {
 import type { MusicService } from '../lib/music-service'
 import type { MusicSource, Playlist, Track } from '../types/domain'
 import type { ProviderId } from '../providers/types'
+import { beginPlaybackIntent, isCurrentPlaybackIntent, isPlaybackPauseIntent } from '../lib/playback-intent'
 
 const OFFSET_CACHE_MAX = 200
 const HIGHLIGHT_WAIT_MS = 90
@@ -67,7 +68,7 @@ interface ShuangeStore {
   enter(): Promise<void>
   refresh(): Promise<void>
   leave(): void
-  next(): Promise<void>
+  next(canAdvance?: () => boolean): Promise<void>
   prev(): Promise<void>
   playFullCurrent(): void
   notInterestedCurrent(): Promise<void>
@@ -290,18 +291,25 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
 
   async loadIndex(i) {
     const my = ++shuangeSession
-    const { feed, index } = get()
+    const { feed, index, offset, direction } = get()
     const track = feed[i]
     if (!track) return
     prepareWindow(feed, i)
     const player = usePlayerStore.getState()
     player.pause()
+    const intent = beginPlaybackIntent()
     const immediateRange = cachedOffset(track) ?? fallbackOffset(track)
     set({ index: i, direction: i < index ? -1 : 1, loading: true, offset: immediateRange, error: null })
     const decision = await offsetWithinBudget(track)
     if (my !== shuangeSession) return
+    const autoplay = isCurrentPlaybackIntent(intent)
+    const current = usePlayerStore.getState()
+    if (!autoplay && (!isPlaybackPauseIntent() || current.status !== 'paused' || current.currentTrack !== player.currentTrack)) {
+      if (get().index === i) set({ index, offset, direction, loading: false })
+      return
+    }
     set({ offset: decision.range })
-    await player.loadTrack(track, { startAt: decision.range.startSec, contextId: `shuange:${String(track.id)}` })
+    await player.loadTrack(track, { startAt: decision.range.startSec, contextId: `shuange:${String(track.id)}`, autoplay, preservePlaybackIntent: true })
     if (my !== shuangeSession) return
     beginCurrentListen(track, decision.range.startSec)
     recordShuangeExposure(track)
@@ -321,7 +329,8 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     }
   },
 
-  async next() {
+  async next(canAdvance) {
+    if (canAdvance && !canAdvance()) return
     const { feed, index } = get()
     if (index + 1 < feed.length) {
       recordCurrentListen(get())
@@ -331,7 +340,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     // feed 耗尽:用 recommend/playlists 补
     const my = shuangeSession
     await appendMoreFeed(get, set)
-    if (my !== shuangeSession) return
+    if (my !== shuangeSession || (canAdvance && !canAdvance())) return
     const after = get()
     if (index + 1 < after.feed.length) {
       recordCurrentListen(after)
