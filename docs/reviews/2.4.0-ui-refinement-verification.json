@@ -2,7 +2,7 @@
   "baseCommit": "5503e2bd1b2201dd11ee6b6c699f82b6326409ad",
   "featureBranch": "feature/ui-refinement-2.4.0",
   "date": "2026-10-15",
-  "method": "macOS真实Electron完整App、Cua原生操作及原始JPEG截图。临时Vite配置仅向真实main.tsx追加外部验收模块，提供隔离store/推荐缓存测试数据及场景快捷键；没有替换页面或组件。正常配置、无测试模块另行确认漫游导航。",
+  "method": "macOS真实Electron完整App、Cua原生操作及原始JPEG截图。临时Vite配置仅向真实main.tsx追加外部验收模块，提供隔离store/推荐缓存测试数据及场景快捷键；没有替换页面或组件。正常配置、无测试模块另行确认漫游导航。 刷歌成对图因Mac锁屏改由浏览器复现：修改前载入5503e2b的ShuangeCard源码和CSS，修改后载入当前源码；两张均为实际App、浅色1100×900浏览器截图，固定同一暂停测试曲目。原生刷歌修改后图仍作为补充。",
   "profile": "/tmp/simplemusic-ui-refinement/profile",
   "cleanProfile": "/tmp/simplemusic-ui-refinement/clean-profile",
   "validation": {
@@ -25,7 +25,7 @@
   },
   "checks": [
     {
-      "check": "7组成对截图均为深色1100×900逻辑窗口、2200×1800原始截图",
+      "check": "6组原生深色对照为1100×900逻辑窗口、2200×1800 JPEG；刷歌1组为浅色1100×900浏览器JPEG，组内环境一致",
       "passed": true
     },
     {
@@ -83,7 +83,8 @@
     "成对截图尺寸、深色主题、内容及静态背景配置相同；鼠标位置、动态来源徽标及牌堆随机角度可能不同，不作逐像素比较。",
     "没有执行真实文件删除、账号下载或平台同步；Windows实机未验证。",
     "正常退出时有既有PLAYBACK_HOST_GONE和macOS输入法日志，不作为页面操作异常。",
-    "960检查为可见布局人工验收，没有断言所有隐藏帮助层的DOM滚动宽度为零。"
+    "960检查为可见布局人工验收，没有断言所有隐藏帮助层的DOM滚动宽度为零。",
+    "原生刷歌修改前归档误拍错误状态，已移除；Mac锁屏后通过实际基线组件和当前组件补拍浏览器对照，不将其表述为原生窗口截图。"
   ],
   "screenshots": [
     {
@@ -127,13 +128,6 @@
       "pixelWidth": 2200,
       "pixelHeight": 1800,
       "sha256": "321dc3730a0722024d73d605b59801a48731adac168d8dec4aae2fa73094ba66"
-    },
-    {
-      "file": "assets/2.4.0-ui-refinement/before-shuange.jpg",
-      "phase": "before",
-      "pixelWidth": 2200,
-      "pixelHeight": 1800,
-      "sha256": "db83e76627d61c4583e0c0c076a69349d06f661c82dd025627098ad1c023cb1e"
     },
     {
       "file": "assets/2.4.0-ui-refinement/after-app-playlist-detail.jpg",
@@ -267,6 +261,22 @@
       "pixelWidth": 2200,
       "pixelHeight": 1800,
       "sha256": "fe5e34a613deb7edbeb7e60a6334117d59a64778f743e0cc2d3ed1019d3d97bd"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-shuange-browser.jpg",
+      "phase": "before",
+      "pixelWidth": 1100,
+      "pixelHeight": 900,
+      "environment": "Codex in-app browser, light, 1100x900",
+      "sha256": "683d182692bcbcb6d7d799f7abacb46518f907e5e35aa2cb43c47acede869f13"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-shuange-browser.jpg",
+      "phase": "after",
+      "pixelWidth": 1100,
+      "pixelHeight": 900,
+      "environment": "Codex in-app browser, light, 1100x900",
+      "sha256": "3a5a7c3c7ad781a7e48a1ded44d046ce5bd4d3f350c4b3928edb5cece89dd4a3"
     }
   ]
 }
