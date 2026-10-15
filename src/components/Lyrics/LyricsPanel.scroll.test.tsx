@@ -47,6 +47,7 @@ vi.mock('react', async (importOriginal) => ({
 vi.mock('../../hooks/useReducedMotion', () => ({
   useReducedMotion: () => h.reducedMotion,
 }))
+vi.mock('../Player/PlayerBar', () => ({ PlayerBar: () => null }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: Object.assign(
   (selector: (state: typeof h.lyrics) => unknown) => selector(h.lyrics), { getState: () => h.lyrics }
 ) }))

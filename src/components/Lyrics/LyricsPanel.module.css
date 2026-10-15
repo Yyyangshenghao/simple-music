@@ -36,6 +36,12 @@
   transition-delay: 0s;
 }
 
+.listeningRoom {
+  padding-bottom: 24px;
+  --lyric-inactive-color: rgba(var(--lyrics-ink-rgb), 0.48);
+  --lyric-inactive-opacity: 1;
+}
+
 /* 有封面的纯歌词模式/3D 场景时,全屏 modal 级 backdrop-filter 的取样结果
    几乎被内容遮挡,却仍让 GPU 逐帧模糊整个视口——按需关掉。
    底色同时改为不透明:blurBg 的 filter 模糊会把边缘一大圈羽化成半透明
@@ -100,11 +106,11 @@
 }
 
 /* 沉浸模式:隐藏鼠标指针,header 控件淡出(布局占位不变) */
-.panel.immersive {
+.panel.immersive:not(:has(:focus-visible, [aria-expanded='true'])) {
   cursor: none;
 }
 
-.panel.immersive .header {
+.panel.immersive:not(:has(:focus-visible, [aria-expanded='true'])) .header {
   opacity: 0;
   pointer-events: none;
 }
@@ -164,8 +170,7 @@
   transform: translateY(2px);
 }
 
-/* Apple Music 式左右分栏容器(纯歌词模式)。
-   整体左移:右侧留出悬停控制栏(.sideRail 84px)的位置,歌词列因此更宽 */
+/* 封面、曲目信息与操作组成同一唱片区，两列共用稳定的垂直空间。 */
 .splitLayout {
   --lyrics-right-space: calc(1.5vw + 84px);
   flex: 1;
@@ -176,50 +181,50 @@
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 3.5vw;
-  padding: 12px var(--lyrics-right-space) 0 4.5vw;
+  padding: 12px var(--lyrics-right-space) 0 5vw;
   position: relative;
   z-index: 1;
 }
 
-/* 左栏:封面 + 歌曲信息,垂直居中 */
 .coverSection {
-  /* 封面尺寸单一出处:封面图/占位框/歌名宽度都引用它。
-     56vh 上限保证矮窗口下封面+歌名仍在 header 与播放栏之间放得下 */
-  --lyrics-cover-size: clamp(230px, min(28vw, 56vh), 420px);
-  flex: 1 1 auto;
+  --lyrics-cover-size: clamp(140px, min(27vw, calc(100vh - 352px)), 380px);
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 30px;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.record {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: min(380px, 100%);
+  min-width: 0;
+}
+
+/* 自由排版只移动封面和信息，播放操作始终留在可达的位置。 */
+.recordIdentity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
   min-width: 0;
   transform: translate3d(var(--lyrics-cover-x, 0), var(--lyrics-cover-y, 0), 0);
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 260ms var(--sm-ease-out);
 }
 
-/* 播放栏隐藏后，为底部释放出的空间重新校准左栏视觉重心 */
-@media (min-width: 901px) {
-  .panel.immersive .coverSection {
-    transform: translate3d(
-      var(--lyrics-cover-x, 0),
-      calc(var(--lyrics-cover-y, 0px) + clamp(48px, 7vh, 72px)),
-      0
-    );
-  }
-}
-
-/* 大圆角方形封面(Apple Music 风格,不旋转) */
 .coverArt {
   width: min(var(--lyrics-cover-size), 100%);
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 12px;
   object-fit: cover;
   display: block;
-  box-shadow:
-    0 0 0 1px rgba(var(--lyrics-ink-rgb), 0.06),
-    0 0 72px rgba(143, 233, 255, 0.16),
-    0 32px 80px rgba(0, 0, 0, calc(0.62 * var(--lyrics-shadow-strength)));
-  transform: scale(var(--lyrics-cover-scale, 1)) scale(var(--lyrics-cover-immersive-scale, 1));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, calc(0.42 * var(--lyrics-shadow-strength)));
+  transform: scale(var(--lyrics-cover-scale, 1));
   transform-origin: center bottom;
   transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -227,7 +232,7 @@
 .coverPlaceholder {
   width: min(var(--lyrics-cover-size), 100%);
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 12px;
   background: rgba(var(--lyrics-ink-rgb), 0.04);
   border: 1px solid rgba(var(--lyrics-ink-rgb), 0.07);
   display: flex;
@@ -236,7 +241,7 @@
   font-size: 44px;
   color: rgba(var(--lyrics-ink-rgb), 0.18);
   box-shadow: 0 32px 80px rgba(0, 0, 0, calc(0.5 * var(--lyrics-shadow-strength)));
-  transform: scale(var(--lyrics-cover-scale, 1)) scale(var(--lyrics-cover-immersive-scale, 1));
+  transform: scale(var(--lyrics-cover-scale, 1));
   transform-origin: center bottom;
   transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -245,30 +250,34 @@
 .trackMeta {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  max-width: 100%;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  width: 100%;
+  min-width: 0;
 }
 
-/* 沉浸态:控件隐去时封面与歌曲信息等比放大,控件重新出现时同一 transition 缩回 */
-.panel.immersive .coverArt,
-.panel.immersive .coverPlaceholder {
-  --lyrics-cover-immersive-scale: 1.08;
+.stageControls {
+  width: 100%;
+  position: relative;
+  z-index: 2;
+  transition: opacity 360ms var(--sm-ease-out), transform 360ms var(--sm-ease-out), visibility 0s;
 }
 
-.panel.immersive .trackMeta {
-  /* translateY 写在 scale 前面,保证下移量是固定像素,不随放大倍数被放大,呼应封面外扩的观感 */
-  transform: translateY(14px) scale(1.06);
+.panel.immersive:not(:has(:focus-visible, [aria-expanded='true'])) .stageControls {
+  opacity: 0;
+  transform: translateY(4px);
+  visibility: hidden;
+  transition-delay: 0s, 0s, 360ms;
+  pointer-events: none;
 }
 
 .trackName {
-  font-size: clamp(25px, 1.9vw, 31px);
-  font-weight: 700;
+  font-size: clamp(23px, 1.9vw, 29px);
+  font-weight: 650;
   color: rgba(var(--lyrics-ink-rgb), 0.94);
-  text-align: center;
-  letter-spacing: 0.2px;
-  max-width: min(var(--lyrics-cover-size), 100%);
+  text-align: left;
+  letter-spacing: -0.02em;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -328,15 +337,15 @@
   background: none;
   padding: 0;
   font-size: clamp(14px, 1vw, 16px);
-  color: rgba(var(--lyrics-ink-rgb), 0.44);
-  text-align: center;
+  color: rgba(var(--lyrics-ink-rgb), 0.65);
+  text-align: left;
   letter-spacing: 0.5px;
 }
 
 .lyricSource {
   font-size: 12px;
-  color: rgba(var(--lyrics-ink-rgb), 0.44);
-  text-align: center;
+  color: rgba(var(--lyrics-ink-rgb), 0.65);
+  text-align: left;
 }
 
 /* Scrollable lyrics area(右栏) */
@@ -403,8 +412,9 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  color: rgba(var(--lyrics-ink-rgb), 0.26);
-  letter-spacing: 2px;
+  color: rgba(var(--lyrics-ink-rgb), 0.65);
+  text-align: center;
+  padding: 24px;
   position: relative;
   z-index: 1;
 }
@@ -521,6 +531,7 @@
 }
 
 .sideRailInner {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -530,7 +541,10 @@
   pointer-events: none;
 }
 
+.listeningRoom .sideRail { bottom: 24px; }
+
 .sideRail:hover .sideRailInner,
+.sideRail:focus-within .sideRailInner,
 .sideRailPinned .sideRailInner {
   opacity: 1;
   transform: translateX(0);
@@ -538,7 +552,7 @@
 }
 
 /* 沉浸模式下与 header 一同隐去 */
-.panel.immersive .sideRail {
+.panel.immersive:not(:has(:focus-visible, [aria-expanded='true'])) .sideRail {
   opacity: 0;
   pointer-events: none;
 }
@@ -570,9 +584,9 @@
   color: rgb(var(--lyrics-ink-rgb));
 }
 
-/* 齿轮按钮的浮层定位锚点 */
+/* 浮层对齐整组控制栏，翻译/罗马音按钮出现时仍保持在视口中。 */
 .railPopAnchor {
-  position: relative;
+  position: static;
 }
 
 /* 歌词设置浮层:自由排版 + 同步 */
@@ -973,6 +987,24 @@
     transform: none;
   }
 
+  .record {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .recordIdentity {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px 18px;
+    transform: none;
+  }
+
+  .stageControls {
+    grid-column: 1 / -1;
+    max-width: 420px;
+    justify-self: center;
+  }
+
   .coverArt,
   .coverPlaceholder {
     width: 96px;
@@ -1002,4 +1034,22 @@
     flex: 1;
     transform: none;
   }
+}
+
+@media (max-height: 650px) and (min-width: 901px) {
+  .record,
+  .recordIdentity { gap: 14px; }
+  .listeningRoom { padding-bottom: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .header,
+  .coverSection,
+  .recordIdentity,
+  .coverArt,
+  .coverPlaceholder,
+  .stageControls,
+  .lyricsScroll { transition: none; }
+  .auroraStage { animation: none; }
 }

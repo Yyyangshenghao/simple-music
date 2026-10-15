@@ -15,6 +15,7 @@ import { lightLyricPalette } from '../../lib/lyric-palette'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
+import { PlayerBar } from '../Player/PlayerBar'
 import { EffectSwitcher } from './EffectSwitcher'
 import styles from './LyricsPanel.module.css'
 import { sizedImage } from '../../lib/image-size'
@@ -47,7 +48,7 @@ function GearIcon() {
   )
 }
 
-/** 歌名溢出时左右往返滚动展示完整内容,未溢出时保持静态居中 */
+/** 歌名溢出时左右往返滚动展示完整内容,未溢出时保持静态 */
 function MarqueeTrackName({ text }: { text: string }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLSpanElement>(null)
@@ -291,7 +292,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
 
   return (
-    <div className={`${styles.panel}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`}>
+    <div className={`${styles.panel}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
@@ -362,28 +363,40 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             } as React.CSSProperties}
           >
             <div className={styles.coverSection}>
-              {track?.cover ? (
-                <img
-                  className={styles.coverArt}
-                  src={sizedImage(track.cover, 840)}
-                  alt={track.name}
-                  draggable={false}
-                />
-              ) : (
-                <div className={styles.coverPlaceholder} aria-hidden="true">♪</div>
-              )}
-              <div className={styles.trackMeta}>
-                <MarqueeTrackName text={track?.name ?? '未在播放'} />
-                <ArtistLinks
-                  className={styles.artistName}
-                  artists={track?.artists}
-                  fallback={track?.artist ?? '—'}
-                  source={track?.source ?? 'netease'}
-                  onBeforeNavigate={onClose}
-                />
-                {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
-                  <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
-                )}
+              <div className={styles.record}>
+                <div className={styles.recordIdentity}>
+                  {track?.cover ? (
+                    <img
+                      className={styles.coverArt}
+                      src={sizedImage(track.cover, 840)}
+                      alt={track.name}
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className={styles.coverPlaceholder} aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">
+                        <path d="M9 18V5l11-2v13M9 9l11-2" />
+                        <ellipse cx="6" cy="18" rx="3" ry="2.5" /><ellipse cx="17" cy="16" rx="3" ry="2.5" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className={styles.trackMeta}>
+                    <MarqueeTrackName text={track?.name ?? '未在播放'} />
+                    <ArtistLinks
+                      className={styles.artistName}
+                      artists={track?.artists}
+                      fallback={track?.artist ?? '—'}
+                      source={track?.source ?? 'netease'}
+                      onBeforeNavigate={onClose}
+                    />
+                    {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
+                      <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.stageControls}>
+                  <PlayerBar variant="lyrics" />
+                </div>
               </div>
             </div>
 

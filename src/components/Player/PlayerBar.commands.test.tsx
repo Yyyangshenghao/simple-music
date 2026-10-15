@@ -32,12 +32,14 @@ function buttonHandler(node: ReactNode, label: string): ((event: unknown) => voi
   return handler
 }
 
-it.each(['播放', '上一首', '下一首'])('%s按钮不把React事件传入后台命令', label => {
+it.each((['dock', 'lyrics'] as const).flatMap(variant =>
+  ['播放', '上一首', '下一首'].map(label => ({ variant, label }))
+))('$variant布局的$label按钮不把React事件传入后台命令', ({ variant, label }) => {
   // 模拟IPC的结构化克隆边界；事件中的函数不能发送到播放宿主。
   const command = vi.fn((...args: unknown[]) => { structuredClone(args) })
   usePlayerStore.setState({ status: 'paused', toggle: command })
   usePlaylistStore.setState({ prev: command, next: command })
-  const click = buttonHandler(PlayerBar({}), label)
+  const click = buttonHandler(PlayerBar({ variant }), label)
   expect(click).toBeTypeOf('function')
   expect(() => click!({ type: 'click', preventDefault() {} })).not.toThrow()
   expect(command.mock.calls).toEqual([[]])

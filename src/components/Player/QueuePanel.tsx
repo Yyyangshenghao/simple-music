@@ -27,7 +27,7 @@ function QueueIcon() {
 }
 
 /** 播放队列按钮 + 弹层：锚定在播放栏上方,展示当前队列,高亮当前曲目,点击切歌。 */
-export function QueuePanel() {
+export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false)
   const [dragOver, setDragOver] = useState<number | null>(null)
   const dragFrom = useRef<{ index: number; key: string } | null>(null)
@@ -113,7 +113,7 @@ export function QueuePanel() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className={styles.panel}
+            className={`${styles.panel}${align === 'start' ? ` ${styles.alignStart}` : ''}`}
             // 缩放会让虚拟列表的视口坐标与 scrollTop 不一致，深队列打开时出现空白。
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
