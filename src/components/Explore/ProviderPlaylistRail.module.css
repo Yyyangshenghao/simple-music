@@ -23,6 +23,7 @@
 }
 
 .card { width: 148px; }
+.appleRow { grid-auto-columns: 148px; gap: 12px; }
 
 .error {
   display: flex;

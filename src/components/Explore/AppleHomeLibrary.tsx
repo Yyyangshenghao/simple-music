@@ -3,6 +3,7 @@ import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } f
 import { providerFor } from '../../providers/registry'
 import type { Playlist } from '../../types/domain'
 import { PlaylistCard } from './PlaylistCard'
+import { HorizontalCardRail } from './HorizontalCardRail'
 import styles from './AppleHomeLibrary.module.css'
 
 interface AppleHomeLibraryProps {
@@ -48,13 +49,13 @@ export function AppleHomeLibrary({ onOpen }: AppleHomeLibraryProps) {
           <div className={styles.heading}>
             <h3>你的专辑</h3>
           </div>
-          <div className={styles.row}>
+          <HorizontalCardRail className={styles.row} label="你的 Apple Music 专辑，可横向滚动">
             {albums.map((album) => (
               <div className={styles.album} key={String(album.id)}>
                 <PlaylistCard playlist={album} meta="" onClick={() => onOpen(album)} />
               </div>
             ))}
-          </div>
+          </HorizontalCardRail>
         </section>
       )}
     </div>

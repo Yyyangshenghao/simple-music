@@ -8,6 +8,7 @@ import { sizedImage } from '../../lib/image-size'
 import { SourceName } from '../ui/SourceName'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { PlaylistCard } from './PlaylistCard'
+import { HorizontalCardRail } from './HorizontalCardRail'
 import styles from './ApplePlaylistRecommendations.module.css'
 
 interface ApplePlaylistRecommendationsProps {
@@ -157,8 +158,8 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
             </div>
             {carouselScrollable && (
               <div className={styles.carouselControls}>
-                <button type="button" className="no-drag" onClick={() => scrollCarousel(-1)} aria-label="上一张精选内容">‹</button>
-                <button type="button" className="no-drag" onClick={() => scrollCarousel(1)} aria-label="下一张精选内容">›</button>
+                <button type="button" className="no-drag" onClick={() => scrollCarousel(-1)} aria-label="上一张精选内容"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m15.5 5-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+                <button type="button" className="no-drag" onClick={() => scrollCarousel(1)} aria-label="下一张精选内容"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m8.5 5 7 7-7 7" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
               </div>
             )}
           </div>
@@ -206,13 +207,13 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
         return (
           <section className={styles.section} aria-label={group.title} key={group.id}>
             <div className={styles.heading}><h3>{group.title}</h3></div>
-            <div className={styles.row}>
+            <HorizontalCardRail className={styles.row} label={`${group.title}，可横向滚动`}>
               {items.map(item => (
                 <div className={styles.card} key={`${item.type}:${String(item.id)}`}>
                   <PlaylistCard playlist={item} meta="" onClick={() => onOpen(item)} />
                 </div>
               ))}
-            </div>
+            </HorizontalCardRail>
           </section>
         )
       })}

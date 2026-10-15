@@ -4,6 +4,7 @@ import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } f
 import type { ProviderId } from '../../providers/types'
 import type { Playlist } from '../../types/domain'
 import { PlaylistCard } from './PlaylistCard'
+import { HorizontalCardRail } from './HorizontalCardRail'
 import styles from './ProviderPlaylistRail.module.css'
 
 interface ProviderPlaylistRailProps {
@@ -36,6 +37,11 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
   }, [revision, source])
 
   if (loaded && playlists.length === 0 && !failed) return null
+  const cards = playlists.map((playlist) => (
+    <div className={styles.card} key={`${playlist.source}:${String(playlist.id)}`}>
+      <PlaylistCard playlist={playlist} onClick={() => onOpen(playlist)} />
+    </div>
+  ))
 
   return (
     <section className={styles.rail} aria-label={`${source}账号歌单`}>
@@ -49,13 +55,9 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
           <button className="no-drag" onClick={() => setRevision((current) => current + 1)}>重试</button>
         </div>
       ) : playlists.length > 0 && (
-        <div className={styles.row}>
-          {playlists.map((playlist) => (
-            <div className={styles.card} key={`${playlist.source}:${String(playlist.id)}`}>
-              <PlaylistCard playlist={playlist} onClick={() => onOpen(playlist)} />
-            </div>
-          ))}
-        </div>
+        source === 'apple'
+          ? <HorizontalCardRail className={styles.appleRow} label="你的 Apple Music 歌单，可横向滚动">{cards}</HorizontalCardRail>
+          : <div className={styles.row}>{cards}</div>
       )}
     </section>
   )

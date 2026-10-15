@@ -1,0 +1,51 @@
+.rail {
+  position: relative;
+  min-width: 0;
+  /* 横向滚动容器会裁切纵向溢出，保留卡片悬停与底部阴影的空间。 */
+  margin: -23px -20px -24px;
+}
+
+.viewport {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 24px 21px 48px;
+  scrollbar-width: none;
+  --rail-fade-left: 0px;
+  --rail-fade-right: 0px;
+}
+
+.viewport::-webkit-scrollbar { display: none; }
+.fadeLeft, .fadeRight {
+  mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-left), #000 calc(100% - var(--rail-fade-right)), transparent);
+}
+.fadeLeft { --rail-fade-left: 24px; }
+.fadeRight { --rail-fade-right: 24px; }
+
+.arrow {
+  position: absolute;
+  top: calc(50% - 12px);
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--glass-border-card);
+  border-radius: var(--sm-radius-pill);
+  background: linear-gradient(var(--glass-bg-card), var(--glass-bg-card)), var(--sm-bg-base);
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  color: var(--sm-text-primary);
+  box-shadow: var(--sm-shadow);
+  cursor: pointer;
+}
+
+.arrow svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.arrow:hover:not(:disabled) { border-color: var(--sm-border-strong); }
+.arrow:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.arrow:disabled { opacity: 0.3; cursor: default; }
+.previous { left: 5px; }
+.next { right: 5px; }
