@@ -74,7 +74,7 @@ export function AppleChartPage() {
 
   return (
     <ScrollArea className={layout.page}>
-      <button type="button" className={`${layout.back} no-drag`} onClick={goBack} aria-label="返回探索页">← 返回</button>
+      <button type="button" className={`${layout.back} no-drag`} onClick={() => goBack()} aria-label="返回探索页">← 返回</button>
       <h1 className={layout.heading}>
         <GradientText>Apple Music 榜单</GradientText>
         <SourceBadge source="apple" reveal />

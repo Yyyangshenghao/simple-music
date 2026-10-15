@@ -148,7 +148,7 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
     <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <motion.button
         className={`${styles.back} no-drag`}
-        onClick={goBack}
+        onClick={() => goBack()}
         aria-label="返回歌手页"
         whileTap={tapScale}
         transition={springSnappy}

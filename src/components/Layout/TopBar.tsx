@@ -209,7 +209,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
         <div className={styles.navGroup}>
           <motion.button
             className={styles.navBtn}
-            onClick={goBack}
+            onClick={() => goBack()}
             disabled={history.length === 0}
             aria-label="后退"
             whileTap={tapScale}
@@ -222,7 +222,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
           <span className={styles.navDivider} aria-hidden="true" />
           <motion.button
             className={styles.navBtn}
-            onClick={goForward}
+            onClick={() => goForward()}
             disabled={future.length === 0}
             aria-label="前进"
             whileTap={tapScale}

@@ -439,7 +439,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
         <div className={styles.lyricsSubheading}>恢复设置</div>
         <div className={styles.row}>
           <span className={styles.rowLabel}>恢复数值参数，保留场景与文字风格</span>
-          <button className={`${styles.seg} no-drag`} onClick={resetParams}>
+          <button className={`${styles.seg} no-drag`} onClick={() => resetParams()}>
             恢复默认
           </button>
         </div>

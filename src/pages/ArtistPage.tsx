@@ -311,7 +311,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <motion.button
         className={`${styles.back} no-drag`}
-        onClick={goBack}
+        onClick={() => goBack()}
         aria-label="返回上一页"
         whileTap={tapScale}
         transition={springSnappy}

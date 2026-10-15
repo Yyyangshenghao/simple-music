@@ -41,6 +41,7 @@ vi.mock('../../providers/registry', async importOriginal => {
 })
 import { TopBar } from './TopBar'
 import { useProviderStore } from '../../stores/providers'
+import { useNavigationStore } from '../../stores/navigation'
 
 function render() {
   h.cursor = 0
@@ -48,7 +49,7 @@ function render() {
   h.effects.splice(0).forEach(effect => effect())
   return tree
 }
-interface NodeProps { children?: ReactNode; role?: string; onClick?(): void; onFocus?(): void; onChange?(event: { target: { value: string } }): void }
+interface NodeProps { children?: ReactNode; role?: string; 'aria-label'?: string; onClick?(event?: unknown): void; onFocus?(): void; onChange?(event: { target: { value: string } }): void }
 function walk(node: ReactNode): ReactElement<NodeProps>[] {
   if (!node || typeof node !== 'object' || !('props' in node)) return []
   const element = node as ReactElement<{ children?: ReactNode }>
@@ -74,6 +75,16 @@ beforeEach(() => {
 afterEach(() => {
   for (const slot of h.slots) (slot as { cleanup?: () => void } | undefined)?.cleanup?.()
   vi.useRealTimers(); vi.unstubAllGlobals()
+})
+it.each([['后退', 'goBack'], ['前进', 'goForward']] as const)('%s按钮不把点击事件送到后台导航', (label, action) => {
+  const previous = useNavigationStore.getState()
+  const command = vi.fn((...args: unknown[]) => { structuredClone(args) })
+  useNavigationStore.setState({ [action]: command, history: ['explore'], future: ['library'] })
+  try {
+    const button = walk(render()).find(element => element.props['aria-label'] === label)!
+    expect(() => button.props.onClick!({ type: 'click', preventDefault() {} })).not.toThrow()
+    expect(command.mock.calls).toEqual([[]])
+  } finally { useNavigationStore.setState(previous, true) }
 })
 it('同平台换号立即清除旧搜索建议，并用原关键词读取新账号', async () => {
   h.search.mockResolvedValueOnce([track('旧账号结果')]).mockResolvedValueOnce([track('新账号结果')])

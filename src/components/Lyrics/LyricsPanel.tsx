@@ -481,7 +481,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                         <strong>舞台排版</strong>
                         <span>封面与歌词可独立移动、缩放</span>
                       </div>
-                      <button className={styles.resetLayoutBtn} onClick={resetLyricsLayout}>重置</button>
+                      <button className={styles.resetLayoutBtn} onClick={() => resetLyricsLayout()}>重置</button>
                     </div>
                     <div className={styles.layoutPresets}>
                       <button onClick={() => {

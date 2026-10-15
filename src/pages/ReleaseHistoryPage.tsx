@@ -16,7 +16,7 @@ export function ReleaseHistoryPage() {
   return (
     <div className={`${styles.page} ${pageScroll.viewport}`}>
       <div className={styles.content}>
-        <button type="button" className={`${styles.back} no-drag`} onClick={goBack}>
+        <button type="button" className={`${styles.back} no-drag`} onClick={() => goBack()}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="m15 5-7 7 7 7" />
           </svg>

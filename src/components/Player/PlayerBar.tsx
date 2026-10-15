@@ -340,13 +340,13 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen }
         <div className={styles.center}>
           <div className={styles.buttons}>
             <PlayModeButton />
-            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={prev} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
+            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
               <PrevIcon />
             </motion.button>
             <motion.button
               type="button"
               className={`${styles.btn} ${styles.playBtn} no-drag`}
-              onClick={toggle}
+              onClick={() => toggle()}
               title={isPlaying ? '暂停' : '播放'}
               aria-label={isPlaying ? '暂停' : '播放'}
               data-loading={isLoading}
@@ -366,7 +366,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen }
                 </motion.span>
               </AnimatePresence>
             </motion.button>
-            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={next} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
+            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
               <NextIcon />
             </motion.button>
           </div>
