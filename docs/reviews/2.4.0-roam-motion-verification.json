@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-15",
+  "baseline": "7e81e65",
+  "environment": "实际 App 浏览器渲染，独立验收配置，无平台登录；未复测原生窗口",
+  "motion": {
+    "characters": 44,
+    "enterDurationMs": 418,
+    "exitDurationMs": 246,
+    "hideVisibilityAfterMs": 300,
+    "observedEnteringOpacities": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0.999999,
+      0.999982,
+      0.999907,
+      0.999727,
+      0.999385,
+      0.998812,
+      0.997924,
+      0.996621,
+      0.99478,
+      0.992252,
+      0.988851,
+      0.984348,
+      0.978456,
+      0.970809,
+      0.960944,
+      0.94826,
+      0.931973,
+      0.911044,
+      0.884084,
+      0.849213,
+      0.803867,
+      0.744555,
+      0.66661,
+      0.564099,
+      0.43035,
+      0.259736,
+      0.050733,
+      0,
+      0,
+      0,
+      0
+    ],
+    "reducedMotion": "CSS 媒体查询关闭全部延迟与过渡；本次系统偏好未开启 reduce，未切换系统设置"
+  },
+  "layouts": [
+    {
+      "scenario": "dark-1100x900",
+      "heroHeight": 221.5390625,
+      "heroY": 80,
+      "actionsY": 132.015625,
+      "openClosedRectanglesEqual": true
+    },
+    {
+      "scenario": "light-960x900",
+      "heroHeight": 234.234375,
+      "heroY": 80,
+      "actionsY": 138.3671875,
+      "openClosedRectanglesEqual": true
+    },
+    {
+      "scenario": "light-740x700",
+      "heroHeight": 343.5390625,
+      "heroY": 72,
+      "actionsY": 273.0390625,
+      "openClosedRectanglesEqual": true
+    }
+  ],
+  "checks": [
+    "旧实现回归用例失败，新实现通过",
+    "Enter 展开、Escape 收起并保留焦点",
+    "连续点击反向切换，内容常驻 DOM 且布局保持一致",
+    "真实过渡中同时观测到已显示、半透明、待显示的字符",
+    "三种尺寸展开收起时卡片与操作矩形完全一致",
+    "浅色 740px 正文完整可见，无页面横向溢出"
+  ],
+  "typecheck": "passed",
+  "tests": {
+    "files": 258,
+    "tests": 2245,
+    "result": "passed"
+  },
+  "independentReview": "无 P1/P2",
+  "screenshots": [
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-motion-closed-dark.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "3d25de3d928d81dc0bd04f61ff730c52c321e6e20ac4f445fcf5e9b9d168a4fa"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-motion-open-dark.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "ef05101ba893cd420d532fbb86bc1192a7c885ec8a56323b739825936ba66ebb"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-motion-open-light-960.jpg",
+      "size": [
+        960,
+        900
+      ],
+      "sha256": "c0f46da5e3e5892192837a49c90cb2a0d71046613253645dd46578d82402e23b"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-motion-open-light-740.jpg",
+      "size": [
+        740,
+        700
+      ],
+      "sha256": "ec3d64bb99b08c15c5f60783ca76e9804d2d92f3aaa3c85957fd7d356f8fb48d"
+    }
+  ]
+}

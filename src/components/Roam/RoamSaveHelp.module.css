@@ -1,8 +1,9 @@
+.help { margin-top: 8px; }
+
 .trigger {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 8px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -15,22 +16,35 @@
 
 .trigger:hover { color: var(--sm-text-primary); }
 .trigger:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.trigger svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.trigger svg[data-open='true'] { transform: rotate(90deg); }
+.trigger svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 220ms var(--sm-ease-out);
+}
+.help[data-open='true'] .trigger svg { transform: rotate(90deg); }
 
+/* 正文始终参与排版，逐字显隐不会挪动标题、按钮或下方内容。 */
 .panel {
-  position: fixed;
-  z-index: 1000;
-  box-sizing: border-box;
-  width: min(360px, calc(100vw - 24px));
-  margin: 0;
-  padding: 12px 14px;
-  overflow-y: auto;
-  border: 1px solid var(--sm-border-strong);
-  border-radius: 10px;
-  background: var(--sm-bg-base);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-  color: var(--sm-text-primary);
+  max-width: 540px;
+  margin: 8px 0 0;
+  color: var(--sm-text-secondary);
   font-size: 12px;
   line-height: 1.6;
+  visibility: hidden;
+  transition: visibility 0s linear 300ms;
+}
+
+.character {
+  opacity: 0;
+  transition: opacity 160ms var(--sm-ease-out) var(--hide-delay);
+}
+
+.help[data-open='true'] .panel { visibility: visible; transition-delay: 0s; }
+.help[data-open='true'] .character { opacity: 1; transition-delay: var(--reveal-delay); }
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger svg, .panel, .character { transition: none; }
 }
