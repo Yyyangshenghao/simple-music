@@ -11,19 +11,10 @@
 .header span { color: var(--sm-text-secondary); font-size: 10px; }
 
 .row {
-  display: grid;
-  grid-auto-flow: column;
   grid-auto-columns: 148px;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* 横向滚动也会裁切纵向溢出，为卡片阴影和悬停上浮预留空间。 */
-  margin: -23px -20px -24px;
-  padding: 24px 21px 48px;
 }
 
 .card { width: 148px; }
-.appleRow { grid-auto-columns: 148px; gap: 12px; }
 
 .error {
   display: flex;

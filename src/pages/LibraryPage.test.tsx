@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import { LibraryPage } from './LibraryPage'
+import { clearProviderRequestCache, requestProviderData } from '../lib/provider-request-cache'
+import type { Playlist } from '../types/domain'
 
 const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | null }))
 vi.mock('../hooks/useContentProvider', () => ({
@@ -21,6 +23,7 @@ vi.mock('../stores/providers', async (importOriginal) => {
 
 describe('我的库账号失效提示', () => {
   beforeEach(() => {
+    clearProviderRequestCache()
     content.current = null
     useNavigationStore.setState({ currentView: 'library', history: [], future: [] })
     useProviderStore.setState({ byId: {
@@ -28,6 +31,18 @@ describe('我的库账号失效提示', () => {
       qq: { enabled: false, auth: 'expired' },
       apple: { enabled: false, auth: 'anonymous' },
     } })
+  })
+
+  it('切回歌单时首帧复用已缓存内容，不显示加载空档', async () => {
+    content.current = 'qq'
+    useProviderStore.setState(state => ({ byId: { ...state.byId, qq: { enabled: true, auth: 'authenticated' } } }))
+    const playlist: Playlist = { id: 1, source: 'qq', provider: 'qq', type: 'playlist', name: '缓存歌单', cover: '', trackCount: 870, playCount: 0, creator: '' }
+    await requestProviderData('qq', 'library:user-playlists', async () => [playlist])
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('缓存歌单')
+    expect(html).not.toContain('加载中…')
+    clearProviderRequestCache('qq')
+    expect(renderToStaticMarkup(<LibraryPage />)).not.toContain('缓存歌单')
   })
 
   it('QQ 失效后仍给出明确说明和重新登录入口', () => {

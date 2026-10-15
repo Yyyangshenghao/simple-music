@@ -26,6 +26,10 @@ import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
 import { SelectionCheck, SelectionMarquee } from '../components/Playlist/SelectionControls'
 import { useMultiSelection } from '../hooks/useMultiSelection'
 import { appPlaylistTrackKey } from '../stores/app-playlists'
+import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../lib/provider-request-cache'
+import { LibraryTabs } from './LibraryTabs'
+import { motion } from 'motion/react'
+import { pageTransition } from '../lib/motion-presets'
 
 type SubTab = 'app-playlists' | 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'local'
 
@@ -117,19 +121,17 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
       <div className={styles.inner}>
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>
-        <div className={styles.subTabs}>
-          {(['app-playlists', 'playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map((t) => (
-            <button
-              key={t}
-              className={`${styles.subTab} no-drag ${tab === t ? styles.subTabActive : ''}`}
-              onClick={() => setTab(t)}
-            >
-              {{ 'app-playlists': '应用歌单', playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[t]}
-            </button>
-          ))}
-        </div>
+        <LibraryTabs<SubTab>
+          value={tab}
+          onChange={setTab}
+          items={(['app-playlists', 'playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map(value => ({
+            value,
+            label: { 'app-playlists': '应用歌单', playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[value],
+          }))}
+        />
       </div>
 
+      <motion.div key={tab} initial={{ opacity: 0.75 }} animate={{ opacity: 1 }} transition={pageTransition}>
       {tab === 'app-playlists' && <AppPlaylistsTab />}
 
       {tab === 'playlists' && (contentSource
@@ -147,6 +149,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
       {tab === 'offline' && <OfflineMusicTab scrollRef={scrollRef} />}
 
       {tab === 'local' && <LocalMusicTab scrollRef={scrollRef} />}
+      </motion.div>
       </div>
     </ScrollArea>
   )
@@ -157,12 +160,21 @@ interface ProviderLibraryGridProps {
   source: ProviderId
 }
 
-async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Promise<Playlist[]> {
-  const library = providerFor(source).library
-  if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
-  if (mode === 'albums') return library?.getUserAlbums?.() ?? []
-  const liked = await library?.getLikedPlaylist?.()
-  return liked ? [liked] : []
+const LIBRARY_SCOPES = { playlists: 'library:user-playlists', albums: 'library:user-albums', favorites: 'library:liked-playlist' }
+
+async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode'], force = false): Promise<Playlist[]> {
+  return requestProviderData(source, LIBRARY_SCOPES[mode], async () => {
+    const library = providerFor(source).library
+    if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
+    if (mode === 'albums') return library?.getUserAlbums?.() ?? []
+    const liked = await library?.getLikedPlaylist?.()
+    return liked ? [liked] : []
+  }, { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
+}
+
+function cachedLibraryResult(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Partial<Record<ProviderId, ProviderResult<Playlist[]>>> {
+  const data = isProviderParticipating(source) ? getCachedProviderData<Playlist[]>(source, LIBRARY_SCOPES[mode]) : undefined
+  return data === undefined ? {} : { [source]: { source, status: data.length ? 'ready' : 'empty', data } }
 }
 
 function isProviderParticipating(source: ProviderId): boolean {
@@ -200,7 +212,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
   const participating = useProviderStore((state) =>
     state.byId[source].enabled && state.byId[source].auth === 'authenticated' && state.byId[source].playbackAvailable !== false
   )
-  const [results, setResults] = useState<Partial<Record<ProviderId, ProviderResult<Playlist[]>>>>({})
+  const [results, setResults] = useState(() => cachedLibraryResult(source, mode))
   const sessionRef = useRef(0)
   const retryRef = useRef<Partial<Record<ProviderId, number>>>({})
 
@@ -208,7 +220,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     const session = ++sessionRef.current
     retryRef.current[source] = 0
     const controller = new AbortController()
-    setResults({})
+    setResults(cachedLibraryResult(source, mode))
     void runProviderTasks(
       [source],
       (source) => loadProviderLibrary(source, mode),
@@ -218,7 +230,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
         isEmpty: (playlists) => playlists.length === 0,
         onUpdate: (result) => {
           if (session !== sessionRef.current || retryRef.current[source] !== 0) return
-          setResults((current) => ({ ...current, [result.source]: result }))
+          setResults((current) => ({ ...current, [result.source]: { ...result, data: result.data ?? current[result.source]?.data ?? null } }))
         },
       }
     )
@@ -228,19 +240,19 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     }
   }, [mode, participating, source])
 
-  function retryProvider(source: ProviderId): void {
+  function retryProvider(source: ProviderId, force = true): void {
     const session = sessionRef.current
     const retry = (retryRef.current[source] ?? 0) + 1
     retryRef.current[source] = retry
     void runProviderTasks(
       [source],
-      (currentSource) => loadProviderLibrary(currentSource, mode),
+      (currentSource) => loadProviderLibrary(currentSource, mode, force),
       {
         isEnabled: isProviderParticipating,
         isEmpty: (playlists) => playlists.length === 0,
         onUpdate: (result) => {
           if (session !== sessionRef.current || retryRef.current[source] !== retry) return
-          setResults((current) => ({ ...current, [result.source]: result }))
+          setResults((current) => ({ ...current, [result.source]: { ...result, data: result.data ?? current[result.source]?.data ?? null } }))
         },
       }
     )
@@ -249,7 +261,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
   useEffect(() => {
     if (!participating) return
     const onFocus = () => {
-      if (useNavigationStore.getState().currentView === 'library') retryProvider(source)
+      if (useNavigationStore.getState().currentView === 'library') retryProvider(source, false)
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -281,7 +293,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                 <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>
               )}
             </div>
-            {result?.status === 'error' ? (
+            {result?.status === 'error' && playlists.length === 0 ? (
               <div className={styles.providerError}>
                 <p>这个平台暂时无法加载，请稍后重试。</p>
                 <button className="no-drag" onClick={() => retryProvider(source)}>重试</button>
@@ -296,7 +308,9 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                   <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />
                 ))}
               </div>
-            ) : null}
+            ) : <div className={styles.grid} aria-label="正在加载歌单" role="status">
+              {Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.skeletonCard} />)}
+            </div>}
           </section>
         )
       })}

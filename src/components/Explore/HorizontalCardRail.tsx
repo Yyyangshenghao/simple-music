@@ -44,17 +44,21 @@ interface HorizontalCardRailProps {
   children: ReactNode
   label: string
   className?: string
+  dragHandle?: boolean
 }
 
-export function HorizontalCardRail({ children, label, className }: HorizontalCardRailProps) {
+export function HorizontalCardRail({ children, label, className, dragHandle = false }: HorizontalCardRailProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState<RailEdges>({ previous: false, next: false })
   const reducedMotion = useReducedMotion()
+  const [progress, setProgress] = useState(0)
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
     return observeHorizontalCardRail(viewport, (next) => {
       setEdges((current) => current.previous === next.previous && current.next === next.next ? current : next)
+      const maximum = viewport.scrollWidth - viewport.clientWidth
+      setProgress(maximum > 0 ? viewport.scrollLeft / maximum * 100 : 0)
     })
   }, [children])
 
@@ -72,6 +76,20 @@ export function HorizontalCardRail({ children, label, className }: HorizontalCar
         {children}
       </div>
       {(edges.previous || edges.next) && <>
+        {dragHandle && <input
+          type="range"
+          className={`${styles.dragHandle} no-drag`}
+          min={0}
+          max={100}
+          step={0.1}
+          value={progress}
+          aria-label={`${label}，拖动位置`}
+          aria-valuetext={`已滚动 ${Math.round(progress)}%`}
+          onChange={event => {
+            const viewport = viewportRef.current
+            if (viewport) viewport.scrollLeft = Number(event.currentTarget.value) / 100 * (viewport.scrollWidth - viewport.clientWidth)
+          }}
+        />}
         <button type="button" className={`${styles.arrow} ${styles.previous} no-drag`} aria-label={`${label}，上一页`} disabled={!edges.previous} onClick={() => page(-1)}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15.5 5-7 7 7 7" /></svg>
         </button>

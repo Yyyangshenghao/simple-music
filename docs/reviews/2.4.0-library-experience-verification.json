@@ -1,0 +1,39 @@
+{
+  "checks": {
+    "cachedTabSwitch": true,
+    "tabDragAndKeyboard": true,
+    "refreshFailureRetainsCards": true,
+    "longPlaylistScrollbar": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 800,
+      "scrollHeight": 51065,
+      "topMargin": 64,
+      "bottomMargin": 132,
+      "thumbMin": "44px",
+      "afterDrag": 12746
+    },
+    "playlistDragHandle": 100,
+    "layoutSavedAcrossReconnect": true,
+    "noHorizontalOverflow": true,
+    "pointerCancelPreservesSelection": true,
+    "reducedMotionControlsWork": true,
+    "oldAccountResponseDiscarded": true
+  },
+  "errors": [],
+  "verification": {
+    "environment": "macOS Electron development app, isolated userData, CDP content viewport 1280x800 and 900x640",
+    "typecheck": "passed",
+    "vitest": {
+      "files": 259,
+      "tests": 2252,
+      "status": "passed"
+    },
+    "independentReview": "passed after fixes",
+    "notVerified": [
+      "Windows/Linux native windows",
+      "real QQ/Apple account UI flows"
+    ]
+  }
+}

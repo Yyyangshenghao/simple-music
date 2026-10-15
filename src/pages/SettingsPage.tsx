@@ -636,6 +636,8 @@ export function SettingsPage() {
   }, [settingsMusicRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const contentLayout = useSettingsStore((s) => s.contentLayout)
+  const setContentLayout = useSettingsStore((s) => s.setContentLayout)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
   const setFontFamily = useSettingsStore((s) => s.setFontFamily)
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
@@ -1043,7 +1045,7 @@ export function SettingsPage() {
                 <div className={styles.visualColumn}>
                   {window.desktop?.platform === 'win32' && <WindowCloseSettings />}
                   <section className={styles.group}>
-                    <h3 className={styles.groupTitle}>主题</h3>
+                    <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
                       <div className={styles.segControl}>
@@ -1060,6 +1062,19 @@ export function SettingsPage() {
                         ))}
                       </div>
                     </div>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>页面布局</span>
+                      <div className={styles.segControl} role="group" aria-label="页面布局">
+                        {(['framed', 'full'] as const).map(layout => <button
+                          key={layout}
+                          type="button"
+                          className={`${styles.seg} no-drag ${contentLayout === layout ? styles.segActive : ''}`}
+                          aria-pressed={contentLayout === layout}
+                          onClick={() => setContentLayout(layout)}
+                        >{layout === 'framed' ? '保留边框' : '内容延展'}</button>)}
+                      </div>
+                    </div>
+                    <p className={styles.groupHint}>内容延展会移除栏目外框，让音乐内容铺开。</p>
                   </section>
 
                   <section className={styles.group}>

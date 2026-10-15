@@ -110,6 +110,7 @@ interface PersistedSettings {
   /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
   lyricsShowRoma: boolean
   themeMode: 'auto' | 'light' | 'dark'
+  contentLayout: 'framed' | 'full'
   audioQuality: AudioQuality
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
@@ -166,6 +167,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsShowTranslation(v: boolean): void
   setLyricsShowRoma(v: boolean): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
+  setContentLayout(layout: 'framed' | 'full'): void
   setAudioQuality(q: AudioQuality): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
@@ -210,6 +212,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsShowTranslation: true,
   lyricsShowRoma: true,
   themeMode: 'auto',
+  contentLayout: 'framed',
   audioQuality: 'max',
   playMode: 'order',
   fontFamily: '',
@@ -334,6 +337,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ themeMode: m })
     get().saveToLocal()
   },
+  setContentLayout(contentLayout) {
+    set({ contentLayout })
+    get().saveToLocal()
+  },
   setAudioQuality(q) {
     set({ audioQuality: q })
     get().saveToLocal()
@@ -391,8 +398,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, contentLayout, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, themeMode, contentLayout, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -438,6 +445,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
         themeMode: data.themeMode ?? 'auto',
+        contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
         audioQuality: data.audioQuality ?? 'max',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',

@@ -19,6 +19,7 @@
 .pageTitle { font-size: 24px; font-weight: 700; color: var(--sm-text-primary); margin: 0; }
 
 .subTabs {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
   display: flex;
@@ -29,9 +30,31 @@
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
   padding: 3px;
+  isolation: isolate;
+  touch-action: pan-y;
+  user-select: none;
+  scrollbar-width: none;
+}
+.subTabs::-webkit-scrollbar { display: none; }
+.subTabs[data-dragging='true'], .subTabs[data-dragging='true'] button { cursor: grabbing; }
+.subTabs[data-ready='true'] .subTabActive { background: transparent; }
+
+.tabPill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  pointer-events: none;
+  border-radius: var(--sm-radius-pill);
+  border: 1px solid var(--glass-border-card);
+  background: linear-gradient(160deg, var(--glass-bg-card), var(--sm-bg-overlay));
+  backdrop-filter: var(--glass-blur-base) saturate(150%);
+  -webkit-backdrop-filter: var(--glass-blur-base) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--sm-border-strong), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
 }
 
 .subTab {
+  position: relative;
   padding: 5px 14px;
   white-space: nowrap;
   border-radius: var(--sm-radius-pill);
@@ -97,6 +120,22 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 24px;
+}
+
+.skeletonCard {
+  aspect-ratio: 1 / 1.2;
+  border-radius: 14px;
+  background: var(--sm-bg-elevated);
+  animation: loadingPulse 1.4s var(--sm-ease-in-out) infinite;
+}
+@keyframes loadingPulse { 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { .skeletonCard { animation: none; } }
+
+:global([data-content-layout='full']) .providerSection {
+  padding: 16px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .emptyHint {

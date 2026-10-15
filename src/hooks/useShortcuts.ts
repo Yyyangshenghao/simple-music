@@ -58,6 +58,9 @@ export function useShortcuts(): void {
       if (!tab && shouldIgnoreShortcut(event.target)) return
       const space = event.key === ' ' || event.code === 'Space'
       const arrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
+      // 库分类等复合控件用未修饰的方向键切换选项，组合快捷键继续交给应用。
+      if (arrow && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+        && (event.target as Element | null)?.closest?.('[data-arrow-navigation]')) return
       if (!tab && !space && !arrow) return
       // 用户绑定优先执行，再取消控件的默认导航与激活；菜单同键也由本次事件执行一次。
       onKeyDown(event, true)

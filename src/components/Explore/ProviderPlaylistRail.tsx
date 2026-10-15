@@ -55,9 +55,7 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
           <button className="no-drag" onClick={() => setRevision((current) => current + 1)}>重试</button>
         </div>
       ) : playlists.length > 0 && (
-        source === 'apple'
-          ? <HorizontalCardRail className={styles.appleRow} label="你的 Apple Music 歌单，可横向滚动">{cards}</HorizontalCardRail>
-          : <div className={styles.row}>{cards}</div>
+        <HorizontalCardRail className={styles.row} label="你的歌单" dragHandle>{cards}</HorizontalCardRail>
       )}
     </section>
   )

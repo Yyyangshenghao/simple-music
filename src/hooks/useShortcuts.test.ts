@@ -241,6 +241,23 @@ describe('快捷键真实分发链路', () => {
     expect(recording.preventDefault).not.toHaveBeenCalled()
     expect(h.action).not.toHaveBeenCalled()
   })
+  it('库分类控件保留方向键切换，不触发应用播放快捷键', async () => {
+    mountShortcuts()
+    await flush()
+    const event = key({ key: 'ArrowRight', code: 'ArrowRight', target: target('[data-arrow-navigation]') })
+    const control = vi.fn((event: KeyboardEvent) => event.preventDefault())
+    expect(dispatch(event, control)).toHaveBeenCalledOnce()
+    expect(event.stopPropagation).not.toHaveBeenCalled()
+    expect(h.action).not.toHaveBeenCalled()
+  })
+  it('库分类仍执行用户配置的 Shift 方向键快捷键', async () => {
+    useSettingsStore.setState({ localHotkeys: [{ action: 'next', accelerator: 'Shift+Left' }] })
+    mountShortcuts()
+    await flush()
+    const event = key({ key: 'ArrowLeft', code: 'ArrowLeft', shiftKey: true, target: target('[data-arrow-navigation]') })
+    expect(dispatch(event)).not.toHaveBeenCalled()
+    expect(h.action.mock.calls).toEqual([['next']])
+  })
   it('保留系统切换窗口和修饰键切歌，不交给普通控件', async () => {
     mountShortcuts()
     await flush()

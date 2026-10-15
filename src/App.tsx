@@ -27,7 +27,7 @@ import { Toast } from './components/ui/Toast'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
 const APPEARANCE_KEYS = [
-  'themeMode', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
+  'themeMode', 'contentLayout', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
   'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
 ] as const
 
@@ -56,6 +56,7 @@ export default function App() {
     const sync = () => {
       const {
         themeMode,
+        contentLayout,
         fontFamily,
         fontFamilyCjk,
         lyricsFontFamily,
@@ -67,6 +68,7 @@ export default function App() {
       const root = document.documentElement
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
+      root.setAttribute('data-content-layout', contentLayout)
       if (fontFamily.trim() || fontFamilyCjk.trim()) {
         root.style.setProperty('--sm-font-sans', fontFamilyCssValue(fontFamily, fontFamilyCjk))
       } else root.style.removeProperty('--sm-font-sans')
