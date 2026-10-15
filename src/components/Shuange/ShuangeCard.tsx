@@ -140,7 +140,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
         <div className={styles.content}>
           <div className={styles.clipBadge}>
             <span className={styles.liveDot} />
-            {switching ? '正在定位精彩段' : status === 'loading' ? '正在缓冲片段' : offset?.kind === 'refrain' ? '重复段精选' : '歌曲结构精选'}
+            {buffering ? (switching ? '正在定位精彩段' : '正在缓冲片段') : '精彩片段'}
           </div>
           <h1 ref={titleViewportRef} title={track.name}>
             <span className={styles.titleTrack} data-overflow={titleOverflow}>
@@ -160,14 +160,13 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 transition={{ duration: 0.24 }}
               >
                 <strong>{currentLine || (switching ? '先等一拍，马上开唱' : '听听这一段')}</strong>
-                <span>{nextLine || '喜欢的话，可以收藏或播放全曲'}</span>
+                {nextLine && <span>{nextLine}</span>}
               </motion.div>
             </AnimatePresence>
           </div>
 
           <ClipProgress track={track} startSec={finishingTrack ? 0 : offset?.startSec ?? 0} endSec={finishingTrack ? duration : offset?.endSec ?? 0} label={finishingTrack ? '当前歌曲播放进度' : undefined} />
           <div className={styles.progressMeta}>
-            <span>{offset?.kind === 'refrain' ? '副歌候选' : '精彩片段'}</span>
             <span>{finishingTrack ? '当前歌曲播完后停止' : `${Math.round(clipDuration || 30)} 秒后自动下一首`}</span>
           </div>
 

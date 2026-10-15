@@ -17,6 +17,7 @@
 | 2.4.0 应用聚合歌单的范围约定 | [聚合歌单规划](specs/2026-10-06-aggregate-playlists-2.4.0.md) |
 | 2.4.0 网易云、QQ 收听上报与官方统计验证边界 | [听歌记录需求](specs/2026-10-12-listening-records-2.4.0.md) |
 | 2.4.0 当前架构核对与分阶段重构范围 | [架构梳理与重构范围](specs/2026-10-12-simple-music-2.4.0-refactor-scope.md) |
+| 2.4.0 现有界面精修、前后截图和验收范围 | [界面调整对照](reviews/2.4.0-ui-refinement.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |
 | Apple Music 的设计选择与验收边界 | [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md) |

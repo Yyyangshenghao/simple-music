@@ -94,6 +94,24 @@ describe('RoamPage 已保存歌单入口', () => {
     expect(html).not.toContain('旧曲目-2')
   })
 
+  it('无启用平台时提供可操作的设置入口，而不是禁用的死路', () => {
+    const previous = structuredClone(providerState.byId)
+    const previousLocal = roamState.localPlaylist
+    const previousPlaylist = roamState.playlist
+    try {
+      for (const provider of Object.values(providerState.byId)) provider.enabled = false
+      roamState.localPlaylist = null
+      roamState.playlist = null
+      const html = renderToStaticMarkup(<RoamPage />)
+      expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>打开音源设置<\/button>/)
+      expect(html).not.toContain('请先启用音乐平台')
+    } finally {
+      providerState.byId = previous
+      roamState.localPlaylist = previousLocal
+      roamState.playlist = previousPlaylist
+    }
+  })
+
   it('本地存档和网易云存档可并列保留，同类新结果只覆盖各自槽位', () => {
     const local = roamState.playlist as RoamPlaylist
     const remote: RoamPlaylist = {

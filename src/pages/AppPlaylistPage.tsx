@@ -10,6 +10,7 @@ import { fetchOfflineStatuses, type OfflineCacheStatus } from '../lib/offline-ca
 import { appPlaylistPlaybackTracks, appPlaylistTrackState } from '../lib/app-playlist-playback'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { AppPlaylistModal, AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
+import { InfoButton } from '../components/ui/InfoButton'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
 import type { Track } from '../types/domain'
@@ -29,6 +30,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
   const [editing, setEditing] = useState<'rename' | 'delete' | null>(null)
   const [error, setError] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const managementRef = useRef<HTMLDetailsElement>(null)
   const localIds = item?.tracks.filter(track => track.source === 'local').map(track => String(track.id)) ?? []
   const localSignature = JSON.stringify(localIds)
 
@@ -64,6 +66,19 @@ export function AppPlaylistPage({ id }: { id: string }) {
   const rows = useMemo(() => item?.tracks.map(track => appPlaylistTrackState(track, context)) ?? [], [item?.tracks, providers, localTracks, localError, offline])
   const availableCount = rows.filter(row => row.available).length
 
+  function openEditor(action: 'rename' | 'delete') {
+    if (managementRef.current) {
+      managementRef.current.open = false
+      managementRef.current.querySelector('summary')?.focus()
+    }
+    setEditing(action)
+  }
+
+  function closeEditor() {
+    setEditing(null)
+    requestAnimationFrame(() => managementRef.current?.querySelector('summary')?.focus())
+  }
+
   function edit(action: () => void) {
     try { action(); setError('') }
     catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试') }
@@ -93,12 +108,28 @@ export function AppPlaylistPage({ id }: { id: string }) {
                   useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
                 } catch { /* 播放客户端已显示失败原因。 */ }
               }}>添加到播放队列</button>
-              <button onClick={() => setEditing('rename')}>重命名</button>
-              <button onClick={() => setEditing('delete')}>删除歌单</button>
+              <details className={styles.management} ref={managementRef}
+                onBlur={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false
+                }}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    event.currentTarget.open = false
+                    event.currentTarget.querySelector('summary')?.focus()
+                  }
+                }}>
+                <summary className="no-drag" aria-label="歌单更多操作">更多<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></summary>
+                <div className={styles.managementPanel} role="group" aria-label="管理应用歌单">
+                  <button type="button" onClick={() => openEditor('rename')}>重命名</button>
+                  <button type="button" className={styles.danger} onClick={() => openEditor('delete')}>删除歌单</button>
+                </div>
+              </details>
             </div>
           </div>
         </header>
-        <div className={styles.toolbar}><p className={styles.hint}>暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的歌单顺序。</p><button onClick={() => setRefresh(value => value + 1)}>刷新状态</button></div>
+        <div className={styles.toolbar}><InfoButton label="歌单排序与移除" text="暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的歌单顺序。" align="left" /><button onClick={() => setRefresh(value => value + 1)}>刷新状态</button></div>
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
         {!item.tracks.length ? <div className={styles.empty}><p>歌单还是空的</p><span className={styles.hint}>从在线或本地音乐的更多操作中选择「加入应用歌单」。</span></div>
@@ -115,10 +146,10 @@ export function AppPlaylistPage({ id }: { id: string }) {
               </div>
             </div>
           }} />}
-        {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={() => setEditing(null)} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
-        {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={() => setEditing(null)}>
+        {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
+        {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={closeEditor}>
           <p className={styles.hint}>确定删除「{item.name}」？当前播放队列和歌曲文件会保留。</p>
-          <div className={styles.buttons}><button autoFocus onClick={() => setEditing(null)}>取消</button><button onClick={() => edit(() => {
+          <div className={styles.buttons}><button autoFocus onClick={closeEditor}>取消</button><button className={styles.danger} onClick={() => edit(() => {
             useAppPlaylistsStore.getState().remove(id)
             setEditing(null)
             useNavigationStore.getState().goBack()

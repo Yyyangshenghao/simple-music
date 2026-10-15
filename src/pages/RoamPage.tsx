@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
@@ -234,8 +235,12 @@ export function RoamPage() {
             <span className={styles.heroKicker}>PERSONAL RADIO</span>
             <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
             <p className={styles.subtitle}>
-              从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可继续同步「每日漫游」。
+              选择喜欢的歌手，生成你的漫游歌单。
             </p>
+            <details className={styles.saveHelp}>
+              <summary className="no-drag">保存与同步说明</summary>
+              <p>从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可同步「每日漫游」。</p>
+            </details>
           </div>
           <div className={styles.roamHeroActions}>
             <span className={styles.scopeLabel}>候选范围</span>
@@ -265,8 +270,14 @@ export function RoamPage() {
             {entries.length === 0 && (
               <motion.button
                 className={`${styles.pickBtn} no-drag`}
-                disabled={loading || scopeSources.length === 0}
+                disabled={loading}
                 onClick={() => {
+                  if (!scopeSources.length) {
+                    const navigation = useNavigationStore.getState()
+                    navigation.navigateTo('settings')
+                    navigation.requestSettingsMusic()
+                    return
+                  }
                   setDrafting(true)
                   setPickerOpen(true)
                 }}
@@ -276,7 +287,7 @@ export function RoamPage() {
                 {loading
                   ? '正在核实已保存的漫游…'
                   : scopeSources.length === 0
-                    ? '请先启用音乐平台'
+                    ? '打开音源设置'
                     : '选择歌手'}
               </motion.button>
             )}
