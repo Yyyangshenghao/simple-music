@@ -25,10 +25,11 @@
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
   - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`、`/api/netease/{banner,toplist,toplist/preview,record,recent/playlists,scrobble}`、`/api/netease/artist/{detail,songs,albums,similar}`、`/api/netease/album/songs`
-  - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
+  - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,order/update,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存由独立的 `routes/audio-cache.ts` 管理；`/api/audio` 仍负责完整音频经过时的自动落盘，拖进度条的中段 Range 只透传。
   - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。既有漫游保存使用的 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口。
+  - 漫游替换曲目后通过 `POST /api/playlist/order/update` 显式同步顺序；写前再次验证本人普通歌单、完整 ID 集合及 Cookie 会话，歌单被外部修改时拒绝旧顺序，排序失败不会报告保存成功。
 - **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。

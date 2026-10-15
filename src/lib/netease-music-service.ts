@@ -239,6 +239,7 @@ export class NeteaseMusicService implements MusicService {
     }
     if (newTrackIds.length > 0) {
       await api.post('/api/playlist/add-song', { pid: playlistId, ids: newTrackIds.map(String).join(',') })
+      await api.post('/api/playlist/order/update', { pid: playlistId, ids: newTrackIds.map(String) })
     }
     return true
   }

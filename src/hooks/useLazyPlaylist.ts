@@ -15,6 +15,7 @@ interface LazyEntry {
   tracks: (Track | null)[]
   loadedWindows: Set<number>
   inflightWindows: Map<number, Promise<void>>
+  failedWindows: Map<number, number>
   skeletonLoaded: boolean
   error: boolean
   /** 骨架加载完成时间戳,用于 TTL 过期判断。 */
@@ -65,7 +66,7 @@ function touchAndEvict(key: string): void {
 }
 
 function emptyEntry(): LazyEntry {
-  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Map(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
+  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Map(), failedWindows: new Map(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
 }
 
 /** 每日推荐/雷达等已全量在手的场景:直接落缓存,不发任何请求。 */
@@ -291,7 +292,13 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
         }
         if (fetched.length > 0) e.loadedWindows.add(w)
         else throw new Error('歌曲详情暂不可用')
+        e.failedWindows.delete(w)
         if (sessionRef.current === session) bump()
+      })
+      .catch(error => {
+        // 滚动反复经过失败窗口不能立即刷同一接口；搜索和手动刷新仍可主动重试。
+        if (isCurrentPlaylistSession(playlist, key) && cache.get(key) === e) e.failedWindows.set(w, Date.now() + 30_000)
+        throw error
       })
       .finally(() => { e.inflightWindows.delete(w) })
     e.inflightWindows.set(w, request)
@@ -303,6 +310,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const e = cache.get(key)
     if (!e?.skeletonLoaded) return
     for (const w of windowIndicesFor(start, end, TRACK_WINDOW, e.trackIds.length)) {
+      if ((e.failedWindows.get(w) ?? 0) > Date.now()) continue
       void loadWindow(e, w).catch(() => {})
     }
   }, [available, key, loadWindow, entry])

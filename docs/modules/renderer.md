@@ -128,6 +128,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 
 ## 注意事项
 
+虚拟列表滚动期间仍逐帧计算可见行，但在停止 180ms 后才通知详情加载；`ListScrollActivity` 同步暂停行的红心、离线查询，避免快速略过的区段挤满后台命令队列。漫游结果也使用固定 56px 虚拟行，播放仍按完整曲目数组和原下标入队。详情失败窗口在滚动查询中冷却 30 秒，显式搜索/刷新可主动重试，账号或平台中断不计为当前窗口失败。
+
 - 封面共享元素转场依赖 layoutId 约定：专辑统一 `album-cover-${source}-${String(id)}`，普通歌单沿用 `explore-cover-*` / `library-cover-*`；滚动容器使用 `layoutScroll`，AppShell 统一 `LayoutGroup`。封面圆角在 motion 节点的 `style` 中显式设置，避免返回后被投影样式覆盖为 0。探索页预览弹窗使用相同标识交接封面，进入详情时即时退出遮罩，避免遮挡封面移动；每日推荐和私人雷达的栏目边界不裁切返回中的封面。
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。

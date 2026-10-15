@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef } from 'react'
+import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
@@ -43,6 +44,7 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
 }
 
 export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, showInactiveSource = false }: TrackRowProps) {
+  const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -75,11 +77,11 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
-    if (visible) void useLikesStore.getState().ensureChecked(track)
-  }, [track, visible, likesRevision])
+    if (visible && !scrolling) void useLikesStore.getState().ensureChecked(track)
+  }, [track, visible, likesRevision, scrolling])
   useEffect(() => {
-    if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
-  }, [offlineVisible, track.source, track.id, offlineRevision])
+    if (offlineVisible && !scrolling) void useOfflineCacheStore.getState().ensure(track)
+  }, [offlineVisible, track.source, track.id, offlineRevision, scrolling])
 
   return (
     <button

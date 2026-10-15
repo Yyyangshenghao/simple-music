@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { VirtualList } from '../components/ui/VirtualList'
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
@@ -46,6 +47,7 @@ function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[
 }
 
 export function RoamPage() {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
@@ -151,7 +153,7 @@ export function RoamPage() {
 
   if (openedPlaylist) {
     return (
-      <div className={`${styles.page} ${pageScroll.viewport}`}>
+      <div ref={scrollRef} className={`${styles.page} ${pageScroll.viewport}`}>
         <div className={styles.inner}>
           <motion.div
             className={styles.resultHeader}
@@ -213,9 +215,8 @@ export function RoamPage() {
             animate="visible"
             transition={{ ...springGentle, delay: 0.08 }}
           >
-            {openedPlaylist.tracks.map((track, i) => (
-              <TrackRow key={`${track.source}-${String(track.id)}`} track={track} index={i} onPlay={() => playAt(i)} />
-            ))}
+            <VirtualList total={openedPlaylist.tracks.length} rowHeight={56} scrollRef={scrollRef}
+              renderRow={i => <TrackRow track={openedPlaylist.tracks[i]} index={i} onPlay={() => playAt(i)} />} />
           </motion.div>
         </div>
       </div>

@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Playlist, Track } from '../types/domain'
 
-const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 } }))
+const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 }, participating: true }))
 vi.mock('react', () => ({
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => effect(),
@@ -14,7 +14,7 @@ vi.mock('../stores/providers', () => ({
   useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
     netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
   } }),
-  isProviderParticipating: () => true,
+  isProviderParticipating: () => harness.participating,
 }))
 import { invalidatePlaylistCache, loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
 
@@ -29,7 +29,9 @@ async function setup() {
 }
 
 describe('歌单搜索补齐详情', () => {
+  afterEach(() => vi.restoreAllMocks())
   beforeEach(() => {
+    harness.participating = true
     harness.skeleton.mockReset()
     harness.details.mockReset().mockImplementation(async (ids: number[]) => ids.map(song))
   })
@@ -60,6 +62,35 @@ describe('歌单搜索补齐详情', () => {
     await expect(hook.ensureAll(() => false)).rejects.toThrow('offline')
     await hook.ensureAll(() => false)
     expect(harness.details.mock.calls.map(([ids]) => ids[0])).toEqual([0, 100, 100, 200])
+  })
+  it('滚动反复经过限流窗口不会立即重试，冷却后仍可补齐', async () => {
+    let now = 1000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const hook = await setup()
+    harness.details.mockRejectedValueOnce(new Error('操作过多'))
+    hook.ensureRange(100, 120)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    hook.ensureRange(100, 125)
+    expect(harness.details).toHaveBeenCalledTimes(1)
+    now += 30_001
+    hook.ensureRange(100, 130)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(harness.details).toHaveBeenCalledTimes(2)
+    expect(hook.makeQueue()[100]).toEqual(song(100))
+  })
+  it('停用期间完成的旧请求不让重新启用后的窗口进入失败冷却', async () => {
+    const hook = await setup()
+    let finish!: (tracks: Track[]) => void
+    harness.details.mockReturnValueOnce(new Promise<Track[]>(resolve => { finish = resolve }))
+    hook.ensureRange(100, 120)
+    harness.participating = false
+    finish([song(100)])
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    harness.participating = true
+    hook.ensureRange(100, 120)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(harness.details).toHaveBeenCalledTimes(2)
+    expect(hook.makeQueue()[100]).toEqual(song(100))
   })
 })
 

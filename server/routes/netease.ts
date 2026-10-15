@@ -981,6 +981,50 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 显式同步漫游曲目顺序，添加接口不保证保持输入顺序 ----------
+  if (pn === '/api/playlist/order/update') {
+    try {
+      if (req.method !== 'POST') {
+        sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
+        return true
+      }
+      const info = await requireLogin(res, ctx, sendJson)
+      if (!info) return true
+      const cookie = getCookie(ctx, 'netease')
+      const body = await readRequestBody(req)
+      const ids = Array.isArray(body.ids) ? body.ids.map(String) : []
+      if (!body.pid || !ids.length || ids.some(id => !/^[1-9]\d*$/.test(id)) || new Set(ids).size !== ids.length) {
+        sendJson(res, { error: 'INVALID_PLAYLIST_ORDER' }, 400)
+        return true
+      }
+      const pid = String(body.pid)
+      const detail = await call('playlist_detail', { id: pid, s: 0, cookie, timestamp: Date.now() })
+      const target = asObj(asObj(detail.body).playlist)
+      if (String(asObj(target.creator).userId) !== String(info.userId) || target.subscribed === true || asNum(target.specialType) !== 0) {
+        sendJson(res, { error: 'PLAYLIST_NOT_WRITABLE' }, 409)
+        return true
+      }
+      const currentIds = asArr(target.trackIds).map(track => String(asObj(track).id))
+      const currentSet = new Set(currentIds)
+      if (currentIds.length !== ids.length || ids.some(id => !currentSet.has(id))) {
+        sendJson(res, { error: 'PLAYLIST_CHANGED' }, 409)
+        return true
+      }
+      if (getCookie(ctx, 'netease') !== cookie) {
+        sendJson(res, { error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      if (res.destroyed) return true
+      const result = await call('song_order_update', { pid, ids: JSON.stringify(ids), cookie, timestamp: Date.now() })
+      const code = normalizeApiCode(result)
+      const success = code === 200 && !asObj(result.body).error
+      sendJson(res, { success, code, ...(success ? {} : { error: normalizeApiMessage(result) || 'PLAYLIST_ORDER_FAILED' }) }, success ? 200 : (code === 401 ? 401 : 409))
+    } catch (error) {
+      sendJson(res, { error: (error as Error).message }, 500)
+    }
+    return true
+  }
+
   // ---------- 更新歌单简介(漫游功能写"水印+日期+歌手名单"用) ----------
   if (pn === '/api/playlist/desc/update') {
     try {

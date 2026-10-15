@@ -53,5 +53,11 @@ export function pickAdditionalTracks(pool: Track[], existing: Track[], mode: Roa
 
 /** 汇总多位歌手已选出的曲目并整体打乱顺序（不按歌手分块出现）。 */
 export function buildRoamTracks(perArtistPicks: Track[][]): Track[] {
-  return shuffle(perArtistPicks.flat())
+  // 合作曲可能同时入选多位歌手；远端歌单只保留一次，本地也采用相同序列。
+  const unique = new Map<string, Track>()
+  for (const track of perArtistPicks.flat()) {
+    const key = `${track.source}:${String(track.id)}`
+    if (!unique.has(key)) unique.set(key, track)
+  }
+  return shuffle([...unique.values()])
 }

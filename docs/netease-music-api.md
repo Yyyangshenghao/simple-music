@@ -73,6 +73,7 @@
 | `POST /api/playlist/create` | 创建歌单 | body `name`、`privacy` | `playlist_create` | 需登录 | 已用 |
 | `POST /api/playlist/add-song` | 收藏歌曲到歌单 | body `pid`、`id` | 优先 `playlist_tracks`(`op:'add'`),失败兜底 `playlist_track_add` | 记录两次尝试的 `attempts` | 已用 |
 | `POST /api/playlist/remove-songs` | 批量移除歌单曲目 | body `pid`、`ids` | `playlist_tracks`(`op:'del'`) | 漫游保存歌单的“清空重塞”流程使用 | 已用 |
+| `POST /api/playlist/order/update` | 同步漫游曲目顺序 | body `pid`、完整有序 `ids` 数组 | `song_order_update` | 核对本人普通歌单、当前完整 ID 集合与 Cookie 后排序 | 已用 |
 | `POST /api/playlist/desc/update` | 更新歌单简介 | body `id`、`desc` | `playlist_desc_update` | 漫游保存歌单写入日期/歌手说明 | 已用 |
 
 ## 7. 收藏 / 红心(`routes/netease.ts`)

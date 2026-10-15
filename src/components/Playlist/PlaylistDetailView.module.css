@@ -149,6 +149,7 @@
 
 .skeletonLines i:first-child { width: 40%; }
 .skeletonLines i:last-child { width: 24%; height: 8px; animation-delay: 0.2s; }
+:global([data-list-scrolling]) .skeletonLines i { animation-play-state: paused; }
 
 @keyframes skeletonPulse {
   0%, 100% { opacity: 0.45; }

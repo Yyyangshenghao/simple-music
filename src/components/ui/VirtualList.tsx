@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { virtualRange } from '../../lib/lazy-window'
+import { ListScrollActivity, observeListScrollActivity } from './list-scroll-activity'
 
 interface VirtualListProps {
   total: number
@@ -18,8 +19,12 @@ export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRang
   const innerRef = useRef<HTMLDivElement>(null)
   const [range, setRange] = useState({ start: 0, end: 0 })
   const rangeRef = useRef(range)
+  const [scrolling, setScrolling] = useState(false)
+  const scrollingRef = useRef(false)
 
   useEffect(() => {
+    scrollingRef.current = false
+    setScrolling(false)
     const scrollEl = scrollRef.current
     const inner = innerRef.current
     if (!scrollEl || !inner) return
@@ -40,18 +45,23 @@ export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRang
     }
     update()
     scrollEl.addEventListener('scroll', schedule, { passive: true })
+    const stopActivity = observeListScrollActivity(scrollEl, active => {
+      scrollingRef.current = active
+      setScrolling(active)
+    })
     const ro = new ResizeObserver(schedule)
     ro.observe(scrollEl)
     return () => {
       scrollEl.removeEventListener('scroll', schedule)
+      stopActivity()
       ro.disconnect()
       if (raf) cancelAnimationFrame(raf)
     }
   }, [scrollRef, rowHeight, total, overscan])
 
   useEffect(() => {
-    if (range.end > range.start) onRangeChange?.(range.start, range.end)
-  }, [range, onRangeChange])
+    if (!scrollingRef.current && range.end > range.start) onRangeChange?.(range.start, range.end)
+  }, [range, onRangeChange, scrolling])
 
   const rows: ReactNode[] = []
   for (let i = range.start; i < Math.min(range.end, total); i++) {
@@ -62,8 +72,8 @@ export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRang
     )
   }
   return (
-    <div ref={innerRef} style={{ position: 'relative', height: total * rowHeight }}>
-      {rows}
+    <div ref={innerRef} data-list-scrolling={scrolling || undefined} style={{ position: 'relative', height: total * rowHeight }}>
+      <ListScrollActivity.Provider value={scrolling}>{rows}</ListScrollActivity.Provider>
     </div>
   )
 }
