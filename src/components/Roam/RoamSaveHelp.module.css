@@ -1,0 +1,36 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.trigger:hover { color: var(--sm-text-primary); }
+.trigger:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.trigger svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.trigger svg[data-open='true'] { transform: rotate(90deg); }
+
+.panel {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  margin: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 10px;
+  background: var(--sm-bg-base);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  line-height: 1.6;
+}

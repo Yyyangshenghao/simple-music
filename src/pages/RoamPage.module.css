@@ -265,8 +265,3 @@
   .savedPlaylistActions > * { flex: 1; }
   .library { grid-template-columns: minmax(0, 1fr); }
 }
-
-.saveHelp { margin-top: 8px; color: var(--sm-text-secondary); font-size: 11px; line-height: 1.6; }
-.saveHelp summary { width: fit-content; cursor: pointer; }
-.saveHelp summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.saveHelp p { max-width: 540px; margin: 8px 0 0; }

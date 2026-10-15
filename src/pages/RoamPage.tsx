@@ -9,6 +9,7 @@ import { serviceFor } from '../lib/service-registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
 import { ArtistLibrarySection } from '../components/Roam/ArtistLibrarySection'
+import { RoamSaveHelp } from '../components/Roam/RoamSaveHelp'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
 import { GradientText } from '../components/ui/GradientText'
@@ -237,10 +238,7 @@ export function RoamPage() {
             <p className={styles.subtitle}>
               选择喜欢的歌手，生成你的漫游歌单。
             </p>
-            <details className={styles.saveHelp}>
-              <summary className="no-drag">保存与同步说明</summary>
-              <p>从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可同步「每日漫游」。</p>
-            </details>
+            <RoamSaveHelp />
           </div>
           <div className={styles.roamHeroActions}>
             <span className={styles.scopeLabel}>候选范围</span>

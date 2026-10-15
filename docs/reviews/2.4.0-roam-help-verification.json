@@ -1,0 +1,259 @@
+{
+  "baseline": {
+    "closed": {
+      "action": {
+        "bottom": 235.921875,
+        "height": 117.5,
+        "left": 676,
+        "right": 997,
+        "top": 118.421875,
+        "width": 321,
+        "x": 676,
+        "y": 118.421875
+      },
+      "hero": {
+        "bottom": 274.34375,
+        "height": 194.34375,
+        "left": 70,
+        "right": 1030,
+        "top": 80,
+        "width": 960,
+        "x": 70,
+        "y": 80
+      }
+    },
+    "open": {
+      "action": {
+        "bottom": 248.71875,
+        "height": 117.5,
+        "left": 676,
+        "right": 997,
+        "top": 131.21875,
+        "width": 321,
+        "x": 676,
+        "y": 131.21875
+      },
+      "hero": {
+        "bottom": 299.9375,
+        "height": 219.9375,
+        "left": 70,
+        "right": 1030,
+        "top": 80,
+        "width": 960,
+        "x": 70,
+        "y": 80
+      }
+    }
+  },
+  "after": [
+    {
+      "scenario": "dark-1100x900",
+      "closed": {
+        "action": {
+          "bottom": 235.921875,
+          "height": 117.5,
+          "left": 676,
+          "right": 997,
+          "top": 118.421875,
+          "width": 321,
+          "x": 676,
+          "y": 118.421875
+        },
+        "hero": {
+          "bottom": 274.34375,
+          "height": 194.34375,
+          "left": 70,
+          "right": 1030,
+          "top": 80,
+          "width": 960,
+          "x": 70,
+          "y": 80
+        }
+      },
+      "open": {
+        "action": {
+          "bottom": 235.921875,
+          "height": 117.5,
+          "left": 676,
+          "right": 997,
+          "top": 118.421875,
+          "width": 321,
+          "x": 676,
+          "y": 118.421875
+        },
+        "hero": {
+          "bottom": 274.34375,
+          "height": 194.34375,
+          "left": 70,
+          "right": 1030,
+          "top": 80,
+          "width": 960,
+          "x": 70,
+          "y": 80
+        }
+      }
+    },
+    {
+      "scenario": "light-960x900",
+      "closed": {
+        "action": {
+          "bottom": 232.671875,
+          "height": 117.5,
+          "left": 588.1953125,
+          "right": 898.1953125,
+          "top": 115.171875,
+          "width": 310,
+          "x": 588.1953125,
+          "y": 115.171875
+        },
+        "hero": {
+          "bottom": 267.84375,
+          "height": 187.84375,
+          "left": 28.796875,
+          "right": 931.1953125,
+          "top": 80,
+          "width": 902.3984375,
+          "x": 28.796875,
+          "y": 80
+        }
+      },
+      "open": {
+        "action": {
+          "bottom": 232.671875,
+          "height": 117.5,
+          "left": 588.1953125,
+          "right": 898.1953125,
+          "top": 115.171875,
+          "width": 310,
+          "x": 588.1953125,
+          "y": 115.171875
+        },
+        "hero": {
+          "bottom": 267.84375,
+          "height": 187.84375,
+          "left": 28.796875,
+          "right": 931.1953125,
+          "top": 80,
+          "width": 902.3984375,
+          "x": 28.796875,
+          "y": 80
+        }
+      }
+    },
+    {
+      "scenario": "light-740x700-single-column",
+      "closed": {
+        "action": {
+          "bottom": 363.34375,
+          "height": 117.5,
+          "left": 39,
+          "right": 701,
+          "top": 245.84375,
+          "width": 662,
+          "x": 39,
+          "y": 245.84375
+        },
+        "hero": {
+          "bottom": 388.34375,
+          "height": 316.34375,
+          "left": 14,
+          "right": 726,
+          "top": 72,
+          "width": 712,
+          "x": 14,
+          "y": 72
+        }
+      },
+      "open": {
+        "action": {
+          "bottom": 363.34375,
+          "height": 117.5,
+          "left": 39,
+          "right": 701,
+          "top": 245.84375,
+          "width": 662,
+          "x": 39,
+          "y": 245.84375
+        },
+        "hero": {
+          "bottom": 388.34375,
+          "height": 316.34375,
+          "left": 14,
+          "right": 726,
+          "top": 72,
+          "width": 712,
+          "x": 14,
+          "y": 72
+        }
+      }
+    }
+  ],
+  "date": "2026-10-15",
+  "baselineCommit": "aca72ef",
+  "environment": "实际 App 浏览器渲染，临时独立配置，未登录账号；本次未完成原生窗口验收",
+  "checks": [
+    "旧源码展开时卡片增高 25.59375px，右侧操作下移 12.796875px",
+    "修复后三种尺寸展开/收起时 hero 与右侧操作 rect 完全相等",
+    "Enter 展开，Escape 收起且焦点回到触发按钮",
+    "点击外部与 Option+Tab 移出焦点收起",
+    "窄窗口浮层完整可见且无页面横向溢出",
+    "展开时缩放窗口，浮层正确收起（resize 的 Window 目标不进入 Node.contains）"
+  ],
+  "typecheck": "passed",
+  "tests": {
+    "files": 257,
+    "tests": 2244,
+    "result": "passed"
+  },
+  "independentReview": "未发现 P1/P2，代码只读复核",
+  "screenshots": [
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-before-closed.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "1afcf0c16d71bc6ac910c1bb84381270bd6d7e643935f6558f781b931e555ebd"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-before-open.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "39eff174ea480e05e6628dcf1db676f85759537fcc6fcfb2f85622cf3bec808a"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-after-closed.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "ed93f13304cc9b590cc2ca15eb17b7c1b02fdf0beb665006afc93031eff6c998"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-after-open.jpg",
+      "size": [
+        1100,
+        900
+      ],
+      "sha256": "35cefcb8ecb791119bb6aa4e14ccac83fb7c9864fb2791ec1d6c1af8a6ed844e"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-after-open-light-960.jpg",
+      "size": [
+        960,
+        900
+      ],
+      "sha256": "1c8f36500dfda658bc0f83efe8ba91070361433d1653ca5f6999ee9a4f243cb0"
+    },
+    {
+      "path": "assets/2.4.0-ui-refinement/roam-stability-after-open-light-740.jpg",
+      "size": [
+        740,
+        700
+      ],
+      "sha256": "89404b434fa402b8a277d0b71741cedfb170553ec1a9799180aa6621b1a0a44c"
+    }
+  ]
+}
