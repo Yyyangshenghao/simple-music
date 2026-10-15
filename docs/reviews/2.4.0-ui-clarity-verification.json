@@ -1,0 +1,297 @@
+{
+  "method": "真实 Electron npm run dev、真实完整 App 的 SettingsPage；Cua 原生导航、主题切换、下载入口、键盘焦点和截图。CDP 仅只读观察 DOM 与 Runtime；窗口尺寸由 /tmp launcher 创建时设置。验证辅助脚本未修改业务源码，未使用数据 fixture，也未登录平台账号。",
+  "isolatedProfile": "/tmp/simplemusic-ui-clarity/profile",
+  "checks": [
+    {
+      "check": "真实设置入口",
+      "passed": true
+    },
+    {
+      "check": "六个设置导航到对应分区",
+      "passed": true,
+      "results": [
+        {
+          "label": "after-music-dark-960",
+          "active": "音源与播放",
+          "sectionTop": 220.8984375
+        },
+        {
+          "label": "after-visual-dark-960",
+          "active": "界面与窗口",
+          "sectionTop": 139.796875
+        },
+        {
+          "label": "after-lyrics-dark-960",
+          "active": "歌词与动效",
+          "sectionTop": 140.0859375
+        },
+        {
+          "label": "after-cache-dark-960",
+          "active": "缓存与下载",
+          "sectionTop": 140.1796875
+        },
+        {
+          "label": "after-shortcuts-dark-960",
+          "active": "快捷键",
+          "sectionTop": 139.7734375
+        },
+        {
+          "label": "after-about-dark-960",
+          "active": "关于应用",
+          "sectionTop": 326.359375
+        }
+      ]
+    },
+    {
+      "check": "修改前后首屏标题区域收紧",
+      "passed": true,
+      "before": {
+        "width": 1101,
+        "height": 136.9296875,
+        "firstSectionOffset": 323
+      },
+      "after": {
+        "width": 1100,
+        "height": 38.3984375,
+        "firstSectionOffset": 221
+      }
+    },
+    {
+      "check": "去除装饰英文及重复分区说明",
+      "passed": true,
+      "hasControlCenter": false,
+      "hasPreferences": false
+    },
+    {
+      "check": "管理下载打开并关闭真实下载队列",
+      "passed": true,
+      "nativeAX": "Cua 点击管理下载，出现歌曲下载队列/选择目录/打开目录/空任务；点击关闭后消失。未执行目录操作。"
+    },
+    {
+      "check": "低频查看按钮可通过键盘聚焦",
+      "passed": true,
+      "keyboard": "macOS Option+Tab",
+      "focused": {
+        "tag": "BUTTON",
+        "text": "查看",
+        "aria": "查看更新日志",
+        "focusVisible": true,
+        "outline": "rgba(255, 255, 255, 0.92) solid 2px"
+      }
+    },
+    {
+      "check": "浅色和深色实际切换",
+      "passed": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "check": "目录影响和缓存删除边界说明保留",
+      "passed": true,
+      "text": [
+        "更改目录只影响之后加入的任务，已有文件保留。",
+        "播放时自动保存，容量满后可自动清理。清理缓存不会删除下载目录中的歌曲。",
+        "更改位置会删除原目录中的缓存、离线音频及未识别旧文件，下载目录中的歌曲不受影响。"
+      ]
+    },
+    {
+      "check": "960、1100、1400布局检查",
+      "passed": true,
+      "windows": [
+        {
+          "width": 960,
+          "height": 900,
+          "sections": [
+            {
+              "id": "settings-section-music",
+              "x": 28.796875,
+              "width": 892.3984375
+            },
+            {
+              "id": "settings-section-visual",
+              "x": 28.796875,
+              "width": 892.3984375
+            },
+            {
+              "id": "settings-section-lyrics",
+              "x": 28.796875,
+              "width": 892.3984375
+            },
+            {
+              "id": "settings-section-cache",
+              "x": 28.796875,
+              "width": 892.3984375
+            },
+            {
+              "id": "settings-section-shortcuts",
+              "x": 28.796875,
+              "width": 892.3984375
+            },
+            {
+              "id": "settings-section-about",
+              "x": 28.796875,
+              "width": 892.3984375
+            }
+          ],
+          "page": [
+            {
+              "height": 900,
+              "scrollWidth": 960,
+              "width": 960,
+              "scrollTop": 0
+            },
+            {
+              "height": 900,
+              "scrollWidth": 1004,
+              "width": 950,
+              "scrollTop": 0
+            }
+          ]
+        },
+        {
+          "width": 1100,
+          "height": 900,
+          "sections": [
+            {
+              "id": "settings-section-music",
+              "x": 33,
+              "width": 1024
+            },
+            {
+              "id": "settings-section-visual",
+              "x": 33,
+              "width": 1024
+            },
+            {
+              "id": "settings-section-lyrics",
+              "x": 33,
+              "width": 1024
+            },
+            {
+              "id": "settings-section-cache",
+              "x": 33,
+              "width": 1024
+            },
+            {
+              "id": "settings-section-shortcuts",
+              "x": 33,
+              "width": 1024
+            },
+            {
+              "id": "settings-section-about",
+              "x": 33,
+              "width": 1024
+            }
+          ],
+          "page": [
+            {
+              "height": 900,
+              "scrollWidth": 1100,
+              "width": 1100,
+              "scrollTop": 0
+            },
+            {
+              "height": 900,
+              "scrollWidth": 1096,
+              "width": 1090,
+              "scrollTop": 0
+            }
+          ]
+        },
+        {
+          "width": 1400,
+          "height": 900,
+          "sections": [
+            {
+              "id": "settings-section-music",
+              "x": 307,
+              "width": 978
+            },
+            {
+              "id": "settings-section-visual",
+              "x": 307,
+              "width": 978
+            },
+            {
+              "id": "settings-section-lyrics",
+              "x": 307,
+              "width": 978
+            },
+            {
+              "id": "settings-section-cache",
+              "x": 307,
+              "width": 978
+            },
+            {
+              "id": "settings-section-shortcuts",
+              "x": 307,
+              "width": 978
+            },
+            {
+              "id": "settings-section-about",
+              "x": 307,
+              "width": 978
+            }
+          ],
+          "page": [
+            {
+              "height": 900,
+              "scrollWidth": 1400,
+              "width": 1400,
+              "scrollTop": 0
+            },
+            {
+              "height": 900,
+              "scrollWidth": 1390,
+              "width": 1390,
+              "scrollTop": 0
+            }
+          ]
+        }
+      ],
+      "wide": {
+        "headerBackground": "rgba(0, 0, 0, 0)",
+        "headerBackgroundImage": "none",
+        "navigationWidth": 176,
+        "navigationDirection": "column"
+      },
+      "overflowNote": "960 inner page scrollWidth1004/clientWidth950，唯一出窗元素是3个既有默认隐藏InfoButton tooltip，最右1004.39。可见内容和操作没有出窗；未断言底层完全无overflow。1400无任何出窗元素。未修改tooltip。"
+    },
+    {
+      "check": "960交互期间渲染Runtime异常和console.error",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "limitations": [
+    "账户未登录，未执行删除/目录更改/退出账号/真实下载。",
+    "Cua 当前无单独 hover API；已验证键盘 focus-visible，未单独验收悬停状态或真实更新可用时的主按钮。",
+    "正常Cmd+Q关闭阶段主进程出现PLAYBACK_HOST_GONE日志，修改前已出现，交互Runtime监测为零；另有macOS输入法mach port日志。",
+    "before准确尺寸1101×901，after为1100×900；截图不是完全同像素尺寸。",
+    "Windows 实机未验证；未执行更新下载/安装。"
+  ],
+  "screenshots": {
+    "before": "assets/2.4.0-ui-clarity-before.png",
+    "after": "assets/2.4.0-ui-clarity-after.png",
+    "cache": "assets/2.4.0-ui-clarity-cache-light.png"
+  },
+  "passed": true,
+  "sourceCommit": "64de306f266c4ed794e75415540edf58f6fe7216",
+  "baseCommit": "7fe09aa",
+  "validation": {
+    "typecheck": "passed",
+    "fullTests": {
+      "files": 256,
+      "tests": 2242,
+      "passed": true
+    },
+    "finalSettingsTests": {
+      "tests": 19,
+      "passed": true
+    },
+    "independentReview": "no P1/P2; download directory wording corrected",
+    "build": "not run; UI-only change validated in npm run dev"
+  }
+}

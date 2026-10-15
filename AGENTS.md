@@ -31,6 +31,7 @@ npm run build                  # 构建到 out/，不生成安装包
 
 ## 修改边界
 
+- 页面、文案和控件改动遵循 [界面设计准则](DESIGN.md)：减少重复说明，明确操作层级，保留风险与不可用原因；使用实际界面截图验收。
 - TypeScript 沿用两空格、单引号、无分号和现有 ESM 写法；组件样式用同目录 CSS Modules，复用 `src/styles/tokens.css` 与 `src/lib/motion-presets.ts`。不要顺带格式化无关文件。
 - `Track.duration` 为毫秒；player store 的 `position` / `duration` 为秒。`Track.id`、`Playlist.id` 是 `unknown`，比较或拼接前先 `String()`。
 - 在线实体按自身 `source` 选 `providerFor(source)` 能力或兼容层 `serviceFor(source)`；本地文件走本地服务。`ProviderId` 是 `netease` / `qq` / `apple`；`MusicSource` 另含 `local`。新增来源分支必须显式考虑本地文件。
