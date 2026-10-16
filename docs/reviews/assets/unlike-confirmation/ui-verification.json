@@ -1,0 +1,57 @@
+{
+  "checks": [
+    "首次确认",
+    "Esc保留",
+    "焦点循环",
+    "连续第二首选项",
+    "取消不记住",
+    "切歌绑定原曲",
+    "失败回滚",
+    "实际快捷键与重复按键",
+    "深浅主题及最小窗口长内容",
+    "原生全屏Esc",
+    "迷你模式恢复主窗",
+    "账号切换失效",
+    "主窗重载保留本次选择",
+    "跨平台免提示",
+    "同一配置重启恢复确认",
+    "遮罩保留",
+    "最小化恢复主窗",
+    "游戏模式重建主窗供确认",
+    "实际歌单列表入口"
+  ],
+  "writes": [
+    {
+      "source": "netease",
+      "id": "test-1",
+      "like": false,
+      "failed": false
+    },
+    {
+      "source": "qq",
+      "id": "test-2",
+      "like": false,
+      "failed": true
+    },
+    {
+      "source": "qq",
+      "id": "test-4",
+      "like": false,
+      "failed": false
+    },
+    {
+      "source": "netease",
+      "id": "test-3",
+      "like": false,
+      "failed": false
+    }
+  ],
+  "errors": [],
+  "finalSkip": true,
+  "restart": {
+    "skip": false,
+    "prompt": null,
+    "last": null,
+    "destructiveRequests": 0
+  }
+}

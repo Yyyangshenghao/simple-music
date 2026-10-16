@@ -56,12 +56,18 @@ export async function startPlaybackClient(): Promise<() => void> {
   let spectrumObservedAt = -Infinity
   let positionReceivedAt = performance.now()
   let shortcutBlocked: boolean | undefined
+  let modalOpen: boolean | undefined
   const visible = () => !document.hidden && useWindowStore.getState().isVisible
   const request = (payload: Parameters<typeof desktop.playbackRequest>[0]) => desktop.playbackRequest(payload)
   const reportError = (error: unknown) => showError(connectionError(error))
   const syncShortcutBlock = () => {
     if (stopped || !connected || failed) return
-    const blocked = visible() && (!!document.querySelector?.('dialog[open]')
+    const dialogOpen = !!document.querySelector?.('dialog[open]')
+    if (modalOpen !== dialogOpen) {
+      modalOpen = dialogOpen
+      void desktop.setModalOpen?.(dialogOpen).catch(reportError)
+    }
+    const blocked = visible() && (dialogOpen
       || (!!document.hasFocus?.() && shouldIgnoreShortcut(document.activeElement)))
     if (blocked === shortcutBlocked) return
     shortcutBlocked = blocked
@@ -206,6 +212,7 @@ export async function startPlaybackClient(): Promise<() => void> {
     window.removeEventListener?.('focus', syncShortcutBlock)
     window.removeEventListener?.('blur', syncShortcutBlock)
     modalObserver?.disconnect()
+    void desktop.setModalOpen?.(false).catch(() => {})
     void request({ type: 'observe', visible: false, spectrum: false }).catch(() => {})
     for (const [key, patch] of Object.entries(originalActions)) stores[key].setState(patch)
     player.setState(originalPlayerHelpers)

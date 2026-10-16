@@ -4,7 +4,7 @@ import { computeHighlightOffset, type HighlightRange } from '../lib/highlight-of
 import { usePlayerStore } from './player'
 import { usePlaylistStore } from './playlist'
 import { useNavigationStore } from './navigation'
-import { likeKeyOf, useLikesStore } from './likes'
+import { useLikesStore } from './likes'
 import { useProviderStore } from './providers'
 import { preloadTracks } from '../lib/track-preload'
 import {
@@ -419,11 +419,7 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
   },
 
   async toggleLike(track) {
-    const likes = useLikesStore.getState()
-    const before = likes.likedByKey[likeKeyOf(track)] ?? false
-    await likes.toggleLike(track)
-    const after = useLikesStore.getState().likedByKey[likeKeyOf(track)] ?? false
-    if (after !== before) recordShuangeFeedback(track, after ? 'like' : 'unlike')
+    await useLikesStore.getState().toggleLike(track, true)
   },
 }))
 

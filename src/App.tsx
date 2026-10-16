@@ -16,6 +16,7 @@ import { initWindowCloseSync } from './stores/window-close'
 import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { WindowCloseDialog } from './components/Layout/WindowCloseDialog'
+import { UnlikeConfirmDialog } from './components/Layout/UnlikeConfirmDialog'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
 import { GlobalContentProviderDock } from './components/Layout/GlobalContentProviderDock'
@@ -105,6 +106,7 @@ export default function App() {
   return (
     <>
       <WindowCloseDialog />
+      <UnlikeConfirmDialog />
       {mainVisible && !gameEnabled && <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>

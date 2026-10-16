@@ -42,6 +42,7 @@ let mainServerToken = ''
 let htmlFullscreenActive = false
 let windowFullscreenActive = false
 let shortcutRecording = false
+let modalOpen = false
 let stateTimer: NodeJS.Timeout | null = null
 
 export function getMainWindow(): BrowserWindow | null {
@@ -52,6 +53,8 @@ export function setShortcutRecording(recording: boolean): void {
   shortcutRecording = recording
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setIgnoreMenuShortcuts(recording)
 }
+
+export function setModalOpen(open: boolean): void { modalOpen = open }
 
 export function getServerPort(): number {
   return mainServerPort
@@ -266,6 +269,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
   mainServerToken = serverToken
   htmlFullscreenActive = false
   windowFullscreenActive = false
+  modalOpen = false
 
   const initialBounds = releasedBounds ?? getWindowedBounds(null)
   // macOS 用原生 hiddenInset + 内嵌交通灯；其余平台没有该 API，改用完全无边框窗口，
@@ -316,6 +320,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
   win.webContents.once('did-finish-load', () => sendWindowState(win))
   win.webContents.on('before-input-event', (event, input) => {
     if (!shortcutRecording && input.type === 'keyDown' && input.key === 'Escape' && win?.isFullScreen()) {
+      if (modalOpen) return
       if (process.platform === 'win32' && isWindowClosePending(win)) return
       event.preventDefault()
       exitFullscreenToWindow(win)
@@ -356,6 +361,7 @@ export function createMainWindow(serverPort: number, serverToken = ''): BrowserW
   })
   win.on('closed', () => {
     if (mainWindow !== win) return
+    modalOpen = false
     if (stateTimer) {
       clearTimeout(stateTimer)
       stateTimer = null

@@ -83,6 +83,36 @@ describe('全屏窗口的 Esc 与关闭确认', () => {
     expect(h.setFullscreen).not.toHaveBeenCalled()
   })
 
+  it.each(['win32', 'darwin', 'linux'])('%s 全屏有界面模态框时让行 Esc，关闭后恢复退出全屏', async (platform) => {
+    vi.stubGlobal('process', { ...process, platform })
+    const { setModalOpen } = await import('./window-manager')
+    const event = { preventDefault: vi.fn() }
+    setModalOpen(true)
+    h.input!(event, { type: 'keyDown', key: 'Escape' })
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(h.setFullscreen).not.toHaveBeenCalled()
+    setModalOpen(false)
+    h.input!(event, { type: 'keyDown', key: 'Escape' })
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(h.setFullscreen).toHaveBeenCalledWith(false)
+  })
+
+  it('重建主窗口清除旧模态状态，迟到的旧窗口关闭不清除新窗口模态状态', async () => {
+    const manager = await import('./window-manager')
+    const first = h.windows[0]
+    manager.setModalOpen(true)
+    manager.createMainWindow(35530)
+    const event = { preventDefault: vi.fn() }
+    h.input!(event, { type: 'keyDown', key: 'Escape' })
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    vi.clearAllMocks()
+    manager.setModalOpen(true)
+    first.events.get('closed')()
+    h.input!(event, { type: 'keyDown', key: 'Escape' })
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(h.setFullscreen).not.toHaveBeenCalled()
+  })
+
   it('没有确认框时仍用 Esc 退出全屏', () => {
     const event = { preventDefault: vi.fn() }
     h.input!(event, { type: 'keyDown', key: 'Escape' })

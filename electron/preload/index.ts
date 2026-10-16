@@ -51,6 +51,8 @@ const api = {
   serverToken: readServerToken(),
 
   // 窗口
+  showMainWindow: (): Promise<void> => ipcRenderer.invoke('window:show'),
+  setModalOpen: (open: boolean): Promise<void> => ipcRenderer.invoke('window:set-modal-open', open),
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   toggleFullscreen: (): Promise<void> => ipcRenderer.invoke('window:toggle-fullscreen'),
   exitFullscreenWindowed: (): Promise<void> => ipcRenderer.invoke('window:exit-fullscreen-windowed'),

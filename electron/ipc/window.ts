@@ -1,9 +1,13 @@
 import { ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { getWindowCloseState, resolveWindowClose, setWindowCloseBehavior } from '../modules/window-close'
+import { isPlaybackHostEvent } from '../modules/playback-host'
+import { getGameMode, setGameMode } from '../modules/game-mode'
+import { returnFromMiniPlayer } from '../modules/overlay-manager'
 import {
   getMainWindow,
   getWindowState,
+  setModalOpen,
   toggleFullscreen,
   exitFullscreenToWindow
 } from '../modules/window-manager'
@@ -27,6 +31,20 @@ export function registerWindowIpc(): void {
   ipcMain.handle('window:resolve-close', (event, choice) => {
     requireMainFrame(event)
     return resolveWindowClose(choice)
+  })
+  ipcMain.handle('window:show', (event) => {
+    if (!isPlaybackHostEvent(event)) throw new Error('Only the playback host can show the main window')
+    if (getGameMode().enabled) setGameMode({ enabled: false }, false)
+    returnFromMiniPlayer()
+  })
+  ipcMain.handle('window:set-modal-open', (event, open: unknown) => {
+    const win = getMainWindow()
+    if (!win || win.isDestroyed() || event.sender !== win.webContents
+      || event.senderFrame !== win.webContents.mainFrame) {
+      throw new Error('Modal state is only available to the main window')
+    }
+    if (typeof open !== 'boolean') throw new Error('Invalid modal state')
+    setModalOpen(open)
   })
   ipcMain.handle('window:minimize', () => {
     getMainWindow()?.minimize()

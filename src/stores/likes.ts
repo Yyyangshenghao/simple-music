@@ -6,6 +6,7 @@ import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { useToastStore } from './toast'
+import { recordShuangeFeedback } from '../lib/shuange-recommendation'
 
 /** 红心状态缓存:key 为 `source:id`,乐观更新,服务端失败回滚。 */
 
@@ -25,6 +26,8 @@ const failedCooldown = new Map<string, number>()
  *  避免逐行红心对每首网易曲目各发一个请求(列表 50 首就 50 个 HTTP)。
  *  debounce 窗口内收集,到期一次 flush;同一 key 多次 await(滚动重复挂载)共用 resolve。 */
 const BATCH_DELAY_MS = 200
+const REPEAT_UNLIKE_MS = 30_000
+let nextUnlikeId = 0
 
 function canInteract(track: Track): boolean {
   return !isProviderId(track.source) || isProviderParticipating(track.source)
@@ -141,17 +144,65 @@ interface LikesStore {
   revision: number
   /** QQ 写后确认成功才失效账号歌单缓存，查询/乐观更新不触发重载。 */
   qqMutationRevision: number
+  unlikePrompt: { id: number; track: Track; accountSession: number; allowSkip: boolean; shuange: boolean } | null
+  /** 仅后台内存保存，重新启动应用后恢复确认。 */
+  skipUnlikeConfirmation: boolean
+  lastUnlike: { key: string; at: number } | null
   /** 该曲目所属音源是否支持红心。 */
   supports(track: Track | null): boolean
   /** 首次遇到该曲目时查询红心状态(已知则跳过)。 */
   ensureChecked(track: Track): Promise<void>
-  toggleLike(track: Track): Promise<void>
+  toggleLike(track: Track, shuange?: boolean): Promise<void>
+  resolveUnlike(id: number, confirm: boolean, skip: boolean): Promise<void>
+}
+
+async function writeLike(track: Track, next: boolean, shuange: boolean, skip = false): Promise<void> {
+  const set = useLikesStore.setState
+  const get = useLikesStore.getState
+  const svc = serviceFor(track.source)
+  if (!canInteract(track) || !svc.likeTrack) return
+  const key = keyOf(track)
+  const accountSession = sessionOf(track)
+  const revision = get().revision
+  const current = !!get().likedByKey[key]
+  const previous = writes.get(key)
+  set((s) => ({ likedByKey: withLike(s.likedByKey, key, next) }))
+  const operation: Promise<boolean> = Promise.resolve(previous ?? current).then(async (confirmed) => {
+    if (accountSession !== sessionOf(track)) return confirmed
+    try {
+      if (!(await svc.likeTrack!(track, next))) throw new Error(track.source === 'qq' ? 'QQ 音乐收藏失败，请重试' : '红心操作失败，请重试')
+      if (accountSession === sessionOf(track)) {
+        if (track.source === 'qq') set((s) => ({ qqMutationRevision: s.qqMutationRevision + 1 }))
+        if (!next && (track.source === 'qq' || track.source === 'netease') && revision === get().revision) {
+          set((s) => ({ lastUnlike: { key, at: Date.now() }, skipUnlikeConfirmation: s.skipUnlikeConfirmation || skip }))
+        }
+        if (shuange && next !== confirmed) recordShuangeFeedback(track, next ? 'like' : 'unlike')
+      }
+      return next
+    } catch (error) {
+      if (accountSession === sessionOf(track)) {
+        if (writes.get(key) === operation) {
+          set((s) => ({ likedByKey: withLike(s.likedByKey, key, confirmed) }))
+          useToastStore.getState().show(error instanceof Error ? error.message : '红心操作失败，请重试')
+        }
+        if (isProviderId(track.source)) expireProviderAccount(track.source, error)
+      }
+      return confirmed
+    } finally {
+      if (writes.get(key) === operation) writes.delete(key)
+    }
+  })
+  writes.set(key, operation)
+  await operation
 }
 
 export const useLikesStore = create<LikesStore>((set, get) => ({
   likedByKey: {},
   revision: 0,
   qqMutationRevision: 0,
+  unlikePrompt: null,
+  skipUnlikeConfirmation: false,
+  lastUnlike: null,
 
   supports(track) {
     if (!track) return false
@@ -188,39 +239,36 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     })
   },
 
-  async toggleLike(track) {
+  async toggleLike(track, shuange = false) {
     if (!canInteract(track)) return
-    const svc = serviceFor(track.source)
-    if (!svc.likeTrack) return
+    if (!serviceFor(track.source).likeTrack || get().unlikePrompt) return
     const key = keyOf(track)
-    const accountSession = sessionOf(track)
     const current = !!get().likedByKey[key]
-    const previous = writes.get(key)
-    const next = !current
-    set((s) => ({ likedByKey: withLike(s.likedByKey, key, next) }))
-    const operation: Promise<boolean> = Promise.resolve(previous ?? current).then(async (confirmed) => {
-      if (accountSession !== sessionOf(track)) return confirmed
-      try {
-        if (!(await svc.likeTrack!(track, next))) throw new Error(track.source === 'qq' ? 'QQ 音乐收藏失败，请重试' : 'like failed')
-        if (track.source === 'qq' && accountSession === sessionOf(track)) {
-          set((s) => ({ qqMutationRevision: s.qqMutationRevision + 1 }))
-        }
-        return next
-      } catch (error) {
-        if (accountSession === sessionOf(track)) {
-          if (writes.get(key) === operation) {
-            set((s) => ({ likedByKey: withLike(s.likedByKey, key, confirmed) }))
-            if (track.source === 'qq') useToastStore.getState().show(error instanceof Error ? error.message : 'QQ 音乐收藏失败，请重试')
-          }
-          if (isProviderId(track.source)) expireProviderAccount(track.source, error)
-        }
-        return confirmed
-      } finally {
-        if (writes.get(key) === operation) writes.delete(key)
-      }
-    })
-    writes.set(key, operation)
-    await operation
+    if (current && (track.source === 'qq' || track.source === 'netease') && !get().skipUnlikeConfirmation) {
+      const last = get().lastUnlike
+      const id = ++nextUnlikeId
+      set({ unlikePrompt: {
+        id, track, accountSession: sessionOf(track), shuange,
+        allowSkip: !!last && last.key !== key && Date.now() - last.at <= REPEAT_UNLIKE_MS,
+      } })
+      // 不等待用户选择，避免长时间占用播放命令；确认通过单独命令提交。
+      void window.desktop?.showMainWindow?.().catch(() => {
+        if (get().unlikePrompt?.id !== id) return
+        set({ unlikePrompt: null })
+        useToastStore.getState().show('无法打开确认窗口，请返回主窗口重试')
+      })
+      return
+    }
+    await writeLike(track, !current, shuange)
+  },
+
+  async resolveUnlike(id, confirm, skip) {
+    const prompt = get().unlikePrompt
+    if (!prompt || prompt.id !== id) return
+    set({ unlikePrompt: null })
+    if (confirm !== true || prompt.accountSession !== sessionOf(prompt.track)
+      || !get().likedByKey[keyOf(prompt.track)]) return
+    await writeLike(prompt.track, false, prompt.shuange, prompt.allowSkip && skip === true)
   }
 }))
 
@@ -241,6 +289,9 @@ useProviderStore.subscribe(() => {
     useLikesStore.setState((state) => ({
       likedByKey: Object.fromEntries(Object.entries(state.likedByKey).filter(([key]) => !key.startsWith(prefix))),
       revision: state.revision + 1,
+      unlikePrompt: state.unlikePrompt?.track.source === source ? null : state.unlikePrompt,
+      skipUnlikeConfirmation: false,
+      lastUnlike: null,
     }))
   }
 })
