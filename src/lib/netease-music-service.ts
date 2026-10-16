@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
+import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
 import type {
   MusicService,
   RadarPlaylist,
@@ -236,6 +236,10 @@ export class NeteaseMusicService implements MusicService {
 
   getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
     return api.get('/api/netease/app-playlist-sync/session', undefined, { signal })
+  }
+
+  readAppPlaylistSnapshot(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot> {
+    return api.post('/api/netease/app-playlist-sync/snapshot', input, undefined, { signal, timeoutMs: 120000 })
   }
 
   syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {

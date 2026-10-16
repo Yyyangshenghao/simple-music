@@ -8,7 +8,7 @@ import type {
   Track,
 } from '../types/domain'
 import { ONLINE_MUSIC_SOURCES } from '../types/domain'
-import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
+import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
 import type {
   MusicService,
   PlaylistMeta,
@@ -132,6 +132,7 @@ export interface HistoryCapability {
 
 export interface PlaylistWriterCapability {
   getPlaylistSyncSession?(signal?: AbortSignal): Promise<PlaylistSyncSession>
+  readAppPlaylistSnapshot?(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot>
   syncAppPlaylist?(input: PlaylistSyncInput): Promise<PlaylistSyncResult>
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>

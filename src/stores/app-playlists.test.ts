@@ -108,4 +108,42 @@ describe('应用歌单独立存档', () => {
     expect(makeStore().getState().error).toContain('原存档已保留')
     expect(archive).toBe(original)
   })
+
+  it('拉取一次保存名称、歌曲和云端基准，重载后保持且不改变旧队列', () => {
+    const store = makeStore()
+    const id = store.getState().create('旧名', [song('netease', 1)])
+    const previous = store.getState().items[0]
+    const base = { name: '云端名', revision: 'a'.repeat(64), tracks: [{ source: 'netease' as const, id: '2' }] }
+    const queue = previous.tracks
+    storage.setItem.mockClear()
+    store.getState().applyCloudMerge(id, previous, '云端名', [song('netease', 2)], 'netease', '7', { playlistId: '201', base })
+    expect(storage.setItem).toHaveBeenCalledOnce()
+    expect(makeStore().getState().items[0]).toMatchObject({ name: '云端名', tracks: [{ id: '2' }], neteaseSync: { '7': { base } } })
+    expect(queue).toMatchObject([{ id: '1' }])
+  })
+
+  it('拉取落盘失败不改变本地或同步基准，旧内容已编辑则拒绝迟到合并', () => {
+    const store = makeStore()
+    const id = store.getState().create('旧名', [song('netease')])
+    const previous = store.getState().items[0]
+    const base = { name: '云端', revision: 'a'.repeat(64), tracks: [] }
+    const link = { playlistId: '201', base }
+    const raw = archive
+    storage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
+    expect(() => store.getState().applyCloudMerge(id, previous, '云端', [], 'netease', '7', link)).toThrow('保存失败')
+    expect(store.getState().items[0]).toEqual(previous)
+    expect(archive).toBe(raw)
+    store.getState().rename(id, '新改名')
+    expect(() => store.getState().applyCloudMerge(id, previous, '云端', [], 'netease', '7', link)).toThrow('新修改')
+    expect(store.getState().items[0].name).toBe('新改名')
+  })
+
+  it('损坏或跨来源同步基准不覆盖原存档', () => {
+    const store = makeStore()
+    const id = store.getState().create('歌单', [song('netease')])
+    store.getState().recordNeteaseSync(id, '7', { playlistId: '201', base: { name: '云端', revision: 'a'.repeat(64), tracks: [{ source: 'qq', id: 'mid', qqId: '1', songType: 0 }] } })
+    const raw = archive
+    expect(makeStore().getState().error).toContain('原存档已保留')
+    expect(archive).toBe(raw)
+  })
 })

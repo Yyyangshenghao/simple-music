@@ -137,6 +137,7 @@ function playlistWriterCapability(service: MusicService, source: ProviderId): Pl
   if (!service.syncAppPlaylist && (!service.createPlaylist || !service.replacePlaylistTracks)) return undefined
   return {
     getPlaylistSyncSession: service.getPlaylistSyncSession ? signal => service.getPlaylistSyncSession!(signal) : undefined,
+    readAppPlaylistSnapshot: service.readAppPlaylistSnapshot ? (input, signal) => service.readAppPlaylistSnapshot!(input, signal) : undefined,
     syncAppPlaylist: service.syncAppPlaylist ? input => service.syncAppPlaylist!(input) : undefined,
     findUserPlaylistsByName: service.findUserPlaylistsByName
       ? (name) => service.findUserPlaylistsByName!(name)

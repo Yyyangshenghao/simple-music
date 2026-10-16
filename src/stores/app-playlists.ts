@@ -1,9 +1,19 @@
 import { create } from 'zustand'
 import type { Track } from '../types/domain'
+import type { PlaylistSyncReport, PlaylistSyncSnapshot, PlaylistSyncSource } from '../types/playlist-sync'
+import { isPlaylistSyncReport, isPlaylistSyncSnapshot } from '../lib/playlist-sync-snapshot'
 
 export const APP_PLAYLISTS_KEY = 'simplemusic-app-playlists'
 
 /** 应用歌单独立于平台歌单和临时播放队列，不具有平台 source。 */
+export interface AppPlaylistSyncLink {
+  playlistId: string
+  syncedContent?: string
+  syncedAt?: number
+  base?: PlaylistSyncSnapshot
+  lastReport?: PlaylistSyncReport
+}
+
 export interface AppPlaylist {
   id: string
   name: string
@@ -11,8 +21,8 @@ export interface AppPlaylist {
   updatedAt: number
   tracks: Track[]
   roamKey?: string
-  neteaseSync?: Record<string, { playlistId: string; syncedContent?: string; syncedAt?: number }>
-  qqSync?: Record<string, { playlistId: string; syncedContent?: string; syncedAt?: number }>
+  neteaseSync?: Record<string, AppPlaylistSyncLink>
+  qqSync?: Record<string, AppPlaylistSyncLink>
 }
 
 type ArchiveStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -25,6 +35,7 @@ interface AppPlaylistsStore {
   saveRoam(name: string, tracks: Track[], key: string): string
   recordNeteaseSync(id: string, accountId: string, link: NonNullable<AppPlaylist['neteaseSync']>[string]): void
   recordQQSync(id: string, accountId: string, link: NonNullable<AppPlaylist['qqSync']>[string]): void
+  applyCloudMerge(id: string, previous: Pick<AppPlaylist, 'name' | 'tracks'>, name: string, tracks: Track[], source: PlaylistSyncSource, accountId: string, link: AppPlaylistSyncLink): void
   rename(id: string, name: string): void
   remove(id: string): void
   addTracks(id: string, tracks: Track[]): number
@@ -81,13 +92,16 @@ function readArchive(storage: ArchiveStorage): AppPlaylist[] {
       || !Number.isFinite(item.createdAt) || !Number.isFinite(item.updatedAt)
       || !Array.isArray(item.tracks) || !item.tracks.every(validTrack)) throw new Error('Invalid playlist')
     if (item.roamKey !== undefined && typeof item.roamKey !== 'string') throw new Error('Invalid roam key')
-    for (const links of [item.neteaseSync, item.qqSync]) {
+    for (const source of ['netease', 'qq'] as const) {
+      const links = source === 'qq' ? item.qqSync : item.neteaseSync
       if (links !== undefined && (!links || typeof links !== 'object' || Array.isArray(links)
         || Object.entries(links).some(([accountId, value]) => {
           const link = value as NonNullable<AppPlaylist['neteaseSync']>[string]
           return !/^[1-9]\d*$/.test(accountId) || !link || typeof link.playlistId !== 'string' || !/^[1-9]\d*$/.test(link.playlistId)
             || (link.syncedContent !== undefined && typeof link.syncedContent !== 'string')
             || (link.syncedAt !== undefined && !Number.isFinite(link.syncedAt))
+            || (link.base !== undefined && !isPlaylistSyncSnapshot(link.base, source))
+            || (link.lastReport !== undefined && !isPlaylistSyncReport(link.lastReport))
         }))) throw new Error('Invalid sync link')
     }
     ids.add(item.id)
@@ -146,6 +160,16 @@ export function createAppPlaylistsStore(storage: () => ArchiveStorage, newId: ()
         const item = find(id)
         if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(link.playlistId)) throw new Error('QQ 音乐歌单关联无效')
         persist(get().items.map(current => current.id === id ? { ...item, qqSync: { ...item.qqSync, [accountId]: link } } : current))
+      },
+      applyCloudMerge(id, previous, name, tracks, source, accountId, link) {
+        const item = find(id)
+        const content = (value: Pick<AppPlaylist, 'name' | 'tracks'>) => JSON.stringify([value.name, value.tracks.map(appPlaylistTrackKey)])
+        if (content(item) !== content(previous)) throw new Error('应用歌单刚刚有新修改，请重新检查再合并')
+        if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(link.playlistId)
+          || !link.base || !isPlaylistSyncSnapshot(link.base, source)) throw new Error('云端同步基准无效，请重新检查')
+        const field = source === 'qq' ? 'qqSync' : 'neteaseSync'
+        const next = { ...item, name: playlistName(name), tracks: uniqueTracks(tracks), updatedAt: Date.now(), [field]: { ...item[field], [accountId]: link } }
+        persist(get().items.map(current => current.id === id ? next : current))
       },
       rename(id, name) {
         find(id)

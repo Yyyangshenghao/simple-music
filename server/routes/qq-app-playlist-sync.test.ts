@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({ request: vi.fn(), cookie: vi.fn() }))
 vi.mock('../lib/qq-client', async original => ({ ...await original<typeof import('../lib/qq-client')>(), qqMusicRequest: h.request }))
 vi.mock('../lib/cookie', async original => ({ ...await original<typeof import('../lib/cookie')>(), getCookie: h.cookie }))
 import { playbackAccountToken } from '../lib/playback-account'
+import { playlistSyncSnapshot } from '../lib/playlist-sync-report'
 import { qqAppPlaylistSyncRoutes } from './qq-app-playlist-sync'
 
 const cookie = 'uin=7; qqmusic_key=test-key; skey=csrf-key'
@@ -34,13 +35,14 @@ async function upstream(_cookie: string, payload: Record<string, any>) {
   if (method === 'EditPlaylist') { remote.info.title = param.dirNewName; return envelope({}) }
   return envelope({ retCode: 0 })
 }
-async function sync(overrides: object = {}, method = 'POST', session = false) {
+const revision = () => playlistSyncSnapshot(String(remote.info.title), remote.songs.map(track => ({ source: 'qq', id: track.mid, qqId: String(track.id), songType: track.type }))).revision
+async function sync(overrides: object = {}, method = 'POST', session: boolean | 'snapshot' = false) {
   const body = { appPlaylistId: `qq-app-${caseId}`, name: '应用歌单', accountId: '7', accountToken: playbackAccountToken(cookie),
-    tracks: [3, 1, 2].map(id => ({ source: 'qq', id: `mid${id}`, qqId: String(id), songType: id === 2 ? 1 : 0 })), ...overrides }
+    tracks: [3, 1, 2].map(id => ({ source: 'qq', id: `mid${id}`, qqId: String(id), songType: id === 2 ? 1 : 0 })), expectedRevision: revision(), ...overrides }
   const req = Readable.from([Buffer.from(JSON.stringify(body))]) as IncomingMessage
   req.method = method
   const res = { destroyed: false, writeHead: vi.fn(), end: vi.fn(), setHeader: vi.fn() }
-  await qqAppPlaylistSyncRoutes(req, res as unknown as ServerResponse, new URL(`http://localhost/api/qq/app-playlist-sync${session ? '/session' : ''}`), { userDataDir: 'test', port: 0 })
+  await qqAppPlaylistSyncRoutes(req, res as unknown as ServerResponse, new URL(`http://localhost/api/qq/app-playlist-sync${session === 'snapshot' ? '/snapshot' : session ? '/session' : ''}`), { userDataDir: 'test', port: 0 })
   return { status: res.writeHead.mock.calls[0]?.[0], body: res.end.mock.calls.length ? JSON.parse(res.end.mock.calls[0][0].toString()) : null }
 }
 const writes = () => h.request.mock.calls.map(([, payload]) => payload.playlist).filter(block => block.module.endsWith('Write'))
@@ -56,7 +58,7 @@ it('账号会话不泄露 Cookie，创建私密歌单并使用数字歌曲 ID/�
   const session = await sync({}, 'GET', true)
   expect(session.body).toEqual({ accountId: '7', accountToken: playbackAccountToken(cookie) })
   expect(JSON.stringify(session)).not.toContain('test-key')
-  expect((await sync()).body).toEqual({ success: true, playlistId: '900' })
+  expect((await sync()).body).toMatchObject({ success: true, status: 'complete', playlistId: '900', report: { order: 'unsupported' } })
   expect(writes()[0]).toMatchObject({ method: 'AddPlaylist', param: { dirShow: 2 } })
   expect(writes()[1]).toMatchObject({ method: 'AddSonglist', param: { dirId: 51, tid: 900, bFmtUtf8: true,
     v_songInfo: [{ songId: 3, songType: 0 }, { songId: 1, songType: 0 }, { songId: 2, songType: 1 }] } })
@@ -119,12 +121,20 @@ it('创建成功但响应期间账号变化，先保留检查点，回来重试�
   expect((await sync()).body.success).toBe(true)
   expect(writes().filter(block => block.method === 'AddPlaylist')).toHaveLength(1)
 })
-it('新增静默漏歌时不删除旧歌，失败保留目标并可重试', async () => {
+it('首次完整同步回执丢失后，不带目标ID重试仍复用已创建歌单', async () => {
+  expect((await sync()).body.status).toBe('complete')
+  // 客户端未收到首次回执，因此重试仍只有原应用歌单 ID。
+  expect((await sync()).body).toMatchObject({ success: true, status: 'complete', playlistId: '900' })
+  expect(writes().filter(block => block.method === 'AddPlaylist')).toHaveLength(1)
+  expect(writes().filter(block => block.method === 'AddSonglist')).toHaveLength(1)
+})
+it('新增静默漏歌仍删除明确差集并改名，报告最终缺失歌曲', async () => {
   remote.songs = [song(9)]
   h.request.mockImplementation((cookie, payload) => payload.playlist.method === 'AddSonglist' ? envelope({ retCode: 0 }) : upstream(cookie, payload))
-  expect((await sync({ playlistId: '900' })).body).toMatchObject({ success: false, playlistId: '900' })
-  expect(remote.songs).toEqual([song(9)])
-  expect(writes().some(block => block.method === 'DelSonglist')).toBe(false)
+  expect((await sync({ playlistId: '900' })).body).toMatchObject({ success: false, status: 'partial', playlistId: '900',
+    report: { matched: 0, removed: 1, missingIds: ['mid3', 'mid1', 'mid2'], extraIds: [], name: 'done' } })
+  expect(remote.songs).toEqual([])
+  expect(writes().map(block => block.method)).toEqual(['AddSonglist', 'DelSonglist', 'EditPlaylist'])
 })
 it('改名静默失败不能标记成功，缺少标签信息时不冒险编辑', async () => {
   remote.songs = [song(3), song(1), song(2, 1)]
@@ -132,7 +142,7 @@ it('改名静默失败不能标记成功，缺少标签信息时不冒险编辑'
   expect((await sync({ playlistId: '900' })).body.success).toBe(false)
   delete remote.info.vec_tagid
   h.request.mockClear()
-  expect((await sync({ playlistId: '900' })).body.error).toContain('信息不完整')
+  expect((await sync({ playlistId: '900' })).body.report.issues).toContainEqual({ step: 'name', message: expect.stringContaining('信息不完整') })
   expect(writes()).toEqual([])
 })
 it('870首完整分页、100首分批写入，不误认第一页为全量', async () => {
@@ -177,6 +187,35 @@ it('重复请求不能提前释放原写锁', async () => {
   release()
   expect((await first).body.success).toBe(true)
 })
+it('不同应用歌单指向同一云端目标也串行写入，拒绝请求不能释放原目标锁', async () => {
+  let release!: () => void
+  h.request.mockImplementationOnce(async (cookie, payload) => { await new Promise<void>(resolve => { release = resolve }); return upstream(cookie, payload) })
+  const first = sync({ playlistId: '900' })
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+  const initialCalls = h.request.mock.calls.length
+  expect((await sync({ appPlaylistId: `other-${caseId}`, playlistId: '900' })).status).toBe(409)
+  expect((await sync({ appPlaylistId: `third-${caseId}`, playlistId: '900' })).status).toBe(409)
+  expect(h.request).toHaveBeenCalledTimes(initialCalls)
+  release()
+  expect((await first).body.success).toBe(true)
+  expect((await sync({ appPlaylistId: `other-${caseId}`, playlistId: '900' })).body.success).toBe(true)
+})
+it('首次创建取得目标ID后立即占用目标锁，完成后释放', async () => {
+  let release!: () => void
+  h.request.mockImplementation(async (cookie, payload) => {
+    if (payload.playlist.method === 'AddSonglist') await new Promise<void>(resolve => { release = resolve })
+    return upstream(cookie, payload)
+  })
+  const first = sync()
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+  const initialCalls = h.request.mock.calls.length
+  expect((await sync({ appPlaylistId: `other-${caseId}`, playlistId: '900' })).status).toBe(409)
+  expect(h.request).toHaveBeenCalledTimes(initialCalls)
+  release()
+  expect((await first).body.success).toBe(true)
+  h.request.mockImplementation(upstream)
+  expect((await sync({ appPlaylistId: `other-${caseId}`, playlistId: '900' })).body.success).toBe(true)
+})
 it('旧档未知类型先查MID并核对数字ID，保留非0类型后才创建写入', async () => {
   const tracks = [1, 2].map(id => ({ source: 'qq', id: `mid${id}`, qqId: String(id) }))
   expect((await sync({ tracks })).body.success).toBe(true)
@@ -186,7 +225,7 @@ it('旧档未知类型先查MID并核对数字ID，保留非0类型后才创建�
 })
 it('旧档身份核实失败时不创建歌单、不写入歌曲', async () => {
   h.request.mockResolvedValue(envelope({ track_info: song(2, 1) }))
-  expect((await sync({ tracks: [{ source: 'qq', id: 'mid1', qqId: '1' }] })).body.error).toContain('身份无法核实')
+  expect((await sync({ tracks: [{ source: 'qq', id: 'mid1', qqId: '1' }] })).body.error).toContain('身份不一致')
   expect(h.request.mock.calls.every(([, payload]) => payload.playlist.method === 'get_song_detail_yqq')).toBe(true)
 })
 it('无创建缓存的已关联公开歌单同样拒绝写入，重启不能绕过私密要求', async () => {
@@ -203,7 +242,7 @@ it('无新增但MID和数字身份冲突时，不得先删除旧歌', async () =
 it('私密详情隐藏创建者ID时，当前账号清单与本人标记共同确认归属', async () => {
   remote.info.creator = { musicid: 0 }
   remote.info.host_uin = 0
-  expect((await sync()).body).toEqual({ success: true, playlistId: '900' })
+  expect((await sync()).body).toMatchObject({ success: true, status: 'complete', playlistId: '900' })
   expect(writes().find(block => block.method === 'AddSonglist')).toBeDefined()
 })
 it.each([
@@ -228,4 +267,181 @@ it('清单归属成立但隐藏ID的详情没有本人标记时也不写入', as
   remote.info.creator = { musicid: 0 }; remote.info.owndir = 0
   expect((await sync({ playlistId: '900' })).body.success).toBe(false)
   expect(writes()).toEqual([])
+})
+it('快照读取完整分页并返回真实类型与稳定版本，不写入云端', async () => {
+  remote.songs = Array.from({ length: 205 }, (_, index) => song(index + 1, index % 3))
+  const result = await sync({ playlistId: '900' }, 'POST', 'snapshot')
+  expect(result.status).toBe(200)
+  expect(result.body).toMatchObject({ name: '原歌单', revision: revision() })
+  expect(result.body.tracks).toHaveLength(205)
+  expect(result.body.tracks[204]).toEqual({ source: 'qq', id: 'mid205', qqId: '205', songType: 0 })
+  expect(h.request.mock.calls.filter(([, payload]) => payload.playlist.method === 'CgiGetDiss').map(([, payload]) => payload.playlist.param.song_begin)).toEqual([0, 100, 200])
+  expect(writes()).toEqual([])
+})
+it.each([{ creator: { musicid: 8 } }, { owndir: 0 }, { dirid: 201 }, { dir_show: 1 }])('快照保留本人、普通和私密限制 %j', async changes => {
+  Object.assign(remote.info, changes)
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).status).toBe(409)
+  expect(writes()).toEqual([])
+})
+it.each([301, 1000])('快照真正鉴权错误%d返回401，业务拒绝保持409', async code => {
+  h.request.mockResolvedValue(envelope({}, code))
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).status).toBe(401)
+  expect(writes()).toEqual([])
+})
+it('快照普通业务错误不会将账号标记失效', async () => {
+  h.request.mockResolvedValue(envelope({}, 80105))
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).status).toBe(502)
+  expect(writes()).toEqual([])
+})
+it('快照不接受缺页、过期会话或错误请求方法', async () => {
+  h.request.mockImplementation((cookie, payload) => payload.playlist.method === 'CgiGetDiss'
+    ? envelope({ dirinfo: remote.info, total_song_num: 205, songlist: [song(1)], hasmore: 0 }) : upstream(cookie, payload))
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).status).toBe(502)
+  h.request.mockClear()
+  expect((await sync({ playlistId: '900', accountToken: 'old' }, 'POST', 'snapshot')).status).toBe(409)
+  expect((await sync({ playlistId: '900' }, 'GET', 'snapshot')).status).toBe(405)
+  expect(h.request).not.toHaveBeenCalled()
+})
+it.each([undefined, '', 'old', 'a'.repeat(63), 'g'.repeat(64)])('已有目标必须携带有效版本 %j', async expectedRevision => {
+  expect((await sync({ playlistId: '900', expectedRevision })).status).toBe(400)
+  expect(h.request).not.toHaveBeenCalled()
+})
+it('名称、歌曲或顺序版本变化均返回stale，零写入', async () => {
+  remote.songs = [song(1), song(2, 1)]
+  const expectedRevision = revision()
+  remote.songs.reverse()
+  const result = await sync({ playlistId: '900', expectedRevision })
+  expect(result.body).toMatchObject({ status: 'stale', success: false, snapshot: { revision: revision() } })
+  expect(writes()).toEqual([])
+})
+it('失败批次不重发，其余新增批次、删除和改名继续，重试只补剩余差集', async () => {
+  const tracks = Array.from({ length: 205 }, (_, index) => ({ source: 'qq', id: `mid${index + 1}`, qqId: String(index + 1), songType: 0 }))
+  remote.songs = [song(999)]
+  let batches = 0
+  h.request.mockImplementation((cookie, payload) => {
+    if (payload.playlist.method === 'AddSonglist' && ++batches === 1) return envelope({ retCode: 80105 })
+    return upstream(cookie, payload)
+  })
+  const result = await sync({ playlistId: '900', tracks })
+  expect(result.body).toMatchObject({ success: false, status: 'partial',
+    report: { requested: 205, matched: 105, added: 105, removed: 1, extraIds: [], name: 'done', order: 'unsupported',
+      issues: [{ step: 'add', message: expect.stringContaining('80105') }] } })
+  expect(result.body.report.missingIds).toHaveLength(100)
+  expect(writes().filter(block => block.method === 'AddSonglist')).toHaveLength(3)
+  expect(writes().slice(-2).map(block => block.method)).toEqual(['DelSonglist', 'EditPlaylist'])
+  h.request.mockClear(); h.request.mockImplementation(upstream)
+  expect((await sync({ playlistId: '900', tracks })).body.status).toBe('complete')
+  expect(writes()).toMatchObject([{ method: 'AddSonglist', param: { v_songInfo: Array.from({ length: 100 }, (_, index) => ({ songId: index + 1, songType: 0 })) } }])
+})
+it('删除某批失败仍执行其他删除批次及改名，报告额外歌曲', async () => {
+  remote.songs = Array.from({ length: 205 }, (_, index) => song(index + 1))
+  let batches = 0
+  h.request.mockImplementation((cookie, payload) => {
+    if (payload.playlist.method === 'DelSonglist' && ++batches === 1) throw new Error('network unavailable')
+    return upstream(cookie, payload)
+  })
+  const result = await sync({ playlistId: '900', tracks: [] })
+  expect(result.body).toMatchObject({ status: 'partial', report: { removed: 105, name: 'done', issues: [{ step: 'remove', message: 'network unavailable' }] } })
+  expect(result.body.report.extraIds).toHaveLength(100)
+  expect(writes().filter(block => block.method === 'DelSonglist')).toHaveLength(3)
+  expect(writes().at(-1).method).toBe('EditPlaylist')
+})
+it('旧类型核实普通失败仅跳过该曲，不误删希望保留的MID，其余步骤继续', async () => {
+  remote.songs = [song(1), song(9)]
+  h.request.mockImplementation((cookie, payload) => payload.playlist.method === 'get_song_detail_yqq'
+    ? Promise.reject(new Error('track unavailable')) : upstream(cookie, payload))
+  const result = await sync({ playlistId: '900', tracks: [
+    { source: 'qq', id: 'mid1', qqId: '1' }, { source: 'qq', id: 'mid2', qqId: '2' },
+    { source: 'qq', id: 'mid3', qqId: '3', songType: 0 },
+  ] })
+  expect(result.body).toMatchObject({ status: 'partial', report: { missingIds: ['mid2'], extraIds: [], added: 1, removed: 1, name: 'done' } })
+  expect(remote.songs).toContainEqual(song(1))
+  expect(writes()).toMatchObject([
+    { method: 'AddSonglist', param: { v_songInfo: [{ songId: 3, songType: 0 }] } },
+    { method: 'DelSonglist', param: { v_songInfo: [{ songId: 9, songType: 0 }] } },
+    { method: 'EditPlaylist' },
+  ])
+})
+it('旧类型核实结果与已存在MID类型冲突时拒绝任何写入', async () => {
+  remote.songs = [song(2, 0), song(9)]
+  expect((await sync({ playlistId: '900', tracks: [{ source: 'qq', id: 'mid2', qqId: '2' }] })).body.error).toContain('身份不一致')
+  expect(writes()).toEqual([])
+})
+it('改名保留歌曲步骤后最新的完整元数据', async () => {
+  h.request.mockImplementation(async (cookie, payload) => {
+    const result = await upstream(cookie, payload)
+    if (payload.playlist.method === 'AddSonglist') Object.assign(remote.info, { desc: '刚修改的简介', picurl: 'https://y.qq.com/new.jpg', picurl2: 'https://y.qq.com/second.jpg', vec_tagid: [8] })
+    return result
+  })
+  expect((await sync({ playlistId: '900' })).body.status).toBe('complete')
+  expect(writes().find(block => block.method === 'EditPlaylist').param).toMatchObject({
+    dirNewDesc: '刚修改的简介', dirNewPicUrl: 'https://y.qq.com/new.jpg', dirNewPicUrl2: 'https://y.qq.com/second.jpg', dirNewtaglist: '8', dirShow: 2,
+  })
+})
+it('最终读回失败报告unknown，不用中间快照伪报成功', async () => {
+  let reads = 0
+  h.request.mockImplementation((cookie, payload) => {
+    if (payload.playlist.method === 'CgiGetDiss' && ++reads === 3) throw new Error('final read unavailable')
+    return upstream(cookie, payload)
+  })
+  const result = await sync({ playlistId: '900' })
+  expect(result.body).toMatchObject({ status: 'partial', success: false, report: { matched: null, added: null, removed: null, name: 'unknown', order: 'unsupported', issues: [{ step: 'read', message: 'final read unavailable' }] } })
+  expect(result.body.snapshot).toBeUndefined()
+  expect(remote.info.title).toBe('应用歌单')
+})
+it('后续歌曲列表暂不可读，完整且重新核实归属的元数据仍可独立改名', async () => {
+  let reads = 0
+  h.request.mockImplementation((cookie, payload) => {
+    if (payload.playlist.method === 'CgiGetDiss') {
+      reads++
+      if (reads === 2) return envelope({ dirinfo: { ...remote.info } })
+      if (reads === 3) throw new Error('songs unavailable')
+    }
+    return upstream(cookie, payload)
+  })
+  expect((await sync({ playlistId: '900' })).body).toMatchObject({ status: 'partial', report: { name: 'unknown' } })
+  expect(writes().at(-1).method).toBe('EditPlaylist')
+  expect(remote.info.title).toBe('应用歌单')
+})
+it.each([301, 1000])('加歌遇到鉴权错误%d立即停止删除和改名', async code => {
+  remote.songs = [song(9)]
+  h.request.mockImplementation((cookie, payload) => payload.playlist.method === 'AddSonglist' ? envelope({ retCode: code }) : upstream(cookie, payload))
+  const result = await sync({ playlistId: '900' })
+  expect(result.status).toBe(401)
+  expect(result.body).toMatchObject({ success: false, status: 'partial', playlistId: '900', error: expect.stringContaining(String(code)) })
+  expect(writes().map(block => block.method)).toEqual(['AddSonglist'])
+  expect(remote.songs).toEqual([song(9)])
+})
+it.each([301, 1000])('初始读取鉴权错误%d返回401及failed，零写入', async code => {
+  h.request.mockResolvedValue(envelope({}, code))
+  const result = await sync({ playlistId: '900' })
+  expect(result.status).toBe(401)
+  expect(result.body).toMatchObject({ success: false, status: 'failed', playlistId: '900', error: expect.stringContaining(String(code)) })
+  expect(writes()).toEqual([])
+})
+it('创建后的鉴权错误保留检查点，恢复登录重试不重复创建', async () => {
+  h.request.mockImplementation((cookie, payload) => payload.playlist.method === 'AddSonglist' ? envelope({ retCode: 301 }) : upstream(cookie, payload))
+  const result = await sync()
+  expect(result.status).toBe(401)
+  expect(result.body).toMatchObject({ success: false, status: 'partial', playlistId: '900' })
+  h.request.mockImplementation(upstream)
+  expect((await sync()).body.success).toBe(true)
+  expect(writes().filter(block => block.method === 'AddPlaylist')).toHaveLength(1)
+})
+it('推送业务归属拒绝返回409，避免误使账号过期', async () => {
+  remote.info.creator = { musicid: 8 }
+  const result = await sync({ playlistId: '900' })
+  expect(result.status).toBe(409)
+  expect(result.body).toMatchObject({ success: false, status: 'failed', playlistId: '900' })
+  expect(writes()).toEqual([])
+})
+it('加歌后账号变化立即停止后续写入', async () => {
+  remote.songs = [song(9)]
+  h.request.mockImplementation(async (cookie, payload) => {
+    const result = await upstream(cookie, payload)
+    if (payload.playlist.method === 'AddSonglist') h.cookie.mockReturnValue('uin=8; qqmusic_key=other')
+    return result
+  })
+  expect((await sync({ playlistId: '900' })).body.error).toContain('账号已变化')
+  expect(writes().map(block => block.method)).toEqual(['AddSonglist'])
 })

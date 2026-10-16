@@ -13,7 +13,7 @@ import type {
   ToplistPreviewTrack,
 } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
-import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
+import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
 
 export class QQMusicService implements MusicService {
   async checkLiked(ids: unknown[]): Promise<Record<string, boolean>> {
@@ -43,6 +43,10 @@ export class QQMusicService implements MusicService {
 
   getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
     return api.get('/api/qq/app-playlist-sync/session', undefined, { signal })
+  }
+
+  readAppPlaylistSnapshot(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot> {
+    return api.post('/api/qq/app-playlist-sync/snapshot', input, undefined, { signal, timeoutMs: 120000 })
   }
 
   syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {

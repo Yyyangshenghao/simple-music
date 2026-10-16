@@ -1,5 +1,5 @@
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
-import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
+import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
 
 export interface MusicService {
   /** 推荐歌单分页拉取：page 0 为个性化推荐，之后每页拉更远的一批（可无限翻页的音源按 page 返回不同内容）。 */
@@ -65,6 +65,7 @@ export interface MusicService {
   /** 建歌单,返回新歌单 id（可选;仅网易实现）。 */
   createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
   getPlaylistSyncSession?(signal?: AbortSignal): Promise<PlaylistSyncSession>
+  readAppPlaylistSnapshot?(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot>
   syncAppPlaylist?(input: PlaylistSyncInput): Promise<PlaylistSyncResult>
   /** 清空歌单当前曲目并替换为新的一批（可选;仅网易实现）。 */
   replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
