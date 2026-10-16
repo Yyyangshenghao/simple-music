@@ -11,8 +11,17 @@ import type {
   ToplistPreviewTrack,
 } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
+import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
 
 export class QQMusicService implements MusicService {
+  getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
+    return api.get('/api/qq/app-playlist-sync/session', undefined, { signal })
+  }
+
+  syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {
+    return api.post('/api/qq/app-playlist-sync', input, undefined, { timeoutMs: 120000 })
+  }
+
   async getPlaybackAccountToken(): Promise<string | null> {
     const result = await api.get<{ accountToken: string | null }>('/api/qq/playback/session')
     return result.accountToken

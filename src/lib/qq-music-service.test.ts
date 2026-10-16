@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 
 const apiGet = vi.fn()
+const apiPost = vi.fn()
 vi.mock('./api', () => ({
   api: {
     get: (...args: unknown[]) => apiGet(...args),
+    post: (...args: unknown[]) => apiPost(...args),
   },
 }))
 
@@ -12,6 +14,19 @@ import { QQMusicService } from './qq-music-service'
 
 beforeEach(() => {
   apiGet.mockReset()
+  apiPost.mockReset()
+})
+
+it('QQ同步请求沿用可取消的账号核实和独立写入端点', async () => {
+  const service = new QQMusicService()
+  const controller = new AbortController()
+  apiGet.mockResolvedValue({ accountId: '7', accountToken: 'test' })
+  await service.getPlaylistSyncSession(controller.signal)
+  expect(apiGet).toHaveBeenCalledWith('/api/qq/app-playlist-sync/session', undefined, { signal: controller.signal })
+  const input = { accountId: '7', accountToken: 'test', appPlaylistId: 'app', name: '测试', tracks: [{ source: 'qq' as const, id: 'mid1', qqId: '1', songType: 0 }] }
+  apiPost.mockResolvedValue({ success: true, playlistId: '900' })
+  await expect(service.syncAppPlaylist(input)).resolves.toEqual({ success: true, playlistId: '900' })
+  expect(apiPost).toHaveBeenCalledWith('/api/qq/app-playlist-sync', input, undefined, { timeoutMs: 120000 })
 })
 
 describe('QQMusicService.getLyrics', () => {

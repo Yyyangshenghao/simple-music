@@ -346,8 +346,8 @@ describe('QQ 标识与歌单详情契约', () => {
       const request = JSON.parse(String(init.body))
       const offset = request.playlist.param.song_begin
       const track = offset === 0
-        ? { id: 1, mid: 'song-a', name: '歌曲 A' }
-        : { id: 2, mid: 'song-b', name: '歌曲 B' }
+        ? { id: 1, mid: 'song-a', name: '歌曲 A', type: 0 }
+        : { id: 2, mid: 'song-b', name: '歌曲 B', type: 1 }
       return Promise.resolve({
         status: 200,
         text: async () => JSON.stringify({
@@ -374,6 +374,7 @@ describe('QQ 标识与歌单详情契约', () => {
 
     expect(result.trackIds).toEqual(['song-a', 'song-b'])
     expect((result.tracks as Record<string, unknown>[]).map((track) => track.id)).toEqual(['song-a', 'song-b'])
+    expect((result.tracks as Record<string, unknown>[]).map((track) => track.songType)).toEqual([0, 1])
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const firstRequest = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
     expect(firstRequest.playlist).toMatchObject({

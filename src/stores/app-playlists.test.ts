@@ -93,4 +93,19 @@ describe('应用歌单独立存档', () => {
     expect(storage.setItem).not.toHaveBeenCalled()
     expect(storage.getItem).toHaveBeenCalledWith(APP_PLAYLISTS_KEY)
   })
+  it('QQ与网易云按各自账号保存关联，旧存档兼容，坏QQ关联保留原档', () => {
+    const store = makeStore()
+    const id = store.getState().create('歌单', [{ ...song('qq'), qqId: 123, songType: 1 }])
+    store.getState().recordNeteaseSync(id, '7', { playlistId: '100' })
+    store.getState().recordQQSync(id, '7', { playlistId: '900', syncedContent: 'content', syncedAt: 5 })
+    store.getState().recordQQSync(id, '8', { playlistId: '901' })
+    expect(makeStore().getState().items[0]).toMatchObject({ neteaseSync: { '7': { playlistId: '100' } },
+      qqSync: { '7': { playlistId: '900', syncedContent: 'content' }, '8': { playlistId: '901' } }, tracks: [{ songType: 1 }] })
+    const broken = JSON.parse(archive!)
+    broken.items[0].qqSync['7'].playlistId = 'qq-liked:201'
+    archive = JSON.stringify(broken)
+    const original = archive
+    expect(makeStore().getState().error).toContain('原存档已保留')
+    expect(archive).toBe(original)
+  })
 })

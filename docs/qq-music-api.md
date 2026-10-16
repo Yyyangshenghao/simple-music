@@ -142,6 +142,18 @@
 - 相似歌手:已实现 `QQMusicService.getSimilarArtists()`，`Artist.id` 与请求参数均为 `singerMid`，自动复用歌手页标签和漫游歌手图谱扩展；数字歌手 ID 仅保留在 `qqArtistId`。
 - 官方歌单详情:已替换旧 `fcg_ucc_getcdinfo_byids_cp.fcg` 并由服务端按上游分页取全；`PlaylistSkeleton` 直接携带完整有序曲目，不留下待补窗口。
 - 专辑详情:已在进入 QQ 专辑页时按需补拉，使用现有 `creator/tag/description` 显示歌手、发行日、唱片公司和简介；专辑曲目及页面曲目数仍复用 `GetAlbumSongList`，没有扩张领域字段。补拉失败或缺字段保留原摘要，切换专辑或来源后不展示旧详情。
+
+### 2.6 2026-10-16 应用歌单手动同步
+
+全 QQ 曲目经应用歌单详情手动同步，不扩展红心或任意云端歌单编辑。新增 `/api/qq/app-playlist-sync/session`（GET）与 `/api/qq/app-playlist-sync`（POST），沿用本地 Origin/token 边界、Cookie 绑定 HMAC、账号失效及取消保护。首次 `AddPlaylist` 使用官网已确认的 `{dirName,dirDesc:'',dirPicUrl:'',taglist:'',dirShow:2}`；后续只复用本人私密普通歌单，每次检查 `dirinfo.id`（TID）、`dirid`（内部目录）、`owndir:1`、`creator.musicid` 与 `dir_show:2`，拒绝目录 201..206。QQ 名称最多 20 个 JS 字符。
+
+名称编辑来自 [官网编辑页源码](https://y.qq.com/ryqq/js/playlist_edit.chunk.1eb1b785cea47b331130.js?max_age=2592000) 和 [官网 RPC 封装](https://y.qq.com/ryqq/js/common.chunk.e536f9d2621979d755f5.js?max_age=2592000)：`PlaylistBaseWrite/EditPlaylist` 使用 `mask:95` 全字段编辑。实现只改名称，保留刚读回的 `desc/picurl/picurl2/vec_tagid/dir_show`；字段不完整则拒绝，不能猜单字段 mask。匿名实测 `CgiGetDiss.tag` 可能为空但 `vec_tagid` 非空，不能把空 tag 当作没有标签。
+
+增删用数字 `qqId` 与真实 `songType`，100 首一批；旧档类型缺失时，写入前按 MID 查询详情并核对数字 ID 和类型，不能默认 0。先添加、完整读回确认后才删除差集；最终核对名称和完整曲目身份集合。QQ 端顺序明确保留，不猜排序接口或删光重加。外层、目标块、内层 `code/subcode` 和写操作 `retCode` 逐级检查；官网没有证实 `EditPlaylist` 必定返回 retCode，缺失时仍须成功业务码并读回确认，显式非零始终失败。
+
+写请求复用 `qqMusicRequest`/`qqAuthComm`，Web `ct:24,cv:4747474`；两个 CSRF token 按官网各自的 Cookie 优先级计算，`qm_keyst` 仅作兼容兜底，使用官网 `needNewCode`。保留现有 authst 不代表复刻官网当前完整通道：当前官网还使用签名/加密 musics 管道，本项目没有据此引入设备会话或绕过验证。`80105` 继续按写入拒绝展示，不能当登录失效。
+
+本轮本机登录态的 `PlaylistBaseRead/GetPlaylistByUin` 只读成功；**真实创建、改名、增删与幂等尚未执行，仍不能宣称当前账号写通道可用**。代码有模拟回归、真实 Electron 窗口的隔离响应交互验收与独立复核。验证状态及截图见 [QQ 同步验收](reviews/2.4.0-app-playlist-qq-sync.md)，源码证据见 [研究记录](reviews/2.4.0-qq-playlist-write-research.md)。
 - 曲目数核验:2026-08-30 匿名读取专辑 `002MAeob3zLXwZ`，`basicInfo.albumDuration` 为 10，但 `GetAlbumSongList.totalNum` 为 5，因此详情 meta 不映射该字段，`trackCount` 保持未知值 0。
 - 搜索热词:通过可选 `catalog.getSearchHotkeys()` 能力接入顶栏空搜索，仅展示当前内容平台的热词，且要求已登录、已启用；网易云、QQ 均已接入，切平台时切换对应热搜，不混合展示。点击只填词，后续复用原跨平台防抖搜索；失败不影响普通搜索。上游字段同时参照 [QQMusicApi 搜索实现](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/modules/search.py) 与 [响应模型](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/models/search.py)，并经匿名实测核验。
 - 相似歌曲/相关歌单:通过可选 `catalog.getSimilarTracks(track)` / `getRelatedPlaylists(track, previousIds)` 接入播放队列底部“发现相似音乐”。只有当前 QQ 曲目具备数字 `qqId` 且平台已登录、启用时可见，展开才请求；歌曲仅追加并防重复，歌单点击进入详情，换批携带上一批 ID。切歌或关闭后不回写旧数据，两类推荐独立降级。字段参照 [QQMusicApi 歌曲实现](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/modules/song.py) 与 [响应模型](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/models/song.py)，旧结构及换批经匿名实测核验。

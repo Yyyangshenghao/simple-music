@@ -227,7 +227,7 @@ export function qqCookiePlaybackKey(obj: CookieMap): string {
 }
 
 /** 个性化接口(雷达/猜你喜欢等)的鉴权 comm 块,与 handleQQSongUrl 的 vkey 请求同构:带 uin+authst,ct 随是否有票据切换。 */
-function qqAuthComm(cookie: string): { uin: string; format: string; ct: number; cv: number; authst?: string } {
+export function qqAuthComm(cookie: string): { uin: string; format: string; ct: number; cv: number; authst?: string } {
   const cookieObj = parseCookieString(cookie)
   const uin = qqCookieUin(cookieObj) || '0'
   const musicKey = qqCookieMusicKey(cookieObj)
@@ -574,6 +574,7 @@ function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<s
     type: 'qq',
     id: mid,
     qqId: t.id || fb.qqId || fb.id || '',
+    songType: typeof t.type === 'number' ? t.type : undefined,
     mid,
     songmid: mid,
     mediaMid: rec(t.file).media_mid,
@@ -656,6 +657,7 @@ function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
     type: 'qq',
     id: mid,
     qqId: track.id || track.songid || r.id || r.songid || '',
+    songType: typeof track.type === 'number' ? track.type : undefined,
     mid,
     songmid: mid,
     mediaMid: str(rec(track.file).media_mid || track.strMediaMid || track.media_mid || r.strMediaMid),

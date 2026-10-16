@@ -97,3 +97,41 @@ it('已关联歌单删除最后一首后仍可手动更新为空，不再新建�
   await syncAppPlaylist(id, session)
   expect(h.sync.mock.calls[1][0]).toMatchObject({ playlistId: '201', tracks: [] })
 })
+it('QQ关联独立于网易云，传真实数字QQ ID和类型，成功只失效QQ缓存', async () => {
+  await syncAppPlaylist(id, session)
+  const store = useAppPlaylistsStore.getState()
+  store.removeTracks(id, ['netease:3', 'netease:1', 'netease:2'])
+  store.addTracks(id, [{ ...song(1, 'qq'), id: 'mid1', qqId: 1, songType: 1 }])
+  h.sync.mockResolvedValueOnce({ success: true, playlistId: '900' })
+  await syncAppPlaylist(id, session, 'qq')
+  expect(h.sync.mock.calls[1][0]).toMatchObject({ playlistId: undefined, tracks: [{ source: 'qq', id: 'mid1', qqId: '1', songType: 1 }] })
+  useAppPlaylistsStore.getState().reload()
+  const item = useAppPlaylistsStore.getState().items[0]
+  expect(item.qqSync?.['7'].playlistId).toBe('900')
+  expect(item.neteaseSync?.['7'].playlistId).toBe('201')
+  expect(h.cache.mock.calls.map(([source]) => source)).toEqual(['netease', 'qq'])
+})
+it('QQ名称/曲目变化需要更新，但本地顺序变化不假称可同步', () => {
+  const item = { ...useAppPlaylistsStore.getState().items[0], tracks: [1, 2].map(id => ({ ...song(id, 'qq'), qqId: id })) }
+  const content = appPlaylistSyncContent(item, 'qq')
+  expect(appPlaylistSyncContent({ ...item, tracks: [...item.tracks].reverse() }, 'qq')).toBe(content)
+  expect(appPlaylistSyncContent({ ...item, name: '改名' }, 'qq')).not.toBe(content)
+  expect(appPlaylistSyncContent({ ...item, tracks: item.tracks.slice(1) }, 'qq')).not.toBe(content)
+})
+it('QQ缺失数字身份、混合来源、超长名称均显示原因', () => {
+  const item = useAppPlaylistsStore.getState().items[0]
+  expect(appPlaylistSyncReason(item, false, 'qq')).toContain('全部歌曲来自QQ 音乐')
+  expect(appPlaylistSyncReason({ ...item, tracks: [song(1, 'qq')] }, false, 'qq')).toContain('有效')
+  expect(appPlaylistSyncReason({ ...item, name: '名'.repeat(21), tracks: [{ ...song(1, 'qq'), qqId: 1 }] }, false, 'qq')).toContain('20')
+})
+it('QQ部分失败保存当前账号检查点，切换账号不使用旧目标', async () => {
+  const store = useAppPlaylistsStore.getState()
+  const qqId = store.create('QQ歌单', [{ ...song(1, 'qq'), qqId: 1 }])
+  h.sync.mockResolvedValueOnce({ success: false, playlistId: '900', error: 'QQ 音乐拒绝写入（80105）' })
+  await expect(syncAppPlaylist(qqId, session, 'qq')).rejects.toThrow('80105')
+  expect(useAppPlaylistsStore.getState().items.find(item => item.id === qqId)?.qqSync?.['7']).toEqual({ playlistId: '900' })
+  await syncAppPlaylist(qqId, session, 'qq')
+  expect(h.sync.mock.calls[1][0].playlistId).toBe('900')
+  await syncAppPlaylist(qqId, { ...session, accountId: '8' }, 'qq')
+  expect(h.sync.mock.calls[2][0].playlistId).toBeUndefined()
+})

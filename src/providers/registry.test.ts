@@ -33,7 +33,10 @@ describe('music provider registry', () => {
   it('能力按实现声明，QQ 暴露榜单但不伪装网易专属写入能力', () => {
     expect(providerFor('netease').playlistWriter).toBeDefined()
     expect(providerFor('netease').toplists).toBeDefined()
-    expect(providerFor('qq').playlistWriter).toBeUndefined()
+    expect(providerFor('qq').playlistWriter?.getPlaylistSyncSession).toBeTypeOf('function')
+    expect(providerFor('qq').playlistWriter?.syncAppPlaylist).toBeTypeOf('function')
+    expect(providerFor('qq').playlistWriter?.createPlaylist).toBeUndefined()
+    expect(providerFor('qq').playlistWriter?.replacePlaylistTracks).toBeUndefined()
     expect(providerFor('qq').toplists).toBeDefined()
     expect(providerFor('qq').catalog.getSimilarArtists).toBeTypeOf('function')
     expect(providerFor('qq').catalog.getAlbumDetail).toBeTypeOf('function')

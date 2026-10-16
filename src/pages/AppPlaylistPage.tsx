@@ -150,7 +150,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
           }} />}
         {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
         {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={closeEditor}>
-          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列、歌曲文件和已同步的网易云歌单会保留。</p>
+          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列、歌曲文件和已同步的云端歌单会保留。</p>
           <div className={styles.buttons}><button autoFocus onClick={closeEditor}>取消</button><button className={styles.danger} onClick={() => edit(() => {
             useAppPlaylistsStore.getState().remove(id)
             setEditing(null)

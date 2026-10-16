@@ -12,6 +12,7 @@ export interface AppPlaylist {
   tracks: Track[]
   roamKey?: string
   neteaseSync?: Record<string, { playlistId: string; syncedContent?: string; syncedAt?: number }>
+  qqSync?: Record<string, { playlistId: string; syncedContent?: string; syncedAt?: number }>
 }
 
 type ArchiveStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -23,6 +24,7 @@ interface AppPlaylistsStore {
   create(name: string, tracks?: Track[]): string
   saveRoam(name: string, tracks: Track[], key: string): string
   recordNeteaseSync(id: string, accountId: string, link: NonNullable<AppPlaylist['neteaseSync']>[string]): void
+  recordQQSync(id: string, accountId: string, link: NonNullable<AppPlaylist['qqSync']>[string]): void
   rename(id: string, name: string): void
   remove(id: string): void
   addTracks(id: string, tracks: Track[]): number
@@ -79,13 +81,15 @@ function readArchive(storage: ArchiveStorage): AppPlaylist[] {
       || !Number.isFinite(item.createdAt) || !Number.isFinite(item.updatedAt)
       || !Array.isArray(item.tracks) || !item.tracks.every(validTrack)) throw new Error('Invalid playlist')
     if (item.roamKey !== undefined && typeof item.roamKey !== 'string') throw new Error('Invalid roam key')
-    if (item.neteaseSync !== undefined && (!item.neteaseSync || typeof item.neteaseSync !== 'object' || Array.isArray(item.neteaseSync)
-      || Object.entries(item.neteaseSync).some(([accountId, value]) => {
-        const link = value as NonNullable<AppPlaylist['neteaseSync']>[string]
-        return !/^[1-9]\d*$/.test(accountId) || !link || typeof link.playlistId !== 'string' || !/^[1-9]\d*$/.test(link.playlistId)
-          || (link.syncedContent !== undefined && typeof link.syncedContent !== 'string')
-          || (link.syncedAt !== undefined && !Number.isFinite(link.syncedAt))
-      }))) throw new Error('Invalid sync link')
+    for (const links of [item.neteaseSync, item.qqSync]) {
+      if (links !== undefined && (!links || typeof links !== 'object' || Array.isArray(links)
+        || Object.entries(links).some(([accountId, value]) => {
+          const link = value as NonNullable<AppPlaylist['neteaseSync']>[string]
+          return !/^[1-9]\d*$/.test(accountId) || !link || typeof link.playlistId !== 'string' || !/^[1-9]\d*$/.test(link.playlistId)
+            || (link.syncedContent !== undefined && typeof link.syncedContent !== 'string')
+            || (link.syncedAt !== undefined && !Number.isFinite(link.syncedAt))
+        }))) throw new Error('Invalid sync link')
+    }
     ids.add(item.id)
     const keys = item.tracks.map(appPlaylistTrackKey)
     if (new Set(keys).size !== keys.length) throw new Error('Duplicate tracks')
@@ -137,6 +141,11 @@ export function createAppPlaylistsStore(storage: () => ArchiveStorage, newId: ()
         const item = find(id)
         if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(link.playlistId)) throw new Error('网易云歌单关联无效')
         persist(get().items.map(current => current.id === id ? { ...item, neteaseSync: { ...item.neteaseSync, [accountId]: link } } : current))
+      },
+      recordQQSync(id, accountId, link) {
+        const item = find(id)
+        if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(link.playlistId)) throw new Error('QQ 音乐歌单关联无效')
+        persist(get().items.map(current => current.id === id ? { ...item, qqSync: { ...item.qqSync, [accountId]: link } } : current))
       },
       rename(id, name) {
         find(id)

@@ -134,8 +134,8 @@ export interface PlaylistWriterCapability {
   syncAppPlaylist?(input: PlaylistSyncInput): Promise<PlaylistSyncResult>
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
-  createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
-  replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
+  createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
+  replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
 }
 
