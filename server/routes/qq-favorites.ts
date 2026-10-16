@@ -84,7 +84,7 @@ export const qqFavoriteRoutes: RouteHandler = async (req, res, url, ctx) => {
     if (!res.destroyed) {
       const message = error instanceof Error ? error.message : 'QQ 音乐收藏操作失败，请重试'
       const changed = getCookie(ctx, 'qq') !== cookie
-      const auth = /（(?:301|1000|2000)）/.test(message)
+      const auth = /（(?:301|1000)）/.test(message)
       sendJson(res, { success: false, error: changed ? 'QQ 账号已变化，请重试' : auth ? 'AUTH_EXPIRED' : message }, changed ? 409 : auth ? 401 : 200)
     }
   } finally {

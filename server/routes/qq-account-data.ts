@@ -110,7 +110,7 @@ export const qqAccountDataRoutes: RouteHandler = async (req, res, url, ctx) => {
     const message = error instanceof Error ? error.message : ''
     const changed = getCookie(ctx, 'qq') !== cookie
     const expired = message === 'QQ_DAILY_EXPIRED'
-    const auth = /（(?:301|1000|2000)）/.test(message)
+    const auth = /（(?:301|1000)）/.test(message)
     sendJson(res, { error: changed ? 'QQ_ACCOUNT_CHANGED' : expired ? 'QQ_DAILY_EXPIRED' : auth ? 'AUTH_EXPIRED' : 'QQ_ACCOUNT_DATA_FAILED' },
       changed || expired ? 409 : auth ? 401 : 502)
   }

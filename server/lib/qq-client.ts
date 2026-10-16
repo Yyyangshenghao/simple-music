@@ -1137,7 +1137,7 @@ async function fetchQQDissPage(
     if (
       liked
       && qqHasLoginCookie(cookie)
-      && ([301, 1000, 2000].includes(code) || /auth|cookie|login|登录|未登陆|过期|失效|票据/i.test(message))
+      && ([301, 1000].includes(code) || /auth|cookie|login|登录|未登陆|过期|失效|票据/i.test(message))
     ) {
       const error = new Error('AUTH_EXPIRED') as Error & { statusCode?: number }
       error.statusCode = 403

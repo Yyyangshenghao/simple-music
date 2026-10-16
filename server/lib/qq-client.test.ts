@@ -497,6 +497,12 @@ describe('QQ 标识与歌单详情契约', () => {
     expect((error as Error).message).toBe('AUTH_EXPIRED')
     expect(qqAuthErrorStatus(error)).toBe(403)
   })
+  it('“我喜欢”返回2000签名要求时不使账号过期', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 2000 } }) }))
+    const error = await handleQQLikedPlaylist(LOGGED_IN_COOKIE).catch(reason => reason)
+    expect(error).toBeInstanceOf(Error)
+    expect(qqAuthErrorStatus(error)).toBeNull()
+  })
 
   it('账号歌单把“我喜欢”映射为同一虚拟 id 并去重', async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => {

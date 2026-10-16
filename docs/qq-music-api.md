@@ -34,7 +34,7 @@
 | `GET /api/qq/user/playlists` | 我创建+收藏的歌单 | — | `fcg_user_created_diss`(创建)+ `fcg_get_profile_order_asset.fcg`(收藏) | 过滤 QQ 空间背景音乐歌单,"我喜欢"置顶 | 已用 |
 | `GET /api/qq/liked/playlist` | “我喜欢”入口 meta | — | `music.srfDissInfo.DissInfo/CgiGetDiss`(`dirid:201`) | 仅取 1 首辅助封面，空收藏仍返回 `qq-liked:201`；未登录/失效返回 401/403 | 已用 |
 | `POST /api/qq/song/like/check` | 批量红心状态 | `ids`（MID，最多100首） | `music.musicasset.SongFavRead/IsSongFanByMid` | `{success,liked}`；每首必须返回 boolean，缺失不假报未收藏 | 实号只读通过 |
-| `POST /api/qq/song/like` | 红心/取消红心 | 账号会话、完整 `track`、`like` | `PlaylistDetailWrite/AddSonglist` 或 `DelSonglist` | 固定201；写前核实MID/数字ID/类型，写后确认才成功；失败回滚并提示 | 已接入；实号添加80105，撤销未实测 |
+| `POST /api/qq/song/like` | 红心/取消红心 | 账号会话、完整 `track`、`like` | `PlaylistDetailWrite/AddSonglist` 或 `DelSonglist` | 固定201；官网签名与ag-1；写前核实身份、写后确认；失败回滚 | 实号及实际按钮添加/取消通过，见 §2.8 |
 | `GET /api/qq/history/recent-tracks` | 账号最近歌曲 | — | `music.musicasset.PlayRecentlyRead/GetPlayRecentlyInfo` | 固定2500窗口，`data.data.songList[].track`，保留最近顺序；不宣称完整历史或周排行 | 实号413首通过 |
 | `GET /api/qq/recommend/daily` | 每日30首 | — | `music.recommend.RecommendFeed/get_recommend_feed` → `CgiGetDiss` | 唯一 `subtype:510` 动态ID，上海当天日期，完整歌曲；不回退猜你喜欢 | 实号30首通过 |
 | `GET /api/qq/radar` | 私人雷达 | — | `music.recommend.TrackRelationServer/GetRadarSong` | `{ playlist, tracks }`;未登录或空结果返回 `playlist:null`。**已实测**:返回体是 `data.VecSongs`(数组项包一层 `{Track:{...}}`),`Page` 为真分页(`Page:1` 仅 1 首种子曲,`Page:2+` 每页约 10 首,`data.HasMore` 标记),服务端循环最多 4 页凑够 30 首 | 已用 |
@@ -123,7 +123,7 @@
 
 ### 2.4 写接口参数与验证状态
 
-以下接口在 `l-1124/QQMusicApi` 源码中有实现，但会真实修改用户账号，**源码存在不代表当前 Web 通道可用**。2026-08-30 在用户准备的测试登录态下尝试红心添加，返回业务码 `80105` 且读回未生效。2026-10-16 普通私密歌单创建/删除、改名与加歌/删歌已按用户授权实测成功，见 §2.6；该结果不扩展为红心可写。
+以下接口在 `l-1124/QQMusicApi` 源码中有实现，但会真实修改用户账号，**源码存在不代表当前 Web 通道可用**。2026-08-30 明文通道红心添加返回80105且未生效。2026-10-16 普通私密歌单写入实测成功，见 §2.6；后续红心签名加密通道的独立实号验收已通过，见 §2.8。
 
 写入成功必须同时检查 HTTP、外层 `code`、目标业务块 `code` 和 `data.retCode`，并在测试中读回确认。此次 `AddSonglist` 返回外层 `0`、业务块 `80105`、内层 `retCode:0`，只检查 `retCode` 会误报成功；上游解析器同样先拒绝非零业务码，见 [请求响应解析](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/core/request.py)。
 
@@ -133,7 +133,7 @@
 | 删除歌单 | `music.musicasset.PlaylistBaseWrite/DelPlaylist` | `{ dirId }` | `data.retCode === 0`;只能用专用测试歌单验证 |
 | 歌单加歌 | `music.musicasset.PlaylistDetailWrite/AddSonglist` | `{ dirId, tid, bFmtUtf8:true, v_songInfo:[{songId,songType}] }` | 内层 `retCode === 0`;`songId` 是数字 ID,不是 MID |
 | 歌单删歌 | `music.musicasset.PlaylistDetailWrite/DelSonglist` | 同上 | 内层 `retCode === 0`;删除前必须读取并保存原曲目用于回滚 |
-| 收藏/取消收藏歌曲 | 复用 `AddSonglist/DelSonglist` | 官网形状 `{dirId:201,v_songInfo:[{songId,songType}]}`，不含 `tid`/`bFmtUtf8` | 添加实测被拒绝（80105）；最终官网形状仅模拟验证，真实撤销未验证；见 §2.7 |
+| 收藏/取消收藏歌曲 | 复用 `AddSonglist/DelSonglist` | 官网形状 `{dirId:201,v_songInfo:[{songId,songType}]}`，不含 `tid`/`bFmtUtf8` | zzc签名+ag-1请求，正式路由和实际按钮添加/取消均已实号成功，见 §2.8 |
 
 验证边界：只针对快照中不存在的一首测试曲尝试添加，现有 `ct:19` 登录信封与 [版本策略中定义的 Web 信封](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/core/versioning.py)（`ct:24`、`cv:4747474`，从登录 key 计算 `g_tk` / `g_tk_new_20200303`）均被拒绝。两次尝试后原始收藏 ID、类型、顺序均确认未变，未执行其他账号写操作。`80105` 的具体含义尚未确认，不按登录失效处理；下一步先对照官方客户端，再判断账号限制或请求兼容性。写参数来源已复核 [当前歌单实现](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/modules/songlist.py)，不回退旧失效接口，也不引入 Android 设备会话绕过当前验证门槛。
 
@@ -141,7 +141,7 @@
 
 - 正式搜索:已替换 `handleQQSearch` 的 smartbox + N 次歌曲详情请求；本地 `/api/qq/search` 路由与 `QQMusicService.searchTracks()` 签名保持不变。歌曲与歌手搜索统一检查外层及模块业务码，实测间歇出现的 `2001` 间隔 300ms 重试，含首次最多请求 5 次；第五次仍失败或遇到其他错误直接报错，不伪装为空结果。
 - 排行榜:已接入 QQ toplist 分组与预览路由，`QQMusicService.getToplists()`/`getToplistPreview()` 复用现有 `ToplistSection`、`ToplistCard` 与 `ToplistPage`。
-- “我喜欢”:已实现 `getLikedPlaylist()` 与 `qq-liked:201` 详情分流。2026-10-16 新增 `checkLiked()` 与 `likeTrack()`；状态按 MID 回填，写入核对真实数字 ID 和类型。真实添加仍返回80105，不能宣称当前账号可写；失败回滚、明确提示，不影响读取，见 §2.7。
+- “我喜欢”:已实现 `getLikedPlaylist()` 与 `qq-liked:201` 详情分流，以及 `checkLiked()`/`likeTrack()`。状态按MID回填，写入核对真实数字ID和类型；201添加/取消使用官网签名加密通道，已实号成功。失败仍回滚、明确提示，见 §2.8。
 - “我喜欢”详情:实现 `getLikedPlaylist()` 时必须同时保证入口可打开。可新增专用 `/api/qq/liked/tracks`,或让 `/api/qq/playlist/tracks` 对 liked 虚拟 ID 特判转调 `CgiGetDiss(dirid:201)`；不能只返回一个歌单 meta,否则探索快捷入口和“我的库”能显示但无法加载曲目。
 - 相似歌手:已实现 `QQMusicService.getSimilarArtists()`，`Artist.id` 与请求参数均为 `singerMid`，自动复用歌手页标签和漫游歌手图谱扩展；数字歌手 ID 仅保留在 `qqArtistId`。
 - 官方歌单详情:已替换旧 `fcg_ucc_getcdinfo_byids_cp.fcg` 并由服务端按上游分页取全；`PlaylistSkeleton` 直接携带完整有序曲目，不留下待补窗口。
@@ -155,7 +155,7 @@
 
 增删用数字 `qqId` 与真实 `songType`，100 首一批；旧档类型缺失时，写入前按 MID 查询详情并核对数字 ID 和类型，不能默认 0。先添加、完整读回确认后才删除差集；最终核对名称和完整曲目身份集合。QQ 端顺序明确保留，不猜排序接口或删光重加。外层、目标块、内层 `code/subcode` 和写操作 `retCode` 逐级检查；官网没有证实 `EditPlaylist` 必定返回 retCode，缺失时仍须成功业务码并读回确认，显式非零始终失败。
 
-写请求复用 `qqMusicRequest`/`qqAuthComm`，Web `ct:24,cv:4747474`；两个 CSRF token 按官网各自的 Cookie 优先级计算，`qm_keyst` 仅作兼容兜底，使用官网 `needNewCode`。保留现有 authst 不代表复刻官网当前完整通道：当前官网还使用签名/加密 musics 管道，本项目没有据此引入设备会话或绕过验证。`80105` 继续按写入拒绝展示，不能当登录失效。
+普通私密歌单同步继续复用 `qqMusicRequest`/`qqAuthComm` 的已验收通道，Web `ct:24,cv:4747474`；两个CSRF token按官网各自Cookie优先级计算，`qm_keyst`兼容兜底，使用官网 `needNewCode`。201红心添加/取消另走§2.8的签名加密musics通道，不引入Android设备会话。80105仍按业务失败展示，不能当登录失效。
 
 2026-10-16 已用用户当前开发进程的同一真实账号通过私密创建、旧档类型解析、加删歌曲、改名及元数据保留、同目标幂等和清理；只操作专用新建歌单。原有 5 份清单、曲目和顺序摘要一致，原有目录写入 0。该阶段未测试红心，后续验证见 §2.7。代码另有模拟回归、真实 Electron 窗口的隔离响应交互验收与独立复核。验证状态及截图见 [QQ 同步验收](reviews/2.4.0-app-playlist-qq-sync.md)，源码证据见 [研究记录](reviews/2.4.0-qq-playlist-write-research.md)。
 - 曲目数核验:2026-08-30 匿名读取专辑 `002MAeob3zLXwZ`，`basicInfo.albumDuration` 为 10，但 `GetAlbumSongList.totalNum` 为 5，因此详情 meta 不映射该字段，`trackCount` 保持未知值 0。
@@ -169,11 +169,21 @@
 
 每日30首调用 `RecommendFeed/get_recommend_feed`，参数 `{direction:0,page:1,v_cache:[],v_uniq:[],s_num:0}`。官方请求形状见 [推荐页脚本](https://y.qq.com/n3/wk_v20/entry/recommend.chunk.498dd3a28.js?max_age=6048000)，卡片语义参照 [维护者实现](https://github.com/SoundFieldLab/WaveForge/blob/18cfd14f014e81193765cbb2f5d7bcd717766409/local-server.mjs#L8370) 并经实号核验。只接受唯一 `subtype:510` 动态数字ID，卡片Unix秒time须为上海当天，再走完整歌单读取；请求跨日则拒绝。界面缓存带上海日键，每60秒检查跨日，只刷新日推。真正日推与猜你喜欢分开；刷歌仍用连续流补货。两条本地路由真实只读验收均200、分别413/30首，不保存私人曲目。
 
-批量红心调用 `SongFavRead/IsSongFanByMid`，实号返回 `m_fan[MID]:boolean`。红心写操作固定201，先核实MID与数字ID/类型，再写并读回；同曲串行、重复目标状态不重复写，旧账号结果不进入新账号。成功才递增QQ收藏版本，定向刷新库、探索账号歌单及我喜欢详情，普通歌单缓存保持复用。明确鉴权错误301/1000/2000映射401；80105保留业务失败并回滚提示。
+批量红心调用 `SongFavRead/IsSongFanByMid`，实号返回 `m_fan[MID]:boolean`。红心写操作固定201，先核实MID与数字ID/类型，再写并读回；同曲串行、重复目标状态不重复写，旧账号结果不进入新账号。成功才递增QQ收藏版本，定向刷新库、探索账号歌单及我喜欢详情，普通歌单缓存保持复用。明确鉴权错误301/1000映射401；2000签名要求不标记账号过期；80105保留业务失败并回滚提示。
 
-用户另行授权一次“添加未收藏测试歌曲后还原”。该次添加返回80105且未生效，没有执行撤销或第二次添加。原有5份歌单清单、全部可读歌曲身份及顺序摘要均一致，原收藏仍162首。后续核实 [官网红心封装](https://y.qq.com/ryqq/js/common.chunk.e536f9d2621979d755f5.js?max_age=2592000) 只传 `dirId` 和 `v_songInfo`，最终实现已去掉tid/bFmtUtf8；该最终形状只做模拟验证，不能声称因此修复80105或真实撤销成功。
+本阶段最初一次添加返回80105且未生效，原有5份歌单和162首收藏顺序摘要一致。随后核实 [官网红心封装](https://y.qq.com/ryqq/js/common.chunk.e536f9d2621979d755f5.js?max_age=2592000) 只传 `dirId` 和 `v_songInfo`，去掉tid/bFmtUtf8仍不能修复明文通道80105。用户进一步授权继续账号测试后，根因及成功验证见 §2.8。
 
 精确排序只找到第三方DLL审计中的 [SeqSonglist方法名](https://github.com/modenicheng/hutao-music-player/blob/ba0787032bf9dc3ae908f2bb8b0b416139b56840/docs/AUDIT_WINDOWS_CLIENT.md)，没有可靠参数/返回契约，不猜测实施。最近播放歌单及独立周听歌排行也未核实，仍不声明能力。完整验收见 [QQ补强记录](reviews/2.4.0-qq-platform-parity.md)。
+
+### 2.8 2026-10-16 红心签名加密协议修复
+
+同一账号与同一未收藏公开测试曲，修正param、数字uin或移除authst的明文请求均仍80105；切换官网zzc签名+ag-1的musics通道后，AddSonglist/DelSonglist均业务码0、retCode0且收藏状态读回一致。它证明此处需要签名加密通道，不把80105泛化成账号限制或登录失效。
+
+官网 [vendor网络器](https://y.qq.com/ryqq/js/vendor.chunk.d8b4489cbdb338cb0470.js?max_age=2592000) 在needSign分支对同一JSON调用getSecuritySign与encrypt，将musicu替换成musics并携带encoding=ag-1。实现参照MIT授权的 [qmweb-sign固定源码](https://github.com/jixunmoe/qmweb-sign/tree/15305a3cc39f80eb1646ab2bae46468231765736) 及 [维护者写入实现](https://github.com/SoundFieldLab/WaveForge/blob/18cfd14f014e81193765cbb2f5d7bcd717766409/local-server.mjs#L445)。使用Node内置crypto，无新增依赖；每次随机12字节IV、AES-128-GCM，固定u6.y.qq.com HTTPS端点、禁止重定向携带Cookie、10秒超时、不重发或回退明文。只将201的Add/Del分流，普通歌单和只读接口保持已验收通道。
+
+响应按协议XOR后TextDecoder默认解码。实号写入响应含不规范UTF-8文字，fatal模式会把已生效写入误报解析失败；默认解码后仍严格JSON解析、逐层业务码/retCode检查和写后状态核验。错误码2000对应签名要求，参照 [维护者错误分类](https://github.com/L-1124/QQMusicApi/blob/main/qqmusic_api/core/response.py)，不再使账号过期。
+
+正式本地API以及实际Electron播放栏按钮均已真实添加、取消成功；只允许原本未收藏的一首测试曲进入201目录，原有5份歌单目录、全部可读曲目身份和顺序摘要恢复一致，仍162首收藏。验收及脱敏记录见 [红心协议修复](reviews/2.4.0-qq-favorite-protocol.md)。
 
 ## 3. 内容推荐板块:QQ 音乐对齐网易云的能力
 

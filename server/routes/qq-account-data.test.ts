@@ -62,9 +62,13 @@ describe('QQ 账号只读数据路由', () => {
     expect(h.request).not.toHaveBeenCalled()
   })
 
-  it.each([301, 1000, 2000])('上游硬鉴权错误返回 401：%s', async code => {
+  it.each([301, 1000])('上游硬鉴权错误返回 401：%s', async code => {
     h.request.mockResolvedValue({ code: 0, playlist: { code, data: recentData() } })
     expect(await call()).toMatchObject({ status: 401, body: { error: 'AUTH_EXPIRED' } })
+  })
+  it('2000签名要求保留为上游失败，不导致账号过期', async () => {
+    h.request.mockResolvedValue({ code: 0, playlist: { code: 2000, data: recentData() } })
+    expect(await call()).toMatchObject({ status: 502, body: { error: 'QQ_ACCOUNT_DATA_FAILED' } })
   })
 
   it('请求发出前已取消，不调用上游也不写响应', async () => {

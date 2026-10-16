@@ -1,0 +1,201 @@
+{
+  "date": "2026-10-16",
+  "target": "dev/2.4.0",
+  "base": "85065b9",
+  "validation": {
+    "typecheck": true,
+    "testFiles": 269,
+    "tests": 2468,
+    "independentReview": "No remaining medium/high-risk findings"
+  },
+  "attempts": {
+    "officialPlain": {
+      "date": "2026-10-16T04:30:32.938Z",
+      "variant": "official-dirId-and-songInfo-only",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": false,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": false,
+        "error": "QQ 音乐拒绝写入（80105），请稍后重试"
+      }
+    },
+    "officialPlainComm": {
+      "date": "2026-10-16T04:34:02.128Z",
+      "variant": "official-comm-numeric-uin-without-authst",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": false,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": false,
+        "error": "QQ 音乐拒绝写入（80105），请稍后重试"
+      }
+    },
+    "signedStrictDecoder": {
+      "date": "2026-10-16T11:08:49.323Z",
+      "variant": "signed-ag1-web-transport",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": false,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        },
+        {
+          "method": "DelSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": false,
+        "error": "The encoded data was not valid for encoding utf-8"
+      },
+      "removeResponse": {
+        "success": false,
+        "error": "The encoded data was not valid for encoding utf-8"
+      }
+    },
+    "signedDefaultDecoder": {
+      "date": "2026-10-16T11:13:36.741Z",
+      "variant": "signed-ag1-official-response-decoder",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": true,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        },
+        {
+          "method": "DelSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": true,
+        "liked": true
+      },
+      "removeResponse": {
+        "success": true,
+        "liked": false
+      }
+    },
+    "productionApi": {
+      "date": "2026-10-16T11:18:52.526Z",
+      "variant": "production-route-signed-ag1-no-transport-override",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": true,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        },
+        {
+          "method": "DelSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": true,
+        "liked": true
+      },
+      "removeResponse": {
+        "success": true,
+        "liked": false
+      }
+    },
+    "realPlayerBar": {
+      "date": "2026-10-16T11:23:03.423Z",
+      "variant": "electron-real-heart-button-production-api",
+      "checks": {
+        "currentProcessSameAccount": true,
+        "originalPlaylistCount": 5,
+        "testSongInitiallyUnliked": true,
+        "addConfirmed": true,
+        "testSongRestoredUnliked": true,
+        "originalPlaylistDirectoryRestored": true,
+        "originalSongsAndOrderRestored": true,
+        "originalLikedCount": 162
+      },
+      "writes": [
+        {
+          "method": "AddSonglist",
+          "target": "one-originally-unliked-test-song"
+        },
+        {
+          "method": "DelSonglist",
+          "target": "one-originally-unliked-test-song"
+        }
+      ],
+      "addResponse": {
+        "success": true,
+        "liked": true
+      },
+      "removeResponse": {
+        "success": true,
+        "liked": false
+      },
+      "uiChecks": {
+        "playerButtonAddsRealHeart": true,
+        "confirmedVersionProjected": true,
+        "playerButtonUnlikesRealHeart": true,
+        "noPageError": true
+      }
+    }
+  },
+  "allOriginalPlaylistSnapshotsRestored": true,
+  "credentialsOrPrivateTrackListsSaved": false,
+  "remainingGaps": [
+    "No Windows/Linux real UI run",
+    "Exact ordering, account recent playlists and weekly ranking remain unsupported"
+  ]
+}

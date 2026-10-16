@@ -79,9 +79,13 @@ it('接口拒绝或静默未写入不能报告成功', async () => {
   h.request.mockImplementation((cookie, module, method, param) => method === 'AddSonglist' ? Promise.resolve({ retCode: 0 }) : upstream(cookie, module, method, param))
   expect((await call()).body.success).toBe(false)
 })
-it.each([301, 1000, 2000])('明确鉴权错误%d返回401，80105保持普通失败', async code => {
+it.each([301, 1000])('明确鉴权错误%d返回401，80105保持普通失败', async code => {
   h.request.mockRejectedValueOnce(new Error(`QQ 音乐拒绝读取歌单（${code}），请稍后重试`))
   expect(await call({ ids: ['mid1'] }, true)).toEqual({ status: 401, body: { success: false, error: 'AUTH_EXPIRED' } })
+})
+it('2000签名要求不会被当成登录失效', async () => {
+  h.request.mockRejectedValueOnce(new Error('QQ 音乐拒绝读取歌单（2000），请稍后重试'))
+  expect(await call({ ids: ['mid1'] }, true)).toMatchObject({ status: 200, body: { success: false, error: expect.stringContaining('2000') } })
 })
 it('换号期间旧账号鉴权失败不能让新账号失效', async () => {
   h.request.mockImplementationOnce(async () => { h.cookie.mockReturnValue('uin=8; qqmusic_key=other'); throw new Error('QQ 音乐拒绝读取歌单（301）') })
