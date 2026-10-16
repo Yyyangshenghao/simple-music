@@ -105,8 +105,10 @@ export const appPlaylistSyncRoutes: RouteHandler = async (req, res, url, ctx) =>
     }
     const pid = playlistId!
     const currentIds = asArr(target.trackIds).map(track => String(asObj(track).id))
+    // 网易云摘要总数可能少于实际歌曲数；完整 ID 列表才是增删与排序依据。
     if (!Array.isArray(target.trackIds) || currentIds.some(id => !validId(id))
-      || (typeof target.trackCount === 'number' && target.trackCount !== currentIds.length)) {
+      || new Set(currentIds).size !== currentIds.length
+      || (typeof target.trackCount === 'number' && target.trackCount > currentIds.length)) {
       throw new Error('云端歌单歌曲列表不完整，请稍后重试')
     }
     const desired = new Set(ids)

@@ -86,6 +86,37 @@ it('详情缺少完整ID列表时不修改任何歌曲', async () => {
   expect((await sync({ playlistId: '201' })).body.error).toContain('不完整')
   expect(h.call).toHaveBeenCalledTimes(1)
 })
+it('歌曲摘要总数少于完整ID列表时可更新同一歌单，不误报不完整', async () => {
+  remote.ids = Array.from({ length: 868 }, (_, i) => String(i + 1))
+  remote.name = '应用歌单'
+  h.call.mockImplementation(async (method, args) => {
+    if (method === 'playlist_detail') return response({ playlist: { ...remote, trackCount: 862, trackIds: remote.ids.map(id => ({ id })) } })
+    return upstream(method, args)
+  })
+  expect((await sync({ playlistId: '201', tracks: remote.ids.map(id => ({ source: 'netease', id })) })).body).toMatchObject({ success: true, playlistId: '201' })
+  expect(h.call.mock.calls.every(([method]) => method === 'playlist_detail')).toBe(true)
+})
+it('摘要总数偏小时仍按完整ID列表增删、排序并回读核对', async () => {
+  remote.ids = ['9', '2', '1']
+  h.call.mockImplementation(async (method, args) => {
+    if (method === 'playlist_detail') return response({ playlist: { ...remote, trackCount: 1, trackIds: remote.ids.map(id => ({ id })) } })
+    return upstream(method, args)
+  })
+  expect((await sync({ playlistId: '201' })).body.success).toBe(true)
+  expect(h.call.mock.calls.filter(([method]) => method === 'playlist_tracks').map(([, args]) => [args.op, args.tracks])).toEqual([['add', '3'], ['del', '9']])
+  expect(remote.ids).toEqual(['3', '1', '2'])
+  expect(h.call.mock.calls.at(-1)?.[0]).toBe('playlist_detail')
+})
+it.each([
+  { trackCount: 3, trackIds: [{ id: '1' }, { id: '2' }] },
+  { trackCount: 2, trackIds: [{ id: '1' }, { id: '1' }] },
+  { trackCount: 1, trackIds: [{ id: '1' }, { id: 0 }] },
+])('数量不足、重复或无效ID仍在任何写入前拒绝 %j', async detail => {
+  h.call.mockResolvedValue(response({ playlist: { ...remote, ...detail } }))
+  expect((await sync({ playlistId: '201' })).body).toMatchObject({ success: false, error: expect.stringContaining('不完整') })
+  expect(h.call).toHaveBeenCalledTimes(1)
+  expect(h.call.mock.calls[0][0]).toBe('playlist_detail')
+})
 it('创建后失败返回目标，重试复用检查点而不新建', async () => {
   let fail = true
   h.call.mockImplementation(async (method, args) => method === 'playlist_tracks' && fail ? response({ code: 500, message: '操作频繁' }) : upstream(method, args))
