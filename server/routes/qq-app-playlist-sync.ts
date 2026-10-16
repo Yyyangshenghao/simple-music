@@ -94,6 +94,12 @@ export const qqAppPlaylistSyncRoutes: RouteHandler = async (req, res, url, ctx) 
     }
     if (new Set(desired.map(songKey)).size !== desired.length) throw new Error('歌单中存在重复歌曲')
     const readTarget = async (id: string) => {
+      const owned = await request('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', { uin: accountId, bWithoutStatus: false })
+      if (!Array.isArray(owned.v_playlist)) throw new Error('当前 QQ 账号的歌单清单不完整，请稍后重试')
+      const matches = owned.v_playlist.map(qqRecord).filter(item => String(item.tid) === id)
+      const entry = matches[0]
+      if (matches.length !== 1 || String(entry.uin) !== accountId || !validId(String(entry.dirId ?? ''))
+        || (Number(entry.dirId) >= 201 && Number(entry.dirId) <= 206)) throw new Error('只能更新当前 QQ 账号创建的普通歌单')
       const songs: Song[] = []
       let info: Record<string, unknown> = {}
       let total: number | undefined
@@ -104,7 +110,9 @@ export const qqAppPlaylistSyncRoutes: RouteHandler = async (req, res, url, ctx) 
         })
         const detail = qqRecord(data.dirinfo)
         const dirId = String(detail.dirid ?? '')
-        if (String(detail.id) !== id || String(qqRecord(detail.creator).musicid) !== accountId
+        // 私密歌单详情会把 creator.musicid/host_uin 隐为 0；清单归属与 owndir 仍必须同时成立。
+        const creatorId = String(qqRecord(detail.creator).musicid ?? '0')
+        if (String(detail.id) !== id || dirId !== String(entry.dirId) || (creatorId !== '0' && creatorId !== accountId)
           || Number(detail.owndir) !== 1 || !validId(dirId) || (Number(dirId) >= 201 && Number(dirId) <= 206)) {
           throw new Error('只能更新当前 QQ 账号创建的普通歌单')
         }

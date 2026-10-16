@@ -16,6 +16,6 @@
   },
   "pageErrors": [],
   "realQQAccountRead": "GetPlaylistByUin accepted",
-  "realQQAccountWrite": "尚待授权，未执行",
+  "realQQAccountWrite": "本机普通私密歌单实测通过，详见 2.4.0-app-playlist-qq-sync-live-verification.json",
   "order": "以 QQ 端为准，未实现精确排序"
 }
