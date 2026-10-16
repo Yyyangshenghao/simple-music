@@ -28,6 +28,8 @@
 .rowActions button { padding: 6px 8px; border: none; border-radius: 8px; background: none; color: var(--sm-text-secondary); cursor: pointer; }
 .rowActions button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .error { color: var(--sm-color-danger); font-size: 13px; }
+.syncSection { margin: -8px 0 24px; }
+.syncSection .buttons { margin-top: 0; }
 @media (max-width: 720px) {
   .toolbar { flex-wrap: wrap; gap: 12px; }
   .detailHeader { gap: 18px; align-items: flex-start; }

@@ -10,6 +10,8 @@ export interface AppPlaylist {
   createdAt: number
   updatedAt: number
   tracks: Track[]
+  roamKey?: string
+  neteaseSync?: Record<string, { playlistId: string; syncedContent?: string; syncedAt?: number }>
 }
 
 type ArchiveStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -19,6 +21,8 @@ interface AppPlaylistsStore {
   error: string
   reload(): void
   create(name: string, tracks?: Track[]): string
+  saveRoam(name: string, tracks: Track[], key: string): string
+  recordNeteaseSync(id: string, accountId: string, link: NonNullable<AppPlaylist['neteaseSync']>[string]): void
   rename(id: string, name: string): void
   remove(id: string): void
   addTracks(id: string, tracks: Track[]): number
@@ -74,6 +78,14 @@ function readArchive(storage: ArchiveStorage): AppPlaylist[] {
       || typeof item.name !== 'string' || !item.name.trim()
       || !Number.isFinite(item.createdAt) || !Number.isFinite(item.updatedAt)
       || !Array.isArray(item.tracks) || !item.tracks.every(validTrack)) throw new Error('Invalid playlist')
+    if (item.roamKey !== undefined && typeof item.roamKey !== 'string') throw new Error('Invalid roam key')
+    if (item.neteaseSync !== undefined && (!item.neteaseSync || typeof item.neteaseSync !== 'object' || Array.isArray(item.neteaseSync)
+      || Object.entries(item.neteaseSync).some(([accountId, value]) => {
+        const link = value as NonNullable<AppPlaylist['neteaseSync']>[string]
+        return !/^[1-9]\d*$/.test(accountId) || !link || typeof link.playlistId !== 'string' || !/^[1-9]\d*$/.test(link.playlistId)
+          || (link.syncedContent !== undefined && typeof link.syncedContent !== 'string')
+          || (link.syncedAt !== undefined && !Number.isFinite(link.syncedAt))
+      }))) throw new Error('Invalid sync link')
     ids.add(item.id)
     const keys = item.tracks.map(appPlaylistTrackKey)
     if (new Set(keys).size !== keys.length) throw new Error('Duplicate tracks')
@@ -113,6 +125,18 @@ export function createAppPlaylistsStore(storage: () => ArchiveStorage, newId: ()
         const item: AppPlaylist = { id: newId(), name: playlistName(name), tracks: uniqueTracks(tracks), createdAt: Date.now(), updatedAt: Date.now() }
         persist([...get().items, item])
         return item.id
+      },
+      saveRoam(name, tracks, key) {
+        const existing = get().items.find(item => item.roamKey === key)
+        if (existing) return existing.id
+        const item: AppPlaylist = { id: newId(), name: playlistName(name), tracks: uniqueTracks(tracks), createdAt: Date.now(), updatedAt: Date.now(), roamKey: key }
+        persist([...get().items, item])
+        return item.id
+      },
+      recordNeteaseSync(id, accountId, link) {
+        const item = find(id)
+        if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(link.playlistId)) throw new Error('网易云歌单关联无效')
+        persist(get().items.map(current => current.id === id ? { ...item, neteaseSync: { ...item.neteaseSync, [accountId]: link } } : current))
       },
       rename(id, name) {
         find(id)

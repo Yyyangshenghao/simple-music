@@ -1,0 +1,115 @@
+{
+  "calls": [
+    {
+      "accountId": "7",
+      "appPlaylistId": "df07dfbe-7860-4013-8431-9b0aa4de0457",
+      "name": "通勤电台",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "3"
+        },
+        {
+          "source": "netease",
+          "id": "1"
+        },
+        {
+          "source": "netease",
+          "id": "2"
+        }
+      ]
+    },
+    {
+      "accountId": "7",
+      "appPlaylistId": "df07dfbe-7860-4013-8431-9b0aa4de0457",
+      "name": "通勤电台",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "3"
+        },
+        {
+          "source": "netease",
+          "id": "1"
+        },
+        {
+          "source": "netease",
+          "id": "2"
+        }
+      ],
+      "playlistId": "201"
+    },
+    {
+      "accountId": "7",
+      "appPlaylistId": "df07dfbe-7860-4013-8431-9b0aa4de0457",
+      "name": "夜间通勤",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "1"
+        },
+        {
+          "source": "netease",
+          "id": "3"
+        },
+        {
+          "source": "netease",
+          "id": "2"
+        }
+      ],
+      "playlistId": "201"
+    }
+  ],
+  "checks": {
+    "failureRetrySameTarget": true,
+    "renameAndOrder": true,
+    "persistedWithoutCredentials": true,
+    "mixedBlocked": true,
+    "roamLocalFirst": true,
+    "noHorizontalOverflow": true,
+    "linkedEmptySync": true,
+    "accountIsolation": true,
+    "logoutBlocked": true,
+    "legacyMigrationOnceAndDeletionRespected": true
+  },
+  "errors": [],
+  "appPlaylists": [
+    {
+      "id": "df07dfbe-7860-4013-8431-9b0aa4de0457",
+      "name": "夜间通勤",
+      "count": 3,
+      "sync": {
+        "7": {
+          "playlistId": "201",
+          "syncedContent": "[\"夜间通勤\",[\"netease:1\",\"netease:3\",\"netease:2\"]]",
+          "syncedAt": 1792108959010
+        }
+      }
+    },
+    {
+      "id": "e888424e-d8c5-455e-8d9e-62e040f1e552",
+      "name": "跨平台收藏",
+      "count": 2
+    },
+    {
+      "id": "e3aca19e-b1f4-4da1-8885-9253be736131",
+      "name": "漫游 · 2026-10-16",
+      "count": 2
+    }
+  ],
+  "environment": {
+    "platform": "macOS Electron dev",
+    "profile": "isolated userData",
+    "api": "mock responses; no real account writes",
+    "viewports": [
+      "1536×864 native",
+      "960×540 CDP content viewport"
+    ]
+  },
+  "verification": {
+    "typecheck": "passed",
+    "testFiles": 264,
+    "tests": 2295,
+    "independentReview": "passed; reported fixes and final empty-target fix rechecked"
+  }
+}

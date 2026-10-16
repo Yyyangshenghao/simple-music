@@ -1,7 +1,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import styles from './RoamSaveHelp.module.css'
 
-const HELP_TEXT = '从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可同步「每日漫游」。'
+const HELP_TEXT = '漫游先保存为应用歌单。全部歌曲来自网易云且已登录时，可在「管理与同步」中手动同步；混合歌单保存在应用中。'
 const characters = Array.from(HELP_TEXT)
 
 export function RoamSaveHelp() {

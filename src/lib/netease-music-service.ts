@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
 import type {
   MusicService,
   RadarPlaylist,
@@ -231,6 +232,14 @@ export class NeteaseMusicService implements MusicService {
     const id = res.playlist?.id
     if (id === undefined || id === null) throw new Error('CREATE_PLAYLIST_FAILED')
     return { id }
+  }
+
+  getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
+    return api.get('/api/netease/app-playlist-sync/session', undefined, { signal })
+  }
+
+  syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {
+    return api.post('/api/netease/app-playlist-sync', input, undefined, { timeoutMs: 120000 })
   }
 
   async replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean> {

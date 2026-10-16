@@ -10,6 +10,7 @@ import { fetchOfflineStatuses, type OfflineCacheStatus } from '../lib/offline-ca
 import { appPlaylistPlaybackTracks, appPlaylistTrackState } from '../lib/app-playlist-playback'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { AppPlaylistModal, AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
+import { AppPlaylistSync } from '../components/Playlist/AppPlaylistSync'
 import { InfoButton } from '../components/ui/InfoButton'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
@@ -129,6 +130,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
             </div>
           </div>
         </header>
+        <AppPlaylistSync item={item} />
         <div className={styles.toolbar}><InfoButton label="歌单排序与移除" text="暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的歌单顺序。" align="left" /><button onClick={() => setRefresh(value => value + 1)}>刷新状态</button></div>
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
@@ -148,7 +150,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
           }} />}
         {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
         {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={closeEditor}>
-          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列和歌曲文件会保留。</p>
+          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列、歌曲文件和已同步的网易云歌单会保留。</p>
           <div className={styles.buttons}><button autoFocus onClick={closeEditor}>取消</button><button className={styles.danger} onClick={() => edit(() => {
             useAppPlaylistsStore.getState().remove(id)
             setEditing(null)

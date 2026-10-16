@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 import { serviceFor } from '../lib/service-registry'
-import { useSettingsStore } from './settings'
+import { appPlaylistTrackKey, useAppPlaylistsStore } from './app-playlists'
 import { isProviderParticipating } from './providers'
-import { expireProviderAccount } from './provider-auth'
 import {
   buildRoamTracks,
   computeDefaultSongCount,
@@ -11,7 +10,7 @@ import {
   shuffle,
   type RoamMode,
 } from '../lib/roam-selection'
-import { buildRoamDescription, parseRoamDescription } from '../lib/roam-description'
+import { parseRoamDescription } from '../lib/roam-description'
 import { rankArtistsByFrequency } from '../lib/artist-affinity'
 import type { MusicService } from '../lib/music-service'
 import type { ArtistInfo, Track } from '../types/domain'
@@ -44,17 +43,11 @@ let suggestionsSession = 0
 
 /** generate 的过期守卫:reset(含切音源)/重选歌手时自增;在途生成迟到落地前核对,避免拿旧音源结果冲掉新会话。 */
 let generateSession = 0
-let neteaseGeneration: Promise<void> | null = null
 
 /** 网易云漫游歌单水合会话；切换候选范围或重置时作废迟到响应。 */
 let hydrationSession = 0
 
-/**
- * 「漫游」歌单:
- * - QQ 音乐:纯本地 localStorage 临时歌单,仅当天有效,不回写账号(逻辑不变)。
- * - 网易云:写回账号里一个固定名为「每日漫游」的隐私歌单,本地只缓存歌单 id;
- *   归属靠简介水印(`Simple Music`)识别,是否需要重新生成靠简介里的日期判断。
- */
+/** 漫游结果先保存为应用歌单；旧版网易云漫游只读恢复，不再生成即写云端。 */
 
 const STORAGE_KEY = 'simplemusic-roam-playlist'
 const NETEASE_PLAYLIST_ID_KEY = 'simplemusic-roam-playlist-id-netease'
@@ -81,6 +74,17 @@ export interface RoamPlaylist {
   mode: RoamMode
   artists: { name: string }[]
   tracks: Track[]
+  appPlaylistId?: string
+}
+
+export function saveRoamAsAppPlaylist(playlist: RoamPlaylist, fresh = false): string {
+  if (playlist.appPlaylistId && useAppPlaylistsStore.getState().items.some(item => item.id === playlist.appPlaylistId)) return playlist.appPlaylistId
+  const key = fresh ? crypto.randomUUID() : roamAppPlaylistKey(playlist)
+  return useAppPlaylistsStore.getState().saveRoam(`漫游 · ${playlist.date}`, playlist.tracks, key)
+}
+
+export function roamAppPlaylistKey(playlist: RoamPlaylist): string {
+  return JSON.stringify([playlist.date, playlist.source, playlist.tracks.map(appPlaylistTrackKey)])
 }
 
 export function todayKey(): string {
@@ -92,7 +96,7 @@ export function todayKey(): string {
 }
 
 /**
- * 读取本地漫游存档。混合音源和 QQ 结果都只保存在应用本地。
+ * 读取最近漫游入口；旧本地快照首次读取时导入应用歌单。
  * 日期过期不再丢弃——上一份漫游歌单保留可继续播放,直到用户主动「重新选择」或重新生成覆盖。
  */
 function loadValidPlaylist(): RoamPlaylist | null {
@@ -101,7 +105,13 @@ function loadValidPlaylist(): RoamPlaylist | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw) as RoamPlaylist
-    if (!data?.tracks) return null
+    if (!Array.isArray(data?.tracks)) return null
+    if (!data.appPlaylistId) {
+      try {
+        data.appPlaylistId = saveRoamAsAppPlaylist(data)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      } catch { /* 保留旧漫游快照，存储恢复后可从页面再次导入。 */ }
+    }
     return data
   } catch {
     return null
@@ -137,7 +147,7 @@ function describeGenerateError(err: unknown): string {
 
 interface RoamStore {
   playlist: RoamPlaylist | null
-  /** 本机持久化的 QQ/混合漫游；与网易云远端恢复结果分槽保存，避免水合覆盖后丢失恢复入口。 */
+  /** 最近一次本地生成的应用歌单入口；与旧网易云远端恢复结果分槽保留。 */
   localPlaylist: RoamPlaylist | null
   entries: RoamArtistEntry[]
   mode: RoamMode
@@ -347,7 +357,7 @@ export const useRoamStore = create<RoamStore>((set, get) => {
       }
       if (!id) {
         set({ loading: false })
-        return // 没有可复用的,留在选歌手态,生成时会新建
+        return // 没有旧版远端漫游，生成流程仍保存为应用歌单。
       }
       const found = await service.getPlaylistWithDescription!(id)
       if (hydrationSession !== session) return
@@ -361,16 +371,14 @@ export const useRoamStore = create<RoamStore>((set, get) => {
       if (parsed) {
         // 日期是否今天都展示这份歌单(过期的上一份仍可继续播放,直到用户重选/重新生成覆盖);
         // parsed.date 仍写入 playlist.date,仅用于页面区分「今日漫游」还是「上次漫游」文案。
-        set({
-          playlist: {
-            date: parsed.date,
-            source: 'netease',
-            mode: get().mode,
-            artists: parsed.artistNames.map((name) => ({ name })),
-            tracks: found.tracks,
-          },
-          loading: false,
-        })
+        const playlist: RoamPlaylist = {
+          date: parsed.date,
+          source: 'netease',
+          mode: get().mode,
+          artists: parsed.artistNames.map((name) => ({ name })),
+          tracks: found.tracks,
+        }
+        set({ playlist, loading: false })
       } else {
         set({ loading: false }) // 简介解不出来,留在选歌手态;neteasePlaylistId 已缓存,生成时复用
       }
@@ -393,75 +401,20 @@ export const useRoamStore = create<RoamStore>((set, get) => {
       .map((track) => track.source)
       .filter((source): source is ProviderId => source !== 'local'))]
     const source: ProviderId | 'mixed' = sources.length === 1 ? sources[0] : 'mixed'
-    const service = source === 'mixed' ? null : serviceFor(source)
     const artists = entries.map((e) => ({ name: e.artist.name }))
     const date = todayKey()
-
-    if (source === 'netease' && useSettingsStore.getState().neteaseLoggedIn && service?.createPlaylist) {
-      // 远端事务串行：新会话须等旧写完成后再读曲目，避免使用旧删除快照或被迟到写覆盖。
-      const previousGeneration = neteaseGeneration
-      let releaseGeneration: () => void = () => {}
-      const pendingGeneration = new Promise<void>((resolve) => { releaseGeneration = resolve })
-      neteaseGeneration = pendingGeneration
-      try {
-        if (previousGeneration) await previousGeneration
-        if (generateSession !== session) return
-        let id = get().neteasePlaylistId
-        let currentTrackIds: unknown[] = []
-        if (id) {
-          const found = await service.getPlaylistWithDescription!(id)
-          if (generateSession !== session) return
-          if (found) {
-            currentTrackIds = found.tracks.map((t) => t.id)
-          } else {
-            id = null // 缓存的 id 已失效(被删了)
-          }
-        }
-        if (!id) {
-          const created = await service.createPlaylist!(NETEASE_PLAYLIST_NAME, { private: true })
-          if (generateSession !== session) return
-          id = created.id
-        }
-        await service.replacePlaylistTracks!(id, currentTrackIds, tracks.map((t) => t.id))
-        if (generateSession !== session) return
-        await service.updatePlaylistDescription!(
-          id,
-          buildRoamDescription(date, artists.map((a) => a.name))
-        )
-        // 写回已成功,但期间用户切音源/重选了歌手:这份旧会话结果直接丢弃,不冲掉新会话
-        if (generateSession !== session) return
-        saveCachedNeteasePlaylistId(id)
-        set({
-          playlist: { date, source, mode, artists, tracks },
-          neteasePlaylistId: id,
-          generating: false,
-          entries: [],
-        })
-      } catch (err) {
-        if (generateSession !== session) return // 旧会话的失败不往新会话页面弹错误
-        const raw = err instanceof Error ? err.message : String(err)
-        // 401 = 服务端判定登录态已失效:同步清掉渲染层标记,顶栏/漫游页立即回到未登录态,
-        // 而不是继续"界面显示已登录、写操作全部失效"的错位
-        expireProviderAccount('netease', err)
-        // 失败:留在选歌手态,不清 entries,方便重试;错误上页面,不再静默
-        set({ generating: false, error: describeGenerateError(err) })
-      } finally {
-        releaseGeneration()
-        if (neteaseGeneration === pendingGeneration) neteaseGeneration = null
-      }
-      return
-    }
-
-    // QQ 或混合音源只写本地，不把跨平台 id 发送到任一远端。
     const playlist: RoamPlaylist = { date, source, mode, artists, tracks }
     if (generateSession !== session) return
+    try {
+      playlist.appPlaylistId = saveRoamAsAppPlaylist(playlist, true)
+    } catch (error) {
+      set({ generating: false, error: describeGenerateError(error) })
+      return
+    }
     set({ playlist, localPlaylist: playlist, generating: false, entries: [] })
     if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(playlist))
-      } catch {
-        /* 超配额放弃落盘,内存态仍可用 */
-      }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(playlist)) }
+      catch { /* 完整内容已保存于应用歌单，最近漫游入口落盘失败不影响它。 */ }
     }
   },
 

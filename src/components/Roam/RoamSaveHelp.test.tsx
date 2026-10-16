@@ -7,6 +7,6 @@ describe('漫游说明原位展开', () => {
     const html = renderToStaticMarkup(<RoamSaveHelp />)
     expect(html).toMatch(/<p[^>]*role="note"[^>]*aria-hidden="true"/)
     expect(html).toContain('aria-expanded="false"')
-    expect(html).toContain('aria-label="从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可同步「每日漫游」。"')
+    expect(html).toContain('aria-label="漫游先保存为应用歌单。全部歌曲来自网易云且已登录时，可在「管理与同步」中手动同步；混合歌单保存在应用中。"')
   })
 })

@@ -89,7 +89,7 @@ describe('RoamPage 已保存歌单入口', () => {
     expect(html).toContain('SAVED ROAM')
     expect(html).toContain('继续听')
     expect(html).toContain('重新生成')
-    expect(html).toContain('保存在本机')
+    expect(html).toContain('旧版漫游')
     expect(html).not.toContain('旧曲目-1')
     expect(html).not.toContain('旧曲目-2')
   })
@@ -151,7 +151,7 @@ describe('RoamPage 已保存歌单入口', () => {
     const html = renderToStaticMarkup(<RoamPage />)
 
     expect(html.match(/SAVED ROAM/g)).toHaveLength(2)
-    expect(html).toContain('来自网易云「每日漫游」')
-    expect(html).toContain('保存在本机')
+    expect(html.match(/旧版漫游/g)).toHaveLength(2)
+    expect(html).not.toContain('已同步平台歌单')
   })
 })

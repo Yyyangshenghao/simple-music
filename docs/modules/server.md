@@ -28,8 +28,9 @@
   - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,order/update,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存由独立的 `routes/audio-cache.ts` 管理；`/api/audio` 仍负责完整音频经过时的自动落盘，拖进度条的中段 Range 只透传。
-  - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。既有漫游保存使用的 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口。
-  - 漫游替换曲目后通过 `POST /api/playlist/order/update` 显式同步顺序；写前再次验证本人普通歌单、完整 ID 集合及 Cookie 会话，歌单被外部修改时拒绝旧顺序，排序失败不会报告保存成功。
+  - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。保留的兼容端点 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口，新的漫游生成也不自动写入。
+  - 兼容的 `POST /api/playlist/order/update` 写前验证本人普通歌单、完整 ID 集合及 Cookie 会话，歌单被外部修改时拒绝旧顺序，排序失败不会报告保存成功。
+- **`routes/app-playlist-sync.ts`**：`GET /api/netease/app-playlist-sync/session` 返回当前已核实账号 ID 与 Cookie 会话凭证（不缓存）；`POST /api/netease/app-playlist-sync` 只接受网易云曲目，核对账号凭证与本人普通歌单。首次创建私密歌单，100 首一批补新增，确认新增完整后删除差集，再显式排序、更新名称及回读核对；不一致不能报告成功。每步检查账号与连接状态，创建响应先保留检查点再处理取消，失败返回目标供重试。在途写入上限 32，创建检查点缓存最多 64 条。端点沿用统一 Origin/token 边界，不接受客户端 Cookie。
 - **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。

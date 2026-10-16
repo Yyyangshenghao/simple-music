@@ -80,7 +80,15 @@ vi.mock('./providers', () => ({
   }) },
 }))
 
-import { useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'
+import { useAppPlaylistsStore } from './app-playlists'
+import { saveRoamAsAppPlaylist, useRoamStore, MAX_ARTISTS, MAX_SONGS_PER_ARTIST, type RoamArtistEntry } from './roam'
+
+beforeEach(() => {
+  const data = new Map<string, string>()
+  vi.stubGlobal('localStorage', { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value) }, removeItem: (key: string) => { data.delete(key) } })
+  useAppPlaylistsStore.getState().reload()
+})
+afterEach(() => vi.unstubAllGlobals())
 
 /** confirmArtists 内部异步拉取曲库池,flush 两轮微任务让 getArtistSongs.then(...) 的 set 落地。 */
 async function flush() {
@@ -325,33 +333,6 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(useRoamStore.getState().playlist?.tracks.map(track => track.id)).toEqual(tracks.map(track => track.id))
   })
 
-  it('真实服务重新生成时删除全部旧曲目，超过 100 首的尾段不会残留', async () => {
-    const tracks = Array.from({ length: 150 }, (_, index) => mkTrack(9, index))
-    vi.spyOn(api, 'get').mockImplementation(async path => (path === '/api/playlist/tracks'
-      ? { playlist: mkNeteasePlaylist(), trackIds: tracks.map(track => track.id), tracks: tracks.slice(0, 100) }
-      : { tracks: tracks.slice(100) }) as never)
-    currentService = completePlaylistService()
-    useRoamStore.setState({ neteasePlaylistId: 'pid-1', entries: [mkEntry(1)] })
-    await useRoamStore.getState().generate()
-    expect(replacePlaylistTracks.mock.calls[0][1]).toEqual(tracks.map(track => track.id))
-  })
-
-  it.each(['missing', 'failed'])('完整详情不可用（%s）时不调用任何远端覆盖操作', async state => {
-    vi.spyOn(api, 'get').mockImplementation(async path => {
-      if (path === '/api/playlist/tracks') return { playlist: mkNeteasePlaylist(), trackIds: ['9-0', '9-1'], tracks: [mkTrack(9, 0)] } as never
-      if (state === 'failed') throw new Error('offline')
-      return { tracks: [] } as never
-    })
-    currentService = completePlaylistService()
-    useRoamStore.setState({ neteasePlaylistId: 'pid-1', entries: [mkEntry(1)] })
-    await useRoamStore.getState().generate()
-    expect(replacePlaylistTracks).not.toHaveBeenCalled()
-    expect(updatePlaylistDescription).not.toHaveBeenCalled()
-    expect(createPlaylist).not.toHaveBeenCalled()
-    expect(useRoamStore.getState().entries).toHaveLength(1)
-    expect(useRoamStore.getState().error).toBeTruthy()
-  })
-
   it('ensureNeteaseHydrated:无缓存 id、账号里也没有匹配歌单 → 留在选歌手态', async () => {
     await useRoamStore.getState().ensureNeteaseHydrated(neteaseRealService as unknown as MusicService)
     expect(useRoamStore.getState().playlist).toBeNull()
@@ -415,242 +396,63 @@ describe('roam store — 网易云真实歌单分支', () => {
     expect(getPlaylistWithDescription).not.toHaveBeenCalled()
   })
 
-  it('generate:无可复用歌单 → 新建 + 加曲目 + 写简介', async () => {
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
+  it('generate:已登录网易云也仅保存应用歌单，不调用远端写接口', async () => {
+    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: 'old-cloud' })
     await useRoamStore.getState().generate()
-    expect(createPlaylist).toHaveBeenCalledWith('每日漫游', { private: true })
-    expect(replacePlaylistTracks).toHaveBeenCalledWith('new-pid', [], expect.any(Array))
-    expect(updatePlaylistDescription).toHaveBeenCalledWith('new-pid', expect.stringContaining('Simple Music'))
-    const { playlist, neteasePlaylistId, entries } = useRoamStore.getState()
-    expect(neteasePlaylistId).toBe('new-pid')
-    expect(playlist!.tracks).toHaveLength(10)
-    expect(entries).toEqual([])
-  })
-
-  it('generate:网易云未登录时只写本地，不调用远端歌单接口', async () => {
-    neteaseLoggedIn = false
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    await useRoamStore.getState().generate()
+    const state = useRoamStore.getState()
+    expect(state.playlist?.appPlaylistId).toBeTruthy()
+    expect(useAppPlaylistsStore.getState().items[0].tracks).toEqual(state.playlist?.tracks)
     expect(createPlaylist).not.toHaveBeenCalled()
-    expect(useRoamStore.getState().playlist?.source).toBe('netease')
-  })
-
-  it('generate:混合音源只写本地，并保留两边曲目来源', async () => {
-    const qqTrack = { ...mkTrack(2, 0), provider: 'qq' as const, source: 'qq' as const }
-    const qqEntry = {
-      ...mkEntry(2),
-      artist: { ...mkArtist(2), source: 'qq' as const },
-      pool: [qqTrack],
-      tracks: [qqTrack],
-    }
-    useRoamStore.setState({ entries: [mkEntry(1, { tracks: [mkTrack(1, 0)] }), qqEntry], mode: 'hot' })
-    await useRoamStore.getState().generate()
-    expect(createPlaylist).not.toHaveBeenCalled()
-    expect(useRoamStore.getState().playlist?.source).toBe('mixed')
-    expect(useRoamStore.getState().localPlaylist?.source).toBe('mixed')
-    expect(useRoamStore.getState().playlist?.tracks.map((track) => track.source).sort()).toEqual(['netease', 'qq'])
-  })
-
-  it('generate:已有可复用歌单(neteasePlaylistId 命中)→ 不新建,清空旧曲目再加新的', async () => {
-    getPlaylistWithDescription.mockResolvedValueOnce({
-      playlist: mkNeteasePlaylist({ id: 'pid-1' }),
-      tracks: [mkTrack(9, 0), mkTrack(9, 1)],
-    })
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: 'pid-1' })
-    await useRoamStore.getState().generate()
-    expect(createPlaylist).not.toHaveBeenCalled()
-    expect(replacePlaylistTracks).toHaveBeenCalledWith('pid-1', ['9-0', '9-1'], expect.any(Array))
-  })
-
-  it('generate:缓存的 neteasePlaylistId 已失效(查无歌单)→ 走新建', async () => {
-    getPlaylistWithDescription.mockResolvedValueOnce(null)
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: 'stale-pid' })
-    await useRoamStore.getState().generate()
-    expect(createPlaylist).toHaveBeenCalled()
-  })
-
-  it('generate:任一步抛错 → generating 回 false,entries 不清空', async () => {
-    replacePlaylistTracks.mockRejectedValueOnce(new Error('boom'))
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().generating).toBe(false)
-    expect(useRoamStore.getState().entries).toHaveLength(1)
-    expect(useRoamStore.getState().playlist).toBeNull()
-  })
-
-  it('generate:失败原因写入 error 供页面展示,不再静默', async () => {
-    replacePlaylistTracks.mockRejectedValueOnce(new Error('boom'))
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().error).toBe('生成失败:boom')
-  })
-
-  it('generate:401 归一为登录失效文案;重试时清空旧 error', async () => {
-    replacePlaylistTracks.mockRejectedValueOnce(new Error('HTTP 401'))
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().error).toBe('网易云登录已失效,请重新登录后再试')
-
-    await useRoamStore.getState().generate() // 重试成功
-    expect(useRoamStore.getState().error).toBeNull()
-    expect(useRoamStore.getState().playlist).not.toBeNull()
-  })
-
-  it('generate:401 同步清掉渲染层登录标记,消除"显示已登录但写操作全失效"的错位', async () => {
-    replacePlaylistTracks.mockRejectedValueOnce(new Error('HTTP 401'))
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    await useRoamStore.getState().generate()
-    expect(setNeteaseLoggedIn).toHaveBeenCalledWith(false)
-    expect(setAccountState).toHaveBeenCalledWith('netease', 'expired')
-  })
-
-  it('generate 在途时 reset(切音源)→ 迟到的成功结果丢弃,不冲掉新会话', async () => {
-    let releaseReplace: (v: boolean) => void = () => {}
-    replacePlaylistTracks.mockImplementationOnce(() => new Promise<boolean>((r) => { releaseReplace = r }))
-    useRoamStore.setState({ entries: [mkEntry(1)], mode: 'hot', neteasePlaylistId: null })
-    const pending = useRoamStore.getState().generate()
-    await vi.waitFor(() => expect(replacePlaylistTracks).toHaveBeenCalled()) // 等它走到 replace 挂起点
-    useRoamStore.getState().reset() // 模拟切音源触发的 stale 清空
-    useRoamStore.getState().confirmArtists([mkArtist(2)]) // 新会话已重选歌手
-
-    releaseReplace(true)
-    await pending
-    const s = useRoamStore.getState()
-    expect(s.playlist).toBeNull() // 旧音源的生成结果被丢弃
-    expect(s.entries).toHaveLength(1) // 新会话的 entries 未被清空
-    expect(s.entries[0].artist.id).toBe(2)
-  })
-
-  it.each(['success', 'failure'] as const)('generate 在途时直接确认歌手，旧请求 %s 后仍可重新生成', async (outcome) => {
-    let resolveCreate: (value: { id: string }) => void = () => {}
-    let rejectCreate: (reason: Error) => void = () => {}
-    createPlaylist.mockImplementationOnce(() => new Promise((resolve, reject) => {
-      resolveCreate = resolve
-      rejectCreate = reject
-    }))
-    useRoamStore.setState({ entries: [mkEntry(1)] })
-    const pending = useRoamStore.getState().generate()
-    expect(useRoamStore.getState().generating).toBe(true)
-
-    useRoamStore.getState().confirmArtists([mkArtist(1)])
-    const generatingAfterConfirm = useRoamStore.getState().generating
-    if (outcome === 'success') resolveCreate({ id: 'stale-pid' })
-    else rejectCreate(new Error('HTTP 401'))
-    await pending
-
-    expect(generatingAfterConfirm).toBe(false)
-    expect(useRoamStore.getState().generating).toBe(false)
-    expect(useRoamStore.getState().entries[0].artist.id).toBe(1)
-    expect(useRoamStore.getState().playlist).toBeNull()
-    expect(useRoamStore.getState().error).toBeNull()
-    expect(setNeteaseLoggedIn).not.toHaveBeenCalled()
-    expect(setAccountState).not.toHaveBeenCalled()
     expect(replacePlaylistTracks).not.toHaveBeenCalled()
+    expect(updatePlaylistDescription).not.toHaveBeenCalled()
+  })
 
+  it('混合音源同样进入应用歌单，保留各自身份和生成顺序', async () => {
+    const qqTrack = { ...mkTrack(2, 0), provider: 'qq' as const, source: 'qq' as const }
+    useRoamStore.setState({ entries: [mkEntry(1, { tracks: [mkTrack(1, 0)] }), mkEntry(2, { artist: { ...mkArtist(2), source: 'qq' }, tracks: [qqTrack] })] })
     await useRoamStore.getState().generate()
-    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist1' }])
-    expect(useRoamStore.getState().generating).toBe(false)
+    const result = useRoamStore.getState().playlist!
+    expect(result.source).toBe('mixed')
+    expect(useAppPlaylistsStore.getState().items[0].tracks.map(track => track.source).sort()).toEqual(['netease', 'qq'])
+    expect(createPlaylist).not.toHaveBeenCalled()
   })
 
-  it.each(['success', 'failure'] as const)('generate 新建歌单时切换候选范围，旧请求 %s 不影响新会话', async (outcome) => {
-    setNeteaseLoggedIn.mockClear()
-    setAccountState.mockClear()
-    let resolveCreate: (value: { id: string }) => void = () => {}
-    let rejectCreate: (reason: Error) => void = () => {}
-    createPlaylist.mockImplementationOnce(() => new Promise((resolve, reject) => {
-      resolveCreate = resolve
-      rejectCreate = reject
-    }))
+  it('应用歌单落盘失败保留选歌草稿，不显示生成成功', async () => {
+    vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
     useRoamStore.setState({ entries: [mkEntry(1)] })
-    const pending = useRoamStore.getState().generate()
-    expect(createPlaylist).toHaveBeenCalledTimes(1)
-    expect(useRoamStore.getState().generating).toBe(true)
-
-    useRoamStore.getState().setScope('netease')
+    await useRoamStore.getState().generate()
+    expect(useRoamStore.getState().error).toContain('保存失败')
+    expect(useRoamStore.getState().entries).toHaveLength(1)
     expect(useRoamStore.getState().generating).toBe(false)
-    useRoamStore.getState().confirmArtists([mkArtist(2)])
-    await flush()
-    const nextGeneration = useRoamStore.getState().generate()
-    expect(useRoamStore.getState().generating).toBe(true)
-    expect(createPlaylist).toHaveBeenCalledTimes(1)
-
-    if (outcome === 'success') resolveCreate({ id: 'stale-pid' })
-    else rejectCreate(new Error('HTTP 401'))
-    await Promise.all([pending, nextGeneration])
-
-    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist2' }])
-    expect(useRoamStore.getState().neteasePlaylistId).toBe('new-pid')
-    expect(useRoamStore.getState().generating).toBe(false)
-    expect(useRoamStore.getState().error).toBeNull()
-    expect(setNeteaseLoggedIn).not.toHaveBeenCalled()
-    expect(setAccountState).not.toHaveBeenCalled()
+    expect(useAppPlaylistsStore.getState().items).toEqual([])
   })
 
-  it.each([
-    { stage: 'read', outcome: 'success' },
-    { stage: 'replace', outcome: 'success' },
-    { stage: 'replace', outcome: 'failure' },
-    { stage: 'description', outcome: 'success' },
-    { stage: 'description', outcome: 'failure' },
-  ] as const)('generate 旧会话 $stage 请求 $outcome 后，新会话保留服务器上的最终曲目与简介', async ({ stage, outcome }) => {
-    let remoteIds: unknown[] = [mkTrack(9, 0).id]
-    let remoteDescription = ''
-    let release: () => void = () => {}
-    let reject: (reason: Error) => void = () => {}
-    const blocked = new Promise<void>((resolve, fail) => { release = resolve; reject = fail })
-    getPlaylistWithDescription.mockImplementation(async () => ({
-      playlist: mkNeteasePlaylist(),
-      tracks: remoteIds.map(id => ({ ...mkTrack(9, 0), id })),
-    }))
-    replacePlaylistTracks.mockImplementation(async (_id, currentIds, nextIds) => {
-      remoteIds = [...remoteIds.filter(id => !currentIds.includes(id)), ...nextIds]
-      return true
-    })
-    updatePlaylistDescription.mockImplementation(async (_id, description) => {
-      remoteDescription = description
-      return true
-    })
-    if (stage === 'read') {
-      getPlaylistWithDescription.mockImplementationOnce(async () => {
-        await blocked
-        return { playlist: mkNeteasePlaylist(), tracks: [mkTrack(9, 0)] }
-      })
-    } else if (stage === 'replace') {
-      replacePlaylistTracks.mockImplementationOnce(async (_id, currentIds, nextIds) => {
-        await blocked
-        remoteIds = [...remoteIds.filter(id => !currentIds.includes(id)), ...nextIds]
-        return true
-      })
-    } else {
-      updatePlaylistDescription.mockImplementationOnce(async (_id, description) => {
-        await blocked
-        remoteDescription = description
-        return true
-      })
-    }
-    useRoamStore.setState({ entries: [mkEntry(1)], neteasePlaylistId: 'pid-1' })
-    const oldGeneration = useRoamStore.getState().generate()
-    await flush()
-    useRoamStore.getState().setScope('netease')
-    useRoamStore.getState().confirmArtists([mkArtist(2)])
-    await flush()
-    const newGeneration = useRoamStore.getState().generate()
-    await flush()
-    const readsBeforeOldRequestSettles = getPlaylistWithDescription.mock.calls.length
+  it('同日同曲重新生成独立应用歌单，不误用已经编辑的旧结果', async () => {
+    const entry = mkEntry(2, { tracks: [mkTrack(2, 0)] })
+    useRoamStore.setState({ entries: [entry] })
+    await useRoamStore.getState().generate()
+    const first = useRoamStore.getState().playlist!.appPlaylistId!
+    useAppPlaylistsStore.getState().rename(first, '我编辑过的')
+    useAppPlaylistsStore.getState().removeTracks(first, ['netease:2-0'])
+    useRoamStore.setState({ entries: [entry] })
+    await useRoamStore.getState().generate()
+    const second = useRoamStore.getState().playlist!.appPlaylistId!
+    expect(second).not.toBe(first)
+    expect(useAppPlaylistsStore.getState().items.find(item => item.id === second)?.tracks).toHaveLength(1)
+    expect(useAppPlaylistsStore.getState().items.find(item => item.id === first)?.name).toBe('我编辑过的')
+  })
 
-    if (outcome === 'success') release()
-    else reject(new Error('old request failed'))
-    await Promise.all([oldGeneration, newGeneration])
-
-    expect(readsBeforeOldRequestSettles).toBe(1)
-    expect([...remoteIds].sort()).toEqual(POOLS['2'].map(track => track.id).sort())
-    expect(remoteIds).toEqual(useRoamStore.getState().playlist?.tracks.map(track => track.id))
-    expect(remoteDescription).toContain('artist2')
-    expect(remoteDescription).not.toContain('artist1')
-    expect(useRoamStore.getState().playlist?.artists).toEqual([{ name: 'artist2' }])
-    expect(useRoamStore.getState().generating).toBe(false)
-    expect(useRoamStore.getState().error).toBeNull()
-    expect(replacePlaylistTracks).toHaveBeenCalledTimes(stage === 'read' ? 1 : 2)
-    expect(updatePlaylistDescription).toHaveBeenCalledTimes(stage === 'description' ? 2 : 1)
+  it('旧远端恢复保持只读，重复恢复不撤销已导入应用歌单的删除', async () => {
+    const found = { playlist: mkNeteasePlaylist({ description: 'Simple Music · 2000-01-01 · 歌手' }), tracks: [mkTrack(1, 0)] }
+    getPlaylistWithDescription.mockResolvedValue(found)
+    findUserPlaylistsByName.mockResolvedValue([found.playlist])
+    useRoamStore.setState({ neteasePlaylistId: 'pid-1' })
+    await useRoamStore.getState().ensureNeteaseHydrated(neteaseRealService as unknown as MusicService)
+    const id = saveRoamAsAppPlaylist(useRoamStore.getState().playlist!)
+    useAppPlaylistsStore.getState().remove(id)
+    useRoamStore.getState().setScope('all')
+    await useRoamStore.getState().ensureNeteaseHydrated(neteaseRealService as unknown as MusicService)
+    expect(useAppPlaylistsStore.getState().items).toEqual([])
+    expect(createPlaylist).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,9 @@ import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
-import { todayKey, useRoamStore, type RoamPlaylist } from '../stores/roam'
+import { roamAppPlaylistKey, saveRoamAsAppPlaylist, todayKey, useRoamStore, type RoamPlaylist } from '../stores/roam'
+import { useAppPlaylistsStore } from '../stores/app-playlists'
+import { useToastStore } from '../stores/toast'
 import { serviceFor } from '../lib/service-registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
@@ -35,9 +37,7 @@ export function mergeSavedPlaylist(
 }
 
 function playlistSources(playlist: RoamPlaylist): ProviderId[] {
-  return playlist.source === 'mixed'
-    ? PROVIDER_IDS.filter((source) => playlist.tracks.some((track) => track.source === source))
-    : [playlist.source]
+  return PROVIDER_IDS.filter((source) => playlist.tracks.some((track) => track.source === source))
 }
 
 function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[]): boolean {
@@ -71,7 +71,13 @@ export function RoamPage() {
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [drafting, setDrafting] = useState(false)
-  const [openedPlaylist, setOpenedPlaylist] = useState<RoamPlaylist | null>(null)
+  const [selectedPlaylist, setOpenedPlaylist] = useState<RoamPlaylist | null>(null)
+  const appPlaylists = useAppPlaylistsStore(state => state.items)
+  const openedPlaylist = useMemo(() => {
+    if (!selectedPlaylist) return null
+    const app = appPlaylists.find(item => selectedPlaylist.appPlaylistId ? item.id === selectedPlaylist.appPlaylistId : item.roamKey === roamAppPlaylistKey(selectedPlaylist))
+    return app ? { ...selectedPlaylist, appPlaylistId: app.id, tracks: app.tracks } : selectedPlaylist
+  }, [selectedPlaylist, appPlaylists])
   const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylistCandidate[]>(() => {
     const saved = localPlaylist ? mergeSavedPlaylist([], localPlaylist, 'local') : []
     if (!playlist) return saved
@@ -82,9 +88,12 @@ export function RoamPage() {
   const hasInactiveEntries = entries.some((entry) =>
     entry.artist.source !== 'local' && !enabledSources.includes(entry.artist.source)
   )
-  const availableSavedPlaylists = savedPlaylists.filter((item) =>
-    playlistIsAvailable(item.playlist, enabledSources)
-  )
+  const availableSavedPlaylists = savedPlaylists.filter(item => !item.playlist.appPlaylistId || appPlaylists.some(app => app.id === item.playlist.appPlaylistId))
+    .map(item => {
+      const app = appPlaylists.find(app => item.playlist.appPlaylistId ? app.id === item.playlist.appPlaylistId : app.roamKey === roamAppPlaylistKey(item.playlist))
+      return app ? { ...item, playlist: { ...item.playlist, appPlaylistId: app.id, tracks: app.tracks } } : item
+    })
+    .filter(item => playlistIsAvailable(item.playlist, enabledSources))
 
   const totalTracks = entries.reduce((n, e) => n + e.tracks.length, 0)
   const anyLoading = entries.some((e) => e.loading)
@@ -102,8 +111,9 @@ export function RoamPage() {
   useEffect(() => {
     if (scope !== 'all' && !enabledSources.includes(scope)) setScope('all')
     else if (hasInactiveEntries) setScope('all')
-    if (openedPlaylist && !playlistIsAvailable(openedPlaylist, enabledSources)) setOpenedPlaylist(null)
-  }, [enabledSources, hasInactiveEntries, openedPlaylist, scope, setScope])
+    if (openedPlaylist && (!playlistIsAvailable(openedPlaylist, enabledSources)
+      || (openedPlaylist.appPlaylistId && !appPlaylists.some(item => item.id === openedPlaylist.appPlaylistId)))) setOpenedPlaylist(null)
+  }, [enabledSources, hasInactiveEntries, openedPlaylist, appPlaylists, scope, setScope])
 
   useEffect(() => {
     useRoamStore.getState().clearSuggestions()
@@ -151,6 +161,14 @@ export function RoamPage() {
     setDrafting(false)
   }
 
+  function openAppPlaylist(saved: RoamPlaylist) {
+    try {
+      const id = saveRoamAsAppPlaylist(saved)
+      setOpenedPlaylist({ ...saved, appPlaylistId: id })
+      useNavigationStore.getState().navigateTo({ type: 'app-playlist', id })
+    } catch (error) { useToastStore.getState().show(error instanceof Error ? error.message : '应用歌单保存失败') }
+  }
+
   if (openedPlaylist) {
     return (
       <div ref={scrollRef} className={`${styles.page} ${pageScroll.viewport}`}>
@@ -172,10 +190,11 @@ export function RoamPage() {
               </p>
               <div className={styles.resultSources}>
                 {playlistSources(openedPlaylist).map((source) => <SourceBadge key={source} source={source} reveal />)}
-                <span>{openedPlaylist.source === 'netease' && neteaseLoggedIn ? '已同步平台歌单' : '保存在本地'}</span>
+                <span>{openedPlaylist.appPlaylistId ? '已保存为应用歌单' : '旧版漫游'}</span>
               </div>
             </div>
             <div className={styles.resultActions}>
+              <button className={`${styles.backBtn} no-drag`} onClick={() => openAppPlaylist(openedPlaylist)}>管理与同步</button>
               <motion.button
                 className={`${styles.backBtn} no-drag`}
                 onClick={() => setOpenedPlaylist(null)}
@@ -312,7 +331,7 @@ export function RoamPage() {
                 </p>
                 <div className={styles.resultSources}>
                   {playlistSources(savedPlaylist).map((source) => <SourceBadge key={source} source={source} reveal />)}
-                  <span>{savedPlaylist.source === 'netease' && neteaseLoggedIn ? '来自网易云「每日漫游」' : '保存在本机'}</span>
+                  <span>{savedPlaylist.appPlaylistId ? '已保存为应用歌单' : '旧版漫游'}</span>
                 </div>
               </div>
               <div className={styles.savedPlaylistActions}>
