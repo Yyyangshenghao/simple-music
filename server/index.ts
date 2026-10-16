@@ -6,6 +6,8 @@ import { catalogSearchRoutes } from './routes/catalog-search'
 import { neteaseRoutes } from './routes/netease'
 import { appPlaylistSyncRoutes } from './routes/app-playlist-sync'
 import { qqAppPlaylistSyncRoutes } from './routes/qq-app-playlist-sync'
+import { qqFavoriteRoutes } from './routes/qq-favorites'
+import { qqAccountDataRoutes } from './routes/qq-account-data'
 import { audioCacheRoutes } from './routes/audio-cache'
 import { songDownloadRoutes } from './routes/song-downloads'
 import { podcastRoutes } from './routes/podcast'
@@ -29,6 +31,8 @@ const chain: RouteHandler[] = [
   catalogSearchRoutes,
   appPlaylistSyncRoutes,
   qqAppPlaylistSyncRoutes,
+  qqFavoriteRoutes,
+  qqAccountDataRoutes,
   neteaseRoutes,
   podcastRoutes,
   beatmapRoutes,

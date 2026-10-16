@@ -5,6 +5,7 @@ import { isProviderId, PROVIDER_IDS } from '../providers/types'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
+import { useToastStore } from './toast'
 
 /** 红心状态缓存:key 为 `source:id`,乐观更新,服务端失败回滚。 */
 
@@ -138,6 +139,8 @@ export function likeKeyOf(track: Track): string {
 interface LikesStore {
   likedByKey: Record<string, boolean>
   revision: number
+  /** QQ 写后确认成功才失效账号歌单缓存，查询/乐观更新不触发重载。 */
+  qqMutationRevision: number
   /** 该曲目所属音源是否支持红心。 */
   supports(track: Track | null): boolean
   /** 首次遇到该曲目时查询红心状态(已知则跳过)。 */
@@ -148,6 +151,7 @@ interface LikesStore {
 export const useLikesStore = create<LikesStore>((set, get) => ({
   likedByKey: {},
   revision: 0,
+  qqMutationRevision: 0,
 
   supports(track) {
     if (!track) return false
@@ -197,12 +201,16 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     const operation: Promise<boolean> = Promise.resolve(previous ?? current).then(async (confirmed) => {
       if (accountSession !== sessionOf(track)) return confirmed
       try {
-        if (!(await svc.likeTrack!(track, next))) throw new Error('like failed')
+        if (!(await svc.likeTrack!(track, next))) throw new Error(track.source === 'qq' ? 'QQ 音乐收藏失败，请重试' : 'like failed')
+        if (track.source === 'qq' && accountSession === sessionOf(track)) {
+          set((s) => ({ qqMutationRevision: s.qqMutationRevision + 1 }))
+        }
         return next
       } catch (error) {
         if (accountSession === sessionOf(track)) {
           if (writes.get(key) === operation) {
             set((s) => ({ likedByKey: withLike(s.likedByKey, key, confirmed) }))
+            if (track.source === 'qq') useToastStore.getState().show(error instanceof Error ? error.message : 'QQ 音乐收藏失败，请重试')
           }
           if (isProviderId(track.source)) expireProviderAccount(track.source, error)
         }

@@ -3,6 +3,7 @@ import type { ArtistInfo, Track } from '../types/domain'
 import type { MusicService } from '../lib/music-service'
 import { api } from '../lib/api'
 import { NeteaseMusicService } from '../lib/netease-music-service'
+import { advanceProviderAccountSession } from '../lib/provider-account-session'
 
 function mkTrack(artistId: number, i: number): Track {
   return {
@@ -58,6 +59,34 @@ const neteaseRealService = {
 }
 
 let currentService: typeof localOnlyService | typeof neteaseRealService = localOnlyService
+
+it('QQ最近歌曲用于猜歌手，完成与在途建议都按账号失效', async () => {
+  const old = currentService
+  const recent = vi.fn().mockResolvedValue([{ ...mkTrack(1, 0), source: 'qq', provider: 'qq', artists: [{ id: 'artist-mid', name: '歌手' }] }])
+  const detail = vi.fn().mockResolvedValue({ id: 'artist-mid', name: '歌手', source: 'qq', avatar: '' })
+  currentService = { getArtistSongs, getRecentTracks: recent, getArtistDetail: detail } as typeof localOnlyService
+  try {
+    useRoamStore.getState().clearSuggestions()
+    await useRoamStore.getState().loadSuggestions(['qq'])
+    expect(useRoamStore.getState().suggestions.map(a => a.name)).toEqual(['歌手'])
+    await useRoamStore.getState().loadSuggestions(['qq'])
+    expect(recent).toHaveBeenCalledTimes(1)
+    advanceProviderAccountSession('qq')
+    recent.mockResolvedValueOnce([])
+    await useRoamStore.getState().loadSuggestions(['qq'])
+    expect(recent).toHaveBeenCalledTimes(2)
+    expect(useRoamStore.getState().suggestions).toEqual([])
+    useRoamStore.getState().clearSuggestions()
+    let finish!: (tracks: Track[]) => void
+    recent.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const loading = useRoamStore.getState().loadSuggestions(['qq'])
+    advanceProviderAccountSession('qq')
+    finish([{ ...mkTrack(1, 0), source: 'qq', artists: [{ id: 'old', name: '旧账号' }] }])
+    await loading
+    expect(useRoamStore.getState()).toMatchObject({ suggestions: [], suggestionsLoaded: false, suggestionsLoading: false })
+    expect(detail).toHaveBeenCalledTimes(1)
+  } finally { currentService = old; useRoamStore.getState().clearSuggestions() }
+})
 
 vi.mock('../lib/service-registry', () => ({
   serviceFor: () => currentService

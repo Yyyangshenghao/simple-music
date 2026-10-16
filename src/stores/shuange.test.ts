@@ -12,6 +12,8 @@ const {
   navigateTo,
   getLyrics,
   getDailySongs,
+  getRadioSongs,
+  getRecentTracks,
   getRadarPlaylist,
   getRecommendPlaylists,
   getPlaylistSkeleton,
@@ -28,6 +30,8 @@ const {
   navigateTo: vi.fn(),
   getLyrics: vi.fn(),
   getDailySongs: vi.fn(),
+  getRadioSongs: vi.fn(),
+  getRecentTracks: vi.fn(),
   getRadarPlaylist: vi.fn(),
   getRecommendPlaylists: vi.fn(),
   getPlaylistSkeleton: vi.fn(),
@@ -43,13 +47,15 @@ let mockVolume = 0.8
 let mockStatus: 'playing' | 'paused' | 'loading' = 'playing'
 
 vi.mock('../lib/service-registry', () => ({
-  serviceFor: () => ({
+  serviceFor: (source: string) => ({
     getLyrics,
     getDailySongs,
+    getRadioSongs: source === 'qq' ? getRadioSongs : undefined,
+    getRecentTracks: source === 'qq' ? getRecentTracks : undefined,
     getRadarPlaylist,
     getRecommendPlaylists,
     getPlaylistSkeleton,
-    getListeningRanking,
+    getListeningRanking: source === 'qq' ? undefined : getListeningRanking,
     getLikedPlaylist,
   }),
 }))
@@ -128,6 +134,8 @@ describe('shuange store', () => {
     playlistSetState.mockClear()
     getLyrics.mockReset()
     getDailySongs.mockReset()
+    getRadioSongs.mockReset()
+    getRecentTracks.mockReset()
     getRadarPlaylist.mockReset()
     getRecommendPlaylists.mockReset()
     getPlaylistSkeleton.mockReset()
@@ -220,6 +228,20 @@ describe('shuange store', () => {
     expect(loadTrack).toHaveBeenCalledOnce()
     await vi.waitFor(() => expect(__getShuangeRecommendationProfile().trackScores).toEqual({}))
     await vi.waitFor(() => expect(__getShuangeRecommendationProfile().artistScores['netease:a']).toBeGreaterThan(0))
+  })
+
+  it('QQ保持连续流补货，账号最近歌曲提供口味种子而非周排行', async () => {
+    useProviderStore.setState(state => ({ byId: { ...state.byId, netease: { enabled: false, auth: 'anonymous' } }, playbackOrder: ['qq'] }))
+    getRadioSongs.mockResolvedValue(Array.from({ length: 15 }, (_, i) => ({ ...mkTrack(`radio${i}`), source: 'qq', provider: 'qq' })))
+    getRecentTracks.mockResolvedValue([{ ...mkTrack('recent'), source: 'qq', provider: 'qq' }])
+    getRecommendPlaylists.mockResolvedValue([])
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    expect(getRadioSongs).toHaveBeenCalledTimes(1)
+    expect(getDailySongs).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(getRecentTracks).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(__getShuangeRecommendationProfile().artistScores['qq:a']).toBeGreaterThan(0))
+    expect(getListeningRanking).not.toHaveBeenCalled()
   })
 
   it('首歌开始后后台混入私人雷达和随机推荐歌单，不阻塞首屏', async () => {

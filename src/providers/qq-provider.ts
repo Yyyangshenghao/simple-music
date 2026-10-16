@@ -13,6 +13,16 @@ export const qqProvider = createLegacyProvider({
   service: new QQMusicService(),
   surfaces: [
     {
+      id: 'qq:daily',
+      source: 'qq',
+      kind: 'daily-tracks',
+      title: '每日30首',
+      subtitle: '每天更新',
+      presentation: 'hero',
+      refresh: 'daily',
+      auth: 'required',
+    },
+    {
       id: 'qq:radio',
       source: 'qq',
       kind: 'radio',

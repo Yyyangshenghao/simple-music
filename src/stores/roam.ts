@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { serviceFor } from '../lib/service-registry'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { appPlaylistTrackKey, useAppPlaylistsStore } from './app-playlists'
 import { isProviderParticipating } from './providers'
 import {
@@ -16,7 +17,7 @@ import type { MusicService } from '../lib/music-service'
 import type { ArtistInfo, Track } from '../types/domain'
 import type { ProviderId } from '../providers/types'
 
-/** 猜你喜欢歌手用的种子曲目池:红心歌单 + 近一周听歌排行(均可选,QQ 未实现时直接空数组)。 */
+/** 猜你喜欢歌手用的种子曲目池：收藏、平台听歌排行或账号最近歌曲。 */
 async function fetchLikedTracks(service: MusicService): Promise<Track[]> {
   if (!service.getLikedPlaylist) return []
   try {
@@ -29,10 +30,10 @@ async function fetchLikedTracks(service: MusicService): Promise<Track[]> {
   }
 }
 
-async function fetchRankingTracks(service: MusicService): Promise<Track[]> {
-  if (!service.getListeningRanking) return []
+async function fetchListeningSeeds(service: MusicService): Promise<Track[]> {
   try {
-    return await service.getListeningRanking()
+    if (service.getListeningRanking) return await service.getListeningRanking()
+    return (await service.getRecentTracks?.() ?? []).slice(0, 100)
   } catch {
     return []
   }
@@ -40,6 +41,7 @@ async function fetchRankingTracks(service: MusicService): Promise<Track[]> {
 
 /** 猜歌手无限流的过期守卫:音源切换/clearSuggestions 时自增,异步回调落地前核对,避免旧音源结果写进新会话。 */
 let suggestionsSession = 0
+let suggestionsScope = ''
 
 /** generate 的过期守卫:reset(含切音源)/重选歌手时自增;在途生成迟到落地前核对,避免拿旧音源结果冲掉新会话。 */
 let generateSession = 0
@@ -427,20 +429,25 @@ export const useRoamStore = create<RoamStore>((set, get) => {
   },
 
   async loadSuggestions(sources) {
-    if (get().suggestionsLoaded || get().suggestionsLoading) return
     const participatingSources = sources.filter(isProviderParticipating)
+    const accounts = participatingSources.map(providerAccountSession)
+    const scope = participatingSources.map((source, index) => `${source}:${accounts[index]}`).join(',')
+    if (suggestionsScope !== scope) get().clearSuggestions()
+    if (get().suggestionsLoaded || get().suggestionsLoading) return
+    suggestionsScope = scope
     const services = participatingSources.map((source) => serviceFor(source))
-    if (services.every((service) => !service.getLikedPlaylist && !service.getListeningRanking)) {
+    if (services.every((service) => !service.getLikedPlaylist && !service.getListeningRanking && !service.getRecentTracks)) {
       set({ suggestionsLoaded: true })
       return
     }
     set({ suggestionsLoading: true })
     const session = ++suggestionsSession
+    const current = () => suggestionsSession === session && participatingSources.every((source, index) => isProviderParticipating(source) && providerAccountSession(source) === accounts[index])
     try {
       const seeds = await Promise.all(
-        services.flatMap((service) => [fetchLikedTracks(service), fetchRankingTracks(service)])
+        services.flatMap((service) => [fetchLikedTracks(service), fetchListeningSeeds(service)])
       )
-      if (suggestionsSession !== session) return
+      if (!current()) return
       const top = rankArtistsByFrequency(seeds, 16)
       if (top.length === 0) {
         set({ suggestionsLoaded: true, suggestionsLoading: false })
@@ -451,16 +458,19 @@ export const useRoamStore = create<RoamStore>((set, get) => {
           ? Promise.resolve(null)
           : serviceFor(artist.source).getArtistDetail(artist.id).catch(() => null)
       ))
-      if (suggestionsSession !== session) return
+      if (!current()) return
       const hydrated = shuffle(details.filter((a): a is ArtistInfo => !!a))
       set({ suggestions: hydrated, suggestionsLoaded: true, suggestionsLoading: false })
     } catch {
-      if (suggestionsSession === session) set({ suggestionsLoaded: true, suggestionsLoading: false })
+      if (current()) set({ suggestionsLoaded: true, suggestionsLoading: false })
+    } finally {
+      if (suggestionsSession === session && !current()) set({ suggestionsLoaded: false, suggestionsLoading: false, suggestions: [] })
     }
   },
 
   clearSuggestions() {
     suggestionsSession++
+    suggestionsScope = ''
     set({ suggestions: [], suggestionsLoaded: false, suggestionsLoading: false })
   }
   }

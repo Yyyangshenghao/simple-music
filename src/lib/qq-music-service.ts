@@ -1,6 +1,8 @@
 import { api } from './api'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { qqRelatedSongId } from './qq-related-identifiers'
+import { requestProviderData } from './provider-request-cache'
+import { providerAccountSession } from './provider-account-session'
 import type {
   ArtistSongsPage,
   MusicService,
@@ -14,6 +16,31 @@ import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
 import type { PlaylistSyncInput, PlaylistSyncResult, PlaylistSyncSession } from '../types/playlist-sync'
 
 export class QQMusicService implements MusicService {
+  async checkLiked(ids: unknown[]): Promise<Record<string, boolean>> {
+    const session = providerAccountSession('qq')
+    const mids = [...new Set(ids.map(String))]
+    const liked: Record<string, boolean> = {}
+    for (let offset = 0; offset < mids.length; offset += 100) {
+      const result = await api.post<{ success: boolean; liked?: Record<string, boolean>; error?: string }>('/api/qq/song/like/check', { ids: mids.slice(offset, offset + 100) })
+      if (session !== providerAccountSession('qq')) throw new Error('QQ 账号已变化，请重试')
+      if (!result.success || !result.liked) throw new Error(result.error || 'QQ 音乐收藏状态读取失败')
+      Object.assign(liked, result.liked)
+    }
+    return liked
+  }
+
+  async likeTrack(track: Track, like: boolean): Promise<boolean> {
+    if (track.source !== 'qq') throw new Error('只能操作 QQ 音乐歌曲的收藏')
+    const accountSession = providerAccountSession('qq')
+    const session = await this.getPlaylistSyncSession()
+    if (accountSession !== providerAccountSession('qq')) throw new Error('QQ 账号已变化，请重试')
+    const result = await api.post<{ success: boolean; liked?: boolean; error?: string }>('/api/qq/song/like', { ...session, like,
+      track: { source: 'qq', id: String(track.id), qqId: track.qqId === undefined ? undefined : String(track.qqId), songType: track.songType } })
+    if (!result.success || result.liked !== like) throw new Error(result.error || 'QQ 音乐未确认收藏变更，请重试')
+    if (accountSession !== providerAccountSession('qq')) throw new Error('QQ 账号已变化，请重试')
+    return true
+  }
+
   getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
     return api.get('/api/qq/app-playlist-sync/session', undefined, { signal })
   }
@@ -150,8 +177,22 @@ export class QQMusicService implements MusicService {
   }
 
   async getDailySongs(): Promise<Track[]> {
+    const res = await api.get<{ songs: Track[] }>('/api/qq/recommend/daily')
+    return res.songs ?? []
+  }
+
+  async getRadioSongs(): Promise<Track[]> {
     const res = await api.get<{ songs: Track[] }>('/api/qq/recommend/songs')
     return res.songs ?? []
+  }
+
+  getRecentTracks(): Promise<Track[]> {
+    const session = providerAccountSession('qq')
+    return requestProviderData('qq', `history:recent-tracks:${session}`, async () => {
+      const res = await api.get<{ songs: Track[] }>('/api/qq/history/recent-tracks')
+      if (session !== providerAccountSession('qq')) throw new Error('QQ 账号已变化，请重试')
+      return res.songs ?? []
+    }, { maxAgeMs: 30_000 })
   }
 
   async getRadarPlaylist(): Promise<RadarPlaylist | null> {

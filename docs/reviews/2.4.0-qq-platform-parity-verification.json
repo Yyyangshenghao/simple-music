@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-16",
+  "target": "dev/2.4.0",
+  "validation": {
+    "typecheck": true,
+    "testFiles": 267,
+    "tests": 2451,
+    "independentReview": "No remaining new P1/P2"
+  },
+  "ui": {
+    "checks": {
+      "nativeDailyAndRadioSeparate": true,
+      "accountRecentTracksVisible": true,
+      "recentRequestDeduplicated": true,
+      "hostLikeRevisionRefreshesUILibrary": true,
+      "openLikedPlaylistRefreshesAfterUnlike": true,
+      "rejectedWriteRollsBackWithMessage": true,
+      "recentErrorRetryRecovers": true,
+      "lightMinimumNoHorizontalOverflow": true,
+      "accountSwitchRechecksHeart": true,
+      "shanghaiMidnightRefreshesOnlyDaily": true
+    },
+    "calls": {
+      "/api/update/latest": 3,
+      "/api/qq/lyric": 2,
+      "/api/qq/user/playlists": 5,
+      "/api/qq/history/recent-tracks": 5,
+      "/api/qq/toplist": 3,
+      "/api/qq/recommend/daily": 5,
+      "/api/qq/recommend/songs": 4,
+      "/api/qq/radar": 4,
+      "/api/qq/recommend/playlists": 4,
+      "/api/qq/song/like/check": 3,
+      "/api/qq/liked/playlist": 3,
+      "/api/qq/app-playlist-sync/session": 3,
+      "/api/qq/song/like": 3,
+      "/api/qq/playlist/tracks": 2,
+      "/api/apple-music/status": 9
+    },
+    "errors": []
+  },
+  "liveRead": {
+    "date": "2026-10-16T04:05:29.299Z",
+    "accountWrites": 0,
+    "/api/qq/history/recent-tracks": {
+      "status": 200,
+      "count": 413,
+      "allQQ": true,
+      "allIdentified": true,
+      "unique": true
+    },
+    "/api/qq/recommend/daily": {
+      "status": 200,
+      "count": 30,
+      "allQQ": true,
+      "allIdentified": true,
+      "unique": true
+    }
+  },
+  "liveHeart": {
+    "date": "2026-10-16T03:54:17.068Z",
+    "checks": {
+      "currentProcessSameAccount": true,
+      "originalPlaylistCount": 5,
+      "testSongInitiallyUnliked": true,
+      "addConfirmed": false,
+      "testSongRestoredUnliked": true,
+      "originalPlaylistDirectoryRestored": true,
+      "originalSongsAndOrderRestored": true,
+      "originalLikedCount": 162
+    },
+    "writes": [
+      {
+        "method": "AddSonglist",
+        "target": "one-originally-unliked-test-song"
+      }
+    ],
+    "addResponse": {
+      "success": false,
+      "error": "QQ 音乐拒绝写入（80105），请稍后重试"
+    }
+  },
+  "limitations": [
+    "Final official heart payload without tid/bFmtUtf8 has mock coverage only; no second live add was attempted.",
+    "No successful real heart write or unlike confirmed.",
+    "No verified exact track ordering, recent playlist history, or weekly listening ranking.",
+    "No Windows/Linux UI run."
+  ]
+}

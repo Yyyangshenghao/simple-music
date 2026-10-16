@@ -35,10 +35,14 @@ export interface MusicService {
   getLyrics(track: Track): Promise<LyricLine[]>
   /** 每日/猜你喜欢曲目推荐（可选；未实现的音源不渲染该卡片）。 */
   getDailySongs?(): Promise<Track[]>
+  /** 平台原生的连续推荐流；与固定每日推荐分别展示。 */
+  getRadioSongs?(): Promise<Track[]>
   /** 私人雷达歌单（可选；null = 不可用，隐藏卡片）。 */
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>
+  /** 账号最近歌曲窗口，按最近收听顺序；不等同于听歌排行。 */
+  getRecentTracks?(): Promise<Track[]>
   /** 官方榜单(飙升榜/新歌榜/热歌榜等;可选,不含账号数据,未登录也能拿),按主题分组返回。
    *  榜单本身就是歌单,entry.playlist 可直接丢进 PlaylistDetailView 复用懒加载详情。 */
   getToplists?(): Promise<ToplistGroup[]>

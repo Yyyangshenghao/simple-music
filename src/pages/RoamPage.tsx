@@ -9,6 +9,7 @@ import { roamAppPlaylistKey, saveRoamAsAppPlaylist, todayKey, useRoamStore, type
 import { useAppPlaylistsStore } from '../stores/app-playlists'
 import { useToastStore } from '../stores/toast'
 import { serviceFor } from '../lib/service-registry'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
 import { ArtistLibrarySection } from '../components/Roam/ArtistLibrarySection'
@@ -51,6 +52,7 @@ export function RoamPage() {
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
+  const accountSignature = useProviderStore(() => PROVIDER_IDS.map(providerAccountSession).join(':'))
   const enabledSources = useMemo(
     () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
     [enabledSignature]
@@ -118,7 +120,7 @@ export function RoamPage() {
   useEffect(() => {
     useRoamStore.getState().clearSuggestions()
     setPickerOpen(false)
-  }, [enabledSignature])
+  }, [enabledSignature, accountSignature])
 
   // 网易云远端存档与本地混合/QQ 存档并列展示，不依赖当前候选范围，也不自动进入结果态。
   useEffect(() => {

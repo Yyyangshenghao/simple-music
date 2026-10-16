@@ -90,7 +90,8 @@ function recommendationCapability(
         return { content: { type: 'radar', radar }, hasMore: false }
       }
 
-      const tracks = normalizeTracks(await service.getDailySongs?.() ?? [], source)
+      const loadTracks = surface.kind === 'radio' && service.getRadioSongs ? () => service.getRadioSongs!() : () => service.getDailySongs?.() ?? Promise.resolve([])
+      const tracks = normalizeTracks(await loadTracks(), source)
       return { content: { type: 'tracks', tracks }, hasMore: surface.refresh === 'stream' && tracks.length > 0 }
     },
   }
@@ -116,13 +117,16 @@ function libraryCapability(service: MusicService, source: ProviderId): LibraryCa
 }
 
 function historyCapability(service: MusicService, source: ProviderId): HistoryCapability | undefined {
-  if (!service.getListeningRanking && !service.getRecentPlaylists && !service.reportPlayback) return undefined
+  if (!service.getListeningRanking && !service.getRecentPlaylists && !service.getRecentTracks && !service.reportPlayback) return undefined
   return {
     getListeningRanking: service.getListeningRanking
       ? async () => normalizeTracks(await service.getListeningRanking!(), source)
       : undefined,
     getRecentPlaylists: service.getRecentPlaylists
       ? async () => normalizePlaylists(await service.getRecentPlaylists!(), source)
+      : undefined,
+    getRecentTracks: service.getRecentTracks
+      ? async () => normalizeTracks(await service.getRecentTracks!(), source)
       : undefined,
     reportPlayback: service.reportPlayback ? (trackId, opts) => service.reportPlayback!(trackId, opts) : undefined,
     getPlaybackAccountToken: service.getPlaybackAccountToken ? () => service.getPlaybackAccountToken!() : undefined,

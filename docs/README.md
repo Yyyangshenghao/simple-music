@@ -20,6 +20,7 @@
 | 2.4.0 现有界面精修、前后截图和验收范围 | [界面调整对照](reviews/2.4.0-ui-refinement.md) |
 | 2.4.0 库缓存、拖动、滚动条与内容延展布局 | [库与探索交互验收](reviews/2.4.0-library-experience.md) |
 | 2.4.0 漫游排序与滚动请求对照 | [漫游与滚动性能验收](reviews/2.4.0-roam-scroll-performance.md) |
+| 2.4.0 QQ 最近歌曲、每日30首、红心与验证缺口 | [QQ账号与推荐验收](reviews/2.4.0-qq-platform-parity.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |
 | Apple Music 的设计选择与验收边界 | [Apple Music 接入记录](specs/2026-09-17-apple-music-integration.md) |

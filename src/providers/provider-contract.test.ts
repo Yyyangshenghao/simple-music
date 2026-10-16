@@ -15,6 +15,8 @@ vi.mock('../lib/track-preload', () => ({
 }))
 
 import { listProviders } from './registry'
+import { qqProvider } from './qq-provider'
+import type { QQMusicService } from '../lib/qq-music-service'
 
 function trackFor(source: OnlineMusicSource): Track {
   return {
@@ -27,6 +29,22 @@ function trackFor(source: OnlineMusicSource): Track {
     artists: [],
   }
 }
+
+it('QQ每日推荐与电台分别转发，最近歌曲不伪装歌单/周排行', async () => {
+  const service = qqProvider.legacyService as QQMusicService
+  const daily = vi.spyOn(service, 'getDailySongs').mockResolvedValue([])
+  const radio = vi.spyOn(service, 'getRadioSongs').mockResolvedValue([])
+  const recent = vi.spyOn(service, 'getRecentTracks').mockResolvedValue([trackFor('qq')])
+  try {
+    await qqProvider.recommendations!.load('qq:daily')
+    expect(daily).toHaveBeenCalledTimes(1)
+    expect(radio).not.toHaveBeenCalled()
+    await qqProvider.recommendations!.load('qq:radio')
+    expect(radio).toHaveBeenCalledTimes(1)
+    expect(await qqProvider.history!.getRecentTracks!()).toEqual([trackFor('qq')])
+    expect(recent).toHaveBeenCalledTimes(1)
+  } finally { vi.restoreAllMocks() }
+})
 
 describe.each(listProviders())('$descriptor.id provider contract', (provider) => {
   afterEach(() => {

@@ -9,6 +9,7 @@ import type { Playlist, Track } from '../types/domain'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { isProviderId } from '../providers/types'
 import { isProviderParticipating, useProviderStore } from '../stores/providers'
+import { useLikesStore } from '../stores/likes'
 
 interface LazyEntry {
   trackIds: unknown[]
@@ -33,7 +34,12 @@ function playlistAccountSession(playlist: Playlist): number {
 }
 
 function playlistCacheKey(playlist: Playlist, session = playlistAccountSession(playlist)): string {
-  return `${playlist.source}:${session}:${playlist.type}:${String(playlist.id)}`
+  const favoriteRevision = isQQLikedPlaylist(playlist) ? `:${useLikesStore.getState().qqMutationRevision}` : ''
+  return `${playlist.source}:${session}:${playlist.type}:${String(playlist.id)}${favoriteRevision}`
+}
+
+function isQQLikedPlaylist(playlist: Playlist): boolean {
+  return playlist.source === 'qq' && playlist.type === 'playlist' && String(playlist.id) === 'qq-liked:201'
 }
 
 function isCurrentPlaylistSession(playlist: Playlist, key: string): boolean {
@@ -166,6 +172,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated' && state.byId[playlist.source].playbackAvailable !== false)
   )
   const accountSession = useProviderStore(() => playlistAccountSession(playlist))
+  useLikesStore((state) => isQQLikedPlaylist(playlist) ? state.qqMutationRevision : 0)
   const key = playlistCacheKey(playlist, accountSession)
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)

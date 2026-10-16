@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Playlist, Track } from '../types/domain'
 
-const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 }, participating: true }))
+const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 }, participating: true, likes: { qqMutationRevision: 0 } }))
 vi.mock('react', () => ({
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => effect(),
   useReducer: () => [0, vi.fn()],
   useRef: (value: unknown) => value === 0 ? harness.session : { current: value },
   useState: (value: unknown) => [value, vi.fn()],
+}))
+vi.mock('../stores/likes', () => ({
+  useLikesStore: Object.assign(
+    (select: (state: typeof harness.likes) => unknown) => select(harness.likes),
+    { getState: () => harness.likes }
+  ),
 }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }) }))
 vi.mock('../stores/providers', () => ({
@@ -193,5 +199,89 @@ describe('推荐曲目缓存更新', () => {
     expect(harness.skeleton).not.toHaveBeenCalled()
     expect(harness.album).not.toHaveBeenCalled()
     expect(harness.details).not.toHaveBeenCalled()
+  })
+})
+
+describe('QQ 红心写后歌单缓存', () => {
+  let mutationRevision = 0
+  const liked: Playlist = { id: 'qq-liked:201', source: 'qq', provider: 'qq', type: 'playlist', name: '我喜欢的音乐', cover: '', trackCount: 1, playCount: 0, creator: '' }
+  const qqSong = (id: number): Track => ({ ...song(id), source: 'qq', provider: 'qq' })
+  const skeleton = (id: number) => ({ trackIds: [id], tracks: [qqSong(id)] })
+
+  beforeEach(() => {
+    mutationRevision += 2
+    harness.likes.qqMutationRevision = mutationRevision
+    harness.participating = true
+    invalidatePlaylistCache(liked)
+    harness.skeleton.mockReset().mockResolvedValue(skeleton(1))
+    harness.details.mockReset()
+  })
+
+  it('我喜欢的音乐在同版本复用队列，写成功后重新读取并缓存新曲目', async () => {
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(1)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(1)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(1)
+
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('普通 QQ 歌单不因红心写成功而重拉骨架', async () => {
+    const playlist: Playlist = { ...liked, id: `qq:${++id}`, name: '普通歌单' }
+    expect(await loadPlaylistQueue(playlist)).toEqual([qqSong(1)])
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+
+    expect(await loadPlaylistQueue(playlist)).toEqual([qqSong(1)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(1)
+  })
+
+  it('我喜欢的音乐 hook 在写成功后使用新曲目，与命令式队列共享缓存', async () => {
+    const first = useLazyPlaylist(liked)
+    await Promise.resolve()
+    expect(first.makeQueue()).toEqual([qqSong(1)])
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    const current = useLazyPlaylist(liked)
+    await Promise.resolve()
+
+    expect(current.makeQueue()).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('写入前的队列响应迟到不能覆盖成功后新版本的曲目', async () => {
+    let finish!: (value: ReturnType<typeof skeleton>) => void
+    harness.skeleton.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const oldRequest = loadPlaylistQueue(liked)
+    const oldResult = expect(oldRequest).rejects.toThrow('歌单加载会话已失效')
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+
+    finish(skeleton(1))
+    await oldResult
+
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('写入前 hook 的骨架响应迟到也不会污染新版本缓存', async () => {
+    let finish!: (value: ReturnType<typeof skeleton>) => void
+    harness.skeleton.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    useLazyPlaylist(liked)
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    const current = useLazyPlaylist(liked)
+    await Promise.resolve()
+    finish(skeleton(1))
+    await Promise.resolve()
+
+    expect(current.makeQueue()).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
   })
 })

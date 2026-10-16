@@ -412,7 +412,7 @@ export function recordShuangeFeedback(track: Track, feedback: ShuangeFeedback): 
   persistProfile()
 }
 
-/** 每天导入一次账号级口味：听歌排行体现常听，收藏曲目给予更高权重。 */
+/** 每天导入一次账号级口味：平台排行或最近歌曲作为收听种子，收藏曲目给予更高权重。 */
 export function seedShuangeTaste(source: MusicSource, rankedTracks: Track[], likedTracks: Track[]): void {
   if (source === 'local' || profile.tasteSeededOn[source] === localDay()) return
   const artistScores: Record<string, number> = {}

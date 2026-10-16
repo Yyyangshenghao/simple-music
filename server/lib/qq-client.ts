@@ -557,7 +557,7 @@ function plainTextDescription(raw: unknown): string {
     .join('\n')
 }
 
-function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<string, unknown> {
+export function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<string, unknown> {
   const t = rec(track)
   const fb = rec(fallback)
   const album = rec(t.album)
@@ -1129,9 +1129,11 @@ async function fetchQQDissPage(
     )
   )
   const block = rec(json.playlist)
-  if (!json.playlist || Number(block.code || 0) !== 0) {
-    const code = Number(block.code || block.result || 0)
-    const message = str(block.message || block.msg)
+  const data = rec(block.data)
+  const failedCode = [json.code, block.code, data.code, data.subcode].find(code => code !== undefined && Number(code) !== 0)
+  if (!json.playlist || failedCode !== undefined || !Array.isArray(data.songlist)) {
+    const code = Number(failedCode || block.result || 0)
+    const message = str(block.message || block.msg || data.message || data.msg)
     if (
       liked
       && qqHasLoginCookie(cookie)
@@ -1143,8 +1145,7 @@ async function fetchQQDissPage(
     }
     throw new Error(message || 'QQ_PLAYLIST_DETAIL_FAILED')
   }
-  const data = rec(block.data)
-  return { data, detail: rec(data.dirinfo), rawTracks: arr(data.songlist) }
+  return { data, detail: rec(data.dirinfo), rawTracks: data.songlist as unknown[] }
 }
 
 async function fetchQQToplistPage(
@@ -1301,7 +1302,7 @@ export async function handleQQLikedPlaylist(cookie: string): Promise<Record<stri
   }
 }
 
-export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
+export async function handleQQPlaylistTracks(cookie: string, id: string, current: () => boolean = () => true): Promise<Record<string, unknown>> {
   const ref = qqPlaylistReference(id)
   const loggedIn = qqHasLoginCookie(cookie)
   if (!ref.id) {
@@ -1317,9 +1318,11 @@ export async function handleQQPlaylistTracks(cookie: string, id: string): Promis
   let offset = 0
 
   for (let page = 0; page < QQ_PLAYLIST_MAX_PAGES; page++) {
+    if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
     const result = ref.kind === 'toplist'
       ? await fetchQQToplistPage(cookie, ref.id, offset)
       : await fetchQQDissPage(cookie, ref, offset)
+    if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
     if (page === 0) detail = result.detail
     total = qqPlaylistTotal(result.data, result.detail) || total
     const mapped = result.rawTracks

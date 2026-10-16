@@ -11,9 +11,10 @@ vi.mock('../lib/service-registry', () => ({
 import { useLikesStore, likeKeyOf } from './likes'
 import { useProviderStore } from './providers'
 import { useSettingsStore } from './settings'
+import { useToastStore } from './toast'
 
-function mk(i: number): Track {
-  return { provider: 'netease', source: 'netease', type: 'song', id: i, name: `t${i}`, artist: '', artists: [] }
+function mk(i: number, source: 'netease' | 'qq' = 'netease'): Track {
+  return { provider: source, source, type: 'song', id: i, name: `t${i}`, artist: '', artists: [] }
 }
 
 describe('likes store', () => {
@@ -26,7 +27,8 @@ describe('likes store', () => {
       },
       playbackOrder: ['netease'],
     })
-    useLikesStore.setState({ likedByKey: {} })
+    useLikesStore.setState({ likedByKey: {}, qqMutationRevision: 0 })
+    useToastStore.getState().dismiss()
     useSettingsStore.setState({ neteaseLoggedIn: true })
     likeTrack.mockClear()
     checkLiked.mockClear()
@@ -35,7 +37,109 @@ describe('likes store', () => {
   })
 
   afterEach(() => {
+    useToastStore.getState().dismiss()
     vi.useRealTimers()
+  })
+
+  function enableQQ() {
+    useProviderStore.setState((state) => ({ byId: { ...state.byId, qq: { enabled: true, auth: 'authenticated' } } }))
+  }
+
+  it('QQ 查询与乐观状态不失效歌单缓存，写入确认成功后才更新版本', async () => {
+    vi.useFakeTimers()
+    enableQQ()
+    const track = mk(1, 'qq')
+    checkLiked.mockResolvedValueOnce({ '1': false })
+    const checking = useLikesStore.getState().ensureChecked(track)
+    await vi.advanceTimersByTimeAsync(200)
+    await checking
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+
+    let finish!: (value: boolean) => void
+    likeTrack.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const liking = useLikesStore.getState().toggleLike(track)
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+    await Promise.resolve()
+    finish(true)
+    await liking
+    expect(useLikesStore.getState().qqMutationRevision).toBe(1)
+
+    await useLikesStore.getState().toggleLike(track)
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(false)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(2)
+    expect(useToastStore.getState().message).toBeNull()
+  })
+
+  it('QQ 状态查询失败不失效歌单缓存，也不误报收藏写入失败', async () => {
+    vi.useFakeTimers()
+    enableQQ()
+    checkLiked.mockRejectedValueOnce(new Error('network unavailable'))
+    const checking = useLikesStore.getState().ensureChecked(mk(2, 'qq'))
+    await vi.advanceTimersByTimeAsync(200)
+    await checking
+
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+    expect(useLikesStore.getState().likedByKey['qq:2']).toBeUndefined()
+    expect(useToastStore.getState().message).toBeNull()
+    expect(useProviderStore.getState().byId.qq.auth).toBe('authenticated')
+  })
+
+  it.each(['rejected', 'unsuccessful'] as const)('QQ 取消红心%s时回滚并提示，不更新缓存版本', async (failure) => {
+    enableQQ()
+    const track = mk(3, 'qq')
+    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true } })
+    if (failure === 'rejected') likeTrack.mockRejectedValueOnce(new Error('收藏失败，请重试'))
+    else likeTrack.mockResolvedValueOnce(false)
+
+    await useLikesStore.getState().toggleLike(track)
+
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+    expect(useToastStore.getState().message).toBeTruthy()
+    expect(useProviderStore.getState().byId.qq.auth).toBe('authenticated')
+  })
+
+  it('QQ 换号后旧写入成功不失效新账号缓存或回写状态', async () => {
+    enableQQ()
+    const track = mk(4, 'qq')
+    let finish!: (value: boolean) => void
+    likeTrack.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const liking = useLikesStore.getState().toggleLike(track)
+    await Promise.resolve()
+    useProviderStore.getState().setAccountState('qq', 'authenticated')
+    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: false } })
+
+    finish(true)
+    await liking
+
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(false)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+    expect(useToastStore.getState().message).toBeNull()
+  })
+
+  it.each(['rejected', 'unsuccessful'] as const)('QQ 换号后旧写入%s不回滚、提示或使新账号失效', async (failure) => {
+    enableQQ()
+    const track = mk(5, 'qq')
+    let finish!: (value: boolean) => void
+    let fail!: (error: Error) => void
+    likeTrack.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      finish = resolve
+      fail = reject
+    }))
+    const liking = useLikesStore.getState().toggleLike(track)
+    await Promise.resolve()
+    useProviderStore.getState().setAccountState('qq', 'authenticated')
+    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true } })
+
+    if (failure === 'rejected') fail(new Error('HTTP 401'))
+    else finish(false)
+    await liking
+
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
+    expect(useToastStore.getState().message).toBeNull()
+    expect(useProviderStore.getState().byId.qq.auth).toBe('authenticated')
   })
 
   it('ensureChecked 查询一次后缓存', async () => {
@@ -64,6 +168,7 @@ describe('likes store', () => {
     await useLikesStore.getState().toggleLike(t)
     expect(useLikesStore.getState().likedByKey[likeKeyOf(t)]).toBe(true)
     expect(likeTrack).toHaveBeenCalledWith(t, true)
+    expect(useLikesStore.getState().qqMutationRevision).toBe(0)
 
     likeTrack.mockResolvedValueOnce(false)
     await useLikesStore.getState().toggleLike(t)

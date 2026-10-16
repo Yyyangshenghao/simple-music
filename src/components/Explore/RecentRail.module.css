@@ -57,3 +57,6 @@
 }
 
 .card:hover .name { color: var(--sm-text-primary); }
+
+.error { display: flex; align-items: center; gap: 12px; color: var(--sm-text-secondary); font-size: 13px; margin-bottom: 12px; }
+.error button { border: 0; border-radius: 8px; padding: 6px 12px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; }

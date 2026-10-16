@@ -11,14 +11,18 @@ vi.mock('./ToplistSection', () => ({ ToplistSection: () => null }))
 describe('探索页返回首帧', () => {
   beforeEach(() => clearProviderRequestCache())
 
-  async function seed() {
+  async function seed(feedId = 'p', feedName = '已浏览推荐歌单') {
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
     for (const surface of providerFor('qq').recommendations!.listSurfaces()) {
       const page = { content: surface.kind === 'playlist-feed'
-        ? { type: 'playlists', playlists: [{ id: 'p', source: 'qq', name: '已浏览推荐歌单' }] }
-        : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
-      await requestProviderData('qq', `recommendation:${surface.id}:root`, () => Promise.resolve(page))
+        ? { type: 'playlists', playlists: [{ id: feedId, source: 'qq', name: feedName }] }
+        : surface.kind === 'radar'
+          ? { type: 'radar', radar: null }
+          : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
+      const scope = `recommendation:${surface.id}:root${surface.id === 'qq:daily' ? `:${day}` : ''}`
+      await requestProviderData('qq', scope, () => Promise.resolve(page))
     }
-    await requestProviderData('qq', 'library:user-playlists', () => Promise.resolve([{ id: 'mine', source: 'qq', name: '已有个人歌单', trackCount: 10 }]))
+    await requestProviderData('qq', 'library:user-playlists:0', () => Promise.resolve([{ id: 'mine', source: 'qq', name: '已有个人歌单', trackCount: 10 }]))
   }
 
   it('已有推荐与个人歌单直接出现在首帧，不显示重新连接提示', async () => {
@@ -71,11 +75,10 @@ describe('探索页返回首帧', () => {
   })
 
   it('其他平台的同 ID 歌单仍保留在发现歌单中', async () => {
-    await requestProviderData('qq', 'recommendation:qq:playlist-feed:root', () => Promise.resolve({
-      content: { type: 'playlists', playlists: [{ id: '3136952023', source: 'qq', name: 'QQ 推荐歌单' }] },
-    } as unknown as RecommendationPage))
+    await seed('3136952023', 'QQ 推荐歌单')
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="qq" onPreview={() => {}} />)
     expect(html).toContain('QQ 推荐歌单')
+    expect(html).not.toContain('正在连接平台')
   })
 
 })

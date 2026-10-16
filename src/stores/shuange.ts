@@ -558,7 +558,7 @@ async function hydrateShuangeTaste(svc: MusicService, source: ProviderId): Promi
   const host = hostSession
   const task = (async () => {
     const [rankingResult, likedResult] = await Promise.allSettled([
-      svc.getListeningRanking?.() ?? Promise.resolve([]),
+      svc.getListeningRanking?.() ?? svc.getRecentTracks?.().then(tracks => tracks.slice(0, 100)) ?? Promise.resolve([]),
       svc.getLikedPlaylist?.() ?? Promise.resolve(null),
     ])
     if (host !== hostSession) return
@@ -605,7 +605,7 @@ async function refillCandidatePool(
   const page = nextRecommendPage[source] ?? 0
   const task = (async () => {
     const [dailyResult, feedResult] = await Promise.allSettled([
-      includeDaily ? svc.getDailySongs?.() ?? Promise.resolve([]) : Promise.resolve([]),
+      includeDaily ? svc.getRadioSongs?.() ?? svc.getDailySongs?.() ?? Promise.resolve([]) : Promise.resolve([]),
       fetchFeedCandidates(svc, page, page === 0),
     ])
     const daily = dailyResult.status === 'fulfilled' ? dailyResult.value : []

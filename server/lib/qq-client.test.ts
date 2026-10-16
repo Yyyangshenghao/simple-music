@@ -24,6 +24,28 @@ import {
 
 const LOGGED_IN_COOKIE = 'uin=12345; qm_keyst=some-key-value'
 
+describe('QQ歌单读取会话与错误边界', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('分页中换号不继续请求下一页，也不返回旧账号曲目', async () => {
+    let current = true
+    const request = vi.fn().mockImplementation(async () => {
+      current = false
+      return { status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+        dirinfo: { title: '测试' }, songlist: [{ id: 1, mid: 'mid1', name: '歌曲' }], total_song_num: 2, hasmore: 1,
+      } } }) }
+    })
+    vi.stubGlobal('fetch', request)
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123', () => current)).rejects.toThrow('账号已变化')
+    expect(request).toHaveBeenCalledTimes(1)
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123', () => false)).rejects.toThrow('账号已变化')
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+  it.each([{ code: 5, data: { songlist: [] } }, { data: { code: 5, songlist: [] } }, { data: { subcode: 5, songlist: [] } }, { data: {} }])('上游错误/缺失列表不能返回空歌单成功 %j', async body => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ ...body, playlist: { code: 0, ...body } }) }))
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).rejects.toThrow('QQ_PLAYLIST_DETAIL_FAILED')
+  })
+})
+
 describe('QQ 登录昵称', () => {
   afterEach(() => vi.unstubAllGlobals())
 

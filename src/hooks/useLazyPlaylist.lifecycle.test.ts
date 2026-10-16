@@ -43,6 +43,13 @@ vi.mock('react', () => {
     },
   }
 })
+vi.mock('../stores/likes', () => {
+  const state = { qqMutationRevision: 0 }
+  return { useLikesStore: Object.assign(
+    (select: (value: typeof state) => unknown) => select(state),
+    { getState: () => state }
+  ) }
+})
 vi.mock('../lib/service-registry', () => {
   const service = { getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }
   return { serviceFor: () => service }

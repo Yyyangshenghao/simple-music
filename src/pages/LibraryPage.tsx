@@ -5,6 +5,7 @@ import { useRecentPlaysStore } from '../stores/recent'
 import { useProviderStore } from '../stores/providers'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { useToastStore } from '../stores/toast'
+import { useLikesStore } from '../stores/likes'
 import { localMusicService } from '../lib/local-music-service'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
@@ -161,9 +162,12 @@ interface ProviderLibraryGridProps {
 }
 
 const LIBRARY_SCOPES = { playlists: 'library:user-playlists', albums: 'library:user-albums', favorites: 'library:liked-playlist' }
+function libraryScope(source: ProviderId, mode: ProviderLibraryGridProps['mode']): string {
+  return LIBRARY_SCOPES[mode] + (source === 'qq' && mode !== 'albums' ? `:${useLikesStore.getState().qqMutationRevision}` : '')
+}
 
 async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode'], force = false): Promise<Playlist[]> {
-  return requestProviderData(source, LIBRARY_SCOPES[mode], async () => {
+  return requestProviderData(source, libraryScope(source, mode), async () => {
     const library = providerFor(source).library
     if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
     if (mode === 'albums') return library?.getUserAlbums?.() ?? []
@@ -173,7 +177,7 @@ async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGrid
 }
 
 function cachedLibraryResult(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Partial<Record<ProviderId, ProviderResult<Playlist[]>>> {
-  const data = isProviderParticipating(source) ? getCachedProviderData<Playlist[]>(source, LIBRARY_SCOPES[mode]) : undefined
+  const data = isProviderParticipating(source) ? getCachedProviderData<Playlist[]>(source, libraryScope(source, mode)) : undefined
   return data === undefined ? {} : { [source]: { source, status: data.length ? 'ready' : 'empty', data } }
 }
 
@@ -209,6 +213,7 @@ function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
 }
 
 function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
+  const favoriteRevision = useLikesStore((state) => source === 'qq' && mode !== 'albums' ? state.qqMutationRevision : 0)
   const participating = useProviderStore((state) =>
     state.byId[source].enabled && state.byId[source].auth === 'authenticated' && state.byId[source].playbackAvailable !== false
   )
@@ -220,7 +225,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     const session = ++sessionRef.current
     retryRef.current[source] = 0
     const controller = new AbortController()
-    setResults(cachedLibraryResult(source, mode))
+    setResults((current) => participating ? { ...current, ...cachedLibraryResult(source, mode) } : {})
     void runProviderTasks(
       [source],
       (source) => loadProviderLibrary(source, mode),
@@ -238,7 +243,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
       sessionRef.current += 1
       controller.abort()
     }
-  }, [mode, participating, source])
+  }, [mode, participating, source, favoriteRevision])
 
   function retryProvider(source: ProviderId, force = true): void {
     const session = sessionRef.current
@@ -265,7 +270,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [mode, participating, source]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, participating, source, favoriteRevision]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleSources = participating ? [source] : []
 
