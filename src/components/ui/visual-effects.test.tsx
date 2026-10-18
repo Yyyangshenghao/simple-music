@@ -30,6 +30,11 @@ afterEach(() => {
 })
 
 describe('装饰动效的实际开关', () => {
+  it('闲置卡片不常驻透视变换，避免为每张封面保留 3D 合成层', () => {
+    const html = renderToStaticMarkup(<TiltCard>歌单</TiltCard>)
+    expect(html).not.toContain('perspective(')
+  })
+
   it('卡片光斑与倾斜独立，系统减少动态同时暂停装饰', () => {
     const render = () => renderToStaticMarkup(<TiltCard>歌单</TiltCard>)
     expect(render()).toContain('spotlight')

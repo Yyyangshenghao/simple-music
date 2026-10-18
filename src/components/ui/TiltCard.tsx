@@ -27,6 +27,8 @@ export function TiltCard({ children, className, maxTilt = 8, disabled = false }:
   const sy = useSpring(py, gentleSpringValues)
   const rotateY = useTransform(sx, [0, 1], [-maxTilt, maxTilt])
   const rotateX = useTransform(sy, [0, 1], [maxTilt, -maxTilt])
+  // 回到静止姿态后移除透视，让非交互卡片退出 3D 合成；回弹期间仍保留透视。
+  const perspective = useTransform([rotateX, rotateY], ([x, y]) => x === 0 && y === 0 ? 0 : 800)
   const systemReducedMotion = useReducedMotion()
   const cardTiltEffect = useSettingsStore((s) => s.performance.cardTiltEffect)
   const cardSpotlightEffect = useSettingsStore((s) => s.performance.cardSpotlightEffect)
@@ -70,7 +72,7 @@ export function TiltCard({ children, className, maxTilt = 8, disabled = false }:
     <motion.div
       ref={ref}
       className={`${styles.tilt} ${className ?? ''}`}
-      style={{ rotateX: tiltEnabled ? rotateX : 0, rotateY: tiltEnabled ? rotateY : 0, transformPerspective: 800 }}
+      style={{ rotateX: tiltEnabled ? rotateX : 0, rotateY: tiltEnabled ? rotateY : 0, transformPerspective: tiltEnabled ? perspective : 0 }}
       whileHover={reducedMotion ? undefined : { y: -4, scale: 1.02 }}
       whileTap={reducedMotion ? undefined : { scale: 0.97 }}
       transition={springGentle}

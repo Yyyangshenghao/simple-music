@@ -1,7 +1,6 @@
 .tilt {
   position: relative;
   border-radius: var(--sm-radius-card);
-  transform-style: preserve-3d;
   transition: box-shadow 240ms var(--sm-ease-out);
 }
 

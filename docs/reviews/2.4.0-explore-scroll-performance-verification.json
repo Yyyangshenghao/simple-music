@@ -1,0 +1,239 @@
+{
+  "baseCommit": "c84e9f8",
+  "environment": {
+    "platform": "macOS",
+    "gpu": "Apple M5 / ANGLE Metal",
+    "mode": "npm run dev",
+    "userData": "isolated",
+    "provider": "netease fixtures",
+    "width": 1512,
+    "height": 982,
+    "devicePixelRatio": 2,
+    "input": "native wheel: 160 events, +/-25px, 16ms delay, reverse every 40 events",
+    "covers": "local PNG via fulfilled image requests",
+    "visualPreferences": "fluid, tilt, spotlight enabled"
+  },
+  "beforeAndAblations": [
+    {
+      "name": "baseline",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 743,
+        "mean": 6.119111709286676,
+        "p95": 6.400000000023283,
+        "over16": 4,
+        "over25": 2
+      },
+      "cpu": {
+        "browser": 6.490370574679026,
+        "renderer": 38.988244469425254,
+        "GPU": 55.33986060101655,
+        "network.mojom.NetworkService": 0.07835001963554876,
+        "tracing.mojom.TracingService": 0.0012527212115635825
+      },
+      "layers": 58
+    },
+    {
+      "name": "noSectionBlur",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 752,
+        "mean": 5.89787234042547,
+        "p95": 6.300000000046566,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 6.344378111697256,
+        "renderer": 40.409718463236544,
+        "GPU": 49.770067660190584,
+        "network.mojom.NetworkService": 0.0446980752313774,
+        "tracing.mojom.TracingService": 0.000946229415192577
+      },
+      "layers": 57
+    },
+    {
+      "name": "noContentBlur",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 734,
+        "mean": 5.882425068119907,
+        "p95": 6.400000000023283,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 6.302277341416813,
+        "renderer": 41.700170257294914,
+        "GPU": 44.19957269449482,
+        "network.mojom.NetworkService": 0.07805279796104525,
+        "tracing.mojom.TracingService": 0.0013656924910205761
+      },
+      "layers": 53
+    },
+    {
+      "name": "noBoth3d",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 742,
+        "mean": 5.914150943396211,
+        "p95": 6.5,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 5.4529380128463885,
+        "renderer": 34.62340053202339,
+        "GPU": 56.31118490483627,
+        "network.mojom.NetworkService": 0.09146687436133692,
+        "tracing.mojom.TracingService": 0.0007288197160273144
+      },
+      "layers": 28
+    },
+    {
+      "name": "noAllBlur",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 728,
+        "mean": 5.905494505494442,
+        "p95": 6.5,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 6.382035651099958,
+        "renderer": 42.20624603143508,
+        "GPU": 36.537027951463315,
+        "network.mojom.NetworkService": 0.040577629725925234,
+        "tracing.mojom.TracingService": 0.0015347412962320984
+      },
+      "layers": 48
+    }
+  ],
+  "after": [
+    {
+      "name": "after1",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 732,
+        "mean": 5.898497267759499,
+        "p95": 6.300000000046566,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 5.6690490646306095,
+        "renderer": 36.535946764875035,
+        "GPU": 47.497811499193155,
+        "network.mojom.NetworkService": 0.07252524663250833,
+        "tracing.mojom.TracingService": 0.0009256572639613754
+      },
+      "layers": 23
+    },
+    {
+      "name": "after2",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 732,
+        "mean": 5.890300546448183,
+        "p95": 6.299999999930151,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 5.222404753951211,
+        "renderer": 36.086538350612834,
+        "GPU": 45.812513854102846,
+        "network.mojom.NetworkService": 0.03777478606367578,
+        "tracing.mojom.TracingService": 0.0008116129602490535
+      },
+      "layers": 23
+    },
+    {
+      "name": "after3",
+      "frames": {
+        "width": 1512,
+        "height": 982,
+        "dpr": 2,
+        "count": 733,
+        "mean": 5.914324693042229,
+        "p95": 6.300000000046566,
+        "over16": 0,
+        "over25": 0
+      },
+      "cpu": {
+        "browser": 5.3026953840762525,
+        "renderer": 36.662664581663066,
+        "GPU": 46.97859105473483,
+        "network.mojom.NetworkService": 0.07098849578282326,
+        "tracing.mojom.TracingService": 0.0015216761031593895
+      },
+      "layers": 23
+    }
+  ],
+  "regressions": {
+    "ssrIdleTransform": "failed before, passed after",
+    "idleNo3D": true,
+    "hoverPerspectiveAndGlow": true,
+    "springReturnReleasesTransform": true,
+    "click": true,
+    "independentTiltSpotlight": true,
+    "reducedMotion": true,
+    "themeAndLayoutViewports": [
+      [
+        "dark",
+        "framed",
+        1512,
+        982
+      ],
+      [
+        "light",
+        "full",
+        1512,
+        982
+      ],
+      [
+        "dark",
+        "full",
+        960,
+        600
+      ],
+      [
+        "light",
+        "framed",
+        960,
+        600
+      ]
+    ],
+    "dailyDetailRoundTrip": true,
+    "horizontalDrag": true,
+    "playlistPreview": true,
+    "pageErrors": []
+  },
+  "checks": {
+    "typecheck": "passed",
+    "testFiles": 276,
+    "tests": 2596,
+    "independentReview": "passed"
+  },
+  "limitations": [
+    "Synthetic account/catalog, no real login/audio/DRM checks",
+    "One baseline sequence and three after sequences; isolated slow frame counts do not establish a universal improvement ratio",
+    "GPU process CPU time divided by wall time is not GPU hardware utilization",
+    "No Windows or physical trackpad verification"
+  ]
+}

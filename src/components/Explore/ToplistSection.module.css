@@ -7,6 +7,12 @@
 
 .embedded { width: 100%; margin: 24px 0 4px; padding: 0; }
 
+/* 探索页已有推荐面板底色，内层榜单不再叠加滚动背景模糊。 */
+.embedded article {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .title {
   display: inline-flex;
   align-items: center;

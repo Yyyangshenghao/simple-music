@@ -8,8 +8,7 @@
   background:
     radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--ambient-1) 12%, transparent), transparent 38%),
     var(--glass-bg-card);
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
+  /* 长推荐面板随整页滚动，使用现有着色表面，避免整块内容重复背景模糊。 */
   box-sizing: border-box;
   overflow: hidden;
 }
