@@ -1,0 +1,59 @@
+{
+  "results": [
+    {
+      "name": "after-light-960",
+      "width": 960,
+      "height": 900,
+      "overflow": false
+    },
+    {
+      "name": "after-long-name-960",
+      "width": 960,
+      "height": 900,
+      "overflow": false
+    },
+    {
+      "name": "after-minimum-dark",
+      "width": 960,
+      "height": 540,
+      "overflow": false
+    },
+    {
+      "interactions": "rename, focus restoration, keyboard reorder, remove, refresh, Escape menu",
+      "passed": true
+    },
+    {
+      "name": "after-empty-light",
+      "width": 960,
+      "height": 900,
+      "overflow": false
+    },
+    {
+      "name": "after-mixed-dark",
+      "width": 1100,
+      "height": 900,
+      "overflow": false
+    },
+    {
+      "name": "after-broken-cover-light",
+      "width": 960,
+      "height": 900,
+      "overflow": false
+    }
+  ],
+  "pageErrors": [],
+  "targetVersion": "2.4.0",
+  "environment": "macOS Electron dev，独立 /tmp 测试配置；截图来自真实渲染器，通过 CDP 设置视口，不包含原生窗口边框",
+  "fixtures": "12 首模拟曲目；Unsplash 风景照片仅作测试封面，不是歌曲实际专辑封面；测试数据未写入用户日常配置",
+  "automated": {
+    "typecheck": "passed",
+    "testFiles": 271,
+    "tests": 2660,
+    "designDetector": []
+  },
+  "scopeLimits": [
+    "未执行真实音频播放或云端写入",
+    "未在 Windows 验收",
+    "前后对比为同一组件路径，before 通过临时 Vite transform 加载改前源码；最终验证恢复当前源码并重启应用"
+  ]
+}

@@ -1,0 +1,78 @@
+.page { color: var(--sm-text-primary); }
+.back, .refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.back { margin-left: -10px; }
+.back:hover, .refresh:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.page button:focus-visible, .page summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.header { display: flex; align-items: center; gap: 32px; margin: 24px 0 32px; }
+.cover {
+  position: relative;
+  display: grid;
+  flex: 0 0 176px;
+  height: 176px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--sm-fill-subtle);
+  box-shadow: var(--sm-shadow);
+}
+.cover[data-mosaic='true'] { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+.coverFallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sm-text-muted); }
+.coverFallback svg { width: 56px; height: 56px; stroke-width: 1.2; }
+.cover img { position: relative; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+.identity { flex: 1; min-width: 0; }
+.identity h1 { margin: 0 0 12px; font-size: clamp(26px, 3.2vw, 40px); line-height: 1.25; letter-spacing: -0.025em; overflow-wrap: anywhere; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
+.meta span + span { padding-left: 16px; border-left: 1px solid var(--sm-border-strong); }
+.identity > div > button, .identity summary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; font-size: 13px; }
+.identity > div > button svg { flex: none; }
+.sync { display: flex; align-items: flex-start; gap: 24px; padding: 18px 20px; margin-bottom: 28px; border-radius: 12px; background: var(--sm-fill-subtle); }
+.sync h2 { display: flex; align-items: center; flex: none; gap: 8px; margin: 9px 0 0; font-size: 13px; font-weight: 500; }
+.sync h2 svg { color: var(--sm-text-secondary); }
+.syncContent { flex: 1; min-width: 0; }
+.syncContent > section { margin: 0; }
+.syncContent > section + section { margin-top: 16px; }
+.syncContent > p { margin: 6px 0; }
+.sync .syncContent button { background: transparent; color: var(--sm-text-primary); border-color: var(--sm-border-strong); font-size: 12px; }
+.sync .syncContent button:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.listToolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 8px 12px; border-bottom: 1px solid var(--sm-border); }
+.listTitle { display: flex; align-items: center; gap: 10px; }
+.listTitle h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.listTitle > span { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.trackList { padding-top: 8px; }
+.row { gap: 4px; border-radius: 10px; }
+.row:hover, .row:focus-within { background: var(--sm-fill-subtle); }
+.rowActions { padding-right: 8px; }
+.rowActions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; }
+.rowActions button:last-child:hover { color: var(--sm-color-danger); }
+@media (hover: hover) {
+  .rowActions { opacity: 0; transition: opacity 150ms var(--sm-ease-out); }
+  .row:hover .rowActions, .row:focus-within .rowActions { opacity: 1; }
+}
+@media (max-width: 800px) {
+  .header { gap: 24px; }
+  .cover { flex-basis: 144px; height: 144px; }
+  .identity > div > button, .identity summary { padding: 8px 12px; }
+  .sync { gap: 16px; padding: 16px; }
+}
+@media (max-width: 580px) {
+  .header { flex-wrap: wrap; gap: 20px; }
+  .cover { flex-basis: 112px; height: 112px; }
+  .identity { flex-basis: 240px; }
+  .sync { flex-direction: column; gap: 12px; }
+  .sync h2 { margin-top: 0; }
+  .rowActions { padding-right: 0; gap: 0; }
+  .rowActions button { width: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .rowActions { transition: none; } }
