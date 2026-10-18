@@ -1,0 +1,118 @@
+{
+  "checks": [
+    "NetEase create private empty playlist",
+    "rename and refreshed title",
+    "NetEase list missing type still editable",
+    "same-source add to platform playlist",
+    "partial and unknown remove receipts survive real hook refresh",
+    "QQ private creation scope and 20-character limit visible",
+    "QQ public playlist read-only",
+    "mixed aggregate playlist has no sync",
+    "960x540 minimum no overflow"
+  ],
+  "calls": [
+    {
+      "source": "netease",
+      "accountId": "7",
+      "accountToken": "fixture",
+      "action": "create",
+      "name": "周末随听",
+      "requestId": "42d9faf6-d622-4ee6-a4e1-6e5c29efdc06"
+    },
+    {
+      "source": "netease",
+      "accountId": "7",
+      "accountToken": "fixture",
+      "action": "rename",
+      "playlistId": "902",
+      "name": "周末慢听"
+    },
+    {
+      "source": "netease",
+      "accountId": "7",
+      "accountToken": "fixture",
+      "action": "add",
+      "playlistId": "902",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "1",
+          "songType": 0
+        },
+        {
+          "source": "netease",
+          "id": "2",
+          "songType": 0
+        },
+        {
+          "source": "netease",
+          "id": "3",
+          "songType": 0
+        }
+      ]
+    },
+    {
+      "source": "netease",
+      "accountId": "7",
+      "accountToken": "fixture",
+      "action": "remove",
+      "playlistId": "101",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "1",
+          "songType": 0
+        },
+        {
+          "source": "netease",
+          "id": "2",
+          "songType": 0
+        },
+        {
+          "source": "netease",
+          "id": "3",
+          "songType": 0
+        }
+      ]
+    },
+    {
+      "source": "netease",
+      "accountId": "7",
+      "accountToken": "fixture",
+      "action": "remove",
+      "playlistId": "101",
+      "tracks": [
+        {
+          "source": "netease",
+          "id": "2",
+          "songType": 0
+        },
+        {
+          "source": "netease",
+          "id": "3",
+          "songType": 0
+        }
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "cloudWrites": false,
+  "environment": "macOS Electron dev / isolated profile / CDP viewport / mocked platform API",
+  "automated": {
+    "typecheck": "passed",
+    "testFiles": 270,
+    "tests": 2537
+  },
+  "independentReview": "passed after fixes",
+  "limitations": [
+    "No real cloud playlist writes",
+    "No audio playback test",
+    "No Windows verification"
+  ],
+  "designDetector": {
+    "newFindings": 0,
+    "existingAdvisories": [
+      "PlaylistDetailView.module.css existing back-arrow bounce easing"
+    ]
+  }
+}

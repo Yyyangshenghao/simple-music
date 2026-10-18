@@ -45,6 +45,15 @@ describe('应用歌单完整离线状态快照', () => {
     h.tracks = [{ source: 'qq', provider: 'qq', type: 'song', id: '1', name: '歌曲', artist: '', artists: [] }]
   })
   afterEach(() => h.cleanups.splice(0).forEach(cleanup => cleanup()))
+  it('聚合歌单保留播放与整理操作，不展示旧云端同步入口', () => {
+    const html = render()
+    expect(html).toContain('播放全部')
+    expect(html).toContain('添加到播放队列')
+    expect(html).toContain('管理应用歌单')
+    expect(html).not.toContain('云端同步')
+    expect(html).not.toContain('推送')
+    expect(html).not.toContain('拉取')
+  })
   it('行查询的旧 pinned 迟到也不能覆盖完整查询的 missing', async () => {
     h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'missing' }])
     render()

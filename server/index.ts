@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import type { ServerContext, RouteHandler } from './types'
 import { catalogSearchRoutes } from './routes/catalog-search'
 import { neteaseRoutes } from './routes/netease'
-import { appPlaylistSyncRoutes } from './routes/app-playlist-sync'
-import { qqAppPlaylistSyncRoutes } from './routes/qq-app-playlist-sync'
+import { neteasePlaylistManagementRoutes } from './routes/netease-playlist-management'
+import { qqPlaylistManagementRoutes } from './routes/qq-playlist-management'
 import { qqFavoriteRoutes } from './routes/qq-favorites'
 import { qqAccountDataRoutes } from './routes/qq-account-data'
 import { audioCacheRoutes } from './routes/audio-cache'
@@ -29,8 +29,8 @@ const chain: RouteHandler[] = [
   audioCacheRoutes,
   songDownloadRoutes,
   catalogSearchRoutes,
-  appPlaylistSyncRoutes,
-  qqAppPlaylistSyncRoutes,
+  neteasePlaylistManagementRoutes,
+  qqPlaylistManagementRoutes,
   qqFavoriteRoutes,
   qqAccountDataRoutes,
   neteaseRoutes,

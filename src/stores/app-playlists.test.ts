@@ -93,57 +93,41 @@ describe('应用歌单独立存档', () => {
     expect(storage.setItem).not.toHaveBeenCalled()
     expect(storage.getItem).toHaveBeenCalledWith(APP_PLAYLISTS_KEY)
   })
-  it('QQ与网易云按各自账号保存关联，旧存档兼容，坏QQ关联保留原档', () => {
-    const store = makeStore()
-    const id = store.getState().create('歌单', [{ ...song('qq'), qqId: 123, songType: 1 }])
-    store.getState().recordNeteaseSync(id, '7', { playlistId: '100' })
-    store.getState().recordQQSync(id, '7', { playlistId: '900', syncedContent: 'content', syncedAt: 5 })
-    store.getState().recordQQSync(id, '8', { playlistId: '901' })
-    expect(makeStore().getState().items[0]).toMatchObject({ neteaseSync: { '7': { playlistId: '100' } },
-      qqSync: { '7': { playlistId: '900', syncedContent: 'content' }, '8': { playlistId: '901' } }, tracks: [{ songType: 1 }] })
-    const broken = JSON.parse(archive!)
-    broken.items[0].qqSync['7'].playlistId = 'qq-liked:201'
-    archive = JSON.stringify(broken)
+  it.each([
+    { neteaseSync: { '7': { playlistId: '100', syncedContent: 'content', syncedAt: 5 } }, qqSync: { '7': { playlistId: '900' } } },
+    { neteaseSync: 'broken', qqSync: { '7': { playlistId: 'qq-liked:201', base: { tracks: null } } } },
+    { neteaseSync: { '7': { playlistId: '100', base: { name: '云端', revision: 'a'.repeat(64), tracks: [{ source: 'qq', id: 'mid' }] } } }, qqSync: null },
+  ])('忽略旧同步关联，完整保留聚合内容且读取不改写存档：%j', links => {
+    const item = { id: 'old', name: '跨平台收藏', createdAt: 1, updatedAt: 2, roamKey: 'roam:daily', tracks: [
+      song('netease'), { ...song('qq', 2), qqId: 123, songType: 1 }, { ...song('apple', 'i.1'), appleLibrary: true }, song('local'),
+    ] }
+    archive = JSON.stringify({ version: 1, items: [{ ...item, ...links }] })
     const original = archive
-    expect(makeStore().getState().error).toContain('原存档已保留')
+    const store = makeStore()
+    expect(store.getState().error).toBe('')
+    expect(store.getState().items[0]).toEqual({ ...item, tracks: item.tracks.map(track => ({ ...track, id: String(track.id), cover: undefined })) })
+    expect(storage.setItem).not.toHaveBeenCalled()
     expect(archive).toBe(original)
+
+    store.getState().rename('old', '整理后的收藏')
+    const saved = JSON.parse(archive!).items[0]
+    expect(saved).toMatchObject({ ...item, name: '整理后的收藏', updatedAt: expect.any(Number), tracks: item.tracks.map(track => ({ ...track, id: String(track.id) })) })
+    expect(saved).not.toHaveProperty('neteaseSync')
+    expect(saved).not.toHaveProperty('qqSync')
+    expect(makeStore().getState().items).toEqual(store.getState().items)
+    expect(store.getState().saveRoam('重复漫游', [song('qq')], 'roam:daily')).toBe('old')
   })
 
-  it('拉取一次保存名称、歌曲和云端基准，重载后保持且不改变旧队列', () => {
+  it('旧关联的清理也遵循先落盘后发布，写入失败保留原存档与收藏', () => {
+    archive = JSON.stringify({ version: 1, items: [{ id: 'old', name: '收藏', createdAt: 1, updatedAt: 2,
+      tracks: [song('qq')], roamKey: 'roam:daily', qqSync: { '7': { playlistId: '900' } } }] })
+    const original = archive
     const store = makeStore()
-    const id = store.getState().create('旧名', [song('netease', 1)])
-    const previous = store.getState().items[0]
-    const base = { name: '云端名', revision: 'a'.repeat(64), tracks: [{ source: 'netease' as const, id: '2' }] }
-    const queue = previous.tracks
-    storage.setItem.mockClear()
-    store.getState().applyCloudMerge(id, previous, '云端名', [song('netease', 2)], 'netease', '7', { playlistId: '201', base })
-    expect(storage.setItem).toHaveBeenCalledOnce()
-    expect(makeStore().getState().items[0]).toMatchObject({ name: '云端名', tracks: [{ id: '2' }], neteaseSync: { '7': { base } } })
-    expect(queue).toMatchObject([{ id: '1' }])
-  })
-
-  it('拉取落盘失败不改变本地或同步基准，旧内容已编辑则拒绝迟到合并', () => {
-    const store = makeStore()
-    const id = store.getState().create('旧名', [song('netease')])
-    const previous = store.getState().items[0]
-    const base = { name: '云端', revision: 'a'.repeat(64), tracks: [] }
-    const link = { playlistId: '201', base }
-    const raw = archive
+    const previous = store.getState().items
     storage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
-    expect(() => store.getState().applyCloudMerge(id, previous, '云端', [], 'netease', '7', link)).toThrow('保存失败')
-    expect(store.getState().items[0]).toEqual(previous)
-    expect(archive).toBe(raw)
-    store.getState().rename(id, '新改名')
-    expect(() => store.getState().applyCloudMerge(id, previous, '云端', [], 'netease', '7', link)).toThrow('新修改')
-    expect(store.getState().items[0].name).toBe('新改名')
-  })
-
-  it('损坏或跨来源同步基准不覆盖原存档', () => {
-    const store = makeStore()
-    const id = store.getState().create('歌单', [song('netease')])
-    store.getState().recordNeteaseSync(id, '7', { playlistId: '201', base: { name: '云端', revision: 'a'.repeat(64), tracks: [{ source: 'qq', id: 'mid', qqId: '1', songType: 0 }] } })
-    const raw = archive
-    expect(makeStore().getState().error).toContain('原存档已保留')
-    expect(archive).toBe(raw)
+    expect(() => store.getState().rename('old', '新名称')).toThrow('保存失败')
+    expect(archive).toBe(original)
+    expect(store.getState().items).toBe(previous)
+    expect(makeStore().getState().items).toEqual(previous)
   })
 })

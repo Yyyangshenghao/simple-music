@@ -1,7 +1,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import styles from './RoamSaveHelp.module.css'
 
-const HELP_TEXT = '漫游先保存为应用歌单。全部歌曲来自网易云或全部来自 QQ 音乐且已登录时，可在「管理与同步」中手动同步；QQ 顺序以云端为准，混合歌单保存在应用中。'
+const HELP_TEXT = '漫游结果保存在应用歌单中，可聚合不同平台的歌曲。通过「管理歌单」整理歌曲；不会修改平台歌单。'
 const characters = Array.from(HELP_TEXT)
 
 export function RoamSaveHelp() {
@@ -25,7 +25,7 @@ export function RoamSaveHelp() {
         }}
       >
         <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" /></svg>
-        保存与同步说明
+        歌单保存说明
       </button>
       <p id={panelId} role="note" aria-hidden={!open} aria-label={HELP_TEXT} className={styles.panel}>
         <span aria-hidden="true">

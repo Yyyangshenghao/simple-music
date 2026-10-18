@@ -28,6 +28,9 @@ import { SelectionCheck, SelectionMarquee } from '../components/Playlist/Selecti
 import { useMultiSelection } from '../hooks/useMultiSelection'
 import { appPlaylistTrackKey } from '../stores/app-playlists'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../lib/provider-request-cache'
+import { supportsPlatformPlaylists } from '../lib/platform-playlists'
+import { usePlatformPlaylistsStore } from '../stores/platform-playlists'
+import { PlatformPlaylistNameDialog } from '../components/Playlist/PlatformPlaylistDialog'
 import { LibraryTabs } from './LibraryTabs'
 import { motion } from 'motion/react'
 import { pageTransition } from '../lib/motion-presets'
@@ -213,6 +216,8 @@ function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
 }
 
 function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
+  const [creating, setCreating] = useState(false)
+  const managementRevision = usePlatformPlaylistsStore(state => source === 'netease' || source === 'qq' ? state.revision[source] : 0)
   const favoriteRevision = useLikesStore((state) => source === 'qq' && mode !== 'albums' ? state.qqMutationRevision : 0)
   const participating = useProviderStore((state) =>
     state.byId[source].enabled && state.byId[source].auth === 'authenticated' && state.byId[source].playbackAvailable !== false
@@ -243,7 +248,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
       sessionRef.current += 1
       controller.abort()
     }
-  }, [mode, participating, source, favoriteRevision])
+  }, [mode, participating, source, favoriteRevision, managementRevision])
 
   function retryProvider(source: ProviderId, force = true): void {
     const session = sessionRef.current
@@ -270,7 +275,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [mode, participating, source, favoriteRevision]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, participating, source, favoriteRevision, managementRevision]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleSources = participating ? [source] : []
 
@@ -280,6 +285,10 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
 
   return (
     <div className={styles.providerSections}>
+      {creating && supportsPlatformPlaylists(source) && <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
+        retryProvider(source)
+        openPlaylist({ id, name, provider: source, source, type: 'playlist', cover: '', trackCount: 0, trackCountKnown: true, playCount: 0, creator: '' })
+      }} />}
       {visibleSources.map((source) => {
         const result = results[source]
         const playlists = result?.data ?? []
@@ -294,9 +303,10 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                     ? result.error?.message
                     : mode === 'playlists' ? null : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '专辑'}`}
               </span>
-              {mode === 'playlists' && result?.status !== 'loading' && (
-                <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>
-              )}
+              <div className={styles.toolbarActions}>
+                {mode === 'playlists' && supportsPlatformPlaylists(source) && <button className={`${styles.createPlaylist} no-drag`} onClick={() => setCreating(true)}>新建歌单</button>}
+                {mode === 'playlists' && result?.status !== 'loading' && <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>}
+              </div>
             </div>
             {result?.status === 'error' && playlists.length === 0 ? (
               <div className={styles.providerError}>

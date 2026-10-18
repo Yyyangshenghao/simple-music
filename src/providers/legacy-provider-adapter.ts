@@ -134,11 +134,11 @@ function historyCapability(service: MusicService, source: ProviderId): HistoryCa
 }
 
 function playlistWriterCapability(service: MusicService, source: ProviderId): PlaylistWriterCapability | undefined {
-  if (!service.syncAppPlaylist && (!service.createPlaylist || !service.replacePlaylistTracks)) return undefined
+  if (!service.mutatePlatformPlaylist && (!service.createPlaylist || !service.replacePlaylistTracks)) return undefined
   return {
-    getPlaylistSyncSession: service.getPlaylistSyncSession ? signal => service.getPlaylistSyncSession!(signal) : undefined,
-    readAppPlaylistSnapshot: service.readAppPlaylistSnapshot ? (input, signal) => service.readAppPlaylistSnapshot!(input, signal) : undefined,
-    syncAppPlaylist: service.syncAppPlaylist ? input => service.syncAppPlaylist!(input) : undefined,
+    getPlaylistManagementSession: service.getPlaylistManagementSession ? signal => service.getPlaylistManagementSession!(signal) : undefined,
+    inspectPlatformPlaylist: service.inspectPlatformPlaylist ? (input, signal) => service.inspectPlatformPlaylist!(input, signal) : undefined,
+    mutatePlatformPlaylist: service.mutatePlatformPlaylist ? (input, signal) => service.mutatePlatformPlaylist!(input, signal) : undefined,
     findUserPlaylistsByName: service.findUserPlaylistsByName
       ? (name) => service.findUserPlaylistsByName!(name)
       : undefined,

@@ -37,15 +37,6 @@
 .meta span + span { padding-left: 16px; border-left: 1px solid var(--sm-border-strong); }
 .identity > div > button, .identity summary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; font-size: 13px; }
 .identity > div > button svg { flex: none; }
-.sync { display: flex; align-items: flex-start; gap: 24px; padding: 18px 20px; margin-bottom: 28px; border-radius: 12px; background: var(--sm-fill-subtle); }
-.sync h2 { display: flex; align-items: center; flex: none; gap: 8px; margin: 9px 0 0; font-size: 13px; font-weight: 500; }
-.sync h2 svg { color: var(--sm-text-secondary); }
-.syncContent { flex: 1; min-width: 0; }
-.syncContent > section { margin: 0; }
-.syncContent > section + section { margin-top: 16px; }
-.syncContent > p { margin: 6px 0; }
-.sync .syncContent button { background: transparent; color: var(--sm-text-primary); border-color: var(--sm-border-strong); font-size: 12px; }
-.sync .syncContent button:hover:not(:disabled) { background: var(--sm-fill-hover); }
 .listToolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 8px 12px; border-bottom: 1px solid var(--sm-border); }
 .listTitle { display: flex; align-items: center; gap: 10px; }
 .listTitle h2 { margin: 0; font-size: 16px; font-weight: 600; }
@@ -64,14 +55,11 @@
   .header { gap: 24px; }
   .cover { flex-basis: 144px; height: 144px; }
   .identity > div > button, .identity summary { padding: 8px 12px; }
-  .sync { gap: 16px; padding: 16px; }
 }
 @media (max-width: 580px) {
   .header { flex-wrap: wrap; gap: 20px; }
   .cover { flex-basis: 112px; height: 112px; }
   .identity { flex-basis: 240px; }
-  .sync { flex-direction: column; gap: 12px; }
-  .sync h2 { margin-top: 0; }
   .rowActions { padding-right: 0; gap: 0; }
   .rowActions button { width: 26px; }
 }

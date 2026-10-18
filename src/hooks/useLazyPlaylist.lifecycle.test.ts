@@ -58,7 +58,7 @@ vi.mock('../stores/providers', () => ({ useProviderStore: (select: (state: unkno
     netease: { enabled: true, auth: 'authenticated', playbackAvailable: harness.playbackAvailable }, qq: { enabled: true, auth: 'authenticated', playbackAvailable: harness.playbackAvailable }, apple: { enabled: true, auth: 'authenticated', playbackAvailable: harness.playbackAvailable },
   } }), isProviderParticipating: () => harness.playbackAvailable }))
 
-import { loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
+import { invalidatePlaylistCache, loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
 
 let nextId = 0
 const song = (id: number): Track => ({ id, source: 'netease', provider: 'netease', type: 'song', name: `歌曲${id}`, artist: '歌手', artists: [] })
@@ -94,6 +94,27 @@ describe('歌单缓存的挂载生命周期', () => {
   afterEach(() => {
     unmount()
     vi.restoreAllMocks()
+  })
+
+  it('平台写入失效保留当前快照和选区身份，刷新完成替换，离页重进仍读新内容', async () => {
+    const playlist = collection('playlist')
+    render(playlist); await settle()
+    invalidatePlaylistCache(playlist, { preserveSnapshot: true })
+    const before = render(playlist)
+    expect(before.tracks).toEqual([song(1)])
+    expect(before.loading).toBe(false)
+    let resolve!: (value: unknown) => void
+    harness.skeleton.mockReturnValueOnce(new Promise(done => { resolve = done }))
+    const refreshing = before.refresh()
+    expect(render(playlist).tracks).toEqual([song(1)])
+    resolve({ trackIds: [2], tracks: [song(2)] })
+    await refreshing
+    expect(render(playlist).tracks).toEqual([song(2)])
+    invalidatePlaylistCache(playlist, { preserveSnapshot: true })
+    unmount()
+    harness.skeleton.mockResolvedValue({ trackIds: [3], tracks: [song(3)] })
+    render(playlist); await settle()
+    expect(render(playlist).tracks).toEqual([song(3)])
   })
 
   it.each(['album', 'playlist'] as const)('%s 停留超过 TTL 后原地交互保留曲目，重新进入时刷新', async (type) => {

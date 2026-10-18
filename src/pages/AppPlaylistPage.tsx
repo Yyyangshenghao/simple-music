@@ -11,7 +11,6 @@ import { fetchOfflineStatuses, type OfflineCacheStatus } from '../lib/offline-ca
 import { appPlaylistPlaybackTracks, appPlaylistTrackState } from '../lib/app-playlist-playback'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { AppPlaylistModal, AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
-import { AppPlaylistSync } from '../components/Playlist/AppPlaylistSync'
 import { InfoButton } from '../components/ui/InfoButton'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
@@ -20,10 +19,10 @@ import styles from './AppPlaylists.module.css'
 import libraryStyles from './LibraryPage.module.css'
 import detailStyles from './AppPlaylistPage.module.css'
 
-function DetailIcon({ kind }: { kind: 'back' | 'music' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' | 'sync' }) {
+function DetailIcon({ kind }: { kind: 'back' | 'music' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' }) {
   const paths = { back: 'm15 18-6-6 6-6', music: 'M9 18V5l12-2v13M9 8l12-2M9 18a3 3 0 1 1-3-3c1.7 0 3 1.3 3 3Zm12-2a3 3 0 1 1-3-3c1.7 0 3 1.3 3 3Z',
     play: 'm9 5 11 7-11 7Z', queue: 'M4 6h16M4 12h10M4 18h10m4-3v6m-3-3h6', refresh: 'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2',
-    up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6', remove: 'm6 6 12 12M6 18 18 6', sync: 'm16 3 4 4-4 4M4 7h16M8 21l-4-4 4-4m12 4H4' }
+    up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6', remove: 'm6 6 12 12M6 18 18 6' }
   return <svg width="16" height="16" viewBox="0 0 24 24" fill={kind === 'play' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>
 }
 
@@ -143,7 +142,6 @@ export function AppPlaylistPage({ id }: { id: string }) {
             </div>
           </div>
         </header>
-        <section className={detailStyles.sync} aria-label="云端同步"><h2><DetailIcon kind="sync" />云端同步</h2><div className={detailStyles.syncContent}><AppPlaylistSync item={item} /></div></section>
         <div className={detailStyles.listToolbar}>
           <div className={detailStyles.listTitle}><h2>歌曲</h2><span>{item.tracks.length}</span><InfoButton label="歌单排序与移除" text="暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的歌单顺序。" align="left" /></div>
           <button className={detailStyles.refresh} onClick={() => setRefresh(value => value + 1)}><DetailIcon kind="refresh" />刷新状态</button>
@@ -166,7 +164,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
           }} /></div>}
         {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
         {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={closeEditor}>
-          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列、歌曲文件和已同步的云端歌单会保留。</p>
+          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列和歌曲文件会保留。</p>
           <div className={styles.buttons}><button autoFocus onClick={closeEditor}>取消</button><button className={styles.danger} onClick={() => edit(() => {
             useAppPlaylistsStore.getState().remove(id)
             setEditing(null)

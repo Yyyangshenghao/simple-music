@@ -160,9 +160,11 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
 }
 
 /** 追加歌曲后下次打开详情重新读取骨架。 */
-export function invalidatePlaylistCache(playlist: Playlist): void {
+export function invalidatePlaylistCache(playlist: Playlist, options: { preserveSnapshot?: boolean } = {}): void {
   const key = playlistCacheKey(playlist)
-  cache.delete(key)
+  const entry = cache.get(key)
+  if (options.preserveSnapshot && entry) entry.ts = Date.now() - CACHE_TTL_MS - 1
+  else cache.delete(key)
   skeletonVersions.delete(key)
 }
 

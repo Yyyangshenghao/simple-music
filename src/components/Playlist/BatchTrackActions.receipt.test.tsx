@@ -23,6 +23,8 @@ vi.mock('react', async importOriginal => ({
     })
   },
 }))
+vi.mock('./PlatformPlaylistDialog', () => ({ AddToPlatformPlaylistDialog: () => null }))
+vi.mock('../../lib/platform-playlists', () => ({ isWritablePlaylistSource: (source: string) => source === 'netease' || source === 'qq', supportsPlatformPlaylists: () => true }))
 vi.mock('../../stores/providers', () => ({ useProviderStore: () => '' }))
 vi.mock('../../stores/playlist', () => ({ usePlaylistStore: { getState: () => ({ addManyToQueue: h.add }) } }))
 vi.mock('../../lib/batch-tracks', () => ({ resolveBatchTracks: h.resolve }))

@@ -332,3 +332,14 @@
 }
 
 .sortDirBtn:hover { color: var(--sm-text-primary); }
+
+.providerSectionHeader .createPlaylist {
+  padding: 7px 12px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-text-primary);
+  background: var(--sm-bg-elevated);
+  font-size: 12px;
+}
+.providerSectionHeader .createPlaylist:hover { background: var(--sm-fill-hover); }
+.createPlaylist:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }

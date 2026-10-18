@@ -47,4 +47,23 @@ describe('批量操作栏', () => {
     expect(renderToStaticMarkup(<BatchTrackActions tracks={[]} collections={[{ ...album, trackCount: 0, trackCountKnown: false }]} selection={selection} />)).toContain('下载所选（曲数待确认）')
     expect(renderToStaticMarkup(<BatchTrackActions tracks={[]} collections={[{ ...album, trackCount: 0 }]} selection={selection} />)).toContain('下载所选（曲数待确认）')
   })
+  it.each(['netease', 'qq'] as const)('同一 %s 平台可加入平台歌单，保留应用歌单入口', source => {
+    const html = renderToStaticMarkup(<BatchTrackActions tracks={[track(source)]} />)
+    expect(html).toContain('加入平台歌单')
+    expect(html).toContain('加入应用歌单')
+  })
+
+  it('混源、离线、Apple 和本地选择隐藏平台写入入口', () => {
+    for (const tracks of [[track('netease'), track('qq')], [track('apple')], [track('local')], []]) {
+      expect(renderToStaticMarkup(<BatchTrackActions tracks={tracks} />)).not.toContain('加入平台歌单')
+    }
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} offline />)).not.toContain('加入平台歌单')
+  })
+
+  it('仅在多选且有移出回调时显示平台移出入口', () => {
+    const onRemove = async () => {}
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} selection={selection} onRemove={onRemove} />)).toContain('移出平台歌单')
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} onRemove={onRemove} />)).not.toContain('移出平台歌单')
+  })
+
 })

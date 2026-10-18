@@ -13,7 +13,7 @@ import type {
   ToplistPreviewTrack,
 } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
-import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
 
 export class QQMusicService implements MusicService {
   async checkLiked(ids: unknown[]): Promise<Record<string, boolean>> {
@@ -32,7 +32,7 @@ export class QQMusicService implements MusicService {
   async likeTrack(track: Track, like: boolean): Promise<boolean> {
     if (track.source !== 'qq') throw new Error('只能操作 QQ 音乐歌曲的收藏')
     const accountSession = providerAccountSession('qq')
-    const session = await this.getPlaylistSyncSession()
+    const session = await this.getPlaylistManagementSession()
     if (accountSession !== providerAccountSession('qq')) throw new Error('QQ 账号已变化，请重试')
     const result = await api.post<{ success: boolean; liked?: boolean; error?: string }>('/api/qq/song/like', { ...session, like,
       track: { source: 'qq', id: String(track.id), qqId: track.qqId === undefined ? undefined : String(track.qqId), songType: track.songType } })
@@ -41,16 +41,16 @@ export class QQMusicService implements MusicService {
     return true
   }
 
-  getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
-    return api.get('/api/qq/app-playlist-sync/session', undefined, { signal })
+  getPlaylistManagementSession(signal?: AbortSignal): Promise<PlaylistManagementSession> {
+    return api.get('/api/qq/playlist-management/session', undefined, { signal })
   }
 
-  readAppPlaylistSnapshot(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot> {
-    return api.post('/api/qq/app-playlist-sync/snapshot', input, undefined, { signal, timeoutMs: 120000 })
+  inspectPlatformPlaylist(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection> {
+    return api.post('/api/qq/playlist-management/inspect', input, undefined, { signal, timeoutMs: 120000 })
   }
 
-  syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {
-    return api.post('/api/qq/app-playlist-sync', input, undefined, { timeoutMs: 120000 })
+  mutatePlatformPlaylist(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult> {
+    return api.post('/api/qq/playlist-management/manage', input, undefined, { signal, timeoutMs: 120000 })
   }
 
   async getPlaybackAccountToken(): Promise<string | null> {

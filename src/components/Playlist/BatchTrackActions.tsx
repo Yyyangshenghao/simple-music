@@ -4,6 +4,8 @@ import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { resolveAppPlaylistTracks, resolveBatchTracks } from '../../lib/batch-tracks'
 import { AddToAppPlaylistDialog } from './AppPlaylistDialog'
+import { AddToPlatformPlaylistDialog } from './PlatformPlaylistDialog'
+import { isWritablePlaylistSource, supportsPlatformPlaylists } from '../../lib/platform-playlists'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -22,9 +24,10 @@ interface Props {
   onDone?(): void
   offline?: boolean
   onDelete?(signal: AbortSignal): Promise<void>
+  onRemove?(signal: AbortSignal): Promise<void>
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -33,11 +36,14 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [choosingPlaylist, setChoosingPlaylist] = useState(false)
+  const [choosingPlatformPlaylist, setChoosingPlatformPlaylist] = useState(false)
   const operation = useRef<AbortController | null>(null)
   const accountSignature = useProviderStore((state) => offline ? '' : PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
   const signature = [...tracks, ...collections].map((item) => `${item.source}:${item.type}:${String(item.id)}`).join('|')
   const sourceSet = new Set([...tracks, ...collections].map((item) => item.source))
   const canSave = !offline && (sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq'))
+  const onlySource = sourceSet.size === 1 ? [...sourceSet][0] : undefined
+  const platformSource = !offline && onlySource && isWritablePlaylistSource(onlySource) && supportsPlatformPlaylists(onlySource) ? onlySource : null
   const count = tracks.length + collections.length
   const downloadTrackCount = new Set(tracks.filter(track => track.playable !== false).map(track => `${track.source}:${String(track.id)}`)).size
   const downloadCountLabel = collections.length
@@ -53,6 +59,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     setOpen(false)
     setError('')
     setChoosingPlaylist(false)
+    setChoosingPlatformPlaylist(false)
     return () => { operation.current?.abort() }
   }, [signature, accountSignature])
 
@@ -120,6 +127,10 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlaylist(true) }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 7v10M7 12h10" strokeLinecap="round" /></svg>加入应用歌单
     </button>
+    {platformSource && <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlatformPlaylist(true) }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h11M4 10h11M4 15h6m8-5v11m-4-4 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" /></svg>加入平台歌单
+    </button>}
+    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>移出平台歌单</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
       const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return
@@ -144,8 +155,10 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {busy && <><span className={styles.processing} role="status">处理中…</span><button type="button" role={compact ? 'menuitem' : undefined} onClick={() => { operation.current?.abort(); setBusy(false); if (compact) closeMenu() }}>取消操作</button></>}
   </>
 
-  const picker = choosingPlaylist && <AddToAppPlaylistDialog
-    loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />
+  const picker = <>
+    {choosingPlaylist && <AddToAppPlaylistDialog loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />}
+    {choosingPlatformPlaylist && platformSource && <AddToPlatformPlaylistDialog source={platformSource} loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlatformPlaylist(false)} />}
+  </>
 
   if (compact) return (
     <div className={styles.compact} ref={rootRef}>

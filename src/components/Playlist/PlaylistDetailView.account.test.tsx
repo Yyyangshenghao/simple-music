@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Playlist, Track } from '../../types/domain'
 
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as (() => void)[], account: 0,
-  queue: [] as Track[], refresh: vi.fn(), metadata: vi.fn(), setQueue: vi.fn(), close: vi.fn(), check: vi.fn() }))
+  queue: [] as Track[], refresh: vi.fn(), metadata: vi.fn(), setQueue: vi.fn(), close: vi.fn(), check: vi.fn(), inspect: vi.fn(), writable: false, managementRevision: 0 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {
@@ -23,6 +23,8 @@ vi.mock('react', async importOriginal => ({
     })
   },
 }))
+vi.mock('../../stores/platform-playlists', () => ({ usePlatformPlaylistsStore: (select: (state: unknown) => unknown) => select({ revision: { netease: h.managementRevision, qq: 0 } }) }))
+vi.mock('../../lib/platform-playlists', () => ({ supportsPlatformPlaylists: () => h.writable, inspectPlatformPlaylist: h.inspect, mutatePlatformPlaylist: vi.fn(), platformPlaylistResultMessage: () => '' }))
 vi.mock('./BatchTrackActions', () => ({ BatchTrackActions: () => null }))
 vi.mock('../Explore/TrackRow', () => ({ TrackRow: () => null }))
 vi.mock('../../hooks/useLazyPlaylist', () => ({ useLazyPlaylist: () => ({ total: 1, tracks: h.queue,
@@ -55,7 +57,8 @@ function render(type: Playlist['type'] = 'playlist') {
 function refresh(tree: ReactNode) { walk(tree).find(element => element.type === 'button' && text(element).includes('刷新'))!.props.onClick!() }
 const settle = async () => { for (let i = 0; i < 10; i++) await Promise.resolve() }
 beforeEach(() => {
-  h.slots = []; h.effects = []; h.account++
+  playlist.id = 'same'
+  h.slots = []; h.effects = []; h.account++; h.writable = false; h.managementRevision = 0; h.inspect.mockReset()
   vi.clearAllMocks()
   h.refresh.mockReset().mockResolvedValue(undefined); h.check.mockResolvedValue(undefined); h.metadata.mockReset().mockResolvedValue(null)
   h.queue = [{ id: 'one', source: 'netease', provider: 'netease', type: 'song', name: '歌曲', artist: '', artists: [] }]
@@ -115,4 +118,45 @@ it('预览旧播放全部和逐曲回调得到空队列时不清队列或关闭�
   buttons.forEach(button => button.props.onClick!())
   expect(h.setQueue).not.toHaveBeenCalled()
   expect(h.close).not.toHaveBeenCalled()
+})
+
+it('服务端确认本人歌单后才显示改名，旧账号迟到的权限不能授予新账号', async () => {
+  h.writable = true
+  // 使用真实平台 ID 才探测编辑权，合成推荐集合永远不进入写流程。
+  playlist.id = '900'
+  let resolveOld!: (value: unknown) => void
+  h.inspect.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    .mockResolvedValueOnce({ playlistId: '900', name: '当前账号歌单' })
+  expect(text(render())).not.toContain('重命名歌单')
+  h.account++
+  render()
+  await settle()
+  expect(text(render())).toContain('当前账号歌单')
+  expect(text(render())).toContain('重命名歌单')
+  resolveOld({ playlistId: '900', name: '旧账号歌单' })
+  await settle()
+  expect(text(render())).not.toContain('旧账号歌单')
+  playlist.id = 'same'
+})
+it('归属核验被拒绝时不提供平台改名，不影响歌单播放展示', async () => {
+  h.writable = true; playlist.id = '901'
+  h.inspect.mockRejectedValue(new Error('只能管理本人歌单'))
+  render(); await settle()
+  expect(text(render())).not.toContain('重命名歌单')
+  expect(text(render())).toContain('选定集合')
+  playlist.id = 'same'
+})
+
+it('平台写入发生在手动刷新期间时，旧刷新结束后补读新的平台内容', async () => {
+  let resolveOld!: () => void
+  h.refresh.mockReturnValueOnce(new Promise<void>(resolve => { resolveOld = resolve }))
+  refresh(render())
+  expect(h.refresh).toHaveBeenCalledTimes(1)
+  h.managementRevision++
+  render()
+  expect(h.refresh).toHaveBeenCalledTimes(1)
+  resolveOld()
+  await settle()
+  render()
+  expect(h.refresh).toHaveBeenCalledTimes(2)
 })

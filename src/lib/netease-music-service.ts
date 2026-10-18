@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PlaylistSyncInput, PlaylistSyncReadInput, PlaylistSyncResult, PlaylistSyncSession, PlaylistSyncSnapshot } from '../types/playlist-sync'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
 import type {
   MusicService,
   RadarPlaylist,
@@ -234,16 +234,16 @@ export class NeteaseMusicService implements MusicService {
     return { id }
   }
 
-  getPlaylistSyncSession(signal?: AbortSignal): Promise<PlaylistSyncSession> {
-    return api.get('/api/netease/app-playlist-sync/session', undefined, { signal })
+  getPlaylistManagementSession(signal?: AbortSignal): Promise<PlaylistManagementSession> {
+    return api.get('/api/netease/playlist-management/session', undefined, { signal })
   }
 
-  readAppPlaylistSnapshot(input: PlaylistSyncReadInput, signal?: AbortSignal): Promise<PlaylistSyncSnapshot> {
-    return api.post('/api/netease/app-playlist-sync/snapshot', input, undefined, { signal, timeoutMs: 120000 })
+  inspectPlatformPlaylist(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection> {
+    return api.post('/api/netease/playlist-management/inspect', input, undefined, { signal, timeoutMs: 120000 })
   }
 
-  syncAppPlaylist(input: PlaylistSyncInput): Promise<PlaylistSyncResult> {
-    return api.post('/api/netease/app-playlist-sync', input, undefined, { timeoutMs: 120000 })
+  mutatePlatformPlaylist(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult> {
+    return api.post('/api/netease/playlist-management/manage', input, undefined, { signal, timeoutMs: 120000 })
   }
 
   async replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean> {

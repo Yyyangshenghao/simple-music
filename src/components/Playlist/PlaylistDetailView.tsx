@@ -24,6 +24,10 @@ import { isProviderId } from '../../providers/types'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { useMultiSelection } from '../../hooks/useMultiSelection'
 import { SelectionCheck, SelectionMarquee } from './SelectionControls'
+import { inspectPlatformPlaylist, mutatePlatformPlaylist, platformPlaylistResultMessage, supportsPlatformPlaylists } from '../../lib/platform-playlists'
+import { usePlatformPlaylistsStore } from '../../stores/platform-playlists'
+import { useToastStore } from '../../stores/toast'
+import { PlatformPlaylistNameDialog } from './PlatformPlaylistDialog'
 import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
@@ -62,6 +66,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     ? `${state.byId[playlist.source].enabled}:${state.byId[playlist.source].auth}:${providerAccountSession(playlist.source)}` : 'local')
   const accountSession = isProviderId(playlist.source) ? providerAccountSession(playlist.source) : 0
   const requestScope = `${playlist.source}:${playlist.type}:${String(playlist.id)}:${accountSignature}`
+  const [renaming, setRenaming] = useState(false)
+  const [managementFeedback, setManagementFeedback] = useState('')
+  const [managedPlaylist, setManagedPlaylist] = useState<{ scope: string; name: string } | null>(null)
+  const managementRevision = usePlatformPlaylistsStore(state => playlist.source === 'netease' || playlist.source === 'qq' ? state.revision[playlist.source] : 0)
   const [query, setQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -146,7 +154,9 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       .finally(() => { if (!cancelled) setSearchLoading(false) })
     return () => { cancelled = true }
   }, [searching, loading, error, ensureAll, searchAttempt])
-  const displayPlaylist = mergeAlbumDetail(playlist, albumDetail)
+  const basePlaylist = mergeAlbumDetail(playlist, albumDetail)
+  const canManage = managedPlaylist?.scope === requestScope
+  const displayPlaylist = canManage ? { ...basePlaylist, name: managedPlaylist.name } : basePlaylist
   const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
   const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
   const selection = useMultiSelection({
@@ -170,6 +180,40 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       .catch(() => {})
     return () => { cancelled = true }
   }, [available, playlist.id, playlist.source, playlist.type, service, requestScope])
+
+  useEffect(() => { setRenaming(false); setManagementFeedback('') }, [requestScope])
+  useEffect(() => {
+    setManagedPlaylist(previous => previous?.scope === requestScope ? previous : null)
+    if (isAlbum || initialTracks?.length || !supportsPlatformPlaylists(playlist.source) || !/^[1-9]\d*$/.test(String(playlist.id))) return
+    const controller = new AbortController()
+    void inspectPlatformPlaylist(playlist.source, String(playlist.id), controller.signal).then(result => {
+      if (!controller.signal.aborted && currentRequest()) setManagedPlaylist({ scope: requestScope, name: result.name })
+    }).catch(() => { /* 收藏、系统和非本人歌单继续只读；服务端是编辑权限依据。 */ })
+    return () => controller.abort()
+  }, [requestScope, managementRevision])
+
+  const previousManagementRevision = useRef(managementRevision)
+  useEffect(() => {
+    if (previousManagementRevision.current === managementRevision || refreshInFlight.current) return
+    previousManagementRevision.current = managementRevision
+    if (canRefresh) void refreshPlaylist()
+  }, [managementRevision, refreshPlaylist, canRefresh, refreshing])
+
+  async function removeSelected(signal: AbortSignal) {
+    if (!canManage || !supportsPlatformPlaylists(playlist.source) || !selectedTracks.length) return
+    if (!window.confirm(`从${playlist.source === 'qq' ? 'QQ 音乐' : '网易云'}歌单「${displayPlaylist.name}」移除选中的 ${selectedTracks.length} 首歌曲？应用歌单和本地文件会保留。`)) return
+    setManagementFeedback('')
+    try {
+      const result = await mutatePlatformPlaylist(playlist.source, { action: 'remove', playlistId: String(playlist.id), tracks: selectedTracks.map(track => ({ source: track.source, id: String(track.id), qqId: track.qqId === undefined ? undefined : String(track.qqId), songType: typeof track.songType === 'number' ? track.songType : undefined })) }, signal)
+      if (!currentRequest() || signal.aborted) return
+      const message = platformPlaylistResultMessage(result, 'remove')
+      if (result.status !== 'complete') { setManagementFeedback(message); return }
+      useToastStore.getState().show(message)
+      selection.clear()
+    } catch (failure) {
+      if (currentRequest() && !signal.aborted) setManagementFeedback(`操作结果尚未确认，请刷新歌单查看。${failure instanceof Error ? failure.message : '平台操作失败'}`)
+    }
+  }
 
   // 平台一旦停止参与，立即退出其详情页；避免保留来源标识、重试按钮等失效交互。
   useEffect(() => {
@@ -250,14 +294,17 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                     {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
                   </button>
                 )}
+                {canManage && supportsPlatformPlaylists(playlist.source) && <button type="button" className={`${styles.refreshBtn} ${styles.renameBtn} no-drag`} onClick={() => setRenaming(true)}>重命名歌单</button>}
                 {displayPlaylist.type === 'album' && displayPlaylist.description && (
                   <p className={styles.detailDescription}>{displayPlaylist.description}</p>
                 )}
               </motion.div>
             </div>
           </div>
-          {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
+          {renaming && supportsPlatformPlaylists(playlist.source) && <PlatformPlaylistNameDialog source={playlist.source} playlist={displayPlaylist} onClose={() => setRenaming(false)} />}
+          {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear} onRemove={canManage ? removeSelected : undefined}
             selection={{ total: visibleSelectionTracks.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+          {managementFeedback && <p className={styles.managementFeedback} role="status">{managementFeedback}</p>}
           <TrackSearch
             value={query}
             onChange={setQuery}
@@ -267,6 +314,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             error={searchError}
             onRetry={() => setSearchAttempt((value) => value + 1)}
           />
+          {!loading && !error && total === 0 && canManage && <div className={styles.emptyPlaylist}><p>歌单还是空的</p><span>从歌曲的更多操作中选择「加入平台歌单」。</span></div>}
           {error ? (
             <div className={styles.errorHint}>
               <p>歌单加载失败</p>
