@@ -20,6 +20,7 @@
 | 2.4.0 当前架构核对与分阶段重构范围 | [架构梳理与重构范围](specs/2026-10-12-simple-music-2.4.0-refactor-scope.md) |
 | 2.4.0 现有界面精修、前后截图和验收范围 | [界面调整对照](reviews/2.4.0-ui-refinement.md) |
 | 2.4.0 库缓存、拖动、滚动条与内容延展布局 | [库与探索交互验收](reviews/2.4.0-library-experience.md) |
+| 2.4.0 探索横排取消箭头、保留纵向滚轮与 Apple 横向浏览 | [横向滚动验收](reviews/2.4.0-explore-rail-input.md) |
 | 2.4.0 漫游排序与滚动请求对照 | [漫游与滚动性能验收](reviews/2.4.0-roam-scroll-performance.md) |
 | 2.4.0 QQ 最近歌曲、每日30首、红心与验证缺口 | [QQ账号与推荐验收](reviews/2.4.0-qq-platform-parity.md) |
 | 2.4.0 应用歌单与网易云、QQ 双向合并和部分推送 | [歌单双向同步验收](reviews/2.4.0-playlist-sync-workflow.md) |

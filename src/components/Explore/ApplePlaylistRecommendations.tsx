@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
 import { appendUniqueAppleCharts, pickAppleRecommendationFeatures, type AppleChartPlaylistsPage, type AppleRecommendationGroup } from '../../lib/apple-music-service'
 import { appleMusicService } from '../../providers/apple-music-provider'
@@ -40,11 +40,6 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
   const [loading, setLoading] = useState(() => getCachedProviderData('apple', 'recommendation:personal-groups') === undefined)
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
-  const carouselRef = useRef<HTMLDivElement>(null)
-  const [carouselScrollable, setCarouselScrollable] = useState(false)
-  const [carouselHovered, setCarouselHovered] = useState(false)
-  const [carouselFocused, setCarouselFocused] = useState(false)
-  const [carouselTouched, setCarouselTouched] = useState(false)
   useEffect(() => {
     let cancelled = false
     setStorefrontLoading(getCachedProviderData('apple', 'charts:storefront') === undefined)
@@ -103,72 +98,17 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
   const visibleStorefrontCharts = remaining(storefrontCharts).slice(0, STOREFRONT_PREVIEW)
   const openAllCharts = () => useNavigationStore.getState().navigateTo({ type: 'toplist', source: 'apple' })
 
-  const scrollCarousel = useCallback((direction: -1 | 1) => {
-    const viewport = carouselRef.current
-    const card = viewport?.firstElementChild
-    if (!viewport || !(card instanceof HTMLElement)) return
-    const gap = Number.parseFloat(getComputedStyle(viewport).columnGap) || 0
-    const step = card.getBoundingClientRect().width + gap
-    const end = viewport.scrollWidth - viewport.clientWidth
-    if (end <= 1) return
-    const left = direction === 1
-      ? viewport.scrollLeft >= end - 1 ? 0 : Math.min(viewport.scrollLeft + step, end)
-      : viewport.scrollLeft <= 1 ? end : Math.max(viewport.scrollLeft - step, 0)
-    viewport.scrollTo({ left, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
-  }, [])
-
-  useEffect(() => {
-    const viewport = carouselRef.current
-    if (!viewport) { setCarouselScrollable(false); return }
-    const measure = () => setCarouselScrollable(viewport.scrollWidth > viewport.clientWidth + 1)
-    const observer = new ResizeObserver(measure)
-    observer.observe(viewport)
-    measure()
-    return () => observer.disconnect()
-  }, [features.length])
-
-  useEffect(() => {
-    if (!carouselScrollable || carouselHovered || carouselFocused || carouselTouched || features.length < 2) return
-    const timer = window.setInterval(() => {
-      if (!document.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches) scrollCarousel(1)
-    }, 7000)
-    return () => window.clearInterval(timer)
-  }, [carouselFocused, carouselHovered, carouselScrollable, carouselTouched, features.length, scrollCarousel])
-
   return (
     <div className={styles.sections} aria-label="Apple Music 内容发现">
       {features.length > 0 && (
-        <section
-          className={styles.personalized}
-          aria-label="为你精选"
-          onMouseEnter={() => setCarouselHovered(true)}
-          onMouseLeave={() => setCarouselHovered(false)}
-          onFocusCapture={() => setCarouselFocused(true)}
-          onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setCarouselFocused(false)
-          }}
-          onTouchStart={() => setCarouselTouched(true)}
-          onTouchEnd={() => setCarouselTouched(false)}
-          onTouchCancel={() => setCarouselTouched(false)}
-        >
+        <section className={styles.personalized} aria-label="为你精选">
           <div className={styles.heading}>
             <div>
               <p className={styles.eyebrow}><SourceName source="apple" /> FOR YOU</p>
               <h3>为你精选</h3>
             </div>
-            {carouselScrollable && (
-              <div className={styles.carouselControls}>
-                <button type="button" className="no-drag" onClick={() => scrollCarousel(-1)} aria-label="上一张精选内容"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m15.5 5-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-                <button type="button" className="no-drag" onClick={() => scrollCarousel(1)} aria-label="下一张精选内容"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m8.5 5 7 7-7 7" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-              </div>
-            )}
           </div>
-          <div
-            ref={carouselRef}
-            className={styles.carousel}
-            tabIndex={0}
-            aria-label="为你精选，可横向滚动"
-          >
+          <HorizontalCardRail className={styles.carousel} label="为你精选，可横向滚动">
             {features.map(({ item, groupTitle, moduleId }) => (
               <button
                 type="button"
@@ -191,7 +131,7 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
                 </span>
               </button>
             ))}
-          </div>
+          </HorizontalCardRail>
         </section>
       )}
       {loading && <p className={styles.status}>正在读取为你推荐的内容…</p>}
@@ -226,13 +166,13 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
             </div>
           </div>
           {visibleCharts.length > 0 && (
-            <div className={styles.chartGrid}>
+            <HorizontalCardRail className={styles.row} label="热门榜单，可横向滚动">
               {visibleCharts.map(playlist => (
                 <div className={styles.chartCard} key={String(playlist.id)}>
                   <PlaylistCard playlist={playlist} meta="" onClick={() => onOpen(playlist)} />
                 </div>
               ))}
-            </div>
+            </HorizontalCardRail>
           )}
           <div className={styles.chartMoreWrap}>
             <button type="button" className={`${styles.chartMore} no-drag`} onClick={openAllCharts}>浏览热门与地区榜单</button>
@@ -251,13 +191,13 @@ export function ApplePlaylistRecommendations({ charts, onOpen }: ApplePlaylistRe
           <div className={styles.heading}>
             <h3>地区榜单</h3>
           </div>
-          <div className={styles.storefrontGrid}>
+          <HorizontalCardRail className={styles.row} label="地区榜单，可横向滚动">
             {visibleStorefrontCharts.map(playlist => (
               <div className={styles.chartCard} key={String(playlist.id)}>
                 <PlaylistCard playlist={playlist} meta="" onClick={() => onOpen(playlist)} />
               </div>
             ))}
-          </div>
+          </HorizontalCardRail>
         </section>
       )}
       {storefrontFailed && (

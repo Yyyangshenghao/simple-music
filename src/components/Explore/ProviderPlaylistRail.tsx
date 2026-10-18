@@ -61,7 +61,7 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
           <button className="no-drag" onClick={() => setRevision((current) => current + 1)}>重试</button>
         </div>
       ) : playlists.length > 0 && (
-        <HorizontalCardRail className={styles.row} label="你的歌单" dragHandle>{cards}</HorizontalCardRail>
+        <HorizontalCardRail className={styles.row} label="你的歌单">{cards}</HorizontalCardRail>
       )}
     </section>
   )

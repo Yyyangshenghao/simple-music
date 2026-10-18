@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { observeHorizontalCardRail, scrollHorizontalCardRailPage } from './HorizontalCardRail'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { HorizontalCardRail, observeHorizontalCardRail } from './HorizontalCardRail'
 
 class Viewport extends EventTarget {
   scrollWidth = 1000
@@ -23,31 +25,18 @@ function observe(viewport: Viewport, callback = vi.fn()) {
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('HorizontalCardRail interaction', () => {
-  it('连续竖向滚轮累积横移，行与页单位按横排尺寸换算', () => {
+  it('列表首部、中部和末尾均不拦截普通纵向滚轮，也不把它换算成横移', () => {
     const viewport = new Viewport()
     const cleanup = observe(viewport)
-    expect(wheel(viewport, { deltaY: 2 }).defaultPrevented).toBe(true)
-    wheel(viewport, { deltaY: 2 })
-    expect(viewport.scrollLeft).toBe(4)
-    wheel(viewport, { deltaY: 2, deltaMode: 1 })
-    expect(viewport.scrollLeft).toBe(36)
-    wheel(viewport, { deltaY: 1, deltaMode: 2 })
-    expect(viewport.scrollLeft).toBe(436)
-    cleanup()
-  })
-
-  it('内容不足、首尾向外滚动时允许页面继续竖滚', () => {
-    const viewport = new Viewport()
-    const cleanup = observe(viewport)
-    expect(wheel(viewport, { deltaY: -40 }).defaultPrevented).toBe(false)
-    viewport.scrollLeft = 580
-    expect(wheel(viewport, { deltaY: 40 }).defaultPrevented).toBe(true)
-    expect(viewport.scrollLeft).toBe(600)
-    expect(wheel(viewport).defaultPrevented).toBe(false)
-    expect(wheel(viewport, { deltaY: -40 }).defaultPrevented).toBe(true)
-    expect(viewport.scrollLeft).toBe(560)
-    viewport.scrollWidth = 300
-    expect(wheel(viewport).defaultPrevented).toBe(false)
+    for (const left of [0, 250, 600]) {
+      viewport.scrollLeft = left
+      for (const deltaMode of [0, 1, 2]) {
+        for (const deltaY of [-40, 40]) {
+          expect(wheel(viewport, { deltaY, deltaMode }).defaultPrevented).toBe(false)
+          expect(viewport.scrollLeft).toBe(left)
+        }
+      }
+    }
     cleanup()
   })
 
@@ -95,11 +84,13 @@ describe('HorizontalCardRail interaction', () => {
     expect(viewport.scrollLeft).toBe(0)
   })
 
-  it('翻页约一屏，减少动画偏好使用即时滚动', () => {
-    const viewport = new Viewport()
-    scrollHorizontalCardRailPage(viewport as unknown as HTMLElement, 1, false)
-    expect(viewport.scrollBy).toHaveBeenLastCalledWith({ left: 340, behavior: 'smooth' })
-    scrollHorizontalCardRailPage(viewport as unknown as HTMLElement, -1, true)
-    expect(viewport.scrollBy).toHaveBeenLastCalledWith({ left: -340, behavior: 'auto' })
+  it('横排可获取键盘焦点，不渲染左右翻页按钮', () => {
+    const html = renderToStaticMarkup(createElement(HorizontalCardRail, { label: '你的歌单', children: '测试内容' }))
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('data-arrow-navigation="true"')
+    expect(html).toContain('aria-label="你的歌单"')
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('上一页')
+    expect(html).not.toContain('下一页')
   })
 })
