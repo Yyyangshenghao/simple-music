@@ -41,14 +41,13 @@ async function setup() {
     return undefined
   })
   const off = vi.fn()
-  const setModalOpen = vi.fn(async () => {})
-  vi.stubGlobal('window', { desktop: { playbackRequest: request, setModalOpen,
+  vi.stubGlobal('window', { desktop: { playbackRequest: request,
     onPlaybackSnapshot: (callback: typeof publish) => { publish = callback; return off } } })
   const { playbackStores: stores } = await import('./playback-shared-stores')
   const show = stores.toast.getState().show
   const { startPlaybackClient } = await import('./playback-client')
   stop = await startPlaybackClient()
-  return { doc, request, initial, publish, off, stores, show, setModalOpen }
+  return { doc, request, initial, publish, off, stores, show }
 }
 
 it('先订阅后连接并镜像活跃导航，命令返回宿主真实结果且不会创建UI引擎', async () => {
@@ -109,7 +108,6 @@ it('异步操作移除不可克隆signal，以requestId发送取消', async () =
 
 it('UI输入和模态阻挡态同步后台，失焦后允许全局控制', async () => {
   const h = await setup()
-  h.setModalOpen.mockClear()
   Object.assign(h.doc, {
     hasFocus: () => true,
     activeElement: { closest: () => ({ tagName: 'INPUT' }) },
@@ -119,10 +117,9 @@ it('UI输入和模态阻挡态同步后台，失焦后允许全局控制', async
   Object.assign(h.doc, { hasFocus: () => false })
   h.doc.dispatchEvent(new Event('focusout'))
   expect(h.request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'setShortcutBlocked', args: [false] })
-  expect(h.setModalOpen).not.toHaveBeenCalled()
 })
 
-it('对话框变化单独同步主进程，隐藏仍保留模态状态，停止连接时清除', async () => {
+it('对话框变化同步快捷键阻挡态，隐藏时放行，停止连接释放观察', async () => {
   let onMutation!: () => void
   const observe = vi.fn()
   const disconnect = vi.fn()
@@ -132,29 +129,30 @@ it('对话框变化单独同步主进程，隐藏仍保留模态状态，停止�
     disconnect = disconnect
   })
   const h = await setup()
+  h.request.mockClear()
   let open = true
   Object.assign(h.doc, { querySelector: () => open ? {} : null })
-  expect(h.setModalOpen).toHaveBeenCalledWith(false)
   expect(observe).toHaveBeenCalledWith(h.doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] })
-  h.setModalOpen.mockClear()
   onMutation()
-  expect(h.setModalOpen).toHaveBeenCalledWith(true)
   expect(h.request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'setShortcutBlocked', args: [true] })
+  onMutation()
+  expect(h.request.mock.calls.filter(([value]) => value.action === 'setShortcutBlocked')).toHaveLength(1)
   h.doc.hidden = true
   h.doc.dispatchEvent(new Event('visibilitychange'))
   onMutation()
-  expect(h.setModalOpen).toHaveBeenCalledTimes(1)
   expect(h.request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'setShortcutBlocked', args: [false] })
+  const calls = h.request.mock.calls.length
   open = false
   onMutation()
-  expect(h.setModalOpen).toHaveBeenLastCalledWith(false)
   open = true
   onMutation()
-  expect(h.setModalOpen).toHaveBeenLastCalledWith(true)
+  expect(h.request).toHaveBeenCalledTimes(calls)
+  h.doc.hidden = false
+  onMutation()
+  expect(h.request).toHaveBeenLastCalledWith({ type: 'action', store: 'controls', action: 'setShortcutBlocked', args: [true] })
   stop?.()
   stop = undefined
   expect(disconnect).toHaveBeenCalledOnce()
-  expect(h.setModalOpen).toHaveBeenLastCalledWith(false)
 })
 
 it('远程连接错误码转成可理解的提示，不展示IPC细节', async () => {

@@ -5,10 +5,10 @@ const h = vi.hoisted(() => ({
   main: { isDestroyed: () => false, webContents: { mainFrame: {} } },
   get: vi.fn(() => ({ behavior: 'ask', promptId: null })), set: vi.fn(), resolve: vi.fn(),
   isHost: vi.fn(() => false), gameEnabled: false, setGameMode: vi.fn(),
-  returnFromMiniPlayer: vi.fn(), setModalOpen: vi.fn()
+  returnFromMiniPlayer: vi.fn()
 }))
 vi.mock('electron', () => ({ ipcMain: { handle: (name: string, cb: (...args: any[]) => any) => h.handlers.set(name, cb) } }))
-vi.mock('../modules/window-manager', () => ({ getMainWindow: () => h.main, setModalOpen: h.setModalOpen }))
+vi.mock('../modules/window-manager', () => ({ getMainWindow: () => h.main }))
 vi.mock('../modules/window-close', () => ({ getWindowCloseState: h.get, setWindowCloseBehavior: h.set, resolveWindowClose: h.resolve }))
 vi.mock('../modules/playback-host', () => ({ isPlaybackHostEvent: h.isHost }))
 vi.mock('../modules/game-mode', () => ({ getGameMode: () => ({ enabled: h.gameEnabled }), setGameMode: h.setGameMode }))
@@ -66,23 +66,5 @@ describe('窗口 IPC 边界', () => {
     expect(() => h.handlers.get('window:show')!(mainEvent)).toThrow('Only the playback host')
     expect(h.setGameMode).not.toHaveBeenCalled()
     expect(h.returnFromMiniPlayer).not.toHaveBeenCalled()
-  })
-
-  it.each(['win32', 'darwin', 'linux'])('主窗口可在 %s 同步明确的模态状态', (platform) => {
-    vi.stubGlobal('process', { ...process, platform })
-    const event = { sender: h.main.webContents, senderFrame: h.main.webContents.mainFrame }
-    const handle = h.handlers.get('window:set-modal-open')!
-    handle(event, true)
-    handle(event, false)
-    expect(h.setModalOpen.mock.calls).toEqual([[true], [false]])
-  })
-
-  it('模态状态拒绝其他窗口、子 frame 和非布尔参数', () => {
-    const handle = h.handlers.get('window:set-modal-open')!
-    expect(() => handle({ sender: {}, senderFrame: h.main.webContents.mainFrame }, true)).toThrow()
-    expect(() => handle({ sender: h.main.webContents, senderFrame: {} }, true)).toThrow()
-    const event = { sender: h.main.webContents, senderFrame: h.main.webContents.mainFrame }
-    for (const value of [undefined, null, 0, 'true', {}]) expect(() => handle(event, value)).toThrow('Invalid modal state')
-    expect(h.setModalOpen).not.toHaveBeenCalled()
   })
 })

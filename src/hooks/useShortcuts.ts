@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useSettingsStore } from '../stores/settings'
 import { useShortcutStore } from '../stores/shortcuts'
-import { useShuangeStore } from '../stores/shuange'
+import { blockKeyboardControl } from '../lib/keyboard-controls'
 import { acceleratorFromEvent, isShortcutAction, isSettingsMenuAccelerator, isSystemReservedAccelerator, normalizeAccelerator, shouldIgnoreShortcut } from '../lib/shortcuts'
 import { runShortcutAction } from '../lib/shortcut-actions'
 import { useToastStore } from '../stores/toast'
@@ -27,9 +27,6 @@ export function useShortcuts(): void {
       if (modalDialogOpen()) return
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
-      // Enter 等按键保留控件原生操作；空格优先走播放快捷键。
-      if (!captured && event.key !== ' ' && event.code !== 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey
-        && (event.target as Element | null)?.closest?.('button, summary, [role="switch"], [role="slider"]')) return
       const accelerator = acceleratorFromEvent(event, platform)
       if (!accelerator || isSystemReservedAccelerator(accelerator, platform)) return
       const settings = useSettingsStore.getState()
@@ -51,26 +48,11 @@ export function useShortcuts(): void {
       if (!event.repeat) runLocalShortcut(binding.action)
     }
     const onKeyDownCapture = (event: KeyboardEvent) => {
-      if (modalDialogOpen()) return
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229
         || useShortcutStore.getState().recording) return
-      const tab = event.key === 'Tab'
-      if (!tab && shouldIgnoreShortcut(event.target)) return
-      const space = event.key === ' ' || event.code === 'Space'
-      const arrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
-      // 库分类等复合控件用未修饰的方向键切换选项，组合快捷键继续交给应用。
-      if (arrow && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-        && (event.target as Element | null)?.closest?.('[data-arrow-navigation]')) return
-      if (!tab && !space && !arrow) return
-      // 用户绑定优先执行，再取消控件的默认导航与激活；菜单同键也由本次事件执行一次。
+      // 配置的快捷键先执行，再统一阻止控件导航、激活和页面自带按键。
       onKeyDown(event, true)
-      // 系统组合及未配置的修饰键操作继续交给系统或原控件。
-      if ((event.metaKey || event.ctrlKey || event.altKey) && !event.defaultPrevented) return
-      // 爽歌页面在捕获阶段处理上下切换，避免先触发聚焦控件的导航。
-      if (!event.defaultPrevented && arrow && !event.shiftKey && useShuangeStore.getState().active
-        && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) return
-      if (!event.defaultPrevented) event.preventDefault()
-      event.stopPropagation()
+      blockKeyboardControl(event, platform)
     }
     window.addEventListener('keydown', onKeyDownCapture, true)
     window.addEventListener('keydown', onKeyDown)

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   input: undefined as undefined | ((event: { preventDefault(): void }, input: { type: string; key: string }) => void),
   windows: [] as any[],
-  pendingClose: false, fullscreen: true, setFullscreen: vi.fn(),
+  fullscreen: true, setFullscreen: vi.fn(),
   display: { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1040 } }
 }))
 vi.mock('electron', () => ({
@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
     constructor() { h.windows.push(this) }
     webContents = {
       setWindowOpenHandler: vi.fn(), once: vi.fn(), send: vi.fn(), isLoadingMainFrame: () => false,
+      setIgnoreMenuShortcuts: vi.fn(),
       on: (event: string, listener: typeof h.input) => { if (event === 'before-input-event') h.input = listener }
     }
     on = (name: string, fn: (...args: any[]) => void) => { this.events.set(name, fn) }
@@ -34,16 +35,15 @@ vi.mock('electron', () => ({
   }
 }))
 vi.mock('./safe-open', () => ({ openExternalSafely: vi.fn() }))
-vi.mock('./window-close', () => ({ isWindowClosePending: () => h.pendingClose }))
 
-describe('全屏窗口的 Esc 与关闭确认', () => {
+describe('主窗口生命周期与键盘隔离', () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.useFakeTimers()
     vi.clearAllMocks()
     vi.stubGlobal('process', { ...process, platform: 'win32' })
+    h.input = undefined
     h.windows = []
-    h.pendingClose = false
     h.fullscreen = true
     const { createMainWindow } = await import('./window-manager')
     createMainWindow(35530)
@@ -75,56 +75,20 @@ describe('全屏窗口的 Esc 与关闭确认', () => {
     expect((second as any).show).not.toHaveBeenCalled()
   })
 
-  it('Windows 全屏有关闭确认时让行 Esc，交给对话框取消', () => {
-    h.pendingClose = true
-    const event = { preventDefault: vi.fn() }
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(event.preventDefault).not.toHaveBeenCalled()
-    expect(h.setFullscreen).not.toHaveBeenCalled()
-  })
-
-  it.each(['win32', 'darwin', 'linux'])('%s 全屏有界面模态框时让行 Esc，关闭后恢复退出全屏', async (platform) => {
+  it.each(['win32', 'darwin', 'linux'])('%s 全屏时 Esc 交给已配置快捷键，不在主进程强制退出全屏', (platform) => {
     vi.stubGlobal('process', { ...process, platform })
-    const { setModalOpen } = await import('./window-manager')
     const event = { preventDefault: vi.fn() }
-    setModalOpen(true)
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
+    h.input?.(event, { type: 'keyDown', key: 'Escape' })
     expect(event.preventDefault).not.toHaveBeenCalled()
     expect(h.setFullscreen).not.toHaveBeenCalled()
-    setModalOpen(false)
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(h.setFullscreen).toHaveBeenCalledWith(false)
   })
 
-  it('重建主窗口清除旧模态状态，迟到的旧窗口关闭不清除新窗口模态状态', async () => {
+  it('快捷键录入暂停原生菜单，结束后恢复系统及菜单组合', async () => {
     const manager = await import('./window-manager')
-    const first = h.windows[0]
-    manager.setModalOpen(true)
-    manager.createMainWindow(35530)
-    const event = { preventDefault: vi.fn() }
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    vi.clearAllMocks()
-    manager.setModalOpen(true)
-    first.events.get('closed')()
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(event.preventDefault).not.toHaveBeenCalled()
-    expect(h.setFullscreen).not.toHaveBeenCalled()
-  })
-
-  it('没有确认框时仍用 Esc 退出全屏', () => {
-    const event = { preventDefault: vi.fn() }
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(h.setFullscreen).toHaveBeenCalledWith(false)
-  })
-
-  it('其他平台保留原有的退出全屏行为', () => {
-    vi.stubGlobal('process', { ...process, platform: 'darwin' })
-    h.pendingClose = true
-    const event = { preventDefault: vi.fn() }
-    h.input!(event, { type: 'keyDown', key: 'Escape' })
-    expect(h.setFullscreen).toHaveBeenCalledWith(false)
+    const ignore = h.windows[0].webContents.setIgnoreMenuShortcuts
+    manager.setShortcutRecording(true)
+    expect(ignore).toHaveBeenLastCalledWith(true)
+    manager.setShortcutRecording(false)
+    expect(ignore).toHaveBeenLastCalledWith(false)
   })
 })

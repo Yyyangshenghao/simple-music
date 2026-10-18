@@ -179,7 +179,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 onClick={() => void useShuangeStore.getState().toggleLike(track)}
                 whileTap={tapScale}
                 aria-label={liked ? '取消喜欢' : '喜欢'}
-                title={liked ? '取消喜欢 (L)' : '喜欢 (L)'}
+                title={liked ? '取消喜欢' : '喜欢'}
               >
                 <HeartIcon filled={liked} size={19} />
               </motion.button>
@@ -198,7 +198,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
               播放全曲
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
             </motion.button>
-            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tapScale} aria-label="退出刷歌" title="退出 (Esc)">
+            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tapScale} aria-label="退出刷歌" title="退出刷歌">
               <CloseIcon size={17} />
             </motion.button>
           </div>

@@ -232,7 +232,6 @@ export interface IpcChannels {
   'game-mode:set-state': { req: GameModeState; res: GameModeState }
   'tray:update-playback': { req: TrayPlaybackState; res: OkResult }
   'window:show': { req: void; res: void }
-  'window:set-modal-open': { req: boolean; res: void }
   'window:minimize': { req: void; res: void }
   'window:toggle-fullscreen': { req: void; res: void }
   'window:exit-fullscreen-windowed': { req: void; res: void }

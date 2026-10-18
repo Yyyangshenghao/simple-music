@@ -115,7 +115,7 @@ describe('快捷键真实分发链路', () => {
     expect(h.action).toHaveBeenCalledWith('next')
   })
 
-  it('任意模态对话框中保留 Tab、空格、Esc 的原生操作，避免本地和菜单命令穿透', async () => {
+  it('模态对话框不接受键盘导航或激活，也不穿透本地和菜单命令', async () => {
     vi.stubGlobal('document', { hasFocus: () => true, activeElement: null, querySelector: (selector: string) => selector === 'dialog[open]' ? {} : null })
     useSettingsStore.setState({ localHotkeys: [
       { action: 'play-pause', accelerator: 'Space' }, { action: 'next', accelerator: 'Tab' },
@@ -125,8 +125,8 @@ describe('快捷键真实分发链路', () => {
     await flush()
     for (const pressed of [' ', 'Tab', 'Escape']) {
       const event = key({ key: pressed, code: pressed === ' ' ? 'Space' : pressed, target: target('button') })
-      expect(dispatch(event)).toHaveBeenCalledOnce()
-      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(dispatch(event)).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalledOnce()
     }
     onHotkey({ action: 'settings', source: 'menu' })
     onHotkey({ action: 'play-pause' })
@@ -143,17 +143,34 @@ describe('快捷键真实分发链路', () => {
     for (const action of ['play-pause', 'prev', 'next', 'volume-up']) onHotkey({ action })
     expect(h.action.mock.calls).toEqual([['play-pause'], ['prev'], ['next'], ['volume-up']])
   })
-  it('更新日志标题聚焦时，Enter 保留原生展开行为', async () => {
-    const binding = { key: 'Enter', code: 'Enter', accelerator: 'Enter' }
-    useSettingsStore.setState({ localHotkeys: [{ action: 'play-pause', accelerator: binding.accelerator }] })
+  it.each(['button', 'summary', '[role="button"]'])('Enter 绑定优先于聚焦 %s 的默认激活', async (selector) => {
+    useSettingsStore.setState({ localHotkeys: [{ action: 'play-pause', accelerator: 'Enter' }] })
     mountShortcuts()
     await flush()
-    const event = key({ key: binding.key, code: binding.code, target: {
-      closest: (selector: string) => selector.split(', ').includes('summary') ? {} : null,
-    } })
-    onKeyDown(event)
-    expect(event.preventDefault).not.toHaveBeenCalled()
+    const event = key({ key: 'Enter', code: 'Enter', target: target(selector) })
+    expect(dispatch(event)).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
+    expect(h.action.mock.calls).toEqual([['play-pause']])
+  })
+  it.each(['Enter', 'Home', 'End', 'PageUp', 'PageDown', 'Escape', 'f', 'l'])('未绑定的 %s 不激活按钮、滚动页面或触发页面操作', async (pressed) => {
+    useSettingsStore.setState({ localHotkeys: [] })
+    mountShortcuts()
+    await flush()
+    const event = key({ key: pressed, code: pressed, target: target('button') })
+    expect(dispatch(event)).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
     expect(h.action).not.toHaveBeenCalled()
+  })
+  it.each(['input[type="range"]', 'input[type="checkbox"]', 'input[type="radio"]', 'select'])('%s 不抢占方向键或空格快捷键', async (selector) => {
+    useSettingsStore.setState({ localHotkeys: [{ action: 'next', accelerator: 'Right' }, { action: 'play-pause', accelerator: 'Space' }] })
+    mountShortcuts()
+    await flush()
+    for (const pressed of ['ArrowRight', ' ']) {
+      const event = key({ key: pressed, code: pressed === ' ' ? 'Space' : pressed, target: target(selector) })
+      expect(dispatch(event)).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(true)
+    }
+    expect(h.action.mock.calls).toEqual([['next'], ['play-pause']])
   })
 
   it.each([false, true])('Tab（Shift=%s）不会进入控件或离开输入框', async (shiftKey) => {
@@ -225,10 +242,10 @@ describe('快捷键真实分发链路', () => {
     onHotkey({ action: 'play-pause' })
     expect(h.action.mock.calls).toEqual([['play-pause']])
   })
-  it('输入区和原生滑块保留空格、方向键行为，快捷键录入保留 Tab', async () => {
+  it('文字输入区保留空格、方向键行为，快捷键录入保留 Tab', async () => {
     mountShortcuts()
     await flush()
-    for (const selector of ['input', 'textarea', 'select', '[contenteditable]:not([contenteditable="false"])', '[data-shortcut-recorder]']) {
+    for (const selector of ['input:not([type])', 'input[type="text"]', 'input[type="search"]', 'textarea', '[contenteditable]:not([contenteditable="false"])']) {
       for (const pressed of [' ', 'ArrowLeft']) {
         const event = key({ key: pressed, code: pressed === ' ' ? 'Space' : pressed, target: target(selector) })
         expect(dispatch(event)).toHaveBeenCalledOnce()
@@ -241,13 +258,13 @@ describe('快捷键真实分发链路', () => {
     expect(recording.preventDefault).not.toHaveBeenCalled()
     expect(h.action).not.toHaveBeenCalled()
   })
-  it('库分类控件保留方向键切换，不触发应用播放快捷键', async () => {
+  it('库分类控件也不接受未绑定方向键导航', async () => {
     mountShortcuts()
     await flush()
     const event = key({ key: 'ArrowRight', code: 'ArrowRight', target: target('[data-arrow-navigation]') })
     const control = vi.fn((event: KeyboardEvent) => event.preventDefault())
-    expect(dispatch(event, control)).toHaveBeenCalledOnce()
-    expect(event.stopPropagation).not.toHaveBeenCalled()
+    expect(dispatch(event, control)).not.toHaveBeenCalled()
+    expect(event.stopPropagation).toHaveBeenCalledOnce()
     expect(h.action).not.toHaveBeenCalled()
   })
   it('库分类仍执行用户配置的 Shift 方向键快捷键', async () => {
@@ -267,12 +284,12 @@ describe('快捷键真实分发链路', () => {
     expect(dispatch(key({ key: 'ArrowRight', code: 'ArrowRight', metaKey: true, target: target('button') }))).not.toHaveBeenCalled()
     expect(h.action.mock.calls).toEqual([['next']])
   })
-  it('爽歌上下切换交给页面，左右方向键不导航控件', async () => {
+  it('爽歌页面也不接受未配置的上下方向键', async () => {
     useShuangeStore.setState({ active: true })
     mountShortcuts()
     await flush()
-    expect(dispatch(key({ key: 'ArrowDown', code: 'ArrowDown' }))).toHaveBeenCalledOnce()
-    expect(dispatch(key({ key: 'ArrowUp', code: 'ArrowUp' }))).toHaveBeenCalledOnce()
+    expect(dispatch(key({ key: 'ArrowDown', code: 'ArrowDown' }))).not.toHaveBeenCalled()
+    expect(dispatch(key({ key: 'ArrowUp', code: 'ArrowUp' }))).not.toHaveBeenCalled()
     expect(dispatch(key({ key: 'ArrowRight', code: 'ArrowRight' }))).not.toHaveBeenCalled()
     expect(h.action).not.toHaveBeenCalled()
   })

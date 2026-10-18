@@ -32,14 +32,14 @@ describe('迷你窗口返回快捷键', () => {
     expect(returnMain).not.toHaveBeenCalled()
     expect(event.preventDefault).not.toHaveBeenCalled()
   })
-  it('无修饰键留给聚焦按钮和滑杆，组合键仍可用于返回', () => {
+  it('聚焦按钮后，无修饰键和组合键都优先执行返回绑定', () => {
     const returnMain = vi.fn()
     const target = { closest: (selector: string) => selector.startsWith('button') ? {} : null }
     const event = key({ key: ' ', code: 'Space', metaKey: false, shiftKey: false, target })
     handleReturnShortcut(event, 'Space', 'darwin', returnMain)
-    expect(returnMain).not.toHaveBeenCalled()
-    expect(event.preventDefault).not.toHaveBeenCalled()
-    handleReturnShortcut(key({ target }), 'Command+Shift+P', 'darwin', returnMain)
     expect(returnMain).toHaveBeenCalledOnce()
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    handleReturnShortcut(key({ target }), 'Command+Shift+P', 'darwin', returnMain)
+    expect(returnMain).toHaveBeenCalledTimes(2)
   })
 })

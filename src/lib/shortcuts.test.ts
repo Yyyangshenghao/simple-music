@@ -31,7 +31,7 @@ describe('快捷键录入与冲突', () => {
     expect(normalizeBindings([{ action: 'unknown', accelerator: 'F1' }, { action: 'next', accelerator: 'MediaNextTrack' }], [], 'darwin')).toEqual([{ action: 'next', accelerator: '' }])
     expect(normalizeBindings([], defaultShortcuts('global'), 'win32')).toEqual([])
   })
-  it('嵌套可编辑区和录入区避让', () => {
+  it('嵌套文字输入区避让', () => {
     const closest = (selector: string) => selector.includes('contenteditable') ? {} : null
     expect(shouldIgnoreShortcut({ closest } as unknown as EventTarget)).toBe(true)
     expect(shouldIgnoreShortcut(null)).toBe(false)
