@@ -13,9 +13,11 @@ const playlist: Playlist = {
 }
 
 describe('PlaylistCard', () => {
-  it('尚未读取详情时标明平台统计，不把摘要当作完整列表数量', () => {
+  it('卡片只展示曲目数，平台汇总口径保留在悬停提示中', () => {
     const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, provider: 'netease', source: 'netease', trackCount: 864 }} onClick={() => {}} />)
-    expect(html).toContain('平台统计 864 首')
+    expect(html).toContain('864 首')
+    expect(html).not.toContain('平台统计')
+    expect(html).toContain('aria-label="歌单：喜爱歌曲，864 首"')
     expect(html).toContain('打开后按实际读取的歌曲列表计数')
   })
 
@@ -28,7 +30,7 @@ describe('PlaylistCard', () => {
     expect(html).not.toContain('平台统计')
   })
 
-  it('已读取的空列表优先于旧摘要，专辑数量不加歌单平台统计文案', () => {
+  it('已读取的空列表优先于旧摘要，专辑直接显示曲目数', () => {
     h.count = 0
     const empty = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, trackCount: 9 }} onClick={() => {}} />)
     expect(empty).toContain('0 首')

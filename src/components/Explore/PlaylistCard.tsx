@@ -29,7 +29,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
   const cachedCount = meta === undefined ? getCachedPlaylistTrackCount(playlist) : undefined
   const reported = playlist.source !== 'local' && playlist.type !== 'album'
   const displayMeta = meta ?? (cachedCount !== undefined ? `${cachedCount} 首`
-    : playlist.trackCountKnown === false ? '查看歌曲' : `${reported ? '平台统计 ' : ''}${playlist.trackCount} 首`)
+    : playlist.trackCountKnown === false ? '查看歌曲' : `${playlist.trackCount} 首`)
   const countTitle = meta !== undefined || playlist.trackCountKnown === false && cachedCount === undefined ? undefined
     : cachedCount !== undefined ? '以实际读取的歌曲列表计数，包含暂不可播放的歌曲'
       : reported ? '平台返回的汇总数量，打开后按实际读取的歌曲列表计数' : undefined
