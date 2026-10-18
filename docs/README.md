@@ -22,6 +22,7 @@
 | 2.4.0 漫游排序与滚动请求对照 | [漫游与滚动性能验收](reviews/2.4.0-roam-scroll-performance.md) |
 | 2.4.0 QQ 最近歌曲、每日30首、红心与验证缺口 | [QQ账号与推荐验收](reviews/2.4.0-qq-platform-parity.md) |
 | 2.4.0 应用歌单与网易云、QQ 双向合并和部分推送 | [歌单双向同步验收](reviews/2.4.0-playlist-sync-workflow.md) |
+| 2.4.0 歌单数量口径、云盘差额与同步测试边界 | [歌单数量验收](reviews/2.4.0-playlist-count-consistency.md)、[同步测试矩阵](reviews/2.4.0-playlist-sync-test-matrix.md) |
 | 2.4.0 QQ 红心80105修复与真实账号验证 | [签名加密协议验收](reviews/2.4.0-qq-favorite-protocol.md) |
 | 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |

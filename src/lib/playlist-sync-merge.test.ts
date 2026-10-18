@@ -183,4 +183,64 @@ describe('歌单三方合并', () => {
     const choices = Object.fromEntries(allIds.map(id => [`delete:netease:${id}`, 'cloud' as const]))
     expect(ids(planPlaylistSyncMerge(base, snapshot([]), cloud, true, choices).content)).toEqual([...allIds].reverse())
   })
+
+  it('穷举四首歌的单边删除与排列，另一端未修改时完整采用该侧内容', () => {
+    const baseIds = ['a', 'b', 'c', 'd']
+    const permutations = (values: string[]): string[][] => values.length
+      ? values.flatMap((value, index) => permutations(values.filter((_, other) => other !== index)).map(rest => [value, ...rest]))
+      : [[]]
+    const base = snapshot(baseIds)
+    let cases = 0
+    for (let mask = 0; mask < 16; mask++) {
+      for (const order of permutations(baseIds.filter((_, index) => mask & (1 << index)))) {
+        const expected = [...order]
+        expected.splice(Math.floor(order.length / 2), 0, 'new')
+        const changed = snapshot([...expected, 'new'], '单边名称')
+        for (const side of ['local', 'cloud']) {
+          const plan = planPlaylistSyncMerge(base, side === 'local' ? changed : base, side === 'cloud' ? changed : base)
+          expect(plan.content.name).toBe(changed.name)
+          expect(ids(plan.content)).toEqual(expected)
+          expect(plan.conflicts).toEqual([])
+          cases++
+        }
+      }
+    }
+    expect(cases).toBe(130)
+  })
+
+  it('穷举双方独立删除组合，保留双方新增并去重，删别歌不制造冲突', () => {
+    const baseIds = ['a', 'b', 'c', 'd']
+    const base = snapshot(baseIds)
+    for (let localMask = 0; localMask < 16; localMask++) {
+      for (let cloudMask = 0; cloudMask < 16; cloudMask++) {
+        const local = snapshot(['local-new', ...baseIds.filter((_, index) => localMask & (1 << index)), 'both-new', 'both-new'])
+        const cloud = snapshot(['cloud-new', 'both-new', ...baseIds.filter((_, index) => cloudMask & (1 << index))])
+        const before = structuredClone({ base, local, cloud })
+        const plan = planPlaylistSyncMerge(base, local, cloud)
+        const result = ids(plan.content)
+        const retained = baseIds.filter((_, index) => (localMask & cloudMask) & (1 << index))
+        expect(new Set(result)).toEqual(new Set([...retained, 'local-new', 'cloud-new', 'both-new']))
+        expect(result).toHaveLength(retained.length + 3)
+        expect(result.filter(id => baseIds.includes(id))).toEqual(retained)
+        expect(plan.conflicts).toEqual([])
+        expect({ base, local, cloud }).toEqual(before)
+      }
+    }
+  })
+
+  it('QQ的全部三首双端排列组合采用云端旧歌顺序，独立新增始终保留', () => {
+    const base = snapshot(['a', 'b', 'c'])
+    const orders = [['a', 'b', 'c'], ['a', 'c', 'b'], ['b', 'a', 'c'], ['b', 'c', 'a'], ['c', 'a', 'b'], ['c', 'b', 'a']]
+    for (const localOrder of orders) {
+      for (const cloudOrder of orders) {
+        const plan = planPlaylistSyncMerge(base, snapshot(['local-new', ...localOrder]), snapshot([...cloudOrder, 'cloud-new']), false)
+        const result = ids(plan.content)
+        expect(result.filter(id => ['a', 'b', 'c'].includes(id))).toEqual(cloudOrder)
+        expect(new Set(result)).toEqual(new Set(['a', 'b', 'c', 'local-new', 'cloud-new']))
+        expect(result).toHaveLength(5)
+        expect(plan.localChanges.reordered).toBe(false)
+        expect(plan.conflicts).toEqual([])
+      }
+    }
+  })
 })

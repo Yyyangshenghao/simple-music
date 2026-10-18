@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlaylistCard } from './PlaylistCard'
 import type { Playlist } from '../../types/domain'
+
+const h = vi.hoisted(() => ({ count: undefined as number | undefined }))
+vi.mock('../../hooks/useLazyPlaylist', () => ({ getCachedPlaylistTrackCount: () => h.count }))
+beforeEach(() => { h.count = undefined })
 
 const playlist: Playlist = {
   provider: 'apple', source: 'apple', type: 'playlist', id: 'p.favorite', name: '喜爱歌曲',
@@ -9,6 +13,32 @@ const playlist: Playlist = {
 }
 
 describe('PlaylistCard', () => {
+  it('尚未读取详情时标明平台统计，不把摘要当作完整列表数量', () => {
+    const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, provider: 'netease', source: 'netease', trackCount: 864 }} onClick={() => {}} />)
+    expect(html).toContain('平台统计 864 首')
+    expect(html).toContain('打开后按实际读取的歌曲列表计数')
+  })
+
+  it('读取详情后卡片及可访问名称采用列表数量，保留不可播曲目计数', () => {
+    h.count = 870
+    const html = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, trackCount: 864 }} onClick={() => {}} />)
+    expect(html).toContain('870 首')
+    expect(html).toContain('aria-label="歌单：喜爱歌曲，870 首"')
+    expect(html).not.toContain('864 首')
+    expect(html).not.toContain('平台统计')
+  })
+
+  it('已读取的空列表优先于旧摘要，专辑数量不加歌单平台统计文案', () => {
+    h.count = 0
+    const empty = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, trackCount: 9 }} onClick={() => {}} />)
+    expect(empty).toContain('0 首')
+    expect(empty).not.toContain('9 首')
+    h.count = undefined
+    const album = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, type: 'album', trackCount: 12 }} onClick={() => {}} />)
+    expect(album).toContain('12 首')
+    expect(album).not.toContain('平台统计')
+  })
+
   it('曲目数未知时不显示误导性的 0 首，已确认空歌单仍显示 0 首', () => {
     const unknown = renderToStaticMarkup(<PlaylistCard playlist={{ ...playlist, trackCountKnown: false }} onClick={() => {}} />)
     expect(unknown).toContain('查看歌曲')

@@ -1079,15 +1079,17 @@ function qqHasLoginCookie(cookie: string): boolean {
   return !!(qqCookieUin(cookieObj) && qqCookieMusicKey(cookieObj))
 }
 
+function qqPlaylistReportedTotal(data: Record<string, unknown>, detail: Record<string, unknown>): number | undefined {
+  for (const value of [data.total_song_num, data.songlist_size, data.totalNum, detail.total_song_num, detail.songlist_size, detail.totalNum]) {
+    if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') continue
+    const count = Number(value)
+    if (Number.isSafeInteger(count) && count >= 0) return count
+  }
+  return undefined
+}
+
 function qqPlaylistTotal(data: Record<string, unknown>, detail: Record<string, unknown>): number {
-  return numOf(
-    data.total_song_num ||
-    data.songlist_size ||
-    data.totalNum ||
-    detail.total_song_num ||
-    detail.songlist_size ||
-    detail.totalNum
-  )
+  return qqPlaylistReportedTotal(data, detail) ?? 0
 }
 
 function qqPageHasMore(data: Record<string, unknown>, offset: number, rawCount: number, total: number): boolean {
@@ -1314,8 +1316,9 @@ export async function handleQQPlaylistTracks(cookie: string, id: string, current
 
   const tracks: Record<string, unknown>[] = []
   let detail: Record<string, unknown> = {}
-  let total = 0
+  let total: number | undefined
   let offset = 0
+  let complete = false
 
   for (let page = 0; page < QQ_PLAYLIST_MAX_PAGES; page++) {
     if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
@@ -1324,15 +1327,29 @@ export async function handleQQPlaylistTracks(cookie: string, id: string, current
       : await fetchQQDissPage(cookie, ref, offset)
     if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
     if (page === 0) detail = result.detail
-    total = qqPlaylistTotal(result.data, result.detail) || total
+    const pageTotal = qqPlaylistReportedTotal(result.data, result.detail)
+    if (total !== undefined && pageTotal !== undefined && total !== pageTotal) {
+      throw new Error('QQ 歌单已变化，请重新加载')
+    }
+    total = pageTotal ?? total
     const mapped = result.rawTracks
       .map(ref.kind === 'toplist' ? (raw) => mapQQTrack(raw, {}) : mapQQPlaylistTrack)
-      .filter((track) => track.name && track.mid)
+      .filter((track) => track.mid)
+      .map((track) => ({ ...track, name: str(track.name).trim() ? track.name : `歌曲 ID ${track.mid}` }))
     tracks.push(...mapped)
     const rawCount = result.rawTracks.length
-    if (!rawCount || !qqPageHasMore(result.data, offset, rawCount, total)) break
+    const hasMore = qqPageHasMore(result.data, offset, rawCount, total ?? 0)
+    const moreMarker = result.data.hasmore ?? result.data.hasMore
+    if (!rawCount && (moreMarker === true || Number(moreMarker) > 0)) {
+      throw new Error('QQ 歌单歌曲列表不完整，请稍后重试')
+    }
+    if (!rawCount || !hasMore) {
+      complete = true
+      break
+    }
     offset += rawCount
   }
+  if (!complete) throw new Error('QQ 歌单歌曲列表不完整，请稍后重试')
 
   const playlistId = ref.kind === 'liked'
     ? QQ_LIKED_PLAYLIST_ID
@@ -1345,7 +1362,7 @@ export async function handleQQPlaylistTracks(cookie: string, id: string, current
     name: str(detail.title || detail.name || detail.dissname || detail.diss_name)
       || (ref.kind === 'liked' ? '我喜欢的音乐' : ''),
     cover: pickQQPlaylistCover(detail, tracks),
-    trackCount: total || tracks.length,
+    trackCount: Math.max(total ?? 0, tracks.length),
   }
   return {
     loggedIn,

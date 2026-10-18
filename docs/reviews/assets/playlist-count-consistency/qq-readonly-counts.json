@@ -1,0 +1,22 @@
+{
+  "readOnly": true,
+  "originalTargetsWritten": 0,
+  "samples": [
+    {
+      "candidate": 1,
+      "cardSummary": 162,
+      "detailSummary": 162,
+      "returnedReferences": 162,
+      "returnedTracks": 162,
+      "fallbackTitles": 0
+    },
+    {
+      "candidate": 2,
+      "cardSummary": 4,
+      "detailSummary": 4,
+      "returnedReferences": 4,
+      "returnedTracks": 4,
+      "fallbackTitles": 0
+    }
+  ]
+}

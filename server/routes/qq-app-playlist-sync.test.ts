@@ -445,3 +445,54 @@ it('加歌后账号变化立即停止后续写入', async () => {
   expect((await sync({ playlistId: '900' })).body.error).toContain('账号已变化')
   expect(writes().map(block => block.method)).toEqual(['AddSonglist'])
 })
+
+it('播放权限字段不改变完整引用，仍收录的不可播歌曲不会成为删除差集', async () => {
+  remote.songs = [song(3), song(1), song(2, 1)]; remote.info.title = '应用歌单'
+  h.request.mockImplementation(async (cookie, payload) => {
+    const result = await upstream(cookie, payload)
+    if (payload.playlist.method === 'CgiGetDiss') {
+      return envelope({ ...result.playlist.data, songlist: remote.songs.map(track => ({ ...track, action: { switch: 0 }, pay: { pay_play: 1 } })) })
+    }
+    return result
+  })
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).body.tracks).toEqual([
+    { source: 'qq', id: 'mid3', qqId: '3', songType: 0 },
+    { source: 'qq', id: 'mid1', qqId: '1', songType: 0 },
+    { source: 'qq', id: 'mid2', qqId: '2', songType: 1 },
+  ])
+  expect((await sync({ playlistId: '900' })).body).toMatchObject({ status: 'complete', report: { matched: 3, added: 0, removed: 0 } })
+  expect(writes()).toEqual([])
+})
+
+it.each(['total', 'duplicate', 'identity'] as const)('分页中途%s变化时不接受混合快照，不删除歌曲', async kind => {
+  remote.songs = Array.from({ length: 101 }, (_, index) => song(index + 1))
+  h.request.mockImplementation(async (cookie, payload) => {
+    const result = await upstream(cookie, payload)
+    if (payload.playlist.method === 'CgiGetDiss' && payload.playlist.param.song_begin === 100) {
+      const data = result.playlist.data as Record<string, unknown>
+      if (kind === 'total') data.total_song_num = 102
+      if (kind === 'duplicate') data.songlist = [song(1)]
+      if (kind === 'identity') data.songlist = [{ ...song(101), mid: '' }]
+    }
+    return result
+  })
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).status).toBe(502)
+  expect((await sync({ playlistId: '900' })).body.success).toBe(false)
+  expect(writes()).toEqual([])
+  expect(remote.songs).toHaveLength(101)
+})
+
+it('10001首超过单次同步上限时不创建也不读取上游', async () => {
+  const tracks = Array.from({ length: 10001 }, (_, index) => ({ source: 'qq', id: `mid${index + 1}`, qqId: String(index + 1), songType: 0 }))
+  expect((await sync({ tracks })).status).toBe(400)
+  expect(h.request).not.toHaveBeenCalled()
+})
+
+it('恰好10000首可读完第100页且幂等同步，不被页数上限误拒', async () => {
+  remote.songs = Array.from({ length: 10000 }, (_, index) => song(index + 1)); remote.info.title = '应用歌单'
+  const tracks = remote.songs.map(track => ({ source: 'qq', id: track.mid, qqId: String(track.id), songType: track.type }))
+  expect((await sync({ playlistId: '900' }, 'POST', 'snapshot')).body.tracks).toHaveLength(10000)
+  expect((await sync({ playlistId: '900', tracks })).body).toMatchObject({ status: 'complete', report: { requested: 10000, matched: 10000, order: 'unsupported' } })
+  expect(writes()).toEqual([])
+  expect(h.request.mock.calls.some(([, payload]) => payload.playlist.method === 'CgiGetDiss' && payload.playlist.param.song_begin === 9900)).toBe(true)
+})

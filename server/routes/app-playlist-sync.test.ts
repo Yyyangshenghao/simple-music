@@ -331,3 +331,28 @@ it('详情网络错误不能误判删除后新建歌单', async () => {
   expect(h.call).toHaveBeenCalledTimes(1)
   expect(writes()).toEqual([])
 })
+
+it('版权或详情缺项不改变完整引用快照，也不把仍收录的歌曲当作待删除项', async () => {
+  remote.ids = ['3', '1', '2']; remote.name = '应用歌单'
+  h.call.mockImplementation(async (method, args) => method === 'playlist_detail'
+    ? response({ playlist: { ...remote, trackCount: 2, trackIds: remote.ids.map(id => ({ id })),
+      tracks: [{ id: '1', name: '仅返回部分详情' }] }, privileges: [{ id: '3', st: -200 }, { id: '2', fee: 1 }] })
+    : upstream(method, args))
+  const snapshot = await sync({ playlistId: '201' }, 'POST', '/snapshot')
+  expect(snapshot.body.tracks).toEqual(refs(['3', '1', '2']))
+  expect((await sync({ playlistId: '201' })).body).toMatchObject({ status: 'complete', report: { matched: 3, added: 0, removed: 0 } })
+  expect(writes()).toEqual([])
+})
+
+it('10001首超过单次同步上限时在创建与任何上游访问前拒绝', async () => {
+  const tracks = refs(Array.from({ length: 10001 }, (_, index) => String(index + 1)))
+  expect((await sync({ tracks })).status).toBe(400)
+  expect(h.call).not.toHaveBeenCalled()
+})
+
+it('恰好10000首的已关联歌单允许检查及幂等同步', async () => {
+  remote.ids = Array.from({ length: 10000 }, (_, index) => String(index + 1)); remote.name = '应用歌单'
+  expect((await sync({ playlistId: '201' }, 'POST', '/snapshot')).body.tracks).toHaveLength(10000)
+  expect((await sync({ playlistId: '201', tracks: refs(remote.ids) })).body).toMatchObject({ status: 'complete', report: { requested: 10000, matched: 10000 } })
+  expect(writes()).toEqual([])
+})

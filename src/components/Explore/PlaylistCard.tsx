@@ -10,6 +10,7 @@ import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
+import { getCachedPlaylistTrackCount } from '../../hooks/useLazyPlaylist'
 
 interface PlaylistCardProps {
   playlist: Playlist
@@ -25,7 +26,13 @@ interface PlaylistCardProps {
 
 export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId, layoutDependency, selectionMode = false }: PlaylistCardProps) {
   const returning = useNavigationStore((state) => state.lastAction === 'pop')
-  const displayMeta = meta ?? (playlist.trackCountKnown === false ? '查看歌曲' : `${playlist.trackCount} 首`)
+  const cachedCount = meta === undefined ? getCachedPlaylistTrackCount(playlist) : undefined
+  const reported = playlist.source !== 'local' && playlist.type !== 'album'
+  const displayMeta = meta ?? (cachedCount !== undefined ? `${cachedCount} 首`
+    : playlist.trackCountKnown === false ? '查看歌曲' : `${reported ? '平台统计 ' : ''}${playlist.trackCount} 首`)
+  const countTitle = meta !== undefined || playlist.trackCountKnown === false && cachedCount === undefined ? undefined
+    : cachedCount !== undefined ? '以实际读取的歌曲列表计数，包含暂不可播放的歌曲'
+      : reported ? '平台返回的汇总数量，打开后按实际读取的歌曲列表计数' : undefined
   return (
     <TiltCard className={styles.glowWrap} disabled={selectionMode}>
       <BorderGlow borderRadius={16}>
@@ -49,7 +56,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
             <SourceBadge source={playlist.source} className={styles.sourceBadge} />
           </motion.div>
           <p className={styles.name}>{playlist.name}</p>
-          {displayMeta && <p className={styles.meta}>{displayMeta}</p>}
+          {displayMeta && <p className={styles.meta} title={countTitle}>{displayMeta}</p>}
         </button>
       </BorderGlow>
     </TiltCard>

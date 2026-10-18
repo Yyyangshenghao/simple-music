@@ -69,8 +69,8 @@ describe('我的库账号失效提示', () => {
 
     const html = renderToStaticMarkup(<LibraryPage />)
     expect(html).toContain('写入后的收藏')
-    expect(html).toContain('>2 首<')
-    expect(html).not.toContain('>1 首<')
+    expect(html).toContain('>平台统计 2 首<')
+    expect(html).not.toContain('>平台统计 1 首<')
     expect(html).not.toContain('写入前的收藏')
     expect(html).not.toContain('加载中…')
   })

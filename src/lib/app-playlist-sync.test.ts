@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
-const h = vi.hoisted(() => ({ sync: vi.fn(), participating: true, epoch: 0, cache: vi.fn(), read: vi.fn(), details: vi.fn(), snapshots: new Map<string, unknown>() }))
-vi.mock('../providers/registry', () => ({ providerFor: () => ({ playlistWriter: { syncAppPlaylist: h.sync, readAppPlaylistSnapshot: h.read }, catalog: { getTracksByIds: h.details, getPlaylistSkeleton: vi.fn(async () => ({ tracks: [] })) } }) }))
+const h = vi.hoisted(() => ({ sync: vi.fn(), participating: true, epoch: 0, cache: vi.fn(), read: vi.fn(), details: vi.fn(), skeleton: vi.fn(), snapshots: new Map<string, unknown>() }))
+vi.mock('../providers/registry', () => ({ providerFor: () => ({ playlistWriter: { syncAppPlaylist: h.sync, readAppPlaylistSnapshot: h.read }, catalog: { getTracksByIds: h.details, getPlaylistSkeleton: h.skeleton } }) }))
 vi.mock('../stores/providers', () => ({ isProviderParticipating: () => h.participating }))
 vi.mock('./provider-account-session', async original => ({ ...await original<typeof import('./provider-account-session')>(), providerAccountSession: () => h.epoch }))
 vi.mock('./provider-request-cache', () => ({ clearProviderRequestCache: h.cache }))
@@ -33,6 +33,7 @@ beforeEach(() => {
   h.sync.mockReset().mockImplementation(async input => successful(input))
   h.read.mockReset().mockImplementation(async ({ playlistId }) => h.snapshots.get(playlistId))
   h.details.mockReset().mockImplementation(async ids => ids.map((id: string) => song(Number(id))))
+  h.skeleton.mockReset().mockResolvedValue({ tracks: [] })
   h.participating = true; h.epoch = 0; h.cache.mockClear()
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -299,4 +300,97 @@ it('同一歌单推送与拉取互斥，取消只读检查后不返回旧快照'
   const controller = new AbortController()
   h.read.mockImplementationOnce(async () => { controller.abort(); return base })
   await expect(readAppPlaylistSnapshot(id, session, 'netease', controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+})
+
+it.each(['netease', 'qq'] as const)('%s拉取不按可播放状态或详情缺项过滤完整云端引用', async source => {
+  const ref = (n: number) => source === 'qq'
+    ? { source, id: `mid${n}`, qqId: String(n), songType: n === 4 ? 1 : 0 }
+    : { source, id: String(n) }
+  const track = (n: number): Track => ({ ...song(n, source), ...ref(n) })
+  const localId = source === 'netease' ? id : useAppPlaylistsStore.getState().create('QQ歌单', [track(1)])
+  await syncAppPlaylist(localId, session, source)
+  const base = h.snapshots.get('201') as PlaylistSyncSnapshot
+  const cloud = playlistSyncSnapshot(base.name, [...base.tracks, ref(4), ref(5)])
+  h.snapshots.set('201', cloud)
+  const unavailable = { ...track(4), playable: false, name: '当前不可播放的歌曲' }
+  h.details.mockResolvedValueOnce([unavailable])
+  h.skeleton.mockResolvedValueOnce({ tracks: [unavailable] })
+
+  await pullAppPlaylist(localId, session, source, cloud)
+  useAppPlaylistsStore.getState().reload()
+  const item = useAppPlaylistsStore.getState().items.find(item => item.id === localId)!
+  expect(item.tracks.map(track => String(track.id))).toEqual(cloud.tracks.map(track => track.id))
+  expect(item.tracks.find(track => track.id === ref(4).id)).toMatchObject({ ...ref(4), playable: false, name: unavailable.name })
+  expect(item.tracks.find(track => track.id === ref(5).id)).toMatchObject({ ...ref(5), name: `歌曲 ${ref(5).id}` })
+  expect((source === 'qq' ? item.qqSync : item.neteaseSync)?.['7'].base).toEqual(cloud)
+  expect(source === 'qq' ? h.skeleton : h.details).toHaveBeenCalledOnce()
+})
+
+it('最终回读未知时保留旧基准，恢复检查后先接受实际云端成果而不盲目重推', async () => {
+  await syncAppPlaylist(id, session)
+  const base = h.snapshots.get('201') as PlaylistSyncSnapshot
+  useAppPlaylistsStore.getState().addTracks(id, [song(4)])
+  const unknown = playlistSyncResult('201', { name: base.name, tracks: [...base.tracks, { source: 'netease', id: '4' }] }, base, undefined,
+    [{ step: 'read', message: '无法确认最终结果' }], true)
+  h.sync.mockResolvedValueOnce(unknown)
+  await syncAppPlaylist(id, session, 'netease', base)
+  useAppPlaylistsStore.getState().reload()
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7']).toMatchObject({ base, lastReport: { matched: null, added: null, removed: null } })
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7'].syncedContent).toBeUndefined()
+
+  const actual = playlistSyncSnapshot(base.name, [...base.tracks, { source: 'netease', id: '4' }])
+  h.snapshots.set('201', actual)
+  await expect(syncAppPlaylist(id, session, 'netease', actual)).rejects.toThrow('先拉取')
+  expect(h.sync).toHaveBeenCalledTimes(2)
+  await pullAppPlaylist(id, session, 'netease', actual)
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7']).toMatchObject({ base: actual, syncedContent: expect.any(String) })
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7'].lastReport).toBeUndefined()
+})
+
+it.each(['revision', 'duplicate', 'source', 'report'] as const)('拒绝%s损坏回执，不将其写为新同步基准', async invalid => {
+  await syncAppPlaylist(id, session)
+  const base = h.snapshots.get('201') as PlaylistSyncSnapshot
+  const result = structuredClone(playlistSyncResult('201', base, base, base, [], true))
+  if (invalid === 'revision') result.snapshot!.revision = 'bad'
+  if (invalid === 'duplicate') result.snapshot!.tracks.push({ ...result.snapshot!.tracks[0] })
+  if (invalid === 'source') result.snapshot!.tracks[0].source = 'qq'
+  if (invalid === 'report') result.report!.matched = -1
+  h.sync.mockResolvedValueOnce(result)
+  await expect(syncAppPlaylist(id, session, 'netease', base)).rejects.toThrow('结果无效')
+  useAppPlaylistsStore.getState().reload()
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7'].base).toEqual(base)
+  expect(useAppPlaylistsStore.getState().items[0].neteaseSync?.['7'].syncedContent).toBeUndefined()
+})
+
+it('32份在途歌单到上限后拒绝新增，完成后释放容量且不丢失原请求', async () => {
+  const finish: (() => void)[] = []
+  h.sync.mockImplementation(input => new Promise(resolve => { finish.push(() => resolve(successful(input))) }))
+  const localIds = Array.from({ length: 33 }, (_, index) => useAppPlaylistsStore.getState().create(`歌单${index}`, [song(index + 1)]))
+  const running = localIds.slice(0, 32).map(localId => syncAppPlaylist(localId, session))
+  await expect(syncAppPlaylist(localIds[32], session)).rejects.toThrow('正在处理其他歌单')
+  expect(h.sync).toHaveBeenCalledTimes(32)
+  finish.forEach(resolve => resolve())
+  expect((await Promise.all(running)).every(result => result.status === 'complete')).toBe(true)
+  h.sync.mockImplementation(async input => successful(input))
+  await expect(syncAppPlaylist(localIds[32], session)).resolves.toMatchObject({ status: 'complete' })
+})
+
+it.each(['target', 'base', 'disabled'] as const)('补歌曲信息期间%s变化不套用旧合并或覆盖新的关联', async change => {
+  await syncAppPlaylist(id, session)
+  const base = h.snapshots.get('201') as PlaylistSyncSnapshot
+  const cloud = playlistSyncSnapshot('云端名', [...base.tracks, { source: 'netease', id: '4' }])
+  h.snapshots.set('201', cloud)
+  let finish!: (value: Track[]) => void
+  h.details.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  const pulling = pullAppPlaylist(id, session, 'netease', cloud)
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+  const nextBase = playlistSyncSnapshot('新的同步基准', base.tracks)
+  if (change === 'disabled') h.participating = false
+  else useAppPlaylistsStore.getState().recordNeteaseSync(id, '7', { playlistId: change === 'target' ? '202' : '201', base: change === 'base' ? nextBase : base })
+  finish([song(4)])
+  await expect(pulling).rejects.toThrow(change === 'disabled' ? '登录并启用' : '基准已变化')
+  const item = useAppPlaylistsStore.getState().items[0]
+  expect(item.name).toBe('通勤')
+  expect(item.tracks.map(track => String(track.id))).toEqual(['3', '1', '2'])
+  expect(item.neteaseSync?.['7']).toMatchObject({ playlistId: change === 'target' ? '202' : '201', base: change === 'base' ? nextBase : base })
 })

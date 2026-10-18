@@ -23,6 +23,8 @@ interface LazyEntry {
   ts: number
   /** 平台返回的曲目最近更新时间；不可用时仍用有序 trackIds 判变更。 */
   updatedAt: number | null
+  /** 读取列表时卡片所用的摘要；摘要变化后不能继续覆盖成旧列表数量。 */
+  summaryCount?: number
 }
 
 const cache = new Map<string, LazyEntry>()
@@ -76,8 +78,9 @@ function emptyEntry(): LazyEntry {
 }
 
 /** 每日推荐/雷达等已全量在手的场景:直接落缓存,不发任何请求。 */
-function seededEntry(tracks: Track[]): LazyEntry {
+function seededEntry(tracks: Track[], summaryCount: number): LazyEntry {
   const e = emptyEntry()
+  e.summaryCount = summaryCount
   e.trackIds = tracks.map((t) => t.id)
   e.tracks = [...tracks]
   for (let w = 0; w * TRACK_WINDOW < tracks.length; w++) e.loadedWindows.add(w)
@@ -137,7 +140,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
     if (playlist.type === 'album') {
       const tracks = await service.getAlbumTracks(playlist.id)
       if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
-      entry = seededEntry(tracks)
+      entry = seededEntry(tracks, playlist.trackCount)
       cache.set(key, entry)
       touchAndEvict(key)
     } else {
@@ -149,6 +152,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
       entry.skeletonLoaded = true
       entry.ts = Date.now()
       entry.updatedAt = sk.updatedAt ?? null
+      entry.summaryCount = playlist.trackCount
     }
   }
   if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
@@ -160,6 +164,16 @@ export function invalidatePlaylistCache(playlist: Playlist): void {
   const key = playlistCacheKey(playlist)
   cache.delete(key)
   skeletonVersions.delete(key)
+}
+
+/** 卡片复用已读取的列表数量，不为每张卡额外请求详情。 */
+export function getCachedPlaylistTrackCount(playlist: Playlist): number | undefined {
+  const key = playlistCacheKey(playlist)
+  if (!isCurrentPlaylistSession(playlist, key)) return undefined
+  const entry = cache.get(key)
+  return entry?.skeletonLoaded && !entry.error && Date.now() - entry.ts <= CACHE_TTL_MS
+    && (entry.summaryCount === playlist.trackCount || entry.trackIds.length === playlist.trackCount)
+    ? entry.trackIds.length : undefined
 }
 
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
@@ -185,7 +199,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     visitedKeyRef.current = key
   }
   if (!cache.has(key)) {
-    cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
+    cache.set(key, initialTracks?.length ? seededEntry(initialTracks, playlist.trackCount) : emptyEntry())
   } else if (initialTracks?.length) {
     // 每日推荐/雷达等 key 固定但内容会变:按不可变曲目对象及顺序比较,同时感知换歌和资料更新。
     // 对象与顺序未变时复用缓存,即使调用方复制了数组也无需重新播种。
@@ -193,7 +207,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const stale =
       entry.trackIds.length !== initialTracks.length ||
       initialTracks.some((track, index) => entry.tracks[index] !== track)
-    if (stale) cache.set(key, seededEntry(initialTracks))
+    if (stale) cache.set(key, seededEntry(initialTracks, playlist.trackCount))
   }
   touchAndEvict(key)
 
@@ -218,6 +232,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       next.skeletonLoaded = true
       next.ts = Date.now()
       next.updatedAt = sk.updatedAt ?? null
+      next.summaryCount = playlist.trackCount
       cache.set(key, next)
       bump()
     } catch (error) {
@@ -228,7 +243,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       }
       throw error
     }
-  }, [available, key, playlist.id, playlist.type, initialTracks, service])
+  }, [available, key, playlist.id, playlist.type, playlist.trackCount, initialTracks, service])
 
   const checkForUpdates = useCallback(async () => {
     if (!available || playlist.type === 'album' || initialTracks?.length) return
@@ -246,9 +261,10 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     if (timeChanged || idsChanged) await refresh()
     else {
       current.updatedAt = revision.updatedAt ?? current.updatedAt
+      current.summaryCount = playlist.trackCount
       current.ts = Date.now()
     }
-  }, [available, key, playlist.id, playlist.type, initialTracks, refresh, service])
+  }, [available, key, playlist.id, playlist.type, playlist.trackCount, initialTracks, refresh, service])
 
   useEffect(() => {
     sessionRef.current += 1
@@ -266,7 +282,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
         .getAlbumTracks(playlist.id)
         .then((tracks) => {
           if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session) return
-          cache.set(key, seededEntry(tracks))
+          cache.set(key, seededEntry(tracks, playlist.trackCount))
           touchAndEvict(key)
           bump()
         })
