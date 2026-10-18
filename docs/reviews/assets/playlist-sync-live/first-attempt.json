@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-18T03:04:40.476Z",
+  "realAccount": true,
+  "originalTargetsWritten": 0,
+  "platforms": {},
+  "writes": [
+    {
+      "platform": "netease",
+      "operation": "playlist_create",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "netease",
+      "operation": "song_order_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    }
+  ],
+  "checks": {
+    "neteaseOriginalPlaylistCount": 56,
+    "qqOriginalPlaylistCount": 5,
+    "pendingRequestsSettledBeforeCleanup": true,
+    "neteaseOriginalCatalogUnchanged": true,
+    "qqOriginalCatalogUnchanged": true,
+    "qqOriginalSongsAndOrderUnchanged": true,
+    "validationServerClosed": true,
+    "neteaseTestTargetRemoved": true
+  },
+  "pageErrors": [],
+  "cleanupFailures": [
+    {
+      "platform": "netease",
+      "testPlaylistId": "18498617781",
+      "message": "测试网易歌单身份不匹配"
+    }
+  ],
+  "failure": {
+    "stage": "netease-create-and-push",
+    "message": "locator.waitFor: Error: strict mode violation: getByRole('region', { name: /歌单同步/ }).getByText(/应用/) resolved to 4 elements:\n    1) <button type=\"button\" class=\"_primary_1ua50_6\">推送应用更改</button> aka getByRole('button', {"
+  },
+  "cleanupRecovery": {
+    "confirmedCreatedTarget": true,
+    "ownedPrivateOrdinaryVerified": true,
+    "deletedAndReadBackAbsent": true,
+    "reason": "平台改写了测试名称，原清理名称前缀检查未通过；以本轮创建回执、创建时间与归属重新核对"
+  },
+  "operationProbeNotes": "网易写入日志仅采集了外层 body.code===200；playlist_tracks 的第三方包把真实业务码放在 body.body.code，false 不代表拒绝。应用使用 normalizeApiCode 并以最终快照确认结果，platforms/checks 才是验收判据。",
+  "operationProbeShapeCheck": {
+    "offlineOnly": true,
+    "nestedSuccessNormalizesTo200": true,
+    "outerBodyCodeMayBeMissing": true
+  }
+}
