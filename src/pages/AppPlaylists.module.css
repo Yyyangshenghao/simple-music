@@ -1,18 +1,26 @@
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
-.sectionTitle { margin: 0 0 8px; font-size: 20px; color: var(--sm-text-primary); }
+.toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.sectionTitle { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 20px; color: var(--sm-text-primary); }
+.sectionTitle > span { color: var(--sm-text-secondary); font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.intro { min-width: 0; }
+.toolbar > button, .welcome > button { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 8px; min-height: 38px; font-size: 13px; }
 .hint { margin: 6px 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
-.toolbar > button, .buttons button, .buttons summary, .empty button { padding: 8px 16px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; white-space: nowrap; }
+.toolbar > button, .buttons button, .buttons summary, .empty button, .welcome > button { padding: 8px 16px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; white-space: nowrap; }
 .toolbar > button:hover:not(:disabled), .buttons button:hover:not(:disabled), .buttons summary:hover { background: var(--sm-fill-hover); }
-.toolbar .primary, .buttons .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
-.toolbar .primary:hover:not(:disabled), .buttons .primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
+.toolbar .primary, .buttons .primary, .welcome > .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
+.toolbar .primary:hover:not(:disabled), .buttons .primary:hover:not(:disabled), .welcome > .primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
 .toolbar > button:disabled, .buttons button:disabled, .rowActions button:disabled { opacity: 0.35; cursor: default; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 24px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 28px 24px; }
 .card { display: flex; flex-direction: column; gap: 8px; padding: 0; border: none; background: none; text-align: left; color: var(--sm-text-primary); cursor: pointer; min-width: 0; }
 .card strong { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card small { color: var(--sm-text-secondary); font-size: 12px; }
-.cover { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; border: 1px solid var(--sm-border); box-sizing: border-box; border-radius: 18px; background: linear-gradient(150deg, var(--sm-bg-overlay), var(--sm-fill-subtle)); font-size: 64px; font-weight: 300; color: var(--sm-text-muted); transition: border-color 150ms; }
-.card:hover .cover { border-color: var(--sm-border-strong); }
-.cover > span { position: absolute; left: 16px; bottom: 14px; font-size: 12px; letter-spacing: 0.1em; color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; }
+.cover { width: 100%; aspect-ratio: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--sm-shadow); }
+.card:focus-visible, .toolbar > button:focus-visible, .welcome > button:focus-visible, .empty button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 5px; }
+.card:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.welcome { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 56px 20px; text-align: center; }
+.welcome h3 { margin: 4px 0 0; color: var(--sm-text-primary); font-size: 24px; font-weight: 600; }
+.welcome p { max-width: 42ch; margin: 0; color: var(--sm-text-secondary); font-size: 14px; line-height: 1.7; }
+.welcome small { color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
+.supportedSources { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; gap: 8px; text-align: center; color: var(--sm-text-secondary); }
 .empty p { margin: 8px 0; }
 .emptyMark { font-size: 48px; color: var(--sm-text-muted); }

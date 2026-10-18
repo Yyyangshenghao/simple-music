@@ -103,7 +103,7 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 })
 
 export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
-  const [tab, setTab] = useState<SubTab>('playlists')
+  const [tab, setTab] = useState<SubTab>('app-playlists')
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
   const accountSession = contentSource ? providerAccountSession(contentSource) : 0

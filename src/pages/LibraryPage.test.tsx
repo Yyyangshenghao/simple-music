@@ -1,13 +1,24 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '../stores/providers'
+import { useAppPlaylistsStore } from '../stores/app-playlists'
 import { useLikesStore } from '../stores/likes'
 import { useNavigationStore } from '../stores/navigation'
 import { LibraryPage } from './LibraryPage'
 import { clearProviderRequestCache, requestProviderData } from '../lib/provider-request-cache'
 import type { Playlist } from '../types/domain'
 
-const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | null }))
+const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | null, tab: 'playlists' as 'playlists' | 'app-playlists' }))
+// 既有平台用例模拟用户已选“歌单”；默认入口另行断言。
+vi.mock('react', async importOriginal => {
+  const original = await importOriginal<typeof import('react')>()
+  return { ...original, useState: (initial: unknown) => original.useState(initial === 'app-playlists' ? content.tab : initial) }
+})
+vi.mock('../stores/app-playlists', async importOriginal => {
+  const original = await importOriginal<typeof import('../stores/app-playlists')>()
+  const store = original.useAppPlaylistsStore
+  return { ...original, useAppPlaylistsStore: Object.assign((select: (state: ReturnType<typeof store.getState>) => unknown) => select(store.getState()), store) }
+})
 vi.mock('../hooks/useContentProvider', () => ({
   useContentProvider: () => ({ current: content.current, sources: [], select: vi.fn() }),
 }))
@@ -36,12 +47,23 @@ describe('我的库账号失效提示', () => {
     clearProviderRequestCache()
     useLikesStore.setState({ likedByKey: {}, qqMutationRevision: 0 })
     content.current = null
+    content.tab = 'playlists'
+    useAppPlaylistsStore.setState({ items: [], error: '' })
     useNavigationStore.setState({ currentView: 'library', history: [], future: [] })
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'anonymous' },
       qq: { enabled: false, auth: 'expired' },
       apple: { enabled: false, auth: 'anonymous' },
     } })
+  })
+
+  it('首次进入我的库优先展示应用歌单，无平台登录也能新建四源聚合收藏', () => {
+    content.tab = 'app-playlists'
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('建一份跨平台歌单')
+    expect(html).toContain('新建应用歌单')
+    for (const label of ['网易云', 'QQ音乐', 'Apple Music', '本地']) expect(html).toContain(label)
+    expect(html).not.toContain('前往设置重新登录')
   })
 
   it('切回歌单时首帧复用已缓存内容，不显示加载空档', async () => {

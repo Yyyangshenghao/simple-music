@@ -5,7 +5,8 @@ import { usePlaylistStore } from '../stores/playlist'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import { useNavigationStore } from '../stores/navigation'
 import { useToastStore } from '../stores/toast'
-import { sizedImage } from '../lib/image-size'
+import { AppPlaylistCover } from '../components/Playlist/AppPlaylistCover'
+import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
 import { localMusicService } from '../lib/local-music-service'
 import { fetchOfflineStatuses, type OfflineCacheStatus } from '../lib/offline-cache'
 import { appPlaylistPlaybackTracks, appPlaylistTrackState } from '../lib/app-playlist-playback'
@@ -19,8 +20,8 @@ import styles from './AppPlaylists.module.css'
 import libraryStyles from './LibraryPage.module.css'
 import detailStyles from './AppPlaylistPage.module.css'
 
-function DetailIcon({ kind }: { kind: 'back' | 'music' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' }) {
-  const paths = { back: 'm15 18-6-6 6-6', music: 'M9 18V5l12-2v13M9 8l12-2M9 18a3 3 0 1 1-3-3c1.7 0 3 1.3 3 3Zm12-2a3 3 0 1 1-3-3c1.7 0 3 1.3 3 3Z',
+function DetailIcon({ kind }: { kind: 'back' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' }) {
+  const paths = { back: 'm15 18-6-6 6-6',
     play: 'm9 5 11 7-11 7Z', queue: 'M4 6h16M4 12h10M4 18h10m4-3v6m-3-3h6', refresh: 'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2',
     up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6', remove: 'm6 6 12 12M6 18 18 6' }
   return <svg width="16" height="16" viewBox="0 0 24 24" fill={kind === 'play' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>
@@ -74,7 +75,6 @@ export function AppPlaylistPage({ id }: { id: string }) {
   const context = { providers, localTracks, localError, offline }
   const rows = useMemo(() => item?.tracks.map(track => appPlaylistTrackState(track, context)) ?? [], [item?.tracks, providers, localTracks, localError, offline])
   const availableCount = rows.filter(row => row.available).length
-  const covers = [...new Set(rows.map(row => row.track.cover).filter((cover): cover is string => !!cover))].slice(0, 4)
 
   function openEditor(action: 'rename' | 'delete') {
     if (managementRef.current) {
@@ -108,11 +108,9 @@ export function AppPlaylistPage({ id }: { id: string }) {
       <button className={`${detailStyles.back} no-drag`} onClick={() => useNavigationStore.getState().goBack()}><DetailIcon kind="back" />返回</button>
       {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
         <header className={detailStyles.header}>
-          <div className={detailStyles.cover} data-mosaic={covers.length === 4} aria-hidden="true">
-            <span className={detailStyles.coverFallback}><DetailIcon kind="music" /></span>
-            {(covers.length === 4 ? covers : covers.slice(0, 1)).map(cover => <img key={cover} src={sizedImage(cover, 384)} alt="" onError={event => { event.currentTarget.style.visibility = 'hidden' }} />)}
-          </div>
+          <AppPlaylistCover tracks={item.tracks} className={detailStyles.cover} />
           <div className={detailStyles.identity}><h1>{item.name}</h1><p className={detailStyles.meta}><span>应用歌单</span><span>{item.tracks.length} 首歌曲</span><span>当前可播放 {availableCount} 首</span></p>
+            <div className={detailStyles.sources}><AppPlaylistSources tracks={item.tracks} /></div>
             <div className={styles.buttons}>
               <button className={styles.primary} disabled={!availableCount} onClick={() => play()}><DetailIcon kind="play" />播放全部</button>
               <button disabled={!availableCount} onClick={async () => {
@@ -143,12 +141,12 @@ export function AppPlaylistPage({ id }: { id: string }) {
           </div>
         </header>
         <div className={detailStyles.listToolbar}>
-          <div className={detailStyles.listTitle}><h2>歌曲</h2><span>{item.tracks.length}</span><InfoButton label="歌单排序与移除" text="暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的歌单顺序。" align="left" /></div>
+          <div className={detailStyles.listTitle}><h2>歌曲</h2><span>{item.tracks.length}</span><InfoButton label="应用歌单说明" text="可收藏网易云、QQ、Apple Music 和本地歌曲。整理只影响应用歌单，不会修改平台歌单；暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的顺序。" align="left" /></div>
           <button className={detailStyles.refresh} onClick={() => setRefresh(value => value + 1)}><DetailIcon kind="refresh" />刷新状态</button>
         </div>
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
-        {!item.tracks.length ? <div className={styles.empty}><p>歌单还是空的</p><span className={styles.hint}>从在线或本地音乐的更多操作中选择「加入应用歌单」。</span></div>
+        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>从歌曲、专辑或平台歌单的「更多」中选择「加入应用歌单」。</span></div>
           : <div className={detailStyles.trackList}><VirtualList total={rows.length} rowHeight={58} scrollRef={scrollRef} renderRow={index => {
             const row = rows[index]
             const key = appPlaylistTrackKey(row.track)

@@ -13,7 +13,7 @@ vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {
     const index = h.index++
-    if (!(index in h.states)) h.states[index] = initial
+    if (!(index in h.states)) h.states[index] = typeof initial === 'function' ? initial() : initial
     return [h.states[index], (value: unknown) => { h.states[index] = value }]
   },
   useEffect: (effect: () => (() => void) | void) => { h.effects.push(effect) },
@@ -54,6 +54,14 @@ describe('应用歌单完整离线状态快照', () => {
     expect(html).not.toContain('推送')
     expect(html).not.toContain('拉取')
   })
+  it('四源混合收藏在平台全部停用时仍展示所有来源，不把收藏数当作可播放数', () => {
+    h.tracks = (['netease', 'qq', 'apple', 'local'] as const).map(source => ({ source, provider: source, type: 'song', id: '1', name: '同 ID 曲目', artist: '', artists: [] }))
+    const html = render()
+    for (const label of ['网易云', 'QQ音乐', 'Apple Music', '本地']) expect(html).toContain(label)
+    expect(html).toContain('4 首歌曲')
+    expect(html).toContain('当前可播放 0 首')
+  })
+
   it('行查询的旧 pinned 迟到也不能覆盖完整查询的 missing', async () => {
     h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'missing' }])
     render()

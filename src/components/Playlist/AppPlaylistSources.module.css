@@ -1,0 +1,26 @@
+.sources {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  max-width: 100%;
+}
+
+.source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.count {
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compact { gap: 6px 10px; }
+.compact .source { gap: 4px; }
+.compact .count { font-size: 11px; }

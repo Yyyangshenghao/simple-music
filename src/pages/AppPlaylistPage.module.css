@@ -17,20 +17,8 @@
 .back:hover, .refresh:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .page button:focus-visible, .page summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 .header { display: flex; align-items: center; gap: 32px; margin: 24px 0 32px; }
-.cover {
-  position: relative;
-  display: grid;
-  flex: 0 0 176px;
-  height: 176px;
-  overflow: hidden;
-  border-radius: 16px;
-  background: var(--sm-fill-subtle);
-  box-shadow: var(--sm-shadow);
-}
-.cover[data-mosaic='true'] { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
-.coverFallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sm-text-muted); }
-.coverFallback svg { width: 56px; height: 56px; stroke-width: 1.2; }
-.cover img { position: relative; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+.cover { flex: 0 0 176px; width: 176px; height: 176px; border-radius: 16px; overflow: hidden; box-shadow: var(--sm-shadow); }
+.sources { margin-top: 14px; }
 .identity { flex: 1; min-width: 0; }
 .identity h1 { margin: 0 0 12px; font-size: clamp(26px, 3.2vw, 40px); line-height: 1.25; letter-spacing: -0.025em; overflow-wrap: anywhere; text-wrap: balance; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }

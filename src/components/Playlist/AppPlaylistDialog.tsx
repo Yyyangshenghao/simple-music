@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAppPlaylistsStore } from '../../stores/app-playlists'
 import { useToastStore } from '../../stores/toast'
+import { appPlaylistSources } from '../../lib/app-playlist-presentation'
+import { SOURCE_BRAND } from '../../lib/source-brand'
+import { AppPlaylistSources } from './AppPlaylistSources'
 import type { Track } from '../../types/domain'
 import styles from './AppPlaylistDialog.module.css'
 
@@ -69,12 +72,12 @@ export function AddToAppPlaylistDialog({ loadTracks, onClose, onDone }: { loadTr
   }
 
   return <AppPlaylistModal title="加入应用歌单" onClose={close}>
-    <p className={styles.hint}>在 Simple Music 中整理来自不同平台和本地的歌曲。</p>
+    <p className={styles.hint}>不同平台的歌曲可以收进同一份歌单，仅保存在应用内。</p>
     {archiveError ? <div role="alert"><p className={styles.error}>{archiveError}</p><button onClick={() => useAppPlaylistsStore.getState().reload()}>重试读取</button></div>
       : <>
         <div className={styles.list} aria-label="选择应用歌单">
-          {items.length ? items.map(item => <button key={item.id} type="button" disabled={busy} onClick={() => void save(item.id)} aria-label={`加入 ${item.name}`}>
-            <span>{item.name}</span><small>{item.tracks.length} 首</small><span aria-hidden="true">＋</span>
+          {items.length ? items.map(item => <button key={item.id} type="button" disabled={busy} onClick={() => void save(item.id)} aria-label={`加入 ${item.name}，${item.tracks.length} 首${item.tracks.length ? `，${appPlaylistSources(item.tracks).map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')}` : ''}`}>
+            <span className={styles.targetInfo}><strong title={item.name}>{item.name}</strong><span><small>{item.tracks.length} 首</small><AppPlaylistSources tracks={item.tracks} compact /></span></span><span aria-hidden="true">＋</span>
           </button>) : <p className={styles.hint}>还没有应用歌单，在下面新建一个。</p>}
         </div>
         <form className={styles.form} onSubmit={event => { event.preventDefault(); void save() }}>

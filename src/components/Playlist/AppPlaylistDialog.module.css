@@ -29,3 +29,8 @@
 .list button > span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list small { color: var(--sm-text-secondary); }
 .error { color: var(--sm-color-danger); font-size: 13px; line-height: 1.5; }
+
+.targetInfo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.targetInfo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.targetInfo > span { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.list .targetInfo { overflow: visible; white-space: normal; }

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddToAppPlaylistDialog } from './AppPlaylistDialog'
 import type { Track } from '../../types/domain'
 
-const h = vi.hoisted(() => ({ cleanups: [] as Array<() => void>, add: vi.fn(), create: vi.fn(), toast: vi.fn(), archiveError: '' }))
+const h = vi.hoisted(() => ({ cleanups: [] as Array<() => void>, add: vi.fn(), create: vi.fn(), toast: vi.fn(), archiveError: '', targetTracks: [] as Track[] }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (value: unknown) => [value, vi.fn()],
@@ -12,7 +12,7 @@ vi.mock('react', async importOriginal => ({
   useEffect: (effect: () => (() => void) | void) => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) },
 }))
 vi.mock('../../stores/app-playlists', () => ({ useAppPlaylistsStore: Object.assign(
-  (selector: (state: unknown) => unknown) => selector({ items: [{ id: 'target', name: '通勤', tracks: [] }], error: h.archiveError }),
+  (selector: (state: unknown) => unknown) => selector({ items: [{ id: 'target', name: '通勤', tracks: h.targetTracks }], error: h.archiveError }),
   { getState: () => ({ addTracks: h.add, create: h.create }) },
 ) }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
@@ -26,8 +26,16 @@ function buttons(node: ReactNode): Array<ReactElement<{ children?: ReactNode; di
 }
 
 describe('选择应用歌单后的异步保存', () => {
-  beforeEach(() => { vi.clearAllMocks(); h.archiveError = ''; h.add.mockReturnValue(1) })
+  beforeEach(() => { vi.clearAllMocks(); h.archiveError = ''; h.targetTracks = []; h.add.mockReturnValue(1) })
   afterEach(() => { h.cleanups.splice(0).forEach(cleanup => cleanup()) })
+
+  it('目标的读屏名称包含四源构成与数量，不被单独的操作名称覆盖', () => {
+    h.targetTracks = (['netease', 'qq', 'apple', 'local'] as const).map(source => ({ ...track, source, provider: source, id: '1' }))
+    const tree = AddToAppPlaylistDialog({ loadTracks: async () => [], onClose: vi.fn() })
+    const target = buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!
+    const label = (target.props as unknown as { 'aria-label': string })['aria-label']
+    for (const text of ['4 首', '网易云 1 首', 'QQ音乐 1 首', 'Apple Music 1 首', '本地 1 首']) expect(label).toContain(text)
+  })
 
   it('选择目标后保存同一批曲目，并在落盘成功后通知完成', async () => {
     const loadTracks = vi.fn(async () => [track])

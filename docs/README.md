@@ -15,6 +15,7 @@
 | 2.3.4 整体代码审查与按优先级修复 | [2.3.4 审查记录](reviews/2.3.4-code-review.md) |
 | 发行说明与开发中的更新内容 | [2.3.0](release-notes-2.3.0.md)、[2.3.1](release-notes-2.3.1.md)、[2.3.2](release-notes-2.3.2.md)、[2.3.3](release-notes-2.3.3.md)、[2.3.4 开发中](release-notes-2.3.4.md) |
 | 2.4.0 应用聚合与平台歌单管理的当前边界 | [歌单职责收敛](specs/2026-10-18-playlist-boundaries.md) |
+| 2.4.0 应用歌单四源展示、真实本地播放与页面截图 | [应用歌单验收](reviews/2.4.0-app-playlist-launch.md) |
 | 2.4.0 网易云、QQ 收听上报与官方统计验证边界 | [听歌记录需求](specs/2026-10-12-listening-records-2.4.0.md) |
 | 2.4.0 当前架构核对与分阶段重构范围 | [架构梳理与重构范围](specs/2026-10-12-simple-music-2.4.0-refactor-scope.md) |
 | 2.4.0 现有界面精修、前后截图和验收范围 | [界面调整对照](reviews/2.4.0-ui-refinement.md) |

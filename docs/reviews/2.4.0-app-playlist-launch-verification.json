@@ -1,0 +1,31 @@
+{
+  "results": [
+    "默认入口无登录可见，创建落盘后直接进入空歌单",
+    {
+      "realLocalPlayback": {
+        "source": "local",
+        "status": "playing",
+        "position": 0.216145,
+        "queue": [
+          "local"
+        ],
+        "saved": 6
+      },
+      "volume": 0
+    },
+    "移动真实本地文件后播放禁用，四源6首收藏完整保留",
+    "四源全部可用时播放命令保留来源与原始顺序（命令接缝，不调用云端播放）",
+    "键盘排序、移除、改名及重新读取存档后保持结果",
+    "真实更多菜单加入已有四源目标，读屏名称包含每来源数量",
+    "模拟存储空间不足后弹窗保留输入、显示错误且未创建歌单；取消可关闭",
+    "最小960×540窗口可以滚动到最后一首，曲目不被底栏遮挡"
+  ],
+  "unexpectedPlatformWrites": [],
+  "pageErrors": [],
+  "limitations": [
+    "Cloud playback command tested at dispatch seam only; actual cloud audio/Apple DRM not tested",
+    "Real local file played muted through Electron host",
+    "No real cloud playlist writes",
+    "No Windows verification"
+  ]
+}
