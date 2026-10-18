@@ -24,6 +24,9 @@ export const iconSwap: Transition = { duration: 0.1, ease: 'easeOut' }
 /** 桌面双行歌词顺序换句：整行向上滚动，使用浏览器原生动画。 */
 export const desktopLyricsScrollTiming: KeyframeAnimationOptions = { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
 
+/** 横排松手停靠：有限惯性后平顺减速，避免弹回。 */
+export const railSettleTiming = { duration: 320, ease: (progress: number) => 1 - Math.pow(1 - progress, 4) }
+
 /** 入场：淡入上移（配 initial="hidden" animate="visible"）。 */
 export const fadeRise: Variants = {
   hidden: { opacity: 0, y: 14 },

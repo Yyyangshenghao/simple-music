@@ -84,12 +84,13 @@ describe('HorizontalCardRail interaction', () => {
     expect(viewport.scrollLeft).toBe(0)
   })
 
-  it('横排保留键盘焦点，滚动操作不再使用独立滑块或翻页按钮', () => {
+  it('初始未溢出时保留键盘入口且不显示导航', () => {
     const html = renderToStaticMarkup(createElement(HorizontalCardRail, { label: '你的歌单', children: '测试内容' }))
     expect(html).toContain('tabindex="0"')
     expect(html).toContain('data-arrow-navigation="true"')
     expect(html).toContain('aria-label="你的歌单"')
     expect(html).not.toContain('<button')
+    expect(html).not.toContain('role="slider"')
     expect(html).not.toContain('<input')
     expect(html).not.toContain('上一页')
     expect(html).not.toContain('下一页')
