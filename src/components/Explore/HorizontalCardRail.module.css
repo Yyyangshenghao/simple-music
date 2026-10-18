@@ -24,39 +24,73 @@
 .fadeLeft { --rail-fade-left: 24px; }
 .fadeRight { --rail-fade-right: 24px; }
 
-.viewport:focus-visible, .dragHandle:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -2px; }
+.viewport:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -2px; }
 
-.dragHandle {
+.scrollControl {
+  --rail-control-width: clamp(180px, 24vw, 240px);
+  --rail-thumb-width: clamp(44px, calc(var(--rail-visible-ratio) * var(--rail-control-width)), calc(var(--rail-control-width) - 32px));
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  bottom: 8px;
   transform: translateX(-50%);
-  width: min(180px, 50%);
-  height: 24px;
+  display: block;
+  width: var(--rail-control-width);
+  height: 40px;
+  border-radius: var(--sm-radius-pill);
+  transition: background 160ms var(--sm-ease-out);
+}
+.scrollControl:hover { background: var(--sm-fill-subtle); }
+.scrollControl:has(.dragHandle:focus-visible) {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 2px;
+  background: var(--sm-fill-subtle);
+}
+.dragHandle {
+  display: block;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
+  border: 0;
+  border-radius: inherit;
   appearance: none;
   background: transparent;
   cursor: grab;
   touch-action: none;
 }
+.dragHandle:focus-visible { outline: none; }
 .dragHandle::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 6px;
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-border);
+  background: var(--sm-scrollbar-thumb);
+  transition: background 160ms var(--sm-ease-out);
 }
 .dragHandle::-webkit-slider-thumb {
   appearance: none;
-  width: 36px;
-  height: 20px;
-  margin-top: -8px;
-  border: 1px solid var(--sm-border-strong);
+  width: var(--rail-thumb-width);
+  height: 16px;
+  margin-top: -5px;
+  border: 0;
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-overlay);
-  box-shadow: inset 0 1px 0 var(--glass-border-card), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 30%, transparent);
-  transition: background 150ms, transform 150ms var(--sm-ease-out);
+  background: color-mix(in srgb, var(--sm-accent) 75%, var(--sm-bg-base));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
+  transition: background 160ms var(--sm-ease-out), transform 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out);
 }
-.dragHandle:hover::-webkit-slider-thumb { background: var(--sm-bg-elevated); }
+.dragHandle:hover::-webkit-slider-runnable-track { background: var(--sm-scrollbar-thumb-hover); }
+.dragHandle:hover::-webkit-slider-thumb { background: var(--sm-accent); transform: scaleY(1.12); }
 .dragHandle:active { cursor: grabbing; }
-.dragHandle:active::-webkit-slider-thumb { transform: scaleX(1.1); }
-@media (prefers-reduced-motion: reduce) { .dragHandle::-webkit-slider-thumb { transition: none; } }
+.dragHandle:active::-webkit-slider-thumb { background: var(--sm-accent); transform: scaleY(1.25); box-shadow: 0 1px 3px color-mix(in srgb, var(--sm-bg-base) 20%, transparent); }
+.grip {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--rail-thumb-width) / 2 + (100% - var(--rail-thumb-width)) * var(--rail-progress));
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  color: var(--sm-text-on-accent);
+  opacity: 0.72;
+  transition: opacity 160ms var(--sm-ease-out);
+}
+.scrollControl:hover .grip, .scrollControl:has(.dragHandle:active) .grip { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .scrollControl, .grip, .dragHandle::-webkit-slider-thumb, .dragHandle::-webkit-slider-runnable-track { transition: none; }
+}

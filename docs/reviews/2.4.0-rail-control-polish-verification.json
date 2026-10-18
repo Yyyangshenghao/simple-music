@@ -1,0 +1,97 @@
+{
+  "results": [
+    {
+      "keyboardStart": {
+        "width": 240,
+        "height": 40,
+        "progress": 0,
+        "ratio": 0.40654205607476634,
+        "gripCenter": 48.78125,
+        "left": 0,
+        "maximum": 1524,
+        "focus": true,
+        "active": false
+      }
+    },
+    {
+      "keyboardEnd": {
+        "width": 240,
+        "height": 40,
+        "progress": 1,
+        "ratio": 0.40654205607476634,
+        "gripCenter": 191.2109375,
+        "left": 1524,
+        "maximum": 1524,
+        "focus": true,
+        "active": false
+      }
+    },
+    {
+      "mouseDrag": {
+        "width": 240,
+        "height": 40,
+        "progress": 0.6679999999999999,
+        "ratio": 0.40654205607476634,
+        "gripCenter": 143.921875,
+        "left": 1018,
+        "maximum": 1524,
+        "focus": false,
+        "active": true
+      }
+    },
+    "拖出热区后松手停在末端，按下状态正确释放",
+    {
+      "trackClick": {
+        "width": 240,
+        "height": 40,
+        "progress": 0.5,
+        "ratio": 0.40654205607476634,
+        "gripCenter": 120,
+        "left": 762,
+        "maximum": 1524,
+        "focus": false,
+        "active": false
+      }
+    },
+    {
+      "verticalWheel": {
+        "before": {
+          "x": 762,
+          "y": 2432.5
+        },
+        "after": {
+          "x": 762,
+          "y": 2562.5
+        }
+      }
+    },
+    "横向手势仍原生横移",
+    {
+      "minimumViewport": {
+        "width": 230.3984375,
+        "height": 40,
+        "progress": 0.9990000000000001,
+        "ratio": 0.4024713150926743,
+        "gripCenter": 183.9296875,
+        "left": 1353,
+        "maximum": 1354,
+        "focus": true,
+        "active": false
+      }
+    },
+    "减少动态效果时移除控件过渡",
+    {
+      "fewerItemsLongerThumb": {
+        "thumbWidth": 188.671875,
+        "ratio": 0.786144578313253,
+        "width": 240
+      }
+    },
+    "较短的个人专辑列表共用比例滑块与键盘末端行为"
+  ],
+  "pageErrors": [],
+  "limitations": [
+    "macOS Electron with fixture playlist/cache data",
+    "No Windows or physical touch-device validation"
+  ]
+}
