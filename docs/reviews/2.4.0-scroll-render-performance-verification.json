@@ -1,0 +1,229 @@
+{
+  "baseCommit": "899fd07",
+  "environment": {
+    "platform": "macOS",
+    "gpu": "Apple M5 / ANGLE Metal",
+    "mode": "npm run dev",
+    "isolatedUserData": true,
+    "listViewport": [
+      1536,
+      864
+    ],
+    "devicePixelRatio": 2,
+    "tracks": 5000,
+    "covers": false,
+    "scrollFrames": 240,
+    "cpuProfilerEnabled": true
+  },
+  "listBefore": [
+    {
+      "cpuThrottle": 1,
+      "mean": 5.882008368200849,
+      "p95": 6.30000000000291,
+      "over25": 0,
+      "over50": 0,
+      "rows": 33,
+      "scrollTop": 610
+    },
+    {
+      "cpuThrottle": 4,
+      "mean": 12.823012552301243,
+      "p95": 17.90000000000873,
+      "over25": 1,
+      "over50": 0,
+      "rows": 33,
+      "scrollTop": 610
+    }
+  ],
+  "listAfter": [
+    {
+      "cpuThrottle": 1,
+      "mean": 5.884937238493724,
+      "p95": 6.5,
+      "over25": 0,
+      "over50": 0,
+      "rows": 33,
+      "scrollTop": 610
+    },
+    {
+      "cpuThrottle": 4,
+      "mean": 6.546443514644254,
+      "p95": 11.89999999999418,
+      "over25": 0,
+      "over50": 0,
+      "rows": 33,
+      "scrollTop": 610
+    }
+  ],
+  "regression": {
+    "unchangedRowRendersBefore": 11,
+    "unchangedRowRendersAfter": 0,
+    "scrollContext": true,
+    "externalStore": true,
+    "parentTextAndCallback": true,
+    "lastRowReachable": true,
+    "shortListAndRowHeight": true
+  },
+  "ui": {
+    "searchQueueIndex": 4999,
+    "selection": true,
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "viewports": [
+      [
+        1280,
+        800
+      ],
+      [
+        960,
+        600
+      ]
+    ],
+    "queueSize": 5000,
+    "queueCurrentVisible": true,
+    "pageErrors": []
+  },
+  "globalSettingsScroll": [
+    {
+      "rate": 1,
+      "flags": {
+        "bgFluidMotion": true,
+        "reduceTransparency": false
+      },
+      "elapsed": 2.625902208,
+      "frames": {
+        "mean": 5.895730337078665,
+        "p95": 6.19999999999709,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 3.380704724248433,
+        "renderer": 29.84612289110809,
+        "GPU": 40.27339619800493,
+        "network.mojom.NetworkService": 0.08122922451192595,
+        "tracing.mojom.TracingService": 0
+      }
+    },
+    {
+      "rate": 1,
+      "flags": {
+        "bgFluidMotion": false,
+        "reduceTransparency": false
+      },
+      "elapsed": 2.604970125000001,
+      "frames": {
+        "mean": 5.882167042889397,
+        "p95": 6.5,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 3.643458291100352,
+        "renderer": 26.2989196469192,
+        "GPU": 34.517631944051566,
+        "network.mojom.NetworkService": 0.13489598081283238,
+        "tracing.mojom.TracingService": 0.002149736746021242
+      }
+    },
+    {
+      "rate": 1,
+      "flags": {
+        "bgFluidMotion": false,
+        "reduceTransparency": true
+      },
+      "elapsed": 2.6054361669999997,
+      "frames": {
+        "mean": 5.883936651583704,
+        "p95": 6.5,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 3.4274491592255436,
+        "renderer": 28.285398404082255,
+        "GPU": 23.99644281901148,
+        "network.mojom.NetworkService": 0.08436207449023385,
+        "tracing.mojom.TracingService": 0.0023412586641957727
+      }
+    },
+    {
+      "rate": 4,
+      "flags": {
+        "bgFluidMotion": true,
+        "reduceTransparency": false
+      },
+      "elapsed": 2.461896667000001,
+      "frames": {
+        "mean": 6.056403940886685,
+        "p95": 6.599999999991269,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 2.0260395437628564,
+        "renderer": 92.12100696182465,
+        "GPU": 19.609596392536158,
+        "network.mojom.NetworkService": 0.05223614854506031,
+        "tracing.mojom.TracingService": 0.0011373344939826526
+      }
+    },
+    {
+      "rate": 4,
+      "flags": {
+        "bgFluidMotion": false,
+        "reduceTransparency": false
+      },
+      "elapsed": 2.4496909590000016,
+      "frames": {
+        "mean": 5.939659367396587,
+        "p95": 6.5,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 1.9095061696718942,
+        "renderer": 89.7426261840565,
+        "GPU": 15.48856595996441,
+        "network.mojom.NetworkService": 0.04465869443575143,
+        "tracing.mojom.TracingService": 0
+      }
+    },
+    {
+      "rate": 4,
+      "flags": {
+        "bgFluidMotion": false,
+        "reduceTransparency": true
+      },
+      "elapsed": 2.4322111659999974,
+      "frames": {
+        "mean": 5.91216545012164,
+        "p95": 6.5,
+        "over25": 0,
+        "over50": 0
+      },
+      "cpu": {
+        "browser": 2.008748281521575,
+        "renderer": 89.41682492053825,
+        "GPU": 11.140932324788105,
+        "network.mojom.NetworkService": 0.052750353996192635,
+        "tracing.mojom.TracingService": 0.0016034791939612077
+      }
+    }
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "testFiles": 276,
+    "tests": 2595,
+    "independentReview": "passed"
+  },
+  "limitations": [
+    "Synthetic tracks without network/audio/image decoding",
+    "CPU throttling does not emulate a slower GPU",
+    "No broad-page frame drops reproduced on this machine",
+    "GPU process CPU percentage is not GPU hardware utilization",
+    "No Windows or real account/playback verification"
+  ]
+}

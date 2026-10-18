@@ -2,7 +2,7 @@
 // 可直接拖到任意位置;只渲染可视区 ± overscan 的行,行绝对定位。
 // 滚动容器由外部传入(详情页是整页滚动),内部用 rAF 节流计算可视区间。
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { virtualRange } from '../../lib/lazy-window'
 import { ListScrollActivity, observeListScrollActivity } from './list-scroll-activity'
 
@@ -14,6 +14,19 @@ interface VirtualListProps {
   onRangeChange?(start: number, end: number): void
   renderRow(index: number): ReactNode
 }
+
+// 滚动只改变可见区间；已有行沿用内容，父级更换数据或回调时仍正常更新。
+const VirtualRow = memo(function VirtualRow({ index, rowHeight, renderRow }: {
+  index: number
+  rowHeight: number
+  renderRow: VirtualListProps['renderRow']
+}) {
+  return (
+    <div style={{ position: 'absolute', top: index * rowHeight, left: 0, right: 0, height: rowHeight }}>
+      {renderRow(index)}
+    </div>
+  )
+})
 
 export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRangeChange, renderRow }: VirtualListProps) {
   const innerRef = useRef<HTMLDivElement>(null)
@@ -66,9 +79,7 @@ export function VirtualList({ total, rowHeight, scrollRef, overscan = 10, onRang
   const rows: ReactNode[] = []
   for (let i = range.start; i < Math.min(range.end, total); i++) {
     rows.push(
-      <div key={i} style={{ position: 'absolute', top: i * rowHeight, left: 0, right: 0, height: rowHeight }}>
-        {renderRow(i)}
-      </div>
+      <VirtualRow key={i} index={i} rowHeight={rowHeight} renderRow={renderRow} />
     )
   }
   return (
