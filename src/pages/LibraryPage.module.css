@@ -60,7 +60,7 @@
 }
 
 /* 浮起的透镜：比轨道更高，盖在标签之上。透镜范围内原标签被挖空（见 .subTabs > .subTab 的 mask），
-   内部是清晰放大并染成选中色的副本，像凸透镜；只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
+   内部是清晰放大、以选中态文字色显示的副本，像凸透镜；只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
 .tabLens {
   z-index: 2;
   overflow: hidden;
@@ -106,7 +106,7 @@
   mask-composite: intersect;
 }
 
-/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大，统一染成选中色。 */
+/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大，统一用选中态文字色。 */
 .tabLensCopy {
   position: absolute;
   top: -3px;
@@ -116,7 +116,7 @@
   padding: 3px;
 }
 .tabLensCopy .subTab,
-.tabLensCopy .subTab .subTabIcon { color: var(--sm-tint-selected); opacity: 1; }
+.tabLensCopy .subTab .subTabIcon { color: var(--sm-text-primary); opacity: 1; }
 
 /* 透镜浮起时把真实标签在透镜范围内挖空，避免与放大副本叠成重影；椭圆内切于透镜，四角留给模糊边。 */
 .subTabs > .subTab {
@@ -150,7 +150,10 @@
 .subTabActive .subTabIcon { opacity: 1; }
 
 .subTab:hover { color: var(--sm-text-primary); }
-.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-tint-selected); }
+.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
+/* 按住拖动时选中态交给透镜，原选中项退回普通色。 */
+.subTabs[data-holding='true'] > .subTabActive { color: var(--sm-text-secondary); }
+.subTabs[data-holding='true'] > .subTabActive .subTabIcon { opacity: 0.85; }
 
 .providerSections { display: flex; flex-direction: column; gap: 30px; }
 

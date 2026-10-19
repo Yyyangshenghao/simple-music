@@ -49,8 +49,6 @@
   --sm-color-danger:   #ff8b8b;
   --sm-color-gold:     #f4d28a;
   --sm-color-like:     #ff6b81;
-  /* 分段控件选中色（参照 Apple Music 红），深浅主题通用 */
-  --sm-tint-selected:  #fa2d48;
 
   /* Glass 层级 */
   --glass-blur-base:   blur(12px);

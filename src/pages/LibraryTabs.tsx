@@ -13,7 +13,7 @@ const HOLD_LIFT_MS = 140
 
 /**
  * 流体玻璃分段控件（参照 Apple Music）：指示器按速度横向拉伸、落位过冲回弹；
- * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，换成清晰放大、染选中色的副本，只有边缘轻微模糊。
+ * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，换成清晰放大的副本，只有边缘轻微模糊。
  */
 export function LibraryTabs<T extends string>({ items, value, onChange }: {
   items: TabItem<T>[]
@@ -29,6 +29,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const lastValue = useRef(value)
   const [ready, setReady] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [holding, setHolding] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
   const reducedMotion = useReducedMotion()
 
@@ -43,7 +44,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const stretch = useTransform(velocity, v => reducedMotion ? 0 : Math.min(Math.abs(v) / 2600, 0.3))
   const scaleX = useTransform(() => 1 + stretch.get() + lift.get() * 0.3)
   const scaleY = useTransform(() => 1 - stretch.get() * 0.4 + lift.get() * 0.42)
-  const pillOpacity = useTransform(lift, l => 1 - l * 0.8)
+  const pillOpacity = useTransform(lift, l => 1 - l)
   const lensCopyX = useTransform(x, v => -v)
   // 透镜外形会被拉伸，副本反向缩放抵消，保证透镜内文字始终等比放大。
   const magnify = useTransform(lift, l => 1 + l * 0.08)
@@ -63,7 +64,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     place(button.offsetLeft, button.offsetWidth, !measured.current)
     if (!measured.current) { measured.current = true; setReady(true) }
   }
-  function setLifted(on: boolean) {
+  function setLifted(on: boolean, byPress = false) {
+    setHolding(on && byPress)
     liftTarget.set(on && !reducedMotion ? 1 : 0)
     if (reducedMotion) lift.jump(0)
   }
@@ -159,6 +161,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     data-arrow-navigation
     data-ready={ready}
     data-dragging={dragging}
+    data-holding={holding}
     data-overflowing={overflowing}
     onPointerDown={event => {
       if (event.button !== 0) return
@@ -168,14 +171,14 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       event.currentTarget.setPointerCapture(event.pointerId)
       window.clearTimeout(transitTimer.current)
       // 按在当前项上立即浮起，按在其他项上稍等片刻，避免普通点击闪一下透镜。
-      if (index === activeIndex) setLifted(true)
-      else holdTimer.current = window.setTimeout(() => { if (gesture.current) setLifted(true) }, HOLD_LIFT_MS)
+      if (index === activeIndex) setLifted(true, true)
+      else holdTimer.current = window.setTimeout(() => { if (gesture.current) setLifted(true, true) }, HOLD_LIFT_MS)
     }}
     onPointerMove={event => {
       const current = gesture.current
       if (!current || current.pointer !== event.pointerId) return
       if (!current.moved && Math.abs(event.clientX - current.start) < 6) return
-      if (!current.moved) { current.moved = true; setDragging(true); setLifted(true) }
+      if (!current.moved) { current.moved = true; setDragging(true); setLifted(true, true) }
       current.index = follow(event.clientX)
       if (overflowing) buttons()[current.index]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     }}
