@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TiltCard } from './TiltCard'
 import { PlayerGlass } from '../Player/PlayerGlass'
+import { BorderGlow } from '../BorderGlow/BorderGlow'
 
 const state = vi.hoisted(() => ({
   reduced: false,
@@ -49,6 +50,16 @@ describe('装饰动效的实际开关', () => {
     state.reduced = true
     expect(render()).not.toContain('spotlight')
     expect(state.performance.cardTiltEffect).toBe(true)
+  })
+
+  it('边缘跟手辉光随光斑开关与系统减少动态关闭', () => {
+    const render = () => renderToStaticMarkup(<BorderGlow>歌单</BorderGlow>)
+    expect(render()).not.toContain('data-glow-off')
+    state.performance.cardSpotlightEffect = false
+    expect(render()).toContain('data-glow-off')
+    state.performance.cardSpotlightEffect = true
+    state.reduced = true
+    expect(render()).toContain('data-glow-off')
   })
 
   it('减少动态、节能与隐藏播放栏均停止辉光，不改动用户偏好', () => {

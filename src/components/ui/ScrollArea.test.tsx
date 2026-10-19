@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ScrollArea } from './ScrollArea'
-import { CARD_POINTER_RESUME_MS, LIST_SCROLL_IDLE_MS } from './list-scroll-activity'
+import { LIST_SCROLL_IDLE_MS } from './list-scroll-activity'
 
 const h = vi.hoisted(() => ({ change: vi.fn(), cleanups: [] as Array<() => void> }))
 vi.mock('react', async original => ({
@@ -28,7 +28,7 @@ it('主动启用后在滚轮开始时暂停，停止后移动指针才恢复，�
   viewport.dispatchEvent(new Event('wheel'))
   viewport.dispatchEvent(new Event('scroll'))
   expect(h.change.mock.calls).toEqual([[true]])
-  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS + CARD_POINTER_RESUME_MS)
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
   expect(h.change.mock.calls).toEqual([[true]])
   viewport.dispatchEvent(new Event('pointermove'))
   expect(h.change.mock.calls).toEqual([[true], [false]])
