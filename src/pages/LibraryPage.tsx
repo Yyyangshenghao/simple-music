@@ -32,6 +32,7 @@ import { supportsPlatformPlaylists } from '../lib/platform-playlists'
 import { usePlatformPlaylistsStore } from '../stores/platform-playlists'
 import { PlatformPlaylistNameDialog } from '../components/Playlist/PlatformPlaylistDialog'
 import { LibraryTabs } from './LibraryTabs'
+import { LIBRARY_TAB_ICONS } from './LibraryTabIcons'
 import { useProgressiveCount } from '../hooks/useProgressiveCount'
 import { motion } from 'motion/react'
 import { pageTransition } from '../lib/motion-presets'
@@ -151,6 +152,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
           onChange={selectTab}
           items={(['app-playlists', 'playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map(value => ({
             value,
+            icon: LIBRARY_TAB_ICONS[value],
             label: { 'app-playlists': '应用歌单', playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[value],
           }))}
         />

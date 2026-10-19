@@ -38,3 +38,9 @@ export const albumCoverTransition: Transition = { type: 'spring', stiffness: 170
 
 /** 返回列表时封面快速收回，避免弹簧收尾拖慢返回反馈。 */
 export const coverReturnTransition: Transition = { type: 'tween', duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+
+/** 流体玻璃分段指示器：低阻尼带少量过冲，落位时像液滴撞停后回弹。 */
+export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
+
+/** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
+export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
