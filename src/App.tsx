@@ -41,9 +41,10 @@ export default function App() {
   const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
-  // 纯歌词页自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
+  // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
   // 收起时在同一次提交里重新挂载，歌词页才能量到它的封面位置把封面飞回来。
-  const lyricsCoversDock = lyricsOpen && lyricsMode === 'lyrics'
+  const lyricsPlayerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
+  const lyricsCoversDock = lyricsOpen && lyricsMode === 'lyrics' && lyricsPlayerStyle === 'stage'
   const [dockRetired, setDockRetired] = useState(false)
   if (!lyricsCoversDock && dockRetired) setDockRetired(false)
   useEffect(() => {

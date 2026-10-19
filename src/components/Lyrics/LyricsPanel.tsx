@@ -121,6 +121,18 @@ function StageCoverArt({ src, alt }: { src: string; alt: string }) {
   )
 }
 
+/** 排版预设按流式尺寸体系调校：封面大小与分栏比例联动，不再叠加位移。 */
+const LAYOUT_PRESETS = [
+  { label: '平衡', fontScale: 1, layout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
+  { label: '封面主导', fontScale: 0.9, layout: { coverScale: 1.18, coverX: 0, coverY: 0, lyricsWidth: 50, lyricsX: 0, lyricsY: 0 } },
+  { label: '歌词主导', fontScale: 1.12, layout: { coverScale: 0.8, coverX: 0, coverY: 0, lyricsWidth: 62, lyricsX: 0, lyricsY: 0 } },
+]
+
+const PLAYER_STYLES = [
+  { id: 'stage', label: '舞台控件' },
+  { id: 'dock', label: '底部播放栏' },
+] as const
+
 /** 用户手动滚动歌词后,这么久没再滚动才恢复自动居中 */
 const USER_SCROLL_RESUME_MS = 4000
 
@@ -181,6 +193,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setShowTranslation = useSettingsStore((s) => s.setLyricsShowTranslation)
   const showRoma = useSettingsStore((s) => s.lyricsShowRoma)
   const setShowRoma = useSettingsStore((s) => s.setLyricsShowRoma)
+  const playerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
+  const setPlayerStyle = useSettingsStore((s) => s.setLyricsPlayerStyle)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
   const mode = lyrics3dEnabled ? storedMode : 'lyrics'
@@ -219,6 +233,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const coverFlipRef = useRef<HTMLDivElement>(null)
+  const splitRef = useRef<HTMLDivElement>(null)
+  const stageControlsRef = useRef<HTMLDivElement>(null)
   const followAnimsRef = useRef(new Map<HTMLElement, Animation>())
   const lastFollowRef = useRef({ index: -1, at: 0 })
 
@@ -317,6 +333,27 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     )
   }, [open, mode])
 
+  // 舞台控件随沉浸隐去后，封面区要整体下移半个控件高度，才与居中的歌词列重新对齐。
+  // 控件高度随窗口与字号变化，按实际尺寸写入 CSS 变量，不触发重渲染。
+  useEffect(() => {
+    const split = splitRef.current
+    const controls = stageControlsRef.current
+    if (!split) return
+    // 底部播放栏模式由 CSS 按播放栏留白给出下移量。
+    if (!controls) {
+      split.style.removeProperty('--lyrics-idle-shift')
+      return
+    }
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(controls.parentElement ?? controls).rowGap) || 0
+      split.style.setProperty('--lyrics-idle-shift', `${Math.round((controls.offsetHeight + gap) / 2)}px`)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(controls)
+    return () => observer.disconnect()
+  }, [contentMounted, mode, playerStyle])
+
   // 面板收起/切模式时顺带收起下拉与浮层,避免下次打开残留展开态
   useEffect(() => {
     if (!open) setEffectMenuOpen(false)
@@ -397,7 +434,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
 
   return (
-    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
+    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
@@ -457,6 +494,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           {/* Apple Music 式左右分栏:左侧封面+信息,右侧歌词 */}
           <div
+            ref={splitRef}
             className={styles.splitLayout}
             style={{
               '--lyrics-cover-scale': lyricsLayout.coverScale,
@@ -499,9 +537,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     )}
                   </div>
                 </div>
-                <div className={styles.stageControls}>
-                  <PlayerBar variant="lyrics" />
-                </div>
+                {playerStyle === 'stage' && (
+                  <div className={styles.stageControls} ref={stageControlsRef}>
+                    <PlayerBar variant="lyrics" />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -604,18 +644,28 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       <button className={styles.resetLayoutBtn} onClick={() => resetLyricsLayout()}>重置</button>
                     </div>
                     <div className={styles.layoutPresets}>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 })
-                        setLyricsFontScale(1)
-                      }}>平衡</button>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 1.22, coverX: 2, coverY: 0, lyricsWidth: 47, lyricsX: 1, lyricsY: 1 })
-                        setLyricsFontScale(0.9)
-                      }}>封面主导</button>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 0.72, coverX: -3, coverY: -3, lyricsWidth: 64, lyricsX: -2, lyricsY: 0 })
-                        setLyricsFontScale(1.15)
-                      }}>歌词主导</button>
+                      {LAYOUT_PRESETS.map((preset) => (
+                        <button key={preset.label} onClick={() => {
+                          setLyricsLayout(preset.layout)
+                          setLyricsFontScale(preset.fontScale)
+                        }}>{preset.label}</button>
+                      ))}
+                    </div>
+                    <div className={styles.playerStyleRow}>
+                      <span className={styles.popLabel}>播放控制</span>
+                      <div className={styles.playerStyleSwitch} role="radiogroup" aria-label="播放控制">
+                        {PLAYER_STYLES.map(({ id, label }) => (
+                          <button
+                            key={id}
+                            role="radio"
+                            aria-checked={playerStyle === id}
+                            className={playerStyle === id ? styles.playerStyleActive : undefined}
+                            onClick={() => setPlayerStyle(id)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className={styles.layoutGroup}>
                       <span className={styles.layoutGroupTitle}>封面</span>

@@ -57,6 +57,16 @@
   transition-delay: 0s;
 }
 
+/* 沿用底部播放栏时为它留出位置；隐去后封面区下移约半个播放栏高度保持居中。 */
+.listeningRoom.dockPlayer {
+  padding-bottom: var(--sm-player-clearance, 124px);
+}
+
+.dockPlayer .splitLayout {
+  --lyrics-idle-shift: calc((var(--sm-player-clearance, 124px) - 24px) / 2);
+  --lyrics-cover-room: 330px;
+}
+
 .panel.noBackdrop {
   background: var(--lyrics-solid-bg);
   backdrop-filter: none;
@@ -186,7 +196,8 @@
   width: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 56%;
+  /* 歌词宽度直接决定分栏比例，封面列让出或占用余下空间。 */
+  grid-template-columns: minmax(0, 1fr) var(--lyrics-column-width, 56%);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: clamp(28px, 3.5vw, 96px);
@@ -199,8 +210,13 @@
 }
 
 .coverSection {
-  /* 封面按宽高共同约束流式缩放：大屏放大到 560px，矮窗口优先给控件让位。 */
-  --lyrics-cover-size: clamp(140px, min(30vw, calc(100vh - 360px)), 560px);
+  /* 封面按宽高共同约束流式缩放：大屏放大到 560px，矮窗口优先给控件让位。
+     排版里的「大小」作用在布局尺寸上，歌名与控件随封面一起伸缩，比例保持协调。 */
+  --lyrics-cover-base: clamp(140px, min(30vw, calc(100vh - var(--lyrics-cover-room, 360px))), 560px);
+  --lyrics-cover-size: min(
+    calc(var(--lyrics-cover-base) * var(--lyrics-cover-scale, 1)),
+    calc(100vh - var(--lyrics-cover-room, 360px) + 48px)
+  );
   display: flex;
   justify-content: center;
   align-items: center;
@@ -214,8 +230,14 @@
   flex-direction: column;
   align-items: center;
   gap: clamp(16px, 2.4vh, 28px);
-  width: min(max(var(--lyrics-cover-size), 340px), 100%);
+  width: min(max(var(--lyrics-cover-size), 320px), 100%);
   min-width: 0;
+  /* 播放操作隐去/出现时整体下移/上移，与居中的歌词列保持对齐。 */
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.panel.immersive:not(:has(:focus-visible, [aria-expanded='true'])) .record {
+  transform: translateY(var(--lyrics-idle-shift, 0px));
 }
 
 /* 自由排版只移动封面和信息，播放操作始终留在可达的位置。 */
@@ -236,6 +258,7 @@
   aspect-ratio: 1;
   flex-shrink: 0;
   transform-origin: 0 0;
+  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 呼吸层：暂停时封面收小、阴影收敛，播放时带一点回弹放大。 */
@@ -262,9 +285,7 @@
     0 0 0 1px rgba(var(--lyrics-ink-rgb), 0.06),
     0 28px 72px -12px rgba(0, 0, 0, calc(0.5 * var(--lyrics-shadow-strength))),
     0 12px 40px -8px color-mix(in srgb, var(--ambient-1) 45%, transparent);
-  transform: scale(var(--lyrics-cover-scale, 1));
-  transform-origin: center bottom;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.7s ease;
+  transition: box-shadow 0.7s ease;
 }
 
 .coverBreath[data-playing='false'] .coverArt {
@@ -297,9 +318,6 @@
   font-size: 44px;
   color: rgba(var(--lyrics-ink-rgb), 0.18);
   box-shadow: 0 32px 80px rgba(0, 0, 0, calc(0.5 * var(--lyrics-shadow-strength)));
-  transform: scale(var(--lyrics-cover-scale, 1));
-  transform-origin: center bottom;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Track name + artist */
@@ -407,8 +425,7 @@
 /* Scrollable lyrics area(右栏) */
 .lyricsScroll {
   /* 固定默认分栏，仅让歌词区域以自身中心扩缩，不挤压或移动封面。 */
-  width: calc(var(--lyrics-column-width, 56%) / 0.56);
-  max-width: calc(100% + 2 * var(--lyrics-right-space));
+  width: 100%;
   justify-self: center;
   min-width: 0;
   min-height: 0;
@@ -783,6 +800,38 @@
   border-color: rgba(var(--lyrics-ink-rgb), 0.17);
 }
 
+.playerStyleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playerStyleSwitch {
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(var(--lyrics-ink-rgb), 0.06);
+}
+
+.playerStyleSwitch button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(var(--lyrics-ink-rgb), 0.56);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.playerStyleSwitch button:hover { color: rgb(var(--lyrics-ink-rgb)); }
+
+.playerStyleSwitch .playerStyleActive {
+  background: rgba(var(--lyrics-ink-rgb), 0.14);
+  color: rgb(var(--lyrics-ink-rgb));
+}
+
 .layoutGroup {
   display: flex;
   flex-direction: column;
@@ -1095,6 +1144,7 @@
   .record {
     width: 100%;
     gap: 12px;
+    transform: none !important;
   }
 
   .recordIdentity {
@@ -1162,6 +1212,8 @@
   .panel,
   .header,
   .coverSection,
+  .record,
+  .coverFlip,
   .recordIdentity,
   .coverBreath,
   .coverArt,
