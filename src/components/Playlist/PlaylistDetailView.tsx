@@ -31,6 +31,7 @@ import { PlatformPlaylistNameDialog } from './PlatformPlaylistDialog'
 import { BatchTrackActions } from './BatchTrackActions'
 import { mergeAlbumDetail } from './album-detail'
 import type { Playlist, Track } from '../../types/domain'
+import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './PlaylistDetailView.module.css'
 import pageScroll from '../../styles/page-scroll.module.css'
 
@@ -342,9 +343,9 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                   if (selecting) {
                     const item = selectionQueue[originalIndex]
                     if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
-                    return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={item.playable === false}>
+                    return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={isCatalogUnavailable(item)}>
                       <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} />
-                      {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={item.playable === false} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                      {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={isCatalogUnavailable(item)} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
                     </div>
                   }
                   return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />

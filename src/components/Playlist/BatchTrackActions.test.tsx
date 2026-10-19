@@ -37,7 +37,7 @@ describe('批量操作栏', () => {
   })
 
   it('歌曲数量按来源和 ID 去重，并排除不可播放的歌曲', () => {
-    const html = renderToStaticMarkup(<BatchTrackActions tracks={[track('netease'), { ...track('netease'), id: '1' }, track('qq'), { ...track('qq'), id: 2, playable: false }]} selection={selection} />)
+    const html = renderToStaticMarkup(<BatchTrackActions tracks={[track('netease'), { ...track('netease'), id: '1' }, track('qq'), { ...track('netease'), id: 2, playable: false }]} selection={selection} />)
     expect(html).toContain('下载所选（2 首）')
   })
 

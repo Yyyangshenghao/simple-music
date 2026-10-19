@@ -4,6 +4,7 @@ import { isProviderParticipating } from '../stores/providers'
 import { providerAccountSession } from './provider-account-session'
 import { buildQueue } from './lazy-window'
 import type { Playlist, Track } from '../types/domain'
+import { isCatalogUnavailable } from './track-availability'
 
 /** 每次操作绑定参与平台的账号；展开中的旧响应不能追加到新会话。 */
 export async function resolveBatchTracks(tracks: Track[], collections: Playlist[], signal: AbortSignal): Promise<Track[]> {
@@ -65,7 +66,7 @@ async function expandTracks(tracks: Track[], collections: Playlist[], signal: Ab
   const known = new Set<string>()
   return result.filter((track) => {
     const key = `${track.source}:${String(track.id)}`
-    if (known.has(key) || (!saving && track.playable === false)) return false
+    if (known.has(key) || (!saving && isCatalogUnavailable(track))) return false
     known.add(key)
     return true
   })

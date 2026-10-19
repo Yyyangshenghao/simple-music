@@ -4,6 +4,7 @@ import type { ProviderId } from '../providers/types'
 import type { OfflineCacheStatus } from './offline-cache'
 import { restoreLocalTrackUrls } from './local-track-urls'
 import { appPlaylistTrackKey } from '../stores/app-playlists'
+import { isCatalogUnavailable } from './track-availability'
 
 export interface AppPlaylistPlaybackContext {
   providers: Record<ProviderId, ProviderRuntimeState>
@@ -21,7 +22,7 @@ export function appPlaylistTrackState(track: Track, context: AppPlaylistPlayback
     return current ? { track: restoreLocalTrackUrls(current), available: true }
       : { track: restoreLocalTrackUrls(track), available: false, status: context.localError || (context.localTracks ? '本地文件不存在' : '正在检查本地文件'), ...(missing ? { invalid: true } : {}) }
   }
-  if (track.playable === false) return { track, available: false, status: '曲目暂不可用', invalid: true }
+  if (isCatalogUnavailable(track)) return { track, available: false, status: '曲目暂不可用', invalid: true }
   const offline = context.offline[appPlaylistTrackKey(track)]
   if (track.source !== 'apple' && offline?.entryId && offline.state !== 'missing') return { track, available: true, status: '可离线播放' }
   const provider = context.providers[track.source]

@@ -210,7 +210,7 @@ describe('单曲离线保存会话', () => {
     h.status.mockReturnValue(lookup.promise)
     useOfflineCacheStore.getState().setPaused(true)
     const tracks = Array.from({ length: 5 }, (_, id) => ({ ...track, id: String(id) }))
-    expect(await useOfflineCacheStore.getState().saveMany([...tracks, tracks[0], { ...track, source: 'apple' }, { ...track, id: 'blocked', playable: false }])).toBe(5)
+    expect(await useOfflineCacheStore.getState().saveMany([...tracks, tracks[0], { ...track, source: 'apple' }, { ...track, provider: 'netease', source: 'netease', id: 'blocked', playable: false }])).toBe(5)
     expect(h.status).not.toHaveBeenCalled()
     expect(useOfflineCacheStore.getState().jobs.every((job) => job.status === 'queued')).toBe(true)
     useOfflineCacheStore.getState().setQueueOpen(false)

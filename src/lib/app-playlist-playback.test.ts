@@ -39,6 +39,14 @@ describe('应用歌单播放边界', () => {
     expect(appPlaylistTrackState(song('apple'), ctx).available).toBe(false)
     expect(appPlaylistTrackState({ ...song('netease'), playable: false }, ctx)).toMatchObject({ status: '曲目暂不可用', invalid: true })
   })
+  it('QQ 的 playable=false 只表示尚未解析地址，登录可用时照常播放且不算失效', () => {
+    const ctx = context()
+    ctx.providers.qq = { enabled: true, auth: 'authenticated' }
+    const qq = { ...song('qq'), playable: false }
+    expect(appPlaylistTrackState(qq, ctx)).toMatchObject({ available: true })
+    expect(appPlaylistTrackState(qq, ctx).invalid).toBeUndefined()
+    expect(appPlaylistPlaybackTracks([qq], ctx)).toHaveLength(1)
+  })
   it('网易/QQ 的已确认离线音频可在平台停用后播放，Apple 仍走独立受保护会话', () => {
     const ctx = context()
     ctx.offline['qq:1'] = { source: 'qq', id: '1', state: 'pinned', entryId: 'cache' }

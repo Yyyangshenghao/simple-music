@@ -15,6 +15,7 @@ import { useToastStore } from './toast'
 import { providerFor } from '../providers/registry'
 import { providerAccountSession } from '../lib/provider-account-session'
 import type { Track } from '../types/domain'
+import { isCatalogUnavailable } from '../lib/track-availability'
 
 export interface OfflineSaveJob {
   track: Track
@@ -168,7 +169,7 @@ async function performSave(job: OfflineSaveJob): Promise<void> {
       if (job.controller.signal.aborted) return
       if (session !== providerAccountSession(source) || !isProviderParticipating(source)) throw new Error('账号或平台状态已变化，请重试')
       const track = tracks.find((item) => item.source === source && [item.id, item.mid, item.qqId].some((id) => id != null && String(id) === String(job.track.id)))
-      if (!track || track.pending || track.playable === false) throw new Error('无法获取可下载的歌曲详情')
+      if (!track || track.pending || isCatalogUnavailable(track)) throw new Error('无法获取可下载的歌曲详情')
       job = { ...job, track }
       updateJob(job.controller, { track })
     }
@@ -381,7 +382,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
     if (signal?.aborted || version !== queueVersion) throw new DOMException('下载已取消', 'AbortError')
     let added = 0
     for (const track of tracks) {
-      if ((track.source !== 'netease' && track.source !== 'qq') || track.playable === false) continue
+      if ((track.source !== 'netease' && track.source !== 'qq') || isCatalogUnavailable(track)) continue
       if (get().jobs.some((job) => offlineTrackKey(job.track) === offlineTrackKey(track) && isActiveJob(job))) continue
       void enqueueSave(track, directory)
       added++

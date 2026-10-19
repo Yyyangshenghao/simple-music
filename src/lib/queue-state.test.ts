@@ -88,6 +88,11 @@ describe('独立播放队列状态', () => {
     expect(state.queue).toHaveLength(4)
   })
 
+  it('QQ 曲目的 playable=false 只是尚未解析地址，批量追加时照常入队', () => {
+    const qq = { ...song('C', 'qq'), playable: false }
+    expect(appendQueueTracks(frozenState(), [qq])!.queue.at(-1)).toBe(qq)
+  })
+
   it('批量追加没有新曲目时不产生状态更新', () => {
     const state = frozenState()
     expect(appendQueueTracks(state, [])).toBeNull()

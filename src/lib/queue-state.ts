@@ -1,5 +1,6 @@
 import { isValidPermutation, queueDisplayOrder } from './queue-display'
 import type { PlayMode, Track } from '../types/domain'
+import { isCatalogUnavailable } from './track-availability'
 
 export interface QueueState {
   queue: Track[]
@@ -43,7 +44,7 @@ export function appendQueueTracks(state: QueueOrderState, tracks: Track[]): Queu
   const known = new Set(state.queue.map((track) => `${track.source}:${String(track.id)}`))
   const incoming = tracks.filter((track) => {
     const key = `${track.source}:${String(track.id)}`
-    if (known.has(key) || track.playable === false) return false
+    if (known.has(key) || isCatalogUnavailable(track)) return false
     known.add(key)
     return true
   })

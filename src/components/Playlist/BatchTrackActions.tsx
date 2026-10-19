@@ -10,6 +10,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import type { Playlist, Track } from '../../types/domain'
+import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './BatchTrackActions.module.css'
 
 interface Props {
@@ -46,7 +47,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const onlySource = sourceSet.size === 1 ? [...sourceSet][0] : undefined
   const platformSource = !offline && onlySource && isWritablePlaylistSource(onlySource) && supportsPlatformPlaylists(onlySource) ? onlySource : null
   const count = tracks.length + collections.length
-  const downloadTrackCount = new Set(tracks.filter(track => track.playable !== false).map(track => `${track.source}:${String(track.id)}`)).size
+  const downloadTrackCount = new Set(tracks.filter(track => !isCatalogUnavailable(track)).map(track => `${track.source}:${String(track.id)}`)).size
   const downloadCountLabel = collections.length
     ? collections.every(collection => collection.trackCountKnown !== false && (collection.trackCount > 0 || collection.trackCountKnown === true))
       ? `约 ${downloadTrackCount + collections.reduce((total, collection) => total + collection.trackCount, 0)} 首`
