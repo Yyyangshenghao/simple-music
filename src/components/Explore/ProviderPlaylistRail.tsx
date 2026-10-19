@@ -52,7 +52,7 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
   return (
     <section className={styles.rail} aria-label={`${source}账号歌单`}>
       <div className={styles.header}>
-        <h3>你的歌单</h3>
+        <h3>我的歌单</h3>
         {!loaded && <span>加载中…</span>}
       </div>
       {failed ? (
@@ -61,7 +61,7 @@ export function ProviderPlaylistRail({ source, onOpen }: ProviderPlaylistRailPro
           <button className="no-drag" onClick={() => setRevision((current) => current + 1)}>重试</button>
         </div>
       ) : playlists.length > 0 && (
-        <HorizontalCardRail className={styles.row} label="你的歌单">{cards}</HorizontalCardRail>
+        <HorizontalCardRail className={styles.row} label="我的歌单">{cards}</HorizontalCardRail>
       )}
     </section>
   )

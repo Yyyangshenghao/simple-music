@@ -88,6 +88,21 @@
   justify-content: center;
 }
 
+/* 滚动时不随经过的按钮反复展开尺寸；常显、显式展示和触屏标识保持原样。 */
+@media (hover: hover) {
+  :global(:is([data-scrolling], [data-explore-scrolling])) .badge.dynamic,
+  :global(:is([data-scrolling], [data-explore-scrolling])) .badge.dynamic.compact {
+    max-width: 0;
+    min-height: 0;
+    padding: 0;
+    border-width: 0;
+    gap: 0;
+    opacity: 0;
+    transform: none;
+    transition: none;
+  }
+}
+
 .localIcon {
   color: var(--source-color);
   font-size: 13px;

@@ -1,5 +1,6 @@
 // 仅用于独立 userData 的 Electron dev：本脚本替换测试实例中的平台资料、API 与图片。
 // CDP_URL 指向该实例；OUTPUT_PREFIX 指定结果与 trace 的文件前缀。
+// FOCUS_PLAYLIST_RAIL=1 仅采样鼠标悬停“我的歌单”轨道的连续滚动。
 const {chromium}=require('playwright')
 const fs=require('node:fs')
 const outputPrefix=process.env.OUTPUT_PREFIX || '/tmp/explore-hover-scroll'
@@ -41,16 +42,24 @@ const outputPrefix=process.env.OUTPUT_PREFIX || '/tmp/explore-hover-scroll'
   await seed('apple','library:user-albums',[]);await seed('apple','library:liked-playlist',null)
   q.prov.setState({byId:Object.fromEntries(['netease','qq','apple'].map(s=>[s,{enabled:true,auth:'authenticated'}])),contentSource:'netease'});q.nav.getState().navigateTo('explore')
  })
- await p.getByRole('group',{name:'你的歌单',exact:true}).waitFor();await p.waitForTimeout(1600)
+ await p.getByRole('group',{name:'我的歌单',exact:true}).waitFor();await p.waitForTimeout(1600)
 
 
  const cdp=await p.context().newCDPSession(p),system=await browser.newBrowserCDPSession()
  await cdp.send('Emulation.setDeviceMetricsOverride',{width:1280,height:800,deviceScaleFactor:2,mobile:false})
- const scenarios=[{name:'blank',x:10,y:350,css:''},{name:'overCards',x:180,y:350,css:''},{name:'overCardsNoEffects',x:180,y:350,css:'.border-glow-card::before,.border-glow-card::after,.edge-light,[class*="spotlight_"]{display:none!important;} [class*="tilt_"],article{transform:none!important;box-shadow:none!important;transition:none!important;}'}]
+ const focused=!!process.env.FOCUS_PLAYLIST_RAIL
+ const scenarios=focused?[]:[{name:'blank',x:10,y:350,css:''},{name:'overCards',x:180,y:350,css:''},{name:'overCardsNoEffects',x:180,y:350,css:'.border-glow-card::before,.border-glow-card::after,.edge-light,[class*="spotlight_"]{display:none!important;} [class*="tilt_"],article{transform:none!important;box-shadow:none!important;transition:none!important;}'}]
+ if(focused){
+  const rail=p.getByRole('group',{name:'我的歌单',exact:true})
+  await rail.evaluate(el=>{el.scrollLeft=0;el.scrollIntoView({block:'center',behavior:'instant'})})
+  await p.waitForTimeout(800)
+  const bounds=await rail.boundingBox(),top=await p.evaluate(()=>document.querySelector('[class*="greeting_"]').closest('[class*="page_"]').scrollTop)
+  scenarios.push({name:'overMyPlaylists',x:bounds.x+85,y:bounds.y+110,top,css:''})
+ }
  const results=[]
  for(const scenario of scenarios){
   const style=await p.addStyleTag({content:scenario.css||'/* base */'})
-  await p.evaluate(()=>document.querySelector('[class*="greeting_"]').closest('[class*="page_"]').scrollTop=0)
+  await p.evaluate(top=>document.querySelector('[class*="greeting_"]').closest('[class*="page_"]').scrollTop=top,scenario.top??0)
   await p.mouse.move(scenario.x,scenario.y);await p.waitForTimeout(1000)
   await p.evaluate(()=>{
    const q=window.exploreQA;q.times=[];q.events={};q.writes=0;q.running=true
@@ -62,7 +71,7 @@ const outputPrefix=process.env.OUTPUT_PREFIX || '/tmp/explore-hover-scroll'
   })
   const done=new Promise(r=>cdp.once('Tracing.tracingComplete',r));await cdp.send('Tracing.start',{categories:'devtools.timeline,cc',transferMode:'ReturnAsStream'})
   const before=await system.send('SystemInfo.getProcessInfo'),start=performance.now()
-  for(let i=0;i<160;i++){await p.mouse.wheel(0,Math.floor(i/40)%2===0?25:-25);await new Promise(r=>setTimeout(r,16))}
+  for(let i=0;i<(focused?60:160);i++){const delta=focused?10:25;await p.mouse.wheel(0,Math.floor(i/(focused?15:40))%2===0?delta:-delta);await new Promise(r=>setTimeout(r,16))}
   const after=await system.send('SystemInfo.getProcessInfo'),elapsed=(performance.now()-start)/1000,cpu={}
   for(const a of after.processInfo){const old=before.processInfo.find(x=>x.id===a.id);if(old)cpu[a.type]=(cpu[a.type]||0)+(a.cpuTime-old.cpuTime)/elapsed*100}
   const frames=await p.evaluate(()=>{const q=window.exploreQA;q.running=false;CSSStyleDeclaration.prototype.setProperty=q.originalSet;for(const type of ['pointerover','pointerout','pointermove','wheel','scroll'])document.removeEventListener(type,q.eventHandler,true);const t=q.times.slice(1).sort((a,b)=>a-b);return {events:q.events,writes:q.writes,mean:t.reduce((a,b)=>a+b,0)/t.length,p95:t[Math.floor(t.length*.95)],over16:t.filter(x=>x>16).length,over25:t.filter(x=>x>25).length}})

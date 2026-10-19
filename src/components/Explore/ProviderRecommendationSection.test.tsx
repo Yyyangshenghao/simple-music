@@ -30,6 +30,8 @@ describe('探索页返回首帧', () => {
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="qq" onPreview={() => {}} />)
     expect(html).toContain('已浏览推荐歌单')
     expect(html).toContain('已有个人歌单')
+    expect(html).toContain('<h3>我的歌单</h3>')
+    expect(html).toContain('aria-label="我的歌单"')
     expect(html).not.toContain('正在连接平台')
     expect(html).not.toContain('加载中…')
     expect(html).toMatch(/^<section[^>]*style="opacity:1;transform:none"/)

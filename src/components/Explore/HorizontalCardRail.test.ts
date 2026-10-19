@@ -85,10 +85,10 @@ describe('HorizontalCardRail interaction', () => {
   })
 
   it('初始未溢出时保留键盘入口且不显示导航', () => {
-    const html = renderToStaticMarkup(createElement(HorizontalCardRail, { label: '你的歌单', children: '测试内容' }))
+    const html = renderToStaticMarkup(createElement(HorizontalCardRail, { label: '我的歌单', children: '测试内容' }))
     expect(html).toContain('tabindex="0"')
     expect(html).toContain('data-arrow-navigation="true"')
-    expect(html).toContain('aria-label="你的歌单"')
+    expect(html).toContain('aria-label="我的歌单"')
     expect(html).not.toContain('<button')
     expect(html).not.toContain('role="slider"')
     expect(html).not.toContain('<input')
