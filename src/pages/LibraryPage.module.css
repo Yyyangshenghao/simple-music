@@ -59,7 +59,7 @@
   box-shadow: inset 0 1px 0 var(--sm-border-strong), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
 }
 
-/* 浮起的透镜：比轨道更高，盖在标签之上；中心通透放大，边缘加厚高光与彩虹色散模拟玻璃折射。 */
+/* 浮起的透镜：比轨道更高，盖在标签之上；中心通透放大，边缘高光表现玻璃厚度。 */
 .tabLens {
   z-index: 2;
   overflow: hidden;
@@ -73,24 +73,25 @@
     inset 0 -1px 1px color-mix(in srgb, var(--sm-text-primary) 18%, transparent),
     inset 10px 0 12px -10px color-mix(in srgb, var(--sm-text-primary) 34%, transparent),
     inset -10px 0 12px -10px color-mix(in srgb, var(--sm-text-primary) 34%, transparent),
+    0 0 0 0.5px var(--sm-border-strong),
     0 8px 22px color-mix(in srgb, var(--sm-bg-base) 34%, transparent);
   will-change: transform, opacity;
 }
-/* 彩虹色散环：只留边缘一圈，轻微模糊后以加亮混合叠在边上。 */
+/* 玻璃边缘：只用中性高光勾一圈细边，上沿亮、下沿弱，表现厚度而不带颜色。 */
 .tabLens::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 1;
   border-radius: inherit;
-  padding: 1.5px;
-  background: conic-gradient(from 210deg, #ff5a7a, #ffc861, #7dffb0, #5ad2ff, #9a7bff, #ff6fd8, #ff5a7a);
+  padding: 1px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, white 55%, transparent),
+    color-mix(in srgb, white 8%, transparent) 45%,
+    color-mix(in srgb, white 22%, transparent));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  filter: blur(0.8px);
-  opacity: 0.7;
-  mix-blend-mode: plus-lighter;
 }
 /* 左上镜面高光弧。 */
 .tabLens::after {
@@ -103,7 +104,7 @@
   mix-blend-mode: overlay;
 }
 
-/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大；红蓝错位投影模拟色散，四周羽化露出模糊原标签形成扩散感。 */
+/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大；四周羽化露出模糊原标签形成扩散感。 */
 .tabLensCopy {
   position: absolute;
   top: -3px;
@@ -111,7 +112,6 @@
   display: flex;
   gap: 4px;
   padding: 3px;
-  filter: drop-shadow(-0.8px 0 rgba(255, 60, 110, 0.5)) drop-shadow(0.8px 0 rgba(40, 170, 255, 0.5));
   -webkit-mask-image: radial-gradient(closest-side, #000 80%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 80%, transparent 100%);
 }
