@@ -19,6 +19,7 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
     <div className={styles.info}>
       <div
         className={`${styles.cover} no-drag`}
+        data-dock-cover
         onClick={onCoverClick}
         role={onCoverClick ? 'button' : undefined}
         tabIndex={onCoverClick ? 0 : undefined}

@@ -309,6 +309,8 @@ interface PlayerBarProps {
   lyricsOpen?: boolean
   /** 普通歌词页复用播放操作，曲目信息由页面左栏统一呈现。 */
   variant?: 'dock' | 'lyrics'
+  /** 歌词页正在接管播放操作：播放栏下沉淡出，封面交给歌词页飞行衔接。 */
+  handoff?: boolean
 }
 
 /** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
@@ -353,7 +355,7 @@ function VolumeControl() {
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock' }: PlayerBarProps) {
+export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -427,5 +429,5 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
       </div>
     </div>
   )
-  return embedded ? controls : <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen}>{controls}</PlayerGlass>
+  return embedded ? controls : <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen} handoff={handoff}>{controls}</PlayerGlass>
 }

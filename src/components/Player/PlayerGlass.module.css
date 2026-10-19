@@ -61,6 +61,30 @@
     0 18px 40px -16px rgba(0, 0, 0, 0.32);
 }
 
+/* 挂载时从下方浮起；从歌词页收起回来时与飞回的封面衔接。 */
+.dock {
+  animation: dockEnter 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes dockEnter {
+  from { opacity: 0; translate: 0 18px; }
+}
+
+/* 歌词页接管：下沉、微缩并淡出，封面已由歌词页飞出。 */
+.dock.handoff {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+  transition-duration: 0.3s;
+}
+
+.dock.handoff .panel {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock { animation: none; }
+}
+
 /* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
   opacity: 0;

@@ -41,6 +41,16 @@ export default function App() {
   const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
+  // 纯歌词页自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
+  // 收起时在同一次提交里重新挂载，歌词页才能量到它的封面位置把封面飞回来。
+  const lyricsCoversDock = lyricsOpen && lyricsMode === 'lyrics'
+  const [dockRetired, setDockRetired] = useState(false)
+  if (!lyricsCoversDock && dockRetired) setDockRetired(false)
+  useEffect(() => {
+    if (!lyricsCoversDock) return
+    const timer = setTimeout(() => setDockRetired(true), 420)
+    return () => clearTimeout(timer)
+  }, [lyricsCoversDock])
   const detailBackdropCover = useBackdropStore((s) => s.cover)
   const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
@@ -116,7 +126,7 @@ export default function App() {
           <TopBar hidden={lyricsOpen} />
           <AppShell />
           <GlobalContentProviderDock />
-          {currentView !== 'shuange' && !(lyricsOpen && lyricsMode === 'lyrics') && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
+          {currentView !== 'shuange' && !dockRetired && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} handoff={lyricsCoversDock} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <TrackActionLayer />
           <Toast />

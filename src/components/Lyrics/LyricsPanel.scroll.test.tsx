@@ -33,6 +33,8 @@ vi.mock('react', async (importOriginal) => ({
       }
     }]
   },
+  // 封面飞行衔接只做视觉补间，不参与滚动定位。
+  useLayoutEffect: () => {},
   useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
     const index = h.effectCursor++
     const previous = h.effects[index]
@@ -69,6 +71,7 @@ class ScrollContainer {
     const index = Number(selector.match(/-?\d+/)?.[0])
     return h.lyrics.lines[index] ? { offsetTop: 200 + index * 80, clientHeight: 40 } : null
   }
+  querySelectorAll() { return [] }
   scrollTo = vi.fn(({ top }: { top: number }) => { this.scrollTop = top })
   addEventListener = (type: string, listener: () => void) => { this.listeners.set(type, listener) }
   removeEventListener = (type: string) => { this.listeners.delete(type) }
