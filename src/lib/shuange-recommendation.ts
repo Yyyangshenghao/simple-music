@@ -369,11 +369,17 @@ export function stashShuangeCandidates(candidates: Track[]): void {
   persistProfile()
 }
 
-/** 取出一批候选即从池中消费，并记为已展示，避免同一首歌在连续换批中折返。 */
-export function takeShuangeCandidateBatch(source: MusicSource, count: number): Track[] {
+/**
+ * 预留一批候选 实际切到时才记录曝光
+ *
+ * @param source 曲目来源
+ * @param count 本批需要的数量
+ * @param excludedKeys 已在批次或历史中的曲目键
+ */
+export function takeShuangeCandidateBatch(source: MusicSource, count: number, excludedKeys: ReadonlySet<string> = new Set()): Track[] {
   if (source === 'local' || count <= 0) return []
   const pool = candidateCache.candidates[source] ?? []
-  const selected = rankShuangeCandidates(pool, {
+  const selected = rankShuangeCandidates(pool.filter(track => !excludedKeys.has(trackKey(track))), {
     seenKeys: profile.seen[source] ?? [],
     trackScores: profile.trackScores,
     artistScores: mergeScores(profile.seedArtistScores, profile.artistScores),
@@ -385,8 +391,42 @@ export function takeShuangeCandidateBatch(source: MusicSource, count: number): T
     candidates: { ...candidateCache.candidates, [source]: pool.filter((track) => !keys.has(trackKey(track))) },
     cachedOn: candidateCache.cachedOn,
   }
-  recordShuangeExposures(selected)
+  // 旧方案取出整批即曝光 预热不能代表实际推荐
+  // recordShuangeExposures(selected)
+  persistProfile()
   return selected
+}
+
+/**
+ * 统计去除已占用曲目后的可用库存
+ *
+ * @param source 曲目来源
+ * @param excludedKeys 已在批次或历史中的曲目键
+ */
+export function countShuangeCandidates(source: MusicSource, excludedKeys: ReadonlySet<string>): number {
+  return (candidateCache.candidates[source] ?? []).filter(track => !excludedKeys.has(trackKey(track))).length
+}
+
+/**
+ * 账号切换时清除该来源的旧候选
+ *
+ * @param source 需要失效的来源
+ */
+export function clearShuangeCandidates(source: MusicSource): void {
+  candidateCache = {
+    candidates: { ...candidateCache.candidates, [source]: [] },
+    cachedOn: { ...candidateCache.cachedOn, [source]: '' },
+  }
+  persistProfile()
+}
+
+/**
+ * 判断当天口味是否已经导入 避免先请求再发现重复
+ *
+ * @param source 画像来源
+ */
+export function hasShuangeTaste(source: MusicSource): boolean {
+  return profile.tasteSeededOn[source] === localDay()
 }
 
 export function recordShuangeFeedback(track: Track, feedback: ShuangeFeedback): void {
@@ -414,7 +454,7 @@ export function recordShuangeFeedback(track: Track, feedback: ShuangeFeedback): 
 
 /** 每天导入一次账号级口味：平台排行或最近歌曲作为收听种子，收藏曲目给予更高权重。 */
 export function seedShuangeTaste(source: MusicSource, rankedTracks: Track[], likedTracks: Track[]): void {
-  if (source === 'local' || profile.tasteSeededOn[source] === localDay()) return
+  if (source === 'local' || hasShuangeTaste(source)) return
   const artistScores: Record<string, number> = {}
   const featureScores: Record<string, number> = {}
   const learn = (tracks: Track[], base: number, featureWeight: number) => {

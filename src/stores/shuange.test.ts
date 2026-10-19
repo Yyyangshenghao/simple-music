@@ -9,7 +9,6 @@ const {
   setVolume,
   playlistSetQueue,
   playlistSetState,
-  navigateTo,
   getLyrics,
   getDailySongs,
   getRadioSongs,
@@ -20,6 +19,9 @@ const {
   getListeningRanking,
   getLikedPlaylist,
   playerSubscriptions,
+  preloadTracks,
+  waitForShuangeAudio,
+  prepareShuangeAudio,
 } = vi.hoisted(() => ({
   loadTrack: vi.fn().mockResolvedValue(undefined),
   pause: vi.fn(),
@@ -27,7 +29,6 @@ const {
   setVolume: vi.fn(),
   playlistSetQueue: vi.fn(),
   playlistSetState: vi.fn(),
-  navigateTo: vi.fn(),
   getLyrics: vi.fn(),
   getDailySongs: vi.fn(),
   getRadioSongs: vi.fn(),
@@ -37,7 +38,10 @@ const {
   getPlaylistSkeleton: vi.fn(),
   getListeningRanking: vi.fn(),
   getLikedPlaylist: vi.fn(),
-  playerSubscriptions: [] as Array<(state: { status: string; position: number; currentTrack?: Track }) => void>,
+  playerSubscriptions: [] as Array<(state: { status: string; position: number; quality: AudioQuality; currentTrack?: Track }) => void>,
+  preloadTracks: vi.fn(),
+  waitForShuangeAudio: vi.fn(),
+  prepareShuangeAudio: vi.fn(),
 }))
 
 // 可变 player 状态:测试可改写以触发 leave 恢复分支
@@ -45,6 +49,7 @@ let mockCurrentTrack: ReturnType<typeof mkTrack> | null = null
 let mockPosition = 0
 let mockVolume = 0.8
 let mockStatus: 'playing' | 'paused' | 'loading' = 'playing'
+let mockQuality: AudioQuality = 'standard'
 
 vi.mock('../lib/service-registry', () => ({
   serviceFor: (source: string) => ({
@@ -60,13 +65,22 @@ vi.mock('../lib/service-registry', () => ({
   }),
 }))
 
-vi.mock('../lib/track-preload', () => ({ preloadTracks: vi.fn() }))
+vi.mock('../lib/track-preload', () => ({
+  preloadTracks, preloadTrackUrl: vi.fn(async () => {}),
+  releasePreloadWindow: vi.fn(), getPreloadedResolution: () => undefined,
+}))
+vi.mock('../lib/shuange-audio-preload', () => ({
+  waitForShuangeAudio, prepareShuangeAudio, releaseShuangeAudio: vi.fn(),
+}))
 
 vi.mock('./player', () => ({
   usePlayerStore: {
-    subscribe: (callback: (state: { status: string; position: number; currentTrack?: Track }) => void) => {
+    subscribe: (callback: (state: { status: string; position: number; quality: AudioQuality; currentTrack?: Track }) => void) => {
       playerSubscriptions.push(callback)
-      return () => { const index = playerSubscriptions.indexOf(callback); if (index >= 0) playerSubscriptions.splice(index, 1) }
+      return () => {
+        const index = playerSubscriptions.indexOf(callback)
+        if (index >= 0) playerSubscriptions.splice(index, 1)
+      }
     },
     getState: () => ({
       loadTrack,
@@ -76,8 +90,10 @@ vi.mock('./player', () => ({
       currentTrack: mockCurrentTrack,
       position: mockPosition,
       volume: mockVolume,
-      quality: 'standard',
+      quality: mockQuality,
       status: mockStatus,
+      contextId: 'shuange:test',
+      _engine: () => ({}),
     }),
   },
 }))
@@ -87,9 +103,6 @@ vi.mock('./playlist', () => ({
     setQueue: playlistSetQueue,
     setState: playlistSetState,
   },
-}))
-vi.mock('./navigation', () => ({
-  useNavigationStore: { getState: () => ({ navigateTo }) },
 }))
 vi.mock('./settings', () => ({
   SETTINGS_STORAGE_KEY: 'simplemusic-settings-test',
@@ -103,8 +116,12 @@ import {
   takeShuangeCandidateBatch,
 } from '../lib/shuange-recommendation'
 import { useShuangeStore, __resetOffsetCache, initShuangeSession } from './shuange'
+import { getShuangeFeedContext } from '../lib/shuange-feed'
+import { clearProviderRequestCache, requestProviderData } from '../lib/provider-request-cache'
 import { useProviderStore } from './providers'
-import type { Track } from '../types/domain'
+import { useNavigationStore } from './navigation'
+import type { AudioQuality, Track } from '../types/domain'
+import { beginPlaybackIntent } from '../lib/playback-intent'
 
 function mkTrack(id: string, durMs = 180_000): Track {
   return { provider: 'netease', source: 'netease', type: 'song', id, name: `t-${id}`, artist: 'a', artists: [], duration: durMs }
@@ -113,7 +130,7 @@ function mkTrack(id: string, durMs = 180_000): Track {
 function emitPlayer(status: typeof mockStatus, position: number): void {
   mockStatus = status
   mockPosition = position
-  const state = { status, position, currentTrack: useShuangeStore.getState().feed[useShuangeStore.getState().index] }
+  const state = { status, position, quality: mockQuality, currentTrack: useShuangeStore.getState().feed[useShuangeStore.getState().index] }
   playerSubscriptions.forEach((callback) => callback(state))
 }
 
@@ -122,12 +139,13 @@ describe('shuange store', () => {
   afterEach(() => { stopSession?.(); stopSession = undefined })
   beforeEach(() => {
     if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
-    useShuangeStore.setState({ active: false, feed: [], index: -1, direction: 1, offset: null, loading: false, error: null })
+    useShuangeStore.setState({ active: false, feed: [], index: -1, historyEnd: -1, direction: 1, offset: null, loading: false, stage: null, error: null })
     mockCurrentTrack = null
     mockPosition = 0
     mockVolume = 0.8
     mockStatus = 'playing'
-    loadTrack.mockClear()
+    mockQuality = 'standard'
+    loadTrack.mockReset().mockResolvedValue(undefined)
     pause.mockClear()
     seek.mockClear()
     setVolume.mockClear()
@@ -141,6 +159,10 @@ describe('shuange store', () => {
     getPlaylistSkeleton.mockReset()
     getListeningRanking.mockReset()
     getLikedPlaylist.mockReset()
+    preloadTracks.mockClear()
+    waitForShuangeAudio.mockReset()
+    prepareShuangeAudio.mockClear()
+    clearProviderRequestCache()
     __resetOffsetCache()
     __resetShuangeRecommendationProfile()
     useProviderStore.setState({
@@ -151,7 +173,143 @@ describe('shuange store', () => {
       },
       playbackOrder: ['netease', 'qq'],
     })
+    // 普通用例自行安排候选响应 登录预热另有专项覆盖
+    const warmup = vi.spyOn(useShuangeStore.getState(), 'warmup').mockResolvedValueOnce()
     stopSession = initShuangeSession()
+    warmup.mockRestore()
+  })
+
+  afterEach(() => {
+    __resetOffsetCache()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('登录预热两批但不接管播放 进入和换批复用已准备顺序', async () => {
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`warm-${i}`)))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().warmup()
+    await vi.waitFor(() => expect(getShuangeFeedContext()?.standby).toHaveLength(12))
+    const target = getShuangeFeedContext()!
+    const first = [...target.current]
+    const second = [...target.standby]
+    expect(useShuangeStore.getState().active).toBe(false)
+    expect(loadTrack).not.toHaveBeenCalled()
+    expect(pause).not.toHaveBeenCalled()
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([])
+
+    await useShuangeStore.getState().enter()
+    expect(useShuangeStore.getState().feed).toEqual(first)
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([`netease:${String(first[0].id)}`])
+    await useShuangeStore.getState().notInterestedCurrent()
+    expect(target.standby).toEqual(second)
+    expect(__getShuangeRecommendationProfile().trackScores[`netease:${String(first[0].id)}`]).toBe(-5)
+    await useShuangeStore.getState().refresh()
+    expect(useShuangeStore.getState().feed).toEqual(second)
+    expect(useShuangeStore.getState().historyEnd).toBe(0)
+    expect(getDailySongs).not.toHaveBeenCalled()
+  })
+
+  it('每日推荐满足一批时不等待卡住的雷达即可起播', async () => {
+    getDailySongs.mockResolvedValue(Array.from({ length: 12 }, (_, i) => mkTrack(`daily-${i}`)))
+    getRadarPlaylist.mockReturnValue(new Promise(() => {}))
+    getRecommendPlaylists.mockResolvedValue([])
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    expect(loadTrack).toHaveBeenCalledOnce()
+    expect(useShuangeStore.getState().feed).toHaveLength(12)
+  })
+
+  it('歌单列表返回后立即查曲目而不等待雷达', async () => {
+    getDailySongs.mockResolvedValue([])
+    getRadarPlaylist.mockReturnValue(new Promise(() => {}))
+    getRecommendPlaylists.mockResolvedValue([{ id: 'ready' }])
+    getPlaylistSkeleton.mockResolvedValue({ tracks: Array.from({ length: 24 }, (_, i) => mkTrack(`playlist-${i}`)) })
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    expect(getPlaylistSkeleton).toHaveBeenCalledWith('ready')
+    expect(loadTrack).toHaveBeenCalledOnce()
+  })
+
+  it('刷歌复用首页每日推荐响应而不重复请求', async () => {
+    const tracks = Array.from({ length: 12 }, (_, i) => mkTrack(`home-${i}`))
+    await requestProviderData('netease', 'recommendation:netease:daily-songs:root', async () => ({
+      content: { type: 'tracks', tracks }, hasMore: false,
+    }))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    expect(getDailySongs).not.toHaveBeenCalled()
+    expect(useShuangeStore.getState().feed).toHaveLength(12)
+  })
+
+  it('自然跨批保留至多100首历史 回退复用顺序 手动换批重置', async () => {
+    stashShuangeCandidates(Array.from({ length: 180 }, (_, i) => mkTrack(`history-${i}`)))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    for (let i = 0; i < 105; i++) await useShuangeStore.getState().next()
+    const before = useShuangeStore.getState()
+    expect(before.index).toBe(99)
+    expect(before.historyEnd).toBe(99)
+    expect(before.feed.length).toBeLessThanOrEqual(111)
+    const current = before.feed[before.index]
+    await useShuangeStore.getState().prev()
+    await useShuangeStore.getState().next()
+    expect(useShuangeStore.getState().feed[useShuangeStore.getState().index]).toBe(current)
+    expect(getDailySongs).not.toHaveBeenCalled()
+    await useShuangeStore.getState().refresh()
+    expect(useShuangeStore.getState().feed).toHaveLength(12)
+    expect(useShuangeStore.getState().index).toBe(0)
+    expect(useShuangeStore.getState().historyEnd).toBe(0)
+  })
+
+  it('100ms内连续切歌只按最终位置补齐前后两首和备用首曲', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`window-${i}`)))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    await vi.advanceTimersByTimeAsync(100)
+    preloadTracks.mockClear()
+    await useShuangeStore.getState().next()
+    await useShuangeStore.getState().next()
+    expect(preloadTracks).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(preloadTracks).toHaveBeenCalledOnce()
+    const state = useShuangeStore.getState()
+    const keys = preloadTracks.mock.calls[0][0].map((track: Track) => track.id)
+    expect(new Set(keys)).toEqual(new Set([
+      ...state.feed.slice(0, 5).map(track => track.id), getShuangeFeedContext()!.standby[0].id,
+    ]))
+    preloadTracks.mockClear()
+    await useShuangeStore.getState().prev()
+    await vi.advanceTimersByTimeAsync(100)
+    const backKeys = preloadTracks.mock.calls[0][0].map((track: Track) => track.id)
+    expect(new Set(backKeys)).toEqual(new Set([
+      ...state.feed.slice(0, 4).map(track => track.id), getShuangeFeedContext()!.standby[0].id,
+    ]))
+  })
+
+  it('音频按移动方向准备前后各两首 批尾包含备用批且首曲不虚构历史', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('Audio', vi.fn())
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`audio-window-${i}`)))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    await vi.advanceTimersByTimeAsync(100)
+    const feed = useShuangeStore.getState().feed
+    /** 读取宿主最新提交的音频目标 */
+    const targets = () => prepareShuangeAudio.mock.lastCall![1].map((item: { track: Track }) => item.track)
+    expect(targets()).toEqual([feed[1], feed[2]])
+    await useShuangeStore.getState().loadIndex(3)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(targets()).toEqual([feed[4], feed[2], feed[5], feed[1]])
+    await useShuangeStore.getState().prev()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(targets()).toEqual([feed[1], feed[3], feed[0], feed[4]])
+    await useShuangeStore.getState().loadIndex(11)
+    await vi.advanceTimersByTimeAsync(100)
+    const standby = getShuangeFeedContext()!.standby
+    expect(targets()).toEqual([standby[0], feed[10], standby[1], feed[9]])
   })
 
   it('enter 拉首屏并 loadIndex(0) 调 loadTrack 带 startAt', async () => {
@@ -197,7 +355,7 @@ describe('shuange store', () => {
     expect(useShuangeStore.getState().feed[0].id).toBe('2')
   })
 
-  it('换一批优先消费本地候选池，不重新请求今日推荐也不会重复同一批', async () => {
+  it('换一批立即消费备用批 新队尾补货不阻塞播放且不会重复同一批', async () => {
     const cached = Array.from({ length: 24 }, (_, index) => mkTrack(`cache-${index}`))
     stashShuangeCandidates(cached)
     getRecommendPlaylists.mockResolvedValue([])
@@ -205,14 +363,115 @@ describe('shuange store', () => {
 
     await useShuangeStore.getState().enter()
     const firstBatch = new Set(useShuangeStore.getState().feed.map((track) => track.id))
-    getDailySongs.mockClear()
+    expect(getDailySongs).not.toHaveBeenCalled()
+    getDailySongs.mockReturnValue(new Promise(() => {}))
 
     await useShuangeStore.getState().refresh()
     const secondBatch = useShuangeStore.getState().feed
 
     expect(secondBatch).toHaveLength(12)
     expect(secondBatch.every((track) => !firstBatch.has(track.id))).toBe(true)
-    expect(getDailySongs).not.toHaveBeenCalled()
+    expect(loadTrack).toHaveBeenCalledTimes(2)
+    expect(getDailySongs).toHaveBeenCalledOnce()
+  })
+
+  it('切歌加载异常会结束等待并保留可重试状态', async () => {
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`failure-${i}`)))
+    getLyrics.mockResolvedValue([])
+    loadTrack.mockRejectedValueOnce(new Error('播放地址失败'))
+    await useShuangeStore.getState().enter()
+    expect(useShuangeStore.getState()).toMatchObject({ active: true, loading: false, stage: null, error: '播放地址失败' })
+    await useShuangeStore.getState().next()
+    expect(useShuangeStore.getState()).toMatchObject({ index: 1, loading: false, error: null })
+  })
+
+  it('旧切歌迟到的失败不覆盖新曲状态', async () => {
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`late-failure-${i}`)))
+    getLyrics.mockResolvedValue([])
+    let rejectOld!: (error: Error) => void
+    loadTrack.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject }))
+    const entering = useShuangeStore.getState().enter()
+    await vi.waitFor(() => expect(loadTrack).toHaveBeenCalledOnce())
+    await useShuangeStore.getState().next()
+    rejectOld(new Error('旧请求失败'))
+    await entering
+    expect(useShuangeStore.getState()).toMatchObject({ index: 1, loading: false, error: null })
+  })
+
+  it('宿主画像会话不重复接管导航 退出交由播放运行时', async () => {
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`route-${i}`)))
+    getLyrics.mockResolvedValue([])
+    useNavigationStore.setState({ currentView: 'shuange', history: [], future: [] })
+    const dispose = initShuangeSession()
+    try {
+      await useShuangeStore.getState().enter()
+      const feed = useShuangeStore.getState().feed
+      useNavigationStore.setState({ navigationRevision: 1 })
+      expect(useShuangeStore.getState().feed).toBe(feed)
+      expect(useShuangeStore.getState().active).toBe(true)
+      useNavigationStore.getState().navigateTo('explore')
+      expect(useShuangeStore.getState().active).toBe(true)
+    } finally { dispose() }
+  })
+
+  it('账号切换丢弃旧请求和候选 新会话单独预热', async () => {
+    let finishOld!: (tracks: Track[]) => void
+    getDailySongs.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve }))
+      .mockResolvedValueOnce(Array.from({ length: 24 }, (_, i) => mkTrack(`new-account-${i}`)))
+    getRecommendPlaylists.mockResolvedValue([])
+    getLyrics.mockResolvedValue([])
+    const dispose = initShuangeSession()
+    try {
+      void useShuangeStore.getState().warmup()
+      const old = getShuangeFeedContext()
+      useProviderStore.getState().setAccountState('netease', 'authenticated')
+      await vi.waitFor(() => expect(getShuangeFeedContext()?.standby).toHaveLength(12))
+      finishOld(Array.from({ length: 24 }, (_, i) => mkTrack(`old-account-${i}`)))
+      await Promise.resolve()
+      const target = getShuangeFeedContext()!
+      expect(target).not.toBe(old)
+      expect([...target.current, ...target.standby].every(track => String(track.id).startsWith('new-account-'))).toBe(true)
+      expect(loadTrack).not.toHaveBeenCalled()
+      await useShuangeStore.getState().enter()
+      expect(String(loadTrack.mock.calls[0][0].id)).toMatch(/^new-account-/)
+    } finally { dispose() }
+  })
+
+  it('自然批尾并发下一首只晋升一次且跨批窗口包含备用批前两首', async () => {
+    vi.useFakeTimers()
+    stashShuangeCandidates(Array.from({ length: 48 }, (_, i) => mkTrack(`boundary-${i}`)))
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    for (let i = 0; i < 11; i++) await useShuangeStore.getState().next()
+    await vi.advanceTimersByTimeAsync(100)
+    const standby = [...getShuangeFeedContext()!.standby]
+    const lastTracks = preloadTracks.mock.lastCall![0] as Track[]
+    expect(lastTracks).toContain(standby[0])
+    expect(lastTracks).toContain(standby[1])
+    const loadCount = loadTrack.mock.calls.length
+    await Promise.all([useShuangeStore.getState().next(), useShuangeStore.getState().next()])
+    expect(useShuangeStore.getState().index).toBe(12)
+    expect(useShuangeStore.getState().feed.slice(12)).toEqual(standby)
+    expect(loadTrack).toHaveBeenCalledTimes(loadCount + 1)
+  })
+
+  it('音质改变后按新档位补齐同一窗口而不重新生成批次', async () => {
+    vi.useFakeTimers()
+    stashShuangeCandidates(Array.from({ length: 36 }, (_, i) => mkTrack(`quality-${i}`)))
+    getLyrics.mockResolvedValue([])
+    const dispose = initShuangeSession()
+    try {
+      await useShuangeStore.getState().warmup()
+      await vi.advanceTimersByTimeAsync(100)
+      const first = getShuangeFeedContext()!.current
+      mockQuality = 'lossless'
+      emitPlayer('paused', 0)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(preloadTracks.mock.lastCall?.[1]).toBe('lossless')
+      expect(getShuangeFeedContext()!.current).toBe(first)
+      expect(getDailySongs).not.toHaveBeenCalled()
+      expect(loadTrack).not.toHaveBeenCalled()
+    } finally { dispose() }
   })
 
   it('进入刷歌后在后台导入常听和收藏曲目画像，不阻塞首屏', async () => {
@@ -231,11 +490,11 @@ describe('shuange store', () => {
   })
 
   it('QQ保持连续流补货，账号最近歌曲提供口味种子而非周排行', async () => {
-    useProviderStore.setState(state => ({ byId: { ...state.byId, netease: { enabled: false, auth: 'anonymous' } }, playbackOrder: ['qq'] }))
     getRadioSongs.mockResolvedValue(Array.from({ length: 15 }, (_, i) => ({ ...mkTrack(`radio${i}`), source: 'qq', provider: 'qq' })))
     getRecentTracks.mockResolvedValue([{ ...mkTrack('recent'), source: 'qq', provider: 'qq' }])
     getRecommendPlaylists.mockResolvedValue([])
     getLyrics.mockResolvedValue([])
+    useProviderStore.setState(state => ({ byId: { ...state.byId, netease: { enabled: false, auth: 'anonymous' } }, playbackOrder: ['qq'] }))
     await useShuangeStore.getState().enter()
     expect(getRadioSongs).toHaveBeenCalledTimes(1)
     expect(getDailySongs).not.toHaveBeenCalled()
@@ -492,7 +751,7 @@ describe('shuange store', () => {
     mockCurrentTrack = mkTrack('original')
     const task = useShuangeStore.getState().enter()
     expect(initShuangeSession()).toBe(stopSession)
-    expect(playerSubscriptions).toHaveLength(1)
+    expect(playerSubscriptions).toHaveLength(2)
     stopSession!()
     stopSession!()
     resolveSongs([mkTrack('late')])
@@ -504,6 +763,72 @@ describe('shuange store', () => {
     expect(takeShuangeCandidateBatch('netease', 12)).toEqual([])
   })
 
+  it('等相邻音频时保留旧卡和声音 就绪后才切换并曝光', async () => {
+    const songs = ['a', 'b', 'c'].map(id => mkTrack(id))
+    getLyrics.mockResolvedValue([])
+    useShuangeStore.setState({ active: true, feed: songs, index: 0, historyEnd: 0,
+      offset: { startSec: 30, endSec: 60, kind: 'refrain' } })
+    mockCurrentTrack = songs[0]
+    mockPosition = 40
+    let ready!: () => void
+    waitForShuangeAudio.mockReturnValueOnce(new Promise<void>(resolve => { ready = resolve }))
+    const next = useShuangeStore.getState().next()
+    expect(useShuangeStore.getState()).toMatchObject({ index: 0, loading: true })
+    expect(pause).not.toHaveBeenCalled()
+    expect(loadTrack).not.toHaveBeenCalled()
+    expect(waitForShuangeAudio).toHaveBeenLastCalledWith(expect.objectContaining({ track: songs[1] }), 'standard', 800)
+    ready()
+    await next
+    expect(pause).toHaveBeenCalledOnce()
+    expect(loadTrack).toHaveBeenCalledWith(songs[1], expect.objectContaining({ contextId: 'shuange:b', autoplay: true }))
+    expect(useShuangeStore.getState()).toMatchObject({ index: 1, loading: false })
+  })
+
+  it.each(['pause', 'stop', 'prev'] as const)('等待音频期间 %s 取消切换 迟到准备不能重新出声', async action => {
+    const songs = ['a', 'b'].map(id => mkTrack(id))
+    useShuangeStore.setState({ active: true, feed: songs, index: 0, historyEnd: 0,
+      offset: { startSec: 30, endSec: 60, kind: 'refrain' } })
+    mockCurrentTrack = songs[0]
+    mockPosition = 40
+    let ready!: () => void
+    waitForShuangeAudio.mockReturnValueOnce(new Promise<void>(resolve => { ready = resolve }))
+    const next = useShuangeStore.getState().next()
+    if (action === 'prev') await useShuangeStore.getState().prev()
+    else beginPlaybackIntent(action === 'pause' ? 'pause' : undefined)
+    ready()
+    await next
+    expect(loadTrack).not.toHaveBeenCalled()
+    expect(useShuangeStore.getState()).toMatchObject({ index: 0, loading: false })
+  })
+
+  it('连续下一首以待切游标推进 最后目标就绪后旧准备不能覆盖', async () => {
+    const songs = ['a', 'b', 'c'].map(id => mkTrack(id))
+    getLyrics.mockResolvedValue([])
+    useShuangeStore.setState({ active: true, feed: songs, index: 0, historyEnd: 0,
+      offset: { startSec: 30, endSec: 60, kind: 'refrain' } })
+    mockCurrentTrack = songs[0]
+    mockPosition = 40
+    let ready!: () => void
+    waitForShuangeAudio.mockReturnValueOnce(new Promise<void>(resolve => { ready = resolve }))
+    const first = useShuangeStore.getState().next()
+    await useShuangeStore.getState().next()
+    ready()
+    await first
+    expect(loadTrack).toHaveBeenCalledOnce()
+    expect(loadTrack).toHaveBeenCalledWith(songs[2], expect.anything())
+    expect(useShuangeStore.getState().index).toBe(2)
+  })
+
+  it('片段快结束时缩短等待预算 保留现有 250 ms 淡出余量', async () => {
+    const songs = ['a', 'b'].map(id => mkTrack(id))
+    getLyrics.mockResolvedValue([])
+    useShuangeStore.setState({ active: true, feed: songs, index: 0, historyEnd: 0,
+      offset: { startSec: 30, endSec: 60, kind: 'refrain' } })
+    mockPosition = 59.5
+    await useShuangeStore.getState().next()
+    expect(waitForShuangeAudio).toHaveBeenLastCalledWith(expect.anything(), 'standard', 250)
+  })
+
   it('停止等待首曲加载后，迟到完成不再发起画像或补货任务', async () => {
     getDailySongs.mockResolvedValue([mkTrack('first')])
     getRecommendPlaylists.mockResolvedValue([])
@@ -513,12 +838,14 @@ describe('shuange store', () => {
     const task = useShuangeStore.getState().enter()
     for (let i = 0; i < 40; i++) await Promise.resolve()
     expect(loadTrack).toHaveBeenCalledOnce()
+    const rankings = getListeningRanking.mock.calls.length
+    const likes = getLikedPlaylist.mock.calls.length
     stopSession!()
     const refills = getRecommendPlaylists.mock.calls.length
     resolveLoad()
     await task
-    expect(getListeningRanking).not.toHaveBeenCalled()
-    expect(getLikedPlaylist).not.toHaveBeenCalled()
+    expect(getListeningRanking).toHaveBeenCalledTimes(rankings)
+    expect(getLikedPlaylist).toHaveBeenCalledTimes(likes)
     expect(getRecommendPlaylists).toHaveBeenCalledTimes(refills)
   })
 })

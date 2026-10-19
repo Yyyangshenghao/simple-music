@@ -29,6 +29,7 @@ function createHost() {
   let qualityListener: (quality: AudioQuality) => void = () => {}
   let providerListener: () => void = () => {}
   const engine = {
+    preloadAudio: vi.fn(), waitForPreload: vi.fn().mockResolvedValue(true), releasePreloads: vi.fn(),
     load: vi.fn(() => { hasSource = true; return ++loadId }),
     play: vi.fn().mockResolvedValue(undefined),
     pause: vi.fn(), seek: vi.fn(), setVolume: vi.fn(), setPlaybackRate: vi.fn(),
@@ -110,6 +111,32 @@ function createHost() {
 afterEach(() => { vi.useRealTimers() })
 
 describe('无界面播放核心', () => {
+  it('只有刷歌允许接管预缓冲 普通点歌保持原有加载参数', async () => {
+    const h = createHost()
+    await h.state.loadTrack(track, { startAt: 60, contextId: 'shuange:1' })
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 60, 'netease:1:lossless', expect.any(Object), true)
+    expect(h.state.actualSource).toBeNull()
+    expect(h.deps.reportPlayback).not.toHaveBeenCalled()
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.actualSource).toBe('netease')
+    await h.state.loadTrack({ ...track, id: 2 }, { startAt: 70, contextId: 'shuange:2' })
+    expect(h.engine.clearSource).toHaveBeenLastCalledWith(true)
+    await h.state.loadTrack(track)
+    expect(h.engine.clearSource).toHaveBeenLastCalledWith()
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 0, 'netease:1:lossless', expect.any(Object))
+  })
+
+  it('刷歌预加载仍服从离线优先与媒体失败回退', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'local' })
+    await h.state.loadTrack(track, { startAt: 60, contextId: 'shuange:1' })
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/audio-cache/file?entryId=test', 60, undefined, undefined, true)
+    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(h.resolver.next).toHaveBeenCalled()
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 60, undefined, undefined, true)
+  })
+
   it('真实收听排除断点位置、拖动、暂停和缓冲，停止时上报一次', async () => {
     const h = createHost()
     await h.state.loadTrack(track, { startAt: 60, contextId: 'list' })

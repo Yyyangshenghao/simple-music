@@ -2,6 +2,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import { NeteaseMusicService } from './netease-music-service'
 import type { Track } from '../types/domain'
+import { fetchLyrics } from './lyrics-fetch'
+import { clearProviderRequestCache } from './provider-request-cache'
+
+describe('网易云刷歌选段与展示歌词共享', () => {
+  afterEach(() => {
+    clearProviderRequestCache()
+    vi.restoreAllMocks()
+  })
+
+  it('解析真实 LRC 响应且与页面共享同一请求', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ lyric: '[00:12.00]第一句\n[00:18.00]第二句' })
+    const track = { id: 'highlight', source: 'netease' } as Track
+    const [highlight, display] = await Promise.all([
+      new NeteaseMusicService().getLyrics(track),
+      fetchLyrics(track),
+    ])
+    expect(highlight).toEqual([{ time: 12, text: '第一句' }, { time: 18, text: '第二句' }])
+    expect(display.main).toEqual(highlight)
+    expect(get).toHaveBeenCalledOnce()
+  })
+})
 
 describe('网易云热搜服务', () => {
   afterEach(() => vi.restoreAllMocks())

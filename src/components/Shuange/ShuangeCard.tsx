@@ -64,6 +64,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
   const toggle = usePlayerStore((s) => s.toggle)
   const index = useShuangeStore((s) => s.index)
   const offset = useShuangeStore((s) => s.offset)
+  const stage = useShuangeStore((s) => s.stage)
   const refreshError = useShuangeStore((s) => s.error)
   const next = useShuangeStore((s) => s.next)
   const prev = useShuangeStore((s) => s.prev)
@@ -140,7 +141,9 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
         <div className={styles.content}>
           <div className={styles.clipBadge}>
             <span className={styles.liveDot} />
-            {buffering ? (switching ? '正在定位精彩段' : '正在缓冲片段') : '精彩片段'}
+            {switching
+              ? stage === 'candidates' ? '正在准备新曲目' : stage === 'playback' ? '正在准备播放' : '正在定位精彩段'
+              : buffering ? '正在缓冲片段' : '精彩片段'}
           </div>
           <h1 ref={titleViewportRef} title={track.name}>
             <span className={styles.titleTrack} data-overflow={titleOverflow}>

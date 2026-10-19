@@ -30,6 +30,34 @@ beforeEach(() => {
 afterEach(() => { stop?.(); stop = undefined; vi.restoreAllMocks() })
 
 describe('宿主持有刷歌导航与续播', () => {
+  it('历史裁剪后位置不变且选段复用时 新卡仍能独立推进', async () => {
+    const old = pending()
+    const next = vi.fn(async () => {}).mockReturnValueOnce(old.promise)
+    useShuangeStore.setState({ next, index: 99, feed: Array(100).fill(first), offset: range })
+    stop = initShuangePlayback()
+    usePlayerStore.setState({ position: 50 })
+    useShuangeStore.setState({ feed: [...Array(99).fill(first), second] })
+    usePlayerStore.setState({ currentTrack: second, position: 50 })
+    expect(next).toHaveBeenCalledTimes(2)
+    old.resolve()
+    await flush()
+  })
+
+  it('补货失败后暂停并保留结束拦截 手动重试前不循环查询', async () => {
+    const pause = vi.spyOn(usePlayerStore.getState(), 'pause').mockImplementation(() => {
+      usePlayerStore.setState({ status: 'paused' })
+    })
+    const next = vi.fn(async () => { useShuangeStore.setState({ error: '补货失败' }) })
+    useShuangeStore.setState({ next })
+    stop = initShuangePlayback()
+    usePlayerStore.setState({ position: 50 })
+    await flush()
+    expect(pause).toHaveBeenCalledOnce()
+    expect(ended()).toBe(true)
+    usePlayerStore.setState({ status: 'playing', position: 51 })
+    expect(next).toHaveBeenCalledOnce()
+  })
+
   it('首屏等待推荐尚未接管音频时不吞掉原队列的自然结束', () => {
     useShuangeStore.setState({ loading: true, feed: [], index: -1, offset: null })
     usePlayerStore.setState({ contextId: 'original-list' })

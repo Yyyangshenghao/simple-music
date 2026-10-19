@@ -4,6 +4,7 @@ import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
+import { useShuangeCoverPreload } from './hooks/useShuangeCoverPreload'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useSettingsStore } from './stores/settings'
@@ -49,6 +50,7 @@ export default function App() {
   useDesktopBridge()
   useShortcuts()
   useScrollbarActivity()
+  useShuangeCoverPreload(mainVisible && !gameEnabled)
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])

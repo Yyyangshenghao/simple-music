@@ -102,7 +102,7 @@ describe('QQMusicService.getLyrics', () => {
     expect(apiGet).toHaveBeenCalledWith('/api/qq/lyric', {
       id: 123456,
       mid: '003a1B2c',
-    })
+    }, { signal: undefined })
   })
 })
 
