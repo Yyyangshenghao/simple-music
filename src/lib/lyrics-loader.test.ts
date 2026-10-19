@@ -142,6 +142,18 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState().lines).toEqual([{ time: 0, text: '新账号歌词' }])
   })
 
+  it('跳转后重新缓冲写入同身份的新曲目对象，不清空也不重取歌词', async () => {
+    stopLoader = initLyricsLoader()
+    await flush()
+    usePlayerStore.setState({ resolvedTrack: { ...apple } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledOnce()
+    usePlayerStore.setState({ resolvedTrack: { ...apple }, currentTrack: { ...apple } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledOnce()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', loading: false, lines: result.main })
+  })
+
   it('进度、音量及无关偏好不会反复获取歌词', async () => {
     stopLoader = initLyricsLoader()
     await flush()

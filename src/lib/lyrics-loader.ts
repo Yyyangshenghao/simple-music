@@ -13,6 +13,12 @@ function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
 }
 
+/** 歌词候选的身份：播放核心在每次 canplay(包括跳转后重新缓冲)都会写入新的 resolvedTrack 对象，
+ *  按引用比较会把跳转误判为换歌而清空重载歌词；只有 source:id 变化才需要重新加载。 */
+function lyricCandidateKeys(currentTrack: Track | null, resolvedTrack: Track | null): string {
+  return Array.from(new Set([currentTrack, resolvedTrack].filter((track): track is Track => !!track).map(lyricTrackKey))).join('|')
+}
+
 let stopLyricsLoader: (() => void) | undefined
 
 export function initLyricsLoader(): () => void {
@@ -67,7 +73,7 @@ export function initLyricsLoader(): () => void {
     })
   }
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {
-    if (state.currentTrack !== previous.currentTrack || state.resolvedTrack !== previous.resolvedTrack) sync()
+    if (lyricCandidateKeys(state.currentTrack, state.resolvedTrack) !== lyricCandidateKeys(previous.currentTrack, previous.resolvedTrack)) sync()
   })
   const stopProviders = useProviderStore.subscribe((state, previous) => {
     if (state.playbackOrder.length !== previous.playbackOrder.length
