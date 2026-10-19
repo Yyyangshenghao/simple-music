@@ -18,8 +18,9 @@
   /* 不要给 --audio-energy 挂 transition:它每帧被 JS 改写,注册属性的过渡会每帧
      催生一个新过渡对象(60/s × 0.35s 存活),播放期间渲染进程内存以 ~13MB/s 增长;
      能量归零的渐熄改由 useAudioEnergy 停表时用 rAF 衰减实现 */
-  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 外层只做位移，不做透明度：opacity<1 的祖先会成为毛玻璃取样边界(Backdrop Root)，
+     面板在淡入淡出期间只能取到容器内部，看起来像突然失去磨砂。透明度放在面板自身。 */
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 只在播放栏面板内补间，避免根节点或音频能量变量参与逐帧过渡。 */
@@ -30,7 +31,8 @@
   --player-lyrics-base: color-mix(in srgb, var(--player-lyrics-surface) 72%, transparent);
   --glass-bg-card: color-mix(in srgb, var(--player-page-glass-bg-card), var(--player-lyrics-card) var(--player-lyrics-blend));
   --glass-bg-base: color-mix(in srgb, var(--player-page-glass-bg-base), var(--player-lyrics-base) var(--player-lyrics-blend));
-  transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
   -webkit-app-region: no-drag;
   padding: 12px 18px 12px 12px;
@@ -66,32 +68,42 @@
   animation: dockEnter 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+.dock .panel {
+  animation: dockFadeIn 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 @keyframes dockEnter {
-  from { opacity: 0; translate: 0 18px; }
+  from { translate: 0 18px; }
+}
+
+@keyframes dockFadeIn {
+  from { opacity: 0; }
 }
 
 /* 歌词页接管：下沉、微缩并淡出，封面已由歌词页飞出。 */
 .dock.handoff {
-  opacity: 0;
   transform: translateY(18px) scale(0.98);
   transition-duration: 0.3s;
 }
 
 .dock.handoff .panel {
+  opacity: 0;
   pointer-events: none;
+  transition-duration: 0.3s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dock { animation: none; }
+  .dock,
+  .dock .panel { animation: none; }
 }
 
 /* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
-  opacity: 0;
   transform: translateY(10px);
 }
 
 .dock.hidden .panel {
+  opacity: 0;
   pointer-events: none;
 }
 

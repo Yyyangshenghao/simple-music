@@ -168,7 +168,7 @@
 .closeBtn {
   -webkit-app-region: no-drag;
   display: inline-grid;
-  grid-template-columns: 38px 0fr;
+  grid-template-columns: 36px 0fr;
   align-items: center;
   height: 38px;
   padding: 0;
@@ -190,7 +190,7 @@
 }
 
 .closeBtn:hover {
-  grid-template-columns: 38px 1fr;
+  grid-template-columns: 36px 1fr;
   background: linear-gradient(180deg, var(--lyrics-glass-hover-top), var(--lyrics-glass-hover-bottom));
   border-color: rgba(var(--lyrics-ink-rgb), 0.22);
   color: rgb(var(--lyrics-ink-rgb));
@@ -204,7 +204,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
+  width: 36px;
   height: 100%;
 }
 
@@ -224,8 +224,8 @@
 
 .closeBtnLabel > span {
   display: block;
-  padding-right: 16px;
-  margin-left: -4px;
+  /* 不能用负外边距贴近箭头：外层 overflow:hidden 会裁掉首字左缘。 */
+  padding: 0 16px 0 1px;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
