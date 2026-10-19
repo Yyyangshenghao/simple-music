@@ -13,7 +13,7 @@ const HOLD_LIFT_MS = 140
 
 /**
  * 流体玻璃分段控件（参照 Apple Music）：指示器按速度横向拉伸、落位过冲回弹；
- * 按住或拖动时浮起成放大透镜，下方内容被模糊、透镜内是放大的标签副本，边缘羽化扩散。
+ * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，换成清晰放大、染选中色的副本，只有边缘轻微模糊。
  */
 export function LibraryTabs<T extends string>({ items, value, onChange }: {
   items: TabItem<T>[]
@@ -41,12 +41,12 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const velocity = useVelocity(x)
   // 横移越快越拉长变扁，减速撞停时速度反向，形成液滴碰撞回弹。
   const stretch = useTransform(velocity, v => reducedMotion ? 0 : Math.min(Math.abs(v) / 2600, 0.3))
-  const scaleX = useTransform(() => 1 + stretch.get() + lift.get() * 0.16)
-  const scaleY = useTransform(() => 1 - stretch.get() * 0.4 + lift.get() * 0.34)
+  const scaleX = useTransform(() => 1 + stretch.get() + lift.get() * 0.3)
+  const scaleY = useTransform(() => 1 - stretch.get() * 0.4 + lift.get() * 0.42)
   const pillOpacity = useTransform(lift, l => 1 - l * 0.8)
   const lensCopyX = useTransform(x, v => -v)
   // 透镜外形会被拉伸，副本反向缩放抵消，保证透镜内文字始终等比放大。
-  const magnify = useTransform(lift, l => 1 + l * 0.12)
+  const magnify = useTransform(lift, l => 1 + l * 0.08)
   const lensCopyScaleX = useTransform(() => magnify.get() / scaleX.get())
   const lensCopyScaleY = useTransform(() => magnify.get() / scaleY.get())
   const lensCopyOrigin = useTransform(() => `${x.get() + width.get() / 2}px 50%`)
@@ -106,6 +106,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   useEffect(() => {
     const update = () => {
       measure(items.findIndex(item => item.value === value))
+      for (const button of buttons()) button.style.setProperty('--btn-left', `${button.offsetLeft}px`)
       const root = rootRef.current
       if (root) setOverflowing(root.scrollWidth > root.clientWidth + 1)
     }
@@ -127,6 +128,22 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   }, [value])
 
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
+
+  // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；透镜沉下时洞随之收拢。
+  useEffect(() => {
+    const sync = () => {
+      const root = rootRef.current
+      if (!root) return
+      const l = lift.get()
+      const hole = l > 0.01 ? l : 0
+      root.style.setProperty('--lens-cx', `${x.get() + width.get() / 2}px`)
+      root.style.setProperty('--lens-rx', `${width.get() * scaleX.get() / 2 * hole}px`)
+      root.style.setProperty('--lens-ry', `${(root.clientHeight - 6) * scaleY.get() / 2 * hole}px`)
+    }
+    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', sync))
+    sync()
+    return () => stops.forEach(stop => stop())
+  }, [])
 
   const activeIndex = items.findIndex(item => item.value === value)
   const content = (item: TabItem<T>) => <>
@@ -203,9 +220,11 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       aria-hidden="true"
       style={{ x, width, scaleX, scaleY, opacity: lift }}
     >
-      <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
-        {items.map(item => <span key={item.value} className={`${styles.subTab} ${value === item.value ? styles.subTabActive : ''}`}>{content(item)}</span>)}
-      </motion.span>
+      <span className={styles.tabLensClip}>
+        <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
+          {items.map(item => <span key={item.value} className={styles.subTab}>{content(item)}</span>)}
+        </motion.span>
+      </span>
     </motion.span>}
   </div>
 }

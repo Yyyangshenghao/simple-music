@@ -59,25 +59,23 @@
   box-shadow: inset 0 1px 0 var(--sm-border-strong), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
 }
 
-/* 浮起的透镜：比轨道更高，盖在标签之上；中心通透放大，边缘高光表现玻璃厚度。 */
+/* 浮起的透镜：比轨道更高，盖在标签之上。透镜范围内原标签被挖空（见 .subTabs > .subTab 的 mask），
+   内部是清晰放大并染成选中色的副本，像凸透镜；只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
 .tabLens {
   z-index: 2;
   overflow: hidden;
-  background:
-    radial-gradient(closest-side, transparent 62%, color-mix(in srgb, var(--sm-text-primary) 10%, transparent)),
-    color-mix(in srgb, var(--glass-bg-card) 30%, transparent);
-  backdrop-filter: blur(2.5px) saturate(190%);
-  -webkit-backdrop-filter: blur(2.5px) saturate(190%);
+  background: radial-gradient(closest-side, transparent 78%, color-mix(in srgb, var(--sm-text-primary) 6%, transparent));
+  backdrop-filter: blur(1.5px) saturate(160%);
+  -webkit-backdrop-filter: blur(1.5px) saturate(160%);
   box-shadow:
-    inset 0 1px 1px color-mix(in srgb, var(--sm-text-primary) 50%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, var(--sm-text-primary) 18%, transparent),
-    inset 10px 0 12px -10px color-mix(in srgb, var(--sm-text-primary) 34%, transparent),
-    inset -10px 0 12px -10px color-mix(in srgb, var(--sm-text-primary) 34%, transparent),
+    inset 0 1px 0.5px color-mix(in srgb, white 45%, transparent),
+    inset 0 -1px 0.5px color-mix(in srgb, white 16%, transparent),
+    inset 0 0 6px color-mix(in srgb, var(--sm-bg-base) 22%, transparent),
     0 0 0 0.5px var(--sm-border-strong),
-    0 8px 22px color-mix(in srgb, var(--sm-bg-base) 34%, transparent);
+    0 6px 18px color-mix(in srgb, var(--sm-bg-base) 26%, transparent);
   will-change: transform, opacity;
 }
-/* 玻璃边缘：只用中性高光勾一圈细边，上沿亮、下沿弱，表现厚度而不带颜色。 */
+/* 玻璃边缘：中性高光细边，上沿亮、下沿弱。 */
 .tabLens::before {
   content: '';
   position: absolute;
@@ -86,25 +84,29 @@
   border-radius: inherit;
   padding: 1px;
   background: linear-gradient(180deg,
-    color-mix(in srgb, white 55%, transparent),
-    color-mix(in srgb, white 8%, transparent) 45%,
-    color-mix(in srgb, white 22%, transparent));
+    color-mix(in srgb, white 50%, transparent),
+    color-mix(in srgb, white 6%, transparent) 45%,
+    color-mix(in srgb, white 20%, transparent));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* 左上镜面高光弧。 */
-.tabLens::after {
-  content: '';
+
+/* 透镜内裁切层：与透镜同框，只在边缘窄带羽化，让副本过渡到外圈模糊的原标签。 */
+.tabLensClip {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  border-radius: inherit;
-  background: radial-gradient(70% 55% at 28% 8%, color-mix(in srgb, white 40%, transparent), transparent 70%);
-  mix-blend-mode: overlay;
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent),
+    linear-gradient(transparent, #000 3px, #000 calc(100% - 3px), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent),
+    linear-gradient(transparent, #000 3px, #000 calc(100% - 3px), transparent);
+  mask-composite: intersect;
 }
 
-/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大；四周羽化露出模糊原标签形成扩散感。 */
+/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大，统一染成选中色。 */
 .tabLensCopy {
   position: absolute;
   top: -3px;
@@ -112,11 +114,15 @@
   display: flex;
   gap: 4px;
   padding: 3px;
-  -webkit-mask-image: radial-gradient(closest-side, #000 80%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 80%, transparent 100%);
 }
-.tabLensCopy .subTab { color: var(--sm-text-secondary); }
-.tabLensCopy .subTabActive { color: var(--sm-text-primary); }
+.tabLensCopy .subTab,
+.tabLensCopy .subTab .subTabIcon { color: var(--sm-tint-selected); opacity: 1; }
+
+/* 透镜浮起时把真实标签在透镜范围内挖空，避免与放大副本叠成重影；椭圆内切于透镜，四角留给模糊边。 */
+.subTabs > .subTab {
+  -webkit-mask-image: radial-gradient(var(--lens-rx, 0px) var(--lens-ry, 0px) at calc(var(--lens-cx, -9999px) - var(--btn-left, 0px)) 50%, transparent 97%, #000 100%);
+  mask-image: radial-gradient(var(--lens-rx, 0px) var(--lens-ry, 0px) at calc(var(--lens-cx, -9999px) - var(--btn-left, 0px)) 50%, transparent 97%, #000 100%);
+}
 
 .subTab {
   position: relative;
@@ -144,7 +150,7 @@
 .subTabActive .subTabIcon { opacity: 1; }
 
 .subTab:hover { color: var(--sm-text-primary); }
-.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
+.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-tint-selected); }
 
 .providerSections { display: flex; flex-direction: column; gap: 30px; }
 
