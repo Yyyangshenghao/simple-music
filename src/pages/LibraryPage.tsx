@@ -32,6 +32,7 @@ import { supportsPlatformPlaylists } from '../lib/platform-playlists'
 import { usePlatformPlaylistsStore } from '../stores/platform-playlists'
 import { PlatformPlaylistNameDialog } from '../components/Playlist/PlatformPlaylistDialog'
 import { LibraryTabs } from './LibraryTabs'
+import { useProgressiveCount } from '../hooks/useProgressiveCount'
 import { motion } from 'motion/react'
 import { pageTransition } from '../lib/motion-presets'
 
@@ -156,16 +157,16 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
       </div>
 
       <motion.div key={tab} initial={{ opacity: 0.75 }} animate={{ opacity: 1 }} transition={pageTransition}>
-      {tab === 'app-playlists' && <AppPlaylistsTab />}
+      {tab === 'app-playlists' && <AppPlaylistsTab scrollRef={scrollRef} />}
 
       {tab === 'playlists' && (contentSource
-        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:playlists`} mode="playlists" source={contentSource} />
+        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:playlists`} mode="playlists" source={contentSource} scrollRef={scrollRef} />
         : <OnlineLibraryUnavailable />)}
 
-      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid key={`${contentSource}:${accountSession}:albums`} mode="albums" source={contentSource} />}
+      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid key={`${contentSource}:${accountSession}:albums`} mode="albums" source={contentSource} scrollRef={scrollRef} />}
 
       {tab === 'favorites' && (contentSource
-        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:favorites`} mode="favorites" source={contentSource} />
+        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:favorites`} mode="favorites" source={contentSource} scrollRef={scrollRef} />
         : <OnlineLibraryUnavailable />)}
 
       {tab === 'recent' && <RecentPlaysList scrollRef={scrollRef} />}
@@ -182,6 +183,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
 interface ProviderLibraryGridProps {
   mode: 'playlists' | 'albums' | 'favorites'
   source: ProviderId
+  scrollRef: RefObject<HTMLDivElement>
 }
 
 const LIBRARY_SCOPES = { playlists: 'library:user-playlists', albums: 'library:user-albums', favorites: 'library:liked-playlist' }
@@ -235,7 +237,7 @@ function OnlineLibraryUnavailable({ source }: { source?: ProviderId }) {
   )
 }
 
-function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
+function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridProps) {
   const [creating, setCreating] = useState(false)
   const managementRevision = usePlatformPlaylistsStore(state => source === 'netease' || source === 'qq' ? state.revision[source] : 0)
   const favoriteRevision = useLikesStore((state) => source === 'qq' && mode !== 'albums' ? state.qqMutationRevision : 0)
@@ -245,6 +247,7 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
   const [results, setResults] = useState(() => cachedLibraryResult(source, mode))
   const sessionRef = useRef(0)
   const retryRef = useRef<Partial<Record<ProviderId, number>>>({})
+  const progressive = useProgressiveCount(results[source]?.data?.length ?? 0, scrollRef)
 
   useEffect(() => {
     const session = ++sessionRef.current
@@ -338,11 +341,14 @@ function ProviderLibraryGrid({ mode, source }: ProviderLibraryGridProps) {
                 {mode === 'favorites' ? '这个平台没有可展示的收藏入口' : mode === 'albums' ? '这个平台暂时没有专辑，或需要先登录' : '这个平台暂时没有歌单，或需要先登录'}
               </div>
             ) : playlists.length > 0 ? (
-              <div className={styles.grid}>
-                {playlists.map((playlist) => (
-                  <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />
-                ))}
-              </div>
+              <>
+                <div className={styles.grid}>
+                  {playlists.slice(0, progressive.visible).map((playlist) => (
+                    <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />
+                  ))}
+                </div>
+                {progressive.hasMore && <div ref={progressive.sentinelRef} className={styles.gridSentinel} aria-hidden="true" />}
+              </>
             ) : <div className={styles.grid} aria-label="正在加载歌单" role="status">
               {Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.skeletonCard} />)}
             </div>}

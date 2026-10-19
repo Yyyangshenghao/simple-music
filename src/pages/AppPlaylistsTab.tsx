@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { motion } from 'motion/react'
 import { useAppPlaylistsStore } from '../stores/app-playlists'
 import { useNavigationStore } from '../stores/navigation'
@@ -11,14 +11,16 @@ import { SOURCE_BRAND } from '../lib/source-brand'
 import { TiltCard } from '../components/ui/TiltCard'
 import { BorderGlow } from '../components/BorderGlow/BorderGlow'
 import { coverReturnTransition, springGentle } from '../lib/motion-presets'
+import { useProgressiveCount } from '../hooks/useProgressiveCount'
 import libraryStyles from './LibraryPage.module.css'
 import cardStyles from '../components/Explore/PlaylistCard.module.css'
 import styles from './AppPlaylists.module.css'
 
-export function AppPlaylistsTab() {
+export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const items = useAppPlaylistsStore(state => state.items)
   const error = useAppPlaylistsStore(state => state.error)
   const returning = useNavigationStore(state => state.lastAction === 'pop')
+  const progressive = useProgressiveCount(items.length, scrollRef)
   const [creating, setCreating] = useState(false)
   const createButton = <button className={`${libraryStyles.createPlaylist} ${styles.createButton} ${styles.primary} no-drag`} disabled={!!error} onClick={() => setCreating(true)}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>新建应用歌单
@@ -37,7 +39,7 @@ export function AppPlaylistsTab() {
         {createButton}
         <small>只在应用内整理，不会更改平台歌单。</small>
       </div>
-        : <div className={libraryStyles.grid}>{items.map(item => {
+        : <><div className={libraryStyles.grid}>{items.slice(0, progressive.visible).map(item => {
           const sources = appPlaylistSources(item.tracks)
           const description = sources.map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')
           return <TiltCard className={cardStyles.glowWrap} key={item.id}>
@@ -53,7 +55,8 @@ export function AppPlaylistsTab() {
               </button>
             </BorderGlow>
           </TiltCard>
-        })}</div>}
+        })}</div>
+        {progressive.hasMore && <div ref={progressive.sentinelRef} className={libraryStyles.gridSentinel} aria-hidden="true" />}</>}
     {creating && <AppPlaylistNameDialog title="新建应用歌单" onClose={() => setCreating(false)} onSubmit={name => {
       const id = useAppPlaylistsStore.getState().create(name)
       useNavigationStore.getState().navigateTo({ type: 'app-playlist', id })

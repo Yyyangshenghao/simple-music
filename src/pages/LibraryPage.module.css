@@ -122,6 +122,9 @@
   gap: 24px;
 }
 
+/* 分批渲染的追加触发点，不占可见空间。 */
+.gridSentinel { height: 1px; }
+
 .skeletonCard {
   aspect-ratio: 1 / 1.2;
   border-radius: 14px;
