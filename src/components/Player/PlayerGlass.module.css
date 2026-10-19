@@ -8,7 +8,8 @@
   /* 保存页面玻璃底色，歌词收起后恢复原样。 */
   --player-page-glass-bg-card: var(--glass-bg-card);
   --player-page-glass-bg-base: var(--glass-bg-base);
-  padding: 10px 16px;
+  /* 四周留边的悬浮岛；总高度需小于 App.module.css 的 --sm-player-clearance。 */
+  padding: 0 20px 14px;
   pointer-events: none;
   position: absolute;
   inset: auto 0 0;
@@ -32,8 +33,11 @@
   transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
   -webkit-app-region: no-drag;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
+  padding: 12px 18px 12px 12px;
+  /* 左侧铺一层封面取色的静态晕染，呼应正在播放的内容。 */
+  background:
+    radial-gradient(90% 160% at 0% 50%, color-mix(in srgb, var(--ambient-1) 16%, transparent), transparent 60%),
+    linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
   /* 确保面板内容绘制在音频辉光之上 */
   position: relative;
   z-index: 1;
@@ -46,6 +50,15 @@
 :global([data-reduce-transparency='1']) .panel {
   --player-lyrics-card: color-mix(in srgb, var(--player-page-glass-bg-card) 95%, var(--ambient-1));
   --player-lyrics-base: color-mix(in srgb, var(--player-page-glass-bg-base) 95%, var(--ambient-1));
+}
+
+/* 大圆角 + 顶部高光描边 + 分层投影，让播放栏像浮在页面上的独立岛屿。 */
+.dock .panel {
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 18px 40px -16px rgba(0, 0, 0, 0.32);
 }
 
 /* 沉浸模式:淡出下沉，页面视口保持不变 */

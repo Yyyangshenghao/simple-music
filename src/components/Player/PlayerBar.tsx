@@ -367,9 +367,11 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
   const controls = (
     <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
       {!embedded && <div className={styles.left}>
-        <TrackInfo onCoverClick={onOpenLyrics} onArtistNavigate={onArtistNavigate} />
-        <LikeButton />
-        <AddToAppPlaylistButton />
+        <TrackInfo
+          onCoverClick={onOpenLyrics}
+          onArtistNavigate={onArtistNavigate}
+          titleAccessory={<><LikeButton /><AddToAppPlaylistButton /></>}
+        />
       </div>}
 
       <div className={styles.center}>
@@ -404,7 +406,8 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>
-          {embedded && <div className={styles.likeSlot}><LikeButton /></div>}
+          {/* 与左侧播放模式等宽，播放键落在进度条正中。 */}
+          {embedded ? <div className={styles.likeSlot}><LikeButton /></div> : <span className={styles.modeBalance} aria-hidden="true" />}
         </div>
 
         <PlaybackProgress />
@@ -412,14 +415,15 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
 
       <div className={styles.right}>
         <VolumeControl />
-        <span className={styles.divider} aria-hidden="true" />
-        <SourceFallbackBadge />
-        <DesktopLyricsButton />
-        <MiniPlayerButton />
-        {/* 歌词页红心与播放模式左右对称，加入应用歌单放到右侧操作组。 */}
-        {embedded && <AddToAppPlaylistButton />}
-        <QueuePanel align={embedded ? 'start' : 'end'} />
-        <MoreMenu />
+        <div className={styles.tools}>
+          <SourceFallbackBadge />
+          <DesktopLyricsButton />
+          <MiniPlayerButton />
+          {/* 歌词页红心与播放模式左右对称，加入应用歌单放到右侧操作组。 */}
+          {embedded && <AddToAppPlaylistButton />}
+          <QueuePanel align={embedded ? 'start' : 'end'} />
+          <MoreMenu />
+        </div>
       </div>
     </div>
   )
