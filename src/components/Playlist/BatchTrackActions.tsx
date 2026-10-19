@@ -26,10 +26,11 @@ interface Props {
   offline?: boolean
   onDelete?(signal: AbortSignal): Promise<void>
   onRemove?(signal: AbortSignal): Promise<void>
+  onAddToQueue?(signal: AbortSignal): number | Promise<number>
   removeLabel?: string
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, removeLabel = '移出平台歌单' }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, onAddToQueue, removeLabel = '移出平台歌单' }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -134,9 +135,13 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     </button>}
     {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>{removeLabel}</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
-      const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
-      if (signal.aborted) return
-      const added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      let added: number
+      if (onAddToQueue) added = await onAddToQueue(signal)
+      else {
+        const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
+        if (signal.aborted) return
+        added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      }
       if (signal.aborted) return
       useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含所选歌曲')
       onDone?.()

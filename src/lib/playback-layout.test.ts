@@ -22,3 +22,16 @@ it('左右留白经宿主命令限制范围、保存并同步到重连快照', a
   expect(save).toHaveBeenCalledWith('simplemusic-settings', expect.stringContaining('"contentGutter":64'))
   expect(takePlaybackSnapshot(true).stores.settings.contentGutter).toBe(64)
 })
+
+it('歌词播放控制样式经宿主保存，完整快照与重新读取存档保留选择', async () => {
+  const storage = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  })
+  await handlePlaybackRequest({ type: 'action', store: 'settings', action: 'setLyricsPlayerStyle', args: ['dock'] })
+  expect(takePlaybackSnapshot(true).stores.settings.lyricsPlayerStyle).toBe('dock')
+  useSettingsStore.setState({ lyricsPlayerStyle: 'stage' })
+  useSettingsStore.getState().loadFromLocal()
+  expect(useSettingsStore.getState().lyricsPlayerStyle).toBe('dock')
+})

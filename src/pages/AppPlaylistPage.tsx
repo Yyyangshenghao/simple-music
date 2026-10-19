@@ -162,8 +162,14 @@ export function AppPlaylistPage({ id }: { id: string }) {
     try { action(); setError('') }
     catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试') }
   }
-  function playbackTracks() {
-    return appPlaylistPlaybackTracks(item?.tracks ?? [], { ...context, providers: useProviderStore.getState().byId, offline: currentOffline() })
+  function playbackTracks(tracks = item?.tracks ?? []) {
+    return appPlaylistPlaybackTracks(tracks, { ...context, providers: useProviderStore.getState().byId, offline: currentOffline() })
+  }
+  function addSelectedToQueue(signal: AbortSignal) {
+    if (signal.aborted) return 0
+    const tracks = playbackTracks(selectedRows.map(row => row.track))
+    if (!tracks.length) throw new Error('当前没有可播放的歌曲')
+    return usePlaylistStore.getState().addManyToQueue(tracks, true)
   }
   function play(key?: string) {
     const queue = playbackTracks()
@@ -268,7 +274,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
             : '这些歌曲在重新登录或启用对应平台后即可恢复，无需移出。'}</p>
           {invalidKeys.length > 0 && <button type="button" className={`${detailStyles.noticeAction} no-drag`} onClick={removeInvalid}>移出 {invalidKeys.length} 首已失效歌曲</button>}
         </div>}
-        {mode === 'select' && <BatchTrackActions tracks={selectedRows.map(row => row.track)} onDone={selection.clear} onRemove={removeSelected} removeLabel="移出应用歌单"
+        {mode === 'select' && <BatchTrackActions tracks={selectedRows.map(row => row.track)} onDone={selection.clear} onRemove={removeSelected} onAddToQueue={addSelectedToQueue} removeLabel="移出应用歌单"
           selection={{ total: visible.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
         {mode === 'reorder' ? <div className={detailStyles.reorderBar} role="region" aria-label="调整顺序">
           <div><strong>调整顺序</strong><span>改动立即保存，下次播放按新顺序。</span></div>
