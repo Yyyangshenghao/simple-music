@@ -11,6 +11,15 @@ import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
 import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, LyricsLayoutParams, PerformanceFlags, PlayMode } from '../types/domain'
 
 export const SETTINGS_STORAGE_KEY = 'simplemusic-settings'
+export const CONTENT_GUTTER_MIN = 16
+export const CONTENT_GUTTER_MAX = 64
+export const CONTENT_GUTTER_DEFAULT = 24
+
+function normalizeContentGutter(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(CONTENT_GUTTER_MAX, Math.max(CONTENT_GUTTER_MIN, Math.round(value)))
+    : CONTENT_GUTTER_DEFAULT
+}
 
 // 仅升级完整的旧默认配置；任何自定义或主动清除的绑定都保留。
 function migrateShortcutDefaults(value: unknown, scope: ShortcutScope, platform: string): unknown {
@@ -113,6 +122,7 @@ interface PersistedSettings {
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
   contentLayout: 'framed' | 'full'
+  contentGutter: number
   audioQuality: AudioQuality
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
@@ -171,6 +181,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setContentLayout(layout: 'framed' | 'full'): void
+  setContentGutter(value: number): void
   setAudioQuality(q: AudioQuality): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
@@ -217,6 +228,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   contentLayout: 'framed',
+  contentGutter: CONTENT_GUTTER_DEFAULT,
   audioQuality: 'max',
   playMode: 'order',
   fontFamily: '',
@@ -345,6 +357,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ themeMode: m })
     get().saveToLocal()
   },
+  setContentGutter(value) {
+    set({ contentGutter: normalizeContentGutter(value) })
+    get().saveToLocal()
+  },
   setContentLayout(contentLayout) {
     set({ contentLayout })
     get().saveToLocal()
@@ -406,8 +422,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -455,6 +471,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
+        contentGutter: normalizeContentGutter(data.contentGutter),
         audioQuality: data.audioQuality ?? 'max',
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',

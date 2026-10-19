@@ -4,7 +4,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
-import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
+import { CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
@@ -636,6 +636,8 @@ export function SettingsPage() {
   }, [settingsMusicRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const contentGutter = useSettingsStore((s) => s.contentGutter)
+  const setContentGutter = useSettingsStore((s) => s.setContentGutter)
   const contentLayout = useSettingsStore((s) => s.contentLayout)
   const setContentLayout = useSettingsStore((s) => s.setContentLayout)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
@@ -1075,6 +1077,12 @@ export function SettingsPage() {
                       </div>
                     </div>
                     <p className={styles.groupHint}>内容延展会移除栏目外框，让音乐内容铺开。</p>
+                    {contentLayout === 'full' && <SliderRow
+                      label="左右留白"
+                      min={CONTENT_GUTTER_MIN} max={CONTENT_GUTTER_MAX} step={1}
+                      value={contentGutter} format={(v) => `${v} px`}
+                      onChange={setContentGutter}
+                    />}
                   </section>
 
                   <section className={styles.group}>

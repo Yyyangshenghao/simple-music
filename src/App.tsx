@@ -29,7 +29,7 @@ import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
 const APPEARANCE_KEYS = [
-  'themeMode', 'contentLayout', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
+  'themeMode', 'contentLayout', 'contentGutter', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
   'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
 ] as const
 
@@ -70,6 +70,7 @@ export default function App() {
       const {
         themeMode,
         contentLayout,
+        contentGutter,
         fontFamily,
         fontFamilyCjk,
         lyricsFontFamily,
@@ -82,6 +83,7 @@ export default function App() {
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
       root.setAttribute('data-content-layout', contentLayout)
+      root.style.setProperty('--sm-content-gutter', `${contentGutter}px`)
       if (fontFamily.trim() || fontFamilyCjk.trim()) {
         root.style.setProperty('--sm-font-sans', fontFamilyCssValue(fontFamily, fontFamilyCjk))
       } else root.style.removeProperty('--sm-font-sans')

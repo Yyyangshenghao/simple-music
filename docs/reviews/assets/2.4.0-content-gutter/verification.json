@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "theme": "深色",
+      "value": 16,
+      "width": 1280,
+      "scroll": 1280,
+      "gutter": "16px"
+    },
+    {
+      "theme": "浅色",
+      "value": 64,
+      "width": 900,
+      "scroll": 900,
+      "gutter": "64px"
+    }
+  ],
+  "persistence": true,
+  "framedUnaffected": true
+}
