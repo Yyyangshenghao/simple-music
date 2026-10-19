@@ -25,6 +25,7 @@ import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { Toast } from './components/ui/Toast'
+import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
 const APPEARANCE_KEYS = [
@@ -117,6 +118,7 @@ export default function App() {
           <GlobalContentProviderDock />
           {currentView !== 'shuange' && !(lyricsOpen && lyricsMode === 'lyrics') && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
+          <TrackActionLayer />
           <Toast />
           <UpdateBanner />
         </div>

@@ -1,0 +1,70 @@
+/* 与批量操作菜单同一玻璃表面；fixed + portal，层级高于播放栏与全屏浮层。 */
+.floating {
+  position: fixed;
+  z-index: 1000;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 6px;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 14px;
+  background: var(--glass-bg-modal);
+  backdrop-filter: var(--glass-blur-modal);
+  -webkit-backdrop-filter: var(--glass-blur-modal);
+  box-shadow: var(--sm-shadow);
+  color: var(--sm-text-primary);
+  animation: floatingEnter 140ms var(--sm-ease-out);
+}
+
+.floating button { font-family: inherit; }
+
+.header { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 8px; }
+.header strong { font-size: 13px; font-weight: 600; }
+.header span { overflow: hidden; color: var(--sm-text-secondary); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+
+.list { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 0 4px; border-top: 1px solid var(--sm-border); }
+
+.target, .newButton, .menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.target:hover:not(:disabled), .target:focus-visible,
+.newButton:hover, .newButton:focus-visible,
+.menu button:hover, .menu button:focus-visible { background: var(--sm-fill-hover); outline: none; }
+.target:disabled { cursor: default; }
+.menu button > svg, .newButton > svg { flex-shrink: 0; color: var(--sm-text-secondary); }
+
+.targetName { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.targetMeta { flex-shrink: 0; color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.addMark { display: inline-flex; flex-shrink: 0; color: var(--sm-text-secondary); opacity: 0; transition: opacity 120ms var(--sm-ease-out); }
+.target:hover .addMark, .target:focus-visible .addMark { opacity: 1; }
+.check { flex-shrink: 0; color: var(--sm-accent); }
+
+.newButton { border-top: 1px solid var(--sm-border); border-radius: 0 0 8px 8px; margin-top: 2px; }
+.list + .newButton { margin-top: 0; }
+
+.create { display: flex; gap: 6px; padding: 8px 4px 4px; border-top: 1px solid var(--sm-border); }
+.create input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--sm-border-strong); border-radius: 8px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); font: inherit; font-size: 12px; }
+.create input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+.primary { flex-shrink: 0; padding: 0 12px; border: 0; border-radius: 8px; background: var(--sm-accent); color: var(--sm-text-on-accent); font-size: 12px; cursor: pointer; }
+.primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
+.primary:disabled { opacity: 0.4; cursor: default; }
+
+.notice { padding: 4px 10px 8px; }
+.notice p, .error { margin: 0 0 8px; color: var(--sm-color-danger); font-size: 12px; line-height: 1.5; }
+.error { padding: 6px 10px 2px; margin: 0; }
+.notice button { padding: 5px 12px; border: 1px solid var(--sm-border); border-radius: 8px; background: none; color: var(--sm-text-primary); font-size: 12px; cursor: pointer; }
+
+@keyframes floatingEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .floating { animation: none; } .addMark { transition: none; } }

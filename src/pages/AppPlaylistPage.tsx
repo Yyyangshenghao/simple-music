@@ -282,7 +282,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
         </TrackSearch>}
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
-        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>从歌曲、专辑或平台歌单的「更多」中选择「加入应用歌单」。</span></div>
+        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>在歌曲上点「＋」或右键，正在播放的歌可在播放栏加入；整张专辑或歌单从「更多」中加入。</span></div>
           : !visible.length ? <div className={styles.empty}><p>没有符合条件的歌曲</p><button className="no-drag" onClick={clearFilters}>清除筛选</button></div>
           : <div className={detailStyles.trackList} ref={listRef}><VirtualList total={visible.length} rowHeight={ROW_HEIGHT} scrollRef={scrollRef} renderRow={renderRow} /></div>}
         {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}

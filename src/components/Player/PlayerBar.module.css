@@ -62,6 +62,10 @@
   color: var(--sm-accent-warm);
 }
 
+/* 加入应用歌单：已收进任一应用歌单时用强调色，与红心的平台收藏区分。 */
+.addBtn { width: 32px; height: 32px; flex-shrink: 0; }
+.addBtn[data-saved='true'] { color: var(--sm-accent); --player-control-hover-color: var(--sm-accent); }
+
 .likeBtn[data-liked='true'] {
   --player-control-hover-color: var(--sm-color-like);
   color: var(--sm-color-like);

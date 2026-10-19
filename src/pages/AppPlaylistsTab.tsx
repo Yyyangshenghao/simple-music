@@ -35,7 +35,7 @@ export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
       : !items.length ? <div className={styles.welcome}>
         <div className={styles.supportedSources} aria-label="支持的歌曲来源">{(['netease', 'qq', 'apple', 'local'] as const).map(source => <SourceBadge key={source} source={source} showInactive displayMode="always" />)}</div>
         <h3>建一份跨平台歌单</h3>
-        <p>从歌曲、专辑或平台歌单的「更多」中加入，保留原来的歌曲来源。</p>
+        <p>在歌曲上点「＋」或右键即可加入，正在播放的歌可在播放栏收藏；整张专辑或歌单从「更多」中加入。</p>
         {createButton}
         <small>只在应用内整理，不会更改平台歌单。</small>
       </div>

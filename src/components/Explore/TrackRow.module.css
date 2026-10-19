@@ -118,6 +118,25 @@
   background: color-mix(in srgb, var(--sm-color-like) 12%, transparent);
 }
 
+/* 加入应用歌单：与离线、红心同一悬停显形规则。 */
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--sm-text-secondary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms var(--sm-ease-out), color 120ms, background 120ms;
+}
+.row:hover .addBtn,
+.row:focus-within .addBtn { opacity: 0.85; }
+.addBtn:hover { opacity: 1; color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+
+.addBtn:focus-visible,
 .offlineBtn:focus-visible,
 .likeBtn:focus-visible {
   opacity: 1;
