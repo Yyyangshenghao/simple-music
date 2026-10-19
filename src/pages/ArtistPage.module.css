@@ -1,8 +1,4 @@
 
-.page {
-  scrollbar-gutter: stable;
-}
-
 .back {
   display: inline-flex;
   align-items: center;
