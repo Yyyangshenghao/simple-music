@@ -3,11 +3,30 @@ import { LIST_SCROLL_IDLE_MS, observeListScrollActivity } from './list-scroll-ac
 
 afterEach(() => vi.useRealTimers())
 
+it('探索页可从滚轮开始暂停，边界无位移也会恢复，卸载释放滚轮监听', () => {
+  vi.useFakeTimers()
+  const viewport = new EventTarget()
+  const change = vi.fn()
+  const stop = observeListScrollActivity(viewport, change, { wheel: true })
+  viewport.dispatchEvent(new Event('wheel'))
+  expect(change.mock.calls).toEqual([[true]])
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  expect(change.mock.calls).toEqual([[true], [false]])
+  viewport.dispatchEvent(new Event('wheel'))
+  stop()
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  viewport.dispatchEvent(new Event('wheel'))
+  expect(change.mock.calls).toEqual([[true], [false], [true]])
+  expect(vi.getTimerCount()).toBe(0)
+})
+
 it('快速经过多段只通知滚动开始，停留后才恢复查询', () => {
   vi.useFakeTimers()
   const viewport = new EventTarget()
   const change = vi.fn()
   const stop = observeListScrollActivity(viewport, change)
+  viewport.dispatchEvent(new Event('wheel'))
+  expect(change).not.toHaveBeenCalled()
   for (let i = 0; i < 20; i++) {
     viewport.dispatchEvent(new Event('scroll'))
     vi.advanceTimersByTime(30)

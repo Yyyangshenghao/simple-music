@@ -132,3 +132,10 @@
   overflow: hidden;
   z-index: 1;
 }
+
+/* 内容经过静止光标时不重复启动渐变蒙版和大范围辉光，保留原生点击命中。 */
+[data-explore-scrolling] .border-glow-card::before,
+[data-explore-scrolling] .border-glow-card::after,
+[data-explore-scrolling] .border-glow-card > .edge-light {
+  display: none;
+}

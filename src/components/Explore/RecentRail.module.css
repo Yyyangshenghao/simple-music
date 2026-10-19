@@ -48,6 +48,11 @@
 
 .card:hover .cover { transform: scale(1.04); }
 
+:global([data-explore-scrolling]) .card .cover {
+  transform: none;
+  transition: none;
+}
+
 .name {
   font-size: 12px;
   color: var(--sm-text-secondary);

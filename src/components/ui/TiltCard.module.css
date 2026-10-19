@@ -8,6 +8,11 @@
   box-shadow: var(--glow-soft);
 }
 
+.tilt[data-scrolling] {
+  box-shadow: none;
+  transition: none;
+}
+
 /* 追光光斑：跟随 --spot-x/--spot-y，hover 淡入 */
 .spotlight {
   position: absolute;

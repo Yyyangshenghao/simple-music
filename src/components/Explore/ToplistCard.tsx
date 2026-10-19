@@ -1,4 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useContext, useEffect, useRef, useState } from 'react'
+import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { motion } from 'motion/react'
 import { loadPlaylistQueue } from '../../hooks/useLazyPlaylist'
 import { usePlaylistStore } from '../../stores/playlist'
@@ -37,6 +38,7 @@ interface ToplistCardProps {
  * 整卡点击进详情,封面上的圆钮直接把整榜灌进播放队列(不进详情页)。
  */
 export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistCardProps) {
+  const scrolling = useContext(ListScrollActivity)
   const [loading, setLoading] = useState(false)
   const { playlist, updateFrequency } = entry
   const [preview, setPreview] = useState<ToplistPreviewTrack[]>(() => initialPreview(entry))
@@ -108,6 +110,7 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
   return (
     <motion.article
       ref={cardRef}
+      data-scrolling={scrolling || undefined}
       className={`${styles.card} no-drag`}
       role="button"
       tabIndex={0}
@@ -119,8 +122,8 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
           onOpen()
         }
       }}
-      whileHover={{ y: -3 }}
-      transition={springGentle}
+      whileHover={scrolling ? {} : { y: -3 }}
+      transition={scrolling ? { duration: 0 } : springGentle}
       aria-label={`${playlist.name},共 ${playlist.trackCount} 首`}
     >
       <header className={styles.head}>

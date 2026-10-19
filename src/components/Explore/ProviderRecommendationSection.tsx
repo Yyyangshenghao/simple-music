@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { providerErrorOf, type ProviderResult } from '../../lib/content-hub'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
@@ -63,7 +63,7 @@ interface ProviderRecommendationSectionProps {
   onPreview(playlist: Playlist): void
 }
 
-export function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
+export const ProviderRecommendationSection = memo(function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
   const provider = providerFor(source)
   const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
   const [dailyDay, setDailyDay] = useState(qqDay)
@@ -328,4 +328,4 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
       {provider.toplists && <ToplistSection source={source} embedded onOpen={onPreview} />}
     </motion.section>
   )
-}
+})

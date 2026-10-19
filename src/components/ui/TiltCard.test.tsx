@@ -4,6 +4,7 @@ import { TiltCard } from './TiltCard'
 
 const h = vi.hoisted(() => ({
   reduced: false,
+  scrolling: false,
   performance: { cardTiltEffect: true, cardSpotlightEffect: true },
   ref: { current: null as unknown },
   effects: [] as Array<() => void>,
@@ -12,6 +13,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
+  useContext: () => h.scrolling,
   useRef: () => h.ref,
   useEffect: (effect: () => void) => { h.effects.push(effect) },
 }))
@@ -35,12 +37,29 @@ function render(disabled = false) {
 }
 beforeEach(() => {
   h.reduced = false
+  h.scrolling = false
   h.performance.cardTiltEffect = h.performance.cardSpotlightEffect = true
   h.effects = []
   vi.clearAllMocks()
 })
 
 describe('卡片交互解耦', () => {
+  it('滚动时暂停悬停装饰，停止后恢复原有选择', () => {
+    h.scrolling = true
+    const paused = render()
+    expect(paused.props.onPointerMove).toBeUndefined()
+    expect(paused.props.whileHover).toEqual({})
+    expect(paused.props.transition).toEqual({ duration: 0 })
+    expect(paused.props.style.rotateX).toBe(0)
+    expect(paused.props.style.transformPerspective).toBe(0)
+    expect(paused.props['data-scrolling']).toBe(true)
+    expect(h.performance).toEqual({ cardTiltEffect: true, cardSpotlightEffect: true })
+    h.scrolling = false
+    const resumed = render()
+    expect(resumed.props.onPointerMove).toBeTypeOf('function')
+    expect(resumed.props.whileHover).toEqual({ y: -4, scale: 1.02 })
+  })
+
   it.each([[true, true], [true, false], [false, true], [false, false]])('倾斜 %s、光斑 %s 各自响应指针', (tilt, spotlight) => {
     h.performance.cardTiltEffect = tilt
     h.performance.cardSpotlightEffect = spotlight

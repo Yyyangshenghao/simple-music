@@ -5,6 +5,7 @@ import { useContentProvider } from '../hooks/useContentProvider'
 import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
+import { ListScrollActivity, observeListScrollActivity } from '../components/ui/list-scroll-activity'
 import { GradientText } from '../components/ui/GradientText'
 import { pageTransition } from '../lib/motion-presets'
 import { providerAccountSession } from '../lib/provider-account-session'
@@ -26,10 +27,17 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
   const accountSession = activeHomeSource ? providerAccountSession(activeHomeSource) : 0
   const [preview, setPreview] = useState<Playlist | null>(null)
+  const [scrolling, setScrolling] = useState(false)
   const previousSourceRef = useRef(activeHomeSource)
   const pageRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const restoringScrollRef = useRef(false)
+
+  useEffect(() => {
+    setScrolling(false)
+    const page = pageRef.current
+    if (page) return observeListScrollActivity(page, setScrolling, { wheel: true })
+  }, [detail])
 
   const previousSource = previousSourceRef.current
   const previousIndex = previousSource ? enabledSources.indexOf(previousSource) : 0
@@ -94,9 +102,10 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   }
 
   return (
-    <motion.div layoutScroll ref={pageRef} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
+    <motion.div layoutScroll ref={pageRef} data-explore-scrolling={scrolling || undefined} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
       if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, { session: providerAccountSession(activeHomeSource), top: event.currentTarget.scrollTop })
     }}>
+      <ListScrollActivity.Provider value={scrolling}>
 
       <motion.header
         className={styles.intro}
@@ -132,6 +141,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
 
       <div className={styles.bottomSpace} />
       <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
+      </ListScrollActivity.Provider>
     </motion.div>
   )
 }

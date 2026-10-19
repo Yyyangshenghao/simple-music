@@ -1,0 +1,740 @@
+{
+  "baseline": "a2af71b",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "deviceScaleFactor": 2
+  },
+  "input": {
+    "wheelEvents": 160,
+    "deltaY": 25,
+    "reverseEvery": 40,
+    "delayMs": 16,
+    "pointer": {
+      "x": 180,
+      "y": 350
+    }
+  },
+  "notes": [
+    "同事件数量的两组观测；输入相同，原生 scroll 会合并，完整保留各轮事件数量。",
+    "GPU 数字为进程 CPU 时间 / 墙钟时间，不是硬件利用率。",
+    "无录到超过25ms帧，不宣称已复现全部用户体感。"
+  ],
+  "runs": {
+    "initialBefore": [
+      {
+        "name": "blank",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.882489146164983,
+          "p95": 6.30000000000291,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 4.0965025861300495,
+          "renderer": 20.274688413661583,
+          "GPU": 28.466571153940823,
+          "network.mojom.NetworkService": 0.09578086236636185,
+          "tracing.mojom.TracingService": 0.1156853228268712
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 72.96000000000029,
+            "count": 1366,
+            "max": 0.75
+          },
+          "FunctionCall": {
+            "ms": 92.23900000000069,
+            "count": 2589,
+            "max": 0.692
+          },
+          "UpdateLayoutTree": {
+            "ms": 39.842999999999954,
+            "count": 683,
+            "max": 0.198
+          },
+          "EventDispatch": {
+            "ms": 40.279000000000025,
+            "count": 386,
+            "max": 0.633
+          },
+          "Paint": {
+            "ms": 15.416999999999996,
+            "count": 179,
+            "max": 0.231
+          },
+          "Layout": {
+            "ms": 1.4390000000000003,
+            "count": 12,
+            "max": 0.211
+          }
+        }
+      },
+      {
+        "name": "overCards",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 44,
+            "pointerover": 44,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 6.088544474393537,
+          "p95": 6.400000000001455,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 2.5566581785396667,
+          "renderer": 37.81652413828993,
+          "GPU": 55.1736264417659,
+          "network.mojom.NetworkService": 0.010784784042727568,
+          "tracing.mojom.TracingService": 0.07983397633271568
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 92.85900000000093,
+            "count": 2212,
+            "max": 0.469
+          },
+          "FunctionCall": {
+            "ms": 150.2950000000002,
+            "count": 5386,
+            "max": 1.89
+          },
+          "UpdateLayoutTree": {
+            "ms": 300.78799999999995,
+            "count": 820,
+            "max": 1.438
+          },
+          "EventDispatch": {
+            "ms": 115.77000000000008,
+            "count": 669,
+            "max": 1.928
+          },
+          "Paint": {
+            "ms": 86.88100000000013,
+            "count": 1340,
+            "max": 0.291
+          },
+          "Layout": {
+            "ms": 40.70400000000001,
+            "count": 350,
+            "max": 0.267
+          }
+        }
+      },
+      {
+        "name": "overCardsNoEffects",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 46,
+            "pointerover": 46,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.915655853314534,
+          "p95": 6.30000000000291,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.3479171037632303,
+          "renderer": 31.761946442870858,
+          "GPU": 35.71616010235144,
+          "network.mojom.NetworkService": 0.03817802296526031,
+          "tracing.mojom.TracingService": 0.11567797969623667
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 114.72700000000029,
+            "count": 2119,
+            "max": 0.679
+          },
+          "FunctionCall": {
+            "ms": 163.97399999999925,
+            "count": 5179,
+            "max": 1.721
+          },
+          "UpdateLayoutTree": {
+            "ms": 135.37800000000004,
+            "count": 790,
+            "max": 1.201
+          },
+          "EventDispatch": {
+            "ms": 101.14,
+            "count": 646,
+            "max": 1.762
+          },
+          "Paint": {
+            "ms": 68.70899999999989,
+            "count": 983,
+            "max": 0.235
+          },
+          "Layout": {
+            "ms": 46.050999999999995,
+            "count": 362,
+            "max": 0.351
+          }
+        }
+      }
+    ],
+    "initialAfter": [
+      {
+        "name": "blank",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.908271787296889,
+          "p95": 6.2000000000116415,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 4.894835214229598,
+          "renderer": 24.5981890728182,
+          "GPU": 29.649892226408316,
+          "network.mojom.NetworkService": 0.11693154899212785,
+          "tracing.mojom.TracingService": 0.0800979859456078
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 82.39000000000023,
+            "count": 1355,
+            "max": 0.57
+          },
+          "FunctionCall": {
+            "ms": 119.25800000000122,
+            "count": 2822,
+            "max": 7.02
+          },
+          "UpdateLayoutTree": {
+            "ms": 47.89799999999999,
+            "count": 680,
+            "max": 1.097
+          },
+          "EventDispatch": {
+            "ms": 52.37600000000006,
+            "count": 386,
+            "max": 0.557
+          },
+          "Paint": {
+            "ms": 16.295,
+            "count": 182,
+            "max": 0.291
+          },
+          "Layout": {
+            "ms": 0.212,
+            "count": 1,
+            "max": 0.212
+          }
+        }
+      },
+      {
+        "name": "overCards",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 46,
+            "pointerover": 46,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.907203389830492,
+          "p95": 6.300000000017462,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.328354970673493,
+          "renderer": 27.78852699461798,
+          "GPU": 34.2549878041,
+          "network.mojom.NetworkService": 0.02093410341824597,
+          "tracing.mojom.TracingService": 0.11299630907928358
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 63.35100000000028,
+            "count": 1545,
+            "max": 0.607
+          },
+          "FunctionCall": {
+            "ms": 123.32300000000095,
+            "count": 4255,
+            "max": 6.985
+          },
+          "UpdateLayoutTree": {
+            "ms": 84.31799999999994,
+            "count": 739,
+            "max": 0.89
+          },
+          "EventDispatch": {
+            "ms": 93.53500000000007,
+            "count": 638,
+            "max": 1.376
+          },
+          "Paint": {
+            "ms": 65.88600000000002,
+            "count": 1049,
+            "max": 0.297
+          },
+          "Layout": {
+            "ms": 42.04900000000003,
+            "count": 365,
+            "max": 0.372
+          }
+        }
+      },
+      {
+        "name": "overCardsNoEffects",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 46,
+            "pointerover": 46,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.9319718309859315,
+          "p95": 6.2000000000116415,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.3739450082880094,
+          "renderer": 27.27488292641501,
+          "GPU": 34.306143292686365,
+          "network.mojom.NetworkService": 0.033812584042747305,
+          "tracing.mojom.TracingService": 0.1274145547565898
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 73.09600000000043,
+            "count": 1550,
+            "max": 0.608
+          },
+          "FunctionCall": {
+            "ms": 139.8229999999998,
+            "count": 4265,
+            "max": 6.471
+          },
+          "UpdateLayoutTree": {
+            "ms": 81.20699999999995,
+            "count": 741,
+            "max": 1.269
+          },
+          "EventDispatch": {
+            "ms": 103.44999999999996,
+            "count": 641,
+            "max": 1.691
+          },
+          "Paint": {
+            "ms": 61.894000000000084,
+            "count": 1079,
+            "max": 0.288
+          },
+          "Layout": {
+            "ms": 38.33800000000003,
+            "count": 359,
+            "max": 0.452
+          }
+        }
+      }
+    ],
+    "finalAfterA": [
+      {
+        "name": "blank",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "scroll": 136
+          },
+          "writes": 0,
+          "mean": 5.906950354609926,
+          "p95": 6.799999999999272,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 5.191946749685889,
+          "renderer": 30.02510857088412,
+          "GPU": 45.36165374267569,
+          "network.mojom.NetworkService": 0.3562651044975754,
+          "tracing.mojom.TracingService": 0.1661978153294843
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 86.68400000000025,
+            "count": 1415,
+            "max": 0.69
+          },
+          "FunctionCall": {
+            "ms": 147.4910000000008,
+            "count": 3305,
+            "max": 5.922
+          },
+          "UpdateLayoutTree": {
+            "ms": 60.341,
+            "count": 710,
+            "max": 1.195
+          },
+          "EventDispatch": {
+            "ms": 89.85099999999994,
+            "count": 582,
+            "max": 0.734
+          },
+          "Paint": {
+            "ms": 51.86799999999999,
+            "count": 324,
+            "max": 0.448
+          },
+          "Layout": {
+            "ms": 1.8560000000000005,
+            "count": 13,
+            "max": 0.286
+          }
+        }
+      },
+      {
+        "name": "overCards",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 88,
+            "pointerover": 88,
+            "scroll": 136
+          },
+          "writes": 0,
+          "mean": 5.947210884353738,
+          "p95": 6.599999999998545,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.7949914561048863,
+          "renderer": 37.615815767434576,
+          "GPU": 47.79551643370014,
+          "network.mojom.NetworkService": 0.019938338419826958,
+          "tracing.mojom.TracingService": 0.15753805396762283
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 62.760000000000346,
+            "count": 1548,
+            "max": 0.567
+          },
+          "FunctionCall": {
+            "ms": 182.4499999999976,
+            "count": 5429,
+            "max": 4.129
+          },
+          "UpdateLayoutTree": {
+            "ms": 112.69200000000009,
+            "count": 768,
+            "max": 1.111
+          },
+          "EventDispatch": {
+            "ms": 195.62000000000003,
+            "count": 1016,
+            "max": 1.666
+          },
+          "Paint": {
+            "ms": 92.66100000000013,
+            "count": 1287,
+            "max": 0.352
+          },
+          "Layout": {
+            "ms": 66.02200000000006,
+            "count": 517,
+            "max": 0.46
+          }
+        }
+      },
+      {
+        "name": "overCardsNoEffects",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 88,
+            "pointerover": 88,
+            "scroll": 136
+          },
+          "writes": 0,
+          "mean": 5.939295392953936,
+          "p95": 6.80000000000291,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.6110347753503773,
+          "renderer": 37.52056070572994,
+          "GPU": 46.31476001502041,
+          "network.mojom.NetworkService": 0.09715921746985676,
+          "tracing.mojom.TracingService": 0.14243929461265833
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 75.82200000000039,
+            "count": 1604,
+            "max": 0.541
+          },
+          "FunctionCall": {
+            "ms": 190.53999999999692,
+            "count": 5546,
+            "max": 5.341
+          },
+          "UpdateLayoutTree": {
+            "ms": 108.79299999999995,
+            "count": 787,
+            "max": 1.381
+          },
+          "EventDispatch": {
+            "ms": 184.17600000000024,
+            "count": 1016,
+            "max": 1.564
+          },
+          "Paint": {
+            "ms": 88.17800000000014,
+            "count": 1386,
+            "max": 0.344
+          },
+          "Layout": {
+            "ms": 63.28200000000007,
+            "count": 520,
+            "max": 0.388
+          }
+        }
+      }
+    ],
+    "controlledBefore": [
+      {
+        "name": "blank",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "scroll": 136
+          },
+          "writes": 0,
+          "mean": 5.898735955056179,
+          "p95": 6.799999999999727,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 4.926658606679563,
+          "renderer": 26.519438135542934,
+          "GPU": 40.30843212891776,
+          "network.mojom.NetworkService": 0.3216085648617494,
+          "tracing.mojom.TracingService": 0.15415219970464453
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 75.65100000000021,
+            "count": 1428,
+            "max": 0.619
+          },
+          "FunctionCall": {
+            "ms": 121.5380000000012,
+            "count": 3016,
+            "max": 0.604
+          },
+          "UpdateLayoutTree": {
+            "ms": 54.847999999999985,
+            "count": 714,
+            "max": 0.258
+          },
+          "EventDispatch": {
+            "ms": 80.188,
+            "count": 580,
+            "max": 0.657
+          },
+          "Paint": {
+            "ms": 47.54099999999999,
+            "count": 319,
+            "max": 0.486
+          },
+          "Layout": {
+            "ms": 1.657,
+            "count": 12,
+            "max": 0.211
+          }
+        }
+      },
+      {
+        "name": "overCards",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 86,
+            "pointerover": 86,
+            "scroll": 136
+          },
+          "writes": 0,
+          "mean": 6.002960102960104,
+          "p95": 6.700000000000728,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 2.6836480902304243,
+          "renderer": 37.98945360399364,
+          "GPU": 55.905802452199026,
+          "network.mojom.NetworkService": 0.01903190116306731,
+          "tracing.mojom.TracingService": 0.13515221704263436
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 83.01300000000062,
+            "count": 2323,
+            "max": 0.445
+          },
+          "FunctionCall": {
+            "ms": 175.9599999999996,
+            "count": 6833,
+            "max": 2.38
+          },
+          "UpdateLayoutTree": {
+            "ms": 250.3949999999999,
+            "count": 942,
+            "max": 1.828
+          },
+          "EventDispatch": {
+            "ms": 170.40400000000014,
+            "count": 1074,
+            "max": 2.44
+          },
+          "Paint": {
+            "ms": 109.9210000000003,
+            "count": 1868,
+            "max": 0.514
+          },
+          "Layout": {
+            "ms": 57.664,
+            "count": 534,
+            "max": 0.426
+          }
+        }
+      }
+    ],
+    "finalAfterB": [
+      {
+        "name": "blank",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.916911764705882,
+          "p95": 7,
+          "over16": 0,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 5.005402216408203,
+          "renderer": 23.530139271731322,
+          "GPU": 34.47469439458848,
+          "network.mojom.NetworkService": 0.13756503932021907,
+          "tracing.mojom.TracingService": 0.11975372500677324
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 78.4260000000003,
+            "count": 1363,
+            "max": 0.595
+          },
+          "FunctionCall": {
+            "ms": 119.00000000000139,
+            "count": 2824,
+            "max": 4.281
+          },
+          "UpdateLayoutTree": {
+            "ms": 41.92099999999997,
+            "count": 684,
+            "max": 1.57
+          },
+          "EventDispatch": {
+            "ms": 57.423,
+            "count": 385,
+            "max": 0.711
+          },
+          "Paint": {
+            "ms": 25.69800000000001,
+            "count": 183,
+            "max": 0.391
+          },
+          "Layout": {
+            "ms": 1.8280000000000003,
+            "count": 13,
+            "max": 0.375
+          }
+        }
+      },
+      {
+        "name": "overCards",
+        "frames": {
+          "events": {
+            "wheel": 160,
+            "pointerout": 46,
+            "pointerover": 46,
+            "scroll": 72
+          },
+          "writes": 0,
+          "mean": 5.94823695345557,
+          "p95": 6.800000000001091,
+          "over16": 1,
+          "over25": 0
+        },
+        "cpu": {
+          "browser": 3.8685413285118133,
+          "renderer": 33.452061968675544,
+          "GPU": 41.44953382250077,
+          "network.mojom.NetworkService": 0.04310200645931153,
+          "tracing.mojom.TracingService": 0.19799910169018736
+        },
+        "sums": {
+          "FireAnimationFrame": {
+            "ms": 71.81000000000022,
+            "count": 1500,
+            "max": 0.575
+          },
+          "FunctionCall": {
+            "ms": 154.57699999999969,
+            "count": 4153,
+            "max": 4.67
+          },
+          "UpdateLayoutTree": {
+            "ms": 90.52199999999999,
+            "count": 724,
+            "max": 1.694
+          },
+          "EventDispatch": {
+            "ms": 133.982,
+            "count": 639,
+            "max": 2.128
+          },
+          "Paint": {
+            "ms": 73.56100000000006,
+            "count": 998,
+            "max": 0.348
+          },
+          "Layout": {
+            "ms": 47.727000000000004,
+            "count": 361,
+            "max": 0.355
+          }
+        }
+      }
+    ]
+  }
+}
