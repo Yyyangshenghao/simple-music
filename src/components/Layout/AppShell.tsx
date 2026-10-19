@@ -5,11 +5,12 @@ import { pageTransition } from '../../lib/motion-presets'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import styles from './AppShell.module.css'
 import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
+// 详情页同步挂载，首次打开也能接上卡片封面的共享转场。
+import { AppPlaylistPage } from '../../pages/AppPlaylistPage'
 import { initialPageTransition, isDetailView, nextPageTransition } from './page-transition-state'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
-const AppPlaylistPage = lazy(() => import('../../pages/AppPlaylistPage').then((m) => ({ default: m.AppPlaylistPage })))
 const RoamPage = lazy(() => import('../../pages/RoamPage').then((m) => ({ default: m.RoamPage })))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ReleaseHistoryPage = lazy(() => import('../../pages/ReleaseHistoryPage').then((m) => ({ default: m.ReleaseHistoryPage })))

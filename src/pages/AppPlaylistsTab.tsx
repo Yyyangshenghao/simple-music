@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import { useAppPlaylistsStore } from '../stores/app-playlists'
 import { useNavigationStore } from '../stores/navigation'
 import { AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
 import { AppPlaylistCover } from '../components/Playlist/AppPlaylistCover'
 import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
 import { SourceBadge } from '../components/ui/SourceBadge'
-import { appPlaylistSources } from '../lib/app-playlist-presentation'
+import { appPlaylistCoverLayoutId, appPlaylistSources } from '../lib/app-playlist-presentation'
 import { SOURCE_BRAND } from '../lib/source-brand'
 import { TiltCard } from '../components/ui/TiltCard'
 import { BorderGlow } from '../components/BorderGlow/BorderGlow'
+import { coverReturnTransition, springGentle } from '../lib/motion-presets'
 import libraryStyles from './LibraryPage.module.css'
 import cardStyles from '../components/Explore/PlaylistCard.module.css'
 import styles from './AppPlaylists.module.css'
@@ -16,6 +18,7 @@ import styles from './AppPlaylists.module.css'
 export function AppPlaylistsTab() {
   const items = useAppPlaylistsStore(state => state.items)
   const error = useAppPlaylistsStore(state => state.error)
+  const returning = useNavigationStore(state => state.lastAction === 'pop')
   const [creating, setCreating] = useState(false)
   const createButton = <button className={`${libraryStyles.createPlaylist} ${styles.createButton} ${styles.primary} no-drag`} disabled={!!error} onClick={() => setCreating(true)}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>新建应用歌单
@@ -40,7 +43,10 @@ export function AppPlaylistsTab() {
           return <TiltCard className={cardStyles.glowWrap} key={item.id}>
             <BorderGlow borderRadius={16}>
               <button className={`${cardStyles.card} no-drag`} aria-label={`打开应用歌单：${item.name}，${item.tracks.length} 首${description ? `，包含${description}` : ''}`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: item.id })}>
-                <div className={cardStyles.coverWrap}><AppPlaylistCover tracks={item.tracks} /></div>
+                <motion.div className={cardStyles.coverWrap} layoutId={appPlaylistCoverLayoutId(item.id)} layoutCrossfade={false}
+                  transition={returning ? coverReturnTransition : springGentle} style={{ borderRadius: 12 }}>
+                  <AppPlaylistCover tracks={item.tracks} />
+                </motion.div>
                 <p className={cardStyles.name} title={item.name}>{item.name}</p>
                 <p className={cardStyles.meta}>{item.tracks.length} 首{sources.length > 1 ? ` · ${sources.length} 种来源` : ''}</p>
                 <div className={styles.cardSources}><AppPlaylistSources tracks={item.tracks} compact /></div>

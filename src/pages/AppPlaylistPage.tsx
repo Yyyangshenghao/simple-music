@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'motion/react'
 import { appPlaylistTrackKey, useAppPlaylistsStore } from '../stores/app-playlists'
 import { useProviderStore } from '../stores/providers'
 import { usePlaylistStore } from '../stores/playlist'
@@ -21,6 +22,8 @@ import playlistStyles from '../components/Playlist/PlaylistDetailView.module.css
 import actionStyles from '../components/Playlist/BatchTrackActions.module.css'
 import { GradientText } from '../components/ui/GradientText'
 import detailStyles from './AppPlaylistPage.module.css'
+import { springGentle } from '../lib/motion-presets'
+import { appPlaylistCoverLayoutId } from '../lib/app-playlist-presentation'
 
 function DetailIcon({ kind }: { kind: 'back' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' }) {
   const paths = { back: 'm15 18-6-6 6-6',
@@ -111,7 +114,10 @@ export function AppPlaylistPage({ id }: { id: string }) {
       {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
         <header className={playlistStyles.detailHeader}>
           <div className={playlistStyles.detailMeta}>
-            <div className={playlistStyles.detailCover}><AppPlaylistCover tracks={item.tracks} /></div>
+            <motion.div className={playlistStyles.detailCover} layoutId={appPlaylistCoverLayoutId(item.id)} layoutCrossfade={false}
+              transition={springGentle} style={{ borderRadius: 12 }}>
+              <AppPlaylistCover tracks={item.tracks} />
+            </motion.div>
             <div className={playlistStyles.detailInfo}>
               <div className={playlistStyles.titleRow}>
                 <h1 className={playlistStyles.detailTitle}><GradientText>{item.name}</GradientText></h1>
