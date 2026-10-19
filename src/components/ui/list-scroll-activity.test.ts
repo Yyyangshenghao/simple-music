@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { LIST_SCROLL_IDLE_MS, observeCardScrollActivity, observeListScrollActivity } from './list-scroll-activity'
+import { CARD_POINTER_RESUME_MS, LIST_SCROLL_IDLE_MS, observeCardScrollActivity, observeListScrollActivity } from './list-scroll-activity'
 
 afterEach(() => vi.useRealTimers())
 
@@ -14,10 +14,49 @@ it('间歇滚轮不反复恢复悬停，停止后主动移动指针才恢复', (
     vi.advanceTimersByTime(450)
   }
   expect(change.mock.calls).toEqual([[true]])
+  vi.advanceTimersByTime(CARD_POINTER_RESUME_MS)
   viewport.dispatchEvent(new Event('pointermove'))
   viewport.dispatchEvent(new Event('pointermove'))
   expect(change.mock.calls).toEqual([[true], [false]])
   stop()
+})
+
+it('光标跟随卡片逐格滚动时保持暂停，停稳后才按之前的移动恢复', () => {
+  vi.useFakeTimers()
+  const viewport = new EventTarget()
+  const change = vi.fn()
+  const stop = observeCardScrollActivity(viewport, change)
+  for (let i = 0; i < 10; i++) {
+    viewport.dispatchEvent(new Event('wheel'))
+    for (let k = 0; k < 9; k++) {
+      vi.advanceTimersByTime(50)
+      viewport.dispatchEvent(new Event('pointermove'))
+    }
+  }
+  expect(change.mock.calls).toEqual([[true]])
+  // 最后一格之后已过 450ms，静置计时从停止（第 180ms）开始。
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS + CARD_POINTER_RESUME_MS - 450 - 1)
+  expect(change.mock.calls).toEqual([[true]])
+  vi.advanceTimersByTime(1)
+  expect(change.mock.calls).toEqual([[true], [false]])
+  stop()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('停稳前没有移动指针时保持暂停，卸载清理静置计时器', () => {
+  vi.useFakeTimers()
+  const viewport = new EventTarget()
+  const change = vi.fn()
+  const stop = observeCardScrollActivity(viewport, change)
+  viewport.dispatchEvent(new Event('wheel'))
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS + CARD_POINTER_RESUME_MS)
+  expect(change.mock.calls).toEqual([[true]])
+  viewport.dispatchEvent(new Event('wheel'))
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  stop()
+  expect(vi.getTimerCount()).toBe(0)
+  viewport.dispatchEvent(new Event('pointermove'))
+  expect(change.mock.calls).toEqual([[true]])
 })
 
 it.each(['focusin', 'pointerdown'])('停止后通过 %s 恢复交互，卸载清理所有监听和计时器', (type) => {

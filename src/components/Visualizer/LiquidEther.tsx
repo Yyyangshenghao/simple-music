@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import styles from './LiquidEther.module.css';
 
+/** 最后一次滚轮后这段时间内的鼠标移动视为跟随内容，不驱动流体。 */
+const WHEEL_QUIET_MS = 400;
+
 function makePaletteTexture(stops: string[]): THREE.DataTexture {
   let arr: string[];
   if (Array.isArray(stops) && stops.length > 0) {
@@ -183,6 +186,8 @@ export default function LiquidEther({
       takeoverTo = new THREE.Vector2();
       onInteract: (() => void) | null = null;
       pointerInteraction = false;
+      /** 最近一次滚轮时间：滚动中光标多是跟随内容移动，不算作与背景交互。 */
+      lastWheel = -Infinity;
 
       init(container: HTMLElement) {
         this.container = container;
@@ -197,12 +202,14 @@ export default function LiquidEther({
         this.pointerInteraction = enabled;
         if (enabled) {
           this.listenerTarget?.addEventListener('mousemove', this._onMouseMove);
+          this.listenerTarget?.addEventListener('wheel', this._onWheel, { passive: true });
           this.listenerTarget?.addEventListener('touchstart', this._onTouchStart, { passive: true });
           this.listenerTarget?.addEventListener('touchmove', this._onTouchMove, { passive: true });
           this.listenerTarget?.addEventListener('touchend', this._onTouchEnd);
           this.docTarget?.addEventListener('mouseleave', this._onDocumentLeave);
         } else {
           this.listenerTarget?.removeEventListener('mousemove', this._onMouseMove);
+          this.listenerTarget?.removeEventListener('wheel', this._onWheel);
           this.listenerTarget?.removeEventListener('touchstart', this._onTouchStart);
           this.listenerTarget?.removeEventListener('touchmove', this._onTouchMove);
           this.listenerTarget?.removeEventListener('touchend', this._onTouchEnd);
@@ -250,8 +257,13 @@ export default function LiquidEther({
         this.coords.set(nx, ny);
         this.mouseMoved = true;
       }
+      _onWheel = () => {
+        this.lastWheel = performance.now();
+      };
       _onMouseMove = (event: MouseEvent) => {
         if (!this.pointerInteraction) return;
+        // 滚轮期间跳过：不提帧、不注入跟手力，也不逐事件读取容器布局。
+        if (performance.now() - this.lastWheel < WHEEL_QUIET_MS) return;
         if (!this.updateHoverState(event.clientX, event.clientY)) return;
         if (this.onInteract) this.onInteract();
         if (this.isAutoActive && !this.hasUserControl && !this.takeoverActive) {
@@ -1169,6 +1181,8 @@ export default function LiquidEther({
         const boost = interactFpsCapRef.current;
         if (
           Mouse.pointerInteraction && boost !== undefined &&
+          // 开始滚动即退出提帧，把 GPU 留给滚动合成。
+          this.lastUserInteraction > Mouse.lastWheel &&
           performance.now() - this.lastUserInteraction < interactBoostMsRef.current
         ) {
           cap = boost;
