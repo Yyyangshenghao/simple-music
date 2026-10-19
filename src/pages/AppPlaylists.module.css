@@ -1,21 +1,13 @@
-.toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
-.sectionTitle { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 20px; color: var(--sm-text-primary); }
-.sectionTitle > span { color: var(--sm-text-secondary); font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; }
-.intro { min-width: 0; }
-.toolbar > button, .welcome > button { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 8px; min-height: 38px; font-size: 13px; }
+.createButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.createButton:disabled { opacity: 0.35; cursor: default; }
+.welcome > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; font-size: 13px; }
 .hint { margin: 6px 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
-.toolbar > button, .buttons button, .buttons summary, .empty button, .welcome > button { padding: 8px 16px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; white-space: nowrap; }
-.toolbar > button:hover:not(:disabled), .buttons button:hover:not(:disabled), .buttons summary:hover { background: var(--sm-fill-hover); }
-.toolbar .primary, .buttons .primary, .welcome > .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
-.toolbar .primary:hover:not(:disabled), .buttons .primary:hover:not(:disabled), .welcome > .primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
-.toolbar > button:disabled, .buttons button:disabled, .rowActions button:disabled { opacity: 0.35; cursor: default; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 28px 24px; }
-.card { display: flex; flex-direction: column; gap: 8px; padding: 0; border: none; background: none; text-align: left; color: var(--sm-text-primary); cursor: pointer; min-width: 0; }
-.card strong { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card small { color: var(--sm-text-secondary); font-size: 12px; }
-.cover { width: 100%; aspect-ratio: 1; border-radius: 16px; overflow: hidden; box-shadow: var(--sm-shadow); }
-.card:focus-visible, .toolbar > button:focus-visible, .welcome > button:focus-visible, .empty button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 5px; }
-.card:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.buttons button, .empty button, .welcome > button { padding: 8px 16px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; white-space: nowrap; }
+.buttons button:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.buttons .primary, .welcome > .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
+.buttons .primary:hover:not(:disabled), .welcome > .primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
+.buttons button:disabled, .rowActions button:disabled { opacity: 0.35; cursor: default; }
+.cardSources { margin: 8px 2px 0; }
 .welcome { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 56px 20px; text-align: center; }
 .welcome h3 { margin: 4px 0 0; color: var(--sm-text-primary); font-size: 24px; font-weight: 600; }
 .welcome p { max-width: 42ch; margin: 0; color: var(--sm-text-secondary); font-size: 14px; line-height: 1.7; }
@@ -46,10 +38,4 @@
   .buttons button { padding: 6px 10px; font-size: 12px; }
 }
 
-.management { position: relative; }
-.management summary { display: flex; align-items: center; gap: 6px; list-style: none; }
-.management summary::-webkit-details-marker { display: none; }
-.management summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.managementPanel { position: absolute; z-index: 10; top: calc(100% + 8px); right: 0; width: 156px; padding: 6px; border: 1px solid var(--sm-border-strong); border-radius: 12px; background: var(--sm-bg-overlay); }
-.managementPanel button { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
 .buttons .danger { color: var(--sm-color-danger); }

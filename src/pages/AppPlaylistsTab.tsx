@@ -7,21 +7,23 @@ import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { appPlaylistSources } from '../lib/app-playlist-presentation'
 import { SOURCE_BRAND } from '../lib/source-brand'
+import { TiltCard } from '../components/ui/TiltCard'
+import { BorderGlow } from '../components/BorderGlow/BorderGlow'
+import libraryStyles from './LibraryPage.module.css'
+import cardStyles from '../components/Explore/PlaylistCard.module.css'
 import styles from './AppPlaylists.module.css'
 
 export function AppPlaylistsTab() {
   const items = useAppPlaylistsStore(state => state.items)
   const error = useAppPlaylistsStore(state => state.error)
   const [creating, setCreating] = useState(false)
-  const createButton = <button className={styles.primary} disabled={!!error} onClick={() => setCreating(true)}>
+  const createButton = <button className={`${libraryStyles.createPlaylist} ${styles.createButton} ${styles.primary} no-drag`} disabled={!!error} onClick={() => setCreating(true)}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>新建应用歌单
   </button>
 
-  return <section aria-label="应用歌单">
-    <div className={styles.toolbar}>
-      <div className={styles.intro}><h2 className={styles.sectionTitle}>应用歌单{items.length > 0 && <span>{items.length}</span>}</h2>
-        <p className={styles.hint}>网易云、QQ、Apple Music 与本地歌曲，都能加入同一份歌单。</p>
-      </div>
+  return <section className={libraryStyles.providerSection} aria-label="应用歌单">
+    <div className={libraryStyles.providerSectionHeader}>
+      <span>应用歌单{items.length > 0 && ` · ${items.length}`}</span>
       {(items.length > 0 || error) && createButton}
     </div>
     {error ? <div className={styles.empty} role="alert"><p>{error}</p><button onClick={() => useAppPlaylistsStore.getState().reload()}>重试读取</button></div>
@@ -32,15 +34,19 @@ export function AppPlaylistsTab() {
         {createButton}
         <small>只在应用内整理，不会更改平台歌单。</small>
       </div>
-        : <div className={styles.grid}>{items.map(item => {
+        : <div className={libraryStyles.grid}>{items.map(item => {
           const sources = appPlaylistSources(item.tracks)
           const description = sources.map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')
-          return <button className={styles.card} key={item.id} aria-label={`打开应用歌单：${item.name}，${item.tracks.length} 首${description ? `，包含${description}` : ''}`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: item.id })}>
-            <AppPlaylistCover tracks={item.tracks} className={styles.cover} />
-            <strong title={item.name}>{item.name}</strong>
-            <small>{item.tracks.length} 首{sources.length > 1 ? ` · ${sources.length} 种来源` : ''}</small>
-            <AppPlaylistSources tracks={item.tracks} compact />
-          </button>
+          return <TiltCard className={cardStyles.glowWrap} key={item.id}>
+            <BorderGlow borderRadius={16}>
+              <button className={`${cardStyles.card} no-drag`} aria-label={`打开应用歌单：${item.name}，${item.tracks.length} 首${description ? `，包含${description}` : ''}`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: item.id })}>
+                <div className={cardStyles.coverWrap}><AppPlaylistCover tracks={item.tracks} /></div>
+                <p className={cardStyles.name} title={item.name}>{item.name}</p>
+                <p className={cardStyles.meta}>{item.tracks.length} 首{sources.length > 1 ? ` · ${sources.length} 种来源` : ''}</p>
+                <div className={styles.cardSources}><AppPlaylistSources tracks={item.tracks} compact /></div>
+              </button>
+            </BorderGlow>
+          </TiltCard>
         })}</div>}
     {creating && <AppPlaylistNameDialog title="新建应用歌单" onClose={() => setCreating(false)} onSubmit={name => {
       const id = useAppPlaylistsStore.getState().create(name)

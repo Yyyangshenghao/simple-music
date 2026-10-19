@@ -17,7 +17,9 @@ import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
 import type { Track } from '../types/domain'
 import styles from './AppPlaylists.module.css'
-import libraryStyles from './LibraryPage.module.css'
+import playlistStyles from '../components/Playlist/PlaylistDetailView.module.css'
+import actionStyles from '../components/Playlist/BatchTrackActions.module.css'
+import { GradientText } from '../components/ui/GradientText'
 import detailStyles from './AppPlaylistPage.module.css'
 
 function DetailIcon({ kind }: { kind: 'back' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'remove' }) {
@@ -104,45 +106,51 @@ export function AppPlaylistPage({ id }: { id: string }) {
   }
 
   return <ScrollArea scrollRef={scrollRef}>
-    <div className={`${libraryStyles.inner} ${detailStyles.page}`}>
-      <button className={`${detailStyles.back} no-drag`} onClick={() => useNavigationStore.getState().goBack()}><DetailIcon kind="back" />返回</button>
+    <div className={`${playlistStyles.inner} ${detailStyles.page}`}>
+      <button className={`${playlistStyles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}><DetailIcon kind="back" />返回</button>
       {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
-        <header className={detailStyles.header}>
-          <AppPlaylistCover tracks={item.tracks} className={detailStyles.cover} />
-          <div className={detailStyles.identity}><h1>{item.name}</h1><p className={detailStyles.meta}><span>应用歌单</span><span>{item.tracks.length} 首歌曲</span><span>当前可播放 {availableCount} 首</span></p>
-            <div className={detailStyles.sources}><AppPlaylistSources tracks={item.tracks} /></div>
-            <div className={styles.buttons}>
-              <button className={styles.primary} disabled={!availableCount} onClick={() => play()}><DetailIcon kind="play" />播放全部</button>
-              <button disabled={!availableCount} onClick={async () => {
-                try {
-                  const added = await usePlaylistStore.getState().addManyToQueue(playbackTracks(), true)
-                  useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
-                } catch { /* 播放客户端已显示失败原因。 */ }
-              }}><DetailIcon kind="queue" />添加到播放队列</button>
-              <details className={styles.management} ref={managementRef}
-                onBlur={event => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false
-                }}
-                onKeyDown={event => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    event.currentTarget.open = false
-                    event.currentTarget.querySelector('summary')?.focus()
-                  }
-                }}>
-                <summary className="no-drag" aria-label="歌单更多操作">更多<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></summary>
-                <div className={styles.managementPanel} role="group" aria-label="管理应用歌单">
-                  <button type="button" onClick={() => openEditor('rename')}>重命名</button>
-                  <button type="button" className={styles.danger} onClick={() => openEditor('delete')}>删除歌单</button>
-                </div>
-              </details>
+        <header className={playlistStyles.detailHeader}>
+          <div className={playlistStyles.detailMeta}>
+            <div className={playlistStyles.detailCover}><AppPlaylistCover tracks={item.tracks} /></div>
+            <div className={playlistStyles.detailInfo}>
+              <div className={playlistStyles.titleRow}>
+                <h1 className={playlistStyles.detailTitle}><GradientText>{item.name}</GradientText></h1>
+                <details className={actionStyles.compact} ref={managementRef}
+                  onBlur={event => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      event.currentTarget.open = false
+                      event.currentTarget.querySelector('summary')?.focus()
+                    }
+                  }}>
+                  <summary className={`${actionStyles.more} ${detailStyles.more} no-drag`} aria-label="歌单更多操作"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg></summary>
+                  <div className={actionStyles.menu} role="group" aria-label="管理应用歌单">
+                    <button type="button" onClick={() => openEditor('rename')}>重命名</button>
+                    <button type="button" className={detailStyles.danger} onClick={() => openEditor('delete')}>删除歌单</button>
+                  </div>
+                </details>
+              </div>
+              <AppPlaylistSources tracks={item.tracks} />
+              <p className={playlistStyles.detailSub}>应用歌单 · {item.tracks.length} 首歌曲 · 当前可播放 {availableCount} 首</p>
+              <div className={`${styles.buttons} ${detailStyles.actions}`}>
+                <button className={styles.primary} disabled={!availableCount} onClick={() => play()}><DetailIcon kind="play" />播放全部</button>
+                <button disabled={!availableCount} onClick={async () => {
+                  try {
+                    const added = await usePlaylistStore.getState().addManyToQueue(playbackTracks(), true)
+                    useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
+                  } catch { /* 播放客户端已显示失败原因。 */ }
+                }}><DetailIcon kind="queue" />添加到播放队列</button>
+              </div>
             </div>
           </div>
         </header>
         <div className={detailStyles.listToolbar}>
           <div className={detailStyles.listTitle}><h2>歌曲</h2><span>{item.tracks.length}</span><InfoButton label="应用歌单说明" text="可收藏网易云、QQ、Apple Music 和本地歌曲。整理只影响应用歌单，不会修改平台歌单；暂不可用的歌曲仍会保留。移除或排序后，下次播放采用新的顺序。" align="left" /></div>
-          <button className={detailStyles.refresh} onClick={() => setRefresh(value => value + 1)}><DetailIcon kind="refresh" />刷新状态</button>
+          <button className={playlistStyles.refreshBtn} onClick={() => setRefresh(value => value + 1)}><DetailIcon kind="refresh" />刷新状态</button>
         </div>
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}

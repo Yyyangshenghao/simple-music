@@ -1,31 +1,12 @@
 .page { color: var(--sm-text-primary); }
-.back, .refresh {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--sm-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-}
-.back { margin-left: -10px; }
-.back:hover, .refresh:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
-.page button:focus-visible, .page summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.header { display: flex; align-items: center; gap: 32px; margin: 24px 0 32px; }
-.cover { flex: 0 0 176px; width: 176px; height: 176px; border-radius: 16px; overflow: hidden; box-shadow: var(--sm-shadow); }
-.sources { margin-top: 14px; }
-.identity { flex: 1; min-width: 0; }
-.identity h1 { margin: 0 0 12px; font-size: clamp(26px, 3.2vw, 40px); line-height: 1.25; letter-spacing: -0.025em; overflow-wrap: anywhere; text-wrap: balance; }
-.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
-.meta span + span { padding-left: 16px; border-left: 1px solid var(--sm-border-strong); }
-.identity > div > button, .identity summary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; font-size: 13px; }
-.identity > div > button svg { flex: none; }
+.page .danger { color: var(--sm-color-danger); }
+.more { list-style: none; }
+.more::-webkit-details-marker { display: none; }
+.more:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.actions { margin-top: 12px; }
+.actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; font-size: 12px; }
 .listToolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 8px 12px; border-bottom: 1px solid var(--sm-border); }
+.listToolbar > button { display: inline-flex; align-items: center; gap: 6px; margin-top: 0; }
 .listTitle { display: flex; align-items: center; gap: 10px; }
 .listTitle h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .listTitle > span { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -39,15 +20,7 @@
   .rowActions { opacity: 0; transition: opacity 150ms var(--sm-ease-out); }
   .row:hover .rowActions, .row:focus-within .rowActions { opacity: 1; }
 }
-@media (max-width: 800px) {
-  .header { gap: 24px; }
-  .cover { flex-basis: 144px; height: 144px; }
-  .identity > div > button, .identity summary { padding: 8px 12px; }
-}
 @media (max-width: 580px) {
-  .header { flex-wrap: wrap; gap: 20px; }
-  .cover { flex-basis: 112px; height: 112px; }
-  .identity { flex-basis: 240px; }
   .rowActions { padding-right: 0; gap: 0; }
   .rowActions button { width: 26px; }
 }
