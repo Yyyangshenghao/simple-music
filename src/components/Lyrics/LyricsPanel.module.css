@@ -17,6 +17,11 @@
   --lyrics-cover-filter: blur(15px) brightness(0.28) saturate(1.4);
   --lyrics-cover-opacity: 1;
   --lyrics-shadow-strength: 1;
+  /* 头部玻璃按钮的上下渐变；浅色主题改为白色磨砂，避免深色墨水叠出灰浊感。 */
+  --lyrics-glass-top: rgba(255, 255, 255, 0.13);
+  --lyrics-glass-bottom: rgba(255, 255, 255, 0.05);
+  --lyrics-glass-hover-top: rgba(255, 255, 255, 0.2);
+  --lyrics-glass-hover-bottom: rgba(255, 255, 255, 0.08);
   background: var(--lyrics-panel-bg);
   backdrop-filter: var(--glass-blur-modal);
   -webkit-backdrop-filter: var(--glass-blur-modal);
@@ -86,6 +91,10 @@
   --lyrics-cover-filter: blur(15px) brightness(1.08) saturate(0.72);
   --lyrics-cover-opacity: 0.22;
   --lyrics-shadow-strength: 0.28;
+  --lyrics-glass-top: rgba(255, 255, 255, 0.78);
+  --lyrics-glass-bottom: rgba(255, 255, 255, 0.42);
+  --lyrics-glass-hover-top: rgba(255, 255, 255, 0.95);
+  --lyrics-glass-hover-bottom: rgba(255, 255, 255, 0.62);
   --lyrics-pop-opacity: 0.96;
   --lyrics-menu-rgb: 248, 250, 253;
   --lyric-plain-active-color: #141c28;
@@ -109,6 +118,10 @@
     --lyrics-cover-filter: blur(15px) brightness(1.08) saturate(0.72);
     --lyrics-cover-opacity: 0.22;
     --lyrics-shadow-strength: 0.28;
+    --lyrics-glass-top: rgba(255, 255, 255, 0.78);
+    --lyrics-glass-bottom: rgba(255, 255, 255, 0.42);
+    --lyrics-glass-hover-top: rgba(255, 255, 255, 0.95);
+    --lyrics-glass-hover-bottom: rgba(255, 255, 255, 0.62);
     --lyrics-pop-opacity: 0.96;
     --lyrics-menu-rgb: 248, 250, 253;
     --lyric-plain-active-color: #141c28;
@@ -150,43 +163,88 @@
   -webkit-app-region: drag;
 }
 
-/* Pill close button */
+/* 收起按钮：常态是一枚圆形玻璃按钮，悬停时向右展开露出「收起」，箭头轻轻下坠提示方向。
+   用 grid 列 0fr→1fr 补间宽度，不量文字也能平滑展开。 */
 .closeBtn {
   -webkit-app-region: no-drag;
-  display: flex;
+  display: inline-grid;
+  grid-template-columns: 38px 0fr;
   align-items: center;
-  gap: 7px;
-  padding: 9px 22px;
+  height: 38px;
+  padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(var(--lyrics-ink-rgb), 0.13);
-  background: rgba(var(--lyrics-ink-rgb), 0.06);
-  color: rgba(var(--lyrics-ink-rgb), 0.68);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.4px;
+  border: 1px solid rgba(var(--lyrics-ink-rgb), 0.12);
+  background: linear-gradient(180deg, var(--lyrics-glass-top), var(--lyrics-glass-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 22px -10px rgba(0, 0, 0, calc(0.55 * var(--lyrics-shadow-strength)));
+  color: rgba(var(--lyrics-ink-rgb), 0.78);
+  font: inherit;
   cursor: pointer;
-  transition: background 0.22s ease, color 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+  transition:
+    grid-template-columns 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 .closeBtn:hover {
-  background: rgba(var(--lyrics-ink-rgb), 0.12);
+  grid-template-columns: 38px 1fr;
+  background: linear-gradient(180deg, var(--lyrics-glass-hover-top), var(--lyrics-glass-hover-bottom));
+  border-color: rgba(var(--lyrics-ink-rgb), 0.22);
   color: rgb(var(--lyrics-ink-rgb));
-  border-color: rgba(var(--lyrics-ink-rgb), 0.26);
-  transform: translateY(-1px);
 }
 
 .closeBtn:active {
-  transform: translateY(0);
+  transform: scale(0.94);
 }
 
 .closeBtnIcon {
   display: flex;
   align-items: center;
-  transition: transform 0.22s ease;
+  justify-content: center;
+  width: 38px;
+  height: 100%;
 }
 
-.closeBtn:hover .closeBtnIcon {
-  transform: translateY(2px);
+.closeBtn:hover .closeBtnIcon svg {
+  animation: closeChevronDrop 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes closeChevronDrop {
+  0%, 100% { transform: translateY(-1px); }
+  50% { transform: translateY(2.5px); }
+}
+
+.closeBtnLabel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.closeBtnLabel > span {
+  display: block;
+  padding-right: 16px;
+  margin-left: -4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.24s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.closeBtn:hover .closeBtnLabel > span {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.06s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .closeBtn,
+  .closeBtnLabel > span { transition: none; }
+  .closeBtn:hover .closeBtnIcon svg { animation: none; }
 }
 
 /* 封面、曲目信息与操作组成同一唱片区，两列共用稳定的垂直空间。 */
@@ -595,8 +653,12 @@
 .modeSwitch {
   display: flex;
   border-radius: 999px;
-  border: 1px solid rgba(var(--lyrics-ink-rgb), 0.13);
-  background: rgba(var(--lyrics-ink-rgb), 0.06);
+  border: 1px solid rgba(var(--lyrics-ink-rgb), 0.12);
+  /* 与收起按钮同一套玻璃质感：上亮下暗的渐变底 + 顶部高光 + 柔和投影。 */
+  background: linear-gradient(180deg, var(--lyrics-glass-top), var(--lyrics-glass-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 22px -10px rgba(0, 0, 0, calc(0.55 * var(--lyrics-shadow-strength)));
   padding: 3px;
   gap: 2px;
 }

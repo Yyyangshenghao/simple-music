@@ -32,7 +32,7 @@ interface LyricsPanelProps {
 
 function ChevronDown() {
   return (
-    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor"
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
       strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="4 7 10 13 16 7" />
     </svg>
@@ -437,9 +437,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
-        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
+        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
           <span className={styles.closeBtnIcon}><ChevronDown /></span>
-          收起
+          <span className={styles.closeBtnLabel} aria-hidden="true"><span>收起</span></span>
         </button>
 
         {/* 模式切换 Segmented Control */}
