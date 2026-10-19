@@ -89,12 +89,12 @@ export function BorderGlow({
   }, [getCenter])
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
-    if (!activeRef.current || cardRef.current?.closest('[data-explore-scrolling]')) return
+    if (!activeRef.current || cardRef.current?.closest('[data-scrolling]')) return
     if (rafRef.current !== null) return
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
       const card = cardRef.current
-      if (!card || card.closest('[data-explore-scrolling]')) return
+      if (!card || card.closest('[data-scrolling]')) return
       const rect = card.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top

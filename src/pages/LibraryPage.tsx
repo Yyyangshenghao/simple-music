@@ -121,7 +121,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
   }
 
   return (
-    <ScrollArea className={styles.page} scrollRef={scrollRef}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef} pauseCardEffects>
       <div className={styles.inner}>
       <div className={styles.header}>
         <h1 className={styles.pageTitle}><GradientText>我的库</GradientText></h1>

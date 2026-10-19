@@ -134,8 +134,8 @@
 }
 
 /* 内容经过静止光标时不重复启动渐变蒙版和大范围辉光，保留原生点击命中。 */
-[data-explore-scrolling] .border-glow-card::before,
-[data-explore-scrolling] .border-glow-card::after,
-[data-explore-scrolling] .border-glow-card > .edge-light {
+[data-scrolling] .border-glow-card::before,
+[data-scrolling] .border-glow-card::after,
+[data-scrolling] .border-glow-card > .edge-light {
   display: none;
 }
