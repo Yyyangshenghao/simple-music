@@ -25,7 +25,7 @@ vi.mock('../stores/app-playlists', async importOriginal => ({
 }))
 const providers = { netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' } }
 vi.mock('../stores/providers', () => ({ useProviderStore: Object.assign(
-  (selector: (state: unknown) => unknown) => selector({ byId: providers }), { getState: () => ({ byId: providers }) },
+  (selector: (state: unknown) => unknown) => selector({ byId: providers }), { getState: () => ({ byId: providers }), subscribe: () => () => {} },
 ) }))
 vi.mock('../stores/offline-cache', () => ({ useOfflineCacheStore: Object.assign(
   (selector: (state: unknown) => unknown) => selector(h.offline), { getState: () => h.offline },
@@ -60,6 +60,16 @@ describe('应用歌单完整离线状态快照', () => {
     for (const label of ['网易云', 'QQ音乐', 'Apple Music', '本地']) expect(html).toContain(label)
     expect(html).toContain('4 首歌曲')
     expect(html).toContain('当前可播放 0 首')
+  })
+  it('来源可筛选、不可播放单独成组，顺序调整收进菜单而非每行常驻', () => {
+    h.tracks = (['netease', 'qq'] as const).map(source => ({ source, provider: source, type: 'song', id: '1', name: '歌曲', artist: '', artists: [] }))
+    const html = render()
+    expect(html).toContain('按来源筛选')
+    expect(html).toContain('2 首不可播放')
+    expect(html).toContain('调整顺序')
+    expect(html).toContain('多选歌曲')
+    expect(html).toContain('搜索歌单内的歌曲或歌手')
+    expect(html).not.toContain('上移')
   })
 
   it('行查询的旧 pinned 迟到也不能覆盖完整查询的 missing', async () => {

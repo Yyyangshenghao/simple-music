@@ -12,14 +12,16 @@ export interface AppPlaylistPlaybackContext {
   offline: Record<string, OfflineCacheStatus>
 }
 
-/** 只计算当前可用状态，绝不从应用歌单中移除失效收藏。 */
-export function appPlaylistTrackState(track: Track, context: AppPlaylistPlaybackContext): { track: Track; available: boolean; status?: string } {
+/** 只计算当前可用状态，绝不从应用歌单中移除失效收藏。
+ *  invalid 表示歌曲本身已失效（本地文件不存在、曲目下架），与登录或平台停用这类可恢复状态区分。 */
+export function appPlaylistTrackState(track: Track, context: AppPlaylistPlaybackContext): { track: Track; available: boolean; status?: string; invalid?: boolean } {
   if (track.source === 'local') {
     const current = context.localTracks?.get(String(track.id))
+    const missing = !!context.localTracks && !context.localError
     return current ? { track: restoreLocalTrackUrls(current), available: true }
-      : { track: restoreLocalTrackUrls(track), available: false, status: context.localError || (context.localTracks ? '本地文件不存在' : '正在检查本地文件') }
+      : { track: restoreLocalTrackUrls(track), available: false, status: context.localError || (context.localTracks ? '本地文件不存在' : '正在检查本地文件'), ...(missing ? { invalid: true } : {}) }
   }
-  if (track.playable === false) return { track, available: false, status: '曲目暂不可用' }
+  if (track.playable === false) return { track, available: false, status: '曲目暂不可用', invalid: true }
   const offline = context.offline[appPlaylistTrackKey(track)]
   if (track.source !== 'apple' && offline?.entryId && offline.state !== 'missing') return { track, available: true, status: '可离线播放' }
   const provider = context.providers[track.source]

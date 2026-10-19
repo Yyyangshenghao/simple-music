@@ -25,9 +25,10 @@ interface Props {
   offline?: boolean
   onDelete?(signal: AbortSignal): Promise<void>
   onRemove?(signal: AbortSignal): Promise<void>
+  removeLabel?: string
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, removeLabel = '移出平台歌单' }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -130,7 +131,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {platformSource && <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlatformPlaylist(true) }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h11M4 10h11M4 15h6m8-5v11m-4-4 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" /></svg>加入平台歌单
     </button>}
-    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>移出平台歌单</button>}
+    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>{removeLabel}</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
       const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
       if (signal.aborted) return

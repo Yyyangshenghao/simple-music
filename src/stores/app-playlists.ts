@@ -26,6 +26,8 @@ interface AppPlaylistsStore {
   addTracks(id: string, tracks: Track[]): number
   removeTracks(id: string, keys: string[]): void
   moveTrack(id: string, key: string, direction: -1 | 1): void
+  /** 移到指定下标，越界时贴边。 */
+  moveTrackTo(id: string, key: string, target: number): void
 }
 
 export function appPlaylistTrackKey(track: Pick<Track, 'source' | 'id'>): string {
@@ -154,6 +156,16 @@ export function createAppPlaylistsStore(storage: () => ArchiveStorage, newId: ()
         if (index < 0 || target < 0 || target >= item.tracks.length) return
         const next = [...item.tracks]
         ;[next[index], next[target]] = [next[target], next[index]]
+        update(id, next)
+      },
+      moveTrackTo(id, key, target) {
+        const item = find(id)
+        const index = item.tracks.findIndex(track => appPlaylistTrackKey(track) === key)
+        const clamped = Math.max(0, Math.min(item.tracks.length - 1, target))
+        if (index < 0 || index === clamped) return
+        const next = [...item.tracks]
+        const [moved] = next.splice(index, 1)
+        next.splice(clamped, 0, moved)
         update(id, next)
       },
     }

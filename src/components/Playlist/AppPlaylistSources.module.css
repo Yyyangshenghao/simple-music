@@ -24,3 +24,20 @@
 .compact { gap: 6px 10px; }
 .compact .source { gap: 4px; }
 .compact .count { font-size: 11px; }
+
+.filter { gap: 6px; }
+.filter .source {
+  padding: 3px 10px 3px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  transition: background 150ms var(--sm-ease-out), border-color 150ms var(--sm-ease-out), opacity 150ms var(--sm-ease-out);
+}
+.filter .source:hover { background: var(--sm-fill-hover); }
+.filter .source:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+.filter .source[aria-pressed='true'] { border-color: var(--glass-border-card); background: var(--sm-bg-overlay); }
+.filter .source[aria-pressed='true'] .count { color: var(--sm-text-primary); }
+.filter[data-filtered] .source[aria-pressed='false'] { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) { .filter .source { transition: none; } }
