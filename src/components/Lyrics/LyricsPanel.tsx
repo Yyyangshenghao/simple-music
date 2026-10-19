@@ -220,6 +220,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const scrollRef = useRef<HTMLDivElement>(null)
   const coverFlipRef = useRef<HTMLDivElement>(null)
   const followAnimsRef = useRef(new Map<HTMLElement, Animation>())
+  const lastFollowRef = useRef({ index: -1, at: 0 })
 
   // 用户手动滚动的挂起窗口:在此时间戳之前不做自动居中
   const userScrollUntilRef = useRef(0)
@@ -249,15 +250,23 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     if (!container) return
     const el = container.querySelector<HTMLElement>(`[data-line='${index}']`)
     if (!el) return
+    const anims = followAnimsRef.current
+    // 弹簧只用于正常播放推进到下一句。拖动进度条、跳转时行号会在几十毫秒内连续跳变，
+    // 每次重启带延迟的弹簧会让歌词原地抖动，这类变化直接平滑滚动。
+    const now = performance.now()
+    const last = lastFollowRef.current
+    lastFollowRef.current = { index, at: now }
+    const natural = index === last.index + 1 && now - last.at > 250
     const view = container.clientHeight
     const from = container.scrollTop
     const top = el.offsetTop - view / 2 + el.clientHeight / 2
-    if (reducedMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
+    if (!natural || reducedMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
+      for (const anim of anims.values()) anim.finish()
+      anims.clear()
       scrollToLine(index, 'smooth')
       return
     }
     // 上一次切行还没落位时，接着当前的偏移继续补间，避免跳帧。
-    const anims = followAnimsRef.current
     const carries = new Map<HTMLElement, number>()
     for (const [row, anim] of anims) {
       if (anim.playState !== 'finished') carries.set(row, new DOMMatrixReadOnly(getComputedStyle(row).transform).m42)
@@ -268,10 +277,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     // 以实际滚动量为准：到达首尾时浏览器会钳住 scrollTop。
     const delta = container.scrollTop - from
     if (!delta) return
-    const low = Math.min(from, container.scrollTop) - 80
-    const high = Math.max(from, container.scrollTop) + view + 80
-    const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-line]'))
-      .filter((row) => row.offsetTop + row.offsetHeight > low && row.offsetTop < high)
+    // 只处理当前行附近的若干行，避免逐行读取布局。
+    const rows: HTMLElement[] = []
+    for (let line = index - 5; line <= index + 10; line++) {
+      const row = container.querySelector<HTMLElement>(`[data-line='${line}']`)
+      if (row) rows.push(row)
+    }
     rows.forEach((row) => {
       const line = Number(row.dataset.line)
       const anim = row.animate(

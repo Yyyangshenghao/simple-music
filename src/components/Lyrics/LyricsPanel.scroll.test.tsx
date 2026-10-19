@@ -71,7 +71,6 @@ class ScrollContainer {
     const index = Number(selector.match(/-?\d+/)?.[0])
     return h.lyrics.lines[index] ? { offsetTop: 200 + index * 80, clientHeight: 40 } : null
   }
-  querySelectorAll() { return [] }
   scrollTo = vi.fn(({ top }: { top: number }) => { this.scrollTop = top })
   addEventListener = (type: string, listener: () => void) => { this.listeners.set(type, listener) }
   removeEventListener = (type: string) => { this.listeners.delete(type) }
