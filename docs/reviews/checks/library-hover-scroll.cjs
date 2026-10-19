@@ -90,6 +90,9 @@ async function main() {
         await page.waitForFunction(() => [...document.querySelectorAll('[class*="tilt_"][data-scrolling]')].every(el => getComputedStyle(el).transform === 'none'))
         assert.equal(await viewport.locator('[class*="spotlight_"]').count(), 0)
         assert.equal(await viewport.locator('.edge-light').first().evaluate(el => getComputedStyle(el).display), 'none')
+        await page.waitForTimeout(250)
+        assert.equal(await viewport.getAttribute('data-scrolling') !== null, true, '滚轮停顿保持暂停')
+        await card.hover({ position: { x: 25, y: 25 } })
         await page.waitForFunction(() => !document.querySelector('[class*="viewport_"][data-scrolling]'))
         assert.ok(await viewport.locator('[class*="spotlight_"]').count() > 0)
         // 原生坐标点击不等待卡片动画稳定，验证暂停中的点击仍可进入详情。

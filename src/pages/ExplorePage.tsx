@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
 import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal'
 import { PlaylistDetailView } from '../components/Playlist/PlaylistDetailView'
-import { ListScrollActivity, observeListScrollActivity } from '../components/ui/list-scroll-activity'
+import { ListScrollActivity, observeCardScrollActivity } from '../components/ui/list-scroll-activity'
 import { GradientText } from '../components/ui/GradientText'
 import { pageTransition } from '../lib/motion-presets'
 import { providerAccountSession } from '../lib/provider-account-session'
@@ -14,6 +15,24 @@ import styles from './ExplorePage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
 
 const scrollPositions = new Map<string, { session: number; top: number }>()
+
+// 滚动状态只通知卡片，避免动画容器重渲染后广播封面布局测量。
+function ExploreScrollActivity({ scrollRef, children }: { scrollRef: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+  const [scrolling, setScrolling] = useState(false)
+  useEffect(() => {
+    const page = scrollRef.current
+    if (!page) return
+    const stop = observeCardScrollActivity(page, (active) => {
+      page.toggleAttribute('data-explore-scrolling', active)
+      setScrolling(active)
+    })
+    return () => {
+      stop()
+      page.removeAttribute('data-explore-scrolling')
+    }
+  }, [scrollRef])
+  return <ListScrollActivity.Provider value={scrolling}>{children}</ListScrollActivity.Provider>
+}
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -27,17 +46,10 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
   const accountSession = activeHomeSource ? providerAccountSession(activeHomeSource) : 0
   const [preview, setPreview] = useState<Playlist | null>(null)
-  const [scrolling, setScrolling] = useState(false)
   const previousSourceRef = useRef(activeHomeSource)
   const pageRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const restoringScrollRef = useRef(false)
-
-  useEffect(() => {
-    setScrolling(false)
-    const page = pageRef.current
-    if (page) return observeListScrollActivity(page, setScrolling, { wheel: true })
-  }, [detail])
 
   const previousSource = previousSourceRef.current
   const previousIndex = previousSource ? enabledSources.indexOf(previousSource) : 0
@@ -102,10 +114,10 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   }
 
   return (
-    <motion.div layoutScroll ref={pageRef} data-explore-scrolling={scrolling || undefined} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
+    <ExploreScrollActivity scrollRef={pageRef}>
+    <motion.div layoutScroll ref={pageRef} className={`${styles.page} ${pageScroll.viewport}`} onScroll={(event) => {
       if (activeHomeSource && !restoringScrollRef.current) scrollPositions.set(activeHomeSource, { session: providerAccountSession(activeHomeSource), top: event.currentTarget.scrollTop })
     }}>
-      <ListScrollActivity.Provider value={scrolling}>
 
       <motion.header
         className={styles.intro}
@@ -141,7 +153,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
 
       <div className={styles.bottomSpace} />
       <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
-      </ListScrollActivity.Provider>
     </motion.div>
+    </ExploreScrollActivity>
   )
 }

@@ -2,14 +2,14 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { motion } from 'motion/react'
 import styles from './ScrollArea.module.css'
 import pageScroll from '../../styles/page-scroll.module.css'
-import { ListScrollActivity, observeListScrollActivity } from './list-scroll-activity'
+import { ListScrollActivity, observeCardScrollActivity } from './list-scroll-activity'
 
 interface ScrollAreaProps {
   children: ReactNode
   /** 应用到滚动容器本身的类名（内边距、定位等） */
   className?: string
   scrollRef?: RefObject<HTMLDivElement>
-  /** 卡片网格在连续滚动期间暂停悬停装饰，停止后恢复。 */
+  /** 卡片网格滚动时暂停装饰，停止后由主动指针或焦点操作恢复。 */
   pauseCardEffects?: boolean
   /** 滚动距离超过阈值（8px）时触发，用于让吸顶元素在滚动后才显示背景 */
   onScrolledChange?: (scrolled: boolean) => void
@@ -29,7 +29,7 @@ export function ScrollArea({ children, className, scrollRef, pauseCardEffects = 
     const el = nodeRef.current
     if (!el) return
     if (pauseCardEffects) setScrolling(false)
-    const stopActivity = pauseCardEffects ? observeListScrollActivity(el, setScrolling, { wheel: true }) : undefined
+    const stopActivity = pauseCardEffects ? observeCardScrollActivity(el, setScrolling) : undefined
     let wasScrolled = el.scrollTop > SCROLLED_THRESHOLD
     onScrolledChangeRef.current?.(wasScrolled)
 
