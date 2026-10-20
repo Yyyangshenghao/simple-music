@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Track } from '../../src/types/domain'
 import type {
   PlaybackRequest,
   PlaybackHostCommand,
@@ -100,6 +101,7 @@ const api = {
   updateMiniPlayer: (payload: MiniPlayerPayload): Promise<OkResult> => ipcRenderer.invoke('miniplayer:update', payload),
   onMiniPlayerControl: (cb: (p: { action: string; value?: number }) => void) => on('miniplayer:control', cb),
   onMiniPlayerWidthChanged: (cb: (p: { width: number }) => void) => on('miniplayer:width-changed', cb),
+  onMiniPlayerAddToPlaylist: (cb: (track: Track) => void) => on('miniplayer:add-to-playlist', cb),
 
   // 快捷键
   configureHotkeys: (bindings: HotkeyBinding[], recording = false, settingsAccelerator?: string): Promise<HotkeyResult> =>

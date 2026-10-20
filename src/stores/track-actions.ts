@@ -48,6 +48,14 @@ export function placePopover(anchor: PopoverAnchor, size: { width: number; heigh
 
 export const LAST_TARGET_KEY = 'simplemusic-app-playlist-last-target'
 
+export function readLastTarget(): string | null {
+  try { return localStorage.getItem(LAST_TARGET_KEY) } catch { return null }
+}
+
+export function rememberTarget(id: string) {
+  try { localStorage.setItem(LAST_TARGET_KEY, id) } catch { /* 存储不可用时仅失去排序偏好 */ }
+}
+
 /** 上次加入的歌单排第一，其余按最近更新排序，便于连续收藏到同一份歌单。 */
 export function orderQuickAddTargets(items: AppPlaylist[], lastId: string | null): AppPlaylist[] {
   return [...items].sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0) || b.updatedAt - a.updatedAt)
@@ -56,4 +64,10 @@ export function orderQuickAddTargets(items: AppPlaylist[], lastId: string | null
 export function containsTrack(item: AppPlaylist, track: Track): boolean {
   const key = appPlaylistTrackKey(track)
   return item.tracks.some(entry => appPlaylistTrackKey(entry) === key)
+}
+
+/** 按来源与 id 去重后统计已有歌曲，与保存时的去重口径一致。 */
+export function countIncludedTracks(item: AppPlaylist, tracks: Track[]): number {
+  const existing = new Set(item.tracks.map(appPlaylistTrackKey))
+  return new Set(tracks.map(appPlaylistTrackKey).filter(key => existing.has(key))).size
 }

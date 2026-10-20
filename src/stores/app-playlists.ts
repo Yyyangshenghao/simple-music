@@ -15,6 +15,11 @@ export interface AppPlaylist {
 
 type ArchiveStorage = Pick<Storage, 'getItem' | 'setItem'>
 
+export interface RemovedAppPlaylistTrack {
+  track: Track
+  index: number
+}
+
 interface AppPlaylistsStore {
   items: AppPlaylist[]
   error: string
@@ -24,7 +29,8 @@ interface AppPlaylistsStore {
   rename(id: string, name: string): void
   remove(id: string): void
   addTracks(id: string, tracks: Track[]): number
-  removeTracks(id: string, keys: string[]): void
+  removeTracks(id: string, keys: string[]): RemovedAppPlaylistTrack[]
+  restoreTracks(id: string, removed: RemovedAppPlaylistTrack[]): number
   moveTrack(id: string, key: string, direction: -1 | 1): void
   /** 移到指定下标，越界时贴边。 */
   moveTrackTo(id: string, key: string, target: number): void
@@ -145,9 +151,25 @@ export function createAppPlaylistsStore(storage: () => ArchiveStorage, newId: ()
       },
       removeTracks(id, keys) {
         const item = find(id)
-        const removed = new Set(keys)
-        const next = item.tracks.filter(track => !removed.has(appPlaylistTrackKey(track)))
-        if (next.length !== item.tracks.length) update(id, next)
+        const keysToRemove = new Set(keys)
+        const removed = item.tracks.flatMap((track, index) => keysToRemove.has(appPlaylistTrackKey(track)) ? [{ track, index }] : [])
+        if (removed.length) update(id, item.tracks.filter(track => !keysToRemove.has(appPlaylistTrackKey(track))))
+        return removed
+      },
+      restoreTracks(id, removed) {
+        const item = find(id)
+        const next = [...item.tracks]
+        const known = new Set(next.map(appPlaylistTrackKey))
+        let restored = 0
+        for (const { track, index } of [...removed].sort((a, b) => a.index - b.index)) {
+          const key = appPlaylistTrackKey(track)
+          if (known.has(key)) continue
+          next.splice(Math.min(index, next.length), 0, savedTrack(track))
+          known.add(key)
+          restored++
+        }
+        if (restored) update(id, next)
+        return restored
       },
       moveTrack(id, key, direction) {
         const item = find(id)

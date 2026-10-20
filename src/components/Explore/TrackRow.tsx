@@ -85,60 +85,49 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
   }, [offlineVisible, track.source, track.id, offlineRevision, scrolling])
 
   return (
-    <button
+    <div
       className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
-      onClick={onPlay}
       onContextMenu={(e) => {
         e.preventDefault()
         useTrackActionsStore.getState().openMenu(track, { x: e.clientX, y: e.clientY, width: 0, height: 0 })
       }}
-      disabled={disabled}
-      title={statusLabel}
     >
-      {index !== undefined && (
-        isCurrent
-          ? <EqIndicator paused={!isPlaying} />
-          : <span className={styles.index}>{index + 1}</span>
-      )}
-      {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
-      <div className={styles.info}>
-        <span className={styles.name}>{track.name}</span>
-        <span className={styles.artistLine}>
-          <span className={styles.artist}>{track.artist}</span>
-          <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />
+      <button type="button" className={styles.playArea} onClick={onPlay} disabled={disabled} title={statusLabel}>
+        {index !== undefined && (
+          isCurrent
+            ? <EqIndicator paused={!isPlaying} />
+            : <span className={styles.index}>{index + 1}</span>
+        )}
+        {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
+        <div className={styles.info}>
+          <span className={styles.name}>{track.name}</span>
+          <span className={styles.artistLine}>
+            <span className={styles.artist}>{track.artist}</span>
+            <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />
+          </span>
+        </div>
+        <span className={styles.duration}>
+          {statusLabel || formatDuration(track.duration)}
         </span>
-      </div>
-      <span className={styles.duration}>
-        {statusLabel || formatDuration(track.duration)}
-      </span>
-      {!disabled && (
-        <span
-          className={`${styles.addBtn} no-drag`}
-          role="button"
-          tabIndex={0}
-          data-track-action-trigger
-          title="加入应用歌单"
-          aria-label="加入应用歌单"
-          aria-haspopup="dialog"
-          onClick={(e) => {
-            e.stopPropagation()
-            useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
-          }}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return
-            e.preventDefault()
-            e.stopPropagation()
-            useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
-          }}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        </span>
-      )}
+      </button>
+      <button
+        type="button"
+        className={`${styles.addBtn} no-drag`}
+        data-track-action-trigger
+        title="加入应用歌单"
+        aria-label="加入应用歌单"
+        aria-haspopup="dialog"
+        onClick={(e) => {
+          e.stopPropagation()
+          useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
       {offlineVisible && !disabled && !hideOfflineAction && (
-        <span
+        <button
+          type="button"
           className={styles.offlineBtn}
-          role="button"
-          tabIndex={0}
           data-state={visibleOffline?.state ?? 'missing'}
           title={visibleOffline?.state === 'pinned' ? '已保存，点击取消固定' : visibleOffline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
           aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
@@ -147,22 +136,14 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
             if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return
-            e.preventDefault()
-            e.stopPropagation()
-            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
-            else void useOfflineCacheStore.getState().save(track)
-          }}
         >
           <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
-        </span>
+        </button>
       )}
       {visible && !disabled && !hideLikeAction && (
-        <span
+        <button
+          type="button"
           className={`${styles.likeBtn} no-drag`}
-          role="button"
-          tabIndex={0}
           data-liked={liked}
           title={liked ? '取消红心' : '红心'}
           aria-label={liked ? '取消红心' : '红心'}
@@ -170,17 +151,10 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
             e.stopPropagation()
             void useLikesStore.getState().toggleLike(track)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              e.stopPropagation()
-              void useLikesStore.getState().toggleLike(track)
-            }
-          }}
         >
           <HeartIcon filled={liked} size={16} />
-        </span>
+        </button>
       )}
-    </button>
+    </div>
   )
 }

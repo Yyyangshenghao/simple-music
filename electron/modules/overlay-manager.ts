@@ -1,7 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { sendPlaybackEvent } from './playback-host'
-import { resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
+import { resolveRendererUrl, hideMainWindow, focusMainWindow, getMainWindow, isInAppUrl } from './window-manager'
 import { openExternalSafely } from './safe-open'
 import { createLyricsNativeBackdrop } from './lyrics-native-backdrop'
 import { preventLyricsActivation } from './macos-lyrics-window'
@@ -9,6 +9,8 @@ import { miniPlayerPatch } from '../../src/lib/mini-player-state'
 import { getPlatform } from '../platform'
 import { desktopLyricsHeight, desktopLyricsSize, DESKTOP_LYRICS_MAX_SIZE, DESKTOP_LYRICS_MIN_SIZE } from '../../src/lib/desktop-lyrics-layout'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { Track } from '../../src/types/domain'
 
 const platform = getPlatform()
 
@@ -634,6 +636,23 @@ export function returnFromMiniPlayer(): OkResult {
   notifyRendererMiniOff()
   focusMainWindow()
   return { ok: true }
+}
+
+/** 仅迷你条可请求主窗口收藏；独立播放宿主不消费界面浮层动作。 */
+export function addToPlaylistFromMiniPlayer(event: IpcMainInvokeEvent, track: Track): OkResult {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()
+    || event.sender !== miniPlayerWindow.webContents || event.senderFrame !== miniPlayerWindow.webContents.mainFrame) {
+    return { ok: false, error: 'INVALID_MINI_PLAYER_SENDER' }
+  }
+  if (!track || !['netease', 'qq', 'apple', 'local'].includes(track.source)
+    || (typeof track.id !== 'string' && typeof track.id !== 'number')
+    || !String(track.id).trim() || typeof track.name !== 'string' || !track.name.trim()) {
+    return { ok: false, error: 'NO_TRACK' }
+  }
+  const main = getMainWindow()
+  if (!main || main.isDestroyed()) return { ok: false, error: 'NO_MAIN_WINDOW' }
+  main.webContents.send('miniplayer:add-to-playlist', track)
+  return returnFromMiniPlayer()
 }
 
 /** 显式退居托盘入口：关闭迷你条、保持主窗口隐藏并继续后台播放。 */

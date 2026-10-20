@@ -5,7 +5,7 @@ import { useProviderStore } from '../stores/providers'
 import { usePlaylistStore } from '../stores/playlist'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import { useNavigationStore } from '../stores/navigation'
-import { useToastStore } from '../stores/toast'
+import { useActionToastStore, useToastStore } from '../stores/toast'
 import { useBackdropStore } from '../stores/backdrop'
 import { AppPlaylistCover } from '../components/Playlist/AppPlaylistCover'
 import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
@@ -30,6 +30,7 @@ import { GradientText } from '../components/ui/GradientText'
 import detailStyles from './AppPlaylistPage.module.css'
 import { springGentle } from '../lib/motion-presets'
 import { appPlaylistCoverLayoutId, appPlaylistCovers } from '../lib/app-playlist-presentation'
+import { rememberTarget } from '../stores/track-actions'
 
 /** 与 VirtualList 行步长一致（56px 行 + 2px 间距）。 */
 const ROW_HEIGHT = 58
@@ -132,16 +133,20 @@ export function AppPlaylistPage({ id }: { id: string }) {
     if (next === 'select') requestAnimationFrame(() => selection.rootRef.current?.focus({ preventScroll: true }))
   }
   function clearFilters() { setQuery(''); setSourceFilter(null); setOnlyUnavailable(false) }
+  function goToSearch() {
+    rememberTarget(id)
+    window.dispatchEvent(new Event('simplemusic:focus-search'))
+  }
   async function removeSelected() {
     const keys = selectedRows.map(row => appPlaylistTrackKey(row.track))
     if (!keys.length || !window.confirm(`从「${item?.name ?? '应用歌单'}」移出选中的 ${keys.length} 首歌曲？平台歌单和本地文件不受影响。`)) return
-    edit(() => useAppPlaylistsStore.getState().removeTracks(id, keys))
+    if (!edit(() => useAppPlaylistsStore.getState().removeTracks(id, keys))) return
     selection.clear()
     useToastStore.getState().show(`已移出 ${keys.length} 首歌曲`)
   }
   function removeInvalid() {
     if (!invalidKeys.length || !window.confirm(`移出 ${invalidKeys.length} 首已失效的歌曲？平台歌单和本地文件不受影响。`)) return
-    edit(() => useAppPlaylistsStore.getState().removeTracks(id, invalidKeys))
+    if (!edit(() => useAppPlaylistsStore.getState().removeTracks(id, invalidKeys))) return
     useToastStore.getState().show(`已移出 ${invalidKeys.length} 首已失效歌曲`)
   }
 
@@ -159,8 +164,17 @@ export function AppPlaylistPage({ id }: { id: string }) {
   }
 
   function edit(action: () => void) {
-    try { action(); setError('') }
-    catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试') }
+    try { action(); setError(''); return true }
+    catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试'); return false }
+  }
+  function removeTrack(key: string, title: string) {
+    edit(() => {
+      const removed = useAppPlaylistsStore.getState().removeTracks(id, [key])
+      if (!removed.length) return
+      useActionToastStore.getState().show(`已移出「${title}」`, '撤销', () => {
+        useAppPlaylistsStore.getState().restoreTracks(id, removed)
+      })
+    })
   }
   function playbackTracks(tracks = item?.tracks ?? []) {
     return appPlaylistPlaybackTracks(tracks, { ...context, providers: useProviderStore.getState().byId, offline: currentOffline() })
@@ -208,7 +222,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
     return <div className={`${styles.row} ${detailStyles.row}`} key={key}>
       <TrackRow track={track} index={position} disabled={!row.available} statusLabel={row.status} showInactiveSource hideLikeAction onPlay={() => play(key)} />
       <div className={`${styles.rowActions} ${detailStyles.rowActions}`}>
-        <button aria-label={`移出歌单：${title}`} title="移出歌单" onClick={() => edit(() => useAppPlaylistsStore.getState().removeTracks(id, [key]))}><DetailIcon kind="remove" /></button>
+        <button aria-label={`移出歌单：${title}`} title="移出歌单" onClick={() => removeTrack(key, title)}><DetailIcon kind="remove" /></button>
       </div>
     </div>
   }
@@ -257,6 +271,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
                     useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
                   } catch { /* 播放客户端已显示失败原因。 */ }
                 }}><DetailIcon kind="queue" />添加到播放队列</button>
+                <button onClick={goToSearch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>添加歌曲</button>
               </div>
             </div>
           </div>
@@ -288,7 +303,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
         </TrackSearch>}
         {error && <p className={styles.error} role="alert">{error}</p>}
         {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
-        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>在歌曲上点「＋」或右键，正在播放的歌可在播放栏加入；整张专辑或歌单从「更多」中加入。</span></div>
+        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>搜索歌曲后点「＋」选择这份歌单，也可从播放栏或其他歌曲列表加入。</span><button className="no-drag" onClick={goToSearch}>去搜索歌曲</button></div>
           : !visible.length ? <div className={styles.empty}><p>没有符合条件的歌曲</p><button className="no-drag" onClick={clearFilters}>清除筛选</button></div>
           : <div className={detailStyles.trackList} ref={listRef}><VirtualList total={visible.length} rowHeight={ROW_HEIGHT} scrollRef={scrollRef} renderRow={renderRow} /></div>}
         {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}

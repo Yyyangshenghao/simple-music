@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
@@ -13,6 +13,9 @@ import styles from './PlaylistPreviewModal.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
+import { resolveAppPlaylistTracks } from '../../lib/batch-tracks'
+import { AddToAppPlaylistDialog } from '../Playlist/AppPlaylistDialog'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
@@ -25,6 +28,7 @@ const overlayVariants: Variants = {
 
 /** 面板内容：拆出来保证 useLazyPlaylist 拿到非空 playlist（与详情页共用缓存，进详情零请求）。 */
 function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): void }) {
+  const [choosingPlaylist, setChoosingPlaylist] = useState(false)
   const { total, tracks, loading, error, makeQueue } = useLazyPlaylist(playlist)
   const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
@@ -78,6 +82,7 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
       <div className={styles.actions}>
         <button className={styles.playAll} onClick={playAll} disabled={total === 0}>▶ 播放全部</button>
         <button className={styles.openBtn} onClick={openDetail} disabled={total === 0}>{playlist.type === 'album' ? '进入专辑' : '进入歌单'}</button>
+        <button className={styles.openBtn} onClick={() => setChoosingPlaylist(true)} disabled={loading || total === 0}>加入应用歌单</button>
         <span className={styles.count}>{loading ? '加载中…' : `${total} 首`}</span>
       </div>
       <div className={styles.list} aria-busy={loading}>
@@ -93,22 +98,33 @@ function PreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose(): vo
         {/* 预览只展示已加载详情的前缀批次；完整列表进详情页看 */}
         {tracks.map((t, i) =>
           t ? (
-            <button key={`${String(t.id)}-${i}`} className={styles.row} onClick={() => playTrack(i)}>
-              <span className={styles.index}>{i + 1}</span>
-              <span className={styles.rowText}>
-                <span className={styles.rowName}>{t.name}</span>
-                <span className={styles.rowArtist}>{t.artist}</span>
-              </span>
-              <SourceBadge source={t.source} compact />
-            </button>
+            <div key={`${String(t.id)}-${i}`} className={styles.row}>
+              <button type="button" className={styles.rowMain} onClick={() => playTrack(i)}>
+                <span className={styles.index}>{i + 1}</span>
+                <span className={styles.rowText}>
+                  <span className={styles.rowName}>{t.name}</span>
+                  <span className={styles.rowArtist}>{t.artist}</span>
+                </span>
+                <SourceBadge source={t.source} compact />
+              </button>
+              <button type="button" className={styles.addBtn} data-track-action-trigger aria-haspopup="dialog"
+                title="加入应用歌单" aria-label={`将 ${t.name} 加入应用歌单`}
+                onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+            </div>
           ) : null
         )}
       </div>
+      {choosingPlaylist && <AddToAppPlaylistDialog
+        contextLabel={`${playlist.type === 'album' ? '专辑' : '歌单'}「${playlist.name}」 · ${total} 首`}
+        loadTracks={signal => resolveAppPlaylistTracks([], [playlist], signal)}
+        onClose={() => setChoosingPlaylist(false)} />}
     </motion.div>
   )
 }
 
-/** 歌单和专辑小卡预览：简介 + 可滚动曲目，可播放全部或进入完整详情页。 */
+/** 歌单和专辑小卡预览：简介 + 可滚动曲目，支持播放、收藏或进入完整详情页。 */
 export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModalProps) {
   const openingDetail = useNavigationStore(state => typeof state.currentView === 'object' && state.currentView.type === 'playlist')
   useEffect(() => {
@@ -131,7 +147,7 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
           exit="exit"
           onClick={onClose}
         >
-          <PreviewPanel playlist={playlist} onClose={onClose} />
+          <PreviewPanel key={`${playlist.source}:${playlist.type}:${String(playlist.id)}`} playlist={playlist} onClose={onClose} />
         </motion.div>
       )}
     </AnimatePresence>,

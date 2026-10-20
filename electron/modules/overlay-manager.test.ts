@@ -11,7 +11,7 @@ const harness = vi.hoisted(() => {
     setIgnoreMouseEvents: ReturnType<typeof vi.fn>
     showInactive: ReturnType<typeof vi.fn>
     show: ReturnType<typeof vi.fn>
-    webContents: { send: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
+    webContents: { mainFrame: object; send: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
   }> = []
   const mainSend = vi.fn()
   const hideMainWindow = vi.fn()
@@ -31,6 +31,7 @@ const harness = vi.hoisted(() => {
       },
       listeners,
       webContents: {
+        mainFrame: {},
         setWindowOpenHandler: vi.fn(),
         getZoomFactor: vi.fn(() => 1),
         on: vi.fn(),
@@ -95,10 +96,54 @@ vi.mock('../platform', () => ({
   })
 }))
 
-import { moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, hideMiniPlayerToTray, setMiniPlayerPopover, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsPointerCapture, setLyricsControlBounds, setWallpaperEnabled, updateWallpaper, closeOverlays } from './overlay-manager'
+import { addToPlaylistFromMiniPlayer, moveMiniPlayerBy, resizeMiniPlayerBy, returnFromMiniPlayer, hideMiniPlayerToTray, setMiniPlayerPopover, setMiniPlayerEnabled, updateMiniPlayer, setLyricsEnabled, updateLyrics, moveLyricsBy, resizeLyrics, setLyricsLock, setLyricsPointerCapture, setLyricsControlBounds, setWallpaperEnabled, updateWallpaper, closeOverlays } from './overlay-manager'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
 import { desktopLyricsHeight, desktopLyricsSize } from '../../src/lib/desktop-lyrics-layout'
 import { preventLyricsActivation } from './macos-lyrics-window'
+import type { Track } from '../../src/types/domain'
+import type { IpcMainInvokeEvent } from 'electron'
+
+describe('迷你条收藏只交由主窗口处理', () => {
+  const track: Track = { provider: 'netease', source: 'netease', type: 'song', id: 1, name: '点击时歌曲', artist: '歌手', artists: [] }
+  beforeEach(() => {
+    setMiniPlayerEnabled(false)
+    harness.instances.length = 0
+    setMiniPlayerEnabled(true)
+    harness.mainSend.mockClear()
+    harness.focusMainWindow.mockClear()
+  })
+  afterEach(() => setMiniPlayerEnabled(false))
+
+  const eventFor = (sender: unknown, senderFrame: unknown) => ({ sender, senderFrame }) as IpcMainInvokeEvent
+
+  it('拒绝其他窗口和迷你窗口的子框架请求', () => {
+    const win = harness.instances[0]
+    expect(addToPlaylistFromMiniPlayer(eventFor({}, {}), track).ok).toBe(false)
+    expect(addToPlaylistFromMiniPlayer(eventFor(win.webContents, {}), track).ok).toBe(false)
+    expect(harness.mainSend).not.toHaveBeenCalled()
+    expect(harness.focusMainWindow).not.toHaveBeenCalled()
+    expect(win.close).not.toHaveBeenCalled()
+  })
+
+  it.each([null, undefined, {}, { ...track, source: 'other' }, { ...track, id: '' }, { ...track, name: '' }])('拒绝空或非法收藏目标 %j', invalid => {
+    const win = harness.instances[0]
+    const event = eventFor(win.webContents, win.webContents.mainFrame)
+    expect(addToPlaylistFromMiniPlayer(event, invalid as Track)).toEqual({ ok: false, error: 'NO_TRACK' })
+    expect(harness.mainSend).not.toHaveBeenCalled()
+    expect(win.close).not.toHaveBeenCalled()
+  })
+
+  it('宿主先切歌仍传递点击时快照，恢复主窗口并收起迷你条', () => {
+    const win = harness.instances[0]
+    updateMiniPlayer({ track: { ...track, id: 2, name: '下一首' }, trackTitle: '下一首' })
+    const result = addToPlaylistFromMiniPlayer(eventFor(win.webContents, win.webContents.mainFrame), track)
+    expect(result).toEqual({ ok: true })
+    expect(harness.mainSend).toHaveBeenCalledWith('miniplayer:add-to-playlist', track)
+    expect(harness.mainSend).not.toHaveBeenCalledWith('miniplayer:control', expect.objectContaining({ action: 'add-to-playlist' }))
+    expect(win.close).toHaveBeenCalledOnce()
+    expect(harness.focusMainWindow).toHaveBeenCalledOnce()
+  })
+})
 
 it('壁纸页刷新后重放完整快照，保留未变化的外观和最新速度', () => {
   setWallpaperEnabled(false)

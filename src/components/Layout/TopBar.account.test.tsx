@@ -67,7 +67,7 @@ function startSearch() {
 beforeEach(() => {
   vi.useFakeTimers()
   h.slots = []; h.effects = []; h.search.mockReset()
-  vi.stubGlobal('window', {})
+  vi.stubGlobal('window', new EventTarget())
   useProviderStore.setState({ byId: {
     netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' },
   } })
@@ -75,6 +75,11 @@ beforeEach(() => {
 afterEach(() => {
   for (const slot of h.slots) (slot as { cleanup?: () => void } | undefined)?.cleanup?.()
   vi.useRealTimers(); vi.unstubAllGlobals()
+})
+it('歌单请求添加歌曲时展开搜索输入，不跳转空关键词结果页', () => {
+  render()
+  window.dispatchEvent(new Event('simplemusic:focus-search'))
+  expect(walk(render()).some(element => element.type === 'input')).toBe(true)
 })
 it.each([['后退', 'goBack'], ['前进', 'goForward']] as const)('%s按钮不把点击事件送到后台导航', (label, action) => {
   const previous = useNavigationStore.getState()

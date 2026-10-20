@@ -4,6 +4,8 @@
   z-index: 1000;
   width: 280px;
   max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--glass-border-card);
@@ -40,9 +42,10 @@
   cursor: pointer;
 }
 .target:hover:not(:disabled), .target:focus-visible,
-.newButton:hover, .newButton:focus-visible,
+.newButton:hover:not(:disabled), .newButton:focus-visible,
 .menu button:hover, .menu button:focus-visible { background: var(--sm-fill-hover); outline: none; }
 .target:disabled { cursor: default; }
+.newButton:disabled { opacity: 0.4; cursor: default; }
 .menu button > svg, .newButton > svg { flex-shrink: 0; color: var(--sm-text-secondary); }
 
 .targetName { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -68,3 +71,7 @@
 
 @keyframes floatingEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .floating { animation: none; } .addMark { transition: none; } }
+
+.search { box-sizing: border-box; width: calc(100% - 8px); margin: 0 4px 8px; padding: 8px 10px; border: 1px solid var(--sm-border-strong); border-radius: 8px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); font: inherit; font-size: 12px; }
+.search:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+.empty { padding: 8px 10px; color: var(--sm-text-secondary); font-size: 12px; }

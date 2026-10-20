@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopOverlayApi } from './overlay'
 import { DEFAULT_MINI_PLAYER_APPEARANCE } from '../../src/lib/mini-player-config'
+import type { Track } from '../../src/types/domain'
 
 const harness = vi.hoisted(() => ({ expose: vi.fn(), on: vi.fn(), removeListener: vi.fn(), invoke: vi.fn() }))
 vi.mock('electron', () => ({
@@ -63,6 +64,14 @@ describe('迷你条 preload 首屏状态重放', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+  })
+
+  it('收藏使用专用通道，保留点击时曲目', async () => {
+    await import('./overlay')
+    const api = harness.expose.mock.calls[0][1] as DesktopOverlayApi
+    const track: Track = { provider: 'local', source: 'local', type: 'song', id: 'file-1', name: '本地歌曲', artist: '歌手', artists: [] }
+    api.addToPlaylistFromMiniPlayer(track)
+    expect(harness.invoke).toHaveBeenLastCalledWith('overlay:miniplayer-add-to-playlist', track)
   })
 
   it('完整快照早于 React 订阅时，订阅者仍收到最新完整状态', async () => {

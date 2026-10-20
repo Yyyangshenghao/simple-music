@@ -178,10 +178,20 @@ describe('宿主持有迷你条同步，只推送实际展示的数据', () => {
     usePlayerStore.setState({ status: 'playing', position: 43 })
     expect(update).toHaveBeenLastCalledWith({ position: 43 })
     usePlayerStore.setState({ currentTrack: { ...track, id: 2, name: '第二首' }, position: 0 })
-    expect(update).toHaveBeenNthCalledWith(update.mock.calls.length - 1, { trackTitle: '第二首' })
+    expect(update).toHaveBeenNthCalledWith(update.mock.calls.length - 1, { trackTitle: '第二首', track: expect.objectContaining({ id: 2 }) })
     expect(update).toHaveBeenLastCalledWith({ position: 0 })
     useAmbientStore.setState({ palette: ['#ff0000', '#000000', '#ffffff'] })
     expect(update).toHaveBeenLastCalledWith({ accent: '#ff0000' })
+  })
+
+  it('曲目快照与展示标题一起同步，清空播放时清除收藏目标', () => {
+    stopSync = initMiniPlayerSync()
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ track, trackTitle: track.name }))
+    const next = { ...track, id: 2, name: '第二首' }
+    usePlayerStore.setState({ currentTrack: next })
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ track: next, trackTitle: next.name }))
+    usePlayerStore.setState({ currentTrack: null })
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ track: null, trackTitle: '' }))
   })
 
   it('宽度回传更新设置，停止后旧事件、store 变化和定时器均不再生效', () => {

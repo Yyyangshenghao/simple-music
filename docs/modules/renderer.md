@@ -28,7 +28,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 |---|---|
 | `player.ts` | 唯一播放状态容器与 `playback-core` 的宿主适配；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
-| `app-playlists.ts` | 应用自己的跨源歌单，独立版本存档 `simplemusic-app-playlists`；包含网易/QQ/Apple/本地曲目，保存成功后才更新快照；旧同步关联仅兼容忽略，编辑不写回平台 |
+| `app-playlists.ts` | 应用自己的跨源歌单，独立版本存档 `simplemusic-app-playlists`；包含网易/QQ/Apple/本地曲目，保存成功后才更新快照；单曲移出可短时撤销，恢复时保留期间新增歌曲，不重建已删除歌单；旧同步关联仅兼容忽略，编辑不写回平台 |
 | `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist/app-playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置，搜索页保存分类、平台筛选与页面及歌手列表的滚动位置 |
 | `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
@@ -44,7 +44,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 ## hooks(全局副作用,大多在 App.tsx 挂载一次)
 
-- `useDesktopBridge` — 订阅并初次读取主窗口状态，写入 window store；不接收播放命令。
+- `useDesktopBridge` — 订阅并初次读取主窗口状态，写入 window store；接收迷你条的歌曲快照并在主窗口打开应用歌单选择器，不接收播放命令。
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
 - `useAmbientPalette` — 只消费 ambient store，把 `--ambient-1/2/3` CSS 变量分 12 步补间到当前颜色；游戏/刷歌及卸载时停止补间，重挂直接消费最新颜色，不取图或改写 store。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。

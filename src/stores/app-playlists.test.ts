@@ -86,6 +86,31 @@ describe('应用歌单独立存档', () => {
     expect(archive).toBe(raw)
   })
 
+  it('撤销移出恢复原位置，同时保留期间新增的歌曲并避免重复', () => {
+    const store = makeStore()
+    const id = store.getState().create('列表', [song('local', 1), song('qq', 2), song('apple', 3)])
+    const removed = store.getState().removeTracks(id, ['qq:2'])
+    store.getState().addTracks(id, [song('netease', 4)])
+    expect(store.getState().restoreTracks(id, removed)).toBe(1)
+    expect(store.getState().items[0].tracks.map(appPlaylistTrackKey)).toEqual(['local:1', 'qq:2', 'apple:3', 'netease:4'])
+    storage.setItem.mockClear()
+    expect(store.getState().restoreTracks(id, removed)).toBe(0)
+    expect(storage.setItem).not.toHaveBeenCalled()
+  })
+
+  it('撤销写入失败不丢失新快照，删除歌单后不能由撤销重建', () => {
+    const store = makeStore()
+    const id = store.getState().create('列表', [song('local', 1), song('qq', 2)])
+    const removed = store.getState().removeTracks(id, ['local:1'])
+    const previous = store.getState().items
+    storage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
+    expect(() => store.getState().restoreTracks(id, removed)).toThrow('保存失败')
+    expect(store.getState().items).toBe(previous)
+    store.getState().remove(id)
+    expect(() => store.getState().restoreTracks(id, removed)).toThrow('已被删除')
+    expect(store.getState().items).toEqual([])
+  })
+
   it.each(['{broken', '{"version":2,"items":[]}', '{"version":1,"items":[{}]}'])('损坏或未知版本存档不覆盖：%s', raw => {
     archive = raw
     const store = makeStore()

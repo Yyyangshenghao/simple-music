@@ -6,6 +6,7 @@ import {
   resizeMiniPlayerBy,
   setMiniPlayerPopover,
   triggerMiniPlayerControl,
+  addToPlaylistFromMiniPlayer,
   returnFromMiniPlayer
 } from '../modules/overlay-manager'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
@@ -34,4 +35,5 @@ export function registerMiniPlayerIpc(): void {
   ipcMain.handle('overlay:miniplayer-close', () => returnFromMiniPlayer())
   // 封面/回到大播放器:恢复主窗口 + 关闭迷你条 + 同步设置开关
   ipcMain.handle('overlay:miniplayer-focus-main', () => returnFromMiniPlayer())
+  ipcMain.handle('overlay:miniplayer-add-to-playlist', (event, track) => addToPlaylistFromMiniPlayer(event, track))
 }

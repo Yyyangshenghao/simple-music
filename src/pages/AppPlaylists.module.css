@@ -23,7 +23,7 @@
 .eyebrow { font-size: 11px; color: var(--sm-text-secondary); letter-spacing: 0.12em; }
 .buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .row { display: flex; align-items: center; gap: 8px; height: 58px; }
-.row > button { flex: 1; min-width: 0; }
+.row > :first-child { flex: 1; min-width: 0; }
 .rowActions { display: flex; gap: 2px; }
 .rowActions button { padding: 6px 8px; border: none; border-radius: 8px; background: none; color: var(--sm-text-secondary); cursor: pointer; }
 .rowActions button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }

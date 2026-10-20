@@ -10,6 +10,7 @@ import { useLyricsStore } from '../../stores/lyrics'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { HeartIcon } from '../ui/HeartIcon'
 import { CloseIcon } from '../ui/CloseIcon'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import type { Track } from '../../types/domain'
 import styles from './ShuangeCard.module.css'
 
@@ -171,6 +172,18 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
           </div>
 
           <div className={styles.actions}>
+            <motion.button
+              type="button"
+              className={`${styles.iconAction} no-drag`}
+              data-track-action-trigger
+              onClick={event => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
+              whileTap={tapScale}
+              aria-label="加入应用歌单"
+              aria-haspopup="dialog"
+              title="加入应用歌单"
+            >
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            </motion.button>
             {supports(track) && (
               <motion.button
                 type="button"

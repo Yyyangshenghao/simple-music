@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => {
     setGameMode: vi.fn(),
     setMiniPlayerEnabled: vi.fn<(enabled: boolean, width?: number) => { ok: boolean; error?: string }>(() => ({ ok: true })),
     returnFromMiniPlayer: vi.fn(() => ({ ok: true })),
+    addToPlaylistFromMiniPlayer: vi.fn(() => ({ ok: true })),
     hideMiniPlayerToTray: vi.fn(() => ({ ok: true }))
   }
 })
@@ -28,6 +29,7 @@ vi.mock('../modules/overlay-manager', () => ({
   setMiniPlayerPopover: vi.fn(),
   triggerMiniPlayerControl: vi.fn(),
   returnFromMiniPlayer: harness.returnFromMiniPlayer,
+  addToPlaylistFromMiniPlayer: harness.addToPlaylistFromMiniPlayer,
   hideMiniPlayerToTray: harness.hideMiniPlayerToTray
 }))
 
@@ -45,6 +47,7 @@ describe('迷你播放器 IPC', () => {
     harness.setGameMode.mockClear()
     harness.setMiniPlayerEnabled.mockReset().mockReturnValue({ ok: true })
     harness.returnFromMiniPlayer.mockClear()
+    harness.addToPlaylistFromMiniPlayer.mockClear()
     harness.hideMiniPlayerToTray.mockClear()
     registerMiniPlayerIpc()
   })
@@ -72,5 +75,12 @@ describe('迷你播放器 IPC', () => {
 
     expect(harness.returnFromMiniPlayer).toHaveBeenCalledOnce()
     expect(harness.hideMiniPlayerToTray).not.toHaveBeenCalled()
+  })
+
+  it('收藏专用通道保留发送方与点击目标，交由窗口边界校验', () => {
+    const event = { sender: {}, senderFrame: {} }
+    const track = { source: 'netease', id: 1, name: '歌曲' }
+    expect(harness.handlers.get('overlay:miniplayer-add-to-playlist')?.(event, track)).toEqual({ ok: true })
+    expect(harness.addToPlaylistFromMiniPlayer).toHaveBeenCalledWith(event, track)
   })
 })

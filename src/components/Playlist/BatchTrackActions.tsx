@@ -55,6 +55,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
       : '曲数待确认'
     : `${downloadTrackCount} 首`
   const downloadLabel = `${compact ? '全部下载' : '下载所选'}（${downloadCountLabel}）`
+  const playlistContextLabel = collections.length
+    ? `${label ?? '所选项目'} · ${tracks.length ? `${tracks.length} 首歌曲、` : ''}${collections.length} 份歌单/专辑（选定后读取歌曲）`
+    : label ?? (selection ? '已选歌曲' : '当前列表')
 
   useEffect(() => {
     operation.current?.abort()
@@ -163,7 +166,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   </>
 
   const picker = <>
-    {choosingPlaylist && <AddToAppPlaylistDialog loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />}
+    {choosingPlaylist && <AddToAppPlaylistDialog tracks={collections.length ? undefined : tracks} contextLabel={playlistContextLabel} loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />}
     {choosingPlatformPlaylist && platformSource && <AddToPlatformPlaylistDialog source={platformSource} loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlatformPlaylist(false)} />}
   </>
 

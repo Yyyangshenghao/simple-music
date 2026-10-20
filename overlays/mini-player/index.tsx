@@ -103,6 +103,7 @@ function OverlayApp() {
         onVolume={(v) => control('volume', v)}
         onClose={() => window.desktopOverlay?.closeMiniPlayer()}
         onOpenMain={() => window.desktopOverlay?.focusMainFromMiniPlayer()}
+        onAddToPlaylist={payload.track ? () => { void window.desktopOverlay?.addToPlaylistFromMiniPlayer(payload.track!) } : undefined}
         onResizeBy={handleResizeBy}
         onPopoverChange={handlePopoverChange}
       />

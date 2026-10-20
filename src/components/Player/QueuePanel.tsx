@@ -13,6 +13,7 @@ import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
 import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
 import { isProviderId } from '../../providers/types'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -73,6 +74,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
       if (rootRef.current?.contains(document.activeElement)) toggleRef.current?.focus()
     }
     function onPointerDown(e: PointerEvent) {
+      if (e.target instanceof Element && e.target.closest('[data-track-action-layer]')) return
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -213,6 +215,12 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                             )}
                           </span>
                           <SourceBadge source={t.source} compact />
+                        </button>
+                        <button type="button" className={styles.rowAction}
+                          data-track-action-trigger aria-haspopup="dialog"
+                          title="加入应用歌单" aria-label={`将 ${t.name} 加入应用歌单`}
+                          onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                         </button>
                         {!isCurrent && (
                           <>

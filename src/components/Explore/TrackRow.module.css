@@ -9,7 +9,6 @@
   background: none;
   border: none;
   color: var(--sm-text-primary);
-  cursor: pointer;
   text-align: left;
   border-radius: 10px;
   transition: background 120ms;
@@ -18,20 +17,26 @@
 
 .row:hover { background: var(--sm-bg-elevated); }
 
-.row:focus-visible {
-  outline: 2px solid var(--sm-accent);
-  outline-offset: -2px;
-  background: var(--sm-bg-elevated);
+.playArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.row:disabled {
+.playArea:disabled {
   color: var(--sm-text-secondary);
   cursor: not-allowed;
   opacity: 0.52;
 }
-
-.row:disabled:hover { background: none; }
-.row:disabled::before { display: none; }
 
 .index { width: 20px; text-align: right; color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
@@ -93,7 +98,7 @@
 .offlineBtn[data-state='cached'],
 .offlineBtn[data-state='pinned'] { opacity: 1; color: var(--sm-accent); }
 
-/* 逐行红心:整行 hover 才显形,已红心常驻点亮;嵌在行 button 内,用 span 避免 button 嵌套 */
+/* 逐行红心：整行 hover 显形，已红心常驻点亮。 */
 .likeBtn {
   display: inline-flex;
   align-items: center;
@@ -136,12 +141,12 @@
 .row:focus-within .addBtn { opacity: 0.85; }
 .addBtn:hover { opacity: 1; color: var(--sm-text-primary); background: var(--sm-fill-hover); }
 
-.addBtn:focus-visible,
-.offlineBtn:focus-visible,
-.likeBtn:focus-visible {
-  opacity: 1;
-  outline: 2px solid var(--sm-accent);
-  outline-offset: 2px;
+.addBtn,
+.offlineBtn,
+.likeBtn {
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 /* hover 左缘氛围色 accent 条 */
@@ -165,7 +170,7 @@
 .rowActive { background: var(--sm-fill-subtle); }
 .rowActive .name { font-weight: 600; }
 
-/* 多选由外层选区提供反馈，保留当前播放标记和键盘焦点轮廓。 */
+/* 多选由外层选区提供反馈，保留当前播放标记。 */
 :global([data-selecting='true']) .row { background: none; }
 :global([data-selecting='true']) .row:not(.rowActive)::before { opacity: 0; }
 
@@ -200,6 +205,7 @@
 }
 
 @media (hover: none) {
+  .addBtn,
   .offlineBtn,
   .likeBtn { opacity: 0.85; }
 }

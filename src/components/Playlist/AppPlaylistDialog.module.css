@@ -34,3 +34,9 @@
 .targetInfo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
 .targetInfo > span { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .list .targetInfo { overflow: visible; white-space: normal; }
+
+.context { margin: -8px 0 16px; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.search { box-sizing: border-box; width: 100%; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--sm-border-strong); border-radius: 10px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); font: inherit; font-size: 13px; }
+.search:focus-visible { outline: 2px solid var(--sm-accent-warm); outline-offset: 2px; }
+.list .included { color: var(--sm-accent); }
+.create { padding-top: 16px; border-top: 1px solid var(--sm-border); }

@@ -53,6 +53,7 @@ export function initMiniPlayerSync(): () => void {
     const trackKey = player.currentTrack ? `${player.currentTrack.source}:${String(player.currentTrack.id)}` : null
     const showLyrics = settings.miniPlayerAppearance.showLyrics && settings.miniPlayerWidth >= MINI_PLAYER_LYRICS_WIDTH
     const payload: MiniPlayerPayload = {
+      track: player.currentTrack,
       trackTitle: player.currentTrack?.name ?? '',
       artistName: player.currentTrack?.artist ?? '',
       coverUrl: player.currentTrack?.cover ? sizedImage(player.currentTrack.cover, 88) : '',

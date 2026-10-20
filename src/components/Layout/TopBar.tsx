@@ -77,6 +77,16 @@ export function TopBar({ hidden = false }: TopBarProps) {
     if (isExpanded) inputRef.current?.focus()
   }, [isExpanded])
 
+  useEffect(() => {
+    const focusSearch = () => {
+      setIsExpanded(true)
+      setSearchFocused(true)
+      inputRef.current?.focus()
+    }
+    window.addEventListener('simplemusic:focus-search', focusSearch)
+    return () => window.removeEventListener('simplemusic:focus-search', focusSearch)
+  }, [])
+
   async function runSearch(q: string) {
     if (!q) return
     const seq = ++searchSeq.current

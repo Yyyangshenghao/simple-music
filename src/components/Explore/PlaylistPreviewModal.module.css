@@ -73,7 +73,7 @@
   padding: 4px;
 }
 
-.actions { display: flex; flex-shrink: 0; align-items: center; gap: 10px; padding: 0 16px 12px; }
+.actions { display: flex; flex-wrap: wrap; flex-shrink: 0; align-items: center; gap: 8px; padding: 0 16px 12px; }
 
 .playAll {
   border: none;
@@ -124,13 +124,41 @@
   width: 100%;
   border: none;
   background: none;
-  cursor: pointer;
   padding: 8px;
   border-radius: 10px;
   text-align: left;
 }
 
 .row:hover { background: var(--sm-bg-elevated); }
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.addBtn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+
+.addBtn:hover { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
 
 .index {
   width: 22px;
@@ -140,7 +168,7 @@
   text-align: right;
 }
 
-.rowText { min-width: 0; display: flex; flex-direction: column; }
+.rowText { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .rowName {
   font-size: 13px;

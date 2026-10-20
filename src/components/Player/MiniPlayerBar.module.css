@@ -211,6 +211,15 @@
   opacity: 0.45;
 }
 
+@media (max-width: 360px) {
+  .bar { gap: 6px; padding-left: 8px; }
+  .cover { width: 36px; height: 36px; }
+  .controls { gap: 0; margin-right: 6px; }
+  .ctl { width: 24px; }
+  .ctlPlay { width: 30px; }
+  .ctlClose { width: 20px; }
+}
+
 /* ---------- 底边进度条 ---------- */
 .progress {
   position: absolute;

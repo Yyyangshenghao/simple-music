@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { containsTrack, orderQuickAddTargets, placePopover, useTrackActionsStore } from './track-actions'
+import { countIncludedTracks, containsTrack, orderQuickAddTargets, placePopover, useTrackActionsStore } from './track-actions'
 import type { AppPlaylist } from './app-playlists'
 import type { Track } from '../types/domain'
 
@@ -29,6 +29,11 @@ describe('单曲快速加入', () => {
     const item = playlist('a', 1, [song('qq', '1')])
     expect(containsTrack(item, song('qq', '1'))).toBe(true)
     expect(containsTrack(item, song('netease', '1'))).toBe(false)
+  })
+
+  it('重复数量按来源和字符串 ID 去重，不把同一首多算', () => {
+    const item = playlist('a', 1, [song('qq', '1'), song('netease', '1')])
+    expect(countIncludedTracks(item, [song('qq', '1'), { ...song('qq', '1'), id: 1 }, song('netease', '1'), song('apple', '1')])).toBe(2)
   })
 
   it('右键菜单与快速加入同时只开一个', () => {

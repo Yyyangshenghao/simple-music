@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppPlaylistPage } from './AppPlaylistPage'
@@ -8,8 +8,8 @@ import type { OfflineCacheStatus } from '../lib/offline-cache'
 const h = vi.hoisted(() => ({
   index: 0, states: [] as unknown[], effects: [] as Array<() => (() => void) | void>, cleanups: [] as Array<() => void>,
   fetch: vi.fn(), tracks: [] as Track[], offline: { revision: 0, byKey: {} as Record<string, OfflineCacheStatus> },
-  mode: 'browse', add: vi.fn(),
-  batch: null as null | { tracks: Track[]; onAddToQueue?: (signal: AbortSignal) => number | Promise<number> },
+  mode: 'browse', add: vi.fn(), remove: vi.fn(), restore: vi.fn(), clear: vi.fn(), toast: vi.fn(), undoToast: vi.fn(), row: null as ReactNode,
+  batch: null as null | { tracks: Track[]; onAddToQueue?: (signal: AbortSignal) => number | Promise<number>; onRemove?: () => Promise<void> },
 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
@@ -23,8 +23,12 @@ vi.mock('react', async importOriginal => ({
 }))
 vi.mock('../stores/app-playlists', async importOriginal => ({
   ...await importOriginal<typeof import('../stores/app-playlists')>(),
-  useAppPlaylistsStore: (selector: (state: unknown) => unknown) => selector({ items: [{ id: 'app', name: '应用歌单', tracks: h.tracks }], error: '' }),
+  useAppPlaylistsStore: Object.assign(
+    (selector: (state: unknown) => unknown) => selector({ items: [{ id: 'app', name: '应用歌单', tracks: h.tracks }], error: '' }),
+    { getState: () => ({ removeTracks: h.remove, restoreTracks: h.restore }) },
+  ),
 }))
+vi.mock('../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) }, useActionToastStore: { getState: () => ({ show: h.undoToast }) } }))
 const providers = { netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' } }
 vi.mock('../stores/providers', () => ({ useProviderStore: Object.assign(
   (selector: (state: unknown) => unknown) => selector({ byId: providers }), { getState: () => ({ byId: providers }), subscribe: () => () => {} },
@@ -37,7 +41,7 @@ vi.mock('../stores/playlist', () => ({ usePlaylistStore: { getState: () => ({ ad
 vi.mock('../stores/navigation', () => ({ useNavigationStore: { getState: () => ({}) } }))
 vi.mock('../hooks/useMultiSelection', () => ({ useMultiSelection: () => ({
   selected: new Set(h.tracks.map(track => `${track.source}:${String(track.id)}`)), rootRef: { current: null },
-  surfaceProps: {}, clear: vi.fn(), selectAll: vi.fn(), exit: vi.fn(), marquee: null,
+  surfaceProps: {}, clear: h.clear, selectAll: vi.fn(), exit: vi.fn(), marquee: null,
 }) }))
 vi.mock('../components/Playlist/BatchTrackActions', () => ({ BatchTrackActions: (props: NonNullable<typeof h.batch>) => { h.batch = props; return null } }))
 vi.mock('../lib/local-music-service', () => ({ localMusicService: {
@@ -45,17 +49,55 @@ vi.mock('../lib/local-music-service', () => ({ localMusicService: {
 } }))
 vi.mock('../components/Explore/TrackRow', () => ({ TrackRow: () => null }))
 vi.mock('../components/ui/ScrollArea', () => ({ ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
-vi.mock('../components/ui/VirtualList', () => ({ VirtualList: () => null }))
+vi.mock('../components/ui/VirtualList', () => ({ VirtualList: ({ renderRow }: { renderRow(index: number): ReactNode }) => { h.row = renderRow(0); return h.row } }))
 
 function render() { h.index = 0; return renderToStaticMarkup(<AppPlaylistPage id="app" />) }
+function buttons(node: ReactNode): Array<ReactElement<{ children?: ReactNode; 'aria-label'?: string; onClick(): void }>> {
+  return Children.toArray(node).flatMap(child => {
+    if (!isValidElement<{ children?: ReactNode; onClick(): void }>(child)) return []
+    return child.type === 'button' ? [child] : buttons(child.props.children)
+  })
+}
 
 describe('应用歌单完整离线状态快照', () => {
   beforeEach(() => {
     vi.clearAllMocks(); h.states = []; h.effects = []; h.offline = { revision: 0, byKey: {} }
-    h.mode = 'browse'; h.batch = null; h.add.mockResolvedValue(1)
+    h.mode = 'browse'; h.batch = null; h.row = null; h.add.mockResolvedValue(1); h.remove.mockReturnValue([])
     h.tracks = [{ source: 'qq', provider: 'qq', type: 'song', id: '1', name: '歌曲', artist: '', artists: [] }]
   })
-  afterEach(() => h.cleanups.splice(0).forEach(cleanup => cleanup()))
+  afterEach(() => { h.cleanups.splice(0).forEach(cleanup => cleanup()); vi.unstubAllGlobals() })
+
+  it('批量移出保存失败时保留选区，不报告成功并显示失败原因', async () => {
+    h.mode = 'select'
+    h.remove.mockImplementationOnce(() => { throw new Error('应用歌单保存失败') })
+    render()
+    vi.stubGlobal('window', { confirm: () => true })
+    await h.batch!.onRemove!()
+    expect(h.clear).not.toHaveBeenCalled()
+    expect(h.toast).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+    expect(render()).toContain('应用歌单保存失败')
+  })
+
+  it('单曲移出成功提供撤销，按原歌单和移出回执恢复', () => {
+    const removed = [{ track: h.tracks[0], index: 0 }]
+    h.remove.mockReturnValueOnce(removed)
+    render()
+    buttons(h.row).find(button => button.props['aria-label'] === '移出歌单：歌曲')!.props.onClick()
+    expect(h.remove).toHaveBeenCalledWith('app', ['qq:1'])
+    expect(h.undoToast).toHaveBeenCalledWith('已移出「歌曲」', '撤销', expect.any(Function))
+    h.undoToast.mock.calls[0][2]()
+    expect(h.restore).toHaveBeenCalledWith('app', removed)
+  })
+
+  it('单曲移出失败不能提供撤销或成功回执', () => {
+    h.remove.mockImplementationOnce(() => { throw new Error('保存失败') })
+    render()
+    buttons(h.row).find(button => button.props['aria-label'] === '移出歌单：歌曲')!.props.onClick()
+    expect(h.undoToast).not.toHaveBeenCalled()
+    expect(h.toast).not.toHaveBeenCalled()
+    expect(render()).toContain('保存失败')
+  })
   it('聚合歌单保留播放与整理操作，不展示旧云端同步入口', () => {
     const html = render()
     expect(html).toContain('播放全部')
