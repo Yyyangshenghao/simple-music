@@ -65,9 +65,15 @@
 .examples small { color: var(--sm-text-secondary); font-size: 10px; }
 .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--sm-border); }
 .notes strong { color: var(--sm-text-primary); font-weight: 500; }
-.details { margin-top: 18px; border-top: 1px solid var(--sm-border); border-bottom: 1px solid var(--sm-border); }
-.details summary { padding: 12px 0; color: var(--sm-text-secondary); cursor: pointer; font-size: 11px; }
-.details summary:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+.details { --text-reveal-open: 0; margin-top: 18px; border-top: 1px solid var(--sm-border); border-bottom: 1px solid var(--sm-border); }
+.details[data-open='true'] { --text-reveal-open: 1; }
+.detailsTrigger { display: flex; align-items: center; gap: 6px; width: 100%; padding: 12px 0; border: 0; background: transparent; color: var(--sm-text-secondary); cursor: pointer; font: inherit; font-size: 11px; text-align: left; }
+.detailsTrigger:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+.detailsTrigger svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 220ms var(--sm-ease-out); }
+.details[data-open='true'] .detailsTrigger svg { transform: rotate(90deg); }
+.detailsBody { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 280ms var(--sm-ease-out), visibility 0s linear 300ms; }
+.detailsBody > div { min-height: 0; overflow: hidden; }
+.details[data-open='true'] .detailsBody { grid-template-rows: 1fr; visibility: visible; transition-delay: 0s; }
 .details dl { margin: 0 0 14px; }
 .details dt { margin-top: 10px; color: var(--sm-text-primary); font-weight: 500; }
 .details dd { margin: 4px 0 0; }
@@ -82,4 +88,8 @@
   .flow p { grid-column: 2; }
   .flow li + li::before { content: none; }
   .notes { grid-template-columns: 1fr; gap: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detailsBody, .detailsTrigger svg { transition: none; }
 }

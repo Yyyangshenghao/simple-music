@@ -324,7 +324,7 @@ describe('歌词设置分组', () => {
     expect(details).toContain('渲染分辨率')
     expect(details).toContain('type="range"')
     expect(details).toContain('恢复默认')
-    expect(details).not.toContain('hidden=')
+    expect(details).not.toMatch(/\shidden(?:=|[\s>])/)
     expect(details).not.toContain('role="button"')
   })
 

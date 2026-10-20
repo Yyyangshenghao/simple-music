@@ -1,4 +1,5 @@
-.help { margin-top: 8px; }
+.help { margin-top: 8px; --text-reveal-open: 0; }
+.help[data-open='true'] { --text-reveal-open: 1; }
 
 .trigger {
   display: flex;
@@ -37,14 +38,8 @@
   transition: visibility 0s linear 300ms;
 }
 
-.character {
-  opacity: 0;
-  transition: opacity 160ms var(--sm-ease-out) var(--hide-delay);
-}
-
 .help[data-open='true'] .panel { visibility: visible; transition-delay: 0s; }
-.help[data-open='true'] .character { opacity: 1; transition-delay: var(--reveal-delay); }
 
 @media (prefers-reduced-motion: reduce) {
-  .trigger svg, .panel, .character { transition: none; }
+  .trigger svg, .panel { transition: none; }
 }

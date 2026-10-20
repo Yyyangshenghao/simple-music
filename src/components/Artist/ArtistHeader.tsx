@@ -1,7 +1,9 @@
+import { useId, useRef, useState } from 'react'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistHeader.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
+import { RevealText } from '../ui/RevealText'
 
 interface ArtistHeaderProps {
   artist: ArtistInfo
@@ -9,6 +11,9 @@ interface ArtistHeaderProps {
 }
 
 export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
+  const [expanded, setExpanded] = useState(false)
+  const descriptionId = useId()
+  const descriptionTrigger = useRef<HTMLButtonElement>(null)
   return (
     <div className={styles.header}>
       <div className={styles.content}>
@@ -26,17 +31,27 @@ export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
           </div>
         </div>
         {artist.description?.trim() && (
-          <details className={styles.description}>
-            <summary className="no-drag" aria-label="歌手简介">
+          <section className={styles.description} data-open={expanded} onKeyDown={(event) => {
+            if (event.key !== 'Escape' || !expanded) return
+            event.preventDefault()
+            event.stopPropagation()
+            setExpanded(false)
+            descriptionTrigger.current?.focus()
+          }}>
+            <button ref={descriptionTrigger} type="button" className={`${styles.descriptionTrigger} no-drag`} aria-label="歌手简介"
+              aria-expanded={expanded} aria-controls={descriptionId} onClick={() => setExpanded((value) => !value)}>
               <span className={styles.descriptionHeading}>
                 <span>歌手简介</span>
                 <span className={styles.expand}>展开</span>
                 <span className={styles.collapse}>收起</span>
               </span>
-              <span className={styles.descriptionPreview}>{artist.description}</span>
-            </summary>
-            <p className="no-drag" tabIndex={0} aria-label="完整歌手简介">{artist.description}</p>
-          </details>
+            </button>
+            <div className={styles.descriptionBody}>
+              <p className={styles.descriptionPreview} aria-hidden={expanded}>{artist.description}</p>
+              <p id={descriptionId} className={`${styles.descriptionFull} no-drag`} tabIndex={expanded ? 0 : -1}
+                aria-label="完整歌手简介" aria-hidden={!expanded}><RevealText text={artist.description} /></p>
+            </div>
+          </section>
         )}
       </div>
     </div>

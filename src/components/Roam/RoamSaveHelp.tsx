@@ -1,8 +1,8 @@
-import { useId, useState, type CSSProperties } from 'react'
+import { useId, useState } from 'react'
+import { RevealText } from '../ui/RevealText'
 import styles from './RoamSaveHelp.module.css'
 
 const HELP_TEXT = '漫游结果保存在应用歌单中，可聚合不同平台的歌曲。通过「管理歌单」整理歌曲；不会修改平台歌单。'
-const characters = Array.from(HELP_TEXT)
 
 export function RoamSaveHelp() {
   const [open, setOpen] = useState(false)
@@ -28,18 +28,7 @@ export function RoamSaveHelp() {
         歌单保存说明
       </button>
       <p id={panelId} role="note" aria-hidden={!open} aria-label={HELP_TEXT} className={styles.panel}>
-        <span aria-hidden="true">
-          {characters.map((character, index) => (
-            <span
-              key={index}
-              className={styles.character}
-              style={{
-                '--reveal-delay': `${index * 6}ms`,
-                '--hide-delay': `${(characters.length - index - 1) * 2}ms`
-              } as CSSProperties}
-            >{character}</span>
-          ))}
-        </span>
+        <RevealText text={HELP_TEXT} />
       </p>
     </div>
   )
