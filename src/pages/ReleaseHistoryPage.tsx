@@ -5,6 +5,7 @@ import { useNavigationStore } from '../stores/navigation'
 import { useUpdateStore } from '../stores/update'
 import styles from './ReleaseHistoryPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
+import { BackButton } from '../components/ui/BackButton'
 
 export function ReleaseHistoryPage() {
   const currentVersion = useUpdateStore((state) => state.info?.currentVersion) || appVersion
@@ -16,12 +17,7 @@ export function ReleaseHistoryPage() {
   return (
     <div className={`${styles.page} ${pageScroll.viewport}`}>
       <div className={styles.content}>
-        <button type="button" className={`${styles.back} no-drag`} onClick={() => goBack()}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-            <path d="m15 5-7 7 7 7" />
-          </svg>
-          返回设置
-        </button>
+        <BackButton onClick={() => goBack()} label="返回设置" />
         <header className={styles.header}>
           <span className={styles.eyebrow}>SIMPLE MUSIC / RELEASE NOTES</span>
           <h1 ref={headingRef} tabIndex={-1}>更新日志</h1>

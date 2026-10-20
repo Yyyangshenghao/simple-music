@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'motion/react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
 import { useArtistSearch } from '../hooks/useArtistSearch'
@@ -13,10 +12,10 @@ import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { sizedImage } from '../lib/image-size'
-import { springSnappy, tapScale } from '../lib/motion-presets'
 import { isCatalogUnavailable } from '../lib/track-availability'
 import type { ArtistInfo, Track } from '../types/domain'
 import styles from './ArtistSongsPage.module.css'
+import { BackButton } from '../components/ui/BackButton'
 
 const PAGE_SIZE = 50
 const TRACK_ROW_HEIGHT = 56
@@ -146,28 +145,7 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
 
   return (
     <ScrollArea className={styles.page} scrollRef={scrollRef}>
-      <motion.button
-        className={`${styles.back} no-drag`}
-        onClick={() => goBack()}
-        aria-label="返回歌手页"
-        whileTap={tapScale}
-        transition={springSnappy}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        <span>返回</span>
-      </motion.button>
+      <BackButton className={styles.back} onClick={() => goBack()} ariaLabel="返回歌手页" />
 
       <header className={styles.header}>
         {artist?.avatar && <img className={styles.avatar} src={sizedImage(artist.avatar, 160)} alt="" />}

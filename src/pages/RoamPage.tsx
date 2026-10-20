@@ -21,6 +21,7 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './RoamPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
+import { BackButton } from '../components/ui/BackButton'
 
 type SavedPlaylistSlot = 'netease' | 'local'
 
@@ -197,28 +198,7 @@ export function RoamPage() {
             </div>
             <div className={styles.resultActions}>
               <button className={`${styles.backBtn} no-drag`} onClick={() => openAppPlaylist(openedPlaylist)}>管理歌单</button>
-              <motion.button
-                className={`${styles.backBtn} no-drag`}
-                onClick={() => setOpenedPlaylist(null)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                <svg
-                  className={styles.backIcon}
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-                <span>返回</span>
-              </motion.button>
+              <BackButton onClick={() => setOpenedPlaylist(null)} />
               <motion.button
                 className={`${styles.resetBtn} no-drag`}
                 onClick={() => handleRegenerate(openedPlaylist)}

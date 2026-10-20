@@ -31,6 +31,7 @@ import detailStyles from './AppPlaylistPage.module.css'
 import { springGentle } from '../lib/motion-presets'
 import { appPlaylistCoverLayoutId, appPlaylistCovers } from '../lib/app-playlist-presentation'
 import { rememberTarget } from '../stores/track-actions'
+import { BackButton } from '../components/ui/BackButton'
 
 /** 与 VirtualList 行步长一致（56px 行 + 2px 间距）。 */
 const ROW_HEIGHT = 58
@@ -229,7 +230,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
 
   return <ScrollArea scrollRef={scrollRef}>
     <div className={`${playlistStyles.inner} ${detailStyles.page}`} ref={selection.rootRef} {...selection.surfaceProps}>
-      <button className={`${playlistStyles.backBtn} no-drag`} onClick={() => useNavigationStore.getState().goBack()}><DetailIcon kind="back" />返回</button>
+      <BackButton className={playlistStyles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
       {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
         <header className={playlistStyles.detailHeader}>
           <div className={playlistStyles.detailMeta}>

@@ -11,6 +11,7 @@ import { GradientText } from '../components/ui/GradientText'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import layout from './ToplistPage.module.css'
 import styles from './AppleChartPage.module.css'
+import { BackButton } from '../components/ui/BackButton'
 
 export function AppleChartPage() {
   const goBack = useNavigationStore(state => state.goBack)
@@ -74,7 +75,7 @@ export function AppleChartPage() {
 
   return (
     <ScrollArea className={layout.page}>
-      <button type="button" className={`${layout.back} no-drag`} onClick={() => goBack()} aria-label="返回探索页">← 返回</button>
+      <BackButton className={layout.back} onClick={() => goBack()} ariaLabel="返回探索页" />
       <h1 className={layout.heading}>
         <GradientText>Apple Music 榜单</GradientText>
         <SourceBadge source="apple" reveal />

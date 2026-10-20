@@ -17,7 +17,7 @@ import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
-import { fadeRise, springGentle, springSnappy, tapScale, albumCoverTransition } from '../../lib/motion-presets'
+import { fadeRise, springGentle, albumCoverTransition } from '../../lib/motion-presets'
 import { sizedImage } from '../../lib/image-size'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
@@ -34,6 +34,7 @@ import type { Playlist, Track } from '../../types/domain'
 import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './PlaylistDetailView.module.css'
 import pageScroll from '../../styles/page-scroll.module.css'
+import { BackButton } from '../ui/BackButton'
 
 /** TrackRow 实测高度:上下 padding 8×2 + 封面 40。虚拟列表按此定位,改 TrackRow 尺寸需同步。 */
 export const TRACK_ROW_HEIGHT = 56
@@ -239,29 +240,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       <motion.div layoutScroll className={`${styles.page} ${pageScroll.viewport}`} ref={pageRef}>
         <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
           <div className={styles.detailHeader}>
-            <motion.button
-              className={`${styles.backBtn} no-drag`}
-              onClick={() => useNavigationStore.getState().goBack()}
-              aria-label="返回上一页"
-              whileTap={tapScale}
-              transition={springSnappy}
-            >
-              <svg
-                className={styles.backIcon}
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-              <span>返回</span>
-            </motion.button>
+            <BackButton className={styles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
             <div className={styles.detailMeta}>
               <motion.div
                 className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
