@@ -1,0 +1,28 @@
+.heart {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.heart path {
+  fill: currentColor;
+  fill-opacity: 0;
+  transition: fill-opacity 0.2s ease;
+}
+
+.heart[data-filled='true'] path { fill-opacity: 1; }
+
+.heart[data-pop] {
+  animation: heartSettle 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes heartSettle {
+  0% { transform: scale(0.86); }
+  55% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heart path { transition: none; }
+  .heart[data-pop] { animation: none; }
+}

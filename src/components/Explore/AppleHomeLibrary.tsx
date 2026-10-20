@@ -5,6 +5,7 @@ import type { Playlist } from '../../types/domain'
 import { PlaylistCard } from './PlaylistCard'
 import { HorizontalCardRail } from './HorizontalCardRail'
 import styles from './AppleHomeLibrary.module.css'
+import { HeartIcon } from '../ui/HeartIcon'
 
 interface AppleHomeLibraryProps {
   onOpen(playlist: Playlist): void
@@ -36,7 +37,7 @@ export function AppleHomeLibrary({ onOpen }: AppleHomeLibraryProps) {
     <div className={styles.library} aria-label="Apple Music 个人资料库精选">
       {liked && (
         <button type="button" className={`${styles.favorite} no-drag`} onClick={() => onOpen(liked)}>
-          <span className={styles.favoriteIcon} aria-hidden="true">♥</span>
+          <span className={styles.favoriteIcon} aria-hidden="true"><HeartIcon filled size={32} /></span>
           <span className={styles.favoriteText}>
             <strong>{liked.name}</strong>
             {liked.trackCountKnown !== false && <span className={styles.favoriteMeta}>{liked.trackCount} 首歌曲</span>}
