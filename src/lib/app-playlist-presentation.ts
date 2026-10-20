@@ -32,3 +32,8 @@ export function appPlaylistCovers(tracks: Track[]): { source: MusicSource; url: 
   }
   return covers
 }
+
+/** 卡片与详情页头部封面共用，打开/返回时封面在两处之间飞行。 */
+export function appPlaylistCoverLayoutId(id: string) {
+  return `app-playlist-cover-${id}`
+}

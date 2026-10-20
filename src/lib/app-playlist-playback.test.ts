@@ -22,12 +22,14 @@ describe('应用歌单播放边界', () => {
     const ctx = context()
     const current = appPlaylistTrackState(song('local'), ctx)
     expect(current).toMatchObject({ available: true, track: { name: '当前文件', url: 'http://current/api/local/audio?id=1', cover: 'http://current/api/local/cover?id=1' } })
-    expect(appPlaylistTrackState(song('local', 'missing'), ctx)).toMatchObject({ available: false, status: '本地文件不存在' })
-    expect(appPlaylistTrackState(song('local'), { ...ctx, localTracks: null, localError: '本地索引读取失败' })).toMatchObject({ available: false, status: '本地索引读取失败' })
+    expect(appPlaylistTrackState(song('local', 'missing'), ctx)).toMatchObject({ available: false, status: '本地文件不存在', invalid: true })
+    expect(appPlaylistTrackState(song('local'), { ...ctx, localTracks: null, localError: '本地索引读取失败' }).invalid).toBeUndefined()
+    expect(appPlaylistTrackState(song('local'), { ...ctx, localTracks: null }).invalid).toBeUndefined()
   })
   it('退出账号、平台停用与曲目失效均给出状态；Apple 不能通过普通离线缓存绕过会话', () => {
     const ctx = context()
-    expect(appPlaylistTrackState(song('qq'), ctx).status).toBe('平台已停用')
+    expect(appPlaylistTrackState(song('qq'), ctx)).toMatchObject({ status: '平台已停用' })
+    expect(appPlaylistTrackState(song('qq'), ctx).invalid).toBeUndefined()
     ctx.providers.qq.enabled = true
     expect(appPlaylistTrackState(song('qq'), ctx).status).toBe('登录已失效')
     ctx.providers.apple.enabled = true
@@ -35,7 +37,15 @@ describe('应用歌单播放边界', () => {
     ctx.providers.apple.auth = 'authenticated'
     ctx.providers.apple.playbackAvailable = false
     expect(appPlaylistTrackState(song('apple'), ctx).available).toBe(false)
-    expect(appPlaylistTrackState({ ...song('netease'), playable: false }, ctx).status).toBe('曲目暂不可用')
+    expect(appPlaylistTrackState({ ...song('netease'), playable: false }, ctx)).toMatchObject({ status: '曲目暂不可用', invalid: true })
+  })
+  it('QQ 的 playable=false 只表示尚未解析地址，登录可用时照常播放且不算失效', () => {
+    const ctx = context()
+    ctx.providers.qq = { enabled: true, auth: 'authenticated' }
+    const qq = { ...song('qq'), playable: false }
+    expect(appPlaylistTrackState(qq, ctx)).toMatchObject({ available: true })
+    expect(appPlaylistTrackState(qq, ctx).invalid).toBeUndefined()
+    expect(appPlaylistPlaybackTracks([qq], ctx)).toHaveLength(1)
   })
   it('网易/QQ 的已确认离线音频可在平台停用后播放，Apple 仍走独立受保护会话', () => {
     const ctx = context()

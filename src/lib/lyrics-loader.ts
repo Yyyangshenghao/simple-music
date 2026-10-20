@@ -7,10 +7,25 @@ import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
 import { fetchLyrics, emptyLyrics } from './lyrics-fetch'
 import { lyricPlaybackPosition } from './lyric-playback-position'
+import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import type { Track } from '../types/domain'
 
 function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
+}
+
+/** 按歌词依赖字段去重：同曲补详情要重取，canplay 仅换对象或 URL 时不清空歌词。 */
+function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Track | null): string {
+  const candidates = [currentTrack, resolvedTrack].filter((track): track is Track => !!track)
+    .filter((track, index, all) => all.findIndex(item => lyricTrackKey(item) === lyricTrackKey(track)) === index)
+  return JSON.stringify(candidates.map(track => [
+    lyricTrackKey(track), !!track.pending,
+    ...(track.source === 'apple' ? [
+      String(track.catalogId ?? ''), track.appleLibrary === true,
+      track.name, track.artist, (track.artists ?? []).map(artist => artist.name),
+      track.album, track.duration, String(track.isrc ?? track.ISRC ?? ''),
+    ] : track.source === 'qq' ? [qqLyricIdentifiers(track)] : []),
+  ]))
 }
 
 let stopLyricsLoader: (() => void) | undefined
@@ -67,7 +82,8 @@ export function initLyricsLoader(): () => void {
     })
   }
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {
-    if (state.currentTrack !== previous.currentTrack || state.resolvedTrack !== previous.resolvedTrack) sync()
+    if (state.currentTrack === previous.currentTrack && state.resolvedTrack === previous.resolvedTrack) return
+    if (lyricCandidateSignature(state.currentTrack, state.resolvedTrack) !== lyricCandidateSignature(previous.currentTrack, previous.resolvedTrack)) sync()
   })
   const stopProviders = useProviderStore.subscribe((state, previous) => {
     if (state.playbackOrder.length !== previous.playbackOrder.length

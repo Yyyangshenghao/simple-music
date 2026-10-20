@@ -85,4 +85,15 @@ describe('追加队列的异步回执', () => {
     expect(h.toast).toHaveBeenCalledWith('已追加 1 首到播放队列')
     expect(h.add).toHaveBeenCalledWith([track], false)
   })
+
+  it('应用歌单提供入队动作时沿用其可用性判定和真实回执', async () => {
+    const onAddToQueue = vi.fn().mockResolvedValue(2)
+    const onDone = vi.fn()
+    click({ tracks: [track], onAddToQueue, onDone }, '添加到播放队列')
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledOnce())
+    expect(onAddToQueue).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(h.resolve).not.toHaveBeenCalled()
+    expect(h.add).not.toHaveBeenCalled()
+    expect(h.toast).toHaveBeenCalledWith('已追加 2 首到播放队列')
+  })
 })

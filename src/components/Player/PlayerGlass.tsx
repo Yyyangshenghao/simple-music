@@ -13,10 +13,12 @@ interface PlayerGlassProps {
   hidden?: boolean
   /** 歌词展开时保留当前主题，玻璃底色融入封面氛围色 */
   lyricsOpen?: boolean
+  /** 交给歌词页：下沉淡出并停止交互 */
+  handoff?: boolean
 }
 
 /** 播放栏外层毛玻璃容器，固定在视口底部；播放时底部氛围辉光随低频能量呼吸。 */
-export function PlayerGlass({ children, hidden, lyricsOpen }: PlayerGlassProps) {
+export function PlayerGlass({ children, hidden, lyricsOpen, handoff }: PlayerGlassProps) {
   // --audio-energy 每帧改写:必须直接写在唯一消费它的 glow 元素上。
   // 之前写在 dock 上靠继承传给 glow,整个播放栏子树每帧全量样式重算,
   // Blink 堆垃圾以数十 MB/s 产生且 V8 GC 很少触发,内存随播放无限涨。
@@ -25,12 +27,12 @@ export function PlayerGlass({ children, hidden, lyricsOpen }: PlayerGlassProps) 
   const glowRequested = useSettingsStore((s) => s.performance.audioGlowEffect)
   const reducedMotion = useReducedMotion()
   const eco = useVisualStore((s) => s.performanceMode === 'eco')
-  const glowEnabled = glowRequested && !reducedMotion && !eco && !hidden
+  const glowEnabled = glowRequested && !reducedMotion && !eco && !hidden && !handoff
   const glowRef = useRef<HTMLDivElement>(null)
   useAudioEnergy(glowRef, glowEnabled)
 
   return (
-    <div className={`${styles.dock}${lyricsOpen ? ` ${styles.lyrics}` : ''}${hidden ? ` ${styles.hidden}` : ''}`}>
+    <div className={`${styles.dock}${lyricsOpen ? ` ${styles.lyrics}` : ''}${hidden ? ` ${styles.hidden}` : ''}${handoff ? ` ${styles.handoff}` : ''}`}>
       {glowEnabled && <div className={styles.glow} aria-hidden="true" ref={glowRef} />}
       <GlassPanel className={styles.panel}>{children}</GlassPanel>
     </div>

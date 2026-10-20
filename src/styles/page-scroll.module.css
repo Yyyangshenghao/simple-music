@@ -1,5 +1,7 @@
 /* 页面视口延伸到悬浮控制栏背后，渐隐只作用于内容，不给全窗背景叠实色条。 */
+/* 常驻滚动条槽位：内容高度跨过视口时页面宽度不变，切换页签不左右跳动。 */
 .viewport {
+  scrollbar-gutter: stable;
   scroll-padding-top: calc(var(--sm-topbar-height, 0px) + 12px);
   scroll-padding-bottom: var(--sm-player-clearance, 0px);
   mask-image: linear-gradient(to bottom, transparent, #000 var(--sm-topbar-height, 0px), #000 calc(100% - var(--sm-player-clearance, 0px)), transparent);

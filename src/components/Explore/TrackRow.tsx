@@ -11,6 +11,7 @@ import { HeartIcon } from '../ui/HeartIcon'
 import { SourceBadge } from '../ui/SourceBadge'
 import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 
 interface TrackRowProps {
   track: Track
@@ -87,6 +88,10 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
     <button
       className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
       onClick={onPlay}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        useTrackActionsStore.getState().openMenu(track, { x: e.clientX, y: e.clientY, width: 0, height: 0 })
+      }}
       disabled={disabled}
       title={statusLabel}
     >
@@ -106,6 +111,29 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
       <span className={styles.duration}>
         {statusLabel || formatDuration(track.duration)}
       </span>
+      {!disabled && (
+        <span
+          className={`${styles.addBtn} no-drag`}
+          role="button"
+          tabIndex={0}
+          data-track-action-trigger
+          title="加入应用歌单"
+          aria-label="加入应用歌单"
+          aria-haspopup="dialog"
+          onClick={(e) => {
+            e.stopPropagation()
+            useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            e.stopPropagation()
+            useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </span>
+      )}
       {offlineVisible && !disabled && !hideOfflineAction && (
         <span
           className={styles.offlineBtn}

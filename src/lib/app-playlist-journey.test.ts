@@ -101,7 +101,7 @@ describe('应用歌单跨平台聚合旅程', () => {
 
   it('停用、登录失效、Apple 会话断开及本地缺失只影响当前播放，恢复后可播；整理收藏与播放队列相互独立', () => {
     const disk = archive()
-    disk.open().getState().create('跨平台通勤', [song('netease'), song('qq'), song('apple'), song('local'), song('qq', 2, { playable: false })])
+    disk.open().getState().create('跨平台通勤', [song('netease'), song('qq'), song('apple'), song('local'), song('netease', 2, { playable: false })])
     const store = disk.open()
     const saved = store.getState().items[0]
     const before = disk.read()
@@ -130,7 +130,7 @@ describe('应用歌单跨平台聚合旅程', () => {
     expect(queue).toEqual(queueSnapshot)
     queue[1].artists[0].name = '队列临时信息'
     queue.reverse()
-    expect(store.getState().items[0].tracks.map(appPlaylistTrackKey)).toEqual(['apple:1', 'qq:1', 'local:1', 'qq:2'])
+    expect(store.getState().items[0].tracks.map(appPlaylistTrackKey)).toEqual(['apple:1', 'qq:1', 'local:1', 'netease:2'])
     expect(disk.open().getState().items[0].tracks.every(track => track.artists[0].name === '艺人')).toBe(true)
   })
 

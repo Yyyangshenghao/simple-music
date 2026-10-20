@@ -21,7 +21,7 @@ function render(viewport: Viewport, pauseCardEffects = false, onScrolledChange =
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks() })
 afterEach(() => { h.cleanups.splice(0).forEach(cleanup => cleanup()); vi.useRealTimers() })
 
-it('主动启用后在滚轮开始时暂停，停止后恢复，卸载不再接收事件', () => {
+it('主动启用后在滚轮开始时暂停，停止后移动指针才恢复，卸载不再接收事件', () => {
   const viewport = new Viewport()
   render(viewport, true)
   h.change.mockClear()
@@ -29,6 +29,8 @@ it('主动启用后在滚轮开始时暂停，停止后恢复，卸载不再接�
   viewport.dispatchEvent(new Event('scroll'))
   expect(h.change.mock.calls).toEqual([[true]])
   vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  expect(h.change.mock.calls).toEqual([[true]])
+  viewport.dispatchEvent(new Event('pointermove'))
   expect(h.change.mock.calls).toEqual([[true], [false]])
   viewport.dispatchEvent(new Event('wheel'))
   h.cleanups.splice(0).forEach(cleanup => cleanup())

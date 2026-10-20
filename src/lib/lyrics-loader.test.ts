@@ -142,6 +142,50 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState().lines).toEqual([{ time: 0, text: '新账号歌词' }])
   })
 
+  it('跳转后重新缓冲写入同身份的新曲目对象，不清空也不重取歌词', async () => {
+    stopLoader = initLyricsLoader()
+    await flush()
+    usePlayerStore.setState({ resolvedTrack: { ...apple } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledOnce()
+    usePlayerStore.setState({ resolvedTrack: { ...apple }, currentTrack: { ...apple } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledOnce()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', loading: false, lines: result.main })
+  })
+
+  it('Apple 库占位曲目无词后，同 ID 补齐目录编号会重取歌词', async () => {
+    const placeholder = { ...apple, id: 'i.library-1', pending: true }
+    usePlayerStore.setState({ currentTrack: placeholder })
+    h.fetch.mockImplementation(async (track: Track) => track.catalogId ? result : { ...result, main: [] })
+    stopLoader = initLyricsLoader()
+    await flush()
+    expect(useLyricsStore.getState().lines).toEqual([])
+    const full = { ...placeholder, pending: false, catalogId: '123456' }
+    usePlayerStore.setState({ currentTrack: full })
+    await flush()
+    expect(h.fetch).toHaveBeenLastCalledWith(full, ['apple', 'qq'], expect.any(AbortSignal))
+    expect(useLyricsStore.getState().lines).toEqual(result.main)
+    usePlayerStore.setState({ resolvedTrack: { ...full }, currentTrack: { ...full, cover: 'new-cover', url: 'new-url' } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('同 ID 补全歌词匹配信息时取消旧请求，迟到空词不能覆盖新结果', async () => {
+    const old = deferred()
+    usePlayerStore.setState({ currentTrack: { ...apple, duration: undefined, artists: [] } })
+    h.fetch.mockReturnValueOnce(old.promise)
+    stopLoader = initLyricsLoader()
+    const oldSignal = h.fetch.mock.calls[0][2] as AbortSignal
+    usePlayerStore.setState({ currentTrack: { ...apple, artists: [{ id: 'artist', name: '歌手' }], isrc: 'CNTEST12345' } })
+    await flush()
+    expect(oldSignal.aborted).toBe(true)
+    expect(h.fetch).toHaveBeenCalledTimes(2)
+    old.resolve({ ...result, main: [] })
+    await flush()
+    expect(useLyricsStore.getState().lines).toEqual(result.main)
+  })
+
   it('进度、音量及无关偏好不会反复获取歌词', async () => {
     stopLoader = initLyricsLoader()
     await flush()

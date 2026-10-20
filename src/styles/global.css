@@ -11,7 +11,7 @@
 [data-content-layout='full'] {
   --sm-content-max-width: 100%;
   --sm-rail-max-width: 100%;
-  --sm-page-gutter: clamp(16px, 2vw, 28px);
+  --sm-page-gutter: var(--sm-content-gutter, 24px);
 }
 
 /* 氛围色切换的平滑过渡由 useAmbientPalette 的 JS 分步补间实现。

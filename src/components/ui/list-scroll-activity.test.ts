@@ -1,7 +1,43 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { LIST_SCROLL_IDLE_MS, observeListScrollActivity } from './list-scroll-activity'
+import { LIST_SCROLL_IDLE_MS, observeCardScrollActivity, observeListScrollActivity } from './list-scroll-activity'
 
 afterEach(() => vi.useRealTimers())
+
+it('间歇滚轮不反复恢复悬停，停止后主动移动指针才恢复', () => {
+  vi.useFakeTimers()
+  const viewport = new EventTarget()
+  const change = vi.fn()
+  const stop = observeCardScrollActivity(viewport, change)
+  for (let i = 0; i < 10; i++) {
+    viewport.dispatchEvent(new Event('wheel'))
+    viewport.dispatchEvent(new Event('pointermove'))
+    vi.advanceTimersByTime(450)
+  }
+  expect(change.mock.calls).toEqual([[true]])
+  viewport.dispatchEvent(new Event('pointermove'))
+  viewport.dispatchEvent(new Event('pointermove'))
+  expect(change.mock.calls).toEqual([[true], [false]])
+  stop()
+})
+
+it.each(['focusin', 'pointerdown'])('停止后通过 %s 恢复交互，卸载清理所有监听和计时器', (type) => {
+  vi.useFakeTimers()
+  const viewport = new EventTarget()
+  const change = vi.fn()
+  const stop = observeCardScrollActivity(viewport, change)
+  viewport.dispatchEvent(new Event('scroll'))
+  viewport.dispatchEvent(new Event(type))
+  expect(change.mock.calls).toEqual([[true]])
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  viewport.dispatchEvent(new Event(type))
+  expect(change.mock.calls).toEqual([[true], [false]])
+  viewport.dispatchEvent(new Event('wheel'))
+  stop()
+  vi.advanceTimersByTime(LIST_SCROLL_IDLE_MS)
+  for (const event of ['wheel', 'scroll', 'pointermove', 'pointerdown', 'focusin']) viewport.dispatchEvent(new Event(event))
+  expect(change.mock.calls).toEqual([[true], [false], [true]])
+  expect(vi.getTimerCount()).toBe(0)
+})
 
 it('探索页可从滚轮开始暂停，边界无位移也会恢复，卸载释放滚轮监听', () => {
   vi.useFakeTimers()

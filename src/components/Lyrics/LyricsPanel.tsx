@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { springGentle } from '../../lib/motion-presets'
@@ -19,6 +19,7 @@ import { PlayerBar } from '../Player/PlayerBar'
 import { EffectSwitcher } from './EffectSwitcher'
 import styles from './LyricsPanel.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
 
 const LyricsScene = lazy(() => import('./LyricsScene'))
 
@@ -31,7 +32,7 @@ interface LyricsPanelProps {
 
 function ChevronDown() {
   return (
-    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor"
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
       strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="4 7 10 13 16 7" />
     </svg>
@@ -94,6 +95,44 @@ function MarqueeTrackName({ text }: { text: string }) {
   )
 }
 
+/** 舞台封面：切歌时旧封面叠在上方淡出，露出新封面。 */
+function StageCoverArt({ src, alt }: { src: string; alt: string }) {
+  const [current, setCurrent] = useState(src)
+  const [leaving, setLeaving] = useState<string | null>(null)
+  if (src !== current) {
+    setLeaving(current)
+    setCurrent(src)
+  }
+  return (
+    <>
+      <img className={styles.coverArt} src={src} alt={alt} draggable={false} />
+      {leaving && (
+        <img
+          key={leaving}
+          className={`${styles.coverArt} ${styles.coverArtLeaving}`}
+          src={leaving}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          onAnimationEnd={() => setLeaving(null)}
+        />
+      )}
+    </>
+  )
+}
+
+/** 排版预设按流式尺寸体系调校：封面大小与分栏比例联动，不再叠加位移。 */
+const LAYOUT_PRESETS = [
+  { label: '平衡', fontScale: 1, layout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
+  { label: '封面主导', fontScale: 0.9, layout: { coverScale: 1.18, coverX: 0, coverY: 0, lyricsWidth: 50, lyricsX: 0, lyricsY: 0 } },
+  { label: '歌词主导', fontScale: 1.12, layout: { coverScale: 0.8, coverX: 0, coverY: 0, lyricsWidth: 62, lyricsX: 0, lyricsY: 0 } },
+]
+
+const PLAYER_STYLES = [
+  { id: 'stage', label: '舞台控件' },
+  { id: 'dock', label: '底部播放栏' },
+] as const
+
 /** 用户手动滚动歌词后,这么久没再滚动才恢复自动居中 */
 const USER_SCROLL_RESUME_MS = 4000
 
@@ -154,10 +193,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setShowTranslation = useSettingsStore((s) => s.setLyricsShowTranslation)
   const showRoma = useSettingsStore((s) => s.lyricsShowRoma)
   const setShowRoma = useSettingsStore((s) => s.setLyricsShowRoma)
+  const playerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
+  const setPlayerStyle = useSettingsStore((s) => s.setLyricsPlayerStyle)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
   const mode = lyrics3dEnabled ? storedMode : 'lyrics'
   const lightTheme = useLightTheme()
+  const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
+  const lowPower = useVisualStore((s) => s.performanceMode === 'eco')
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
   const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
@@ -189,6 +232,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const coverFlipRef = useRef<HTMLDivElement>(null)
+  const splitRef = useRef<HTMLDivElement>(null)
+  const stageControlsRef = useRef<HTMLDivElement>(null)
+  const followAnimsRef = useRef(new Map<HTMLElement, Animation>())
+  const lastFollowRef = useRef({ index: -1, at: 0 })
 
   // 用户手动滚动的挂起窗口:在此时间戳之前不做自动居中
   const userScrollUntilRef = useRef(0)
@@ -212,6 +260,100 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     container.scrollTo({ top, behavior: reducedMotionRef.current ? 'instant' : behavior })
   }
 
+  /** 自动跟随切行：先瞬移到目标位置，再让附近各行带弹性依次追上(错峰弹簧)，而不是整块平移。 */
+  const followToLine = (index: number) => {
+    const container = scrollRef.current
+    if (!container) return
+    const el = container.querySelector<HTMLElement>(`[data-line='${index}']`)
+    if (!el) return
+    const anims = followAnimsRef.current
+    // 弹簧只用于正常播放推进到下一句。拖动进度条、跳转时行号会在几十毫秒内连续跳变，
+    // 每次重启带延迟的弹簧会让歌词原地抖动，这类变化直接平滑滚动。
+    const now = performance.now()
+    const last = lastFollowRef.current
+    lastFollowRef.current = { index, at: now }
+    const natural = index === last.index + 1 && now - last.at > 250
+    const view = container.clientHeight
+    const from = container.scrollTop
+    const top = el.offsetTop - view / 2 + el.clientHeight / 2
+    if (!natural || reducedMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
+      for (const anim of anims.values()) anim.finish()
+      anims.clear()
+      scrollToLine(index, 'smooth')
+      return
+    }
+    // 上一次切行还没落位时，接着当前的偏移继续补间，避免跳帧。
+    const carries = new Map<HTMLElement, number>()
+    for (const [row, anim] of anims) {
+      if (anim.playState !== 'finished') carries.set(row, new DOMMatrixReadOnly(getComputedStyle(row).transform).m42)
+      anim.cancel()
+    }
+    anims.clear()
+    container.scrollTo({ top, behavior: 'instant' })
+    // 以实际滚动量为准：到达首尾时浏览器会钳住 scrollTop。
+    const delta = container.scrollTop - from
+    if (!delta) return
+    // 只处理当前行附近的若干行，避免逐行读取布局。
+    const rows: HTMLElement[] = []
+    for (let line = index - 5; line <= index + 10; line++) {
+      const row = container.querySelector<HTMLElement>(`[data-line='${line}']`)
+      if (row) rows.push(row)
+    }
+    rows.forEach((row) => {
+      const line = Number(row.dataset.line)
+      const anim = row.animate(
+        [{ transform: `translateY(${delta + (carries.get(row) ?? 0)}px)` }, { transform: 'translateY(0)' }],
+        { duration: LYRIC_FOLLOW_DURATION_MS, delay: lyricFollowDelay(line, index), easing: LYRIC_FOLLOW_EASING, fill: 'backwards' }
+      )
+      anims.set(row, anim)
+      anim.onfinish = () => { if (anims.get(row) === anim) anims.delete(row) }
+    })
+  }
+
+  // 播放栏 ↔ 歌词页衔接：打开时舞台封面从播放栏封面的位置飞出，收起时飞回播放栏。
+  // 播放栏在打开后保留一小段淡出(见 App)，收起时与面板同一次提交挂载，因此两端都量得到。
+  const wasOpenRef = useRef(open)
+  useLayoutEffect(() => {
+    const wasOpen = wasOpenRef.current
+    wasOpenRef.current = open
+    if (wasOpen === open || mode !== 'lyrics' || reducedMotionRef.current) return
+    const flip = coverFlipRef.current
+    const dockCover = document.querySelector<HTMLElement>('[data-dock-cover]')
+    if (!flip || !dockCover) return
+    const dock = dockCover.getBoundingClientRect()
+    const stage = flip.getBoundingClientRect()
+    if (!dock.width || !stage.width) return
+    const docked = `translate(${dock.left - stage.left}px, ${dock.top - stage.top}px) scale(${dock.width / stage.width})`
+    for (const anim of flip.getAnimations()) anim.cancel()
+    flip.animate(
+      open ? [{ transform: docked }, { transform: 'none' }] : [{ transform: 'none' }, { transform: docked }],
+      open
+        ? { duration: 620, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        : { duration: 420, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' }
+    )
+  }, [open, mode])
+
+  // 舞台控件随沉浸隐去后，封面区要整体下移半个控件高度，才与居中的歌词列重新对齐。
+  // 控件高度随窗口与字号变化，按实际尺寸写入 CSS 变量，不触发重渲染。
+  useEffect(() => {
+    const split = splitRef.current
+    const controls = stageControlsRef.current
+    if (!split) return
+    // 底部播放栏模式由 CSS 按播放栏留白给出下移量。
+    if (!controls) {
+      split.style.removeProperty('--lyrics-idle-shift')
+      return
+    }
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(controls.parentElement ?? controls).rowGap) || 0
+      split.style.setProperty('--lyrics-idle-shift', `${Math.round((controls.offsetHeight + gap) / 2)}px`)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(controls)
+    return () => observer.disconnect()
+  }, [contentMounted, mode, playerStyle])
+
   // 面板收起/切模式时顺带收起下拉与浮层,避免下次打开残留展开态
   useEffect(() => {
     if (!open) setEffectMenuOpen(false)
@@ -233,7 +375,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   useEffect(() => {
     if (mode !== 'lyrics' || currentIndex < 0 || !open) return
     if (Date.now() < userScrollUntilRef.current) return
-    scrollToLine(currentIndex, 'smooth')
+    followToLine(currentIndex)
   }, [currentIndex, open, mode, reducedMotion])
 
   // 手动滚动检测:wheel/touchmove 只来自用户(程序 scrollTo 不触发),
@@ -292,12 +434,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
 
   return (
-    <div className={`${styles.panel}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
+    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
-        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词">
+        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
           <span className={styles.closeBtnIcon}><ChevronDown /></span>
-          收起
+          <span className={styles.closeBtnLabel} aria-hidden="true"><span>收起</span></span>
         </button>
 
         {/* 模式切换 Segmented Control */}
@@ -348,9 +490,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           {/* 氛围霞光舞台：两团氛围色缓慢漂移，跟切歌变色 */}
           <div className={styles.auroraStage} aria-hidden="true" />
+          <div className={styles.flowStage} aria-hidden="true" />
 
           {/* Apple Music 式左右分栏:左侧封面+信息,右侧歌词 */}
           <div
+            ref={splitRef}
             className={styles.splitLayout}
             style={{
               '--lyrics-cover-scale': lyricsLayout.coverScale,
@@ -365,21 +509,20 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <div className={styles.coverSection}>
               <div className={styles.record}>
                 <div className={styles.recordIdentity}>
-                  {track?.cover ? (
-                    <img
-                      className={styles.coverArt}
-                      src={sizedImage(track.cover, 840)}
-                      alt={track.name}
-                      draggable={false}
-                    />
-                  ) : (
-                    <div className={styles.coverPlaceholder} aria-hidden="true">
-                      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">
-                        <path d="M9 18V5l11-2v13M9 9l11-2" />
-                        <ellipse cx="6" cy="18" rx="3" ry="2.5" /><ellipse cx="17" cy="16" rx="3" ry="2.5" />
-                      </svg>
+                  <div className={styles.coverFlip} ref={coverFlipRef}>
+                    <div className={styles.coverBreath} data-playing={playing}>
+                      {track?.cover ? (
+                        <StageCoverArt src={sizedImage(track.cover, 840)} alt={track.name} />
+                      ) : (
+                        <div className={styles.coverPlaceholder} aria-hidden="true">
+                          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">
+                            <path d="M9 18V5l11-2v13M9 9l11-2" />
+                            <ellipse cx="6" cy="18" rx="3" ry="2.5" /><ellipse cx="17" cy="16" rx="3" ry="2.5" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                   <div className={styles.trackMeta}>
                     <MarqueeTrackName text={track?.name ?? '未在播放'} />
                     <ArtistLinks
@@ -394,9 +537,11 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     )}
                   </div>
                 </div>
-                <div className={styles.stageControls}>
-                  <PlayerBar variant="lyrics" />
-                </div>
+                {playerStyle === 'stage' && (
+                  <div className={styles.stageControls} ref={stageControlsRef}>
+                    <PlayerBar variant="lyrics" />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -415,6 +560,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 {lines.map((line, i) => {
                   const isActive = i === currentIndex
                   const wordLine = wordLines[i]
+                  const depth = { '--lyric-distance': lyricDistance(i, currentIndex) } as React.CSSProperties
 
                   // 所有行统一用 KtvLine 渲染：切行时是同一节点上的 CSS 过渡，
                   // 字号一致，激活态只靠 scale/亮度区分
@@ -424,6 +570,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                         key={`${line.time}-${i}`}
                         data-line={i}
                         className={styles.ktvLineWrap}
+                        style={depth}
                         onClick={() => seekToLine(line.time, i)}
                       >
                         <KtvLine
@@ -441,7 +588,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   }
 
                   return (
-                    <div key={`${line.time}-${i}`} data-line={i} onClick={() => seekToLine(line.time, i)}>
+                    <div key={`${line.time}-${i}`} data-line={i} style={depth} onClick={() => seekToLine(line.time, i)}>
                       <LyricLine
                         text={line.text}
                         translation={showTranslation ? translation[i]?.text || undefined : undefined}
@@ -497,18 +644,28 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       <button className={styles.resetLayoutBtn} onClick={() => resetLyricsLayout()}>重置</button>
                     </div>
                     <div className={styles.layoutPresets}>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 })
-                        setLyricsFontScale(1)
-                      }}>平衡</button>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 1.22, coverX: 2, coverY: 0, lyricsWidth: 47, lyricsX: 1, lyricsY: 1 })
-                        setLyricsFontScale(0.9)
-                      }}>封面主导</button>
-                      <button onClick={() => {
-                        setLyricsLayout({ coverScale: 0.72, coverX: -3, coverY: -3, lyricsWidth: 64, lyricsX: -2, lyricsY: 0 })
-                        setLyricsFontScale(1.15)
-                      }}>歌词主导</button>
+                      {LAYOUT_PRESETS.map((preset) => (
+                        <button key={preset.label} onClick={() => {
+                          setLyricsLayout(preset.layout)
+                          setLyricsFontScale(preset.fontScale)
+                        }}>{preset.label}</button>
+                      ))}
+                    </div>
+                    <div className={styles.playerStyleRow}>
+                      <span className={styles.popLabel}>播放控制</span>
+                      <div className={styles.playerStyleSwitch} role="radiogroup" aria-label="播放控制">
+                        {PLAYER_STYLES.map(({ id, label }) => (
+                          <button
+                            key={id}
+                            role="radio"
+                            aria-checked={playerStyle === id}
+                            className={playerStyle === id ? styles.playerStyleActive : undefined}
+                            onClick={() => setPlayerStyle(id)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className={styles.layoutGroup}>
                       <span className={styles.layoutGroupTitle}>封面</span>

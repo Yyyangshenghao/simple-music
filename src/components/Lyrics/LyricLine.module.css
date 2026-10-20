@@ -17,14 +17,14 @@
 .main {
   font-family: inherit;
   font-weight: 700;
-  font-size: calc(clamp(20px, 2.6vw, 34px) * var(--lyrics-font-scale, 1));
+  font-size: var(--lyrics-line-size, calc(clamp(20px, 2.6vw, 34px) * var(--lyrics-font-scale, 1)));
   letter-spacing: 1.5px;
   line-height: 1.35;
 }
 
 .translation {
   font-weight: 500;
-  font-size: calc(clamp(13px, 1.5vw, 18px) * var(--lyrics-font-scale, 1));
+  font-size: var(--lyrics-sub-size, calc(clamp(13px, 1.5vw, 18px) * var(--lyrics-font-scale, 1)));
   letter-spacing: 1px;
   color: inherit;
   opacity: 0.8;

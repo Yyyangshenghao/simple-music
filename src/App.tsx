@@ -26,10 +26,11 @@ import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { Toast } from './components/ui/Toast'
+import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
 const APPEARANCE_KEYS = [
-  'themeMode', 'contentLayout', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
+  'themeMode', 'contentLayout', 'contentGutter', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
   'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
 ] as const
 
@@ -41,6 +42,17 @@ export default function App() {
   const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
+  // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
+  // 收起时在同一次提交里重新挂载，歌词页才能量到它的封面位置把封面飞回来。
+  const lyricsPlayerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
+  const lyricsCoversDock = lyricsOpen && lyricsMode === 'lyrics' && lyricsPlayerStyle === 'stage'
+  const [dockRetired, setDockRetired] = useState(false)
+  if (!lyricsCoversDock && dockRetired) setDockRetired(false)
+  useEffect(() => {
+    if (!lyricsCoversDock) return
+    const timer = setTimeout(() => setDockRetired(true), 420)
+    return () => clearTimeout(timer)
+  }, [lyricsCoversDock])
   const detailBackdropCover = useBackdropStore((s) => s.cover)
   const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
@@ -60,6 +72,7 @@ export default function App() {
       const {
         themeMode,
         contentLayout,
+        contentGutter,
         fontFamily,
         fontFamilyCjk,
         lyricsFontFamily,
@@ -72,6 +85,7 @@ export default function App() {
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
       root.setAttribute('data-content-layout', contentLayout)
+      root.style.setProperty('--sm-content-gutter', `${contentGutter}px`)
       if (fontFamily.trim() || fontFamilyCjk.trim()) {
         root.style.setProperty('--sm-font-sans', fontFamilyCssValue(fontFamily, fontFamilyCjk))
       } else root.style.removeProperty('--sm-font-sans')
@@ -117,8 +131,9 @@ export default function App() {
           <TopBar hidden={lyricsOpen} />
           <AppShell />
           <GlobalContentProviderDock />
-          {currentView !== 'shuange' && !(lyricsOpen && lyricsMode === 'lyrics') && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
+          {currentView !== 'shuange' && !dockRetired && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} handoff={lyricsCoversDock} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
+          <TrackActionLayer />
           <Toast />
           <UpdateBanner />
         </div>

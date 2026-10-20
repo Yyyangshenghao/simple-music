@@ -5,6 +5,8 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
+import { useAppPlaylistsStore, appPlaylistTrackKey } from '../../stores/app-playlists'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { Slider } from '../ui/Slider'
@@ -269,6 +271,36 @@ function LikeButton() {
   )
 }
 
+/** 当前曲目加入应用歌单：任何来源都可用；已收进任一应用歌单时点亮。 */
+function AddToAppPlaylistButton() {
+  const track = usePlayerStore((s) => s.currentTrack)
+  const key = track ? appPlaylistTrackKey(track) : ''
+  const savedCount = useAppPlaylistsStore((s) => key ? s.items.filter((item) => item.tracks.some((entry) => appPlaylistTrackKey(entry) === key)).length : 0)
+  const open = useTrackActionsStore((s) => !!s.quickAdd && !!track && appPlaylistTrackKey(s.quickAdd.track) === key)
+  if (!track) return null
+  const label = savedCount ? `已在 ${savedCount} 个应用歌单，可继续加入` : '加入应用歌单'
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.addBtn} no-drag`}
+      data-saved={savedCount > 0}
+      data-track-action-trigger
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={(event) => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
+      title={label}
+      aria-label={label}
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+        {savedCount ? <path d="m8 12 3 3 5-6" /> : <path d="M12 8v8M8 12h8" />}
+      </svg>
+    </motion.button>
+  )
+}
+
 interface PlayerBarProps {
   onOpenLyrics?: () => void
   onArtistNavigate?: () => void
@@ -277,6 +309,8 @@ interface PlayerBarProps {
   lyricsOpen?: boolean
   /** 普通歌词页复用播放操作，曲目信息由页面左栏统一呈现。 */
   variant?: 'dock' | 'lyrics'
+  /** 歌词页正在接管播放操作：播放栏下沉淡出，封面交给歌词页飞行衔接。 */
+  handoff?: boolean
 }
 
 /** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
@@ -321,7 +355,7 @@ function VolumeControl() {
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock' }: PlayerBarProps) {
+export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -335,8 +369,11 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
   const controls = (
     <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
       {!embedded && <div className={styles.left}>
-        <TrackInfo onCoverClick={onOpenLyrics} onArtistNavigate={onArtistNavigate} />
-        <LikeButton />
+        <TrackInfo
+          onCoverClick={onOpenLyrics}
+          onArtistNavigate={onArtistNavigate}
+          titleAccessory={<><LikeButton /><AddToAppPlaylistButton /></>}
+        />
       </div>}
 
       <div className={styles.center}>
@@ -371,7 +408,8 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>
-          {embedded && <div className={styles.likeSlot}><LikeButton /></div>}
+          {/* 与左侧播放模式等宽，播放键落在进度条正中。 */}
+          {embedded ? <div className={styles.likeSlot}><LikeButton /></div> : <span className={styles.modeBalance} aria-hidden="true" />}
         </div>
 
         <PlaybackProgress />
@@ -379,14 +417,17 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
 
       <div className={styles.right}>
         <VolumeControl />
-        <span className={styles.divider} aria-hidden="true" />
-        <SourceFallbackBadge />
-        <DesktopLyricsButton />
-        <MiniPlayerButton />
-        <QueuePanel align={embedded ? 'start' : 'end'} />
-        <MoreMenu />
+        <div className={styles.tools}>
+          <SourceFallbackBadge />
+          <DesktopLyricsButton />
+          <MiniPlayerButton />
+          {/* 歌词页红心与播放模式左右对称，加入应用歌单放到右侧操作组。 */}
+          {embedded && <AddToAppPlaylistButton />}
+          <QueuePanel align={embedded ? 'start' : 'end'} />
+          <MoreMenu />
+        </div>
       </div>
     </div>
   )
-  return embedded ? controls : <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen}>{controls}</PlayerGlass>
+  return embedded ? controls : <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen} handoff={handoff}>{controls}</PlayerGlass>
 }

@@ -33,6 +33,8 @@ vi.mock('react', async (importOriginal) => ({
       }
     }]
   },
+  // 封面飞行衔接只做视觉补间，不参与滚动定位。
+  useLayoutEffect: () => {},
   useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
     const index = h.effectCursor++
     const previous = h.effects[index]

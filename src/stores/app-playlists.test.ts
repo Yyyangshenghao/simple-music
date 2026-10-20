@@ -51,6 +51,18 @@ describe('应用歌单独立存档', () => {
     expect(queue.map(appPlaylistTrackKey)).toEqual(['local:1', 'netease:2', 'apple:3'])
   })
 
+  it('移到指定位置时整体平移，越界贴边，原位不写盘', () => {
+    const store = makeStore()
+    const id = store.getState().create('列表', [song('local', 1), song('netease', 2), song('apple', 3), song('qq', 4)])
+    store.getState().moveTrackTo(id, 'qq:4', 0)
+    expect(store.getState().items[0].tracks.map(appPlaylistTrackKey)).toEqual(['qq:4', 'local:1', 'netease:2', 'apple:3'])
+    store.getState().moveTrackTo(id, 'qq:4', 99)
+    expect(store.getState().items[0].tracks.map(appPlaylistTrackKey)).toEqual(['local:1', 'netease:2', 'apple:3', 'qq:4'])
+    storage.setItem.mockClear()
+    store.getState().moveTrackTo(id, 'qq:4', 3)
+    expect(storage.setItem).not.toHaveBeenCalled()
+  })
+
   it('首尾移动及重复加入不写盘；不存在的歌单不能被迟到结果重建', () => {
     const store = makeStore()
     const id = store.getState().create('列表', [song('local')])

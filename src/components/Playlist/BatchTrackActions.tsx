@@ -10,6 +10,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import type { Playlist, Track } from '../../types/domain'
+import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './BatchTrackActions.module.css'
 
 interface Props {
@@ -25,9 +26,11 @@ interface Props {
   offline?: boolean
   onDelete?(signal: AbortSignal): Promise<void>
   onRemove?(signal: AbortSignal): Promise<void>
+  onAddToQueue?(signal: AbortSignal): number | Promise<number>
+  removeLabel?: string
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, onAddToQueue, removeLabel = '移出平台歌单' }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -45,7 +48,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const onlySource = sourceSet.size === 1 ? [...sourceSet][0] : undefined
   const platformSource = !offline && onlySource && isWritablePlaylistSource(onlySource) && supportsPlatformPlaylists(onlySource) ? onlySource : null
   const count = tracks.length + collections.length
-  const downloadTrackCount = new Set(tracks.filter(track => track.playable !== false).map(track => `${track.source}:${String(track.id)}`)).size
+  const downloadTrackCount = new Set(tracks.filter(track => !isCatalogUnavailable(track)).map(track => `${track.source}:${String(track.id)}`)).size
   const downloadCountLabel = collections.length
     ? collections.every(collection => collection.trackCountKnown !== false && (collection.trackCount > 0 || collection.trackCountKnown === true))
       ? `约 ${downloadTrackCount + collections.reduce((total, collection) => total + collection.trackCount, 0)} 首`
@@ -130,11 +133,15 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {platformSource && <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlatformPlaylist(true) }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h11M4 10h11M4 15h6m8-5v11m-4-4 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" /></svg>加入平台歌单
     </button>}
-    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>移出平台歌单</button>}
+    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>{removeLabel}</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
-      const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
-      if (signal.aborted) return
-      const added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      let added: number
+      if (onAddToQueue) added = await onAddToQueue(signal)
+      else {
+        const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
+        if (signal.aborted) return
+        added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      }
       if (signal.aborted) return
       useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含所选歌曲')
       onDone?.()
