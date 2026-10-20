@@ -32,7 +32,8 @@ export function nextPageTransition(state: PageTransitionState, view: AppView, re
   if (state.current.revision === revision && state.current.view === view) return state
   const next = initialPageTransition(view, revision)
   if (isDetailView(view)) {
-    next.origin = isDetailView(state.current.view) ? state.origin : state.current
+    // 后退进入详情时，刚离开的页面在详情之后，不能作为封面返回的来源页。
+    next.origin = isDetailView(state.current.view) ? state.origin : action === 'push' ? state.current : null
   } else if (action === 'pop' && state.origin && pageKey(state.origin.view) === pageKey(view)) {
     next.current.key = state.origin.key
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AppView } from '../../stores/navigation'
 import type { Playlist } from '../../types/domain'
+import { useNavigationStore } from '../../stores/navigation'
 import { initialPageTransition, nextPageTransition } from './page-transition-state'
 
 const playlist: Playlist = { source: 'netease', provider: 'netease', type: 'playlist', id: 1, name: '歌单', cover: '', creator: '', trackCount: 0, playCount: 0 }
@@ -61,5 +62,45 @@ describe('歌单和专辑往返页面', () => {
     expect(state.origin).toBeNull()
     expect(nextPageTransition(state, detail, 0, 'push')).toBe(state)
     expect(nextPageTransition(state, 'library', 1, 'pop').origin).toBeNull()
+  })
+
+  it.each(['search', 'artist', 'library'] as const)('重复 %s 历史条目不会复用详情后继页的实例', kind => {
+    useNavigationStore.setState({ currentView: 'explore', history: [], future: [], navigationRevision: 0 })
+    const nav = useNavigationStore.getState()
+    const originView: AppView = kind === 'search' ? { type: 'search', keyword: '晴天' }
+      : kind === 'artist' ? { type: 'artist', source: 'qq', id: 1 } : 'library'
+    let pages = initialPageTransition('explore', 0)
+    const sync = () => {
+      const state = useNavigationStore.getState()
+      pages = nextPageTransition(pages, state.currentView, state.navigationRevision, state.lastAction)
+    }
+    nav.navigateTo(originView)
+    sync()
+    if (kind === 'search') nav.updateSearchPageState('晴天', { category: 'albums', scrollTop: 400 })
+    if (kind === 'artist') nav.updateArtistPageState(1, 'qq', { tab: 'albums', scrollTop: 400 })
+    nav.navigateTo(detail)
+    sync()
+    nav.navigateTo(typeof originView === 'object' ? { ...originView } : originView)
+    sync()
+    const laterKey = pages.current.key
+    if (kind === 'search') nav.updateSearchPageState('晴天', { category: 'songs', scrollTop: 900 })
+    if (kind === 'artist') nav.updateArtistPageState(1, 'qq', { tab: 'songs', scrollTop: 900 })
+    nav.goBack()
+    sync()
+    // 后退进入详情时，刚离开的后继页不是详情的来源页。
+    expect(pages.origin).toBeNull()
+    nav.goBack()
+    sync()
+    expect(pages.current.key).not.toBe(laterKey)
+    if (kind === 'search') expect(useNavigationStore.getState().searchPageState).toMatchObject({ category: 'albums', scrollTop: 400 })
+    if (kind === 'artist') expect(useNavigationStore.getState().artistPageState).toMatchObject({ tab: 'albums', scrollTop: 400 })
+    const restoredKey = pages.current.key
+    nav.goForward()
+    sync()
+    expect(pages.origin?.key).toBe(restoredKey)
+    nav.goBack()
+    sync()
+    // 正常前进详情再返回仍沿用同一来源页，保留封面逆向转场。
+    expect(pages.current.key).toBe(restoredKey)
   })
 })

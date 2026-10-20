@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useContentProvider } from '../hooks/useContentProvider'
 import { ProviderRecommendationSection } from '../components/Explore/ProviderRecommendationSection'
@@ -43,6 +43,9 @@ function greeting(): string {
 }
 
 export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
+  const present = useIsPresent()
+  const current = useNavigationStore(state => state.currentView === 'explore')
+  const active = present && current && !detail
   const { sources: enabledSources, current: activeHomeSource } = useContentProvider()
   const accountSession = activeHomeSource ? providerAccountSession(activeHomeSource) : 0
   const [preview, setPreview] = useState<Playlist | null>(null)
@@ -59,6 +62,11 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
   useEffect(() => {
     previousSourceRef.current = activeHomeSource
   }, [activeHomeSource])
+
+  // 来源页会为封面转场保留；挂到 body 的预览必须随导航单独关闭。
+  useEffect(() => {
+    if (!active) setPreview(null)
+  }, [active])
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -152,7 +160,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
       )}
 
       <div className={styles.bottomSpace} />
-      <PlaylistPreviewModal playlist={preview} onClose={() => setPreview(null)} />
+      <PlaylistPreviewModal playlist={active ? preview : null} onClose={() => setPreview(null)} />
     </motion.div>
     </ExploreScrollActivity>
   )
