@@ -198,7 +198,7 @@ export function RoamPage() {
             </div>
             <div className={styles.resultActions}>
               <button className={`${styles.backBtn} no-drag`} onClick={() => openAppPlaylist(openedPlaylist)}>管理歌单</button>
-              <BackButton onClick={() => setOpenedPlaylist(null)} />
+              <BackButton onClick={() => setOpenedPlaylist(null)} autoHide={false} />
               <motion.button
                 className={`${styles.resetBtn} no-drag`}
                 onClick={() => handleRegenerate(openedPlaylist)}

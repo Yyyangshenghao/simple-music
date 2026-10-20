@@ -92,3 +92,50 @@
   .label > span { transition: none; }
   .backBtn:hover .icon svg { animation: none; }
 }
+
+/* 自动躲藏：外壳保留按钮原位与页面外边距，按钮本身向左滑出视口。
+   外壳向左、上延伸出一块透明感应区，指针移到页面左上角即可唤回。 */
+.dock {
+  position: relative;
+  display: inline-flex;
+  align-self: flex-start;
+  width: max-content;
+}
+
+.dock::before {
+  content: '';
+  position: absolute;
+  top: -28px;
+  right: -28px;
+  bottom: -8px;
+  left: -100vw;
+}
+
+.dock > .backBtn {
+  position: relative;
+  transform: translateX(0);
+  transition:
+    grid-template-columns 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.46s var(--sm-ease-out),
+    opacity 0.3s ease;
+}
+
+.dock[data-hidden='true'] > .backBtn {
+  transform: translateX(var(--back-hide-x, -120px));
+  opacity: 0;
+  /* 躲起时略慢、带一点预备回拉，滑回时干脆。 */
+  transition:
+    transform 0.62s cubic-bezier(0.55, -0.25, 0.3, 1),
+    opacity 0.3s ease 0.28s;
+}
+
+.dock > .backBtn:active { transform: scale(0.94); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dock > .backBtn,
+  .dock[data-hidden='true'] > .backBtn { transition: opacity 0.2s ease; }
+}
