@@ -6,6 +6,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { serviceFor } from '../lib/service-registry'
 import { TRACK_WINDOW, windowIndicesFor, windowSpan, buildQueue } from '../lib/lazy-window'
 import type { Playlist, Track } from '../types/domain'
+import type { PlaylistDetailMeta } from '../lib/music-service'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { isProviderId } from '../providers/types'
 import { isProviderParticipating, useProviderStore } from '../stores/providers'
@@ -25,9 +26,17 @@ interface LazyEntry {
   updatedAt: number | null
   /** 读取列表时卡片所用的摘要；摘要变化后不能继续覆盖成旧列表数量。 */
   summaryCount?: number
+  /** 骨架接口顺带的歌单资料(简介/创建者/播放量)。 */
+  meta?: PlaylistDetailMeta
+  /** 整单骨架未到时先展示的首屏曲目(trackIds/tracks 暂只含这一页)。 */
+  provisional?: boolean
+  /** 在途的整单骨架请求;首屏期间点播放需等它完成。 */
+  pending?: Promise<void>
 }
 
 const cache = new Map<string, LazyEntry>()
+/** 首屏先取的曲目数:整单翻页较慢的音源先拉这一页展示,网易云只补这么多前缀详情。 */
+export const FIRST_SCREEN_TRACKS = 15
 const skeletonVersions = new Map<string, number>()
 let nextSkeletonVersion = 0
 
@@ -152,6 +161,7 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
       entry.skeletonLoaded = true
       entry.ts = Date.now()
       entry.updatedAt = sk.updatedAt ?? null
+      entry.meta = sk.meta
       entry.summaryCount = playlist.trackCount
     }
   }
@@ -224,8 +234,22 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const session = ++sessionRef.current
     const version = ++nextSkeletonVersion
     skeletonVersions.set(key, version)
+    const stillCurrent = () => isCurrentPlaylistSession(playlist, key) && sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous
+    // 整单要逐页翻完的音源:并行先取首屏一页直接展示,整单到了再整体替换
+    if (!previous.skeletonLoaded && service.getPlaylistPage) {
+      const first = previous
+      void service.getPlaylistPage(playlist.id, 0, FIRST_SCREEN_TRACKS).then((page) => {
+        if (!stillCurrent() || first.skeletonLoaded || !page.tracks.length) return
+        first.trackIds = page.tracks.map((track) => track.id)
+        first.tracks = [...page.tracks]
+        first.provisional = true
+        bump()
+      }).catch(() => {})
+    }
+    let settle!: () => void
+    previous.pending = new Promise<void>((resolve) => { settle = resolve })
     try {
-      const sk = await service.getPlaylistSkeleton(playlist.id)
+      const sk = await service.getPlaylistSkeleton(playlist.id, { prefix: FIRST_SCREEN_TRACKS })
       if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session || skeletonVersions.get(key) !== version || cache.get(key) !== previous) return
       const next = emptyEntry()
       next.trackIds = sk.trackIds
@@ -234,6 +258,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       next.skeletonLoaded = true
       next.ts = Date.now()
       next.updatedAt = sk.updatedAt ?? null
+      next.meta = sk.meta
       next.summaryCount = playlist.trackCount
       cache.set(key, next)
       bump()
@@ -244,6 +269,8 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
         bump()
       }
       throw error
+    } finally {
+      settle()
     }
   }, [available, key, playlist.id, playlist.type, playlist.trackCount, initialTracks, service])
 
@@ -354,7 +381,12 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   return {
     total: entry.trackIds.length,
     tracks: entry.tracks,
+    meta: entry.meta,
     loading: !entry.skeletonLoaded && !entry.error,
+    /** 正在展示首屏曲目,整单仍在加载。 */
+    provisional: !!entry.provisional && !entry.skeletonLoaded,
+    /** 等待在途的整单骨架(首屏期间点播放用);失败也会结束等待。 */
+    whenReady: () => cache.get(key)?.pending ?? Promise.resolve(),
     error: entry.error || !available,
     available,
     ensureRange,

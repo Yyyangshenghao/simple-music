@@ -17,19 +17,20 @@
 /* 玻璃胶囊返回按钮:毛玻璃底 + 顶部内侧高光模拟边缘打光,hover 时箭头向左轻移引导方向 */
 .backBtn { margin-bottom: 14px; }
 
-.detailMeta { display: flex; align-items: center; gap: 20px; }
+.detailMeta { display: flex; align-items: stretch; gap: 28px; }
 
 .detailCover {
   position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
+  width: clamp(160px, 22vw, 240px);
+  aspect-ratio: 1;
+  border-radius: 16px;
   flex-shrink: 0;
   overflow: hidden;
+  box-shadow: var(--sm-shadow);
 }
 
-.detailTitle { font-size: 22px; font-weight: 700; margin: 0 0 4px; color: var(--sm-text-primary); }
-.detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 6px 0 0; }
+.detailTitle { font-size: 28px; font-weight: 700; line-height: 1.25; margin: 0 0 6px; color: var(--sm-text-primary); }
+.detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 10px 0 0; }
 .refreshBtn {
   margin-top: 8px;
   padding: 0;
@@ -44,13 +45,14 @@
 .detailDescription {
   display: -webkit-box;
   max-width: 640px;
-  margin: 8px 0 0;
+  margin: 12px 0 0;
   overflow: hidden;
   color: var(--sm-text-secondary);
   font-size: 12px;
   line-height: 1.6;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
+  white-space: pre-line;
 }
 
 .trackList { padding: 0; }
@@ -125,7 +127,23 @@
 }
 
 .detailCover > img { width: 100%; height: 100%; object-fit: cover; }
-.detailInfo { flex: 1; min-width: 0; }
+.detailInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 4px 0; }
+/* 操作沉到信息区底部，与封面底边对齐，让右侧和封面等高 */
+.headerActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 18px; }
+.playAllBtn, .shuffleBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 18px;
+  border-radius: var(--sm-radius-pill);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms, color 160ms, opacity 160ms;
+}
+.playAllBtn { border: none; background: var(--sm-accent); color: var(--sm-text-on-accent); }
+.playAllBtn:hover:not(:disabled) { background: color-mix(in srgb, var(--sm-accent) 88%, black); }
+.shuffleBtn { border: 1px solid var(--sm-border); background: var(--sm-bg-elevated); color: var(--sm-text-primary); }
+.shuffleBtn:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.playAllBtn:disabled, .shuffleBtn:disabled { opacity: .5; cursor: default; }
+.playAllBtn:focus-visible, .shuffleBtn:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 .titleRow { display: flex; align-items: flex-start; gap: 16px; }
 .titleRow > h1 { flex: 1; min-width: 0; }
 /* 收藏他人歌单/专辑：与「更多」同尺寸的圆钮，已收藏时实心强调色。 */
@@ -139,16 +157,16 @@
 .selectableRow > div, .selectableRow > button:not([role='checkbox']) { flex: 1; min-width: 0; }
 .selectableRow[data-selected='true'] { background: color-mix(in srgb, var(--sm-accent) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-accent) 16%, transparent); }
 @media (prefers-reduced-motion: reduce) { .selectableRow { transition: none; } }
-.albumCover { width: clamp(160px, 22vw, 240px); height: auto; aspect-ratio: 1; box-shadow: var(--sm-shadow); }
 .detailMeta > div:last-child { min-width: 0; }
 .detailTitle { overflow-wrap: anywhere; }
 @media (max-width: 680px) {
   .detailMeta { align-items: flex-start; gap: 16px; }
-  .albumCover { width: 144px; }
+  .detailTitle { font-size: 22px; }
+  .detailCover { width: 144px; }
 }
 @media (max-width: 480px) {
-  .detailMeta:has(.albumCover) { flex-direction: column; }
-  .albumCover { width: 180px; }
+  .detailMeta { flex-direction: column; }
+  .detailCover { width: 180px; }
 }
 
 .refreshBtn:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }

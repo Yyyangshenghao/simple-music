@@ -1432,6 +1432,9 @@ export async function handleQQPlaylistTracks(cookie: string, id: string, current
       || (ref.kind === 'liked' ? '我喜欢的音乐' : ''),
     cover: pickQQPlaylistCover(detail, tracks),
     trackCount: Math.max(total ?? 0, tracks.length),
+    description: plainTextDescription(detail.desc || detail.intro || detail.description),
+    creator: str(detail.host_nick || detail.nick || detail.nickname),
+    playCount: numOf(detail.listennum || detail.listen_num || detail.visitnum),
   }
   return {
     loggedIn,

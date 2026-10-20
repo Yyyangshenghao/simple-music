@@ -5,7 +5,7 @@ export interface MusicService {
   /** 推荐歌单分页拉取：page 0 为个性化推荐，之后每页拉更远的一批（可无限翻页的音源按 page 返回不同内容）。 */
   getRecommendPlaylists(page?: number): Promise<Playlist[]>
   /** 歌单骨架:完整 trackIds(顺序即歌单顺序)+ 已带详情的前缀批次(QQ/小歌单可能就是全部)。 */
-  getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton>
+  getPlaylistSkeleton(id: unknown, options?: { prefix?: number }): Promise<PlaylistSkeleton>
   /** 歌单单页曲目（可选；骨架需要整单翻页的音源实现，供预览浮窗按页加载）。 */
   getPlaylistPage?(id: unknown, offset: number, limit: number): Promise<PlaylistPage>
   /** 可选的轻量歌单变更检查；曲目顺序用于兜底判断时间戳未更新的情况。 */
@@ -120,6 +120,14 @@ export interface PlaylistSkeleton {
   trackIds: unknown[]
   tracks: Track[]
   updatedAt?: number | null
+  /** 歌单接口顺带返回的资料;入口数据缺简介等字段时供详情页补全。 */
+  meta?: PlaylistDetailMeta
+}
+
+export interface PlaylistDetailMeta {
+  description?: string
+  creator?: string
+  playCount?: number
 }
 
 export interface PlaylistPage {

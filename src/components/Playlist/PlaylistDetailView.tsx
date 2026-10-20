@@ -7,6 +7,7 @@ import { motion } from 'motion/react'
 import { useLazyPlaylist } from '../../hooks/useLazyPlaylist'
 import { useNavigationStore } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
+import { useSettingsStore } from '../../stores/settings'
 import { useBackdropStore } from '../../stores/backdrop'
 import { serviceFor } from '../../lib/service-registry'
 import { TrackSearch } from '../ui/TrackSearch'
@@ -63,6 +64,12 @@ function SkeletonTrackRow({ index, hideCover }: { index: number; hideCover?: boo
   )
 }
 
+function formatPlayCount(count: number): string {
+  if (count >= 1e8) return `${(count / 1e8).toFixed(1).replace(/\.0$/, '')}亿`
+  if (count >= 1e4) return `${(count / 1e4).toFixed(1).replace(/\.0$/, '')}万`
+  return String(count)
+}
+
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
   const active = useNavigationStore((state) => {
     const view = state.currentView
@@ -109,7 +116,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const service = serviceFor(playlist.source)
   const collection = useCollectionSubscription(playlist)
   const collectable = !initialTracks?.length && (collection.state === 'subscribed' || collection.state === 'none')
-  const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
+  const { total, tracks, meta, loading, provisional, whenReady, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
   const canRefresh = playlist.type !== 'album' && !initialTracks?.length
   const refreshPlaylist = useCallback(async () => {
     if (!canRefresh || !currentRequest() || refreshInFlight.current) return
@@ -254,10 +261,38 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   }, [active, displayCover])
 
   function playAt(index: number) {
+    if (provisional) {
+      // 首屏曲目只是整单的前缀:等整单到了再按曲目 id 定位,避免只播这一页
+      const picked = tracks[index]
+      void whenReady().then(() => {
+        if (!currentRequest()) return
+        const queue = makeQueue()
+        if (!queue.length) return
+        const found = picked ? queue.findIndex((track) => String(track.id) === String(picked.id)) : index
+        usePlaylistStore.getState().setQueue(queue, Math.max(0, found), playlist.id)
+      })
+      return
+    }
     const queue = makeQueue()
     if (!queue.length) return
     usePlaylistStore.getState().setQueue(queue, index, playlist.id)
   }
+
+  function playShuffled() {
+    const queue = makeQueue()
+    if (!queue.length) return
+    useSettingsStore.getState().setPlayMode('shuffle')
+    usePlaylistStore.getState().setQueue(queue, Math.floor(Math.random() * queue.length), playlist.id)
+  }
+
+  // 入口数据(账号歌单列表等)常缺简介/创建者/播放量,用歌单接口顺带返回的资料补全
+  const description = displayPlaylist.description || meta?.description || ''
+  const infoLine = [
+    displayPlaylist.creator || meta?.creator,
+    isAlbum ? displayPlaylist.tag : undefined,
+    (displayPlaylist.playCount || meta?.playCount) ? `${formatPlayCount(displayPlaylist.playCount || meta?.playCount || 0)} 次播放` : undefined,
+  ].filter(Boolean).join(' · ')
+  const canPlay = !loading && !error && total > 0 && !selecting
 
   if (!available) return null
 
@@ -269,14 +304,14 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             <BackButton className={styles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
             <div className={styles.detailMeta}>
               <motion.div
-                className={`${styles.detailCover}${isAlbum ? ` ${styles.albumCover}` : ''}`}
+                className={styles.detailCover}
                 layoutId={coverLayoutId}
                 layoutCrossfade={false}
                 transition={isAlbum ? albumCoverTransition : springGentle}
-                style={{ borderRadius: isAlbum ? 16 : 12 }}
+                style={{ borderRadius: 16 }}
               >
                 {displayCover
-                  ? <img src={sizedImage(displayCover, isAlbum ? 512 : 176)} alt="" />
+                  ? <img src={sizedImage(displayCover, 512)} alt="" />
                   : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
                 {displayCover && <QQLikedCoverOverlay playlist={displayPlaylist} />}
               </motion.div>
@@ -309,13 +344,17 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                     </button>
                     : <span className={styles.privacyChip} data-public={!isPrivate}><LockGlyph open={!isPrivate} size={13} />{isPrivate ? '私有歌单' : '公开歌单'}</span>)}
                 </div>
-                {/* 曲数由下方列表标题展示，这里只保留专辑的作者与标签。 */}
-                {isAlbum && (displayPlaylist.creator || displayPlaylist.tag) && <p className={styles.detailSub}>
-                  {[displayPlaylist.creator, displayPlaylist.tag].filter(Boolean).join(' · ')}
-                </p>}
-                {displayPlaylist.type === 'album' && displayPlaylist.description && (
-                  <p className={styles.detailDescription}>{displayPlaylist.description}</p>
-                )}
+                {/* 曲数由下方列表标题展示，这里只放作者、标签与播放量。 */}
+                {infoLine && <p className={styles.detailSub}>{infoLine}</p>}
+                {description && <p className={styles.detailDescription} title={description}>{description}</p>}
+                <div className={styles.headerActions}>
+                  <button type="button" className={`${styles.playAllBtn} no-drag`} disabled={!canPlay} onClick={() => playAt(0)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" /></svg>播放全部
+                  </button>
+                  <button type="button" className={`${styles.shuffleBtn} no-drag`} disabled={!canPlay} onClick={playShuffled}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>随机播放
+                  </button>
+                </div>
               </motion.div>
             </div>
           </div>
@@ -327,7 +366,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             value={query}
             onChange={setQuery}
             placeholder={isAlbum ? "搜索专辑内的歌曲或歌手" : "搜索歌单内的歌曲或歌手"}
-            count={searching ? matches.length : total}
+            count={searching ? matches.length : provisional ? 0 : total}
             loading={searchLoading || loading}
             error={searchError}
             onRetry={() => setSearchAttempt((value) => value + 1)}

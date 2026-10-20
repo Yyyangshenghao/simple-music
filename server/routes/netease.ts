@@ -1328,12 +1328,14 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       const cookie = getCookie(ctx, 'netease')
-      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string; trackUpdateTime: number | null } = {
+      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string; creator: string; playCount: number; trackUpdateTime: number | null } = {
         id,
         name: '',
         cover: '',
         trackCount: 0,
         description: '',
+        creator: '',
+        playCount: 0,
         trackUpdateTime: null,
       }
       let trackIds: string[] = []
@@ -1355,6 +1357,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             cover: asStr(pl.coverImgUrl),
             trackCount: asNum(pl.trackCount),
             description: asStr(pl.description),
+            creator: asStr(asObj(pl.creator).nickname),
+            playCount: asNum(pl.playCount),
             trackUpdateTime: asNum(pl.trackUpdateTime) || null,
           }
           trackIds = asArr(pl.trackIds)
@@ -1368,10 +1372,11 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         }
       }
 
-      // 2) song_detail 补前 100 首详情
+      // 2) song_detail 补前缀详情(默认 100 首;界面首屏可传 head 只取少量先展示)
       if (trackIds.length && has('song_detail')) {
         try {
-          const head = trackIds.slice(0, 100)
+          const headSize = Math.max(1, Math.min(100, Number(url.searchParams.get('head')) || 100))
+          const head = trackIds.slice(0, headSize)
           const detail = await call('song_detail', { ids: head.join(','), cookie, timestamp: Date.now() })
           const songs = asArr(asObj(detail.body).songs).map(mapSongRecord).filter((t) => t.id)
           const byId = new Map(songs.map((t) => [String(t.id), t]))

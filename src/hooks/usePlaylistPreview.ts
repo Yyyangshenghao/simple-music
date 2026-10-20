@@ -8,6 +8,8 @@ import { isProviderId } from '../providers/types'
 import { useProviderStore } from '../stores/providers'
 import type { Playlist, Track } from '../types/domain'
 
+/** 首页只取 15 首,尽快出现在浮窗里;之后每页 50 首。 */
+export const PREVIEW_FIRST_PAGE_SIZE = 15
 export const PREVIEW_PAGE_SIZE = 50
 
 interface PreviewState {
@@ -41,7 +43,7 @@ export function usePlaylistPreview(playlist: Playlist) {
     if (!service.getPlaylistPage) throw new Error('该音源不支持分页读取歌单')
     busyRef.current = true
     try {
-      const page = await service.getPlaylistPage(playlist.id, offset, PREVIEW_PAGE_SIZE)
+      const page = await service.getPlaylistPage(playlist.id, offset, offset === 0 ? PREVIEW_FIRST_PAGE_SIZE : PREVIEW_PAGE_SIZE)
       if (sessionRef.current !== session) return
       setState((prev) => {
         const seen = new Set(prev.tracks.map((track) => String(track.id)))

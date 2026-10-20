@@ -104,6 +104,15 @@ describe('QQ歌单读取会话与错误边界', () => {
     expect(result).toMatchObject({ tracks: [{ id: 'a' }], nextOffset: 52, hasMore })
   })
 
+  it('整单读取带回歌单简介、创建者与播放量', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      total_song_num: 1, hasmore: 0, songlist: [{ mid: 'a', name: 'A' }],
+      dirinfo: { title: '歌单', desc: '第一行<br>第二行', host_nick: '创建者', listennum: 12345 },
+    } } }) }))
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+    expect(result.playlist).toMatchObject({ description: '第一行\n第二行', creator: '创建者', playCount: 12345 })
+  })
+
   it.each([0, 1, 3])('分页总数从 2 变为 %s 时拒绝混合快照', async (nextTotal) => {
     let page = 0
     const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {

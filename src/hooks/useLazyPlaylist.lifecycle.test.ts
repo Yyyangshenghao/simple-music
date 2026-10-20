@@ -9,6 +9,8 @@ const harness = vi.hoisted(() => ({
   skeleton: vi.fn(),
   album: vi.fn(),
   details: vi.fn(),
+  page: vi.fn(),
+  pageEnabled: false,
   bumps: vi.fn(),
   playbackAvailable: true,
 }))
@@ -51,7 +53,8 @@ vi.mock('../stores/likes', () => {
   ) }
 })
 vi.mock('../lib/service-registry', () => {
-  const service = { getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }
+  const service = { getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details,
+    get getPlaylistPage() { return harness.pageEnabled ? harness.page : undefined } }
   return { serviceFor: () => service }
 })
 vi.mock('../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
@@ -139,6 +142,30 @@ describe('歌单缓存的挂载生命周期', () => {
     await settle()
     expect(render(playlist).tracks).toEqual([song(2)])
     expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('整单较慢时先展示首屏一页，首屏期间等待整单后才可组队列', async () => {
+    harness.pageEnabled = true
+    try {
+      const playlist = collection('playlist')
+      let resolveFull!: (value: unknown) => void
+      harness.skeleton.mockReturnValueOnce(new Promise(done => { resolveFull = done }))
+      harness.page.mockReset().mockResolvedValue({ tracks: [song(1)], total: 3, nextOffset: 1, hasMore: true })
+      render(playlist); await settle()
+      expect(harness.page).toHaveBeenCalledWith(playlist.id, 0, 15)
+      const first = render(playlist)
+      expect(first).toMatchObject({ tracks: [song(1)], total: 1, loading: true, provisional: true })
+      let ready = false
+      void first.whenReady().then(() => { ready = true })
+      resolveFull({ trackIds: [1, 2, 3], tracks: [song(1), song(2), song(3)] })
+      await settle(); await settle()
+      expect(ready).toBe(true)
+      const full = render(playlist)
+      expect(full).toMatchObject({ total: 3, loading: false, provisional: false })
+      expect(full.makeQueue().map(track => track.id)).toEqual([1, 2, 3])
+    } finally {
+      harness.pageEnabled = false
+    }
   })
 
   it('已离开集合仍按四份 LRU 上限淘汰，重新进入会重新拉取', async () => {
