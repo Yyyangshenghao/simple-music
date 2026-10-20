@@ -21,7 +21,7 @@ export interface ShuangeFeedContext {
   current: Track[]
   standby: Track[]
   page: number
-  dailyLoaded: boolean
+  dailyLoadedOn: string | null
   batches: Partial<Record<'current' | 'standby', Promise<Track[]>>>
   refill: Promise<void> | null
   taste: Promise<void> | null
@@ -79,7 +79,7 @@ export function getShuangeFeedContext(): ShuangeFeedContext | null {
   knownAccountSessions.set(source, accountSession)
   context = {
     source, accountSession, current: [], standby: [],
-    page: 0, dailyLoaded: false, batches: {}, refill: null, taste: null, updates: new Set(),
+    page: 0, dailyLoadedOn: null, batches: {}, refill: null, taste: null, updates: new Set(),
   }
   return context
 }
@@ -118,10 +118,11 @@ function recommendationPage(target: ShuangeFeedContext, kind: 'daily' | 'radar' 
   const service = serviceFor(source)
   const surface = kind === 'daily' ? (source === 'qq' ? 'radio' : 'daily-songs')
     : kind === 'radar' ? 'radar' : 'playlist-feed'
+  const day = source === 'netease' && kind === 'daily' ? `:${new Date().toDateString()}` : ''
   const scope = source === 'apple' ? `shuange:${surface}:${page}`
-    : `recommendation:${source}:${surface}:${page ? String(page) : 'root'}`
-  // 电台首批复用首页缓存 后续补货只复用在途请求
-  const force = source === 'qq' && kind === 'daily' && target.dailyLoaded
+    : `recommendation:${source}:${surface}:${page ? String(page) : 'root'}${day}`
+  // 电台后续补货和跨日日推绕过已完成缓存，仍复用在途请求。
+  const force = kind === 'daily' && target.dailyLoadedOn !== null
   return requestProviderData(source, scope, async () => {
     if (kind === 'daily') {
       const tracks = await (service.getRadioSongs?.() ?? service.getDailySongs?.()) ?? []
@@ -164,11 +165,10 @@ async function loadPlaylistCandidates(target: ShuangeFeedContext, playlist: Play
 function refillCandidates(target: ShuangeFeedContext): Promise<void> {
   if (target.refill) return target.refill
   const page = target.page
-  // 原判断会把 QQ 连续电台也当成固定日推 后续缺货仍需请求电台
-  // const daily = target.dailyLoaded ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
-  const daily = target.dailyLoaded && target.source !== 'qq' ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
+  const day = new Date().toDateString()
+  const daily = target.dailyLoadedOn === day && target.source !== 'qq' ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
     if (!isShuangeFeedCurrent(target)) return
-    target.dailyLoaded = true
+    target.dailyLoadedOn = day
     publishCandidates(target, result.content.type === 'tracks' ? result.content.tracks : [])
   })
   const radar = page ? Promise.resolve() : recommendationPage(target, 'radar').then(result => {
@@ -205,6 +205,14 @@ export function prepareShuangeBatch(target: ShuangeFeedContext, slot: 'current' 
   const pending = target.batches[slot]
   if (pending) return pending
   const task = (async () => {
+    // 退出时备用批可能还在准备；重新进入应等待并晋升它，避免将现有曲目排除后另行补货。
+    if (slot === 'current' && (target.standby.length || target.batches.standby)) {
+      const tracks = await prepareShuangeBatch(target, 'standby', history)
+      if (!isShuangeFeedCurrent(target)) return []
+      target.current = tracks
+      target.standby = []
+      return tracks
+    }
     let excluded = occupiedKeys(target, history())
     if (countShuangeCandidates(target.source, excluded) < SHUANGE_BATCH_SIZE) {
       let finished = false

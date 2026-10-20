@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearProviderRequestCache, requestProviderData } from '../../lib/provider-request-cache'
 import { providerFor } from '../../providers/registry'
 import type { RecommendationPage } from '../../providers/types'
@@ -10,6 +10,19 @@ vi.mock('./ToplistSection', () => ({ ToplistSection: () => null }))
 
 describe('探索页返回首帧', () => {
   beforeEach(() => clearProviderRequestCache())
+  afterEach(() => vi.useRealTimers())
+
+  it('网易日推同日复用日期缓存 跨日不再显示昨日缓存', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 19, 23, 59))
+    const page = { content: { type: 'tracks', tracks: [{ id: 'yesterday', cover: 'https://example.com/yesterday.png' }] } } as RecommendationPage
+    await requestProviderData('netease', `recommendation:netease:daily-songs:root:${new Date().toDateString()}`,
+      async () => page, { maxAgeMs: 5 * 60_000 })
+    expect(renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)).toContain('yesterday.png')
+
+    vi.setSystemTime(new Date(2026, 9, 20, 0, 1))
+    expect(renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)).not.toContain('yesterday.png')
+  })
 
   async function seed(feedId = 'p', feedName = '已浏览推荐歌单') {
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
@@ -68,7 +81,8 @@ describe('探索页返回首帧', () => {
         : surface.kind === 'radar'
           ? { type: 'radar', radar: { playlist: { id, source: 'netease', name: '私人雷达' }, tracks: [{ id: 't', cover: '' }] } }
           : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
-      await requestProviderData('netease', `recommendation:${surface.id}:root`, () => Promise.resolve(page))
+      const day = surface.id === 'netease:daily-songs' ? `:${new Date().toDateString()}` : ''
+      await requestProviderData('netease', `recommendation:${surface.id}:root${day}`, () => Promise.resolve(page))
     }
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)
     expect(html).not.toContain('私人雷达重复卡片')

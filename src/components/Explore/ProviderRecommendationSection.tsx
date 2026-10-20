@@ -30,7 +30,9 @@ const deckSnapshots = new Map<ProviderId, { page: RecommendationPage; pool: Stac
 const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
 const qqDay = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10)
 function recommendationScope(surface: RecommendationSurface, day = qqDay()): string {
-  return `recommendation:${surface.id}:root${surface.id === 'qq:daily' ? `:${day}` : ''}`
+  const suffix = surface.id === 'qq:daily' ? `:${day}`
+    : surface.id === 'netease:daily-songs' ? `:${new Date().toDateString()}` : ''
+  return `recommendation:${surface.id}:root${suffix}`
 }
 
 function discoveryPlaylists(playlists: Playlist[]): Playlist[] {

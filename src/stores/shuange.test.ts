@@ -233,7 +233,7 @@ describe('shuange store', () => {
 
   it('刷歌复用首页每日推荐响应而不重复请求', async () => {
     const tracks = Array.from({ length: 12 }, (_, i) => mkTrack(`home-${i}`))
-    await requestProviderData('netease', 'recommendation:netease:daily-songs:root', async () => ({
+    await requestProviderData('netease', `recommendation:netease:daily-songs:root:${new Date().toDateString()}`, async () => ({
       content: { type: 'tracks', tracks }, hasMore: false,
     }))
     getLyrics.mockResolvedValue([])
@@ -254,6 +254,88 @@ describe('shuange store', () => {
     expect(useShuangeStore.getState().error).toBe('暂时没有新的推荐内容,稍后再来')
     expect(getDailySongs).toHaveBeenCalledOnce()
     expect(getRadioSongs).not.toHaveBeenCalled()
+  })
+
+  it.each(['重新进入前', '重新进入后'])('退出时未完成的备用批在%s返回仍可复用', async (timing) => {
+    let finishPlaylist!: () => void
+    const standby = Array.from({ length: 12 }, (_, i) => mkTrack(`standby-${i}`))
+    getDailySongs.mockResolvedValue(Array.from({ length: 12 }, (_, i) => mkTrack(`first-${i}`)))
+    getRadarPlaylist.mockResolvedValue(null)
+    getRecommendPlaylists.mockImplementation((page: number) => page === 0
+      ? new Promise(resolve => { finishPlaylist = () => resolve([{ id: 'slow-playlist' }]) })
+      : Promise.resolve([]))
+    getPlaylistSkeleton.mockResolvedValue({ tracks: standby })
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    expect(getShuangeFeedContext()!.standby).toHaveLength(0)
+    useShuangeStore.getState().leave()
+    loadTrack.mockClear()
+
+    if (timing === '重新进入前') {
+      finishPlaylist()
+      await vi.waitFor(() => expect(getShuangeFeedContext()!.standby).toHaveLength(12))
+    }
+    const entering = useShuangeStore.getState().enter()
+    if (timing === '重新进入后') finishPlaylist()
+    await entering
+
+    const state = useShuangeStore.getState()
+    expect(state.error).toBeNull()
+    expect(new Set(state.feed.map(track => track.id))).toEqual(new Set(standby.map(track => track.id)))
+    expect(loadTrack).toHaveBeenCalledOnce()
+    expect(loadTrack).toHaveBeenCalledWith(state.feed[0], expect.anything())
+  })
+
+  it('跨日本地候选耗尽后获取新日推 同日不重复请求', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 19, 23, 59))
+    getDailySongs
+      .mockResolvedValueOnce(Array.from({ length: 24 }, (_, i) => mkTrack(`yesterday-${i}`)))
+      .mockResolvedValue(Array.from({ length: 24 }, (_, i) => mkTrack(`today-${i}`)))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    for (let i = 0; i < 100; i++) await Promise.resolve()
+    expect(getShuangeFeedContext()!.standby).toHaveLength(12)
+
+    // 旧请求仍在五分钟浏览缓存内，跨日也必须读到新日推。
+    vi.setSystemTime(new Date(2026, 9, 20, 0, 1))
+    await useShuangeStore.getState().refresh()
+    await useShuangeStore.getState().refresh()
+    expect(getDailySongs).toHaveBeenCalledTimes(2)
+    expect(useShuangeStore.getState().error).toBeNull()
+    expect(String(useShuangeStore.getState().feed[0].id)).toMatch(/^today-/)
+
+    await useShuangeStore.getState().refresh()
+    await useShuangeStore.getState().refresh()
+    expect(getDailySongs).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['已完成缓存', '在途请求'])('首次预热不复用首页跨日留下的%s', async (kind) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 19, 23, 59))
+    const yesterday = Array.from({ length: 24 }, (_, i) => mkTrack(`yesterday-${i}`))
+    let finishHome!: () => void
+    const home = requestProviderData('netease', `recommendation:netease:daily-songs:root:${new Date().toDateString()}`,
+      () => new Promise(resolve => { finishHome = () => resolve({ content: { type: 'tracks', tracks: yesterday }, hasMore: false }) }),
+      { maxAgeMs: 5 * 60_000 })
+    if (kind === '已完成缓存') { finishHome(); await home }
+
+    vi.setSystemTime(new Date(2026, 9, 20, 0, 1))
+    getDailySongs.mockResolvedValue(Array.from({ length: 24 }, (_, i) => mkTrack(`today-${i}`)))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    const entering = useShuangeStore.getState().enter()
+    if (kind === '在途请求') finishHome()
+    await Promise.all([home, entering])
+
+    expect(getDailySongs).toHaveBeenCalledOnce()
+    expect(useShuangeStore.getState().error).toBeNull()
+    expect(useShuangeStore.getState().feed.every(track => String(track.id).startsWith('today-'))).toBe(true)
+    await useShuangeStore.getState().refresh()
+    expect(getDailySongs).toHaveBeenCalledOnce()
   })
 
   it('自然跨批保留至多100首历史 回退复用顺序 手动换批重置', async () => {
