@@ -54,6 +54,8 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedSearchSource, setSelectedSearchSource] = useState<ProviderId | null>(null)
+  // 每次点击递增，作为 key 重挂箭头外壳以重播穿滑动画
+  const [navPulse, setNavPulse] = useState({ back: 0, forward: 0 })
 
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
@@ -214,34 +216,35 @@ export function TopBar({ hidden = false }: TopBarProps) {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}
     >
-      {/* Left: traffic lights 留白 + 后退/前进胶囊组 */}
+      {/* Left: traffic lights 留白 + 后退/前进按钮 */}
       <div className={styles.left}>
         <div className={styles.navGroup}>
-          <motion.button
+          <button
             className={styles.navBtn}
-            onClick={() => goBack()}
+            data-dir="back"
+            onClick={() => { setNavPulse((p) => ({ ...p, back: p.back + 1 })); goBack() }}
             disabled={history.length === 0}
             aria-label="后退"
-            whileTap={tapScale}
-            transition={springSnappy}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </motion.button>
-          <span className={styles.navDivider} aria-hidden="true" />
-          <motion.button
+            <span key={navPulse.back} className={`${styles.navArrow}${navPulse.back > 0 ? ` ${styles.navArrowGo}` : ''}`} aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </span>
+          </button>
+          <button
             className={styles.navBtn}
-            onClick={() => goForward()}
+            data-dir="forward"
+            onClick={() => { setNavPulse((p) => ({ ...p, forward: p.forward + 1 })); goForward() }}
             disabled={future.length === 0}
             aria-label="前进"
-            whileTap={tapScale}
-            transition={springSnappy}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </motion.button>
+            <span key={navPulse.forward} className={`${styles.navArrow}${navPulse.forward > 0 ? ` ${styles.navArrowGo}` : ''}`} aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
         </div>
       </div>
 
@@ -444,3 +447,4 @@ export function TopBar({ hidden = false }: TopBarProps) {
     </div>
   )
 }
+
