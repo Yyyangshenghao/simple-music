@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef } from 'react'
+import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
@@ -10,6 +11,7 @@ import { HeartIcon } from '../ui/HeartIcon'
 import { SourceBadge } from '../ui/SourceBadge'
 import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 
 interface TrackRowProps {
   track: Track
@@ -20,6 +22,11 @@ interface TrackRowProps {
   hideLikeAction?: boolean
   hideOfflineAction?: boolean
   hideCover?: boolean
+  /** 同源列表（平台歌单/专辑）里每行来源徽标是重复信息。 */
+  hideSource?: boolean
+  showInactiveSource?: boolean
+  /** 列表混有不可播放原因时开启：时长与原因共用定宽列，专辑列逐行对齐。 */
+  statusColumn?: boolean
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
@@ -41,7 +48,8 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false }: TrackRowProps) {
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
+  const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
     (s) => s.currentTrack?.provider === track.provider && String(s.currentTrack?.id) === String(track.id)
@@ -74,40 +82,66 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
-    if (visible) void useLikesStore.getState().ensureChecked(track)
-  }, [track, visible, likesRevision])
+    if (visible && !scrolling) void useLikesStore.getState().ensureChecked(track)
+  }, [track, visible, likesRevision, scrolling])
   useEffect(() => {
-    if (offlineVisible) void useOfflineCacheStore.getState().ensure(track)
-  }, [offlineVisible, track.source, track.id, offlineRevision])
+    if (offlineVisible && !scrolling) void useOfflineCacheStore.getState().ensure(track)
+  }, [offlineVisible, track.source, track.id, offlineRevision, scrolling])
 
   return (
-    <button
+    <div
       className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
-      onClick={onPlay}
-      disabled={disabled}
-      title={statusLabel}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        useTrackActionsStore.getState().openMenu(track, { x: e.clientX, y: e.clientY, width: 0, height: 0 })
+      }}
     >
-      {index !== undefined && (
-        isCurrent
-          ? <EqIndicator paused={!isPlaying} />
-          : <span className={styles.index}>{index + 1}</span>
-      )}
-      {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
-      <div className={styles.info}>
-        <span className={styles.name}>{track.name}</span>
-        <span className={styles.artistLine}>
-          <span className={styles.artist}>{track.artist}</span>
-          <SourceBadge source={track.source} compact />
-        </span>
-      </div>
-      <span className={styles.duration}>
-        {statusLabel || formatDuration(track.duration)}
-      </span>
-      {offlineVisible && !disabled && !hideOfflineAction && (
-        <span
+      <button type="button" className={styles.playArea} onClick={onPlay} disabled={disabled} title={statusLabel}>
+        {index !== undefined && (
+          isCurrent
+            ? <EqIndicator paused={!isPlaying} />
+            : <span className={styles.indexCell}>
+              <span className={styles.index}>{index + 1}</span>
+              {!disabled && <svg className={styles.playGlyph} viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" /></svg>}
+            </span>
+        )}
+        {/* 无封面时留同尺寸占位，混排（本地歌曲等）时标题列仍对齐。 */}
+        {!hideCover && (track.cover
+          ? <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />
+          : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
+        <div className={styles.info}>
+          <span className={styles.name}>{track.name}</span>
+          <span className={styles.artistLine}>
+            <span className={styles.artist}>{track.artist}</span>
+            {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
+          </span>
+        </div>
+        {/* 专辑列只在宽行显示（容器查询）；专辑页本身隐藏封面时不重复。 */}
+        {!hideCover && track.album && <span className={styles.album}>{track.album}</span>}
+        {statusLabel
+          ? <span className={`${styles.status}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{statusLabel}</span>
+          : track.duration ? <span className={`${styles.duration}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{formatDuration(track.duration)}</span>
+          : statusColumn ? <span className={styles.metaColumn} aria-hidden="true" /> : null}
+      </button>
+      <button
+        type="button"
+        className={`${styles.addBtn} no-drag`}
+        data-track-action-trigger
+        title="加入歌单"
+        aria-label="加入歌单"
+        aria-haspopup="dialog"
+        onClick={(e) => {
+          e.stopPropagation()
+          useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(e.currentTarget))
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
+      {/* 离线、红心按需出现；不适用的行保留同宽空位，专辑列不随按钮数量左右漂移。 */}
+      {!hideOfflineAction && (offlineVisible && !disabled ? (
+        <button
+          type="button"
           className={styles.offlineBtn}
-          role="button"
-          tabIndex={0}
           data-state={visibleOffline?.state ?? 'missing'}
           title={visibleOffline?.state === 'pinned' ? '已保存，点击取消固定' : visibleOffline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
           aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
@@ -116,22 +150,14 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
             if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
             else void useOfflineCacheStore.getState().save(track)
           }}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return
-            e.preventDefault()
-            e.stopPropagation()
-            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
-            else void useOfflineCacheStore.getState().save(track)
-          }}
         >
           <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
-        </span>
-      )}
-      {visible && !disabled && !hideLikeAction && (
-        <span
+        </button>
+      ) : <span className={styles.actionSlot} aria-hidden="true" />)}
+      {!hideLikeAction && (visible && !disabled ? (
+        <button
+          type="button"
           className={`${styles.likeBtn} no-drag`}
-          role="button"
-          tabIndex={0}
           data-liked={liked}
           title={liked ? '取消红心' : '红心'}
           aria-label={liked ? '取消红心' : '红心'}
@@ -139,17 +165,10 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
             e.stopPropagation()
             void useLikesStore.getState().toggleLike(track)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              e.stopPropagation()
-              void useLikesStore.getState().toggleLike(track)
-            }
-          }}
         >
           <HeartIcon filled={liked} size={16} />
-        </span>
-      )}
-    </button>
+        </button>
+      ) : <span className={styles.actionSlot} aria-hidden="true" />)}
+    </div>
   )
 }

@@ -1,0 +1,282 @@
+{
+  "baseCommit": "5503e2bd1b2201dd11ee6b6c699f82b6326409ad",
+  "featureBranch": "feature/ui-refinement-2.4.0",
+  "date": "2026-10-15",
+  "method": "macOS真实Electron完整App、Cua原生操作及原始JPEG截图。临时Vite配置仅向真实main.tsx追加外部验收模块，提供隔离store/推荐缓存测试数据及场景快捷键；没有替换页面或组件。正常配置、无测试模块另行确认漫游导航。 刷歌成对图因Mac锁屏改由浏览器复现：修改前载入5503e2b的ShuangeCard源码和CSS，修改后载入当前源码；两张均为实际App、浅色1100×900浏览器截图，固定同一暂停测试曲目。原生刷歌修改后图仍作为补充。",
+  "profile": "/tmp/simplemusic-ui-refinement/profile",
+  "cleanProfile": "/tmp/simplemusic-ui-refinement/clean-profile",
+  "validation": {
+    "typecheck": "passed",
+    "tests": {
+      "files": 257,
+      "tests": 2244,
+      "passed": true
+    },
+    "baselineRegression": {
+      "failedTests": 2,
+      "fixedTests": "passed",
+      "cases": [
+        "推荐牌堆键盘入口",
+        "无启用平台漫游设置入口"
+      ]
+    },
+    "independentReview": "最终复核无P1/P2；空格冲突、帮助裁切、信息按钮样式覆盖与原生焦点恢复均已处理",
+    "build": "未运行生产构建；使用开发版原生验收"
+  },
+  "checks": [
+    {
+      "check": "6组原生深色对照为1100×900逻辑窗口、2200×1800 JPEG；刷歌1组为浅色1100×900浏览器JPEG，组内环境一致",
+      "passed": true
+    },
+    {
+      "check": "应用歌单移除重复介绍，保留新建入口和空状态引导",
+      "passed": true
+    },
+    {
+      "check": "歌单详情保留播放操作，管理操作可由更多展开",
+      "passed": true
+    },
+    {
+      "check": "Option+Tab依次聚焦重命名和删除，Enter打开相应弹窗",
+      "passed": true
+    },
+    {
+      "check": "重命名按Escape取消后焦点回到歌单更多操作",
+      "passed": true
+    },
+    {
+      "check": "删除确认保留队列及文件保留说明，Escape取消后焦点回到更多",
+      "passed": true
+    },
+    {
+      "check": "管理与离线帮助可聚焦展开，文件保留说明完整可读",
+      "passed": true
+    },
+    {
+      "check": "漫游同步说明原地展开，960窗口没有可见裁切",
+      "passed": true
+    },
+    {
+      "check": "无平台漫游可跳到音源设置；正常配置无测试模块另行验证成功",
+      "passed": true
+    },
+    {
+      "check": "推荐牌堆只有顶牌可聚焦，Enter打开预览",
+      "passed": true
+    },
+    {
+      "check": "聚焦顶牌按空格不会打开歌单，保留播放快捷键策略",
+      "passed": true
+    },
+    {
+      "check": "刷歌移除重复术语与宣传提示，保留自动切歌时间及播放全曲",
+      "passed": true
+    },
+    {
+      "check": "实际检查深色1100和浅色960布局并保存截图",
+      "passed": true
+    }
+  ],
+  "limitations": [
+    "未登录真实平台账号。推荐卡片、歌单详情曲目和刷歌状态是测试数据，不代表真实账户内容或真实播放验收。",
+    "首页榜单来自公开API。推荐牌堆与英雄卡片使用无封面测试数据，缺图底色是既有回退样式。",
+    "成对截图尺寸、深色主题、内容及静态背景配置相同；鼠标位置、动态来源徽标及牌堆随机角度可能不同，不作逐像素比较。",
+    "没有执行真实文件删除、账号下载或平台同步；Windows实机未验证。",
+    "正常退出时有既有PLAYBACK_HOST_GONE和macOS输入法日志，不作为页面操作异常。",
+    "960检查为可见布局人工验收，没有断言所有隐藏帮助层的DOM滚动宽度为零。",
+    "原生刷歌修改前归档误拍错误状态，已移除；Mac锁屏后通过实际基线组件和当前组件补拍浏览器对照，不将其表述为原生窗口截图。"
+  ],
+  "screenshots": [
+    {
+      "file": "assets/2.4.0-ui-refinement/before-app-playlist-detail.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "6bf6b6c8732033f662599c2f37cdc5a688788ab65c0c91644fc3590cb879a634"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-app-playlists.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "96baf4969a084b95831382674a472283b7fba4c17ac0ee41532efeb66beb7ee3"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-explore-empty.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "d2b6ff9c9c50e3b5d0c261ed18159a3e80edf48a1ffe6b5044f30fe1927f3340"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-explore.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "12589e9ad9cbb5c38132ed52174540a236694726e63f1f3fc8cc542c3c2d2ff6"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-offline.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "5e6ce0ea44aecfb02a8bb1b63769f47f83785fa923fc9a56bb9f931736223a52"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-roam.jpg",
+      "phase": "before",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "321dc3730a0722024d73d605b59801a48731adac168d8dec4aae2fa73094ba66"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-app-playlist-detail.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "1d1cd270ba2c16c269dfd9b428cdc0afefd1ece37b8677cfb92b04fb5211585c"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-app-playlist-help-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "8bebc849964a60965ddad3bf40d0226426d7f82cadcf02079aac168a56116316"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-app-playlist-menu-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "4669f0f1bfc0540e62414d1db190b460556bed578fae6c4a767dec7c461c3010"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-app-playlist-menu.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "555c275bca10abd50df5333abb3a3adbd144ee784845c4853205818504691bac"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-app-playlists.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "b6f6ddeabfed8c2928f3ca4beba03895e7ddb88738982bad6b95efcf31c1d192"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-delete-confirm-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "9a26cec4e9a664cc33eb44511a1a1e63516286b5a3b0022bc23b5ee98246c8c9"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-explore-empty.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "cfc44d512070b1578dcfd993c66c042b96007663bf440c5baf483066bfcb36e6"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-explore-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "9d44d3b275f1d65917280021a50141238d161a4b324f8a07a8c366f941564276"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-explore.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "2dd1453ab02b34751f066e4a298bb9677d8ac89884842be1bc7844a52e3e9e93"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-offline-help-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "5fbe8edf804e12b399c898ee715df0a5afd350299bae7f6766d068048b9508bb"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-offline-help.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "efe8fc66f29bc409acc41f72d297879729bd100a9486b431167ef2be1494444a"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-offline.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "ddf1373ce9282ebdaff36f38f2f78403027a078ef8c2a97515dbb4db52d305d8"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-roam-clean-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "e6baf595a23f51f11165938e259aee8d103d5f1180408156526a86a7038563e3"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-roam-help-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "910dc2b46608e96ea4fe171152536bf67c966838321c258cd8b2d8c3abdb6324"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-roam-help.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "d8a960bd993e25c6fe2c94b0312b12c63a5822b425fb250929dfbc5f2e68fa38"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-roam.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "33afa71ca43c3c820243de57327c8f0a7a1d0dd828418b256568851fd851beae"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-shuange-light-960.jpg",
+      "phase": "after",
+      "pixelWidth": 1920,
+      "pixelHeight": 1800,
+      "sha256": "02a18163f8815fcba934140dc0554741d553db9b5b03f7e41e451994e973406b"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-shuange.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "7aefb22fb96825edb62293ff629c8a2ebaa9368dab53edfbbc2df0605c8c384a"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-stack-focus.jpg",
+      "phase": "after",
+      "pixelWidth": 2200,
+      "pixelHeight": 1800,
+      "sha256": "fe5e34a613deb7edbeb7e60a6334117d59a64778f743e0cc2d3ed1019d3d97bd"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/before-shuange-browser.jpg",
+      "phase": "before",
+      "pixelWidth": 1100,
+      "pixelHeight": 900,
+      "environment": "Codex in-app browser, light, 1100x900",
+      "sha256": "683d182692bcbcb6d7d799f7abacb46518f907e5e35aa2cb43c47acede869f13"
+    },
+    {
+      "file": "assets/2.4.0-ui-refinement/after-shuange-browser.jpg",
+      "phase": "after",
+      "pixelWidth": 1100,
+      "pixelHeight": 900,
+      "environment": "Codex in-app browser, light, 1100x900",
+      "sha256": "3a5a7c3c7ad781a7e48a1ded44d046ce5bd4d3f350c4b3928edb5cece89dd4a3"
+    }
+  ]
+}

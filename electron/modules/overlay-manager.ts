@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
-import { getMainWindow, resolveRendererUrl, hideMainWindow, focusMainWindow, isInAppUrl } from './window-manager'
+import { sendPlaybackEvent } from './playback-host'
+import { resolveRendererUrl, hideMainWindow, focusMainWindow, getMainWindow, isInAppUrl } from './window-manager'
 import { openExternalSafely } from './safe-open'
 import { createLyricsNativeBackdrop } from './lyrics-native-backdrop'
 import { preventLyricsActivation } from './macos-lyrics-window'
@@ -8,8 +9,13 @@ import { miniPlayerPatch } from '../../src/lib/mini-player-state'
 import { getPlatform } from '../platform'
 import { desktopLyricsHeight, desktopLyricsSize, DESKTOP_LYRICS_MAX_SIZE, DESKTOP_LYRICS_MIN_SIZE } from '../../src/lib/desktop-lyrics-layout'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds, OkResult } from '../../src/types/ipc'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { Track } from '../../src/types/domain'
 
 const platform = getPlatform()
+
+// 宿主失联后需重启应用；阻止显式开启和在途更新重建失效悬浮窗。
+let playbackStopped = false
 
 let lyricsWindow: BrowserWindow | null = null
 let lyricsBackdrop: ReturnType<typeof createLyricsNativeBackdrop> = null
@@ -162,8 +168,7 @@ function syncLyricsSize(): void {
   const size = desktopLyricsSize(getLyricsBounds(lyricsWindow).height / lyricsWindow.webContents.getZoomFactor(), !!lyricsState.translation, !!lyricsState.roma, !!lyricsState.nextLine)
   if (Math.abs(size - (lyricsState.size ?? 38)) < 0.01) return
   lyricsState = { ...lyricsState, size }
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:size-changed', { size })
+  sendPlaybackEvent('lyrics:size-changed', { size })
 }
 
 function stopLyricsControlPoller(): void {
@@ -250,14 +255,12 @@ function handleMiddleClick(): void {
 
 function broadcastLyricsLockState(): void {
   const locked = lyricsState.clickThrough !== false
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:lock-state-changed', { locked })
+  sendPlaybackEvent('lyrics:lock-state-changed', { locked })
   sendLyricsState()
 }
 
 function broadcastLyricsEnabledState(enabled: boolean, requested = false): void {
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('lyrics:enabled-state-changed', { enabled, ...(requested ? { requested: true } : {}) })
+  sendPlaybackEvent('lyrics:enabled-state-changed', { enabled, ...(requested ? { requested: true } : {}) })
 }
 
 function sendLyricsState(): void {
@@ -421,7 +424,7 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     return wallpaperWindow
   }
   const bounds = screen.getPrimaryDisplay().bounds
-  wallpaperWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     ...bounds,
     frame: false,
     transparent: false,
@@ -436,23 +439,26 @@ function createWallpaperWindow(payload: WallpaperPayload): BrowserWindow {
     // 壁纸贴桌面底层,被其他窗口完全遮挡是常态,必须关闭后台节流否则动画被节流停摆
     webPreferences: { preload: overlayPreload(), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   })
-  hardenOverlayWindow(wallpaperWindow)
-  wallpaperWindow.setIgnoreMouseEvents(true, { forward: true })
-  wallpaperWindow.once('ready-to-show', () => {
-    if (!wallpaperWindow || wallpaperWindow.isDestroyed()) return
+  wallpaperWindow = win
+  hardenOverlayWindow(win)
+  win.setIgnoreMouseEvents(true, { forward: true })
+  win.once('ready-to-show', () => {
+    if (wallpaperWindow !== win || win.isDestroyed()) return
     positionWallpaperWindow()
-    wallpaperWindow.showInactive()
-    platform.attachWallpaperToDesktop(nativeWindowHandleDecimal(wallpaperWindow))
+    win.showInactive()
+    platform.attachWallpaperToDesktop(nativeWindowHandleDecimal(win))
     sendWallpaperState()
   })
-  wallpaperWindow.webContents.once('did-finish-load', sendWallpaperState)
-  wallpaperWindow.on('closed', () => {
-    wallpaperWindow = null
+  win.webContents.on('did-finish-load', () => {
+    if (wallpaperWindow === win && !win.isDestroyed()) sendWallpaperState()
   })
-  wallpaperWindow.loadURL(resolveRendererUrl('overlays/wallpaper/wallpaper.html')).catch((e) =>
+  win.on('closed', () => {
+    if (wallpaperWindow === win) wallpaperWindow = null
+  })
+  win.loadURL(resolveRendererUrl('overlays/wallpaper/wallpaper.html')).catch((e) =>
     console.warn('Wallpaper load failed:', (e as Error).message)
   )
-  return wallpaperWindow
+  return win
 }
 
 function closeWallpaperWindow(): void {
@@ -515,9 +521,7 @@ function rememberMiniPlayerBounds(): void {
 
 /** 宽度回传主窗口持久化；同一宽度不重复通知。 */
 function notifyMiniPlayerWidth(width: number): void {
-  const main = getMainWindow()
-  if (!main || main.isDestroyed()) return
-  main.webContents.send('miniplayer:width-changed', { width })
+  sendPlaybackEvent('miniplayer:width-changed', { width })
 }
 
 function sendMiniPlayerState(): void {
@@ -599,11 +603,11 @@ function closeMiniPlayerWindow(): void {
 
 /** 迷你条与主窗口互斥：开启时把设置开关同步为关（供主进程主动收起迷你时用）。 */
 function notifyRendererMiniOff(): void {
-  const main = getMainWindow()
-  if (main && !main.isDestroyed()) main.webContents.send('miniplayer:control', { action: 'sync-off' })
+  sendPlaybackEvent('miniplayer:control', { action: 'sync-off' })
 }
 
 export function setMiniPlayerEnabled(enabled: boolean, width?: number): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (width !== undefined) {
     miniPlayerWidth = Math.round(clampNumber(width, MINI_PLAYER_MIN_WIDTH, MINI_PLAYER_MAX_WIDTH, MINI_PLAYER_DEFAULT_WIDTH))
     if (miniPlayerUserBounds) miniPlayerUserBounds = { ...miniPlayerUserBounds, width: miniPlayerWidth }
@@ -632,6 +636,23 @@ export function returnFromMiniPlayer(): OkResult {
   notifyRendererMiniOff()
   focusMainWindow()
   return { ok: true }
+}
+
+/** 仅迷你条可请求主窗口收藏；独立播放宿主不消费界面浮层动作。 */
+export function addToPlaylistFromMiniPlayer(event: IpcMainInvokeEvent, track: Track): OkResult {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()
+    || event.sender !== miniPlayerWindow.webContents || event.senderFrame !== miniPlayerWindow.webContents.mainFrame) {
+    return { ok: false, error: 'INVALID_MINI_PLAYER_SENDER' }
+  }
+  if (!track || !['netease', 'qq', 'apple', 'local'].includes(track.source)
+    || (typeof track.id !== 'string' && typeof track.id !== 'number')
+    || !String(track.id).trim() || typeof track.name !== 'string' || !track.name.trim()) {
+    return { ok: false, error: 'NO_TRACK' }
+  }
+  const main = getMainWindow()
+  if (!main || main.isDestroyed()) return { ok: false, error: 'NO_MAIN_WINDOW' }
+  main.webContents.send('miniplayer:add-to-playlist', track)
+  return returnFromMiniPlayer()
 }
 
 /** 显式退居托盘入口：关闭迷你条、保持主窗口隐藏并继续后台播放。 */
@@ -688,14 +709,13 @@ export function setMiniPlayerPopover(open: boolean): OkResult {
 }
 
 export function triggerMiniPlayerControl(action: string, value?: number): OkResult {
-  const main = getMainWindow()
-  if (!main || main.isDestroyed() || !action) return { ok: false, error: 'NO_MAIN_WINDOW' }
-  main.webContents.send('miniplayer:control', { action, value })
-  return { ok: true }
+  return action && sendPlaybackEvent('miniplayer:control', { action, value })
+    ? { ok: true } : { ok: false, error: 'PLAYBACK_HOST_GONE' }
 }
 
 // ---------- 对外 API（供 ipc 调用） ----------
 export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}, requested = false): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (enabled) {
     createLyricsWindow(payload)
     broadcastLyricsEnabledState(true, requested)
@@ -706,6 +726,7 @@ export function setLyricsEnabled(enabled: boolean, payload: LyricsPayload = {}, 
 }
 
 export function updateLyrics(payload: LyricsPayload = {}): OkResult {
+  if (playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   const next = { ...lyricsState, ...payload }
   // 高频逐字时钟只更新绘制状态，避免重复调整窗口与鼠标穿透。
   if (Object.keys(payload).length === 1 && Object.hasOwn(payload, 'wordClock')) {
@@ -816,6 +837,7 @@ export function setLyricsControlBounds(bounds: Partial<HotBounds> & { hover?: Ho
 }
 
 export function setWallpaperEnabled(enabled: boolean, payload: WallpaperPayload = {}): OkResult {
+  if (enabled && playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   if (enabled) createWallpaperWindow(payload)
   else closeWallpaperWindow()
   return { ok: true }
@@ -828,6 +850,7 @@ export function suspendWallpaper(): boolean {
 }
 
 export function updateWallpaper(payload: WallpaperPayload = {}): OkResult {
+  if (playbackStopped) return { ok: false, error: '播放后台已停止，请重启应用' }
   wallpaperState = { ...wallpaperState, ...payload }
   if (wallpaperState.enabled) {
     createWallpaperWindow(wallpaperState)
@@ -846,4 +869,9 @@ export function closeOverlays(): void {
   closeLyricsWindow(true)
   closeWallpaperWindow()
   closeMiniPlayerWindow()
+}
+
+export function stopPlaybackOverlays(): void {
+  playbackStopped = true
+  closeOverlays()
 }

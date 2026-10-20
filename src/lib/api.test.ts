@@ -40,6 +40,17 @@ describe('api.url', () => {
 })
 
 describe('api.get', () => {
+  it('平台歌单管理业务拒绝显示原因，不把归属冲突当登录失效', async () => {
+    stubPort(40000)
+    const onFailure = vi.fn()
+    const dispose = registerApiProviderAuthFailureHandler(onFailure)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: '只能更新当前账号创建的普通歌单' }) }))
+    try {
+      await expect(api.post('/api/netease/playlist-management/inspect', {})).rejects.toThrow('普通歌单')
+      expect(onFailure).not.toHaveBeenCalled()
+    } finally { dispose() }
+  })
+
   it('parses json on ok', async () => {
     stubPort(40000)
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ songs: [] }) })

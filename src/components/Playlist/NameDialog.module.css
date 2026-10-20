@@ -1,0 +1,142 @@
+/* 新建/重命名歌单：玻璃面板 + 大留白，只保留输入与一个主操作。 */
+.dialog {
+  width: min(400px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 28px 28px 22px;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 24px;
+  color: var(--sm-text-primary);
+  background: linear-gradient(var(--glass-bg-modal), var(--glass-bg-modal)), color-mix(in srgb, var(--sm-bg-base) 86%, transparent);
+  backdrop-filter: var(--glass-blur-modal) saturate(130%);
+  -webkit-backdrop-filter: var(--glass-blur-modal) saturate(130%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent), 0 24px 64px -16px color-mix(in srgb, black 45%, transparent);
+}
+.dialog[open] { animation: dialogIn 240ms var(--sm-ease-out); }
+.dialog::backdrop { background: color-mix(in srgb, black 38%, transparent); backdrop-filter: blur(6px); animation: backdropIn 200ms ease-out; }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+@keyframes backdropIn { from { opacity: 0; } }
+
+.header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+.header h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.01em; }
+
+.field { position: relative; }
+.field input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  padding: 0 64px 0 16px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 15px;
+  transition: background 180ms var(--sm-ease-out), border-color 180ms var(--sm-ease-out), box-shadow 180ms var(--sm-ease-out);
+}
+.field input::placeholder { color: var(--sm-text-muted); }
+.field input:focus { outline: none; background: var(--sm-bg-elevated); border-color: color-mix(in srgb, var(--sm-accent) 45%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sm-accent) 14%, transparent); }
+.field input:disabled { opacity: .6; }
+/* 字数只在输入时出现，平时不占视线。 */
+.count { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 160ms; }
+.field:focus-within .count, .field[data-filled='true'] .count { opacity: .7; }
+.count[data-full='true'] { color: var(--sm-color-danger); opacity: 1; }
+
+.note { display: flex; align-items: center; gap: 6px; margin: 12px 2px 0; color: var(--sm-text-secondary); font-size: 12px; }
+.error { margin: 12px 2px 0; color: var(--sm-color-danger); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; }
+
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 28px; }
+.ghost, .primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  border-radius: var(--sm-radius-pill);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 160ms var(--sm-ease-out), transform 120ms var(--sm-ease-out), opacity 160ms;
+}
+.ghost { padding: 0 16px; border: 0; background: transparent; color: var(--sm-text-secondary); }
+.ghost:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.primary { min-width: 88px; padding: 0 22px; border: 0; background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--sm-accent) 80%, transparent); }
+.primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
+.ghost:active, .primary:active:not(:disabled) { transform: scale(0.97); }
+.primary:disabled { opacity: .4; cursor: default; box-shadow: none; }
+.ghost:focus-visible, .primary:focus-visible { outline: none; }
+.spinner { width: 13px; height: 13px; border: 1.6px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin 760ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open], .dialog::backdrop, .spinner { animation: none; }
+}
+
+.header + .subtitle { margin: -14px 0 20px; color: var(--sm-text-secondary); font-size: 12.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- 加入歌单：选择列表 ---- */
+.picker { width: min(440px, calc(100vw - 48px)); }
+
+.search { position: relative; margin-bottom: 10px; color: var(--sm-text-secondary); }
+.search svg { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); pointer-events: none; }
+.search input { box-sizing: border-box; width: 100%; height: 38px; padding: 0 14px 0 38px; border: 1px solid transparent; border-radius: 12px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; transition: background 180ms var(--sm-ease-out), border-color 180ms var(--sm-ease-out); }
+.search input::placeholder { color: var(--sm-text-muted); }
+.search input:focus { outline: none; background: var(--sm-bg-elevated); border-color: color-mix(in srgb, var(--sm-accent) 40%, transparent); }
+.search input::-webkit-search-cancel-button { display: none; }
+
+.list { display: flex; flex-direction: column; gap: 2px; max-height: min(360px, 52vh); margin: 0 -8px; padding: 0 8px; overflow-y: auto; scrollbar-width: thin; }
+
+.row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 10px 8px 8px; border: 0; border-radius: 14px; background: transparent; color: var(--sm-text-primary); font: inherit; text-align: left; cursor: pointer; transition: background 160ms var(--sm-ease-out); }
+.row:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.row:focus-visible { outline: none; }
+.row:disabled { cursor: default; }
+.row:disabled:not([data-state='busy']):not([data-state='done']) { opacity: .45; }
+
+.thumb { flex: 0 0 40px; width: 40px; height: 40px; overflow: hidden; border-radius: 9px; background: var(--sm-bg-overlay); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sm-text-primary) 6%, transparent); }
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.newThumb { display: grid; place-items: center; background: transparent; box-shadow: none; border: 1.5px dashed var(--sm-border-strong); color: var(--sm-text-secondary); transition: border-color 160ms, color 160ms; }
+.row:hover .newThumb { border-color: var(--sm-accent); color: var(--sm-accent); }
+
+.rowText { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.rowText strong { overflow: hidden; font-size: 13.5px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.rowText small { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--sm-text-secondary); font-size: 11.5px; }
+.rowText .included { color: var(--sm-accent); }
+
+/* 行尾：平时隐身，悬停浮现 ＋；已包含显示 ✓，加入中转圈。 */
+.rowAction { display: grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--sm-text-secondary); opacity: 0; transition: opacity 160ms, background 160ms, color 160ms; }
+.row:hover:not(:disabled) .rowAction { opacity: 1; background: var(--sm-accent); color: var(--sm-text-on-accent); }
+.row[data-state='done'] .rowAction, .row[data-state='busy'] .rowAction { opacity: 1; color: var(--sm-accent); }
+
+.skeletonRow { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 8px; }
+.skeletonRow::before { content: ''; flex: 0 0 40px; height: 40px; border-radius: 9px; background: var(--sm-fill-subtle); }
+.skeletonRow::after { content: ''; width: 46%; height: 11px; border-radius: 6px; background: var(--sm-fill-subtle); }
+.skeletonRow { animation: pulse 1.4s var(--sm-ease-in-out) infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+
+.empty { margin: 10px 2px 2px; color: var(--sm-text-secondary); font-size: 12.5px; }
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 2px 0; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.5; }
+.notice button { flex-shrink: 0; padding: 0; border: 0; background: none; color: var(--sm-text-primary); font: inherit; font-weight: 500; cursor: pointer; }
+.notice button:disabled { opacity: .4; cursor: default; }
+.notice button:hover:not(:disabled) { color: var(--sm-accent); }
+
+.picker .actions { margin-top: 18px; }
+
+@media (prefers-reduced-motion: reduce) { .skeletonRow { animation: none; } }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* 应用歌单 / 平台歌单切换：分段胶囊，选中项抬起。 */
+.tabs { display: flex; gap: 2px; margin-bottom: 14px; padding: 3px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); }
+.tabs button { flex: 1; height: 30px; border: 0; border-radius: var(--sm-radius-pill); background: transparent; color: var(--sm-text-secondary); font: inherit; font-size: 12.5px; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
+.tabs button:hover { color: var(--sm-text-primary); }
+.tabs button[aria-selected='true'] { background: var(--sm-bg-elevated); color: var(--sm-text-primary); font-weight: 600; box-shadow: 0 1px 4px -1px color-mix(in srgb, black 30%, transparent); }
+.tabs button:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sm-accent) 45%, transparent); }
+
+/* 新建网易云歌单的公开开关：说明随开关切换。 */
+.privacy { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 2px 0; color: var(--sm-text-secondary); font-size: 12px; }
+.privacy > span { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* 锁即开关：上锁为私有，解锁为公开并转为强调色（锁梁动画见 LockGlyph）。 */
+.lock { display: grid; flex: 0 0 34px; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--sm-fill-subtle); color: var(--sm-text-secondary); cursor: pointer; transition: background 180ms var(--sm-ease-out), color 180ms var(--sm-ease-out), transform 120ms var(--sm-ease-out); }
+.lock:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.lock:active:not(:disabled) { transform: scale(0.92); }
+.lock:disabled { opacity: .4; cursor: default; }
+.lock:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sm-accent) 45%, transparent); }
+.lock[aria-pressed='true'] { background: color-mix(in srgb, var(--sm-accent) 16%, transparent); color: var(--sm-accent); }

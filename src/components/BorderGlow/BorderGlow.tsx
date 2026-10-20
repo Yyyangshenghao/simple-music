@@ -1,4 +1,6 @@
 import { useRef, useCallback, useEffect, type ReactNode } from 'react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useSettingsStore } from '../../stores/settings'
 import './BorderGlow.css'
 
 const GRADIENT_POSITIONS = ['80% 55%', '69% 34%', '8% 6%', '41% 38%', '86% 85%', '82% 18%', '51% 4%']
@@ -64,6 +66,10 @@ export function BorderGlow({
   const rafRef = useRef<number | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const activeRef = useRef(false)
+  // 边缘辉光同属“卡片跟手光斑”，关闭或系统减少动态时不跟随光标。
+  const spotlightEffect = useSettingsStore((s) => s.performance.cardSpotlightEffect)
+  const reducedMotion = useReducedMotion()
+  const glowEnabled = spotlightEffect && !reducedMotion
 
   const getCenter = useCallback((el: HTMLDivElement) => {
     const { width, height } = el.getBoundingClientRect()
@@ -89,12 +95,12 @@ export function BorderGlow({
   }, [getCenter])
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
-    if (!activeRef.current) return
+    if (!activeRef.current || cardRef.current?.closest('[data-scrolling]')) return
     if (rafRef.current !== null) return
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
       const card = cardRef.current
-      if (!card) return
+      if (!card || card.closest('[data-scrolling]')) return
       const rect = card.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
@@ -105,7 +111,7 @@ export function BorderGlow({
 
   useEffect(() => {
     const card = cardRef.current
-    if (!card) return
+    if (!card || !glowEnabled) return
 
     observerRef.current = new IntersectionObserver(([entry]) => {
       activeRef.current = entry.isIntersecting
@@ -118,7 +124,7 @@ export function BorderGlow({
       observerRef.current?.disconnect()
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [handlePointerMove])
+  }, [handlePointerMove, glowEnabled])
 
   const glowVars = buildGlowVars(glowColor, glowIntensity)
   const gradVars = buildGradientVars(colors)
@@ -127,6 +133,7 @@ export function BorderGlow({
     <div
       ref={cardRef}
       className={`border-glow-card ${className}`}
+      data-glow-off={glowEnabled ? undefined : ''}
       style={{
         '--card-bg': backgroundColor,
         '--edge-sensitivity': edgeSensitivity,

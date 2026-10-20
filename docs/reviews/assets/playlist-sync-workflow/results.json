@@ -1,0 +1,29 @@
+{
+  "isolatedSyntheticAccount": true,
+  "realCredentialsRead": false,
+  "realAccountWrites": 0,
+  "checks": {
+    "createAndVerifiedBaseline": true,
+    "independentMergeAndPush": true,
+    "cloudOnlyConflictTrackHasTitle": true,
+    "dialogScrollingAndKeyboardFocus": true,
+    "conflictsRequireChoicesAndKeyboardEscape": true,
+    "lightMinimumNoHorizontalOverflow": true,
+    "partialPersistsAndRetryOnlyMissing": true,
+    "staleRefusedBeforeWritesAndRecheck": true,
+    "unconfirmedResultNeverReportedAsZero": true,
+    "qqPullPushAndOrderBoundary": true,
+    "legacyRequiresExplicitAlignment": true,
+    "persistedWithoutCredentials": true
+  },
+  "pageErrors": [],
+  "neteaseUpstreamFixtureCalls": 51,
+  "qqUiFixtureWrites": 2,
+  "validation": {
+    "typecheck": "passed",
+    "testFiles": 271,
+    "tests": 2614,
+    "independentReview": "passed; QQ 72 and UI 26 incremental checks",
+    "diffCheck": "passed"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "before": {
+    "label": "before",
+    "detailsDuringScroll": 8,
+    "detailsAfterStop": 8,
+    "requestedWindows": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "likeCalls": 3,
+    "likeIds": 384,
+    "offlineCalls": 105,
+    "domRows": 21,
+    "frameGaps": {
+      "median": 5.899999999994179,
+      "p95": 7.2999999999883585,
+      "max": 11.799999999988358,
+      "over50ms": 0
+    },
+    "errors": []
+  },
+  "after": {
+    "label": "after",
+    "detailsDuringScroll": 0,
+    "detailsAfterStop": 1,
+    "requestedWindows": [
+      8
+    ],
+    "likeCalls": 1,
+    "likeIds": 21,
+    "offlineCalls": 3,
+    "domRows": 21,
+    "frameGaps": {
+      "median": 5.899999999994179,
+      "p95": 7.2000000000116415,
+      "max": 7.399999999994179,
+      "over50ms": 0
+    },
+    "errors": []
+  },
+  "method": "Actual macOS Electron npm run dev apps with isolated userData and identical 870-track API fixtures. Minimal decoration preset. Scroll driven once per requestAnimationFrame over 100 frames; frame gaps are descriptive, not a GPU benchmark.",
+  "standardAfter": {
+    "label": "after",
+    "detailsDuringScroll": 0,
+    "detailsAfterStop": 1,
+    "requestedWindows": [
+      8
+    ],
+    "likeCalls": 1,
+    "likeIds": 21,
+    "offlineCalls": 0,
+    "domRows": 21,
+    "frameGaps": {
+      "median": 5.899999999965075,
+      "p95": 6.5,
+      "max": 6.7999999999883585,
+      "over50ms": 0
+    },
+    "errors": []
+  },
+  "roam": {
+    "initialRows": 22,
+    "finalRows": 22,
+    "rpc": {
+      "pending": 0,
+      "peak": 44,
+      "calls": 89,
+      "busy": 0
+    },
+    "queue": {
+      "length": 360,
+      "index": 359,
+      "id": 90359
+    }
+  },
+  "verification": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 262,
+      "tests": 2271,
+      "status": "passed"
+    },
+    "independentReview": "passed",
+    "notVerified": [
+      "real NetEase playlist write",
+      "Windows/Linux native apps"
+    ]
+  }
+}

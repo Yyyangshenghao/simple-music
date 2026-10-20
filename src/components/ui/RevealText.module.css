@@ -1,0 +1,21 @@
+.character {
+  opacity: var(--text-reveal-open, 1);
+  transition: opacity 160ms var(--sm-ease-out);
+  transition-delay: calc(var(--text-reveal-open, 1) * var(--reveal-delay) + (1 - var(--text-reveal-open, 1)) * var(--hide-delay));
+}
+
+.accessibleText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character { transition: none; }
+}
+.text { position: relative; }

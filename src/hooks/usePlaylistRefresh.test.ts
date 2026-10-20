@@ -9,12 +9,21 @@ vi.mock('react', () => ({
   useRef: () => ({ current: 0 }),
   useState: (value: unknown) => [value, vi.fn()],
 }))
+vi.mock('../stores/likes', () => {
+  const state = { qqMutationRevision: 0 }
+  return { useLikesStore: Object.assign(
+    (select: (value: typeof state) => unknown) => select(state),
+    { getState: () => state }
+  ) }
+})
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({
   getPlaylistSkeleton: harness.skeleton,
   getPlaylistRevision: harness.revision,
   getTracksByIds: harness.details,
 }) }))
-vi.mock('../stores/providers', () => ({ useProviderStore: () => true, isProviderParticipating: () => true }))
+vi.mock('../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
+  netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+} }), isProviderParticipating: () => true }))
 import { useLazyPlaylist } from './useLazyPlaylist'
 
 let id = 0

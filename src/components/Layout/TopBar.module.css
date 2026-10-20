@@ -58,47 +58,81 @@
 }
 
 /* 后退/前进胶囊组 */
+/* 不加外框也不浮底：只有箭头本身，悬停提亮并朝各自方向轻移。 */
 .navGroup {
   display: flex;
   align-items: center;
-  height: 34px;
+  gap: 4px;
   margin-left: 8px;
-  padding: 0 2px;
-  background: var(--glass-bg-base);
-  border: 1px solid var(--glass-border-base);
-  border-radius: var(--sm-radius-pill);
 }
 
 .navBtn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--sm-text-secondary);
-  border-radius: var(--sm-radius-pill);
+  border-radius: 50%;
+  overflow: hidden;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.navBtn svg {
+  position: relative;
+  transition: transform 0.32s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 .navBtn:hover:not(:disabled) {
-  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+}
+
+.navBtn[data-dir='back']:hover:not(:disabled) svg { transform: translateX(-1.5px); }
+.navBtn[data-dir='forward']:hover:not(:disabled) svg { transform: translateX(1.5px); }
+
+/* 按下：箭头向自身方向收紧。 */
+.navBtn:active:not(:disabled) svg { transition-duration: 0.12s; }
+.navBtn[data-dir='back']:active:not(:disabled) svg { transform: translateX(-2.5px); }
+.navBtn[data-dir='forward']:active:not(:disabled) svg { transform: translateX(2.5px); }
+
+/* 点击后：箭头沿自身方向滑出、从另一侧滑回。 */
+.navArrow {
+  display: flex;
+}
+
+.navBtn[data-dir='back'] { --arrow-dir: -1; }
+.navBtn[data-dir='forward'] { --arrow-dir: 1; }
+
+.navArrowGo {
+  animation: navArrowPass 0.52s var(--sm-ease-out);
+}
+
+@keyframes navArrowPass {
+  0% { transform: translateX(0); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+  38% { transform: translateX(calc(var(--arrow-dir) * 14px)); opacity: 0; animation-timing-function: step-end; }
+  39% { transform: translateX(calc(var(--arrow-dir) * -14px)); opacity: 0; animation-timing-function: var(--sm-ease-out); }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.navBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--glow-ring);
   color: var(--sm-text-primary);
 }
 
 .navBtn:disabled {
-  opacity: 0.28;
+  opacity: 0.26;
   cursor: default;
 }
 
-.navDivider {
-  width: 1px;
-  height: 14px;
-  margin: 0 2px;
-  background: var(--sm-border);
-  flex-shrink: 0;
+@media (prefers-reduced-motion: reduce) {
+  .navBtn svg { transition: none; }
+  .navArrowGo { animation: none; }
 }
 
 /* ---- Center ---- */

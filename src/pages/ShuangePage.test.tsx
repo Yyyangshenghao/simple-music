@@ -8,7 +8,16 @@ vi.mock('react', async (importOriginal) => ({
   useRef: (current: unknown) => ({ current }),
   useEffect: (effect: () => (() => void) | undefined) => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) },
 }))
-vi.mock('../hooks/useShuangePlayer', () => ({ useShuangePlayer: () => {} }))
+vi.mock('motion/react', async (importOriginal) => ({
+  ...await importOriginal<typeof import('motion/react')>(), useIsPresent: () => true,
+}))
+vi.mock('../stores/navigation', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/navigation')>()
+  const store = original.useNavigationStore
+  return { ...original, useNavigationStore: Object.assign(
+    (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()), store
+  ) }
+})
 vi.mock('../stores/shuange', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/shuange')>()
   const store = original.useShuangeStore
@@ -20,6 +29,7 @@ import { useShuangeStore } from '../stores/shuange'
 import { useShortcutStore } from '../stores/shortcuts'
 import { useLikesStore } from '../stores/likes'
 import { usePlayerStore } from '../stores/player'
+import { useNavigationStore } from '../stores/navigation'
 import { ShuangePage } from './ShuangePage'
 
 const initial = useShuangeStore.getState()
@@ -34,6 +44,7 @@ function capture(event: KeyboardEvent) {
 beforeEach(() => {
   vi.useFakeTimers()
   h.listeners.length = 0
+  useNavigationStore.setState({ currentView: 'shuange', history: [], future: [] })
   useShortcutStore.setState({ recording: false })
   useShuangeStore.setState({ active: true, index: 1, feed: [track, track], next: vi.fn(async () => {}), prev: vi.fn(async () => {}),
     leave: vi.fn(), playFullCurrent: vi.fn(), toggleLike: vi.fn(async () => {}) })
@@ -58,6 +69,14 @@ afterEach(() => {
 })
 
 describe('爽歌键盘与主窗口导航拦截协作', () => {
+  it('界面卸载只清理按键和手势计时，不结束刷歌会话', () => {
+    capture(key())
+    h.cleanups.splice(0).forEach(cleanup => cleanup())
+    expect(useShuangeStore.getState().leave).not.toHaveBeenCalled()
+    expect(useShuangeStore.getState().active).toBe(true)
+    expect(window.removeEventListener).toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('聚焦按钮时，上下键在控件处理前消费，只切换一首', () => {
     const down = key()
     capture(down)

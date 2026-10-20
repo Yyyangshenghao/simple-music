@@ -85,6 +85,14 @@ describe('computeDefaultSongCount', () => {
 })
 
 describe('buildRoamTracks', () => {
+  it('合作曲按来源和 ID 去重，与远端歌单保持同一序列', () => {
+    const song = mkTrack(1, 0)
+    const otherSource = { ...song, source: 'qq' as const, provider: 'qq' as const }
+    const tracks = buildRoamTracks([[song], [{ ...song, id: String(song.id) }, otherSource]])
+    expect(tracks).toHaveLength(2)
+    expect(tracks).toContain(song)
+    expect(tracks).toContain(otherSource)
+  })
   it('汇总多位歌手已选曲目,总数不丢失', () => {
     const picksA = Array.from({ length: 10 }, (_, i) => mkTrack(1, i))
     const picksB = Array.from({ length: 3 }, (_, i) => mkTrack(2, i))

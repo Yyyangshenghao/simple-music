@@ -1,10 +1,13 @@
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 
 export interface MusicService {
   /** 推荐歌单分页拉取：page 0 为个性化推荐，之后每页拉更远的一批（可无限翻页的音源按 page 返回不同内容）。 */
   getRecommendPlaylists(page?: number): Promise<Playlist[]>
   /** 歌单骨架:完整 trackIds(顺序即歌单顺序)+ 已带详情的前缀批次(QQ/小歌单可能就是全部)。 */
-  getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton>
+  getPlaylistSkeleton(id: unknown, options?: { prefix?: number }): Promise<PlaylistSkeleton>
+  /** 歌单单页曲目（可选；骨架需要整单翻页的音源实现，供预览浮窗按页加载）。 */
+  getPlaylistPage?(id: unknown, offset: number, limit: number): Promise<PlaylistPage>
   /** 可选的轻量歌单变更检查；曲目顺序用于兜底判断时间戳未更新的情况。 */
   getPlaylistRevision?(id: unknown): Promise<PlaylistRevision>
   /** 按 id 批量补曲目详情;返回顺序与入参一致,查不到的跳过。 */
@@ -34,10 +37,14 @@ export interface MusicService {
   getLyrics(track: Track): Promise<LyricLine[]>
   /** 每日/猜你喜欢曲目推荐（可选；未实现的音源不渲染该卡片）。 */
   getDailySongs?(): Promise<Track[]>
+  /** 平台原生的连续推荐流；与固定每日推荐分别展示。 */
+  getRadioSongs?(): Promise<Track[]>
   /** 私人雷达歌单（可选；null = 不可用，隐藏卡片）。 */
   getRadarPlaylist?(): Promise<RadarPlaylist | null>
   /** 最近播放歌单（网易专属，账号级播放记录；空数组 = 未登录或无记录，隐藏栏目）。 */
   getRecentPlaylists?(): Promise<Playlist[]>
+  /** 账号最近歌曲窗口，按最近收听顺序；不等同于听歌排行。 */
+  getRecentTracks?(): Promise<Track[]>
   /** 官方榜单(飙升榜/新歌榜/热歌榜等;可选,不含账号数据,未登录也能拿),按主题分组返回。
    *  榜单本身就是歌单,entry.playlist 可直接丢进 PlaylistDetailView 复用懒加载详情。 */
   getToplists?(): Promise<ToplistGroup[]>
@@ -59,13 +66,19 @@ export interface MusicService {
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
   /** 建歌单,返回新歌单 id（可选;仅网易实现）。 */
   createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
+  getPlaylistManagementSession?(signal?: AbortSignal): Promise<PlaylistManagementSession>
+  inspectPlatformPlaylist?(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection>
+  mutatePlatformPlaylist?(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult>
+  /** 收藏或取消收藏他人歌单/专辑，返回平台读回的收藏状态。 */
+  setCollectionSubscribed?(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }>
   /** 清空歌单当前曲目并替换为新的一批（可选;仅网易实现）。 */
   replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   /** 覆盖歌单简介（可选;仅网易实现）。 */
   updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
-  /** 听歌打卡上报（可选;仅网易实现）。更新账号端"最近播放歌单"/"听歌排行"等真实数据；
-   *  sourceId 为播放来源的歌单/专辑 id，缺省时上游按歌曲自身 id 兜底。失败静默忽略,不影响播放。 */
-  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
+  /** 捕获本次播放对应的服务端账号，不将旧收听发送给后来登录的账号。 */
+  getPlaybackAccountToken?(): Promise<string | null>
+  /** seconds 是真实收听秒数；失败不打断播放。 */
+  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string; songId?: unknown }): Promise<void>
 }
 
 export interface RelatedPlaylistsPage {
@@ -107,6 +120,23 @@ export interface PlaylistSkeleton {
   trackIds: unknown[]
   tracks: Track[]
   updatedAt?: number | null
+  /** 歌单接口顺带返回的资料;入口数据缺简介等字段时供详情页补全。 */
+  meta?: PlaylistDetailMeta
+}
+
+export interface PlaylistDetailMeta {
+  description?: string
+  creator?: string
+  playCount?: number
+}
+
+export interface PlaylistPage {
+  tracks: Track[]
+  /** 平台报告的歌单总数；未知时为 null。 */
+  total: number | null
+  /** 下一页游标：按上游原始条目数推进，过滤掉的条目也计入。 */
+  nextOffset: number
+  hasMore: boolean
 }
 
 export interface PlaylistRevision {

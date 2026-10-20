@@ -6,6 +6,8 @@ import { mergeMiniPlayerPayload } from '../../src/lib/mini-player-state'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
 import { createResizeDispatcher } from './resize-dispatcher'
 import { handleReturnShortcut } from './return-shortcut'
+import { blockKeyboardControl } from '../../src/lib/keyboard-controls'
+import '../../src/styles/keyboard-controls.css'
 import './mini-player.css'
 
 function OverlayApp() {
@@ -24,12 +26,14 @@ function OverlayApp() {
 
   useEffect(() => {
     const overlay = window.desktopOverlay
-    if (!overlay) return
-    const onKeyDown = (event: KeyboardEvent) => handleReturnShortcut(
-      event, payload.returnShortcut ?? '', overlay.platform, () => { void overlay.focusMainFromMiniPlayer() }
-    )
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (overlay) handleReturnShortcut(
+        event, payload.returnShortcut ?? '', overlay.platform, () => { void overlay.focusMainFromMiniPlayer() }
+      )
+      blockKeyboardControl(event, overlay?.platform ?? 'win32')
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [payload.returnShortcut])
 
   // 宽度由主进程改窗口尺寸驱动,这里只跟随
@@ -99,6 +103,7 @@ function OverlayApp() {
         onVolume={(v) => control('volume', v)}
         onClose={() => window.desktopOverlay?.closeMiniPlayer()}
         onOpenMain={() => window.desktopOverlay?.focusMainFromMiniPlayer()}
+        onAddToPlaylist={payload.track ? () => { void window.desktopOverlay?.addToPlaylistFromMiniPlayer(payload.track!) } : undefined}
         onResizeBy={handleResizeBy}
         onPopoverChange={handlePopoverChange}
       />

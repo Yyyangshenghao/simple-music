@@ -4,7 +4,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
-import { PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
+import { CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
@@ -38,21 +38,19 @@ import pageScroll from '../styles/page-scroll.module.css'
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
 const SETTINGS_TABS = [
-  { id: 'music', label: '音源与播放', description: '账户、来源标识、播放顺序与音质' },
-  { id: 'visual', label: '界面与窗口', description: '主题、字体、迷你播放条与界面动效' },
-  { id: 'lyrics', label: '歌词与动效', description: '桌面歌词、字体与 3D 歌词舞台' },
-  { id: 'cache', label: '缓存与下载', description: '自动缓存、已下载歌曲与存储位置' },
-  { id: 'shortcuts', label: '快捷键', description: '应用内、全局快捷键与系统媒体键' },
-  { id: 'about', label: '关于应用', description: '版本信息、更新与更新日志' },
+  { id: 'music', label: '音源与播放' },
+  { id: 'visual', label: '界面与窗口' },
+  { id: 'lyrics', label: '歌词与动效' },
+  { id: 'cache', label: '缓存与下载' },
+  { id: 'shortcuts', label: '快捷键' },
+  { id: 'about', label: '关于应用' },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
-function SectionHeading({ section, index }: { section: (typeof SETTINGS_TABS)[number]; index: number }) {
+function SectionHeading({ section }: { section: (typeof SETTINGS_TABS)[number] }) {
   return (
     <div className={styles.sectionHeading}>
-      <span className={styles.sectionEyebrow}>PREFERENCES / {String(index + 1).padStart(2, '0')}</span>
       <h2 id={`settings-heading-${section.id}`}>{section.label}</h2>
-      <p>{section.description}</p>
     </div>
   )
 }
@@ -112,7 +110,7 @@ function WindowCloseSettings() {
       {!initialized && !error && <p className={styles.groupHint} role="status">正在读取关闭方式…</p>}
       {error && <div className={styles.row}>
         <span className={styles.rowLabel} role="alert">{error}</span>
-        <button type="button" className={`${styles.seg} no-drag`} disabled={pending} onClick={() => void refresh()}>重新读取</button>
+        <button type="button" className={`${styles.action} no-drag`} disabled={pending} onClick={() => void refresh()}>重新读取</button>
       </div>}
     </section>
   )
@@ -439,7 +437,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
         <div className={styles.lyricsSubheading}>恢复设置</div>
         <div className={styles.row}>
           <span className={styles.rowLabel}>恢复数值参数，保留场景与文字风格</span>
-          <button className={`${styles.seg} no-drag`} onClick={resetParams}>
+          <button className={`${styles.action} ${styles.actionQuiet} no-drag`} onClick={() => resetParams()}>
             恢复默认
           </button>
         </div>
@@ -634,10 +632,14 @@ export function SettingsPage() {
   useEffect(() => {
     if (settingsMusicRequest === 0) return
     scrollToSection('music')
-    useNavigationStore.setState({ settingsMusicRequest: 0 })
+    useNavigationStore.getState().consumeSettingsMusicRequest(settingsMusicRequest)
   }, [settingsMusicRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const contentGutter = useSettingsStore((s) => s.contentGutter)
+  const setContentGutter = useSettingsStore((s) => s.setContentGutter)
+  const contentLayout = useSettingsStore((s) => s.contentLayout)
+  const setContentLayout = useSettingsStore((s) => s.setContentLayout)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
   const setFontFamily = useSettingsStore((s) => s.setFontFamily)
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
@@ -803,15 +805,11 @@ export function SettingsPage() {
     <div className={`${styles.page} ${pageScroll.viewport}`} ref={pageRef}>
       <div className={styles.shell}>
         <header className={styles.hero}>
-          <div className={styles.heroCopy}>
-            <span className={styles.eyebrow}>CONTROL CENTER</span>
-            <h1 className={styles.title}>设置</h1>
-            <p className={styles.lede}>音源、播放、界面与歌词，都可以按你的习惯调整。</p>
-          </div>
+          <h1 className={styles.title}>设置</h1>
         </header>
         <div className={styles.settingsLayout}>
           <nav className={styles.tabBar} aria-label="设置导航">
-            {SETTINGS_TABS.map(({ id, label, description }, index) => (
+            {SETTINGS_TABS.map(({ id, label }) => (
               <motion.button
                 key={id}
                 type="button"
@@ -825,17 +823,13 @@ export function SettingsPage() {
                 whileTap={tapScale}
                 transition={springSnappy}
               >
-                <span className={styles.tabNumber}>{String(index + 1).padStart(2, '0')}</span>
-                <span className={styles.tabCopy}>
-                  <strong>{label}</strong>
-                  <small>{description}</small>
-                </span>
+                {label}
               </motion.button>
             ))}
           </nav>
           <div className={styles.settingsContent}>
             <section id="settings-section-music" className={styles.settingsSection} aria-labelledby="settings-heading-music">
-              <SectionHeading section={SETTINGS_TABS[0]} index={0} />
+              <SectionHeading section={SETTINGS_TABS[0]} />
               <div className={`${styles.settingsGrid} ${styles.musicGrid}`}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>
@@ -1048,12 +1042,12 @@ export function SettingsPage() {
               </div>
             </section>
             <section id="settings-section-visual" className={styles.settingsSection} aria-labelledby="settings-heading-visual">
-              <SectionHeading section={SETTINGS_TABS[1]} index={1} />
+              <SectionHeading section={SETTINGS_TABS[1]} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
                   {window.desktop?.platform === 'win32' && <WindowCloseSettings />}
                   <section className={styles.group}>
-                    <h3 className={styles.groupTitle}>主题</h3>
+                    <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
                       <div className={styles.segControl}>
@@ -1070,6 +1064,25 @@ export function SettingsPage() {
                         ))}
                       </div>
                     </div>
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>页面布局</span>
+                      <div className={styles.segControl} role="group" aria-label="页面布局">
+                        {(['framed', 'full'] as const).map(layout => <button
+                          key={layout}
+                          type="button"
+                          className={`${styles.seg} no-drag ${contentLayout === layout ? styles.segActive : ''}`}
+                          aria-pressed={contentLayout === layout}
+                          onClick={() => setContentLayout(layout)}
+                        >{layout === 'framed' ? '保留边框' : '内容延展'}</button>)}
+                      </div>
+                    </div>
+                    <p className={styles.groupHint}>内容延展会移除栏目外框，让音乐内容铺开。</p>
+                    {contentLayout === 'full' && <SliderRow
+                      label="左右留白"
+                      min={CONTENT_GUTTER_MIN} max={CONTENT_GUTTER_MAX} step={1}
+                      value={contentGutter} format={(v) => `${v} px`}
+                      onChange={setContentGutter}
+                    />}
                   </section>
 
                   <section className={styles.group}>
@@ -1096,7 +1109,7 @@ export function SettingsPage() {
                         {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
                       </span>
                       {fontsError && (
-                        <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+                        <button type="button" className={`${styles.action} no-drag`} onClick={() => void loadSystemFonts()}>
                           重试
                         </button>
                       )}
@@ -1230,17 +1243,16 @@ export function SettingsPage() {
                   ))}
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>游戏模式</h3>
-                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，暂停界面动效，保留音乐播放和已启用的全局快捷键。可从托盘退出并恢复。</p>
+                    <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，音乐继续播放。可通过托盘或已启用的全局快捷键控制，从托盘退出并恢复。</p>
                     <div className={styles.row}>
-                      <span className={styles.rowLabel}>使用托盘或全局快捷键控制播放。</span>
-                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
+                      <button type="button" className={`${styles.action} no-drag`} onClick={() => void useGameModeStore.getState().configure({ enabled: true })}>进入游戏模式</button>
                     </div>
                   </section>
                 </div>
               </div>
             </section>
             <section id="settings-section-lyrics" className={styles.settingsSection} aria-labelledby="settings-heading-lyrics">
-              <SectionHeading section={SETTINGS_TABS[2]} index={2} />
+              <SectionHeading section={SETTINGS_TABS[2]} />
               <div className={styles.lyricsPage}>
                 <DesktopLyricsSettings />
                 <section className={styles.group}>
@@ -1253,7 +1265,7 @@ export function SettingsPage() {
                       {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : `${systemFonts.length} 种系统字体可用`}
                     </span>
                     {fontsError && (
-                      <button type="button" className={`${styles.seg} no-drag`} onClick={() => void loadSystemFonts()}>
+                      <button type="button" className={`${styles.action} no-drag`} onClick={() => void loadSystemFonts()}>
                         重试
                       </button>
                     )}
@@ -1325,20 +1337,20 @@ export function SettingsPage() {
               </div>
             </section>
             <section id="settings-section-cache" className={styles.settingsSection} aria-labelledby="settings-heading-cache">
-              <SectionHeading section={SETTINGS_TABS[3]} index={3} />
+              <SectionHeading section={SETTINGS_TABS[3]} />
               <div className={`${styles.settingsGrid} ${styles.storageGrid}`}>
                 <section className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>歌曲下载</h3>
-                  <p className={styles.groupHint}>歌曲按名称保存为音频文件，支持批量加入下载队列、三首并发、暂停和重试。更改下载目录保留已有文件，清理播放器缓存不会删除这些文件。</p>
+                  <p className={styles.groupHint}>更改目录只影响之后加入的任务，已有文件保留。</p>
                   <div className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={downloadDir}>{downloadDir || '在下载队列中选择'}</span>
-                    <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载与目录</button>
+                    <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载</button>
                   </div>
                 </section>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>自动缓存</h3>
-                  <p className={styles.groupHint}>播放时自动产生，容量满后可自动清理。清理缓存不会删除已下载歌曲。</p>
+                  <p className={styles.groupHint}>播放时自动保存，容量满后可自动清理。清理缓存不会删除下载目录中的歌曲。</p>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>缓存占用</span>
                     <span className={styles.rowValue}>
@@ -1367,23 +1379,20 @@ export function SettingsPage() {
                 </section>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>播放器离线音乐</h3>
-                  <p className={styles.groupHint}>播放器中保留的离线音频，不占自动缓存额度，可在“我的库 → 离线音乐”中查看；与下载目录中的歌曲文件分别管理。</p>
+                  <p className={styles.groupHint}>不占自动缓存额度，可在“我的库 → 离线音乐”中查看，与下载目录中的歌曲分别管理。</p>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>离线音频占用</span>
                     <span className={styles.rowValue}>
                       {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 个文件` : '—'}
                     </span>
-                  </div>
-                  <div className={styles.row}>
-                    <span className={styles.rowValue}>删除前会再次确认</span>
-                    <button className={`${styles.storageAction} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
+                    <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
                       删除离线音频
                     </button>
                   </div>
                 </section>
                 <section className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>播放器缓存位置</h3>
-                  <p className={styles.groupHint}>自动缓存与播放器离线音乐共用此位置，分别统计和清理。更改位置会清除原目录中的缓存、离线音频及未识别旧文件，不影响独立下载目录中的歌曲文件。</p>
+                  <p className={styles.groupHint}>更改位置会删除原目录中的缓存、离线音频及未识别旧文件，下载目录中的歌曲不受影响。</p>
                   <div className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>缓存文件夹</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
@@ -1395,7 +1404,7 @@ export function SettingsPage() {
                       </button>
                     )}
                     {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
-                      <button className={`${styles.storageAction} no-drag`} onClick={() => {
+                      <button className={`${styles.storageAction} ${styles.actionQuiet} no-drag`} onClick={() => {
                         const hasSaved = !!audioCache?.pinnedFiles
                         if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('恢复默认缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
                         void postCacheConfig({ dir: '', confirmPinned: hasSaved })
@@ -1414,7 +1423,7 @@ export function SettingsPage() {
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>未识别旧文件<InfoButton label="未识别旧文件" text="这些文件缺少可用记录，无法判断是否曾经保存下载；不会随自动缓存清理，手动删除需要确认。" /></span>
                       <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
-                      <button className={`${styles.storageAction} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
+                      <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
                         删除未识别文件
                       </button>
                     </div>
@@ -1423,11 +1432,11 @@ export function SettingsPage() {
               </div>
             </section>
             <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
-              <SectionHeading section={SETTINGS_TABS[4]} index={4} />
+              <SectionHeading section={SETTINGS_TABS[4]} />
               <ShortcutSettings />
             </section>
             <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
-              <SectionHeading section={SETTINGS_TABS[5]} index={5} />
+              <SectionHeading section={SETTINGS_TABS[5]} />
               <div className={styles.settingsGrid}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>版本与更新</h3>
@@ -1438,7 +1447,7 @@ export function SettingsPage() {
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>{updateStatusText}</span>
                     {ready ? (
-                      <button className={`${styles.seg} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
+                      <button className={`${styles.action} ${styles.actionPrimary} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
                         {installing
                           ? isMacUpdate
                             ? '正在打开安装包…'
@@ -1450,19 +1459,19 @@ export function SettingsPage() {
                     ) : downloading ? (
                       <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
                     ) : updateInfo?.updateAvailable ? (
-                      <button className={`${styles.seg} no-drag`} onClick={() => void startDownload()}>
+                      <button className={`${styles.action} ${styles.actionPrimary} no-drag`} onClick={() => void startDownload()}>
                         下载更新
                       </button>
                     ) : (
-                      <button className={`${styles.seg} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
+                      <button className={`${styles.action} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
                         检查更新
                       </button>
                     )}
                   </div>
                   <div className={styles.row}>
-                    <span className={styles.rowLabel}>查看各版本的更新内容</span>
-                    <button type="button" className={`${styles.seg} no-drag`} onClick={() => useNavigationStore.getState().navigateTo('release-history')}>
-                      更新日志
+                    <span className={styles.rowLabel}>更新日志</span>
+                    <button type="button" className={`${styles.action} ${styles.actionQuiet} no-drag`} aria-label="查看更新日志" onClick={() => useNavigationStore.getState().navigateTo('release-history')}>
+                      查看
                     </button>
                   </div>
                   <div className={styles.row}>

@@ -3,6 +3,7 @@ import type { GameModeState } from '../types/ipc'
 import { useToastStore } from './toast'
 
 interface GameModeStore extends GameModeState {
+  initialized: boolean
   sequence: number
   setState(state: GameModeState): void
   configure(state: Partial<GameModeState>): Promise<void>
@@ -10,9 +11,10 @@ interface GameModeStore extends GameModeState {
 
 export const useGameModeStore = create<GameModeStore>((set, get) => ({
   enabled: false,
+  initialized: false,
   sequence: 0,
-  // React 可能合并连续进/退，序号保证原生窗口仍收到最终恢复配置。
-  setState(state) { set(current => ({ ...state, sequence: current.sequence + 1 })) },
+  // 每次主进程确认都递增，确保原生悬浮窗配置可完整重放。
+  setState(state) { set(current => ({ ...state, initialized: true, sequence: current.sequence + 1 })) },
   async configure(patch) {
     const desktop = window.desktop
     if (!desktop?.setGameMode) return

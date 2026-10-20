@@ -4,7 +4,11 @@ const harness = vi.hoisted(() => {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   return {
     handlers,
+    gameEnabled: true,
+    setGameMode: vi.fn(),
+    setMiniPlayerEnabled: vi.fn<(enabled: boolean, width?: number) => { ok: boolean; error?: string }>(() => ({ ok: true })),
     returnFromMiniPlayer: vi.fn(() => ({ ok: true })),
+    addToPlaylistFromMiniPlayer: vi.fn(() => ({ ok: true })),
     hideMiniPlayerToTray: vi.fn(() => ({ ok: true }))
   }
 })
@@ -18,14 +22,20 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../modules/overlay-manager', () => ({
-  setMiniPlayerEnabled: vi.fn(),
+  setMiniPlayerEnabled: harness.setMiniPlayerEnabled,
   updateMiniPlayer: vi.fn(),
   moveMiniPlayerBy: vi.fn(),
   resizeMiniPlayerBy: vi.fn(),
   setMiniPlayerPopover: vi.fn(),
   triggerMiniPlayerControl: vi.fn(),
   returnFromMiniPlayer: harness.returnFromMiniPlayer,
+  addToPlaylistFromMiniPlayer: harness.addToPlaylistFromMiniPlayer,
   hideMiniPlayerToTray: harness.hideMiniPlayerToTray
+}))
+
+vi.mock('../modules/game-mode', () => ({
+  getGameMode: () => ({ enabled: harness.gameEnabled }),
+  setGameMode: harness.setGameMode
 }))
 
 import { registerMiniPlayerIpc } from './miniplayer'
@@ -33,9 +43,28 @@ import { registerMiniPlayerIpc } from './miniplayer'
 describe('迷你播放器 IPC', () => {
   beforeEach(() => {
     harness.handlers.clear()
+    harness.gameEnabled = true
+    harness.setGameMode.mockClear()
+    harness.setMiniPlayerEnabled.mockReset().mockReturnValue({ ok: true })
     harness.returnFromMiniPlayer.mockClear()
+    harness.addToPlaylistFromMiniPlayer.mockClear()
     harness.hideMiniPlayerToTray.mockClear()
     registerMiniPlayerIpc()
+  })
+
+  it('后台失联后拒绝迟到的开启请求，保留游戏模式且不恢复主窗口', () => {
+    const failure = { ok: false, error: '播放后台已停止，请重启应用' }
+    harness.setMiniPlayerEnabled.mockReturnValue(failure)
+    const result = harness.handlers.get('miniplayer:set-enabled')?.({}, { enabled: true })
+    expect(result).toEqual(failure)
+    expect(harness.setGameMode).not.toHaveBeenCalled()
+  })
+
+  it('成功开启迷你条才退出游戏模式，不额外恢复主窗口', () => {
+    const result = harness.handlers.get('miniplayer:set-enabled')?.({}, { enabled: true, width: 360 })
+    expect(result).toEqual({ ok: true })
+    expect(harness.setMiniPlayerEnabled).toHaveBeenCalledWith(true, 360)
+    expect(harness.setGameMode).toHaveBeenCalledWith({ enabled: false }, false)
   })
 
   it('点击关闭按钮时退出迷你模式并恢复主窗口', () => {
@@ -46,5 +75,12 @@ describe('迷你播放器 IPC', () => {
 
     expect(harness.returnFromMiniPlayer).toHaveBeenCalledOnce()
     expect(harness.hideMiniPlayerToTray).not.toHaveBeenCalled()
+  })
+
+  it('收藏专用通道保留发送方与点击目标，交由窗口边界校验', () => {
+    const event = { sender: {}, senderFrame: {} }
+    const track = { source: 'netease', id: 1, name: '歌曲' }
+    expect(harness.handlers.get('overlay:miniplayer-add-to-playlist')?.(event, track)).toEqual({ ok: true })
+    expect(harness.addToPlaylistFromMiniPlayer).toHaveBeenCalledWith(event, track)
   })
 })

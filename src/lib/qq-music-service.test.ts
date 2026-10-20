@@ -2,16 +2,84 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 
 const apiGet = vi.fn()
+const apiPost = vi.fn()
 vi.mock('./api', () => ({
   api: {
     get: (...args: unknown[]) => apiGet(...args),
+    post: (...args: unknown[]) => apiPost(...args),
   },
 }))
 
 import { QQMusicService } from './qq-music-service'
+import { advanceProviderAccountSession } from './provider-account-session'
+import { clearProviderRequestCache } from './provider-request-cache'
 
 beforeEach(() => {
   apiGet.mockReset()
+  apiPost.mockReset()
+  clearProviderRequestCache()
+})
+
+describe('QQ红心', () => {
+  const track: Track = { source: 'qq', provider: 'qq', type: 'song', id: 'mid1', qqId: 123, songType: 1, name: '歌曲', artist: '', artists: [] }
+  it('批量去重并按100首分批，空查询不请求', async () => {
+    const service = new QQMusicService()
+    apiPost.mockImplementation(async (_path, body) => ({ success: true, liked: Object.fromEntries(body.ids.map((id: string) => [id, id === 'mid1'])) }))
+    expect(await service.checkLiked([])).toEqual({})
+    const ids = Array.from({ length: 101 }, (_, i) => `mid${i}`)
+    expect(await service.checkLiked([...ids, 'mid1'])).toHaveProperty('mid1', true)
+    expect(apiPost.mock.calls.map(([,body]) => body.ids.length)).toEqual([100, 1])
+  })
+  it('批次失败或换账号不能返回部分状态或继续下一批', async () => {
+    apiPost.mockResolvedValue({ success: false, error: '操作过多' })
+    await expect(new QQMusicService().checkLiked(['mid1'])).rejects.toThrow('操作过多')
+    apiPost.mockImplementationOnce(async () => { advanceProviderAccountSession('qq'); return { success: true, liked: {} } })
+    await expect(new QQMusicService().checkLiked(Array.from({ length: 101 }, (_,i) => `mid${i}`))).rejects.toThrow('账号已变化')
+    expect(apiPost).toHaveBeenCalledTimes(2)
+  })
+  it('红心写入带核实会话及真实曲目身份，未确认不能成功', async () => {
+    const service = new QQMusicService()
+    apiGet.mockResolvedValue({ accountId: '7', accountToken: 'fixture' })
+    apiPost.mockResolvedValue({ success: true, liked: true })
+    await expect(service.likeTrack(track, true)).resolves.toBe(true)
+    expect(apiPost).toHaveBeenCalledWith('/api/qq/song/like', { accountId: '7', accountToken: 'fixture', like: true,
+      track: { source: 'qq', id: 'mid1', qqId: '123', songType: 1 } })
+    apiPost.mockResolvedValue({ success: true, liked: true })
+    await expect(service.likeTrack(track, false)).rejects.toThrow('未确认')
+    apiPost.mockResolvedValue({ success: false, error: 'QQ 音乐拒绝写入（80105）' })
+    await expect(service.likeTrack(track, true)).rejects.toThrow('80105')
+  })
+  it('跨源与核实会话途中换号均不写入', async () => {
+    const service = new QQMusicService()
+    await expect(service.likeTrack({ ...track, source: 'local' }, true)).rejects.toThrow('只能操作')
+    apiGet.mockImplementationOnce(async () => { advanceProviderAccountSession('qq'); return { accountId: '7', accountToken: 'old' } })
+    await expect(service.likeTrack(track, true)).rejects.toThrow('账号已变化')
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+})
+
+it('每日30首与猜你喜欢分别请求原生端点，最近歌曲共享短缓存', async () => {
+  const service = new QQMusicService()
+  apiGet.mockResolvedValue({ songs: [] })
+  await service.getDailySongs()
+  await service.getRadioSongs()
+  await Promise.all([service.getRecentTracks(), service.getRecentTracks()])
+  expect(apiGet.mock.calls.map(([path]) => path)).toEqual(['/api/qq/recommend/daily', '/api/qq/recommend/songs', '/api/qq/history/recent-tracks'])
+  advanceProviderAccountSession('qq')
+  await service.getRecentTracks()
+  expect(apiGet).toHaveBeenCalledTimes(4)
+})
+
+it('QQ歌单管理沿用可取消的账号核实和独立增量写入端点', async () => {
+  const service = new QQMusicService()
+  const controller = new AbortController()
+  apiGet.mockResolvedValue({ accountId: '7', accountToken: 'test' })
+  await service.getPlaylistManagementSession(controller.signal)
+  expect(apiGet).toHaveBeenCalledWith('/api/qq/playlist-management/session', undefined, { signal: controller.signal })
+  const input = { accountId: '7', accountToken: 'test', action: 'add' as const, playlistId: '900', tracks: [{ source: 'qq' as const, id: 'mid1', qqId: '1', songType: 0 }] }
+  apiPost.mockResolvedValue({ status: 'complete', completed: 1, requested: 1, playlistId: '900' })
+  await expect(service.mutatePlatformPlaylist(input, controller.signal)).resolves.toMatchObject({ status: 'complete', playlistId: '900' })
+  expect(apiPost).toHaveBeenCalledWith('/api/qq/playlist-management/manage', input, undefined, { signal: controller.signal, timeoutMs: 120000 })
 })
 
 describe('QQMusicService.getLyrics', () => {
@@ -34,7 +102,7 @@ describe('QQMusicService.getLyrics', () => {
     expect(apiGet).toHaveBeenCalledWith('/api/qq/lyric', {
       id: 123456,
       mid: '003a1B2c',
-    })
+    }, { signal: undefined })
   })
 })
 

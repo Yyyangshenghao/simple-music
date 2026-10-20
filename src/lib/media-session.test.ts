@@ -2,18 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 
 const h = vi.hoisted(() => ({
-  enabled: true, play: vi.fn(), pause: vi.fn(), seek: vi.fn(), next: vi.fn(), prev: vi.fn(),
+  stopSettings: vi.fn(), stopPlayer: vi.fn(), enabled: true, play: vi.fn(), pause: vi.fn(), seek: vi.fn(), next: vi.fn(), prev: vi.fn(),
   shuangeActive: false, feedNext: vi.fn(), feedPrev: vi.fn(),
   player: { currentTrack: null as Track | null, duration: 0, position: 0, status: 'idle', rate: 1 },
   onSettings: undefined as ((state: { mediaKeysEnabled: boolean }, previous: { mediaKeysEnabled: boolean }) => void) | undefined,
   onPlayer: undefined as ((state: unknown, prev: unknown) => void) | undefined
 }))
 vi.mock('../stores/settings', () => ({ useSettingsStore: {
-  getState: () => ({ mediaKeysEnabled: h.enabled }), subscribe: (cb: typeof h.onSettings) => { h.onSettings = cb }
+  getState: () => ({ mediaKeysEnabled: h.enabled }), subscribe: (cb: typeof h.onSettings) => { h.onSettings = cb; return h.stopSettings }
 } }))
 vi.mock('../stores/player', () => ({ usePlayerStore: {
   getState: () => ({ ...h.player, play: h.play, pause: h.pause, seek: h.seek }),
-  subscribe: (cb: typeof h.onPlayer) => { h.onPlayer = cb }
+  subscribe: (cb: typeof h.onPlayer) => { h.onPlayer = cb; return h.stopPlayer }
 } }))
 vi.mock('../stores/playlist', () => ({ usePlaylistStore: { getState: () => ({ next: h.next, prev: h.prev }) } }))
 vi.mock('../stores/shuange', () => ({ useShuangeStore: { getState: () => ({ active: h.shuangeActive, next: h.feedNext, prev: h.feedPrev }) } }))
@@ -25,7 +25,7 @@ beforeEach(() => {
   h.shuangeActive = false
   h.player = { currentTrack: null, duration: 0, position: 0, status: 'idle', rate: 1 }
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('系统媒体键开关', () => {
   it('媒体键在刷歌会话中切换 feed，退出后恢复普通队列控制', async () => {
@@ -69,6 +69,77 @@ describe('系统媒体键开关', () => {
     handlers.get('play')?.({ action: 'play' })
     expect(h.play).toHaveBeenCalledTimes(2)
     vi.unstubAllGlobals()
+  })
+
+  it('重复初始化只注册一组媒体动作；释放解除监听，迟到动作不能操作播放器', async () => {
+    const handlers = new Map<MediaSessionAction, MediaSessionActionHandler | null>()
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(),
+      setActionHandler: vi.fn((action, handler) => handlers.set(action, handler)) }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    expect(initMediaSession()).toBe(stop)
+    const registrations = ms.setActionHandler.mock.calls.length
+    const stalePlay = handlers.get('play')!
+    stop()
+    stop()
+    expect(h.stopSettings).toHaveBeenCalledOnce()
+    expect(h.stopPlayer).toHaveBeenCalledOnce()
+    expect(ms.setActionHandler).toHaveBeenCalledTimes(registrations * 2)
+    expect(handlers.get('play')).toBeNull()
+    stalePlay({ action: 'play' })
+    expect(h.play).not.toHaveBeenCalled()
+  })
+
+  it('刚暂停后连续定位立即更新系统进度，不被播放进度的一秒节流丢弃', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10000)
+    h.player = { currentTrack: { id: 1, name: '歌曲', artist: '歌手' } as Track, duration: 180, position: 30, status: 'playing', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    let previous = h.player
+    h.player = { ...h.player, status: 'paused' }
+    h.onPlayer?.(h.player, previous)
+    for (const position of [42, 55]) {
+      previous = h.player
+      h.player = { ...h.player, position }
+      h.onPlayer?.(h.player, previous)
+      expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position, playbackRate: 1 })
+    }
+    expect(ms.playbackState).toBe('paused')
+    stop()
+  })
+
+  it('暂停时修改倍速立即更新系统时钟，正常播放进度仍按一秒同步', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10000)
+    h.player = { currentTrack: { id: 1, name: '歌曲', artist: '歌手' } as Track, duration: 180, position: 30, status: 'paused', rate: 1 }
+    const ms = { metadata: null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    let previous = h.player
+    h.player = { ...h.player, rate: 2 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position: 30, playbackRate: 2 })
+    previous = h.player
+    h.player = { ...h.player, status: 'playing' }
+    h.onPlayer?.(h.player, previous)
+    ms.setPositionState.mockClear()
+    previous = h.player
+    h.player = { ...h.player, position: 31 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).not.toHaveBeenCalled()
+    vi.setSystemTime(11000)
+    previous = h.player
+    h.player = { ...h.player, position: 32 }
+    h.onPlayer?.(h.player, previous)
+    expect(ms.setPositionState).toHaveBeenLastCalledWith({ duration: 180, position: 32, playbackRate: 2 })
+    stop()
   })
 
   it('播放后清空队列时清除系统曲目信息、播放状态与旧进度', async () => {

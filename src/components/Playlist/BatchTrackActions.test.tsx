@@ -37,7 +37,7 @@ describe('批量操作栏', () => {
   })
 
   it('歌曲数量按来源和 ID 去重，并排除不可播放的歌曲', () => {
-    const html = renderToStaticMarkup(<BatchTrackActions tracks={[track('netease'), { ...track('netease'), id: '1' }, track('qq'), { ...track('qq'), id: 2, playable: false }]} selection={selection} />)
+    const html = renderToStaticMarkup(<BatchTrackActions tracks={[track('netease'), { ...track('netease'), id: '1' }, track('qq'), { ...track('netease'), id: 2, playable: false }]} selection={selection} />)
     expect(html).toContain('下载所选（2 首）')
   })
 
@@ -47,4 +47,20 @@ describe('批量操作栏', () => {
     expect(renderToStaticMarkup(<BatchTrackActions tracks={[]} collections={[{ ...album, trackCount: 0, trackCountKnown: false }]} selection={selection} />)).toContain('下载所选（曲数待确认）')
     expect(renderToStaticMarkup(<BatchTrackActions tracks={[]} collections={[{ ...album, trackCount: 0 }]} selection={selection} />)).toContain('下载所选（曲数待确认）')
   })
+  it('无论来源与是否离线，都只给出一个统一的「加入歌单」入口', () => {
+    for (const tracks of [[track('netease')], [track('qq')], [track('netease'), track('qq')], [track('apple')], [track('local')]]) {
+      const html = renderToStaticMarkup(<BatchTrackActions tracks={tracks} />)
+      expect(html).toContain('加入歌单')
+      expect(html).not.toContain('加入平台歌单')
+      expect(html).not.toContain('加入应用歌单')
+    }
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} offline />)).toContain('加入歌单')
+  })
+
+  it('仅在多选且有移出回调时显示平台移出入口', () => {
+    const onRemove = async () => {}
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} selection={selection} onRemove={onRemove} />)).toContain('移出平台歌单')
+    expect(renderToStaticMarkup(<BatchTrackActions tracks={[track('netease')]} onRemove={onRemove} />)).not.toContain('移出平台歌单')
+  })
+
 })

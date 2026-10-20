@@ -1,4 +1,5 @@
 import { api, isLocalApiUrl } from './api'
+import { AudioPreloadPool } from './audio-preload-pool'
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
@@ -10,11 +11,33 @@ export interface AudioCacheRequestContext {
   quality: string
 }
 
+export interface AudioPreloadRequest {
+  url: string
+  startAt: number
+  cacheKey?: string
+  cacheContext?: AudioCacheRequestContext
+}
+
+/**
+ * 让实际播放和预加载使用完全一致的本地媒体地址
+ *
+ * @param request 上游地址及缓存参数
+ */
+function mediaUrl(request: AudioPreloadRequest): string {
+  return /^https?:\/\//i.test(request.url) && !isLocalApiUrl(request.url)
+    ? api.url('/api/audio', request.cacheKey
+      ? { url: request.url, cacheKey: request.cacheKey, ...request.cacheContext }
+      : { url: request.url })
+    : request.url
+}
+
 export interface AudioEngineCallbacks {
   onPosition?: (seconds: number) => void
   onDuration?: (seconds: number) => void
   onEnded?: () => void
   onStatus?: (status: PlaybackStatus) => void
+  onSeeking?: () => void
+  onSeeked?: () => void
   /** 当前候选已进入浏览器可播放态；解析器此时才提交实际音源。 */
   onCanPlay?: (loadId: number) => void
   /** URL 非空但媒体加载/解码失败，交回解析器尝试下一候选。 */
@@ -46,6 +69,12 @@ export class AudioEngine {
   private loadId = 0
   /** 上下文恢复期间，暂停、换源或更新的播放请求会取代旧播放意图。 */
   private playRevision = 0
+  private preloads = new AudioPreloadPool()
+  private sources = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>()
+  private bound = new WeakSet<HTMLAudioElement>()
+  private acceptingEvents = true
+  private retained = false
+  private startAt = 0
   private readonly handleDeviceChange = (): void => {
     this.cbs.onOutputDeviceChange?.(!this.audio.paused)
   }
@@ -63,29 +92,36 @@ export class AudioEngine {
 
   private bindEvents(): void {
     const a = this.audio
-    a.addEventListener('timeupdate', () => this.cbs.onPosition?.(a.currentTime))
-    a.addEventListener('durationchange', () => {
+    if (this.bound.has(a)) return
+    this.bound.add(a)
+    const listen = (name: string, callback: () => void) => a.addEventListener(name, () => {
+      if (this.acceptingEvents && this.audio === a) callback()
+    })
+    listen('timeupdate', () => this.cbs.onPosition?.(a.currentTime))
+    listen('durationchange', () => {
       if (Number.isFinite(a.duration)) this.cbs.onDuration?.(a.duration)
     })
-    a.addEventListener('ended', () => {
+    listen('ended', () => {
       this.cbs.onStatus?.('paused')
       this.cbs.onEnded?.()
     })
-    a.addEventListener('playing', () => {
+    listen('playing', () => {
       // 起播/恢复统一在此淡入:load 时 gain 已归零,出声瞬间从 0 拉起
       this.rampGain(1, FADE_SEC)
       this.cbs.onStatus?.('playing')
     })
-    a.addEventListener('pause', () => {
+    listen('pause', () => {
       if (!a.ended) this.cbs.onStatus?.('paused')
     })
-    a.addEventListener('waiting', () => this.cbs.onStatus?.('loading'))
-    a.addEventListener('canplay', () => this.cbs.onCanPlay?.(this.loadId))
-    a.addEventListener('error', () => {
+    listen('waiting', () => this.cbs.onStatus?.('loading'))
+    listen('seeking', () => this.cbs.onSeeking?.())
+    listen('seeked', () => this.cbs.onSeeked?.())
+    listen('canplay', () => this.cbs.onCanPlay?.(this.loadId))
+    listen('error', () => {
       const code = a.error?.code
       this.cbs.onError?.(code ? `MEDIA_ERR_${code}` : 'MEDIA_LOAD_ERROR', this.loadId)
     })
-    a.addEventListener('loadedmetadata', () => {
+    listen('loadedmetadata', () => {
       if (this.pendingSeek != null) {
         a.currentTime = this.pendingSeek
         this.pendingSeek = null
@@ -99,6 +135,7 @@ export class AudioEngine {
     if (!Ctor) return
     this.ctx = new Ctor()
     this.source = this.ctx.createMediaElementSource(this.audio)
+    this.sources.set(this.audio, this.source)
     this.analyser = this.ctx.createAnalyser()
     this.analyser.fftSize = 2048
     this.freq = new Uint8Array(new ArrayBuffer(this.analyser.frequencyBinCount))
@@ -127,7 +164,7 @@ export class AudioEngine {
 
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
    * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
-  load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext): number {
+  load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext, usePreloaded = false): number {
     ++this.playRevision
     this.clearPauseTimer()
     const loadId = ++this.loadId
@@ -137,12 +174,24 @@ export class AudioEngine {
     this.pendingSeek = startAt && startAt > 0 ? startAt : null
     // 本地音乐的 url 已经是我们自己的 /api/local/audio(同样支持 Range),直接播;
     // 再套一层 /api/audio 既多一跳,也会被 server 的 SSRF 防护按回环地址拦掉。
-    const src =
-      /^https?:\/\//i.test(upstreamUrl) && !isLocalApiUrl(upstreamUrl)
-        ? api.url('/api/audio', cacheKey
-          ? { url: upstreamUrl, cacheKey, ...cacheContext }
-          : { url: upstreamUrl })
-        : upstreamUrl
+    const src = mediaUrl({ url: upstreamUrl, startAt: startAt ?? 0, cacheKey, cacheContext })
+    const prepared = usePreloaded ? this.preloads.take({ src, startAt: startAt ?? 0 }) : undefined
+    this.preloads.trim()
+    this.startAt = startAt ?? 0
+    if (prepared || this.retained) this.replaceAudio(prepared ?? new Audio())
+    this.retained = false
+    this.acceptingEvents = true
+    if (prepared) {
+      this.pendingSeek = null
+      prepared.preload = 'auto'
+      // 原方案每次赋值 src 并 load 命中时保留同一元素和已完成的定位
+      queueMicrotask(() => {
+        if (this.loadId !== loadId || this.audio !== prepared || !this.acceptingEvents) return
+        this.cbs.onDuration?.(prepared.duration)
+        this.cbs.onCanPlay?.(loadId)
+      })
+      return loadId
+    }
     this.audio.src = src
     this.audio.load()
     return loadId
@@ -150,20 +199,75 @@ export class AudioEngine {
 
   /** 是否已加载过音频源(重启恢复态为 false,播放前需重新 load)。 */
   get hasSource(): boolean {
-    return !!this.audio.src
+    return !this.retained && !!this.audio.src
   }
 
-  clearSource(): void {
+  clearSource(retainForPreload = false): void {
     ++this.playRevision
     this.clearPauseTimer()
     this.loadId++
+    if (this.retained) return
+    if (retainForPreload && this.hasSource && this.audio.readyState > 0) {
+      this.acceptingEvents = false
+      this.audio.pause()
+      this.source?.disconnect()
+      this.source = null
+      this.retained = true
+      this.preloads.retain(this.audio, { src: this.audio.src, startAt: this.startAt })
+      this.pendingSeek = null
+      return
+    }
     this.audio.pause()
     this.audio.removeAttribute('src')
     this.audio.load()
     this.pendingSeek = null
   }
 
+  /**
+   * 接管暂停的准备元素 复用同一个音频图和媒体源节点
+   *
+   * @param audio 将成为当前播放源的媒体
+   */
+  private replaceAudio(audio: HTMLAudioElement): void {
+    this.acceptingEvents = false
+    this.source?.disconnect()
+    const rate = this.audio.playbackRate
+    this.audio.pause()
+    this.audio = audio
+    audio.defaultPlaybackRate = rate
+    audio.playbackRate = rate
+    audio.crossOrigin = 'anonymous'
+    this.bindEvents()
+    if (this.ctx && this.analyser) {
+      this.source = this.sources.get(audio) ?? this.ctx.createMediaElementSource(audio)
+      this.sources.set(audio, this.source)
+      this.source.connect(this.analyser)
+    }
+  }
+
+  /**
+   * 准备刷歌前后各两首音频 普通播放不调用
+   *
+   * @param requests 最多四个相邻目标
+   */
+  preloadAudio(requests: AudioPreloadRequest[]): void {
+    this.preloads.update(requests.map(request => ({ src: mediaUrl(request), startAt: request.startAt, rate: this.audio.playbackRate })))
+  }
+
+  /**
+   * 等待已开始的预加载 不触发实际播放
+   *
+   * @param request 待切换的音频目标
+   */
+  waitForPreload(request: AudioPreloadRequest): Promise<boolean> {
+    return this.preloads.wait({ src: mediaUrl(request), startAt: request.startAt })
+  }
+
+  /** 退出刷歌或账号变化时释放准备实例 */
+  releasePreloads(): void { this.preloads.clear() }
+
   async play(): Promise<void> {
+    if (this.retained) return
     const revision = ++this.playRevision
     this.clearPauseTimer()
     this.ensureContext()
@@ -229,6 +333,8 @@ export class AudioEngine {
 
   destroy(): void {
     ++this.playRevision
+    this.acceptingEvents = false
+    this.preloads.clear()
     this.clearPauseTimer()
     if (typeof navigator !== 'undefined') {
       navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange)

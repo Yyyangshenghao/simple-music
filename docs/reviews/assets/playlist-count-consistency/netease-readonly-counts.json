@@ -1,0 +1,55 @@
+{
+  "readOnly": true,
+  "originalTargetsWritten": 0,
+  "samples": [
+    {
+      "candidate": 1,
+      "cardSummary": 864,
+      "detailSummary": 864,
+      "fullReferences": 870,
+      "uniqueReferences": 870,
+      "initialDetails": 870,
+      "explicitUnplayable": 0,
+      "negativeStatus": 0,
+      "paidTracks": 801,
+      "privateCloudMetadata": 6,
+      "cloudReferencesMatchedInUserCloud": 6,
+      "referenceTypes": {
+        "0": 864,
+        "1": 6
+      },
+      "songTypes": {
+        "0": 864,
+        "1": 6
+      },
+      "privilegeCount": 870,
+      "negativePrivilegeStatus": 14,
+      "zeroPlaybackPrivilege": 14
+    },
+    {
+      "candidate": 2,
+      "cardSummary": 862,
+      "detailSummary": 862,
+      "fullReferences": 868,
+      "uniqueReferences": 868,
+      "initialDetails": 868,
+      "explicitUnplayable": 0,
+      "negativeStatus": 0,
+      "paidTracks": 799,
+      "privateCloudMetadata": 6,
+      "cloudReferencesMatchedInUserCloud": 6,
+      "referenceTypes": {
+        "0": 862,
+        "1": 6
+      },
+      "songTypes": {
+        "0": 862,
+        "1": 6
+      },
+      "privilegeCount": 868,
+      "negativePrivilegeStatus": 14,
+      "zeroPlaybackPrivilege": 14
+    }
+  ],
+  "userCloudRecordsSeen": 15
+}

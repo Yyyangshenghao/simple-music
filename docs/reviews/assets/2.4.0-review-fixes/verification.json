@@ -1,0 +1,18 @@
+{
+  "profileIsolated": true,
+  "platform": "darwin",
+  "checks": [
+    "style-host-storage-restore-reload",
+    "batch-offline-real-local-filter-and-host-ack",
+    "lyrics-detail-completion-and-canplay-dedup"
+  ],
+  "mocked": [
+    "QQ cache status response",
+    "Apple lyric response and authenticated state"
+  ],
+  "pageErrors": [],
+  "tests": {
+    "files": 280,
+    "cases": 2639
+  }
+}

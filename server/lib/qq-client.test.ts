@@ -7,6 +7,7 @@ import {
   handleQQLikedPlaylist,
   handleQQLyric,
   handleQQPlaylistTracks,
+  handleQQPlaylistPage,
   handleQQSearch,
   handleQQSearchHotkeys,
   handleQQSongUrl,
@@ -23,6 +24,174 @@ import {
 } from './qq-client'
 
 const LOGGED_IN_COOKIE = 'uin=12345; qm_keyst=some-key-value'
+
+describe('QQ歌单读取会话与错误边界', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('分页中换号不继续请求下一页，也不返回旧账号曲目', async () => {
+    let current = true
+    const request = vi.fn().mockImplementation(async () => {
+      current = false
+      return { status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+        dirinfo: { title: '测试' }, songlist: [{ id: 1, mid: 'mid1', name: '歌曲' }], total_song_num: 2, hasmore: 1,
+      } } }) }
+    })
+    vi.stubGlobal('fetch', request)
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123', () => current)).rejects.toThrow('账号已变化')
+    expect(request).toHaveBeenCalledTimes(1)
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123', () => false)).rejects.toThrow('账号已变化')
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+  it.each([{ code: 5, data: { songlist: [] } }, { data: { code: 5, songlist: [] } }, { data: { subcode: 5, songlist: [] } }, { data: {} }])('上游错误/缺失列表不能返回空歌单成功 %j', async body => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ ...body, playlist: { code: 0, ...body } }) }))
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).rejects.toThrow('QQ_PLAYLIST_DETAIL_FAILED')
+  })
+
+  it('保留缺少名称及版权受限歌曲的位置，不把会员要求当成歌单缺歌', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      dirinfo: { title: '不完整信息歌单' }, total_song_num: 3, hasmore: 0,
+      songlist: [
+        { id: 1, mid: 'mid1', name: '', pay: { pay_play: 1 } },
+        { id: 2, mid: 'mid2', name: '会员歌曲', pay: { pay_play: 1 }, action: { play: 0 } },
+        { id: 3, mid: 'mid3', name: '普通歌曲' },
+      ],
+    } } }) }))
+
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+
+    expect(result.trackIds).toEqual(['mid1', 'mid2', 'mid3'])
+    expect(result.tracks).toMatchObject([
+      { id: 'mid1', name: '歌曲 ID mid1', fee: 1 },
+      { id: 'mid2', name: '会员歌曲', fee: 1 },
+      { id: 'mid3', name: '普通歌曲' },
+    ])
+    expect((result.tracks as Record<string, unknown>[]).every(track => !track.pending)).toBe(true)
+  })
+
+  it('空页仍明确声称有下一页时拒绝残缺分页', async () => {
+    const pages = [{ songlist: [{ mid: 'a', name: 'A' }], hasmore: 1 }, { songlist: [], hasmore: 1 }]
+    let page = 0
+    const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: pages[page++] } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).rejects.toThrow('歌单歌曲列表不完整')
+    expect(fetchMock).toHaveBeenCalledTimes(pages.length)
+  })
+
+  it.each([
+    { label: '首屏明确结束', pages: [{ total_song_num: 3, songlist: [{ mid: 'a', name: 'A' }], hasmore: 0 }] },
+    { label: '空终页明确结束', pages: [{ total_song_num: 3, songlist: [{ mid: 'a', name: 'A' }], hasmore: 1 }, { total_song_num: 3, songlist: [], hasmore: 0 }] },
+    { label: '无标记的空终页', pages: [{ total_song_num: 3, songlist: [{ mid: 'a', name: 'A' }] }, { total_song_num: 3, songlist: [] }] },
+  ])('摘要偏大但$label时仍展示可读列表', async ({ pages }) => {
+    let page = 0
+    const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: pages[page++] } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).resolves.toMatchObject({ trackIds: ['a'], tracks: [{ id: 'a', name: 'A' }], playlist: { trackCount: 3 } })
+    expect(fetchMock).toHaveBeenCalledTimes(pages.length)
+  })
+
+  it.each([
+    { label: 'total 未取完', data: { total_song_num: 120, songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }] }, hasMore: true },
+    { label: 'hasmore=0', data: { total_song_num: 120, songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }], hasmore: 0 }, hasMore: false },
+    { label: '无标记且未取满', data: { songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }] }, hasMore: false },
+  ])('单页读取只发一次请求，游标按原始条目推进（$label）', async ({ data, hasMore }) => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data } }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQPlaylistPage(LOGGED_IN_COOKIE, '123', 50, 50)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body ?? '{}')).playlist?.param).toMatchObject({ song_begin: 50, song_num: 50 })
+    expect(result).toMatchObject({ tracks: [{ id: 'a' }], nextOffset: 52, hasMore })
+  })
+
+  it('整单读取带回歌单简介、创建者与播放量', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      total_song_num: 1, hasmore: 0, songlist: [{ mid: 'a', name: 'A' }],
+      dirinfo: { title: '歌单', desc: '第一行<br>第二行', host_nick: '创建者', listennum: 12345 },
+    } } }) }))
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+    expect(result.playlist).toMatchObject({ description: '第一行\n第二行', creator: '创建者', playCount: 12345 })
+  })
+
+  it.each([0, 1, 3])('分页总数从 2 变为 %s 时拒绝混合快照', async (nextTotal) => {
+    let page = 0
+    const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      total_song_num: page === 0 ? 2 : nextTotal,
+      songlist: [{ mid: `mid${page}`, name: `歌曲${page}` }],
+      hasmore: page++ === 0 ? 1 : 0,
+    } } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).rejects.toThrow('歌单已变化')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('触达分页上限时仍有下一页就拒绝返回前缀', async () => {
+    let page = 0
+    const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      songlist: [{ mid: `mid${page}`, name: `歌曲${page++}` }], hasmore: 1,
+    } } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).rejects.toThrow('歌单歌曲列表不完整')
+    expect(fetchMock).toHaveBeenCalledTimes(100)
+  })
+
+  it('第 100 页明确结束时仍可完整返回，不把合法上限当成失败', async () => {
+    let page = 0
+    const fetchMock = vi.fn().mockImplementation(async () => ({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      total_song_num: 100,
+      songlist: [{ mid: `mid${page}`, name: `歌曲${page}` }], hasmore: ++page < 100 ? 1 : 0,
+    } } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+
+    expect(result.trackIds).toHaveLength(100)
+    expect((result.trackIds as string[]).at(-1)).toBe('mid99')
+    expect(fetchMock).toHaveBeenCalledTimes(100)
+  })
+
+  it('没有总数和 hasmore 时允许满页后的空终页', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const offset = JSON.parse(String(init.body)).playlist.param.song_begin
+      return { status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+        songlist: offset === 0 ? Array.from({ length: 100 }, (_, id) => ({ mid: `mid${id}`, name: `歌曲${id}` })) : [],
+      } } }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+
+    expect(result.trackIds).toHaveLength(100)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['123', 'qq-liked:201'])('已知零首且明确结束时保留合法空歌单：%s', async (id) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+      total_song_num: 0, songlist: [], hasmore: 0,
+    } } }) }))
+
+    await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, id)).resolves.toMatchObject({ tracks: [], trackIds: [], playlist: { trackCount: 0 } })
+  })
+
+  it('稳定摘要总数少于实际返回位置数时仍保留完整列表', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const offset = JSON.parse(String(init.body)).playlist.param.song_begin
+      return { status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data: {
+        total_song_num: 1, hasmore: offset === 0 ? 1 : 0,
+        songlist: [{ mid: 'same-mid', name: `重复位置 ${offset}` }],
+      } } }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')
+
+    expect(result.trackIds).toEqual(['same-mid', 'same-mid'])
+    expect(result.playlist).toMatchObject({ trackCount: 2 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
 
 describe('QQ 登录昵称', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -346,8 +515,8 @@ describe('QQ 标识与歌单详情契约', () => {
       const request = JSON.parse(String(init.body))
       const offset = request.playlist.param.song_begin
       const track = offset === 0
-        ? { id: 1, mid: 'song-a', name: '歌曲 A' }
-        : { id: 2, mid: 'song-b', name: '歌曲 B' }
+        ? { id: 1, mid: 'song-a', name: '歌曲 A', type: 0 }
+        : { id: 2, mid: 'song-b', name: '歌曲 B', type: 1 }
       return Promise.resolve({
         status: 200,
         text: async () => JSON.stringify({
@@ -374,6 +543,7 @@ describe('QQ 标识与歌单详情契约', () => {
 
     expect(result.trackIds).toEqual(['song-a', 'song-b'])
     expect((result.tracks as Record<string, unknown>[]).map((track) => track.id)).toEqual(['song-a', 'song-b'])
+    expect((result.tracks as Record<string, unknown>[]).map((track) => track.songType)).toEqual([0, 1])
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const firstRequest = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
     expect(firstRequest.playlist).toMatchObject({
@@ -474,6 +644,12 @@ describe('QQ 标识与歌单详情契约', () => {
     expect((error as Error).message).toBe('AUTH_EXPIRED')
     expect(qqAuthErrorStatus(error)).toBe(403)
   })
+  it('“我喜欢”返回2000签名要求时不使账号过期', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 2000 } }) }))
+    const error = await handleQQLikedPlaylist(LOGGED_IN_COOKIE).catch(reason => reason)
+    expect(error).toBeInstanceOf(Error)
+    expect(qqAuthErrorStatus(error)).toBeNull()
+  })
 
   it('账号歌单把“我喜欢”映射为同一虚拟 id 并去重', async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => {
@@ -501,6 +677,23 @@ describe('QQ 标识与歌单详情契约', () => {
     expect(playlists.filter((playlist) => playlist.id === 'qq-liked:201')).toHaveLength(1)
     expect(playlists.map((playlist) => playlist.id)).toContain('123')
     expect(playlists.every((playlist) => playlist.type === 'playlist')).toBe(true)
+  })
+
+  it('自建歌单按 dir_show 带出可见性，收藏歌单与未知值不标注', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: string) => {
+      const url = String(input)
+      const body = url.includes('fcg_user_created_diss')
+        ? { data: { disslist: [
+          { dissid: 11, diss_name: '公开', dir_show: 1 },
+          { dissid: 12, diss_name: '私密', dir_show: 2 },
+          { dissid: 13, diss_name: '未知', dir_show: 0 },
+        ] } }
+        : url.includes('fcg_get_profile_order_asset') ? { data: { cdlist: [{ dissid: 14, diss_name: '收藏', dir_show: 2 }] } } : {}
+      return Promise.resolve({ status: 200, text: async () => JSON.stringify(body) })
+    }))
+    const playlists = (await handleQQUserPlaylists(LOGGED_IN_COOKIE)).playlists as Record<string, unknown>[]
+    const privacy = Object.fromEntries(playlists.map(item => [item.name, item.private]))
+    expect(privacy).toEqual({ 公开: false, 私密: true, 未知: undefined, 收藏: undefined })
   })
 
   it.each(['album', 'empty', 'failed'] as const)('账号歌单缺少我喜欢封面时补取首曲专辑图：%s', async (outcome) => {

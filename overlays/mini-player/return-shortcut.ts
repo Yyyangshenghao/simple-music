@@ -4,8 +4,6 @@ import { acceleratorFromEvent, isSystemReservedAccelerator, shouldIgnoreShortcut
 export function handleReturnShortcut(event: KeyboardEvent, accelerator: string, platform: string, returnMain: () => void): void {
   if (!accelerator || event.defaultPrevented || event.isComposing || event.keyCode === 229
     || shouldIgnoreShortcut(event.target) || isSystemReservedAccelerator(accelerator, platform)) return
-  if (!event.metaKey && !event.ctrlKey && !event.altKey
-    && (event.target as Element | null)?.closest?.('button, [role="switch"], [role="slider"]')) return
   if (acceleratorFromEvent(event, platform) !== accelerator) return
   event.preventDefault()
   if (!event.repeat) returnMain()

@@ -1,8 +1,10 @@
 import { api } from './api'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 import type {
   MusicService,
   RadarPlaylist,
   PlaylistSkeleton,
+  PlaylistDetailMeta,
   PlaylistRevision,
   PlaylistMeta,
   ToplistGroup,
@@ -17,11 +19,15 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists ?? []
   }
 
-  async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
-    const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[]; playlist?: { trackUpdateTime?: number | null } }>('/api/playlist/tracks', { id: id as string | number })
+  async getPlaylistSkeleton(id: unknown, options: { prefix?: number } = {}): Promise<PlaylistSkeleton> {
+    const res = await api.get<{ trackIds?: unknown[]; tracks?: Track[]; playlist?: PlaylistDetailMeta & { trackUpdateTime?: number | null } }>('/api/playlist/tracks', {
+      id: id as string | number,
+      ...(options.prefix ? { head: options.prefix } : {}),
+    })
     const tracks = res.tracks ?? []
     const trackIds = res.trackIds?.length ? res.trackIds : tracks.map((t) => t.id)
-    return { trackIds, tracks, updatedAt: res.playlist?.trackUpdateTime ?? null }
+    const meta = res.playlist ? { description: res.playlist.description, creator: res.playlist.creator, playCount: res.playlist.playCount } : undefined
+    return { trackIds, tracks, updatedAt: res.playlist?.trackUpdateTime ?? null, meta }
   }
 
   async getPlaylistRevision(id: unknown): Promise<PlaylistRevision> {
@@ -117,9 +123,19 @@ export class NeteaseMusicService implements MusicService {
     return res.url ?? ''
   }
 
+  /**
+   * 复用展示歌词的解析与缓存供刷歌选段
+   *
+   * @param track 目标曲目
+   */
   async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lines: LyricLine[] }>('/api/lyric', { id: track.id as string | number })
-    return res.lines ?? []
+    // 旧接口返回原始 LRC 而非 lines 保留原取值方式供对照
+    // const res = await api.get<{ lines: LyricLine[] }>('/api/lyric', { id: track.id as string | number })
+    // return res.lines ?? []
+    // 延迟加载避免歌词跨源匹配与 provider 注册形成初始化环
+    const { fetchLyrics } = await import('./lyrics-fetch')
+    // 读取共享解析结果
+    return (await fetchLyrics(track)).main
   }
 
   async getDailySongs(): Promise<Track[]> {
@@ -153,18 +169,30 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists ?? []
   }
 
+  async getUserAlbums(): Promise<Playlist[]> {
+    const res = await api.get<{ albums?: Playlist[] }>('/api/user/albums')
+    return res.albums ?? []
+  }
+
   /** 网易约定:用户歌单列表首个为"我喜欢的音乐"。 */
   async getLikedPlaylist(): Promise<Playlist | null> {
     const res = await api.get<{ playlists?: Playlist[] }>('/api/user/playlists')
     return res.playlists?.[0] ?? null
   }
 
-  async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void> {
-    await api.post('/api/netease/scrobble', {
+  async getPlaybackAccountToken(): Promise<string | null> {
+    const result = await api.get<{ accountToken: string | null }>('/api/netease/playback/session')
+    return result.accountToken
+  }
+
+  async reportPlayback(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string }): Promise<void> {
+    const result = await api.post<{ ok: boolean }>('/api/netease/scrobble', {
       id: trackId,
       sourceId: opts.sourceId,
-      time: Math.round(opts.seconds),
+      time: Math.floor(opts.seconds),
+      accountToken: opts.accountToken,
     })
+    if (!result.ok) throw new Error('PLAYBACK_REPORT_REJECTED')
   }
 
   async getToplists(): Promise<ToplistGroup[]> {
@@ -226,12 +254,29 @@ export class NeteaseMusicService implements MusicService {
     return { id }
   }
 
+  getPlaylistManagementSession(signal?: AbortSignal): Promise<PlaylistManagementSession> {
+    return api.get('/api/netease/playlist-management/session', undefined, { signal })
+  }
+
+  inspectPlatformPlaylist(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection> {
+    return api.post('/api/netease/playlist-management/inspect', input, undefined, { signal, timeoutMs: 120000 })
+  }
+
+  mutatePlatformPlaylist(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult> {
+    return api.post('/api/netease/playlist-management/manage', input, undefined, { signal, timeoutMs: 120000 })
+  }
+
+  setCollectionSubscribed(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }> {
+    return api.post('/api/netease/collection', input, undefined, { signal })
+  }
+
   async replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean> {
     if (currentTrackIds.length > 0) {
       await api.post('/api/playlist/remove-songs', { pid: playlistId, ids: currentTrackIds.map(String).join(',') })
     }
     if (newTrackIds.length > 0) {
       await api.post('/api/playlist/add-song', { pid: playlistId, ids: newTrackIds.map(String).join(',') })
+      await api.post('/api/playlist/order/update', { pid: playlistId, ids: newTrackIds.map(String) })
     }
     return true
   }

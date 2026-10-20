@@ -10,7 +10,6 @@
   position: relative;
   border-radius: var(--border-radius);
   isolation: isolate;
-  transform: translate3d(0, 0, 0.01px);
   display: grid;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: var(--card-bg, rgba(255, 255, 255, 0.05));
@@ -132,4 +131,18 @@
   border-radius: inherit;
   overflow: hidden;
   z-index: 1;
+}
+
+/* 关闭跟手光斑时只保留卡片底色与边框。 */
+.border-glow-card[data-glow-off]::before,
+.border-glow-card[data-glow-off]::after,
+.border-glow-card[data-glow-off] > .edge-light {
+  display: none;
+}
+
+/* 内容经过静止光标时不重复启动渐变蒙版和大范围辉光，保留原生点击命中。 */
+[data-scrolling] .border-glow-card::before,
+[data-scrolling] .border-glow-card::after,
+[data-scrolling] .border-glow-card > .edge-light {
+  display: none;
 }

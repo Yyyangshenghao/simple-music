@@ -1,6 +1,8 @@
 import type { RouteHandler } from '../types'
 import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
+import { playbackAccountToken, validListeningSeconds } from '../lib/playback-account'
+import { reportQQPlayback } from '../lib/qq-playback-report'
 import {
   isQQNumericPlaylistId,
   handleQQSearch,
@@ -13,11 +15,13 @@ import {
   handleQQLyric,
   getQQLoginInfo,
   handleQQUserPlaylists,
+  handleQQUserAlbums,
   handleQQLikedPlaylist,
   handleQQRadarSong,
   handleQQRecommendFeed,
   handleQQRecommendSongs,
   handleQQPlaylistTracks,
+  handleQQPlaylistPage,
   handleQQToplistPreview,
   handleQQToplists,
   handleQQArtistDetail,
@@ -65,6 +69,40 @@ async function readRequestObject(req: Parameters<RouteHandler>[0]): Promise<Reco
  */
 export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
+
+  if (pn === '/api/qq/playback/session') {
+    res.setHeader('Cache-Control', 'no-store')
+    sendJson(res, { accountToken: playbackAccountToken(getCookie(ctx, 'qq')) })
+    return true
+  }
+
+  if (pn === '/api/qq/scrobble') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'METHOD_NOT_ALLOWED' }, 405)
+      return true
+    }
+    try {
+      const body = await readRequestObject(req)
+      const cookie = getCookie(ctx, 'qq')
+      if (!cookie) { sendJson(res, { ok: false }); return true }
+      if (body.accountToken !== playbackAccountToken(cookie)) {
+        sendJson(res, { ok: false, error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      const id = String(body.id ?? '')
+      const seconds = validListeningSeconds(body.time)
+      if (!/^[a-zA-Z0-9]{1,64}$/.test(id) || !seconds) {
+        sendJson(res, { ok: false, error: 'INVALID_PLAYBACK_REPORT' }, 400)
+        return true
+      }
+      await reportQQPlayback(cookie, id, body.songId, seconds, () => cookie === getCookie(ctx, 'qq'))
+      // 官网此通道只返回收集响应，无法据此确认账号统计已更新。
+      sendJson(res, { ok: true, status: 'submitted' })
+    } catch {
+      sendJson(res, { ok: false, error: 'PLAYBACK_REPORT_FAILED' }, 502)
+    }
+    return true
+  }
 
   if (pn === '/api/qq/song/similar' || pn === '/api/qq/song/related-playlists') {
     const similar = pn.endsWith('/similar')
@@ -230,6 +268,17 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  if (pn === '/api/qq/user/albums') {
+    try {
+      const data = await handleQQUserAlbums(getCookie(ctx, 'qq'))
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQUserAlbums]', err)
+      sendJson(res, { provider: 'qq', loggedIn: false, error: (err as Error).message, albums: [] }, 500)
+    }
+    return true
+  }
+
   if (pn === '/api/qq/liked/playlist') {
     try {
       const data = await handleQQLikedPlaylist(getCookie(ctx, 'qq'))
@@ -307,7 +356,7 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  if (pn === '/api/qq/playlist/tracks') {
+  if (pn === '/api/qq/playlist/tracks' || pn === '/api/qq/playlist/page') {
     try {
       const id = url.searchParams.get('id') || url.searchParams.get('disstid') || ''
       const invalidLikedId = id.startsWith('qq-liked:') && !isQQLikedPlaylistReference(id)
@@ -324,7 +373,9 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
         }, 400)
         return true
       }
-      const data = await handleQQPlaylistTracks(getCookie(ctx, 'qq'), id)
+      const data = pn === '/api/qq/playlist/page'
+        ? await handleQQPlaylistPage(getCookie(ctx, 'qq'), id, Number(url.searchParams.get('offset')), Number(url.searchParams.get('limit')))
+        : await handleQQPlaylistTracks(getCookie(ctx, 'qq'), id)
       sendJson(res, data, id === QQ_LIKED_PLAYLIST_ID && data.loggedIn === false ? 401 : 200)
     } catch (err) {
       console.error('[QQPlaylistTracks]', err)

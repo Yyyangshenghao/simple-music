@@ -1,12 +1,16 @@
 .tilt {
   position: relative;
   border-radius: var(--sm-radius-card);
-  transform-style: preserve-3d;
   transition: box-shadow 240ms var(--sm-ease-out);
 }
 
 .tilt:hover {
   box-shadow: var(--glow-soft);
+}
+
+.tilt[data-scrolling] {
+  box-shadow: none;
+  transition: none;
 }
 
 /* 追光光斑：跟随 --spot-x/--spot-y，hover 淡入 */

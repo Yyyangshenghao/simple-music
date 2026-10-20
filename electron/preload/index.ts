@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Track } from '../../src/types/domain'
 import type {
+  PlaybackRequest,
+  PlaybackHostCommand,
+  PlaybackHostReply,
   WindowState,
   WindowCloseState,
   WindowCloseBehavior,
@@ -37,11 +41,18 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api = {
   isDesktop: true,
+  playbackRole: process.argv.includes('--simplemusic-playback-host') ? 'host' as const : 'ui' as const,
+  playbackRequest: (request: PlaybackRequest): Promise<unknown> => ipcRenderer.invoke('playback:request', request),
+  onPlaybackCommand: (cb: (command: PlaybackHostCommand) => void) => on('playback:command', cb),
+  playbackReply: (id: string, result: PlaybackHostReply): void => ipcRenderer.send('playback:reply', { id, result }),
+  publishPlayback: (snapshot: unknown): void => ipcRenderer.send('playback:publish', snapshot),
+  onPlaybackSnapshot: (cb: (snapshot: unknown) => void) => on('playback:snapshot', cb),
   platform: process.platform,
   serverPort: readServerPort(),
   serverToken: readServerToken(),
 
   // 窗口
+  showMainWindow: (): Promise<void> => ipcRenderer.invoke('window:show'),
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   toggleFullscreen: (): Promise<void> => ipcRenderer.invoke('window:toggle-fullscreen'),
   exitFullscreenWindowed: (): Promise<void> => ipcRenderer.invoke('window:exit-fullscreen-windowed'),
@@ -58,6 +69,10 @@ const api = {
   onGameModeChange: (cb: (state: GameModeState) => void) => on<GameModeState>('game-mode:state-changed', cb),
   updateTrayPlayback: (state: TrayPlaybackState): Promise<OkResult> => ipcRenderer.invoke('tray:update-playback', state),
   startAppleAudioCapture: (): Promise<boolean> => ipcRenderer.invoke('apple:audio-capture-start'),
+  onFlushListeningReports: (cb: () => Promise<void>): (() => void) => on<unknown>('playback:flush-listening', (id) => {
+    if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id)) return
+    void Promise.resolve().then(cb).catch(() => {}).finally(() => ipcRenderer.send('playback:listening-flushed', id))
+  }),
 
   // 登录
   openNeteaseLogin: (): Promise<LoginResult> => ipcRenderer.invoke('login:netease-open'),
@@ -86,6 +101,7 @@ const api = {
   updateMiniPlayer: (payload: MiniPlayerPayload): Promise<OkResult> => ipcRenderer.invoke('miniplayer:update', payload),
   onMiniPlayerControl: (cb: (p: { action: string; value?: number }) => void) => on('miniplayer:control', cb),
   onMiniPlayerWidthChanged: (cb: (p: { width: number }) => void) => on('miniplayer:width-changed', cb),
+  onMiniPlayerAddToPlaylist: (cb: (track: Track) => void) => on('miniplayer:add-to-playlist', cb),
 
   // 快捷键
   configureHotkeys: (bindings: HotkeyBinding[], recording = false, settingsAccelerator?: string): Promise<HotkeyResult> =>

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { motion, type PanInfo } from 'motion/react'
+import { motion, useIsPresent, type PanInfo } from 'motion/react'
 import { ShuangeCard } from '../components/Shuange/ShuangeCard'
 import { useShuangeStore } from '../stores/shuange'
-import { useShuangePlayer } from '../hooks/useShuangePlayer'
 import { useLikesStore } from '../stores/likes'
 import { useNavigationStore } from '../stores/navigation'
 import { useShortcutStore } from '../stores/shortcuts'
@@ -10,6 +9,11 @@ import { shouldIgnoreShortcut } from '../lib/shortcuts'
 import styles from './ShuangePage.module.css'
 
 export function ShuangePage() {
+  const present = useIsPresent()
+  const current = useNavigationStore((s) => s.currentView === 'shuange')
+  const pageActive = present && current
+  const pageActiveRef = useRef(pageActive)
+  pageActiveRef.current = pageActive
   const active = useShuangeStore((s) => s.active)
   const feed = useShuangeStore((s) => s.feed)
   const index = useShuangeStore((s) => s.index)
@@ -21,16 +25,18 @@ export function ShuangePage() {
   const wheelReset = useRef<number | null>(null)
   const gestureUnlock = useRef<number | null>(null)
   const gestureLocked = useRef(false)
-  useShuangePlayer()
 
   const exit = useCallback(() => {
+    if (!pageActiveRef.current) return
     const navigation = useNavigationStore.getState()
+    if (navigation.currentView !== 'shuange') return
     useShuangeStore.getState().leave()
     if (navigation.history.length) navigation.goBack()
     else navigation.navigateTo('explore')
   }, [])
 
   const step = useCallback((nextDirection: 1 | -1) => {
+    if (!pageActiveRef.current || useNavigationStore.getState().currentView !== 'shuange') return
     const state = useShuangeStore.getState()
     if (!state.active || gestureLocked.current) return
     if (nextDirection < 0 && state.index <= 0) return
@@ -43,24 +49,22 @@ export function ShuangePage() {
     else void state.prev()
   }, [])
 
-  // mount 进一次、unmount leave 一次；active 不能作为依赖，否则 enter/cleanup 会互相触发。
-  const enterOnce = useRef(false)
+  // 离页即释放界面交互；会话由宿主按真实导航进入/离开管理。
   useEffect(() => {
-    if (!enterOnce.current) {
-      enterOnce.current = true
-      if (!useShuangeStore.getState().active) void useShuangeStore.getState().enter()
-    }
+    if (!pageActive) return
     return () => {
       if (wheelReset.current != null) window.clearTimeout(wheelReset.current)
       if (gestureUnlock.current != null) window.clearTimeout(gestureUnlock.current)
-      if (useShuangeStore.getState().active) useShuangeStore.getState().leave()
+      wheelDistance.current = 0
+      gestureLocked.current = false
     }
-  }, [])
+  }, [pageActive])
 
   useEffect(() => {
-    if (!active) return
+    if (!pageActive || !active) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229
+      if (!pageActiveRef.current || useNavigationStore.getState().currentView !== 'shuange'
+        || event.defaultPrevented || event.isComposing || event.keyCode === 229
         || event.metaKey || event.ctrlKey || event.altKey
         || (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))
         || useShortcutStore.getState().recording || shouldIgnoreShortcut(event.target)) return
@@ -84,9 +88,10 @@ export function ShuangePage() {
       document.removeEventListener('keydown', onArrowKey, true)
       window.removeEventListener('keydown', onKey)
     }
-  }, [active, exit, step])
+  }, [pageActive, active, exit, step])
 
   function handleWheel(event: React.WheelEvent) {
+    if (!pageActiveRef.current) return
     if (Math.abs(event.deltaY) < 2) return
     wheelDistance.current += event.deltaY
     if (wheelReset.current != null) window.clearTimeout(wheelReset.current)
@@ -103,7 +108,8 @@ export function ShuangePage() {
   }
 
   return (
-    <div className={styles.page} onWheel={handleWheel}>
+    <div className={styles.page} onWheel={handleWheel} aria-hidden={!pageActive || undefined}
+      {...(!pageActive ? { inert: '' } : {})}>
       {active && track && (
         <motion.div
           key={`${track.source}-${String(track.id)}`}

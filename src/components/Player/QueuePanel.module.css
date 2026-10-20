@@ -31,6 +31,11 @@
   backdrop-filter: var(--sm-blur);
 }
 
+.alignStart {
+  left: 0;
+  right: auto;
+}
+
 .header {
   display: flex;
   align-items: baseline;

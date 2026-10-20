@@ -46,6 +46,19 @@ export class LocalMusicService implements MusicService {
     return (res.tracks ?? []).map(toTrack)
   }
 
+  async getAvailableTracks(ids: unknown[], signal: AbortSignal): Promise<Track[]> {
+    const all = await this.listAllTracks()
+    const unique = [...new Set(ids.map(String))]
+    const available = new Set<string>()
+    for (let offset = 0; offset < unique.length; offset += 100) {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      const result = await api.post<{ availableIds: string[] }>('/api/local/availability', { ids: unique.slice(offset, offset + 100) }, undefined, { signal })
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      for (const id of result.availableIds) available.add(id)
+    }
+    return all.filter(track => available.has(String(track.id)))
+  }
+
   async addFolder(path: string): Promise<Track[]> {
     const res = await api.post<{ tracks: LocalTrackRaw[] }>('/api/local/scan', { path })
     return (res.tracks ?? []).map(toTrack)
@@ -101,8 +114,8 @@ export class LocalMusicService implements MusicService {
     return track.url ?? ''
   }
 
-  async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lyric: string }>('/api/local/lyric', { id: String(track.id) })
+  async getLyrics(track: Track, signal?: AbortSignal): Promise<LyricLine[]> {
+    const res = await api.get<{ lyric: string }>('/api/local/lyric', { id: String(track.id) }, { signal })
     return res.lyric ? parseLrc(res.lyric) : []
   }
 }

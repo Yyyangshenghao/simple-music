@@ -1,0 +1,383 @@
+{
+  "checks": [
+    "CUA实际开关点击传递boolean并改变checked状态",
+    "dark主题开启态thumb与轨道对比超过3:1",
+    "light主题开启态thumb与轨道对比超过3:1",
+    "精选箭头路径与按钮几何居中，Apple FOR YOU使用flex垂直对齐",
+    "起点仅右渐隐且上一页禁用",
+    "合成小竖轮累积横移，无吸附吞掉小增量",
+    "中段两侧渐隐且两端按钮可用",
+    "deltaX合成事件不二次转换或阻止原生处理",
+    "ctrl合成事件不二次转换或阻止原生处理",
+    "shift合成事件不二次转换或阻止原生处理",
+    "末端仅左渐隐、下一页禁用，向外竖轮放行页面",
+    "起点向外竖轮放行页面",
+    "无溢出真实推荐分组不显示渐隐或翻页按钮",
+    "实际Apple专辑调用方在窄/常规/宽窗均不撑大页面",
+    "窄/常规/宽窗口resize更新真实专辑轨道的溢出与按钮",
+    "减少动画时真实翻页按钮使用auto",
+    "正常翻页按钮使真实轨道横向移动",
+    "实际卡片下方保留48px阴影空间",
+    "组件原生运行无捕获Runtime异常",
+    "CUA生成isTrusted原生纵轮进入实际推荐轨道并横移",
+    "CUA原生点击实际下一页按钮横移约85%视口",
+    "禁用开关DOM点击不触发onChange或改变值"
+  ],
+  "method": "Actual ApplePlaylistRecommendations, AppleHomeLibrary, ProviderPlaylistRail and Switch rendered with React in temporary fixture within real Electron app. Apple data is read-only provider cache fixture with original SVG artwork, no real account. CUA accessibility clicks and generated native scroll separately recorded; DOM wheel edge probes are synthetic WheelEvents and do not represent physical hardware.",
+  "cuaSwitch": {
+    "changes": [
+      {
+        "index": 0,
+        "value": true
+      }
+    ],
+    "values": [
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "switchColors": {
+    "dark": [
+      {
+        "label": "关闭开关",
+        "checked": "false",
+        "disabled": false,
+        "track": "rgb(12, 12, 12)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 1,
+        "contrast": 19.561630447769335
+      },
+      {
+        "label": "开启开关",
+        "checked": "true",
+        "disabled": false,
+        "track": "rgba(255, 255, 255, 0.92)",
+        "thumb": "rgb(12, 12, 12)",
+        "opacity": 1,
+        "contrast": 16.49251574492528
+      },
+      {
+        "label": "禁用关闭",
+        "checked": "false",
+        "disabled": true,
+        "track": "rgb(12, 12, 12)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 0.4,
+        "contrast": 3.7916679939012914
+      },
+      {
+        "label": "禁用开启",
+        "checked": "true",
+        "disabled": true,
+        "track": "rgba(255, 255, 255, 0.92)",
+        "thumb": "rgb(12, 12, 12)",
+        "opacity": 0.4,
+        "contrast": 3.3774689461164997
+      }
+    ],
+    "light": [
+      {
+        "label": "关闭开关",
+        "checked": "false",
+        "disabled": false,
+        "track": "rgb(240, 240, 240)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 1,
+        "contrast": 1.139610887040401
+      },
+      {
+        "label": "开启开关",
+        "checked": "true",
+        "disabled": false,
+        "track": "rgba(0, 0, 0, 0.85)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 1,
+        "contrast": 15.522910417680388
+      },
+      {
+        "label": "禁用关闭",
+        "checked": "false",
+        "disabled": true,
+        "track": "rgb(240, 240, 240)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 0.4,
+        "contrast": 1.054500248632883
+      },
+      {
+        "label": "禁用开启",
+        "checked": "true",
+        "disabled": true,
+        "track": "rgba(0, 0, 0, 0.85)",
+        "thumb": "rgb(255, 255, 255)",
+        "opacity": 0.4,
+        "contrast": 2.4670357186653207
+      }
+    ]
+  },
+  "alignment": {
+    "controls": [
+      {
+        "button": "上一张精选内容",
+        "svgCenterErrorX": 0,
+        "svgCenterErrorY": 0,
+        "pathCenterX": 12,
+        "pathCenterY": 12
+      },
+      {
+        "button": "下一张精选内容",
+        "svgCenterErrorX": 0,
+        "svgCenterErrorY": 0,
+        "pathCenterX": 12,
+        "pathCenterY": 12
+      }
+    ],
+    "eyebrowDisplay": "flex",
+    "eyebrowAlign": "center"
+  },
+  "start": {
+    "left": 0,
+    "max": 896,
+    "width": 1042,
+    "fadeLeft": "0px",
+    "fadeRight": "24px",
+    "previousDisabled": true,
+    "nextDisabled": false
+  },
+  "smallWheel": [
+    {
+      "before": 0,
+      "after": 0.5,
+      "prevented": true
+    },
+    {
+      "before": 0.5,
+      "after": 1,
+      "prevented": true
+    },
+    {
+      "before": 1,
+      "after": 1.5,
+      "prevented": true
+    },
+    {
+      "before": 1.5,
+      "after": 2,
+      "prevented": true
+    }
+  ],
+  "middle": {
+    "left": 180,
+    "max": 896,
+    "width": 1042,
+    "fadeLeft": "24px",
+    "fadeRight": "24px",
+    "previousDisabled": false,
+    "nextDisabled": false
+  },
+  "deltaX": {
+    "before": 180,
+    "after": 180,
+    "prevented": false
+  },
+  "ctrl": {
+    "before": 180,
+    "after": 180,
+    "prevented": false
+  },
+  "shift": {
+    "before": 180,
+    "after": 180,
+    "prevented": false
+  },
+  "end": {
+    "left": 896,
+    "max": 896,
+    "width": 1042,
+    "fadeLeft": "24px",
+    "fadeRight": "0px",
+    "previousDisabled": false,
+    "nextDisabled": true
+  },
+  "outward": {
+    "before": 896,
+    "after": 896,
+    "prevented": false
+  },
+  "backwardOutward": {
+    "before": 0,
+    "after": 0,
+    "prevented": false
+  },
+  "noOverflow": {
+    "max": 0,
+    "controls": 0,
+    "mask": "none"
+  },
+  "resize": [
+    {
+      "requestedWidth": 820,
+      "actualWidth": 960,
+      "root": {
+        "width": 950,
+        "scrollWidth": 950
+      },
+      "rail": {
+        "left": 0,
+        "max": 809,
+        "width": 902,
+        "fadeLeft": "0px",
+        "fadeRight": "24px",
+        "previousDisabled": true,
+        "nextDisabled": false
+      },
+      "library": {
+        "max": 426,
+        "controls": 2
+      }
+    },
+    {
+      "requestedWidth": 1100,
+      "actualWidth": 1100,
+      "root": {
+        "width": 1090,
+        "scrollWidth": 1090
+      },
+      "rail": {
+        "left": 0,
+        "max": 896,
+        "width": 1042,
+        "fadeLeft": "0px",
+        "fadeRight": "24px",
+        "previousDisabled": true,
+        "nextDisabled": false
+      },
+      "library": {
+        "max": 286,
+        "controls": 2
+      }
+    },
+    {
+      "requestedWidth": 1700,
+      "actualWidth": 1700,
+      "root": {
+        "width": 1690,
+        "scrollWidth": 1690
+      },
+      "rail": {
+        "left": 0,
+        "max": 494,
+        "width": 1642,
+        "fadeLeft": "0px",
+        "fadeRight": "24px",
+        "previousDisabled": true,
+        "nextDisabled": false
+      },
+      "library": {
+        "max": 0,
+        "controls": 0
+      }
+    }
+  ],
+  "reduced": [
+    {
+      "left": 885.6999999999999,
+      "behavior": "auto"
+    }
+  ],
+  "page": {
+    "left": 238,
+    "max": 896,
+    "width": 1042,
+    "fadeLeft": "24px",
+    "fadeRight": "24px",
+    "previousDisabled": false,
+    "nextDisabled": false
+  },
+  "shadow": {
+    "paddingTop": "24px",
+    "paddingBottom": "48px",
+    "bottomClearance": 48
+  },
+  "errors": [],
+  "passed": true,
+  "nativeWheel": {
+    "left": 844,
+    "max": 896,
+    "rootTop": 614,
+    "eventCount": 48,
+    "trusted": true,
+    "deltaYRange": [
+      0,
+      45
+    ],
+    "labels": [
+      "日常精选，可横向滚动"
+    ]
+  },
+  "nativePage": {
+    "left": 885.5,
+    "width": 1042
+  },
+  "disabled": {
+    "before": 1,
+    "after": 1,
+    "valuesBefore": [
+      false,
+      true,
+      false,
+      true
+    ],
+    "valuesAfter": [
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "notes": [
+    "Light off-state thumb/track contrast 1.14 is existing styling, unchanged by this dark-on issue fix.",
+    "Requested narrow width 820 is constrained by the application minimum; actual inspected widths are 960,1100,1700.",
+    "Native CUA scroll direction reflects macOS natural scrolling; recorded trusted deltaY range 0..45 is the measured input."
+  ],
+  "date": "2026-10-15",
+  "source": {
+    "branch": "feature/issues-ui-2.4.0",
+    "commit": "c893f57ed207088bf8cfec7f8e1112805be0fb57",
+    "baseDev": "14e40a9"
+  },
+  "issues": [
+    {
+      "number": 64,
+      "url": "https://github.com/Yyyangshenghao/simple-music/issues/64"
+    },
+    {
+      "number": 63,
+      "url": "https://github.com/Yyyangshenghao/simple-music/issues/63"
+    }
+  ],
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 256,
+      "tests": 2242
+    },
+    "build": "passed; source build only, no installer or release",
+    "independentReview": "passed",
+    "newInteractionTests": 5
+  },
+  "scope": [
+    "Real Electron development app on macOS arm64; actual calling components mounted in a temporary React fixture with read-only Apple cache data and generated SVG artwork.",
+    "CUA clicks and trusted wheel events exercise native input delivery; edge, Ctrl/Shift/deltaX and small-delta probes use synthetic DOM WheelEvents.",
+    "Boundary probes confirm preventDefault is released; no physical mouse, Windows host, real Apple login or protected playback acceptance.",
+    "JSON viewport flags name the previous/next buttons disabled states, not whether scrolling is available."
+  ],
+  "githubMutations": [],
+  "screenshots": {
+    "dark": "assets/2.4.0-issues-ui-dark.png",
+    "light": "assets/2.4.0-issues-ui-light.png",
+    "apple": "assets/2.4.0-issues-ui-apple.png",
+    "library": "assets/2.4.0-issues-ui-library.png"
+  }
+}

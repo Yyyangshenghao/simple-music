@@ -1,0 +1,4 @@
+.dialog { width: min(360px, calc(100vw - 32px)); }
+.track { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.artist { margin: 4px 0 0; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.description { margin: 16px 0 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LyricsPayload, WallpaperPayload, MiniPlayerPayload, HotBounds } from '../../src/types/ipc'
+import type { Track } from '../../src/types/domain'
 
 // preload 早于页面脚本执行：先接住首屏快照，避免 React effect 尚未订阅时丢状态。
 let lyricsState: LyricsPayload = {}
@@ -54,7 +55,8 @@ const api = {
   setMiniPlayerPopover: (open: boolean) => ipcRenderer.invoke('overlay:miniplayer-set-popover', { open }),
   miniPlayerControl: (action: string, value?: number) => ipcRenderer.invoke('overlay:miniplayer-control', { action, value }),
   closeMiniPlayer: () => ipcRenderer.invoke('overlay:miniplayer-close'),
-  focusMainFromMiniPlayer: () => ipcRenderer.invoke('overlay:miniplayer-focus-main')
+  focusMainFromMiniPlayer: () => ipcRenderer.invoke('overlay:miniplayer-focus-main'),
+  addToPlaylistFromMiniPlayer: (track: Track) => ipcRenderer.invoke('overlay:miniplayer-add-to-playlist', track)
 }
 
 contextBridge.exposeInMainWorld('desktopOverlay', api)

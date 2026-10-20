@@ -31,6 +31,7 @@ npm run build                  # 构建到 out/，不生成安装包
 
 ## 修改边界
 
+- 页面、文案和控件改动遵循 [界面设计准则](DESIGN.md)：减少重复说明，明确操作层级，保留风险与不可用原因；使用实际界面截图验收。
 - TypeScript 沿用两空格、单引号、无分号和现有 ESM 写法；组件样式用同目录 CSS Modules，复用 `src/styles/tokens.css` 与 `src/lib/motion-presets.ts`。不要顺带格式化无关文件。
 - `Track.duration` 为毫秒；player store 的 `position` / `duration` 为秒。`Track.id`、`Playlist.id` 是 `unknown`，比较或拼接前先 `String()`。
 - 在线实体按自身 `source` 选 `providerFor(source)` 能力或兼容层 `serviceFor(source)`；本地文件走本地服务。`ProviderId` 是 `netease` / `qq` / `apple`；`MusicSource` 另含 `local`。新增来源分支必须显式考虑本地文件。
@@ -41,8 +42,12 @@ npm run build                  # 构建到 out/，不生成安装包
 
 ## 提交、PR 与发布
 
-固定分支流向为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release。每个版本使用一个明确的 dev，新任务从所属 dev 创建 feature，功能和修复都先合回 dev；不得默认从 master 创建普通工作分支或跳过 dev。已有旧命名分支不自动重命名，先确认版本归属。英文 Conventional Commit 类型加中文主题；PR 写明范围、目标版本、原因与验证，UI 变更附截图或录屏。feature → dev 使用 Squash merge，dev → master 使用 Merge commit，保留集成及发布历史；已共享的 dev/master 不 rebase 或强推。详细规则以 [CONTRIBUTING.md](CONTRIBUTING.md) 为准。
+默认贡献流程为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release，每个版本使用一个明确的 dev。贡献者从所属 dev 创建 feature，提交 PR 到该 dev，由仓库所有者评审后合并；默认不得直接提交、合并或推送到共享 dev，也不得默认从 master 创建普通工作分支或跳过 dev。已有旧命名分支不自动重命名，先确认版本归属。英文 Conventional Commit 类型加中文主题；PR 写明范围、目标版本、原因与验证，UI 变更附截图或录屏。feature → dev 使用 Squash merge，dev → master 使用 Merge commit，保留集成及发布历史；已共享的 dev/master 不 rebase 或强推。详细规则以 [CONTRIBUTING.md](CONTRIBUTING.md) 为准。
 
-本仓库中“推送”“提交并推送”“可以发了”默认指完整版本升级，按 [构建与发布 §0](docs/build-and-release.md) 执行：确认版本 dev 与发布范围，完成 feature 集成，在 dev 更新 `package.json`、`package-lock.json` 和发行说明，验证并形成独立发布元数据提交，经发布 PR 合入 master，再对合并后的 master 提交创建 annotated tag；推送 tag 后等待 Release 工作流并核对产物。发布授权包含上述 PR、合并与 tag 操作，不得先从 dev 发稳定版再补合主分支。用户明确要求“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时仅同步指定分支。
+本项目上游仓库所有者本人维护时，可直接在所属 dev 修改，或从最新 dev 创建本地 feature 后直接合回，无需开发 PR。代理仅在上游所有者明确授权采用该本地维护流程时适用，授权范围以所有者的会话指示或私有配置为准；本文件、普通开发请求、fork 的所有权、分支名称或代理身份本身均不构成授权，不能自行认定例外。未获得该授权时执行默认贡献流程。
+
+仅在已获授权的本地维护任务中，一个阶段完成必要验证和适用的独立复核后，应主动在 dev 提交，或将本地 feature 以 Squash merge 合回 dev，无需重复请求已获授权的阶段集成确认。主工作区保持在 dev 供所有者测试，按改动规模与并行需要选择直接开发或独立 feature/worktree；不提交或推送未验收工作。dev → master 仍走发布 PR。阶段集成只同步开发代码，不自动升级版本、合入 master、打 tag 或发布；所有操作仍遵守实际远端权限和分支保护。
+
+普通贡献任务中的“推送”只同步已约定的工作分支，不授权升级版本、合入共享 dev/master、打 tag 或发布 Release。仅在仓库所有者已授权的发布维护任务中，“推送”“提交并推送”“可以发了”默认指完整版本升级，按 [构建与发布 §0](docs/build-and-release.md) 执行：确认版本 dev 与发布范围，完成版本开发验收和集成，在 dev 更新 `package.json`、`package-lock.json` 和发行说明，验证并形成独立发布元数据提交，经发布 PR 合入 master，再对合并后的 master 提交创建 annotated tag；推送 tag 后等待 Release 工作流并核对产物。该发布授权包含上述 PR、合并与 tag 操作，不得先从 dev 发稳定版再补合主分支。所有者明确要求“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时仅同步指定分支。
 
 开发分支构建只用于验证或明确标识的预发布；稳定版本默认只能从 master 上已验收的提交打 tag，并构建该 tag 的固定源码。发布前告知目标版本及公开 tag/Release；版本冲突、同名 tag 或范围不明的工作区改动应停止，已推送 tag 不得改写。旧版本隔离补丁必须按 §0.8 明确授权并记录基准；不能擅自绕过主干发布流程。CI 和分支保护的实际状态以仓库配置为准，不能将文档要求宣称为已启用的自动门禁。

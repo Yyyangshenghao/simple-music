@@ -73,6 +73,7 @@
 | `POST /api/playlist/create` | 创建歌单 | body `name`、`privacy` | `playlist_create` | 需登录 | 已用 |
 | `POST /api/playlist/add-song` | 收藏歌曲到歌单 | body `pid`、`id` | 优先 `playlist_tracks`(`op:'add'`),失败兜底 `playlist_track_add` | 记录两次尝试的 `attempts` | 已用 |
 | `POST /api/playlist/remove-songs` | 批量移除歌单曲目 | body `pid`、`ids` | `playlist_tracks`(`op:'del'`) | 漫游保存歌单的“清空重塞”流程使用 | 已用 |
+| `POST /api/playlist/order/update` | 同步漫游曲目顺序 | body `pid`、完整有序 `ids` 数组 | `song_order_update` | 核对本人普通歌单、当前完整 ID 集合与 Cookie 后排序 | 已用 |
 | `POST /api/playlist/desc/update` | 更新歌单简介 | body `id`、`desc` | `playlist_desc_update` | 漫游保存歌单写入日期/歌手说明 | 已用 |
 
 ## 7. 收藏 / 红心(`routes/netease.ts`)
@@ -95,7 +96,8 @@
 | 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
 |---|---|---|---|---|---|
 | `GET /api/netease/record` | 近一周听歌排行 | — | `user_record`(`type:1`) | 需登录；未登录或失败返回空数组 | 已用 |
-| `POST /api/netease/scrobble` | 播放进度打卡 | body `id`、`sourceId`、`time` | `scrobble` | 播放链路后台上报；未登录静默跳过，不打断播放 | 已用 |
+| `GET /api/netease/playback/session` | 捕获收听账号凭证 | — | 本地 Cookie HMAC | `accountToken` 或 null；不缓存、不暴露 Cookie | 已用 |
+| `POST /api/netease/scrobble` | 有效收听上报 | body `id`、`sourceId`、`time`（实际秒）、`accountToken` | `weblog`（eapi/clientlog，`startplay` + `play`） | 换号拒绝；检查上游业务码；官方记录和累计时长待实测 | 已接入，统计待验证 |
 
 ## 10. 播客(DJ 电台,`routes/podcast.ts`,同样走 netease cookie)
 

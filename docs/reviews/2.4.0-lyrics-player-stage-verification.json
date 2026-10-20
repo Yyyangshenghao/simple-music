@@ -1,0 +1,360 @@
+{
+  "checks": {
+    "stableIdle": true,
+    "playPauseSeekNextPrev": true,
+    "menusAndKeyboardRemainVisible": true,
+    "customCoverKeepsControlsReachable": true,
+    "railKeyboard": true,
+    "reducedMotion": true,
+    "modeAndClose": true
+  },
+  "views": [
+    {
+      "name": "dark-active",
+      "width": 1536,
+      "height": 864,
+      "cover": {
+        "x": 157.390625,
+        "y": 156.25,
+        "w": 380,
+        "h": 380,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "meta": {
+        "x": 157.390625,
+        "y": 558.25,
+        "w": 380,
+        "h": 68,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "record": {
+        "x": 157.390625,
+        "y": 156.25,
+        "w": 380,
+        "h": 622,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "lyrics": {
+        "x": 671.75,
+        "y": 94.5,
+        "w": 757.2109375,
+        "h": 745.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "controls": {
+        "x": 157.390625,
+        "y": 648.25,
+        "w": 380,
+        "h": 130,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "heading": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 82.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "overflow": false
+    },
+    {
+      "name": "light-active",
+      "width": 1536,
+      "height": 864,
+      "cover": {
+        "x": 157.390625,
+        "y": 156.25,
+        "w": 380,
+        "h": 380,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "meta": {
+        "x": 157.390625,
+        "y": 558.25,
+        "w": 380,
+        "h": 68,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "record": {
+        "x": 157.390625,
+        "y": 156.25,
+        "w": 380,
+        "h": 622,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "lyrics": {
+        "x": 671.75,
+        "y": 94.5,
+        "w": 757.2109375,
+        "h": 745.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "controls": {
+        "x": 157.390625,
+        "y": 648.25,
+        "w": 380,
+        "h": 130,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "heading": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 82.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "overflow": false
+    },
+    {
+      "name": "minimum-light",
+      "width": 960,
+      "height": 540,
+      "cover": {
+        "x": 116.1953125,
+        "y": 118,
+        "w": 188,
+        "h": 188,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "meta": {
+        "x": 48,
+        "y": 320,
+        "w": 324.3984375,
+        "h": 58.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "record": {
+        "x": 48,
+        "y": 118,
+        "w": 324.3984375,
+        "h": 384.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "lyrics": {
+        "x": 405.9921875,
+        "y": 94.5,
+        "w": 455.609375,
+        "h": 431.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "controls": {
+        "x": 48,
+        "y": 392.5,
+        "w": 324.3984375,
+        "h": 110,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "heading": {
+        "x": 0,
+        "y": 0,
+        "w": 960,
+        "h": 82.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "overflow": false
+    },
+    {
+      "name": "minimum-long-no-cover",
+      "width": 960,
+      "height": 540,
+      "cover": null,
+      "meta": {
+        "x": 48,
+        "y": 320,
+        "w": 324.3984375,
+        "h": 58.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "record": {
+        "x": 48,
+        "y": 118,
+        "w": 324.3984375,
+        "h": 384.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "lyrics": {
+        "x": 405.9921875,
+        "y": 94.5,
+        "w": 455.609375,
+        "h": 431.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "controls": {
+        "x": 48,
+        "y": 392.5,
+        "w": 324.3984375,
+        "h": 110,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "heading": {
+        "x": 0,
+        "y": 0,
+        "w": 960,
+        "h": 82.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "overflow": false
+    },
+    {
+      "name": "minimum-empty",
+      "width": 960,
+      "height": 540,
+      "cover": null,
+      "meta": {
+        "x": 48,
+        "y": 320,
+        "w": 324.3984375,
+        "h": 58.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "record": {
+        "x": 48,
+        "y": 118,
+        "w": 324.3984375,
+        "h": 384.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "lyrics": null,
+      "controls": {
+        "x": 48,
+        "y": 392.5,
+        "w": 324.3984375,
+        "h": 110,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "heading": {
+        "x": 0,
+        "y": 0,
+        "w": 960,
+        "h": 82.5,
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "idle": {
+    "width": 1536,
+    "height": 864,
+    "cover": {
+      "x": 157.390625,
+      "y": 156.25,
+      "w": 380,
+      "h": 380,
+      "opacity": "1",
+      "visibility": "visible"
+    },
+    "meta": {
+      "x": 157.390625,
+      "y": 558.25,
+      "w": 380,
+      "h": 68,
+      "opacity": "1",
+      "visibility": "visible"
+    },
+    "record": {
+      "x": 157.390625,
+      "y": 156.25,
+      "w": 380,
+      "h": 622,
+      "opacity": "1",
+      "visibility": "visible"
+    },
+    "lyrics": {
+      "x": 671.75,
+      "y": 94.5,
+      "w": 757.2109375,
+      "h": 745.5,
+      "opacity": "1",
+      "visibility": "visible"
+    },
+    "controls": {
+      "x": 157.390625,
+      "y": 652.25,
+      "w": 380,
+      "h": 130,
+      "opacity": "0",
+      "visibility": "hidden"
+    },
+    "heading": {
+      "x": 0,
+      "y": 0,
+      "w": 1536,
+      "h": 82.5,
+      "opacity": "0",
+      "visibility": "visible"
+    },
+    "overflow": false
+  },
+  "menuBounds": {
+    "x": 169.390625,
+    "y": 163.75,
+    "width": 320,
+    "height": 562.5
+  },
+  "minimumMenuBounds": {
+    "x": 36.99066162109375,
+    "y": 107.88320922851562,
+    "width": 310.4092712402344,
+    "height": 349.2104187011719
+  },
+  "minimumQueueBounds": {
+    "x": 272.1953125,
+    "y": 294,
+    "width": 320,
+    "height": 156.5
+  },
+  "lyricsSettingsBounds": {
+    "x": 504,
+    "y": 133,
+    "width": 380,
+    "height": 370
+  },
+  "reduced": {
+    "transition": "1e-05s",
+    "background": "rgb(10, 11, 18)"
+  },
+  "environment": {
+    "platform": "macOS Electron dev",
+    "profile": "isolated userData",
+    "audio": "two local silent WAV tracks with LRC",
+    "artwork": "synthetic verification fixture",
+    "defaultViewport": "1536×864 native window",
+    "minimumViewport": "960×540 CDP content viewport",
+    "baseline": "e2caabf"
+  },
+  "verification": {
+    "typecheck": "passed",
+    "vitestFiles": 262,
+    "vitestTests": 2274,
+    "detector": "one scoped source scan, no findings",
+    "review": "ship: independent source, screenshot and fix verification passed"
+  }
+}

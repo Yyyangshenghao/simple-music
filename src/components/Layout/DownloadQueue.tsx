@@ -20,6 +20,7 @@ export function DownloadQueue() {
   const paused = useOfflineCacheStore((state) => state.paused)
   const directory = useOfflineCacheStore((state) => state.downloadDir)
   const directoryError = useOfflineCacheStore((state) => state.directoryError)
+  const recoveryError = useOfflineCacheStore((state) => state.recoveryError)
   const [filter, setFilter] = useState<'all' | 'active' | 'done' | 'failed'>('all')
   const [pathBusy, setPathBusy] = useState(false)
   const [error, setError] = useState('')
@@ -97,7 +98,7 @@ export function DownloadQueue() {
             <button type="button" disabled={!failed} onClick={() => void store().saveMany(jobs.filter((job) => job.status === 'failed').map((job) => job.track)).catch(() => setError('无法重试，请检查下载目录'))}>重试失败</button>
             <button type="button" disabled={!completed} onClick={() => jobs.filter((job) => job.status === 'done').forEach((job) => store().dismissJob(offlineTrackKey(job.track)))}>清除完成记录</button>
           </div>
-          {paused && <p className={styles.hint}>新任务暂停开始，正在下载的歌曲会继续完成。</p>}
+          {paused && <p className={styles.hint}>新任务暂停开始，正在下载的歌曲会继续完成。重启恢复的任务也在此等待继续。</p>}
           <nav className={styles.filters} aria-label="筛选下载任务">
             {([['all', '全部'], ['active', '下载中'], ['done', '已完成'], ['failed', '失败']] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}
           </nav>
@@ -122,7 +123,7 @@ export function DownloadQueue() {
               </div>
             })}
           </div>
-          {(error || directoryError) && <p className={styles.error} role="alert">{error || directoryError}{directoryError && <button type="button" onClick={() => void store().loadDownloadDir().catch(() => {})}>重试</button>}</p>}
+          {(error || directoryError || recoveryError) && <p className={styles.error} role="alert">{error || directoryError || recoveryError}{directoryError && <button type="button" onClick={() => void store().loadDownloadDir().catch(() => {})}>重试</button>}</p>}
         </motion.section>}
       </AnimatePresence>
     </div>

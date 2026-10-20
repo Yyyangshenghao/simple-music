@@ -1,0 +1,6 @@
+/* 普通控件只接受鼠标操作；覆盖浏览器默认与组件内的键盘焦点框。 */
+:is(:focus, :focus-visible):not(input, textarea, [contenteditable]:not([contenteditable='false'])),
+input:is([type='range'], [type='checkbox'], [type='radio'], [type='button'], [type='submit'], [type='reset'], [type='color'], [type='file']):is(:focus, :focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}

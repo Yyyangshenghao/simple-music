@@ -1,88 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Track } from '../types/domain'
 
-const harness = vi.hoisted(() => ({
-  onMiniPlayerControl: undefined as ((payload: { action: string; value?: number }) => void) | undefined,
-  setMiniPlayerEnabled: vi.fn(),
-  toggle: vi.fn(), volume: vi.fn(), next: vi.fn(), prev: vi.fn(),
-  shuangeActive: false, feedNext: vi.fn(), feedPrev: vi.fn()
-}))
-
-vi.mock('react', () => ({
-  useEffect: (effect: () => void | (() => void)) => effect()
-}))
-
-vi.mock('../stores/window', () => ({
-  useWindowStore: { getState: () => ({ setState: vi.fn() }) }
-}))
-
-vi.mock('../stores/player', () => ({
-  usePlayerStore: {
-    getState: () => ({ toggle: harness.toggle, setVolume: harness.volume, seek: vi.fn(), volume: 0.5 })
-  }
-}))
-
-vi.mock('../stores/playlist', () => ({
-  usePlaylistStore: { getState: () => ({ next: harness.next, prev: harness.prev }) }
-}))
-vi.mock('../stores/shuange', () => ({ useShuangeStore: { getState: () => ({ active: harness.shuangeActive, next: harness.feedNext, prev: harness.feedPrev }) } }))
-
-vi.mock('../stores/settings', () => ({
-  useSettingsStore: {
-    getState: () => ({ setMiniPlayerEnabled: harness.setMiniPlayerEnabled })
-  }
-}))
+const harness = vi.hoisted(() => ({ cleanup: undefined as (() => void) | undefined, openQuickAdd: vi.fn(), setState: vi.fn() }))
+vi.mock('react', () => ({ useEffect: (effect: () => () => void) => { harness.cleanup = effect() } }))
+vi.mock('../stores/window', () => ({ useWindowStore: { getState: () => ({ setState: harness.setState }) } }))
+vi.mock('../stores/track-actions', () => ({ useTrackActionsStore: { getState: () => ({ openQuickAdd: harness.openQuickAdd }) } }))
+vi.mock('../lib/game-mode-sync', () => ({ initGameModeSync: vi.fn() }))
 
 import { useDesktopBridge } from './useDesktopBridge'
 
-describe('桌面桥接的迷你播放器状态同步', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    harness.shuangeActive = false
-    harness.onMiniPlayerControl = undefined
-    harness.setMiniPlayerEnabled.mockReset()
-    vi.stubGlobal('window', {
-      desktop: {
-        onStateChange: vi.fn(() => vi.fn()),
-        getState: vi.fn(() => Promise.resolve({})),
-        onHotkey: vi.fn(() => vi.fn()),
-        onMiniPlayerControl: vi.fn((callback: (payload: { action: string; value?: number }) => void) => {
-          harness.onMiniPlayerControl = callback
-          return vi.fn()
-        })
-      }
-    })
+describe('迷你条收藏意图在主窗口打开选择器', () => {
+  beforeEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    harness.cleanup?.()
+    vi.unstubAllGlobals()
   })
 
-  it('收到 sync-off 时仅把持久化设置落回关闭', () => {
+  it('直接使用点击时曲目快照，订阅销毁后停止消费', () => {
+    let receive!: (track: Track) => void
+    const off = vi.fn()
+    vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800, desktop: {
+      onStateChange: () => vi.fn(), getState: async () => ({}),
+      onMiniPlayerAddToPlaylist: (callback: typeof receive) => { receive = callback; return off }
+    } })
     useDesktopBridge()
-
-    harness.onMiniPlayerControl?.({ action: 'sync-off' })
-
-    expect(harness.setMiniPlayerEnabled).toHaveBeenCalledOnce()
-    expect(harness.setMiniPlayerEnabled).toHaveBeenCalledWith(false)
-  })
-
-  it('迷你播放器和托盘上下首在刷歌期间只切换 feed，退出后恢复普通队列', () => {
-    useDesktopBridge()
-    harness.shuangeActive = true
-    harness.onMiniPlayerControl?.({ action: 'next' })
-    harness.onMiniPlayerControl?.({ action: 'prev' })
-    expect(harness.feedNext).toHaveBeenCalledOnce()
-    expect(harness.feedPrev).toHaveBeenCalledOnce()
-    expect(harness.next).not.toHaveBeenCalled()
-    expect(harness.prev).not.toHaveBeenCalled()
-    harness.shuangeActive = false
-    harness.onMiniPlayerControl?.({ action: 'prev' })
-    expect(harness.prev).toHaveBeenCalledOnce()
-  })
-
-  it('托盘基础命令调用播放器与队列，音量命令保持原数值范围', () => {
-    useDesktopBridge()
-    for (const action of ['play-pause', 'next', 'prev', 'volume-up', 'volume-down']) harness.onMiniPlayerControl?.({ action })
-    harness.onMiniPlayerControl?.({ action: 'volume', value: 2 })
-    expect(harness.toggle).toHaveBeenCalledOnce()
-    expect(harness.next).toHaveBeenCalledOnce()
-    expect(harness.prev).toHaveBeenCalledOnce()
-    expect(harness.volume.mock.calls).toEqual([[0.55], [0.45], [1]])
+    const clicked: Track = { provider: 'netease', source: 'netease', type: 'song', id: 1, name: '点击时歌曲', artist: '歌手', artists: [] }
+    receive(clicked)
+    expect(harness.openQuickAdd).toHaveBeenCalledWith(clicked, { x: 360, y: 220, width: 0, height: 0 })
+    harness.cleanup?.()
+    harness.cleanup = undefined
+    expect(off).toHaveBeenCalledOnce()
   })
 })

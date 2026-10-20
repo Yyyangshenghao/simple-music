@@ -347,6 +347,74 @@ describe('playlist 播放模式走序', () => {
     expect(loadTrack).not.toHaveBeenCalled()
   })
 
+  it.each([1, '1'])('旧移除回执未更新界面时，重复移除 %s 不误删相邻曲目', async id => {
+    const { usePlaylistStore, loadTrack } = await setup(3)
+    const tracks = [...usePlaylistStore.getState().queue]
+    tracks[1] = { ...tracks[1], id }
+    usePlaylistStore.setState({ queue: tracks, queueIndex: 0, shuffleOrder: [0, 2, 1] })
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 2])
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual([0, 1])
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it('相同 ID 的来源变化后旧移除命令无效，正确目标仍可移除', async () => {
+    const { usePlaylistStore } = await setup(3)
+    const tracks = [...usePlaylistStore.getState().queue]
+    tracks[1] = { ...tracks[1], source: 'qq', provider: 'qq' }
+    usePlaylistStore.setState({ queue: tracks, queueIndex: 0 })
+    usePlaylistStore.getState().removeQueueItem(1, 'netease:1')
+    expect(usePlaylistStore.getState().queue).toEqual(tracks)
+    usePlaylistStore.getState().removeQueueItem(1, 'qq:1')
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 2])
+  })
+
+  it('旧队列行播放命令不能把移位后的另一首当作目标', async () => {
+    const { usePlaylistStore, loadTrack } = await setup(4)
+    const tracks = usePlaylistStore.getState().queue
+    usePlaylistStore.getState().removeQueueItem(1)
+    usePlaylistStore.getState().playAt(2, { expectedTrackKey: 'netease:2' })
+    expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    expect(loadTrack).not.toHaveBeenCalled()
+    usePlaylistStore.getState().playAt(1, { expectedTrackKey: 'netease:2', preservePlaybackIntent: true })
+    expect(loadTrack.mock.calls).toEqual([[tracks[2], { contextId: usePlaylistStore.getState().queueContextId, preservePlaybackIntent: true }]])
+  })
+
+  it('设为下一首按当前歌曲身份核对，不操作旧下标上的其他歌曲', async () => {
+    const { usePlaylistStore, loadTrack } = await setup(4)
+    useSettingsStore.setState({ playMode: 'order' })
+    usePlaylistStore.getState().playNextInQueue(3)
+    const before = usePlaylistStore.getState()
+    usePlaylistStore.getState().playNextInQueue(2, 'netease:2')
+    expect(usePlaylistStore.getState().queue).toEqual(before.queue)
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual(before.shuffleOrder)
+    usePlaylistStore.getState().playNextInQueue(3, 'netease:2')
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 2, 3, 1])
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
+  it.each(['order', 'shuffle'] as const)('%s 排序按当前显示顺序核对起点和终点', async mode => {
+    const { usePlaylistStore, loadTrack } = await setup(4)
+    const tracks = usePlaylistStore.getState().queue
+    useSettingsStore.setState({ playMode: mode })
+    usePlaylistStore.setState(mode === 'shuffle'
+      ? { shuffleOrder: [0, 3, 1, 2] }
+      : { queue: [tracks[0], tracks[3], tracks[1], tracks[2]], shuffleOrder: [0, 1, 2, 3] })
+    const before = usePlaylistStore.getState()
+    for (const expected of [{ from: 'netease:1', to: 'netease:2' }, { from: 'netease:3', to: 'netease:1' }]) {
+      usePlaylistStore.getState().moveQueueItem(1, 3, expected)
+      expect(usePlaylistStore.getState().queue).toEqual(before.queue)
+      expect(usePlaylistStore.getState().shuffleOrder).toEqual(before.shuffleOrder)
+      expect(usePlaylistStore.getState().queueIndex).toBe(0)
+    }
+    usePlaylistStore.getState().moveQueueItem(1, 3, { from: 'netease:3', to: 'netease:2' })
+    expect(usePlaylistStore.getState().queue.map(track => track.id)).toEqual([0, 1, 2, 3])
+    expect(usePlaylistStore.getState().shuffleOrder).toEqual(mode === 'shuffle' ? [0, 1, 2, 3] : [0, 3, 1, 2])
+    expect(loadTrack).not.toHaveBeenCalled()
+  })
+
   it('单曲循环:自然播完原地重播,不切换曲目', async () => {
     const { usePlaylistStore, usePlayerStore, loadTrack } = await setup(3)
     useSettingsStore.setState({ playMode: 'one' })
@@ -393,7 +461,8 @@ describe('recent plays store', () => {
       setItem: () => {},
       removeItem: () => {}
     })
-    const { useRecentPlaysStore } = await import('./recent')
+    const { useRecentPlaysStore, initRecentPlaysTracking } = await import('./recent')
+    const stopTracking = initRecentPlaysTracking()
     const { usePlayerStore } = await import('./player')
     const mk = (i: number) => ({
       provider: 'netease' as const,
@@ -420,5 +489,6 @@ describe('recent plays store', () => {
     // 恢复态(paused)不记录
     usePlayerStore.setState({ currentTrack: mk(8), status: 'paused' })
     expect(String(useRecentPlaysStore.getState().items[0].track.id)).toBe('9')
+    stopTracking()
   })
 })

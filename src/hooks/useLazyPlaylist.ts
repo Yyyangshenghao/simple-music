@@ -1,33 +1,60 @@
 // 歌单懒加载:全骨架(trackIds 全量)+ 按 100 首窗口补详情。
-// 模块级缓存按 `${source}:${type}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
-// 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源丢弃在途响应。
+// 模块级缓存按 `${source}:${accountSession}:${type}:${id}` 存,顶栏后退/前进或预览弹窗→详情页共用;重新进入时校验歌单内容。
+// 竞态守卫沿用 loadSession 计数 ref 模式(参考 ExplorePage):切歌单/音源/账号丢弃在途响应。
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { serviceFor } from '../lib/service-registry'
 import { TRACK_WINDOW, windowIndicesFor, windowSpan, buildQueue } from '../lib/lazy-window'
 import type { Playlist, Track } from '../types/domain'
+import type { PlaylistDetailMeta } from '../lib/music-service'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { isProviderId } from '../providers/types'
 import { isProviderParticipating, useProviderStore } from '../stores/providers'
+import { useLikesStore } from '../stores/likes'
 
 interface LazyEntry {
   trackIds: unknown[]
   tracks: (Track | null)[]
   loadedWindows: Set<number>
   inflightWindows: Map<number, Promise<void>>
+  failedWindows: Map<number, number>
   skeletonLoaded: boolean
   error: boolean
   /** 骨架加载完成时间戳,用于 TTL 过期判断。 */
   ts: number
   /** 平台返回的曲目最近更新时间；不可用时仍用有序 trackIds 判变更。 */
   updatedAt: number | null
+  /** 读取列表时卡片所用的摘要；摘要变化后不能继续覆盖成旧列表数量。 */
+  summaryCount?: number
+  /** 骨架接口顺带的歌单资料(简介/创建者/播放量)。 */
+  meta?: PlaylistDetailMeta
+  /** 整单骨架未到时先展示的首屏曲目(trackIds/tracks 暂只含这一页)。 */
+  provisional?: boolean
+  /** 在途的整单骨架请求;首屏期间点播放需等它完成。 */
+  pending?: Promise<void>
 }
 
 const cache = new Map<string, LazyEntry>()
+/** 首屏先取的曲目数:整单翻页较慢的音源先拉这一页展示,网易云只补这么多前缀详情。 */
+export const FIRST_SCREEN_TRACKS = 15
 const skeletonVersions = new Map<string, number>()
 let nextSkeletonVersion = 0
 
-function playlistCacheKey(playlist: Playlist): string {
-  return `${playlist.source}:${playlist.type}:${String(playlist.id)}`
+function playlistAccountSession(playlist: Playlist): number {
+  return isProviderId(playlist.source) ? providerAccountSession(playlist.source) : 0
+}
+
+function playlistCacheKey(playlist: Playlist, session = playlistAccountSession(playlist)): string {
+  const favoriteRevision = isQQLikedPlaylist(playlist) ? `:${useLikesStore.getState().qqMutationRevision}` : ''
+  return `${playlist.source}:${session}:${playlist.type}:${String(playlist.id)}${favoriteRevision}`
+}
+
+function isQQLikedPlaylist(playlist: Playlist): boolean {
+  return playlist.source === 'qq' && playlist.type === 'playlist' && String(playlist.id) === 'qq-liked:201'
+}
+
+function isCurrentPlaylistSession(playlist: Playlist, key: string): boolean {
+  return playlistCacheKey(playlist) === key && (!isProviderId(playlist.source) || isProviderParticipating(playlist.source))
 }
 
 /** 缓存歌单数上限:大歌单全量 Track 详情很占内存,超限后按 LRU 淘汰最久未访问的。
@@ -56,12 +83,13 @@ function touchAndEvict(key: string): void {
 }
 
 function emptyEntry(): LazyEntry {
-  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Map(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
+  return { trackIds: [], tracks: [], loadedWindows: new Set(), inflightWindows: new Map(), failedWindows: new Map(), skeletonLoaded: false, error: false, ts: 0, updatedAt: null }
 }
 
 /** 每日推荐/雷达等已全量在手的场景:直接落缓存,不发任何请求。 */
-function seededEntry(tracks: Track[]): LazyEntry {
+function seededEntry(tracks: Track[], summaryCount: number): LazyEntry {
   const e = emptyEntry()
+  e.summaryCount = summaryCount
   e.trackIds = tracks.map((t) => t.id)
   e.tracks = [...tracks]
   for (let w = 0; w * TRACK_WINDOW < tracks.length; w++) e.loadedWindows.add(w)
@@ -119,26 +147,45 @@ export async function loadPlaylistQueue(playlist: Playlist): Promise<Track[]> {
   touchAndEvict(key)
   if (!entry.skeletonLoaded) {
     if (playlist.type === 'album') {
-      entry = seededEntry(await service.getAlbumTracks(playlist.id))
+      const tracks = await service.getAlbumTracks(playlist.id)
+      if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
+      entry = seededEntry(tracks, playlist.trackCount)
       cache.set(key, entry)
+      touchAndEvict(key)
     } else {
       const sk = await service.getPlaylistSkeleton(playlist.id)
+      if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
       entry.trackIds = sk.trackIds
       entry.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
       markPrefixWindows(entry, sk.tracks.length)
       entry.skeletonLoaded = true
       entry.ts = Date.now()
       entry.updatedAt = sk.updatedAt ?? null
+      entry.meta = sk.meta
+      entry.summaryCount = playlist.trackCount
     }
   }
+  if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
   return buildQueue(entry.trackIds, entry.tracks, playlist.source)
 }
 
 /** 追加歌曲后下次打开详情重新读取骨架。 */
-export function invalidatePlaylistCache(playlist: Playlist): void {
+export function invalidatePlaylistCache(playlist: Playlist, options: { preserveSnapshot?: boolean } = {}): void {
   const key = playlistCacheKey(playlist)
-  cache.delete(key)
+  const entry = cache.get(key)
+  if (options.preserveSnapshot && entry) entry.ts = Date.now() - CACHE_TTL_MS - 1
+  else cache.delete(key)
   skeletonVersions.delete(key)
+}
+
+/** 卡片复用已读取的列表数量，不为每张卡额外请求详情。 */
+export function getCachedPlaylistTrackCount(playlist: Playlist): number | undefined {
+  const key = playlistCacheKey(playlist)
+  if (!isCurrentPlaylistSession(playlist, key)) return undefined
+  const entry = cache.get(key)
+  return entry?.skeletonLoaded && !entry.error && Date.now() - entry.ts <= CACHE_TTL_MS
+    && (entry.summaryCount === playlist.trackCount || entry.trackIds.length === playlist.trackCount)
+    ? entry.trackIds.length : undefined
 }
 
 export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
@@ -148,9 +195,11 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   const service = serviceFor(playlist.source)
   const available = useProviderStore((state) =>
     !isProviderId(playlist.source)
-      || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated')
+      || (state.byId[playlist.source].enabled && state.byId[playlist.source].auth === 'authenticated' && state.byId[playlist.source].playbackAvailable !== false)
   )
-  const key = playlistCacheKey(playlist)
+  const accountSession = useProviderStore(() => playlistAccountSession(playlist))
+  useLikesStore((state) => isQQLikedPlaylist(playlist) ? state.qqMutationRevision : 0)
+  const key = playlistCacheKey(playlist, accountSession)
   const [, bump] = useReducer((c: number) => c + 1, 0)
   const [retryTick, setRetryTick] = useState(0)
   const sessionRef = useRef(0)
@@ -162,7 +211,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     visitedKeyRef.current = key
   }
   if (!cache.has(key)) {
-    cache.set(key, initialTracks?.length ? seededEntry(initialTracks) : emptyEntry())
+    cache.set(key, initialTracks?.length ? seededEntry(initialTracks, playlist.trackCount) : emptyEntry())
   } else if (initialTracks?.length) {
     // 每日推荐/雷达等 key 固定但内容会变:按不可变曲目对象及顺序比较,同时感知换歌和资料更新。
     // 对象与顺序未变时复用缓存,即使调用方复制了数组也无需重新播种。
@@ -170,7 +219,7 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const stale =
       entry.trackIds.length !== initialTracks.length ||
       initialTracks.some((track, index) => entry.tracks[index] !== track)
-    if (stale) cache.set(key, seededEntry(initialTracks))
+    if (stale) cache.set(key, seededEntry(initialTracks, playlist.trackCount))
   }
   touchAndEvict(key)
 
@@ -185,9 +234,23 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const session = ++sessionRef.current
     const version = ++nextSkeletonVersion
     skeletonVersions.set(key, version)
+    const stillCurrent = () => isCurrentPlaylistSession(playlist, key) && sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous
+    // 整单要逐页翻完的音源:并行先取首屏一页直接展示,整单到了再整体替换
+    if (!previous.skeletonLoaded && service.getPlaylistPage) {
+      const first = previous
+      void service.getPlaylistPage(playlist.id, 0, FIRST_SCREEN_TRACKS).then((page) => {
+        if (!stillCurrent() || first.skeletonLoaded || !page.tracks.length) return
+        first.trackIds = page.tracks.map((track) => track.id)
+        first.tracks = [...page.tracks]
+        first.provisional = true
+        bump()
+      }).catch(() => {})
+    }
+    let settle!: () => void
+    previous.pending = new Promise<void>((resolve) => { settle = resolve })
     try {
-      const sk = await service.getPlaylistSkeleton(playlist.id)
-      if (sessionRef.current !== session || skeletonVersions.get(key) !== version || cache.get(key) !== previous) return
+      const sk = await service.getPlaylistSkeleton(playlist.id, { prefix: FIRST_SCREEN_TRACKS })
+      if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session || skeletonVersions.get(key) !== version || cache.get(key) !== previous) return
       const next = emptyEntry()
       next.trackIds = sk.trackIds
       next.tracks = alignTracksByIds(sk.trackIds, sk.tracks)
@@ -195,16 +258,21 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       next.skeletonLoaded = true
       next.ts = Date.now()
       next.updatedAt = sk.updatedAt ?? null
+      next.meta = sk.meta
+      next.summaryCount = playlist.trackCount
       cache.set(key, next)
       bump()
     } catch (error) {
-      if (sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous && !previous.skeletonLoaded) {
+      if (!isCurrentPlaylistSession(playlist, key)) return
+      if (isCurrentPlaylistSession(playlist, key) && sessionRef.current === session && skeletonVersions.get(key) === version && cache.get(key) === previous && !previous.skeletonLoaded) {
         previous.error = true
         bump()
       }
       throw error
+    } finally {
+      settle()
     }
-  }, [available, key, playlist.id, playlist.type, initialTracks, service])
+  }, [available, key, playlist.id, playlist.type, playlist.trackCount, initialTracks, service])
 
   const checkForUpdates = useCallback(async () => {
     if (!available || playlist.type === 'album' || initialTracks?.length) return
@@ -215,16 +283,17 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     }
     const session = sessionRef.current
     const revision = await service.getPlaylistRevision(playlist.id)
-    if (sessionRef.current !== session || cache.get(key) !== current) return
+    if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session || cache.get(key) !== current) return
     const timeChanged = current.updatedAt !== null && revision.updatedAt !== null && current.updatedAt !== revision.updatedAt
     const idsChanged = current.trackIds.length !== revision.trackIds.length
       || current.trackIds.some((id, index) => String(id) !== String(revision.trackIds[index]))
     if (timeChanged || idsChanged) await refresh()
     else {
       current.updatedAt = revision.updatedAt ?? current.updatedAt
+      current.summaryCount = playlist.trackCount
       current.ts = Date.now()
     }
-  }, [available, key, playlist.id, playlist.type, initialTracks, refresh, service])
+  }, [available, key, playlist.id, playlist.type, playlist.trackCount, initialTracks, refresh, service])
 
   useEffect(() => {
     sessionRef.current += 1
@@ -241,12 +310,13 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
       service
         .getAlbumTracks(playlist.id)
         .then((tracks) => {
-          if (sessionRef.current !== session) return
-          cache.set(key, seededEntry(tracks))
+          if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session) return
+          cache.set(key, seededEntry(tracks, playlist.trackCount))
+          touchAndEvict(key)
           bump()
         })
         .catch(() => {
-          if (sessionRef.current !== session) return
+          if (!isCurrentPlaylistSession(playlist, key) || sessionRef.current !== session) return
           e.error = true
           bump()
         })
@@ -267,35 +337,43 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
     const span = windowSpan(w, TRACK_WINDOW, e.trackIds.length)
     const request = service.getTracksByIds(e.trackIds.slice(span.start, span.end))
       .then((fetched) => {
+        if (!isCurrentPlaylistSession(playlist, key)) throw new Error('歌单加载会话已失效')
         const byId = new Map(fetched.map((t) => [String(t.id), t]))
         for (let i = span.start; i < span.end; i++) {
           e.tracks[i] = byId.get(String(e.trackIds[i])) ?? e.tracks[i]
         }
         if (fetched.length > 0) e.loadedWindows.add(w)
         else throw new Error('歌曲详情暂不可用')
+        e.failedWindows.delete(w)
         if (sessionRef.current === session) bump()
+      })
+      .catch(error => {
+        // 滚动反复经过失败窗口不能立即刷同一接口；搜索和手动刷新仍可主动重试。
+        if (isCurrentPlaylistSession(playlist, key) && cache.get(key) === e) e.failedWindows.set(w, Date.now() + 30_000)
+        throw error
       })
       .finally(() => { e.inflightWindows.delete(w) })
     e.inflightWindows.set(w, request)
     return request
-  }, [service])
+  }, [service, key])
 
   const ensureRange = useCallback((start: number, end: number) => {
-    if (!available) return
+    if (!available || !isCurrentPlaylistSession(playlist, key)) return
     const e = cache.get(key)
     if (!e?.skeletonLoaded) return
     for (const w of windowIndicesFor(start, end, TRACK_WINDOW, e.trackIds.length)) {
+      if ((e.failedWindows.get(w) ?? 0) > Date.now()) continue
       void loadWindow(e, w).catch(() => {})
     }
   }, [available, key, loadWindow, entry])
 
   const ensureAll = useCallback(async (cancelled: () => boolean) => {
-    if (!available) return
+    if (!available || !isCurrentPlaylistSession(playlist, key)) return
     const e = cache.get(key)
     if (!e?.skeletonLoaded) return
     // 串行补齐，复用可见区域的在途请求，避免大歌单同时发出大量请求。
     for (const w of windowIndicesFor(0, e.trackIds.length, TRACK_WINDOW, e.trackIds.length)) {
-      if (cancelled()) return
+      if (cancelled() || !isCurrentPlaylistSession(playlist, key)) return
       await loadWindow(e, w)
     }
   }, [available, key, loadWindow, entry])
@@ -303,12 +381,18 @@ export function useLazyPlaylist(playlist: Playlist, initialTracks?: Track[]) {
   return {
     total: entry.trackIds.length,
     tracks: entry.tracks,
+    meta: entry.meta,
     loading: !entry.skeletonLoaded && !entry.error,
+    /** 正在展示首屏曲目,整单仍在加载。 */
+    provisional: !!entry.provisional && !entry.skeletonLoaded,
+    /** 等待在途的整单骨架(首屏期间点播放用);失败也会结束等待。 */
+    whenReady: () => cache.get(key)?.pending ?? Promise.resolve(),
     error: entry.error || !available,
     available,
     ensureRange,
     ensureAll,
     makeQueue: () => {
+      if (!isCurrentPlaylistSession(playlist, key)) return []
       const current = cache.get(key) ?? entry
       return buildQueue(current.trackIds, current.tracks, playlist.source)
     },

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TiltCard } from './TiltCard'
 import { PlayerGlass } from '../Player/PlayerGlass'
+import { BorderGlow } from '../BorderGlow/BorderGlow'
 
 const state = vi.hoisted(() => ({
   reduced: false,
@@ -30,6 +31,11 @@ afterEach(() => {
 })
 
 describe('装饰动效的实际开关', () => {
+  it('闲置卡片不常驻透视变换，避免为每张封面保留 3D 合成层', () => {
+    const html = renderToStaticMarkup(<TiltCard>歌单</TiltCard>)
+    expect(html).not.toContain('perspective(')
+  })
+
   it('卡片光斑与倾斜独立，系统减少动态同时暂停装饰', () => {
     const render = () => renderToStaticMarkup(<TiltCard>歌单</TiltCard>)
     expect(render()).toContain('spotlight')
@@ -44,6 +50,16 @@ describe('装饰动效的实际开关', () => {
     state.reduced = true
     expect(render()).not.toContain('spotlight')
     expect(state.performance.cardTiltEffect).toBe(true)
+  })
+
+  it('边缘跟手辉光随光斑开关与系统减少动态关闭', () => {
+    const render = () => renderToStaticMarkup(<BorderGlow>歌单</BorderGlow>)
+    expect(render()).not.toContain('data-glow-off')
+    state.performance.cardSpotlightEffect = false
+    expect(render()).toContain('data-glow-off')
+    state.performance.cardSpotlightEffect = true
+    state.reduced = true
+    expect(render()).toContain('data-glow-off')
   })
 
   it('减少动态、节能与隐藏播放栏均停止辉光，不改动用户偏好', () => {

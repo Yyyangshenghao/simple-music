@@ -1,4 +1,5 @@
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -59,3 +60,6 @@
 
 /* 返回时封面会越过卡片边界，封面自身负责圆角裁切。 */
 .glowWrap :global(.border-glow-inner) { overflow: visible; }
+
+/* 私有歌单：卡片右下角的小锁，与曲数同一行。 */
+.privateBadge { position: absolute; right: 14px; bottom: 15px; display: grid; place-items: center; color: var(--sm-text-secondary); }

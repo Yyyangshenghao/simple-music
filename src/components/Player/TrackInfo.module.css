@@ -9,12 +9,15 @@
 .cover {
   flex-shrink: 0;
   position: relative;
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--sm-fill-subtle);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  /* 细描边让浅色封面在浅色玻璃上也有边界，投影用封面氛围色而非纯黑。 */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--sm-text-primary) 8%, transparent),
+    0 6px 16px -6px color-mix(in srgb, var(--ambient-1) 55%, rgba(0, 0, 0, 0.45));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,6 +33,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 320ms var(--sm-ease-out);
 }
 
 .coverPlaceholder {
@@ -37,22 +41,55 @@
   color: var(--sm-accent-warm);
 }
 
+/* 悬停封面提示可展开歌词页。 */
+.coverHint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.36);
+  opacity: 0;
+  transition: opacity 180ms var(--sm-ease-out);
+}
+
+.coverHint svg {
+  transform: translateY(3px);
+  transition: transform 240ms var(--sm-ease-out);
+}
+
+.cover:hover .coverHint { opacity: 1; }
+.cover:hover .coverHint svg { transform: translateY(0); }
+.cover:hover .coverImg { transform: scale(1.06); }
+
 .meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   min-width: 0;
 }
 
 .name {
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--sm-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.name + * { margin-left: 4px; }
 
 .artist {
   background: none;
@@ -66,4 +103,11 @@
   text-align: left;
   font-family: inherit;
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coverImg,
+  .coverHint,
+  .coverHint svg { transition: none; }
+  .cover:hover .coverImg { transform: none; }
 }

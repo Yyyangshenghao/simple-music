@@ -1,0 +1,223 @@
+{
+  "date": "2026-10-18T03:07:53.542Z",
+  "realAccount": true,
+  "originalTargetsWritten": 0,
+  "platforms": {
+    "netease": {
+      "createVerified": true,
+      "independentMergePullAndPush": true,
+      "nameConflictChoiceVerified": true,
+      "staleRejectedWithoutWrite": true,
+      "localOrderPushed": true,
+      "cloudOrderPulled": true,
+      "removalDifferenceVerified": true,
+      "emptyTargetVerified": true
+    },
+    "qq": {
+      "createVerified": true,
+      "independentMergePullAndPush": true,
+      "nameConflictChoiceVerified": true,
+      "staleRejectedWithoutWrite": true,
+      "orderNotFalselyPromised": true,
+      "removalDifferenceVerified": true,
+      "emptyTargetVerified": true
+    }
+  },
+  "writes": [
+    {
+      "platform": "netease",
+      "operation": "playlist_create",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "netease",
+      "operation": "song_order_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "netease",
+      "operation": "song_order_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_name_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "song_order_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "song_order_update",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_tracks",
+      "target": "created-in-this-run",
+      "outerBodyCode200": false
+    },
+    {
+      "platform": "qq",
+      "operation": "AddPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "AddSonglist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "AddSonglist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "EditPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "AddSonglist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "EditPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "EditPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "EditPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "EditPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "DelSonglist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "qq",
+      "operation": "DelSonglist",
+      "target": "created-in-this-run",
+      "accepted": true
+    },
+    {
+      "platform": "netease",
+      "operation": "playlist_delete",
+      "target": "created-in-this-run",
+      "outerBodyCode200": true
+    },
+    {
+      "platform": "qq",
+      "operation": "DelPlaylist",
+      "target": "created-in-this-run",
+      "accepted": true
+    }
+  ],
+  "checks": {
+    "neteaseOriginalPlaylistCount": 56,
+    "qqOriginalPlaylistCount": 5,
+    "noPageErrors": true,
+    "pendingRequestsSettledBeforeCleanup": true,
+    "neteaseTestTargetRemoved": true,
+    "qqTestTargetRemoved": true,
+    "neteaseOriginalCatalogUnchanged": true,
+    "qqOriginalCatalogUnchanged": true,
+    "qqOriginalSongsAndOrderUnchanged": true,
+    "validationServerClosed": true
+  },
+  "pageErrors": [],
+  "cleanupFailures": [],
+  "operationProbeNotes": "网易写入日志仅采集了外层 body.code===200；playlist_tracks 的第三方包把真实业务码放在 body.body.code，false 不代表拒绝。应用使用 normalizeApiCode 并以最终快照确认结果，platforms/checks 才是验收判据。",
+  "operationProbeShapeCheck": {
+    "offlineOnly": true,
+    "nestedSuccessNormalizesTo200": true,
+    "outerBodyCodeMayBeMissing": true
+  },
+  "validation": {
+    "typecheck": "passed",
+    "testFiles": 271,
+    "tests": 2614,
+    "independentEvidenceReview": "passed",
+    "productSourceChanged": false
+  }
+}

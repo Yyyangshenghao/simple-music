@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { RevealText } from './RevealText'
 import styles from './InfoButton.module.css'
 
 export function InfoButton({ label, text: description, align = 'right' }: { label: string; text: string; align?: 'left' | 'right' }) {
@@ -17,7 +18,7 @@ export function InfoButton({ label, text: description, align = 'right' }: { labe
       >
         i
       </button>
-      <span id={tooltipId} className={styles.infoTooltip} data-info-tooltip data-align={align} role="tooltip">{description}</span>
+      <span id={tooltipId} className={styles.infoTooltip} data-info-tooltip data-align={align} role="tooltip"><RevealText text={description} /></span>
     </span>
   )
 }

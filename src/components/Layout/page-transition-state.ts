@@ -11,13 +11,14 @@ export interface PageTransitionState {
   origin: PageFrame | null
 }
 
-export function isDetailView(view: AppView): view is Extract<AppView, { type: 'playlist' }> {
-  return typeof view === 'object' && view.type === 'playlist'
+export function isDetailView(view: AppView): view is Extract<AppView, { type: 'playlist' | 'app-playlist' }> {
+  return typeof view === 'object' && (view.type === 'playlist' || view.type === 'app-playlist')
 }
 
 function pageKey(view: AppView): string {
   if (typeof view === 'string') return view
   if (view.type === 'playlist') return `playlist-${view.playlist.source}-${view.playlist.type}-${String(view.playlist.id)}`
+  if (view.type === 'app-playlist') return `app-playlist-${view.id}`
   if (view.type === 'toplist') return `toplist-${view.source}`
   if (view.type === 'search') return `search-${view.keyword}`
   return `${view.type}-${view.source}-${String(view.id)}`
@@ -31,7 +32,8 @@ export function nextPageTransition(state: PageTransitionState, view: AppView, re
   if (state.current.revision === revision && state.current.view === view) return state
   const next = initialPageTransition(view, revision)
   if (isDetailView(view)) {
-    next.origin = isDetailView(state.current.view) ? state.origin : state.current
+    // 后退进入详情时，刚离开的页面在详情之后，不能作为封面返回的来源页。
+    next.origin = isDetailView(state.current.view) ? state.origin : action === 'push' ? state.current : null
   } else if (action === 'pop' && state.origin && pageKey(state.origin.view) === pageKey(view)) {
     next.current.key = state.origin.key
   }

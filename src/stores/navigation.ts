@@ -29,6 +29,7 @@ export type AppView =
   | { type: 'toplist'; source: 'netease' | 'qq' | 'apple' }
   /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
   | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks?: Track[] }
+  | { type: 'app-playlist'; id: string }
 
 interface NavigationStore {
   currentView: AppView
@@ -45,6 +46,7 @@ interface NavigationStore {
   updateArtistPageState(id: unknown, source: 'netease' | 'qq' | 'apple', patch: Partial<ArtistPageState>): void
   updateSearchPageState(keyword: string, patch: Partial<SearchPageState>): void
   requestSettingsMusic(): void
+  consumeSettingsMusicRequest(request: number): void
   goBack(): void
   goForward(): void
 }
@@ -108,6 +110,10 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 
   requestSettingsMusic() {
     set((s) => ({ settingsMusicRequest: s.settingsMusicRequest + 1 }))
+  },
+
+  consumeSettingsMusicRequest(request) {
+    if (get().settingsMusicRequest === request) set({ settingsMusicRequest: 0 })
   },
 
   goBack() {

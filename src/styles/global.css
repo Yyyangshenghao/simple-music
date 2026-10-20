@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import './keyboard-controls.css';
 
 :root {
   color-scheme: light dark;
@@ -6,6 +7,12 @@
 
 [data-theme='dark'] { color-scheme: dark; }
 [data-theme='light'] { color-scheme: light; }
+
+[data-content-layout='full'] {
+  --sm-content-max-width: 100%;
+  --sm-rail-max-width: 100%;
+  --sm-page-gutter: var(--sm-content-gutter, 24px);
+}
 
 /* 氛围色切换的平滑过渡由 useAmbientPalette 的 JS 分步补间实现。
    不要在根元素上给 --ambient-* 挂 CSS transition:它们是全文档继承的注册属性,

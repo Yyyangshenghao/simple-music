@@ -1,13 +1,13 @@
 import { api } from './api'
 import type { AudioQuality, Track } from '../types/domain'
 import { sizedImage } from './image-size'
+import { providerAccountSession } from './provider-account-session'
 
 /**
  * 相邻曲目预加载:提前解析队列中前/后曲目的播放 URL、预热封面图 HTTP 缓存,
  * 切歌时省掉 URL 解析 RTT(起播延迟的大头)与封面网络等待。
  *
- * 内存纪律:每次 preloadTracks 即一个批次,缓存里不属于本批次(±当前曲目)的
- * 条目立即清除；离开窗口的封面主动断开 src，在途 URL 请求主动 abort。
+ * 普通队列与刷歌各保留一个窗口 合并保留集后再释放无人使用的资源
  */
 
 export interface SongUrlResponse {
@@ -36,6 +36,12 @@ export function resolveSongUrl(
   signal?: AbortSignal
 ): Promise<SongUrlResponse> {
   if (track.source === 'apple') return Promise.resolve({ message: 'Apple Music 使用官方播放器' })
+  if (track.source === 'local') return Promise.resolve({ url: track.url })
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  // 已完成缓存由播放器和预热入口读取 进入普通解析也可能是坏地址重试
+  const key = trackKey(track, quality)
+  const pending = songUrlRequests.get(key)
+  if (pending && !pending.controller.signal.aborted) return joinUrlRequest(pending, signal)
   const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
   const params =
     track.source === 'qq'
@@ -46,13 +52,28 @@ export function resolveSongUrl(
           fee: String(track.fee ?? ''),
         }
       : { id: String(track.id ?? ''), quality }
-  return api.get<SongUrlResponse>(path, params, signal ? { signal } : undefined)
+  const controller = new AbortController()
+  const request: UrlRequest = { controller, users: 0, promise: Promise.resolve({}) }
+  // 旧方案由调用方直接发起独立请求
+  // return api.get<SongUrlResponse>(path, params, signal ? { signal } : undefined)
+  request.promise = api.get<SongUrlResponse>(path, params, { signal: controller.signal })
+    .then(result => {
+      if (!controller.signal.aborted && result.url && latestKeep.has(key)) {
+        urlCache.set(key, { ...result, url: result.url, expiresAt: Date.now() + URL_TTL_MS })
+      }
+      return result
+    })
+    .finally(() => {
+      if (songUrlRequests.get(key) === request) songUrlRequests.delete(key)
+    })
+  songUrlRequests.set(key, request)
+  return joinUrlRequest(request, signal)
 }
 
 // 上游播放 URL 有时效(网易 CDN 链约十几分钟过期),只作短期预热,过期即弃
 const URL_TTL_MS = 5 * 60 * 1000
 
-interface CachedUrl {
+interface CachedUrl extends SongUrlResponse {
   url: string
   quality?: string
   level?: string
@@ -63,16 +84,67 @@ interface CachedUrl {
 const urlCache = new Map<string, CachedUrl>()
 const coverCache = new Map<string, HTMLImageElement>()
 const urlPreloads = new Map<string, AbortController>()
+const preloadTasks = new Map<string, Promise<void>>()
+interface UrlRequest {
+  controller: AbortController
+  users: number
+  promise: Promise<SongUrlResponse>
+}
+const songUrlRequests = new Map<string, UrlRequest>()
+type PreloadOwner = 'player' | 'shuange'
+const windows = new Map<PreloadOwner, { urls: Set<string>; covers: Set<string> }>()
 // 最近一个批次的保留集:在途请求晚到时若已不在窗口内,直接丢弃不入缓存
 let latestKeep = new Set<string>()
 
 export interface TrackPreloadOptions {
   /** 必须与实际渲染请求一致，否则浏览器图片缓存无法命中。 */
   coverPx?: number
+  /** 仅支持普通播放和刷歌两个有界窗口 */
+  owner?: PreloadOwner
+  /** 刷歌由自己的并发队列调度 URL 仅在此登记窗口和封面 */
+  deferUrls?: boolean
 }
 
+/**
+ * 共享 URL 请求 单个消费者取消不影响其他消费者
+ *
+ * @param request 在途请求
+ * @param signal 当前消费者的取消信号
+ */
+function joinUrlRequest(request: UrlRequest, signal?: AbortSignal): Promise<SongUrlResponse> {
+  request.users++
+  return new Promise((resolve, reject) => {
+    let finished = false
+    const release = () => {
+      if (finished) return false
+      finished = true
+      signal?.removeEventListener('abort', abort)
+      request.users--
+      return true
+    }
+    const abort = () => {
+      if (!release()) return
+      if (!request.users) request.controller.abort()
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+    request.promise.then(result => {
+      if (release()) resolve(result)
+    }, error => {
+      if (release()) reject(error)
+    })
+  })
+}
+
+/**
+ * 按账号会话和音质区分短期播放地址
+ *
+ * @param track 目标曲目
+ * @param quality 请求音质
+ */
 function trackKey(track: Track, quality: AudioQuality): string {
-  return `${track.source}:${String(track.mid ?? track.id ?? '')}:${quality}`
+  const session = track.source === 'local' ? 0 : providerAccountSession(track.source)
+  return `${track.source}:${session}:${String(track.mid ?? track.id ?? '')}:${quality}`
 }
 
 /**
@@ -144,20 +216,24 @@ export function preloadTracks(
   const keepCovers = new Set<string>()
   for (const t of windowTracks) {
     keep.add(trackKey(t, quality))
-    if (typeof t.cover === 'string') keepCovers.add(sizedImage(t.cover, coverPx))
+    if (typeof t.cover === 'string' && (typeof window === 'undefined' || window.desktop?.playbackRole !== 'host')) keepCovers.add(sizedImage(t.cover, coverPx))
   }
-  latestKeep = keep
+  // 旧方案 latestKeep = keep 会驱逐另一个消费者的窗口
+  windows.set(options.owner ?? 'player', { urls: keep, covers: keepCovers })
+  const allUrls = new Set([...windows.values()].flatMap(window => [...window.urls]))
+  const allCovers = new Set([...windows.values()].flatMap(window => [...window.covers]))
+  latestKeep = allUrls
 
   // 先清出窗口的旧条目,再发新预取
-  for (const k of urlCache.keys()) if (!keep.has(k)) urlCache.delete(k)
+  for (const k of urlCache.keys()) if (!allUrls.has(k)) urlCache.delete(k)
   for (const [k, controller] of urlPreloads) {
-    if (!keep.has(k)) {
+    if (!allUrls.has(k)) {
       controller.abort()
       urlPreloads.delete(k)
     }
   }
   for (const [k, img] of coverCache) {
-    if (!keepCovers.has(k)) {
+    if (!allCovers.has(k)) {
       img.onload = null
       img.onerror = null
       img.src = ''
@@ -170,7 +246,7 @@ export function preloadTracks(
     if (track.pending) continue
 
     const coverUrl = track.cover ? sizedImage(track.cover, coverPx) : ''
-    if (coverUrl && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
+    if (coverUrl && keepCovers.has(coverUrl) && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
       const img = new Image()
       img.decoding = 'async'
       img.src = coverUrl
@@ -178,40 +254,48 @@ export function preloadTracks(
     }
   }
 
-  for (const track of tracks) {
-    if (track.source === 'apple') continue
-    if (track.pending) continue
-    if (track.url) continue
-    const key = trackKey(track, quality)
-    const hit = urlCache.get(key)
-    if (hit && hit.expiresAt > Date.now()) continue
-    if (urlPreloads.has(key)) continue
-    const controller = new AbortController()
-    urlPreloads.set(key, controller)
-    void resolveSongUrl(track, quality, controller.signal)
-      .then((res) => {
-        if (res.url && latestKeep.has(key)) {
-          urlCache.set(key, {
-            url: res.url,
-            quality: res.quality,
-            level: res.level,
-            trial: res.trial,
-            expiresAt: Date.now() + URL_TTL_MS,
-          })
-        }
-      })
-      .catch(() => {
-        /* 预加载失败静默 */
-      })
-      .finally(() => {
-        if (urlPreloads.get(key) === controller) urlPreloads.delete(key)
-      })
-  }
+  if (!options.deferUrls) for (const track of tracks) void preloadTrackUrl(track, quality)
+}
+
+/**
+ * 预取单曲地址供刷歌的两个并发任务使用
+ *
+ * @param track 目标曲目
+ * @param quality 请求音质
+ */
+export function preloadTrackUrl(track: Track, quality: AudioQuality): Promise<void> {
+  if (track.source === 'apple' || track.source === 'local' || track.pending || track.url) return Promise.resolve()
+  const key = trackKey(track, quality)
+  if (!latestKeep.has(key) || getFreshHit(track, quality, Date.now())) return Promise.resolve()
+  const pending = preloadTasks.get(key)
+  if (pending && urlPreloads.has(key) && !urlPreloads.get(key)?.signal.aborted) return pending
+  const controller = new AbortController()
+  urlPreloads.set(key, controller)
+  const task = resolveSongUrl(track, quality, controller.signal)
+    .then(() => {})
+    .catch(() => { /* 播放时由现有路径重试并提示 */ })
+    .finally(() => {
+      if (urlPreloads.get(key) === controller) urlPreloads.delete(key)
+      if (preloadTasks.get(key) === task) preloadTasks.delete(key)
+    })
+  preloadTasks.set(key, task)
+  return task
+}
+
+/**
+ * 只释放指定使用方的窗口
+ *
+ * @param owner 普通队列或刷歌
+ */
+export function releasePreloadWindow(owner: PreloadOwner): void {
+  preloadTracks([], 'standard', null, { owner })
+  windows.delete(owner)
 }
 
 /** 清空全部预加载缓存(测试/切换登录态用)。 */
 export function clearPreloadCaches(): void {
   for (const controller of urlPreloads.values()) controller.abort()
+  for (const request of songUrlRequests.values()) request.controller.abort()
   for (const img of coverCache.values()) {
     img.onload = null
     img.onerror = null
@@ -220,5 +304,8 @@ export function clearPreloadCaches(): void {
   urlCache.clear()
   coverCache.clear()
   urlPreloads.clear()
+  preloadTasks.clear()
+  songUrlRequests.clear()
+  windows.clear()
   latestKeep = new Set()
 }

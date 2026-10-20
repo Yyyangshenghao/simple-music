@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-16T01:24:42.074Z",
+  "environment": "用户当前开发进程的同一QQ登录态，独立HTTP验证服务；未重启播放器",
+  "checks": {
+    "currentProcessSameAccount": true,
+    "originalPlaylistCount": 5,
+    "originalReadablePlaylistCount": 5,
+    "legacySongTypeResolved": true,
+    "privateCreateAndAdd": true,
+    "sameTargetRenameAndMetadataPreserved": true,
+    "sameTargetAddition": true,
+    "idempotentAndCloudOrder": true,
+    "removeDifference": true,
+    "emptyTargetUpdate": true,
+    "testPlaylistCleaned": true,
+    "originalPlaylistListUnchanged": true,
+    "originalReadableSongsAndOrderUnchanged": true,
+    "originalTargetsWritten": 0
+  },
+  "writeTargets": "网络层只允许本次创建响应中的新目标，原有目录硬拒绝",
+  "writes": [
+    {
+      "method": "AddPlaylist",
+      "target": "new-private-test"
+    },
+    {
+      "method": "AddSonglist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "EditPlaylist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "EditPlaylist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "AddSonglist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "DelSonglist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "DelSonglist",
+      "target": "created-in-this-run"
+    },
+    {
+      "method": "DelPlaylist",
+      "target": "created-in-this-run"
+    }
+  ],
+  "order": "QQ端为准；反序同集合重复同步不写入"
+}

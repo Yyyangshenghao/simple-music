@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { springGentle, gentleSpringValues } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
 import styles from './TiltCard.module.css'
+import { ListScrollActivity } from './list-scroll-activity'
 
 interface TiltCardProps {
   children: ReactNode
@@ -20,6 +21,7 @@ interface TiltCardProps {
  * 倾斜与光斑分别控制；系统减少动态时暂停跟随和位移反馈。
  */
 export function TiltCard({ children, className, maxTilt = 8, disabled = false }: TiltCardProps) {
+  const scrolling = useContext(ListScrollActivity)
   const ref = useRef<HTMLDivElement>(null)
   const px = useMotionValue(0.5)
   const py = useMotionValue(0.5)
@@ -27,10 +29,12 @@ export function TiltCard({ children, className, maxTilt = 8, disabled = false }:
   const sy = useSpring(py, gentleSpringValues)
   const rotateY = useTransform(sx, [0, 1], [-maxTilt, maxTilt])
   const rotateX = useTransform(sy, [0, 1], [maxTilt, -maxTilt])
+  // 回到静止姿态后移除透视，让非交互卡片退出 3D 合成；回弹期间仍保留透视。
+  const perspective = useTransform([rotateX, rotateY], ([x, y]) => x === 0 && y === 0 ? 0 : 800)
   const systemReducedMotion = useReducedMotion()
   const cardTiltEffect = useSettingsStore((s) => s.performance.cardTiltEffect)
   const cardSpotlightEffect = useSettingsStore((s) => s.performance.cardSpotlightEffect)
-  const reducedMotion = disabled || systemReducedMotion
+  const reducedMotion = disabled || systemReducedMotion || scrolling
   const tiltEnabled = cardTiltEffect && !reducedMotion
   const spotlightEnabled = cardSpotlightEffect && !reducedMotion
 
@@ -69,11 +73,12 @@ export function TiltCard({ children, className, maxTilt = 8, disabled = false }:
   return (
     <motion.div
       ref={ref}
+      data-scrolling={scrolling || undefined}
       className={`${styles.tilt} ${className ?? ''}`}
-      style={{ rotateX: tiltEnabled ? rotateX : 0, rotateY: tiltEnabled ? rotateY : 0, transformPerspective: 800 }}
-      whileHover={reducedMotion ? undefined : { y: -4, scale: 1.02 }}
-      whileTap={reducedMotion ? undefined : { scale: 0.97 }}
-      transition={springGentle}
+      style={{ rotateX: tiltEnabled ? rotateX : 0, rotateY: tiltEnabled ? rotateY : 0, transformPerspective: tiltEnabled ? perspective : 0 }}
+      whileHover={scrolling ? {} : reducedMotion ? undefined : { y: -4, scale: 1.02 }}
+      whileTap={scrolling ? {} : reducedMotion ? undefined : { scale: 0.97 }}
+      transition={scrolling ? { duration: 0 } : springGentle}
       onPointerMove={tiltEnabled || spotlightEnabled ? onPointerMove : undefined}
       onPointerLeave={tiltEnabled ? onPointerLeave : undefined}
     >

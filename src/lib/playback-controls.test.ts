@@ -13,7 +13,10 @@ vi.mock('../stores/player', async () => {
   }))
   return { usePlayerStore, registerTrackEndedHandler: vi.fn(), registerPlayFromQueueHandler: vi.fn() }
 })
-vi.mock('./track-preload', () => ({ preloadTracks: vi.fn() }))
+vi.mock('./track-preload', () => ({
+  preloadTracks: vi.fn(), preloadTrackUrl: vi.fn(async () => {}),
+  releasePreloadWindow: vi.fn(), getPreloadedResolution: () => undefined,
+}))
 vi.mock('./service-registry', () => ({ serviceFor: () => ({
   getDailySongs: async () => ['feed-1', 'feed-2'].map(id => ({ provider: 'netease', source: 'netease', type: 'song', id, name: id, artist: '歌手', artists: [], duration: 180_000 })),
   getLyrics: async () => [],

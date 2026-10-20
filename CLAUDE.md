@@ -42,7 +42,7 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **`Track.duration` 全项目约定为毫秒**(网易 `dt` 原样、QQ `interval×1000`)。格式化参考 `SearchResults.tsx` 的 `formatDuration`(ms 入参);曾有把 ms 当秒显示的 bug(ca700db)。
 - **异步竞态守卫**:切换音源/快速导航时,在途请求要丢弃。ExplorePage 用 `loadSession` 计数 ref 判断响应是否过期;新加异步 setter 沿用该模式。
 - **动效统一引用 `src/lib/motion-presets.ts`**(springSnappy/springGentle/tapScale/fadeRise 等)与 `src/styles/tokens.css` 的 `--sm-*`/`--glass-*`/`--ambient-*`/`--glow-*` 变量,不要另写魔法数值。全屏 WebGL 场景同屏只跑一个。
-- **视觉方向参考根目录 `DESIGN.md`**(Spotify 深色内容优先系统分析,经 `select-design` 技能导入):改色板/字重/间距节奏前先查这份文档而非凭感觉重新摸索;文档不含玻璃质感规范,悬浮层/玻璃效果仍按 tokens.css 的 `--glass-*` 变量自行调参。
+- **页面、文案和控件遵循根目录 `DESIGN.md`**：减少重复说明，明确操作层级，保留风险与不可用原因；颜色、字体与玻璃表面沿用 `tokens.css`，用实际界面截图验收。
 - **样式用 CSS Modules**(`*.module.css` 与组件同目录),主题切换靠 `data-theme` 属性 + tokens.css 变量。
 - **设置持久化分层**:通用设置在 `simplemusic-settings`,平台参与/播放顺序在 `simplemusic-provider-settings`,全局内容平台在 `simplemusic-content-provider`,播放队列与断点在 `simplemusic-playback`;FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
 - **`Track`/`Playlist` 的 `id` 类型是 `unknown`**(各来源 id 形态不同,QQ 还有 mid),比较/拼 URL 前先 `String()`。

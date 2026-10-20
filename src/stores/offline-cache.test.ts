@@ -210,7 +210,7 @@ describe('单曲离线保存会话', () => {
     h.status.mockReturnValue(lookup.promise)
     useOfflineCacheStore.getState().setPaused(true)
     const tracks = Array.from({ length: 5 }, (_, id) => ({ ...track, id: String(id) }))
-    expect(await useOfflineCacheStore.getState().saveMany([...tracks, tracks[0], { ...track, source: 'apple' }, { ...track, id: 'blocked', playable: false }])).toBe(5)
+    expect(await useOfflineCacheStore.getState().saveMany([...tracks, tracks[0], { ...track, source: 'apple' }, { ...track, provider: 'netease', source: 'netease', id: 'blocked', playable: false }])).toBe(5)
     expect(h.status).not.toHaveBeenCalled()
     expect(useOfflineCacheStore.getState().jobs.every((job) => job.status === 'queued')).toBe(true)
     useOfflineCacheStore.getState().setQueueOpen(false)
@@ -286,6 +286,18 @@ describe('单曲离线保存会话', () => {
     reject(new Error('旧请求失败'))
     await expect(loading).resolves.toBe('/new-downloads')
     expect(useOfflineCacheStore.getState().directoryError).toBe('')
+  })
+
+  it('取消或退出后的旧下载目录失败不再弹出下载提示', async () => {
+    useOfflineCacheStore.setState({ downloadDir: '' })
+    let reject!: (error: Error) => void
+    h.get.mockReturnValueOnce(new Promise((_, fail) => { reject = fail }))
+    const saving = useOfflineCacheStore.getState().save(track)
+    useOfflineCacheStore.getState().cancelSave()
+    reject(new Error('迟到目录失败'))
+    await saving
+    expect(h.show).not.toHaveBeenCalled()
+    expect(useOfflineCacheStore.getState().jobs).toEqual([])
   })
 
   it('浏览大量歌曲后只保留有限的近期离线状态', async () => {

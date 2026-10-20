@@ -90,7 +90,8 @@ function recommendationCapability(
         return { content: { type: 'radar', radar }, hasMore: false }
       }
 
-      const tracks = normalizeTracks(await service.getDailySongs?.() ?? [], source)
+      const loadTracks = surface.kind === 'radio' && service.getRadioSongs ? () => service.getRadioSongs!() : () => service.getDailySongs?.() ?? Promise.resolve([])
+      const tracks = normalizeTracks(await loadTracks(), source)
       return { content: { type: 'tracks', tracks }, hasMore: surface.refresh === 'stream' && tracks.length > 0 }
     },
   }
@@ -116,7 +117,7 @@ function libraryCapability(service: MusicService, source: ProviderId): LibraryCa
 }
 
 function historyCapability(service: MusicService, source: ProviderId): HistoryCapability | undefined {
-  if (!service.getListeningRanking && !service.getRecentPlaylists && !service.reportPlayback) return undefined
+  if (!service.getListeningRanking && !service.getRecentPlaylists && !service.getRecentTracks && !service.reportPlayback) return undefined
   return {
     getListeningRanking: service.getListeningRanking
       ? async () => normalizeTracks(await service.getListeningRanking!(), source)
@@ -124,13 +125,21 @@ function historyCapability(service: MusicService, source: ProviderId): HistoryCa
     getRecentPlaylists: service.getRecentPlaylists
       ? async () => normalizePlaylists(await service.getRecentPlaylists!(), source)
       : undefined,
+    getRecentTracks: service.getRecentTracks
+      ? async () => normalizeTracks(await service.getRecentTracks!(), source)
+      : undefined,
     reportPlayback: service.reportPlayback ? (trackId, opts) => service.reportPlayback!(trackId, opts) : undefined,
+    getPlaybackAccountToken: service.getPlaybackAccountToken ? () => service.getPlaybackAccountToken!() : undefined,
   }
 }
 
 function playlistWriterCapability(service: MusicService, source: ProviderId): PlaylistWriterCapability | undefined {
-  if (!service.createPlaylist || !service.replacePlaylistTracks) return undefined
+  if (!service.mutatePlatformPlaylist && (!service.createPlaylist || !service.replacePlaylistTracks)) return undefined
   return {
+    getPlaylistManagementSession: service.getPlaylistManagementSession ? signal => service.getPlaylistManagementSession!(signal) : undefined,
+    inspectPlatformPlaylist: service.inspectPlatformPlaylist ? (input, signal) => service.inspectPlatformPlaylist!(input, signal) : undefined,
+    mutatePlatformPlaylist: service.mutatePlatformPlaylist ? (input, signal) => service.mutatePlatformPlaylist!(input, signal) : undefined,
+    setCollectionSubscribed: service.setCollectionSubscribed ? (input, signal) => service.setCollectionSubscribed!(input, signal) : undefined,
     findUserPlaylistsByName: service.findUserPlaylistsByName
       ? (name) => service.findUserPlaylistsByName!(name)
       : undefined,
@@ -140,9 +149,9 @@ function playlistWriterCapability(service: MusicService, source: ProviderId): Pl
           return result ? { ...result, tracks: normalizeTracks(result.tracks, source) } : null
         }
       : undefined,
-    createPlaylist: (name, opts) => service.createPlaylist!(name, opts),
-    replacePlaylistTracks: (playlistId, currentTrackIds, newTrackIds) =>
-      service.replacePlaylistTracks!(playlistId, currentTrackIds, newTrackIds),
+    createPlaylist: service.createPlaylist ? (name, opts) => service.createPlaylist!(name, opts) : undefined,
+    replacePlaylistTracks: service.replacePlaylistTracks ? (playlistId, currentTrackIds, newTrackIds) =>
+      service.replacePlaylistTracks!(playlistId, currentTrackIds, newTrackIds) : undefined,
     updatePlaylistDescription: service.updatePlaylistDescription
       ? (playlistId, description) => service.updatePlaylistDescription!(playlistId, description)
       : undefined,

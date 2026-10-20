@@ -14,6 +14,7 @@ import { providerFor } from '../../providers/registry'
 import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { useContentProvider } from '../../hooks/useContentProvider'
+import { providerAccountSession } from '../../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
@@ -53,12 +54,17 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedSearchSource, setSelectedSearchSource] = useState<ProviderId | null>(null)
+  // 每次点击递增，作为 key 重挂箭头外壳以重播穿滑动画
+  const [navPulse, setNavPulse] = useState({ back: 0, forward: 0 })
 
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
+  const accountSignature = useProviderStore((state) => PROVIDER_IDS
+    .filter((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated')
+    .map((source) => `${source}:${providerAccountSession(source)}`).join('|'))
   const enabledSources = useMemo(
     () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
     [enabledSignature]
@@ -72,6 +78,16 @@ export function TopBar({ hidden = false }: TopBarProps) {
   useEffect(() => {
     if (isExpanded) inputRef.current?.focus()
   }, [isExpanded])
+
+  useEffect(() => {
+    const focusSearch = () => {
+      setIsExpanded(true)
+      setSearchFocused(true)
+      inputRef.current?.focus()
+    }
+    window.addEventListener('simplemusic:focus-search', focusSearch)
+    return () => window.removeEventListener('simplemusic:focus-search', focusSearch)
+  }, [])
 
   async function runSearch(q: string) {
     if (!q) return
@@ -102,8 +118,9 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   useEffect(() => {
-    // 输入或启用平台变化时立即让上一批请求过期，避免 250ms 防抖窗口内落入旧结果。
+    // 输入、平台或账号变化时立即让上一批请求过期；换号不保留旧建议。
     searchSeq.current++
+    setSearchResults({})
     const q = keyword.trim()
     if (!q) {
       searchSeq.current++
@@ -113,7 +130,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
     const timer = setTimeout(() => { void runSearch(q) }, 250)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyword, enabledSignature])
+  }, [keyword, enabledSignature, accountSignature])
 
   function handleSearchClick() {
     if (!isExpanded) setIsExpanded(true)
@@ -199,34 +216,35 @@ export function TopBar({ hidden = false }: TopBarProps) {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}
     >
-      {/* Left: traffic lights 留白 + 后退/前进胶囊组 */}
+      {/* Left: traffic lights 留白 + 后退/前进按钮 */}
       <div className={styles.left}>
         <div className={styles.navGroup}>
-          <motion.button
+          <button
             className={styles.navBtn}
-            onClick={goBack}
+            data-dir="back"
+            onClick={() => { setNavPulse((p) => ({ ...p, back: p.back + 1 })); goBack() }}
             disabled={history.length === 0}
             aria-label="后退"
-            whileTap={tapScale}
-            transition={springSnappy}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </motion.button>
-          <span className={styles.navDivider} aria-hidden="true" />
-          <motion.button
+            <span key={navPulse.back} className={`${styles.navArrow}${navPulse.back > 0 ? ` ${styles.navArrowGo}` : ''}`} aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </span>
+          </button>
+          <button
             className={styles.navBtn}
-            onClick={goForward}
+            data-dir="forward"
+            onClick={() => { setNavPulse((p) => ({ ...p, forward: p.forward + 1 })); goForward() }}
             disabled={future.length === 0}
             aria-label="前进"
-            whileTap={tapScale}
-            transition={springSnappy}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </motion.button>
+            <span key={navPulse.forward} className={`${styles.navArrow}${navPulse.forward > 0 ? ` ${styles.navArrowGo}` : ''}`} aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
         </div>
       </div>
 
@@ -238,7 +256,8 @@ export function TopBar({ hidden = false }: TopBarProps) {
             const section =
               typeof currentView === 'object' && currentView.type === 'playlist'
                 ? currentView.from
-                : currentView === 'release-history' ? 'settings' : currentView
+                : typeof currentView === 'object' && currentView.type === 'app-playlist' ? 'library'
+                  : currentView === 'release-history' ? 'settings' : currentView
             const active = section === item.view
               || (item.view === 'explore' && section !== 'library' && section !== 'roam' && section !== 'shuange' && section !== 'settings')
             return (
@@ -428,3 +447,4 @@ export function TopBar({ hidden = false }: TopBarProps) {
     </div>
   )
 }
+

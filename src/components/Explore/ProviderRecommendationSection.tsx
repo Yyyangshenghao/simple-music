@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { providerErrorOf, type ProviderResult } from '../../lib/content-hub'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
@@ -28,6 +28,12 @@ type SurfaceResult = ProviderResult<RecommendationPage> & { surface: Recommendat
 const deckSnapshots = new Map<ProviderId, { page: RecommendationPage; pool: StackPoolState<Playlist>; nextCursor?: string }>()
 
 const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
+const qqDay = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10)
+function recommendationScope(surface: RecommendationSurface, day = qqDay()): string {
+  const suffix = surface.id === 'qq:daily' ? `:${day}`
+    : surface.id === 'netease:daily-songs' ? `:${new Date().toDateString()}` : ''
+  return `recommendation:${surface.id}:root${suffix}`
+}
 
 function discoveryPlaylists(playlists: Playlist[]): Playlist[] {
   // 网易云私人雷达已有独立入口，不重复放入发现歌单牌堆。
@@ -59,11 +65,12 @@ interface ProviderRecommendationSectionProps {
   onPreview(playlist: Playlist): void
 }
 
-export function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
+export const ProviderRecommendationSection = memo(function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
   const provider = providerFor(source)
   const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
+  const [dailyDay, setDailyDay] = useState(qqDay)
   const cachedResults = () => Object.fromEntries(surfaces.flatMap((surface) => {
-    const page = getCachedProviderData<RecommendationPage>(source, `recommendation:${surface.id}:root`)
+    const page = getCachedProviderData<RecommendationPage>(source, recommendationScope(surface))
     return page ? [[surface.id, { surface, source, status: isEmptyPage(page) ? 'empty' : 'ready', data: page } as SurfaceResult]] : []
   }))
   const feedSurface = surfaces.find((surface) => surface.kind === 'playlist-feed')
@@ -85,16 +92,18 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
   }, [])
 
   const loadSurface = useCallback(async (surface: RecommendationSurface, session: number, force = false) => {
-    const cached = !force && getCachedProviderData<RecommendationPage>(source, `recommendation:${surface.id}:root`)
+    const startedDay = qqDay()
+    const scope = recommendationScope(surface, startedDay)
+    const cached = !force && getCachedProviderData<RecommendationPage>(source, scope)
     if (!cached) commit(surface, { source, status: 'loading', data: null })
     try {
       const page = await requestProviderData(
         source,
-        `recommendation:${surface.id}:root`,
+        scope,
         () => provider.recommendations!.load(surface.id),
         { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS }
       )
-      if (sessionRef.current !== session) return
+      if (sessionRef.current !== session || (surface.id === 'qq:daily' && startedDay !== qqDay())) return
       commit(surface, {
         source,
         status: isEmptyPage(page) ? 'empty' : 'ready',
@@ -108,7 +117,7 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
         }
       }
     } catch (error) {
-      if (sessionRef.current !== session) return
+      if (sessionRef.current !== session || (surface.id === 'qq:daily' && startedDay !== qqDay())) return
       commit(surface, {
         source,
         status: 'error',
@@ -125,6 +134,19 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
     // provider 和 surfaces 由静态注册表提供，source 变化时才需重建会话。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source])
+
+  useEffect(() => {
+    if (source !== 'qq') return
+    const timer = setInterval(() => setDailyDay(qqDay()), 60_000)
+    return () => clearInterval(timer)
+  }, [source])
+
+  useEffect(() => {
+    if (source !== 'qq') return
+    const daily = surfaces.find(surface => surface.id === 'qq:daily')
+    if (daily) void loadSurface(daily, sessionRef.current)
+    // 仅日推跨日刷新，其余平台栏目与牌堆不重置。
+  }, [dailyDay, source, loadSurface])
 
   useEffect(() => {
     if (!feedSurface || !nextCursorRef.current || pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
@@ -304,8 +326,8 @@ export function ProviderRecommendationSection({ source, onPreview }: ProviderRec
       {source === 'apple' && <ApplePlaylistRecommendations charts={feedPlaylists} onOpen={onPreview} />}
       {source === 'apple' && <AppleHomeLibrary onOpen={onPreview} />}
       {provider.library?.getUserPlaylists && <ProviderPlaylistRail source={source} onOpen={onPreview} />}
-      {provider.history?.getRecentPlaylists && <RecentRail source={source} embedded onOpen={onPreview} />}
+      {(provider.history?.getRecentPlaylists || provider.history?.getRecentTracks) && <RecentRail source={source} embedded onOpen={onPreview} />}
       {provider.toplists && <ToplistSection source={source} embedded onOpen={onPreview} />}
     </motion.section>
   )
-}
+})

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { DesktopLyrics } from '../../src/components/Lyrics/DesktopLyrics'
 import type { LyricsPayload } from '../../src/types/ipc'
 import styles from './desktop-lyrics.module.css'
+import '../../src/styles/keyboard-controls.css'
 
 function asStr(v: unknown): string {
   return typeof v === 'string' ? v : ''

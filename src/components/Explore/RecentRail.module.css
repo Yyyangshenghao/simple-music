@@ -15,10 +15,7 @@
 }
 
 .row {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  grid-auto-columns: 92px;
 }
 
 .card {
@@ -48,6 +45,11 @@
 
 .card:hover .cover { transform: scale(1.04); }
 
+:global([data-explore-scrolling]) .card .cover {
+  transform: none;
+  transition: none;
+}
+
 .name {
   font-size: 12px;
   color: var(--sm-text-secondary);
@@ -57,3 +59,6 @@
 }
 
 .card:hover .name { color: var(--sm-text-primary); }
+
+.error { display: flex; align-items: center; gap: 12px; color: var(--sm-text-secondary); font-size: 13px; margin-bottom: 12px; }
+.error button { border: 0; border-radius: 8px; padding: 6px 12px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; }

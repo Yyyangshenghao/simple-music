@@ -4,43 +4,58 @@ import { computeHighlightOffset, type HighlightRange } from '../lib/highlight-of
 import { usePlayerStore } from './player'
 import { usePlaylistStore } from './playlist'
 import { useNavigationStore } from './navigation'
-import { likeKeyOf, useLikesStore } from './likes'
+import { useLikesStore } from './likes'
 import { useProviderStore } from './providers'
-import { preloadTracks } from '../lib/track-preload'
+import { getPreloadedResolution, preloadTracks, preloadTrackUrl, releasePreloadWindow } from '../lib/track-preload'
+import { providerAccountSession } from '../lib/provider-account-session'
+import { prepareShuangeAudio, releaseShuangeAudio, waitForShuangeAudio } from '../lib/shuange-audio-preload'
+import {
+  getShuangeFeedContext,
+  hydrateShuangeTaste,
+  isShuangeFeedCurrent,
+  prepareShuangeBatch,
+  resetShuangeFeedCache,
+  shuangeSource,
+  type ShuangeFeedContext,
+} from '../lib/shuange-feed'
 import {
   recordShuangeExposure,
   recordShuangeFeedback,
-  seedShuangeTaste,
-  stashShuangeCandidates,
-  takeShuangeCandidateBatch,
+  flushShuangeRecommendationProfile,
 } from '../lib/shuange-recommendation'
-import type { MusicService } from '../lib/music-service'
-import type { MusicSource, Playlist, Track } from '../types/domain'
-import type { ProviderId } from '../providers/types'
+import { beginPlaybackIntent, isCurrentPlaybackIntent, isPlaybackPauseIntent } from '../lib/playback-intent'
+import type { AudioQuality, Track } from '../types/domain'
 
 const OFFSET_CACHE_MAX = 200
 const HIGHLIGHT_WAIT_MS = 90
 const QUICK_SKIP_SEC = 6
 const LISTENED_SEC = 18
-const FEED_APPEND_LIMIT = 40
-const CANDIDATE_BATCH_SIZE = 12
+const HISTORY_LIMIT = 100
+const PRELOAD_INTERVAL_MS = 100
+const PRELOAD_CONCURRENCY = 2
 export const SHUANGE_COVER_PX = 768
 
 /** 竞态守卫:每次 enter / loadIndex 递增,leave 也递增以作废在途异步 */
 let shuangeSession = 0
-let feedSession = 0
-const nextRecommendPage: Partial<Record<MusicSource, number>> = {}
+let offsetGeneration = 0
 let currentFeedbackKey = ''
 let currentMaxProgressSec = 0
 let currentHadPlayback = false
-let appendInFlight: { feedId: number; promise: Promise<void> } | null = null
-const candidateRefills = new Map<MusicSource, Promise<void>>()
-const tasteHydrations = new Map<MusicSource, Promise<void>>()
+let preloadTimer: ReturnType<typeof setTimeout> | null = null
+let lastPreloadAt = -Infinity
+let prewarmAllowed = false
+let pendingAudioIndex: number | null = null
+let queuedResources: Array<{ track: Track; quality: AudioQuality }> = []
+const runningResources = new Set<string>()
 
 /** 测试用:清空 offset LRU 缓存 */
 export function __resetOffsetCache(): void {
+  offsetGeneration++
   offsetCache.clear()
   offsetPreloads.clear()
+  runningResources.clear()
+  stopPreloading()
+  resetShuangeFeedCache()
 }
 
 interface ShuangeSnapshot {
@@ -58,14 +73,18 @@ interface ShuangeStore {
   active: boolean
   feed: Track[]
   index: number
+  historyEnd: number
   direction: 1 | -1
   offset: HighlightRange | null
   loading: boolean
   error: string | null
+  stage: 'candidates' | 'highlight' | 'playback' | null
+  preloadWindow: Track[]
+  warmup(): Promise<void>
   enter(): Promise<void>
   refresh(): Promise<void>
   leave(): void
-  next(): Promise<void>
+  next(canAdvance?: () => boolean): Promise<void>
   prev(): Promise<void>
   playFullCurrent(): void
   notInterestedCurrent(): Promise<void>
@@ -76,7 +95,8 @@ interface ShuangeStore {
 const offsetCache = new Map<string, HighlightRange>()
 const offsetPreloads = new Map<string, Promise<HighlightRange>>()
 function cacheKey(track: Track): string {
-  return `${track.source}:${String(track.id)}`
+  const session = track.source === 'local' ? 0 : providerAccountSession(track.source)
+  return `${track.source}:${session}:${String(track.id)}`
 }
 function rememberOffset(key: string, range: HighlightRange): void {
   if (offsetCache.has(key)) offsetCache.delete(key) // 重新插到末尾,保 LRU 顺序
@@ -97,6 +117,7 @@ async function ensureOffset(track: Track): Promise<HighlightRange> {
   }
   const pending = offsetPreloads.get(key)
   if (pending) return pending
+  const generation = offsetGeneration
   const task = (async () => {
     let range: HighlightRange
     try {
@@ -105,7 +126,7 @@ async function ensureOffset(track: Track): Promise<HighlightRange> {
     } catch {
       range = computeHighlightOffset([], track.duration ?? 0)
     }
-    rememberOffset(key, range)
+    if (generation === offsetGeneration && cacheKey(track) === key) rememberOffset(key, range)
     return range
   })()
   offsetPreloads.set(key, task)
@@ -155,6 +176,7 @@ function sameRange(a: HighlightRange, b: HighlightRange): boolean {
   return a.startSec === b.startSec && a.endSec === b.endSec && a.kind === b.kind
 }
 
+/* 旧单向预热窗口 已改为前后各两首及备用批首曲
 function prepareWindow(feed: Track[], index: number): void {
   const current = feed[index]
   if (!current) return
@@ -165,6 +187,108 @@ function prepareWindow(feed: Track[], index: number): void {
   for (const track of [feed[index + 1], feed[index + 2]]) {
     if (track) void ensureOffset(track)
   }
+}
+*/
+
+/** 清理刷歌自己的补货调度和资源窗口 */
+function stopPreloading(): void {
+  pendingAudioIndex = null
+  releaseShuangeAudio()
+  prewarmAllowed = false
+  if (preloadTimer) clearTimeout(preloadTimer)
+  preloadTimer = null
+  lastPreloadAt = -Infinity
+  queuedResources = []
+  releasePreloadWindow('shuange')
+  useShuangeStore.setState({ preloadWindow: [] })
+}
+
+/** 在最多两个后台任务内准备歌曲地址和选段 */
+function runPreloadQueue(): void {
+  while (runningResources.size < PRELOAD_CONCURRENCY && queuedResources.length) {
+    const { track, quality } = queuedResources.shift()!
+    const key = `${offsetGeneration}:${cacheKey(track)}:${quality}`
+    if (runningResources.has(key)) continue
+    const hasUrl = track.source === 'apple' || track.source === 'local' || !!track.url || !!getPreloadedResolution(track, quality)
+    if (cachedOffset(track) && hasUrl) continue
+    runningResources.add(key)
+    void Promise.allSettled([preloadTrackUrl(track, quality), ensureOffset(track)]).finally(() => {
+      runningResources.delete(key)
+      runPreloadQueue()
+      prepareAudioWindow()
+    })
+  }
+}
+
+/** 当前曲已起播后才准备相邻音频 登录预热不读取音频 */
+function prepareAudioWindow(): void {
+  const state = useShuangeStore.getState()
+  const player = usePlayerStore.getState()
+  if (!state.active || state.loading || state.index < 0 || player.status !== 'playing' || typeof Audio === 'undefined') return
+  if (!String(player.contextId).startsWith('shuange:')) return
+  const target = getShuangeFeedContext()
+  const feed = [...state.feed, ...(target?.standby ?? [])]
+  const targets = [1, -1, 2, -2].map(step => feed[state.index + step * state.direction])
+    .flatMap(track => {
+      const range = track && cachedOffset(track)
+      return track && range ? [{ track, startAt: range.startSec }] : []
+    })
+  prepareShuangeAudio(player._engine(), targets, player.quality)
+}
+
+/** 根据最新位置合并双向窗口 旧调度不保留过时曲目 */
+function prepareResourceWindow(): void {
+  lastPreloadAt = Date.now()
+  preloadTimer = null
+  const state = useShuangeStore.getState()
+  if (!state.active && !prewarmAllowed) return
+  const target = getShuangeFeedContext()
+  if (!target) return
+  const browsing = state.active && state.index >= 0
+  const feed = [...(browsing ? state.feed : target.current), ...target.standby]
+  const index = browsing ? state.index : 0
+  const current = feed[index]
+  if (!current) return
+  const direction = state.direction
+  const ordered = [current, feed[index + direction], feed[index - direction], feed[index + 2 * direction], feed[index - 2 * direction], target.standby[0]]
+    .filter((track): track is Track => !!track)
+  const tracks = [...new Map(ordered.map(track => [cacheKey(track), track])).values()]
+  // 镜像最多六首到可见界面 宿主不解码封面
+  useShuangeStore.setState({ preloadWindow: tracks })
+  const quality = usePlayerStore.getState().quality
+  preloadTracks(tracks, quality, current, { owner: 'shuange', coverPx: SHUANGE_COVER_PX, deferUrls: true })
+  queuedResources = tracks.map(track => ({ track, quality }))
+  runPreloadQueue()
+  prepareAudioWindow()
+}
+
+/** 以 100 ms 合并连续操作 首次立即执行且尾次不丢失 */
+function schedulePreload(): void {
+  if (!prewarmAllowed && !useShuangeStore.getState().active) return
+  const remaining = PRELOAD_INTERVAL_MS - (Date.now() - lastPreloadAt)
+  if (remaining <= 0) {
+    if (preloadTimer) clearTimeout(preloadTimer)
+    prepareResourceWindow()
+  } else if (!preloadTimer) preloadTimer = setTimeout(prepareResourceWindow, remaining)
+}
+
+/**
+ * 异步补齐备用批 并在就绪后预热首曲
+ *
+ * @param target 当前来源上下文
+ */
+function prepareStandby(target: ShuangeFeedContext): Promise<Track[]> {
+  return prepareShuangeBatch(target, 'standby', () => useShuangeStore.getState().feed).then(tracks => {
+    if (isShuangeFeedCurrent(target)) schedulePreload()
+    return tracks
+  })
+}
+
+/** 后台补货失败保留可播放曲目 下一次操作允许重试 */
+function replenish(): void {
+  const target = getShuangeFeedContext()
+  if (target?.current.length && !target.standby.length && !target.batches.standby) void prepareStandby(target).catch(() => {})
+  schedulePreload()
 }
 
 let snapshot: ShuangeSnapshot | null = null
@@ -217,11 +341,15 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
   active: false,
   feed: [],
   index: -1,
+  historyEnd: -1,
   direction: 1,
   offset: null,
   loading: false,
   error: null,
+  stage: null,
+  preloadWindow: [],
 
+  /* 旧方案在 enter 和 refresh 内等待单批网络链路
   async enter() {
     const my = ++shuangeSession
     const feedId = ++feedSession
@@ -284,40 +412,144 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
       set({ loading: false, error: (e as Error)?.message || '加载失败' })
     }
   },
+  */
 
-  async loadIndex(i) {
-    const my = ++shuangeSession
-    const { feed, index } = get()
-    const track = feed[i]
-    if (!track) return
-    prepareWindow(feed, i)
-    const player = usePlayerStore.getState()
-    player.pause()
-    const immediateRange = cachedOffset(track) ?? fallbackOffset(track)
-    set({ index: i, direction: i < index ? -1 : 1, loading: true, offset: immediateRange, error: null })
-    const decision = await offsetWithinBudget(track)
-    if (my !== shuangeSession) return
-    set({ offset: decision.range })
-    await player.loadTrack(track, { startAt: decision.range.startSec, contextId: `shuange:${String(track.id)}` })
-    if (my !== shuangeSession) return
-    beginCurrentListen(track, decision.range.startSec)
-    recordShuangeExposure(track)
-    set({ loading: false })
-    if (decision.refinement) {
-      void decision.refinement.then((range) => {
-        const state = get()
-        const current = state.feed[state.index]
-        if (my !== shuangeSession || !state.active || !current || cacheKey(current) !== cacheKey(track)) return
-        if (sameRange(range, decision.range)) return
-        const currentPlayer = usePlayerStore.getState()
-        if (!currentPlayer.currentTrack || cacheKey(currentPlayer.currentTrack) !== cacheKey(track)) return
-        if (currentPlayer.status !== 'playing' && currentPlayer.status !== 'loading') return
-        set({ offset: range })
-        currentPlayer.seek(range.startSec)
-      })
+  /** 登录就绪后准备双批数据 不接管普通播放 */
+  async warmup() {
+    prewarmAllowed = true
+    const target = getShuangeFeedContext()
+    if (!target) return
+    await prepareShuangeBatch(target, 'current', () => get().active ? get().feed : [])
+    if (!isShuangeFeedCurrent(target) || (!prewarmAllowed && !get().active)) return
+    schedulePreload()
+    if (target.current.length) {
+      if (!target.standby.length && !target.batches.standby) void prepareStandby(target).catch(() => {})
+      void hydrateShuangeTaste(target).catch(() => {})
     }
   },
 
+  /** 实际进入时才保存普通播放快照并消费已准备的当前批 */
+  async enter() {
+    const my = ++shuangeSession
+    if (!get().active) snapshot = takeSnapshot()
+    resetCurrentListen()
+    set({ active: true, feed: [], index: -1, historyEnd: -1, direction: 1, offset: null, loading: true, stage: 'candidates', error: null })
+    try {
+      const target = getShuangeFeedContext()
+      if (!target) throw new Error('请先启用至少一个音乐平台')
+      await get().warmup()
+      if (my !== shuangeSession || !isShuangeFeedCurrent(target)) return
+      if (!target.current.length) throw new Error('暂时没有推荐内容,稍后再来')
+      set({ feed: target.current })
+      await get().loadIndex(0)
+    } catch (error) {
+      if (my === shuangeSession) set({ loading: false, stage: null, error: (error as Error)?.message || '加载失败' })
+    }
+  },
+
+  /** 手动换批直接晋升备用批并重置本轮历史 */
+  async refresh() {
+    if (!get().active) return get().enter()
+    const my = ++shuangeSession
+    const target = getShuangeFeedContext()
+    if (!target) return
+    set({ loading: true, stage: 'candidates', error: null })
+    try {
+      const tracks = await prepareStandby(target)
+      if (my !== shuangeSession || !isShuangeFeedCurrent(target)) return
+      if (!tracks.length) throw new Error('暂时没有新的推荐内容,稍后再来')
+      recordCurrentListen(get())
+      target.current = tracks
+      target.standby = []
+      set({ feed: tracks, index: -1, historyEnd: -1, direction: 1, offset: null })
+      await get().loadIndex(0)
+    } catch (error) {
+      if (my === shuangeSession) set({ loading: false, stage: null, error: (error as Error)?.message || '加载失败' })
+    }
+  },
+
+  /**
+   * 切到指定曲目并裁剪超过上限的已消费历史
+   *
+   * @param i 已加载清单中的目标位置
+   */
+  async loadIndex(i) {
+    const my = ++shuangeSession
+    const previous = get()
+    const { feed, index } = previous
+    const track = feed[i]
+    if (!track) return
+    if (pendingAudioIndex !== null && i === index) {
+      pendingAudioIndex = null
+      set({ loading: false, stage: null })
+      return
+    }
+    const historyEnd = Math.max(get().historyEnd, i)
+    const trim = Math.max(0, historyEnd + 1 - HISTORY_LIMIT)
+    const player = usePlayerStore.getState()
+    const immediateRange = cachedOffset(track) ?? fallbackOffset(track)
+    const remainingMs = player.status === 'playing' && previous.offset
+      ? Math.max(0, (previous.offset.endSec - player.position) * 1000 / (player.rate || 1) - 250) : 0
+    const pending = waitForShuangeAudio({ track, startAt: immediateRange.startSec }, player.quality, Math.min(800, remainingMs))
+    if (pending) {
+      const waitIntent = beginPlaybackIntent()
+      pendingAudioIndex = i
+      set({ loading: true, stage: 'playback', error: null })
+      await pending
+      if (my !== shuangeSession) return
+      pendingAudioIndex = null
+      if (!isCurrentPlaybackIntent(waitIntent)) {
+        set({ loading: false, stage: null })
+        return
+      }
+    }
+    pendingAudioIndex = null
+    recordCurrentListen(get())
+    player.pause()
+    const intent = beginPlaybackIntent()
+    set({ feed: trim ? feed.slice(trim) : feed, index: i - trim, historyEnd: historyEnd - trim,
+      direction: i < index ? -1 : 1, loading: true, stage: 'highlight', offset: immediateRange, error: null })
+    recordShuangeExposure(track)
+    replenish()
+    try {
+      const decision = await offsetWithinBudget(track)
+      if (my !== shuangeSession) return
+      const autoplay = isCurrentPlaybackIntent(intent)
+      const current = usePlayerStore.getState()
+      // 保留 2.4.0 的睡眠与后续播放意图守卫
+      if (!autoplay && (!isPlaybackPauseIntent() || current.status !== 'paused' || current.currentTrack !== player.currentTrack)) {
+        set({ feed: previous.feed, index: previous.index, historyEnd: previous.historyEnd,
+          offset: previous.offset, direction: previous.direction, loading: false, stage: null })
+        schedulePreload()
+        return
+      }
+      set({ offset: decision.range, stage: 'playback' })
+      await player.loadTrack(track, { startAt: decision.range.startSec, contextId: `shuange:${String(track.id)}`, autoplay, preservePlaybackIntent: true })
+      if (my !== shuangeSession) return
+      beginCurrentListen(track, decision.range.startSec)
+      // 曝光已在实际切到时记录 不再等播放地址完成后重复记
+      // recordShuangeExposure(track)
+      set({ loading: false, stage: null })
+      prepareAudioWindow()
+      if (decision.refinement) {
+        void decision.refinement.then((range) => {
+          const state = get()
+          const current = state.feed[state.index]
+          if (my !== shuangeSession || !state.active || !current || cacheKey(current) !== cacheKey(track)) return
+          if (sameRange(range, decision.range)) return
+          const currentPlayer = usePlayerStore.getState()
+          if (!currentPlayer.currentTrack || cacheKey(currentPlayer.currentTrack) !== cacheKey(track)) return
+          if (currentPlayer.status !== 'playing' && currentPlayer.status !== 'loading') return
+          set({ offset: range })
+          currentPlayer.seek(range.startSec)
+        })
+      }
+    } catch (error) {
+      if (my === shuangeSession) set({ loading: false, stage: null, error: (error as Error)?.message || '播放准备失败,请重试' })
+    }
+  },
+
+  /* 旧方案耗尽 feed 后再追加网络返回结果
   async next() {
     const { feed, index } = get()
     if (index + 1 < feed.length) {
@@ -335,18 +567,51 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
       await get().loadIndex(index + 1)
     }
   },
+  */
 
+  /**
+   * 沿现有历史前进 到末尾才晋升备用批
+   *
+   * @param canAdvance 自动推进时检查睡眠和后续播放意图
+   */
+  async next(canAdvance) {
+    if (!get().active || (canAdvance && !canAdvance())) return
+    const { feed } = get()
+    const index = pendingAudioIndex ?? get().index
+    if (index + 1 < feed.length) {
+      await get().loadIndex(index + 1)
+      return
+    }
+    const my = ++shuangeSession
+    const target = getShuangeFeedContext()
+    if (!target) return
+    try {
+      const tracks = await prepareStandby(target)
+      if (my !== shuangeSession || !get().active || !isShuangeFeedCurrent(target) || (canAdvance && !canAdvance())) return
+      if (!tracks.length) throw new Error('暂时没有新的推荐内容,请重试')
+      target.current = tracks
+      target.standby = []
+      set({ feed: [...feed, ...tracks], error: null })
+      await get().loadIndex(index + 1)
+    } catch (error) {
+      if (my === shuangeSession) {
+        pendingAudioIndex = null
+        set({ loading: false, stage: null, error: (error as Error)?.message || '补充失败,请重试' })
+      }
+    }
+  },
+
+  /** 回看历史并补齐前后两首的资源 */
   async prev() {
-    const { index } = get()
+    const index = pendingAudioIndex ?? get().index
     if (index > 0) {
-      recordCurrentListen(get())
       await get().loadIndex(index - 1)
     }
   },
 
   playFullCurrent() {
     ++shuangeSession // 作废在途 loadIndex/enter/next,防止覆盖整曲播放
-    ++feedSession
+    stopPreloading()
     const { feed, index } = get()
     const rest = feed.slice(index)
     if (!rest.length) return
@@ -355,7 +620,8 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     currentMaxProgressSec = 0
     currentHadPlayback = false
     snapshot = null
-    set({ active: false })
+    retireCurrentBatch()
+    set({ active: false, stage: null })
     // 交还原队列:用 feed 剩余作新队列从当前曲起播(整曲)
     usePlaylistStore.getState().setQueue(rest, 0)
     useNavigationStore.getState().navigateTo('explore')
@@ -366,16 +632,19 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
     if (!track) return
     resetCurrentListen()
     recordShuangeFeedback(track, 'not-interested')
+    // 拒绝当前曲时立即暂停 不延续旧声音等待准备
+    usePlayerStore.getState().pause()
     await get().next()
   },
 
   leave() {
     ++shuangeSession // 作废在途 enter/loadIndex/next
-    ++feedSession
+    stopPreloading()
     recordCurrentListen(get())
     const snap = snapshot
     snapshot = null
-    set({ active: false })
+    retireCurrentBatch()
+    set({ active: false, feed: [], index: -1, historyEnd: -1, loading: false, stage: null, error: null })
     if (!snap) return
     // 恢复原队列；是否继续播放严格跟随进入刷歌前的状态。
     usePlaylistStore.setState({
@@ -407,15 +676,11 @@ export const useShuangeStore = create<ShuangeStore>((set, get) => ({
   },
 
   async toggleLike(track) {
-    const likes = useLikesStore.getState()
-    const before = likes.likedByKey[likeKeyOf(track)] ?? false
-    await likes.toggleLike(track)
-    const after = useLikesStore.getState().likedByKey[likeKeyOf(track)] ?? false
-    if (after !== before) recordShuangeFeedback(track, after ? 'like' : 'unlike')
+    await useLikesStore.getState().toggleLike(track, true)
   },
 }))
 
-// 只累计真正处于 playing 的片段进度；loading、暂停和后台挂起都不计入画像。
+/* 旧模块级画像订阅已迁入宿主 initShuangeSession 统一释放
 usePlayerStore.subscribe((player) => {
   const state = useShuangeStore.getState()
   const track = state.feed[state.index]
@@ -426,7 +691,9 @@ usePlayerStore.subscribe((player) => {
     player.position - (state.offset?.startSec ?? 0)
   )
 })
+*/
 
+/* 旧单批补货链路保留供对照 已由 shuange-feed 的双批缓存接管
 // 首选启用音源变化 → 刷歌页重置 feed。
 useProviderStore.subscribe((state, previous) => {
   if (state.playbackOrder[0] !== previous.playbackOrder[0] && useShuangeStore.getState().active) {
@@ -578,4 +845,84 @@ async function refillCandidatePool(
     if (candidateRefills.get(source) === task) candidateRefills.delete(source)
   }).catch(() => {})
   return task
+}
+*/
+
+/** 实际退出后保留备用批供下次进入 不重复消费刚结束的当前批 */
+function retireCurrentBatch(): void {
+  const target = getShuangeFeedContext()
+  if (!target) return
+  target.current = target.standby
+  target.standby = []
+}
+
+let stopShuangeSession: (() => void) | undefined
+
+/** 宿主持有登录预热和画像订阅 停止时作废在途任务且不恢复音频 */
+export function initShuangeSession(): () => void {
+  if (stopShuangeSession) return stopShuangeSession
+  let stopped = false
+  const identity = () => {
+    const source = shuangeSource()
+    return source ? `${source}:${providerAccountSession(source)}` : ''
+  }
+  let previousIdentity = identity()
+  const unsubscribeProvider = useProviderStore.subscribe(() => {
+    if (stopped) return
+    const nextIdentity = identity()
+    if (nextIdentity === previousIdentity) {
+      schedulePreload()
+      return
+    }
+    previousIdentity = nextIdentity
+    stopPreloading()
+    getShuangeFeedContext()
+    if (useShuangeStore.getState().active) {
+      if (shuangeSource()) void useShuangeStore.getState().enter()
+      else useShuangeStore.getState().leave()
+    } else void useShuangeStore.getState().warmup().catch(() => {})
+  })
+  // 导航进入和离开沿用 initShuangePlayback 的单一入口
+  let quality = usePlayerStore.getState().quality
+  let rate = usePlayerStore.getState().rate
+  const unsubscribeQuality = usePlayerStore.subscribe(state => {
+    if (quality === state.quality && rate === state.rate) return
+    quality = state.quality
+    rate = state.rate
+    releaseShuangeAudio()
+    schedulePreload()
+  })
+  let previousStatus = usePlayerStore.getState().status
+  const unsubscribePlayer = usePlayerStore.subscribe(player => {
+    const becamePlaying = player.status === 'playing' && previousStatus !== 'playing'
+    previousStatus = player.status
+    if (becamePlaying) prepareAudioWindow()
+    const state = useShuangeStore.getState()
+    const track = state.feed[state.index]
+    if (stopped || !state.active || !track || !player.currentTrack || cacheKey(player.currentTrack) !== cacheKey(track)
+      || currentFeedbackKey !== cacheKey(track) || player.status !== 'playing') return
+    currentHadPlayback = true
+    currentMaxProgressSec = Math.max(currentMaxProgressSec, player.position - (state.offset?.startSec ?? 0))
+  })
+  void useShuangeStore.getState().warmup().catch(() => {})
+  stopShuangeSession = () => {
+    if (stopped) return
+    stopped = true
+    unsubscribeProvider()
+    unsubscribeQuality()
+    unsubscribePlayer()
+    ++shuangeSession
+    ++offsetGeneration
+    stopPreloading()
+    resetShuangeFeedCache()
+    recordCurrentListen(useShuangeStore.getState())
+    flushShuangeRecommendationProfile()
+    snapshot = null
+    offsetPreloads.clear()
+    offsetCache.clear()
+    runningResources.clear()
+    useShuangeStore.setState({ active: false, loading: false, stage: null })
+    stopShuangeSession = undefined
+  }
+  return stopShuangeSession
 }

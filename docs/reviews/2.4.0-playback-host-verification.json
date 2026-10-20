@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-15",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "production build file://; unpackaged Electron with isolated userData",
+    "fixture": "silent local WAV; same 120-second track in both phases",
+    "debugging": "CDP attached; no force-renderer-accessibility"
+  },
+  "method": "app.getAppMetrics; 1-second intervals, 14 samples per phase; discard first 4; sum workingSetSize/1024 and percentCPUUsage across app processes; report medians. Working-set sum may count shared pages more than once; no game frame-time benchmark.",
+  "samples": {
+    "visible": [
+      {
+        "workingSetMiB": 727.375,
+        "cpuPercent": 1.31055,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 727.953,
+        "cpuPercent": 1.324533,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 728.594,
+        "cpuPercent": 1.389332,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 729.078,
+        "cpuPercent": 1.32324,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 729.688,
+        "cpuPercent": 1.397711,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 730.141,
+        "cpuPercent": 1.27959,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 730.219,
+        "cpuPercent": 1.315175,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 730.984,
+        "cpuPercent": 1.417367,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 731.625,
+        "cpuPercent": 1.351196,
+        "rendererCount": 2
+      },
+      {
+        "workingSetMiB": 732.203,
+        "cpuPercent": 1.526248,
+        "rendererCount": 2
+      }
+    ],
+    "game": [
+      {
+        "workingSetMiB": 578.359,
+        "cpuPercent": 0.19831,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.328,
+        "cpuPercent": 0.170685,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.328,
+        "cpuPercent": 0.195808,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.188127,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.196788,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.195681,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 578.344,
+        "cpuPercent": 0.194252,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 569.703,
+        "cpuPercent": 0.686776,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 568.688,
+        "cpuPercent": 0.721597,
+        "rendererCount": 1
+      },
+      {
+        "workingSetMiB": 568.703,
+        "cpuPercent": 0.235549,
+        "rendererCount": 1
+      }
+    ]
+  },
+  "checks": [
+    "使用生产构建文件入口",
+    "生产构建冷启不自动播放",
+    "生产构建真实音频起播",
+    "生产游戏模式移除主窗口",
+    "生产UI系统进程已释放",
+    "无UI持续播放没有重新请求音频",
+    "生产界面恢复后接回连续播放进度",
+    "生产界面恢复不重载音频",
+    "恢复界面实际挂载内容，没有游戏模式空白",
+    "生产构建无UI睡眠停止成功"
+  ],
+  "errors": [],
+  "developmentChecks": [
+    "界面与播放使用不同进程",
+    "UI引擎入口只是只读时钟",
+    "UI命令在后台启动真实本地音频",
+    "游戏模式真实销毁主窗口",
+    "原UI BrowserWindow已销毁",
+    "UI不存在期间连续自然结束并推进两首",
+    "原UI操作系统进程已释放",
+    "Dock恢复入口重建界面",
+    "重建界面接回活快照",
+    "重建不重新加载音频",
+    "游戏模式托盘命令暂停后台",
+    "无UI暂停和拖动保持暂停",
+    "无UI睡眠计时到点停止播放"
+  ],
+  "shuangeFixtureChecks": [
+    "重启恢复后台断点暂停态，忽略UI旧空队列存档",
+    "真实刷歌会话由导航进入并播放夹具音频",
+    "UI销毁后刷歌自然结束自动切卡",
+    "刷歌续播期间主界面不存在",
+    "恢复仍在当前刷歌卡，没有重新enter",
+    "主动离开刷歌恢复原暂停队列和断点"
+  ],
+  "shuangeFixtureNote": "Recommendation feed injected with local WAV domain tracks after real enter; real playback, natural end, navigation and queue restore. No platform account or recommendation acceptance claim.",
+  "faultChecks": [
+    "最终生产构建保留已保存暂停断点",
+    "真实宿主进程崩溃后关闭旧宿主，没有自动重建音频",
+    "现存界面显示可理解的故障提示",
+    "重载后连接失败页为中文且不展示IPC错误码"
+  ]
+}

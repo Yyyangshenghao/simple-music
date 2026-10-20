@@ -4,33 +4,20 @@ import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
-import { useAudio } from './hooks/useAudio'
-import { useDesktopLyricsSync } from './hooks/useDesktopLyricsSync'
-import { useWallpaperSync } from './hooks/useWallpaperSync'
-import { useMiniPlayerSync } from './hooks/useMiniPlayerSync'
-import { useGameModeSync } from './hooks/useGameModeSync'
-import { useTraySync } from './hooks/useTraySync'
-import { useLyricsFetch } from './hooks/useLyricsFetch'
+import { useShuangeCoverPreload } from './hooks/useShuangeCoverPreload'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
-import { useLoginStatusSync } from './hooks/useLoginStatusSync'
 import { useSettingsStore } from './stores/settings'
-import { initProviderStore } from './stores/providers'
-import { initProviderAuthFailureSync } from './stores/provider-auth'
 import { useUpdateStore } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
 import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
 import { useGameModeStore } from './stores/game-mode'
 import { initWindowCloseSync } from './stores/window-close'
-import { useVisualStore } from './stores/visual'
-import { initPlaybackPersistence } from './lib/playback-persistence'
-import { initMediaSession } from './lib/media-session'
-import { appleAudioSpectrum } from './lib/apple-audio-spectrum'
-import { usePlayerStore } from './stores/player'
 import { fontFamilyCssValue } from './lib/font-family'
 import { WindowChrome } from './components/Layout/WindowChrome'
 import { WindowCloseDialog } from './components/Layout/WindowCloseDialog'
+import { UnlikeConfirmDialog } from './components/Layout/UnlikeConfirmDialog'
 import { TopBar } from './components/Layout/TopBar'
 import { AppShell } from './components/Layout/AppShell'
 import { GlobalContentProviderDock } from './components/Layout/GlobalContentProviderDock'
@@ -39,88 +26,53 @@ import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { Toast } from './components/ui/Toast'
+import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
 const APPEARANCE_KEYS = [
-  'themeMode', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
+  'themeMode', 'contentLayout', 'contentGutter', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
   'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
 ] as const
 
 export default function App() {
   const gameEnabled = useGameModeStore((s) => s.enabled)
-  const desktopLyricsEnabled = useVisualStore((s) => s.fx.desktopLyrics)
-  const gameSequence = useGameModeStore((s) => s.sequence)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
+  // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
+  // 收起时在同一次提交里重新挂载，歌词页才能量到它的封面位置把封面飞回来。
+  const lyricsPlayerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
+  const lyricsCoversDock = lyricsOpen && lyricsMode === 'lyrics' && lyricsPlayerStyle === 'stage'
+  const [dockRetired, setDockRetired] = useState(false)
+  if (!lyricsCoversDock && dockRetired) setDockRetired(false)
+  useEffect(() => {
+    if (!lyricsCoversDock) return
+    const timer = setTimeout(() => setDockRetired(true), 420)
+    return () => clearTimeout(timer)
+  }, [lyricsCoversDock])
   const detailBackdropCover = useBackdropStore((s) => s.cover)
   const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
-  // 顶层 hooks 与 AudioEngine 单例不在此子树,音频与迷你条同步照常。
+  // 播放运行时与保留的顶层 hooks 不在此子树,音频与迷你条同步照常。
   const mainVisible = useWindowStore((s) => s.isVisible)
 
   useDesktopBridge()
-  useGameModeSync()
-  useTraySync()
   useShortcuts()
   useScrollbarActivity()
-  useLoginStatusSync(gameEnabled)
-  useAudio(!gameEnabled || desktopLyricsEnabled, gameEnabled)
-  useDesktopLyricsSync(gameEnabled, gameSequence)
-  useWallpaperSync(gameEnabled)
-  useMiniPlayerSync(gameEnabled)
-  useLyricsFetch(!gameEnabled || desktopLyricsEnabled)
+  useShuangeCoverPreload(mainVisible && !gameEnabled)
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])
 
   useEffect(() => {
-    if (gameEnabled) appleAudioSpectrum.stop()
-  }, [gameEnabled])
-
-  useEffect(() => {
-    const handleCapture = () => {
-      if (!useGameModeStore.getState().enabled) appleAudioSpectrum.start()
-    }
-    const resumeSpectrum = () => {
-      if (!useGameModeStore.getState().enabled && !document.hidden && usePlayerStore.getState().playbackTransport === 'musickit') {
-        void window.desktop?.startAppleAudioCapture?.().catch(() => {})
-      }
-    }
-    window.addEventListener('simplemusic:apple-audio-capture', handleCapture)
-    window.addEventListener('pointerdown', resumeSpectrum)
-    window.addEventListener('pointerup', resumeSpectrum)
-    window.addEventListener('keydown', resumeSpectrum)
-    window.addEventListener('focus', resumeSpectrum)
-    document.addEventListener('visibilitychange', resumeSpectrum)
-    return () => {
-      window.removeEventListener('simplemusic:apple-audio-capture', handleCapture)
-      window.removeEventListener('pointerdown', resumeSpectrum)
-      window.removeEventListener('pointerup', resumeSpectrum)
-      window.removeEventListener('keydown', resumeSpectrum)
-      window.removeEventListener('focus', resumeSpectrum)
-      document.removeEventListener('visibilitychange', resumeSpectrum)
-      appleAudioSpectrum.stop()
-    }
-  }, [])
-
-  useEffect(() => {
-    useSettingsStore.getState().loadFromLocal()
-    const stopProviderStore = initProviderStore()
-    const stopProviderAuthFailureSync = initProviderAuthFailureSync()
-    initPlaybackPersistence()
-    initMediaSession()
-    // 主进程状态不跨重启保留,迷你播放条开关需要在加载完本地设置后重放一次
-    {
-      const { miniPlayerEnabled, miniPlayerWidth } = useSettingsStore.getState()
-      if (miniPlayerEnabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth)
-    }
     const sync = () => {
       const {
         themeMode,
+        contentLayout,
+        contentGutter,
         fontFamily,
         fontFamilyCjk,
         lyricsFontFamily,
@@ -132,6 +84,8 @@ export default function App() {
       const root = document.documentElement
       if (themeMode === 'auto') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', themeMode)
+      root.setAttribute('data-content-layout', contentLayout)
+      root.style.setProperty('--sm-content-gutter', `${contentGutter}px`)
       if (fontFamily.trim() || fontFamilyCjk.trim()) {
         root.style.setProperty('--sm-font-sans', fontFamilyCssValue(fontFamily, fontFamilyCjk))
       } else root.style.removeProperty('--sm-font-sans')
@@ -158,8 +112,6 @@ export default function App() {
     })
     return () => {
       stopSettingsSync()
-      stopProviderAuthFailureSync()
-      stopProviderStore()
     }
   }, [])
 
@@ -170,6 +122,7 @@ export default function App() {
   return (
     <>
       <WindowCloseDialog />
+      <UnlikeConfirmDialog />
       {mainVisible && !gameEnabled && <MotionConfig reducedMotion="user">
       <WindowChrome>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
@@ -178,8 +131,9 @@ export default function App() {
           <TopBar hidden={lyricsOpen} />
           <AppShell />
           <GlobalContentProviderDock />
-          {currentView !== 'shuange' && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} />}
+          {currentView !== 'shuange' && !dockRetired && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} handoff={lyricsCoversDock} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
+          <TrackActionLayer />
           <Toast />
           <UpdateBanner />
         </div>

@@ -4,6 +4,45 @@ import { defaultShortcuts } from '../lib/shortcuts'
 
 const initialState = useSettingsStore.getState()
 
+describe('页面布局持久化', () => {
+  it('左右留白保存后重载保留，切换布局不重置', () => {
+    let saved = ''
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().setContentGutter(48)
+    useSettingsStore.getState().setContentLayout('framed')
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().contentGutter).toBe(48)
+  })
+
+  it.each([[0, 16], [999, 64], [32.6, 33], [NaN, 24], [Infinity, 24]])('设置留白 %s 限制为 %s', (value, expected) => {
+    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+    useSettingsStore.getState().setContentGutter(value)
+    expect(useSettingsStore.getState().contentGutter).toBe(expected)
+  })
+
+  it.each([[undefined, 24], [null, 24], ['48', 24], [-10, 16], [1000, 64]])('存档留白 %s 恢复为 %s', (contentGutter, expected) => {
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ contentGutter }) })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().contentGutter).toBe(expected)
+  })
+
+  it('保存延展布局，重新加载后保留选择', () => {
+    let saved = ''
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().setContentLayout('full')
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().contentLayout).toBe('full')
+  })
+
+  it.each([undefined, 'unknown'])('旧存档或无效布局 %s 保留默认边框布局', (contentLayout) => {
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ contentLayout }) })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().contentLayout).toBe('framed')
+  })
+})
+
 describe('快捷键设置持久化', () => {
   it.each(['F10', ''])('已配置的设置快捷键 %s 不被升级覆盖', (accelerator) => {
     vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ localHotkeys: [{ action: 'settings', accelerator }] }) })

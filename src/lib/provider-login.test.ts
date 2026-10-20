@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { loginMusicProvider } from './provider-login'
+import { providerAccountSession } from './provider-account-session'
 
 const h = vi.hoisted(() => ({
   post: vi.fn(),
@@ -44,9 +45,28 @@ it('Cookie 交换失败不标记登录成功', async () => {
   expect(h.setAccountState).not.toHaveBeenCalled()
 })
 
+it('服务端交换新Cookie之前截断旧账号播放会话', async () => {
+  const previous = providerAccountSession('netease')
+  h.post.mockImplementationOnce(async () => {
+    expect(providerAccountSession('netease')).toBe(previous + 1)
+    return { avatar: '', nickname: '' }
+  })
+  await loginMusicProvider('netease')
+})
+
 it('原生窗口返回失败时报告错误，保留原账号状态', async () => {
   vi.mocked(window.desktop!.openQQLogin).mockResolvedValue({ ok: false, error: 'window load failed' })
   await expect(loginMusicProvider('qq')).rejects.toThrow('window load failed')
   expect(h.post).not.toHaveBeenCalled()
   expect(h.setAccountState).not.toHaveBeenCalled()
+})
+
+it('独立播放时把Cookie提交交给宿主，不在UI提前修改账号epoch', async () => {
+  const request = vi.fn().mockResolvedValue(undefined)
+  Object.assign(window.desktop!, { playbackRole: 'ui', playbackRequest: request })
+  const epoch = providerAccountSession('netease')
+  await loginMusicProvider('netease')
+  expect(request).toHaveBeenCalledWith({ type: 'action', store: 'controls', action: 'loginCookie', args: ['netease', 'test-cookie'] })
+  expect(h.post).not.toHaveBeenCalled()
+  expect(providerAccountSession('netease')).toBe(epoch)
 })

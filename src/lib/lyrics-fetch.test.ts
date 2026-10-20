@@ -3,6 +3,7 @@ import { api } from './api'
 import { fetchLyrics } from './lyrics-fetch'
 import type { Track } from '../types/domain'
 import { TRACK_MATCH_SCHEMA } from './track-match'
+import { clearProviderRequestCache } from './provider-request-cache'
 
 const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn() }))
 vi.mock('./local-music-service', () => ({ localMusicService: { getLyrics: h.local } }))
@@ -15,11 +16,26 @@ const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1
 const song = (source: 'netease' | 'qq', extra: Partial<Track> = {}): Track => ({ ...apple, source, provider: source, id: source === 'qq' ? 12 : 34, mid: source === 'qq' ? 'qmid' : undefined, ...extra })
 
 beforeEach(() => {
+  clearProviderRequestCache()
   vi.resetAllMocks()
   h.native.mockResolvedValue(null)
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
   vi.mocked(api.get).mockResolvedValue({ lyric: '[00:10.00]主歌词\n[00:20.00]下一句', tlyric: '[00:10.00]翻译', roma: '[00:10.00]romaji' })
+})
+
+it('取消展示消费者不影响同曲预热且解析结果被复用', async () => {
+  let finish!: (value: { lyric: string }) => void
+  vi.mocked(api.get).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  const controller = new AbortController()
+  const preload = fetchLyrics(song('netease'))
+  const display = fetchLyrics(song('netease'), [], controller.signal)
+  controller.abort()
+  finish({ lyric: '[00:01.00]共享歌词' })
+  expect((await preload).main).toEqual([{ time: 1, text: '共享歌词' }])
+  expect((await display).main).toEqual([])
+  expect((await fetchLyrics(song('netease'))).main).toHaveLength(1)
+  expect(api.get).toHaveBeenCalledOnce()
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -143,7 +159,10 @@ describe('原生逐字时间轴', () => {
 
   it('本地普通 LRC 保留逐句歌词，不再估算逐字时间', async () => {
     h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
-    const result = await fetchLyrics({ ...apple, source: 'local', provider: 'local' })
+    const track: Track = { ...apple, source: 'local', provider: 'local' }
+    const signal = new AbortController().signal
+    const result = await fetchLyrics(track, [], signal)
+    expect(h.local).toHaveBeenCalledWith(track, signal)
     expect(result.main).toEqual([{ time: 1, text: '本地歌词' }])
     expect(result.wordLines).toEqual([])
   })

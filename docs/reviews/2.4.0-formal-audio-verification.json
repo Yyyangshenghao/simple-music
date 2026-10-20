@@ -1,0 +1,198 @@
+{
+  "date": "2026-10-15",
+  "sourceCommit": "56a33528cad6271cb81380823dda35fda37ba73e",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "arch": "arm64",
+    "electron": "42.11.0",
+    "entry": "npm run dev; isolated userData; no force-renderer-accessibility"
+  },
+  "method": "Formal hidden playback host in development; generated local format fixtures and synthetic navigator.mediaDevices devicechange events; not actual output hardware switching.",
+  "observability": "Capture-phase audio listeners record ended/error before the core advances or clears media. Count real AudioEngine.load calls, not internal loadId, which clearSource also increments. Runtime exceptions monitored on host only during the format/recovery run. Recreated UI RPC proves host state; actual client hydration and DOM checked separately during cold start.",
+  "checks": [
+    "八种正式本地索引曲目均已准备",
+    "格式续播期间主UI已销毁",
+    "无主UI连续自然结束并推进MP3、FLAC、M4A、AAC、OGG和Opus",
+    "WMA解码失败明确停留本曲，没有静默换平台",
+    "WMA失败后可手动切到WAV正常播放",
+    "无UI设备事件防抖后只重载一次，保持断点、倍速与队列",
+    "设备恢复等待中主动暂停不会迟到起播",
+    "已暂停状态的设备事件不重载或起播",
+    "经重建UI的IPC读取后台仍保持42秒暂停断点与倍速",
+    "UI重建未重载音频",
+    "已监控的宿主Runtime未收到异常事件"
+  ],
+  "fixtures": [
+    {
+      "name": "01-MP3",
+      "duration": 6034
+    },
+    {
+      "name": "02-FLAC",
+      "duration": 6000
+    },
+    {
+      "name": "03-M4A",
+      "duration": 6023
+    },
+    {
+      "name": "04-AAC"
+    },
+    {
+      "name": "05-OGG",
+      "duration": 6001
+    },
+    {
+      "name": "06-Opus",
+      "duration": 6000
+    },
+    {
+      "name": "07-WMA",
+      "duration": 5999
+    },
+    {
+      "name": "08-WAV",
+      "duration": 120000
+    }
+  ],
+  "formatEvents": [
+    {
+      "event": "playing",
+      "track": "01-MP3",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "01-MP3",
+      "position": 6
+    },
+    {
+      "event": "playing",
+      "track": "02-FLAC",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "02-FLAC",
+      "position": 6
+    },
+    {
+      "event": "playing",
+      "track": "03-M4A",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "03-M4A",
+      "position": 6
+    },
+    {
+      "event": "playing",
+      "track": "04-AAC",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "04-AAC",
+      "position": 6.013968
+    },
+    {
+      "event": "playing",
+      "track": "05-OGG",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "05-OGG",
+      "position": 6.000907
+    },
+    {
+      "event": "playing",
+      "track": "06-Opus",
+      "position": 0
+    },
+    {
+      "event": "ended",
+      "track": "06-Opus",
+      "position": 6.0065
+    },
+    {
+      "event": "error",
+      "track": "07-WMA",
+      "position": 0,
+      "error": 4
+    }
+  ],
+  "deviceRecovery": {
+    "before": {
+      "name": "08-WAV",
+      "status": "playing",
+      "position": 30.377727,
+      "rate": 1.5,
+      "index": 7,
+      "loads": 8
+    },
+    "after": {
+      "name": "08-WAV",
+      "status": "playing",
+      "position": 30.77252,
+      "rate": 1.5,
+      "index": 7,
+      "loads": 9
+    }
+  },
+  "beforeNormalQuit": {
+    "name": "08-WAV",
+    "status": "paused",
+    "position": 42,
+    "rate": 1.5,
+    "index": 7,
+    "loads": 9
+  },
+  "hostRuntimeErrors": [],
+  "coldStart": {
+    "checks": [
+      "正常退出后冷启保留WAV42秒暂停断点",
+      "冷启保留八曲队列及索引",
+      "冷启倍速按既有规则回到1",
+      "冷启引擎无源且暂停，未观察到音频请求记录",
+      "真实UI镜像和DOM显示冷启当前曲目、断点与队列",
+      "手动播放重新读取当前本地索引并从断点继续",
+      "实际UI客户端同步手动起播后的播放态与进度"
+    ],
+    "client": {
+      "status": "paused",
+      "position": 42,
+      "rate": 1,
+      "name": "08-WAV",
+      "queueLength": 8,
+      "queueIndex": 7
+    },
+    "engine": {
+      "hasSource": false,
+      "paused": true,
+      "currentSrc": "",
+      "requests": 0
+    },
+    "cold": {
+      "status": "paused",
+      "position": 42,
+      "rate": 1,
+      "name": "08-WAV",
+      "queueLength": 8,
+      "queueIndex": 7
+    },
+    "played": {
+      "status": "playing",
+      "position": 42.56897
+    },
+    "passed": true
+  },
+  "limitations": [
+    "Synthetic devicechange events test the event-to-reload chain; no actual audio output device was changed",
+    "Silent generated samples do not validate audio quality, pitch preservation by ear, or every codec variant",
+    "WMA WMAv2 remains unsupported with MEDIA_ERR_4; only failure handling and manual continuation accepted",
+    "No real online account, Apple protected playback, physical media keys, Windows installer, or target-game frame-time budget"
+  ],
+  "passedWithinStatedScope": true
+}

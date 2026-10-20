@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { InfoButton } from '../components/ui/InfoButton'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { VirtualList } from '../components/ui/VirtualList'
 import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
@@ -111,7 +112,7 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
             onSelect={() => { if (!removing) { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) } }} />}
         </div>
       </div>
-      <p className={styles.hint}>已保存歌曲无需登录即可播放。移除保存后转为临时缓存；批量删除会清理未共用的离线音频，保留独立下载文件。</p>
+      <p className={styles.hint}>已保存歌曲无需登录即可播放。<InfoButton label="离线保存与删除" text="移除保存后转为临时缓存；批量删除会清理未共用的离线音频，下载目录中的歌曲文件保留。" align="left" /></p>
       {selecting && <BatchTrackActions offline tracks={selectedItems.map(offlineLibraryTrack)} onDone={selection.clear}
         onDelete={!loading && !error ? deleteSelected : undefined}
         selection={{ total: visible.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
@@ -127,7 +128,7 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
           </div>
           return <div className={styles.row} key={key}>
             <TrackRow track={queue[index]} index={index} hideOfflineAction onPlay={() => usePlaylistStore.getState().setQueue(queue, index)} />
-            <button className={`${libraryStyles.clearBtn} no-drag`} disabled={removing !== null} aria-label={`移除离线保存：${queue[index].name}`} onClick={() => void remove(item)}>{removing === key ? '移除中…' : '移除保存'}</button>
+            <button className={`${libraryStyles.clearBtn} no-drag`} disabled={removing !== null} title="移除离线保存，音频保留为临时缓存" aria-label={`移除离线保存：${queue[index].name}`} onClick={() => void remove(item)}>{removing === key ? '移除中…' : '移除保存'}</button>
           </div>
         }} /></div>}
       <SelectionMarquee rect={selection.marquee} />

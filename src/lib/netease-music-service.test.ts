@@ -2,6 +2,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import { NeteaseMusicService } from './netease-music-service'
 import type { Track } from '../types/domain'
+import { fetchLyrics } from './lyrics-fetch'
+import { clearProviderRequestCache } from './provider-request-cache'
+
+describe('网易云刷歌选段与展示歌词共享', () => {
+  afterEach(() => {
+    clearProviderRequestCache()
+    vi.restoreAllMocks()
+  })
+
+  it('解析真实 LRC 响应且与页面共享同一请求', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ lyric: '[00:12.00]第一句\n[00:18.00]第二句' })
+    const track = { id: 'highlight', source: 'netease' } as Track
+    const [highlight, display] = await Promise.all([
+      new NeteaseMusicService().getLyrics(track),
+      fetchLyrics(track),
+    ])
+    expect(highlight).toEqual([{ time: 12, text: '第一句' }, { time: 18, text: '第二句' }])
+    expect(display.main).toEqual(highlight)
+    expect(get).toHaveBeenCalledOnce()
+  })
+})
 
 describe('网易云热搜服务', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -79,6 +100,27 @@ describe('网易云漫游完整歌单', () => {
   afterEach(() => vi.restoreAllMocks())
 
   const song = (id: number): Track => ({ provider: 'netease', source: 'netease', type: 'song', id, name: `歌曲${id}`, artist: '歌手', artists: [] })
+
+  it('替换完成后显式按漫游顺序排序，不能依赖添加接口的默认顺序', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ success: true })
+    await new NeteaseMusicService().replacePlaylistTracks('roam', [9, 8], [3, 1, 2])
+    expect(post.mock.calls).toEqual([
+      ['/api/playlist/remove-songs', { pid: 'roam', ids: '9,8' }],
+      ['/api/playlist/add-song', { pid: 'roam', ids: '3,1,2' }],
+      ['/api/playlist/order/update', { pid: 'roam', ids: ['3', '1', '2'] }],
+    ])
+  })
+
+  it('排序失败不能报告保存成功，空歌单不调用排序', async () => {
+    const post = vi.spyOn(api, 'post').mockImplementation(async path => {
+      if (path === '/api/playlist/order/update') throw new Error('ORDER_FAILED')
+      return { success: true } as never
+    })
+    await expect(new NeteaseMusicService().replacePlaylistTracks('roam', [], [2, 1])).rejects.toThrow('ORDER_FAILED')
+    post.mockClear()
+    await new NeteaseMusicService().replacePlaylistTracks('roam', [2, 1], [])
+    expect(post).toHaveBeenCalledTimes(1)
+  })
 
   it('补齐超过 100 首的歌单，按骨架顺序返回全部曲目', async () => {
     const songs = Array.from({ length: 350 }, (_, index) => song(index + 1))

@@ -1,62 +1,33 @@
 import { useEffect } from 'react'
 import { useWindowStore } from '../stores/window'
-import { usePlayerStore } from '../stores/player'
-import { stepPlayback } from '../lib/playback-controls'
-import { useSettingsStore } from '../stores/settings'
-import { useVisualStore } from '../stores/visual'
+import { initGameModeSync } from '../lib/game-mode-sync'
+import { useTrackActionsStore } from '../stores/track-actions'
 
-// 订阅主进程推送（窗口状态 / 迷你播放条），写入对应 store。
+// 订阅主窗口状态；播放命令由播放运行时接收。
 export function useDesktopBridge(): void {
   useEffect(() => {
     const d = window.desktop
     if (!d) return
 
     const offState = d.onStateChange((state) => useWindowStore.getState().setState(state))
+    const independentPlayback = typeof d.playbackRequest === 'function'
+    const stopGameMode = independentPlayback ? initGameModeSync() : undefined
+    const offAddToPlaylist = d.onMiniPlayerAddToPlaylist?.((track) => {
+      useTrackActionsStore.getState().openQuickAdd(track, {
+        x: window.innerWidth / 2 - 140,
+        y: window.innerHeight / 2 - 180,
+        width: 0,
+        height: 0
+      })
+    })
 
     // 初始拉一次窗口状态
     void d.getState().then((state) => useWindowStore.getState().setState(state))
 
-    const offMiniPlayerControl = d.onMiniPlayerControl(({ action, value }) => {
-      const player = usePlayerStore.getState()
-      switch (action) {
-        case 'play-pause':
-          player.toggle()
-          break
-        case 'next':
-          stepPlayback(1)
-          break
-        case 'prev':
-          stepPlayback(-1)
-          break
-        case 'seek':
-          if (typeof value === 'number') player.seek(value)
-          break
-        case 'volume':
-          if (typeof value === 'number') player.setVolume(Math.min(1, Math.max(0, value)))
-          break
-        case 'volume-up':
-          player.setVolume(Math.min(1, player.volume + 0.05))
-          break
-        case 'volume-down':
-          player.setVolume(Math.max(0, player.volume - 0.05))
-          break
-        case 'desktop-lyrics': {
-          const visual = useVisualStore.getState()
-          visual.updateFx({ desktopLyrics: !visual.fx.desktopLyrics })
-          break
-        }
-        case 'sync-off':
-          // 主进程已自行收起迷你条(回到大播放器/退居托盘),这里只把设置开关落回,勿再回调主进程
-          useSettingsStore.getState().setMiniPlayerEnabled(false)
-          break
-        default:
-          break
-      }
-    })
-
     return () => {
       offState()
-      offMiniPlayerControl()
+      stopGameMode?.()
+      offAddToPlaylist?.()
     }
   }, [])
 }

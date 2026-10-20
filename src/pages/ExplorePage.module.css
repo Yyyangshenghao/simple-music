@@ -8,20 +8,20 @@
 .intro {
   position: relative;
   width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
-  margin: 30px auto 8px;
+  margin: 24px auto 8px;
 }
 
 .kicker {
-  margin: 0 0 8px;
-  color: var(--sm-text-secondary);
+  margin: 0 0 6px;
+  color: var(--sm-text-muted);
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
 }
 
 .greeting {
   margin: 0;
-  font-size: clamp(28px, 4.4vw, 48px);
+  font-size: clamp(28px, 3.2vw, 38px);
   font-weight: 780;
   letter-spacing: -0.055em;
   line-height: 1;

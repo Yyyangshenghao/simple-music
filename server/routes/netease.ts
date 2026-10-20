@@ -4,6 +4,7 @@ import { readBody, sendJson } from '../lib/http'
 import { isSafeUpstreamUrl } from '../lib/security'
 import { abortOnResponseClose, fetchSafeUpstream } from '../lib/upstream-fetch'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
+import { playbackAccountToken, validListeningSeconds } from '../lib/playback-account'
 import {
   findCachedAudio,
   openAudioCacheWriter,
@@ -133,6 +134,12 @@ function saveNeteaseCookie(ctx: { userDataDir: string; port: number }, raw: unkn
 
 export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
+
+  if (pn === '/api/netease/playback/session') {
+    res.setHeader('Cache-Control', 'no-store')
+    sendJson(res, { accountToken: playbackAccountToken(getCookie(ctx, 'netease')) })
+    return true
+  }
 
   // ---------- 发现页 ----------
   if (pn === '/api/discover/home') {
@@ -735,6 +742,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           creator: asStr(asObj(pl.creator).nickname),
           subscribed: !!pl.subscribed,
           specialType: asNum(pl.specialType),
+          // 网易 privacy 10 为隐私歌单，0 为公开。
+          private: asNum(pl.privacy) === 10,
           description: asStr(pl.description),
         }
       })
@@ -742,6 +751,36 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[UserPlaylists]', err)
       sendJson(res, { error: (err as Error).message, loggedIn: false, playlists: [] }, 500)
+    }
+    return true
+  }
+
+  // ---------- 用户收藏的专辑 ----------
+  if (pn === '/api/user/albums') {
+    try {
+      const info = await getLoginInfo(ctx)
+      if (!info.loggedIn || !info.userId) {
+        sendJson(res, { loggedIn: false, albums: [] })
+        return true
+      }
+      const cookie = getCookie(ctx, 'netease')
+      const albums: ReturnType<typeof mapAlbum>[] = []
+      const seen = new Set<string>()
+      for (let page = 0; page < 20; page++) {
+        const body = asObj((await call('album_sublist', { limit: 100, offset: page * 100, cookie, timestamp: Date.now() })).body)
+        const items = asArr(body.data)
+        for (const raw of items) {
+          const album = mapAlbum(raw)
+          if (!album.id || seen.has(String(album.id))) continue
+          seen.add(String(album.id))
+          albums.push({ ...album, creator: asArr(asObj(raw).artists).map((a) => asStr(asObj(a).name)).filter(Boolean).join(' / ') })
+        }
+        if (body.hasMore !== true || items.length === 0) break
+      }
+      sendJson(res, { loggedIn: true, albums })
+    } catch (err) {
+      console.error('[UserAlbums]', err)
+      sendJson(res, { error: (err as Error).message, loggedIn: false, albums: [] }, 500)
     }
     return true
   }
@@ -824,27 +863,56 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
 
   // ---------- 听歌打卡（更新账号"最近播放歌单"/"听歌排行"）----------
   if (pn === '/api/netease/scrobble') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'METHOD_NOT_ALLOWED' }, 405)
+      return true
+    }
     try {
+      const body = await readRequestBody(req)
       const cookie = getCookie(ctx, 'netease')
       if (!cookie) {
         // 未登录静默跳过：这是播放路径上的背景上报，不应该对未登录用户报错
         sendJson(res, { ok: false })
         return true
       }
-      const body = req.method === 'POST' ? await readRequestBody(req) : {}
-      const id = body.id || url.searchParams.get('id')
-      // 无歌单/专辑语境（如搜索结果、单曲循环）时用歌曲自身 id 兜底，仍能计入听歌排行
-      const sourceId = body.sourceId || url.searchParams.get('sourceId') || id
-      const time = Math.max(0, Math.round(Number(body.time ?? url.searchParams.get('time') ?? 0)))
-      if (!id) {
-        sendJson(res, { ok: false, error: 'Missing song id' }, 400)
+      if (body.accountToken !== playbackAccountToken(cookie)) {
+        sendJson(res, { ok: false, error: 'ACCOUNT_CHANGED' }, 409)
         return true
       }
-      await call('scrobble', { id, sourceid: sourceId, time, cookie, timestamp: Date.now() })
+      const id = String(body.id ?? '')
+      const contextId = String(body.sourceId ?? '')
+      const sourceId = /^[1-9]\d{0,19}$/.test(contextId) ? contextId : id
+      const time = validListeningSeconds(body.time)
+      if (!/^[1-9]\d{0,19}$/.test(id) || !time) {
+        sendJson(res, { ok: false, error: 'INVALID_PLAYBACK_REPORT' }, 400)
+        return true
+      }
+      // 使用维护中的上游 scrobble 协议；本地锁定的 NCM 已支持这些请求选项。
+      const reportOptions = {
+        cookie: normalizeCookieHeader(`${cookie}; os=osx`),
+        crypto: 'eapi', domain: 'https://clientlog.music.163.com', timestamp: Date.now(),
+      }
+      // 最近播放与排行使用不同日志；只报告已真实收听的曲目和秒数。
+      const started = await call('weblog', {
+        data: { logs: JSON.stringify([{ action: 'startplay', json: { id, type: 'song', mainsite: 1, mainsiteWeb: 1, content: `id=${sourceId}` } }]) },
+        ...reportOptions,
+      })
+      if (asNum(asObj(started.body).code) !== 200) throw new Error('PLAYBACK_REPORT_REJECTED')
+      if (cookie !== getCookie(ctx, 'netease')) {
+        sendJson(res, { ok: false, error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      const reported = await call('weblog', {
+        data: { logs: JSON.stringify([{ action: 'play', json: {
+          id, sourceId, time, type: 'song', end: 'playend', source: 'list',
+          download: 0, wifi: 0, mainsite: 1, mainsiteWeb: 1, content: `id=${sourceId}`,
+        } }]) },
+        ...reportOptions,
+      })
+      if (asNum(asObj(reported.body).code) !== 200) throw new Error('PLAYBACK_REPORT_REJECTED')
       sendJson(res, { ok: true })
     } catch (err) {
-      console.error('[Scrobble]', err)
-      sendJson(res, { ok: false, error: (err as Error).message })
+      sendJson(res, { ok: false, error: err instanceof Error ? err.message : 'PLAYBACK_REPORT_FAILED' }, 502)
     }
     return true
   }
@@ -941,6 +1009,50 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[PlaylistAddSong]', err)
       sendJson(res, { error: (err as Error).message }, 500)
+    }
+    return true
+  }
+
+  // ---------- 显式同步漫游曲目顺序，添加接口不保证保持输入顺序 ----------
+  if (pn === '/api/playlist/order/update') {
+    try {
+      if (req.method !== 'POST') {
+        sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
+        return true
+      }
+      const info = await requireLogin(res, ctx, sendJson)
+      if (!info) return true
+      const cookie = getCookie(ctx, 'netease')
+      const body = await readRequestBody(req)
+      const ids = Array.isArray(body.ids) ? body.ids.map(String) : []
+      if (!body.pid || !ids.length || ids.some(id => !/^[1-9]\d*$/.test(id)) || new Set(ids).size !== ids.length) {
+        sendJson(res, { error: 'INVALID_PLAYLIST_ORDER' }, 400)
+        return true
+      }
+      const pid = String(body.pid)
+      const detail = await call('playlist_detail', { id: pid, s: 0, cookie, timestamp: Date.now() })
+      const target = asObj(asObj(detail.body).playlist)
+      if (String(asObj(target.creator).userId) !== String(info.userId) || target.subscribed === true || asNum(target.specialType) !== 0) {
+        sendJson(res, { error: 'PLAYLIST_NOT_WRITABLE' }, 409)
+        return true
+      }
+      const currentIds = asArr(target.trackIds).map(track => String(asObj(track).id))
+      const currentSet = new Set(currentIds)
+      if (currentIds.length !== ids.length || ids.some(id => !currentSet.has(id))) {
+        sendJson(res, { error: 'PLAYLIST_CHANGED' }, 409)
+        return true
+      }
+      if (getCookie(ctx, 'netease') !== cookie) {
+        sendJson(res, { error: 'ACCOUNT_CHANGED' }, 409)
+        return true
+      }
+      if (res.destroyed) return true
+      const result = await call('song_order_update', { pid, ids: JSON.stringify(ids), cookie, timestamp: Date.now() })
+      const code = normalizeApiCode(result)
+      const success = code === 200 && !asObj(result.body).error
+      sendJson(res, { success, code, ...(success ? {} : { error: normalizeApiMessage(result) || 'PLAYLIST_ORDER_FAILED' }) }, success ? 200 : (code === 401 ? 401 : 409))
+    } catch (error) {
+      sendJson(res, { error: (error as Error).message }, 500)
     }
     return true
   }
@@ -1216,12 +1328,14 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       const cookie = getCookie(ctx, 'netease')
-      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string; trackUpdateTime: number | null } = {
+      let playlistMeta: { id: unknown; name: string; cover: string; trackCount: number; description: string; creator: string; playCount: number; trackUpdateTime: number | null } = {
         id,
         name: '',
         cover: '',
         trackCount: 0,
         description: '',
+        creator: '',
+        playCount: 0,
         trackUpdateTime: null,
       }
       let trackIds: string[] = []
@@ -1243,6 +1357,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             cover: asStr(pl.coverImgUrl),
             trackCount: asNum(pl.trackCount),
             description: asStr(pl.description),
+            creator: asStr(asObj(pl.creator).nickname),
+            playCount: asNum(pl.playCount),
             trackUpdateTime: asNum(pl.trackUpdateTime) || null,
           }
           trackIds = asArr(pl.trackIds)
@@ -1256,10 +1372,11 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         }
       }
 
-      // 2) song_detail 补前 100 首详情
+      // 2) song_detail 补前缀详情(默认 100 首;界面首屏可传 head 只取少量先展示)
       if (trackIds.length && has('song_detail')) {
         try {
-          const head = trackIds.slice(0, 100)
+          const headSize = Math.max(1, Math.min(100, Number(url.searchParams.get('head')) || 100))
+          const head = trackIds.slice(0, headSize)
           const detail = await call('song_detail', { ids: head.join(','), cookie, timestamp: Date.now() })
           const songs = asArr(asObj(detail.body).songs).map(mapSongRecord).filter((t) => t.id)
           const byId = new Map(songs.map((t) => [String(t.id), t]))

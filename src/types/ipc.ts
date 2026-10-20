@@ -1,7 +1,24 @@
-import type { WordLyricLine } from './domain'
+import type { Track, WordLyricLine } from './domain'
+export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeControlApi, ProbeHostApi } from './playback-probe'
 
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
 // overlay 窗口的内部通道（见底部 OverlayChannels/OverlayEvents）不属于主契约。
+
+export type PlaybackRequest =
+  | { type: 'connect'; storage: Record<string, string> }
+  | { type: 'action'; store: string; action: string; args: unknown[]; requestId?: string }
+  | { type: 'observe'; visible: boolean; spectrum?: boolean }
+  | { type: 'cancel'; requestId: string }
+
+export interface PlaybackHostCommand {
+  id: string
+  request: PlaybackRequest
+}
+
+export interface PlaybackHostReply {
+  value?: unknown
+  error?: string
+}
 
 export interface DisplayBounds {
   x: number
@@ -122,6 +139,8 @@ export interface MiniPlayerAppearance {
 
 /** 迷你播放条 payload：当前曲目展示字段（enable/disable 走独立通道，不混进这里）。 */
 export interface MiniPlayerPayload {
+  /** 收藏时使用展示中的曲目快照，避免切歌后误收藏下一首。 */
+  track?: Track | null
   trackTitle?: string
   artistName?: string
   coverUrl?: string
@@ -207,9 +226,14 @@ export interface SystemFontResult {
 
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
+  'playback:request': { req: PlaybackRequest; res: unknown }
+  'playback:reply': { req: { id: string; result: PlaybackHostReply }; res: void }
+  'playback:publish': { req: unknown; res: void }
+  'playback:listening-flushed': { req: string; res: void }
   'game-mode:get-state': { req: void; res: GameModeState }
   'game-mode:set-state': { req: GameModeState; res: GameModeState }
   'tray:update-playback': { req: TrayPlaybackState; res: OkResult }
+  'window:show': { req: void; res: void }
   'window:minimize': { req: void; res: void }
   'window:toggle-fullscreen': { req: void; res: void }
   'window:exit-fullscreen-windowed': { req: void; res: void }
@@ -249,6 +273,9 @@ export interface IpcChannels {
 }
 
 export interface IpcEvents {
+  'playback:command': PlaybackHostCommand
+  'playback:snapshot': unknown
+  'playback:flush-listening': string
   'game-mode:state-changed': GameModeState
   'window:state-changed': WindowState
   'window:close-state-changed': WindowCloseState
@@ -259,6 +286,7 @@ export interface IpcEvents {
   'miniplayer:control': { action: string; value?: number }
   /** overlay 侧拖拽改宽后回传，主窗口负责持久化。 */
   'miniplayer:width-changed': { width: number }
+  'miniplayer:add-to-playlist': Track
 }
 
 // ---------- overlay 窗口内部通道（不属于主契约） ----------
@@ -284,6 +312,7 @@ export interface OverlayChannels {
   'overlay:miniplayer-control': { req: { action: string; value?: number }; res: OkResult }
   'overlay:miniplayer-close': { req: void; res: OkResult }
   'overlay:miniplayer-focus-main': { req: void; res: OkResult }
+  'overlay:miniplayer-add-to-playlist': { req: Track; res: OkResult }
 }
 
 export interface OverlayEvents {

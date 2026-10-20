@@ -3,7 +3,9 @@ import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } f
 import { providerFor } from '../../providers/registry'
 import type { Playlist } from '../../types/domain'
 import { PlaylistCard } from './PlaylistCard'
+import { HorizontalCardRail } from './HorizontalCardRail'
 import styles from './AppleHomeLibrary.module.css'
+import { HeartIcon } from '../ui/HeartIcon'
 
 interface AppleHomeLibraryProps {
   onOpen(playlist: Playlist): void
@@ -35,7 +37,7 @@ export function AppleHomeLibrary({ onOpen }: AppleHomeLibraryProps) {
     <div className={styles.library} aria-label="Apple Music 个人资料库精选">
       {liked && (
         <button type="button" className={`${styles.favorite} no-drag`} onClick={() => onOpen(liked)}>
-          <span className={styles.favoriteIcon} aria-hidden="true">♥</span>
+          <span className={styles.favoriteIcon} aria-hidden="true"><HeartIcon filled size={32} /></span>
           <span className={styles.favoriteText}>
             <strong>{liked.name}</strong>
             {liked.trackCountKnown !== false && <span className={styles.favoriteMeta}>{liked.trackCount} 首歌曲</span>}
@@ -48,13 +50,13 @@ export function AppleHomeLibrary({ onOpen }: AppleHomeLibraryProps) {
           <div className={styles.heading}>
             <h3>你的专辑</h3>
           </div>
-          <div className={styles.row}>
+          <HorizontalCardRail className={styles.row} label="你的 Apple Music 专辑，可横向滚动">
             {albums.map((album) => (
               <div className={styles.album} key={String(album.id)}>
                 <PlaylistCard playlist={album} meta="" onClick={() => onOpen(album)} />
               </div>
             ))}
-          </div>
+          </HorizontalCardRail>
         </section>
       )}
     </div>

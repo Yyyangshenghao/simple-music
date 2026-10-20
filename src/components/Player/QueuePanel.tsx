@@ -13,6 +13,7 @@ import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
 import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
 import { isProviderId } from '../../providers/types'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -27,10 +28,10 @@ function QueueIcon() {
 }
 
 /** 播放队列按钮 + 弹层：锚定在播放栏上方,展示当前队列,高亮当前曲目,点击切歌。 */
-export function QueuePanel() {
+export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false)
   const [dragOver, setDragOver] = useState<number | null>(null)
-  const dragFrom = useRef<number | null>(null)
+  const dragFrom = useRef<{ index: number; key: string } | null>(null)
   const queue = usePlaylistStore((s) => s.queue)
   const queueIndex = usePlaylistStore((s) => s.queueIndex)
   const shuffleOrder = usePlaylistStore((s) => s.shuffleOrder)
@@ -73,6 +74,7 @@ export function QueuePanel() {
       if (rootRef.current?.contains(document.activeElement)) toggleRef.current?.focus()
     }
     function onPointerDown(e: PointerEvent) {
+      if (e.target instanceof Element && e.target.closest('[data-track-action-layer]')) return
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -113,7 +115,7 @@ export function QueuePanel() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className={styles.panel}
+            className={`${styles.panel}${align === 'start' ? ` ${styles.alignStart}` : ''}`}
             // 缩放会让虚拟列表的视口坐标与 scrollTop 不一致，深队列打开时出现空白。
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -152,7 +154,7 @@ export function QueuePanel() {
                         data-drag-over={dragOver === i}
                         draggable={queue.length > 1}
                         onDragStart={(event) => {
-                          dragFrom.current = i
+                          dragFrom.current = { index: i, key: `${t.source}:${String(t.id)}` }
                           event.dataTransfer.effectAllowed = 'move'
                           event.dataTransfer.setData('text/plain', String(i))
                         }}
@@ -164,7 +166,7 @@ export function QueuePanel() {
                         onDrop={(event) => {
                           if (dragFrom.current === null) return
                           event.preventDefault()
-                          moveQueueItem(dragFrom.current, i)
+                          moveQueueItem(dragFrom.current.index, i, { from: dragFrom.current.key, to: `${t.source}:${String(t.id)}` })
                           dragFrom.current = null
                           setDragOver(null)
                         }}
@@ -176,13 +178,14 @@ export function QueuePanel() {
                         <button
                           type="button"
                           className={styles.rowMain}
-                          onClick={() => { if (!isCurrent) playAt(originalIndex) }}
+                          onClick={() => { if (!isCurrent) playAt(originalIndex, { expectedTrackKey: `${t.source}:${String(t.id)}` }) }}
                           onKeyDown={(event) => {
                             if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
                             event.preventDefault()
                             const target = i + (event.key === 'ArrowUp' ? -1 : 1)
                             if (target < 0 || target >= display.indices.length) return
-                            moveQueueItem(i, target)
+                            const targetTrack = queue[display.indices[target]]
+                            moveQueueItem(i, target, { from: `${t.source}:${String(t.id)}`, to: `${targetTrack.source}:${String(targetTrack.id)}` })
                             requestAnimationFrame(() => {
                               listRef.current?.querySelector<HTMLButtonElement>(`[data-queue-display-index="${target}"]`)?.focus()
                             })
@@ -213,16 +216,22 @@ export function QueuePanel() {
                           </span>
                           <SourceBadge source={t.source} compact />
                         </button>
+                        <button type="button" className={styles.rowAction}
+                          data-track-action-trigger aria-haspopup="dialog"
+                          title="加入歌单" aria-label={`将 ${t.name} 加入歌单`}
+                          onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        </button>
                         {!isCurrent && (
                           <>
                             <button type="button" className={styles.rowAction}
                               disabled={playMode === 'one'}
                               title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
                               aria-label={`将 ${t.name} 设为下一首`}
-                              onClick={() => playNextInQueue(originalIndex)}>下一首</button>
+                              onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>下一首</button>
                             <button type="button" className={styles.rowAction}
                               title="从队列移除" aria-label={`从队列移除 ${t.name}`}
-                              onClick={() => removeQueueItem(originalIndex)}>×</button>
+                              onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
                           </>
                         )}
                       </div>

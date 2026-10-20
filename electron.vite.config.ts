@@ -36,6 +36,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('index.html'),
+          'playback-host': resolve('playback-host.html'),
           'desktop-lyrics': resolve('overlays/desktop-lyrics/desktop-lyrics.html'),
           wallpaper: resolve('overlays/wallpaper/wallpaper.html'),
           'mini-player': resolve('overlays/mini-player/mini-player.html')

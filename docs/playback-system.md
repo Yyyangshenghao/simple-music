@@ -2,7 +2,7 @@
 
 > 从「点击一首歌」到「扬声器出声」的全链路设计文档：URL 解析、跨音源兜底、音频引擎、
 > 代理与磁盘缓存、队列走序、预加载、持久化、睡眠定时器、系统媒体集成。
-> 相关代码：`src/stores/player.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
+> 相关代码：`src/stores/player.ts`、`src/lib/playback-core.ts`、`src/stores/playlist.ts`、`src/lib/audio-engine.ts`、
 > `src/lib/playback-resolver.ts`、`src/lib/track-match.ts`、`src/lib/track-preload.ts`、`src/lib/playback-persistence.ts`、
 > `server/routes/netease.ts`（/api/audio）、`server/routes/audio-cache.ts`、`server/lib/audio-cache.ts`。
 
@@ -32,7 +32,25 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 
 ## 2. player store（`src/stores/player.ts`）
 
-单例 zustand store，持有懒创建的 `AudioEngine` 单例（模块级变量，非 state）。
+单例 zustand store 仍是唯一播放状态容器，通过 `createPlaybackCore` 编排会话。核心实例持有懒创建的普通引擎、Apple 会话、解析器及恢复计时器；`player.ts` 提供引擎工厂、平台/音质状态、API、预加载、通知和听歌上报等宿主能力，既有 store 调用接口保持不变。
+
+核心不导入 React、zustand、全局 store 或浏览器运行时，可用内存状态和模拟音频适配器独立运行。桌面应用由独立 `playback-host.html` 启动 `startPlaybackRuntime()`，统一持有播放核心、队列、最近播放、存档、刷歌、下载、歌词与桌面控制。UI 的 `main.tsx` 只连接宿主并挂载 React。最近播放不等待我的库懒加载，冷启恢复暂停且不补记历史；重连读取活快照，不重新恢复存档。详见 [独立播放宿主](playback-host.md)。
+
+React 挂载/卸载和游戏模式销毁主窗口均不启停后台运行时。主进程正常退出先请求宿主保存断点并补报收听，再统一释放运行时并销毁后台，最后关闭 API；保留 1.8 秒补报及整体 8 秒退出兜底。核心释放后迟到结果不写回、不触发自然结束或睡眠回调。托盘、媒体键和迷你条命令发给唯一后台；UI 通过 session/revision 增量快照重连，慢加载不阻塞后来的暂停或切歌。
+
+`shuange-playback.ts` 按真实导航进入刷歌并在导航离开时恢复原队列；页面只持有键盘、滚轮和拖动交互，最小化、隐藏、游戏模式或卸载 React 不结束会话，重挂不重新 enter。片段进度和媒体自然结束统一推进，按当前原曲的 source + String(id) 校验归属；加载切卡时不拿旧位置推进，仅对已接管的刷歌上下文消费旧 ended，首屏等待推荐仍保留普通队列结束规则。offset 精修先回写后 seek，状态订阅只使旧推进锁失效；旧 next 完成不能解开新卡锁，补货失败或无新卡可重试。
+
+`shuange.ts` 的画像/首选音源订阅由 `initShuangeSession()` 显式启停。运行时停止先完成播放存档，保留刷歌前的队列、随机顺序和断点，再注销推进/订阅、使在途 feed/画像结果失效、补写画像并清除会话；不执行会恢复原音频的 leave。用户主动退出仍恢复进入前的播放/暂停状态；整曲接管先结束刷歌再用剩余 feed 建立新队列，导航离开不恢复已清空的旧快照。上述职责和下载均已迁入独立播放宿主。
+
+`lyrics-loader.ts` 在换歌、实际曲目、参与平台、歌词顺序和相关账号会话变化时重新获取；进度/音量变化不发起新请求。请求序号、AbortSignal、曲目归属及实际使用的账号版本共同拒绝过期结果；账号交换后没有进一步通知时，仍结束失效请求的加载并保留空词。原曲优先、相同来源/ID 去重，内容曲目的 `trackKey` 与歌词实际 `source` 分开；本地同名 LRC 无需在线账号，取消信号透传本地 API。
+
+`lyrics-clock.ts` 使用普通音频 store 进度或 MusicKit 连续位置定位歌词，暂停 seek 和偏移变化立即更新；歌词完成后按当时位置定位。仅 MusicKit playing 开启 50ms 时钟，游戏中保留桌面歌词时为 250ms；游戏纯播放清词、取消请求与位置订阅。运行时停止先取消歌词请求和时钟，再释放核心，界面重挂不重新取词或增加时钟。
+
+`desktop-lyrics-sync.ts` 消费上述歌词并同步原生桌面窗，React 重挂不重发开窗请求或丢失拖框回传标记。只有展示开启且当前行有匹配精准时序才启动 50ms 单字段 `{wordClock}` 推送；普通进度/逐字进度通知不重发整包。原生字号回传先记标记再更新偏好，普通消息真正省略 `size`，用户主动调整字号及开关/游戏确认序号重配则携带完整字号；游戏临时派生单行、暗底、无高亮/逐字/自动宽度，原偏好保留。停止后取消 store/原生订阅及 timer，旧回传和迟到失败不再生效，不把停止当成用户关闭窗口。
+
+`ambient-palette-sync.ts` 监听当前封面并使用原渲染进程的 Image/Canvas 采样，向 ambient store 产出调色板与亮度，迷你条直接消费。普通切页、播放进度及同封面不重新取图；切歌、游戏/刷歌暂停及停止会解除图片回调并丢弃迟到结果，恢复后只取当前封面，无封面或失败回退默认颜色与零亮度。生产层没有补间计时器，不操作根节点 CSS；`useAmbientPalette` 只在界面侧做原有 12 步颜色渐变，卸载清理补间，重挂消费最新 store 而不再次取图。该拆分仍依赖渲染进程，不能替代正式后台宿主迁移。
+
+`wallpaper-sync.ts` 随运行时发送完整 Fx 参数，App 卸载继续同步，重挂不重复推送。游戏中不发送，退出及每次非游戏确认序号变化时补最新完整快照；停止取消订阅，捕获迟到 IPC 失败，不把停止当作关闭壁纸。窗口开关、游戏暂停/恢复与关闭时缓存仍由主进程负责；壁纸页面每次加载完成都会收到主进程缓存，重载不丢配置。
 
 **关键字段**：
 
@@ -52,7 +70,11 @@ Apple Music 仍使用同一队列和 player store，但 `PlaybackResolver` 对 A
 - `registerTrackEndedHandler(cb)`：自然播完后的走序由 playlist store 决定（player 不知道队列存在）。playlist.ts 底部注册。
 - `setStopAfterCurrent(cb)`：睡眠定时器「播完当前曲再停」的一次性闸门。置位后 `onEnded` 不走 next，改调该回调并自动清除。
 
-**loadTrack 的竞态守卫**：模块级 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
+**loadTrack 的竞态守卫**：核心实例内的 `loadSession` 与单会话 `PlaybackResolver` 共同守卫。切歌先 abort 旧会话；匹配、音质探测和 URL 解析共享 `AbortSignal`，每次异步返回后再次核对参与状态。播放器另用引擎 `loadId` 拒绝已经作废的候选回调。
+
+**平台收听上报**：只统计实际在线出声的网易云/QQ 曲目。`ListeningClock` 同时记录真实收听秒数与有效媒体进度，排除断点位置、暂停、缓冲和 seek 跳跃；倍速按实际经过时间上报，门槛为实际听满 20 秒或有效播放达到曲长的 60%。自然结束、切歌、停止与正常退出结算；同曲音质/设备重载继续累计，实际平台变化分别结算，单曲循环重新累计。账号会话序号与服务端 Cookie 的进程内 HMAC 凭证共同阻止旧收听写入新账号；凭证不包含原始 Cookie。失败静默跳过且不自动重试。
+
+主进程正常退出先通过 preload 请求 `flushListeningReports`，等主 frame 回执后再关 API，最多等待 1.8 秒，沿用整体 8 秒退出兜底。强制结束进程或慢于等待预算的上报可能丢失。网易发送 `startplay`/`play` 日志；QQ 使用官网 `listenReport` 收集通道，返回“已提交”不代表官方账号统计已累计。平台记录/时长仍须在官方入口分别实测，见[需求与验证边界](specs/2026-10-12-listening-records-2.4.0.md)。
 
 **恢复态起播**：重启后 restorePlayback 只回填元数据（引擎无源）。`play()` 检测 `!eng.hasSource && currentTrack` 时转调 `loadTrack(currentTrack, { startAt: position })` 按断点重新解析加载——URL 有时效，持久化里从不存 URL。
 
@@ -116,6 +138,8 @@ QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把�
 
 ## 6. 队列与走序（`src/stores/playlist.ts`）
 
+队列状态与走序、追加、重排、设为下一首及移除规则位于 `src/lib/queue-state.ts`，不依赖 DOM 或 store。`playlist` store 沿用现有接口，负责平台可用性、异步详情、播放意图与预加载调度；实际队列由独立播放宿主持有，主界面通过状态投影与命令回执交互，详见 [独立播放宿主](playback-host.md)。
+
 - `queue` + `queueIndex`；播放模式存在 settings（`order / shuffle / one`）。
 - **随机模式**用 Fisher-Yates 洗牌出的 `shuffleOrder`（下标排列）循环走序，而非每次随机跳——保证一轮内不重复、prev 可回溯。新增曲目时延长排列；长度失配时懒重建。
 - 队列面板可将已有曲目设为下一首、拖动或用 Alt + ↑/↓ 调整顺序、移除非当前曲目。随机模式调整的是洗牌排列；单曲循环时“下一首”不可用。
@@ -153,6 +177,7 @@ URL TTL 5 分钟——网易 CDN 链约十几分钟过期，只作短期预热�
 - 管理端点：状态批查、固定/取消固定、单文件删除、按自动缓存/已保存/未识别分类统计与清理，以及缓存目录和上限配置。更换目录发现已保存内容时必须再次确认。
 - 设置的“缓存与下载”分别管理自动缓存、播放器离线音乐和歌曲下载。普通缓存清理只发送 `temporary`，保留所有带保存别名的音频（包括共用文件的自动缓存别名）；不提供混合清空入口。自动缓存与播放器离线音乐共用缓存目录，更改该目录会清理其中的受管理音频及未识别旧文件，有保留内容时必须确认。歌曲文件有独立下载配置，不会被缓存清理删除。
 - **下载队列与导出**：顶栏常驻入口，三首并发并显示字节进度，支持专辑/歌单多选批量入队、暂停开始新任务、取消、重试及保留完成记录。完整缓存可直接导出到选择的目录，使用可读名称和实际音频扩展名，同名不覆盖；导出阶段也占用并发槽。首次下载目录沿用原缓存配置并独立保存，升级不重置缓存；修改下载目录只影响之后加入的任务，旧文件保持原位。
+- **下载恢复**：运行时立即将未完成任务的来源身份、曲目信息和原目录保存到 `simplemusic-download-queue`（schema 1），不保存直链或字节进度。最小化/卸载界面继续调度，宿主退出保存后中止请求，重启恢复为暂停队列，点击继续才按当前缓存和账号状态重试；完整缓存直接导出。完成、失败及主动取消不在重启后恢复，清档短暂失败退出时重试，持续存储失败显示风险。读取异常不以新队列覆盖尚未恢复的旧存档，需重启重试。此恢复不保证导出恰好一次：文件已写出而响应丢失时可能生成同名副本，仍不覆盖已有文件。
 
 自带直链的曲目（`track.url`）不传 cacheKey → 不缓存（音质未知，key 无法构造）。
 
@@ -164,7 +189,7 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 - **配额降级**：整队列 JSON 超配额时，降级为占位曲目（仅 id/name/mid 等必需字段，`pending: true`），恢复后播到再补详情。
 - **兼容与校验**：可读取 1.x 无 schema 存档；未知 schema 不恢复。坏条目会被过滤，并按原始对象重新定位当前曲，避免过滤后下标错位。
 - **恢复为暂停态**：混合平台队列保留实体来源，不解析 URL、不自动播；`actualSource` 清空，合法的 `shuffleOrder` 一并恢复，旧存档或损坏顺序置空。用户再次播放时才按当时参与平台创建新解析会话，因此恢复阶段不会访问已禁用或尚未核实登录态的平台。
-- `initPlaybackPersistence()` 幂等（防 React StrictMode 双跑）。
+- `initPlaybackPersistence()` 由运行时启动，重复调用返回同一释放函数；只在该宿主首次启动恢复存档。释放后取消订阅、`beforeunload` 和待写定时器并保存最后快照，重新绑定监听不重新恢复旧档。
 
 ## 10. 睡眠定时器（`src/stores/sleep-timer.ts`）
 
@@ -172,11 +197,19 @@ localStorage key `simplemusic-playback`，当前 schema 为 2：队列（剥掉�
 
 到点时若 `finishTrack` 开启且正在播（**loading 也算在播**——此刻 pause 会被起播中的 loadTrack 覆盖，挂闸门等播完更稳），不打断当前曲，经 `setStopAfterCurrent` 挂播完即停闸门；否则立即 pause。`finishing-track` 阶段用户关掉「播完再停」= 立即停。
 
+刷歌进入 `finishing-track` 后暂停片段自动推进，让当前整曲自然结束，由同一个播完即停闸门停止，卡片改为整曲进度与“当前歌曲播完后停止”提示；取消等待后恢复正常片段推进。自动补货完成前复核播放意图与等待状态；片段定位期间发生暂停时，已选卡载入为暂停，停止或新的播放则作废旧切卡。整曲结束闸门也使在途起播失效，避免旧音频结束后新卡重新出声。最小化或卸载界面不取消定时，宿主退出在最后存档后清理倒计时与闸门，旧时钟不再操作已释放的播放器。
+
 ## 11. 系统媒体集成（`src/lib/media-session.ts`）
 
-`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack、positionState 节流 1s 同步（rate 一并上报，倍速时系统进度条不漂移）。启动时调用一次，环境不支持静默跳过。
+`navigator.mediaSession`：macOS 控制中心/媒体键/耳机线控。action handler 直连 store（play/pause/prev/next/seekto）；metadata 跟 currentTrack，普通播放进度按 1s 同步；暂停定位、倍速、状态与曲目变化立即更新 positionState（rate 一并上报，倍速时系统进度条不漂移）。由播放运行时启动，环境不支持静默跳过。设置关闭时保留空处理器，阻止浏览器默认动作；运行时终止时取消订阅、解除 handlers 并清空媒体信息，迟到的旧 handler 不再控制播放。
+
+托盘和迷你条的 `miniplayer:control` 由 `desktop-playback-controls.ts` 监听；全局快捷键的注册、设置/录入同步及 `hotkey:triggered` 菜单分发由 `global-shortcuts.ts` 持有，两者均随播放运行时启停。React 只保留应用内按键监听，重新挂载不注销全局键；菜单不受全局开关限制，录入、输入区与 dialog 避让及同键去重保持原规则。停止后旧事件和迟到注册回复不再生效。
+
+`mini-player-sync.ts` 随运行时推送曲目、音量、外观、返回快捷键和已有歌词行；播放进度展示时只按 1Hz 发送，暂停 seek、切曲与重新展示补推一次。游戏模式状态通过宿主的 `game-mode-sync.ts` 监听，临时停止迷你条同步但保留开关偏好，退出后发送最新快照。已水合的开窗偏好只在宿主启动、初值查询先完成且游戏模式关闭时重放一次；查询期间若有主进程模式广播则跳过冷恢复，避免覆盖托盘返回操作；App 重挂不重新开窗，停止后解除宽度事件、store 订阅和计时器。歌词获取与时钟由运行时生产，桌面歌词展示同步也由运行时持有，封面氛围色也由运行时生产，壁纸参数同步也已归运行时，CSS 颜色补间仍在 App hooks；正式后台宿主独立持有上述能力。
 
 ## 12. Apple Music 专用播放
+
+平台留存登录态由 `login-status-sync.ts` 随播放运行时核实，不依赖 App 挂载。网易/QQ 仅在宿主启动查询一次，账号会话变化后丢弃旧回复；Apple 状态每次完成后等待 3 秒再刷新，游戏中取消请求和计时，返回重新读取。界面重建不重查，宿主停止取消所有状态请求；取消的 Apple 刷新不更新账号、订阅或错误提示，实际 MusicKit 播放会话不受此轮询取消影响。
 
 `src/lib/apple-music-playback.ts` 接受 player store 的加载与控制命令，经 `/api/apple-music/bridge/*` 到主进程管理的官网 MusicKit 会话。发布版使用应用内隔离窗口；开发态的受保护播放由系统 Chrome 承载。`src/stores/apple-music-connection.ts` 只有在账号已登录且订阅明确有效时才让 Apple 参与播放；订阅未知或无效时不把试听当完整播放，也不静默换到其他音源。
 

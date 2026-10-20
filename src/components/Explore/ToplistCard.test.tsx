@@ -7,6 +7,7 @@ import type { ToplistEntry } from '../../lib/music-service'
 
 interface Instance { cleanups: Array<() => void> }
 const h = vi.hoisted(() => ({
+  scrolling: false,
   instance: null as Instance | null,
   instances: [] as Instance[],
   load: vi.fn(),
@@ -14,6 +15,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
+  useContext: () => h.scrolling,
   memo: (component: unknown) => component,
   useState: (initial: unknown) => [typeof initial === 'function' ? initial() : initial, vi.fn()],
   useRef: (initial: unknown) => ({ current: initial }),
@@ -57,6 +59,7 @@ function mount(id: string) {
     }
   }
   return {
+    tree,
     play: () => findButton(tree)!.props.onClick({ stopPropagation() {} }),
     unmount: () => instance.cleanups.splice(0).forEach(cleanup => cleanup()),
   }
@@ -68,10 +71,25 @@ describe('榜单异步点播意图', () => {
   })
   beforeEach(() => {
     vi.clearAllMocks()
+    h.scrolling = false
     beginPlaybackIntent()
     useProviderStore.getState().setAccountState('netease', 'authenticated', { nickname: '原账号', avatar: '' })
     useProviderStore.getState().setEnabled('netease', true)
     h.setQueue.mockImplementation(() => { beginPlaybackIntent() })
+  })
+
+  it('滚动时只暂停悬停，保留点击与点播，停止后恢复', async () => {
+    h.scrolling = true
+    h.load.mockResolvedValue([song('A')])
+    const paused = mount('A')
+    expect(paused.tree.props.whileHover).toEqual({})
+    expect(paused.tree.props.transition).toEqual({ duration: 0 })
+    paused.tree.props.onClick()
+    expect(paused.tree.props.onClick).toHaveBeenCalledOnce()
+    await paused.play()
+    expect(h.setQueue).toHaveBeenCalledOnce()
+    h.scrolling = false
+    expect(mount('B').tree.props.whileHover).toEqual({ y: -3 })
   })
 
   it('先点 A 再点 B，B 先返回后 A 不覆盖 B', async () => {

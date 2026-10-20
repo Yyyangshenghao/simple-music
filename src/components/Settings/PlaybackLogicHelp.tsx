@@ -1,4 +1,5 @@
-import { useId, useRef } from 'react'
+import { useId, useRef, useState } from 'react'
+import { RevealText } from '../ui/RevealText'
 import styles from './PlaybackLogicHelp.module.css'
 
 export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSourceFallback, authPending }: {
@@ -10,6 +11,8 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
   const dialogRef = useRef<HTMLDialogElement>(null)
   const dialogId = useId()
   const titleId = useId()
+  const detailsId = useId()
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const fallbackHint = authPending ? '等待账号核实'
     : providerLabels.length === 0 ? '暂无可用在线平台'
       : providerLabels.length === 1 ? '仅一个平台可用'
@@ -89,19 +92,27 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
                 <p>用播放器里的<strong>“更多 → 本次优先”</strong>。其他平台的缓存会让路，全局顺序不变。</p>
               </section>
             </div>
-            <details className={styles.details}>
-              <summary>缓存与播放来源的补充说明</summary>
-              <dl>
-                <dt>哪些平台参与联网播放？</dt>
-                <dd>只使用已登录、已启用且可播放的平台；原平台不可用时按排序选择。</dd>
-                <dt>为什么来源不同？</dt>
-                <dd>歌曲来源是你找到它的平台；音频可能来自换源后的缓存。“更多 → 播放来源”显示“本地离线”，表示正在用缓存。</dd>
-                <dt>缓存会一直保留吗？</dt>
-                <dd>下载未完成时不一定有缓存；容量满后会清理较久未使用的自动缓存。主动“保存到本地”的歌曲不受自动清理影响，在“设置 → 缓存与下载”中单独管理。</dd>
-                <dt>本次优先还会影响什么？</dt>
-                <dd>重载时保留进度与暂停状态。失败后是否换源，仍取决于“自动换源”开关。</dd>
-              </dl>
-            </details>
+            <section className={styles.details} data-open={detailsOpen}>
+              <button type="button" className={`${styles.detailsTrigger} no-drag`} aria-expanded={detailsOpen}
+                aria-controls={detailsId} onClick={() => setDetailsOpen((value) => !value)}>
+                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" /></svg>
+                缓存与播放来源的补充说明
+              </button>
+              <div id={detailsId} className={styles.detailsBody} aria-hidden={!detailsOpen}>
+                <div>
+                  <dl>
+                    <dt>哪些平台参与联网播放？</dt>
+                    <dd><RevealText text="只使用已登录、已启用且可播放的平台；原平台不可用时按排序选择。" /></dd>
+                    <dt>为什么来源不同？</dt>
+                    <dd><RevealText text="歌曲来源是你找到它的平台；音频可能来自换源后的缓存。“更多 → 播放来源”显示“本地离线”，表示正在用缓存。" /></dd>
+                    <dt>缓存会一直保留吗？</dt>
+                    <dd><RevealText text="下载未完成时不一定有缓存；容量满后会清理较久未使用的自动缓存。主动“保存到本地”的歌曲不受自动清理影响，在“设置 → 缓存与下载”中单独管理。" /></dd>
+                    <dt>本次优先还会影响什么？</dt>
+                    <dd><RevealText text="重载时保留进度与暂停状态。失败后是否换源，仍取决于“自动换源”开关。" /></dd>
+                  </dl>
+                </div>
+              </div>
+            </section>
             <p className={styles.footer}>新设置下次起播生效 · 以上流程适用于网易云、QQ<br />Apple Music 使用独立官方播放器，不参与这里的换源与缓存。</p>
           </div>
         </div>

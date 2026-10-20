@@ -8,7 +8,8 @@
   /* 保存页面玻璃底色，歌词收起后恢复原样。 */
   --player-page-glass-bg-card: var(--glass-bg-card);
   --player-page-glass-bg-base: var(--glass-bg-base);
-  padding: 10px 16px;
+  /* 四周留边的悬浮岛；总高度需小于 App.module.css 的 --sm-player-clearance。 */
+  padding: 0 20px 14px;
   pointer-events: none;
   position: absolute;
   inset: auto 0 0;
@@ -17,8 +18,9 @@
   /* 不要给 --audio-energy 挂 transition:它每帧被 JS 改写,注册属性的过渡会每帧
      催生一个新过渡对象(60/s × 0.35s 存活),播放期间渲染进程内存以 ~13MB/s 增长;
      能量归零的渐熄改由 useAudioEnergy 停表时用 rAF 衰减实现 */
-  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 外层只做位移，不做透明度：opacity<1 的祖先会成为毛玻璃取样边界(Backdrop Root)，
+     面板在淡入淡出期间只能取到容器内部，看起来像突然失去磨砂。透明度放在面板自身。 */
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 只在播放栏面板内补间，避免根节点或音频能量变量参与逐帧过渡。 */
@@ -29,11 +31,15 @@
   --player-lyrics-base: color-mix(in srgb, var(--player-lyrics-surface) 72%, transparent);
   --glass-bg-card: color-mix(in srgb, var(--player-page-glass-bg-card), var(--player-lyrics-card) var(--player-lyrics-blend));
   --glass-bg-base: color-mix(in srgb, var(--player-page-glass-bg-base), var(--player-lyrics-base) var(--player-lyrics-blend));
-  transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: --player-lyrics-blend 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: auto;
   -webkit-app-region: no-drag;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
+  padding: 12px 18px 12px 12px;
+  /* 左侧铺一层封面取色的静态晕染，呼应正在播放的内容。 */
+  background:
+    radial-gradient(90% 160% at 0% 50%, color-mix(in srgb, var(--ambient-1) 16%, transparent), transparent 60%),
+    linear-gradient(135deg, var(--glass-bg-card), var(--glass-bg-base));
   /* 确保面板内容绘制在音频辉光之上 */
   position: relative;
   z-index: 1;
@@ -48,13 +54,56 @@
   --player-lyrics-base: color-mix(in srgb, var(--player-page-glass-bg-base) 95%, var(--ambient-1));
 }
 
+/* 大圆角 + 顶部高光描边 + 分层投影，让播放栏像浮在页面上的独立岛屿。 */
+.dock .panel {
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 18px 40px -16px rgba(0, 0, 0, 0.32);
+}
+
+/* 挂载时从下方浮起；从歌词页收起回来时与飞回的封面衔接。 */
+.dock {
+  animation: dockEnter 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.dock .panel {
+  animation: dockFadeIn 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes dockEnter {
+  from { translate: 0 18px; }
+}
+
+@keyframes dockFadeIn {
+  from { opacity: 0; }
+}
+
+/* 歌词页接管：下沉、微缩并淡出，封面已由歌词页飞出。 */
+.dock.handoff {
+  transform: translateY(18px) scale(0.98);
+  transition-duration: 0.3s;
+}
+
+.dock.handoff .panel {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .dock .panel { animation: none; }
+}
+
 /* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
-  opacity: 0;
   transform: translateY(10px);
 }
 
 .dock.hidden .panel {
+  opacity: 0;
   pointer-events: none;
 }
 

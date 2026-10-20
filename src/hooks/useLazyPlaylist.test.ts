@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Playlist, Track } from '../types/domain'
+import { advanceProviderAccountSession } from '../lib/provider-account-session'
 
-const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 } }))
+const harness = vi.hoisted(() => ({ skeleton: vi.fn(), album: vi.fn(), details: vi.fn(), session: { current: 0 }, participating: true, likes: { qqMutationRevision: 0 } }))
 vi.mock('react', () => ({
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => effect(),
@@ -9,12 +10,20 @@ vi.mock('react', () => ({
   useRef: (value: unknown) => value === 0 ? harness.session : { current: value },
   useState: (value: unknown) => [value, vi.fn()],
 }))
+vi.mock('../stores/likes', () => ({
+  useLikesStore: Object.assign(
+    (select: (state: typeof harness.likes) => unknown) => select(harness.likes),
+    { getState: () => harness.likes }
+  ),
+}))
 vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ getPlaylistSkeleton: harness.skeleton, getAlbumTracks: harness.album, getTracksByIds: harness.details }) }))
 vi.mock('../stores/providers', () => ({
-  useProviderStore: () => true,
-  isProviderParticipating: () => true,
+  useProviderStore: (select: (state: unknown) => unknown) => select({ byId: {
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+  } }),
+  isProviderParticipating: () => harness.participating,
 }))
-import { invalidatePlaylistCache, loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
+import { getCachedPlaylistTrackCount, invalidatePlaylistCache, loadPlaylistQueue, useLazyPlaylist } from './useLazyPlaylist'
 
 let id = 0
 const song = (id: number): Track => ({ id, source: 'netease', provider: 'netease', type: 'song', name: `歌曲${id}`, artist: '歌手', artists: [] })
@@ -26,8 +35,101 @@ async function setup() {
   return hook
 }
 
-describe('歌单搜索补齐详情', () => {
+describe('卡片与详情共用数量口径', () => {
+  const item = (type = 'playlist'): Playlist => ({ id: ++id, source: 'netease', provider: 'netease', type, name: '数量测试', cover: '', trackCount: 864, playCount: 0, creator: '' })
   beforeEach(() => {
+    harness.participating = true
+    harness.skeleton.mockReset()
+    harness.album.mockReset()
+    harness.details.mockReset()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('使用全部ID位置而非已加载、去重或可播放数量，读取计数不追加请求', async () => {
+    const playlist = item()
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+    harness.skeleton.mockResolvedValue({ trackIds: [1, 2, 2, 3], tracks: [{ ...song(1), playable: false }, song(3)] })
+    const queue = await loadPlaylistQueue(playlist)
+    expect(queue).toHaveLength(4)
+    expect(queue[0].playable).toBe(false)
+    expect(getCachedPlaylistTrackCount(playlist)).toBe(4)
+    expect(getCachedPlaylistTrackCount({ ...playlist, trackCount: 999 })).toBeUndefined()
+    expect(getCachedPlaylistTrackCount({ ...playlist, trackCount: 4 })).toBe(4)
+    expect(harness.skeleton).toHaveBeenCalledOnce()
+    expect(harness.details).not.toHaveBeenCalled()
+  })
+
+  it('详情尚未提供任何元数据时仍按已知ID计数，空列表明确返回零', async () => {
+    const missing = item(), empty = item()
+    harness.skeleton.mockResolvedValueOnce({ trackIds: [1, 2, 3], tracks: [] }).mockResolvedValueOnce({ trackIds: [], tracks: [] })
+    await loadPlaylistQueue(missing)
+    await loadPlaylistQueue(empty)
+    expect(getCachedPlaylistTrackCount(missing)).toBe(3)
+    expect(getCachedPlaylistTrackCount(empty)).toBe(0)
+  })
+
+  it('864首摘要加6首云盘曲目时，卡片与详情均保留870个位置', async () => {
+    const playlist = item()
+    const ids = Array.from({ length: 870 }, (_, i) => i + 1)
+    const details = [...ids.slice(0, 100).map(i => ({ ...song(i), playable: i > 14 })),
+      ...ids.slice(864).map(i => ({ ...song(i), pc: { songId: i } }))]
+    harness.skeleton.mockResolvedValue({ trackIds: ids, tracks: details })
+    const queue = await loadPlaylistQueue(playlist)
+    expect(queue).toHaveLength(870)
+    expect(queue.filter(track => track.pc)).toHaveLength(6)
+    expect(queue.filter(track => track.playable === false)).toHaveLength(14)
+    expect(getCachedPlaylistTrackCount(playlist)).toBe(870)
+    expect(harness.details).not.toHaveBeenCalled()
+  })
+
+  it('停用、换号或主动失效后不复用旧会话计数', async () => {
+    const playlist = item()
+    harness.skeleton.mockResolvedValue({ trackIds: [1], tracks: [song(1)] })
+    await loadPlaylistQueue(playlist)
+    harness.participating = false
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+    harness.participating = true
+    expect(getCachedPlaylistTrackCount(playlist)).toBe(1)
+    invalidatePlaylistCache(playlist)
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+    await loadPlaylistQueue(playlist)
+    advanceProviderAccountSession('netease')
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+  })
+
+  it('过期、失败或被LRU淘汰的列表不冒充当前确认数量', async () => {
+    let now = 1000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const playlist = item(), failed = item()
+    harness.skeleton.mockResolvedValueOnce({ trackIds: [1], tracks: [song(1)] }).mockRejectedValueOnce(new Error('offline'))
+    await loadPlaylistQueue(playlist)
+    await expect(loadPlaylistQueue(failed)).rejects.toThrow('offline')
+    expect(getCachedPlaylistTrackCount(failed)).toBeUndefined()
+    now += 10 * 60_000 + 1
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+    harness.skeleton.mockResolvedValue({ trackIds: [2], tracks: [song(2)] })
+    await loadPlaylistQueue(playlist)
+    for (let i = 0; i < 4; i++) await loadPlaylistQueue(item())
+    expect(getCachedPlaylistTrackCount(playlist)).toBeUndefined()
+  })
+
+  it('同ID的不同来源与专辑保持独立计数', async () => {
+    const playlist = item(), qq = { ...playlist, source: 'qq' as const, provider: 'qq' as const }, album = { ...playlist, type: 'album' }
+    harness.skeleton.mockResolvedValueOnce({ trackIds: [1, 2], tracks: [] }).mockResolvedValueOnce({ trackIds: [1, 2, 3], tracks: [] })
+    harness.album.mockResolvedValue([song(1)])
+    await loadPlaylistQueue(playlist)
+    await loadPlaylistQueue(qq)
+    await loadPlaylistQueue(album)
+    expect(getCachedPlaylistTrackCount(playlist)).toBe(2)
+    expect(getCachedPlaylistTrackCount(qq)).toBe(3)
+    expect(getCachedPlaylistTrackCount(album)).toBe(1)
+  })
+})
+
+describe('歌单搜索补齐详情', () => {
+  afterEach(() => vi.restoreAllMocks())
+  beforeEach(() => {
+    harness.participating = true
     harness.skeleton.mockReset()
     harness.details.mockReset().mockImplementation(async (ids: number[]) => ids.map(song))
   })
@@ -58,6 +160,35 @@ describe('歌单搜索补齐详情', () => {
     await expect(hook.ensureAll(() => false)).rejects.toThrow('offline')
     await hook.ensureAll(() => false)
     expect(harness.details.mock.calls.map(([ids]) => ids[0])).toEqual([0, 100, 100, 200])
+  })
+  it('滚动反复经过限流窗口不会立即重试，冷却后仍可补齐', async () => {
+    let now = 1000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const hook = await setup()
+    harness.details.mockRejectedValueOnce(new Error('操作过多'))
+    hook.ensureRange(100, 120)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    hook.ensureRange(100, 125)
+    expect(harness.details).toHaveBeenCalledTimes(1)
+    now += 30_001
+    hook.ensureRange(100, 130)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(harness.details).toHaveBeenCalledTimes(2)
+    expect(hook.makeQueue()[100]).toEqual(song(100))
+  })
+  it('停用期间完成的旧请求不让重新启用后的窗口进入失败冷却', async () => {
+    const hook = await setup()
+    let finish!: (tracks: Track[]) => void
+    harness.details.mockReturnValueOnce(new Promise<Track[]>(resolve => { finish = resolve }))
+    hook.ensureRange(100, 120)
+    harness.participating = false
+    finish([song(100)])
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    harness.participating = true
+    hook.ensureRange(100, 120)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(harness.details).toHaveBeenCalledTimes(2)
+    expect(hook.makeQueue()[100]).toEqual(song(100))
   })
 })
 
@@ -160,5 +291,89 @@ describe('推荐曲目缓存更新', () => {
     expect(harness.skeleton).not.toHaveBeenCalled()
     expect(harness.album).not.toHaveBeenCalled()
     expect(harness.details).not.toHaveBeenCalled()
+  })
+})
+
+describe('QQ 红心写后歌单缓存', () => {
+  let mutationRevision = 0
+  const liked: Playlist = { id: 'qq-liked:201', source: 'qq', provider: 'qq', type: 'playlist', name: '我喜欢的音乐', cover: '', trackCount: 1, playCount: 0, creator: '' }
+  const qqSong = (id: number): Track => ({ ...song(id), source: 'qq', provider: 'qq' })
+  const skeleton = (id: number) => ({ trackIds: [id], tracks: [qqSong(id)] })
+
+  beforeEach(() => {
+    mutationRevision += 2
+    harness.likes.qqMutationRevision = mutationRevision
+    harness.participating = true
+    invalidatePlaylistCache(liked)
+    harness.skeleton.mockReset().mockResolvedValue(skeleton(1))
+    harness.details.mockReset()
+  })
+
+  it('我喜欢的音乐在同版本复用队列，写成功后重新读取并缓存新曲目', async () => {
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(1)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(1)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(1)
+
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('普通 QQ 歌单不因红心写成功而重拉骨架', async () => {
+    const playlist: Playlist = { ...liked, id: `qq:${++id}`, name: '普通歌单' }
+    expect(await loadPlaylistQueue(playlist)).toEqual([qqSong(1)])
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+
+    expect(await loadPlaylistQueue(playlist)).toEqual([qqSong(1)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(1)
+  })
+
+  it('我喜欢的音乐 hook 在写成功后使用新曲目，与命令式队列共享缓存', async () => {
+    const first = useLazyPlaylist(liked)
+    await Promise.resolve()
+    expect(first.makeQueue()).toEqual([qqSong(1)])
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    const current = useLazyPlaylist(liked)
+    await Promise.resolve()
+
+    expect(current.makeQueue()).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('写入前的队列响应迟到不能覆盖成功后新版本的曲目', async () => {
+    let finish!: (value: ReturnType<typeof skeleton>) => void
+    harness.skeleton.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const oldRequest = loadPlaylistQueue(liked)
+    const oldResult = expect(oldRequest).rejects.toThrow('歌单加载会话已失效')
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+
+    finish(skeleton(1))
+    await oldResult
+
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
+  })
+
+  it('写入前 hook 的骨架响应迟到也不会污染新版本缓存', async () => {
+    let finish!: (value: ReturnType<typeof skeleton>) => void
+    harness.skeleton.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    useLazyPlaylist(liked)
+    harness.likes.qqMutationRevision++
+    harness.skeleton.mockResolvedValue(skeleton(2))
+    const current = useLazyPlaylist(liked)
+    await Promise.resolve()
+    finish(skeleton(1))
+    await Promise.resolve()
+
+    expect(current.makeQueue()).toEqual([qqSong(2)])
+    expect(await loadPlaylistQueue(liked)).toEqual([qqSong(2)])
+    expect(harness.skeleton).toHaveBeenCalledTimes(2)
   })
 })

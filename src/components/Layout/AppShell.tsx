@@ -5,6 +5,8 @@ import { pageTransition } from '../../lib/motion-presets'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import styles from './AppShell.module.css'
 import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
+// 详情页同步挂载，首次打开也能接上卡片封面的共享转场。
+import { AppPlaylistPage } from '../../pages/AppPlaylistPage'
 import { initialPageTransition, isDetailView, nextPageTransition } from './page-transition-state'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
@@ -39,6 +41,7 @@ export function AppShell() {
   const renderPage = (view: AppView) => {
     if (view === 'explore') return <ExplorePage />
     if (view === 'library') return <LibraryPage />
+    if (typeof view === 'object' && view.type === 'app-playlist') return <AppPlaylistPage id={view.id} />
     if (view === 'roam') return <RoamPage />
     if (view === 'shuange') return <ShuangePage />
     if (view === 'settings') return <SettingsPage />

@@ -227,7 +227,7 @@ export function qqCookiePlaybackKey(obj: CookieMap): string {
 }
 
 /** 个性化接口(雷达/猜你喜欢等)的鉴权 comm 块,与 handleQQSongUrl 的 vkey 请求同构:带 uin+authst,ct 随是否有票据切换。 */
-function qqAuthComm(cookie: string): { uin: string; format: string; ct: number; cv: number; authst?: string } {
+export function qqAuthComm(cookie: string): { uin: string; format: string; ct: number; cv: number; authst?: string } {
   const cookieObj = parseCookieString(cookie)
   const uin = qqCookieUin(cookieObj) || '0'
   const musicKey = qqCookieMusicKey(cookieObj)
@@ -420,6 +420,8 @@ interface QQPlaylist {
   creator: string
   subscribed: boolean
   specialType: number
+  /** 仅自建列表能确认可见性时才有值。 */
+  private?: boolean
 }
 
 export const QQ_LIKED_PLAYLIST_ID = 'qq-liked:201'
@@ -557,7 +559,7 @@ function plainTextDescription(raw: unknown): string {
     .join('\n')
 }
 
-function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<string, unknown> {
+export function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<string, unknown> {
   const t = rec(track)
   const fb = rec(fallback)
   const album = rec(t.album)
@@ -574,6 +576,7 @@ function mapQQTrack(track: unknown, fallback: Record<string, unknown>): Record<s
     type: 'qq',
     id: mid,
     qqId: t.id || fb.qqId || fb.id || '',
+    songType: typeof t.type === 'number' ? t.type : undefined,
     mid,
     songmid: mid,
     mediaMid: rec(t.file).media_mid,
@@ -599,15 +602,22 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
     source: 'qq',
     type: 'playlist',
     id: upstreamId ? String(upstreamId) : '',
-    name: str(pl.diss_name || pl.name || pl.title),
+    // 收藏列表（fcg_get_profile_order_asset）用 dissname/listennum/nickname。
+    name: str(pl.diss_name || pl.dissname || pl.name || pl.title),
     cover: pickQQImageUrl(pl.diss_cover, pl.logo, pl.picurl, pl.cover),
     trackCount: numOf(pl.song_cnt || pl.songnum || pl.total_song_num || pl.song_count),
-    playCount: numOf(pl.listen_num || pl.visitnum || pl.play_count),
-    creator: str(pl.hostname || pl.nick || pl.creator) || 'QQ 音乐',
+    playCount: numOf(pl.listen_num || pl.listennum || pl.visitnum || pl.play_count),
+    creator: str(pl.hostname || pl.nick || pl.nickname || pl.creator) || 'QQ 音乐',
     subscribed: kind === 'collect',
     specialType: 0,
   }
-  if (isQQFavoritePlaylist(pl)) {
+  // 自建列表 dir_show：1 公开、2 仅自己可见（与歌单管理的私密判定一致）；其他值不确定，保持未知。
+  if (kind === 'created') {
+    const show = Number(pl.dir_show)
+    if (show === 1 || show === 2) playlist.private = show === 2
+  }
+  // 收藏列表里的 dirid 是原作者的目录号，只有自建列表的 201 才是自己的「我喜欢」。
+  if (kind !== 'collect' && isQQFavoritePlaylist(pl)) {
     playlist.id = QQ_LIKED_PLAYLIST_ID
   }
   return playlist
@@ -656,6 +666,7 @@ function mapQQPlaylistTrack(raw: unknown): Record<string, unknown> {
     type: 'qq',
     id: mid,
     qqId: track.id || track.songid || r.id || r.songid || '',
+    songType: typeof track.type === 'number' ? track.type : undefined,
     mid,
     songmid: mid,
     mediaMid: str(rec(track.file).media_mid || track.strMediaMid || track.media_mid || r.strMediaMid),
@@ -945,6 +956,44 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
   return { loggedIn: true, provider: 'qq', userId: uin, playlists }
 }
 
+/** 用户收藏的专辑：与收藏歌单同一接口，reqtype=2 返回 albumlist。 */
+export async function handleQQUserAlbums(cookie: string): Promise<Record<string, unknown>> {
+  const info = await getQQLoginInfo(cookie)
+  if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', albums: [] }
+  const uin = info.userId
+  const albums: Record<string, unknown>[] = []
+  const seen = new Set<string>()
+  for (let page = 0; page < 20; page++) {
+    const data = rec(rec(await qqGetJSON(
+      cookie,
+      'https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg',
+      { ct: 20, cid: 205360956, userid: uin, reqtype: 2, sin: page * 60, ein: page * 60 + 59 },
+      { headers: { Referer: 'https://y.qq.com/portal/profile.html' } }
+    )).data)
+    const items = arr(data.albumlist)
+    for (const raw of items) {
+      const a = rec(raw)
+      const mid = str(a.albummid)
+      if (!mid || seen.has(mid)) continue
+      seen.add(mid)
+      albums.push({
+        provider: 'qq',
+        source: 'qq',
+        type: 'album',
+        id: mid,
+        name: str(a.albumname),
+        cover: qqAlbumCover(mid, 300),
+        trackCount: numOf(a.songnum),
+        playCount: 0,
+        creator: str(a.singername),
+        tag: '专辑',
+      })
+    }
+    if (!numOf(data.has_more) || items.length === 0) break
+  }
+  return { loggedIn: true, provider: 'qq', albums }
+}
+
 export async function handleQQRadarSong(cookie: string): Promise<Record<string, unknown>> {
   const info = await getQQLoginInfo(cookie)
   if (!info.loggedIn) return { provider: 'qq', playlist: null, tracks: [] }
@@ -1077,15 +1126,17 @@ function qqHasLoginCookie(cookie: string): boolean {
   return !!(qqCookieUin(cookieObj) && qqCookieMusicKey(cookieObj))
 }
 
+function qqPlaylistReportedTotal(data: Record<string, unknown>, detail: Record<string, unknown>): number | undefined {
+  for (const value of [data.total_song_num, data.songlist_size, data.totalNum, detail.total_song_num, detail.songlist_size, detail.totalNum]) {
+    if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') continue
+    const count = Number(value)
+    if (Number.isSafeInteger(count) && count >= 0) return count
+  }
+  return undefined
+}
+
 function qqPlaylistTotal(data: Record<string, unknown>, detail: Record<string, unknown>): number {
-  return numOf(
-    data.total_song_num ||
-    data.songlist_size ||
-    data.totalNum ||
-    detail.total_song_num ||
-    detail.songlist_size ||
-    detail.totalNum
-  )
+  return qqPlaylistReportedTotal(data, detail) ?? 0
 }
 
 function qqPageHasMore(data: Record<string, unknown>, offset: number, rawCount: number, total: number): boolean {
@@ -1127,13 +1178,15 @@ async function fetchQQDissPage(
     )
   )
   const block = rec(json.playlist)
-  if (!json.playlist || Number(block.code || 0) !== 0) {
-    const code = Number(block.code || block.result || 0)
-    const message = str(block.message || block.msg)
+  const data = rec(block.data)
+  const failedCode = [json.code, block.code, data.code, data.subcode].find(code => code !== undefined && Number(code) !== 0)
+  if (!json.playlist || failedCode !== undefined || !Array.isArray(data.songlist)) {
+    const code = Number(failedCode || block.result || 0)
+    const message = str(block.message || block.msg || data.message || data.msg)
     if (
       liked
       && qqHasLoginCookie(cookie)
-      && ([301, 1000, 2000].includes(code) || /auth|cookie|login|登录|未登陆|过期|失效|票据/i.test(message))
+      && ([301, 1000].includes(code) || /auth|cookie|login|登录|未登陆|过期|失效|票据/i.test(message))
     ) {
       const error = new Error('AUTH_EXPIRED') as Error & { statusCode?: number }
       error.statusCode = 403
@@ -1141,8 +1194,7 @@ async function fetchQQDissPage(
     }
     throw new Error(message || 'QQ_PLAYLIST_DETAIL_FAILED')
   }
-  const data = rec(block.data)
-  return { data, detail: rec(data.dirinfo), rawTracks: arr(data.songlist) }
+  return { data, detail: rec(data.dirinfo), rawTracks: data.songlist as unknown[] }
 }
 
 async function fetchQQToplistPage(
@@ -1299,7 +1351,40 @@ export async function handleQQLikedPlaylist(cookie: string): Promise<Record<stri
   }
 }
 
-export async function handleQQPlaylistTracks(cookie: string, id: string): Promise<Record<string, unknown>> {
+function mapQQPlaylistPageTracks(ref: QQPlaylistReference, rawTracks: unknown[]): Record<string, unknown>[] {
+  return rawTracks
+    .map(ref.kind === 'toplist' ? (raw) => mapQQTrack(raw, {}) : mapQQPlaylistTrack)
+    .filter((track) => track.mid)
+    .map((track) => ({ ...track, name: str(track.name).trim() ? track.name : `歌曲 ID ${track.mid}` }))
+}
+
+/** 歌单单页:预览浮窗按页展示,不必等整单翻页完成。 */
+export async function handleQQPlaylistPage(cookie: string, id: string, offset: number, limit: number): Promise<Record<string, unknown>> {
+  const ref = qqPlaylistReference(id)
+  const loggedIn = qqHasLoginCookie(cookie)
+  if (!ref.id) return { loggedIn, provider: 'qq', error: 'Missing QQ playlist id', tracks: [], total: null, hasMore: false }
+  if (ref.kind === 'liked' && !loggedIn) return { loggedIn: false, provider: 'qq', tracks: [], total: null, hasMore: false }
+  const start = Math.max(0, Math.floor(offset) || 0)
+  const num = Math.max(1, Math.min(QQ_PLAYLIST_PAGE_SIZE, Math.floor(limit) || QQ_PLAYLIST_PAGE_SIZE))
+  const result = ref.kind === 'toplist'
+    ? await fetchQQToplistPage(cookie, ref.id, start, num)
+    : await fetchQQDissPage(cookie, ref, start, num)
+  const total = qqPlaylistReportedTotal(result.data, result.detail) ?? null
+  const rawCount = result.rawTracks.length
+  // 无 hasmore/total 时按本页是否取满判断,不能沿用整单翻页的固定页长。
+  const known = (result.data.hasmore ?? result.data.hasMore) !== undefined || (total ?? 0) > 0
+  const hasMore = rawCount > 0 && (known ? qqPageHasMore(result.data, start, rawCount, total ?? 0) : rawCount >= num)
+  return {
+    loggedIn,
+    provider: 'qq',
+    tracks: mapQQPlaylistPageTracks(ref, result.rawTracks),
+    total,
+    nextOffset: start + rawCount,
+    hasMore,
+  }
+}
+
+export async function handleQQPlaylistTracks(cookie: string, id: string, current: () => boolean = () => true): Promise<Record<string, unknown>> {
   const ref = qqPlaylistReference(id)
   const loggedIn = qqHasLoginCookie(cookie)
   if (!ref.id) {
@@ -1311,23 +1396,36 @@ export async function handleQQPlaylistTracks(cookie: string, id: string): Promis
 
   const tracks: Record<string, unknown>[] = []
   let detail: Record<string, unknown> = {}
-  let total = 0
+  let total: number | undefined
   let offset = 0
+  let complete = false
 
   for (let page = 0; page < QQ_PLAYLIST_MAX_PAGES; page++) {
+    if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
     const result = ref.kind === 'toplist'
       ? await fetchQQToplistPage(cookie, ref.id, offset)
       : await fetchQQDissPage(cookie, ref, offset)
+    if (!current()) throw new Error('QQ 账号已变化或请求已取消，请重试')
     if (page === 0) detail = result.detail
-    total = qqPlaylistTotal(result.data, result.detail) || total
-    const mapped = result.rawTracks
-      .map(ref.kind === 'toplist' ? (raw) => mapQQTrack(raw, {}) : mapQQPlaylistTrack)
-      .filter((track) => track.name && track.mid)
-    tracks.push(...mapped)
+    const pageTotal = qqPlaylistReportedTotal(result.data, result.detail)
+    if (total !== undefined && pageTotal !== undefined && total !== pageTotal) {
+      throw new Error('QQ 歌单已变化，请重新加载')
+    }
+    total = pageTotal ?? total
+    tracks.push(...mapQQPlaylistPageTracks(ref, result.rawTracks))
     const rawCount = result.rawTracks.length
-    if (!rawCount || !qqPageHasMore(result.data, offset, rawCount, total)) break
+    const hasMore = qqPageHasMore(result.data, offset, rawCount, total ?? 0)
+    const moreMarker = result.data.hasmore ?? result.data.hasMore
+    if (!rawCount && (moreMarker === true || Number(moreMarker) > 0)) {
+      throw new Error('QQ 歌单歌曲列表不完整，请稍后重试')
+    }
+    if (!rawCount || !hasMore) {
+      complete = true
+      break
+    }
     offset += rawCount
   }
+  if (!complete) throw new Error('QQ 歌单歌曲列表不完整，请稍后重试')
 
   const playlistId = ref.kind === 'liked'
     ? QQ_LIKED_PLAYLIST_ID
@@ -1340,7 +1438,10 @@ export async function handleQQPlaylistTracks(cookie: string, id: string): Promis
     name: str(detail.title || detail.name || detail.dissname || detail.diss_name)
       || (ref.kind === 'liked' ? '我喜欢的音乐' : ''),
     cover: pickQQPlaylistCover(detail, tracks),
-    trackCount: total || tracks.length,
+    trackCount: Math.max(total ?? 0, tracks.length),
+    description: plainTextDescription(detail.desc || detail.intro || detail.description),
+    creator: str(detail.host_nick || detail.nick || detail.nickname),
+    playCount: numOf(detail.listennum || detail.listen_num || detail.visitnum),
   }
   return {
     loggedIn,

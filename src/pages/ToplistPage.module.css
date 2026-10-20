@@ -4,34 +4,7 @@
 }
 
 .back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   margin: 12px 0 0 max(var(--sm-page-gutter), calc((100% - var(--sm-content-max-width)) / 2));
-  padding: 6px 14px 6px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--sm-text-secondary);
-  background: var(--glass-bg-base);
-  backdrop-filter: var(--glass-blur-base);
-  -webkit-backdrop-filter: var(--glass-blur-base);
-  border: 1px solid var(--glass-border-base);
-  border-radius: var(--sm-radius-pill);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-  transition: color 0.18s, background 0.18s, border-color 0.18s, box-shadow 0.18s;
-}
-
-.back:hover {
-  color: var(--sm-text-primary);
-  background: var(--glass-bg-card);
-  border-color: var(--glass-border-card);
-}
-
-.back:focus-visible {
-  outline: none;
-  box-shadow: var(--glow-ring);
 }
 
 .heading {

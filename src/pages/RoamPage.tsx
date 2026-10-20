@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { VirtualList } from '../components/ui/VirtualList'
 import { AnimatePresence, motion } from 'motion/react'
+import { useNavigationStore } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
-import { todayKey, useRoamStore, type RoamPlaylist } from '../stores/roam'
+import { roamAppPlaylistKey, saveRoamAsAppPlaylist, todayKey, useRoamStore, type RoamPlaylist } from '../stores/roam'
+import { useAppPlaylistsStore } from '../stores/app-playlists'
+import { useToastStore } from '../stores/toast'
 import { serviceFor } from '../lib/service-registry'
+import { providerAccountSession } from '../lib/provider-account-session'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { ArtistPickerOverlay } from '../components/Roam/ArtistPickerOverlay'
 import { ArtistLibrarySection } from '../components/Roam/ArtistLibrarySection'
+import { RoamSaveHelp } from '../components/Roam/RoamSaveHelp'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
 import { GradientText } from '../components/ui/GradientText'
@@ -15,6 +21,7 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './RoamPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
+import { BackButton } from '../components/ui/BackButton'
 
 type SavedPlaylistSlot = 'netease' | 'local'
 
@@ -32,9 +39,7 @@ export function mergeSavedPlaylist(
 }
 
 function playlistSources(playlist: RoamPlaylist): ProviderId[] {
-  return playlist.source === 'mixed'
-    ? PROVIDER_IDS.filter((source) => playlist.tracks.some((track) => track.source === source))
-    : [playlist.source]
+  return PROVIDER_IDS.filter((source) => playlist.tracks.some((track) => track.source === source))
 }
 
 function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[]): boolean {
@@ -44,9 +49,11 @@ function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[
 }
 
 export function RoamPage() {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
+  const accountSignature = useProviderStore(() => PROVIDER_IDS.map(providerAccountSession).join(':'))
   const enabledSources = useMemo(
     () => PROVIDER_IDS.filter((_, index) => enabledSignature[index] === '1') as ProviderId[],
     [enabledSignature]
@@ -67,7 +74,13 @@ export function RoamPage() {
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [drafting, setDrafting] = useState(false)
-  const [openedPlaylist, setOpenedPlaylist] = useState<RoamPlaylist | null>(null)
+  const [selectedPlaylist, setOpenedPlaylist] = useState<RoamPlaylist | null>(null)
+  const appPlaylists = useAppPlaylistsStore(state => state.items)
+  const openedPlaylist = useMemo(() => {
+    if (!selectedPlaylist) return null
+    const app = appPlaylists.find(item => selectedPlaylist.appPlaylistId ? item.id === selectedPlaylist.appPlaylistId : item.roamKey === roamAppPlaylistKey(selectedPlaylist))
+    return app ? { ...selectedPlaylist, appPlaylistId: app.id, tracks: app.tracks } : selectedPlaylist
+  }, [selectedPlaylist, appPlaylists])
   const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylistCandidate[]>(() => {
     const saved = localPlaylist ? mergeSavedPlaylist([], localPlaylist, 'local') : []
     if (!playlist) return saved
@@ -78,9 +91,12 @@ export function RoamPage() {
   const hasInactiveEntries = entries.some((entry) =>
     entry.artist.source !== 'local' && !enabledSources.includes(entry.artist.source)
   )
-  const availableSavedPlaylists = savedPlaylists.filter((item) =>
-    playlistIsAvailable(item.playlist, enabledSources)
-  )
+  const availableSavedPlaylists = savedPlaylists.filter(item => !item.playlist.appPlaylistId || appPlaylists.some(app => app.id === item.playlist.appPlaylistId))
+    .map(item => {
+      const app = appPlaylists.find(app => item.playlist.appPlaylistId ? app.id === item.playlist.appPlaylistId : app.roamKey === roamAppPlaylistKey(item.playlist))
+      return app ? { ...item, playlist: { ...item.playlist, appPlaylistId: app.id, tracks: app.tracks } } : item
+    })
+    .filter(item => playlistIsAvailable(item.playlist, enabledSources))
 
   const totalTracks = entries.reduce((n, e) => n + e.tracks.length, 0)
   const anyLoading = entries.some((e) => e.loading)
@@ -98,13 +114,14 @@ export function RoamPage() {
   useEffect(() => {
     if (scope !== 'all' && !enabledSources.includes(scope)) setScope('all')
     else if (hasInactiveEntries) setScope('all')
-    if (openedPlaylist && !playlistIsAvailable(openedPlaylist, enabledSources)) setOpenedPlaylist(null)
-  }, [enabledSources, hasInactiveEntries, openedPlaylist, scope, setScope])
+    if (openedPlaylist && (!playlistIsAvailable(openedPlaylist, enabledSources)
+      || (openedPlaylist.appPlaylistId && !appPlaylists.some(item => item.id === openedPlaylist.appPlaylistId)))) setOpenedPlaylist(null)
+  }, [enabledSources, hasInactiveEntries, openedPlaylist, appPlaylists, scope, setScope])
 
   useEffect(() => {
     useRoamStore.getState().clearSuggestions()
     setPickerOpen(false)
-  }, [enabledSignature])
+  }, [enabledSignature, accountSignature])
 
   // 网易云远端存档与本地混合/QQ 存档并列展示，不依赖当前候选范围，也不自动进入结果态。
   useEffect(() => {
@@ -147,9 +164,17 @@ export function RoamPage() {
     setDrafting(false)
   }
 
+  function openAppPlaylist(saved: RoamPlaylist) {
+    try {
+      const id = saveRoamAsAppPlaylist(saved)
+      setOpenedPlaylist({ ...saved, appPlaylistId: id })
+      useNavigationStore.getState().navigateTo({ type: 'app-playlist', id })
+    } catch (error) { useToastStore.getState().show(error instanceof Error ? error.message : '应用歌单保存失败') }
+  }
+
   if (openedPlaylist) {
     return (
-      <div className={`${styles.page} ${pageScroll.viewport}`}>
+      <div ref={scrollRef} className={`${styles.page} ${pageScroll.viewport}`}>
         <div className={styles.inner}>
           <motion.div
             className={styles.resultHeader}
@@ -168,32 +193,12 @@ export function RoamPage() {
               </p>
               <div className={styles.resultSources}>
                 {playlistSources(openedPlaylist).map((source) => <SourceBadge key={source} source={source} reveal />)}
-                <span>{openedPlaylist.source === 'netease' && neteaseLoggedIn ? '已同步平台歌单' : '保存在本地'}</span>
+                <span>{openedPlaylist.appPlaylistId ? '已保存为应用歌单' : '旧版漫游'}</span>
               </div>
             </div>
             <div className={styles.resultActions}>
-              <motion.button
-                className={`${styles.backBtn} no-drag`}
-                onClick={() => setOpenedPlaylist(null)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                <svg
-                  className={styles.backIcon}
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-                <span>返回</span>
-              </motion.button>
+              <button className={`${styles.backBtn} no-drag`} onClick={() => openAppPlaylist(openedPlaylist)}>管理歌单</button>
+              <BackButton onClick={() => setOpenedPlaylist(null)} autoHide={false} />
               <motion.button
                 className={`${styles.resetBtn} no-drag`}
                 onClick={() => handleRegenerate(openedPlaylist)}
@@ -211,9 +216,8 @@ export function RoamPage() {
             animate="visible"
             transition={{ ...springGentle, delay: 0.08 }}
           >
-            {openedPlaylist.tracks.map((track, i) => (
-              <TrackRow key={`${track.source}-${String(track.id)}`} track={track} index={i} onPlay={() => playAt(i)} />
-            ))}
+            <VirtualList total={openedPlaylist.tracks.length} rowHeight={56} scrollRef={scrollRef}
+              renderRow={i => <TrackRow track={openedPlaylist.tracks[i]} index={i} onPlay={() => playAt(i)} />} />
           </motion.div>
         </div>
       </div>
@@ -234,8 +238,9 @@ export function RoamPage() {
             <span className={styles.heroKicker}>PERSONAL RADIO</span>
             <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
             <p className={styles.subtitle}>
-              从已启用平台挑选歌手。混合结果只保存在本地，单一网易云来源且已登录时可继续同步「每日漫游」。
+              选择喜欢的歌手，生成你的漫游歌单。
             </p>
+            <RoamSaveHelp />
           </div>
           <div className={styles.roamHeroActions}>
             <span className={styles.scopeLabel}>候选范围</span>
@@ -265,8 +270,14 @@ export function RoamPage() {
             {entries.length === 0 && (
               <motion.button
                 className={`${styles.pickBtn} no-drag`}
-                disabled={loading || scopeSources.length === 0}
+                disabled={loading}
                 onClick={() => {
+                  if (!scopeSources.length) {
+                    const navigation = useNavigationStore.getState()
+                    navigation.navigateTo('settings')
+                    navigation.requestSettingsMusic()
+                    return
+                  }
                   setDrafting(true)
                   setPickerOpen(true)
                 }}
@@ -276,7 +287,7 @@ export function RoamPage() {
                 {loading
                   ? '正在核实已保存的漫游…'
                   : scopeSources.length === 0
-                    ? '请先启用音乐平台'
+                    ? '打开音源设置'
                     : '选择歌手'}
               </motion.button>
             )}
@@ -302,7 +313,7 @@ export function RoamPage() {
                 </p>
                 <div className={styles.resultSources}>
                   {playlistSources(savedPlaylist).map((source) => <SourceBadge key={source} source={source} reveal />)}
-                  <span>{savedPlaylist.source === 'netease' && neteaseLoggedIn ? '来自网易云「每日漫游」' : '保存在本机'}</span>
+                  <span>{savedPlaylist.appPlaylistId ? '已保存为应用歌单' : '旧版漫游'}</span>
                 </div>
               </div>
               <div className={styles.savedPlaylistActions}>

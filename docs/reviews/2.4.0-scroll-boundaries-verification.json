@@ -1,0 +1,445 @@
+{
+  "baselineCommit": "eaf9ca0",
+  "environment": {
+    "runtime": "Electron dev, Apple M5, macOS",
+    "viewport": "1280x800 DPR2",
+    "input": "CDP native wheel x10, ±30px, 450ms apart; fixed cursor over 我的歌单",
+    "fixtures": "isolated userData, seeded providers, local PNG covers"
+  },
+  "baseline": {
+    "name": "overMyPlaylists",
+    "frames": {
+      "idleFrames": [
+        17.600000000000364,
+        17.599999999999454,
+        17.699999999999818,
+        17.899999999999636,
+        11.600000000000364,
+        17.69999999999891,
+        22.899999999999636,
+        17.899999999999636,
+        23.5,
+        18.200000000000728
+      ],
+      "max": 23.5,
+      "rectReads": 80,
+      "nodes": {
+        "added": 100,
+        "removed": 100
+      },
+      "boundaries": [
+        {
+          "paused": true,
+          "at": 6346.600000143051,
+          "maxFrame": 17.600000000000364
+        },
+        {
+          "paused": false,
+          "at": 6526.5,
+          "maxFrame": 17.600000000000364
+        },
+        {
+          "paused": true,
+          "at": 6809.299999952316,
+          "maxFrame": 11.800000000000182
+        },
+        {
+          "paused": false,
+          "at": 6990.5,
+          "maxFrame": 17.599999999999454
+        },
+        {
+          "paused": true,
+          "at": 7272.400000095367,
+          "maxFrame": 6.5
+        },
+        {
+          "paused": false,
+          "at": 7454.799999952316,
+          "maxFrame": 17.699999999999818
+        },
+        {
+          "paused": true,
+          "at": 7736.400000095367,
+          "maxFrame": 7.199999999999818
+        },
+        {
+          "paused": false,
+          "at": 7919,
+          "maxFrame": 17.899999999999636
+        },
+        {
+          "paused": true,
+          "at": 8202.799999952316,
+          "maxFrame": 6.5
+        },
+        {
+          "paused": false,
+          "at": 8382.200000047684,
+          "maxFrame": 11.600000000000364
+        },
+        {
+          "paused": true,
+          "at": 8660.600000143051,
+          "maxFrame": 12.399999999999636
+        },
+        {
+          "paused": false,
+          "at": 8840,
+          "maxFrame": 17.69999999999891
+        },
+        {
+          "paused": true,
+          "at": 9119.100000143051,
+          "maxFrame": 6.5
+        },
+        {
+          "paused": false,
+          "at": 9301.400000095367,
+          "maxFrame": 22.899999999999636
+        },
+        {
+          "paused": true,
+          "at": 9578.400000095367,
+          "maxFrame": 6
+        },
+        {
+          "paused": false,
+          "at": 9759,
+          "maxFrame": 17.899999999999636
+        },
+        {
+          "paused": true,
+          "at": 10042.799999952316,
+          "maxFrame": 6.600000000000364
+        },
+        {
+          "paused": false,
+          "at": 10224.600000143051,
+          "maxFrame": 23.5
+        },
+        {
+          "paused": true,
+          "at": 10501.700000047684,
+          "maxFrame": 12
+        },
+        {
+          "paused": false,
+          "at": 10683.799999952316,
+          "maxFrame": 18.200000000000728
+        }
+      ],
+      "events": {
+        "wheel": 10,
+        "scroll": 10,
+        "pointerout": 10,
+        "pointerover": 10
+      },
+      "writes": 0,
+      "mean": 6.099642431466031,
+      "p95": 6.899999999999636,
+      "over16": 10,
+      "over25": 0
+    },
+    "cpu": {
+      "browser": 0.8530820037796902,
+      "renderer": 39.457216063707335,
+      "GPU": 40.205545606721046,
+      "network.mojom.NetworkService": 0.10137271893220523,
+      "tracing.mojom.TracingService": 0.1279417876829878
+    },
+    "sums": {
+      "FireAnimationFrame": {
+        "ms": 98.38500000000089,
+        "count": 2287,
+        "max": 0.5
+      },
+      "FunctionCall": {
+        "ms": 255.52100000000667,
+        "count": 7922,
+        "max": 6.655
+      },
+      "UpdateLayoutTree": {
+        "ms": 319.6519999999997,
+        "count": 910,
+        "max": 4.064
+      },
+      "EventDispatch": {
+        "ms": 29.290999999999986,
+        "count": 1224,
+        "max": 1.306
+      },
+      "Paint": {
+        "ms": 161.35000000000062,
+        "count": 11348,
+        "max": 1.74
+      },
+      "Layout": {
+        "ms": 100.12500000000004,
+        "count": 353,
+        "max": 0.852
+      }
+    },
+    "states": {
+      "STATE_NO_UPDATE_DESIRED": 365,
+      "STATE_PRESENTED_ALL": 815,
+      "STATE_PRESENTED_PARTIAL": 437,
+      "STATE_DROPPED": 72
+    },
+    "latency": {
+      "GESTURE_SCROLL_BEGIN": {
+        "count": 10,
+        "median": 11.225,
+        "p95": 12.94
+      },
+      "MOUSE_WHEEL": {
+        "count": 20,
+        "median": 17.057,
+        "p95": 17.769
+      },
+      "GESTURE_SCROLL_END": {
+        "count": 10,
+        "median": 11.411,
+        "p95": 16.981
+      },
+      "FIRST_GESTURE_SCROLL_UPDATE": {
+        "count": 10,
+        "median": 29.49,
+        "p95": 31.009
+      }
+    }
+  },
+  "after": {
+    "name": "overMyPlaylists",
+    "frames": {
+      "idleFrames": [
+        6.199999999999818,
+        6.299999999999272,
+        6.199999999999818,
+        6.400000000000546,
+        6.5,
+        6.600000000000364,
+        6.100000000000364,
+        6,
+        6.300000000001091,
+        6.299999999999272
+      ],
+      "max": 11.800000000000182,
+      "rectReads": 0,
+      "nodes": {
+        "added": 0,
+        "removed": 10
+      },
+      "boundaries": [
+        {
+          "paused": true,
+          "at": 6332.5,
+          "maxFrame": 11.800000000000182
+        }
+      ],
+      "events": {
+        "wheel": 10,
+        "scroll": 10,
+        "pointerout": 8,
+        "pointerover": 8
+      },
+      "writes": 0,
+      "mean": 5.896055684454756,
+      "p95": 6.200000000000728,
+      "over16": 0,
+      "over25": 0
+    },
+    "cpu": {
+      "browser": 0.3897058141701914,
+      "renderer": 20.401261708238163,
+      "GPU": 22.56330745616886,
+      "network.mojom.NetworkService": 0.09102646283016039,
+      "tracing.mojom.TracingService": 0.0947060885433279
+    },
+    "sums": {
+      "FireAnimationFrame": {
+        "ms": 105.96000000000039,
+        "count": 1798,
+        "max": 0.533
+      },
+      "FunctionCall": {
+        "ms": 105.98500000000087,
+        "count": 2205,
+        "max": 2.503
+      },
+      "UpdateLayoutTree": {
+        "ms": 75.81299999999993,
+        "count": 866,
+        "max": 2.018
+      },
+      "EventDispatch": {
+        "ms": 16.087999999999997,
+        "count": 80,
+        "max": 1.204
+      },
+      "Layout": {
+        "ms": 1.266,
+        "count": 3,
+        "max": 0.722
+      },
+      "Paint": {
+        "ms": 12.419999999999995,
+        "count": 146,
+        "max": 0.348
+      }
+    },
+    "states": {
+      "STATE_PRESENTED_ALL": 352,
+      "STATE_NO_UPDATE_DESIRED": 859,
+      "STATE_PRESENTED_PARTIAL": 10,
+      "STATE_DROPPED": 68
+    },
+    "latency": {
+      "GESTURE_SCROLL_BEGIN": {
+        "count": 10,
+        "median": 5.914,
+        "p95": 7.973
+      },
+      "MOUSE_WHEEL": {
+        "count": 20,
+        "median": 11.049,
+        "p95": 12.359
+      },
+      "FIRST_GESTURE_SCROLL_UPDATE": {
+        "count": 10,
+        "median": 24.052,
+        "p95": 25.409
+      },
+      "GESTURE_SCROLL_END": {
+        "count": 10,
+        "median": 16.474,
+        "p95": 22.951
+      }
+    }
+  },
+  "checks": {
+    "typecheck": "pass",
+    "vitest": {
+      "files": 277,
+      "tests": 2604
+    },
+    "components": {
+      "tiltPauseAndResume": true,
+      "noStaleHover": true,
+      "toplistPauseAndResume": true,
+      "clickWhilePaused": true,
+      "wheelBoundaryRecovery": true,
+      "nestedScrollCapture": true,
+      "sourceBadgesPauseAndResume": true,
+      "alwaysAndRevealPreserved": true,
+      "recentBadgePaused": true,
+      "touchBadgesPreserved": true
+    },
+    "library": {
+      "results": [
+        {
+          "source": "netease",
+          "mode": "歌单",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "netease",
+          "mode": "收藏",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "qq",
+          "mode": "歌单",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "qq",
+          "mode": "收藏",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "apple",
+          "mode": "歌单",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "apple",
+          "mode": "专辑",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        },
+        {
+          "source": "apple",
+          "mode": "收藏",
+          "paused": true,
+          "resumed": true,
+          "clickWhileScrolling": true,
+          "back": true
+        }
+      ],
+      "appPlaylistsWithoutGlow": true,
+      "preferencesPreserved": true
+    },
+    "navigation": {
+      "heroDetailAndReturn": true,
+      "scrollRestored": {
+        "topBefore": 0,
+        "topAfter": 0
+      },
+      "platforms": [
+        "netease",
+        "qq",
+        "apple"
+      ]
+    },
+    "scrollReturn": {
+      "before": 100,
+      "after": 100,
+      "sharedCoverDetailReturn": true
+    },
+    "independentReview": "pass; no blocking findings",
+    "interaction": [
+      {
+        "dragAcrossIdle": {
+          "first": {
+            "left": 60,
+            "dragging": "true"
+          },
+          "second": {
+            "left": 260,
+            "dragging": "true"
+          }
+        },
+        "clickWhileScrolling": true
+      },
+      {
+        "outsidePointerResume": true,
+        "samePositionClick": true,
+        "keyboardPausedAfterAutoScroll": 0,
+        "keyboardTarget": "<button class=\"_card_2rzfg_1 no-drag\" aria-label=\"歌单：收藏 · 3，36 首\"><div class=\"_coverWrap_2rzfg_25\" style=\"border-radius: 12px;\"><img class=\"_cover_2rzfg_25\" src=\"https://covers.inv"
+      }
+    ]
+  },
+  "limits": [
+    "Main-thread rAF timings do not prove zero compositor drops; PipelineReporter STATE_DROPPED remains nonzero.",
+    "CDP and fixture covers do not cover physical wheel drivers, real remote artwork decoding or all user playback states.",
+    "No production build; measured the reported development mode."
+  ]
+}

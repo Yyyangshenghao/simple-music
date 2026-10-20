@@ -25,16 +25,25 @@
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
   - 内容:`/api/discover/home`、`/api/netease/recommend/{playlists,songs}`、`/api/netease/radar`、`/api/netease/{banner,toplist,toplist/preview,record,recent/playlists,scrobble}`、`/api/netease/artist/{detail,songs,albums,similar}`、`/api/netease/album/songs`
-  - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
+  - 通用网易端点:`/api/search`、`/api/search/artists`、`/api/song/{url,qualities,detail,like,like/check,comments}`、`/api/lyric`、`/api/playlist/{tracks,create,add-song,remove-songs,order/update,desc/update}`、`/api/user/playlists`、`/api/artist/detail`
   - 代理:`/api/audio`(音频流代理,渲染层 AudioEngine 播放入口;可选 `cacheKey=source:id:quality` 参数触发磁盘缓存,见 `lib/audio-cache.ts`)、`/api/cover`(封面图代理)
   - 音频缓存由独立的 `routes/audio-cache.ts` 管理；`/api/audio` 仍负责完整音频经过时的自动落盘，拖进度条的中段 Range 只透传。
-  - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。既有漫游保存使用的 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口。
-- **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
+  - `/api/user/playlists` 只提供歌单列表，不提供批量写入目标标识。保留的兼容端点 `/api/playlist/add-song` 写前核对所有者与 Cookie 会话，只追加曲目；2.3.1 的批量操作不调用该接口，新的漫游生成也不自动写入。
+  - 兼容的 `POST /api/playlist/order/update` 写前验证本人普通歌单、完整 ID 集合及 Cookie 会话，歌单被外部修改时拒绝旧顺序，排序失败不会报告保存成功。
+- **`routes/netease-playlist-management.ts`** 与 **`routes/qq-playlist-management.ts`**：`/api/{netease|qq}/playlist-management/session` 获取当前账号会话，`POST .../inspect` 只读核实本人普通歌单，`POST .../manage` 直接创建私密歌单、改名或对明确选中曲目做增量加入/移除。取消应用歌单双向同步接口，不接收全量替换或推送排序。每次检查真实归属、Cookie/token 与取消状态；QQ 仅当前账号普通歌单（私密歌单 creator 可隐为 0，公开歌单 creator 必须等于当前账号；新建仍只建私密），并核实 MID/数字 ID/类型，改名保留原元数据。结果按回读返回 `complete`/`partial`/`unknown`，未知数量为 null。最多 32 个在途锁与 64 条创建检查点，未知创建不自动重放；统一 Origin/token 边界不变。当前范围见 [歌单职责收敛](../specs/2026-10-18-playlist-boundaries.md)。
+- **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,playlist/page,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
+  - 歌单浏览按原始返回位置翻页，有 MID 但缺名称的歌曲以身份占位标题保留，版权/会员字段和合法重复位置不作过滤。摘要偏大时允许明确终页及无标记空终页展示实际可读列表；空页仍显式声明有下一页、分页间总数变化或达到上限仍有更多时报告错误。缺 MID 的隐藏条目无法还原；该浏览规则与同步写入前的严格快照校验独立。
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
-- **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json
+- **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
 - **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `simplemusic.update` 字段(GitHub Release + 国内镜像列表)
+
+### 平台收听上报
+
+网易云与 QQ 提供 `GET /api/{netease,qq}/playback/session`（`no-store`，返回当前 Cookie 的进程内 HMAC `accountToken`）和 `POST /api/{netease,qq}/scrobble`。POST 必须携带同一账号凭证、实际曲目 ID 与有效收听秒数；Cookie 变化返回 409，非法时长返回 400，未登录不调用上游。端点沿用统一 Origin/token 校验。
+
+网易通过 `weblog` 的 eapi/clientlog 通道依次发送 `startplay` 和 `play`，逐次检查业务码并在两次间复核 Cookie。QQ 传 mid 与可选数字 `songId`，缺数字 ID 时查询同一 mid 的详情，发送到官网固定 `cgi_music_webreport.fcg`；响应 `{ ok:true, status:'submitted' }` 只表示收集请求完成，不能证明账号等级或累计时长已更新。
 
 ## lib 辅助
 

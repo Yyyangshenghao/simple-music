@@ -6,6 +6,7 @@ import {
   resizeMiniPlayerBy,
   setMiniPlayerPopover,
   triggerMiniPlayerControl,
+  addToPlaylistFromMiniPlayer,
   returnFromMiniPlayer
 } from '../modules/overlay-manager'
 import type { MiniPlayerPayload } from '../../src/types/ipc'
@@ -14,9 +15,10 @@ import { getGameMode, setGameMode } from '../modules/game-mode'
 export function registerMiniPlayerIpc(): void {
   // 主契约通道
   ipcMain.handle('miniplayer:set-enabled', (_e, arg: { enabled: boolean; width?: number }) => {
+    const result = setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
     const mode = getGameMode()
-    if (mode.enabled) setGameMode({ ...mode, enabled: false }, false)
-    return setMiniPlayerEnabled(!!arg?.enabled, typeof arg?.width === 'number' ? arg.width : undefined)
+    if (result.ok && mode.enabled) setGameMode({ ...mode, enabled: false }, false)
+    return result
   })
   ipcMain.handle('miniplayer:update', (_e, payload: MiniPlayerPayload) => updateMiniPlayer(payload ?? {}))
 
@@ -33,4 +35,5 @@ export function registerMiniPlayerIpc(): void {
   ipcMain.handle('overlay:miniplayer-close', () => returnFromMiniPlayer())
   // 封面/回到大播放器:恢复主窗口 + 关闭迷你条 + 同步设置开关
   ipcMain.handle('overlay:miniplayer-focus-main', () => returnFromMiniPlayer())
+  ipcMain.handle('overlay:miniplayer-add-to-playlist', (event, track) => addToPlaylistFromMiniPlayer(event, track))
 }

@@ -8,6 +8,7 @@ import type {
   Track,
 } from '../types/domain'
 import { ONLINE_MUSIC_SOURCES } from '../types/domain'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 import type {
   MusicService,
   PlaylistMeta,
@@ -124,14 +125,20 @@ export interface LibraryCapability {
 export interface HistoryCapability {
   getListeningRanking?(): Promise<Track[]>
   getRecentPlaylists?(): Promise<Playlist[]>
-  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number }): Promise<void>
+  getRecentTracks?(): Promise<Track[]>
+  getPlaybackAccountToken?(): Promise<string | null>
+  reportPlayback?(trackId: unknown, opts: { sourceId?: unknown; seconds: number; accountToken?: string; songId?: unknown }): Promise<void>
 }
 
 export interface PlaylistWriterCapability {
+  getPlaylistManagementSession?(signal?: AbortSignal): Promise<PlaylistManagementSession>
+  inspectPlatformPlaylist?(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection>
+  mutatePlatformPlaylist?(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult>
+  setCollectionSubscribed?(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }>
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
-  createPlaylist(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
-  replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
+  createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>
+  replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   updatePlaylistDescription?(playlistId: unknown, description: string): Promise<boolean>
 }
 

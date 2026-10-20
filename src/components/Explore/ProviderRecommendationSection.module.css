@@ -8,8 +8,7 @@
   background:
     radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--ambient-1) 12%, transparent), transparent 38%),
     var(--glass-bg-card);
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
+  /* 长推荐面板随整页滚动，使用现有着色表面，避免整块内容重复背景模糊。 */
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -36,6 +35,17 @@
 }
 
 .appleSection::after { display: none; }
+
+:global([data-content-layout='full']) .section {
+  width: 100%;
+  padding-inline: var(--sm-page-gutter);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:global([data-content-layout='full']) .section::after { display: none; }
 
 .header {
   position: relative;

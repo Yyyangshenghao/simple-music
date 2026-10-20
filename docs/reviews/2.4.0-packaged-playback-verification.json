@@ -1,0 +1,181 @@
+{
+  "checks": [
+    "真实asar包且用户及会话配置均已隔离",
+    "asar主界面及后台入口均加载真实preload",
+    "打包应用通过本地API实际播放WAV",
+    "实际PlayerBar播放、暂停、上一首、下一首按钮均控制后台曲目",
+    "实际TopBar后退/前进及更新日志页返回设置均生效",
+    "真实按钮操作未显示不可克隆对象错误",
+    "游戏模式销毁UI及其进程，保留原后台宿主进程",
+    "无主界面时两首短音频自然结束并加载第三首长曲",
+    "恢复实际DOM显示当前长曲，RPC确认playing及queueIndex=2",
+    "恢复主窗口未重新请求音频",
+    "打包原生流程无捕获到的渲染异常"
+  ],
+  "isolation": {
+    "userData": "/private/tmp/simplemusic-packaged-host-smoke/profile",
+    "sessionData": "/private/tmp/simplemusic-packaged-host-smoke/profile",
+    "packaged": true,
+    "appPath": "/private/tmp/simplemusic-packaged-host-smoke/fixed-build/mac-arm64/Simple Music.app/Contents/Resources/app.asar",
+    "electron": "42.11.0",
+    "arch": "arm64",
+    "pid": 37160
+  },
+  "source": {
+    "branch": "feature/playback-button-commands-2.4.0",
+    "commit": "575436fa52f6e409296d930ad1ed369697fad52f",
+    "baseDev": "4cad2814423ff28b608bcd1da9878bd1cc586bfe"
+  },
+  "method": "Unmodified actual packaged macOS arm64 .app with --user-data-dir startup isolation, verified app/userData/sessionData paths. Actions and state queries use real preload RPC. During missing UI, observe actual host resource request timeline; restored DOM title separately confirms rendered UI. No source imports or temporary renderer entry.",
+  "background": {
+    "audioTimeline": [
+      {
+        "path": "/api/local/audio",
+        "start": 1773.7999999523163,
+        "duration": 2.700000047683716
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 1893.0999999046326,
+        "duration": 2.600000023841858
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 1899.0999999046326,
+        "duration": 1.3000000715255737
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 1902.5999999046326,
+        "duration": 6
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 2098,
+        "duration": 3.399999976158142
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 8115.599999904633,
+        "duration": 4.100000023841858
+      },
+      {
+        "path": "/api/local/audio",
+        "start": 15138.099999904633,
+        "duration": 5.800000071525574
+      }
+    ],
+    "hostPID": 37184,
+    "newAudioRequestsWithoutUi": 2
+  },
+  "restored": {
+    "currentTrack": {
+      "name": "c-long",
+      "id": "4cdb3da174ae193f830103f845476c20b106a5a6",
+      "source": "local"
+    },
+    "position": 0,
+    "status": "playing",
+    "queueIndex": 2
+  },
+  "errors": [],
+  "primaryPassed": true,
+  "date": "2026-10-15",
+  "coldStart": {
+    "checks": [
+      "冷启仍运行真实包且配置隔离",
+      "冷启RPC与实际DOM保持当前长曲、队列及暂停态",
+      "正常退出后冷启保持42秒断点",
+      "暂停冷启期间未观察到音频请求",
+      "实际播放按钮从保存断点继续且仅请求一次音频",
+      "本轮UI与宿主未捕获Runtime异常"
+    ],
+    "phase": "verify-42-second-resume",
+    "isolation": {
+      "packaged": true,
+      "userData": "/private/tmp/simplemusic-packaged-host-smoke/profile",
+      "sessionData": "/private/tmp/simplemusic-packaged-host-smoke/profile"
+    },
+    "cold": {
+      "name": "c-long",
+      "position": 42,
+      "status": "paused",
+      "index": 2,
+      "queue": [
+        "a-short",
+        "b-short",
+        "c-long"
+      ]
+    },
+    "coldAudioResources": 0,
+    "resumed": {
+      "name": "c-long",
+      "position": 42.149396,
+      "status": "playing",
+      "index": 2,
+      "queue": [
+        "a-short",
+        "b-short",
+        "c-long"
+      ]
+    },
+    "errors": [],
+    "passed": true,
+    "source": "575436fa52f6e409296d930ad1ed369697fad52f"
+  },
+  "regressionBeforeFix": {
+    "before": "playing",
+    "after": "playing",
+    "cloneError": true,
+    "method": "Unmodified packaged UI actual play/pause button click; real IPC. Direct RPC play works; React event reaches command arguments and cannot be cloned."
+  },
+  "validation": {
+    "typecheck": "passed",
+    "vitest": {
+      "files": 255,
+      "tests": 2237
+    },
+    "focused": {
+      "files": 7,
+      "tests": 38
+    },
+    "independentReview": "passed",
+    "regression": "Three PlayerBar and two TopBar event/structured-clone cases fail before their fixes and pass after."
+  },
+  "build": {
+    "kind": "local unsigned macOS arm64 dir app",
+    "packageVersion": "2.3.6",
+    "published": false,
+    "vmpSigning": false,
+    "macSigning": false,
+    "layout": "Physical node_modules cloned into an isolated staging project; source out and build hooks copied from the feature.",
+    "initialSetupFailure": "The first QA bundle from a worktree with symlinked node_modules omitted transitive dependencies (axios/debug) and could not boot. A physical-dependency rebuild boots; this was a QA layout issue, not a product packaging fix."
+  },
+  "scope": [
+    "Generated local silent WAV files; real preload/IPC and React DOM click handlers.",
+    "No source-module imports or temporary renderer entry in the packaged app.",
+    "Runtime exception monitoring covers attached UI/host during the exercised flow, not every startup moment.",
+    "No physical mouse/media keys, hardware device switch, Windows runtime, macOS x64, DMG installation, real account statistics, signed Apple playback or target-game performance acceptance.",
+    "Cold request evidence combines resource timing and Network observation; no private engine hasSource assertion."
+  ],
+  "screenshots": [
+    "assets/2.4.0-packaged-playback-restored.png",
+    "assets/2.4.0-packaged-playback-cold.png"
+  ],
+  "developmentSmoke": {
+    "source": "575436fa52f6e409296d930ad1ed369697fad52f",
+    "method": "Actual npm run dev app, isolated userData; local API seeds queue and actual PlayerBar DOM clicks control real playback host.",
+    "checks": [
+      "开发应用使用独立配置",
+      "开发模式真实播放、暂停、下一首、上一首按钮均生效",
+      "未显示对象克隆错误",
+      "开发UI与宿主无捕获Runtime异常"
+    ],
+    "isolation": {
+      "packaged": false,
+      "userData": "/tmp/simplemusic-packaged-host-smoke/dev-profile"
+    },
+    "errors": [],
+    "passed": true
+  }
+}

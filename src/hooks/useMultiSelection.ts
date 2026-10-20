@@ -44,6 +44,7 @@ export function useMultiSelection(options: Options) {
 
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
     if (!current.current.options.enabled) return
+    if ((event.target as Element).closest('dialog')) return
     if (suppressClick.current) { suppressClick.current = false; event.preventDefault(); event.stopPropagation(); return }
     const item = (event.target as Element).closest<HTMLElement>('[data-selection-key]')
     if (!item || !rootRef.current?.contains(item)) return
@@ -67,6 +68,7 @@ export function useMultiSelection(options: Options) {
     const root = rootRef.current
     if (!current.current.options.enabled || !root || event.button !== 0 || event.pointerType === 'touch') return
     const target = event.target as Element
+    if (target.closest('dialog')) return
     const item = target.closest<HTMLElement>('[data-selection-key]')
     if (!item && target.closest('button, input, select, textarea, a, [role="button"]')) return
     if (item && !allowedKeys().includes(item.dataset.selectionKey!)) return
@@ -148,7 +150,7 @@ export function useMultiSelection(options: Options) {
 
   function onKeyDownCapture(event: KeyboardEvent<HTMLDivElement>) {
     suppressClick.current = false
-    if (!current.current.options.enabled || (event.target as Element).closest('input, textarea, select, [contenteditable="true"]')) return
+    if (!current.current.options.enabled || (event.target as Element).closest('dialog, input, textarea, select, [contenteditable="true"]')) return
     if (event.target === rootRef.current && event.key === ' ' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); return }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); event.stopPropagation(); selectAll() }
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); exit() }

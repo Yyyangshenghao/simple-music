@@ -5,6 +5,8 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
+import { appPlaylistTrackKey } from '../../stores/app-playlists'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { Slider } from '../ui/Slider'
@@ -269,12 +271,43 @@ function LikeButton() {
   )
 }
 
+/** 当前曲目加入歌单：任何来源都可用；图标固定，是否已收录在弹窗里看。 */
+function AddToAppPlaylistButton() {
+  const track = usePlayerStore((s) => s.currentTrack)
+  const key = track ? appPlaylistTrackKey(track) : ''
+  const open = useTrackActionsStore((s) => !!s.quickAdd && !!track && appPlaylistTrackKey(s.quickAdd.track) === key)
+  if (!track) return null
+  return (
+    <motion.button
+      type="button"
+      className={`${styles.btn} ${styles.addBtn} no-drag`}
+      data-track-action-trigger
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={(event) => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
+      title="加入歌单"
+      aria-label="加入歌单"
+      whileTap={tapScale}
+      transition={springSnappy}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+        <path d="M12 8v8M8 12h8" />
+      </svg>
+    </motion.button>
+  )
+}
+
 interface PlayerBarProps {
   onOpenLyrics?: () => void
   onArtistNavigate?: () => void
   /** 沉浸模式:淡出整个播放栏(布局占位不变) */
   hidden?: boolean
   lyricsOpen?: boolean
+  /** 普通歌词页复用播放操作，曲目信息由页面左栏统一呈现。 */
+  variant?: 'dock' | 'lyrics'
+  /** 歌词页正在接管播放操作：播放栏下沉淡出，封面交给歌词页飞行衔接。 */
+  handoff?: boolean
 }
 
 /** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
@@ -319,7 +352,7 @@ function VolumeControl() {
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
-export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen }: PlayerBarProps) {
+export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -329,61 +362,69 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen }
   const isPlaying = status === 'playing' || (apple && status === 'loading')
   const isLoading = status === 'loading'
 
-  return (
-    <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen}>
-      <div className={styles.bar}>
-        <div className={styles.left}>
-          <TrackInfo onCoverClick={onOpenLyrics} onArtistNavigate={onArtistNavigate} />
-          <LikeButton />
+  const embedded = variant === 'lyrics'
+  const controls = (
+    <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
+      {!embedded && <div className={styles.left}>
+        <TrackInfo
+          onCoverClick={onOpenLyrics}
+          onArtistNavigate={onArtistNavigate}
+          titleAccessory={<><LikeButton /><AddToAppPlaylistButton /></>}
+        />
+      </div>}
+
+      <div className={styles.center}>
+        <div className={styles.buttons}>
+          <PlayModeButton />
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
+            <PrevIcon />
+          </motion.button>
+          <motion.button
+            type="button"
+            className={`${styles.btn} ${styles.playBtn} no-drag`}
+            onClick={() => toggle()}
+            title={isPlaying ? '暂停' : '播放'}
+            aria-label={isPlaying ? '暂停' : '播放'}
+            data-loading={isLoading}
+            whileTap={tapScale}
+            transition={springSnappy}
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={isPlaying ? 'pause' : 'play'}
+                className={styles.playIconWrap}
+                initial={{ opacity: 0, scale: 0.6, rotate: -20 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                exit={{ opacity: 0, scale: 0.6, rotate: 20 }}
+                transition={iconSwap}
+              >
+                {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
+            <NextIcon />
+          </motion.button>
+          {/* 与左侧播放模式等宽，播放键落在进度条正中。 */}
+          {embedded ? <div className={styles.likeSlot}><LikeButton /></div> : <span className={styles.modeBalance} aria-hidden="true" />}
         </div>
 
-        <div className={styles.center}>
-          <div className={styles.buttons}>
-            <PlayModeButton />
-            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={prev} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
-              <PrevIcon />
-            </motion.button>
-            <motion.button
-              type="button"
-              className={`${styles.btn} ${styles.playBtn} no-drag`}
-              onClick={toggle}
-              title={isPlaying ? '暂停' : '播放'}
-              aria-label={isPlaying ? '暂停' : '播放'}
-              data-loading={isLoading}
-              whileTap={tapScale}
-              transition={springSnappy}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={isPlaying ? 'pause' : 'play'}
-                  className={styles.playIconWrap}
-                  initial={{ opacity: 0, scale: 0.6, rotate: -20 }}
-                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  exit={{ opacity: 0, scale: 0.6, rotate: 20 }}
-                  transition={iconSwap}
-                >
-                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                </motion.span>
-              </AnimatePresence>
-            </motion.button>
-            <motion.button type="button" className={`${styles.btn} no-drag`} onClick={next} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
-              <NextIcon />
-            </motion.button>
-          </div>
+        <PlaybackProgress />
+      </div>
 
-          <PlaybackProgress />
-        </div>
-
-        <div className={styles.right}>
-          <VolumeControl />
-          <span className={styles.divider} aria-hidden="true" />
+      <div className={styles.right}>
+        <VolumeControl />
+        <div className={styles.tools}>
           <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
-          <QueuePanel />
+          {/* 歌词页红心与播放模式左右对称，加入歌单放到右侧操作组。 */}
+          {embedded && <AddToAppPlaylistButton />}
+          <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />
         </div>
       </div>
-    </PlayerGlass>
+    </div>
   )
+  return embedded ? controls : <PlayerGlass hidden={hidden} lyricsOpen={lyricsOpen} handoff={handoff}>{controls}</PlayerGlass>
 }

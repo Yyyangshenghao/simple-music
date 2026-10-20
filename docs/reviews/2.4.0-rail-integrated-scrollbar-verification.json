@@ -1,0 +1,99 @@
+{
+  "results": [
+    {
+      "idle": {
+        "left": 0,
+        "max": 1524,
+        "width": 1044,
+        "height": 302,
+        "outerHeight": 311.6953125,
+        "barHeight": 10,
+        "trackMargin": 21,
+        "current": "transparent",
+        "scrolling": false
+      }
+    },
+    {
+      "hover": {
+        "left": 0,
+        "max": 1524,
+        "width": 1044,
+        "height": 302,
+        "outerHeight": 311.6953125,
+        "barHeight": 10,
+        "trackMargin": 21,
+        "current": "color-mix(in srgb, rgba(255, 255, 255, 0.92) 18%, transparent)",
+        "scrolling": false
+      }
+    },
+    {
+      "nativeDrag": {
+        "left": 1524,
+        "max": 1524,
+        "width": 1044,
+        "height": 302,
+        "outerHeight": 311.6953125,
+        "barHeight": 10,
+        "trackMargin": 21,
+        "current": "color-mix(in srgb, rgba(255, 255, 255, 0.92) 18%, transparent)",
+        "scrolling": true
+      }
+    },
+    "原生方向键可横移，键盘焦点时滚动条可见",
+    {
+      "nativeKeys": {
+        "endBefore": {
+          "left": 1484,
+          "max": 1524,
+          "width": 1044,
+          "height": 302,
+          "outerHeight": 311.6953125,
+          "barHeight": 10,
+          "trackMargin": 21,
+          "current": "color-mix(in srgb, rgba(255, 255, 255, 0.92) 28%, transparent)",
+          "scrolling": true
+        },
+        "home": {
+          "left": 0,
+          "max": 1524,
+          "width": 1044,
+          "height": 302,
+          "outerHeight": 311.6953125,
+          "barHeight": 10,
+          "trackMargin": 21,
+          "current": "color-mix(in srgb, rgba(255, 255, 255, 0.92) 28%, transparent)",
+          "scrolling": true
+        },
+        "end": {
+          "left": 1524,
+          "max": 1524,
+          "width": 1044,
+          "height": 302,
+          "outerHeight": 311.6953125,
+          "barHeight": 10,
+          "trackMargin": 21,
+          "current": "color-mix(in srgb, rgba(255, 255, 255, 0.92) 28%, transparent)",
+          "scrolling": true
+        }
+      }
+    },
+    {
+      "verticalWheel": {
+        "before": {
+          "x": 100,
+          "y": 2348.5
+        },
+        "after": {
+          "x": 100,
+          "y": 2498.5
+        }
+      }
+    },
+    "横向手势原生滚动，停止并离开800ms后收起"
+  ],
+  "pageErrors": [],
+  "limitations": [
+    "macOS Electron with fixture playlist/cache data",
+    "No Windows or physical touch-device verification"
+  ]
+}

@@ -7,6 +7,6 @@ export function appendDiscoveredTrack(track: Track): boolean {
   if (track.source !== 'qq' || track.pending || !isProviderParticipating('qq')) return false
   const state = usePlaylistStore.getState()
   if (state.queue.some((item) => item.source === track.source && String(item.id) === String(track.id))) return false
-  state.addToQueue(track)
+  void state.addManyToQueue([track])
   return true
 }

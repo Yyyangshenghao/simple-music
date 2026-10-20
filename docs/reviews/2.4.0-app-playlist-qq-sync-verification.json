@@ -1,0 +1,21 @@
+{
+  "environment": "macOS Electron npm run dev，隔离 userData，模拟平台 API 响应；1536×864、960×540 内容视口",
+  "checks": {
+    "qqEligibilityAndOrderBoundary": true,
+    "errorAndRetrySameTarget": true,
+    "localOrderNotPromised": true,
+    "renamePendingAndUpdate": true,
+    "persistedWithoutCredentials": true,
+    "lightMinimumNoOverflow": true,
+    "accountIsolation": true,
+    "linkedEmptyUpdate": true,
+    "logoutBlocked": true,
+    "mixedBlocked": true,
+    "qqNameLimit": true,
+    "neteaseRegression": true
+  },
+  "pageErrors": [],
+  "realQQAccountRead": "GetPlaylistByUin accepted",
+  "realQQAccountWrite": "本机普通私密歌单实测通过，详见 2.4.0-app-playlist-qq-sync-live-verification.json",
+  "order": "以 QQ 端为准，未实现精确排序"
+}

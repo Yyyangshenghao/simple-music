@@ -8,11 +8,12 @@ import { PlaylistPreviewModal } from '../components/Explore/PlaylistPreviewModal
 import { GradientText } from '../components/ui/GradientText'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
-import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
+import { fadeRise, springGentle } from '../lib/motion-presets'
 import type { ToplistGroup } from '../lib/music-service'
 import type { Playlist } from '../types/domain'
 import styles from './ToplistPage.module.css'
 import { useProviderStore } from '../stores/providers'
+import { BackButton } from '../components/ui/BackButton'
 
 /** 全部榜单:服务端按主题分组(官方榜/云村特色/曲风/ACG/语种海外/更多),每组一片网格。
  *  卡片交互与探索页「榜单精选」完全一致(点开预览、封面钮直接播放整榜)。 */
@@ -49,28 +50,7 @@ export function ToplistPage() {
 
   return (
     <ScrollArea className={styles.page}>
-      <motion.button
-        className={`${styles.back} no-drag`}
-        onClick={goBack}
-        aria-label="返回上一页"
-        whileTap={tapScale}
-        transition={springSnappy}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        <span>返回</span>
-      </motion.button>
+      <BackButton className={styles.back} onClick={() => goBack()} ariaLabel="返回上一页" />
 
       <motion.h1 className={styles.heading} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
         <GradientText>榜单精选</GradientText>

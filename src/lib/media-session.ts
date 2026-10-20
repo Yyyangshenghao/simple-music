@@ -39,14 +39,15 @@ function syncPositionState(): void {
   }
 }
 
-let initialized = false
+let stopMediaSession: (() => void) | undefined
 
-/** 启动时调用一次;环境不支持 mediaSession 时静默跳过。 */
-export function initMediaSession(): void {
-  if (initialized || !('mediaSession' in navigator)) return
-  initialized = true
+/** 由播放宿主启停；环境不支持 mediaSession 时静默跳过。 */
+export function initMediaSession(): () => void {
+  if (stopMediaSession) return stopMediaSession
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return () => {}
 
   const ms = navigator.mediaSession
+  let stopped = false
   const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
     play: () => usePlayerStore.getState().play(),
     pause: () => usePlayerStore.getState().pause(),
@@ -68,7 +69,7 @@ export function initMediaSession(): void {
         // 部分平台不支持 stop 等动作；不影响其他媒体键。
         // null 会恢复浏览器对 HTML audio 的默认控制，关闭时用空处理器阻止默认播放。
         ms.setActionHandler(action, (details) => {
-          if (useSettingsStore.getState().mediaKeysEnabled) handler(details)
+          if (!stopped && useSettingsStore.getState().mediaKeysEnabled) handler(details)
         })
       } catch { /* unsupported action */ }
     }
@@ -81,15 +82,16 @@ export function initMediaSession(): void {
     }
   }
   applyEnabled()
-  useSettingsStore.subscribe((state, previous) => {
+  const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.mediaKeysEnabled !== previous.mediaKeysEnabled) applyEnabled()
   })
 
   let lastPositionSync = 0
-  usePlayerStore.subscribe((s, prev) => {
+  const stopPlayer = usePlayerStore.subscribe((s, prev) => {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
     if (s.currentTrack !== prev.currentTrack) updateMetadata(s.currentTrack)
-    if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration) {
+    if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration
+      || s.rate !== prev.rate || (s.status !== 'playing' && s.position !== prev.position)) {
       syncPositionState()
       lastPositionSync = Date.now()
       return
@@ -99,4 +101,18 @@ export function initMediaSession(): void {
       lastPositionSync = Date.now()
     }
   })
+  stopMediaSession = () => {
+    if (stopped) return
+    stopped = true
+    stopSettings()
+    stopPlayer()
+    for (const action of Object.keys(handlers) as MediaSessionAction[]) {
+      try { ms.setActionHandler(action, null) } catch { /* unsupported action */ }
+    }
+    ms.metadata = null
+    ms.playbackState = 'none'
+    try { ms.setPositionState() } catch { /* unsupported position state */ }
+    stopMediaSession = undefined
+  }
+  return stopMediaSession
 }

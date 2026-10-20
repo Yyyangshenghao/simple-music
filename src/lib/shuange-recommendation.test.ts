@@ -6,6 +6,7 @@ import {
   rankShuangeCandidates,
   recordShuangeExposure,
   recordShuangeFeedback,
+  flushShuangeRecommendationProfile,
   seedShuangeTaste,
   stashShuangeCandidates,
   takeShuangeCandidateBatch,
@@ -20,6 +21,25 @@ function track(id: string, artist = id, recommendationHints: string[] = []): Tra
 }
 
 describe('shuange recommendation', () => {
+  it('宿主结束时立即落盘待写画像与候选池，取消计时且重复flush不再写', () => {
+    vi.useFakeTimers()
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+    try {
+      recordShuangeFeedback(track('finish'), 'listened')
+      expect(setItem).not.toHaveBeenCalled()
+      flushShuangeRecommendationProfile()
+      expect(setItem).toHaveBeenCalledTimes(2)
+      expect(JSON.parse(setItem.mock.calls[0][1]).trackScores['netease:finish']).toBeGreaterThan(0)
+      expect(vi.getTimerCount()).toBe(0)
+      flushShuangeRecommendationProfile()
+      vi.advanceTimersByTime(1000)
+      expect(setItem).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
+  })
   beforeEach(() => {
     vi.unstubAllGlobals()
     __resetShuangeRecommendationProfile()
@@ -126,7 +146,7 @@ describe('shuange recommendation', () => {
     expect(profile.featureScores?.['language:zh']).toBeUndefined()
   })
 
-  it('候选池按批消费并将已发出的歌曲纳入冷却，连续换批不会折返', () => {
+  it('候选池按批预留但不记录曝光，实际切到后才进入已推荐记录', () => {
     stashShuangeCandidates([track('a'), track('b'), track('c')])
 
     const first = takeShuangeCandidateBatch('netease', 2)
@@ -135,6 +155,9 @@ describe('shuange recommendation', () => {
     expect(first).toHaveLength(2)
     expect(second).toHaveLength(1)
     expect(new Set([...first, ...second].map((item) => item.id))).toEqual(new Set(['a', 'b', 'c']))
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([])
+    recordShuangeExposure(first[0])
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([`netease:${String(first[0].id)}`])
   })
 
   it('跨日后丢弃候选缓存，避免旧池盖过当天推荐', async () => {

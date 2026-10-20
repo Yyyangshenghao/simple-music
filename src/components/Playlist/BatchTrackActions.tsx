@@ -1,13 +1,25 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { PROVIDER_IDS } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
-import { resolveBatchTracks } from '../../lib/batch-tracks'
+import { resolveAppPlaylistTracks, resolveBatchTracks } from '../../lib/batch-tracks'
+import { AddToPlaylistDialog } from './AddToPlaylistDialog'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import type { Playlist, Track } from '../../types/domain'
+import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './BatchTrackActions.module.css'
+
+/** 紧凑菜单末尾追加的集合级操作（刷新、改名等），不依赖歌曲是否已加载。 */
+export interface ExtraMenuItem {
+  key: string
+  label: string
+  icon: ReactNode
+  disabled?: boolean
+  danger?: boolean
+  onSelect(): void
+}
 
 interface Props {
   tracks: Track[]
@@ -21,9 +33,13 @@ interface Props {
   onDone?(): void
   offline?: boolean
   onDelete?(signal: AbortSignal): Promise<void>
+  onRemove?(signal: AbortSignal): Promise<void>
+  onAddToQueue?(signal: AbortSignal): number | Promise<number>
+  removeLabel?: string
+  extraItems?: ExtraMenuItem[]
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, onAddToQueue, removeLabel = '移出平台歌单', extraItems = [] }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -31,25 +47,33 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const panelRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [choosingPlaylist, setChoosingPlaylist] = useState(false)
   const operation = useRef<AbortController | null>(null)
   const accountSignature = useProviderStore((state) => offline ? '' : PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
   const signature = [...tracks, ...collections].map((item) => `${item.source}:${item.type}:${String(item.id)}`).join('|')
   const sourceSet = new Set([...tracks, ...collections].map((item) => item.source))
   const canSave = !offline && (sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq'))
   const count = tracks.length + collections.length
-  const downloadTrackCount = new Set(tracks.filter(track => track.playable !== false).map(track => `${track.source}:${String(track.id)}`)).size
+  const downloadTrackCount = new Set(tracks.filter(track => !isCatalogUnavailable(track)).map(track => `${track.source}:${String(track.id)}`)).size
   const downloadCountLabel = collections.length
     ? collections.every(collection => collection.trackCountKnown !== false && (collection.trackCount > 0 || collection.trackCountKnown === true))
       ? `约 ${downloadTrackCount + collections.reduce((total, collection) => total + collection.trackCount, 0)} 首`
       : '曲数待确认'
     : `${downloadTrackCount} 首`
   const downloadLabel = `${compact ? '全部下载' : '下载所选'}（${downloadCountLabel}）`
+  // 弹窗副标题只说明「加什么」：单个歌单/专辑直接显示名称，其余给出数量。
+  const playlistContextLabel = collections.length === 1 && !tracks.length
+    ? collections[0].name
+    : collections.length
+      ? `${label ?? '所选项目'} · ${tracks.length ? `${tracks.length} 首歌曲、` : ''}${collections.length} 份歌单/专辑`
+      : label ?? (selection ? '已选歌曲' : '当前列表')
 
   useEffect(() => {
     operation.current?.abort()
     setBusy(false)
     setOpen(false)
     setError('')
+    setChoosingPlaylist(false)
     return () => { operation.current?.abort() }
   }, [signature, accountSignature])
 
@@ -114,10 +138,19 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   }
 
   const commands = <>
+    <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlaylist(true) }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 7v10M7 12h10" strokeLinecap="round" /></svg>加入歌单
+    </button>
+    {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>{removeLabel}</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
-      const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
+      let added: number
+      if (onAddToQueue) added = await onAddToQueue(signal)
+      else {
+        const resolved = offline ? tracks : await resolveBatchTracks(tracks, collections, signal)
+        if (signal.aborted) return
+        added = await usePlaylistStore.getState().addManyToQueue(resolved, offline)
+      }
       if (signal.aborted) return
-      const added = usePlaylistStore.getState().addManyToQueue(resolved, offline)
       useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含所选歌曲')
       onDone?.()
     })}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h7m7-3v8m-4-4h8" strokeLinecap="round" /></svg>添加到播放队列</button>
@@ -137,10 +170,13 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {busy && <><span className={styles.processing} role="status">处理中…</span><button type="button" role={compact ? 'menuitem' : undefined} onClick={() => { operation.current?.abort(); setBusy(false); if (compact) closeMenu() }}>取消操作</button></>}
   </>
 
+  const picker = choosingPlaylist && <AddToPlaylistDialog tracks={collections.length ? undefined : tracks} sources={[...sourceSet]} allowPlatform={!offline} contextLabel={playlistContextLabel}
+    loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />
+
   if (compact) return (
     <div className={styles.compact} ref={rootRef}>
       <button ref={triggerRef} type="button" className={styles.more} aria-label={menuLabel} title={busy ? '处理中，可打开菜单取消' : menuLabel}
-        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-busy={busy} disabled={!count}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-busy={busy} disabled={!count && !extraItems.length}
         onClick={() => setOpen(value => !value)} onKeyDown={event => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); event.stopPropagation(); setOpen(true) }
         }}>
@@ -152,7 +188,11 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {onSelect && <button type="button" role="menuitem" disabled={busy || !count} className={styles.selectItem} onClick={() => { closeMenu(); onSelect() }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>{selectLabel}
         </button>}
+        {extraItems.map((item, index) => <button key={item.key} type="button" role="menuitem" disabled={item.disabled} className={[index === 0 && !onSelect ? styles.selectItem : '', item.danger ? styles.danger : ''].filter(Boolean).join(' ') || undefined} onClick={() => { closeMenu(); item.onSelect() }}>
+          {item.icon}{item.label}
+        </button>)}
       </div>}
+      {picker}
     </div>
   )
 
@@ -172,6 +212,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {selection && <button type="button" className={styles.exit} aria-label="退出多选" title="退出多选（Esc）" onClick={selection.onExit}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" /></svg></button>}
       </div>
       {error && <p className={styles.error} role="alert">{error}</p>}
+      {picker}
     </div>
   )
 }

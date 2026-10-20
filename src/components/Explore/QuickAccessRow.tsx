@@ -7,18 +7,8 @@ import { serviceFor } from '../../lib/service-registry'
 import { springGentle, springSnappy } from '../../lib/motion-presets'
 import type { Playlist } from '../../types/domain'
 import styles from './QuickAccessRow.module.css'
+import { HeartIcon } from '../ui/HeartIcon'
 import { sizedImage } from '../../lib/image-size'
-
-function HeartIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M8 13.5S2 9.8 2 5.8C2 3.7 3.6 2 5.6 2c1.1 0 2 .5 2.4 1.3C8.4 2.5 9.3 2 10.4 2 12.4 2 14 3.7 14 5.8c0 4-6 7.7-6 7.7z"
-        fill="currentColor"
-      />
-    </svg>
-  )
-}
 
 function PlayIcon() {
   return (
@@ -254,7 +244,7 @@ export function QuickAccessRow() {
                 title={center ? `${item.name} · 点击播放` : item.name}
               >
                 {item.isLiked
-                  ? <span className={styles.iconWrap}><HeartIcon /></span>
+                  ? <span className={styles.iconWrap}><HeartIcon filled size={22} /></span>
                   : item.cover
                     ? <img className={styles.cover} src={sizedImage(item.cover, 112)} alt="" loading="lazy" />
                     : <span className={styles.cover} />}

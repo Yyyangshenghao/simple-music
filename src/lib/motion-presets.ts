@@ -24,6 +24,9 @@ export const iconSwap: Transition = { duration: 0.1, ease: 'easeOut' }
 /** 桌面双行歌词顺序换句：整行向上滚动，使用浏览器原生动画。 */
 export const desktopLyricsScrollTiming: KeyframeAnimationOptions = { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
 
+/** 横排松手停靠：有限惯性后平顺减速，避免弹回。 */
+export const railSettleTiming = { duration: 320, ease: (progress: number) => 1 - Math.pow(1 - progress, 4) }
+
 /** 入场：淡入上移（配 initial="hidden" animate="visible"）。 */
 export const fadeRise: Variants = {
   hidden: { opacity: 0, y: 14 },
@@ -35,3 +38,9 @@ export const albumCoverTransition: Transition = { type: 'spring', stiffness: 170
 
 /** 返回列表时封面快速收回，避免弹簧收尾拖慢返回反馈。 */
 export const coverReturnTransition: Transition = { type: 'tween', duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+
+/** 流体玻璃分段指示器：低阻尼带少量过冲，落位时像液滴撞停后回弹。 */
+export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
+
+/** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
+export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }

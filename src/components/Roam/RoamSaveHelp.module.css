@@ -1,0 +1,45 @@
+.help { margin-top: 8px; --text-reveal-open: 0; }
+.help[data-open='true'] { --text-reveal-open: 1; }
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.trigger:hover { color: var(--sm-text-primary); }
+.trigger:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.trigger svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 220ms var(--sm-ease-out);
+}
+.help[data-open='true'] .trigger svg { transform: rotate(90deg); }
+
+/* 正文始终参与排版，逐字显隐不会挪动标题、按钮或下方内容。 */
+.panel {
+  max-width: 540px;
+  margin: 8px 0 0;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  visibility: hidden;
+  transition: visibility 0s linear 300ms;
+}
+
+.help[data-open='true'] .panel { visibility: visible; transition-delay: 0s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger svg, .panel { transition: none; }
+}

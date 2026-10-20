@@ -5,10 +5,12 @@ import { sizedImage } from '../../lib/image-size'
 import { SourceName } from '../ui/SourceName'
 import { SHUANGE_COVER_PX, useShuangeStore } from '../../stores/shuange'
 import { usePlayerStore } from '../../stores/player'
+import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useLyricsStore } from '../../stores/lyrics'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { HeartIcon } from '../ui/HeartIcon'
 import { CloseIcon } from '../ui/CloseIcon'
+import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import type { Track } from '../../types/domain'
 import styles from './ShuangeCard.module.css'
 
@@ -38,7 +40,7 @@ function RefreshIcon() {
   return <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-4M4 5v4h4m-4 4a8 8 0 0 0 14.9 4M20 19v-4h-4" /></svg>
 }
 
-function ClipProgress({ track, startSec, endSec }: { track: Track; startSec: number; endSec: number }) {
+function ClipProgress({ track, startSec, endSec, label = '精彩片段播放进度' }: { track: Track; startSec: number; endSec: number; label?: string }) {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const position = usePlayerStore((s) => s.position)
   const duration = endSec - startSec
@@ -46,7 +48,7 @@ function ClipProgress({ track, startSec, endSec }: { track: Track; startSec: num
     ? Math.max(0, Math.min(1, (position - startSec) / duration))
     : 0
   return (
-    <div className={styles.progress} aria-label="精彩片段播放进度">
+    <div className={styles.progress} aria-label={label}>
       <span style={{ transform: `scaleX(${progress})` }} />
     </div>
   )
@@ -58,9 +60,12 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
   const [titleOverflow, setTitleOverflow] = useState(false)
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const status = usePlayerStore((s) => s.status)
+  const duration = usePlayerStore((s) => s.duration)
+  const finishingTrack = useSleepTimerStore((s) => s.phase === 'finishing-track')
   const toggle = usePlayerStore((s) => s.toggle)
   const index = useShuangeStore((s) => s.index)
   const offset = useShuangeStore((s) => s.offset)
+  const stage = useShuangeStore((s) => s.stage)
   const refreshError = useShuangeStore((s) => s.error)
   const next = useShuangeStore((s) => s.next)
   const prev = useShuangeStore((s) => s.prev)
@@ -137,7 +142,9 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
         <div className={styles.content}>
           <div className={styles.clipBadge}>
             <span className={styles.liveDot} />
-            {switching ? '正在定位精彩段' : status === 'loading' ? '正在缓冲片段' : offset?.kind === 'refrain' ? '重复段精选' : '歌曲结构精选'}
+            {switching
+              ? stage === 'candidates' ? '正在准备新曲目' : stage === 'playback' ? '正在准备播放' : '正在定位精彩段'
+              : buffering ? '正在缓冲片段' : '精彩片段'}
           </div>
           <h1 ref={titleViewportRef} title={track.name}>
             <span className={styles.titleTrack} data-overflow={titleOverflow}>
@@ -157,18 +164,29 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 transition={{ duration: 0.24 }}
               >
                 <strong>{currentLine || (switching ? '先等一拍，马上开唱' : '听听这一段')}</strong>
-                <span>{nextLine || '喜欢的话，可以收藏或播放全曲'}</span>
+                {nextLine && <span>{nextLine}</span>}
               </motion.div>
             </AnimatePresence>
           </div>
 
-          <ClipProgress track={track} startSec={offset?.startSec ?? 0} endSec={offset?.endSec ?? 0} />
+          <ClipProgress track={track} startSec={finishingTrack ? 0 : offset?.startSec ?? 0} endSec={finishingTrack ? duration : offset?.endSec ?? 0} label={finishingTrack ? '当前歌曲播放进度' : undefined} />
           <div className={styles.progressMeta}>
-            <span>{offset?.kind === 'refrain' ? '副歌候选' : '精彩片段'}</span>
-            <span>{Math.round(clipDuration || 30)} 秒后自动下一首</span>
+            <span>{finishingTrack ? '当前歌曲播完后停止' : `${Math.round(clipDuration || 30)} 秒后自动下一首`}</span>
           </div>
 
           <div className={styles.actions}>
+            <motion.button
+              type="button"
+              className={`${styles.iconAction} no-drag`}
+              data-track-action-trigger
+              onClick={event => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
+              whileTap={tapScale}
+              aria-label="加入歌单"
+              aria-haspopup="dialog"
+              title="加入歌单"
+            >
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            </motion.button>
             {supports(track) && (
               <motion.button
                 type="button"
@@ -177,7 +195,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 onClick={() => void useShuangeStore.getState().toggleLike(track)}
                 whileTap={tapScale}
                 aria-label={liked ? '取消喜欢' : '喜欢'}
-                title={liked ? '取消喜欢 (L)' : '喜欢 (L)'}
+                title={liked ? '取消喜欢' : '喜欢'}
               >
                 <HeartIcon filled={liked} size={19} />
               </motion.button>
@@ -192,11 +210,11 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
             >
               不感兴趣
             </motion.button>
-            <motion.button type="button" className={`${styles.fullAction} no-drag`} onClick={playFull} whileTap={tapScale}>
+            <motion.button type="button" className={`${styles.fullAction} no-drag`} onClick={() => playFull()} whileTap={tapScale}>
               播放全曲
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
             </motion.button>
-            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tapScale} aria-label="退出刷歌" title="退出 (Esc)">
+            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tapScale} aria-label="退出刷歌" title="退出刷歌">
               <CloseIcon size={17} />
             </motion.button>
           </div>

@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { MusicService, PlaylistSkeleton } from './music-service'
+import type { MusicService, PlaylistPage, PlaylistSkeleton } from './music-service'
 import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
 
 interface AppleResource {
@@ -10,6 +10,7 @@ interface AppleResource {
     artistName?: string
     albumName?: string
     curatorName?: string
+    canEdit?: boolean
     durationInMillis?: number
     isrc?: string
     trackCount?: number
@@ -86,6 +87,8 @@ function mapPlaylist(resource: AppleResource): Playlist {
     ...(resource.type.includes('playlists') || resource.type.includes('albums') ? { trackCountKnown: count !== undefined } : {}),
     playCount: 0, creator: a.curatorName ?? a.artistName ?? 'Apple Music',
     description: a.description?.standard,
+    // 资料库里从目录添加的歌单不可编辑，视为收藏。
+    ...(resource.type === 'library-playlists' && a.canEdit === false ? { subscribed: true } : {}),
   }
 }
 
@@ -177,12 +180,21 @@ export class AppleMusicService implements MusicService {
   }
 
   async getPlaylistSkeleton(id: unknown): Promise<PlaylistSkeleton> {
-    const value = String(id)
-    const path = value.startsWith('p.')
-      ? `/v1/me/library/playlists/${encodeURIComponent(value)}/tracks`
-      : await this.catalog(`playlists/${encodeURIComponent(value)}/tracks`)
-    const tracks = (await this.all(path)).filter((item) => item.type === 'songs' || item.type === 'library-songs').map(mapAppleTrack)
+    const tracks = (await this.all(await this.playlistTracksPath(id))).filter((item) => item.type === 'songs' || item.type === 'library-songs').map(mapAppleTrack)
     return { trackIds: tracks.map((track) => track.id), tracks }
+  }
+
+  async getPlaylistPage(id: unknown, offset: number, limit: number): Promise<PlaylistPage> {
+    const page = await this.request<ApplePage>(`${await this.playlistTracksPath(id)}?limit=${Math.min(100, limit)}&offset=${offset}`)
+    const tracks = (page.data ?? []).filter((item) => item.type === 'songs' || item.type === 'library-songs').map(mapAppleTrack)
+    return { tracks, total: page.meta?.total ?? null, nextOffset: offset + (page.data?.length ?? 0), hasMore: !!page.next }
+  }
+
+  private async playlistTracksPath(id: unknown): Promise<string> {
+    const value = String(id)
+    return value.startsWith('p.')
+      ? `/v1/me/library/playlists/${encodeURIComponent(value)}/tracks`
+      : this.catalog(`playlists/${encodeURIComponent(value)}/tracks`)
   }
 
   async getTracksByIds(ids: unknown[]): Promise<Track[]> {

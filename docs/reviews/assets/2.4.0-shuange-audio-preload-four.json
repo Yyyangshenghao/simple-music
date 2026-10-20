@@ -1,0 +1,537 @@
+{
+  "scope": "shuange previous two and next two audio preloads",
+  "environment": {
+    "platform": "win32",
+    "fixtureDurationSeconds": 90,
+    "nativeHeaderDelayMs": 100,
+    "nativeChunkBytes": 32768,
+    "nativeChunkIntervalMs": 20,
+    "platformMetadata": "simulated",
+    "realNeteaseAccount": false,
+    "speakerOutputMeasured": false
+  },
+  "checks": {
+    "typecheck": "passed",
+    "vitestFiles": 280,
+    "vitestTests": 2658,
+    "build": "passed",
+    "diffCheck": "passed"
+  },
+  "bytesByFormat": {
+    "fixture.mp3": 8449260,
+    "fixture.flac": 3672162,
+    "fixture.m4a": 6252485
+  },
+  "trafficMeaning": "Cumulative fixture traffic including current audio, preparation, seeking and 20 switches; not per-switch overhead or a preload byte limit",
+  "native": {
+    "realMedia": true,
+    "speakerMuted": true,
+    "checks": [
+      {
+        "format": "mp3",
+        "coldPlayingMs": 513.3000000119209,
+        "prepareMs": 2890.599999964237,
+        "warmPlayingMs": 15.599999964237213,
+        "warmGraphSignalMs": 28.099999964237213,
+        "peakActiveMedia": 5,
+        "roundTrips": [
+          1.5999999642372131,
+          0.800000011920929,
+          0.5999999642372131,
+          0.3999999761581421,
+          0.5999999642372131,
+          0.8999999761581421,
+          0.8999999761581421,
+          0.5,
+          0.6000000238418579,
+          0.5,
+          0.2999999523162842,
+          0.40000003576278687,
+          0.9000000357627869,
+          0.40000003576278687,
+          0.6000000238418579,
+          0.40000003576278687,
+          0.7000000476837158,
+          0.699999988079071,
+          0.6000000238418579,
+          0.3999999761581421
+        ],
+        "secondNeighborSameMedia": true,
+        "loadsBeforeRelease": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 22
+      },
+      {
+        "format": "flac",
+        "coldPlayingMs": 578.5,
+        "prepareMs": 2008.9000000357628,
+        "warmPlayingMs": 1.699999988079071,
+        "warmGraphSignalMs": 12.699999988079071,
+        "peakActiveMedia": 5,
+        "roundTrips": [
+          1.600000023841858,
+          0.8999999761581421,
+          0.699999988079071,
+          0.5,
+          0.5,
+          0.800000011920929,
+          0.5,
+          0.5,
+          0.5,
+          0.699999988079071,
+          1,
+          0.6000000238418579,
+          0.3999999761581421,
+          0.5999999642372131,
+          0.5,
+          0.5,
+          0.699999988079071,
+          0.3999999761581421,
+          0.5,
+          0.5999999642372131
+        ],
+        "secondNeighborSameMedia": true,
+        "loadsBeforeRelease": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 22
+      },
+      {
+        "format": "m4a",
+        "coldPlayingMs": 326.19999998807907,
+        "prepareMs": 1841.300000011921,
+        "warmPlayingMs": 3,
+        "warmGraphSignalMs": 14.899999976158142,
+        "peakActiveMedia": 5,
+        "roundTrips": [
+          2.099999964237213,
+          1.5999999642372131,
+          0.699999988079071,
+          1.100000023841858,
+          1.100000023841858,
+          0.699999988079071,
+          0.699999988079071,
+          0.7000000476837158,
+          1.199999988079071,
+          1,
+          1,
+          0.7000000476837158,
+          1.4000000357627869,
+          1.199999988079071,
+          0.800000011920929,
+          0.800000011920929,
+          0.5,
+          0.699999988079071,
+          1.199999988079071,
+          0.800000011920929
+        ],
+        "secondNeighborSameMedia": true,
+        "loadsBeforeRelease": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 22
+      }
+    ],
+    "passed": true,
+    "traffic": [
+      {
+        "file": "fixture.mp3",
+        "id": "a",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "a",
+        "range": "bytes=1769472-",
+        "bytes": 1833380
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "b",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "b",
+        "range": "bytes=2392064-",
+        "bytes": 1210788
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "c",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "c",
+        "range": "bytes=1179648-",
+        "bytes": 2423204
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "d",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "d",
+        "range": "bytes=786432-",
+        "bytes": 1703936
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "e",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "id": "e",
+        "range": "bytes=393216-",
+        "bytes": 950272
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=557056-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=262144-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=589824-",
+        "bytes": 524288
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=753664-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=720896-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "b",
+        "range": "bytes=786432-",
+        "bytes": 342030
+      },
+      {
+        "file": "fixture.flac",
+        "id": "c",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "c",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "id": "c",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "id": "c",
+        "range": "bytes=360448-",
+        "bytes": 768014
+      },
+      {
+        "file": "fixture.flac",
+        "id": "d",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "d",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "id": "d",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "id": "d",
+        "range": "bytes=229376-",
+        "bytes": 884736
+      },
+      {
+        "file": "fixture.flac",
+        "id": "e",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "id": "e",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "id": "e",
+        "range": "bytes=32768-",
+        "bytes": 720896
+      },
+      {
+        "file": "fixture.flac",
+        "id": "a",
+        "range": "bytes=524288-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "a",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "a",
+        "range": "bytes=1212416-",
+        "bytes": 1254039
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "b",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "b",
+        "range": "bytes=1638400-",
+        "bytes": 828055
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "c",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "c",
+        "range": "bytes=819200-",
+        "bytes": 1647255
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "d",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "d",
+        "range": "bytes=557056-",
+        "bytes": 1376256
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "e",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "id": "e",
+        "range": "bytes=262144-",
+        "bytes": 983040
+      }
+    ],
+    "memory": [
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 74516,
+          "peakWorkingSetSize": 74516,
+          "privateBytes": 28384
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 78952,
+          "peakWorkingSetSize": 78952,
+          "privateBytes": 31444
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 79504,
+          "peakWorkingSetSize": 79608,
+          "privateBytes": 33364
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 84208,
+          "peakWorkingSetSize": 87500,
+          "privateBytes": 40844
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 80052,
+          "peakWorkingSetSize": 87500,
+          "privateBytes": 35080
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 80692,
+          "peakWorkingSetSize": 87500,
+          "privateBytes": 36140
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 85400,
+          "peakWorkingSetSize": 87500,
+          "privateBytes": 41276
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 87516,
+          "peakWorkingSetSize": 87516,
+          "privateBytes": 42992
+        }
+      ],
+      [
+        {
+          "pid": 16716,
+          "workingSetSize": 92344,
+          "peakWorkingSetSize": 92344,
+          "privateBytes": 48848
+        }
+      ]
+    ]
+  },
+  "host": {
+    "realMedia": true,
+    "platformMetadata": "fixture",
+    "checks": {
+      "foreground": {
+        "sameNextMedia": true,
+        "samePreviousMedia": true,
+        "noLoginAudio": true,
+        "secondForwardReused": true,
+        "secondBackwardReused": true,
+        "fullWindowSlots": 4,
+        "samples": [
+          {
+            "direction": "next",
+            "ms": 28.400000035762787
+          }
+        ]
+      },
+      "minimized": {
+        "index": 1,
+        "active": true
+      },
+      "hidden": {
+        "index": 2,
+        "active": true
+      },
+      "gameMode": {
+        "index": 3,
+        "active": true
+      },
+      "refreshExit": {
+        "status": "paused",
+        "position": 5,
+        "preloadSlots": 0
+      }
+    },
+    "passed": true
+  }
+}

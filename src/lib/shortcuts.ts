@@ -126,8 +126,8 @@ export function bindingConflict(
   return SHORTCUT_ACTIONS.find((item) => item.id === conflict?.action)?.label ?? null
 }
 
-/** 输入区、原生控件和快捷键录入区保留自己的键盘行为。 */
+/** 仅文字输入区避让快捷键；滑块、开关和选择控件不抢占应用按键。 */
 export function shouldIgnoreShortcut(target: EventTarget | null): boolean {
   if (!target || !('closest' in target) || typeof target.closest !== 'function') return false
-  return !!(target as Element).closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [data-shortcut-recorder]')
+  return !!(target as Element).closest('input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="url"], input[type="tel"], input[type="number"], textarea, [contenteditable]:not([contenteditable="false"])')
 }

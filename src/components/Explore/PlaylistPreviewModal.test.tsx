@@ -3,8 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlaylistPreviewModal } from './PlaylistPreviewModal'
 import type { Playlist, Track } from '../../types/domain'
 
-const state = vi.hoisted(() => ({ total: 0, tracks: [] as (Track | null)[], loading: true, error: false }))
-vi.mock('../../hooks/useLazyPlaylist', () => ({ useLazyPlaylist: () => ({ ...state, makeQueue: () => [] }) }))
+const state = vi.hoisted(() => ({ total: 0, tracks: [] as (Track | null)[], loading: true, error: false, loadingMore: false, moreError: false }))
+vi.mock('../../hooks/useLazyPlaylist', () => ({
+  useLazyPlaylist: () => ({ ...state, makeQueue: () => [], ensureRange: () => {} }),
+  loadPlaylistQueue: async () => [],
+}))
+vi.mock('../../hooks/usePlaylistPreview', () => ({ PREVIEW_PAGE_SIZE: 50, usePlaylistPreview: () => ({ ...state, hasMore: true, loadMore: () => {} }) }))
 vi.mock('react-dom', async (importOriginal) => ({
   ...await importOriginal<typeof import('react-dom')>(),
   createPortal: (children: React.ReactNode) => children,
@@ -17,6 +21,7 @@ describe('歌单预览加载状态', () => {
   beforeEach(() => {
     vi.stubGlobal('document', { body: {} })
     Object.assign(state, { total: 0, tracks: [], loading: true, error: false })
+    vi.clearAllMocks()
   })
   afterEach(() => vi.unstubAllGlobals())
 
@@ -57,5 +62,23 @@ describe('歌单预览加载状态', () => {
     const html = render({ ...playlist, provider: 'qq', source: 'qq', name: '我喜欢的跑步歌单', cover: 'https://example.com/album.jpg' })
     expect(html).toContain('src="https://example.com/album.jpg"')
     expect(html).not.toContain('data-kind="liked-cover-overlay"')
+  })
+
+  it('QQ 歌单走分页预览：显示加载更多与失败重试', () => {
+    const qq: Playlist = { ...playlist, provider: 'qq', source: 'qq', id: '123' }
+    Object.assign(state, { total: 300, loading: false, loadingMore: true, tracks: [{ id: 1, provider: 'qq', source: 'qq', type: 'song', name: '首页歌曲', artist: '', artists: [] }] })
+    let html = render(qq)
+    expect(html).toContain('首页歌曲')
+    expect(html).toContain('300 首')
+    expect(html).toContain('加载更多…')
+    Object.assign(state, { loadingMore: false, moreError: true })
+    html = render(qq)
+    expect(html).toContain('加载失败，点击重试')
+  })
+
+  it('预览只供浏览，不提供任何加入应用歌单入口', () => {
+    Object.assign(state, { total: 100, loading: false, tracks: [{ id: 1, provider: 'netease', source: 'netease', type: 'song', name: '前缀歌曲', artist: '', artists: [] }] })
+    const html = render()
+    expect(html).not.toContain('加入应用歌单')
   })
 })

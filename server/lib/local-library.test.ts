@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { promises as fsp } from 'node:fs'
 import { join, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { addLocalFolder, findLocalTrack, listLocalLibrary, removeLocalFolder } from './local-library'
+import { addLocalFolder, availableLocalTrackIds, findLocalTrack, listLocalLibrary, removeLocalFolder } from './local-library'
 
 vi.mock('music-metadata', () => ({
   parseFile: vi.fn(async (path: string) => ({
@@ -29,6 +29,16 @@ async function seedLibrary(userDataDir: string, name = 'First'): Promise<void> {
     tracks: [{ id: 'track', path: '/music/song.mp3', name, artist: 'Artist', hasCover: false, mtimeMs: 1 }],
   }))
 }
+
+it('检查音频实际存在性，文件移走后保留索引且不接受任意路径代替 ID', async () => {
+  const folder = await createFolder('availability', 'first.mp3')
+  const tracks = await addLocalFolder(directory, folder)
+  const id = tracks[0].id
+  expect(await availableLocalTrackIds(directory, [id, id, '/etc/passwd', 'unknown'])).toEqual([id])
+  await fsp.rename(tracks[0].path, join(folder, 'moved.mp3'))
+  expect(await availableLocalTrackIds(directory, [id])).toEqual([])
+  expect(await findLocalTrack(directory, id)).toMatchObject({ id })
+})
 
 async function createFolder(name: string, fileName: string): Promise<string> {
   const folder = join(directory, name)

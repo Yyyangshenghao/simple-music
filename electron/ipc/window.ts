@@ -1,6 +1,9 @@
 import { ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { getWindowCloseState, resolveWindowClose, setWindowCloseBehavior } from '../modules/window-close'
+import { isPlaybackHostEvent } from '../modules/playback-host'
+import { getGameMode, setGameMode } from '../modules/game-mode'
+import { returnFromMiniPlayer } from '../modules/overlay-manager'
 import {
   getMainWindow,
   getWindowState,
@@ -27,6 +30,11 @@ export function registerWindowIpc(): void {
   ipcMain.handle('window:resolve-close', (event, choice) => {
     requireMainFrame(event)
     return resolveWindowClose(choice)
+  })
+  ipcMain.handle('window:show', (event) => {
+    if (!isPlaybackHostEvent(event)) throw new Error('Only the playback host can show the main window')
+    if (getGameMode().enabled) setGameMode({ enabled: false }, false)
+    returnFromMiniPlayer()
   })
   ipcMain.handle('window:minimize', () => {
     getMainWindow()?.minimize()

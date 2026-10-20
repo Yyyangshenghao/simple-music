@@ -29,6 +29,7 @@ interface MiniPlayerBarProps {
   onVolume?: (v: number) => void
   onClose?: () => void
   onOpenMain?: () => void
+  onAddToPlaylist?: () => void
   /** 右边缘手柄拖拽增量(px)。 */
   onResizeBy?: (dx: number) => void
   /** 音量弹层开合:窗口需要随之增高/收回。 */
@@ -136,6 +137,7 @@ export function MiniPlayerBar({
   onVolume,
   onClose,
   onOpenMain,
+  onAddToPlaylist,
   onResizeBy,
   onPopoverChange
 }: MiniPlayerBarProps) {
@@ -273,6 +275,9 @@ export function MiniPlayerBar({
         )}
 
         <div className={styles.controls}>
+          <button type="button" className={styles.ctl} disabled={!hasTrack || !onAddToPlaylist} onPointerDown={stop} onClick={onAddToPlaylist} title="加入歌单" aria-label="加入歌单">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
           <button type="button" className={styles.ctl} disabled={!hasTrack} onPointerDown={stop} onClick={onPrev} title="上一首" aria-label="上一首">
             <PrevIcon />
           </button>

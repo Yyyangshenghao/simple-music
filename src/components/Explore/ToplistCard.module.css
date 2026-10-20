@@ -17,6 +17,16 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 
+.card[data-scrolling] {
+  box-shadow: none;
+  transition: none;
+}
+
+.card[data-scrolling] .playBtn {
+  transform: none;
+  transition: none;
+}
+
 .card:focus-visible {
   outline: none;
   box-shadow: var(--glow-ring);

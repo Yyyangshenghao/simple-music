@@ -32,4 +32,5 @@
 
 .track.on .thumb {
   margin-left: 16px;
+  background: var(--sm-text-on-accent);
 }

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 const h = vi.hoisted(() => ({ getPath: vi.fn(), start: vi.fn(), restore: vi.fn(), close: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: h.getPath, isPackaged: true } }))
 vi.mock('../server/index', () => ({ startServer: h.start }))
-vi.mock('./modules/window-manager', () => ({ getMainWindow: () => null }))
+vi.mock('./modules/window-manager', () => ({ focusMainWindow: vi.fn() }))
 vi.mock('./modules/apple-music-web-session', () => ({
   OfficialAppleMusicSession: class {
     restore = h.restore
@@ -44,4 +44,15 @@ it('系统音乐目录解析失败不阻断启动，允许下载配置回退', a
   })
   expect((await bootServer()).port).toBe(12345)
   expect(h.start).toHaveBeenCalledWith(expect.objectContaining({ userDataDir, defaultSongDownloadDir: undefined }))
+})
+
+it('宿主失联清理只关闭独立Apple会话，API保持可用', async () => {
+  const apiClose = vi.fn()
+  h.start.mockResolvedValueOnce({ port: 12345, close: apiClose })
+  await bootServer()
+  const { stopAppleMusicPlayback } = await import('./server-host')
+  await stopAppleMusicPlayback()
+  expect(h.close).toHaveBeenCalledOnce()
+  expect(apiClose).not.toHaveBeenCalled()
+  expect((await bootServer()).port).toBe(12345)
 })

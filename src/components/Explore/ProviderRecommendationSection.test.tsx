@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearProviderRequestCache, requestProviderData } from '../../lib/provider-request-cache'
 import { providerFor } from '../../providers/registry'
 import type { RecommendationPage } from '../../providers/types'
@@ -10,15 +10,32 @@ vi.mock('./ToplistSection', () => ({ ToplistSection: () => null }))
 
 describe('探索页返回首帧', () => {
   beforeEach(() => clearProviderRequestCache())
+  afterEach(() => vi.useRealTimers())
 
-  async function seed() {
+  it('网易日推同日复用日期缓存 跨日不再显示昨日缓存', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 19, 23, 59))
+    const page = { content: { type: 'tracks', tracks: [{ id: 'yesterday', cover: 'https://example.com/yesterday.png' }] } } as RecommendationPage
+    await requestProviderData('netease', `recommendation:netease:daily-songs:root:${new Date().toDateString()}`,
+      async () => page, { maxAgeMs: 5 * 60_000 })
+    expect(renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)).toContain('yesterday.png')
+
+    vi.setSystemTime(new Date(2026, 9, 20, 0, 1))
+    expect(renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)).not.toContain('yesterday.png')
+  })
+
+  async function seed(feedId = 'p', feedName = '已浏览推荐歌单') {
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
     for (const surface of providerFor('qq').recommendations!.listSurfaces()) {
       const page = { content: surface.kind === 'playlist-feed'
-        ? { type: 'playlists', playlists: [{ id: 'p', source: 'qq', name: '已浏览推荐歌单' }] }
-        : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
-      await requestProviderData('qq', `recommendation:${surface.id}:root`, () => Promise.resolve(page))
+        ? { type: 'playlists', playlists: [{ id: feedId, source: 'qq', name: feedName }] }
+        : surface.kind === 'radar'
+          ? { type: 'radar', radar: null }
+          : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
+      const scope = `recommendation:${surface.id}:root${surface.id === 'qq:daily' ? `:${day}` : ''}`
+      await requestProviderData('qq', scope, () => Promise.resolve(page))
     }
-    await requestProviderData('qq', 'library:user-playlists', () => Promise.resolve([{ id: 'mine', source: 'qq', name: '已有个人歌单', trackCount: 10 }]))
+    await requestProviderData('qq', 'library:user-playlists:0', () => Promise.resolve([{ id: 'mine', source: 'qq', name: '已有个人歌单', trackCount: 10 }]))
   }
 
   it('已有推荐与个人歌单直接出现在首帧，不显示重新连接提示', async () => {
@@ -26,6 +43,8 @@ describe('探索页返回首帧', () => {
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="qq" onPreview={() => {}} />)
     expect(html).toContain('已浏览推荐歌单')
     expect(html).toContain('已有个人歌单')
+    expect(html).toContain('<h3>我的歌单</h3>')
+    expect(html).toContain('aria-label="我的歌单"')
     expect(html).not.toContain('正在连接平台')
     expect(html).not.toContain('加载中…')
     expect(html).toMatch(/^<section[^>]*style="opacity:1;transform:none"/)
@@ -62,7 +81,8 @@ describe('探索页返回首帧', () => {
         : surface.kind === 'radar'
           ? { type: 'radar', radar: { playlist: { id, source: 'netease', name: '私人雷达' }, tracks: [{ id: 't', cover: '' }] } }
           : { type: 'tracks', tracks: [] } } as unknown as RecommendationPage
-      await requestProviderData('netease', `recommendation:${surface.id}:root`, () => Promise.resolve(page))
+      const day = surface.id === 'netease:daily-songs' ? `:${new Date().toDateString()}` : ''
+      await requestProviderData('netease', `recommendation:${surface.id}:root${day}`, () => Promise.resolve(page))
     }
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="netease" onPreview={() => {}} />)
     expect(html).not.toContain('私人雷达重复卡片')
@@ -71,11 +91,10 @@ describe('探索页返回首帧', () => {
   })
 
   it('其他平台的同 ID 歌单仍保留在发现歌单中', async () => {
-    await requestProviderData('qq', 'recommendation:qq:playlist-feed:root', () => Promise.resolve({
-      content: { type: 'playlists', playlists: [{ id: '3136952023', source: 'qq', name: 'QQ 推荐歌单' }] },
-    } as unknown as RecommendationPage))
+    await seed('3136952023', 'QQ 推荐歌单')
     const html = renderToStaticMarkup(<ProviderRecommendationSection source="qq" onPreview={() => {}} />)
     expect(html).toContain('QQ 推荐歌单')
+    expect(html).not.toContain('正在连接平台')
   })
 
 })

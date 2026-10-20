@@ -1,0 +1,409 @@
+{
+  "baseline": "33e25cd",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "deviceScaleFactor": 2
+  },
+  "input": {
+    "wheelEvents": 60,
+    "deltaY": 10,
+    "reverseEvery": 15,
+    "intervalMs": 16,
+    "pointer": "歌单轨道边界 x+85,y+110"
+  },
+  "notes": [
+    "事件监听只计数，不逐次读取 scrollTop。startScrollTop 是采样开始位置，不是累计位移。",
+    "GPU 为进程 CPU 时间 / 墙钟时间，不是硬件利用率。布局减少不等于全部用户卡顿已消失。"
+  ],
+  "ablation": [
+    {
+      "name": "base",
+      "state": {
+        "events": {
+          "wheel": 60,
+          "scroll": 60,
+          "pointerout": 28,
+          "pointerover": 28
+        },
+        "paused": true,
+        "tilt": "none",
+        "startScrollTop": 263.5
+      },
+      "cpu": {
+        "browser": 3.3523580940990976,
+        "renderer": 29.989039575543718,
+        "GPU": 42.4488881253633,
+        "network.mojom.NetworkService": 0.2338018648964959,
+        "tracing.mojom.TracingService": 0.12213715232200874
+      },
+      "sums": {
+        "FireAnimationFrame": {
+          "ms": 30.371999999999986,
+          "count": 346,
+          "max": 0.593
+        },
+        "FunctionCall": {
+          "ms": 81.54300000000039,
+          "count": 1770,
+          "max": 5.305
+        },
+        "UpdateLayoutTree": {
+          "ms": 31.956,
+          "count": 278,
+          "max": 1.362
+        },
+        "Paint": {
+          "ms": 24.96700000000001,
+          "count": 336,
+          "max": 0.269
+        },
+        "Layout": {
+          "ms": 9.344999999999995,
+          "count": 82,
+          "max": 0.407
+        }
+      }
+    },
+    {
+      "name": "badgeNoTransition",
+      "state": {
+        "events": {
+          "wheel": 60,
+          "scroll": 60,
+          "pointerout": 28,
+          "pointerover": 28
+        },
+        "paused": true,
+        "tilt": "none",
+        "startScrollTop": 263.5
+      },
+      "cpu": {
+        "browser": 2.94112576289717,
+        "renderer": 26.068179243284785,
+        "GPU": 40.962284923328454,
+        "network.mojom.NetworkService": 0,
+        "tracing.mojom.TracingService": 0.13293745597487333
+      },
+      "sums": {
+        "FireAnimationFrame": {
+          "ms": 28.703999999999976,
+          "count": 346,
+          "max": 0.443
+        },
+        "FunctionCall": {
+          "ms": 73.91500000000036,
+          "count": 1727,
+          "max": 5.287
+        },
+        "UpdateLayoutTree": {
+          "ms": 28.616999999999976,
+          "count": 279,
+          "max": 1.39
+        },
+        "Paint": {
+          "ms": 18.487000000000002,
+          "count": 256,
+          "max": 0.489
+        },
+        "Layout": {
+          "ms": 1.2779999999999998,
+          "count": 6,
+          "max": 0.277
+        }
+      }
+    },
+    {
+      "name": "badgePaused",
+      "state": {
+        "events": {
+          "wheel": 60,
+          "scroll": 60,
+          "pointerout": 28,
+          "pointerover": 28
+        },
+        "paused": true,
+        "tilt": "none",
+        "startScrollTop": 263.5
+      },
+      "cpu": {
+        "browser": 2.870340503224403,
+        "renderer": 25.168020097172608,
+        "GPU": 39.62409746376314,
+        "network.mojom.NetworkService": 0,
+        "tracing.mojom.TracingService": 0.09441909550079411
+      },
+      "sums": {
+        "UpdateLayoutTree": {
+          "ms": 28.198999999999998,
+          "count": 259,
+          "max": 2.525
+        },
+        "FireAnimationFrame": {
+          "ms": 26.255999999999986,
+          "count": 324,
+          "max": 0.55
+        },
+        "FunctionCall": {
+          "ms": 71.25600000000043,
+          "count": 1699,
+          "max": 5.904
+        },
+        "Paint": {
+          "ms": 15.674999999999999,
+          "count": 198,
+          "max": 0.263
+        },
+        "Layout": {
+          "ms": 1.118,
+          "count": 2,
+          "max": 0.785
+        }
+      }
+    },
+    {
+      "name": "badgeAlways",
+      "state": {
+        "events": {
+          "wheel": 60,
+          "scroll": 60,
+          "pointerout": 28,
+          "pointerover": 28
+        },
+        "paused": true,
+        "tilt": "none",
+        "startScrollTop": 263.5
+      },
+      "cpu": {
+        "browser": 2.20304786001465,
+        "renderer": 18.800518504050178,
+        "GPU": 43.65783910888689,
+        "network.mojom.NetworkService": 0,
+        "tracing.mojom.TracingService": 0.10050270076581855
+      },
+      "sums": {
+        "FireAnimationFrame": {
+          "ms": 17.87499999999999,
+          "count": 321,
+          "max": 0.355
+        },
+        "FunctionCall": {
+          "ms": 49.99100000000055,
+          "count": 1692,
+          "max": 4.864
+        },
+        "UpdateLayoutTree": {
+          "ms": 17.57899999999999,
+          "count": 256,
+          "max": 1.491
+        },
+        "Paint": {
+          "ms": 11.493999999999991,
+          "count": 194,
+          "max": 0.31
+        },
+        "Layout": {
+          "ms": 0.616,
+          "count": 2,
+          "max": 0.417
+        }
+      }
+    }
+  ],
+  "finalOriginalSampler": {
+    "name": "final",
+    "state": {
+      "events": {
+        "wheel": 60,
+        "scroll": 60,
+        "pointerout": 28,
+        "pointerover": 28
+      },
+      "paused": true,
+      "tilt": "none",
+      "startScrollTop": 263.5
+    },
+    "cpu": {
+      "browser": 3.1930169354310074,
+      "renderer": 31.152271273641333,
+      "GPU": 50.09315745679308,
+      "network.mojom.NetworkService": 0.2240112049245031,
+      "tracing.mojom.TracingService": 0.08136226619161016
+    },
+    "sums": {
+      "FireAnimationFrame": {
+        "ms": 33.688,
+        "count": 345,
+        "max": 0.54
+      },
+      "FunctionCall": {
+        "ms": 79.47300000000024,
+        "count": 1728,
+        "max": 5.021
+      },
+      "UpdateLayoutTree": {
+        "ms": 34.26000000000003,
+        "count": 277,
+        "max": 1.979
+      },
+      "Paint": {
+        "ms": 26.054999999999975,
+        "count": 279,
+        "max": 0.358
+      },
+      "Layout": {
+        "ms": 0.899,
+        "count": 3,
+        "max": 0.62
+      }
+    }
+  },
+  "finalRepositorySampler": {
+    "name": "overMyPlaylists",
+    "frames": {
+      "events": {
+        "wheel": 60,
+        "scroll": 60,
+        "pointerout": 28,
+        "pointerover": 28
+      },
+      "writes": 0,
+      "mean": 6.128136882129277,
+      "p95": 6.5,
+      "over16": 0,
+      "over25": 0
+    },
+    "cpu": {
+      "browser": 3.402026407162088,
+      "renderer": 27.427453665094536,
+      "GPU": 43.819058004652454,
+      "network.mojom.NetworkService": 0.22774475154897963,
+      "tracing.mojom.TracingService": 0.12258883929741445
+    },
+    "sums": {
+      "FireAnimationFrame": {
+        "ms": 32.63699999999997,
+        "count": 596,
+        "max": 0.522
+      },
+      "FunctionCall": {
+        "ms": 69.41300000000048,
+        "count": 1974,
+        "max": 3.729
+      },
+      "UpdateLayoutTree": {
+        "ms": 27.537999999999993,
+        "count": 267,
+        "max": 1.757
+      },
+      "EventDispatch": {
+        "ms": 50.649999999999956,
+        "count": 360,
+        "max": 0.932
+      },
+      "Paint": {
+        "ms": 18.087999999999994,
+        "count": 221,
+        "max": 0.323
+      },
+      "Layout": {
+        "ms": 0.555,
+        "count": 1,
+        "max": 0.555
+      }
+    }
+  },
+  "componentRegression": {
+    "tiltPauseAndResume": true,
+    "noStaleHover": true,
+    "toplistPauseAndResume": true,
+    "clickWhilePaused": true,
+    "wheelBoundaryRecovery": true,
+    "nestedScrollCapture": true,
+    "sourceBadgesPauseAndResume": true,
+    "alwaysAndRevealPreserved": true,
+    "recentBadgePaused": true,
+    "touchBadgesPreserved": true
+  },
+  "libraryRegression": {
+    "results": [
+      {
+        "source": "netease",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "netease",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "qq",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "qq",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "专辑",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      }
+    ],
+    "appPlaylistsWithoutGlow": true,
+    "preferencesPreserved": true
+  },
+  "pageRegression": {
+    "dragAcrossIdle": {
+      "first": {
+        "left": 60,
+        "dragging": "true"
+      },
+      "second": {
+        "left": 260,
+        "dragging": "true"
+      }
+    },
+    "clickWhileScrolling": true
+  },
+  "verification": {
+    "typecheck": "passed",
+    "testFiles": 277,
+    "tests": 2601,
+    "independentReview": "passed"
+  }
+}

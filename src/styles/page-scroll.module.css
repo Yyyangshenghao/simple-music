@@ -1,9 +1,19 @@
 /* 页面视口延伸到悬浮控制栏背后，渐隐只作用于内容，不给全窗背景叠实色条。 */
+/* 常驻滚动条槽位：内容高度跨过视口时页面宽度不变，切换页签不左右跳动。 */
 .viewport {
+  scrollbar-gutter: stable;
   scroll-padding-top: calc(var(--sm-topbar-height, 0px) + 12px);
   scroll-padding-bottom: var(--sm-player-clearance, 0px);
   mask-image: linear-gradient(to bottom, transparent, #000 var(--sm-topbar-height, 0px), #000 calc(100% - var(--sm-player-clearance, 0px)), transparent);
 }
+
+/* 轨道避开悬浮头像与播放栏；内容仍可在控制栏背后连续滚动。 */
+.viewport::-webkit-scrollbar-track {
+  margin-top: calc(var(--sm-topbar-height, 0px) + 12px);
+  margin-bottom: calc(var(--sm-player-clearance, 0px) + 8px);
+}
+
+.viewport::-webkit-scrollbar-thumb { min-height: 44px; }
 
 /* 留白在滚动内容内，首尾项能滚到控制栏之外；原有页面间距继续保留。 */
 .viewport::before,

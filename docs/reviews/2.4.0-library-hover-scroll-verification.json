@@ -1,0 +1,145 @@
+{
+  "baseline": "344d713",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "deviceScaleFactor": 2
+  },
+  "fixture": {
+    "source": "netease",
+    "playlists": 24,
+    "covers": "本地 PNG",
+    "cardTiltEffect": true,
+    "cardSpotlightEffect": true
+  },
+  "input": {
+    "wheelEvents": 96,
+    "deltaY": 25,
+    "reverseEvery": 24,
+    "intervalMs": 16,
+    "pointer": {
+      "x": 160,
+      "y": 350
+    }
+  },
+  "before": {
+    "measure": {
+      "events": {
+        "wheel": 96,
+        "pointerout": 50,
+        "pointerover": 50,
+        "scroll": 96
+      },
+      "travel": 2400,
+      "last": 0
+    },
+    "sums": {
+      "UpdateLayoutTree": {
+        "ms": 210.47199999999992,
+        "count": 717
+      },
+      "Paint": {
+        "ms": 85.78100000000025,
+        "count": 1638
+      },
+      "Layout": {
+        "ms": 39.76899999999994,
+        "count": 322
+      }
+    }
+  },
+  "after": {
+    "measure": {
+      "events": {
+        "wheel": 96,
+        "pointerout": 57,
+        "pointerover": 57,
+        "scroll": 96
+      },
+      "travel": 2400,
+      "last": 0
+    },
+    "sums": {
+      "UpdateLayoutTree": {
+        "ms": 77.93700000000003,
+        "count": 600
+      },
+      "Paint": {
+        "ms": 82.27100000000023,
+        "count": 1263
+      },
+      "Layout": {
+        "ms": 37.811,
+        "count": 306
+      }
+    }
+  },
+  "ui": {
+    "results": [
+      {
+        "source": "netease",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "netease",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "qq",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "qq",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "歌单",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "专辑",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      },
+      {
+        "source": "apple",
+        "mode": "收藏",
+        "paused": true,
+        "resumed": true,
+        "clickWhileScrolling": true,
+        "back": true
+      }
+    ],
+    "appPlaylistsWithoutGlow": true,
+    "preferencesPreserved": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "testFiles": 277,
+    "tests": 2601,
+    "independentReview": "passed"
+  }
+}

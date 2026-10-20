@@ -33,7 +33,11 @@ describe('歌词场景按需加载', () => {
     settings.mode = '3d'
     render(false)
     settings.mode = 'lyrics'
-    expect(render(true)).toContain('暂无歌词')
+    const ordinary = render(true)
+    expect(ordinary).toContain('暂无歌词')
+    expect(ordinary).toContain('aria-label="歌词播放控制"')
+    expect(ordinary).not.toContain('aria-label="查看歌词"')
+    expect(render(false)).not.toContain('aria-label="歌词播放控制"')
     settings.mode = '3d'
     settings.enabled = false
     expect(render(true)).toContain('暂无歌词')
@@ -45,6 +49,7 @@ describe('歌词场景按需加载', () => {
     await vi.dynamicImportSettled()
     expect(scene.loads).toBe(1)
     expect(render(true)).toContain('data-testid="lyrics-scene"')
+    expect(render(true)).not.toContain('aria-label="歌词播放控制"')
     expect(render(true)).not.toContain(styles.lightScene)
     expect(render(true)).toContain('data-light-background="false"')
     settings.theme = 'light'

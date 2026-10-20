@@ -240,19 +240,7 @@
   cursor: pointer;
 }
 
-.backBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding-left: 10px;
-  color: var(--sm-text-secondary);
-  background: transparent;
-  border-color: transparent;
-}
-
-.backBtn:hover { color: var(--sm-text-primary); background: var(--glass-bg-base); }
-.backIcon { flex-shrink: 0; transition: transform 180ms var(--sm-ease-out); }
-.backBtn:hover .backIcon { transform: translateX(-2px); }
+.backBtn:hover,
 .resetBtn:hover { color: var(--sm-text-primary); background: var(--glass-bg-card); }
 
 .trackList { display: flex; flex-direction: column; }

@@ -1,0 +1,24 @@
+{
+  "isolatedSyntheticAccount": true,
+  "realCredentialsRead": false,
+  "realAccountWrites": 0,
+  "checks": {
+    "summaryLabelAndNoPerCardRequests": true,
+    "fullIdCountDespiteMissingMetadata": true,
+    "returnUsesResolvedCountAndLibraryCache": true,
+    "emptyListZeroOverridesStaleSummary": true,
+    "qqRealApiKeepsMissingTitleAndPaidTracks": true,
+    "qqOverstatedSummaryStillReadable": true,
+    "qqResolvedCountConsistent": true,
+    "lightMinimumNoHorizontalOverflow": true
+  },
+  "pageErrors": [],
+  "neteaseFixtureCalls": [
+    "detail:901",
+    "song-detail",
+    "song-detail",
+    "detail:902"
+  ],
+  "qqFixtureReads": 2,
+  "libraryRequests": 1
+}

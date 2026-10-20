@@ -89,9 +89,27 @@ describe('RoamPage 已保存歌单入口', () => {
     expect(html).toContain('SAVED ROAM')
     expect(html).toContain('继续听')
     expect(html).toContain('重新生成')
-    expect(html).toContain('保存在本机')
+    expect(html).toContain('旧版漫游')
     expect(html).not.toContain('旧曲目-1')
     expect(html).not.toContain('旧曲目-2')
+  })
+
+  it('无启用平台时提供可操作的设置入口，而不是禁用的死路', () => {
+    const previous = structuredClone(providerState.byId)
+    const previousLocal = roamState.localPlaylist
+    const previousPlaylist = roamState.playlist
+    try {
+      for (const provider of Object.values(providerState.byId)) provider.enabled = false
+      roamState.localPlaylist = null
+      roamState.playlist = null
+      const html = renderToStaticMarkup(<RoamPage />)
+      expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>打开音源设置<\/button>/)
+      expect(html).not.toContain('请先启用音乐平台')
+    } finally {
+      providerState.byId = previous
+      roamState.localPlaylist = previousLocal
+      roamState.playlist = previousPlaylist
+    }
   })
 
   it('本地存档和网易云存档可并列保留，同类新结果只覆盖各自槽位', () => {
@@ -133,7 +151,7 @@ describe('RoamPage 已保存歌单入口', () => {
     const html = renderToStaticMarkup(<RoamPage />)
 
     expect(html.match(/SAVED ROAM/g)).toHaveLength(2)
-    expect(html).toContain('来自网易云「每日漫游」')
-    expect(html).toContain('保存在本机')
+    expect(html.match(/旧版漫游/g)).toHaveLength(2)
+    expect(html).not.toContain('已同步平台歌单')
   })
 })

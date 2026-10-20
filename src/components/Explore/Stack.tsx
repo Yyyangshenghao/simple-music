@@ -81,8 +81,12 @@ export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
         const isTop = index === cards.length - 1
         return (
           <CardRotate key={String(pl.id)} active={isTop} reduced={reduced} onSwipe={onSwipe}>
-            <motion.div
+            <motion.button
+              type="button"
               className={styles.card}
+              disabled={!isTop}
+              tabIndex={isTop ? 0 : -1}
+              aria-label={`查看歌单：${pl.name}`}
               onTap={isTop ? () => onCardClick(pl) : undefined}
               animate={{
                 rotateZ: (cards.length - index - 1) * 4 + messyAngle(pl.id),
@@ -94,10 +98,10 @@ export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
             >
               {pl.cover
                 ? <img className={styles.cover} src={sizedImage(pl.cover, 520)} alt="" draggable={false} loading="lazy" />
-                : <div className={styles.coverFallback} />}
+                : <span className={styles.coverFallback} />}
               <SourceBadge source={pl.source} className={styles.sourceBadge} />
-              <div className={styles.nameOverlay}>{pl.name}</div>
-            </motion.div>
+              <span className={styles.nameOverlay}>{pl.name}</span>
+            </motion.button>
           </CardRotate>
         )
       })}
