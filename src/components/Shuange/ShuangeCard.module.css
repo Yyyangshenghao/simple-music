@@ -168,7 +168,6 @@
   letter-spacing: -0.045em;
   line-height: 1.02;
   white-space: nowrap;
-  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 
 .titleTrack { display: inline-flex; width: max-content; --title-gap: 1.5em; }
