@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Playlist, Track } from '../../types/domain'
 
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as (() => void)[], account: 0,
-  queue: [] as Track[], refresh: vi.fn(), metadata: vi.fn(), setQueue: vi.fn(), close: vi.fn(), check: vi.fn(), inspect: vi.fn(), writable: false, managementRevision: 0 }))
+  queue: [] as Track[], refresh: vi.fn(), metadata: vi.fn(), setQueue: vi.fn(), close: vi.fn(), check: vi.fn(), inspect: vi.fn(), toast: vi.fn(), writable: false, managementRevision: 0 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {
@@ -26,6 +26,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('../../stores/platform-playlists', () => ({ usePlatformPlaylistsStore: (select: (state: unknown) => unknown) => select({ revision: { netease: h.managementRevision, qq: 0 } }) }))
 vi.mock('../../lib/platform-playlists', () => ({ supportsPlatformPlaylists: () => h.writable, inspectPlatformPlaylist: h.inspect, mutatePlatformPlaylist: vi.fn(), platformPlaylistResultMessage: () => '' }))
 vi.mock('./BatchTrackActions', () => ({ BatchTrackActions: () => null }))
+vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
 vi.mock('../Explore/TrackRow', () => ({ TrackRow: () => null }))
 vi.mock('../../hooks/useLazyPlaylist', () => ({ useLazyPlaylist: () => ({ total: 1, tracks: h.queue,
   available: true, loading: false, error: false, makeQueue: () => h.queue, refresh: h.refresh, checkForUpdates: h.check, ensureRange: vi.fn(), ensureAll: async () => {}, retry: vi.fn(),
@@ -54,7 +55,11 @@ function render(type: Playlist['type'] = 'playlist') {
   h.effects.splice(0).forEach(effect => effect())
   return tree
 }
-function refresh(tree: ReactNode) { walk(tree).find(element => element.type === 'button' && text(element).includes('刷新'))!.props.onClick!() }
+type MenuItem = { label: string; onSelect(): void }
+// 刷新/改名收进标题旁「更多操作」菜单，读取传给 BatchTrackActions 的追加项。
+function menu(tree: ReactNode): MenuItem[] { return (walk(tree).find(element => 'extraItems' in element.props)?.props as { extraItems?: MenuItem[] } | undefined)?.extraItems ?? [] }
+function menuText(tree: ReactNode): string { return menu(tree).map(item => item.label).join(' ') }
+function refresh(tree: ReactNode) { menu(tree).find(item => item.label.includes('刷新'))!.onSelect() }
 const settle = async () => { for (let i = 0; i < 10; i++) await Promise.resolve() }
 beforeEach(() => {
   playlist.id = 'same'
@@ -81,11 +86,11 @@ it('旧刷新失败不污染新账号，新账号的刷新不被旧锁阻挡或�
   expect(h.refresh).toHaveBeenCalledTimes(2)
   rejectOld(new Error('旧账号失败'))
   await settle()
-  expect(text(render())).toContain('刷新中…')
-  expect(text(render())).not.toContain('刷新失败')
+  expect(menuText(render())).toContain('刷新中…')
+  expect(h.toast).not.toHaveBeenCalled()
   resolveCurrent()
   await settle()
-  expect(text(render())).toContain('刷新歌单')
+  expect(menuText(render())).toContain('刷新歌单')
 })
 it('同一专辑换号后重新读取资料，旧账号迟到资料不覆盖新标题', async () => {
   let resolveOld!: (detail: Playlist) => void
@@ -127,12 +132,12 @@ it('服务端确认本人歌单后才显示改名，旧账号迟到的权限不�
   let resolveOld!: (value: unknown) => void
   h.inspect.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
     .mockResolvedValueOnce({ playlistId: '900', name: '当前账号歌单' })
-  expect(text(render())).not.toContain('重命名歌单')
+  expect(menuText(render())).not.toContain('重命名歌单')
   h.account++
   render()
   await settle()
   expect(text(render())).toContain('当前账号歌单')
-  expect(text(render())).toContain('重命名歌单')
+  expect(menuText(render())).toContain('重命名歌单')
   resolveOld({ playlistId: '900', name: '旧账号歌单' })
   await settle()
   expect(text(render())).not.toContain('旧账号歌单')
@@ -142,7 +147,7 @@ it('归属核验被拒绝时不提供平台改名，不影响歌单播放展示'
   h.writable = true; playlist.id = '901'
   h.inspect.mockRejectedValue(new Error('只能管理本人歌单'))
   render(); await settle()
-  expect(text(render())).not.toContain('重命名歌单')
+  expect(menuText(render())).not.toContain('重命名歌单')
   expect(text(render())).toContain('选定集合')
   playlist.id = 'same'
 })

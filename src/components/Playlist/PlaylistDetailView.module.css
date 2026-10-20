@@ -196,7 +196,6 @@
   .albumCover { width: 180px; }
 }
 
-.renameBtn { margin-left: 16px; }
 .refreshBtn:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 
 .managementFeedback { margin: 12px 0; color: var(--sm-color-danger); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }

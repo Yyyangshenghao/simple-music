@@ -28,4 +28,13 @@ describe('TrackRow 不可播放状态', () => {
     expect(html).not.toContain('保存到本地')
     expect(html).not.toContain('红心')
   })
+
+  it('可播放行带悬停播放符号、时长与专辑；同源列表可隐藏来源徽标', () => {
+    const track: Track = { provider: 'netease', source: 'netease', type: 'song', id: 2, name: '晴天', artist: '周杰伦', artists: [{ id: 10, name: '周杰伦' }], album: '叶惠美', duration: 269000 }
+    const html = renderToStaticMarkup(<TrackRow track={track} index={0} onPlay={vi.fn()} hideSource />)
+    expect(html).toMatch(/class="[^"]*playGlyph/)
+    expect(html).toContain('4:29')
+    expect(html).toContain('叶惠美')
+    expect(html).not.toContain('来源：')
+  })
 })

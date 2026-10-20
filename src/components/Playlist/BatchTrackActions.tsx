@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { PROVIDER_IDS } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
@@ -12,6 +12,15 @@ import { useToastStore } from '../../stores/toast'
 import type { Playlist, Track } from '../../types/domain'
 import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './BatchTrackActions.module.css'
+
+/** 紧凑菜单末尾追加的集合级操作（刷新、改名等），不依赖歌曲是否已加载。 */
+export interface ExtraMenuItem {
+  key: string
+  label: string
+  icon: ReactNode
+  disabled?: boolean
+  onSelect(): void
+}
 
 interface Props {
   tracks: Track[]
@@ -28,9 +37,10 @@ interface Props {
   onRemove?(signal: AbortSignal): Promise<void>
   onAddToQueue?(signal: AbortSignal): number | Promise<number>
   removeLabel?: string
+  extraItems?: ExtraMenuItem[]
 }
 
-export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, onAddToQueue, removeLabel = '移出平台歌单' }: Props) {
+export function BatchTrackActions({ tracks, collections = [], label, compact = false, selectLabel = '多选歌曲', menuLabel = '更多操作', onSelect, selection, onDone, offline = false, onDelete, onRemove, onAddToQueue, removeLabel = '移出平台歌单', extraItems = [] }: Props) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -173,7 +183,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   if (compact) return (
     <div className={styles.compact} ref={rootRef}>
       <button ref={triggerRef} type="button" className={styles.more} aria-label={menuLabel} title={busy ? '处理中，可打开菜单取消' : menuLabel}
-        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-busy={busy} disabled={!count}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-busy={busy} disabled={!count && !extraItems.length}
         onClick={() => setOpen(value => !value)} onKeyDown={event => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); event.stopPropagation(); setOpen(true) }
         }}>
@@ -185,6 +195,9 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {onSelect && <button type="button" role="menuitem" disabled={busy || !count} className={styles.selectItem} onClick={() => { closeMenu(); onSelect() }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>{selectLabel}
         </button>}
+        {extraItems.map((item, index) => <button key={item.key} type="button" role="menuitem" disabled={item.disabled} className={index === 0 && !onSelect ? styles.selectItem : undefined} onClick={() => { closeMenu(); item.onSelect() }}>
+          {item.icon}{item.label}
+        </button>)}
       </div>}
       {picker}
     </div>

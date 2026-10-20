@@ -44,6 +44,9 @@ interface PlaylistDetailViewProps {
   layoutIdPrefix: string
 }
 
+const REFRESH_ICON = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+const RENAME_ICON = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4" /></svg>
+
 function SkeletonTrackRow({ index, hideCover }: { index: number; hideCover?: boolean }) {
   return (
     <div className={styles.skeletonRow} aria-hidden="true">
@@ -77,7 +80,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const [searchError, setSearchError] = useState(false)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  const [refreshError, setRefreshError] = useState(false)
   const refreshInFlight = useRef(false)
   const checkInFlight = useRef(false)
   const scopeRef = useRef<string | null>(requestScope)
@@ -91,7 +93,6 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   useEffect(() => {
     scopeRef.current = requestScope
     setRefreshing(false)
-    setRefreshError(false)
     return () => { scopeRef.current = null }
   }, [requestScope])
   const searching = Boolean(query.trim())
@@ -108,11 +109,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     if (!canRefresh || !currentRequest() || refreshInFlight.current) return
     refreshInFlight.current = true
     setRefreshing(true)
-    setRefreshError(false)
     try {
       await refresh()
     } catch {
-      if (currentRequest()) setRefreshError(true)
+      if (currentRequest()) useToastStore.getState().show('歌单刷新失败，请稍后重试')
     } finally {
       if (currentRequest()) {
         refreshInFlight.current = false
@@ -280,22 +280,17 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                   <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
                   {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
                     tracks={loading || error || !initialTracks?.length ? [] : makeQueue()}
-                    collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+                    collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]}
+                    extraItems={[
+                      ...(canRefresh ? [{ key: 'refresh', label: refreshing ? '刷新中…' : '刷新歌单', icon: REFRESH_ICON, disabled: refreshing, onSelect: () => void refreshPlaylist() }] : []),
+                      ...(canManage && supportsPlatformPlaylists(playlist.source) ? [{ key: 'rename', label: '重命名歌单', icon: RENAME_ICON, onSelect: () => setRenaming(true) }] : []),
+                    ]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
                 </div>
                 <SourceBadge source={displayPlaylist.source} reveal />
-                <p className={styles.detailSub}>
-                  {displayPlaylist.type === 'album'
-                    ? [displayPlaylist.creator, displayPlaylist.tag, loading ? '加载中…' : `${total} 首`]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : loading ? '加载中…' : `${total} 首`}
-                </p>
-                {canRefresh && (
-                  <button type="button" className={`${styles.refreshBtn} no-drag`} onClick={() => void refreshPlaylist()} disabled={refreshing}>
-                    {refreshing ? '刷新中…' : refreshError ? '刷新失败，重试' : '刷新歌单'}
-                  </button>
-                )}
-                {canManage && supportsPlatformPlaylists(playlist.source) && <button type="button" className={`${styles.refreshBtn} ${styles.renameBtn} no-drag`} onClick={() => setRenaming(true)}>重命名歌单</button>}
+                {/* 曲数由下方列表标题展示，这里只保留专辑的作者与标签。 */}
+                {isAlbum && (displayPlaylist.creator || displayPlaylist.tag) && <p className={styles.detailSub}>
+                  {[displayPlaylist.creator, displayPlaylist.tag].filter(Boolean).join(' · ')}
+                </p>}
                 {displayPlaylist.type === 'album' && displayPlaylist.description && (
                   <p className={styles.detailDescription}>{displayPlaylist.description}</p>
                 )}
@@ -345,10 +340,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                     if (!item) return <SkeletonTrackRow index={i} hideCover={isAlbum} />
                     return <div className={styles.selectableRow} data-selected={selected.has(String(item.id))} data-selection-key={String(item.id)} data-unavailable={isCatalogUnavailable(item)}>
                       <SelectionCheck label={`选择歌曲：${item.pending ? `第 ${i + 1} 首` : item.name}`} checked={selected.has(String(item.id))} />
-                      {t ? <TrackRow track={t} hideCover={isAlbum} hideOfflineAction hideLikeAction index={i} disabled={isCatalogUnavailable(item)} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
+                      {t ? <TrackRow track={t} hideCover={isAlbum} hideSource={t.source === displayPlaylist.source} hideOfflineAction hideLikeAction index={i} disabled={isCatalogUnavailable(item)} onPlay={() => {}} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />}
                     </div>
                   }
-                  return t ? <TrackRow track={t} hideCover={isAlbum} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
+                  return t ? <TrackRow track={t} hideCover={isAlbum} hideSource={t.source === displayPlaylist.source} index={i} onPlay={() => playAt(originalIndex)} /> : <SkeletonTrackRow index={i} hideCover={isAlbum} />
                 }}
               />
             </motion.div>
