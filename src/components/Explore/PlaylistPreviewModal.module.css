@@ -144,22 +144,6 @@
   cursor: pointer;
 }
 
-.addBtn {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: var(--sm-text-secondary);
-  cursor: pointer;
-}
-
-.addBtn:hover { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
-
 .index {
   width: 22px;
   flex-shrink: 0;
