@@ -120,6 +120,8 @@ function recommendationPage(target: ShuangeFeedContext, kind: 'daily' | 'radar' 
     : kind === 'radar' ? 'radar' : 'playlist-feed'
   const scope = source === 'apple' ? `shuange:${surface}:${page}`
     : `recommendation:${source}:${surface}:${page ? String(page) : 'root'}`
+  // 电台首批复用首页缓存 后续补货只复用在途请求
+  const force = source === 'qq' && kind === 'daily' && target.dailyLoaded
   return requestProviderData(source, scope, async () => {
     if (kind === 'daily') {
       const tracks = await (service.getRadioSongs?.() ?? service.getDailySongs?.()) ?? []
@@ -134,7 +136,7 @@ function recommendationPage(target: ShuangeFeedContext, kind: 'daily' | 'radar' 
       hasMore: playlists.length > 0,
       nextCursor: playlists.length ? String(page + 1) : undefined,
     }
-  }, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
+  }, { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
 }
 
 /**
@@ -162,7 +164,9 @@ async function loadPlaylistCandidates(target: ShuangeFeedContext, playlist: Play
 function refillCandidates(target: ShuangeFeedContext): Promise<void> {
   if (target.refill) return target.refill
   const page = target.page
-  const daily = target.dailyLoaded ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
+  // 原判断会把 QQ 连续电台也当成固定日推 后续缺货仍需请求电台
+  // const daily = target.dailyLoaded ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
+  const daily = target.dailyLoaded && target.source !== 'qq' ? Promise.resolve() : recommendationPage(target, 'daily').then(result => {
     if (!isShuangeFeedCurrent(target)) return
     target.dailyLoaded = true
     publishCandidates(target, result.content.type === 'tracks' ? result.content.tracks : [])

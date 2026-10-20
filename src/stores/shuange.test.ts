@@ -242,6 +242,20 @@ describe('shuange store', () => {
     expect(useShuangeStore.getState().feed).toHaveLength(12)
   })
 
+  it('网易云固定日推耗尽后补货不重复查询日推', async () => {
+    getDailySongs.mockResolvedValue(Array.from({ length: 24 }, (_, i) => mkTrack(`daily-${i}`)))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    await useShuangeStore.getState().enter()
+    await useShuangeStore.getState().refresh()
+    await useShuangeStore.getState().refresh()
+
+    expect(useShuangeStore.getState().error).toBe('暂时没有新的推荐内容,稍后再来')
+    expect(getDailySongs).toHaveBeenCalledOnce()
+    expect(getRadioSongs).not.toHaveBeenCalled()
+  })
+
   it('自然跨批保留至多100首历史 回退复用顺序 手动换批重置', async () => {
     stashShuangeCandidates(Array.from({ length: 180 }, (_, i) => mkTrack(`history-${i}`)))
     getLyrics.mockResolvedValue([])
@@ -490,7 +504,7 @@ describe('shuange store', () => {
   })
 
   it('QQ保持连续流补货，账号最近歌曲提供口味种子而非周排行', async () => {
-    getRadioSongs.mockResolvedValue(Array.from({ length: 15 }, (_, i) => ({ ...mkTrack(`radio${i}`), source: 'qq', provider: 'qq' })))
+    getRadioSongs.mockResolvedValue(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`radio${i}`), source: 'qq', provider: 'qq' })))
     getRecentTracks.mockResolvedValue([{ ...mkTrack('recent'), source: 'qq', provider: 'qq' }])
     getRecommendPlaylists.mockResolvedValue([])
     getLyrics.mockResolvedValue([])
@@ -501,6 +515,102 @@ describe('shuange store', () => {
     await vi.waitFor(() => expect(getRecentTracks).toHaveBeenCalledTimes(1))
     await vi.waitFor(() => expect(__getShuangeRecommendationProfile().artistScores['qq:a']).toBeGreaterThan(0))
     expect(getListeningRanking).not.toHaveBeenCalled()
+  })
+
+  it.each(['自然切歌', '手动换批'])('QQ首页电台缓存耗尽后%s仍能取得后续曲目', async (action) => {
+    const cached: Track[] = Array.from({ length: 20 }, (_, i) => ({ ...mkTrack(`home-radio-${i}`), source: 'qq', provider: 'qq' }))
+    await requestProviderData('qq', 'recommendation:qq:radio:root', async () => ({
+      content: { type: 'tracks', tracks: cached }, hasMore: true,
+    }))
+    getRadioSongs.mockResolvedValue(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`next-radio-${i}`), source: 'qq', provider: 'qq' })))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    useProviderStore.setState({ playbackOrder: ['qq'] })
+    await useShuangeStore.getState().enter()
+    await vi.waitFor(() => expect(getShuangeFeedContext()?.standby).toHaveLength(8))
+    expect(getRadioSongs).not.toHaveBeenCalled()
+
+    if (action === '自然切歌') {
+      for (let i = 0; i < 24; i++) await useShuangeStore.getState().next()
+    } else {
+      await useShuangeStore.getState().refresh()
+      await useShuangeStore.getState().refresh()
+    }
+
+    const state = useShuangeStore.getState()
+    expect(state.error).toBeNull()
+    expect(String(state.feed[state.index].id)).toMatch(/^next-radio-/)
+    expect(new Set(state.feed.map(track => track.id)).size).toBe(state.feed.length)
+    expect(getRadioSongs).toHaveBeenCalledOnce()
+    expect(getDailySongs).not.toHaveBeenCalled()
+  })
+
+  it('QQ歌单页持续失败时电台补货不依赖歌单游标', async () => {
+    getRadioSongs
+      .mockResolvedValueOnce(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`first-radio-${i}`), source: 'qq', provider: 'qq' })))
+      .mockResolvedValue(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`second-radio-${i}`), source: 'qq', provider: 'qq' })))
+    getRecommendPlaylists.mockRejectedValue(new Error('歌单暂时不可用'))
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    useProviderStore.setState({ playbackOrder: ['qq'] })
+    await useShuangeStore.getState().enter()
+    await vi.waitFor(() => expect(getShuangeFeedContext()?.refill).toBeNull())
+
+    await useShuangeStore.getState().refresh()
+    await useShuangeStore.getState().refresh()
+
+    const state = useShuangeStore.getState()
+    expect(state.error).toBeNull()
+    expect(String(state.feed[state.index].id)).toMatch(/^second-radio-/)
+    expect(getRadioSongs).toHaveBeenCalledTimes(2)
+    expect(getRecommendPlaylists.mock.calls.map(([page]) => page)).toEqual([0, 0])
+  })
+
+  it.each(['空结果', '请求失败'])('QQ电台首次%s后允许重新补货', async (result) => {
+    getRadioSongs.mockResolvedValue(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`retry-radio-${i}`), source: 'qq', provider: 'qq' })))
+    if (result === '空结果') getRadioSongs.mockResolvedValueOnce([])
+    else getRadioSongs.mockRejectedValueOnce(new Error('电台暂时不可用'))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    useProviderStore.setState({ playbackOrder: ['qq'] })
+    await useShuangeStore.getState().enter()
+    expect(useShuangeStore.getState().feed).toEqual([])
+    expect(useShuangeStore.getState().loading).toBe(false)
+
+    await useShuangeStore.getState().enter()
+
+    expect(useShuangeStore.getState().error).toBeNull()
+    expect(useShuangeStore.getState().feed).toHaveLength(12)
+    expect(getRadioSongs).toHaveBeenCalledTimes(2)
+  })
+
+  it('QQ电台后台补货期间连续换批复用在途请求', async () => {
+    let finishRadio!: (tracks: Track[]) => void
+    getRadioSongs
+      .mockResolvedValueOnce(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`first-radio-${i}`), source: 'qq', provider: 'qq' })))
+      .mockImplementationOnce(() => new Promise<Track[]>(resolve => { finishRadio = resolve }))
+    getRecommendPlaylists.mockResolvedValue([])
+    getRadarPlaylist.mockResolvedValue(null)
+    getLyrics.mockResolvedValue([])
+    useProviderStore.setState({ playbackOrder: ['qq'] })
+    await useShuangeStore.getState().enter()
+    await vi.waitFor(() => expect(getShuangeFeedContext()?.standby).toHaveLength(12))
+    await useShuangeStore.getState().refresh()
+
+    const first = useShuangeStore.getState().refresh()
+    const second = useShuangeStore.getState().refresh()
+    expect(getRadioSongs).toHaveBeenCalledTimes(2)
+    finishRadio(Array.from({ length: 24 }, (_, i) => ({ ...mkTrack(`next-radio-${i}`), source: 'qq', provider: 'qq' })))
+    await Promise.all([first, second])
+
+    const state = useShuangeStore.getState()
+    expect(state.error).toBeNull()
+    expect(state.feed).toHaveLength(12)
+    expect(String(state.feed[0].id)).toMatch(/^next-radio-/)
+    await vi.waitFor(() => expect(getShuangeFeedContext()?.standby).toHaveLength(12))
+    expect(getRadioSongs).toHaveBeenCalledTimes(2)
   })
 
   it('首歌开始后后台混入私人雷达和随机推荐歌单，不阻塞首屏', async () => {
