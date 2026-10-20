@@ -18,6 +18,7 @@ import { localMusicService } from './local-music-service'
 import { neteaseService } from './service-registry'
 import { __resetShuangeRecommendationProfile } from './shuange-recommendation'
 import { initShuangePlayback } from './shuange-playback'
+import { clearProviderRequestCache } from './provider-request-cache'
 
 const track: Track = { source: 'local', provider: 'local', type: 'local', id: 'first', name: '当前整曲', artist: '', artists: [], duration: 180_000 }
 const next = vi.fn(async () => {})
@@ -30,6 +31,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   vi.stubGlobal('window', { desktop: { serverPort: 35530 } })
   __resetOffsetCache()
+  clearProviderRequestCache()
   __resetShuangeRecommendationProfile()
   useProviderStore.setState({ playbackOrder: ['netease'], byId: {
     netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }
@@ -44,7 +46,10 @@ beforeEach(async () => {
     offset: { startSec: 30, endSec: 50, kind: 'refrain' }, next })
   await usePlayerStore.getState().loadTrack(track, { startAt: 30, contextId: 'shuange:1' })
   h.callbacks.onStatus?.('playing')
+  // 隔离启动预热 此处专门验证下一首补货与睡眠的竞态
+  const warmup = vi.spyOn(useShuangeStore.getState(), 'warmup').mockResolvedValueOnce()
   stop = initShuangePlayback()
+  warmup.mockRestore()
 })
 afterEach(() => {
   stop?.()

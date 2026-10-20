@@ -24,7 +24,7 @@ const SCROBBLE_MIN_SECONDS = 20
 export type PlaybackEngine = Pick<AudioEngine,
   'load' | 'play' | 'pause' | 'seek' | 'setVolume' | 'setPlaybackRate' | 'clearSource'
   | 'getFrequencyData' | 'hasSource' | 'position' | 'destroy'
->
+> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads'>>
 type ApplePlayback = Pick<AppleMusicPlayback, 'load' | 'command' | 'stop' | 'lyricPosition'>
 type PlaybackResolverPort = Pick<PlaybackResolver,
   'sourceOrder' | 'attempts' | 'failureMessage' | 'next' | 'abort' | 'complete'
@@ -209,6 +209,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     offlineStatus?: OfflineCacheStatus
     engineLoadId: number
     startAt: number
+    /** 仅刷歌允许接管暂停预加载元素 */
+    usePreparedAudio: boolean
     advancing: boolean
     fallbackNotified: boolean
     autoplay: boolean
@@ -376,7 +378,9 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
           quality: String(candidate.quality.id),
         }
       : undefined
-    const loadId = eng.load(candidate.url, active.startAt, cacheKey, cacheContext)
+    const loadId = active.usePreparedAudio
+      ? eng.load(candidate.url, active.startAt, cacheKey, cacheContext, true)
+      : eng.load(candidate.url, active.startAt, cacheKey, cacheContext)
     active.engineLoadId = loadId
     eng.setVolume(get().volume)
     if (active.autoplay) {
@@ -613,6 +617,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       playback?.stop()
       deps.appleSpectrum.stop()
       engine?.clearSource()
+      if (String(get().contextId).startsWith('shuange:')) engine?.releasePreloads?.()
       set({
         currentTrack: null, status: 'idle', position: 0, duration: 0,
         actualSource: null, resolvedTrack: null, resolution: null,
@@ -681,7 +686,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
       activePlayback = null
-      eng.clearSource()
+      if (String(opts?.contextId ?? '').startsWith('shuange:') && String(get().contextId ?? '').startsWith('shuange:')) eng.clearSource(true)
+      else eng.clearSource()
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
@@ -710,6 +716,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         candidateKind: track.source === 'local' ? 'local' : 'resolver',
         engineLoadId: 0,
         startAt,
+        usePreparedAudio: String(nextContextId).startsWith('shuange:'),
         advancing: false,
         fallbackNotified: false,
         autoplay,
@@ -755,7 +762,9 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         active.candidateKind = 'offline'
         active.offlineStatus = offlineStatus
         set({ status: active.autoplay ? 'loading' : 'paused' })
-        const loadId = eng.load(offlineUrl, active.startAt)
+        const loadId = active.usePreparedAudio
+          ? eng.load(offlineUrl, active.startAt, undefined, undefined, true)
+          : eng.load(offlineUrl, active.startAt)
         active.engineLoadId = loadId
         eng.setVolume(get().volume)
         if (active.autoplay) {

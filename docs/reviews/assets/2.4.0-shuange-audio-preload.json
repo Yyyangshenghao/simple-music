@@ -1,0 +1,340 @@
+{
+  "engine": {
+    "realMedia": true,
+    "speakerMuted": true,
+    "checks": [
+      {
+        "format": "mp3",
+        "coldPlayingMs": 799.8999999761581,
+        "prepareMs": 1454.8999999761581,
+        "warmPlayingMs": 2.100000023841858,
+        "warmGraphSignalMs": 12.900000035762787,
+        "peakActiveMedia": 3,
+        "roundTrips": [
+          0.5,
+          0.5,
+          0.3999999761581421,
+          0.2999999523162842,
+          0.40000003576278687,
+          0.40000003576278687,
+          0.3999999761581421,
+          0.5,
+          0.3999999761581421,
+          0.5,
+          0.6000000238418579,
+          0.3999999761581421,
+          0.5999999642372131,
+          0.3999999761581421,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.40000003576278687,
+          0.3999999761581421,
+          0.30000001192092896,
+          0.3999999761581421
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 22
+      },
+      {
+        "format": "flac",
+        "coldPlayingMs": 584.8999999761581,
+        "prepareMs": 1028.2000000476837,
+        "warmPlayingMs": 1.399999976158142,
+        "warmGraphSignalMs": 12.399999976158142,
+        "peakActiveMedia": 3,
+        "roundTrips": [
+          0.3999999761581421,
+          0.5,
+          0.3999999761581421,
+          0.40000003576278687,
+          0.5,
+          0.5,
+          0.40000003576278687,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.20000004768371582,
+          0.3999999761581421,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.5,
+          0.5,
+          0.5,
+          0.3999999761581421,
+          0.40000003576278687,
+          0.5,
+          0.800000011920929
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 23
+      },
+      {
+        "format": "m4a",
+        "coldPlayingMs": 334.5,
+        "prepareMs": 737.5,
+        "warmPlayingMs": 1.199999988079071,
+        "warmGraphSignalMs": 11.900000035762787,
+        "peakActiveMedia": 3,
+        "roundTrips": [
+          0.5,
+          0.3999999761581421,
+          0.3999999761581421,
+          0.3999999761581421,
+          0.5,
+          0.5,
+          0.3999999761581421,
+          0.40000003576278687,
+          0.3999999761581421,
+          0.5,
+          0.3999999761581421,
+          0.5,
+          0.699999988079071,
+          0.40000003576278687,
+          0.30000001192092896,
+          0.5,
+          0.40000003576278687,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.5
+        ],
+        "sameMedia": true,
+        "previousLoads": 2,
+        "nextLoads": 1,
+        "canplays": 22
+      }
+    ],
+    "passed": true,
+    "traffic": [
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=1769472-",
+        "bytes": 1833380
+      },
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=2392064-",
+        "bytes": 1210788
+      },
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=0-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.mp3",
+        "range": "bytes=1179648-",
+        "bytes": 917504
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=557056-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=262144-",
+        "bytes": 65536
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=589824-",
+        "bytes": 524288
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=753664-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=720896-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=786432-",
+        "bytes": 342030
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=1114112-",
+        "bytes": 14350
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=32768-",
+        "bytes": 0
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=360448-",
+        "bytes": 655360
+      },
+      {
+        "file": "fixture.flac",
+        "range": "bytes=524288-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=1212416-",
+        "bytes": 1254039
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=1638400-",
+        "bytes": 828055
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=0-",
+        "bytes": 32768
+      },
+      {
+        "file": "fixture.m4a",
+        "range": "bytes=819200-",
+        "bytes": 557056
+      }
+    ],
+    "memory": [
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 75556,
+          "peakWorkingSetSize": 75556,
+          "privateBytes": 29524
+        }
+      ],
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 80152,
+          "peakWorkingSetSize": 80152,
+          "privateBytes": 32432
+        }
+      ],
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 81200,
+          "peakWorkingSetSize": 82828,
+          "privateBytes": 36512
+        }
+      ],
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 81036,
+          "peakWorkingSetSize": 83068,
+          "privateBytes": 35800
+        }
+      ],
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 82188,
+          "peakWorkingSetSize": 83068,
+          "privateBytes": 37176
+        }
+      ],
+      [
+        {
+          "pid": 6684,
+          "workingSetSize": 87824,
+          "peakWorkingSetSize": 87824,
+          "privateBytes": 42296
+        }
+      ]
+    ]
+  },
+  "application": {
+    "realMedia": true,
+    "platformMetadata": "fixture",
+    "checks": {
+      "foreground": {
+        "sameNextMedia": true,
+        "samePreviousMedia": true,
+        "noLoginAudio": true,
+        "samples": [
+          {
+            "direction": "next",
+            "ms": 25.899999976158142
+          }
+        ]
+      },
+      "minimized": {
+        "index": 1,
+        "active": true
+      },
+      "hidden": {
+        "index": 2,
+        "active": true
+      },
+      "gameMode": {
+        "index": 3,
+        "active": true
+      },
+      "refreshExit": {
+        "status": "paused",
+        "position": 5,
+        "preloadSlots": 0
+      }
+    },
+    "passed": true,
+    "error": "host validation timed out"
+  },
+  "note": "Generated non-silent local fixtures. Native Electron media pipeline. Speakers muted. Not a real Netease account latency benchmark."
+}

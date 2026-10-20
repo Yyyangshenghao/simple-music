@@ -1,5 +1,5 @@
 import { api } from './api'
-import { qqLyricIdentifiers } from './qq-lyric-identifiers'
+// import { qqLyricIdentifiers } from './qq-lyric-identifiers' // 旧歌词直取路径
 import { qqRelatedSongId } from './qq-related-identifiers'
 import { requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
@@ -175,9 +175,19 @@ export class QQMusicService implements MusicService {
     return res.url ?? ''
   }
 
+  /**
+   * 复用 QQ 歌词解析及缓存供刷歌选段
+   *
+   * @param track 目标曲目
+   */
   async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', qqLyricIdentifiers(track))
-    return res.lines ?? []
+    // 旧方案依赖不存在的 lines 字段
+    // const res = await api.get<{ lines: LyricLine[] }>('/api/qq/lyric', qqLyricIdentifiers(track))
+    // return res.lines ?? []
+    // 延迟加载共享歌词模块 避免 provider 初始化循环
+    const { fetchLyrics } = await import('./lyrics-fetch')
+    // 读取共享解析结果
+    return (await fetchLyrics(track)).main
   }
 
   async getDailySongs(): Promise<Track[]> {

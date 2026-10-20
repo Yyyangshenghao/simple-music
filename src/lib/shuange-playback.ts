@@ -27,6 +27,8 @@ export function initShuangePlayback(): () => void {
       && state.feed.some(item => item.source === current.source && String(item.id) === String(current.id))
     if (!state.offset || state.offset.endSec <= state.offset.startSec
       || !track || !current || track.source !== current.source || String(track.id) !== String(current.id)) return false
+    // 失败后保留刷歌接管 等待用户重试避免每次进度都补货
+    if (state.error) return true
     if (advancing) return true
     advancing = true
     const request = revision
@@ -34,6 +36,7 @@ export function initShuangePlayback(): () => void {
     const beforeIndex = state.index
     const release = () => {
       const latest = useShuangeStore.getState()
+      if (!stopped && revision === request && latest.active && latest.error) usePlayerStore.getState().pause()
       if (!stopped && revision === request && shouldReleaseShuangeAdvanceLock(beforeIndex, latest.index, latest.active)) advancing = false
     }
     void state.next(() => !stopped && revision === request && isCurrentPlaybackIntent(intent)
@@ -41,7 +44,8 @@ export function initShuangePlayback(): () => void {
     return true
   }
   const stopState = useShuangeStore.subscribe((state, previous) => {
-    if (state.active !== previous.active || state.index !== previous.index || state.offset !== previous.offset) {
+    if (state.active !== previous.active || state.index !== previous.index || state.offset !== previous.offset
+      || state.feed[state.index] !== previous.feed[previous.index]) {
       ++revision
       advancing = false
     }
