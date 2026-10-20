@@ -7,7 +7,8 @@ import { SOURCE_BRAND } from '../../lib/source-brand'
 import { AppPlaylistSources } from './AppPlaylistSources'
 import type { Track } from '../../types/domain'
 import styles from './AppPlaylistDialog.module.css'
-import { NameDialog, nameDialogStyles as nameStyles } from './NameDialog'
+import { CHECK_ICON, NameDialog, PLUS_ICON, SEARCH_ICON, nameDialogStyles as nameStyles } from './NameDialog'
+import { AppPlaylistCover } from './AppPlaylistCover'
 
 export function AppPlaylistModal({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -47,7 +48,16 @@ export function AppPlaylistNameDialog({ initialName = '', title, onSubmit, onClo
   </NameDialog>
 }
 
-export function AddToAppPlaylistDialog({ loadTracks, tracks, contextLabel, onClose, onDone }: { loadTracks(signal: AbortSignal): Promise<Track[]>; tracks?: Track[]; contextLabel?: string; onClose(): void; onDone?(): void }) {
+export interface AddTracksProps { loadTracks(signal: AbortSignal): Promise<Track[]>; tracks?: Track[]; onClose(): void; onDone?(): void }
+
+export function playlistContextSubtitle(contextLabel: string | undefined, tracks: Track[] | undefined): ReactNode {
+  const knownCount = tracks === undefined ? undefined : new Set(tracks.map(appPlaylistTrackKey)).size
+  if (!contextLabel && knownCount === undefined) return undefined
+  return <>{contextLabel}{knownCount !== undefined && <span>{contextLabel ? ' · ' : ''}{knownCount} 首歌曲</span>}</>
+}
+
+/** 应用歌单选择主体，嵌在统一的「加入歌单」弹窗里。 */
+export function AppPlaylistPicker({ loadTracks, tracks, onClose, onDone }: AddTracksProps) {
   const items = useAppPlaylistsStore(state => state.items)
   const archiveError = useAppPlaylistsStore(state => state.error)
   const [lastId] = useState(readLastTarget)
@@ -56,6 +66,7 @@ export function AddToAppPlaylistDialog({ loadTracks, tracks, contextLabel, onClo
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [busyTarget, setBusyTarget] = useState<string | null>(null)
   const operation = useRef<AbortController | null>(null)
   const knownCount = tracks === undefined ? undefined : new Set(tracks.map(appPlaylistTrackKey)).size
   const ordered = orderQuickAddTargets(items, lastId).filter(item => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
@@ -83,33 +94,51 @@ export function AddToAppPlaylistDialog({ loadTracks, tracks, contextLabel, onClo
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : '保存失败，请重试')
     } finally {
-      if (!controller.signal.aborted) { operation.current = null; setBusy(false) }
+      if (!controller.signal.aborted) { operation.current = null; setBusy(false); setBusyTarget(null) }
     }
   }
 
-  return <AppPlaylistModal title="加入应用歌单" onClose={close}>
-    {(contextLabel || knownCount !== undefined) && <p className={styles.context}>{contextLabel}{knownCount !== undefined && <span>{contextLabel ? ' · ' : ''}{knownCount} 首歌曲</span>}</p>}
-    {archiveError ? <div role="alert"><p className={styles.error}>{archiveError}</p><button onClick={() => useAppPlaylistsStore.getState().reload()}>重试读取</button></div>
+  return <>
+    {archiveError ? <div className={nameStyles.notice} role="alert"><span>{archiveError}</span><button type="button" onClick={() => useAppPlaylistsStore.getState().reload()}>重试读取</button></div>
+      : creating || !items.length ? <form onSubmit={event => { event.preventDefault(); void save() }}>
+        <div className={nameStyles.field} data-filled={name.length > 0}>
+          <input autoFocus required maxLength={80} value={name} disabled={busy} placeholder="新歌单名称" aria-label="新歌单名称" onChange={event => setName(event.target.value)} />
+          <span className={nameStyles.count} data-full={name.length >= 80} aria-hidden="true">{name.length}/80</span>
+        </div>
+        {!items.length && <p className={nameStyles.note}>不同平台的歌曲可以放进同一份歌单</p>}
+        {error && <p className={nameStyles.error} role="alert">{error}</p>}
+        <div className={nameStyles.actions}>
+          <button type="button" className={nameStyles.ghost} onClick={() => items.length ? setCreating(false) : close()}>{items.length ? '返回' : '取消'}</button>
+          <button type="submit" className={nameStyles.primary} disabled={busy || !name.trim()}>{busy ? <><span className={nameStyles.spinner} aria-hidden="true" />加入中</> : '创建并加入'}</button>
+        </div>
+      </form>
       : <>
-        {(items.length > 5 || query) && <input className={styles.search} type="search" aria-label="搜索应用歌单" placeholder="搜索歌单" value={query} disabled={busy} onChange={event => setQuery(event.target.value)} />}
-        <div className={styles.list} aria-label="选择应用歌单">
+        {(items.length > 5 || query) && <label className={nameStyles.search}>{SEARCH_ICON}<input type="search" aria-label="搜索应用歌单" placeholder="搜索歌单" value={query} disabled={busy} onChange={event => setQuery(event.target.value)} /></label>}
+        <div className={nameStyles.list} aria-label="选择应用歌单">
+          {!query && <button type="button" className={nameStyles.row} disabled={busy} onClick={() => setCreating(true)}>
+            <span className={`${nameStyles.thumb} ${nameStyles.newThumb}`} aria-hidden="true">{PLUS_ICON}</span>
+            <span className={nameStyles.rowText}><strong>新建歌单</strong></span>
+          </button>}
           {ordered.map(item => {
             const included = tracks === undefined ? 0 : countIncludedTracks(item, tracks)
             const allIncluded = knownCount !== undefined && knownCount > 0 && included === knownCount
             const status = allIncluded ? '已包含全部歌曲' : included ? `已包含 ${included} 首` : ''
-            return <button key={item.id} type="button" disabled={busy || allIncluded} onClick={() => void save(item.id)} aria-label={`加入 ${item.name}，${item.tracks.length} 首${status ? `，${status}` : ''}${item.tracks.length ? `，${appPlaylistSources(item.tracks).map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')}` : ''}`}>
-              <span className={styles.targetInfo}><strong title={item.name}>{item.name}</strong><span><small>{item.tracks.length} 首</small><AppPlaylistSources tracks={item.tracks} compact />{status && <small className={styles.included}>{status}</small>}</span></span><span aria-hidden="true">{allIncluded ? '✓' : '＋'}</span>
+            const saving = busyTarget === item.id
+            return <button key={item.id} type="button" className={nameStyles.row} data-state={saving ? 'busy' : allIncluded ? 'done' : undefined}
+              disabled={busy || allIncluded} onClick={() => { setBusyTarget(item.id); void save(item.id) }}
+              aria-label={`加入 ${item.name}，${item.tracks.length} 首${status ? `，${status}` : ''}${item.tracks.length ? `，${appPlaylistSources(item.tracks).map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')}` : ''}`}>
+              <span className={nameStyles.thumb} aria-hidden="true"><AppPlaylistCover tracks={item.tracks} /></span>
+              <span className={nameStyles.rowText}>
+                <strong title={item.name}>{item.name}</strong>
+                <small>{status ? <span className={nameStyles.included}>{status}</span> : `${item.tracks.length} 首`}<AppPlaylistSources tracks={item.tracks} compact /></small>
+              </span>
+              <span className={nameStyles.rowAction} aria-hidden="true">{saving ? <span className={nameStyles.spinner} /> : allIncluded ? CHECK_ICON : PLUS_ICON}</span>
             </button>
           })}
-          {!ordered.length && <p className={styles.hint}>{items.length ? '没有匹配的歌单' : '还没有应用歌单，新建一份开始收藏。'}</p>}
+          {!ordered.length && <p className={nameStyles.empty}>没有匹配的歌单</p>}
         </div>
-        {!items.length && <p className={styles.hint}>不同平台的歌曲可以收进同一份歌单，仅保存在应用内。</p>}
-        {creating || !items.length ? <form className={`${styles.form} ${styles.create}`} onSubmit={event => { event.preventDefault(); void save() }}>
-          <label>新建歌单<input autoFocus required maxLength={80} value={name} disabled={busy} placeholder="歌单名称" onChange={event => setName(event.target.value)} /></label>
-          <div className={styles.actions}><button type="button" onClick={close}>{busy ? '取消操作' : '取消'}</button><button className={styles.primary} type="submit" disabled={busy || !name.trim()}>新建并加入</button></div>
-        </form> : <div className={styles.actions}><button type="button" disabled={busy} onClick={() => setCreating(true)}>新建歌单</button><button type="button" onClick={close}>{busy ? '取消操作' : '取消'}</button></div>}
+        {error && <p className={nameStyles.error} role="alert">{error}</p>}
+        <div className={nameStyles.actions}><button type="button" className={nameStyles.ghost} onClick={close}>取消</button></div>
       </>}
-    {busy && <p className={styles.hint} role="status">正在整理歌曲…</p>}
-    {error && <p className={styles.error} role="alert">{error}</p>}
-  </AppPlaylistModal>
+  </>
 }

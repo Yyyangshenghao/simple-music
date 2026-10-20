@@ -59,10 +59,10 @@ export async function mutatePlatformPlaylist(source: WritablePlaylistSource, com
 }
 
 export function platformPlaylistResultMessage(result: PlatformPlaylistMutationResult, action: PlatformPlaylistCommand['action']): string {
-  const verb = { create: '新建', rename: '改名', add: '加入', remove: '移除' }[action]
+  const verb = { create: '新建', rename: '改名', privacy: '可见性', add: '加入', remove: '移除' }[action]
   if (result.status === 'unknown' || result.completed === null) return `平台结果尚未确认，请刷新歌单查看，避免重复操作。${result.error || ''}`
   if (result.status === 'partial') return `${action === 'add' || action === 'remove' ? `已${verb} ${result.completed}/${result.requested} 首。` : `歌单${verb}未完成。`}${result.error || '部分操作未完成，请刷新歌单查看'}`
-  return action === 'create' ? '已新建平台歌单' : action === 'rename' ? '歌单已改名' : `已${verb} ${result.completed} 首歌曲`
+  return action === 'create' ? '已新建平台歌单' : action === 'rename' ? '歌单已改名' : action === 'privacy' ? '歌单可见性已更新' : `已${verb} ${result.completed} 首歌曲`
 }
 
 /** 收藏或取消收藏他人歌单/专辑；返回平台读回的状态，并通知我的库与详情页重新读取。 */

@@ -4,12 +4,13 @@ import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { inspectPlatformPlaylist, mutatePlatformPlaylist, platformPlaylistResultMessage } from '../../lib/platform-playlists'
 import { useToastStore } from '../../stores/toast'
-import { AppPlaylistModal } from './AppPlaylistDialog'
-import { LOCK_ICON, NameDialog, nameDialogStyles as nameStyles } from './NameDialog'
+import { LOCK_ICON, NameDialog, PLUS_ICON, nameDialogStyles as nameStyles } from './NameDialog'
+import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
+import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
+import { LockGlyph } from '../ui/LockGlyph'
 import type { Playlist, Track } from '../../types/domain'
 import type { WritablePlaylistSource } from '../../types/platform-playlist'
-import styles from './PlatformPlaylistDialog.module.css'
 
 const platformName = (source: WritablePlaylistSource) => source === 'qq' ? 'QQ 音乐' : '网易云音乐'
 const failureMessage = (failure: unknown) => failure instanceof Error ? failure.message : '平台操作失败，请刷新歌单后重试'
@@ -36,10 +37,6 @@ function usePlatformOperation(source: WritablePlaylistSource) {
   return { operation, busy, valid, current, begin, finish }
 }
 
-function Scope({ source }: { source: WritablePlaylistSource }) {
-  return <p className={styles.hint}>直接保存到{platformName(source)}，仅接受该平台歌曲。{source === 'qq' && 'QQ 音乐目前仅支持管理私密歌单。'}</p>
-}
-
 export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreated }: {
   source: WritablePlaylistSource
   playlist?: Playlist
@@ -49,6 +46,9 @@ export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreate
   const [name, setName] = useState(playlist?.name ?? '')
   const [error, setError] = useState('')
   const [uncertain, setUncertain] = useState(false)
+  const [isPublic, setIsPublic] = useState(false)
+  // 公开创建只开放网易云；QQ 公开歌单的归属核对未验证。
+  const canPublish = !playlist && source === 'netease'
   const requestId = useRef('')
   if (!requestId.current) requestId.current = crypto.randomUUID()
   const task = usePlatformOperation(source)
@@ -68,7 +68,7 @@ export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreate
       }
       const result = await mutatePlatformPlaylist(source, playlist
         ? { action: 'rename', playlistId: String(playlist.id), name: trimmed }
-        : { action: 'create', name: trimmed, requestId: requestId.current }, controller.signal)
+        : { action: 'create', name: trimmed, requestId: requestId.current, ...(canPublish && isPublic ? { public: true } : {}) }, controller.signal)
       if (!task.current(controller.signal)) return
       if (result.status !== 'complete') {
         setError(`${platformPlaylistResultMessage(result, playlist ? 'rename' : 'create')}。请刷新平台歌单查看结果。`)
@@ -89,7 +89,13 @@ export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreate
           placeholder="歌单名称" aria-label="歌单名称" onChange={event => setName(event.target.value)} />
         <span className={nameStyles.count} data-full={name.length >= maxLength} aria-hidden="true">{name.length}/{maxLength}</span>
       </div>
-      {!playlist && <p className={nameStyles.note}>{LOCK_ICON}仅自己可见</p>}
+      {canPublish ? <div className={nameStyles.privacy}>
+        <span>{isPublic ? '公开歌单' : '私有歌单'}</span>
+        <button type="button" className={nameStyles.lock} aria-pressed={isPublic} aria-label={isPublic ? '改为私有歌单' : '改为公开歌单'}
+          disabled={task.busy || !task.valid || uncertain} onClick={() => setIsPublic(value => !value)}>
+          <LockGlyph open={isPublic} />
+        </button>
+      </div> : !playlist && <p className={nameStyles.note}>{LOCK_ICON}仅自己可见</p>}
       {!task.valid && <p className={nameStyles.error} role="alert">账号或平台状态已变化，请关闭后重新操作。</p>}
       {error && <p className={nameStyles.error} role="alert">{error}</p>}
       <div className={nameStyles.actions}>
@@ -102,13 +108,18 @@ export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreate
   </NameDialog>
 }
 
-export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDone }: {
+type Target = { id: string; name: string; cover?: string; trackCount?: number }
+
+interface AddProps {
   source: WritablePlaylistSource
   loadTracks(signal: AbortSignal): Promise<Track[]>
   onClose(): void
   onDone?(): void
-}) {
-  const [items, setItems] = useState<Array<{ id: string; name: string }>>([])
+}
+
+/** 平台歌单选择主体，嵌在统一的「加入歌单」弹窗里。 */
+export function PlatformPlaylistPicker({ source, loadTracks, onClose, onDone }: AddProps) {
+  const [items, setItems] = useState<Target[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState('')
   const [error, setError] = useState('')
@@ -117,6 +128,7 @@ export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDon
   const createdTarget = useRef<{ id: string; name: string } | null>(null)
   const [reload, setReload] = useState(0)
   const task = usePlatformOperation(source)
+  const [busyTarget, setBusyTarget] = useState<string | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
@@ -128,7 +140,7 @@ export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDon
         if (!library?.getUserPlaylists) throw new Error('当前平台无法读取歌单，请稍后重试')
         const playlists = await library.getUserPlaylists()
         if (!task.current(controller.signal)) return
-        const targets: Array<{ id: string; name: string }> = []
+        const targets: Target[] = []
         let unverified = false
         // 清单并非权限凭据；只展示服务端确认可编辑的目标，并限制同时核验数。
         const candidates = [...new Map(playlists.filter(item => item.source === source).map(item => [String(item.id), item])).values()]
@@ -138,7 +150,7 @@ export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDon
           await Promise.all(candidates.slice(offset, offset + 3).map(async item => {
             try {
               const target = await inspectPlatformPlaylist(source, String(item.id), controller.signal)
-              targets.push({ id: target.playlistId, name: target.name })
+              targets.push({ id: target.playlistId, name: target.name, cover: item.cover, trackCount: item.trackCountKnown === false ? undefined : item.trackCount })
             } catch { unverified = true }
           }))
           if (!task.current(controller.signal)) return
@@ -157,10 +169,11 @@ export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDon
   }, [source, reload, task.valid])
 
   function close() { task.operation.current?.abort(); onClose() }
-  async function save(target: { id: string; name: string }) {
+  async function save(target: Target) {
     const controller = task.begin()
     if (!controller) return
     setError('')
+    setBusyTarget(target.id)
     try {
       const tracks = await loadTracks(controller.signal)
       if (!task.current(controller.signal)) return
@@ -182,33 +195,41 @@ export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDon
       onClose()
     } catch (failure) {
       if (task.current(controller.signal)) setError(`「${target.name}」：${failureMessage(failure)}`)
-    } finally { task.finish(controller) }
+    } finally { task.finish(controller); if (task.current(controller.signal)) setBusyTarget(null) }
   }
 
-  if (creating && task.valid) return <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
-    const target = { id, name }
-    createdTarget.current = target
-    setCreated(target)
-    setItems(previous => [target, ...previous.filter(item => item.id !== id)])
-    void save(target)
-  }} />
-
-  return <AppPlaylistModal title={`加入${platformName(source)}歌单`} onClose={close}>
-    <Scope source={source} />
-    {!task.valid ? <p className={styles.error} role="alert">账号或平台状态已变化，请关闭后重新操作。</p> : <>
-      {loading && <p className={styles.hint} role="status">正在读取可编辑歌单…</p>}
-      {listError && <div className={styles.notice}><p className={styles.error} role="alert">{listError}</p><button type="button" disabled={task.busy || loading} onClick={() => setReload(value => value + 1)}>刷新歌单</button></div>}
-      {created && <p className={styles.hint}>已新建「{created.name}」。{error ? '歌曲尚未确认加入，歌单会保留。' : '正在加入歌曲…'}</p>}
-      <div className={styles.list} aria-label="选择平台歌单">{items.map(item => <button key={item.id} type="button" disabled={task.busy} title={item.name} onClick={() => void save(item)} aria-label={`加入 ${item.name}`}>
-        <span>{item.name}</span><span aria-hidden="true">＋</span>
-      </button>)}</div>
-      {!loading && !items.length && <p className={styles.hint}>没有可编辑的{source === 'qq' ? '私密' : '自建'}歌单，可以新建一个。</p>}
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      {error && !listError && <button type="button" disabled={task.busy || loading} onClick={() => setReload(value => value + 1)}>刷新歌单</button>}
-      {task.busy && <p className={styles.hint} role="status">正在加入歌曲…取消不会撤回已发送的平台操作。</p>}
+  return <>
+    {/* 新建叠在选择器之上，取消后回到列表。 */}
+    {creating && task.valid && <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
+      const target = { id, name }
+      createdTarget.current = target
+      setCreated(target)
+      setItems(previous => [target, ...previous.filter(item => item.id !== id)])
+      void save(target)
+    }} />}
+    {!task.valid ? <p className={nameStyles.error} role="alert">账号或平台状态已变化，请关闭后重新操作。</p> : <>
+      <div className={nameStyles.list} aria-label="选择平台歌单">
+        <button type="button" className={nameStyles.row} disabled={task.busy} onClick={() => setCreating(true)} aria-label="新建并加入">
+          <span className={`${nameStyles.thumb} ${nameStyles.newThumb}`} aria-hidden="true">{PLUS_ICON}</span>
+          <span className={nameStyles.rowText}><strong>新建歌单</strong></span>
+        </button>
+        {items.map(item => <button key={item.id} type="button" className={nameStyles.row} data-state={busyTarget === item.id ? 'busy' : undefined}
+          disabled={task.busy} title={item.name} onClick={() => void save(item)} aria-label={`加入 ${item.name}`}>
+          <span className={nameStyles.thumb} aria-hidden="true">{item.cover ? <img src={sizedImage(item.cover, 96)} alt="" loading="lazy" /> : <PlaylistCoverFallback name={item.name} source={source} />}</span>
+          <span className={nameStyles.rowText}><strong>{item.name}</strong>{item.trackCount !== undefined && <small>{item.trackCount} 首</small>}</span>
+          <span className={nameStyles.rowAction} aria-hidden="true">{busyTarget === item.id ? <span className={nameStyles.spinner} /> : PLUS_ICON}</span>
+        </button>)}
+        {loading && Array.from({ length: items.length ? 1 : 3 }, (_, index) => <div key={index} className={nameStyles.skeletonRow} aria-hidden="true" />)}
+      </div>
+      {loading && <span className={nameStyles.srOnly} role="status">正在读取可编辑歌单</span>}
+      {!loading && !items.length && !listError && <p className={nameStyles.empty}>还没有可加入的{source === 'qq' ? '私密' : '自建'}歌单</p>}
+      {created && <p className={nameStyles.note}>已新建「{created.name}」。{error ? '歌曲尚未确认加入，歌单会保留。' : '正在加入歌曲…'}</p>}
+      {listError && <div className={nameStyles.notice}><span role="alert">{listError}</span><button type="button" disabled={task.busy || loading} onClick={() => setReload(value => value + 1)}>刷新歌单</button></div>}
+      {error && <p className={nameStyles.error} role="alert">{error}</p>}
+      {error && !listError && <div className={nameStyles.notice}><span /><button type="button" disabled={task.busy || loading} onClick={() => setReload(value => value + 1)}>刷新歌单</button></div>}
     </>}
-    <div className={styles.actions}><button type="button" onClick={close}>{task.busy ? '取消操作' : '取消'}</button>
-      <button type="button" className={styles.primary} disabled={task.busy || !task.valid} onClick={() => setCreating(true)}>新建并加入</button>
+    <div className={nameStyles.actions}>
+      <button type="button" className={nameStyles.ghost} onClick={close} title={task.busy ? '已发送的平台操作不会被撤回' : undefined}>取消</button>
     </div>
-  </AppPlaylistModal>
+  </>
 }

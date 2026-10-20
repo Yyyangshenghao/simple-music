@@ -181,9 +181,9 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
               data-track-action-trigger
               onClick={event => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
               whileTap={tapScale}
-              aria-label="加入应用歌单"
+              aria-label="加入歌单"
               aria-haspopup="dialog"
-              title="加入应用歌单"
+              title="加入歌单"
             >
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             </motion.button>

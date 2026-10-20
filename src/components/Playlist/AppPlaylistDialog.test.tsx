@@ -1,7 +1,7 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AddToAppPlaylistDialog } from './AppPlaylistDialog'
+import { AppPlaylistPicker, playlistContextSubtitle } from './AppPlaylistDialog'
 import type { AppPlaylist } from '../../stores/app-playlists'
 import type { Track } from '../../types/domain'
 
@@ -32,7 +32,7 @@ describe('选择应用歌单后的异步保存', () => {
 
   it('目标的读屏名称包含四源构成与数量，不被单独的操作名称覆盖', () => {
     h.targetTracks = (['netease', 'qq', 'apple', 'local'] as const).map(source => ({ ...track, source, provider: source, id: '1' }))
-    const tree = AddToAppPlaylistDialog({ loadTracks: async () => [], onClose: vi.fn() })
+    const tree = AppPlaylistPicker({ loadTracks: async () => [], onClose: vi.fn() })
     const target = buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!
     const label = (target.props as unknown as { 'aria-label': string })['aria-label']
     for (const text of ['4 首', '网易云 1 首', 'QQ音乐 1 首', 'Apple Music 1 首', '本地 1 首']) expect(label).toContain(text)
@@ -41,7 +41,7 @@ describe('选择应用歌单后的异步保存', () => {
   it('选择目标后保存同一批曲目，并在落盘成功后通知完成', async () => {
     const loadTracks = vi.fn(async () => [track])
     const onDone = vi.fn(), onClose = vi.fn()
-    const tree = AddToAppPlaylistDialog({ loadTracks, onDone, onClose })
+    const tree = AppPlaylistPicker({ loadTracks, onDone, onClose })
     buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!.props.onClick()
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledOnce())
     expect(h.add).toHaveBeenCalledWith('target', [track])
@@ -55,9 +55,9 @@ describe('选择应用歌单后的异步保存', () => {
     let finish!: (tracks: Track[]) => void
     const loadTracks = vi.fn(() => new Promise<Track[]>(resolve => { finish = resolve }))
     const onDone = vi.fn(), onClose = vi.fn()
-    const tree = AddToAppPlaylistDialog({ loadTracks, onDone, onClose })
+    const tree = AppPlaylistPicker({ loadTracks, onDone, onClose })
     buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!.props.onClick()
-    if (action === 'close') tree.props.onClose()
+    if (action === 'close') buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('取消'))!.props.onClick()
     else h.cleanups.splice(0).forEach(cleanup => cleanup())
     finish([track])
     await Promise.resolve()
@@ -70,8 +70,8 @@ describe('选择应用歌单后的异步保存', () => {
 
   it('已知曲目显示待加入数量，按唯一曲目标出重复和全部包含', () => {
     h.targetTracks = [track]
-    const tree = AddToAppPlaylistDialog({ tracks: [track, track], contextLabel: '已选歌曲', loadTracks: vi.fn(), onClose: vi.fn() })
-    expect(renderToStaticMarkup(tree)).toContain('1 首歌曲')
+    const tree = AppPlaylistPicker({ tracks: [track, track], loadTracks: vi.fn(), onClose: vi.fn() })
+    expect(renderToStaticMarkup(<>{playlistContextSubtitle('已选歌曲', [track, track])}</>)).toContain('1 首歌曲')
     const target = buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!
     expect(target.props.disabled).toBe(true)
     expect(renderToStaticMarkup(target)).toContain('已包含全部歌曲')
@@ -80,7 +80,7 @@ describe('选择应用歌单后的异步保存', () => {
   it('部分包含仍能选择，回执使用实际新增数', async () => {
     h.targetTracks = [track]
     const another = { ...track, id: 'other' }
-    const tree = AddToAppPlaylistDialog({ tracks: [track, another], loadTracks: async () => [track, another], onClose: vi.fn() })
+    const tree = AppPlaylistPicker({ tracks: [track, another], loadTracks: async () => [track, another], onClose: vi.fn() })
     const target = buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!
     expect(target.props.disabled).toBe(false)
     expect(renderToStaticMarkup(target)).toContain('已包含 1 首')
@@ -91,9 +91,9 @@ describe('选择应用歌单后的异步保存', () => {
   it('打开集合选择器不提前加载歌曲，零新增也给出目标名称与真实数量', async () => {
     h.add.mockReturnValue(0)
     const loadTracks = vi.fn(async () => [track])
-    const tree = AddToAppPlaylistDialog({ contextLabel: '2 份歌单/专辑（选定后读取歌曲）', loadTracks, onClose: vi.fn() })
+    const tree = AppPlaylistPicker({ loadTracks, onClose: vi.fn() })
     expect(loadTracks).not.toHaveBeenCalled()
-    expect(renderToStaticMarkup(tree)).toContain('2 份歌单/专辑')
+    expect(renderToStaticMarkup(<>{playlistContextSubtitle('2 份歌单/专辑（选定后读取歌曲）', undefined)}</>)).toContain('2 份歌单/专辑')
     buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!.props.onClick()
     await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith('「通勤」已包含所选歌曲，新增 0 首'))
   })
@@ -102,14 +102,14 @@ describe('选择应用歌单后的异步保存', () => {
     h.items = Array.from({ length: 6 }, (_, index) => ({ id: String(index), name: `歌单 ${index}`, updatedAt: index, createdAt: 0, tracks: [] }))
     vi.mocked(localStorage.getItem).mockReturnValue('1')
     const loadTracks = vi.fn()
-    let tree = AddToAppPlaylistDialog({ loadTracks, onClose: vi.fn() })
+    let tree = AppPlaylistPicker({ loadTracks, onClose: vi.fn() })
     const targets = buttons(tree.props.children).filter(button => renderToStaticMarkup(button).includes('aria-label="加入'))
     expect(renderToStaticMarkup(targets[0])).toContain('歌单 1')
     expect(renderToStaticMarkup(targets[1])).toContain('歌单 5')
     expect(renderToStaticMarkup(tree)).toContain('搜索应用歌单')
     h.stateIndex = 0
     h.stateValues[1] = '  歌单 3  '
-    tree = AddToAppPlaylistDialog({ loadTracks, onClose: vi.fn() })
+    tree = AppPlaylistPicker({ loadTracks, onClose: vi.fn() })
     expect(buttons(tree.props.children).filter(button => renderToStaticMarkup(button).includes('aria-label="加入'))).toHaveLength(1)
     expect(renderToStaticMarkup(tree)).toContain('歌单 3')
     expect(loadTracks).not.toHaveBeenCalled()
@@ -129,7 +129,7 @@ describe('选择应用歌单后的异步保存', () => {
     }
     h.stateValues[2] = true
     h.stateIndex = 0
-    const creating = AddToAppPlaylistDialog({ loadTracks: async () => [track, track], onClose: vi.fn() })
+    const creating = AppPlaylistPicker({ loadTracks: async () => [track, track], onClose: vi.fn() })
     submit(creating.props.children)!()
     await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith('已新建「新收藏」，新增 1 首'))
     expect(localStorage.setItem).toHaveBeenCalledWith('simplemusic-app-playlist-last-target', 'created')
@@ -138,7 +138,7 @@ describe('选择应用歌单后的异步保存', () => {
   it('写入失败不报成功、不清空选区且不关闭对话框', async () => {
     h.add.mockImplementation(() => { throw new Error('保存失败') })
     const onDone = vi.fn(), onClose = vi.fn()
-    const tree = AddToAppPlaylistDialog({ loadTracks: async () => [track], onDone, onClose })
+    const tree = AppPlaylistPicker({ loadTracks: async () => [track], onDone, onClose })
     buttons(tree.props.children).find(button => renderToStaticMarkup(button).includes('加入 通勤'))!.props.onClick()
     await vi.waitFor(() => expect(h.add).toHaveBeenCalledOnce())
     expect(onDone).not.toHaveBeenCalled()

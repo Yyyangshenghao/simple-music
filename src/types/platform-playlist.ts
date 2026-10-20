@@ -19,8 +19,11 @@ export interface PlatformPlaylistTrack {
 }
 
 export type PlatformPlaylistCommand = (
-  | { action: 'create'; name: string; requestId: string }
+  /** public 仅网易云支持；缺省为仅自己可见。 */
+  | { action: 'create'; name: string; requestId: string; public?: boolean }
   | { action: 'rename'; playlistId: string; name: string }
+  /** 切换公开/仅自己可见，仅网易云支持。 */
+  | { action: 'privacy'; playlistId: string; public: boolean }
   | { action: 'add' | 'remove'; playlistId: string; tracks: PlatformPlaylistTrack[] }
 )
 
@@ -36,6 +39,8 @@ export interface CollectionSubscription extends PlaylistManagementSession {
 export interface PlatformPlaylistInspection {
   playlistId: string
   name: string
+  /** 仅自己可见；QQ 只管理私密歌单，恒为 true。 */
+  private?: boolean
 }
 
 export interface PlatformPlaylistMutationResult {

@@ -3,9 +3,7 @@ import { PROVIDER_IDS } from '../../providers/types'
 import { useProviderStore } from '../../stores/providers'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { resolveAppPlaylistTracks, resolveBatchTracks } from '../../lib/batch-tracks'
-import { AddToAppPlaylistDialog } from './AppPlaylistDialog'
-import { AddToPlatformPlaylistDialog } from './PlatformPlaylistDialog'
-import { isWritablePlaylistSource, supportsPlatformPlaylists } from '../../lib/platform-playlists'
+import { AddToPlaylistDialog } from './AddToPlaylistDialog'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -49,14 +47,11 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [choosingPlaylist, setChoosingPlaylist] = useState(false)
-  const [choosingPlatformPlaylist, setChoosingPlatformPlaylist] = useState(false)
   const operation = useRef<AbortController | null>(null)
   const accountSignature = useProviderStore((state) => offline ? '' : PROVIDER_IDS.map((source) => `${state.byId[source].enabled}:${state.byId[source].auth}:${providerAccountSession(source)}`).join('|'))
   const signature = [...tracks, ...collections].map((item) => `${item.source}:${item.type}:${String(item.id)}`).join('|')
   const sourceSet = new Set([...tracks, ...collections].map((item) => item.source))
   const canSave = !offline && (sourceSet.size === 0 || [...sourceSet].every((item) => item === 'netease' || item === 'qq'))
-  const onlySource = sourceSet.size === 1 ? [...sourceSet][0] : undefined
-  const platformSource = !offline && onlySource && isWritablePlaylistSource(onlySource) && supportsPlatformPlaylists(onlySource) ? onlySource : null
   const count = tracks.length + collections.length
   const downloadTrackCount = new Set(tracks.filter(track => !isCatalogUnavailable(track)).map(track => `${track.source}:${String(track.id)}`)).size
   const downloadCountLabel = collections.length
@@ -65,9 +60,12 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
       : '曲数待确认'
     : `${downloadTrackCount} 首`
   const downloadLabel = `${compact ? '全部下载' : '下载所选'}（${downloadCountLabel}）`
-  const playlistContextLabel = collections.length
-    ? `${label ?? '所选项目'} · ${tracks.length ? `${tracks.length} 首歌曲、` : ''}${collections.length} 份歌单/专辑（选定后读取歌曲）`
-    : label ?? (selection ? '已选歌曲' : '当前列表')
+  // 弹窗副标题只说明「加什么」：单个歌单/专辑直接显示名称，其余给出数量。
+  const playlistContextLabel = collections.length === 1 && !tracks.length
+    ? collections[0].name
+    : collections.length
+      ? `${label ?? '所选项目'} · ${tracks.length ? `${tracks.length} 首歌曲、` : ''}${collections.length} 份歌单/专辑`
+      : label ?? (selection ? '已选歌曲' : '当前列表')
 
   useEffect(() => {
     operation.current?.abort()
@@ -75,7 +73,6 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     setOpen(false)
     setError('')
     setChoosingPlaylist(false)
-    setChoosingPlatformPlaylist(false)
     return () => { operation.current?.abort() }
   }, [signature, accountSignature])
 
@@ -141,11 +138,8 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
 
   const commands = <>
     <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlaylist(true) }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 7v10M7 12h10" strokeLinecap="round" /></svg>加入应用歌单
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 7v10M7 12h10" strokeLinecap="round" /></svg>加入歌单
     </button>
-    {platformSource && <button type="button" role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => { closeMenu(); setChoosingPlatformPlaylist(true) }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h11M4 10h11M4 15h6m8-5v11m-4-4 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" /></svg>加入平台歌单
-    </button>}
     {selection && onRemove && <button type="button" className={styles.danger} disabled={busy || !count} onClick={() => void run(onRemove)}>{removeLabel}</button>}
     <button type="button" className={compact ? undefined : styles.primary} role={compact ? 'menuitem' : undefined} disabled={busy || !count} onClick={() => void run(async (signal) => {
       let added: number
@@ -175,10 +169,8 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
     {busy && <><span className={styles.processing} role="status">处理中…</span><button type="button" role={compact ? 'menuitem' : undefined} onClick={() => { operation.current?.abort(); setBusy(false); if (compact) closeMenu() }}>取消操作</button></>}
   </>
 
-  const picker = <>
-    {choosingPlaylist && <AddToAppPlaylistDialog tracks={collections.length ? undefined : tracks} contextLabel={playlistContextLabel} loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />}
-    {choosingPlatformPlaylist && platformSource && <AddToPlatformPlaylistDialog source={platformSource} loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlatformPlaylist(false)} />}
-  </>
+  const picker = choosingPlaylist && <AddToPlaylistDialog tracks={collections.length ? undefined : tracks} sources={[...sourceSet]} allowPlatform={!offline} contextLabel={playlistContextLabel}
+    loadTracks={signal => resolveAppPlaylistTracks(tracks, collections, signal)} onDone={onDone} onClose={() => setChoosingPlaylist(false)} />
 
   if (compact) return (
     <div className={styles.compact} ref={rootRef}>

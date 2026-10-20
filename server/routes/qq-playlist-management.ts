@@ -118,9 +118,10 @@ export const qqPlaylistManagementRoutes: RouteHandler = async (req, res, url, ct
     if (inspect) {
       if (!validId(body.playlistId)) throw new ManagementStopped('无效的 QQ 歌单', 400)
       const target = await readTarget(body.playlistId, false)
-      sendJson(res, { playlistId: body.playlistId, name: target.info.title })
+      sendJson(res, { playlistId: body.playlistId, name: target.info.title, private: true })
       return true
     }
+    if (body.action === 'privacy') throw new ManagementStopped('QQ 音乐暂不支持切换歌单可见性', 400)
     if (!['create', 'rename', 'add', 'remove'].includes(body.action)) throw new ManagementStopped('无效的歌单操作', 400)
     const name = 'name' in body && typeof body.name === 'string' ? body.name.trim() : ''
     if (body.action === 'create' || body.action === 'rename') {
@@ -128,6 +129,8 @@ export const qqPlaylistManagementRoutes: RouteHandler = async (req, res, url, ct
     }
     if (body.action === 'create') {
       if (typeof body.requestId !== 'string' || !/^[\w-]{1,128}$/.test(body.requestId)) throw new ManagementStopped('无效的创建请求标识', 400)
+      // 公开歌单的归属核对未验证，QQ 只创建私密歌单。
+      if (body.public === true) throw new ManagementStopped('QQ 音乐暂只支持创建私密歌单', 400)
     } else if (!validId(body.playlistId)) throw new ManagementStopped('无效的 QQ 歌单', 400)
     let tracks: PlatformPlaylistTrack[] = []
     if (body.action === 'add' || body.action === 'remove') {

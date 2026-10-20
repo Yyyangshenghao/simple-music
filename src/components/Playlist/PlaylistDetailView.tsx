@@ -15,6 +15,7 @@ import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
+import { LockGlyph } from '../ui/LockGlyph'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 import { fadeRise, springGentle, albumCoverTransition } from '../../lib/motion-presets'
@@ -74,7 +75,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const requestScope = `${playlist.source}:${playlist.type}:${String(playlist.id)}:${accountSignature}`
   const [renaming, setRenaming] = useState(false)
   const [managementFeedback, setManagementFeedback] = useState('')
-  const [managedPlaylist, setManagedPlaylist] = useState<{ scope: string; name: string } | null>(null)
+  const [managedPlaylist, setManagedPlaylist] = useState<{ scope: string; name: string; private?: boolean } | null>(null)
+  const [privacyBusy, setPrivacyBusy] = useState(false)
   const managementRevision = usePlatformPlaylistsStore(state => playlist.source === 'netease' || playlist.source === 'qq' ? state.revision[playlist.source] : 0)
   const [query, setQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
@@ -162,6 +164,9 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const basePlaylist = mergeAlbumDetail(playlist, albumDetail)
   const canManage = managedPlaylist?.scope === requestScope
   const displayPlaylist = canManage ? { ...basePlaylist, name: managedPlaylist.name } : basePlaylist
+  // 可见性只对本人歌单展示；切换目前只有网易云支持，QQ 只管理私有歌单。
+  const isPrivate = canManage ? managedPlaylist.private : undefined
+  const canTogglePrivacy = isPrivate !== undefined && playlist.source === 'netease'
   const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
   const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
   const selection = useMultiSelection({
@@ -186,13 +191,13 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
     return () => { cancelled = true }
   }, [available, playlist.id, playlist.source, playlist.type, service, requestScope])
 
-  useEffect(() => { setRenaming(false); setManagementFeedback('') }, [requestScope])
+  useEffect(() => { setRenaming(false); setManagementFeedback(''); setPrivacyBusy(false) }, [requestScope])
   useEffect(() => {
     setManagedPlaylist(previous => previous?.scope === requestScope ? previous : null)
     if (isAlbum || initialTracks?.length || !supportsPlatformPlaylists(playlist.source) || !/^[1-9]\d*$/.test(String(playlist.id))) return
     const controller = new AbortController()
     void inspectPlatformPlaylist(playlist.source, String(playlist.id), controller.signal).then(result => {
-      if (!controller.signal.aborted && currentRequest()) setManagedPlaylist({ scope: requestScope, name: result.name })
+      if (!controller.signal.aborted && currentRequest()) setManagedPlaylist({ scope: requestScope, name: result.name, private: result.private })
     }).catch(() => { /* 收藏、系统和非本人歌单继续只读；服务端是编辑权限依据。 */ })
     return () => controller.abort()
   }, [requestScope, managementRevision])
@@ -217,6 +222,24 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       selection.clear()
     } catch (failure) {
       if (currentRequest() && !signal.aborted) setManagementFeedback(`操作结果尚未确认，请刷新歌单查看。${failure instanceof Error ? failure.message : '平台操作失败'}`)
+    }
+  }
+
+  async function togglePrivacy() {
+    if (!canTogglePrivacy || privacyBusy || !supportsPlatformPlaylists(playlist.source)) return
+    const scope = requestScope
+    setPrivacyBusy(true)
+    setManagementFeedback('')
+    try {
+      const result = await mutatePlatformPlaylist(playlist.source, { action: 'privacy', playlistId: String(playlist.id), public: isPrivate })
+      if (!currentRequest()) return
+      if (result.status !== 'complete') { setManagementFeedback(platformPlaylistResultMessage(result, 'privacy')); return }
+      setManagedPlaylist(previous => previous?.scope === scope ? { ...previous, private: !isPrivate } : previous)
+      useToastStore.getState().show(isPrivate ? '已设为公开歌单' : '已设为私有歌单')
+    } catch (failure) {
+      if (currentRequest()) setManagementFeedback(`可见性未能确认，请刷新歌单查看。${failure instanceof Error ? failure.message : '平台操作失败'}`)
+    } finally {
+      if (currentRequest()) setPrivacyBusy(false)
     }
   }
 
@@ -272,9 +295,20 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                     extraItems={[
                       ...(canRefresh ? [{ key: 'refresh', label: refreshing ? '刷新中…' : '刷新歌单', icon: REFRESH_ICON, disabled: refreshing, onSelect: () => void refreshPlaylist() }] : []),
                       ...(canManage && supportsPlatformPlaylists(playlist.source) ? [{ key: 'rename', label: '重命名歌单', icon: RENAME_ICON, onSelect: () => setRenaming(true) }] : []),
+                      ...(canTogglePrivacy ? [{ key: 'privacy', label: isPrivate ? '设为公开歌单' : '设为私有歌单', icon: <LockGlyph open={!isPrivate} size={16} />, disabled: privacyBusy, onSelect: () => void togglePrivacy() }] : []),
                     ]} onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
                 </div>
-                <SourceBadge source={displayPlaylist.source} reveal />
+                <div className={styles.badgeRow}>
+                  <SourceBadge source={displayPlaylist.source} reveal />
+                  {/* 本人歌单显示可见性；网易云可直接点锁切换。 */}
+                  {isPrivate !== undefined && (canTogglePrivacy
+                    ? <button type="button" className={`${styles.privacyChip} no-drag`} data-public={!isPrivate} aria-busy={privacyBusy} disabled={privacyBusy}
+                      title={isPrivate ? '点击设为公开，其他人可在你的主页看到' : '点击设为私有，仅自己可见'}
+                      aria-label={isPrivate ? '私有歌单，点击设为公开' : '公开歌单，点击设为私有'} onClick={() => void togglePrivacy()}>
+                      <LockGlyph open={!isPrivate} size={13} />{isPrivate ? '私有歌单' : '公开歌单'}
+                    </button>
+                    : <span className={styles.privacyChip} data-public={!isPrivate}><LockGlyph open={!isPrivate} size={13} />{isPrivate ? '私有歌单' : '公开歌单'}</span>)}
+                </div>
                 {/* 曲数由下方列表标题展示，这里只保留专辑的作者与标签。 */}
                 {isAlbum && (displayPlaylist.creator || displayPlaylist.tag) && <p className={styles.detailSub}>
                   {[displayPlaylist.creator, displayPlaylist.tag].filter(Boolean).join(' · ')}
@@ -298,7 +332,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
             error={searchError}
             onRetry={() => setSearchAttempt((value) => value + 1)}
           />
-          {!loading && !error && total === 0 && canManage && <div className={styles.emptyPlaylist}><p>歌单还是空的</p><span>从歌曲的更多操作中选择「加入平台歌单」。</span></div>}
+          {!loading && !error && total === 0 && canManage && <div className={styles.emptyPlaylist}><p>歌单还是空的</p><span>从歌曲的更多操作中选择「加入歌单」。</span></div>}
           {error ? (
             <div className={styles.errorHint}>
               <p>歌单加载失败</p>

@@ -218,7 +218,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                         </button>
                         <button type="button" className={styles.rowAction}
                           data-track-action-trigger aria-haspopup="dialog"
-                          title="加入应用歌单" aria-label={`将 ${t.name} 加入应用歌单`}
+                          title="加入歌单" aria-label={`将 ${t.name} 加入歌单`}
                           onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
                           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                         </button>

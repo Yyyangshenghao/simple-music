@@ -46,7 +46,7 @@ beforeEach(() => {
 })
 it('会话不泄露 cookie，检查仅本人普通私密歌单', async () => {
   expect((await manage({}, 'session')).body).toEqual({ accountId: '7', accountToken: playbackAccountToken(cookie) })
-  expect((await manage({}, 'inspect')).body).toEqual({ playlistId: '900', name: '原歌单' })
+  expect((await manage({}, 'inspect')).body).toEqual({ playlistId: '900', name: '原歌单', private: true })
   expect(writes()).toEqual([])
 })
 it('创建允许空歌单，私密创建且相同请求仅创建一次', async () => {
@@ -55,6 +55,14 @@ it('创建允许空歌单，私密创建且相同请求仅创建一次', async (
   expect(writes()).toMatchObject([{ method: 'AddPlaylist', param: { dirShow: 2, dirName: '新名称' } }])
   expect((await manage({ action: 'create', name: '另一名称' })).status).toBe(400)
   expect(writes()).toHaveLength(1)
+})
+it('拒绝切换 QQ 歌单可见性且不发起写入', async () => {
+  expect((await manage({ action: 'privacy', public: true })).status).toBe(400)
+  expect(writes()).toEqual([])
+})
+it('拒绝创建公开 QQ 歌单且不发起写入', async () => {
+  expect((await manage({ action: 'create', public: true })).status).toBe(400)
+  expect(writes()).toEqual([])
 })
 it('创建响应后换号仍保存目标检查点，回到原账号重试不重复创建', async () => {
   h.request.mockImplementation(async (cookie, payload) => {
@@ -186,7 +194,7 @@ it('分页缺失时不对既有歌曲做任何写入', async () => {
 })
 it('私密歌单隐藏 creator 时仍要求清单归属和详情 owndir', async () => {
   remote.info.creator = { musicid: 0 }
-  expect((await manage({}, 'inspect')).body).toEqual({ playlistId: '900', name: '原歌单' })
+  expect((await manage({}, 'inspect')).body).toEqual({ playlistId: '900', name: '原歌单', private: true })
   remote.info.owndir = 0
   expect((await manage({}, 'inspect')).status).toBe(409)
   expect(writes()).toEqual([])

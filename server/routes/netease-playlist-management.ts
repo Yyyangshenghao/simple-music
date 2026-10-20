@@ -65,11 +65,14 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
     if (inspectRequest) {
       if (!validId(body.playlistId)) throw new ManagementError('无效的网易云歌单', 400)
     } else if (action === 'create') {
-      if (!name || name.length > 80 || typeof body.requestId !== 'string' || !/^[\w-]{1,128}$/.test(body.requestId)) {
+      if (!name || name.length > 80 || typeof body.requestId !== 'string' || !/^[\w-]{1,128}$/.test(body.requestId)
+        || (body.public !== undefined && typeof body.public !== 'boolean')) {
         throw new ManagementError('请输入有效的歌单名称和请求标识', 400)
       }
     } else if (action === 'rename') {
       if (!validId(body.playlistId) || !name || name.length > 80) throw new ManagementError('请输入有效的歌单和名称', 400)
+    } else if (action === 'privacy') {
+      if (!validId(body.playlistId) || typeof body.public !== 'boolean') throw new ManagementError('请选择有效的歌单和可见性', 400)
     } else if (action === 'add' || action === 'remove') {
       if (!validId(body.playlistId) || !Array.isArray(body.tracks) || body.tracks.length === 0 || body.tracks.length > 10000
         || body.tracks.some(track => asObj(track).source !== 'netease' || !validId(asObj(track).id))
@@ -109,7 +112,7 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
     }
     if (inspectRequest) {
       const target = await detail(String(body.playlistId))
-      sendJson(res, { playlistId: String(body.playlistId), name: target.name })
+      sendJson(res, { playlistId: String(body.playlistId), name: target.name, private: Number(target.privacy) === 10 })
       return true
     }
     const requestKey = JSON.stringify([ctx.userDataDir, accountId, body.requestId])
@@ -138,7 +141,7 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
           if (!active.has(key)) created.delete(key)
         }
         wrote = true
-        await request('playlist_create', { name, privacy: '10' }, response => {
+        await request('playlist_create', { name, privacy: body.public === true ? '0' : '10' }, response => {
           const id = String(asObj(response.playlist ?? response.data).id ?? '')
           if (!validId(id)) throw new Error('网易云未返回有效歌单，请先刷新列表确认创建结果')
           playlistId = id
@@ -161,8 +164,12 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
         issues.push(messageOf(error))
       }
     }
+    const wantPrivacy = body.public === true ? 0 : 10
     if (action === 'rename') {
       if (target.name !== name) await attempt('playlist_name_update', { id: playlistId, name })
+    } else if (action === 'privacy') {
+      // playlist_privacy 模块只会公开；改回隐私需直接带 privacy 10 调同一上游接口（已实测双向可用）。
+      if (Number(target.privacy) !== wantPrivacy) await attempt('api', { uri: '/api/playlist/update/privacy', data: { id: playlistId, privacy: wantPrivacy } })
     } else {
       const selected = asArr(body.tracks).map(track => String(asObj(track).id))
       const existing = new Set(trackIds(target))
@@ -179,6 +186,7 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
       return true
     }
     if (action === 'rename') result(verified.name === name ? 1 : 0, issues[0])
+    else if (action === 'privacy') result(Number(verified.privacy) === wantPrivacy ? 1 : 0, issues[0])
     else {
       try {
         const ids = new Set(trackIds(verified))

@@ -76,6 +76,8 @@ export interface Playlist {
   creator: string
   /** 账号歌单列表中区分收藏（他人创建）与自建；缺省视为自建。 */
   subscribed?: boolean
+  /** 仅自己可见；只有平台账号歌单列表能确认时才有值。 */
+  private?: boolean
   tag?: string
   description?: string
   tracks?: Track[]

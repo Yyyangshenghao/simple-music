@@ -46,24 +46,6 @@
 }
 .message p { margin: 0; }
 
-/* 与来源徽标同形：胶囊、10px 粗体，主题强调色微染。 */
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 20px;
-  padding: 2px 8px 2px 6px;
-  border: 1px solid color-mix(in srgb, var(--sm-accent) 32%, var(--sm-border));
-  border-radius: var(--sm-radius-pill);
-  background: color-mix(in srgb, var(--sm-accent) 10%, var(--sm-bg-overlay));
-  color: var(--sm-text-primary);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-.tag svg { color: var(--sm-accent); }
-
 /* 操作组：玻璃胶囊 + 同高圆钮，顶部细高光表现玻璃厚度，与收藏切换器同系列。 */
 .pillButton,
 .iconButton {

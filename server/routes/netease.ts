@@ -742,6 +742,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           creator: asStr(asObj(pl.creator).nickname),
           subscribed: !!pl.subscribed,
           specialType: asNum(pl.specialType),
+          // 网易 privacy 10 为隐私歌单，0 为公开。
+          private: asNum(pl.privacy) === 10,
           description: asStr(pl.description),
         }
       })

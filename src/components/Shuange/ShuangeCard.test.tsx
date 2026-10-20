@@ -26,7 +26,7 @@ beforeEach(() => vi.clearAllMocks())
 
 it('刷歌直接收藏展示中的歌曲，不触发平台喜欢、切歌或全曲播放', () => {
   const buttons = nodes(ShuangeCard({ track, switching: false, onExit: vi.fn() }))
-  const add = buttons.find(node => node.props['aria-label'] === '加入应用歌单')!
+  const add = buttons.find(node => node.props['aria-label'] === '加入歌单')!
   expect(add).toBeDefined()
   expect(buttons.find(node => node.props['aria-label'] === '喜欢')).toBeDefined()
   add.props.onClick!({ currentTarget: {} })

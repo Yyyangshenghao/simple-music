@@ -43,11 +43,11 @@ describe('MiniPlayerBar 歌词布局状态', () => {
 
   it('没有可收藏曲目时禁用加入入口，有曲目回调时启用', () => {
     const disabled = renderBar(300)
-    expect(disabled).toMatch(/disabled=""[^>]*aria-label="加入应用歌单"/)
+    expect(disabled).toMatch(/disabled=""[^>]*aria-label="加入歌单"/)
     const enabled = renderToStaticMarkup(<MiniPlayerBar trackTitle="歌曲" appearance={DEFAULT_MINI_PLAYER_APPEARANCE} width={300} onAddToPlaylist={() => {}} />)
-    expect(enabled).toContain('aria-label="加入应用歌单"')
-    expect(enabled).not.toMatch(/disabled=""[^>]*aria-label="加入应用歌单"/)
+    expect(enabled).toContain('aria-label="加入歌单"')
+    expect(enabled).not.toMatch(/disabled=""[^>]*aria-label="加入歌单"/)
     const empty = renderToStaticMarkup(<MiniPlayerBar appearance={DEFAULT_MINI_PLAYER_APPEARANCE} width={300} onAddToPlaylist={() => {}} />)
-    expect(empty).toMatch(/disabled=""[^>]*aria-label="加入应用歌单"/)
+    expect(empty).toMatch(/disabled=""[^>]*aria-label="加入歌单"/)
   })
 })

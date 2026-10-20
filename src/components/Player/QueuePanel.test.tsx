@@ -36,7 +36,7 @@ describe('队列歌曲收藏', () => {
     const list = nodes(tree).find(node => node.props.renderRow)!
     for (let index = 0; index < tracks.length; index++) {
       const row = list.props.renderRow!(index)
-      const add = nodes(row).find(node => node.props['aria-label'] === `将 歌曲${index + 1} 加入应用歌单`)!
+      const add = nodes(row).find(node => node.props['aria-label'] === `将 歌曲${index + 1} 加入歌单`)!
       expect(add).toBeDefined()
       add.props.onClick!({ currentTarget: {} })
       expect(h.quickAdd).toHaveBeenLastCalledWith(tracks[index], { x: 10, y: 20, width: 26, height: 26 })

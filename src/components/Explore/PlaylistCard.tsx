@@ -72,7 +72,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
       : reported ? '平台返回的汇总数量，打开后按实际读取的歌曲列表计数' : undefined
   return (
     <CollectionCard
-      ariaLabel={`${playlist.type === 'album' ? '专辑' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
+      ariaLabel={`${playlist.type === 'album' ? '专辑' : playlist.private ? '私有歌单' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
       onClick={onClick}
       selectionMode={selectionMode}
       coverLayoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
@@ -88,6 +88,9 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
       name={playlist.name}
       meta={displayMeta}
       metaTitle={countTitle}
+      footer={playlist.private && <span className={styles.privateBadge} title="私有歌单，仅自己可见">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 11V8a4 4 0 0 1 8 0v3" /><rect x="5" y="11" width="14" height="10" rx="2.5" /></svg>
+      </span>}
     />
   )
 })

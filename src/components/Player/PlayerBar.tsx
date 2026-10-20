@@ -271,14 +271,14 @@ function LikeButton() {
   )
 }
 
-/** 当前曲目加入应用歌单：任何来源都可用；已收进任一应用歌单时点亮。 */
+/** 当前曲目加入歌单：任何来源都可用；已收进任一应用歌单时点亮。 */
 function AddToAppPlaylistButton() {
   const track = usePlayerStore((s) => s.currentTrack)
   const key = track ? appPlaylistTrackKey(track) : ''
   const savedCount = useAppPlaylistsStore((s) => key ? s.items.filter((item) => item.tracks.some((entry) => appPlaylistTrackKey(entry) === key)).length : 0)
   const open = useTrackActionsStore((s) => !!s.quickAdd && !!track && appPlaylistTrackKey(s.quickAdd.track) === key)
   if (!track) return null
-  const label = savedCount ? `已在 ${savedCount} 个应用歌单，可继续加入` : '加入应用歌单'
+  const label = savedCount ? `已在 ${savedCount} 个应用歌单，可继续加入` : '加入歌单'
   return (
     <motion.button
       type="button"
@@ -421,7 +421,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
-          {/* 歌词页红心与播放模式左右对称，加入应用歌单放到右侧操作组。 */}
+          {/* 歌词页红心与播放模式左右对称，加入歌单放到右侧操作组。 */}
           {embedded && <AddToAppPlaylistButton />}
           <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />

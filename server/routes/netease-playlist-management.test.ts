@@ -8,7 +8,7 @@ import { playbackAccountToken } from '../lib/playback-account'
 import { neteasePlaylistManagementRoutes } from './netease-playlist-management'
 
 let caseId = 0
-let remote: { id: string; name: string; ids: string[]; creator: { userId: number }; specialType: number; subscribed?: boolean }
+let remote: { id: string; name: string; ids: string[]; creator: { userId: number }; specialType: number; subscribed?: boolean; privacy?: number }
 const refs = (ids: string[]) => ids.map(id => ({ source: 'netease', id }))
 const response = (body: object) => ({ status: 200, body: { code: 200, ...body } })
 const writes = () => h.call.mock.calls.filter(([method]) => method !== 'playlist_detail')
@@ -16,6 +16,7 @@ async function upstream(method: string, input: Record<string, unknown>) {
   if (method === 'playlist_detail') return response({ playlist: { ...remote, trackCount: remote.ids.length, trackIds: remote.ids.map(id => ({ id })) } })
   if (method === 'playlist_create') { remote.name = String(input.name); remote.ids = []; return response({ playlist: { id: remote.id } }) }
   if (method === 'playlist_name_update') remote.name = String(input.name)
+  if (method === 'api' && input.uri === '/api/playlist/update/privacy') remote.privacy = Number((input.data as { privacy: number }).privacy)
   if (method === 'playlist_tracks') {
     const ids = String(input.tracks).split(',')
     remote.ids = input.op === 'add' ? [...new Set([...remote.ids, ...ids])] : remote.ids.filter(id => !ids.includes(id))
@@ -45,6 +46,25 @@ it('会话不缓存，inspect 仅检查本人歌单且无写入', async () => {
   expect(session.res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store')
   expect(await manage({}, 'POST', '/inspect')).toMatchObject({ status: 200, body: { playlistId: '201', name: '原歌单' } })
   expect(writes()).toEqual([])
+})
+it('inspect 带出可见性，切换公开与私有后回读确认，已满足时不写入', async () => {
+  remote.privacy = 10
+  expect((await manage({}, 'POST', '/inspect')).body).toEqual({ playlistId: '201', name: '原歌单', private: true })
+  expect((await manage({ action: 'privacy', public: true })).body).toMatchObject({ playlistId: '201', status: 'complete', completed: 1 })
+  expect(writes()).toEqual([['api', expect.objectContaining({ uri: '/api/playlist/update/privacy', data: { id: '201', privacy: 0 } })]])
+  expect((await manage({ action: 'privacy', public: true })).body.status).toBe('complete')
+  expect(writes()).toHaveLength(1)
+  expect((await manage({ action: 'privacy', public: false })).body.status).toBe('complete')
+  expect(remote.privacy).toBe(10)
+  expect((await manage({ action: 'privacy', public: 'yes' })).status).toBe(400)
+  remote.creator = { userId: 8 }
+  expect((await manage({ action: 'privacy', public: true })).status).toBe(409)
+  expect(writes()).toHaveLength(2)
+})
+it('平台静默未改可见性时报告 partial', async () => {
+  remote.privacy = 10
+  h.call.mockImplementation(async (method: string, input: Record<string, unknown>) => method === 'api' ? response({}) : upstream(method, input))
+  expect((await manage({ action: 'privacy', public: true })).body).toMatchObject({ status: 'partial', completed: 0 })
 })
 it.each(['/manage', '/inspect', '/session'])('严格校验方法 %s', async endpoint => {
   expect((await manage({}, endpoint === '/session' ? 'POST' : 'GET', endpoint)).status).toBe(405)
@@ -80,6 +100,12 @@ it('创建空私密歌单，同一请求重试只检查已有目标', async () =
   expect(writes()[0]).toEqual(['playlist_create', expect.objectContaining({ name: '新歌单', privacy: '10' })])
   expect(remote.ids).toEqual([])
   expect((await manage({ ...input, name: '另一个歌单' })).status).toBe(409)
+})
+it('选择公开时创建普通公开歌单，非布尔值拒绝', async () => {
+  expect((await manage({ action: 'create', name: '新歌单', requestId: 'pub-1', public: true })).body).toMatchObject({ status: 'complete' })
+  expect(writes()[0]).toEqual(['playlist_create', expect.objectContaining({ name: '新歌单', privacy: '0' })])
+  expect((await manage({ action: 'create', name: '新歌单', requestId: 'pub-2', public: 'yes' })).status).toBe(400)
+  expect(writes()).toHaveLength(1)
 })
 it('创建后回读失败保留目标，下次复用创建检查点', async () => {
   let fail = true

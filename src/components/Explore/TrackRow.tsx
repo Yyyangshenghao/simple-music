@@ -121,8 +121,8 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
         type="button"
         className={`${styles.addBtn} no-drag`}
         data-track-action-trigger
-        title="加入应用歌单"
-        aria-label="加入应用歌单"
+        title="加入歌单"
+        aria-label="加入歌单"
         aria-haspopup="dialog"
         onClick={(e) => {
           e.stopPropagation()
