@@ -17,6 +17,7 @@ export interface ExtraMenuItem {
   label: string
   icon: ReactNode
   disabled?: boolean
+  danger?: boolean
   onSelect(): void
 }
 
@@ -187,7 +188,7 @@ export function BatchTrackActions({ tracks, collections = [], label, compact = f
         {onSelect && <button type="button" role="menuitem" disabled={busy || !count} className={styles.selectItem} onClick={() => { closeMenu(); onSelect() }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><path d="m7 12 3 3 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>{selectLabel}
         </button>}
-        {extraItems.map((item, index) => <button key={item.key} type="button" role="menuitem" disabled={item.disabled} className={index === 0 && !onSelect ? styles.selectItem : undefined} onClick={() => { closeMenu(); item.onSelect() }}>
+        {extraItems.map((item, index) => <button key={item.key} type="button" role="menuitem" disabled={item.disabled} className={[index === 0 && !onSelect ? styles.selectItem : '', item.danger ? styles.danger : ''].filter(Boolean).join(' ') || undefined} onClick={() => { closeMenu(); item.onSelect() }}>
           {item.icon}{item.label}
         </button>)}
       </div>}

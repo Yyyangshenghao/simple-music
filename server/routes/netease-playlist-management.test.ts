@@ -86,11 +86,17 @@ it.each([
   expect((await manage(input)).status).toBe(400)
   expect(h.call).not.toHaveBeenCalled()
 })
-it.each([{ creator: { userId: 8 } }, { specialType: 5 }, { subscribed: true }])('inspect 和写入拒绝非本人普通歌单 %j', async target => {
+it.each([{ creator: { userId: 8 } }, { specialType: 5 }, { specialType: 200 }, { subscribed: true }])('inspect 和写入拒绝非本人或不可写歌单 %j', async target => {
   Object.assign(remote, target)
   expect((await manage()).status).toBe(409)
   expect((await manage({}, 'POST', '/inspect')).status).toBe(409)
   expect(writes()).toEqual([])
+})
+it('本人的年度歌单等其他特殊类型可核验并加歌', async () => {
+  remote.specialType = 20
+  expect((await manage({}, 'POST', '/inspect')).status).toBe(200)
+  expect((await manage()).body).toMatchObject({ status: 'complete', requested: 2, completed: 2 })
+  expect(writes()).toEqual([['playlist_tracks', expect.objectContaining({ op: 'add', tracks: '1,2' })]])
 })
 it('创建空私密歌单，同一请求重试只检查已有目标', async () => {
   const input = { action: 'create', name: '新歌单', requestId: 'new-1' }

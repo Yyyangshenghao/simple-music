@@ -65,6 +65,8 @@
   flex-shrink: 0;
 }
 
+.coverEmpty { background: var(--sm-bg-elevated); }
+
 .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 
 .name {
@@ -110,6 +112,8 @@
 /* 时长是次要信息：与行内操作一起悬停显形。不可播放原因（status）常驻。 */
 .duration,
 .status { font-size: 12px; color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+/* 定宽元信息列：时长与不可播放原因共用，长原因省略显示（悬停整行可见 title）。 */
+.metaColumn { font-size: 12px; width: 8em; min-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; flex-shrink: 0; }
 .duration { min-width: 34px; text-align: right; opacity: 0; transition: opacity 160ms var(--sm-ease-out); }
 .row:hover .duration,
 .row:focus-within .duration { opacity: 0.85; }
@@ -175,6 +179,8 @@
 .row:hover .addBtn,
 .row:focus-within .addBtn { opacity: 0.85; }
 .addBtn:hover { opacity: 1; color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+
+.actionSlot { width: 26px; height: 26px; flex-shrink: 0; }
 
 .addBtn,
 .offlineBtn,

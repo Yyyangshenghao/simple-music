@@ -679,6 +679,23 @@ describe('QQ 标识与歌单详情契约', () => {
     expect(playlists.every((playlist) => playlist.type === 'playlist')).toBe(true)
   })
 
+  it('自建歌单按 dir_show 带出可见性，收藏歌单与未知值不标注', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: string) => {
+      const url = String(input)
+      const body = url.includes('fcg_user_created_diss')
+        ? { data: { disslist: [
+          { dissid: 11, diss_name: '公开', dir_show: 1 },
+          { dissid: 12, diss_name: '私密', dir_show: 2 },
+          { dissid: 13, diss_name: '未知', dir_show: 0 },
+        ] } }
+        : url.includes('fcg_get_profile_order_asset') ? { data: { cdlist: [{ dissid: 14, diss_name: '收藏', dir_show: 2 }] } } : {}
+      return Promise.resolve({ status: 200, text: async () => JSON.stringify(body) })
+    }))
+    const playlists = (await handleQQUserPlaylists(LOGGED_IN_COOKIE)).playlists as Record<string, unknown>[]
+    const privacy = Object.fromEntries(playlists.map(item => [item.name, item.private]))
+    expect(privacy).toEqual({ 公开: false, 私密: true, 未知: undefined, 收藏: undefined })
+  })
+
   it.each(['album', 'empty', 'failed'] as const)('账号歌单缺少我喜欢封面时补取首曲专辑图：%s', async (outcome) => {
     const fetchMock = vi.fn().mockImplementation((input: string) => {
       const url = String(input)

@@ -9,6 +9,9 @@ const PATH = '/api/netease/playlist-management'
 const active = new Set<string>()
 // 请求结果不明时也保留检查点，避免重试再次创建；只保存当前进程内有限记录。
 const created = new Map<string, { name: string; playlistId?: string }>()
+/** 不能当普通歌单写入的特殊类型：5「我喜欢的音乐」（走红心）、200 视频歌单。
+ *  年度歌单等其他特殊类型网易云允许加歌，不再拒绝；客户端 isOwnWritablePlaylist 同步此规则。 */
+const UNWRITABLE_SPECIAL_TYPES = new Set([5, 200])
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[1-9]\d*$/.test(value)
 const messageOf = (error: unknown) => error instanceof Error ? error.message : normalizeApiMessage(error) || '网易云暂时无法完成操作，请稍后重试'
 class ManagementError extends Error {
@@ -105,8 +108,8 @@ export const neteasePlaylistManagementRoutes: RouteHandler = async (req, res, ur
       const response = await request('playlist_detail', { id, s: 0 })
       const target = asObj(response.playlist)
       if (String(target.id) !== id || typeof target.name !== 'string') throw new Error('云端歌单信息不完整，请稍后重试')
-      if (String(asObj(target.creator).userId) !== accountId || target.subscribed === true || Number(target.specialType ?? 0) !== 0) {
-        throw new ManagementError('只能管理当前账号创建的普通歌单', 409)
+      if (String(asObj(target.creator).userId) !== accountId || target.subscribed === true || UNWRITABLE_SPECIAL_TYPES.has(Number(target.specialType ?? 0))) {
+        throw new ManagementError('只能管理当前账号创建的歌单（「我喜欢的音乐」请用红心）', 409)
       }
       return target
     }

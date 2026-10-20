@@ -78,6 +78,8 @@ export interface Playlist {
   subscribed?: boolean
   /** 仅自己可见；只有平台账号歌单列表能确认时才有值。 */
   private?: boolean
+  /** 平台特殊歌单类型（网易「我喜欢的音乐」等非 0）；仅账号歌单列表返回。 */
+  specialType?: number
   tag?: string
   description?: string
   tracks?: Track[]

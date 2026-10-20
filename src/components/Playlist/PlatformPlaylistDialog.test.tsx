@@ -49,6 +49,10 @@ function click(tree: ReactElement, text: string) {
   expect(button, text).toBeTruthy()
   button!.props.onClick?.()
 }
+async function listed() {
+  await vi.waitFor(() => expect(h.list).toHaveBeenCalledOnce())
+  await Promise.resolve(); await Promise.resolve()
+}
 function unmount() { h.slots.forEach(slot => (slot as { cleanup?: () => void } | undefined)?.cleanup?.()) }
 function fillAndSubmit(props: Parameters<typeof PlatformPlaylistNameDialog>[0], name = '新歌单') {
   let tree = render(PlatformPlaylistNameDialog, props)
@@ -142,17 +146,14 @@ describe('平台歌单新建与改名', () => {
 })
 
 describe('选择平台歌单增量加入', () => {
-  it('首批目标核验后即可加入，不等待后续目标，并兼容列表缺少 type', async () => {
-    let finish!: (value: unknown) => void
+  it('读取清单后直接展示全部自建歌单，不逐个核验，并兼容列表缺少 type', async () => {
     h.list.mockResolvedValue([playlist, { ...playlist, id: '3' }, { ...playlist, id: '4' }, { ...playlist, type: undefined, id: '5' }])
-    h.inspect.mockImplementation(async (_source, id) => id === '5' ? new Promise(resolve => { finish = resolve }) : { playlistId: id, name: '通勤' })
     const props = { source: 'netease' as const, loadTracks: async () => [track], onClose: vi.fn() }
     render(PlatformPlaylistPicker, props)
-    await vi.waitFor(() => expect(h.inspect).toHaveBeenCalledTimes(4))
+    await listed()
     const tree = render(PlatformPlaylistPicker, props)
-    expect(elements(tree.props.children, 'button').filter(button => renderToStaticMarkup(button).includes('加入 通勤'))).toHaveLength(3)
-    finish({ playlistId: '5', name: '后续歌单' })
-    await Promise.resolve(); await Promise.resolve()
+    expect(elements(tree.props.children, 'button').filter(button => renderToStaticMarkup(button).includes('加入 通勤'))).toHaveLength(4)
+    expect(h.inspect).not.toHaveBeenCalled()
   })
 
   it('新建成功后加入失败时保留已创建目标，不重复新建', async () => {
@@ -177,7 +178,7 @@ describe('选择平台歌单增量加入', () => {
     let finish!: (value: Track[]) => void
     const props = { source: 'netease' as const, loadTracks: () => new Promise<Track[]>(resolve => { finish = resolve }), onClose: vi.fn(), onDone: vi.fn() }
     render(PlatformPlaylistPicker, props)
-    await vi.waitFor(() => expect(h.inspect).toHaveBeenCalledOnce())
+    await listed()
     const tree = render(PlatformPlaylistPicker, props)
     click(tree, '加入 通勤')
     click(tree, '取消')
@@ -187,24 +188,44 @@ describe('选择平台歌单增量加入', () => {
     expect(props.onDone).not.toHaveBeenCalled()
   })
 
-  it('只展示可写目标，并在写入前再次核验，允许不可播歌曲收藏', async () => {
-    h.list.mockResolvedValue([playlist, { ...playlist, id: '9', name: '收藏的歌单' }])
-    h.inspect.mockImplementation(async (_source, id) => { if (id === '9') throw new Error('不属于当前账号'); return { playlistId: id, name: '通勤' } })
+  it('按清单字段只展示自建普通歌单，写入前再核验，允许不可播歌曲收藏', async () => {
+    h.list.mockResolvedValue([
+      playlist,
+      { ...playlist, id: '9', name: '收藏的歌单', subscribed: true },
+      { ...playlist, id: '10', name: '我喜欢的音乐', specialType: 5 },
+      { ...playlist, id: '12', name: '视频歌单', specialType: 200 },
+      { ...playlist, id: '13', name: '年度歌单', specialType: 20 },
+      { ...playlist, source: 'qq', provider: 'qq', id: '11', name: '别的平台' },
+    ])
     const props = { source: 'netease' as const, loadTracks: vi.fn(async () => [track]), onClose: vi.fn(), onDone: vi.fn() }
     render(PlatformPlaylistPicker, props)
-    await vi.waitFor(() => expect(h.inspect).toHaveBeenCalledTimes(2))
+    await listed()
     const tree = render(PlatformPlaylistPicker, props)
-    expect(elements(tree.props.children, 'button').some(button => renderToStaticMarkup(button).includes('收藏的歌单'))).toBe(false)
+    const markup = renderToStaticMarkup(tree.props.children)
+    for (const hidden of ['收藏的歌单', '我喜欢的音乐', '视频歌单', '别的平台']) expect(markup).not.toContain(hidden)
+    expect(markup).toContain('加入 年度歌单')
     click(tree, '加入 通勤')
     await vi.waitFor(() => expect(props.onDone).toHaveBeenCalledOnce())
-    expect(h.inspect).toHaveBeenCalledTimes(3)
+    expect(h.inspect).toHaveBeenCalledOnce()
     expect(h.mutate.mock.calls[0][1]).toMatchObject({ action: 'add', playlistId: '2', tracks: [{ source: 'netease', id: '1' }] })
+  })
+
+  it('QQ 排除「我喜欢」，公开与私密自建歌单都可选', async () => {
+    const qq = { ...playlist, source: 'qq' as const, provider: 'qq' as const }
+    h.list.mockResolvedValue([{ ...qq, name: '私密' }, { ...qq, id: 'qq-liked:201', name: '我喜欢' }, { ...qq, id: '7', name: '公开', private: false }])
+    const props = { source: 'qq' as const, loadTracks: async () => [track], onClose: vi.fn() }
+    render(PlatformPlaylistPicker, props)
+    await listed()
+    const markup = renderToStaticMarkup(render(PlatformPlaylistPicker, props).props.children)
+    expect(markup).toContain('加入 私密')
+    expect(markup).toContain('加入 公开')
+    expect(markup).not.toContain('加入 我喜欢')
   })
 
   it('拒绝混入其他平台歌曲，保留弹窗且不发送写入', async () => {
     const props = { source: 'netease' as const, loadTracks: async () => [track, { ...track, source: 'qq' as const }], onClose: vi.fn(), onDone: vi.fn() }
     render(PlatformPlaylistPicker, props)
-    await vi.waitFor(() => expect(h.inspect).toHaveBeenCalledOnce())
+    await listed()
     click(render(PlatformPlaylistPicker, props), '加入 通勤')
     await Promise.resolve(); await Promise.resolve()
     expect(h.mutate).not.toHaveBeenCalled()
@@ -217,7 +238,7 @@ describe('选择平台歌单增量加入', () => {
     h.mutate.mockResolvedValue({ playlistId: '2', status: 'partial', requested: 2, completed: 1 })
     const props = { source: 'netease' as const, loadTracks: async () => [track], onClose: vi.fn(), onDone: vi.fn() }
     render(PlatformPlaylistPicker, props)
-    await vi.waitFor(() => expect(h.inspect).toHaveBeenCalledOnce())
+    await listed()
     click(render(PlatformPlaylistPicker, props), '加入 通勤')
     await vi.waitFor(() => expect(h.mutate).toHaveBeenCalledOnce())
     await Promise.resolve()

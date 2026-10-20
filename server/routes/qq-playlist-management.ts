@@ -86,13 +86,16 @@ export const qqPlaylistManagementRoutes: RouteHandler = async (req, res, url, ct
         })
         const detail = qqRecord(data.dirinfo)
         const dirId = String(detail.dirid ?? '')
-        // 私密详情可能隐藏 creator；清单 uin、dirId 与详情 owndir 必须同时确认。
+        // 清单 uin、dirId 与详情 owndir 必须同时确认。dir_show：1 所有人可见、2 仅自己可见。
+        // 私密详情会把 creator 隐为 0；公开详情不隐藏，creator 必须非 0 且等于当前账号。
         const creatorId = String(qqRecord(detail.creator).musicid ?? '0')
+        const show = Number(detail.dir_show)
+        if (show !== 1 && show !== 2) throw new Error('QQ 歌单可见性未知，请稍后重试')
+        const creatorOk = show === 2 ? creatorId === '0' || creatorId === accountId : creatorId === accountId
         if (String(detail.id) !== id || dirId !== String(entry.dirId) || !ordinary(dirId)
-          || (creatorId !== '0' && creatorId !== accountId) || Number(detail.owndir) !== 1) {
+          || !creatorOk || Number(detail.owndir) !== 1) {
           throw new ManagementStopped('只能管理当前 QQ 账号创建的普通歌单')
         }
-        if (Number(detail.dir_show) !== 2) throw new ManagementStopped('仅支持管理 QQ 私密歌单，请先在 QQ 音乐设为仅自己可见')
         if (typeof detail.title !== 'string') throw new Error('QQ 歌单信息不完整，请稍后重试')
         if (!readSongs) return { info: detail, songs, dirId: Number(dirId) }
         const count = data.total_song_num
@@ -118,7 +121,7 @@ export const qqPlaylistManagementRoutes: RouteHandler = async (req, res, url, ct
     if (inspect) {
       if (!validId(body.playlistId)) throw new ManagementStopped('无效的 QQ 歌单', 400)
       const target = await readTarget(body.playlistId, false)
-      sendJson(res, { playlistId: body.playlistId, name: target.info.title, private: true })
+      sendJson(res, { playlistId: body.playlistId, name: target.info.title, private: Number(target.info.dir_show) === 2 })
       return true
     }
     if (body.action === 'privacy') throw new ManagementStopped('QQ 音乐暂不支持切换歌单可见性', 400)

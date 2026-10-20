@@ -15,10 +15,7 @@
 }
 
 .row {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  grid-auto-columns: 92px;
 }
 
 .card {

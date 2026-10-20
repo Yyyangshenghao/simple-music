@@ -49,6 +49,7 @@
 .menu button:hover, .menu button:focus-visible { background: var(--sm-fill-hover); }
 .menu button:disabled { opacity: .35; cursor: default; }
 .menu button > svg { color: var(--sm-text-secondary); flex-shrink: 0; }
+.menu .danger, .menu .danger > svg { color: var(--sm-color-danger); }
 .menu .selectItem { border-top: 1px solid var(--sm-border); margin-top: 5px; padding-top: 4px; border-radius: 0 0 8px 8px; }
 .menu .processing { display: block; padding: 8px 10px 0; }
 .spinner { width: 14px; height: 14px; border: 1.5px solid var(--sm-border-strong); border-top-color: var(--sm-text-primary); border-radius: 50%; animation: spin 800ms linear infinite; }

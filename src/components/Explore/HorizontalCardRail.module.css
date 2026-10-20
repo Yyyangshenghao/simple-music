@@ -1,4 +1,5 @@
 .rail {
+  --rail-shadow-space: 48px;
   position: relative;
   min-width: 0;
   /* 留出卡片悬停与底部阴影的空间。 */
@@ -12,7 +13,8 @@
   gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 24px 21px;
+  padding: 24px 21px var(--rail-shadow-space);
+  margin-bottom: calc(24px - var(--rail-shadow-space));
   scrollbar-width: none;
   cursor: grab;
   --rail-fade-left: 0px;
@@ -21,7 +23,10 @@
 .viewport:is(.fadeLeft, .fadeRight) button { cursor: grab; }
 .viewport:not(.fadeLeft):not(.fadeRight) { cursor: auto; }
 .viewport::-webkit-scrollbar { display: none; }
-.rail:has(.navigationRow) .viewport { padding-bottom: 14px; }
+.rail:has(.navigationRow) .viewport { margin-bottom: calc(14px - var(--rail-shadow-space)); }
+/* 无溢出时无需拖动，阴影留白穿透点击，卡片仍保留交互。 */
+.rail:not(:has(.navigationRow)) .viewport { pointer-events: none; }
+.rail:not(:has(.navigationRow)) .viewport > * { pointer-events: auto; }
 .viewport[data-dragging='true'], .viewport[data-dragging='true'] * { cursor: grabbing !important; }
 .viewport, .viewport * { user-select: none; -webkit-user-drag: none; }
 .fadeLeft, .fadeRight {
@@ -31,7 +36,13 @@
 .fadeRight { --rail-fade-right: 24px; }
 .viewport:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -2px; border-radius: 16px; }
 
-.navigationRow { display: flex; justify-content: center; padding: 0 21px 24px; }
+/* 导航叠放在阴影留白内，保持原有分区间距且不裁切长阴影。 */
+.navigationRow {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 0 21px 24px;
+}
 .navigation {
   display: inline-flex;
   align-items: center;

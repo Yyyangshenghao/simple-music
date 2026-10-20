@@ -118,6 +118,15 @@ interface AddProps {
 }
 
 /** 平台歌单选择主体，嵌在统一的「加入歌单」弹窗里。 */
+/** 网易云不能当普通歌单写入的特殊类型（与服务端 netease-playlist-management 同步）：5「我喜欢的音乐」、200 视频歌单；年度歌单等可加歌。 */
+const UNWRITABLE_SPECIAL_TYPES = new Set([5, 200])
+
+/** 账号歌单清单里可作为加入目标的歌单：本平台、自建（非收藏）、数字 id、可写的特殊类型（公开与私密均可）。 */
+export function isOwnWritablePlaylist(source: WritablePlaylistSource) {
+  return (item: Playlist) => item.source === source && !item.subscribed && /^[1-9]\d*$/.test(String(item.id))
+    && !UNWRITABLE_SPECIAL_TYPES.has(item.specialType ?? 0)
+}
+
 export function PlatformPlaylistPicker({ source, loadTracks, onClose, onDone }: AddProps) {
   const [items, setItems] = useState<Target[]>([])
   const [loading, setLoading] = useState(true)
@@ -140,26 +149,12 @@ export function PlatformPlaylistPicker({ source, loadTracks, onClose, onDone }: 
         if (!library?.getUserPlaylists) throw new Error('当前平台无法读取歌单，请稍后重试')
         const playlists = await library.getUserPlaylists()
         if (!task.current(controller.signal)) return
-        const targets: Target[] = []
-        let unverified = false
-        // 清单并非权限凭据；只展示服务端确认可编辑的目标，并限制同时核验数。
-        const candidates = [...new Map(playlists.filter(item => item.source === source).map(item => [String(item.id), item])).values()]
-        const order = new Map(candidates.map((item, index) => [String(item.id), index]))
-        for (let offset = 0; offset < candidates.length; offset += 3) {
-          if (!task.current(controller.signal)) return
-          await Promise.all(candidates.slice(offset, offset + 3).map(async item => {
-            try {
-              const target = await inspectPlatformPlaylist(source, String(item.id), controller.signal)
-              targets.push({ id: target.playlistId, name: target.name, cover: item.cover, trackCount: item.trackCountKnown === false ? undefined : item.trackCount })
-            } catch { unverified = true }
-          }))
-          if (!task.current(controller.signal)) return
-          const sorted = [...targets].sort((a, b) => order.get(a.id)! - order.get(b.id)!)
-          const recent = createdTarget.current
-          setItems(recent ? [recent, ...sorted.filter(item => item.id !== recent.id)] : sorted)
-        }
-        if (!task.current(controller.signal)) return
-        if (unverified) setListError('部分歌单不可编辑或暂时无法核验，已隐藏。可刷新歌单重试。')
+        // 列表只用于展示候选：按清单字段筛出自建普通歌单直接显示，不再逐个核验（N 个歌单要 3N 个上游请求）。
+        // 清单并非权限凭据——选中后 save 仍会先核验，服务端写入时也会再校验归属。
+        const targets = [...new Map(playlists.filter(isOwnWritablePlaylist(source)).map(item => [String(item.id), item])).values()]
+          .map(item => ({ id: String(item.id), name: item.name, cover: item.cover, trackCount: item.trackCountKnown === false ? undefined : item.trackCount }))
+        const recent = createdTarget.current
+        setItems(recent ? [recent, ...targets.filter(item => item.id !== recent.id)] : targets)
       } catch (failure) {
         if (task.current(controller.signal)) setListError(failureMessage(failure))
       } finally { if (task.current(controller.signal)) setLoading(false) }
@@ -222,7 +217,7 @@ export function PlatformPlaylistPicker({ source, loadTracks, onClose, onDone }: 
         {loading && Array.from({ length: items.length ? 1 : 3 }, (_, index) => <div key={index} className={nameStyles.skeletonRow} aria-hidden="true" />)}
       </div>
       {loading && <span className={nameStyles.srOnly} role="status">正在读取可编辑歌单</span>}
-      {!loading && !items.length && !listError && <p className={nameStyles.empty}>还没有可加入的{source === 'qq' ? '私密' : '自建'}歌单</p>}
+      {!loading && !items.length && !listError && <p className={nameStyles.empty}>还没有可加入的自建歌单</p>}
       {created && <p className={nameStyles.note}>已新建「{created.name}」。{error ? '歌曲尚未确认加入，歌单会保留。' : '正在加入歌曲…'}</p>}
       {listError && <div className={nameStyles.notice}><span role="alert">{listError}</span><button type="button" disabled={task.busy || loading} onClick={() => setReload(value => value + 1)}>刷新歌单</button></div>}
       {error && <p className={nameStyles.error} role="alert">{error}</p>}

@@ -7,6 +7,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import styles from './RecentRail.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
+import { HorizontalCardRail } from './HorizontalCardRail'
 
 interface RecentRailProps {
   source: ProviderId
@@ -47,7 +48,7 @@ export function RecentRail({ source, embedded = false, onOpen }: RecentRailProps
         <span>最近歌曲暂时无法加载</span>
         <button type="button" className="no-drag" onClick={() => setRetry(value => value + 1)}>重试</button>
       </div>}
-      <div className={styles.row}>
+      <HorizontalCardRail className={styles.row} label={history?.getRecentTracks ? '最近听过' : '最近播放'}>
         {tracks.slice(0, 20).map((track, index) => (
           <button key={`${track.source}:${String(track.id)}`} className={`${styles.card} no-drag`}
             onClick={() => usePlaylistStore.getState().setQueue(tracks.slice(0, 20), index)} title={`${track.name} · ${track.artist}`} aria-label={`播放 ${track.name}`}>
@@ -68,7 +69,7 @@ export function RecentRail({ source, embedded = false, onOpen }: RecentRailProps
             <span className={styles.name}>{pl.name}</span>
           </button>
         ))}
-      </div>
+      </HorizontalCardRail>
     </section>
   )
 }

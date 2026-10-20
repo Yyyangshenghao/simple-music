@@ -3,9 +3,10 @@ import { motion } from 'motion/react'
 import { appPlaylistTrackKey, useAppPlaylistsStore } from '../stores/app-playlists'
 import { useProviderStore } from '../stores/providers'
 import { usePlaylistStore } from '../stores/playlist'
+import { useSettingsStore } from '../stores/settings'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import { useNavigationStore } from '../stores/navigation'
-import { useActionToastStore, useToastStore } from '../stores/toast'
+import { useToastStore } from '../stores/toast'
 import { useBackdropStore } from '../stores/backdrop'
 import { AppPlaylistCover } from '../components/Playlist/AppPlaylistCover'
 import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
@@ -13,9 +14,8 @@ import { localMusicService } from '../lib/local-music-service'
 import { fetchOfflineStatuses, type OfflineCacheStatus } from '../lib/offline-cache'
 import { appPlaylistPlaybackTracks, appPlaylistTrackState } from '../lib/app-playlist-playback'
 import { TrackRow } from '../components/Explore/TrackRow'
+import { TRACK_ROW_HEIGHT } from '../components/Playlist/PlaylistDetailView'
 import { AppPlaylistModal, AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
-import { InfoButton } from '../components/ui/InfoButton'
-import { ScrollArea } from '../components/ui/ScrollArea'
 import { VirtualList } from '../components/ui/VirtualList'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
@@ -25,24 +25,25 @@ import { SelectionCheck, SelectionMarquee } from '../components/Playlist/Selecti
 import type { MusicSource, Track } from '../types/domain'
 import styles from './AppPlaylists.module.css'
 import playlistStyles from '../components/Playlist/PlaylistDetailView.module.css'
-import actionStyles from '../components/Playlist/BatchTrackActions.module.css'
+import pageScroll from '../styles/page-scroll.module.css'
 import { GradientText } from '../components/ui/GradientText'
 import detailStyles from './AppPlaylistPage.module.css'
-import { springGentle } from '../lib/motion-presets'
+import { fadeRise, springGentle } from '../lib/motion-presets'
 import { appPlaylistCoverLayoutId, appPlaylistCovers } from '../lib/app-playlist-presentation'
 import { rememberTarget } from '../stores/track-actions'
 import { BackButton } from '../components/ui/BackButton'
 
-/** 与 VirtualList 行步长一致（56px 行 + 2px 间距）。 */
-const ROW_HEIGHT = 58
-
 type Mode = 'browse' | 'select' | 'reorder'
 
-function DetailIcon({ kind }: { kind: 'back' | 'play' | 'queue' | 'refresh' | 'up' | 'down' | 'top' | 'bottom' | 'remove' }) {
-  const paths = { back: 'm15 18-6-6 6-6',
-    play: 'm9 5 11 7-11 7Z', queue: 'M4 6h16M4 12h10M4 18h10m4-3v6m-3-3h6', refresh: 'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2',
-    up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6', top: 'M6 5h12M12 19V9m-5 5 5-5 5 5', bottom: 'M6 19h12M12 5v10m-5-5 5 5 5-5', remove: 'm6 6 12 12M6 18 18 6' }
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill={kind === 'play' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>
+type IconKind = 'top' | 'up' | 'down' | 'bottom' | 'add' | 'reorder' | 'refresh' | 'rename' | 'delete'
+const ICON_PATHS: Record<IconKind, string> = {
+  up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6', top: 'M6 5h12M12 19V9m-5 5 5-5 5 5', bottom: 'M6 19h12M12 5v10m-5-5 5 5 5-5',
+  add: 'M12 5v14M5 12h14', reorder: 'M7 4v16m-3-3 3 3 3-3M17 20V4m-3 3 3-3 3 3', refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
+  rename: 'M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4', delete: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
+}
+
+function DetailIcon({ kind }: { kind: IconKind }) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_PATHS[kind]} /></svg>
 }
 
 export function AppPlaylistPage({ id }: { id: string }) {
@@ -63,7 +64,6 @@ export function AppPlaylistPage({ id }: { id: string }) {
   const [onlyUnavailable, setOnlyUnavailable] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const managementRef = useRef<HTMLDetailsElement>(null)
   const localIds = item?.tracks.filter(track => track.source === 'local').map(track => String(track.id)) ?? []
   const localSignature = JSON.stringify(localIds)
 
@@ -114,7 +114,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
     keys: visibleKeys,
     resetKey: `${id}:${query}:${sourceFilter}:${onlyUnavailable}`,
     onExit: () => setMode('browse'),
-    virtual: { listRef, rowHeight: ROW_HEIGHT },
+    virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
   })
   const selectedRows = mode === 'select' ? visible.map(index => rows[index]).filter(row => selection.selected.has(appPlaylistTrackKey(row.track))) : []
   const backdropCover = useMemo(() => appPlaylistCovers(item?.tracks ?? [])[0]?.url ?? '', [item?.tracks])
@@ -128,7 +128,6 @@ export function AppPlaylistPage({ id }: { id: string }) {
   }, [rows, sourceFilter, onlyUnavailable, unavailableCount])
 
   function enterMode(next: Mode) {
-    if (managementRef.current) managementRef.current.open = false
     if (next === 'reorder') { setQuery(''); setSourceFilter(null); setOnlyUnavailable(false) }
     setMode(next)
     if (next === 'select') requestAnimationFrame(() => selection.rootRef.current?.focus({ preventScroll: true }))
@@ -151,31 +150,9 @@ export function AppPlaylistPage({ id }: { id: string }) {
     useToastStore.getState().show(`已移出 ${invalidKeys.length} 首已失效歌曲`)
   }
 
-  function openEditor(action: 'rename' | 'delete') {
-    if (managementRef.current) {
-      managementRef.current.open = false
-      managementRef.current.querySelector('summary')?.focus()
-    }
-    setEditing(action)
-  }
-
-  function closeEditor() {
-    setEditing(null)
-    requestAnimationFrame(() => managementRef.current?.querySelector('summary')?.focus())
-  }
-
   function edit(action: () => void) {
     try { action(); setError(''); return true }
     catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试'); return false }
-  }
-  function removeTrack(key: string, title: string) {
-    edit(() => {
-      const removed = useAppPlaylistsStore.getState().removeTracks(id, [key])
-      if (!removed.length) return
-      useActionToastStore.getState().show(`已移出「${title}」`, '撤销', () => {
-        useAppPlaylistsStore.getState().restoreTracks(id, removed)
-      })
-    })
   }
   function playbackTracks(tracks = item?.tracks ?? []) {
     return appPlaylistPlaybackTracks(tracks, { ...context, providers: useProviderStore.getState().byId, offline: currentOffline() })
@@ -193,6 +170,13 @@ export function AppPlaylistPage({ id }: { id: string }) {
     usePlaylistStore.getState().setQueue(queue, index)
   }
 
+  function playShuffled() {
+    const queue = playbackTracks()
+    if (!queue.length) { useToastStore.getState().show('当前没有可播放的歌曲'); return }
+    useSettingsStore.getState().setPlayMode('shuffle')
+    usePlaylistStore.getState().setQueue(queue, Math.floor(Math.random() * queue.length))
+  }
+
   function renderRow(position: number): ReactNode {
     const index = visible[position]
     const row = rows[index]
@@ -204,15 +188,15 @@ export function AppPlaylistPage({ id }: { id: string }) {
       const checked = selection.selected.has(key)
       return <div className={playlistStyles.selectableRow} key={key} data-selected={checked} data-selection-key={key} data-unavailable={!row.available}>
         <SelectionCheck label={`选择歌曲：${title}`} checked={checked} />
-        <TrackRow track={track} index={position} disabled={!row.available} statusLabel={row.status} showInactiveSource hideLikeAction hideOfflineAction onPlay={() => {}} />
+        <TrackRow track={track} index={position} disabled={!row.available} statusLabel={row.status} statusColumn showInactiveSource hideLikeAction hideOfflineAction onPlay={() => {}} />
       </div>
     }
     if (mode === 'reorder') {
       const last = rows.length - 1
       const move = (target: number) => edit(() => useAppPlaylistsStore.getState().moveTrackTo(id, key, target))
-      return <div className={`${styles.row} ${detailStyles.row} ${detailStyles.reorderRow}`} key={key}>
-        <TrackRow track={track} index={index} disabled={!row.available} statusLabel={row.status} showInactiveSource hideLikeAction hideOfflineAction onPlay={() => play(key)} />
-        <div className={`${styles.rowActions} ${detailStyles.reorderActions}`}>
+      return <div className={detailStyles.reorderRow} key={key}>
+        <TrackRow track={track} index={index} disabled={!row.available} statusLabel={row.status} statusColumn showInactiveSource hideLikeAction hideOfflineAction onPlay={() => play(key)} />
+        <div className={detailStyles.reorderActions}>
           <button disabled={index === 0} aria-label={`移到最前：${title}`} title="移到最前" onClick={() => move(0)}><DetailIcon kind="top" /></button>
           <button disabled={index === 0} aria-label={`上移：${title}`} title="上移" onClick={() => move(index - 1)}><DetailIcon kind="up" /></button>
           <button disabled={index === last} aria-label={`下移：${title}`} title="下移" onClick={() => move(index + 1)}><DetailIcon kind="down" /></button>
@@ -220,105 +204,93 @@ export function AppPlaylistPage({ id }: { id: string }) {
         </div>
       </div>
     }
-    return <div className={`${styles.row} ${detailStyles.row}`} key={key}>
-      <TrackRow track={track} index={position} disabled={!row.available} statusLabel={row.status} showInactiveSource hideLikeAction onPlay={() => play(key)} />
-      <div className={`${styles.rowActions} ${detailStyles.rowActions}`}>
-        <button aria-label={`移出歌单：${title}`} title="移出歌单" onClick={() => removeTrack(key, title)}><DetailIcon kind="remove" /></button>
-      </div>
-    </div>
+    return <TrackRow key={key} track={track} index={position} disabled={!row.available} statusLabel={row.status} statusColumn showInactiveSource onPlay={() => play(key)} />
   }
 
-  return <ScrollArea scrollRef={scrollRef}>
-    <div className={`${playlistStyles.inner} ${detailStyles.page}`} ref={selection.rootRef} {...selection.surfaceProps}>
-      <BackButton className={playlistStyles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
-      {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
-        <header className={playlistStyles.detailHeader}>
-          <div className={playlistStyles.detailMeta}>
+  const canPlay = availableCount > 0 && mode === 'browse'
+
+  return <div className={playlistStyles.root}>
+    <motion.div layoutScroll className={`${playlistStyles.page} ${pageScroll.viewport}`} ref={scrollRef}>
+      <div className={`${playlistStyles.inner} ${detailStyles.page}`} ref={selection.rootRef} {...selection.surfaceProps}>
+        <div className={playlistStyles.detailHeader}>
+          <BackButton className={playlistStyles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
+          {item && !archiveError && <div className={playlistStyles.detailMeta}>
             <motion.div className={playlistStyles.detailCover} layoutId={appPlaylistCoverLayoutId(item.id)} layoutCrossfade={false}
-              transition={springGentle} style={{ borderRadius: 12 }}>
+              transition={springGentle} style={{ borderRadius: 16 }}>
               <AppPlaylistCover tracks={item.tracks} />
             </motion.div>
-            <div className={playlistStyles.detailInfo}>
+            <motion.div className={playlistStyles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
               <div className={playlistStyles.titleRow}>
                 <h1 className={playlistStyles.detailTitle}><GradientText>{item.name}</GradientText></h1>
-                <details className={actionStyles.compact} ref={managementRef}
-                  onBlur={event => {
-                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false
+                {mode === 'browse' && <BatchTrackActions compact menuLabel="歌单更多操作" label="整个歌单" tracks={item.tracks}
+                  onAddToQueue={async () => {
+                    const tracks = playbackTracks()
+                    if (!tracks.length) throw new Error('当前没有可播放的歌曲')
+                    return usePlaylistStore.getState().addManyToQueue(tracks, true)
                   }}
-                  onKeyDown={event => {
-                    if (event.key === 'Escape') {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      event.currentTarget.open = false
-                      event.currentTarget.querySelector('summary')?.focus()
-                    }
-                  }}>
-                  <summary className={`${actionStyles.more} ${detailStyles.more} no-drag`} aria-label="歌单更多操作"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg></summary>
-                  <div className={actionStyles.menu} role="group" aria-label="管理应用歌单">
-                    <button type="button" disabled={!item.tracks.length} onClick={() => enterMode('select')}>多选歌曲</button>
-                    <button type="button" disabled={item.tracks.length < 2} onClick={() => enterMode('reorder')}>调整顺序</button>
-                    <span className={detailStyles.menuDivider} aria-hidden="true" />
-                    <button type="button" onClick={() => openEditor('rename')}>重命名</button>
-                    <button type="button" className={detailStyles.danger} onClick={() => openEditor('delete')}>删除歌单</button>
-                  </div>
-                </details>
+                  extraItems={[
+                    { key: 'add', label: '添加歌曲', icon: <DetailIcon kind="add" />, onSelect: goToSearch },
+                    ...(item.tracks.length > 1 ? [{ key: 'reorder', label: '调整顺序', icon: <DetailIcon kind="reorder" />, onSelect: () => enterMode('reorder') }] : []),
+                    { key: 'refresh', label: '刷新可用状态', icon: <DetailIcon kind="refresh" />, onSelect: () => setRefresh(value => value + 1) },
+                    { key: 'rename', label: '重命名歌单', icon: <DetailIcon kind="rename" />, onSelect: () => setEditing('rename') },
+                    { key: 'delete', label: '删除歌单', icon: <DetailIcon kind="delete" />, danger: true, onSelect: () => setEditing('delete') },
+                  ]} onSelect={() => enterMode('select')} />}
+              </div>
+              {/* 来源徽标兼作筛选；不可播放的歌曲可单独查看。 */}
+              <div className={playlistStyles.badgeRow}>
+                <AppPlaylistSources tracks={item.tracks} selected={mode === 'reorder' ? null : sourceFilter} onSelect={mode === 'reorder' ? undefined : setSourceFilter} />
+                {unavailableCount > 0 && mode !== 'reorder' && <button type="button" className={`${detailStyles.unavailableChip} no-drag`} aria-pressed={onlyUnavailable}
+                  title={onlyUnavailable ? '显示全部歌曲' : '只看暂不可播放的歌曲'} onClick={() => setOnlyUnavailable(value => !value)}>
+                  <span className={detailStyles.unavailableDot} aria-hidden="true" />{unavailableCount} 首不可播放
+                </button>}
               </div>
               <p className={playlistStyles.detailSub}>应用歌单 · {item.tracks.length} 首歌曲 · 当前可播放 {availableCount} 首</p>
-              <div className={`${styles.buttons} ${detailStyles.actions}`}>
-                <button className={styles.primary} disabled={!availableCount} onClick={() => play()}><DetailIcon kind="play" />播放全部</button>
-                <button disabled={!availableCount} onClick={async () => {
-                  try {
-                    const added = await usePlaylistStore.getState().addManyToQueue(playbackTracks(), true)
-                    useToastStore.getState().show(added ? `已追加 ${added} 首到播放队列` : '播放队列已包含这些歌曲')
-                  } catch { /* 播放客户端已显示失败原因。 */ }
-                }}><DetailIcon kind="queue" />添加到播放队列</button>
-                <button onClick={goToSearch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>添加歌曲</button>
+              <div className={playlistStyles.headerActions}>
+                <button type="button" className={`${playlistStyles.playAllBtn} no-drag`} disabled={!canPlay} onClick={() => play()}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" /></svg>播放全部
+                </button>
+                <button type="button" className={`${playlistStyles.shuffleBtn} no-drag`} disabled={!canPlay} onClick={playShuffled}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>随机播放
+                </button>
               </div>
-            </div>
-          </div>
-        </header>
-        {item.tracks.length > 0 && mode !== 'reorder' && <div className={detailStyles.filters}>
-          <AppPlaylistSources tracks={item.tracks} selected={sourceFilter} onSelect={setSourceFilter} />
-          {unavailableCount > 0 && <button type="button" className={`${detailStyles.unavailableChip} no-drag`} aria-pressed={onlyUnavailable}
-            title={onlyUnavailable ? '显示全部歌曲' : '只看暂不可播放的歌曲'} onClick={() => setOnlyUnavailable(value => !value)}>
-            <span className={detailStyles.unavailableDot} aria-hidden="true" />{unavailableCount} 首不可播放
-          </button>}
-        </div>}
-        {item.tracks.length > 0 && mode !== 'reorder' && onlyUnavailable && <div className={detailStyles.notice} role="status">
-          <p>{invalidKeys.length
-            ? `其中 ${invalidKeys.length} 首已失效（本地文件不存在或曲目下架）${unavailableCount > invalidKeys.length ? '，其余重新登录或启用平台后即可恢复' : ''}。`
-            : '这些歌曲在重新登录或启用对应平台后即可恢复，无需移出。'}</p>
-          {invalidKeys.length > 0 && <button type="button" className={`${detailStyles.noticeAction} no-drag`} onClick={removeInvalid}>移出 {invalidKeys.length} 首已失效歌曲</button>}
-        </div>}
-        {mode === 'select' && <BatchTrackActions tracks={selectedRows.map(row => row.track)} onDone={selection.clear} onRemove={removeSelected} onAddToQueue={addSelectedToQueue} removeLabel="移出应用歌单"
-          selection={{ total: visible.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
-        {mode === 'reorder' ? <div className={detailStyles.reorderBar} role="region" aria-label="调整顺序">
-          <div><strong>调整顺序</strong><span>改动立即保存，下次播放按新顺序。</span></div>
-          <button type="button" className={`${styles.primary} no-drag`} onClick={() => setMode('browse')}>完成</button>
-        </div> : item.tracks.length > 0 && <TrackSearch value={query} onChange={setQuery} placeholder="搜索歌单内的歌曲或歌手" count={visible.length}>
-          <div className={detailStyles.listTitle}>
-            <h2>歌曲</h2><span>{filtering ? `${visible.length} / ${item.tracks.length}` : item.tracks.length}</span>
-            <InfoButton label="应用歌单说明" text="可收藏网易云、QQ、Apple Music 和本地歌曲。整理只影响应用歌单，不会修改平台歌单；暂不可用的歌曲仍会保留。" align="left" />
-            <button className={`${playlistStyles.refreshBtn} ${detailStyles.refresh} no-drag`} onClick={() => setRefresh(value => value + 1)}><DetailIcon kind="refresh" />刷新状态</button>
-          </div>
-        </TrackSearch>}
-        {error && <p className={styles.error} role="alert">{error}</p>}
-        {offlineError && <p className={styles.error} role="alert">{offlineError}</p>}
-        {!item.tracks.length ? <div className={styles.empty}><p>把喜欢的歌放进来</p><span className={styles.hint}>搜索歌曲后点「＋」选择这份歌单，也可从播放栏或其他歌曲列表加入。</span><button className="no-drag" onClick={goToSearch}>去搜索歌曲</button></div>
-          : !visible.length ? <div className={styles.empty}><p>没有符合条件的歌曲</p><button className="no-drag" onClick={clearFilters}>清除筛选</button></div>
-          : <div className={detailStyles.trackList} ref={listRef}><VirtualList total={visible.length} rowHeight={ROW_HEIGHT} scrollRef={scrollRef} renderRow={renderRow} /></div>}
-        {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={closeEditor} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
-        {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={closeEditor}>
-          <p className={styles.hint}>确定删除「{item.name}」？当前播放队列和歌曲文件会保留。</p>
-          <div className={styles.buttons}><button autoFocus onClick={closeEditor}>取消</button><button className={styles.danger} onClick={() => edit(() => {
-            useAppPlaylistsStore.getState().remove(id)
-            setEditing(null)
-            useNavigationStore.getState().goBack()
-          })}>删除歌单</button></div>
-          {error && <p className={styles.error} role="alert">{error}</p>}
-        </AppPlaylistModal>}
-      </>}
-    </div>
-    <SelectionMarquee rect={selection.marquee} />
-  </ScrollArea>
+            </motion.div>
+          </div>}
+        </div>
+        {!item || archiveError ? <div className={styles.empty} role={archiveError ? 'alert' : undefined}><p>{archiveError || '这个应用歌单已被删除'}</p></div> : <>
+          {mode !== 'reorder' && onlyUnavailable && <div className={detailStyles.notice} role="status">
+            <p>{invalidKeys.length
+              ? `其中 ${invalidKeys.length} 首已失效（本地文件不存在或曲目下架）${unavailableCount > invalidKeys.length ? '，其余重新登录或启用平台后即可恢复' : ''}。`
+              : '这些歌曲在重新登录或启用对应平台后即可恢复，无需移出。'}</p>
+            {invalidKeys.length > 0 && <button type="button" className={`${detailStyles.noticeAction} no-drag`} onClick={removeInvalid}>移出 {invalidKeys.length} 首已失效歌曲</button>}
+          </div>}
+          {mode === 'select' && <BatchTrackActions tracks={selectedRows.map(row => row.track)} onDone={selection.clear} onRemove={removeSelected} onAddToQueue={addSelectedToQueue} removeLabel="移出应用歌单"
+            selection={{ total: visible.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+          {error && <p className={playlistStyles.managementFeedback} role="alert">{error}</p>}
+          {offlineError && <p className={playlistStyles.managementFeedback} role="alert">{offlineError}</p>}
+          {mode === 'reorder' ? <div className={detailStyles.reorderBar} role="region" aria-label="调整顺序">
+            <div><strong>调整顺序</strong><span>改动立即保存，下次播放按新顺序。</span></div>
+            <button type="button" className="no-drag" onClick={() => setMode('browse')}>完成</button>
+          </div> : item.tracks.length > 0 && <TrackSearch value={query} onChange={setQuery} placeholder="搜索歌单内的歌曲或歌手" count={visible.length} />}
+          {!item.tracks.length ? <div className={playlistStyles.emptyPlaylist}><p>歌单还是空的</p><span>搜索歌曲后点「＋」选择这份歌单，也可从播放栏或其他歌曲列表加入。</span>
+            <button type="button" className={`${playlistStyles.retryBtn} no-drag`} onClick={goToSearch}>去搜索歌曲</button></div>
+            : !visible.length ? <div className={playlistStyles.emptyPlaylist}><p>没有符合条件的歌曲</p>
+              <button type="button" className={`${playlistStyles.retryBtn} no-drag`} onClick={clearFilters}>清除筛选</button></div>
+            : <motion.div className={playlistStyles.trackList} ref={listRef} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+              <VirtualList total={visible.length} rowHeight={TRACK_ROW_HEIGHT} scrollRef={scrollRef} renderRow={renderRow} />
+            </motion.div>}
+          {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={() => setEditing(null)} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}
+          {editing === 'delete' && <AppPlaylistModal title="删除应用歌单" onClose={() => setEditing(null)}>
+            <p className={styles.hint}>确定删除「{item.name}」？当前播放队列和歌曲文件会保留。</p>
+            <div className={styles.buttons}><button autoFocus onClick={() => setEditing(null)}>取消</button><button className={styles.danger} onClick={() => edit(() => {
+              useAppPlaylistsStore.getState().remove(id)
+              setEditing(null)
+              useNavigationStore.getState().goBack()
+            })}>删除歌单</button></div>
+            {error && <p className={styles.error} role="alert">{error}</p>}
+          </AppPlaylistModal>}
+        </>}
+      </div>
+      <SelectionMarquee rect={selection.marquee} />
+    </motion.div>
+  </div>
 }

@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppPlaylistPage } from './AppPlaylistPage'
@@ -8,8 +8,8 @@ import type { OfflineCacheStatus } from '../lib/offline-cache'
 const h = vi.hoisted(() => ({
   index: 0, states: [] as unknown[], effects: [] as Array<() => (() => void) | void>, cleanups: [] as Array<() => void>,
   fetch: vi.fn(), tracks: [] as Track[], offline: { revision: 0, byKey: {} as Record<string, OfflineCacheStatus> },
-  mode: 'browse', add: vi.fn(), remove: vi.fn(), restore: vi.fn(), clear: vi.fn(), toast: vi.fn(), undoToast: vi.fn(), row: null as ReactNode,
-  batch: null as null | { tracks: Track[]; onAddToQueue?: (signal: AbortSignal) => number | Promise<number>; onRemove?: () => Promise<void> },
+  mode: 'browse', add: vi.fn(), remove: vi.fn(), restore: vi.fn(), clear: vi.fn(), toast: vi.fn(), row: null as ReactNode,
+  batch: null as null | { tracks: Track[]; compact?: boolean; onSelect?: () => void; extraItems?: Array<{ key: string; label: string }>; onAddToQueue?: (signal: AbortSignal) => number | Promise<number>; onRemove?: () => Promise<void> },
 }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
@@ -28,7 +28,7 @@ vi.mock('../stores/app-playlists', async importOriginal => ({
     { getState: () => ({ removeTracks: h.remove, restoreTracks: h.restore }) },
   ),
 }))
-vi.mock('../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) }, useActionToastStore: { getState: () => ({ show: h.undoToast }) } }))
+vi.mock('../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
 const providers = { netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' } }
 vi.mock('../stores/providers', () => ({ useProviderStore: Object.assign(
   (selector: (state: unknown) => unknown) => selector({ byId: providers }), { getState: () => ({ byId: providers }), subscribe: () => () => {} },
@@ -48,16 +48,9 @@ vi.mock('../lib/local-music-service', () => ({ localMusicService: {
   getAvailableTracks: async () => h.tracks.filter(track => track.source === 'local'),
 } }))
 vi.mock('../components/Explore/TrackRow', () => ({ TrackRow: () => null }))
-vi.mock('../components/ui/ScrollArea', () => ({ ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 vi.mock('../components/ui/VirtualList', () => ({ VirtualList: ({ renderRow }: { renderRow(index: number): ReactNode }) => { h.row = renderRow(0); return h.row } }))
 
 function render() { h.index = 0; return renderToStaticMarkup(<AppPlaylistPage id="app" />) }
-function buttons(node: ReactNode): Array<ReactElement<{ children?: ReactNode; 'aria-label'?: string; onClick(): void }>> {
-  return Children.toArray(node).flatMap(child => {
-    if (!isValidElement<{ children?: ReactNode; onClick(): void }>(child)) return []
-    return child.type === 'button' ? [child] : buttons(child.props.children)
-  })
-}
 
 describe('应用歌单完整离线状态快照', () => {
   beforeEach(() => {
@@ -79,30 +72,14 @@ describe('应用歌单完整离线状态快照', () => {
     expect(render()).toContain('应用歌单保存失败')
   })
 
-  it('单曲移出成功提供撤销，按原歌单和移出回执恢复', () => {
-    const removed = [{ track: h.tracks[0], index: 0 }]
-    h.remove.mockReturnValueOnce(removed)
-    render()
-    buttons(h.row).find(button => button.props['aria-label'] === '移出歌单：歌曲')!.props.onClick()
-    expect(h.remove).toHaveBeenCalledWith('app', ['qq:1'])
-    expect(h.undoToast).toHaveBeenCalledWith('已移出「歌曲」', '撤销', expect.any(Function))
-    h.undoToast.mock.calls[0][2]()
-    expect(h.restore).toHaveBeenCalledWith('app', removed)
-  })
-
-  it('单曲移出失败不能提供撤销或成功回执', () => {
-    h.remove.mockImplementationOnce(() => { throw new Error('保存失败') })
-    render()
-    buttons(h.row).find(button => button.props['aria-label'] === '移出歌单：歌曲')!.props.onClick()
-    expect(h.undoToast).not.toHaveBeenCalled()
-    expect(h.toast).not.toHaveBeenCalled()
-    expect(render()).toContain('保存失败')
-  })
   it('聚合歌单保留播放与整理操作，不展示旧云端同步入口', () => {
     const html = render()
     expect(html).toContain('播放全部')
-    expect(html).toContain('添加到播放队列')
-    expect(html).toContain('管理应用歌单')
+    expect(html).toContain('随机播放')
+    // 与平台歌单一致：入队、加入歌单、多选与管理项都收进标题旁的「更多」菜单。
+    expect(h.batch?.compact).toBe(true)
+    expect(h.batch?.onAddToQueue).toBeTypeOf('function')
+    expect(h.batch?.extraItems?.map(item => item.label)).toEqual(['添加歌曲', '刷新可用状态', '重命名歌单', '删除歌单'])
     expect(html).not.toContain('云端同步')
     expect(html).not.toContain('推送')
     expect(html).not.toContain('拉取')
@@ -119,8 +96,8 @@ describe('应用歌单完整离线状态快照', () => {
     const html = render()
     expect(html).toContain('按来源筛选')
     expect(html).toContain('2 首不可播放')
-    expect(html).toContain('调整顺序')
-    expect(html).toContain('多选歌曲')
+    expect(h.batch?.extraItems?.map(item => item.key)).toContain('reorder')
+    expect(h.batch?.onSelect).toBeTypeOf('function')
     expect(html).toContain('搜索歌单内的歌曲或歌手')
     expect(html).not.toContain('上移')
   })

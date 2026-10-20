@@ -1,19 +1,8 @@
+/* 应用歌单详情：骨架复用 PlaylistDetailView.module.css，这里只放应用歌单特有的筛选、提示与调整顺序。 */
 .page { color: var(--sm-text-primary); }
-.page .danger { color: var(--sm-color-danger); }
-.more { list-style: none; }
-.more::-webkit-details-marker { display: none; }
-.more:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.actions { margin-top: 12px; }
-.actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; font-size: 12px; }
-.listTitle { display: flex; align-items: center; gap: 10px; }
-.listTitle h2 { margin: 0; font-size: 16px; font-weight: 600; }
-.listTitle > span { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.refresh { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 0 4px; }
-.menuDivider { display: block; height: 1px; margin: 5px 4px; background: var(--sm-border); }
 
-/* 来源与可用性筛选：头部之下、歌曲列表之上，一行内完成。 */
-.filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: -4px 0 16px; }
-.unavailableChip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; transition: background 150ms var(--sm-ease-out), color 150ms var(--sm-ease-out), border-color 150ms var(--sm-ease-out); }
+/* 不可播放筛选：与来源徽标同排。 */
+.unavailableChip { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font-size: 11.5px; font-variant-numeric: tabular-nums; cursor: pointer; transition: background 150ms var(--sm-ease-out), color 150ms var(--sm-ease-out), border-color 150ms var(--sm-ease-out); }
 .unavailableChip:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .unavailableChip[aria-pressed='true'] { border-color: color-mix(in srgb, var(--sm-color-danger) 45%, transparent); background: color-mix(in srgb, var(--sm-color-danger) 10%, transparent); color: var(--sm-text-primary); }
 .unavailableChip:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
@@ -30,20 +19,12 @@
 .reorderBar span { color: var(--sm-text-secondary); font-size: 12px; }
 .reorderBar > button { padding: 6px 18px; border: 0; border-radius: var(--sm-radius-pill); background: var(--sm-accent); color: var(--sm-text-on-accent); font-size: 12px; cursor: pointer; }
 .reorderBar > button:hover { background: var(--sm-accent-warm); }
-.reorderActions { padding-right: 8px; }
-.reorderActions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; }
-.trackList { padding-top: 8px; }
-.row { gap: 4px; border-radius: 10px; }
-.row:hover, .row:focus-within { background: var(--sm-fill-subtle); }
-.rowActions { padding-right: 8px; }
-.rowActions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; }
-.rowActions button:last-child:hover { color: var(--sm-color-danger); }
-@media (hover: hover) {
-  .rowActions { opacity: 0; transition: opacity 150ms var(--sm-ease-out); }
-  .row:hover .rowActions, .row:focus-within .rowActions { opacity: 1; }
-}
-@media (max-width: 580px) {
-  .rowActions { padding-right: 0; gap: 0; }
-  .rowActions button { width: 26px; }
-}
-@media (prefers-reduced-motion: reduce) { .rowActions { transition: none; } }
+.reorderRow { display: flex; align-items: center; gap: 4px; height: 56px; border-radius: 10px; }
+.reorderRow > :first-child { flex: 1; min-width: 0; }
+.reorderRow:hover, .reorderRow:focus-within { background: var(--sm-fill-subtle); }
+.reorderActions { display: flex; gap: 2px; padding-right: 8px; }
+.reorderActions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: none; border-radius: 8px; background: none; color: var(--sm-text-secondary); cursor: pointer; }
+.reorderActions button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.reorderActions button:disabled { opacity: .35; cursor: default; }
+@media (max-width: 580px) { .reorderActions { padding-right: 0; gap: 0; } .reorderActions button { width: 26px; } }
+@media (prefers-reduced-motion: reduce) { .unavailableChip { transition: none; } }

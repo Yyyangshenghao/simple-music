@@ -420,6 +420,8 @@ interface QQPlaylist {
   creator: string
   subscribed: boolean
   specialType: number
+  /** 仅自建列表能确认可见性时才有值。 */
+  private?: boolean
 }
 
 export const QQ_LIKED_PLAYLIST_ID = 'qq-liked:201'
@@ -608,6 +610,11 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
     creator: str(pl.hostname || pl.nick || pl.nickname || pl.creator) || 'QQ 音乐',
     subscribed: kind === 'collect',
     specialType: 0,
+  }
+  // 自建列表 dir_show：1 公开、2 仅自己可见（与歌单管理的私密判定一致）；其他值不确定，保持未知。
+  if (kind === 'created') {
+    const show = Number(pl.dir_show)
+    if (show === 1 || show === 2) playlist.private = show === 2
   }
   // 收藏列表里的 dirid 是原作者的目录号，只有自建列表的 201 才是自己的「我喜欢」。
   if (kind !== 'collect' && isQQFavoritePlaylist(pl)) {

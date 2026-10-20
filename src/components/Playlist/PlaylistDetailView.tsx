@@ -171,9 +171,10 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const basePlaylist = mergeAlbumDetail(playlist, albumDetail)
   const canManage = managedPlaylist?.scope === requestScope
   const displayPlaylist = canManage ? { ...basePlaylist, name: managedPlaylist.name } : basePlaylist
-  // 可见性只对本人歌单展示；切换目前只有网易云支持，QQ 只管理私有歌单。
-  const isPrivate = canManage ? managedPlaylist.private : undefined
-  const canTogglePrivacy = isPrivate !== undefined && playlist.source === 'netease'
+  // 可见性只对本人歌单展示；切换目前只有网易云支持。
+  // 可管理时以核验结果为准；核验未完成或失败时退回账号歌单清单里的可见性（只读展示，收藏的不显示）
+  const isPrivate = canManage ? managedPlaylist.private : playlist.subscribed ? undefined : playlist.private
+  const canTogglePrivacy = canManage && isPrivate !== undefined && playlist.source === 'netease'
   const selectionQueue = useMemo(() => selecting ? makeQueue() : [], [selecting, tracks, total])
   const visibleSelectionTracks = searching ? matches.map(index => selectionQueue[index]).filter(Boolean) : selectionQueue
   const selection = useMultiSelection({

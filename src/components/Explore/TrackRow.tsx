@@ -25,6 +25,8 @@ interface TrackRowProps {
   /** 同源列表（平台歌单/专辑）里每行来源徽标是重复信息。 */
   hideSource?: boolean
   showInactiveSource?: boolean
+  /** 列表混有不可播放原因时开启：时长与原因共用定宽列，专辑列逐行对齐。 */
+  statusColumn?: boolean
 }
 
 /** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
@@ -46,7 +48,7 @@ function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false }: TrackRowProps) {
+export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
   const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
@@ -103,7 +105,10 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
               {!disabled && <svg className={styles.playGlyph} viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" /></svg>}
             </span>
         )}
-        {!hideCover && track.cover && <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />}
+        {/* 无封面时留同尺寸占位，混排（本地歌曲等）时标题列仍对齐。 */}
+        {!hideCover && (track.cover
+          ? <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />
+          : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
         <div className={styles.info}>
           <span className={styles.name}>{track.name}</span>
           <span className={styles.artistLine}>
@@ -114,8 +119,9 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
         {/* 专辑列只在宽行显示（容器查询）；专辑页本身隐藏封面时不重复。 */}
         {!hideCover && track.album && <span className={styles.album}>{track.album}</span>}
         {statusLabel
-          ? <span className={styles.status}>{statusLabel}</span>
-          : track.duration ? <span className={styles.duration}>{formatDuration(track.duration)}</span> : null}
+          ? <span className={`${styles.status}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{statusLabel}</span>
+          : track.duration ? <span className={`${styles.duration}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{formatDuration(track.duration)}</span>
+          : statusColumn ? <span className={styles.metaColumn} aria-hidden="true" /> : null}
       </button>
       <button
         type="button"
@@ -131,7 +137,8 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
       </button>
-      {offlineVisible && !disabled && !hideOfflineAction && (
+      {/* 离线、红心按需出现；不适用的行保留同宽空位，专辑列不随按钮数量左右漂移。 */}
+      {!hideOfflineAction && (offlineVisible && !disabled ? (
         <button
           type="button"
           className={styles.offlineBtn}
@@ -146,8 +153,8 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
         >
           <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
         </button>
-      )}
-      {visible && !disabled && !hideLikeAction && (
+      ) : <span className={styles.actionSlot} aria-hidden="true" />)}
+      {!hideLikeAction && (visible && !disabled ? (
         <button
           type="button"
           className={`${styles.likeBtn} no-drag`}
@@ -161,7 +168,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
         >
           <HeartIcon filled={liked} size={16} />
         </button>
-      )}
+      ) : <span className={styles.actionSlot} aria-hidden="true" />)}
     </div>
   )
 }

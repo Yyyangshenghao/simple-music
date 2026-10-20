@@ -108,9 +108,25 @@ it.each([{ action: 'other' }, { action: 'create', requestId: '' }, { action: 'cr
   expect((await manage(input)).status).toBe(400)
   expect(h.request).not.toHaveBeenCalled()
 })
-it.each([{ creator: { musicid: 8 } }, { owndir: 0 }, { dirid: 201 }, { dirid: 206 }, { id: 901 }, { dir_show: 1 }])('拒绝非本人普通私密歌单 %j', async changes => {
+it.each([
+  { creator: { musicid: 8 } }, { owndir: 0 }, { dirid: 201 }, { dirid: 206 }, { id: 901 },
+  { dir_show: 1, creator: { musicid: 0 } }, { dir_show: 1, creator: { musicid: 8 } },
+])('拒绝非本人普通歌单 %j', async changes => {
   Object.assign(remote.info, changes)
   expect((await manage()).status).toBe(409)
+  expect(writes()).toEqual([])
+})
+it('本人公开歌单（creator 可见且匹配）可核验并加歌，inspect 如实返回公开', async () => {
+  remote.info.dir_show = 1
+  const inspected = await manage({}, 'inspect')
+  expect(inspected.status).toBe(200)
+  expect(inspected.body).toMatchObject({ private: false })
+  expect((await manage()).status).toBe(200)
+  expect(writes().length).toBeGreaterThan(0)
+})
+it('可见性未知时不写入', async () => {
+  remote.info.dir_show = 0
+  expect((await manage()).status).not.toBe(200)
   expect(writes()).toEqual([])
 })
 it('清单 uin、唯一匹配和 dirId 需要同时可信', async () => {

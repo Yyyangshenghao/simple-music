@@ -5,7 +5,7 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
-import { useAppPlaylistsStore, appPlaylistTrackKey } from '../../stores/app-playlists'
+import { appPlaylistTrackKey } from '../../stores/app-playlists'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
@@ -271,31 +271,28 @@ function LikeButton() {
   )
 }
 
-/** 当前曲目加入歌单：任何来源都可用；已收进任一应用歌单时点亮。 */
+/** 当前曲目加入歌单：任何来源都可用；图标固定，是否已收录在弹窗里看。 */
 function AddToAppPlaylistButton() {
   const track = usePlayerStore((s) => s.currentTrack)
   const key = track ? appPlaylistTrackKey(track) : ''
-  const savedCount = useAppPlaylistsStore((s) => key ? s.items.filter((item) => item.tracks.some((entry) => appPlaylistTrackKey(entry) === key)).length : 0)
   const open = useTrackActionsStore((s) => !!s.quickAdd && !!track && appPlaylistTrackKey(s.quickAdd.track) === key)
   if (!track) return null
-  const label = savedCount ? `已在 ${savedCount} 个应用歌单，可继续加入` : '加入歌单'
   return (
     <motion.button
       type="button"
       className={`${styles.btn} ${styles.addBtn} no-drag`}
-      data-saved={savedCount > 0}
       data-track-action-trigger
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(event) => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
-      title={label}
-      aria-label={label}
+      title="加入歌单"
+      aria-label="加入歌单"
       whileTap={tapScale}
       transition={springSnappy}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-        {savedCount ? <path d="m8 12 3 3 5-6" /> : <path d="M12 8v8M8 12h8" />}
+        <path d="M12 8v8M8 12h8" />
       </svg>
     </motion.button>
   )

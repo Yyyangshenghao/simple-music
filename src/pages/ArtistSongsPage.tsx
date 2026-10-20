@@ -183,7 +183,7 @@ export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {
               index={index}
               onPlay={() => playTrack(song)}
               disabled={isCatalogUnavailable(song)}
-              statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined}
+              statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} statusColumn
             />
           }}
         />
