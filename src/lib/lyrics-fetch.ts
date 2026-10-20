@@ -4,6 +4,8 @@ import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc } from './lyric-parser'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './track-match'
+import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
+import { providerAccountSession } from './provider-account-session'
 import type { ProviderId } from '../providers/types'
 import type { Track, MusicSource, LyricLine as LyricLineType, WordLyricLine as WordLyricLineType } from '../types/domain'
 
@@ -34,7 +36,40 @@ interface QQLyricResponse {
 
 export const emptyLyrics: LyricsResult = { source: null, main: [], aligned: [], roma: [], wordLines: [] }
 
+/**
+ * 共享网易与 QQ 的歌词请求及解析结果
+ *
+ * @param track 目标曲目
+ * @param sources Apple 歌词允许匹配的来源
+ * @param signal 当前消费者的取消信号
+ */
 export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal): Promise<LyricsResult> {
+  if (signal?.aborted) return emptyLyrics
+  if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal)
+  const source = track.source
+  const session = providerAccountSession(source)
+  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}`
+  try {
+    const result = await requestProviderData(source, key, async () => {
+      // 共享请求不绑定单个页面的取消信号 避免切歌中断仍在使用的预热
+      const lyrics = await loadLyrics(track, [])
+      if (!lyrics.main.length) throw new Error('EMPTY_LYRICS')
+      return lyrics
+    }, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
+    return signal?.aborted || session !== providerAccountSession(source) ? emptyLyrics : result
+  } catch {
+    return emptyLyrics
+  }
+}
+
+/**
+ * 按原平台能力请求并解析歌词
+ *
+ * @param track 目标曲目
+ * @param sources Apple 歌词允许匹配的来源
+ * @param signal 非共享请求的取消信号
+ */
+async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
   if (track.source === 'apple') {
     const native = await fetchNativeAppleLyrics(track, signal)

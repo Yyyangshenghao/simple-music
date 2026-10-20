@@ -146,7 +146,7 @@ describe('shuange recommendation', () => {
     expect(profile.featureScores?.['language:zh']).toBeUndefined()
   })
 
-  it('候选池按批消费并将已发出的歌曲纳入冷却，连续换批不会折返', () => {
+  it('候选池按批预留但不记录曝光，实际切到后才进入已推荐记录', () => {
     stashShuangeCandidates([track('a'), track('b'), track('c')])
 
     const first = takeShuangeCandidateBatch('netease', 2)
@@ -155,6 +155,9 @@ describe('shuange recommendation', () => {
     expect(first).toHaveLength(2)
     expect(second).toHaveLength(1)
     expect(new Set([...first, ...second].map((item) => item.id))).toEqual(new Set(['a', 'b', 'c']))
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([])
+    recordShuangeExposure(first[0])
+    expect(__getShuangeRecommendationProfile().seenKeys).toEqual([`netease:${String(first[0].id)}`])
   })
 
   it('跨日后丢弃候选缓存，避免旧池盖过当天推荐', async () => {

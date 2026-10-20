@@ -118,9 +118,19 @@ export class NeteaseMusicService implements MusicService {
     return res.url ?? ''
   }
 
+  /**
+   * 复用展示歌词的解析与缓存供刷歌选段
+   *
+   * @param track 目标曲目
+   */
   async getLyrics(track: Track): Promise<LyricLine[]> {
-    const res = await api.get<{ lines: LyricLine[] }>('/api/lyric', { id: track.id as string | number })
-    return res.lines ?? []
+    // 旧接口返回原始 LRC 而非 lines 保留原取值方式供对照
+    // const res = await api.get<{ lines: LyricLine[] }>('/api/lyric', { id: track.id as string | number })
+    // return res.lines ?? []
+    // 延迟加载避免歌词跨源匹配与 provider 注册形成初始化环
+    const { fetchLyrics } = await import('./lyrics-fetch')
+    // 读取共享解析结果
+    return (await fetchLyrics(track)).main
   }
 
   async getDailySongs(): Promise<Track[]> {
