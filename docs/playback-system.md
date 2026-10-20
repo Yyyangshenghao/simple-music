@@ -138,7 +138,7 @@ QQ `/api/qq/song/url` 会按请求音质顺序返回所有可播文件，并把�
 
 ## 6. 队列与走序（`src/stores/playlist.ts`）
 
-队列状态与走序、追加、重排、设为下一首及移除规则位于 `src/lib/queue-state.ts`，不依赖 DOM 或 store。`playlist` store 沿用现有接口，负责平台可用性、异步详情、播放意图与预加载调度；队列仍由渲染层持有，尚未迁移到后台。
+队列状态与走序、追加、重排、设为下一首及移除规则位于 `src/lib/queue-state.ts`，不依赖 DOM 或 store。`playlist` store 沿用现有接口，负责平台可用性、异步详情、播放意图与预加载调度；实际队列由独立播放宿主持有，主界面通过状态投影与命令回执交互，详见 [独立播放宿主](playback-host.md)。
 
 - `queue` + `queueIndex`；播放模式存在 settings（`order / shuffle / one`）。
 - **随机模式**用 Fisher-Yates 洗牌出的 `shuffleOrder`（下标排列）循环走序，而非每次随机跳——保证一轮内不重复、prev 可回溯。新增曲目时延长排列；长度失配时懒重建。
