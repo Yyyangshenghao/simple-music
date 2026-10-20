@@ -8,7 +8,7 @@ import type {
   Track,
 } from '../types/domain'
 import { ONLINE_MUSIC_SOURCES } from '../types/domain'
-import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 import type {
   MusicService,
   PlaylistMeta,
@@ -134,6 +134,7 @@ export interface PlaylistWriterCapability {
   getPlaylistManagementSession?(signal?: AbortSignal): Promise<PlaylistManagementSession>
   inspectPlatformPlaylist?(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection>
   mutatePlatformPlaylist?(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult>
+  setCollectionSubscribed?(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }>
   findUserPlaylistsByName?(name: string): Promise<PlaylistMeta[]>
   getPlaylistWithDescription?(id: unknown): Promise<{ playlist: PlaylistMeta; tracks: Track[] } | null>
   createPlaylist?(name: string, opts: { private: boolean }): Promise<{ id: unknown }>

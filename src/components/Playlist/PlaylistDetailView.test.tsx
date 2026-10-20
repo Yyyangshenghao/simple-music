@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   loading: false,
   error: false,
 }))
+vi.mock('../../hooks/useCollectionSubscription', () => ({ useCollectionSubscription: () => ({ state: 'unknown', busy: false, toggle: () => {} }) }))
 vi.mock('./BatchTrackActions', () => ({ BatchTrackActions: (props: Parameters<typeof BatchTrackActions>[0]) => { h.batch = props; return null } }))
 vi.mock('../../hooks/useLazyPlaylist', () => ({ useLazyPlaylist: (_playlist: Playlist, initialTracks?: Track[]) => ({
   total: initialTracks?.length || 100, tracks: initialTracks ?? h.preview, available: true, loading: h.loading, error: h.error,

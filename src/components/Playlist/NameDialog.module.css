@@ -1,0 +1,72 @@
+/* 新建/重命名歌单：玻璃面板 + 大留白，只保留输入与一个主操作。 */
+.dialog {
+  width: min(400px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 28px 28px 22px;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 24px;
+  color: var(--sm-text-primary);
+  background: linear-gradient(var(--glass-bg-modal), var(--glass-bg-modal)), color-mix(in srgb, var(--sm-bg-base) 86%, transparent);
+  backdrop-filter: var(--glass-blur-modal) saturate(130%);
+  -webkit-backdrop-filter: var(--glass-blur-modal) saturate(130%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent), 0 24px 64px -16px color-mix(in srgb, black 45%, transparent);
+}
+.dialog[open] { animation: dialogIn 240ms var(--sm-ease-out); }
+.dialog::backdrop { background: color-mix(in srgb, black 38%, transparent); backdrop-filter: blur(6px); animation: backdropIn 200ms ease-out; }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+@keyframes backdropIn { from { opacity: 0; } }
+
+.header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+.header h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.01em; }
+
+.field { position: relative; }
+.field input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  padding: 0 64px 0 16px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 15px;
+  transition: background 180ms var(--sm-ease-out), border-color 180ms var(--sm-ease-out), box-shadow 180ms var(--sm-ease-out);
+}
+.field input::placeholder { color: var(--sm-text-muted); }
+.field input:focus { outline: none; background: var(--sm-bg-elevated); border-color: color-mix(in srgb, var(--sm-accent) 45%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sm-accent) 14%, transparent); }
+.field input:disabled { opacity: .6; }
+/* 字数只在输入时出现，平时不占视线。 */
+.count { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 160ms; }
+.field:focus-within .count, .field[data-filled='true'] .count { opacity: .7; }
+.count[data-full='true'] { color: var(--sm-color-danger); opacity: 1; }
+
+.note { display: flex; align-items: center; gap: 6px; margin: 12px 2px 0; color: var(--sm-text-secondary); font-size: 12px; }
+.error { margin: 12px 2px 0; color: var(--sm-color-danger); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; }
+
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 28px; }
+.ghost, .primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  border-radius: var(--sm-radius-pill);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 160ms var(--sm-ease-out), transform 120ms var(--sm-ease-out), opacity 160ms;
+}
+.ghost { padding: 0 16px; border: 0; background: transparent; color: var(--sm-text-secondary); }
+.ghost:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.primary { min-width: 88px; padding: 0 22px; border: 0; background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--sm-accent) 80%, transparent); }
+.primary:hover:not(:disabled) { background: var(--sm-accent-warm); }
+.ghost:active, .primary:active:not(:disabled) { transform: scale(0.97); }
+.primary:disabled { opacity: .4; cursor: default; box-shadow: none; }
+.ghost:focus-visible, .primary:focus-visible { outline: none; }
+.spinner { width: 13px; height: 13px; border: 1.6px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin 760ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open], .dialog::backdrop, .spinner { animation: none; }
+}

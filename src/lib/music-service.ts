@@ -1,5 +1,5 @@
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
-import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 
 export interface MusicService {
   /** 推荐歌单分页拉取：page 0 为个性化推荐，之后每页拉更远的一批（可无限翻页的音源按 page 返回不同内容）。 */
@@ -67,6 +67,8 @@ export interface MusicService {
   getPlaylistManagementSession?(signal?: AbortSignal): Promise<PlaylistManagementSession>
   inspectPlatformPlaylist?(input: PlatformPlaylistRef, signal?: AbortSignal): Promise<PlatformPlaylistInspection>
   mutatePlatformPlaylist?(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult>
+  /** 收藏或取消收藏他人歌单/专辑，返回平台读回的收藏状态。 */
+  setCollectionSubscribed?(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }>
   /** 清空歌单当前曲目并替换为新的一批（可选;仅网易实现）。 */
   replacePlaylistTracks?(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean>
   /** 覆盖歌单简介（可选;仅网易实现）。 */

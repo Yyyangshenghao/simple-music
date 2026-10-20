@@ -74,6 +74,8 @@ export interface Playlist {
   trackCountKnown?: boolean
   playCount: number
   creator: string
+  /** 账号歌单列表中区分收藏（他人创建）与自建；缺省视为自建。 */
+  subscribed?: boolean
   tag?: string
   description?: string
   tracks?: Track[]

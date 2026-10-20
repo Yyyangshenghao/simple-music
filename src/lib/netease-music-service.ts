@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 import type {
   MusicService,
   RadarPlaylist,
@@ -164,6 +164,11 @@ export class NeteaseMusicService implements MusicService {
     return res.playlists ?? []
   }
 
+  async getUserAlbums(): Promise<Playlist[]> {
+    const res = await api.get<{ albums?: Playlist[] }>('/api/user/albums')
+    return res.albums ?? []
+  }
+
   /** 网易约定:用户歌单列表首个为"我喜欢的音乐"。 */
   async getLikedPlaylist(): Promise<Playlist | null> {
     const res = await api.get<{ playlists?: Playlist[] }>('/api/user/playlists')
@@ -254,6 +259,10 @@ export class NeteaseMusicService implements MusicService {
 
   mutatePlatformPlaylist(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult> {
     return api.post('/api/netease/playlist-management/manage', input, undefined, { signal, timeoutMs: 120000 })
+  }
+
+  setCollectionSubscribed(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }> {
+    return api.post('/api/netease/collection', input, undefined, { signal })
   }
 
   async replacePlaylistTracks(playlistId: unknown, currentTrackIds: unknown[], newTrackIds: unknown[]): Promise<boolean> {

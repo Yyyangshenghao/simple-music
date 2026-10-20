@@ -4,6 +4,7 @@ import type { Playlist, Track } from '../../types/domain'
 
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as (() => void)[], account: 0,
   queue: [] as Track[], refresh: vi.fn(), metadata: vi.fn(), setQueue: vi.fn(), close: vi.fn(), check: vi.fn(), inspect: vi.fn(), toast: vi.fn(), writable: false, managementRevision: 0 }))
+vi.mock('../../hooks/useCollectionSubscription', () => ({ useCollectionSubscription: () => ({ state: 'unknown', busy: false, toggle: () => {} }) }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {

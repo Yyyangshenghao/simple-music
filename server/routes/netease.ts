@@ -753,6 +753,36 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // ---------- 用户收藏的专辑 ----------
+  if (pn === '/api/user/albums') {
+    try {
+      const info = await getLoginInfo(ctx)
+      if (!info.loggedIn || !info.userId) {
+        sendJson(res, { loggedIn: false, albums: [] })
+        return true
+      }
+      const cookie = getCookie(ctx, 'netease')
+      const albums: ReturnType<typeof mapAlbum>[] = []
+      const seen = new Set<string>()
+      for (let page = 0; page < 20; page++) {
+        const body = asObj((await call('album_sublist', { limit: 100, offset: page * 100, cookie, timestamp: Date.now() })).body)
+        const items = asArr(body.data)
+        for (const raw of items) {
+          const album = mapAlbum(raw)
+          if (!album.id || seen.has(String(album.id))) continue
+          seen.add(String(album.id))
+          albums.push({ ...album, creator: asArr(asObj(raw).artists).map((a) => asStr(asObj(a).name)).filter(Boolean).join(' / ') })
+        }
+        if (body.hasMore !== true || items.length === 0) break
+      }
+      sendJson(res, { loggedIn: true, albums })
+    } catch (err) {
+      console.error('[UserAlbums]', err)
+      sendJson(res, { error: (err as Error).message, loggedIn: false, albums: [] }, 500)
+    }
+    return true
+  }
+
   // ---------- 红心状态 ----------
   if (pn === '/api/song/like/check') {
     try {

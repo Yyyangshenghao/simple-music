@@ -15,6 +15,7 @@ import {
   handleQQLyric,
   getQQLoginInfo,
   handleQQUserPlaylists,
+  handleQQUserAlbums,
   handleQQLikedPlaylist,
   handleQQRadarSong,
   handleQQRecommendFeed,
@@ -262,6 +263,17 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQUserPlaylists]', err)
       sendJson(res, { provider: 'qq', loggedIn: false, error: (err as Error).message, playlists: [] }, 500)
+    }
+    return true
+  }
+
+  if (pn === '/api/qq/user/albums') {
+    try {
+      const data = await handleQQUserAlbums(getCookie(ctx, 'qq'))
+      sendJson(res, data)
+    } catch (err) {
+      console.error('[QQUserAlbums]', err)
+      sendJson(res, { provider: 'qq', loggedIn: false, error: (err as Error).message, albums: [] }, 500)
     }
     return true
   }

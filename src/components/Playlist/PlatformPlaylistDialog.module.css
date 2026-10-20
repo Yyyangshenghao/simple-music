@@ -3,7 +3,6 @@
 .form label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .form input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--sm-border-strong); border-radius: 10px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); font: inherit; }
 .form input:focus-visible { outline: 2px solid var(--sm-accent-warm); outline-offset: 2px; }
-.limit { color: var(--sm-text-secondary); font-size: 12px; margin-top: -5px; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .actions .primary { background: var(--sm-accent); color: var(--sm-text-on-accent); }
 .actions .primary:hover:not(:disabled) { background: var(--sm-accent-warm); }

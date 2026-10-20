@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import { motion } from 'motion/react'
+import { memo, type ReactNode } from 'react'
+import { motion, type Transition } from 'motion/react'
 import { BorderGlow } from '../BorderGlow/BorderGlow'
 import { TiltCard } from '../ui/TiltCard'
 import { albumCoverTransition, coverReturnTransition, springGentle } from '../../lib/motion-presets'
@@ -24,6 +24,43 @@ interface PlaylistCardProps {
   layoutDependency?: string
 }
 
+/** 歌单类卡片外壳：倾斜 + 边缘光 + 共享封面转场；平台歌单与应用歌单共用，只替换封面与附加信息。 */
+export function CollectionCard({ ariaLabel, onClick, cover, coverLayoutId, coverTransition, layoutDependency, name, meta, metaTitle, footer, selectionMode = false }: {
+  ariaLabel: string
+  onClick(): void
+  cover: ReactNode
+  coverLayoutId?: string
+  coverTransition: Transition
+  layoutDependency?: string
+  name: string
+  meta?: string
+  metaTitle?: string
+  footer?: ReactNode
+  selectionMode?: boolean
+}) {
+  return (
+    <TiltCard className={styles.glowWrap} disabled={selectionMode}>
+      <BorderGlow borderRadius={16}>
+        <button className={`${styles.card} no-drag`} onClick={onClick} aria-label={ariaLabel}>
+          <motion.div
+            className={styles.coverWrap}
+            layoutId={coverLayoutId}
+            layoutDependency={layoutDependency}
+            layoutCrossfade={false}
+            transition={coverTransition}
+            style={{ borderRadius: 12 }}
+          >
+            {cover}
+          </motion.div>
+          <p className={styles.name} title={name}>{name}</p>
+          {meta && <p className={styles.meta} title={metaTitle}>{meta}</p>}
+          {footer}
+        </button>
+      </BorderGlow>
+    </TiltCard>
+  )
+}
+
 export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta, layoutId, layoutDependency, selectionMode = false }: PlaylistCardProps) {
   const returning = useNavigationStore((state) => state.lastAction === 'pop')
   const cachedCount = meta === undefined ? getCachedPlaylistTrackCount(playlist) : undefined
@@ -34,31 +71,23 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, onClick, meta
     : cachedCount !== undefined ? '以实际读取的歌曲列表计数，包含暂不可播放的歌曲'
       : reported ? '平台返回的汇总数量，打开后按实际读取的歌曲列表计数' : undefined
   return (
-    <TiltCard className={styles.glowWrap} disabled={selectionMode}>
-      <BorderGlow borderRadius={16}>
-        <button
-          className={`${styles.card} no-drag`}
-          onClick={onClick}
-          aria-label={`${playlist.type === 'album' ? '专辑' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
-        >
-          <motion.div
-            className={styles.coverWrap}
-            layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
-            layoutDependency={layoutDependency}
-            layoutCrossfade={false}
-            transition={returning ? coverReturnTransition : playlist.type === 'album' ? albumCoverTransition : springGentle}
-            style={{ borderRadius: 12 }}
-          >
-            {playlist.cover
-              ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
-              : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
-            {playlist.cover && <QQLikedCoverOverlay playlist={playlist} />}
-            <SourceBadge source={playlist.source} className={styles.sourceBadge} />
-          </motion.div>
-          <p className={styles.name}>{playlist.name}</p>
-          {displayMeta && <p className={styles.meta} title={countTitle}>{displayMeta}</p>}
-        </button>
-      </BorderGlow>
-    </TiltCard>
+    <CollectionCard
+      ariaLabel={`${playlist.type === 'album' ? '专辑' : '歌单'}：${playlist.name}${displayMeta ? `，${displayMeta}` : ''}`}
+      onClick={onClick}
+      selectionMode={selectionMode}
+      coverLayoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : layoutId}
+      layoutDependency={layoutDependency}
+      coverTransition={returning ? coverReturnTransition : playlist.type === 'album' ? albumCoverTransition : springGentle}
+      cover={<>
+        {playlist.cover
+          ? <img className={styles.cover} src={sizedImage(playlist.cover, 512)} alt="" loading="lazy" />
+          : <PlaylistCoverFallback name={playlist.name} source={playlist.source} />}
+        {playlist.cover && <QQLikedCoverOverlay playlist={playlist} />}
+        <SourceBadge source={playlist.source} className={styles.sourceBadge} />
+      </>}
+      name={playlist.name}
+      meta={displayMeta}
+      metaTitle={countTitle}
+    />
   )
 })

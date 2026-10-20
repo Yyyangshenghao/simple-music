@@ -600,15 +600,17 @@ function mapQQPlaylist(raw: unknown, kind: string): QQPlaylist {
     source: 'qq',
     type: 'playlist',
     id: upstreamId ? String(upstreamId) : '',
-    name: str(pl.diss_name || pl.name || pl.title),
+    // 收藏列表（fcg_get_profile_order_asset）用 dissname/listennum/nickname。
+    name: str(pl.diss_name || pl.dissname || pl.name || pl.title),
     cover: pickQQImageUrl(pl.diss_cover, pl.logo, pl.picurl, pl.cover),
     trackCount: numOf(pl.song_cnt || pl.songnum || pl.total_song_num || pl.song_count),
-    playCount: numOf(pl.listen_num || pl.visitnum || pl.play_count),
-    creator: str(pl.hostname || pl.nick || pl.creator) || 'QQ 音乐',
+    playCount: numOf(pl.listen_num || pl.listennum || pl.visitnum || pl.play_count),
+    creator: str(pl.hostname || pl.nick || pl.nickname || pl.creator) || 'QQ 音乐',
     subscribed: kind === 'collect',
     specialType: 0,
   }
-  if (isQQFavoritePlaylist(pl)) {
+  // 收藏列表里的 dirid 是原作者的目录号，只有自建列表的 201 才是自己的「我喜欢」。
+  if (kind !== 'collect' && isQQFavoritePlaylist(pl)) {
     playlist.id = QQ_LIKED_PLAYLIST_ID
   }
   return playlist
@@ -945,6 +947,44 @@ export async function handleQQUserPlaylists(cookie: string): Promise<Record<stri
     }
   }
   return { loggedIn: true, provider: 'qq', userId: uin, playlists }
+}
+
+/** 用户收藏的专辑：与收藏歌单同一接口，reqtype=2 返回 albumlist。 */
+export async function handleQQUserAlbums(cookie: string): Promise<Record<string, unknown>> {
+  const info = await getQQLoginInfo(cookie)
+  if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', albums: [] }
+  const uin = info.userId
+  const albums: Record<string, unknown>[] = []
+  const seen = new Set<string>()
+  for (let page = 0; page < 20; page++) {
+    const data = rec(rec(await qqGetJSON(
+      cookie,
+      'https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg',
+      { ct: 20, cid: 205360956, userid: uin, reqtype: 2, sin: page * 60, ein: page * 60 + 59 },
+      { headers: { Referer: 'https://y.qq.com/portal/profile.html' } }
+    )).data)
+    const items = arr(data.albumlist)
+    for (const raw of items) {
+      const a = rec(raw)
+      const mid = str(a.albummid)
+      if (!mid || seen.has(mid)) continue
+      seen.add(mid)
+      albums.push({
+        provider: 'qq',
+        source: 'qq',
+        type: 'album',
+        id: mid,
+        name: str(a.albumname),
+        cover: qqAlbumCover(mid, 300),
+        trackCount: numOf(a.songnum),
+        playCount: 0,
+        creator: str(a.singername),
+        tag: '专辑',
+      })
+    }
+    if (!numOf(data.has_more) || items.length === 0) break
+  }
+  return { loggedIn: true, provider: 'qq', albums }
 }
 
 export async function handleQQRadarSong(cookie: string): Promise<Record<string, unknown>> {

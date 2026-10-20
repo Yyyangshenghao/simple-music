@@ -155,77 +155,8 @@
 .subTabs[data-holding='true'] > .subTabActive { color: var(--sm-text-secondary); }
 .subTabs[data-holding='true'] > .subTabActive .subTabIcon { opacity: 0.85; }
 
-.providerSections { display: flex; flex-direction: column; gap: 30px; }
-
-.providerSection {
-  padding: 16px;
-  border: 1px solid var(--sm-border);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--glass-bg-card) 76%, transparent);
-}
-
-.providerSectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  color: var(--sm-text-secondary);
-  font-size: 11px;
-}
-
-.providerSectionHeader button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--sm-text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
-.providerSectionHeader button:hover { color: var(--sm-text-primary); }
-
-.providerError,
-.providerEmpty {
-  padding: 26px 10px;
-  color: var(--sm-text-secondary);
-  font-size: 12px;
-  text-align: center;
-}
-
-.providerError p { margin: 0; }
-.providerError button {
-  margin-top: 10px;
-  padding: 5px 12px;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-primary);
-  cursor: pointer;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 24px;
-}
-
-/* 分批渲染的追加触发点，不占可见空间。 */
-.gridSentinel { height: 1px; }
-
-.skeletonCard {
-  aspect-ratio: 1 / 1.2;
-  border-radius: 14px;
-  background: var(--sm-bg-elevated);
-  animation: loadingPulse 1.4s var(--sm-ease-in-out) infinite;
-}
-@keyframes loadingPulse { 50% { opacity: 0.5; } }
-@media (prefers-reduced-motion: reduce) { .skeletonCard { animation: none; } }
-
-:global([data-content-layout='full']) .providerSection {
-  padding: 16px 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-}
+.favorites { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.favorites > :last-child { align-self: stretch; }
 
 .emptyHint {
   display: flex;
@@ -265,7 +196,6 @@
   .header { align-items: flex-start; flex-direction: column; gap: 14px; }
   .subTabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .subTabs::-webkit-scrollbar { display: none; }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 18px 14px; }
 }
 
 .trackListToolbar {
@@ -422,13 +352,3 @@
 
 .sortDirBtn:hover { color: var(--sm-text-primary); }
 
-.providerSectionHeader .createPlaylist {
-  padding: 7px 12px;
-  border: 1px solid var(--sm-border-strong);
-  border-radius: var(--sm-radius-pill);
-  color: var(--sm-text-primary);
-  background: var(--sm-bg-elevated);
-  font-size: 12px;
-}
-.providerSectionHeader .createPlaylist:hover { background: var(--sm-fill-hover); }
-.createPlaylist:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }

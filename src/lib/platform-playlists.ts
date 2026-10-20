@@ -64,3 +64,24 @@ export function platformPlaylistResultMessage(result: PlatformPlaylistMutationRe
   if (result.status === 'partial') return `${action === 'add' || action === 'remove' ? `已${verb} ${result.completed}/${result.requested} 首。` : `歌单${verb}未完成。`}${result.error || '部分操作未完成，请刷新歌单查看'}`
   return action === 'create' ? '已新建平台歌单' : action === 'rename' ? '歌单已改名' : `已${verb} ${result.completed} 首歌曲`
 }
+
+/** 收藏或取消收藏他人歌单/专辑；返回平台读回的状态，并通知我的库与详情页重新读取。 */
+export async function setPlatformCollectionSubscribed(collection: Playlist, subscribe: boolean): Promise<boolean> {
+  const source = collection.source
+  if (!isWritablePlaylistSource(source)) throw new Error('当前平台暂不支持收藏')
+  const epoch = providerAccountSession(source)
+  const { writer, assertCurrent } = context(source)
+  if (!writer.setCollectionSubscribed) throw new Error('当前平台暂不支持收藏')
+  const session = await writer.getPlaylistManagementSession!()
+  assertCurrent()
+  try {
+    const result = await writer.setCollectionSubscribed({ ...session, kind: collection.type === 'album' ? 'album' : 'playlist', id: String(collection.id), subscribe })
+    assertCurrent()
+    return result.subscribed
+  } finally {
+    if (providerAccountSession(source) === epoch) {
+      clearProviderRequestCache(source)
+      usePlatformPlaylistsStore.getState().changed(source)
+    }
+  }
+}

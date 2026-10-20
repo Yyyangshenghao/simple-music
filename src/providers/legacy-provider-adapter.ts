@@ -139,6 +139,7 @@ function playlistWriterCapability(service: MusicService, source: ProviderId): Pl
     getPlaylistManagementSession: service.getPlaylistManagementSession ? signal => service.getPlaylistManagementSession!(signal) : undefined,
     inspectPlatformPlaylist: service.inspectPlatformPlaylist ? (input, signal) => service.inspectPlatformPlaylist!(input, signal) : undefined,
     mutatePlatformPlaylist: service.mutatePlatformPlaylist ? (input, signal) => service.mutatePlatformPlaylist!(input, signal) : undefined,
+    setCollectionSubscribed: service.setCollectionSubscribed ? (input, signal) => service.setCollectionSubscribed!(input, signal) : undefined,
     findUserPlaylistsByName: service.findUserPlaylistsByName
       ? (name) => service.findUserPlaylistsByName!(name)
       : undefined,

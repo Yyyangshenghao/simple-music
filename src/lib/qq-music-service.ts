@@ -13,7 +13,7 @@ import type {
   ToplistPreviewTrack,
 } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
-import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult } from '../types/platform-playlist'
+import type { PlaylistManagementSession, PlatformPlaylistRef, PlatformPlaylistInspection, PlatformPlaylistMutation, PlatformPlaylistMutationResult, CollectionSubscription } from '../types/platform-playlist'
 
 export class QQMusicService implements MusicService {
   async checkLiked(ids: unknown[]): Promise<Record<string, boolean>> {
@@ -51,6 +51,10 @@ export class QQMusicService implements MusicService {
 
   mutatePlatformPlaylist(input: PlatformPlaylistMutation, signal?: AbortSignal): Promise<PlatformPlaylistMutationResult> {
     return api.post('/api/qq/playlist-management/manage', input, undefined, { signal, timeoutMs: 120000 })
+  }
+
+  setCollectionSubscribed(input: CollectionSubscription, signal?: AbortSignal): Promise<{ subscribed: boolean }> {
+    return api.post('/api/qq/collection', input, undefined, { signal })
   }
 
   async getPlaybackAccountToken(): Promise<string | null> {
@@ -230,6 +234,11 @@ export class QQMusicService implements MusicService {
   async getUserPlaylists(): Promise<Playlist[]> {
     const res = await api.get<{ playlists?: Playlist[] }>('/api/qq/user/playlists')
     return res.playlists ?? []
+  }
+
+  async getUserAlbums(): Promise<Playlist[]> {
+    const res = await api.get<{ albums?: Playlist[] }>('/api/qq/user/albums')
+    return res.albums ?? []
   }
 
   async getLikedPlaylist(): Promise<Playlist | null> {

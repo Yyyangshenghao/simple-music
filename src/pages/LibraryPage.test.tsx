@@ -128,12 +128,13 @@ describe('我的库账号失效提示', () => {
     expect(html).toContain('<span>离线音乐</span></button>')
   })
 
-  it('Apple Music 提供独立专辑入口，其他平台不显示空入口', () => {
-    content.current = 'apple'
-    const apple = renderToStaticMarkup(<LibraryPage />)
-    expect(apple).toContain('<span>专辑</span></button>')
-    content.current = 'qq'
-    expect(renderToStaticMarkup(<LibraryPage />)).not.toContain('<span>专辑</span></button>')
+  it('收藏的歌单与专辑统一放在「收藏」页签，不再单列专辑页签', () => {
+    for (const source of ['apple', 'qq'] as const) {
+      content.current = source
+      const html = renderToStaticMarkup(<LibraryPage />)
+      expect(html).toContain('<span>收藏</span></button>')
+      expect(html).not.toContain('<span>专辑</span></button>')
+    }
   })
 
   it('Apple 播放器断开时不展示可点的资料库，并提示重新连接', () => {

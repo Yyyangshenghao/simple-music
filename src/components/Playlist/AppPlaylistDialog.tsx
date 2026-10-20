@@ -7,6 +7,7 @@ import { SOURCE_BRAND } from '../../lib/source-brand'
 import { AppPlaylistSources } from './AppPlaylistSources'
 import type { Track } from '../../types/domain'
 import styles from './AppPlaylistDialog.module.css'
+import { NameDialog, nameDialogStyles as nameStyles } from './NameDialog'
 
 export function AppPlaylistModal({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -27,17 +28,23 @@ export function AppPlaylistModal({ title, onClose, children }: { title: string; 
 export function AppPlaylistNameDialog({ initialName = '', title, onSubmit, onClose }: { initialName?: string; title: string; onSubmit(name: string): void; onClose(): void }) {
   const [name, setName] = useState(initialName)
   const [error, setError] = useState('')
-  return <AppPlaylistModal title={title} onClose={onClose}>
-    <form className={styles.form} onSubmit={event => {
+  return <NameDialog title={title} onClose={onClose}>
+    <form onSubmit={event => {
       event.preventDefault()
       try { onSubmit(name); onClose() }
       catch (failure) { setError(failure instanceof Error ? failure.message : '保存失败，请重试') }
     }}>
-      <label>歌单名称<input autoFocus required maxLength={80} value={name} placeholder="给歌单起个名字" onChange={event => setName(event.target.value)} /></label>
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      <div className={styles.actions}><button type="button" onClick={onClose}>取消</button><button className={styles.primary} type="submit" disabled={!name.trim()}>保存</button></div>
+      <div className={nameStyles.field} data-filled={name.length > 0}>
+        <input autoFocus required maxLength={80} value={name} placeholder="歌单名称" aria-label="歌单名称" onChange={event => setName(event.target.value)} />
+        <span className={nameStyles.count} data-full={name.length >= 80} aria-hidden="true">{name.length}/80</span>
+      </div>
+      {error && <p className={nameStyles.error} role="alert">{error}</p>}
+      <div className={nameStyles.actions}>
+        <button type="button" className={nameStyles.ghost} onClick={onClose}>取消</button>
+        <button type="submit" className={nameStyles.primary} disabled={!name.trim()}>{initialName ? '保存' : '创建'}</button>
+      </div>
     </form>
-  </AppPlaylistModal>
+  </NameDialog>
 }
 
 export function AddToAppPlaylistDialog({ loadTracks, tracks, contextLabel, onClose, onDone }: { loadTracks(signal: AbortSignal): Promise<Track[]>; tracks?: Track[]; contextLabel?: string; onClose(): void; onDone?(): void }) {

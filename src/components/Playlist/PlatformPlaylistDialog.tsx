@@ -5,6 +5,8 @@ import { providerAccountSession } from '../../lib/provider-account-session'
 import { inspectPlatformPlaylist, mutatePlatformPlaylist, platformPlaylistResultMessage } from '../../lib/platform-playlists'
 import { useToastStore } from '../../stores/toast'
 import { AppPlaylistModal } from './AppPlaylistDialog'
+import { LOCK_ICON, NameDialog, nameDialogStyles as nameStyles } from './NameDialog'
+import { SourceBadge } from '../ui/SourceBadge'
 import type { Playlist, Track } from '../../types/domain'
 import type { WritablePlaylistSource } from '../../types/platform-playlist'
 import styles from './PlatformPlaylistDialog.module.css'
@@ -34,8 +36,8 @@ function usePlatformOperation(source: WritablePlaylistSource) {
   return { operation, busy, valid, current, begin, finish }
 }
 
-function Scope({ source, creating = false }: { source: WritablePlaylistSource; creating?: boolean }) {
-  return <p className={styles.hint}>{creating ? `将在${platformName(source)}新建仅自己可见的歌单。` : `直接保存到${platformName(source)}，仅接受该平台歌曲。`}{source === 'qq' && 'QQ 音乐目前仅支持管理私密歌单。'}</p>
+function Scope({ source }: { source: WritablePlaylistSource }) {
+  return <p className={styles.hint}>直接保存到{platformName(source)}，仅接受该平台歌曲。{source === 'qq' && 'QQ 音乐目前仅支持管理私密歌单。'}</p>
 }
 
 export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreated }: {
@@ -80,20 +82,24 @@ export function PlatformPlaylistNameDialog({ source, playlist, onClose, onCreate
       if (task.current(controller.signal)) setError(failureMessage(failure))
     } finally { task.finish(controller) }
   }
-  return <AppPlaylistModal title={`${playlist ? '重命名' : '新建'}${platformName(source)}歌单`} onClose={close}>
-    <Scope source={source} creating={!playlist} />
-    <form className={styles.form} onSubmit={event => { event.preventDefault(); void save() }}>
-      <label>歌单名称<input autoFocus required maxLength={maxLength} value={name} disabled={task.busy || !task.valid || uncertain}
-        placeholder="给歌单起个名字" onChange={event => setName(event.target.value)} /></label>
-      <small className={styles.limit}>最多 {maxLength} 个字符</small>
-      {!task.valid && <p className={styles.error} role="alert">账号或平台状态已变化，请关闭后重新操作。</p>}
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      {task.busy && <p className={styles.hint} role="status">正在{playlist ? '保存名称' : '新建歌单'}…取消不会撤回已发送的平台操作。</p>}
-      <div className={styles.actions}><button type="button" onClick={close}>{task.busy ? '取消操作' : uncertain ? '关闭并查看歌单' : '取消'}</button>
-        {!uncertain && <button className={styles.primary} type="submit" disabled={task.busy || !task.valid || !name.trim()}>{playlist ? '保存名称' : '新建私密歌单'}</button>}
+  return <NameDialog title={playlist ? '重命名歌单' : '新建歌单'} badge={<SourceBadge source={source} displayMode="always" showInactive />} onClose={close}>
+    <form onSubmit={event => { event.preventDefault(); void save() }}>
+      <div className={nameStyles.field} data-filled={name.length > 0}>
+        <input autoFocus required maxLength={maxLength} value={name} disabled={task.busy || !task.valid || uncertain}
+          placeholder="歌单名称" aria-label="歌单名称" onChange={event => setName(event.target.value)} />
+        <span className={nameStyles.count} data-full={name.length >= maxLength} aria-hidden="true">{name.length}/{maxLength}</span>
+      </div>
+      {!playlist && <p className={nameStyles.note}>{LOCK_ICON}仅自己可见</p>}
+      {!task.valid && <p className={nameStyles.error} role="alert">账号或平台状态已变化，请关闭后重新操作。</p>}
+      {error && <p className={nameStyles.error} role="alert">{error}</p>}
+      <div className={nameStyles.actions}>
+        <button type="button" className={nameStyles.ghost} onClick={close} title={task.busy ? '已发送的平台操作不会被撤回' : undefined}>{uncertain ? '关闭并查看歌单' : '取消'}</button>
+        {!uncertain && <button type="submit" className={nameStyles.primary} disabled={task.busy || !task.valid || !name.trim()}>
+          {task.busy ? <><span className={nameStyles.spinner} aria-hidden="true" />{playlist ? '保存中' : '创建中'}</> : playlist ? '保存' : '创建'}
+        </button>}
       </div>
     </form>
-  </AppPlaylistModal>
+  </NameDialog>
 }
 
 export function AddToPlatformPlaylistDialog({ source, loadTracks, onClose, onDone }: {

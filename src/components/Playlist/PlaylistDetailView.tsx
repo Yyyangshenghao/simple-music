@@ -35,6 +35,7 @@ import { isCatalogUnavailable } from '../../lib/track-availability'
 import styles from './PlaylistDetailView.module.css'
 import pageScroll from '../../styles/page-scroll.module.css'
 import { BackButton } from '../ui/BackButton'
+import { useCollectionSubscription } from '../../hooks/useCollectionSubscription'
 
 /** TrackRow 实测高度:上下 padding 8×2 + 封面 40。虚拟列表按此定位,改 TrackRow 尺寸需同步。 */
 export const TRACK_ROW_HEIGHT = 56
@@ -104,6 +105,8 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
   const [albumSnapshot, setAlbumDetail] = useState<{ scope: string; playlist: Playlist } | null>(null)
   const albumDetail = albumSnapshot?.scope === requestScope ? albumSnapshot.playlist : null
   const service = serviceFor(playlist.source)
+  const collection = useCollectionSubscription(playlist)
+  const collectable = !initialTracks?.length && (collection.state === 'subscribed' || collection.state === 'none')
   const { total, tracks, loading, error, available, ensureRange, ensureAll, makeQueue, refresh, checkForUpdates, canCheckForUpdates, retry } = useLazyPlaylist(playlist, initialTracks)
   const canRefresh = playlist.type !== 'album' && !initialTracks?.length
   const refreshPlaylist = useCallback(async () => {
@@ -257,6 +260,12 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
                 <div className={styles.titleRow}>
                   <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
+                  {collectable && <button type="button" className={`${styles.collectBtn} no-drag`} aria-pressed={collection.state === 'subscribed'}
+                    disabled={collection.busy} onClick={() => void collection.toggle()}
+                    title={collection.state === 'subscribed' ? '取消收藏' : `收藏${isAlbum ? '专辑' : '歌单'}`}
+                    aria-label={collection.state === 'subscribed' ? '取消收藏' : `收藏${isAlbum ? '专辑' : '歌单'}`}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill={collection.state === 'subscribed' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true"><path d="M7 4h10v16l-5-3.6L7 20z" /></svg>
+                  </button>}
                   {!selecting && <BatchTrackActions compact menuLabel={isAlbum ? '专辑更多操作' : '歌单更多操作'} label={isAlbum ? '整张专辑' : '整个歌单'}
                     tracks={loading || error || !initialTracks?.length ? [] : makeQueue()}
                     collections={loading || error || initialTracks?.length ? [] : [{ ...displayPlaylist, trackCount: total, trackCountKnown: true }]}

@@ -1,0 +1,103 @@
+.shelf {
+  padding: 16px;
+  border: 1px solid var(--sm-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--glass-bg-card) 76%, transparent);
+}
+:global([data-content-layout='full']) .shelf { padding: 16px 0; border: 0; border-radius: 0; background: none; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 14px;
+}
+
+.actions { display: flex; align-items: center; gap: 8px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 24px;
+}
+
+/* 分批渲染的追加触发点，不占可见空间。 */
+.sentinel { height: 1px; }
+
+.skeleton {
+  aspect-ratio: 1 / 1.2;
+  border-radius: 14px;
+  background: var(--sm-bg-elevated);
+  animation: loadingPulse 1.4s var(--sm-ease-in-out) infinite;
+}
+@keyframes loadingPulse { 50% { opacity: 0.5; } }
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 10px;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+.message p { margin: 0; }
+
+/* 与来源徽标同形：胶囊、10px 粗体，主题强调色微染。 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--sm-accent) 32%, var(--sm-border));
+  border-radius: var(--sm-radius-pill);
+  background: color-mix(in srgb, var(--sm-accent) 10%, var(--sm-bg-overlay));
+  color: var(--sm-text-primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tag svg { color: var(--sm-accent); }
+
+/* 操作组：玻璃胶囊 + 同高圆钮，顶部细高光表现玻璃厚度，与收藏切换器同系列。 */
+.pillButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 1px solid var(--glass-border-card);
+  border-radius: var(--sm-radius-pill);
+  background: linear-gradient(color-mix(in srgb, white 6%, transparent), transparent), var(--glass-bg-base);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 16%, transparent), 0 1px 2px color-mix(in srgb, black 8%, transparent);
+  color: var(--sm-text-primary);
+  cursor: pointer;
+  transition: background 180ms var(--sm-ease-out), border-color 180ms var(--sm-ease-out), transform 120ms var(--sm-ease-out);
+}
+.pillButton { gap: 6px; padding: 0 14px 0 11px; font-size: 12px; font-weight: 500; }
+.iconButton { width: 32px; padding: 0; color: var(--sm-text-secondary); }
+.pillButton:hover:not(:disabled),
+.iconButton:hover:not(:disabled) { background: linear-gradient(color-mix(in srgb, white 8%, transparent), transparent), var(--sm-fill-hover); border-color: var(--sm-border-strong); color: var(--sm-text-primary); }
+.pillButton:active:not(:disabled),
+.iconButton:active:not(:disabled) { transform: scale(0.96); }
+.pillButton:focus-visible,
+.iconButton:focus-visible { outline: none; }
+.pillButton:disabled { opacity: .4; cursor: default; }
+.iconButton:disabled { cursor: default; }
+.pillButton svg { color: var(--sm-text-secondary); }
+
+.iconButton[data-refreshing='true'] svg { animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .iconButton[data-refreshing='true'] svg { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 18px 14px; }
+}

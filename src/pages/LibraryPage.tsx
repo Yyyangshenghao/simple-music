@@ -27,25 +27,28 @@ import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
 import { SelectionCheck, SelectionMarquee } from '../components/Playlist/SelectionControls'
 import { useMultiSelection } from '../hooks/useMultiSelection'
 import { appPlaylistTrackKey } from '../stores/app-playlists'
-import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../lib/provider-request-cache'
+import { getCachedProviderLibrary, loadProviderLibrary, type ProviderLibraryMode } from '../lib/provider-library'
 import { supportsPlatformPlaylists } from '../lib/platform-playlists'
 import { usePlatformPlaylistsStore } from '../stores/platform-playlists'
 import { PlatformPlaylistNameDialog } from '../components/Playlist/PlatformPlaylistDialog'
 import { LibraryTabs } from './LibraryTabs'
 import { LIBRARY_TAB_ICONS } from './LibraryTabIcons'
-import { useProgressiveCount } from '../hooks/useProgressiveCount'
+import { CollectionKindSwitch, type CollectionKind } from './CollectionKindSwitch'
+import { LibraryShelf, ShelfGrid, ShelfMessage, ShelfRefreshButton, ShelfSkeleton, ShelfCreateButton } from './LibraryShelf'
 import { motion } from 'motion/react'
 import { pageTransition } from '../lib/motion-presets'
 
-type SubTab = 'app-playlists' | 'playlists' | 'albums' | 'favorites' | 'recent' | 'offline' | 'local'
+type SubTab = 'app-playlists' | 'playlists' | 'favorites' | 'recent' | 'offline' | 'local'
 
-const SUB_TABS: readonly SubTab[] = ['app-playlists', 'playlists', 'albums', 'favorites', 'recent', 'offline', 'local']
+const SUB_TABS: readonly SubTab[] = ['app-playlists', 'playlists', 'favorites', 'recent', 'offline', 'local']
 const TAB_STORAGE_KEY = 'simplemusic-library-tab'
 
 /** 读取用户上次选择的页签；缺失或无效时回到应用歌单。 */
 function readStoredTab(): SubTab {
   try {
-    const value = typeof localStorage === 'undefined' ? null : localStorage.getItem(TAB_STORAGE_KEY)
+    const stored = typeof localStorage === 'undefined' ? null : localStorage.getItem(TAB_STORAGE_KEY)
+    // 旧版独立的「专辑」页签已并入「收藏」。
+    const value = stored === 'albums' ? 'favorites' : stored
     return SUB_TABS.includes(value as SubTab) ? value as SubTab : 'app-playlists'
   } catch {
     return 'app-playlists'
@@ -127,8 +130,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
   const { current: contentSource } = useContentProvider()
   const accountSession = contentSource ? providerAccountSession(contentSource) : 0
   const albumsAvailable = !!contentSource && !!providerFor(contentSource).library?.getUserAlbums
-  // 当前平台无专辑时临时显示歌单，不覆盖已记住的选择，切回支持专辑的平台后恢复。
-  const tab: SubTab = selectedTab === 'albums' && !albumsAvailable ? 'playlists' : selectedTab
+  const tab = selectedTab
   function selectTab(next: SubTab) {
     setSelectedTab(next)
     storeTab(next)
@@ -150,10 +152,10 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
         <LibraryTabs<SubTab>
           value={tab}
           onChange={selectTab}
-          items={(['app-playlists', 'playlists', ...(albumsAvailable ? ['albums' as const] : []), 'favorites', 'recent', 'offline', 'local'] as SubTab[]).map(value => ({
+          items={SUB_TABS.map(value => ({
             value,
             icon: LIBRARY_TAB_ICONS[value],
-            label: { 'app-playlists': '应用歌单', playlists: '歌单', albums: '专辑', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[value],
+            label: { 'app-playlists': '应用歌单', playlists: '歌单', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[value],
           }))}
         />
       </div>
@@ -165,10 +167,8 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
         ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:playlists`} mode="playlists" source={contentSource} scrollRef={scrollRef} />
         : <OnlineLibraryUnavailable />)}
 
-      {tab === 'albums' && albumsAvailable && contentSource && <ProviderLibraryGrid key={`${contentSource}:${accountSession}:albums`} mode="albums" source={contentSource} scrollRef={scrollRef} />}
-
       {tab === 'favorites' && (contentSource
-        ? <ProviderLibraryGrid key={`${contentSource}:${accountSession}:favorites`} mode="favorites" source={contentSource} scrollRef={scrollRef} />
+        ? <FavoritesTab key={`${contentSource}:${accountSession}`} source={contentSource} albumsAvailable={albumsAvailable} scrollRef={scrollRef} />
         : <OnlineLibraryUnavailable />)}
 
       {tab === 'recent' && <RecentPlaysList scrollRef={scrollRef} />}
@@ -182,29 +182,38 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
   )
 }
 
+const FAVORITES_KIND_STORAGE_KEY = 'simplemusic-library-favorites-kind'
+
+function readStoredKind(): CollectionKind {
+  try { return localStorage.getItem(FAVORITES_KIND_STORAGE_KEY) === 'albums' ? 'albums' : 'collected' } catch { return 'collected' }
+}
+
+/** 收藏：歌单与专辑二选一展示，选择跨会话记住；平台不支持专辑时只显示歌单。 */
+function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: ProviderId; albumsAvailable: boolean; scrollRef: RefObject<HTMLDivElement> }) {
+  const [stored, setStored] = useState(readStoredKind)
+  const kind: CollectionKind = albumsAvailable ? stored : 'collected'
+  function select(next: CollectionKind) {
+    setStored(next)
+    try { localStorage.setItem(FAVORITES_KIND_STORAGE_KEY, next) } catch { /* 存储不可用时仅本次生效 */ }
+  }
+  return (
+    <div className={styles.favorites}>
+      {albumsAvailable && <CollectionKindSwitch value={kind} onChange={select} />}
+      <motion.div key={kind} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={pageTransition}>
+        <ProviderLibraryGrid mode={kind} source={source} scrollRef={scrollRef} />
+      </motion.div>
+    </div>
+  )
+}
+
 interface ProviderLibraryGridProps {
-  mode: 'playlists' | 'albums' | 'favorites'
+  mode: ProviderLibraryMode
   source: ProviderId
   scrollRef: RefObject<HTMLDivElement>
 }
 
-const LIBRARY_SCOPES = { playlists: 'library:user-playlists', albums: 'library:user-albums', favorites: 'library:liked-playlist' }
-function libraryScope(source: ProviderId, mode: ProviderLibraryGridProps['mode']): string {
-  return LIBRARY_SCOPES[mode] + (source === 'qq' && mode !== 'albums' ? `:${useLikesStore.getState().qqMutationRevision}` : '')
-}
-
-async function loadProviderLibrary(source: ProviderId, mode: ProviderLibraryGridProps['mode'], force = false): Promise<Playlist[]> {
-  return requestProviderData(source, libraryScope(source, mode), async () => {
-    const library = providerFor(source).library
-    if (mode === 'playlists') return library?.getUserPlaylists?.() ?? []
-    if (mode === 'albums') return library?.getUserAlbums?.() ?? []
-    const liked = await library?.getLikedPlaylist?.()
-    return liked ? [liked] : []
-  }, { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
-}
-
 function cachedLibraryResult(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Partial<Record<ProviderId, ProviderResult<Playlist[]>>> {
-  const data = isProviderParticipating(source) ? getCachedProviderData<Playlist[]>(source, libraryScope(source, mode)) : undefined
+  const data = isProviderParticipating(source) ? getCachedProviderLibrary(source, mode) : undefined
   return data === undefined ? {} : { [source]: { source, status: data.length ? 'ready' : 'empty', data } }
 }
 
@@ -249,7 +258,6 @@ function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridPro
   const [results, setResults] = useState(() => cachedLibraryResult(source, mode))
   const sessionRef = useRef(0)
   const retryRef = useRef<Partial<Record<ProviderId, number>>>({})
-  const progressive = useProgressiveCount(results[source]?.data?.length ?? 0, scrollRef)
 
   useEffect(() => {
     const session = ++sessionRef.current
@@ -302,63 +310,29 @@ function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridPro
     return () => window.removeEventListener('focus', onFocus)
   }, [mode, participating, source, favoriteRevision, managementRevision]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const visibleSources = participating ? [source] : []
+  if (!participating) return <OnlineLibraryUnavailable source={source} />
 
-  if (visibleSources.length === 0) {
-    return <OnlineLibraryUnavailable source={source} />
-  }
-
-  return (
-    <div className={styles.providerSections}>
-      {creating && supportsPlatformPlaylists(source) && <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
-        retryProvider(source)
-        openPlaylist({ id, name, provider: source, source, type: 'playlist', cover: '', trackCount: 0, trackCountKnown: true, playCount: 0, creator: '' })
-      }} />}
-      {visibleSources.map((source) => {
-        const result = results[source]
-        const playlists = result?.data ?? []
-        return (
-          <section className={styles.providerSection} key={source} aria-label={`${source}音乐库`}>
-            <div className={styles.providerSectionHeader}>
-              <SourceBadge source={source} displayMode="always" reveal />
-              <span>
-                {result?.status === 'loading' || !result
-                  ? '加载中…'
-                  : result.status === 'error'
-                    ? result.error?.message
-                    : mode === 'playlists' ? null : `${playlists.length} 个${mode === 'favorites' ? '收藏入口' : '专辑'}`}
-              </span>
-              <div className={styles.toolbarActions}>
-                {mode === 'playlists' && supportsPlatformPlaylists(source) && <button className={`${styles.createPlaylist} no-drag`} onClick={() => setCreating(true)}>新建歌单</button>}
-                {mode === 'playlists' && result?.status !== 'loading' && <button className="no-drag" onClick={() => retryProvider(source)}>刷新</button>}
-              </div>
-            </div>
-            {result?.status === 'error' && playlists.length === 0 ? (
-              <div className={styles.providerError}>
-                <p>这个平台暂时无法加载，请稍后重试。</p>
-                <button className="no-drag" onClick={() => retryProvider(source)}>重试</button>
-              </div>
-            ) : result?.status === 'empty' ? (
-              <div className={styles.providerEmpty}>
-                {mode === 'favorites' ? '这个平台没有可展示的收藏入口' : mode === 'albums' ? '这个平台暂时没有专辑，或需要先登录' : '这个平台暂时没有歌单，或需要先登录'}
-              </div>
-            ) : playlists.length > 0 ? (
-              <>
-                <div className={styles.grid}>
-                  {playlists.slice(0, progressive.visible).map((playlist) => (
-                    <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />
-                  ))}
-                </div>
-                {progressive.hasMore && <div ref={progressive.sentinelRef} className={styles.gridSentinel} aria-hidden="true" />}
-              </>
-            ) : <div className={styles.grid} aria-label="正在加载歌单" role="status">
-              {Array.from({ length: 6 }, (_, index) => <div key={index} className={styles.skeletonCard} />)}
-            </div>}
-          </section>
-        )
-      })}
-    </div>
-  )
+  const result = results[source]
+  const playlists = result?.data ?? []
+  return <>
+    {creating && supportsPlatformPlaylists(source) && <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
+      retryProvider(source)
+      openPlaylist({ id, name, provider: source, source, type: 'playlist', cover: '', trackCount: 0, trackCountKnown: true, playCount: 0, creator: '' })
+    }} />}
+    <LibraryShelf label={`${providerFor(source).descriptor.label}音乐库`} identity={<SourceBadge source={source} displayMode="always" reveal />}
+      actions={<>
+        {mode === 'playlists' && supportsPlatformPlaylists(source) && <ShelfCreateButton onClick={() => setCreating(true)} />}
+        {result && result.status !== 'error' && <ShelfRefreshButton refreshing={result.status === 'loading'} onClick={() => retryProvider(source)} />}
+      </>}>
+      {result?.status === 'error' && playlists.length === 0
+        ? <ShelfMessage alert action={{ label: '重试', onClick: () => retryProvider(source) }}>这个平台暂时无法加载，请稍后重试。</ShelfMessage>
+        : result?.status === 'empty'
+          ? <ShelfMessage>{mode === 'albums' ? '还没有收藏的专辑' : mode === 'collected' ? '还没有收藏的歌单' : '这个平台暂时没有歌单，或需要先登录'}</ShelfMessage>
+          : playlists.length > 0
+            ? <ShelfGrid items={playlists} scrollRef={scrollRef} render={playlist => <PlaylistGridItem key={`${playlist.source}:${String(playlist.id)}`} playlist={playlist} />} />
+            : <ShelfSkeleton />}
+    </LibraryShelf>
+  </>
 }
 
 /** 本地播放历史列表:点击整单入队从该曲播起。 */

@@ -26,6 +26,13 @@ export type PlatformPlaylistCommand = (
 
 export type PlatformPlaylistMutation = PlaylistManagementSession & PlatformPlaylistCommand
 
+/** 收藏他人歌单或专辑；id 为平台原始 id（QQ 专辑为 albumMid）。 */
+export interface CollectionSubscription extends PlaylistManagementSession {
+  kind: 'playlist' | 'album'
+  id: string
+  subscribe: boolean
+}
+
 export interface PlatformPlaylistInspection {
   playlistId: string
   name: string

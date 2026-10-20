@@ -1,5 +1,4 @@
 import { useState, type RefObject } from 'react'
-import { motion } from 'motion/react'
 import { useAppPlaylistsStore } from '../stores/app-playlists'
 import { useNavigationStore } from '../stores/navigation'
 import { AppPlaylistNameDialog } from '../components/Playlist/AppPlaylistDialog'
@@ -8,58 +7,45 @@ import { AppPlaylistSources } from '../components/Playlist/AppPlaylistSources'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { appPlaylistCoverLayoutId, appPlaylistSources } from '../lib/app-playlist-presentation'
 import { SOURCE_BRAND } from '../lib/source-brand'
-import { TiltCard } from '../components/ui/TiltCard'
-import { BorderGlow } from '../components/BorderGlow/BorderGlow'
+import { CollectionCard } from '../components/Explore/PlaylistCard'
 import { coverReturnTransition, springGentle } from '../lib/motion-presets'
-import { useProgressiveCount } from '../hooks/useProgressiveCount'
-import libraryStyles from './LibraryPage.module.css'
-import cardStyles from '../components/Explore/PlaylistCard.module.css'
+import { AppPlaylistsTag, LibraryShelf, ShelfCreateButton, ShelfGrid, ShelfMessage } from './LibraryShelf'
 import styles from './AppPlaylists.module.css'
 
 export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const items = useAppPlaylistsStore(state => state.items)
   const error = useAppPlaylistsStore(state => state.error)
   const returning = useNavigationStore(state => state.lastAction === 'pop')
-  const progressive = useProgressiveCount(items.length, scrollRef)
   const [creating, setCreating] = useState(false)
-  const createButton = <button className={`${libraryStyles.createPlaylist} ${styles.createButton} ${styles.primary} no-drag`} disabled={!!error} onClick={() => setCreating(true)}>
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>新建应用歌单
-  </button>
 
-  return <section className={libraryStyles.providerSection} aria-label="应用歌单">
-    <div className={libraryStyles.providerSectionHeader}>
-      <span>应用歌单{items.length > 0 && ` · ${items.length}`}</span>
-      {(items.length > 0 || error) && createButton}
-    </div>
-    {error ? <div className={styles.empty} role="alert"><p>{error}</p><button onClick={() => useAppPlaylistsStore.getState().reload()}>重试读取</button></div>
+  return <LibraryShelf label="应用歌单" identity={<AppPlaylistsTag />}
+    actions={(items.length > 0 || error) && <ShelfCreateButton disabled={!!error} onClick={() => setCreating(true)} />}>
+    {error ? <ShelfMessage alert action={{ label: '重试读取', onClick: () => useAppPlaylistsStore.getState().reload() }}>{error}</ShelfMessage>
       : !items.length ? <div className={styles.welcome}>
         <div className={styles.supportedSources} aria-label="支持的歌曲来源">{(['netease', 'qq', 'apple', 'local'] as const).map(source => <SourceBadge key={source} source={source} showInactive displayMode="always" />)}</div>
         <h3>建一份跨平台歌单</h3>
         <p>在歌曲上点「＋」或右键即可加入，正在播放的歌可在播放栏收藏；整张专辑或歌单从「更多」中加入。</p>
-        {createButton}
+        <button className={`${styles.createButton} ${styles.primary} no-drag`} onClick={() => setCreating(true)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>新建应用歌单
+        </button>
         <small>只在应用内整理，不会更改平台歌单。</small>
       </div>
-        : <><div className={libraryStyles.grid}>{items.slice(0, progressive.visible).map(item => {
+        : <ShelfGrid items={items} scrollRef={scrollRef} render={item => {
           const sources = appPlaylistSources(item.tracks)
           const description = sources.map(({ source, count }) => `${SOURCE_BRAND[source].label} ${count} 首`).join('、')
-          return <TiltCard className={cardStyles.glowWrap} key={item.id}>
-            <BorderGlow borderRadius={16}>
-              <button className={`${cardStyles.card} no-drag`} aria-label={`打开应用歌单：${item.name}，${item.tracks.length} 首${description ? `，包含${description}` : ''}`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: item.id })}>
-                <motion.div className={cardStyles.coverWrap} layoutId={appPlaylistCoverLayoutId(item.id)} layoutCrossfade={false}
-                  transition={returning ? coverReturnTransition : springGentle} style={{ borderRadius: 12 }}>
-                  <AppPlaylistCover tracks={item.tracks} />
-                </motion.div>
-                <p className={cardStyles.name} title={item.name}>{item.name}</p>
-                <p className={cardStyles.meta}>{item.tracks.length} 首{sources.length > 1 ? ` · ${sources.length} 种来源` : ''}</p>
-                <div className={styles.cardSources}><AppPlaylistSources tracks={item.tracks} compact /></div>
-              </button>
-            </BorderGlow>
-          </TiltCard>
-        })}</div>
-        {progressive.hasMore && <div ref={progressive.sentinelRef} className={libraryStyles.gridSentinel} aria-hidden="true" />}</>}
+          return <CollectionCard key={item.id}
+            ariaLabel={`打开应用歌单：${item.name}，${item.tracks.length} 首${description ? `，包含${description}` : ''}`}
+            onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: item.id })}
+            coverLayoutId={appPlaylistCoverLayoutId(item.id)}
+            coverTransition={returning ? coverReturnTransition : springGentle}
+            cover={<AppPlaylistCover tracks={item.tracks} />}
+            name={item.name}
+            meta={`${item.tracks.length} 首${sources.length > 1 ? ` · ${sources.length} 种来源` : ''}`}
+            footer={<div className={styles.cardSources}><AppPlaylistSources tracks={item.tracks} compact /></div>} />
+        }} />}
     {creating && <AppPlaylistNameDialog title="新建应用歌单" onClose={() => setCreating(false)} onSubmit={name => {
       const id = useAppPlaylistsStore.getState().create(name)
       useNavigationStore.getState().navigateTo({ type: 'app-playlist', id })
     }} />}
-  </section>
+  </LibraryShelf>
 }

@@ -10,6 +10,7 @@ interface AppleResource {
     artistName?: string
     albumName?: string
     curatorName?: string
+    canEdit?: boolean
     durationInMillis?: number
     isrc?: string
     trackCount?: number
@@ -86,6 +87,8 @@ function mapPlaylist(resource: AppleResource): Playlist {
     ...(resource.type.includes('playlists') || resource.type.includes('albums') ? { trackCountKnown: count !== undefined } : {}),
     playCount: 0, creator: a.curatorName ?? a.artistName ?? 'Apple Music',
     description: a.description?.standard,
+    // 资料库里从目录添加的歌单不可编辑，视为收藏。
+    ...(resource.type === 'library-playlists' && a.canEdit === false ? { subscribed: true } : {}),
   }
 }
 
