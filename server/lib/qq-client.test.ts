@@ -7,6 +7,7 @@ import {
   handleQQLikedPlaylist,
   handleQQLyric,
   handleQQPlaylistTracks,
+  handleQQPlaylistPage,
   handleQQSearch,
   handleQQSearchHotkeys,
   handleQQSongUrl,
@@ -87,6 +88,20 @@ describe('QQ歌单读取会话与错误边界', () => {
 
     await expect(handleQQPlaylistTracks(LOGGED_IN_COOKIE, '123')).resolves.toMatchObject({ trackIds: ['a'], tracks: [{ id: 'a', name: 'A' }], playlist: { trackCount: 3 } })
     expect(fetchMock).toHaveBeenCalledTimes(pages.length)
+  })
+
+  it.each([
+    { label: 'total 未取完', data: { total_song_num: 120, songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }] }, hasMore: true },
+    { label: 'hasmore=0', data: { total_song_num: 120, songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }], hasmore: 0 }, hasMore: false },
+    { label: '无标记且未取满', data: { songlist: [{ mid: 'a', name: 'A' }, { name: '无 mid' }] }, hasMore: false },
+  ])('单页读取只发一次请求，游标按原始条目推进（$label）', async ({ data, hasMore }) => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, text: async () => JSON.stringify({ playlist: { code: 0, data } }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await handleQQPlaylistPage(LOGGED_IN_COOKIE, '123', 50, 50)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body ?? '{}')).playlist?.param).toMatchObject({ song_begin: 50, song_num: 50 })
+    expect(result).toMatchObject({ tracks: [{ id: 'a' }], nextOffset: 52, hasMore })
   })
 
   it.each([0, 1, 3])('分页总数从 2 变为 %s 时拒绝混合快照', async (nextTotal) => {

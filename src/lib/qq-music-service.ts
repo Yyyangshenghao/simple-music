@@ -7,6 +7,7 @@ import type {
   ArtistSongsPage,
   MusicService,
   PlaylistSkeleton,
+  PlaylistPage,
   RadarPlaylist,
   RelatedPlaylistsPage,
   ToplistGroup,
@@ -79,6 +80,12 @@ export class QQMusicService implements MusicService {
     const tracks = res.tracks ?? []
     // 服务端已按上游分页取全；显式 trackIds 用于锁定完整顺序，兼容旧响应时再由 tracks 推导。
     return { trackIds: res.trackIds ?? tracks.map((t) => t.id), tracks }
+  }
+
+  async getPlaylistPage(id: unknown, offset: number, limit: number): Promise<PlaylistPage> {
+    const res = await api.get<{ tracks?: Track[]; total?: number | null; nextOffset?: number; hasMore?: boolean }>('/api/qq/playlist/page', { id: id as string | number, offset, limit })
+    const tracks = res.tracks ?? []
+    return { tracks, total: res.total ?? null, nextOffset: res.nextOffset ?? offset + tracks.length, hasMore: res.hasMore === true }
   }
 
   async getTracksByIds(): Promise<Track[]> {

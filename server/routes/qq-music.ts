@@ -21,6 +21,7 @@ import {
   handleQQRecommendFeed,
   handleQQRecommendSongs,
   handleQQPlaylistTracks,
+  handleQQPlaylistPage,
   handleQQToplistPreview,
   handleQQToplists,
   handleQQArtistDetail,
@@ -355,7 +356,7 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  if (pn === '/api/qq/playlist/tracks') {
+  if (pn === '/api/qq/playlist/tracks' || pn === '/api/qq/playlist/page') {
     try {
       const id = url.searchParams.get('id') || url.searchParams.get('disstid') || ''
       const invalidLikedId = id.startsWith('qq-liked:') && !isQQLikedPlaylistReference(id)
@@ -372,7 +373,9 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
         }, 400)
         return true
       }
-      const data = await handleQQPlaylistTracks(getCookie(ctx, 'qq'), id)
+      const data = pn === '/api/qq/playlist/page'
+        ? await handleQQPlaylistPage(getCookie(ctx, 'qq'), id, Number(url.searchParams.get('offset')), Number(url.searchParams.get('limit')))
+        : await handleQQPlaylistTracks(getCookie(ctx, 'qq'), id)
       sendJson(res, data, id === QQ_LIKED_PLAYLIST_ID && data.loggedIn === false ? 401 : 200)
     } catch (err) {
       console.error('[QQPlaylistTracks]', err)

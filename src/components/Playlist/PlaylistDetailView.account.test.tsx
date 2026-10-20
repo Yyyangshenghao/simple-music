@@ -116,8 +116,9 @@ it('详情旧行回调得到空队列时不覆盖现有播放队列', () => {
 })
 it('预览旧播放全部和逐曲回调得到空队列时不清队列或关闭预览', () => {
   const modal = PlaylistPreviewModal({ playlist, onClose: h.close })
-  const panel = walk(modal).find(element => typeof element.type === 'function' && element.type.name === 'PreviewPanel')!
-  const tree = (panel.type as (props: { playlist: Playlist; onClose(): void }) => ReactElement)({ playlist, onClose: h.close })
+  const panel = walk(modal).find(element => typeof element.type === 'function' && element.type.name === 'LazyPreviewPanel')!
+  const view = (panel.type as (props: { playlist: Playlist; onClose(): void }) => ReactElement)({ playlist, onClose: h.close })
+  const tree = (view.type as (props: unknown) => ReactElement)(view.props)
   const buttons = walk(tree).filter(element => element.type === 'button' && (text(element).includes('播放全部') || text(element).includes('歌曲')))
   expect(buttons).toHaveLength(2)
   h.queue = []
