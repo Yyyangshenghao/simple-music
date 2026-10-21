@@ -36,7 +36,7 @@
 
 .on .thumb {
   transform: translateX(18px);
-  background: #1a1a1a;
+  background: var(--sm-text-on-accent);
 }
 
 .disabled {
