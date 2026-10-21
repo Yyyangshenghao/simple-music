@@ -6,6 +6,8 @@ import { useVisualStore } from '../stores/visual'
 import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
 import { fetchLyrics, emptyLyrics, upgradeLyricsWithAmll, type LyricsResult } from './lyrics-fetch'
+import { estimateWordLines } from './estimated-word-timing'
+import { useSettingsStore } from '../stores/settings'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import type { Track } from '../types/domain'
@@ -36,6 +38,24 @@ export function initLyricsLoader(): () => void {
   let session = 0
   let controller: AbortController | undefined
   let activeAccounts: Array<{ source: ProviderId; version: number }> = []
+  /** 当前显示的原始结果（不含估算逐字），切换「估算逐字」开关时据此重算。 */
+  let raw: { key: string; result: LyricsResult } | null = null
+  /** 没有逐字时序的歌按字数估算逐字时间，仅用于显示；AMLL 升级判断仍看原始结果。 */
+  const withEstimate = (result: LyricsResult): LyricsResult =>
+    result.main.length && !result.wordLines.length && useSettingsStore.getState().lyricsEstimateWords
+      ? { ...result, wordLines: estimateWordLines(result.main), wordSource: 'estimate' }
+      : result
+  /** keepOffset：同一首歌换数据（逐字升级、切换估算开关），保留用户已调整的歌词偏移（setLines 会把它归零）。 */
+  const apply = (key: string, result: LyricsResult, keepOffset = false) => {
+    raw = { key, result }
+    const { main, aligned, roma, wordLines, source, wordSource } = withEstimate(result)
+    const offsetSec = useLyricsStore.getState().offsetSec
+    useLyricsStore.getState().setLines(main, aligned, roma)
+    useLyricsStore.getState().setWordLines(wordLines)
+    useLyricsStore.setState({ source: main.length ? source : null, wordSource: main.length ? wordSource ?? null : null, loading: false, ...(keepOffset ? { offsetSec } : {}) })
+    const player = usePlayerStore.getState()
+    useLyricsStore.getState().tick(player.playbackTransport === 'musickit' ? lyricPlaybackPosition(player) : player.position)
+  }
   const sync = () => {
     controller?.abort()
     const request = ++session
@@ -44,6 +64,7 @@ export function initLyricsLoader(): () => void {
     const enabled = !useGameModeStore.getState().enabled || useVisualStore.getState().fx.desktopLyrics
     const key = enabled && currentTrack ? lyricTrackKey(currentTrack) : null
     // 曲目在 URL 解析前切换；先清空并标记归属，避免新歌显示上一首歌词。
+    raw = null
     useLyricsStore.setState({ trackKey: key, source: null, wordSource: null, loading: !!key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
     if (!key || !currentTrack) return
     controller = new AbortController()
@@ -63,16 +84,6 @@ export function initLyricsLoader(): () => void {
     activeAccounts = accounts
     const current = () => !disposed && request === session && !signal.aborted
     const sameAccounts = () => accounts.every(({ source, version }) => version === providerAccountSession(source))
-    /** keepOffset：逐字升级是同一首歌换数据，保留用户已调整的歌词偏移（setLines 会把它归零）。 */
-    const apply = (result: LyricsResult, keepOffset = false) => {
-      const { main, aligned, roma, wordLines, source, wordSource } = result
-      const offsetSec = useLyricsStore.getState().offsetSec
-      useLyricsStore.getState().setLines(main, aligned, roma)
-      useLyricsStore.getState().setWordLines(wordLines)
-      useLyricsStore.setState({ source: main.length ? source : null, wordSource: main.length ? wordSource ?? null : null, loading: false, ...(keepOffset ? { offsetSec } : {}) })
-      const player = usePlayerStore.getState()
-      useLyricsStore.getState().tick(player.playbackTransport === 'musickit' ? lyricPlaybackPosition(player) : player.position)
-    }
     void (async () => {
       for (const track of candidates) {
         const result = await fetchLyrics(track, lyricSources, signal)
@@ -84,7 +95,7 @@ export function initLyricsLoader(): () => void {
       if (!current() || useLyricsStore.getState().trackKey !== key) return
       // Cookie 交换失败时可能没有后续账号通知；丢弃旧数据也必须结束当前加载。
       const shown = sameAccounts() ? result : emptyLyrics
-      apply(shown)
+      apply(key, shown)
       // 逐行歌词先显示；缺逐字时序时后台去 AMLL 补全，拿到后整体替换。
       // 切歌、换账号或期间歌词已被替换时丢弃结果。
       if (!track || !shown.main.length || shown.wordLines.length) return
@@ -92,7 +103,7 @@ export function initLyricsLoader(): () => void {
         if (!upgraded || !current() || !sameAccounts()) return
         const state = useLyricsStore.getState()
         if (state.trackKey !== key || state.lines !== shown.main) return
-        apply(upgraded, true)
+        apply(key, upgraded, true)
       })
     })
   }
@@ -116,6 +127,11 @@ export function initLyricsLoader(): () => void {
   }
   let wasEnabled = !useGameModeStore.getState().enabled || useVisualStore.getState().fx.desktopLyrics
   const stopGame = useGameModeStore.subscribe(syncEnabled)
+  // 切换「估算逐字」时就地重算当前歌词，不重新请求
+  const stopSettings = useSettingsStore.subscribe((state, previous) => {
+    if (state.lyricsEstimateWords === previous.lyricsEstimateWords || !raw) return
+    if (useLyricsStore.getState().trackKey === raw.key) apply(raw.key, raw.result, true)
+  })
   const stopVisual = useVisualStore.subscribe((state, previous) => {
     if (state.fx.desktopLyrics !== previous.fx.desktopLyrics) syncEnabled()
   })
@@ -127,6 +143,7 @@ export function initLyricsLoader(): () => void {
     stopPlayer()
     stopProviders()
     stopGame()
+    stopSettings()
     stopVisual()
     stopLyricsLoader = undefined
   }

@@ -584,6 +584,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
                     )}
                     {wordSource === 'amll' && <span className={styles.lyricSource}>逐字歌词来自 AMLL TTML DB</span>}
+                    {wordSource === 'estimate' && <span className={styles.lyricSource} title="没有逐字时序，按字数估算，节奏可能与演唱不一致；可在设置的逐字歌词里关闭">估算逐字</span>}
                   </div>
                 </div>
                 {playerStyle === 'stage' && (

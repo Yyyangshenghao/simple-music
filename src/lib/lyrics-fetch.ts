@@ -16,8 +16,8 @@ export interface LyricsResult {
   aligned: LyricLineType[]
   roma: LyricLineType[]
   wordLines: WordLyricLineType[]
-  /** 逐字时序来自 AMLL TTML DB 兜底时为 'amll' */
-  wordSource?: 'amll'
+  /** 逐字时序来源：'amll' 为 AMLL TTML DB 补全，'estimate' 为按字数估算（仅显示层生成） */
+  wordSource?: 'amll' | 'estimate'
 }
 
 interface NeteaseLyricResponse {

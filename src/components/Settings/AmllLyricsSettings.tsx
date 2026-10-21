@@ -13,6 +13,8 @@ export function AmllLyricsSettings() {
   const enabled = useSettingsStore((s) => s.lyricsAmllFallback)
   const setEnabled = useSettingsStore((s) => s.setLyricsAmllFallback)
   const host = useSettingsStore((s) => s.lyricsAmllHost)
+  const estimate = useSettingsStore((s) => s.lyricsEstimateWords)
+  const setEstimate = useSettingsStore((s) => s.setLyricsEstimateWords)
   const setHost = useSettingsStore((s) => s.setLyricsAmllHost)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
 
@@ -78,6 +80,13 @@ export function AmllLyricsSettings() {
           </span>
         </div>
       </fieldset>
+      <div className={`${styles.row} ${styles.rowTop}`}>
+        <span className={styles.labelStack}>
+          <span className={styles.label}>没有逐字时序时估算逐字</span>
+          <span className={styles.hint}>按字数平均分配每个字的时长，让普通歌词页和 3D 也能逐字扫光；拖长音、停顿处可能对不上，歌词页会标注「估算逐字」。</span>
+        </span>
+        <Switch checked={estimate} onChange={setEstimate} aria-label="没有逐字时序时估算逐字" />
+      </div>
     </section>
   )
 }

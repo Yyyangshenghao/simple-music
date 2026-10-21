@@ -129,6 +129,8 @@ interface PersistedSettings {
   lyricsAmllFallback: boolean
   /** AMLL 逐字歌词库的优先线路；auto 按 GitHub → 社区镜像自动切换并记住可用线路。 */
   lyricsAmllHost: AmllHostPreference
+  /** 仍没有逐字时序的歌按字数估算逐字扫光（节奏与演唱可能不一致），歌词页标注「估算逐字」。 */
+  lyricsEstimateWords: boolean
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
@@ -191,6 +193,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsShowRoma(v: boolean): void
   setLyricsAmllFallback(v: boolean): void
   setLyricsAmllHost(v: AmllHostPreference): void
+  setLyricsEstimateWords(v: boolean): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setContentLayout(layout: 'framed' | 'full'): void
@@ -240,6 +243,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsShowRoma: true,
   lyricsAmllFallback: true,
   lyricsAmllHost: 'auto',
+  lyricsEstimateWords: true,
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   contentLayout: 'framed',
@@ -368,6 +372,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsAmllHost: v })
     get().saveToLocal()
   },
+  setLyricsEstimateWords(v) {
+    set({ lyricsEstimateWords: v })
+    get().saveToLocal()
+  },
   setLyricsShowRoma(v) {
     set({ lyricsShowRoma: v })
     get().saveToLocal()
@@ -445,8 +453,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsAmllHost, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsAmllHost, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsAmllHost, lyricsEstimateWords, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsAmllHost, lyricsEstimateWords, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -493,6 +501,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
         lyricsAmllFallback: data.lyricsAmllFallback ?? true,
+        lyricsEstimateWords: data.lyricsEstimateWords ?? true,
         lyricsAmllHost: (AMLL_HOST_PREFERENCES as readonly unknown[]).includes(data.lyricsAmllHost) ? data.lyricsAmllHost : 'auto',
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',

@@ -1,7 +1,7 @@
 import type { WordLyricLine } from '../types/domain'
 import { hasWordTiming } from './word-highlight-timeline'
-import { tokenizeForTiming } from './lyric-parser'
 import { lyricLineTempo } from './lyric-tempo'
+import { estimateLineWords } from './estimated-word-timing'
 
 /**
  * 跃字模式的逐词时序：每个词在轮到它时从下方弹出。原生逐字时序直接使用；
@@ -24,30 +24,11 @@ export interface PopWord {
 export const POP_LEAD_MS = 60
 const POP_MAX_MS = 380
 const POP_MIN_MS = 140
-/** 估算时每个字的揭示时长与整句上限占停留时长的比例。 */
-const ESTIMATE_MS_PER_CHAR = 260
-const ESTIMATE_DWELL_SHARE = 0.85
 const EMPHASIS_RATIO = 1.8
 const EMPHASIS_MIN_MS = 380
 const EMPHASIS_MAX_SCALE = 1.32
 
 const charCount = (text: string) => Array.from(text.replace(/\s+/g, '')).length
-
-function estimateWords(text: string, dwellSec: number): { text: string; startMs: number; durationMs: number }[] {
-  const tokens = tokenizeForTiming(text)
-  const chars = tokens.reduce((n, token) => n + charCount(token), 0)
-  if (!chars) return tokens.map((token) => ({ text: token, startMs: 0, durationMs: 0 }))
-  const dwellMs = Number.isFinite(dwellSec) ? dwellSec * 1000 * ESTIMATE_DWELL_SHARE : Infinity
-  const spanMs = Math.min(dwellMs, Math.max(500, chars * ESTIMATE_MS_PER_CHAR))
-  const perChar = spanMs / chars
-  let elapsed = 0
-  return tokens.map((token) => {
-    const durationMs = charCount(token) * perChar
-    const word = { text: token, startMs: Math.round(elapsed), durationMs: Math.round(durationMs) }
-    elapsed += durationMs
-    return word
-  })
-}
 
 function median(values: number[]): number {
   if (!values.length) return 0
@@ -76,7 +57,7 @@ export function popEmphasis(words: readonly { text: string; durationMs: number }
 export function buildPopWords(text: string, wordLine: WordLyricLine | undefined, dwellSec: number): PopWord[] {
   const base = wordLine && hasWordTiming(wordLine.words)
     ? wordLine.words.map((word) => ({ text: word.text, startMs: word.startMs, durationMs: word.durationMs ?? 0 }))
-    : estimateWords(text, dwellSec)
+    : estimateLineWords(text, dwellSec).map((word) => ({ text: word.text, startMs: word.startMs, durationMs: word.durationMs ?? 0 }))
   const micro = lyricLineTempo(dwellSec) === 'micro'
   const scales = popEmphasis(base)
   return base.map((word, i) => ({
