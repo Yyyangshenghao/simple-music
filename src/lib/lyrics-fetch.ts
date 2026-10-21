@@ -17,8 +17,6 @@ export interface LyricsResult {
   aligned: LyricLineType[]
   roma: LyricLineType[]
   wordLines: WordLyricLineType[]
-  /** 逐字时序来源：'amll' 为 AMLL TTML DB 补全，'estimate' 为按字数估算（仅显示层生成） */
-  wordSource?: 'amll' | 'estimate'
 }
 
 interface NeteaseLyricResponse {
@@ -65,7 +63,7 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
     const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
     // 翻译与音译原先对齐到逐行歌词，换成逐字版本的行后按文本重新对应（行时间和分句都可能不同）。
     const realign = (lines: LyricLineType[]) => realignCompanionLines(result.main, main, lines)
-    return { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines, wordSource: 'amll' }
+    return { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines }
   } catch {
     return null
   }

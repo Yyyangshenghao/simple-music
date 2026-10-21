@@ -7,10 +7,9 @@ import { useProviderStore } from '../stores/providers'
 import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { advanceProviderAccountSession } from './provider-account-session'
-import { useSettingsStore } from '../stores/settings'
 
-const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyricsWithAmll: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+const h = vi.hoisted(() => ({ fetch: vi.fn() }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 import { initLyricsLoader } from './lyrics-loader'
 
 const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1', name: '歌曲', artist: '歌手', artists: [], duration: 180_000 }
@@ -29,9 +28,6 @@ const deferred = () => {
 beforeEach(() => {
   vi.clearAllMocks()
   h.fetch.mockReset().mockResolvedValue(result)
-  h.upgrade.mockReset().mockResolvedValue(null)
-  // 归属类用例不关心逐字来源，默认关掉估算；估算单独覆盖
-  useSettingsStore.setState({ lyricsEstimateWords: false })
   usePlayerStore.setState({ ...initialPlayer, currentTrack: apple, resolvedTrack: null, position: 15, status: 'paused' })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
     apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
@@ -285,40 +281,3 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState()).toMatchObject({ lines: [], trackKey: 'apple:a1' })
   })
 })
-
-describe('估算逐字与 AMLL 升级', () => {
-  it('没有逐字时序时显示估算逐字并标注来源；关闭开关就地回到逐行', async () => {
-    useSettingsStore.setState({ lyricsEstimateWords: true })
-    stopLoader = initLyricsLoader()
-    await flush()
-    const state = useLyricsStore.getState()
-    expect(state.wordSource).toBe('estimate')
-    expect(state.wordLines.map((line) => line.words.map((w) => w.text).join(''))).toEqual(['第一句', '第二句'])
-    expect(state.lines).toBe(result.main)
-    useSettingsStore.setState({ lyricsEstimateWords: false })
-    expect(useLyricsStore.getState()).toMatchObject({ wordSource: null, wordLines: [] })
-    expect(h.fetch).toHaveBeenCalledOnce()
-  })
-
-  it('估算不挡 AMLL 升级：仍按原始结果去补全，补到后替换估算', async () => {
-    useSettingsStore.setState({ lyricsEstimateWords: true })
-    const upgraded: LyricsResult = { ...result, wordLines: [{ time: 10, durationMs: 1000, words: [{ text: '第一句', startMs: 0, durationMs: 1000 }] }], wordSource: 'amll' }
-    h.upgrade.mockResolvedValue(upgraded)
-    stopLoader = initLyricsLoader()
-    await flush()
-    expect(h.upgrade).toHaveBeenCalledWith(apple, result, expect.any(AbortSignal))
-    expect(useLyricsStore.getState()).toMatchObject({ wordSource: 'amll', wordLines: upgraded.wordLines })
-  })
-
-  it('升级到达前用户已调整的歌词偏移被保留', async () => {
-    let finish!: (value: LyricsResult) => void
-    h.upgrade.mockReturnValue(new Promise((resolve) => { finish = resolve }))
-    stopLoader = initLyricsLoader()
-    await flush()
-    useLyricsStore.getState().setOffsetSec(0.5)
-    finish({ ...result, wordLines: [{ time: 10, durationMs: 1000, words: [{ text: '第一句', startMs: 0, durationMs: 1000 }] }], wordSource: 'amll' })
-    await flush()
-    expect(useLyricsStore.getState()).toMatchObject({ wordSource: 'amll', offsetSec: 0.5 })
-  })
-})
-

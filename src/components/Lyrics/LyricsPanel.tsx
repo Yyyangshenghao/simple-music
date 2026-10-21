@@ -187,7 +187,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
   const lyricSource = useLyricsStore((s) => s.source)
-  const wordSource = useLyricsStore((s) => s.wordSource)
   const lyricsLoading = useLyricsStore((s) => s.loading)
   const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const translation = useLyricsStore((s) => s.translation)
@@ -583,8 +582,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
                       <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
                     )}
-                    {wordSource === 'amll' && <span className={styles.lyricSource}>逐字歌词来自 AMLL TTML DB</span>}
-                    {wordSource === 'estimate' && <span className={styles.lyricSource} title="没有逐字时序，按字数估算，节奏可能与演唱不一致；可在设置的逐字歌词里关闭">估算逐字</span>}
                   </div>
                 </div>
                 {playerStyle === 'stage' && (

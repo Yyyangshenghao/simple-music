@@ -119,15 +119,3 @@
   font-size: 12px;
   line-height: 1.6;
 }
-
-.rowTop {
-  border-top: 1px solid var(--sm-border);
-  border-bottom: 0;
-}
-
-.labelStack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}

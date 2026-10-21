@@ -15,8 +15,6 @@ interface LyricsStore {
   /** 当前歌词所属曲目；用于异步切歌期间避免新封面短暂配上旧歌词。 */
   trackKey: string | null
   source: MusicSource | null
-  /** 逐字时序来源：'amll' 为 AMLL TTML DB 补全，'estimate' 为按字数估算；歌词页据此标注来源。 */
-  wordSource: 'amll' | 'estimate' | null
   loading: boolean
   lines: LyricLine[]
   currentIndex: number
@@ -57,7 +55,6 @@ function progressForPosition(line: WordLyricLine | undefined, position: number):
 export const useLyricsStore = create<LyricsStore>((set, get) => ({
   trackKey: null,
   source: null,
-  wordSource: null,
   loading: false,
   lines: [],
   currentIndex: -1,

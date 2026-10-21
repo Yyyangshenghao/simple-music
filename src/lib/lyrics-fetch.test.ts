@@ -216,11 +216,10 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/amll/lyric')).toBe(false)
   })
 
-  it('升级为逐字版本并重新对应翻译，标注来源', async () => {
+  it('升级为逐字版本并重新对应翻译', async () => {
     vi.mocked(api.get).mockResolvedValue({ text: yrc } as never)
     const upgraded = await upgradeLyricsWithAmll(song('netease'), base())
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34', host: undefined }, { signal: undefined })
-    expect(upgraded?.wordSource).toBe('amll')
     expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
     expect(upgraded?.aligned[0]?.text).toBe('占位译文')
   })
