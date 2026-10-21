@@ -1,0 +1,21 @@
+/* 柔焦换场景（见 lib/soft-focus-swap.ts）：时长与 SOFT_FOCUS_OUT_MS / SOFT_FOCUS_IN_MS 一致。
+   平时不挂 filter，只在过渡期间临时模糊整块画布。 */
+.stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  transition:
+    filter 420ms var(--sm-ease-out),
+    transform 420ms var(--sm-ease-out),
+    opacity 420ms var(--sm-ease-out);
+}
+
+/* 放大 5% 让模糊后的透明边缘落到视口外，不露出羽化边 */
+.stage[data-phase='out'],
+.stage[data-phase='wait'] {
+  filter: blur(12px);
+  transform: scale(1.05);
+  opacity: 0.4;
+  transition-duration: 220ms;
+  transition-timing-function: var(--sm-ease-in-out);
+}

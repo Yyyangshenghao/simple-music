@@ -768,8 +768,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <div className={styles.sceneTopFade} aria-hidden="true" />
           <div className={styles.sceneVignette} aria-hidden="true" />
 
+          {/* 只在进入 3D 时遮住画布启动；切换效果由 LyricsScene 的柔焦过渡负责 */}
           <motion.div
-            key={lyrics3dEffect}
             className={`${styles.effectFade} ${styles.scene3dGlow}`}
             style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
             initial={{ opacity: 1 }}
