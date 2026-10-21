@@ -7,6 +7,7 @@ import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
+import { hasWordTiming } from './word-highlight-timeline'
 import type { ProviderId } from '../providers/types'
 import { useSettingsStore } from '../stores/settings'
 import type { Track, MusicSource, LyricLine as LyricLineType, WordLyricLine as WordLyricLineType } from '../types/domain'
@@ -38,35 +39,90 @@ interface QQLyricResponse {
 
 export const emptyLyrics: LyricsResult = { source: null, main: [], aligned: [], roma: [], wordLines: [] }
 
+function hasTimedLyrics(result: LyricsResult): boolean {
+  return result.wordLines.some(line => hasWordTiming(line.words))
+}
+
+/** 歌词要求同一录音与可靠时长，不能把现场、翻唱或不同 ISRC 的时间轴套进来。 */
+function isLyricMatch(track: Track, target: Track): boolean {
+  if (!Number.isFinite(track.duration) || !(track.duration! > 0)
+    || !Number.isFinite(target.duration) || !(target.duration! > 0)) return false
+  if ((scoreTrackMatch(track, target) ?? 0) < TRACK_MATCH_THRESHOLD) return false
+  const originIsrc = String(track.isrc ?? track.ISRC ?? '').trim().toUpperCase()
+  const targetIsrc = String(target.isrc ?? target.ISRC ?? '').trim().toUpperCase()
+  return !originIsrc || !targetIsrc || originIsrc === targetIsrc
+}
+
+function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
+  if (!track.duration) return true
+  const end = track.duration / 1000 + 3
+  return result.main.every(line => line.time <= end) && result.wordLines.every(line =>
+    line.time + Math.max(line.durationMs, ...line.words.map(word => word.startMs + (word.durationMs ?? 0))) / 1000 <= end)
+}
+
 /**
  * 平台没有逐字时序时，按歌曲 ID 去 AMLL TTML DB 补全（经本地 server 的 /api/amll/lyric）。
  * 不在歌词加载路径上等待：调用方先显示逐行歌词，拿到结果后再整体替换成逐字版本。
- * 只升级歌词来源就是该曲目本身的结果（跨源匹配来的歌词不知道对端 ID）；时间轴超出本曲时长
+ * 只按已知曲目本身的 ID 查询；跨源匹配先拿到对端曲目，再进入本函数。时间轴超出本曲时长
  * 视为错配版本丢弃；任何失败返回 null，保持逐行歌词。
  */
 export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal): Promise<LyricsResult | null> {
-  if (result.wordLines.length || !result.main.length || result.source !== track.source) return null
+  if (hasTimedLyrics(result) || result.source !== track.source || signal?.aborted) return null
   const settings = useSettingsStore.getState()
   if (!settings.lyricsAmllFallback) return null
   const target = track.source === 'netease'
-    ? { platform: 'ncm' as const, id: String(track.id ?? ''), parse: parseYrc }
+    ? { platform: 'ncm' as const, ids: [String(track.id ?? '')], parse: parseYrc }
     : track.source === 'qq'
-      ? { platform: 'qq' as const, id: String(qqLyricIdentifiers(track).mid ?? ''), parse: parseQrc }
+      ? { platform: 'qq' as const, ids: [qqLyricIdentifiers(track).mid, qqLyricIdentifiers(track).id].map(id => String(id ?? '')), parse: parseQrc }
       : null
-  if (!target?.id) return null
-  try {
-    const host = settings.lyricsAmllHost === 'auto' ? undefined : settings.lyricsAmllHost
-    const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id: target.id, host }, { signal })
-    const wordLines = typeof rec.text === 'string' ? target.parse(rec.text) : []
-    if (!wordLines.length || signal?.aborted) return null
-    if (track.duration && wordLines.some(line => line.time > track.duration! / 1000 + 3)) return null
-    const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
-    // 翻译与音译原先对齐到逐行歌词，换成逐字版本的行后按文本重新对应（行时间和分句都可能不同）。
-    const realign = (lines: LyricLineType[]) => realignCompanionLines(result.main, main, lines)
-    return { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines }
-  } catch {
-    return null
+  if (!target) return null
+  const host = settings.lyricsAmllHost === 'auto' ? undefined : settings.lyricsAmllHost
+  for (const id of new Set(target.ids.filter(Boolean))) {
+    if (signal?.aborted) return null
+    try {
+      const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id, host }, { signal })
+      const wordLines = typeof rec.text === 'string' ? target.parse(rec.text) : []
+      if (signal?.aborted) return null
+      if (!wordLines.length) continue
+      const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
+      // 换成逐字版本后按正文重新对应翻译与音译，兼容分句、行时间变化。
+      const realign = (lines: LyricLineType[]) => realignCompanionLines(result.main, main, lines)
+      const upgraded = { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines }
+      if (fitsLyricDuration(track, upgraded)) return upgraded
+    } catch { /* 一个 ID 未收录或请求失败时，仍可尝试另一套平台 ID。 */ }
   }
+  return null
+}
+
+/** 逐行结果先展示，后台按已参与平台查找同曲逐字；始终保留原来的可用逐行版本。 */
+export async function upgradeLyrics(track: Track, result: LyricsResult, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult | null> {
+  if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
+  if (track.source === 'qq' && (result.source === 'qq' || !result.main.length)) {
+    const native = await fetchLyrics(track, [], signal, true)
+    if (signal?.aborted) return null
+    if (hasTimedLyrics(native) && fitsLyricDuration(track, native)) return native
+  }
+  const own = await upgradeLyricsWithAmll(track, result.main.length ? result : { ...result, source: track.source }, signal)
+  if (own) return own
+  if (!Number.isFinite(track.duration) || !(track.duration! > 0)) return null
+  let fallback: LyricsResult | null = null
+  for (const source of new Set(sources)) {
+    if (signal?.aborted) return null
+    if ((source !== 'netease' && source !== 'qq') || source === track.source) continue
+    try {
+      const match = await findEquivalentTrack(track, source, signal)
+      if (signal?.aborted) return null
+      if (!match || match.track.source !== source || !isLyricMatch(track, match.track)) continue
+      const candidate = await fetchLyrics(match.track, [], signal, source === 'qq')
+      if (signal?.aborted) return null
+      if (!fitsLyricDuration(track, candidate)) continue
+      if (hasTimedLyrics(candidate)) return candidate
+      if (!result.main.length && candidate.main.length) fallback ??= candidate
+      const amll = await upgradeLyricsWithAmll(match.track, candidate.main.length ? candidate : { ...candidate, source }, signal)
+      if (amll && fitsLyricDuration(track, amll)) return amll
+    } catch { /* 一个歌词平台失败不影响已显示的歌词和下一个来源。 */ }
+  }
+  return signal?.aborted ? null : fallback
 }
 
 /**
@@ -76,16 +132,16 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 当前消费者的取消信号
  */
-export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal): Promise<LyricsResult> {
+export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
   if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal)
   const source = track.source
   const session = providerAccountSession(source)
-  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}`
+  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}${wordTiming ? ':words' : ''}`
   try {
     const result = await requestProviderData(source, key, async () => {
       // 共享请求不绑定单个页面的取消信号 避免切歌中断仍在使用的预热
-      const lyrics = await loadLyrics(track, [])
+      const lyrics = await loadLyrics(track, [], undefined, wordTiming)
       if (!lyrics.main.length) throw new Error('EMPTY_LYRICS')
       return lyrics
     }, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
@@ -102,7 +158,7 @@ export async function fetchLyrics(track: Track, sources: ProviderId[] = [], sign
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 非共享请求的取消信号
  */
-async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult> {
+async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal, wordTiming = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
   if (track.source === 'apple') {
     const native = await fetchNativeAppleLyrics(track, signal)
@@ -118,14 +174,10 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
         if (!match || match.track.source !== source) continue
         const target = match.track
         // 缓存匹配也重新校验；歌词对录音版本和时间轴比普通标题搜索更敏感。
-        if (!Number.isFinite(target.duration) || !(target.duration! > 0)) continue
-        if ((scoreTrackMatch(track, target) ?? 0) < TRACK_MATCH_THRESHOLD) continue
-        const originIsrc = String(track.isrc ?? track.ISRC ?? '').trim().toUpperCase()
-        const targetIsrc = String(target.isrc ?? target.ISRC ?? '').trim().toUpperCase()
-        if (originIsrc && targetIsrc && originIsrc !== targetIsrc) continue
+        if (!isLyricMatch(track, target)) continue
         const result = await fetchLyrics(target, [], signal)
         if (signal?.aborted) return emptyLyrics
-        if (result.main.length && result.main.every(line => line.time <= track.duration! / 1000 + 3)) return result
+        if (result.main.length && fitsLyricDuration(track, result)) return result
       } catch { /* 一个音源失败或无可靠匹配时继续尝试下一音源。 */ }
     }
     return emptyLyrics
@@ -161,7 +213,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
 
     if (track.source === 'qq') {
       const { mid, id } = qqLyricIdentifiers(track)
-      const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id }, { signal })
+      const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id, ...(wordTiming ? { words: '1' } : {}) }, { signal })
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.roma === 'string' ? rec.roma : ''
@@ -170,9 +222,12 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
         : parseLrc(mainText)
       if (!main.length) return emptyLyrics
-      const trans = transText ? parseLrc(transText) : []
-      // QQ 的 roma 可能是 QRC 等非 LRC 格式,parseLrc 解析不出时间标签时得到空数组,静默降级
-      const roma = romaText ? parseLrc(romaText) : []
+      const companion = (text: string) => {
+        const timed = parseQrc(text)
+        return timed.length ? timed.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') })) : parseLrc(text)
+      }
+      const trans = transText ? companion(transText) : []
+      const roma = romaText ? companion(romaText) : []
       return {
         source: track.source,
         main,

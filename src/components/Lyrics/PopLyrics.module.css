@@ -1,47 +1,83 @@
-/* 跃字模式：整屏只演一句大字，下方小字预告下一句。 */
+/* 跃字以歌词本身构成动态海报，封面色只落在演唱重心上。 */
 .root {
   position: absolute;
-  inset: 96px 8% 150px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  inset: 96px 9% 150px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 18px;
   pointer-events: none;
   text-align: center;
+  --pop-accent: color-mix(in srgb, var(--sm-text-primary) 65%, var(--ambient-2));
 }
 
 .stage {
   position: relative;
   width: 100%;
-  display: flex;
-  justify-content: center;
+  min-height: 0;
+  display: grid;
+  place-items: center;
 }
 
 .line {
   width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  transform-origin: center top;
+  transform-origin: center;
 }
 
 /* 换行单元（见 lib/lyric-line-break.ts）之间可折行，单元内不拆 */
 .words {
+  width: min(100%, 1120px);
   max-width: 100%;
-  font-size: calc(clamp(32px, 5vw, 76px) * var(--lyrics-font-scale, 1));
+  display: flex;
+  flex-direction: column;
+  gap: 0.12em;
+  padding: 0.22em 0.14em;
+  font-size: calc(clamp(32px, min(8.4vw, 11vh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
   font-weight: 800;
-  line-height: 1.28;
-  letter-spacing: 0.01em;
+  line-height: 1.24;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
   color: var(--sm-text-primary);
+}
+
+.phrase {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.08em 0.2em;
+  font-size: calc(1em * var(--phrase-scale, 1));
+  font-weight: 550;
+  transform: rotate(var(--phrase-angle, 0deg));
+  transform-origin: center;
+}
+
+.accent {
+  font-weight: 850;
+  font-style: italic;
+}
+
+.words[data-composition='verse'] {
+  gap: 0.06em;
+}
+
+.words[data-composition='impact'] .phrase {
+  letter-spacing: -0.04em;
+  font-style: normal;
 }
 
 .unit {
   display: inline-block;
+  max-width: 100%;
+  padding-inline: 0.06em;
   white-space: nowrap;
 }
 
 .word {
   display: inline-block;
+  max-width: 100%;
+  padding-inline: 0.105em;
   vertical-align: baseline;
 }
 
@@ -49,19 +85,43 @@
 .pop {
   position: relative;
   display: inline-block;
-  white-space: pre;
-  transform-origin: center bottom;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  transform-origin: center;
 }
 
 /* 底层是唱过后的颜色；上层高亮带辉光，唱完一小段后淡出 */
 .base {
-  color: color-mix(in srgb, var(--sm-text-primary) 62%, transparent);
+  color: color-mix(in srgb, var(--sm-text-primary) 88%, transparent);
+}
+
+.accent .base {
+  color: var(--pop-accent);
+}
+
+.echo {
+  display: none;
+  position: absolute;
+  inset: 0;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--pop-accent) 28%, transparent);
+  transform: translate(-0.045em, 0.065em) scale(1.08);
+  pointer-events: none;
+}
+
+.accent .echo {
+  display: block;
+}
+
+.words[data-composition='impact'] .echo {
+  transform: translate(-0.06em, 0.07em) scale(1.16);
 }
 
 .glow {
   position: absolute;
   inset: 0;
-  color: var(--sm-text-primary);
+  color: var(--pop-accent);
   text-shadow:
     0 0 18px color-mix(in srgb, var(--ambient-2, #9cc8ff) 70%, transparent),
     0 0 42px color-mix(in srgb, var(--ambient-1, #b9a4ff) 45%, transparent);
@@ -70,24 +130,57 @@
 
 /* 关闭逐字动效 / 减少动效：整句直接显示为高亮态，不逐词弹出 */
 .static .glow {
-  opacity: 1;
+  opacity: 0;
+}
+
+.static .base {
+  color: var(--sm-text-primary);
+}
+
+.static .echo {
+  display: none;
+}
+
+.static .phrase {
+  transform: none;
 }
 
 .translation {
-  margin-top: 18px;
+  margin-top: 20px;
+  max-width: 48ch;
   font-size: calc(clamp(15px, 1.6vw, 22px) * var(--lyrics-font-scale, 1));
   font-weight: 500;
-  color: var(--sm-text-secondary);
+  color: color-mix(in srgb, var(--sm-text-primary) 78%, transparent);
+  line-height: 1.45;
   letter-spacing: 0.02em;
 }
 
 .next {
-  margin-top: 44px;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
   max-width: 100%;
   font-size: calc(clamp(14px, 1.4vw, 19px) * var(--lyrics-font-scale, 1));
   font-weight: 600;
-  color: var(--sm-text-muted);
+  color: color-mix(in srgb, var(--sm-text-primary) 76%, transparent);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.next::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  flex: 0 0 auto;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.next > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

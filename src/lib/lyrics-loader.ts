@@ -5,7 +5,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
-import { fetchLyrics, emptyLyrics, upgradeLyricsWithAmll, type LyricsResult } from './lyrics-fetch'
+import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import type { Track } from '../types/domain'
@@ -20,11 +20,12 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
     .filter((track, index, all) => all.findIndex(item => lyricTrackKey(item) === lyricTrackKey(track)) === index)
   return JSON.stringify(candidates.map(track => [
     lyricTrackKey(track), !!track.pending,
-    ...(track.source === 'apple' ? [
+    ...(track.source !== 'local' ? [
       String(track.catalogId ?? ''), track.appleLibrary === true,
       track.name, track.artist, (track.artists ?? []).map(artist => artist.name),
       track.album, track.duration, String(track.isrc ?? track.ISRC ?? ''),
-    ] : track.source === 'qq' ? [qqLyricIdentifiers(track)] : []),
+    ] : []),
+    ...(track.source === 'qq' ? [qqLyricIdentifiers(track)] : []),
   ]))
 }
 
@@ -57,7 +58,7 @@ export function initLyricsLoader(): () => void {
     const sources = new Set<ProviderId>()
     for (const track of candidates) {
       if (isProviderId(track.source)) sources.add(track.source)
-      if (track.source === 'apple') lyricSources.forEach(source => sources.add(source))
+      if (track.source !== 'local') lyricSources.forEach(source => sources.add(source))
     }
     const accounts = Array.from(sources, source => ({ source, version: providerAccountSession(source) }))
     activeAccounts = accounts
@@ -85,15 +86,16 @@ export function initLyricsLoader(): () => void {
       // Cookie 交换失败时可能没有后续账号通知；丢弃旧数据也必须结束当前加载。
       const shown = sameAccounts() ? result : emptyLyrics
       apply(shown)
-      // 逐行歌词先显示；缺逐字时序时后台去 AMLL 补全，拿到后整体替换。
+      // 逐行歌词先显示；后台从 AMLL 和已参与平台补全，拿到后整体替换。
       // 切歌、换账号或期间歌词已被替换时丢弃结果。
-      if (!track || !shown.main.length || shown.wordLines.length) return
-      void upgradeLyricsWithAmll(track, shown, signal).then(upgraded => {
+      const upgradeTrack = track ?? candidates[0]
+      if (!upgradeTrack || !sameAccounts()) return
+      void upgradeLyrics(upgradeTrack, shown, lyricSources, signal).then(upgraded => {
         if (!upgraded || !current() || !sameAccounts()) return
         const state = useLyricsStore.getState()
         if (state.trackKey !== key || state.lines !== shown.main) return
         apply(upgraded, true)
-      })
+      }).catch(() => { /* 后台补全失败保留当前歌词。 */ })
     })
   }
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {

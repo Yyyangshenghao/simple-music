@@ -198,7 +198,7 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { provider: 'qq', error: 'Missing QQ song mid or id', lyric: '' }, 400)
         return true
       }
-      const data = await handleQQLyric(getCookie(ctx, 'qq'), mid, id)
+      const data = await handleQQLyric(getCookie(ctx, 'qq'), mid, id, url.searchParams.get('words') === '1')
       sendJson(res, data)
     } catch (err) {
       console.error('[QQLyric]', err)

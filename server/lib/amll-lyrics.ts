@@ -40,7 +40,7 @@ export function isAmllPlatform(value: unknown): value is AmllPlatform {
 
 /** ID 只允许平台自身的字符集，拼进固定域名的固定目录，不接受任何路径片段。 */
 export function isValidAmllId(platform: AmllPlatform, id: string): boolean {
-  return platform === 'ncm' ? /^\d{1,20}$/.test(id) : /^[0-9A-Za-z]{6,24}$/.test(id)
+  return platform === 'ncm' ? /^\d{1,20}$/.test(id) : /^(?:\d{1,20}|[0-9A-Za-z]{6,24})$/.test(id)
 }
 
 export function amllLyricUrl(platform: AmllPlatform, id: string, host: AmllHost = AMLL_HOSTS[0]): string {

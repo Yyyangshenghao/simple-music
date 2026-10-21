@@ -8,8 +8,8 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { advanceProviderAccountSession } from './provider-account-session'
 
-const h = vi.hoisted(() => ({ fetch: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn() }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 import { initLyricsLoader } from './lyrics-loader'
 
 const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1', name: '歌曲', artist: '歌手', artists: [], duration: 180_000 }
@@ -28,6 +28,7 @@ const deferred = () => {
 beforeEach(() => {
   vi.clearAllMocks()
   h.fetch.mockReset().mockResolvedValue(result)
+  h.upgrade.mockReset().mockResolvedValue(null)
   usePlayerStore.setState({ ...initialPlayer, currentTrack: apple, resolvedTrack: null, position: 15, status: 'paused' })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
     apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
@@ -39,6 +40,37 @@ beforeEach(() => {
 afterEach(() => { stopLoader?.(); stopLoader = undefined })
 
 describe('宿主持有歌词获取与归属', () => {
+  it('先显示逐行歌词，后台升级时保留偏移，并按当前进度定位', async () => {
+    const pending = deferred()
+    h.upgrade.mockReturnValueOnce(pending.promise)
+    stopLoader = initLyricsLoader()
+    await flush()
+    expect(useLyricsStore.getState().lines).toBe(result.main)
+    useLyricsStore.getState().setOffsetSec(0.4)
+    usePlayerStore.setState({ position: 25 })
+    pending.resolve({ ...result, wordLines: [{ time: 10, durationMs: 1000, words: [{ text: '第一句', startMs: 0, durationMs: 1000 }] }] })
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', offsetSec: 0.4, currentIndex: 1 })
+    expect(useLyricsStore.getState().wordLines).toHaveLength(1)
+  })
+
+  it('切歌或补全平台账号交换后，迟到的逐字版本不能覆盖新歌词', async () => {
+    const pending = deferred()
+    h.upgrade.mockReturnValueOnce(pending.promise)
+    stopLoader = initLyricsLoader()
+    await flush()
+    const signal = h.upgrade.mock.calls[0][3] as AbortSignal
+    advanceProviderAccountSession('qq')
+    pending.resolve({ ...result, main: [{ time: 1, text: '过期逐字' }] })
+    await flush()
+    expect(useLyricsStore.getState().lines).toBe(result.main)
+    usePlayerStore.setState({ currentTrack: { ...apple, id: 'a2' } })
+    expect(signal.aborted).toBe(true)
+    await flush()
+    expect(useLyricsStore.getState().trackKey).toBe('apple:a2')
+    expect(useLyricsStore.getState().lines).toBe(result.main)
+  })
+
   it('纯播放模式不请求歌词，恢复后按当前曲目获取', async () => {
     useGameModeStore.setState({ enabled: true })
     stopLoader = initLyricsLoader()

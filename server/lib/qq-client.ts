@@ -10,6 +10,8 @@
  * - 原全局可变 `qqCookie` 改为按调用显式传入 cookie 字符串（由 ctx 读取）。
  */
 
+import { decryptQrc } from 'qrc-decoder'
+
 // ---------- 通用类型与取值助手 ----------
 
 export type CookieMap = Record<string, string>
@@ -722,6 +724,11 @@ function decodeHtmlEntities(text: unknown): string {
 function decodeQQLyricText(text: unknown): string {
   let raw = decodeHtmlEntities(String(text || '').trim())
   if (!raw) return ''
+  // QQ 的逐字接口返回十六进制密文；它不能按 base64 当成普通歌词解码。
+  if (/^[\da-f]+$/i.test(raw) && raw.length % 16 === 0) {
+    if (raw.length > 1024 * 1024) return ''
+    try { raw = decryptQrc(raw) } catch { return '' }
+  }
   const compact = raw.replace(/\s+/g, '')
   const looksBase64 =
     compact.length >= 8 && compact.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact)
@@ -2182,9 +2189,9 @@ export async function handleQQSongComments(
   }
 }
 
-export async function handleQQLyric(cookie: string, mid: string, id: string): Promise<Record<string, unknown>> {
+export async function handleQQLyric(cookie: string, mid: string, id: string, wordTiming = false): Promise<Record<string, unknown>> {
   const songMID = String(mid || '').trim()
-  const songID = normalizeQQSongId(id)
+  let songID = normalizeQQSongId(id)
   if (!songMID && !songID) return { provider: 'qq', error: 'Missing QQ song mid or id', lyric: '' }
 
   let lyricText = ''
@@ -2218,6 +2225,37 @@ export async function handleQQLyric(cookie: string, mid: string, id: string): Pr
     romaText = decodeQQLyricText(data.roma)
   } catch (e) {
     console.warn('[QQLyric] musicu failed:', (e as Error).message)
+  }
+
+  // 手机歌词接口才会主动给出原生 QRC，正文在 lyric 字段中，翻译/音译分别解密。
+  // 逐字服务不可用时继续保留上面的普通歌词，不让补全失败造成整首无词。
+  if (wordTiming && !songID && songMID) {
+    try { songID = normalizeQQSongId((await qqSongDetail('', songMID, {})).qqId) } catch { /* 缺少数字 ID 时仍返回普通歌词。 */ }
+  }
+  if (wordTiming && !qrcText && songID) {
+    try {
+      const json = rec(await qqMusicRequest('', {
+        comm: { ct: 11, cv: '1003006', v: '1003006', tmeAppID: 'qqmusiclight', uid: '0' },
+        lyric: {
+          module: 'music.musichallSong.PlayLyricInfo',
+          method: 'GetPlayLyricInfo',
+          param: { songID, crypt: 1, ct: 19, cv: 2111, qrc: 1, qrc_t: 0, lrc_t: 0, trans: 1, trans_t: 0, roma: 1, roma_t: 0, type: 0 },
+        },
+      }))
+      const block = rec(json.lyric)
+      if (!Number(json.code) && !Number(block.code)) {
+        const data = rec(block.data)
+        const main = decodeQQLyricText(data.lyric)
+        if (/\[\d+,\d+\]/.test(main) && /\(\d+,\d+\)/.test(main)) qrcText = main
+        else if (/\[\d+:\d{2}/.test(main) && !lyricText) lyricText = main
+        const trans = decodeQQLyricText(data.trans)
+        const roma = decodeQQLyricText(data.roma)
+        if (/\[\d+(?:,|:)/.test(trans)) transText = trans
+        if (/\[\d+(?:,|:)/.test(roma)) romaText = roma
+      }
+    } catch (e) {
+      console.warn('[QQLyric] word timing unavailable:', (e as Error).message)
+    }
   }
 
   if (!lyricText && songMID) {
@@ -2260,6 +2298,6 @@ export async function handleQQLyric(cookie: string, mid: string, id: string): Pr
     yrc: '',
     qrc: qrcText,
     roma: romaText,
-    source: lyricText ? source : 'qq-empty',
+    source: lyricText || qrcText ? source : 'qq-empty',
   }
 }

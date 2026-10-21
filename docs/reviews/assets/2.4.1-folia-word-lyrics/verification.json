@@ -1,0 +1,98 @@
+{
+  "environment": "macOS Electron dev, isolated userData, synthetic lyric fixture",
+  "checks": [
+    {
+      "scenario": "dark-1536",
+      "viewport": [
+        1536,
+        960
+      ],
+      "root": {
+        "x": 122.875,
+        "y": 96,
+        "width": 1290.25,
+        "height": 714
+      },
+      "overflow": false,
+      "animations": 24,
+      "spansOutsideViewport": 0
+    },
+    {
+      "scenario": "light-960",
+      "viewport": [
+        960,
+        720
+      ],
+      "root": {
+        "x": 76.796875,
+        "y": 96,
+        "width": 806.40625,
+        "height": 474
+      },
+      "overflow": false,
+      "animations": 24,
+      "spansOutsideViewport": 0
+    },
+    {
+      "scenario": "paused-and-seek",
+      "pausedClockStable": true,
+      "rewound": true
+    },
+    {
+      "scenario": "word-motion-disabled",
+      "remainingAnimations": 0
+    },
+    {
+      "scenario": "long-estimated-960",
+      "viewport": [
+        960,
+        720
+      ],
+      "root": {
+        "x": 76.796875,
+        "y": 96,
+        "width": 806.40625,
+        "height": 474
+      },
+      "overflow": false,
+      "animations": 64,
+      "spansOutsideViewport": 0
+    },
+    {
+      "scenario": "system-reduced-motion",
+      "remainingAnimations": 0
+    },
+    {
+      "scenario": "long-english-960",
+      "viewport": [
+        960,
+        720
+      ],
+      "root": {
+        "x": 76.796875,
+        "y": 96,
+        "width": 806.40625,
+        "height": 474
+      },
+      "overflow": false,
+      "animations": 18,
+      "spansOutsideViewport": 0
+    },
+    {
+      "scenario": "sustained-word-clock",
+      "activeScale": 1.094167307682349,
+      "activeGlow": 1,
+      "settledScale": 0.9999999982007199
+    }
+  ],
+  "errors": [],
+  "publicQqSample": {
+    "mid": "0032UZe62rZk9K",
+    "id": 231729922,
+    "initialMs": 109,
+    "initialLines": 73,
+    "wordLines": 73,
+    "words": 523,
+    "translationLines": 73
+  }
+}

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { fetchLyrics, upgradeLyricsWithAmll, type LyricsResult } from './lyrics-fetch'
+import { fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import type { Track } from '../types/domain'
 import { TRACK_MATCH_SCHEMA } from './track-match'
 import { clearProviderRequestCache } from './provider-request-cache'
@@ -125,6 +125,12 @@ describe('Apple Music 同曲歌词', () => {
 
 
 describe('原生逐字时间轴', () => {
+  it('QQ 翻译与音译也是 QRC 时保留它们的文本和时间轴', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ qrc: '[1000,1000]甲(1000,500)乙(1500,500)', tlyric: '[1000,1000]译文(1000,1000)', roma: '[1000,1000]a b(1000,1000)' })
+    const result = await fetchLyrics(song('qq'))
+    expect(result.aligned).toEqual([{ time: 1, text: '译文' }])
+    expect(result.roma).toEqual([{ time: 1, text: 'a b' }])
+  })
   it('网易逐字主歌词优先使用对应音译，避免旧时间轴偏移导致缺行', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({
       lyric: '[00:14.99]第一句\n[00:29.12]第二句',
@@ -242,6 +248,13 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'qq', id: 'qmid', host: 'gbclstudio' }, { signal: undefined })
   })
 
+  it('QQ mid 未收录时继续用数字 qqId 查询', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ text: null }).mockResolvedValueOnce({ text: '[1000,1000]甲(1000,500)乙(1500,500)' })
+    const upgraded = await upgradeLyricsWithAmll(song('qq', { qqId: 123456 }), base({ source: 'qq' }))
+    expect(vi.mocked(api.get).mock.calls.map(([, params]) => params?.id)).toEqual(['qmid', '123456'])
+    expect(upgraded?.wordLines[0].words.map(word => word.text)).toEqual(['甲', '乙'])
+  })
+
   it('已有逐字、关闭开关、跨源匹配来的歌词都不请求', async () => {
     expect(await upgradeLyricsWithAmll(song('netease'), base({ wordLines: [{ time: 1, durationMs: 1000, words: [{ text: '甲', startMs: 0, durationMs: 500 }] }] }))).toBeNull()
     expect(await upgradeLyricsWithAmll(song('netease'), base({ source: 'qq' }))).toBeNull()
@@ -255,5 +268,68 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(await upgradeLyricsWithAmll(song('netease'), base())).toBeNull()
     vi.mocked(api.get).mockRejectedValueOnce(new Error('502'))
     expect(await upgradeLyricsWithAmll(song('netease'), base())).toBeNull()
+  })
+})
+
+describe('后台跨平台逐字补全', () => {
+  const base: LyricsResult = { source: 'netease', main: [{ time: 1, text: '甲乙' }], aligned: [], roma: [], wordLines: [] }
+  const qrc = '[1000,1000]甲(1000,500)乙(1500,500)'
+
+  it('QQ 原生 QRC 仅在后台补全请求，普通歌词请求不等待逐字服务', async () => {
+    const qq = song('qq', { qqId: 123456 })
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:01.00]甲乙' }).mockResolvedValueOnce({ qrc })
+    const plain = await fetchLyrics(qq)
+    expect(plain.wordLines).toEqual([])
+    expect(vi.mocked(api.get)).toHaveBeenCalledOnce()
+    expect(vi.mocked(api.get).mock.calls[0][1]).not.toHaveProperty('words')
+    expect((await upgradeLyrics(qq, plain, ['qq']))?.wordLines[0].words).toHaveLength(2)
+    expect(vi.mocked(api.get).mock.calls[1][1]).toMatchObject({ words: '1' })
+  })
+
+  it('原平台只有逐行歌词时，使用允许平台的可靠同曲逐字版本', async () => {
+    vi.mocked(api.get).mockResolvedValue({ qrc })
+    const upgraded = await upgradeLyrics(song('netease'), base, ['netease', 'qq', 'apple'])
+    expect(upgraded?.source).toBe('qq')
+    expect(upgraded?.wordLines[0].words).toHaveLength(2)
+    expect(h.qq).toHaveBeenCalledOnce()
+    expect(h.netease).not.toHaveBeenCalled()
+  })
+
+  it('各平台都只有逐行歌词时保持原来的歌词，不为换源而替换', async () => {
+    expect(await upgradeLyrics(song('netease'), base, ['qq'])).toBeNull()
+  })
+
+  it.each([{ duration: undefined }, { duration: 195_000 }, { name: '晴天 (Live)' }, { artist: '其他歌手' }, { isrc: 'OTHER' }])('拒绝不可靠的同曲版本 %j', async extra => {
+    h.qq.mockResolvedValue([song('qq', extra)])
+    vi.mocked(api.get).mockResolvedValue({ qrc })
+    expect(await upgradeLyrics(song('netease', { isrc: 'ORIGIN' }), base, ['qq'])).toBeNull()
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('逐字结束时间超出曲长也拒绝，不能只检查行起点', async () => {
+    vi.mocked(api.get).mockResolvedValue({ qrc: '[179000,10000]甲(179000,10000)' })
+    expect(await upgradeLyrics(song('netease'), base, ['qq'])).toBeNull()
+  })
+
+  it('已有真实逐字、本地文件、未允许的平台都不额外匹配', async () => {
+    const timed = { ...base, wordLines: [{ time: 1, durationMs: 500, words: [{ text: '甲乙', startMs: 0, durationMs: 500 }] }] }
+    expect(await upgradeLyrics(song('netease'), timed, ['qq'])).toBeNull()
+    expect(await upgradeLyrics({ ...song('netease'), source: 'local' }, base, ['qq'])).toBeNull()
+    expect(await upgradeLyrics(song('netease'), base, ['netease', 'apple'])).toBeNull()
+    expect(h.qq).not.toHaveBeenCalled()
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('Apple 的空逐字占位行不能阻止继续补全', async () => {
+    vi.mocked(api.get).mockResolvedValue({ qrc })
+    const upgraded = await upgradeLyrics(apple, { ...base, source: 'apple', wordLines: [{ time: 1, durationMs: 1000, words: [] }] }, ['qq'])
+    expect(upgraded?.wordLines[0].words).toHaveLength(2)
+  })
+
+  it('跨源匹配取消后不继续拉取歌词', async () => {
+    const controller = new AbortController()
+    h.qq.mockImplementation(async () => { controller.abort(); return [song('qq')] })
+    expect(await upgradeLyrics(song('netease'), base, ['qq'], controller.signal)).toBeNull()
+    expect(api.get).not.toHaveBeenCalled()
   })
 })

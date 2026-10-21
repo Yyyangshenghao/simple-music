@@ -26,6 +26,7 @@ describe('AMLL 逐字歌词兜底', () => {
     expect(isValidAmllId('ncm', '12a')).toBe(false)
     expect(isValidAmllId('ncm', '../1')).toBe(false)
     expect(isValidAmllId('qq', '0000Dso20pNy35')).toBe(true)
+    expect(isValidAmllId('qq', '42')).toBe(true)
     expect(isValidAmllId('qq', 'abc/../x')).toBe(false)
     expect(amllLyricUrl('ncm', '42')).toBe('https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/ncm-lyrics/42.yrc')
     expect(amllLyricUrl('qq', 'abcdef12', AMLL_HOSTS[1])).toBe('https://amll-ttml-db.gbclstudio.cn/qq-lyrics/abcdef12.qrc')
