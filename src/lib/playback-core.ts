@@ -66,6 +66,8 @@ export interface PlaybackPlayer {
   status: PlaybackStatus
   currentTrack: Track | null
   position: number
+  /** 显式定位序号，供各窗口区分 seek 与迟到的离散进度采样；不持久化。 */
+  seekRevision: number
   duration: number
   volume: number
   quality: AudioQuality
@@ -558,6 +560,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     status: 'idle',
     currentTrack: null,
     position: 0,
+    seekRevision: 0,
     duration: 0,
     volume: 0.8,
     quality: deps.getQuality(),
@@ -639,13 +642,14 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       suspendListening()
       listening?.clock.rebase(seconds, now())
       if (activePlayback) activePlayback.startAt = seconds
-      if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
+      const patch = { position: seconds, seekRevision: get().seekRevision + 1 }
+      if (applePlayback) { appleCommand({ type: 'seek', seconds }); set(patch); return }
       if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        set({ position: seconds })
+        set(patch)
         return
       }
       ensureEngine().seek(seconds)
-      set({ position: seconds })
+      set(patch)
     },
     setVolume(v) {
       if (disposed) return

@@ -339,7 +339,11 @@ describe('无界面播放核心', () => {
     vi.mocked(h.deps.resolvePending).mockReturnValue(details.promise)
     const loading = h.state.loadTrack({ ...track, pending: true })
     h.state.pause()
+    const revision = h.state.seekRevision
     h.state.seek(42)
+    expect(h.state.seekRevision).toBe(revision + 1)
+    h.state.seek(42)
+    expect(h.state.seekRevision).toBe(revision + 2)
     details.resolve(track)
     await loading
     expect(h.engine.load).toHaveBeenCalledWith(h.candidate.url, 42, 'netease:1:lossless', expect.any(Object))
@@ -434,6 +438,9 @@ describe('无界面播放核心', () => {
     await h.state.loadTrack(appleTrack)
     h.emitApple({ status: 'playing', position: 42 })
     expect(h.state.playbackTransport).toBe('musickit')
+    h.state.seek(42)
+    expect(h.state.seekRevision).toBe(1)
+    expect(h.apple.command).toHaveBeenCalledWith({ type: 'seek', seconds: 42 })
     expect(h.engine.load).not.toHaveBeenCalled()
     expect(h.engine.play).not.toHaveBeenCalled()
     const sleep = vi.fn()

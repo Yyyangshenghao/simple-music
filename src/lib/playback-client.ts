@@ -6,6 +6,7 @@ import { useWindowStore } from '../stores/window'
 import { initProviderAuthFailureSync } from '../stores/provider-auth'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { shouldIgnoreShortcut } from './shortcuts'
+import { AppleLyricClock } from './apple-lyric-clock'
 
 interface PlaybackSnapshot {
   session: string
@@ -55,6 +56,7 @@ export async function startPlaybackClient(): Promise<() => void> {
   let observedVisible: boolean | undefined
   let spectrumObservedAt = -Infinity
   let positionReceivedAt = performance.now()
+  const appleLyricClock = new AppleLyricClock()
   let shortcutBlocked: boolean | undefined
   const visible = () => !document.hidden && useWindowStore.getState().isVisible
   const request = (payload: Parameters<typeof desktop.playbackRequest>[0]) => desktop.playbackRequest(payload)
@@ -93,6 +95,7 @@ export async function startPlaybackClient(): Promise<() => void> {
     const changed = PROVIDER_IDS.filter(id => providerAccountSession(id) !== snapshot.accountSessions[id])
     hydrateProviderAccountSessions(snapshot.accountSessions)
     changed.forEach(clearProviderRequestCache)
+    const sessionChanged = session !== snapshot.session
     session = snapshot.session
     revision = snapshot.revision
     for (const [key, data] of Object.entries(snapshot.stores)) {
@@ -100,7 +103,19 @@ export async function startPlaybackClient(): Promise<() => void> {
       if (!store || !data || typeof data !== 'object') continue
       const current = store.getState()
       const patch = Object.fromEntries(Object.entries(data).filter(([name]) => name in current && typeof current[name] !== 'function'))
-      if (key === 'player' && ('position' in patch || 'status' in patch)) positionReceivedAt = performance.now()
+      if (key === 'player') {
+        if ('position' in patch || 'status' in patch) positionReceivedAt = performance.now()
+        const next = { ...current, ...patch }
+        if (next.playbackTransport === 'musickit') {
+          const previousTrack = current.currentTrack as { source: string; id: unknown } | null
+          const nextTrack = next.currentTrack as typeof previousTrack
+          const reset = sessionChanged || current.playbackTransport !== next.playbackTransport
+            || current.seekRevision !== next.seekRevision
+            || previousTrack?.source !== nextTrack?.source || String(previousTrack?.id) !== String(nextTrack?.id)
+          if (reset) appleLyricClock.reset(Number(next.position) || 0, next.status === 'playing', Number(next.duration) || 0)
+          else appleLyricClock.update(Number(next.position) || 0, next.status === 'playing', Number(next.duration) || 0)
+        }
+      }
       store.setState(patch)
     }
   }
@@ -124,6 +139,7 @@ export async function startPlaybackClient(): Promise<() => void> {
     else if (event.type === 'host-error') {
       failed = true
       frequency = new Uint8Array(0)
+      appleLyricClock.reset(appleLyricClock.read(), false)
       stores.player.setState({ status: 'paused' })
       showError(event.error && event.error !== 'PLAYBACK_HOST_GONE' ? event.error : '独立播放器已停止，请重启应用恢复播放')
     }
@@ -172,6 +188,8 @@ export async function startPlaybackClient(): Promise<() => void> {
   const originalPlayerHelpers = Object.fromEntries(['_engine', '_lyricPosition', '_frequencyData'].map(key => [key, player.getState()[key]]))
   const lyricPosition = () => {
     const state = player.getState()
+    // MusicKit 可能只发送整秒进度，不能用普通音频的半秒插值上限反复停住或回退。
+    if (state.playbackTransport === 'musickit') return appleLyricClock.read()
     const position = typeof state.position === 'number' ? state.position : 0
     const elapsed = state.status === 'playing' ? Math.min(0.5, Math.max(0, performance.now() - positionReceivedAt) / 1000) : 0
     return Math.min(Number(state.duration) || Infinity, position + elapsed * (Number(state.rate) || 1))

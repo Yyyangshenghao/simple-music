@@ -5,7 +5,8 @@ vi.mock('./playback-shared-stores', async () => {
   return {
     playbackStores: {
       player: createStore(() => ({ status: 'idle', position: 0, duration: 100, rate: 1,
-        play: vi.fn(), pause: vi.fn(), _engine: vi.fn(() => { throw new Error('UI engine created') }),
+        playbackTransport: null, currentTrack: null, seekRevision: 0,
+        play: vi.fn(), pause: vi.fn(), seek: vi.fn(), _engine: vi.fn(() => { throw new Error('UI engine created') }),
         _lyricPosition: vi.fn(), _frequencyData: vi.fn() })),
       playlist: createStore(() => ({ queue: [], addManyToQueue: vi.fn() })),
       providers: createStore(() => ({ byId: {} })),
@@ -14,7 +15,7 @@ vi.mock('./playback-shared-stores', async () => {
       navigation: createStore(() => ({ currentView: 'explore', navigateTo: vi.fn() })),
       toast: createStore(() => ({ message: null, show: vi.fn(), dismiss: vi.fn() })),
     },
-    remoteActions: { player: ['play', 'pause'], playlist: ['addManyToQueue'], providers: [],
+    remoteActions: { player: ['play', 'pause', 'seek'], playlist: ['addManyToQueue'], providers: [],
       downloads: ['saveMany'], apple: ['refresh'], navigation: ['navigateTo'], toast: ['show', 'dismiss'] }
   }
 })
@@ -23,7 +24,7 @@ vi.mock('../stores/provider-auth', () => ({ initProviderAuthFailureSync: vi.fn((
 
 let stop: (() => void) | undefined
 beforeEach(() => { vi.resetModules(); vi.useFakeTimers() })
-afterEach(() => { stop?.(); stop = undefined; vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { stop?.(); stop = undefined; vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 async function setup() {
   const doc = Object.assign(new EventTarget(), { hidden: false, body: {} })
@@ -32,7 +33,7 @@ async function setup() {
   let publish!: (value: unknown) => void
   const initial = {
     session: 'host-1', revision: 1, full: true,
-    stores: { player: { status: 'playing', position: 12 }, navigation: { currentView: 'shuange' } },
+    stores: { player: { status: 'playing', position: 12, playbackTransport: null, currentTrack: null, seekRevision: 0 }, navigation: { currentView: 'shuange' } },
     accountSessions: { netease: 3, qq: 1, apple: 0 }
   }
   const request = vi.fn(async (value: Record<string, unknown>): Promise<unknown> => {
@@ -73,6 +74,123 @@ it('忽略旧revision，缺口重新读取完整快照，暂停后插值停止',
   await Promise.resolve()
   expect(h.stores.player.getState().position).toBe(13)
   expect(h.request.mock.calls.filter(([request]) => request.type === 'connect')).toHaveLength(2)
+})
+
+it('Apple 整秒进度之间持续推进，迟到采样不让逐字高亮回退', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(750)
+  expect(read()).toBeCloseTo(30.75)
+  now.mockReturnValue(1100)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { position: 31 } } })
+  expect(read()).toBeCloseTo(31.1)
+  now.mockReturnValue(1200)
+  expect(read()).toBeCloseTo(31.2)
+})
+
+it('Apple 重复快照不延长停滞推算，暂停冻结，跳播和换曲立即重新定位', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  let revision = 1
+  const publish = (player: Record<string, unknown>, session = h.initial.session) =>
+    h.publish({ ...h.initial, session, full: session !== h.initial.session, revision: ++revision, stores: { player } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  publish({ playbackTransport: 'musickit', position: 30 })
+  now.mockReturnValue(1000)
+  publish({ position: 30 })
+  now.mockReturnValue(5000)
+  expect(read()).toBe(31.25)
+  publish({ status: 'paused', position: 31 })
+  now.mockReturnValue(6000)
+  expect(read()).toBe(31.25)
+  publish({ status: 'playing', position: 80 })
+  expect(read()).toBe(80)
+  now.mockReturnValue(6200)
+  publish({ currentTrack: { source: 'apple', id: 'new-song' }, position: 80 })
+  expect(read()).toBe(80)
+  now.mockReturnValue(6400)
+  publish({ position: 80 }, 'host-2')
+  expect(read()).toBe(80)
+})
+
+it.each(['playing', 'paused'])('Apple %s 时显式小幅后退立即定位', async status => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(750)
+  expect(read()).toBeCloseTo(30.75)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { status } } })
+  h.request.mockImplementationOnce(async () => {
+    h.publish({ ...h.initial, full: false, revision: 4, stores: { player: { position: 30, seekRevision: 1 } } })
+  })
+  await (h.stores.player.getState().seek as (seconds: number) => Promise<void>)(30)
+  expect(read()).toBe(30)
+  // 目标等于已有整秒位置时，宿主仍通过 seekRevision 通知显式定位。
+  now.mockReturnValue(850)
+  expect(read()).toBeCloseTo(status === 'playing' ? 30.1 : 30)
+  h.publish({ ...h.initial, full: false, revision: 5, stores: { player: { position: 30 } } })
+  expect(read()).toBeCloseTo(status === 'playing' ? 30.1 : 30)
+  now.mockReturnValue(1000)
+  expect(read()).toBeCloseTo(status === 'playing' ? 30.25 : 30)
+})
+
+it('Apple 定位命令被拒绝时，歌词继续保持宿主确认的位置', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', status: 'paused', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  h.request.mockRejectedValueOnce(new Error('PLAYBACK_BUSY'))
+  await expect((h.stores.player.getState().seek as (seconds: number) => Promise<void>)(80)).rejects.toThrow('PLAYBACK_BUSY')
+  now.mockReturnValue(2000)
+  expect(read()).toBe(30)
+})
+
+it('Apple 迷你条或系统小幅后退通过宿主定位序号立即重置，重复快照不续期', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(750)
+  expect(read()).toBeCloseTo(30.75)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { status: 'paused' } } })
+  h.publish({ ...h.initial, full: false, revision: 4, stores: { player: { seekRevision: 1 } } })
+  expect(read()).toBe(30)
+  now.mockReturnValue(2000)
+  h.publish({ ...h.initial, full: true, revision: 5, stores: { player: { position: 30, seekRevision: 1 } } })
+  expect(read()).toBe(30)
+})
+
+it('Apple 宿主断开冻结歌词', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(750)
+  h.publish({ type: 'host-error', error: 'PLAYBACK_HOST_GONE' })
+  now.mockReturnValue(2000)
+  expect(read()).toBeCloseTo(30.75)
+})
+
+it('切回普通音频保留半秒插值，重新进入 Apple 时重新锚定', async () => {
+  const h = await setup()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  h.publish({ ...h.initial, full: false, revision: 2,
+    stores: { player: { playbackTransport: 'musickit', position: 30 } } })
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(750)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { playbackTransport: 'online', position: 30 } } })
+  now.mockReturnValue(1500)
+  expect(read()).toBe(30.5)
+  h.publish({ ...h.initial, full: false, revision: 4, stores: { player: { playbackTransport: 'musickit' } } })
+  expect(read()).toBe(30)
 })
 
 it('频谱仅在可见且按需时订阅，隐藏立即停止并清空，宿主丢失时暂停镜像', async () => {
