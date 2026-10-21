@@ -41,23 +41,35 @@ export const emptyLyrics: LyricsResult = { source: null, main: [], aligned: [], 
 
 /**
  * 平台没有逐字时序时，按歌曲 ID 去 AMLL TTML DB 补全（经本地 server 的 /api/amll/lyric）。
- * 时间轴超出本曲时长的结果视为错配版本，丢弃；任何失败都静默回落到逐行歌词。
+ * 不在歌词加载路径上等待：调用方先显示逐行歌词，拿到结果后再整体替换成逐字版本。
+ * 只升级歌词来源就是该曲目本身的结果（跨源匹配来的歌词不知道对端 ID）；时间轴超出本曲时长
+ * 视为错配版本丢弃；任何失败返回 null，保持逐行歌词。
  */
-async function amllWordLines(
-  platform: 'ncm' | 'qq',
-  id: string,
-  parse: (text: string) => WordLyricLineType[],
-  track: Track,
-  signal?: AbortSignal
-): Promise<WordLyricLineType[]> {
-  if (!id || !useSettingsStore.getState().lyricsAmllFallback) return []
+export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal): Promise<LyricsResult | null> {
+  if (result.wordLines.length || !result.main.length || result.source !== track.source) return null
+  const settings = useSettingsStore.getState()
+  if (!settings.lyricsAmllFallback) return null
+  const target = track.source === 'netease'
+    ? { platform: 'ncm' as const, id: String(track.id ?? ''), parse: parseYrc }
+    : track.source === 'qq'
+      ? { platform: 'qq' as const, id: String(qqLyricIdentifiers(track).mid ?? ''), parse: parseQrc }
+      : null
+  if (!target?.id) return null
   try {
-    const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform, id }, { signal })
-    const lines = typeof rec.text === 'string' ? parse(rec.text) : []
-    if (track.duration && lines.some(line => line.time > track.duration! / 1000 + 3)) return []
-    return lines
+    const host = settings.lyricsAmllHost === 'auto' ? undefined : settings.lyricsAmllHost
+    const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id: target.id, host }, { signal })
+    const wordLines = typeof rec.text === 'string' ? target.parse(rec.text) : []
+    if (!wordLines.length || signal?.aborted) return null
+    if (track.duration && wordLines.some(line => line.time > track.duration! / 1000 + 3)) return null
+    const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
+    // 翻译与音译原先对齐到逐行歌词的时间，换成逐字版本的行后按时间重新对齐。
+    const realign = (lines: LyricLineType[]) => {
+      const timed = lines.filter(line => line.text)
+      return timed.length ? alignTranslation(main, timed) : []
+    }
+    return { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines, wordSource: 'amll' }
   } catch {
-    return []
+    return null
   }
 }
 
@@ -129,12 +141,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.romalrc === 'string' ? rec.romalrc : ''
       const yrcText = typeof rec.yrc === 'string' ? rec.yrc : ''
-      let wordLines = parseYrc(yrcText)
-      let wordSource: LyricsResult['wordSource']
-      if (!wordLines.length) {
-        wordLines = await amllWordLines('ncm', String(track.id), parseYrc, track, signal)
-        if (wordLines.length) wordSource = 'amll'
-      }
+      const wordLines = parseYrc(yrcText)
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
         : parseLrc(mainText)
@@ -153,7 +160,6 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
           ? nativeRoma.map((line, index) => line.text ? line : alignedRoma[index] || line)
           : alignedRoma,
         wordLines,
-        wordSource,
       }
     }
 
@@ -163,12 +169,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.roma === 'string' ? rec.roma : ''
-      let wordLines = parseQrc(typeof rec.qrc === 'string' ? rec.qrc : '')
-      let wordSource: LyricsResult['wordSource']
-      if (!wordLines.length && mid) {
-        wordLines = await amllWordLines('qq', String(mid), parseQrc, track, signal)
-        if (wordLines.length) wordSource = 'amll'
-      }
+      const wordLines = parseQrc(typeof rec.qrc === 'string' ? rec.qrc : '')
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
         : parseLrc(mainText)
@@ -182,7 +183,6 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
         aligned: trans.length ? alignTranslation(main, trans) : [],
         roma: roma.length ? alignTranslation(main, roma) : [],
         wordLines,
-        wordSource,
       }
     }
 

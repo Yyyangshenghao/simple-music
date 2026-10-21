@@ -5,7 +5,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
-import { fetchLyrics, emptyLyrics } from './lyrics-fetch'
+import { fetchLyrics, emptyLyrics, upgradeLyricsWithAmll, type LyricsResult } from './lyrics-fetch'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import type { Track } from '../types/domain'
@@ -63,22 +63,37 @@ export function initLyricsLoader(): () => void {
     activeAccounts = accounts
     const current = () => !disposed && request === session && !signal.aborted
     const sameAccounts = () => accounts.every(({ source, version }) => version === providerAccountSession(source))
+    /** keepOffset：逐字升级是同一首歌换数据，保留用户已调整的歌词偏移（setLines 会把它归零）。 */
+    const apply = (result: LyricsResult, keepOffset = false) => {
+      const { main, aligned, roma, wordLines, source, wordSource } = result
+      const offsetSec = useLyricsStore.getState().offsetSec
+      useLyricsStore.getState().setLines(main, aligned, roma)
+      useLyricsStore.getState().setWordLines(wordLines)
+      useLyricsStore.setState({ source: main.length ? source : null, wordSource: main.length ? wordSource ?? null : null, loading: false, ...(keepOffset ? { offsetSec } : {}) })
+      const player = usePlayerStore.getState()
+      useLyricsStore.getState().tick(player.playbackTransport === 'musickit' ? lyricPlaybackPosition(player) : player.position)
+    }
     void (async () => {
       for (const track of candidates) {
         const result = await fetchLyrics(track, lyricSources, signal)
-        if (!current() || !sameAccounts()) return emptyLyrics
-        if (result.main.length) return result
+        if (!current() || !sameAccounts()) return { result: emptyLyrics, track: null }
+        if (result.main.length) return { result, track }
       }
-      return emptyLyrics
-    })().catch(() => emptyLyrics).then(result => {
+      return { result: emptyLyrics, track: null }
+    })().catch(() => ({ result: emptyLyrics, track: null })).then(({ result, track }) => {
       if (!current() || useLyricsStore.getState().trackKey !== key) return
       // Cookie 交换失败时可能没有后续账号通知；丢弃旧数据也必须结束当前加载。
-      const { main, aligned, roma, wordLines, source, wordSource } = sameAccounts() ? result : emptyLyrics
-      useLyricsStore.getState().setLines(main, aligned, roma)
-      useLyricsStore.getState().setWordLines(wordLines)
-      useLyricsStore.setState({ source: main.length ? source : null, wordSource: main.length ? wordSource ?? null : null, loading: false })
-      const player = usePlayerStore.getState()
-      useLyricsStore.getState().tick(player.playbackTransport === 'musickit' ? lyricPlaybackPosition(player) : player.position)
+      const shown = sameAccounts() ? result : emptyLyrics
+      apply(shown)
+      // 逐行歌词先显示；缺逐字时序时后台去 AMLL 补全，拿到后整体替换。
+      // 切歌、换账号或期间歌词已被替换时丢弃结果。
+      if (!track || !shown.main.length || shown.wordLines.length) return
+      void upgradeLyricsWithAmll(track, shown, signal).then(upgraded => {
+        if (!upgraded || !current() || !sameAccounts()) return
+        const state = useLyricsStore.getState()
+        if (state.trackKey !== key || state.lines !== shown.main) return
+        apply(upgraded, true)
+      })
     })
   }
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {

@@ -19,6 +19,7 @@ import { AccountButton } from '../components/Settings/AccountButton'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
+import { AmllLyricsSettings } from '../components/Settings/AmllLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
@@ -628,8 +629,6 @@ export function SettingsPage() {
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
   const setFontFamilyCjk = useSettingsStore((s) => s.setFontFamilyCjk)
   const lyricsFontFamily = useSettingsStore((s) => s.lyricsFontFamily)
-  const amllFallback = useSettingsStore((s) => s.lyricsAmllFallback)
-  const setAmllFallback = useSettingsStore((s) => s.setLyricsAmllFallback)
   const setLyricsFontFamily = useSettingsStore((s) => s.setLyricsFontFamily)
   const lyricsFontFamilyCjk = useSettingsStore((s) => s.lyricsFontFamilyCjk)
   const setLyricsFontFamilyCjk = useSettingsStore((s) => s.setLyricsFontFamilyCjk)
@@ -1301,16 +1300,7 @@ export function SettingsPage() {
                     onCjkChange={setLyrics3dFontFamilyCjk}
                   />
                 </section>
-                <section className={styles.group}>
-                  <h3 className={styles.groupTitle}>
-                    逐字歌词
-                    <InfoButton label="逐字歌词" text="网易云或 QQ 音乐没有逐字时序时，按歌曲 ID 从社区逐字歌词库 AMLL TTML DB 补全。开启后会向 GitHub 发送当前歌曲的平台 ID，结果在本机缓存。" />
-                  </h3>
-                  <div className={styles.row}>
-                    <span className={styles.rowLabel}>使用 AMLL 逐字歌词库补全</span>
-                    <Switch checked={amllFallback} onChange={setAmllFallback} aria-label="使用 AMLL 逐字歌词库补全" />
-                  </div>
-                </section>
+                <AmllLyricsSettings />
                 <section className={styles.group}>
                   <div className={styles.row}>
                     <span className={styles.rowLabel}>

@@ -1,0 +1,121 @@
+/* 与设置页 .group / .groupTitle / .row / .seg 的视觉保持一致 */
+.group {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  border: 1px solid var(--glass-border-card);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--glass-bg-card) 86%, transparent);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.group:has(:global([data-settings-info]:focus-within)),
+.group:has(:global([data-settings-info]:hover)) { z-index: 2; }
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 17px 20px 14px;
+  border-bottom: 1px solid var(--sm-border);
+  color: var(--sm-text-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.label {
+  min-width: 0;
+  padding: 0;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+}
+
+.routes {
+  margin: 0;
+  padding: 13px 20px 16px;
+  border: 0;
+  min-width: 0;
+}
+
+.routes:disabled { opacity: 0.5; }
+
+.routes legend { float: left; margin-bottom: 10px; }
+
+.options {
+  clear: both;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-base);
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+
+.option:hover:not(:disabled) { color: var(--sm-text-primary); }
+.option:disabled { cursor: default; }
+
+.optionActive {
+  border-color: color-mix(in srgb, var(--sm-text-primary) 28%, transparent);
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.latency {
+  color: var(--sm-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.latencyBest { color: var(--sm-text-primary); font-weight: 600; }
+.latencyDown { color: var(--sm-text-faint); }
+
+.probeRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.probe {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: transparent;
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.probe:disabled { opacity: 0.6; cursor: default; }
+
+.hint {
+  min-width: 0;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
