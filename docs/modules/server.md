@@ -34,6 +34,7 @@
 - **`routes/qq-music.ts`**(`lib/qq-client.ts`,QQ Web 接口封装):`/api/qq/{search,search/artists,search/hotkeys,recommend/playlists,recommend/songs,radar,toplist,toplist/preview,song/url,song/qualities,song/comments,song/similar,song/related-playlists,lyric,playlist/tracks,playlist/page,user/playlists,liked/playlist,artist/detail,artist/similar,artist/songs,artist/albums,album/detail,album/songs,login/*,logout}`
   - `lyric` 默认只取普通歌词；后台升级使用 `words=1` 请求手机接口的加密 QRC，由固定版本 `qrc-decoder` 解码正文、翻译与音译。缺数字 ID 时按 MID 补详情；手机接口不携带用户 Cookie，失败仍返回普通歌词，不阻塞首次显示。
   - 歌单浏览按原始返回位置翻页，有 MID 但缺名称的歌曲以身份占位标题保留，版权/会员字段和合法重复位置不作过滤。摘要偏大时允许明确终页及无标记空终页展示实际可读列表；空页仍显式声明有下一页、分页间总数变化或达到上限仍有更多时报告错误。缺 MID 的隐藏条目无法还原；该浏览规则与同步写入前的严格快照校验独立。
+- **`routes/kugou-lyrics.ts`**(`lib/kugou-lyrics.ts`):`GET /api/kugou/lyric?title&artist&duration` 在酷狗歌词库按“歌手 - 歌名 + 时长”搜索，时长 ±3 秒粗筛后最多下载 2 个候选并解密 KRC，返回 `{ candidates: [{ title, artist, duration, text }] }`；歌名取 KRC `[ti:]` 以保留版本标记。不需要登录或设备注册，签名与解密参考 LDDC。固定上游域名，2.5 秒超时，失败熔断 10 分钟；结果缓存在 userDataDir/kugou-lyrics（命中 7 天、未收录 6 小时），上游失败不写缓存。
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存

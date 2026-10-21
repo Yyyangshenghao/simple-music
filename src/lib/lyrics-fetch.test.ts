@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
+import { fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
 import type { Track } from '../types/domain'
 import { TRACK_MATCH_SCHEMA } from './track-match'
 import { clearProviderRequestCache } from './provider-request-cache'
@@ -20,7 +20,7 @@ beforeEach(() => {
   clearProviderRequestCache()
   vi.resetAllMocks()
   // 这里的用例校验请求共享；AMLL 兜底单独覆盖，默认关掉免得多出一次请求
-  useSettingsStore.setState({ lyricsAmllFallback: false })
+  useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false })
   h.native.mockResolvedValue(null)
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
@@ -258,7 +258,7 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
   it('已有逐字、关闭开关、跨源匹配来的歌词都不请求', async () => {
     expect(await upgradeLyricsWithAmll(song('netease'), base({ wordLines: [{ time: 1, durationMs: 1000, words: [{ text: '甲', startMs: 0, durationMs: 500 }] }] }))).toBeNull()
     expect(await upgradeLyricsWithAmll(song('netease'), base({ source: 'qq' }))).toBeNull()
-    useSettingsStore.setState({ lyricsAmllFallback: false })
+    useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false })
     expect(await upgradeLyricsWithAmll(song('netease'), base())).toBeNull()
     expect(api.get).not.toHaveBeenCalled()
   })
@@ -331,5 +331,69 @@ describe('后台跨平台逐字补全', () => {
     h.qq.mockImplementation(async () => { controller.abort(); return [song('qq')] })
     expect(await upgradeLyrics(song('netease'), base, ['qq'], controller.signal)).toBeNull()
     expect(api.get).not.toHaveBeenCalled()
+  })
+})
+
+describe('酷狗逐字歌词兜底', () => {
+  const base: LyricsResult = { source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '译文' }], roma: [], wordLines: [] }
+  const krc = '[1000,1000]<0,500,0>甲<500,500,0>乙'
+  const reply = (candidates: unknown[]) => vi.mocked(api.get).mockResolvedValue({ candidates } as never)
+  beforeEach(() => { useSettingsStore.setState({ lyricsKugouFallback: true }) })
+
+  it('按歌名、歌手与时长查询，同曲候选替换为逐字并保留原翻译', async () => {
+    reply([{ title: '晴天', artist: '周杰伦', duration: 180_500, text: krc }])
+    const upgraded = await upgradeLyricsWithKugou(apple, base)
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, { signal: undefined })
+    expect(upgraded).toMatchObject({ source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '译文' }] })
+    expect(upgraded?.wordLines[0].words).toHaveLength(2)
+  })
+
+  it('KRC 自带翻译优先', async () => {
+    const language = Buffer.from(JSON.stringify({ content: [{ type: 1, lyricContent: [['酷狗译文']] }] })).toString('base64')
+    reply([{ title: '晴天', artist: '周杰伦', duration: 180_000, text: `${krc}\n[language:${language}]` }])
+    expect((await upgradeLyricsWithKugou(apple, base))?.aligned).toEqual([{ time: 1, text: '酷狗译文' }])
+  })
+
+  it.each([
+    { title: '晴天 (Live)', artist: '周杰伦', duration: 180_000 },
+    { title: '晴天', artist: '其他歌手', duration: 180_000 },
+    { title: '晴天', artist: '周杰伦', duration: 190_000 },
+  ])('拒绝不可靠的候选 %j', async candidate => {
+    reply([{ ...candidate, text: krc }])
+    expect(await upgradeLyricsWithKugou(apple, base)).toBeNull()
+  })
+
+  it('跳过错配候选后使用下一个；时间轴超出曲长也拒绝', async () => {
+    reply([
+      { title: '晴天', artist: '周杰伦', duration: 180_000, text: '[179000,10000]<0,10000,0>甲' },
+      { title: '晴天', artist: '周杰伦', duration: 180_000, text: krc },
+    ])
+    expect((await upgradeLyricsWithKugou(apple, base))?.wordLines[0].time).toBe(1)
+  })
+
+  it('关闭开关、本地文件、已有逐字或缺少时长时不请求', async () => {
+    const timed = { ...base, wordLines: [{ time: 1, durationMs: 500, words: [{ text: '甲乙', startMs: 0, durationMs: 500 }] }] }
+    expect(await upgradeLyricsWithKugou(apple, timed)).toBeNull()
+    expect(await upgradeLyricsWithKugou({ ...apple, source: 'local' }, base)).toBeNull()
+    expect(await upgradeLyricsWithKugou({ ...apple, duration: undefined }, base)).toBeNull()
+    useSettingsStore.setState({ lyricsKugouFallback: false })
+    expect(await upgradeLyricsWithKugou(apple, base)).toBeNull()
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('接口失败保持当前歌词', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('502'))
+    expect(await upgradeLyricsWithKugou(apple, base)).toBeNull()
+  })
+
+  it('补全链最后才查酷狗，已登录平台命中时不查', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/kugou/lyric'
+      ? { candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] }
+      : { lyric: '[00:01.00]甲乙' }) as never)
+    const upgraded = await upgradeLyrics(song('netease'), { ...base, source: 'netease' }, ['qq'])
+    expect(upgraded?.wordLines).toHaveLength(1)
+    const paths = vi.mocked(api.get).mock.calls.map(([path]) => path)
+    expect(paths[paths.length - 1]).toBe('/api/kugou/lyric')
+    expect(h.qq).toHaveBeenCalledOnce()
   })
 })

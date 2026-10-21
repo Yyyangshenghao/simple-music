@@ -2,7 +2,7 @@ import { fetchNativeAppleLyrics } from './apple-lyrics'
 import { api } from './api'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
-import { parseLrc, alignTranslation, parseYrc, parseQrc } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
@@ -94,6 +94,54 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
   return null
 }
 
+interface KugouLyricResponse {
+  candidates?: { title?: unknown; artist?: unknown; duration?: unknown; text?: unknown }[]
+}
+
+/**
+ * 最后一道兜底：按歌名、歌手与时长去酷狗歌词库找逐字 KRC（经本地 server 的 /api/kugou/lyric，无需登录）。
+ * 酷狗没有可对应的平台 ID，候选以 KRC 自带的歌名（含版本标记）、歌手和时长走同曲校验，
+ * 时间轴超出本曲时长同样视为错配；任何失败返回 null，保持当前歌词。
+ */
+export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal): Promise<LyricsResult | null> {
+  if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
+  if (!useSettingsStore.getState().lyricsKugouFallback) return null
+  const title = String(track.name ?? '').trim()
+  const duration = Number(track.duration)
+  if (!title || !Number.isFinite(duration) || duration <= 0) return null
+  const names = (track.artists ?? []).map(artist => artist.name).filter(Boolean)
+  const artist = (names.length ? names.join('、') : String(track.artist ?? '')).trim()
+  let rec: KugouLyricResponse
+  try {
+    rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)) }, { signal })
+  } catch {
+    return null
+  }
+  for (const candidate of Array.isArray(rec.candidates) ? rec.candidates : []) {
+    if (signal?.aborted) return null
+    if (typeof candidate.text !== 'string' || typeof candidate.title !== 'string') continue
+    // 专辑与 ISRC 未知，只按歌名、歌手和时长判定；专辑带版本标记的原曲因此会保守地不匹配。
+    const target: Track = {
+      ...track, id: 'kugou', name: candidate.title, artist: String(candidate.artist ?? ''), artists: [],
+      album: undefined, duration: Number(candidate.duration), isrc: undefined, ISRC: undefined,
+    }
+    if (!isLyricMatch(track, target)) continue
+    const krc = parseKrc(candidate.text)
+    if (!krc.wordLines.length) continue
+    const main = krc.wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
+    const realign = (lines: LyricLineType[]) => result.main.length ? realignCompanionLines(result.main, main, lines) : []
+    const upgraded: LyricsResult = {
+      source: result.source ?? track.source,
+      main,
+      aligned: krc.translation.length ? alignTranslation(main, krc.translation) : realign(result.aligned),
+      roma: krc.roma.length ? alignTranslation(main, krc.roma) : realign(result.roma),
+      wordLines: krc.wordLines,
+    }
+    if (fitsLyricDuration(track, upgraded)) return upgraded
+  }
+  return null
+}
+
 /** 逐行结果先展示，后台按已参与平台查找同曲逐字；始终保留原来的可用逐行版本。 */
 export async function upgradeLyrics(track: Track, result: LyricsResult, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult | null> {
   if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
@@ -122,7 +170,9 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
       if (amll && fitsLyricDuration(track, amll)) return amll
     } catch { /* 一个歌词平台失败不影响已显示的歌词和下一个来源。 */ }
   }
-  return signal?.aborted ? null : fallback
+  if (signal?.aborted) return null
+  // 酷狗按文字匹配，可靠性低于按平台 ID 或 ISRC 对上的来源，放在最后。
+  return await upgradeLyricsWithKugou(track, fallback ?? result, signal) ?? (signal?.aborted ? null : fallback)
 }
 
 /**

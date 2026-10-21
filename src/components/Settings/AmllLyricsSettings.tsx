@@ -8,12 +8,14 @@ import styles from './AmllLyricsSettings.module.css'
 
 type ProbeState = { status: 'idle' } | { status: 'running' } | { status: 'done'; hosts: AmllHostLatency[] } | { status: 'error' }
 
-/** 逐字歌词补全：AMLL TTML DB 开关、线路选择与测速。 */
+/** 逐字歌词补全：AMLL TTML DB 开关、线路选择与测速，以及酷狗歌词库兜底开关。 */
 export function AmllLyricsSettings() {
   const enabled = useSettingsStore((s) => s.lyricsAmllFallback)
   const setEnabled = useSettingsStore((s) => s.setLyricsAmllFallback)
   const host = useSettingsStore((s) => s.lyricsAmllHost)
   const setHost = useSettingsStore((s) => s.setLyricsAmllHost)
+  const kugouEnabled = useSettingsStore((s) => s.lyricsKugouFallback)
+  const setKugouEnabled = useSettingsStore((s) => s.setLyricsKugouFallback)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
 
   const runProbe = async () => {
@@ -36,7 +38,7 @@ export function AmllLyricsSettings() {
         逐字歌词
         <InfoButton
           label="逐字歌词"
-          text="网易云或 QQ 音乐没有逐字时序时，按歌曲 ID 从社区逐字歌词库 AMLL TTML DB 补全：歌词先按行显示，补到后再换成逐字。开启后会向所选线路（GitHub 或社区镜像）发送当前歌曲的平台 ID，结果在本机缓存。"
+          text="网易云或 QQ 音乐没有逐字时序时，按歌曲 ID 从社区逐字歌词库 AMLL TTML DB 补全：歌词先按行显示，补到后再换成逐字。开启后会向所选线路（GitHub 或社区镜像）发送当前歌曲的平台 ID。其他来源都没有时再查酷狗歌词库，会向酷狗发送歌名、歌手与时长，只接受同曲同版本的结果。结果都在本机缓存。"
         />
       </h3>
       <div className={styles.row}>
@@ -78,6 +80,10 @@ export function AmllLyricsSettings() {
           </span>
         </div>
       </fieldset>
+      <div className={styles.row}>
+        <span className={styles.label}>使用酷狗歌词库补全</span>
+        <Switch checked={kugouEnabled} onChange={setKugouEnabled} aria-label="使用酷狗歌词库补全" />
+      </div>
     </section>
   )
 }

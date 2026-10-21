@@ -134,6 +134,75 @@ export function parseQrc(text: string): WordLyricLine[] {
   return lines.sort((a, b) => a.time - b.time)
 }
 
+export interface KrcLyrics {
+  wordLines: WordLyricLine[]
+  translation: LyricLine[]
+  roma: LyricLine[]
+}
+
+function decodeKrcLanguage(value: string): { type?: unknown; lyricContent?: unknown }[] {
+  try {
+    const bytes = Uint8Array.from(atob(value.trim()), char => char.charCodeAt(0))
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { content?: unknown }
+    return Array.isArray(parsed?.content) ? parsed.content : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 酷狗明文 KRC：行头 [行起始Ms,行时长Ms]，每个字前是 <相对行起始Ms,持续Ms,0>。
+ * 翻译与音译在 [language:base64(JSON)] 标签里：type 1 按行对应原文（逐行翻译），
+ * type 0 按字给出音译（条数少于原文时跳过了无字的行）。
+ * 个别行头时长会写成整曲时长，按最后一个字的结束时间收口，避免被当作超出曲长的错配版本。
+ */
+export function parseKrc(text: string): KrcLyrics {
+  const all: WordLyricLine[] = []
+  let language: ReturnType<typeof decodeKrcLanguage> = []
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const tag = raw.match(/^\[language:([^\]]*)\]\s*$/)
+    if (tag) {
+      language = decodeKrcLanguage(tag[1])
+      continue
+    }
+    const header = raw.match(/^\[(\d+),(\d+)\](.*)$/)
+    if (!header) continue
+    const start = Number(header[1])
+    const headerDuration = Number(header[2])
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(headerDuration)) continue
+    const words: WordToken[] = []
+    const body = header[3]
+    const timing = /<(\d+),(\d+),-?\d+>/g
+    const marks: { index: number; end: number; startMs: number; durationMs: number }[] = []
+    let match: RegExpExecArray | null
+    while ((match = timing.exec(body))) {
+      marks.push({ index: match.index, end: timing.lastIndex, startMs: Number(match[1]), durationMs: Number(match[2]) })
+    }
+    marks.forEach((mark, index) => {
+      const wordText = body.slice(mark.end, marks[index + 1]?.index ?? body.length)
+      if (wordText) words.push({ text: wordText, startMs: mark.startMs, durationMs: mark.durationMs })
+    })
+    const wordsEnd = Math.max(0, ...words.map(word => word.startMs + (word.durationMs ?? 0)))
+    all.push({ time: start / 1000, durationMs: wordsEnd > 0 ? Math.min(headerDuration, wordsEnd) : headerDuration, words })
+  }
+  const hasText = (line: WordLyricLine) => line.words.some(word => word.text.trim())
+  const translation: LyricLine[] = []
+  const roma: LyricLine[] = []
+  for (const entry of language) {
+    if (!Array.isArray(entry.lyricContent) || (entry.type !== 0 && entry.type !== 1)) continue
+    const rows = entry.lyricContent as unknown[]
+    const targets = rows.length === all.length ? all : all.filter(hasText)
+    const output = entry.type === 1 ? translation : roma
+    targets.forEach((line, index) => {
+      const row = rows[index]
+      const value = Array.isArray(row) ? row.filter(part => typeof part === 'string').join(entry.type === 1 ? '' : ' ').replace(/\s+/g, ' ').trim() : ''
+      if (value && hasText(line)) output.push({ time: line.time, text: value })
+    })
+  }
+  const byTime = <T extends { time: number }>(lines: T[]) => lines.sort((a, b) => a.time - b.time)
+  return { wordLines: byTime(all.filter(hasText)), translation: byTime(translation), roma: byTime(roma) }
+}
+
 /**
  * 把一行歌词切成 KTV token:拉丁字母/数字连写的词(含随后的空格与紧跟的标点)
  * 作为整体,其余字符(CJK、假名等)逐字。每个 token 渲染为一个不可拆分的 span,

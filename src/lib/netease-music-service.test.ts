@@ -8,7 +8,7 @@ import { useSettingsStore } from '../stores/settings'
 
 describe('网易云刷歌选段与展示歌词共享', () => {
   // 校验的是请求共享，AMLL 逐字兜底在 lyrics-fetch.test 单独覆盖
-  beforeEach(() => { useSettingsStore.setState({ lyricsAmllFallback: false }) })
+  beforeEach(() => { useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false }) })
   afterEach(() => {
     clearProviderRequestCache()
     vi.restoreAllMocks()

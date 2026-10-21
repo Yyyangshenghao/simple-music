@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -133,5 +133,41 @@ describe('parseQrc', () => {
 
   it.each(['密文a7c310', '[00:01.00]普通歌词', '[1000,1000]无逐字数据', '[1000,1000]残缺(1000,500)文本'])('非逐字或不完整数据安全降级：%s', text => {
     expect(parseQrc(text)).toEqual([])
+  })
+})
+
+describe('parseKrc', () => {
+  const language = (content: unknown) => `[language:${Buffer.from(JSON.stringify({ content })).toString('base64')}]`
+
+  it('字时间相对行起始，英文词保留空格', () => {
+    const { wordLines } = parseKrc('[ti:晴天]\n[1000,800]<0,400,0>故<400,400,0>事\n[2000,900]<0,300,0>Love <300,600,0>Story')
+    expect(wordLines).toEqual([
+      { time: 1, durationMs: 800, words: [{ text: '故', startMs: 0, durationMs: 400 }, { text: '事', startMs: 400, durationMs: 400 }] },
+      { time: 2, durationMs: 900, words: [{ text: 'Love ', startMs: 0, durationMs: 300 }, { text: 'Story', startMs: 300, durationMs: 600 }] },
+    ])
+  })
+
+  it('行头时长异常时按最后一个字收口', () => {
+    expect(parseKrc('[242018,261041]<0,309,0>夜<309,314,0>に').wordLines[0].durationMs).toBe(623)
+  })
+
+  it('解出逐行翻译与按字音译，跳过无字行', () => {
+    const text = [
+      '[0,500]<0,0,0>',
+      '[1000,800]<0,400,0>夜<400,400,0>に',
+      '[2000,800]<0,800,0>駆',
+      language([
+        { type: 1, lyricContent: [[''], ['夜里'], ['奔跑']] },
+        { type: 0, lyricContent: [['yo ', 'ni '], ['ka ']] },
+      ]),
+    ].join('\n')
+    const result = parseKrc(text)
+    expect(result.wordLines.map(line => line.time)).toEqual([1, 2])
+    expect(result.translation).toEqual([{ time: 1, text: '夜里' }, { time: 2, text: '奔跑' }])
+    expect(result.roma).toEqual([{ time: 1, text: 'yo ni' }, { time: 2, text: 'ka' }])
+  })
+
+  it.each(['[00:01.00]普通歌词', '[1000,1000]无逐字数据', '[language:不是base64]'])('非逐字数据安全降级：%s', text => {
+    expect(parseKrc(text)).toEqual({ wordLines: [], translation: [], roma: [] })
   })
 })
