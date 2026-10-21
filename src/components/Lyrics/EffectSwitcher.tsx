@@ -2,67 +2,8 @@ import { useId } from 'react'
 import { motion } from 'motion/react'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
-import type { Lyrics3dEffect, Lyrics3dStyle } from '../../types/domain'
+import type { Lyrics3dStyle } from '../../types/domain'
 import styles from './EffectSwitcher.module.css'
-
-interface EffectInfo {
-  id: Lyrics3dEffect
-  label: string
-  /** inline SVG for a 20x20 viewBox icon */
-  icon: JSX.Element
-}
-
-const EFFECTS: EffectInfo[] = [
-  {
-    id: 'cover-cloud',
-    label: '封面粒子云',
-    icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="5" cy="5" r="1.5" />
-        <circle cx="10" cy="3" r="1.5" />
-        <circle cx="15" cy="5" r="1.5" />
-        <circle cx="7" cy="9" r="1.5" />
-        <circle cx="13" cy="9" r="1.5" />
-        <circle cx="5" cy="13" r="1.5" />
-        <circle cx="10" cy="11" r="1.5" />
-        <circle cx="15" cy="13" r="1.5" />
-        <circle cx="10" cy="16" r="1.5" />
-      </svg>
-    )
-  },
-  {
-    id: 'waveform-3d',
-    label: '3D 频谱环',
-    icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="12" width="2.2" height="6" rx="0.5" />
-        <rect x="5.2" y="9" width="2.2" height="9" rx="0.5" />
-        <rect x="8.4" y="5" width="2.2" height="13" rx="0.5" />
-        <rect x="11.6" y="7" width="2.2" height="11" rx="0.5" />
-        <rect x="14.8" y="10" width="2.2" height="8" rx="0.5" />
-      </svg>
-    )
-  },
-  {
-    id: 'speaker-particles',
-    label: '音箱沙粒',
-    icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="10" cy="10" r="8" />
-        <circle cx="7" cy="8" r="1" />
-        <circle cx="13" cy="7" r="0.8" />
-        <circle cx="9" cy="12" r="0.7" />
-        <circle cx="14" cy="11" r="0.9" />
-        <circle cx="6" cy="13" r="0.6" />
-        <circle cx="11" cy="9" r="0.7" />
-        <circle cx="8" cy="15" r="0.5" />
-      </svg>
-    )
-  }
-]
 
 interface StyleInfo {
   id: Lyrics3dStyle
@@ -72,6 +13,17 @@ interface StyleInfo {
 }
 
 const LYRIC_STYLES: StyleInfo[] = [
+  {
+    id: 'storyboard',
+    label: '分镜',
+    hint: '每句一个镜头，构图接力，副歌重现同一取景',
+    icon: (
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
+        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6V3h3M14 3h3v3M17 14v3h-3M6 17H3v-3" /><path d="M7 8.5h4M7 11.5h6" />
+      </svg>
+    )
+  },
   {
     id: 'glass',
     label: '玻璃',
@@ -180,8 +132,6 @@ function TuningSlider({ label, value, min, max, step, onChange, format = (v: num
 
 /** 歌词播放页的 3D 场景选择与当前场景调节。 */
 export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProps) {
-  const active = useSettingsStore((s) => s.lyrics3dEffect)
-  const setEffect = useSettingsStore((s) => s.setLyrics3dEffect)
   const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
   const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
@@ -228,26 +178,6 @@ export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProp
           </div>
           <div className={styles.divider} aria-hidden="true" />
           </>}
-          <div className={styles.sectionLabel}>场景效果</div>
-          {EFFECTS.map((eff) => {
-            const isActive = active === eff.id
-            return (
-              <motion.button
-                key={eff.id}
-                aria-pressed={isActive}
-                className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
-                onClick={() => {
-                  setEffect(eff.id)
-                }}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                <span className={styles.icon}>{eff.icon}</span>
-                <span className={styles.label}>{eff.label}</span>
-              </motion.button>
-            )
-          })}
-          <div className={styles.divider} aria-hidden="true" />
           <div className={styles.sectionLabel}>歌词样式</div>
           {LYRIC_STYLES.map((style) => {
             const isActive = activeStyle === style.id
@@ -272,22 +202,20 @@ export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProp
           })}
         </> : <div className={styles.tuningPanel}>
           <div className={styles.tuningHeading}>
-            <strong>{EFFECTS.find((effect) => effect.id === active)?.label}</strong>
+            <strong>封面粒子云</strong>
             <span>调整时可直接看到舞台变化</span>
           </div>
           <TuningSlider label="粒子数量" value={params.particleCount} min={0.25} max={2} step={0.05} onChange={patch('particleCount')} />
-          <TuningSlider label={active === 'waveform-3d' ? '歌词点缀粒子大小' : '粒子大小'} value={params.particleSize} min={0.2} max={2} step={0.05} onChange={patch('particleSize')} />
+          <TuningSlider label="粒子大小" value={params.particleSize} min={0.2} max={2} step={0.05} onChange={patch('particleSize')} />
           <TuningSlider label="场景亮度" value={params.particleBrightness} min={0.3} max={2} step={0.05} onChange={patch('particleBrightness')} />
           <TuningSlider label="动效强度" value={params.motionIntensity} min={0.2} max={2} step={0.05} onChange={patch('motionIntensity')} />
-          {active === 'cover-cloud' && activeStyle === 'focus' && <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />}
-          {active === 'cover-cloud' && <>
-            <div className={styles.tuningDivider}>鼓点波纹 · 封面粒子云</div>
-            <TuningSlider label="波纹数量" value={params.rippleCount} min={1} max={6} step={1}
-              format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
-            <TuningSlider label="触发灵敏度" value={params.rippleSensitivity} min={0} max={1} step={0.01} onChange={patch('rippleSensitivity')} />
-            <TuningSlider label="扩散时长" value={params.rippleDuration} min={0.2} max={1.5} step={0.05}
-              format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-          </>}
+          {activeStyle === 'focus' && <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />}
+          <div className={styles.tuningDivider}>鼓点波纹 · 封面粒子云</div>
+          <TuningSlider label="波纹数量" value={params.rippleCount} min={1} max={6} step={1}
+            format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+          <TuningSlider label="触发灵敏度" value={params.rippleSensitivity} min={0} max={1} step={0.01} onChange={patch('rippleSensitivity')} />
+          <TuningSlider label="扩散时长" value={params.rippleDuration} min={0.2} max={1.5} step={0.05}
+            format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
           <div className={styles.tuningDivider}>{activeStyle === 'focus' ? '简洁叠层' : '3D 歌词 · 文字层次'}</div>
           {activeStyle === 'focus' ? <TuningSlider label="歌词底部模糊" value={overlayBlur} min={0} max={1} step={0.01} onChange={setOverlayBlur} /> : <>
             <TuningSlider label="前后歌词亮度" value={params.contextOpacity} min={0.25} max={1} step={0.01} onChange={patch('contextOpacity')} />

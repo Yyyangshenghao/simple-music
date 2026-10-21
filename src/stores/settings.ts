@@ -441,7 +441,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         const value = data.lyrics3dStyle as unknown
         if (value === 'stage') return 'float'
         if (value === 'cascade') return 'smooth'
-        if (value === 'glass' || value === 'smooth' || value === 'float' || value === 'quick' || value === 'shine' || value === 'glitch' || value === 'focus') return value
+        if (value === 'storyboard' || value === 'glass' || value === 'smooth' || value === 'float' || value === 'quick' || value === 'shine' || value === 'glitch' || value === 'focus') return value
         return data.lyricsStage3d === false ? 'focus' : 'float'
       })()
       set({
@@ -457,7 +457,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
-        lyrics3dEffect: data.lyrics3dEffect ?? 'cover-cloud',
+        // 频谱环、音箱沙粒已移除：旧存档里的任何场景值都迁回封面粒子云。
+        lyrics3dEffect: 'cover-cloud',
         lyrics3dStyle: storedLyricsStyle,
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
         lyricsStage3d: storedLyricsStyle !== 'focus',

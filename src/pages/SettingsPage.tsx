@@ -29,7 +29,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
-import type { Lyrics3dDisplayMode, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
+import type { Lyrics3dDisplayMode, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
@@ -325,13 +325,8 @@ const MINI_PLAYER_TINTS: { value: MiniPlayerAppearance['tint']; label: string }[
   { value: 'light', label: '浅色' }
 ]
 
-const EFFECT_LABELS: Record<Lyrics3dEffect, string> = {
-  'cover-cloud': '封面粒子云',
-  'waveform-3d': '3D 频谱环',
-  'speaker-particles': '音箱沙粒'
-}
-
 const LYRIC_STYLE_LABELS: Record<Lyrics3dStyle, string> = {
+  storyboard: '分镜',
   glass: '玻璃',
   smooth: '丝滑',
   float: '漂浮',
@@ -407,8 +402,6 @@ function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | nu
 /** 3D 歌词设置按当前场景与歌词样式展示生效的参数。 */
 function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
   const reducedMotion = useReducedMotion()
-  const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
-  const setLyrics3dEffect = useSettingsStore((s) => s.setLyrics3dEffect)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const setLyrics3dStyle = useSettingsStore((s) => s.setLyrics3dStyle)
   const params = useSettingsStore((s) => s.lyrics3d)
@@ -455,22 +448,6 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
   return (
     view === 'scene' ? <section className={`${styles.group} ${styles.lyricsEffectGroup}`}>
         <h3 className={styles.groupTitle}>场景与文字</h3>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>背景场景</span>
-          <div className={styles.segControl}>
-            {(Object.keys(EFFECT_LABELS) as Lyrics3dEffect[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${lyrics3dEffect === id ? styles.segActive : ''}`}
-                onClick={() => setLyrics3dEffect(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {EFFECT_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
         <div className={styles.row}>
           <span className={styles.rowLabel}>文字演出</span>
           <div className={styles.segControl}>
@@ -536,7 +513,6 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
       <motion.div layout className={styles.lyricsTuningColumn} transition={{ duration: reducedMotion ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.section
-            key={lyrics3dEffect}
             className={`${styles.group} ${styles.lyricsParticleGroup}`}
             initial={reducedMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -544,28 +520,26 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
             transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
             <h3 className={styles.groupTitle}>
-              {EFFECT_LABELS[lyrics3dEffect]} · 场景细节
-              <InfoButton label="场景细节" text="下面的粒子与动效参数随当前背景场景实时变化；切换场景时会保留数值。" />
+              封面粒子云 · 场景细节
+              <InfoButton label="场景细节" text="下面的粒子与动效参数实时作用于 3D 背景的封面粒子云。" />
             </h3>
             <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
               value={params.particleCount} format={percent} onChange={patch('particleCount')} />
-            <SliderRow label={lyrics3dEffect === 'waveform-3d' ? '歌词点缀粒子大小' : '粒子大小'} min={0.2} max={2} step={0.05}
+            <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
               value={params.particleSize} format={percent} onChange={patch('particleSize')} />
             <SliderRow label="场景亮度" min={0.3} max={2} step={0.05}
               value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
             <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
               value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
-            {lyrics3dEffect === 'cover-cloud' && lyrics3dStyle === 'focus' && <SliderRow label="辉光强度" min={0} max={2} step={0.05}
+            {lyrics3dStyle === 'focus' && <SliderRow label="辉光强度" min={0} max={2} step={0.05}
               value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />}
-            {lyrics3dEffect === 'cover-cloud' && <>
-              <div className={styles.lyricsSubheading}>鼓点波纹 <span>仅封面粒子云</span></div>
-              <SliderRow label="波纹数量" min={1} max={6} step={1}
-                value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
-              <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
-                value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
-              <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
-                value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-            </>}
+            <div className={styles.lyricsSubheading}>鼓点波纹</div>
+            <SliderRow label="波纹数量" min={1} max={6} step={1}
+              value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+            <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
+              value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
+            <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
+              value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
           </motion.section>
         </AnimatePresence>
       </motion.div>

@@ -237,10 +237,10 @@ export interface PerformanceFlags {
    *  底色提到近乎不透明,消除 backdrop-filter 随全屏动态背景逐帧重取样的 GPU 大头开销。 */
   reduceTransparency: boolean
 }
-/** 歌词面板 3D 模式下的视觉效果类型 */
-export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
-/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层。 */
-export type Lyrics3dStyle = 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
+/** 歌词面板 3D 模式下的背景场景；频谱环与音箱沙粒已移除，旧存档读取时迁回封面粒子云。 */
+export type Lyrics3dEffect = 'cover-cloud'
+/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层，storyboard 是每句一个镜头的分镜演出。 */
+export type Lyrics3dStyle = 'storyboard' | 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
 /** Mineradio 舞台歌词的同屏行数模式。 */
 export type Lyrics3dDisplayMode = 'single' | 'dual' | 'triple' | 'cinema'
 export type ShelfMode = 'dynamic' | 'static'

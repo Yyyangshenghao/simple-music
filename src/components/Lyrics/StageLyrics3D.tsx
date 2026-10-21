@@ -25,6 +25,7 @@ import { LYRIC_STYLE_LOOKS, lyricStyleFrame } from './stage-lyric-motion'
 import { advanceLyricScroll } from './stage-lyric-scroll'
 import { hasPreciseWordTiming, stageLyricProgress, stageWordTimeline } from './stage-lyric-progress'
 import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
+import { fitShotPose, planStoryboardShots, SHOT_POSES, shotPanDirection, storyboardDolly } from './stage-lyric-shots'
 
 /**
  * 3D 歌词轨道（参考 Mineradio 2.2.0 / GPL-3.0 的多行布局与动效参数）:歌词以四层结构
@@ -608,6 +609,7 @@ interface MotionProfile {
 }
 
 const MOTION_PROFILES: Record<Exclude<Lyrics3dStyle, 'focus'>, MotionProfile> = {
+  storyboard: { enter: 0.7, exit: 0.6, slide: 0.42, contextDrift: 0.03, glowLift: 0.9, floatAmp: 0 },
   glass: { enter: 0.62, exit: 0.52, slide: 0.38, contextDrift: 0.066, glowLift: 1, floatAmp: 1 },
   smooth: { enter: 0.72, exit: 0.62, slide: 0.24, contextDrift: 0.03, glowLift: 0.74, floatAmp: 0.55 },
   float: { enter: 0.86, exit: 0.76, slide: 0.54, contextDrift: 0.12, glowLift: 1.16, floatAmp: 1.45 },
@@ -617,6 +619,12 @@ const MOTION_PROFILES: Record<Exclude<Lyrics3dStyle, 'focus'>, MotionProfile> = 
 }
 
 /** dwellSec 为当前句停留时长：短句把入场、退场与滑移等比压进停留时间内。 */
+/** 分镜：按行号取构图并按文字宽度收敛；越界行号回到居中特写的中性姿态。 */
+function shotPose(shots: readonly import('./stage-lyric-shots').ShotFraming[], index: number, textWorldW: number, frameWidth: number) {
+  const framing = shots[index]
+  return fitShotPose(framing ? SHOT_POSES[framing] : { x: 0, y: 0, scale: 1, tiltX: 0 }, textWorldW, frameWidth)
+}
+
 function motionProfile(style: Lyrics3dStyle, softness: number, dwellSec = Infinity): MotionProfile {
   const profile = style === 'focus' ? MOTION_PROFILES.smooth : MOTION_PROFILES[style]
   const softScale = THREE.MathUtils.clamp(softness / 0.72, 0.42, 1.65)
@@ -692,8 +700,11 @@ function disposeMesh(mesh: ActiveLyricMesh | null): void {
   for (const d of mesh.data.disposables) d.dispose()
 }
 
-export function StageLyrics3D({ lightBackground = false }: { lightBackground?: boolean }) {
+/** style 由 LyricsScene 传入（柔焦过渡期间仍是旧风格，退场完成后才换），不直接读设置。 */
+export function StageLyrics3D({ lightBackground = false, style: shownStyle }: { lightBackground?: boolean; style: Lyrics3dStyle }) {
   const lightBackgroundRef = useRef(lightBackground)
+  const styleRef = useRef(shownStyle)
+  styleRef.current = shownStyle
   lightBackgroundRef.current = lightBackground
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<THREE.Group>(null)
@@ -720,6 +731,8 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
   const beatGlowRef = useRef(0)
   const highBloomRef = useRef(0)
   const fitScaleRef = useRef(1)
+  /** 歌词轨道坐标系下的可见画面宽度，分镜按它判断横移与特写的余量。 */
+  const frameWidthRef = useRef(WORLD_W * 1.4)
   const rootWorldPositionRef = useRef(new THREE.Vector3())
 
   const dpr = useThree((s) => s.viewport.dpr)
@@ -747,7 +760,6 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
   const translation = useLyricsStore((s) => s.translation)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
-  const selectedStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const contextSpread = useSettingsStore((s) => s.lyrics3d.contextSpread)
   const fontFamily = useSettingsStore((s) => s.fontFamily)
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
@@ -755,6 +767,10 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
   const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
   const coverUrl = usePlayerStore((s) => s.currentTrack?.cover)
   const coverPalette = useCoverLyricPalette(coverUrl)
+  // 分镜：整首歌一次性分配构图，帧循环只按行号查表。
+  const shots = useMemo(() => planStoryboardShots(lines), [lines])
+  const shotsRef = useRef(shots)
+  shotsRef.current = shots
 
   // 切换样式立即重播入场，让当前歌词即可展示差异，不必等下一句。
   useEffect(() => {
@@ -764,7 +780,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       current.entryOpacity = current.data.textMat.uniforms.uOpacity.value
       current.entryScale = current.group.scale.x
     }
-  }, [selectedStyle])
+  }, [shownStyle])
 
   // 与聚焦歌词使用同一封面调色板，异步切歌由 hook 丢弃过期结果。
   useEffect(() => {
@@ -858,7 +874,15 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
         mesh.data.readabilityMat.opacity = start.opacity * 0.72 * (lightBackgroundRef.current ? 0.12 : 1)
         if (mesh.data.transMat) mesh.data.transMat.opacity = start.opacity * 0.62
       }
-      if (replacementState) mesh.age = motionProfile(useSettingsStore.getState().lyrics3dStyle, useSettingsStore.getState().lyrics3d.motionSoftness, dwellSec).enter
+      if (replacementState) mesh.age = motionProfile(styleRef.current, useSettingsStore.getState().lyrics3d.motionSoftness, dwellSec).enter
+      // 分镜接力：旧镜头沿横移方向推出，新镜头从反方向接进来。
+      if (styleRef.current === 'storyboard' && !replacementState) {
+        const pose = shotPose(shots, currentIndex, mesh.data.textWorldW, frameWidthRef.current)
+        const prevPose = shotPose(shots, currentIndex - 1, mesh.data.textWorldW, frameWidthRef.current)
+        const pan = shotPanDirection(prevPose, pose, currentIndex)
+        for (const out of outgoingRef.current) if (out.lineIndex === currentIndex - 1 || jumped) out.exitDirection = pan
+        mesh.group.position.x = pose.x - pan * 0.9
+      }
       root.add(mesh.group)
       currentRef.current = mesh
     }
@@ -867,6 +891,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
     text,
     transText,
     lines,
+    shots,
     wordLines,
     uPixel,
     fontFamily,
@@ -954,7 +979,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
     const t = motionTimeRef.current
     const settings = useSettingsStore.getState()
     const params = settings.lyrics3d
-    const style = settings.lyrics3dStyle
+    const style = styleRef.current
     const look = LYRIC_STYLE_LOOKS[style]
     const profile = motionProfile(style, params.motionSoftness, lyricLineDwellSec(useLyricsStore.getState().lines, currentIndex))
     const visibleRows = [
@@ -1057,6 +1082,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       const fit = Math.min(1, (visibleW * 0.84) / needW, (visibleH * 0.72) / verticalSpan)
       fitScaleRef.current += (fit - fitScaleRef.current) * frameBlend(fit < fitScaleRef.current ? 0.18 : 0.1, dt)
       root.scale.setScalar(Math.max(0.42, fitScaleRef.current))
+      frameWidthRef.current = visibleW / root.scale.x
     }
 
     // 当前行:浮入 + 呼吸漂浮 + 辉光/太阳/星点动态 + KTV 进度
@@ -1134,10 +1160,19 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       const glitchX = style === 'glitch' ? Math.sin(t * 47 + seed) * beatPulse * 0.025 * motion : 0
       const moveEase = 1 - Math.exp(-dt / Math.max(0.045, profile.slide * 0.32))
       const baseScale = cur.entryScale + (1.015 - cur.entryScale) * a
-      cur.group.scale.setScalar(baseScale + breathe * a)
-      cur.group.position.x += (glitchX + styleFrame.slideX * cur.entryDirection + Math.sin(t * 0.55) * 0.26 * floatMotion - cur.group.position.x) * moveEase
-      cur.group.position.y = 0.18 + (trackIndex - cur.lineIndex) * lineStep
+      // 分镜：本镜构图 + 镜头内慢推 + 鼓点轻推（1%~2%）
+      const shot = style === 'storyboard' ? shotPose(shotsRef.current, cur.lineIndex, d.textWorldW, frameWidthRef.current) : null
+      const shotPush = shot
+        ? 1 + storyboardDolly(
+          lyricPlaybackPosition(usePlayerStore.getState()) + useLyricsStore.getState().offsetSec - (useLyricsStore.getState().lines[cur.lineIndex]?.time ?? 0),
+          lyricLineDwellSec(useLyricsStore.getState().lines, cur.lineIndex)
+        ) + beatPulse * 0.018 * motion
+        : 1
+      cur.group.scale.setScalar((baseScale + breathe * a) * (shot ? shot.scale * shotPush : 1))
+      cur.group.position.x += (glitchX + (shot?.x ?? 0) + styleFrame.slideX * cur.entryDirection + Math.sin(t * 0.55) * 0.26 * floatMotion - cur.group.position.x) * moveEase
+      cur.group.position.y = 0.18 + (trackIndex - cur.lineIndex) * lineStep + (shot?.y ?? 0)
         + Math.sin(t * 0.8 + seed) * 0.04 * floatMotion
+      if (shot) cur.group.rotation.x = shot.tiltX * a
       cur.group.position.z += (1.48 + Math.cos(t * 0.65 + seed) * 0.24 * floatMotion - cur.group.position.z) * moveEase
       cur.group.rotation.z = Math.sin(t * 0.55 + seed) * 0.045 * floatMotion
 
@@ -1163,7 +1198,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       const deltaIndex = mesh.lineIndex - currentIndex
       const upcoming = deltaIndex > 0
       const outgoing = outgoingRef.current.find((line) => line.lineIndex === mesh.lineIndex)
-      const targetOpacity = outgoing ? 0 : contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, upcoming)
+      const targetOpacity = outgoing ? 0 : contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, upcoming) * look.context
       const drift = style === 'float' ? Math.sin(t * 0.65 + mesh.seed) * 0.04 * motion : 0
       const glitch = style === 'glitch' ? Math.sin(t * 38 + mesh.seed) * 0.015 : 0
       const targetY = 0.18 + (trackIndex - mesh.lineIndex) * lineStep + drift
@@ -1196,7 +1231,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       const context = contextRef.current.get(m.lineIndex)
       const distance = Math.abs(m.lineIndex - currentIndex)
       const targetOpacity = context
-        ? contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, m.lineIndex > currentIndex)
+        ? contextLineOpacity(params.contextOpacity, params.edgeFade, distance, maxDistance, m.lineIndex > currentIndex) * look.context
         : 0
       const opacity = THREE.MathUtils.lerp(m.exitStartOpacity, targetOpacity, a)
       const d = m.data
@@ -1208,7 +1243,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       d.sparkMat.uniforms.uOpacity.value = sparksOn ? opacity * (1 - a) * 0.24 * lyricGlowStrength * look.particles : 0
       d.sunMat.opacity = lyricGlowStrength > 0 ? opacity * (1 - a) * 0.08 * lyricGlowStrength * look.glow : 0
       if (d.transMat) d.transMat.opacity = opacity * 0.6
-      m.group.position.x = m.exitStartX + (style === 'quick' ? a * m.exitDirection * 1.3 * motion : 0)
+      m.group.position.x = m.exitStartX + (style === 'quick' ? a * m.exitDirection * 1.3 * motion : style === 'storyboard' ? a * m.exitDirection * 1.2 : 0)
       m.group.position.y = 0.18 + (trackIndex - m.lineIndex) * lineStep
       m.group.position.z = THREE.MathUtils.lerp(m.exitStartZ, m.exitStartZ - 0.24, a)
       const contextScale = context

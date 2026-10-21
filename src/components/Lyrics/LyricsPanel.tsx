@@ -214,13 +214,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
   const lowPower = useVisualStore((s) => s.performanceMode === 'eco')
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
-  const lyrics3dEffect = useSettingsStore((s) => s.lyrics3dEffect)
   const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
   const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
   // 浅色主题使用深色叠层文字；深色主题下仍按封面粒子墙的亮度补偿。
   // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
   const coverLuma = useAmbientStore((s) => s.coverLuma)
-  const lightCover = lightTheme || (lyrics3dEffect === 'cover-cloud' && coverLuma > 0.65)
+  const lightCover = lightTheme || coverLuma > 0.65
   const focusPalette = useCoverLyricPalette(open && mode === '3d' && lyrics3dStyle === 'focus' ? track?.cover : undefined)
   const focusTextPalette = lightTheme ? lightLyricPalette(focusPalette) : undefined
 

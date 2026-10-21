@@ -190,17 +190,24 @@ describe('3D 歌词数值恢复', () => {
     const setItem = vi.fn()
     vi.stubGlobal('localStorage', { setItem })
     const settings = useSettingsStore.getState()
-    settings.setLyrics3dEffect('waveform-3d')
-    settings.setLyrics3dStyle('focus')
+    settings.setLyrics3dStyle('storyboard')
     settings.setLyricsOverlayBlur(0.8)
     settings.setLyrics3dParams({ particleCount: 1.7, renderScale: 1.8 })
     settings.resetLyrics3dParams()
     expect(useSettingsStore.getState().lyrics3d).toEqual(DEFAULT_LYRICS_3D)
     expect(useSettingsStore.getState().lyricsOverlayBlur).toBe(0.4)
-    expect(useSettingsStore.getState().lyrics3dEffect).toBe('waveform-3d')
-    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('storyboard')
     expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toMatchObject({
-      lyrics3d: DEFAULT_LYRICS_3D, lyricsOverlayBlur: 0.4, lyrics3dEffect: 'waveform-3d', lyrics3dStyle: 'focus'
+      lyrics3d: DEFAULT_LYRICS_3D, lyricsOverlayBlur: 0.4, lyrics3dEffect: 'cover-cloud', lyrics3dStyle: 'storyboard'
     })
+  })
+
+  it('已移除的场景迁回封面粒子云，分镜风格可从存档读回', () => {
+    for (const legacy of ['waveform-3d', 'speaker-particles']) {
+      vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyrics3dEffect: legacy, lyrics3dStyle: 'storyboard' }), setItem: vi.fn() })
+      useSettingsStore.getState().loadFromLocal()
+      expect(useSettingsStore.getState().lyrics3dEffect).toBe('cover-cloud')
+      expect(useSettingsStore.getState().lyrics3dStyle).toBe('storyboard')
+    }
   })
 })
