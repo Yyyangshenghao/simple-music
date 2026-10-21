@@ -36,6 +36,7 @@
 - 迷你窗口普通控件仅接受鼠标操作，不显示键盘焦点框；键盘只响应已配置的返回快捷键和系统保留组合。进入迷你模式时迷你窗口承接键盘焦点，再按应用内「迷你 / 完整模式」快捷键可返回主窗口；自定义按键同步生效。与全局绑定同键且注册成功时由全局入口处理，避免双触发。焦点切换到其他应用后，需使用全局快捷键返回。
 - 数据流:主窗口播放运行时的 `mini-player-sync.ts` 按字段变化推送曲目态、外观、返回快捷键及已有歌词行，展示中的播放进度按 1Hz 推送 → `miniplayer:update`；回程控制走 `overlay:miniplayer-control` → 主进程转 `miniplayer:control` 事件 → 运行时的 `desktop-playback-controls.ts` 落到 player/playlist store。React 卸载不停止同步，重新挂载不重放开窗偏好；游戏模式暂停推送并保留开关，退出后补最新状态。歌词获取/时钟由同一运行时生产，按当前曲目归属过滤歌词；桌面歌词展示也由运行时同步；封面氛围色由运行时的 `ambient-palette-sync.ts` 使用 Image/Canvas 生产，App 卸载后切曲仍更新迷你条颜色；壁纸参数同步也由运行时持有；氛围色 CSS 补间仍依赖 App hooks，正式后台宿主尚未迁移。
 - 尺寸:高度锁死(常态 80,音量弹层展开 136,底边不动);宽度由自绘右边缘手柄经 `overlay:miniplayer-resize-by` 改窗口,主进程再用 `miniplayer:width-changed` 回传主窗口持久化。宽度 ≥ `MINI_PLAYER_LYRICS_WIDTH` 时展开歌词行。
+- 窗口外沿保持透明，播放条与音量弹层只保留自身圆角细线，不使用超出窗口留白的外阴影，避免被裁成矩形灰边。Windows 显式关闭 `thickFrame`，与已有无框、透明和无系统阴影配置配合；尺寸继续由自绘手柄控制。
 - 窗口 `resizable: false`,尺寸只由 `setBounds` 改(改尺寸前临时 `setResizable(true)`,否则 macOS 会忽略);放开 OS 边缘拖拽会与自绘手柄同帧各改一次宽度而抖动。
 - 透明留白区在 OS 层面同样挡桌面点击(CSS `pointer-events: none` 不解决),所以弹层空间是按需长高而非常驻。
 - 共享常量在 `src/lib/mini-player-config.ts`,单独成文件是为了让 overlay 入口不把 zustand store 链打进包里。

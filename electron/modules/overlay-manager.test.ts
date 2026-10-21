@@ -636,6 +636,23 @@ describe('迷你播放器窗口尺寸', () => {
     harness.focusMainWindow.mockReset()
   })
 
+  it.each(['win32', 'darwin', 'linux'] as const)('%s 迷你窗口保持透明无系统边框，自绘手柄仍可改宽', (platform) => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      setMiniPlayerEnabled(true, 360)
+      const options = harness.BrowserWindow.mock.calls.at(-1)?.[0]
+      expect(options).toMatchObject({ frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false, resizable: false })
+      if (platform === 'win32') expect(options?.thickFrame).toBe(false)
+      else expect(options).not.toHaveProperty('thickFrame')
+      resizeMiniPlayerBy(20)
+      expect(harness.instances[0].setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ width: 380, height: 80 }), false)
+      if (platform !== 'darwin') expect(harness.instances[0].setResizable).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
+  })
+
   it('移动时保持用户设置的宽度，不吸收平台上报的瞬时宽度漂移', () => {
     setMiniPlayerEnabled(true, 360)
     const win = harness.instances[0]

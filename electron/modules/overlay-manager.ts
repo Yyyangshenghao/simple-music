@@ -545,6 +545,8 @@ function createMiniPlayerWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
+    // Windows 默认厚边框会在浅色桌面上留下矩形外沿；尺寸已由自绘手柄控制。
+    ...(process.platform === 'win32' ? { thickFrame: false } : {}),
     // 显式保留 Chromium 默认后台节流,避免迷你条被遮挡时继续高频刷新
     webPreferences: {
       preload: overlayPreload(),

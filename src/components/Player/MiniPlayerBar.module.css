@@ -39,7 +39,6 @@
   backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
   border: 1px solid var(--mp-line);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   color: var(--mp-fg);
   user-select: none;
   cursor: grab;
@@ -296,7 +295,6 @@
   backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--mp-blur)) saturate(1.4);
   border: 1px solid var(--mp-line);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   color: var(--mp-fg);
   pointer-events: auto;
   animation: popIn 0.18s ease both;
