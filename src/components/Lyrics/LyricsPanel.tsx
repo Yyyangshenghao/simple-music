@@ -18,7 +18,7 @@ import { ArtistLinks } from '../ui/ArtistLinks'
 import { PlayerBar } from '../Player/PlayerBar'
 import { EffectSwitcher } from './EffectSwitcher'
 import styles from './LyricsPanel.module.css'
-import { sizedImage } from '../../lib/image-size'
+import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
 
 const LyricsScene = lazy(() => import('./LyricsScene'))
@@ -95,23 +95,27 @@ function MarqueeTrackName({ text }: { text: string }) {
   )
 }
 
-/** 舞台封面：切歌时旧封面叠在上方淡出，露出新封面。 */
+/** 舞台封面：切歌时旧封面叠在上方，等新封面解码完成后再淡出，未命中预热时也不露出空白。 */
 function StageCoverArt({ src, alt }: { src: string; alt: string }) {
   const reducedMotion = useReducedMotion()
   const [current, setCurrent] = useState(src)
   const [leaving, setLeaving] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState<string | null>(null)
   if (src !== current) {
     setLeaving(reducedMotion ? null : current)
     setCurrent(src)
   }
   useEffect(() => { if (reducedMotion) setLeaving(null) }, [reducedMotion])
+  // 失败也视为就绪，避免旧封面一直压在上面
+  const settle = () => setLoaded(src)
   return (
     <>
-      <img className={styles.coverArt} src={src} alt={alt} draggable={false} />
+      <img className={styles.coverArt} src={src} alt={alt} draggable={false} onLoad={settle} onError={settle} />
       {leaving && !reducedMotion && (
         <img
           key={leaving}
           className={`${styles.coverArt} ${styles.coverArtLeaving}`}
+          data-waiting={loaded !== src}
           src={leaving}
           alt=""
           aria-hidden="true"
@@ -490,7 +494,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           {track?.cover && (
             <div
               className={styles.blurBg}
-              style={{ backgroundImage: `url(${track.cover})` }}
+              style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
             />
           )}
 
@@ -518,7 +522,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   <div className={styles.coverFlip} ref={coverFlipRef}>
                     <div className={styles.coverBreath} data-playing={playing}>
                       {track?.cover ? (
-                        <StageCoverArt src={sizedImage(track.cover, 840)} alt={track.name} />
+                        <StageCoverArt src={sizedImage(track.cover, LYRICS_COVER_PX)} alt={track.name} />
                       ) : (
                         <div className={styles.coverPlaceholder} aria-hidden="true">
                           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">

@@ -360,6 +360,11 @@
   animation: coverLeave 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* 新封面尚未解码时暂停淡出，保持旧封面完整可见 */
+.coverArtLeaving[data-waiting='true'] {
+  animation-play-state: paused;
+}
+
 @keyframes coverLeave {
   to { opacity: 0; filter: blur(6px); }
 }

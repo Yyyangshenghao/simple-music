@@ -7,7 +7,7 @@ import { providerAccountSession } from './provider-account-session'
  * 相邻曲目预加载:提前解析队列中前/后曲目的播放 URL、预热封面图 HTTP 缓存,
  * 切歌时省掉 URL 解析 RTT(起播延迟的大头)与封面网络等待。
  *
- * 普通队列与刷歌各保留一个窗口 合并保留集后再释放无人使用的资源
+ * 普通队列、刷歌与歌词页各保留一个窗口 合并保留集后再释放无人使用的资源
  */
 
 export interface SongUrlResponse {
@@ -91,7 +91,7 @@ interface UrlRequest {
   promise: Promise<SongUrlResponse>
 }
 const songUrlRequests = new Map<string, UrlRequest>()
-type PreloadOwner = 'player' | 'shuange'
+type PreloadOwner = 'player' | 'shuange' | 'lyrics'
 const windows = new Map<PreloadOwner, { urls: Set<string>; covers: Set<string> }>()
 // 最近一个批次的保留集:在途请求晚到时若已不在窗口内,直接丢弃不入缓存
 let latestKeep = new Set<string>()
@@ -99,7 +99,7 @@ let latestKeep = new Set<string>()
 export interface TrackPreloadOptions {
   /** 必须与实际渲染请求一致，否则浏览器图片缓存无法命中。 */
   coverPx?: number
-  /** 仅支持普通播放和刷歌两个有界窗口 */
+  /** 普通播放、刷歌与歌词页封面各一个有界窗口 */
   owner?: PreloadOwner
   /** 刷歌由自己的并发队列调度 URL 仅在此登记窗口和封面 */
   deferUrls?: boolean
@@ -285,7 +285,7 @@ export function preloadTrackUrl(track: Track, quality: AudioQuality): Promise<vo
 /**
  * 只释放指定使用方的窗口
  *
- * @param owner 普通队列或刷歌
+ * @param owner 普通队列、刷歌或歌词页
  */
 export function releasePreloadWindow(owner: PreloadOwner): void {
   preloadTracks([], 'standard', null, { owner })
