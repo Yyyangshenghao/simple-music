@@ -4,8 +4,10 @@ const h = vi.hoisted(() => ({
   palette: ['#112233', '#445566', '#778899'],
   view: 'explore' as string,
   dependencies: undefined as unknown[] | undefined,
-  cleanup: undefined as (() => void) | undefined
+  cleanup: undefined as (() => void) | undefined,
+  reducedMotion: false,
 }))
+vi.mock('./useReducedMotion', () => ({ useReducedMotion: () => h.reducedMotion }))
 vi.mock('react', () => ({
   useEffect: (effect: () => (() => void) | undefined, dependencies: unknown[]) => {
     if (h.dependencies && dependencies.every((value, index) => Object.is(value, h.dependencies![index]))) return
@@ -28,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.palette = ['#112233', '#445566', '#778899']
   h.view = 'explore'
+  h.reducedMotion = false
   h.dependencies = undefined
   h.cleanup = undefined
   vi.stubGlobal('document', { documentElement: { style: {
@@ -41,6 +44,19 @@ afterEach(() => {
 })
 
 describe('界面消费氛围色', () => {
+  it('运行中减少动态会停止补间计时器并直接应用最新颜色', () => {
+    useAmbientPalette()
+    expect(vi.getTimerCount()).toBe(1)
+    h.reducedMotion = true
+    useAmbientPalette()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(setProperty.mock.calls.slice(-3)).toEqual([
+      ['--ambient-1', '#112233'], ['--ambient-2', '#445566'], ['--ambient-3', '#778899']
+    ])
+    h.reducedMotion = false
+    useAmbientPalette()
+    expect(vi.getTimerCount()).toBe(1)
+  })
   it('只把已有颜色补间为12步，普通切页不重启，完成时准确落到目标色', () => {
     useAmbientPalette()
     vi.advanceTimersByTime(66)

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import styles from './SearchHistory.module.css'
 
 const RECENT_COUNT = 10
@@ -11,6 +12,7 @@ interface SearchHistoryProps {
 }
 
 export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHistoryProps) {
+  const reducedMotion = useReducedMotion()
   const [visibleCount, setVisibleCount] = useState(RECENT_COUNT)
   const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -45,9 +47,9 @@ export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHist
     const top = firstNew.offsetTop - list.clientHeight / 2
     list.scrollTo({
       top: Math.max(list.scrollTop, top),
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      behavior: reducedMotion ? 'instant' : 'smooth',
     })
-  }, [visibleCount])
+  }, [visibleCount, reducedMotion])
 
   if (!terms.length) return null
   return (

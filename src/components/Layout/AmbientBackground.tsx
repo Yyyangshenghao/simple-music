@@ -24,13 +24,15 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
   const reducedMotion = useReducedMotion()
   const playing = usePlayerStore((s) => s.status === 'playing')
+  const fluidEnabled = !hidden && bgFluidMotion && !reduceTransparency && !reducedMotion && performanceMode !== 'eco'
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
   const playSpring = useSpring(playing ? 1 : 0, gentleSpringValues)
   const [playAmount, setPlayAmount] = useState(playing ? 1 : 0)
   useEffect(() => {
-    playSpring.set(playing ? 1 : 0)
-  }, [playing, playSpring])
+    if (fluidEnabled) playSpring.set(playing ? 1 : 0)
+    else playSpring.jump(playing ? 1 : 0)
+  }, [playing, playSpring, fluidEnabled])
   useMotionValueEvent(playSpring, 'change', (v) => setPlayAmount(v))
 
   // 隐藏时释放 WebGL 上下文与纹理，避免与歌词场景同时占用显存。
@@ -38,7 +40,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
 
   return (
     <div className={styles.background}>
-      {!bgFluidMotion || reduceTransparency || reducedMotion || performanceMode === 'eco' ? (
+      {!fluidEnabled ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
         <Suspense fallback={<div className={styles.auroraFallback} aria-hidden="true" />}>

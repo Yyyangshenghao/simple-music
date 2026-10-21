@@ -53,6 +53,10 @@
   pointer-events: none;
 }
 
+.untimed.active .char {
+  color: var(--lyric-fill-hi, rgba(255, 255, 255, 1));
+}
+
 .line:not(.active) .charFill,
 .untimed.active .charFill {
   clip-path: inset(0 0 0 0);

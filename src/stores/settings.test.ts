@@ -121,6 +121,15 @@ describe('3D 歌词帧率', () => {
 })
 
 describe('界面动效预设', () => {
+  it('简单停用文字显现，极简也停用界面与逐字歌词，标准可恢复', () => {
+    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+    for (const [preset, reduceMotion, textRevealMotion, lyricsWordMotion] of [
+      ['simple', false, false, true], ['minimal', true, false, false], ['standard', false, true, true],
+    ] as const) {
+      useSettingsStore.getState().applyPerformancePreset(preset)
+      expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion, textRevealMotion, lyricsWordMotion })
+    }
+  })
   it.each([true, false])('所有预设都保留独立的减少透明度选择 %s', (reduceTransparency) => {
     vi.stubGlobal('localStorage', { setItem: vi.fn() })
     useSettingsStore.getState().setPerformance({ reduceTransparency })
@@ -143,6 +152,16 @@ describe('界面动效预设', () => {
 })
 
 describe('视觉设置解耦与升级', () => {
+  it('旧存档保留视觉表现，新开关独立保存并在重载后恢复', () => {
+    let saved = JSON.stringify({ performance: { bgFluidMotion: false, lyrics3dEnabled: false } })
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion: false, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: false })
+    useSettingsStore.getState().setPerformance({ reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false })
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, lyrics3dEnabled: false })
+  })
   it.each([true, false])('旧组合开关为 %s 时，新选项继承原选择，废弃火花不再保存', (enabled) => {
     let saved = JSON.stringify({ performance: { cardTiltEffect: enabled, bgFluidMotion: enabled, clickSparkEffect: true } })
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })

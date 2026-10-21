@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useReducedMotion } from './useReducedMotion'
+import { useReducedMotion, useSystemReducedMotion } from './useReducedMotion'
 
 const h = vi.hoisted(() => ({
   cleanup: undefined as (() => void) | undefined,
   snapshot: false,
   server: false,
   notify: vi.fn(),
+  reduceMotion: false,
+}))
+vi.mock('../stores/settings', () => ({
+  useSettingsStore: (selector: (state: unknown) => unknown) => selector({ performance: { reduceMotion: h.reduceMotion } }),
 }))
 vi.mock('react', () => ({
   useSyncExternalStore: (subscribe: (onChange: () => void) => () => void, getSnapshot: () => boolean, getServerSnapshot: () => boolean) => {
@@ -24,6 +28,7 @@ const media = {
 beforeEach(() => {
   h.cleanup = undefined
   h.server = h.snapshot = media.matches = false
+  h.reduceMotion = false
   h.notify.mockClear()
   listeners.clear()
   vi.stubGlobal('window', { matchMedia: () => media })
@@ -31,6 +36,16 @@ beforeEach(() => {
 afterEach(() => { h.cleanup?.(); vi.unstubAllGlobals() })
 
 describe('系统减少动态偏好', () => {
+  it('应用开关即时生效且不掩盖系统状态，系统限制不能由应用开关解除', () => {
+    expect(useReducedMotion()).toBe(false)
+    h.reduceMotion = true
+    expect(useReducedMotion()).toBe(true)
+    expect(useSystemReducedMotion()).toBe(false)
+    media.matches = true
+    h.reduceMotion = false
+    expect(useReducedMotion()).toBe(true)
+    expect(useSystemReducedMotion()).toBe(true)
+  })
   it('运行中切换会通知订阅者，卸载后解除监听', () => {
     expect(useReducedMotion()).toBe(false)
     media.matches = true

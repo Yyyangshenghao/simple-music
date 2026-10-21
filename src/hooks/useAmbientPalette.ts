@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useReducedMotion } from './useReducedMotion'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
 import { useNavigationStore } from '../stores/navigation'
 
@@ -57,6 +58,7 @@ function applyPalette(palette: AmbientPalette): void {
 
 /** 只消费运行时调色板更新界面颜色；卸载不停止取色或重置全局颜色。 */
 export function useAmbientPalette(enabled = true): void {
+  const reducedMotion = useReducedMotion()
   const palette = useAmbientStore((s) => s.palette)
   const shuangeActive = useNavigationStore((s) => s.currentView === 'shuange')
 
@@ -66,10 +68,11 @@ export function useAmbientPalette(enabled = true): void {
       tweenTimer = null
       return
     }
-    applyPalette(palette)
+    if (reducedMotion) setAmbientVars([...palette])
+    else applyPalette(palette)
     return () => {
       if (tweenTimer) clearInterval(tweenTimer)
       tweenTimer = null
     }
-  }, [enabled, palette, shuangeActive])
+  }, [enabled, palette, shuangeActive, reducedMotion])
 }

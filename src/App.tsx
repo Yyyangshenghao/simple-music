@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { MotionConfig } from 'motion/react'
+import { useEffect, useLayoutEffect, useState } from 'react'
+import { MotionConfig, MotionGlobalConfig } from 'motion/react'
+import { useReducedMotion } from './hooks/useReducedMotion'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -35,6 +36,23 @@ const APPEARANCE_KEYS = [
 ] as const
 
 export default function App() {
+  const reducedMotion = useReducedMotion()
+  useLayoutEffect(() => {
+    const previous = MotionGlobalConfig.skipAnimations
+    // MotionConfig 的策略只在 VisualElement 挂载时读取；全局策略让已挂载控件也即时生效。
+    MotionGlobalConfig.skipAnimations = reducedMotion
+    const root = document.documentElement
+    root.toggleAttribute('data-reduce-motion', reducedMotion)
+    if (reducedMotion) {
+      for (const animation of document.getAnimations()) {
+        if (animation.timeline === document.timeline && animation.effect?.getComputedTiming().endTime !== Infinity) animation.finish()
+      }
+    }
+    return () => {
+      MotionGlobalConfig.skipAnimations = previous
+      root.removeAttribute('data-reduce-motion')
+    }
+  }, [reducedMotion])
   const gameEnabled = useGameModeStore((s) => s.enabled)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
@@ -50,9 +68,10 @@ export default function App() {
   if (!lyricsCoversDock && dockRetired) setDockRetired(false)
   useEffect(() => {
     if (!lyricsCoversDock) return
+    if (reducedMotion) { setDockRetired(true); return }
     const timer = setTimeout(() => setDockRetired(true), 420)
     return () => clearTimeout(timer)
-  }, [lyricsCoversDock])
+  }, [lyricsCoversDock, reducedMotion])
   const detailBackdropCover = useBackdropStore((s) => s.cover)
   const currentView = useNavigationStore((s) => s.currentView)
   // 主窗口不可见时(迷你态/退居托盘/最小化)卸载整个可视层,停掉重度 WebGL/动画降耗;
@@ -123,7 +142,7 @@ export default function App() {
     <>
       <WindowCloseDialog />
       <UnlikeConfirmDialog />
-      {mainVisible && !gameEnabled && <MotionConfig reducedMotion="user">
+      {mainVisible && !gameEnabled && <MotionConfig reducedMotion="never">
       <WindowChrome>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
           <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />

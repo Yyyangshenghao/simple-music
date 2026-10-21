@@ -1,6 +1,8 @@
 /** 原生时间戳驱动的逐字高亮：每个词独立裁剪，媒体时钟直接定位浏览器动画。 */
 
 import { memo, useEffect, useRef } from 'react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { useLyricsStore } from '../../stores/lyrics'
 import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
@@ -21,10 +23,12 @@ interface KtvLineProps {
 
 export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
+  const reducedMotion = useReducedMotion()
+  const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion) && !reducedMotion
 
   const timed = hasWordTiming(words)
   useEffect(() => {
-    if (!active || !timed || !wordsRef.current) return
+    if (!active || !timed || !wordMotion || !wordsRef.current) return
     const elements = Array.from(wordsRef.current.querySelectorAll(`.${styles.charFill}`))
     const timeline = createWordHighlightTimeline(elements, words)
     if (!timeline) return
@@ -44,19 +48,19 @@ export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, 
       cancelAnimationFrame(raf)
       timeline.dispose()
     }
-  }, [active, timed, lineStartMs, words])
+  }, [active, timed, wordMotion, lineStartMs, words])
 
   return (
     <div className={[
       styles.line,
       active ? styles.active : '',
-      !timed ? styles.untimed : '',
+      !timed || !wordMotion ? styles.untimed : '',
       dim ? styles.dim : '',
       past ? styles.past : '',
       alignLeft ? styles.alignLeft : '',
     ].filter(Boolean).join(' ')}>
       <div className={styles.words} ref={wordsRef}>
-        {words.map((word, i) => (
+        {!wordMotion ? <span className={styles.char}>{words.map(word => word.text).join('')}</span> : words.map((word, i) => (
           <span key={i} className={styles.char}>
             {word.text}
             <span className={styles.charFill} aria-hidden="true">{word.text}</span>

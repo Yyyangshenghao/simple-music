@@ -117,7 +117,15 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     if (rootRef.current) observer.observe(rootRef.current)
     for (const button of buttons()) observer.observe(button)
     return () => observer.disconnect()
-  }, [items, value])
+  }, [items, value, reducedMotion])
+
+  useEffect(() => {
+    if (!reducedMotion) return
+    window.clearTimeout(holdTimer.current)
+    window.clearTimeout(transitTimer.current)
+    liftTarget.set(0)
+    lift.jump(0)
+  }, [reducedMotion])
 
   // 点击/键盘切换：横移途中短暂浮起成透镜，落位后再沉回。
   useEffect(() => {

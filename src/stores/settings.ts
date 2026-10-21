@@ -68,6 +68,9 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
 }
 
 export const DEFAULT_PERFORMANCE: PerformanceFlags = {
+  reduceMotion: false,
+  textRevealMotion: true,
+  lyricsWordMotion: true,
   bgFluidMotion: true,
   bgPointerMotion: true,
   lyrics3dEnabled: true,
@@ -85,11 +88,11 @@ function normalizeLyrics3dFpsCap(fps: number): number {
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 
-/** 动效预设只控制装饰效果；透明度与 3D 歌词保持独立。 */
+/** 动效预设控制界面与装饰效果；透明度与 3D 歌词保持独立。 */
 export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'lyrics3dEnabled' | 'reduceTransparency'>> = {
-  standard: { bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  simple: { bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  minimal: { bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
+  standard: { reduceMotion: false, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  simple: { reduceMotion: false, textRevealMotion: false, lyricsWordMotion: true, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  minimal: { reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
 
 interface PersistedSettings {

@@ -97,16 +97,18 @@ function MarqueeTrackName({ text }: { text: string }) {
 
 /** 舞台封面：切歌时旧封面叠在上方淡出，露出新封面。 */
 function StageCoverArt({ src, alt }: { src: string; alt: string }) {
+  const reducedMotion = useReducedMotion()
   const [current, setCurrent] = useState(src)
   const [leaving, setLeaving] = useState<string | null>(null)
   if (src !== current) {
-    setLeaving(current)
+    setLeaving(reducedMotion ? null : current)
     setCurrent(src)
   }
+  useEffect(() => { if (reducedMotion) setLeaving(null) }, [reducedMotion])
   return (
     <>
       <img className={styles.coverArt} src={src} alt={alt} draggable={false} />
-      {leaving && (
+      {leaving && !reducedMotion && (
         <img
           key={leaving}
           className={`${styles.coverArt} ${styles.coverArtLeaving}`}
@@ -316,8 +318,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   useLayoutEffect(() => {
     const wasOpen = wasOpenRef.current
     wasOpenRef.current = open
-    if (wasOpen === open || mode !== 'lyrics' || reducedMotionRef.current) return
     const flip = coverFlipRef.current
+    if (reducedMotion) {
+      for (const animation of flip?.getAnimations() ?? []) animation.cancel()
+      return
+    }
+    if (wasOpen === open || mode !== 'lyrics') return
     const dockCover = document.querySelector<HTMLElement>('[data-dock-cover]')
     if (!flip || !dockCover) return
     const dock = dockCover.getBoundingClientRect()
@@ -331,7 +337,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         ? { duration: 620, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
         : { duration: 420, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' }
     )
-  }, [open, mode])
+  }, [open, mode, reducedMotion])
 
   // 舞台控件随沉浸隐去后，封面区要整体下移半个控件高度，才与居中的歌词列重新对齐。
   // 控件高度随窗口与字号变化，按实际尺寸写入 CSS 变量，不触发重渲染。

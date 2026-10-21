@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
-import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useReducedMotion, useSystemReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
@@ -362,6 +362,14 @@ const PERFORMANCE_EFFECT_GROUPS: {
   effects: { key: keyof PerformanceFlags; label: string; hint: string }[]
 }[] = [
   {
+    title: '文字与歌词',
+    hint: '关闭后直接显示完整说明，歌词按整行点亮。',
+    effects: [
+      { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
+      { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词及简洁歌词叠层按字点亮；关闭后按整行点亮并停止逐字动画，3D 场景独立控制' },
+    ],
+  },
+  {
     title: '背景氛围',
     hint: '流体变化与鼠标跟随分别控制；关闭流体后使用静态渐变。',
     effects: [
@@ -568,6 +576,7 @@ function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
 
 export function SettingsPage() {
   const reducedMotion = useReducedMotion()
+  const systemReducedMotion = useSystemReducedMotion()
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedSectionRef = useRef<SettingsTab | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -622,9 +631,9 @@ export function SettingsPage() {
     if (!page || !section) return
     selectedSectionRef.current = id
     const top = section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - parseFloat(window.getComputedStyle(section).scrollMarginTop)
-    page.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    page.scrollTo({ top, behavior: reducedMotion ? 'instant' : 'smooth' })
     setActiveSection(id)
-  }, [])
+  }, [reducedMotion])
   useEffect(() => {
     const navigation = useNavigationStore.getState()
     if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
@@ -1187,7 +1196,7 @@ export function SettingsPage() {
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>
                       动效预设
-                      <InfoButton label="动效预设" text="批量调整下方六项装饰效果，随后仍可单独调整每一项。" />
+                      <InfoButton label="动效预设" text="批量调整减少动态效果、文字与下方装饰效果，随后仍可单独调整每一项。" />
                     </h3>
                     <div className={styles.effectPresetOptions}>
                       <div className={`${styles.segControl} ${styles.effectPresetControl}`} role="group" aria-label="动效预设">
@@ -1212,10 +1221,18 @@ export function SettingsPage() {
                       </div>
                     </div>
                     <p className={styles.groupHint}>
-                      标准：开启全部装饰动效；简单：静止背景；极简：关闭全部装饰动效。
+                      标准：保留完整动效；简单：静止背景、直接显示说明；极简：再停止界面转场与歌词逐字高亮。
                       <br />透明度与 3D 歌词独立设置，切换预设不会改变。
                     </p>
-                    {reducedMotion && <p className={styles.groupHint}>系统已开启减弱动态，相关装饰动效暂不生效；原设置已保留。</p>}
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>
+                        减少动态效果
+                        <InfoButton label="减少动态效果" text="页面与弹层直接切换，停止封面飞行、分类回弹、歌词换句、文字滚动和装饰动画；保留各单项偏好。3D 场景与透明度仍需单独调整。" />
+                      </span>
+                      <Switch checked={performance.reduceMotion} onChange={(v) => setPerformance({ reduceMotion: v })} aria-label="减少动态效果" />
+                    </div>
+                    {systemReducedMotion && <p className={styles.groupHint}>系统已开启减弱动态，相关动效暂不生效；原设置已保留。</p>}
+                    {!systemReducedMotion && performance.reduceMotion && <p className={styles.groupHint}>已暂停界面转场与下方动效，关闭后恢复各项选择。3D 场景仍独立运行，可在歌词设置中关闭。</p>}
                     {eco && <p className={styles.groupHint}>当前为节能档，背景流体与音频辉光暂不生效；原设置已保留。</p>}
                   </section>
                   {PERFORMANCE_EFFECT_GROUPS.map((group) => (
@@ -1224,7 +1241,8 @@ export function SettingsPage() {
                       <p className={styles.groupHint}>{group.hint}</p>
                       {group.effects.map(({ key, label, hint }) => {
                         const background = key === 'bgFluidMotion' || key === 'bgPointerMotion'
-                        const reason = reducedMotion ? '已随系统暂停'
+                        const reason = systemReducedMotion ? '已随系统暂停'
+                          : performance.reduceMotion ? '已随减少动态效果暂停'
                           : background && performance.reduceTransparency ? '已随减少透明度暂停'
                             : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
                               : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''

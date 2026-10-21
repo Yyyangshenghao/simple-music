@@ -18,7 +18,8 @@ vi.mock('../stores/window-close', async (importOriginal) => {
   ) }
 })
 vi.mock('../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => reducedMotion.value
+  useReducedMotion: () => reducedMotion.value,
+  useSystemReducedMotion: () => reducedMotion.value,
 }))
 
 vi.mock('../stores/settings', async (importOriginal) => {
@@ -206,6 +207,19 @@ function effectSwitch(html: string, label: string): string {
 }
 
 describe('动效设置的实际生效状态', () => {
+  it('减少动态开关可随时解除，其他动效保留选择并显示暂停原因', () => {
+    useSettingsStore.getState().setPerformance({ reduceMotion: true })
+    const html = visualMarkup()
+    expect(effectSwitch(html, '减少动态效果')).toContain('aria-checked="true"')
+    expect(effectSwitch(html, '减少动态效果')).not.toContain('disabled=')
+    for (const label of ['文字逐字显现', '歌词逐字高亮', '流体背景', '卡片倾斜', '音频辉光']) {
+      expect(effectSwitch(html, label)).toContain('disabled=""')
+      expect(effectSwitch(html, label)).toContain('aria-checked="true"')
+    }
+    expect(html).toContain('已随减少动态效果暂停')
+    useSettingsStore.getState().setPerformance({ reduceMotion: false })
+    expect(effectSwitch(visualMarkup(), '歌词逐字高亮')).not.toContain('disabled=')
+  })
   it('按影响区域分组，卡片倾斜和光斑分别提供开关', () => {
     const html = visualMarkup()
     for (const title of ['可读性', '动效预设', '背景氛围', '交互反馈', '播放视觉']) {
@@ -258,7 +272,7 @@ describe('动效设置的实际生效状态', () => {
       expect(effectSwitch(html, label)).toContain('disabled=""')
       expect(effectSwitch(html, label)).toContain('aria-checked="true"')
     }
-    expect(html).toContain('系统已开启减弱动态，相关装饰动效暂不生效；原设置已保留。')
+    expect(html).toContain('系统已开启减弱动态，相关动效暂不生效；原设置已保留。')
     expect(effectSwitch(html, '减少透明度')).not.toContain('disabled=')
   })
 
@@ -277,7 +291,7 @@ describe('动效设置的实际生效状态', () => {
     const html = visualMarkup()
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
-    expect(html).toContain('标准：开启全部装饰动效；简单：静止背景；极简：关闭全部装饰动效。')
+    expect(html).toContain('标准：保留完整动效；简单：静止背景、直接显示说明；极简：再停止界面转场与歌词逐字高亮。')
     expect(html).toContain('透明度与 3D 歌词独立设置，切换预设不会改变。')
   })
 })

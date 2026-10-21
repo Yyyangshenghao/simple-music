@@ -212,6 +212,12 @@ export type BackgroundMode = 'auto' | 'keep' | 'release'
 
 /** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
 export interface PerformanceFlags {
+  /** 暂停界面转场和装饰动效；保留各单项偏好，3D 场景仍独立控制。 */
+  reduceMotion: boolean
+  /** 简介、帮助说明的逐字显现；关闭后直接渲染完整文本。 */
+  textRevealMotion: boolean
+  /** DOM 歌词逐字高亮；关闭后按整行点亮，不创建逐字动画。 */
+  lyricsWordMotion: boolean
   /** 氛围背景 LiquidEther 自动流动,关闭后退化为静态渐变。 */
   bgFluidMotion: boolean
   /** 流体背景跟随鼠标/触摸；关闭后仍自动流动。 */
