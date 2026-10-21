@@ -19,14 +19,15 @@ interface KtvLineProps {
   translationText?: string
   romaText?: string        // 罗马音注音行,显示在主歌词与翻译之间
   alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
+  instantFill?: boolean    // 极短句：不逐字扫光，激活即整句点亮
 }
 
-export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
+export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft, instantFill }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
   const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion) && !reducedMotion
 
-  const timed = hasWordTiming(words)
+  const timed = hasWordTiming(words) && !instantFill
   useEffect(() => {
     if (!active || !timed || !wordMotion || !wordsRef.current) return
     const elements = Array.from(wordsRef.current.querySelectorAll(`.${styles.charFill}`))

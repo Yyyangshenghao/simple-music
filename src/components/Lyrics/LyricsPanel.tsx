@@ -20,8 +20,14 @@ import { EffectSwitcher } from './EffectSwitcher'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
+import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
 
 const LyricsScene = lazy(() => import('./LyricsScene'))
+
+/** 当前句切行过渡相对正常句的时长比例（以跟随弹簧为基准），供 JS 动画和 CSS 过渡共用。 */
+function lyricSwitchScale(lines: readonly { time: number; text: string }[], index: number): number {
+  return fitLyricTransition(LYRIC_FOLLOW_DURATION_MS / 1000, lyricLineDwellSec(lines, index)) / (LYRIC_FOLLOW_DURATION_MS / 1000)
+}
 
 interface LyricsPanelProps {
   open: boolean
@@ -305,11 +311,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       const row = container.querySelector<HTMLElement>(`[data-line='${line}']`)
       if (row) rows.push(row)
     }
+    // 短句停留不够一整段弹簧，按停留时长等比压缩时长和错峰。
+    const scale = lyricSwitchScale(useLyricsStore.getState().lines, index)
     rows.forEach((row) => {
       const line = Number(row.dataset.line)
       const anim = row.animate(
         [{ transform: `translateY(${delta + (carries.get(row) ?? 0)}px)` }, { transform: 'translateY(0)' }],
-        { duration: LYRIC_FOLLOW_DURATION_MS, delay: lyricFollowDelay(line, index), easing: LYRIC_FOLLOW_EASING, fill: 'backwards' }
+        { duration: LYRIC_FOLLOW_DURATION_MS * scale, delay: lyricFollowDelay(line, index) * scale, easing: LYRIC_FOLLOW_EASING, fill: 'backwards' }
       )
       anims.set(row, anim)
       anim.onfinish = () => { if (anims.get(row) === anim) anims.delete(row) }
@@ -436,6 +444,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
   const previousPlainLine = currentIndex > 0 ? lines[currentIndex - 1] : undefined
   const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
+  // 聚焦叠层的切句过渡：短句改为压缩后的补间，避免弹簧拖尾与下一句叠在一起。
+  const currentDwellSec = lyricLineDwellSec(lines, currentIndex)
+  const switchScale = lyricSwitchScale(lines, currentIndex)
+  const overlaySwitch = switchScale < 1 ? { duration: 0.45 * switchScale, ease: 'easeOut' as const } : springGentle
 
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
@@ -564,6 +576,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             ) : (
               <div
                 className={`${styles.lyricsScroll}${browsing ? ` ${styles.browsing}` : ''}`}
+                style={{ '--lyric-switch-scale': lyricSwitchScale(lines, currentIndex) } as React.CSSProperties}
                 ref={scrollRef}
               >
                 <div className={styles.lyricsPad} aria-hidden="true" />
@@ -592,6 +605,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                           translationText={showTranslation ? translation[i]?.text || undefined : undefined}
                           romaText={showRoma ? romaji[i]?.text || undefined : undefined}
                           alignLeft
+                          instantFill={lyricLineInstantFill(lyricLineDwellSec(lines, i))}
                         />
                       </div>
                     )
@@ -781,7 +795,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             } as React.CSSProperties : undefined}>
             <div className={styles.overlayLineStack}>
               <motion.div key={`previous-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayPreviousLine}`}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={springGentle}>
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={overlaySwitch}>
                 {previousPlainLine?.text}
               </motion.div>
               <AnimatePresence mode="popLayout" initial={false}>
@@ -796,7 +810,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={springGentle}
+                  transition={overlaySwitch}
                 >
                   {currentWordLine?.words.length ? (
                     <KtvLine
@@ -804,6 +818,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       lineStartMs={currentWordLine.time * 1000}
                       active={true}
                       translationText={showTranslation ? translation[currentIndex]?.text || undefined : undefined}
+                      instantFill={lyricLineInstantFill(currentDwellSec)}
                     />
                   ) : currentPlainLine ? (
                     <LyricLine
@@ -818,7 +833,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 </motion.div>
               </AnimatePresence>
               <motion.div key={`next-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayNextLine}`}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: nextPlainLine ? 0.3 : 0, y: 0 }} transition={springGentle}>
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: nextPlainLine ? 0.3 : 0, y: 0 }} transition={overlaySwitch}>
                 {nextPlainLine?.text}
               </motion.div>
             </div>

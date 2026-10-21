@@ -24,6 +24,7 @@ import { createLyricStarRiver } from './stage-lyric-river'
 import { LYRIC_STYLE_LOOKS, lyricStyleFrame } from './stage-lyric-motion'
 import { advanceLyricScroll } from './stage-lyric-scroll'
 import { hasPreciseWordTiming, stageLyricProgress, stageWordTimeline } from './stage-lyric-progress'
+import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
 
 /**
  * 3D 歌词轨道（参考 Mineradio 2.2.0 / GPL-3.0 的多行布局与动效参数）:歌词以四层结构
@@ -615,9 +616,12 @@ const MOTION_PROFILES: Record<Exclude<Lyrics3dStyle, 'focus'>, MotionProfile> = 
   glitch: { enter: 0.4, exit: 0.36, slide: 0.3, contextDrift: 0.045, glowLift: 1.05, floatAmp: 0.72 }
 }
 
-function motionProfile(style: Lyrics3dStyle, softness: number): MotionProfile {
+/** dwellSec 为当前句停留时长：短句把入场、退场与滑移等比压进停留时间内。 */
+function motionProfile(style: Lyrics3dStyle, softness: number, dwellSec = Infinity): MotionProfile {
   const profile = style === 'focus' ? MOTION_PROFILES.smooth : MOTION_PROFILES[style]
-  const scale = THREE.MathUtils.clamp(softness / 0.72, 0.42, 1.65)
+  const softScale = THREE.MathUtils.clamp(softness / 0.72, 0.42, 1.65)
+  const enter = profile.enter * softScale
+  const scale = softScale * fitLyricTransition(enter, dwellSec) / enter
   return { ...profile, enter: profile.enter * scale, exit: profile.exit * scale, slide: profile.slide * scale }
 }
 
@@ -830,12 +834,14 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
       contextRef.current.delete(currentIndex)
     }
     previousIndexRef.current = currentIndex
+    // 极短句来不及看清逐字扫光，按无逐字时序构建，整句直接点亮。
+    const dwellSec = lyricLineDwellSec(lines, currentIndex)
     if (text) {
       const mesh = buildLyricMesh(
         text,
         transText,
         palRef.current,
-        wordLines[currentIndex],
+        lyricLineInstantFill(dwellSec) ? undefined : wordLines[currentIndex],
         uPixel,
         currentIndex,
         entryDirection,
@@ -852,7 +858,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
         mesh.data.readabilityMat.opacity = start.opacity * 0.72 * (lightBackgroundRef.current ? 0.12 : 1)
         if (mesh.data.transMat) mesh.data.transMat.opacity = start.opacity * 0.62
       }
-      if (replacementState) mesh.age = motionProfile(useSettingsStore.getState().lyrics3dStyle, useSettingsStore.getState().lyrics3d.motionSoftness).enter
+      if (replacementState) mesh.age = motionProfile(useSettingsStore.getState().lyrics3dStyle, useSettingsStore.getState().lyrics3d.motionSoftness, dwellSec).enter
       root.add(mesh.group)
       currentRef.current = mesh
     }
@@ -860,6 +866,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
     currentIndex,
     text,
     transText,
+    lines,
     wordLines,
     uPixel,
     fontFamily,
@@ -949,7 +956,7 @@ export function StageLyrics3D({ lightBackground = false }: { lightBackground?: b
     const params = settings.lyrics3d
     const style = settings.lyrics3dStyle
     const look = LYRIC_STYLE_LOOKS[style]
-    const profile = motionProfile(style, params.motionSoftness)
+    const profile = motionProfile(style, params.motionSoftness, lyricLineDwellSec(useLyricsStore.getState().lines, currentIndex))
     const visibleRows = [
       currentRef.current && { rows: currentRef.current.data.rowCount, translation: !!currentRef.current.data.transMat },
       ...outgoingRef.current.map((mesh) => ({ rows: mesh.data.rowCount, translation: !!mesh.data.transMat })),
