@@ -3,6 +3,7 @@ import { api } from './api'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc } from './lyric-parser'
+import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
@@ -62,11 +63,8 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
     if (!wordLines.length || signal?.aborted) return null
     if (track.duration && wordLines.some(line => line.time > track.duration! / 1000 + 3)) return null
     const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
-    // 翻译与音译原先对齐到逐行歌词的时间，换成逐字版本的行后按时间重新对齐。
-    const realign = (lines: LyricLineType[]) => {
-      const timed = lines.filter(line => line.text)
-      return timed.length ? alignTranslation(main, timed) : []
-    }
+    // 翻译与音译原先对齐到逐行歌词，换成逐字版本的行后按文本重新对应（行时间和分句都可能不同）。
+    const realign = (lines: LyricLineType[]) => realignCompanionLines(result.main, main, lines)
     return { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines, wordSource: 'amll' }
   } catch {
     return null

@@ -216,13 +216,24 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/amll/lyric')).toBe(false)
   })
 
-  it('升级为逐字版本并按时间重新对齐翻译，标注来源', async () => {
+  it('升级为逐字版本并重新对应翻译，标注来源', async () => {
     vi.mocked(api.get).mockResolvedValue({ text: yrc } as never)
     const upgraded = await upgradeLyricsWithAmll(song('netease'), base())
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34', host: undefined }, { signal: undefined })
     expect(upgraded?.wordSource).toBe('amll')
     expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
     expect(upgraded?.aligned[0]?.text).toBe('占位译文')
+  })
+
+  it('逐字版本合并了两句且行时间偏移时，音译按文本拼接到合并行', async () => {
+    vi.mocked(api.get).mockResolvedValue({ text: '[1800,2000](1800,500,0)甲乙(2300,500,0)丙丁' } as never)
+    const upgraded = await upgradeLyricsWithAmll(song('netease'), base({
+      main: [{ time: 1, text: '甲乙' }, { time: 2, text: '丙丁' }],
+      aligned: [],
+      roma: [{ time: 1, text: 'a b' }, { time: 2, text: 'c d' }]
+    }))
+    expect(upgraded?.roma.map((l) => l.text)).toEqual(['a b c d'])
+    expect(upgraded?.aligned).toEqual([])
   })
 
   it('用户指定线路时透传给 server；QQ 用 mid', async () => {
