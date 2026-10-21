@@ -61,19 +61,21 @@ describe('preloadTracks / getPreloadedUrl', () => {
     expect(getPreloadedUrl(track, 'standard')).toBe('https://cdn/host.mp3')
   })
 
-  it('歌词页封面窗口独立保留 释放时只清自己的图片', () => {
-    const images: Array<{ src: string }> = []
+  it('当前播放封面窗口按多尺寸预热 小图优先 释放时只清自己的图片', () => {
+    const images: Array<{ src: string; fetchPriority?: string }> = []
     vi.stubGlobal('Image', function (this: { src: string }) { images.push(this) })
     const current = makeTrack('cur', { cover: 'https://p1.music.126.net/cur.jpg' })
     const next = makeTrack('next', { cover: 'https://p1.music.126.net/next.jpg' })
-    preloadTracks([next], 'standard', current, { owner: 'lyrics', coverPx: 840, deferUrls: true })
+    preloadTracks([next], 'standard', current, { owner: 'nowPlaying', coverPx: [128, 840], deferUrls: true })
     preloadTracks([], 'standard', null, { owner: 'shuange' })
-    expect(images.map(img => img.src)).toEqual([
-      'https://p1.music.126.net/cur.jpg?param=840y840',
-      'https://p1.music.126.net/next.jpg?param=840y840',
+    expect(images.map(img => [img.src, img.fetchPriority])).toEqual([
+      ['https://p1.music.126.net/cur.jpg?param=128y128', 'high'],
+      ['https://p1.music.126.net/cur.jpg?param=840y840', 'low'],
+      ['https://p1.music.126.net/next.jpg?param=128y128', 'high'],
+      ['https://p1.music.126.net/next.jpg?param=840y840', 'low'],
     ])
     expect(apiGet).not.toHaveBeenCalled()
-    releasePreloadWindow('lyrics')
+    releasePreloadWindow('nowPlaying')
     expect(images.every(img => img.src === '')).toBe(true)
   })
 

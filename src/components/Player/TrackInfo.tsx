@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import styles from './TrackInfo.module.css'
-import { sizedImage } from '../../lib/image-size'
+import { DOCK_COVER_PX, sizedImage } from '../../lib/image-size'
 
 interface TrackInfoProps {
   onCoverClick?: () => void
@@ -34,7 +34,7 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
         style={onCoverClick ? { cursor: 'pointer' } : undefined}
       >
         {track?.cover ? (
-          <img className={styles.coverImg} src={sizedImage(track.cover, 128)} alt={track.name} draggable={false} />
+          <img className={styles.coverImg} src={sizedImage(track.cover, DOCK_COVER_PX)} alt={track.name} draggable={false} />
         ) : (
           <span className={styles.coverPlaceholder} aria-hidden="true">
             ♪

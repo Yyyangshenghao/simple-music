@@ -6,7 +6,7 @@ import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useScrollbarActivity } from './hooks/useScrollbarActivity'
 import { useShuangeCoverPreload } from './hooks/useShuangeCoverPreload'
-import { useLyricsCoverPreload } from './hooks/useLyricsCoverPreload'
+import { useNowPlayingCoverPreload } from './hooks/useNowPlayingCoverPreload'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useSettingsStore } from './stores/settings'
@@ -83,7 +83,7 @@ export default function App() {
   useShortcuts()
   useScrollbarActivity()
   useShuangeCoverPreload(mainVisible && !gameEnabled)
-  useLyricsCoverPreload(mainVisible && !gameEnabled)
+  useNowPlayingCoverPreload(mainVisible && !gameEnabled)
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])
