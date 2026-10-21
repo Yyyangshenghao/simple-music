@@ -121,6 +121,8 @@ interface PersistedSettings {
   lyricsShowTranslation: boolean
   /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
   lyricsShowRoma: boolean
+  /** 平台没有逐字时序时，按歌曲 ID 去 AMLL TTML DB（社区逐字歌词库）补全；会向 GitHub 发送歌曲 ID。 */
+  lyricsAmllFallback: boolean
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
@@ -181,6 +183,7 @@ interface SettingsStore extends PersistedSettings {
   resetLyricsLayout(): void
   setLyricsShowTranslation(v: boolean): void
   setLyricsShowRoma(v: boolean): void
+  setLyricsAmllFallback(v: boolean): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setContentLayout(layout: 'framed' | 'full'): void
@@ -228,6 +231,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT },
   lyricsShowTranslation: true,
   lyricsShowRoma: true,
+  lyricsAmllFallback: true,
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   contentLayout: 'framed',
@@ -348,6 +352,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsShowTranslation: v })
     get().saveToLocal()
   },
+  setLyricsAmllFallback(v) {
+    set({ lyricsAmllFallback: v })
+    get().saveToLocal()
+  },
   setLyricsShowRoma(v) {
     set({ lyricsShowRoma: v })
     get().saveToLocal()
@@ -425,8 +433,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -472,6 +480,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT, ...data.lyricsLayout },
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
+        lyricsAmllFallback: data.lyricsAmllFallback ?? true,
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',

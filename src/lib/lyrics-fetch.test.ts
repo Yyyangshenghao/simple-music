@@ -4,6 +4,7 @@ import { fetchLyrics } from './lyrics-fetch'
 import type { Track } from '../types/domain'
 import { TRACK_MATCH_SCHEMA } from './track-match'
 import { clearProviderRequestCache } from './provider-request-cache'
+import { useSettingsStore } from '../stores/settings'
 
 const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn() }))
 vi.mock('./local-music-service', () => ({ localMusicService: { getLyrics: h.local } }))
@@ -18,6 +19,8 @@ const song = (source: 'netease' | 'qq', extra: Partial<Track> = {}): Track => ({
 beforeEach(() => {
   clearProviderRequestCache()
   vi.resetAllMocks()
+  // 这里的用例校验请求共享；AMLL 兜底单独覆盖，默认关掉免得多出一次请求
+  useSettingsStore.setState({ lyricsAmllFallback: false })
   h.native.mockResolvedValue(null)
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
@@ -194,6 +197,37 @@ describe('原生逐字时间轴', () => {
     vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:01.00]普通歌词', yrc: 'bad', qrc: 'bad' })
     const result = await fetchLyrics(song(source))
     expect(result.main).toEqual([{ time: 1, text: '普通歌词' }])
+    expect(result.wordLines).toEqual([])
+  })
+})
+
+describe('AMLL 逐字歌词兜底', () => {
+  const yrc = '[1000,1000](1000,500,0)测(1500,500,0)试'
+  it('网易没有 YRC 时按歌曲 ID 补全逐字时序并标注来源', async () => {
+    useSettingsStore.setState({ lyricsAmllFallback: true })
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric' ? { text: yrc } : { lyric: '[00:01.00]测试' }) as never)
+    const result = await fetchLyrics(song('netease'))
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34' }, expect.anything())
+    expect(result.wordSource).toBe('amll')
+    expect(result.wordLines[0].words.map((w) => w.text)).toEqual(['测', '试'])
+  })
+
+  it('平台已有逐字时序时不请求兜底；关闭开关时也不请求', async () => {
+    useSettingsStore.setState({ lyricsAmllFallback: true })
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]测试', yrc } as never)
+    expect((await fetchLyrics(song('netease'))).wordSource).toBeUndefined()
+    clearProviderRequestCache()
+    useSettingsStore.setState({ lyricsAmllFallback: false })
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]测试' } as never)
+    await fetchLyrics(song('netease'))
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/amll/lyric')).toBe(false)
+  })
+
+  it('时间轴超出本曲时长的兜底结果视为错配并丢弃', async () => {
+    useSettingsStore.setState({ lyricsAmllFallback: true })
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric' ? { text: '[900000,1000](900000,500,0)远' } : { lyric: '[00:01.00]测试' }) as never)
+    const result = await fetchLyrics(song('netease'))
+    expect(result.wordSource).toBeUndefined()
     expect(result.wordLines).toEqual([])
   })
 })

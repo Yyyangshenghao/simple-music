@@ -16,6 +16,7 @@ import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
 import { localMusicRoutes } from './routes/local-music'
 import { weatherRoutes } from './routes/weather'
+import { amllLyricRoutes } from './routes/amll-lyrics'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
@@ -36,6 +37,7 @@ const chain: RouteHandler[] = [
   qqFavoriteRoutes,
   qqAccountDataRoutes,
   neteaseRoutes,
+  amllLyricRoutes,
   podcastRoutes,
   beatmapRoutes,
   qqRoutes,

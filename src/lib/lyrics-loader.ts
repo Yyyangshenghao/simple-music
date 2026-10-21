@@ -44,7 +44,7 @@ export function initLyricsLoader(): () => void {
     const enabled = !useGameModeStore.getState().enabled || useVisualStore.getState().fx.desktopLyrics
     const key = enabled && currentTrack ? lyricTrackKey(currentTrack) : null
     // 曲目在 URL 解析前切换；先清空并标记归属，避免新歌显示上一首歌词。
-    useLyricsStore.setState({ trackKey: key, source: null, loading: !!key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
+    useLyricsStore.setState({ trackKey: key, source: null, wordSource: null, loading: !!key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
     if (!key || !currentTrack) return
     controller = new AbortController()
     const signal = controller.signal
@@ -73,10 +73,10 @@ export function initLyricsLoader(): () => void {
     })().catch(() => emptyLyrics).then(result => {
       if (!current() || useLyricsStore.getState().trackKey !== key) return
       // Cookie 交换失败时可能没有后续账号通知；丢弃旧数据也必须结束当前加载。
-      const { main, aligned, roma, wordLines, source } = sameAccounts() ? result : emptyLyrics
+      const { main, aligned, roma, wordLines, source, wordSource } = sameAccounts() ? result : emptyLyrics
       useLyricsStore.getState().setLines(main, aligned, roma)
       useLyricsStore.getState().setWordLines(wordLines)
-      useLyricsStore.setState({ source: main.length ? source : null, loading: false })
+      useLyricsStore.setState({ source: main.length ? source : null, wordSource: main.length ? wordSource ?? null : null, loading: false })
       const player = usePlayerStore.getState()
       useLyricsStore.getState().tick(player.playbackTransport === 'musickit' ? lyricPlaybackPosition(player) : player.position)
     })
