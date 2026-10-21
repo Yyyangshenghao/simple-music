@@ -202,6 +202,14 @@ describe('3D 歌词数值恢复', () => {
     })
   })
 
+  it('歌词页模式可读回跃字，未知值回落纯歌词', () => {
+    for (const [stored, expected] of [['pop', 'pop'], ['3d', '3d'], ['karaoke', 'lyrics']] as const) {
+      vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyricsPanelMode: stored }), setItem: vi.fn() })
+      useSettingsStore.getState().loadFromLocal()
+      expect(useSettingsStore.getState().lyricsPanelMode).toBe(expected)
+    }
+  })
+
   it('已移除的场景迁回封面粒子云，分镜风格可从存档读回', () => {
     for (const legacy of ['waveform-3d', 'speaker-particles']) {
       vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyrics3dEffect: legacy, lyrics3dStyle: 'storyboard' }), setItem: vi.fn() })

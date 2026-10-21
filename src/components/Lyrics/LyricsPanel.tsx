@@ -17,6 +17,7 @@ import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import { PlayerBar } from '../Player/PlayerBar'
 import { EffectSwitcher } from './EffectSwitcher'
+import { PopLyrics } from './PopLyrics'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
@@ -208,8 +209,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const playerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
   const setPlayerStyle = useSettingsStore((s) => s.setLyricsPlayerStyle)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
-  // 设置里关掉 3D 歌词时强制回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在)
-  const mode = lyrics3dEnabled ? storedMode : 'lyrics'
+  // 设置里关掉 3D 歌词时 3D 模式回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在);跃字不依赖 3D
+  const mode = storedMode === '3d' && !lyrics3dEnabled ? 'lyrics' : storedMode
   const lightTheme = useLightTheme()
   const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
   const lowPower = useVisualStore((s) => s.performanceMode === 'eco')
@@ -450,7 +451,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
-  const backdropOccluded = contentMounted && ((mode === 'lyrics' && !!track?.cover) || mode === '3d')
+  const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d')
   // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
   const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
 
@@ -473,6 +474,16 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             }}
           >
             歌词
+          </button>
+          <button
+            className={`${styles.modeBtn}${mode === 'pop' ? ` ${styles.modeBtnActive}` : ''}`}
+            title="逐词跳出的大字单句"
+            onClick={() => {
+              setMode('pop')
+              setEffectMenuOpen(false)
+            }}
+          >
+            跃字
           </button>
           <div className={styles.modeBtnAnchor}>
             <button
@@ -497,6 +508,21 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         </div>
 
       </div>
+
+      {/* ===== 跃字模式 =====(与纯歌词共用封面虚化底与氛围霞光;收起后卸载) */}
+      {mode === 'pop' && contentMounted && (
+        <>
+          {track?.cover && (
+            <div
+              className={styles.blurBg}
+              style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
+            />
+          )}
+          <div className={styles.auroraStage} aria-hidden="true" />
+          <div className={styles.flowStage} aria-hidden="true" />
+          <PopLyrics />
+        </>
+      )}
 
       {/* ===== 纯歌词模式 =====(关闭并收起完成后卸载,不在后台空转) */}
       {mode === 'lyrics' && contentMounted && (

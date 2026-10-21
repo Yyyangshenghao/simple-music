@@ -58,7 +58,7 @@ export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
-  const lyricsMode = lyrics3dEnabled ? storedLyricsMode : 'lyrics'
+  const lyricsMode = storedLyricsMode === '3d' && !lyrics3dEnabled ? 'lyrics' : storedLyricsMode
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
   // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；

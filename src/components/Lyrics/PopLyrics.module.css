@@ -1,0 +1,93 @@
+/* 跃字模式：整屏只演一句大字，下方小字预告下一句。 */
+.root {
+  position: absolute;
+  inset: 96px 8% 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.line {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: center top;
+}
+
+/* 换行单元（见 lib/lyric-line-break.ts）之间可折行，单元内不拆 */
+.words {
+  max-width: 100%;
+  font-size: calc(clamp(32px, 5vw, 76px) * var(--lyrics-font-scale, 1));
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+  color: var(--sm-text-primary);
+}
+
+.unit {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.word {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+/* 弹出层：由浏览器动画按播放时钟定位，平时不常驻合成层 */
+.pop {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+  transform-origin: center bottom;
+}
+
+/* 底层是唱过后的颜色；上层高亮带辉光，唱完一小段后淡出 */
+.base {
+  color: color-mix(in srgb, var(--sm-text-primary) 62%, transparent);
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  color: var(--sm-text-primary);
+  text-shadow:
+    0 0 18px color-mix(in srgb, var(--ambient-2, #9cc8ff) 70%, transparent),
+    0 0 42px color-mix(in srgb, var(--ambient-1, #b9a4ff) 45%, transparent);
+  pointer-events: none;
+}
+
+/* 关闭逐字动效 / 减少动效：整句直接显示为高亮态，不逐词弹出 */
+.static .glow {
+  opacity: 1;
+}
+
+.translation {
+  margin-top: 18px;
+  font-size: calc(clamp(15px, 1.6vw, 22px) * var(--lyrics-font-scale, 1));
+  font-weight: 500;
+  color: var(--sm-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.next {
+  margin-top: 44px;
+  max-width: 100%;
+  font-size: calc(clamp(14px, 1.4vw, 19px) * var(--lyrics-font-scale, 1));
+  font-weight: 600;
+  color: var(--sm-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

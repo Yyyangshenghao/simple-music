@@ -8,7 +8,7 @@ import {
   MINI_PLAYER_MIN_WIDTH
 } from '../lib/mini-player-config'
 import type { HotkeyBinding, MiniPlayerAppearance } from '../types/ipc'
-import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, LyricsLayoutParams, PerformanceFlags, PlayMode } from '../types/domain'
+import type { AudioQuality, FxArchive, Lyrics3dEffect, Lyrics3dParams, Lyrics3dStyle, LyricsLayoutParams, LyricsPanelMode, PerformanceFlags, PlayMode } from '../types/domain'
 
 export const SETTINGS_STORAGE_KEY = 'simplemusic-settings'
 export const CONTENT_GUTTER_MIN = 16
@@ -103,7 +103,7 @@ interface PersistedSettings {
   shelfShowPodcasts: boolean
   shelfMergeCollections: boolean
   liveBackgroundKeep: boolean
-  lyricsPanelMode: 'lyrics' | '3d'
+  lyricsPanelMode: LyricsPanelMode
   lyrics3dEffect: Lyrics3dEffect
   /** 3D 场景上方的歌词排版与转场风格。 */
   lyrics3dStyle: Lyrics3dStyle
@@ -169,7 +169,7 @@ interface SettingsStore extends PersistedSettings {
   setShelfShowPodcasts(v: boolean): void
   setShelfMergeCollections(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
-  setLyricsPanelMode(mode: 'lyrics' | '3d'): void
+  setLyricsPanelMode(mode: LyricsPanelMode): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
   setLyrics3dStyle(style: Lyrics3dStyle): void
   setLyricsOverlayBlur(v: number): void
@@ -456,7 +456,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
-        lyricsPanelMode: data.lyricsPanelMode ?? 'lyrics',
+        lyricsPanelMode: data.lyricsPanelMode === '3d' || data.lyricsPanelMode === 'pop' ? data.lyricsPanelMode : 'lyrics',
         // 频谱环、音箱沙粒已移除：旧存档里的任何场景值都迁回封面粒子云。
         lyrics3dEffect: 'cover-cloud',
         lyrics3dStyle: storedLyricsStyle,

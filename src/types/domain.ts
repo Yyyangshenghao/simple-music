@@ -239,6 +239,8 @@ export interface PerformanceFlags {
 }
 /** 歌词面板 3D 模式下的背景场景；频谱环与音箱沙粒已移除，旧存档读取时迁回封面粒子云。 */
 export type Lyrics3dEffect = 'cover-cloud'
+/** 歌词页展示模式：纯歌词列表、3D 舞台、跃字（逐词跳出的大字单句）。 */
+export type LyricsPanelMode = 'lyrics' | '3d' | 'pop'
 /** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层，storyboard 是每句一个镜头的分镜演出。 */
 export type Lyrics3dStyle = 'storyboard' | 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
 /** Mineradio 舞台歌词的同屏行数模式。 */
