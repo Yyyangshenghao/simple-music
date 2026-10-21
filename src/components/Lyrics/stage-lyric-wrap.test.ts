@@ -24,4 +24,10 @@ describe('planStageLyricRows', () => {
     expect(rows.splitWordIndex).toBe(2)
     expect(rows.wordBoundaries).toEqual([0, 0.25, 0.5, 0.75, 1])
   })
+  it('不拆开词组、不把标点放到第二行开头', () => {
+    const rows = planStageLyricRows('今天天气晴朗，我们一起出去散步', 80, measure)
+    expect(rows.lines).toHaveLength(2)
+    expect(rows.lines[1][0]).not.toBe('，')
+    expect(rows.lines[0].endsWith('，')).toBe(true)
+  })
 })

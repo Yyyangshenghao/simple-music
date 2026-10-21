@@ -34,6 +34,14 @@
   line-height: 1.3;
 }
 
+/* 换行单元(见 lib/lyric-line-break.ts):词组内不换行，只在单元之间折行 */
+.unit {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* 两层文字共享排版；只裁剪亮层，避免每帧重建渐变和重算整行 CSS 变量。 */
 .char {
   position: relative;
