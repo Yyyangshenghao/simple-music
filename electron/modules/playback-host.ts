@@ -102,6 +102,7 @@ function loseUi(contents: Electron.WebContents): void {
     settle(id, { error: 'PLAYBACK_UI_DISCONNECTED' })
   }
   sendPlaybackEvent('playback:command', { id: randomUUID(), request: { type: 'action', store: 'shortcuts', action: 'setRecording', args: [false] } })
+  sendPlaybackEvent('playback:command', { id: randomUUID(), request: { type: 'action', store: 'controls', action: 'cancelLyricsSelection', args: [] } })
   sendPlaybackEvent('playback:command', { id: randomUUID(), request: { type: 'observe', visible: false, spectrum: false } })
 }
 

@@ -119,3 +119,10 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+.select { max-width: 230px; min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.preferenceHint { margin: 0; padding: 0 20px 13px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
+.clearConfirm { padding: 0 20px 16px; border-bottom: 1px solid var(--sm-border); }
+.clearConfirm p { margin: 0 0 10px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
+.clearConfirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.connection > summary { padding: 16px 20px; color: var(--sm-text-secondary); font-size: 12px; cursor: pointer; }

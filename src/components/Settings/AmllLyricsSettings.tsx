@@ -2,13 +2,19 @@ import { useState } from 'react'
 import { api } from '../../lib/api'
 import { AMLL_HOST_LABELS, fastestAmllHost, formatAmllLatency, type AmllHostLatency } from '../../lib/amll-route'
 import { AMLL_HOST_PREFERENCES, useSettingsStore } from '../../stores/settings'
+import { useLyricsSourceStore } from '../../stores/lyrics-source'
+import { useProviderStore } from '../../stores/providers'
+import { useNavigationStore } from '../../stores/navigation'
+import { LYRIC_SOURCE_LABELS, type LyricSourcePreference } from '../../types/lyrics-source'
 import { InfoButton } from '../ui/InfoButton'
 import { Switch } from '../ui/Switch'
 import styles from './AmllLyricsSettings.module.css'
 
 type ProbeState = { status: 'idle' } | { status: 'running' } | { status: 'done'; hosts: AmllHostLatency[] } | { status: 'error' }
 
-/** 逐字歌词补全：AMLL TTML DB 开关、线路选择与测速，以及酷狗歌词库兜底开关。 */
+const SOURCE_PREFERENCES: LyricSourcePreference[] = ['auto', 'origin', 'netease', 'qq', 'amll', 'kugou']
+
+/** 歌词默认选择、按歌记忆与补全来源；保留 AMLL 线路和测速。 */
 export function AmllLyricsSettings() {
   const enabled = useSettingsStore((s) => s.lyricsAmllFallback)
   const setEnabled = useSettingsStore((s) => s.setLyricsAmllFallback)
@@ -17,6 +23,12 @@ export function AmllLyricsSettings() {
   const kugouEnabled = useSettingsStore((s) => s.lyricsKugouFallback)
   const setKugouEnabled = useSettingsStore((s) => s.setLyricsKugouFallback)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
+  const defaultSource = useLyricsSourceStore((s) => s.defaultSource)
+  const rememberedCount = useLyricsSourceStore((s) => Object.keys(s.remembered).length)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const preferredProvider = useProviderStore((s) => defaultSource === 'netease' || defaultSource === 'qq' ? s.byId[defaultSource] : null)
+  const providerIssue = preferredProvider?.auth !== 'authenticated' && preferredProvider ? '优先来源尚未登录；登录后才会参与选择。'
+    : preferredProvider && !preferredProvider.enabled ? '优先来源已停用；启用后才会参与选择。' : null
 
   const runProbe = async () => {
     setProbe({ status: 'running' })
@@ -35,16 +47,43 @@ export function AmllLyricsSettings() {
   return (
     <section className={styles.group}>
       <h3 className={styles.title}>
-        逐字歌词
+        歌词来源
         <InfoButton
-          label="逐字歌词"
-          text="网易云或 QQ 音乐没有逐字时序时，按歌曲 ID 从社区逐字歌词库 AMLL TTML DB 补全：歌词先按行显示，补到后再换成逐字。开启后会向所选线路（GitHub 或社区镜像）发送当前歌曲的平台 ID。其他来源都没有时再查酷狗歌词库，会向酷狗发送歌名、歌手与时长，只接受同曲同版本的结果。结果都在本机缓存。"
+          label="歌词来源"
+          text="本首记住的选择优先于默认偏好，来源不可用时会临时回退。AMLL 会向所选线路（GitHub 或社区镜像）发送歌曲平台 ID；酷狗会接收歌名、歌手与时长，只接受同曲同版本的结果。来源开关始终优先于偏好。本地歌曲只读取同目录同名 .lrc。"
         />
       </h3>
+      <div className={styles.row}>
+        <label className={styles.label} htmlFor="lyrics-default-source">默认选择</label>
+        <select id="lyrics-default-source" className={`${styles.select} no-drag`} value={defaultSource} onChange={(event) => useLyricsSourceStore.getState().setDefaultSource(event.target.value as LyricSourcePreference)}>
+          {SOURCE_PREFERENCES.map((source) => <option key={source} value={source}>{source === 'auto' ? '自动选择' : `优先${LYRIC_SOURCE_LABELS[source]}`}</option>)}
+        </select>
+      </div>
+      <p className={styles.preferenceHint}>从下一首未单独记住来源的歌曲开始生效；来源不可用时自动回退。</p>
+      {((defaultSource === 'amll' && !enabled) || (defaultSource === 'kugou' && !kugouEnabled)) && <p className={styles.preferenceHint} role="status">优先来源已停用；启用后才会参与选择。</p>}
+      {providerIssue && <div className={styles.preferenceHint} role="status">{providerIssue} <button type="button" className={`${styles.probe} no-drag`} onClick={() => {
+        const navigation = useNavigationStore.getState()
+        navigation.requestSettingsMusic()
+        navigation.navigateTo('settings')
+      }}>音源设置…</button></div>}
+      <div className={styles.row}>
+        <span className={styles.label}>已记住 {rememberedCount} 首歌曲</span>
+        <button type="button" className={`${styles.probe} no-drag`} disabled={rememberedCount === 0} onClick={() => setConfirmClear(true)}>清除全部记忆…</button>
+      </div>
+      {confirmClear && rememberedCount > 0 && <div className={styles.clearConfirm}>
+        <p>清除这 {rememberedCount} 首歌曲的来源选择？当前歌词继续播放，之后按默认规则选择。不删除歌词文件，不更改默认偏好。</p>
+        <div><button type="button" className={styles.probe} onClick={() => setConfirmClear(false)}>保留</button><button type="button" className={styles.probe} onClick={() => { useLyricsSourceStore.getState().clearRemembered(); setConfirmClear(false) }}>清除记忆</button></div>
+      </div>}
       <div className={styles.row}>
         <span className={styles.label}>使用 AMLL 逐字歌词库补全</span>
         <Switch checked={enabled} onChange={setEnabled} aria-label="使用 AMLL 逐字歌词库补全" />
       </div>
+      <div className={styles.row}>
+        <span className={styles.label}>使用酷狗歌词库补全</span>
+        <Switch checked={kugouEnabled} onChange={setKugouEnabled} aria-label="使用酷狗歌词库补全" />
+      </div>
+      <details className={styles.connection}>
+      <summary>AMLL 连接设置</summary>
       <fieldset className={styles.routes} disabled={!enabled}>
         <legend className={styles.label}>优先线路</legend>
         <div className={styles.options} role="radiogroup" aria-label="AMLL 优先线路">
@@ -80,10 +119,7 @@ export function AmllLyricsSettings() {
           </span>
         </div>
       </fieldset>
-      <div className={styles.row}>
-        <span className={styles.label}>使用酷狗歌词库补全</span>
-        <Switch checked={kugouEnabled} onChange={setKugouEnabled} aria-label="使用酷狗歌词库补全" />
-      </div>
+      </details>
     </section>
   )
 }

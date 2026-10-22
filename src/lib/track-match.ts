@@ -18,11 +18,18 @@ interface MatchCacheEntry {
   score?: number
   verifiedAt: number
   expiresAt: number
+  mismatch?: boolean
 }
 
 interface MatchCacheArchive {
   schema: typeof TRACK_MATCH_SCHEMA
   entries: Record<string, MatchCacheEntry>
+}
+
+export class TrackMatchMismatchError extends Error {
+  constructor() {
+    super('TRACK_VERSION_MISMATCH')
+  }
 }
 
 export interface TrackMatchResult {
@@ -198,15 +205,21 @@ export async function findEquivalentTrack(
   origin: Track,
   targetSource: ProviderId,
   signal?: AbortSignal,
-  now = Date.now()
+  now = Date.now(),
+  strictMatch = false
 ): Promise<TrackMatchResult | null> {
   if (signal?.aborted) throw abortError()
   const archive = readArchive()
   const key = originKey(origin, targetSource)
   const cached = archive.entries[key]
   const provider = providerFor(targetSource)
-  if (cached && cached.expiresAt > now) {
-    if (cached.targetId == null) return null
+  // 旧负缓存没有记录是否存在错版本；严格查询重新取一次，避免将错配误报成未收录。
+  const hasMatchDiagnostics = cached?.targetId != null || typeof cached?.mismatch === 'boolean'
+  if (cached && cached.expiresAt > now && (!strictMatch || hasMatchDiagnostics)) {
+    if (cached.targetId == null) {
+      if (strictMatch && cached.mismatch) throw new TrackMatchMismatchError()
+      return null
+    }
     if (cached.targetTrack?.source === targetSource) {
       return { track: cached.targetTrack, score: cached.score ?? TRACK_MATCH_THRESHOLD }
     }
@@ -231,8 +244,9 @@ export async function findEquivalentTrack(
         verifiedAt: now,
         expiresAt: now + POSITIVE_TTL_MS,
       }
-    : { verifiedAt: now, expiresAt: now + NEGATIVE_TTL_MS }
+    : { verifiedAt: now, expiresAt: now + NEGATIVE_TTL_MS, mismatch: candidates.length > 0 }
   writeArchive(archive)
+  if (strictMatch && !result && candidates.length) throw new TrackMatchMismatchError()
   return result
 }
 

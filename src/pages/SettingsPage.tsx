@@ -556,6 +556,7 @@ export function SettingsPage() {
   const selectedSectionRef = useRef<SettingsTab | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
+  const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
 
   useEffect(() => {
     const page = pageRef.current
@@ -618,6 +619,11 @@ export function SettingsPage() {
     scrollToSection('music')
     useNavigationStore.getState().consumeSettingsMusicRequest(settingsMusicRequest)
   }, [settingsMusicRequest, scrollToSection])
+  useEffect(() => {
+    if (settingsLyricsRequest === 0) return
+    scrollToSection('lyrics')
+    useNavigationStore.getState().consumeSettingsLyricsRequest(settingsLyricsRequest)
+  }, [settingsLyricsRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const contentGutter = useSettingsStore((s) => s.contentGutter)

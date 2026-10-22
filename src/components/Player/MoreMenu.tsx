@@ -14,6 +14,7 @@ import { SourceName } from '../ui/SourceName'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
+import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -361,11 +362,15 @@ export function MoreMenu() {
   const [open, setOpen] = useState(false)
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
+  const hasTrack = usePlayerStore((s) => !!s.currentTrack)
+  const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
   const hasActive = rate !== 1 || sleepPhase !== 'idle'
+
+  useEffect(() => { if (lyricsSourceOpen) setOpen(false) }, [lyricsSourceOpen])
 
   function closeMenu() {
     setOpen(false)
@@ -429,6 +434,11 @@ export function MoreMenu() {
             <div className={styles.content}>
               <GameModeSection />
               <PlaybackSourceSection />
+              {hasTrack && <section className={styles.section}>
+                <button type="button" className={styles.optionRow} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
+                  <span className={styles.sectionTitle}>歌词来源…</span>
+                </button>
+              </section>}
               <OfflineSection open={open} />
               <QualitySection open={open} />
               {!apple && <RateSection />}

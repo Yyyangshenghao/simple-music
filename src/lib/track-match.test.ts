@@ -7,6 +7,7 @@ import {
   matchBestTrack,
   normalizeMatchText,
   scoreTrackMatch,
+  TrackMatchMismatchError,
 } from './track-match'
 
 function track(partial: Partial<Track> = {}): Track {
@@ -138,6 +139,29 @@ describe('track match', () => {
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000)).resolves.toBeNull()
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
     expect(search).toHaveBeenCalledTimes(1)
+  })
+
+  it('严格查询区分未找到候选与仅有错版本，负缓存保留该区别', async () => {
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
+      .mockResolvedValue([track({ source: 'qq', provider: 'qq', name: '晴天 (Live)' })])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1002)).resolves.toBeNull()
+    expect(search).toHaveBeenCalledOnce()
+    clearTrackMatchCache()
+    search.mockResolvedValue([])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1003, true)).resolves.toBeNull()
+  })
+
+  it('严格查询不把旧版缺少诊断信息的负缓存误报成未收录', async () => {
+    localStorage.setItem('simplemusic-track-match-cache', JSON.stringify({
+      schema: 2,
+      entries: { 'netease:n-1->qq': { verifiedAt: 1000, expiresAt: 86_401_000 } },
+    }))
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
+      .mockResolvedValue([track({ source: 'qq', provider: 'qq', name: '晴天 (Live)' })])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    expect(search).toHaveBeenCalledOnce()
   })
 
   it('匹配规则升级后忽略旧版负缓存并重新搜索', async () => {

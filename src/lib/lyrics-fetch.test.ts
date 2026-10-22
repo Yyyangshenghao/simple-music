@@ -225,6 +225,7 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
   it('升级为逐字版本并重新对应翻译', async () => {
     vi.mocked(api.get).mockResolvedValue({ text: yrc } as never)
     const upgraded = await upgradeLyricsWithAmll(song('netease'), base())
+    expect(upgraded).toMatchObject({ source: 'netease', origin: 'amll' })
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34', host: undefined }, { signal: undefined })
     expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
     expect(upgraded?.aligned[0]?.text).toBe('占位译文')
@@ -344,7 +345,7 @@ describe('酷狗逐字歌词兜底', () => {
     reply([{ title: '晴天', artist: '周杰伦', duration: 180_500, text: krc }])
     const upgraded = await upgradeLyricsWithKugou(apple, base)
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, { signal: undefined })
-    expect(upgraded).toMatchObject({ source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '译文' }] })
+    expect(upgraded).toMatchObject({ source: 'apple', origin: 'kugou', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '译文' }] })
     expect(upgraded?.wordLines[0].words).toHaveLength(2)
   })
 
@@ -395,5 +396,23 @@ describe('酷狗逐字歌词兜底', () => {
     const paths = vi.mocked(api.get).mock.calls.map(([path]) => path)
     expect(paths[paths.length - 1]).toBe('/api/kugou/lyric')
     expect(h.qq).toHaveBeenCalledOnce()
+  })
+})
+
+
+describe('指定来源的错误诊断', () => {
+  it('共享请求保留上游错误，普通调用仍返回空歌词，严格消费者可识别连接失败', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('offline'))
+    const normal = fetchLyrics(song('netease'))
+    const strict = fetchLyrics(song('netease'), [], undefined, false, true)
+    await expect(normal).resolves.toMatchObject({ main: [] })
+    await expect(strict).rejects.toThrow('offline')
+    expect(api.get).toHaveBeenCalledOnce()
+  })
+
+  it('严格模式真正未收录仍返回空歌词，上游业务错误不能伪装成未收录', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '' }).mockResolvedValueOnce({ error: 'UPSTREAM_FAILED' })
+    await expect(fetchLyrics(song('netease'), [], undefined, false, true)).resolves.toMatchObject({ main: [] })
+    await expect(fetchLyrics(song('netease'), [], undefined, false, true)).rejects.toThrow('UPSTREAM_FAILED')
   })
 })

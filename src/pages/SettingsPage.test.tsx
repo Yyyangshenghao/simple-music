@@ -323,8 +323,9 @@ describe('歌词设置分组', () => {
     expect(beforeDetails).toContain('aria-label="3D 歌词中文字体"')
     expect(beforeDetails).toContain('Helvetica Neue')
     expect(beforeDetails).toContain('Songti SC')
-    expect(beforeDetails).not.toContain('disabled=""')
-    expect(beforeDetails).not.toContain('aria-expanded=')
+    const fontCard = beforeDetails.slice(beforeDetails.indexOf('歌词字体'), beforeDetails.indexOf('</section>', beforeDetails.indexOf('歌词字体')))
+    expect(fontCard).not.toContain('disabled=""')
+    expect(fontCard).not.toContain('aria-expanded=')
   })
 
   it('关闭舞台时保留所有详细控件，并以原生 fieldset 禁用', () => {

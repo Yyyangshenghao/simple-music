@@ -13,6 +13,7 @@ import { initMiniPlayerSync } from './mini-player-sync'
 import { useGameModeStore } from '../stores/game-mode'
 import { initLyricsClock } from './lyrics-clock'
 import { initLyricsLoader } from './lyrics-loader'
+import { loadLyricsSourcePreferences } from '../stores/lyrics-source'
 import { initDesktopLyricsSync } from './desktop-lyrics-sync'
 import { initAmbientPaletteSync } from './ambient-palette-sync'
 import { initWallpaperSync } from './wallpaper-sync'
@@ -27,6 +28,7 @@ let stopRuntime: (() => void) | undefined
 export function startPlaybackRuntime(): () => void {
   if (stopRuntime) return stopRuntime
   useSettingsStore.getState().loadFromLocal()
+  loadLyricsSourcePreferences()
   const stopProviders = initProviderStore()
   const stopAuth = initProviderAuthFailureSync()
   const stopCore = startPlaybackCore()

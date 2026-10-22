@@ -166,7 +166,7 @@ export async function startPlaybackClient(): Promise<() => void> {
         const cancellable = (key === 'downloads' && action === 'saveMany') || (key === 'apple' && action === 'refresh')
         const signal = cancellable ? args[key === 'downloads' ? 1 : 0] as AbortSignal | undefined : undefined
         if (cancellable) args.splice(key === 'downloads' ? 1 : 0, 1)
-        const requestId = signal ? crypto.randomUUID() : undefined
+        const requestId = signal || (key === 'lyricSources' && action === 'chooseSource') ? crypto.randomUUID() : undefined
         const cancel = () => { if (requestId) void request({ type: 'cancel', requestId }).catch(() => {}) }
         if (signal?.aborted) {
           const result = Promise.reject(new DOMException('操作已取消', 'AbortError'))

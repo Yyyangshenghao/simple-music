@@ -1,0 +1,36 @@
+{
+  "host_and_ui": {
+    "checks": [
+      {
+        "scenario": "dark-1280",
+        "dialogFits": true,
+        "noHorizontalOverflow": true
+      },
+      {
+        "scenario": "light-960",
+        "dialogFits": true,
+        "noHorizontalOverflow": true
+      },
+      {
+        "scenario": "native-host-command",
+        "previewDidNotApply": true,
+        "applied": "qq",
+        "remembered": true,
+        "audioPositionUnchanged": true
+      },
+      {
+        "scenario": "source-settings-navigation",
+        "defaultSaved": true,
+        "currentLyricsUnchanged": true
+      }
+    ],
+    "errors": []
+  },
+  "recovery": {
+    "settingsSourceVisible": true,
+    "connectionSettingsCollapsed": true,
+    "failedSourceCannotApply": true,
+    "minimumWindowFooterVisible": true,
+    "cancelKeptAppliedLyrics": true
+  }
+}

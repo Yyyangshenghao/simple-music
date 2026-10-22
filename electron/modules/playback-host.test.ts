@@ -93,8 +93,9 @@ describe('独立后台宿主与 IPC', () => {
     h.ui.emit('closed')
     await failure
     const commands = vi.mocked(host.webContents.send).mock.calls.map(call => call[1] as any)
-    expect(commands.at(-3).request).toEqual({ type: 'cancel', requestId: 'ui-request' })
-    expect(commands.at(-2).request).toEqual({ type: 'action', store: 'shortcuts', action: 'setRecording', args: [false] })
+    expect(commands.at(-4).request).toEqual({ type: 'cancel', requestId: 'ui-request' })
+    expect(commands.at(-3).request).toEqual({ type: 'action', store: 'shortcuts', action: 'setRecording', args: [false] })
+    expect(commands.at(-2).request).toEqual({ type: 'action', store: 'controls', action: 'cancelLyricsSelection', args: [] })
     expect(commands.at(-1).request).toEqual({ type: 'observe', visible: false, spectrum: false })
     h.listeners.get('playback:reply')!(hostEvent, { id: commands[0].id, result: { value: 'late' } })
   })

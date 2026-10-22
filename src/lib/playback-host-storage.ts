@@ -1,6 +1,7 @@
 // 迁移只复制后台使用的存档；应用歌单、页面缓存等仍保留在原 UI 分区。
 export const PLAYBACK_HOST_STORAGE_KEYS = [
   'simplemusic-settings', 'simplemusic-settings-v1-backup',
+  'simplemusic-lyrics-source-v1',
   'simplemusic-provider-settings', 'simplemusic-content-provider', 'simplemusic-explore-provider',
   'simplemusic-playback', 'simplemusic-recent-plays', 'simplemusic-download-queue',
   'simplemusic-desktop-lyrics', 'simplemusic-shuange-profile-v1', 'simplemusic-shuange-candidate-cache-v1',

@@ -40,6 +40,43 @@ beforeEach(() => {
 afterEach(() => { stopLoader?.(); stopLoader = undefined })
 
 describe('宿主持有歌词获取与归属', () => {
+  it('只为已应用歌词记录来源，播放进度不刷日志，升级时记录真实补全来源', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {})
+    try {
+      const pending = deferred()
+      h.upgrade.mockReturnValueOnce(pending.promise)
+      stopLoader = initLyricsLoader()
+      await flush()
+      expect(log).toHaveBeenCalledWith('[lyrics] 歌词来源', {
+        trackKey: 'apple:a1', name: '歌曲', source: 'qq', matchedSource: 'qq', upgraded: false,
+      })
+      usePlayerStore.setState({ position: 25 })
+      useLyricsStore.getState().tick(25)
+      expect(log).toHaveBeenCalledTimes(1)
+      pending.resolve({ ...result, origin: 'kugou' })
+      await flush()
+      expect(log).toHaveBeenLastCalledWith('[lyrics] 歌词来源', {
+        trackKey: 'apple:a1', name: '歌曲', source: 'kugou', matchedSource: 'qq', upgraded: true,
+      })
+      expect(log).toHaveBeenCalledTimes(2)
+    } finally { log.mockRestore() }
+  })
+
+  it('空歌词或切歌后迟到的结果不记录来源', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {})
+    try {
+      const old = deferred()
+      h.fetch.mockReturnValueOnce(old.promise)
+      stopLoader = initLyricsLoader()
+      h.fetch.mockResolvedValueOnce({ ...result, source: null, main: [] })
+      usePlayerStore.setState({ currentTrack: { ...apple, id: 'a2' } })
+      await flush()
+      old.resolve(result)
+      await flush()
+      expect(log).not.toHaveBeenCalled()
+    } finally { log.mockRestore() }
+  })
+
   it('先显示逐行歌词，后台升级时保留偏移，并按当前进度定位', async () => {
     const pending = deferred()
     h.upgrade.mockReturnValueOnce(pending.promise)

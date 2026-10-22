@@ -30,6 +30,8 @@ import { AmbientBackground } from './components/Layout/AmbientBackground'
 import { DetailBackdrop } from './components/Layout/DetailBackdrop'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { LyricsPanel } from './components/Lyrics/LyricsPanel'
+import { LyricsSourceDialog } from './components/Lyrics/LyricsSourceDialog'
+import { useLyricsSourceDialogStore } from './stores/lyrics-source-dialog'
 import { Toast } from './components/ui/Toast'
 import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
@@ -64,8 +66,9 @@ export default function App() {
   const lyricStyle = useLyricStylesStore((s) => s.style)
   const modActive = useLyricModsStore((s) => s.installed.some(mod => mod.id === s.selectedId && mod.valid))
   const lyricsMode = resolveLyricsView({ mode: storedLyricsMode, style: lyricStyle, lyrics3dEnabled, modActive })
+  const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
-  const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
+  const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled && !lyricsSourceOpen)
   // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
   // 收起时在同一次提交里重新挂载，歌词页才能量到它的封面位置把封面飞回来。
   const lyricsPlayerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
@@ -92,6 +95,9 @@ export default function App() {
   useAmbientPalette(!gameEnabled)
 
   useEffect(() => initWindowCloseSync(), [])
+  useEffect(() => useNavigationStore.subscribe((state, previous) => {
+    if (state.currentView === 'settings' && state.navigationRevision !== previous.navigationRevision) setLyricsOpen(false)
+  }), [])
 
   useEffect(() => {
     const sync = () => {
@@ -159,6 +165,7 @@ export default function App() {
           <GlobalContentProviderDock />
           {currentView !== 'shuange' && !dockRetired && <PlayerBar onOpenLyrics={() => setLyricsOpen(true)} onArtistNavigate={() => setLyricsOpen(false)} hidden={controlsHidden} lyricsOpen={lyricsOpen} handoff={lyricsCoversDock} />}
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
+          <LyricsSourceDialog />
           <TrackActionLayer />
           <Toast />
           <UpdateBanner />

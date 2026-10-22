@@ -8,12 +8,17 @@ import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './t
 import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
+import type { LyricOrigin } from '../types/lyrics-source'
 import type { ProviderId } from '../providers/types'
 import { useSettingsStore } from '../stores/settings'
 import type { Track, MusicSource, LyricLine as LyricLineType, WordLyricLine as WordLyricLineType } from '../types/domain'
 
 export interface LyricsResult {
   source: MusicSource | null
+  /** 补全数据的实际来源；source 仍表示匹配曲目所属平台。 */
+  origin?: 'amll' | 'kugou'
+  translationOrigin?: LyricOrigin
+  romajiOrigin?: LyricOrigin
   main: LyricLineType[]
   aligned: LyricLineType[]
   roma: LyricLineType[]
@@ -37,6 +42,12 @@ interface QQLyricResponse {
   error?: string
 }
 
+export class LyricMismatchError extends Error {
+  constructor() {
+    super('LYRIC_VERSION_MISMATCH')
+  }
+}
+
 export const emptyLyrics: LyricsResult = { source: null, main: [], aligned: [], roma: [], wordLines: [] }
 
 function hasTimedLyrics(result: LyricsResult): boolean {
@@ -44,7 +55,7 @@ function hasTimedLyrics(result: LyricsResult): boolean {
 }
 
 /** 歌词要求同一录音与可靠时长，不能把现场、翻唱或不同 ISRC 的时间轴套进来。 */
-function isLyricMatch(track: Track, target: Track): boolean {
+export function isLyricMatch(track: Track, target: Track): boolean {
   if (!Number.isFinite(track.duration) || !(track.duration! > 0)
     || !Number.isFinite(target.duration) || !(target.duration! > 0)) return false
   if ((scoreTrackMatch(track, target) ?? 0) < TRACK_MATCH_THRESHOLD) return false
@@ -53,7 +64,7 @@ function isLyricMatch(track: Track, target: Track): boolean {
   return !originIsrc || !targetIsrc || originIsrc === targetIsrc
 }
 
-function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
+export function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
   if (!track.duration) return true
   const end = track.duration / 1000 + 3
   return result.main.every(line => line.time <= end) && result.wordLines.every(line =>
@@ -64,9 +75,9 @@ function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
  * 平台没有逐字时序时，按歌曲 ID 去 AMLL TTML DB 补全（经本地 server 的 /api/amll/lyric）。
  * 不在歌词加载路径上等待：调用方先显示逐行歌词，拿到结果后再整体替换成逐字版本。
  * 只按已知曲目本身的 ID 查询；跨源匹配先拿到对端曲目，再进入本函数。时间轴超出本曲时长
- * 视为错配版本丢弃；任何失败返回 null，保持逐行歌词。
+ * 视为错配版本丢弃；默认失败返回 null，严格查询则保留请求与错配原因。
  */
-export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal): Promise<LyricsResult | null> {
+export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false): Promise<LyricsResult | null> {
   if (hasTimedLyrics(result) || result.source !== track.source || signal?.aborted) return null
   const settings = useSettingsStore.getState()
   if (!settings.lyricsAmllFallback) return null
@@ -77,6 +88,8 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
       : null
   if (!target) return null
   const host = settings.lyricsAmllHost === 'auto' ? undefined : settings.lyricsAmllHost
+  let failure: unknown
+  let mismatch = false
   for (const id of new Set(target.ids.filter(Boolean))) {
     if (signal?.aborted) return null
     try {
@@ -87,10 +100,17 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
       const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
       // 换成逐字版本后按正文重新对应翻译与音译，兼容分句、行时间变化。
       const realign = (lines: LyricLineType[]) => realignCompanionLines(result.main, main, lines)
-      const upgraded = { ...result, main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines }
+      const upgraded: LyricsResult = {
+        ...result, origin: 'amll', main, aligned: realign(result.aligned), roma: realign(result.roma), wordLines,
+        translationOrigin: result.translationOrigin ?? result.origin ?? result.source ?? undefined,
+        romajiOrigin: result.romajiOrigin ?? result.origin ?? result.source ?? undefined,
+      }
       if (fitsLyricDuration(track, upgraded)) return upgraded
-    } catch { /* 一个 ID 未收录或请求失败时，仍可尝试另一套平台 ID。 */ }
+      mismatch = true
+    } catch (error) { failure = error }
   }
+  if (strict && mismatch) throw new LyricMismatchError()
+  if (strict && failure) throw failure
   return null
 }
 
@@ -101,9 +121,9 @@ interface KugouLyricResponse {
 /**
  * 最后一道兜底：按歌名、歌手与时长去酷狗歌词库找逐字 KRC（经本地 server 的 /api/kugou/lyric，无需登录）。
  * 酷狗没有可对应的平台 ID，候选以 KRC 自带的歌名（含版本标记）、歌手和时长走同曲校验，
- * 时间轴超出本曲时长同样视为错配；任何失败返回 null，保持当前歌词。
+ * 时间轴超出本曲时长同样视为错配；默认失败返回 null，严格查询则保留原因。
  */
-export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal): Promise<LyricsResult | null> {
+export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false): Promise<LyricsResult | null> {
   if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
   if (!useSettingsStore.getState().lyricsKugouFallback) return null
   const title = String(track.name ?? '').trim()
@@ -114,9 +134,11 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   let rec: KugouLyricResponse
   try {
     rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)) }, { signal })
-  } catch {
+  } catch (error) {
+    if (strict) throw error
     return null
   }
+  let mismatch = false
   for (const candidate of Array.isArray(rec.candidates) ? rec.candidates : []) {
     if (signal?.aborted) return null
     if (typeof candidate.text !== 'string' || typeof candidate.title !== 'string') continue
@@ -125,20 +147,25 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
       ...track, id: 'kugou', name: candidate.title, artist: String(candidate.artist ?? ''), artists: [],
       album: undefined, duration: Number(candidate.duration), isrc: undefined, ISRC: undefined,
     }
-    if (!isLyricMatch(track, target)) continue
+    if (!isLyricMatch(track, target)) { mismatch = true; continue }
     const krc = parseKrc(candidate.text)
     if (!krc.wordLines.length) continue
     const main = krc.wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
     const realign = (lines: LyricLineType[]) => result.main.length ? realignCompanionLines(result.main, main, lines) : []
     const upgraded: LyricsResult = {
       source: result.source ?? track.source,
+      origin: 'kugou',
+      translationOrigin: krc.translation.length ? 'kugou' : result.translationOrigin ?? result.origin ?? result.source ?? undefined,
+      romajiOrigin: krc.roma.length ? 'kugou' : result.romajiOrigin ?? result.origin ?? result.source ?? undefined,
       main,
       aligned: krc.translation.length ? alignTranslation(main, krc.translation) : realign(result.aligned),
       roma: krc.roma.length ? alignTranslation(main, krc.roma) : realign(result.roma),
       wordLines: krc.wordLines,
     }
     if (fitsLyricDuration(track, upgraded)) return upgraded
+    mismatch = true
   }
+  if (strict && mismatch) throw new LyricMismatchError()
   return null
 }
 
@@ -182,21 +209,22 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 当前消费者的取消信号
  */
-export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false): Promise<LyricsResult> {
+export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
-  if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal)
+  if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal, wordTiming, strict)
   const source = track.source
   const session = providerAccountSession(source)
   const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}${wordTiming ? ':words' : ''}`
   try {
     const result = await requestProviderData(source, key, async () => {
       // 共享请求不绑定单个页面的取消信号 避免切歌中断仍在使用的预热
-      const lyrics = await loadLyrics(track, [], undefined, wordTiming)
+      const lyrics = await loadLyrics(track, [], undefined, wordTiming, true)
       if (!lyrics.main.length) throw new Error('EMPTY_LYRICS')
       return lyrics
     }, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
     return signal?.aborted || session !== providerAccountSession(source) ? emptyLyrics : result
-  } catch {
+  } catch (error) {
+    if (strict && !(error instanceof Error && error.message === 'EMPTY_LYRICS')) throw error
     return emptyLyrics
   }
 }
@@ -208,10 +236,10 @@ export async function fetchLyrics(track: Track, sources: ProviderId[] = [], sign
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 非共享请求的取消信号
  */
-async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal, wordTiming = false): Promise<LyricsResult> {
+async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal, wordTiming = false, strict = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
   if (track.source === 'apple') {
-    const native = await fetchNativeAppleLyrics(track, signal)
+    const native = await fetchNativeAppleLyrics(track, signal, strict)
     if (signal?.aborted) return emptyLyrics
     if (native) return native
     if (!Number.isFinite(track.duration) || !(track.duration! > 0)) return emptyLyrics
@@ -235,6 +263,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
   try {
     if (track.source === 'netease') {
       const rec = await api.get<NeteaseLyricResponse>('/api/lyric', { id: String(track.id) }, { signal })
+      if (strict && rec.error) throw new Error(rec.error)
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.romalrc === 'string' ? rec.romalrc : ''
@@ -264,6 +293,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
     if (track.source === 'qq') {
       const { mid, id } = qqLyricIdentifiers(track)
       const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id, ...(wordTiming ? { words: '1' } : {}) }, { signal })
+      if (strict && rec.error) throw new Error(rec.error)
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.roma === 'string' ? rec.roma : ''
@@ -297,7 +327,8 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
     }
 
     return emptyLyrics
-  } catch {
+  } catch (error) {
+    if (strict) throw error
     return emptyLyrics
   }
 }

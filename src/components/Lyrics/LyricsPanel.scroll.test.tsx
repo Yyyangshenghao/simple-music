@@ -58,6 +58,8 @@ vi.mock('../../stores/player', () => ({ usePlayerStore: Object.assign(
   (selector: (state: object) => unknown) => selector({ currentTrack: null }), { getState: () => ({ seek: h.seek }) }
 ) }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof h.settings) => unknown) => selector(h.settings) }))
+vi.mock('../../stores/lyrics-source', () => ({ useLyricsSourceStore: (selector: (state: object) => unknown) => selector({ requestedOrigin: 'auto' }) }))
+vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore: (selector: (state: object) => unknown) => selector({ open: false }) }))
 vi.mock('../../stores/providers', () => ({ useProviderStore: (selector: (state: object) => unknown) => selector({
   byId: { netease: { enabled: false }, qq: { enabled: false } }
 }) }))

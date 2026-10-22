@@ -4,8 +4,10 @@ import { useLyricsStore } from '../../stores/lyrics'
 import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useProviderStore } from '../../stores/providers'
-import { SourceName } from '../ui/SourceName'
 import { useSettingsStore } from '../../stores/settings'
+import { useLyricsSourceStore } from '../../stores/lyrics-source'
+import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
+import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useVisualStore } from '../../stores/visual'
 import { useAmbientStore } from '../../stores/ambient'
 import { useLightTheme } from '../../hooks/useLightTheme'
@@ -201,7 +203,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
-  const lyricSource = useLyricsStore((s) => s.source)
   const lyricsLoading = useLyricsStore((s) => s.loading)
   const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const translation = useLyricsStore((s) => s.translation)
@@ -261,6 +262,20 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 右缘侧栏的歌词设置浮层(自由排版/字号/同步)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
+  const sourceDialogOpen = useLyricsSourceDialogStore((s) => s.open)
+  const lyricSource = useLyricsSourceStore((s) => s.requestedOrigin)
+  const openSourceDialog = () => {
+    setSettingsPopOpen(false)
+    setStylePickerOpen(false)
+    setModMarketOpen(false)
+    useLyricsSourceDialogStore.getState().show()
+  }
+  useEffect(() => {
+    if (!sourceDialogOpen) return
+    setSettingsPopOpen(false)
+    setStylePickerOpen(false)
+    setModMarketOpen(false)
+  }, [sourceDialogOpen])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const coverFlipRef = useRef<HTMLDivElement>(null)
@@ -472,7 +487,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
   const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d' || opaqueStyle)
   // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
-  const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !modMarketOpen
+  const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !modMarketOpen && !sourceDialogOpen
 
   return (
     <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${view !== 'lyrics' && view !== 'mod' && lyricStyleInfo(view).darkStage ? ` ${styles.darkStage}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
@@ -616,9 +631,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       source={track?.source ?? 'netease'}
                       onBeforeNavigate={onClose}
                     />
-                    {lyricSource && (lyricSource === 'apple' || lyricSource !== track?.source) && (
-                      <span className={styles.lyricSource}>{lyricSource === 'apple' ? <><SourceName source="apple" /> 原生歌词</> : <>歌词来自 <SourceName source={lyricSource} /> · 同曲匹配</>}</span>
-                    )}
                   </div>
                 </div>
                 {playerStyle === 'stage' && (
@@ -631,9 +643,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
             {lines.length === 0 ? (
               <div className={styles.empty}>
-                {lyricsLoading ? '正在加载歌词…' : track?.source === 'apple'
+                <span>{lyricsLoading ? '正在加载歌词…' : track?.source === 'apple'
                   ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
-                  : '暂无歌词'}
+                  : '暂无歌词'}</span>
+                {!lyricsLoading && track && <button type="button" className={`${styles.emptySourceButton} no-drag`} onClick={openSourceDialog}>选择歌词</button>}
               </div>
             ) : (
               <div
@@ -722,6 +735,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 </button>
                 {settingsPopOpen && (
                   <div className={styles.lyricsSettingsPop}>
+                    {track && <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
+                      <span>歌词来源…</span><span>{LYRIC_SOURCE_LABELS[lyricSource]}</span>
+                    </button>}
                     <div className={styles.popHeader}>
                       <div>
                         <strong>舞台排版</strong>

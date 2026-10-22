@@ -120,11 +120,16 @@ export async function handlePlaybackRequest(request: PlaybackRequest): Promise<u
   const args = [...request.args]
   let controller: AbortController | undefined
   if (request.requestId && ((request.store === 'downloads' && request.action === 'saveMany')
-    || (request.store === 'apple' && request.action === 'refresh'))) {
+    || (request.store === 'apple' && request.action === 'refresh')
+    || (request.store === 'lyricSources' && request.action === 'chooseSource'))) {
     controller = new AbortController()
     cancellable.set(request.requestId, controller)
     if (request.store === 'downloads') args[1] = controller.signal
-    else args[0] = controller.signal
+    else if (request.store === 'apple') args[0] = controller.signal
+    else controller.signal.addEventListener('abort', () => {
+      const state = playbackStores.lyricSources.getState()
+      if (state.candidateToken === args[1]) (state.cancelSelection as (token: string) => void)(args[1] as string)
+    }, { once: true })
   }
   try {
     const result = action(...args)

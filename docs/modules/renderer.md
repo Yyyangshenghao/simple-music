@@ -35,6 +35,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |
 | `lyrics.ts` | 歌词行 + 当前行 tick(由播放进度驱动)+ 3D 歌词布局 |
+| `lyrics-source.ts` | 宿主持有的歌词来源默认偏好、按歌记忆、实际来源和小型候选预览；完整候选只留在宿主当前曲目的有界缓存 |
 | `window.ts` | 只读窗口状态,由主进程经 `useDesktopBridge` 推送 |
 | `window-close.ts` | Windows 关闭偏好与待确认状态，订阅主进程广播；持久化由主进程负责，应用内确认框在主可视层之外常驻 |
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
@@ -43,6 +44,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 | `apple-music-connection.ts` / `offline-cache.ts` | Apple Music 登录、订阅及连接状态；网易/QQ 下载队列，三首并发、目录快照、字节进度、暂停、取消和重试，保留最多 100 条终态记录 |
 
 ## hooks(全局副作用,大多在 App.tsx 挂载一次)
+
+歌词来源通过“播放栏 → 更多 → 歌词来源…”、普通歌词设置或无歌词状态主动选择，正常播放不常显来源。选择面板只预览候选，确认后由宿主整体切换正文、逐字与辅助行；默认记住本首，也可仅本次使用或恢复自动。设置页的默认偏好从下一首未单独记住的歌曲生效，主动恢复自动可应用到本首；已记住来源失效时按默认偏好临时回退。来源开关和账号参与限制始终优先；Apple 原生仅用于 Apple 曲目，本地歌曲只读取本地 .lrc。主窗口断开会取消面板查询与未完成提交，不停止正常歌词加载。详细交互与验收边界见[歌词来源选择方案](../plans/2026-10-22-lyrics-source-selection.md)。
 
 - `useDesktopBridge` — 订阅并初次读取主窗口状态，写入 window store；接收迷你条的歌曲快照并在主窗口打开应用歌单选择器，不接收播放命令。
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
