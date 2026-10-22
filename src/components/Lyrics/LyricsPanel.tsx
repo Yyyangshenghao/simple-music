@@ -532,7 +532,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       {/* ===== 跃字模式 =====(与纯歌词共用封面虚化底与氛围霞光;收起后卸载) */}
       {mode === 'pop' && contentMounted && (
         <>
-          {/* 不透明铺满的样式（绘光、镜台）会盖住底层：不垫封面虚化与霞光，免得它们在下面空转动画。 */}
+          {/* 不透明铺满的样式（如镜台）会盖住底层：不垫封面虚化与霞光，免得它们在下面空转动画。 */}
           {!opaqueStyle && <>
             {track?.cover && (
               <div

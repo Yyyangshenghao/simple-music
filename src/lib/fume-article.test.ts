@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildFumeArticle, cameraSettled, fumeCameraTarget, fumeDecor, nearestTextLine, normalizeLineText, printedGlyphs, stepFumeCamera } from './fume-article'
+import { buildFumeArticle, cameraSettled, fumeCameraTarget, nearestTextLine, normalizeLineText, printedGlyphs, stepFumeCamera } from './fume-article'
 
 // 每个非空白字宽一个字号，空格半个字号。
 const measure = (text: string, size: number) => Array.from(text).reduce((w, c) => w + (/\s/.test(c) ? size / 2 : size), 0)
@@ -80,13 +80,6 @@ describe('浮名镜头', () => {
     for (let i = 0; i < 200; i++) camera = stepFumeCamera(camera, to, 1 / 60)
     expect(cameraSettled(camera, to)).toBe(true)
     expect(cameraSettled(from, to)).toBe(false)
-  })
-
-  it('装饰数量有上限且按种子固定', () => {
-    const decor = fumeDecor(article, 5)
-    expect(decor.length).toBeGreaterThanOrEqual(4)
-    expect(decor.length).toBeLessThanOrEqual(40)
-    expect(fumeDecor(article, 5)).toEqual(decor)
   })
 
   it('镜头遇到非有限值直接到目标；超宽单词按字拆行', () => {

@@ -7,12 +7,12 @@
   --style-accent: color-mix(in srgb, var(--ambient-2) 72%, var(--sm-text-primary));
 }
 
-/* 遮罩只作用于画布，不淡化下方译文。 */
+/* 遮罩只作用于画布，不淡化下方译文。显示译文时画布底边停在译文上方（--fume-reserve 由组件按译文位置写入）。 */
 .canvas {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--fume-reserve, 0px);
   width: 100%;
-  height: 100%;
+  height: calc(100% - var(--fume-reserve, 0px));
   -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 18%, #000 78%, transparent 92%);
   mask-image: linear-gradient(to bottom, transparent 4%, #000 18%, #000 78%, transparent 92%);
 }
@@ -48,4 +48,10 @@
   letter-spacing: 0.02em;
   text-align: center;
   color: color-mix(in srgb, var(--sm-text-primary) 74%, transparent);
+  /* 固定两行高：底边贴着同一位置，上边（画布的终点）整首歌不变；更长的译文截到两行。 */
+  height: calc(1.45em * 2);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
 }

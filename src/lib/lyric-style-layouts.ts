@@ -3,7 +3,7 @@ import { buildPopWords } from './pop-lyric-timing'
 import { groupLyricBreakUnits } from './lyric-line-break'
 
 /**
- * 流光、倾诉、云阶共用的逐词数据与排版纯函数。
+ * 云阶、浮名等动态样式共用的逐词数据与排版纯函数。
  * 排版只取决于歌词与种子（行起始时间），拖回同一句时几何不变，播放只推进各词的时间状态。
  */
 
@@ -104,61 +104,7 @@ export function splitRows(tokens: readonly string[], rowCount: number): number[]
   return result.filter(row => row.length)
 }
 
-// ---------- 流光：整句松散散布 ----------
-
-export interface LuminousPose {
-  /** 位移（em） */
-  x: number
-  y: number
-  /** 倾角（度） */
-  rotate: number
-  /** 呼吸漂移的相位 */
-  phase: number
-}
-
-/** 每个词一个固定姿态：散布幅度 spread 0..2，长句收敛，避免整行散成一片。 */
-export function luminousLayout(words: readonly StyleWord[], seed: number, options: { spread: number; rotation: boolean }): LuminousPose[] {
-  const random = seededRandom(seed)
-  const density = Math.min(1, 10 / Math.max(1, words.length))
-  const spread = Math.max(0, Math.min(2, options.spread)) * (0.55 + 0.45 * density)
-  return words.map(() => ({
-    x: (random() - 0.5) * 0.36 * spread,
-    y: (random() - 0.5) * 0.9 * spread,
-    rotate: options.rotation ? (random() - 0.5) * 14 * spread : 0,
-    phase: random() * Math.PI * 2,
-  }))
-}
-
-// ---------- 倾诉：1–4 行，正体与斜体错落 ----------
-
-export interface TiltRow {
-  words: number[]
-  italic: boolean
-}
-
-/**
- * split 0..1：长句拆成多行的倾向；tilt 0..1：每行用斜体错落的概率。
- * 两行以上时保证至少一行正体、一行斜体，形成上下对比。
- */
-export function tiltLayout(words: readonly StyleWord[], seed: number, options: { split: number; tilt: number }): TiltRow[] {
-  const random = seededRandom(seed + 7)
-  const chars = words.reduce((n, word) => n + visibleChars(word.text), 0)
-  const split = Math.max(0, Math.min(1, options.split))
-  const maxRows = chars > 24 ? 4 : chars > 15 ? 3 : chars > 6 ? 2 : 1
-  // 长句至少两行，否则一整行过长难读；分行倾向为 0 时才保持单行。
-  let rowCount = split > 0 && chars > 14 ? 2 : 1
-  for (let row = rowCount + 1; row <= maxRows; row++) if (random() < split) rowCount = row
-  const rows = splitRows(words.map(word => word.text), rowCount)
-  const tilt = Math.max(0, Math.min(1, options.tilt))
-  const italic = rows.map(() => random() < tilt)
-  if (rows.length > 1 && tilt > 0 && tilt < 1) {
-    if (italic.every(Boolean)) italic[0] = false
-    else if (!italic.some(Boolean)) italic[italic.length - 1] = true
-  }
-  return rows.map((indices, i) => ({ words: indices, italic: italic[i] }))
-}
-
-// ---------- 云阶：按词组成行，阶梯错落 ----------
+// ---------- 云阶：词组成行、台阶错落 ----------
 
 export interface PartitaRow {
   words: number[]
@@ -170,14 +116,15 @@ export interface PartitaRow {
  * 每行约 maxChars 个字，按词组断开（semantic 关闭时按字数硬切）；
  * 行与行左右交替、幅度随机，step 0..2 控制错落程度。
  */
-export function partitaLayout(words: readonly StyleWord[], seed: number, options: { step: number; semantic: boolean; maxChars?: number }): PartitaRow[] {
+export function partitaLayout(words: readonly StyleWord[], seed: number, options: { step: number; semantic: boolean; maxChars?: number; rows?: number }): PartitaRow[] {
   const random = seededRandom(seed + 13)
   const maxChars = options.maxChars ?? 5
   const latin = words.some(word => /[A-Za-z]{2,}/.test(word.text))
   const chars = words.reduce((n, word) => n + visibleChars(word.text), 0)
   // 最多 5 级台阶：超长句加宽每行而不是无限加行，避免缩到下限仍竖向溢出。
-  const limit = Math.max(latin ? maxChars * 3 : maxChars, Math.ceil(chars / 5))
-  const rowCount = Math.max(1, Math.min(5, Math.ceil(chars / limit)))
+  // 给了 rows（按舞台尺寸算出的级数）就按它分，仍只在词组之间断开。
+  const limit = options.rows ? Math.ceil(chars / options.rows) : Math.max(latin ? maxChars * 3 : maxChars, Math.ceil(chars / 5))
+  const rowCount = Math.max(1, Math.min(5, options.rows ?? Math.ceil(chars / limit)))
   let rows: number[][]
   if (options.semantic) {
     rows = splitRows(words.map(word => word.text), rowCount)
@@ -200,4 +147,29 @@ export function partitaLayout(words: readonly StyleWord[], seed: number, options
     const offset = rows.length === 1 ? 0 : side * (0.6 + random() * 1.4) * step
     return { words: indices, offset }
   })
+}
+
+/**
+ * 云阶按舞台的实际宽高决定台阶级数。默认沿用每级约 5 字的自然台阶（与不给 rows 时的分法相同）：
+ * 级数一变，词组的断点也跟着变，自然台阶的断点最贴近语义。只有舞台明显放不下、
+ * 自然台阶会被缩到最佳分法的八成以下时（很矮或很窄的窗口），才改用让字最大的级数。8 字以上至少两级，最多 5 级。
+ * stage 以 em 计（舞台像素 ÷ 基准字号）：每行宽约 每行字数 × 字宽 + 两侧错位留白，每级高约 1.36em（行高加间距与引导线）。
+ */
+export function partitaRowsForStage(words: readonly StyleWord[], stage: { width: number; height: number }): number {
+  const latin = words.some(word => /[A-Za-z]{2,}/.test(word.text))
+  const chars = words.reduce((n, word) => n + visibleChars(word.text), 0)
+  if (!chars) return 1
+  const limit = Math.max(latin ? 15 : 5, Math.ceil(chars / 5))
+  const natural = Math.max(1, Math.min(5, Math.ceil(chars / limit)))
+  if (!(stage.width > 0) || !(stage.height > 0)) return natural
+  const charEm = latin ? 0.56 : 1
+  const minRows = Math.min(natural, chars >= 8 ? 2 : 1)
+  const scaleOf = (rows: number) => {
+    const widthEm = Math.ceil(chars / rows) * charEm + (rows > 1 ? 3.4 : 0.6)
+    return Math.min(1, stage.width / widthEm, stage.height / (rows * 1.36))
+  }
+  const candidates = Array.from({ length: Math.max(1, Math.min(5, chars) - minRows + 1) }, (_, i) => ({ rows: minRows + i, scale: scaleOf(minRows + i) }))
+  const top = Math.max(...candidates.map(c => c.scale))
+  if (scaleOf(natural) >= top * 0.8) return natural
+  return candidates.filter(c => c.scale >= top * 0.96).sort((a, b) => Math.abs(a.rows - natural) - Math.abs(b.rows - natural))[0].rows
 }

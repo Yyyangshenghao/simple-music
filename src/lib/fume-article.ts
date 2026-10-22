@@ -3,7 +3,7 @@ import { seededRandom, type StyleWord } from './lyric-style-layouts'
 
 /**
  * 浮名：把整首歌词排成一篇双栏“文章”，镜头在文章里移动、对准正在唱的句子。
- * 这里是与渲染无关的纯函数：文章排版、逐字打印进度、镜头目标与跟随、装饰线条。
+ * 这里是与渲染无关的纯函数：文章排版、逐字打印进度、镜头目标与跟随。
  * 坐标都在“文章世界”里，单位是像素，字号以 BASE_SIZE 为基准；渲染时整体缩放平移。
  */
 
@@ -196,35 +196,4 @@ export function cameraSettled(camera: FumeCamera, target: FumeCamera): boolean {
   return Math.abs(camera.x - target.x) * target.scale < 0.5
     && Math.abs(camera.y - target.y) * target.scale < 0.5
     && Math.abs(camera.scale / target.scale - 1) < 0.002
-}
-
-export type FumeDecor =
-  | { kind: 'line'; x0: number; y0: number; x1: number; y1: number }
-  | { kind: 'arc'; x: number; y: number; r: number; start: number; end: number }
-  | { kind: 'star'; x: number; y: number; r: number; rotate: number }
-
-/** 文章背后的细线装饰：贯穿的长直线、大圆弧与四角星，按种子固定。 */
-export function fumeDecor(article: FumeArticle, seed: number): FumeDecor[] {
-  const random = seededRandom(seed + 31)
-  const { x0, y0, x1, y1 } = article.bounds
-  const width = Math.max(1, x1 - x0)
-  const height = Math.max(1, y1 - y0)
-  const count = Math.min(40, Math.max(4, Math.round((width * height) / (COLUMN_WIDTH * COLUMN_WIDTH))))
-  const decor: FumeDecor[] = []
-  for (let i = 0; i < count; i++) {
-    const x = x0 - width * 0.1 + random() * width * 1.2
-    const y = y0 - height * 0.05 + random() * height * 1.1
-    const pick = random()
-    if (pick < 0.4) {
-      const angle = (random() - 0.5) * Math.PI * 0.7
-      const length = COLUMN_WIDTH * (1.5 + random() * 2)
-      decor.push({ kind: 'line', x0: x - Math.cos(angle) * length / 2, y0: y - Math.sin(angle) * length / 2, x1: x + Math.cos(angle) * length / 2, y1: y + Math.sin(angle) * length / 2 })
-    } else if (pick < 0.75) {
-      const start = random() * Math.PI * 2
-      decor.push({ kind: 'arc', x, y, r: COLUMN_WIDTH * (0.6 + random() * 1.2), start, end: start + Math.PI * (0.4 + random() * 0.9) })
-    } else {
-      decor.push({ kind: 'star', x, y, r: FUME_BASE_SIZE * (1.4 + random() * 2.2), rotate: random() * Math.PI })
-    }
-  }
-  return decor
 }

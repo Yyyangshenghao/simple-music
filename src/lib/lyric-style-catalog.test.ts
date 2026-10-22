@@ -32,6 +32,11 @@ describe('歌词页实际视图', () => {
   it('逐行模式不受样式影响；模组覆盖内置样式；3D 关闭时回落默认样式', () => {
     expect(resolveLyricsView({ mode: 'lyrics', style: 'stage3d', lyrics3dEnabled: true, modActive: true })).toBe('lyrics')
     expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: true, modActive: true })).toBe('mod')
+    // 已撤下的样式不再出现在清单里，误传进来的旧 ID 回到默认样式
+    expect(LYRIC_STYLES.map(style => style.id)).not.toContain('lumiere')
+    expect(LYRIC_STYLES.map(style => style.id)).not.toContain('luminous')
+    expect(resolveLyricsView({ mode: 'dynamic', style: 'lumiere' as never, lyrics3dEnabled: true })).toBe('pop')
+    expect(lyricStyleInfo('tilt' as never).id).toBe('pop')
     expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: true })).toBe('stage3d')
     expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: false })).toBe('pop')
     expect(resolveLyricsView({ mode: 'dynamic', style: 'pop', lyrics3dEnabled: false })).toBe('pop')

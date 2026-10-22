@@ -1,6 +1,7 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
-import { partitaLayout, wordState } from '../../../../lib/lyric-style-layouts'
+import { useSettingsStore } from '../../../../stores/settings'
+import { partitaLayout, partitaRowsForStage, wordState } from '../../../../lib/lyric-style-layouts'
 import { partitaVisual } from '../../../../lib/lyric-style-visuals'
 import { StyleStage, useFitToStage, useLyricFrames, useStyleLine, type StyleLine } from '../shared'
 import styles from './PartitaLyrics.module.css'
@@ -24,8 +25,27 @@ const PartitaLine = memo(function PartitaLine({ line, tuning }: { line: StyleLin
   const contentRef = useRef<HTMLDivElement>(null)
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([])
   const rowRefs = useRef<(HTMLDivElement | null)[]>([])
-  const rows = useMemo(() => partitaLayout(line.words, line.lineStartMs / 1000, { step: tuning.step, semantic: tuning.semantic }),
-    [line.words, line.lineStartMs, tuning.step, tuning.semantic])
+  // 舞台宽高（以未缩放的基准字号计）：长句按它定台阶级数，矮舞台（例如显示译文时）少分几级。
+  const fontScale = useSettingsStore(state => state.lyricsFontScale)
+  const [stageEm, setStageEm] = useState<{ width: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    const stage = content?.closest<HTMLElement>('[data-style-stage]')
+    if (!content || !stage) return
+    const measure = () => {
+      const fit = parseFloat(content.style.getPropertyValue('--style-fit')) || 1
+      const em = (parseFloat(getComputedStyle(content).fontSize) || 16) / fit
+      const next = { width: Math.round((stage.clientWidth / em) * 10) / 10, height: Math.round((stage.clientHeight / em) * 10) / 10 }
+      setStageEm(prev => (prev && prev.width === next.width && prev.height === next.height ? prev : next))
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(stage)
+    measure()
+    return () => observer.disconnect()
+  }, [fontScale])
+  const rowCount = tuning.semantic && stageEm ? partitaRowsForStage(line.words, stageEm) : undefined
+  const rows = useMemo(() => partitaLayout(line.words, line.lineStartMs / 1000, { step: tuning.step, semantic: tuning.semantic, rows: rowCount }),
+    [line.words, line.lineStartMs, tuning.step, tuning.semantic, rowCount])
   // 错位用 transform，不计入布局宽度；按最大错位给两侧留白，试排时才会算进去。
   const reach = rows.reduce((max, row) => Math.max(max, Math.abs(row.offset)), 0)
   useFitToStage(contentRef, [rows])

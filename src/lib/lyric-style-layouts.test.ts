@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildStyleWords, luminousLayout, partitaLayout, seededRandom, splitRows, tiltLayout, wordState, type StyleWord } from './lyric-style-layouts'
+import { buildStyleWords, partitaLayout, partitaRowsForStage, seededRandom, splitRows, wordState, type StyleWord } from './lyric-style-layouts'
 
 const words = (text: string): StyleWord[] => Array.from(text).map((char, i) => ({ text: char, startMs: i * 300, endMs: i * 300 + 300 }))
 
@@ -40,10 +40,8 @@ describe('排版的可复现性', () => {
     expect(first.every(value => value >= 0 && value < 1)).toBe(true)
   })
 
-  it('三种排版对同一句、同一种子完全一致', () => {
+  it('云阶排版对同一句、同一种子完全一致', () => {
     const line = words('今日见到的夕阳洒落漫天星点')
-    expect(luminousLayout(line, 5, { spread: 1, rotation: true })).toEqual(luminousLayout(line, 5, { spread: 1, rotation: true }))
-    expect(tiltLayout(line, 5, { split: 0.6, tilt: 0.5 })).toEqual(tiltLayout(line, 5, { split: 0.6, tilt: 0.5 }))
     expect(partitaLayout(line, 5, { step: 1, semantic: true })).toEqual(partitaLayout(line, 5, { step: 1, semantic: true }))
   })
 })
@@ -71,27 +69,7 @@ describe('分行', () => {
   })
 })
 
-describe('三种样式的排版', () => {
-  it('流光：关闭倾角时不旋转，散布为 0 时原位', () => {
-    const line = words('让每个音符都有自己的形状')
-    expect(luminousLayout(line, 3, { spread: 1, rotation: false }).every(pose => pose.rotate === 0)).toBe(true)
-    expect(luminousLayout(line, 3, { spread: 0, rotation: true }).every(pose => pose.x === 0 && pose.y === 0 && pose.rotate === 0)).toBe(true)
-  })
-
-  it('倾诉：短句一行；长句多行时同时有正体和斜体', () => {
-    expect(tiltLayout(words('我们'), 1, { split: 1, tilt: 0.5 })).toHaveLength(1)
-    for (let seed = 0; seed < 20; seed++) {
-      const rows = tiltLayout(words('自己也能在云天自由翱翔的我们'), seed, { split: 1, tilt: 0.5 })
-      expect(rows.length).toBeGreaterThan(1)
-      expect(rows.some(row => row.italic)).toBe(true)
-      expect(rows.some(row => !row.italic)).toBe(true)
-    }
-    expect(tiltLayout(words('自己也能在云天自由翱翔的我们'), 2, { split: 0, tilt: 0.5 })).toHaveLength(1)
-    // 长句只要允许分行就至少两行。
-    for (let seed = 0; seed < 20; seed++) expect(tiltLayout(words('在这只属于你我的空旷夜空下慢慢地溶化'), seed, { split: 0.05, tilt: 0.5 }).length).toBeGreaterThanOrEqual(2)
-    expect(tiltLayout(words('自己也能在云天自由翱翔'), 2, { split: 1, tilt: 0 }).every(row => !row.italic)).toBe(true)
-  })
-
+describe('云阶排版', () => {
   it('云阶：长句分多行、左右交替错落；关闭语义分组按字数切；错落为 0 时对齐', () => {
     const line = words('今日见到的夕阳洒落漫天星点')
     const rows = partitaLayout(line, 9, { step: 1, semantic: true })
@@ -107,3 +85,30 @@ describe('三种样式的排版', () => {
     expect(partitaLayout(long, 9, { step: 1, semantic: false }).length).toBeLessThanOrEqual(5)
   })
 })
+
+describe('云阶按舞台定级数', () => {
+  it('舞台放得下就沿用自然台阶（约 5 字一级）', () => {
+    expect(partitaRowsForStage(words('让每个音符都有自己的形状'), { width: 13, height: 6.5 })).toBe(3)
+    expect(partitaRowsForStage(words('我们'), { width: 13, height: 6.5 })).toBe(1)
+  })
+
+  it('常见窗口（含显示译文时）保持自然台阶，不为放大字号改断点；只有很矮的舞台才少分几级', () => {
+    const long = words('在这只属于你我的空旷夜空下慢慢地溶化成一片温柔的光')
+    expect(partitaRowsForStage(long, { width: 30, height: 30 })).toBe(5)
+    // 960×720 显示两行译文、1536×960 时的舞台（以基准字号计）
+    expect(partitaRowsForStage(long, { width: 8.6, height: 4.4 })).toBe(5)
+    expect(partitaRowsForStage(long, { width: 13.2, height: 6.5 })).toBe(5)
+    // 窄窗口也不改断点（字号由试排缩小）
+    expect(partitaRowsForStage(words('让每个音符都有自己的形状'), { width: 4.5, height: 12 })).toBe(3)
+    // 很矮：自然台阶会缩到八成以下，改少分几级
+    expect(partitaRowsForStage(long, { width: 14, height: 3.2 })).toBeLessThan(5)
+  })
+
+  it('按给定级数分行，仍只在词组之间断开', () => {
+    const line = words('在这只属于你我的空旷夜空下慢慢地溶化成一片温柔的光')
+    const rows = partitaLayout(line, 3, { step: 1, semantic: true, rows: 3 })
+    expect(rows).toHaveLength(3)
+    expect(rows.flatMap(row => row.words)).toEqual(line.map((_, i) => i))
+  })
+})
+

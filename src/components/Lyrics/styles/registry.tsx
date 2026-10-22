@@ -2,12 +2,9 @@ import type { ComponentType, ReactNode } from 'react'
 import type { LyricStyleId } from '../../../lib/lyric-style-catalog'
 import { PopLyrics } from '../PopLyrics'
 import { Stage3dSettings } from '../EffectSwitcher'
-import { LuminousLyrics } from './luminous/LuminousLyrics'
-import { TiltLyrics } from './tilt/TiltLyrics'
 import { PartitaLyrics } from './partita/PartitaLyrics'
 import { FumeLyrics } from './fume/FumeLyrics'
 import { TemperaLyrics } from './tempera/TemperaLyrics'
-import { LumiereLyrics } from './lumiere/LumiereLyrics'
 import { SonnetLyrics } from './sonnet/SonnetLyrics'
 import { DioramaLyrics } from './diorama/DioramaLyrics'
 
@@ -38,16 +35,6 @@ export const LYRIC_STYLE_VIEWS: Record<LyricStyleId, LyricStyleView> = {
     Preview: () => <PopLyrics preview />,
     glyph: glyph(<><path d="M14 24l6-10 6 10" /><path d="M30 26V12h6a4 4 0 0 1 0 8h-6" /><path d="M44 14h8M48 14v12" opacity=".6" /></>),
   },
-  luminous: {
-    Stage: () => <LuminousLyrics />,
-    Preview: () => <LuminousLyrics preview />,
-    glyph: glyph(<><circle cx="22" cy="20" r="7" opacity=".5" /><path d="M14 22h6M30 16h8M42 24h8" /></>),
-  },
-  tilt: {
-    Stage: () => <TiltLyrics />,
-    Preview: () => <TiltLyrics preview />,
-    glyph: glyph(<><path d="M18 15h28" /><path d="M20 28l4-6M30 30l4-6M40 28l4-6" opacity=".7" /></>),
-  },
   partita: {
     Stage: () => <PartitaLyrics />,
     Preview: () => <PartitaLyrics preview />,
@@ -62,11 +49,6 @@ export const LYRIC_STYLE_VIEWS: Record<LyricStyleId, LyricStyleView> = {
     Stage: () => <TemperaLyrics />,
     Preview: () => <TemperaLyrics preview />,
     glyph: glyph(<><path d="M6 26 L58 14 L58 38 L6 38 Z" opacity=".45" /><circle cx="44" cy="12" r="6" /><path d="M14 20h18" /></>),
-  },
-  lumiere: {
-    Stage: () => <LumiereLyrics />,
-    Preview: () => <LumiereLyrics preview />,
-    glyph: glyph(<><path d="M20 2 L10 38 M20 2 L30 38" opacity=".45" /><path d="M14 26h30" /><path d="M48 10l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" /></>),
   },
   sonnet: {
     Stage: () => <SonnetLyrics />,

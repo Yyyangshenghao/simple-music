@@ -36,7 +36,7 @@ interface LyricsStore {
   tickProgress(position: number): void
 }
 
-function indexForPosition(lines: LyricLine[], position: number): number {
+export function indexForPosition(lines: LyricLine[], position: number): number {
   let low = 0
   let high = lines.length
   while (low < high) {

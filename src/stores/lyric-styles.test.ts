@@ -27,6 +27,39 @@ describe('动态歌词样式存档', () => {
     expect(store.getState().tunings).toEqual({ pop: { intensity: 1.6 } })
   })
 
+  it('存档选着已撤下的样式：回到跃字；其他样式与撤下样式的旧参数在再保存后都还在', async () => {
+    const saved = { style: 'lumiere', tunings: { lumiere: { beams: 1.4 }, tilt: { split: 0.8 }, partita: { step: 1.5 }, pop: { intensity: 1.2 } } }
+    storage.set('simplemusic-lyric-styles', JSON.stringify(saved))
+    storage.set('simplemusic-settings', JSON.stringify({ lyricsFontScale: 1.2 }))
+    const { useLyricStylesStore: store } = await import('./lyric-styles')
+    expect(store.getState().style).toBe('pop')
+    expect(store.getState().tunings).toEqual({ partita: { step: 1.5 }, pop: { intensity: 1.2 } })
+    store.getState().setTuning('pop', { intensity: 1.3 })
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!)).toEqual({
+      style: 'pop',
+      tunings: { lumiere: { beams: 1.4 }, tilt: { split: 0.8 }, partita: { step: 1.5 }, pop: { intensity: 1.3 } },
+    })
+    // 别的存档键不受影响
+    expect(JSON.parse(storage.get('simplemusic-settings')!)).toEqual({ lyricsFontScale: 1.2 })
+    // 内存里被塞进已撤下的 ID 也不会生效
+    store.getState().setStyle('tilt' as never)
+    expect(store.getState().style).toBe('pop')
+    // 对已撤下 ID 改参数或重置都不写入，存档里保留的旧参数不被覆盖
+    store.getState().setTuning('lumiere' as never, { intensity: 1.4 })
+    store.getState().resetTuning('tilt' as never)
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!).tunings.lumiere).toEqual({ beams: 1.4 })
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!).tunings.tilt).toEqual({ split: 0.8 })
+  })
+
+  it.each(['luminous', 'tilt'])('撤下的 %s：存档选着它时回到跃字，旧参数保留，3D 舞台的选择与参数不受影响', async (retired) => {
+    storage.set('simplemusic-lyric-styles', JSON.stringify({ style: retired, tunings: { [retired]: { legacy: 1 }, fume: { serif: false } } }))
+    const { useLyricStylesStore: store } = await import('./lyric-styles')
+    expect(store.getState().style).toBe('pop')
+    store.getState().setStyle('stage3d')
+    expect(store.getState().style).toBe('stage3d')
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!)).toEqual({ style: 'stage3d', tunings: { [retired]: { legacy: 1 }, fume: { serif: false } } })
+  })
+
   it('没有新存档时按旧版歌词页模式迁移', async () => {
     storage.set('simplemusic-settings', JSON.stringify({ lyricsPanelMode: '3d' }))
     const { useLyricStylesStore: store } = await import('./lyric-styles')

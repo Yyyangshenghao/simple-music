@@ -1,14 +1,43 @@
-/* 跃字以歌词本身构成动态海报，封面色只落在演唱重心上。
-   字号按外层样式容器（歌词页舞台或选择器预览卡）的 cqw/cqh 计算：舞台铺满面板时与按视口计算一致。 */
+/* 跃字：居中的连续字列，清楚的实体字面；只有正在唱的字放大跃起、换强调色，是形态重心。
+   字号按外层样式容器（歌词页舞台或选择器预览卡）的 cqw/cqh 计算；分行由排版器决定，行内不折行。 */
 .root {
   position: absolute;
-  inset: 96px 9% 150px;
+  inset: 96px 7% 132px;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 18px;
+  /* 辅助区高度固定：译文开关、长短都不改变主句所在的舞台 */
+  grid-template-rows: minmax(0, 1fr) var(--pop-aux-height);
+  gap: 20px;
   pointer-events: none;
   text-align: center;
-  --pop-accent: color-mix(in srgb, var(--sm-text-primary) 65%, var(--ambient-2));
+  --pop-aux-size: calc(clamp(14px, 1.45cqw, 19px) * var(--lyrics-font-scale, 1));
+  --pop-aux-height: calc(var(--pop-aux-size) * 1.5 * 2 + var(--pop-aux-size) * 0.88 * 1.5 + 10px);
+  /* 强调色取封面氛围色的色相，限定明度、保证彩度：暗底上提亮，浅底上压暗，与正文实字明显区分 */
+  --pop-accent: oklch(from var(--ambient-2) max(l, 0.8) max(c, 0.13) h);
+  --pop-halo: 0 0 0.3em color-mix(in srgb, var(--ambient-2) 38%, transparent);
+  /* 未唱字影：暂停时保持可读；播放时压轻，让已唱与正在唱的字一路接力浮到前面 */
+  --pop-ghost: 0.3;
+  --pop-ghost-playing: 0.12;
+}
+
+.root[data-playing] {
+  --pop-ghost: var(--pop-ghost-playing);
+}
+
+:global([data-theme="light"]) .root {
+  --pop-accent: oklch(from var(--ambient-2) min(l, 0.52) max(c, 0.16) h);
+  --pop-halo: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme])) .root {
+    --pop-accent: oklch(from var(--ambient-2) min(l, 0.52) max(c, 0.16) h);
+    --pop-halo: none;
+  }
+}
+
+.preview {
+  inset: 10% 6%;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .stage {
@@ -23,165 +52,120 @@
   width: 100%;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform-origin: center;
+  justify-content: center;
 }
 
-/* 换行单元（见 lib/lyric-line-break.ts）之间可折行，单元内不拆 */
 .words {
-  width: min(100%, 1120px);
-  max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.12em;
-  padding: 0.22em 0.14em;
-  font-size: calc(clamp(32px, min(8.4cqw, 11cqh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
-  font-weight: 800;
-  line-height: 1.24;
-  letter-spacing: -0.035em;
-  text-wrap: balance;
+  align-items: center;
+  gap: 0.06em;
+  font-size: calc(clamp(30px, min(5.8cqw, 9.5cqh), 82px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
+  font-weight: 600;
+  line-height: 1.3;
+  /* 中文字面略松一点，词组之间另有语义间距；不再给每个字和词组叠加内边距 */
+  letter-spacing: 0.04em;
+  /* 英文词间多留一点：演唱词放大时不碰邻词 */
+  word-spacing: 0.12em;
   color: var(--sm-text-primary);
 }
 
-.phrase {
-  width: fit-content;
-  max-width: 100%;
-  padding: 0.08em 0.2em;
-  font-size: calc(1em * var(--phrase-scale, 1));
-  font-weight: 550;
-  transform: rotate(var(--phrase-angle, 0deg));
-  transform-origin: center;
-}
-
-.accent {
-  font-weight: 850;
-  font-style: italic;
-}
-
-.words[data-composition='verse'] {
-  gap: 0.06em;
-}
-
-.words[data-composition='impact'] .phrase {
-  letter-spacing: -0.04em;
-  font-style: normal;
+/* 排版器给出的最终一行：不允许再折行 */
+.row {
+  white-space: nowrap;
 }
 
 .unit {
   display: inline-block;
-  max-width: 100%;
-  padding-inline: 0.06em;
   white-space: nowrap;
 }
 
-.word {
-  display: inline-block;
-  max-width: 100%;
-  padding-inline: 0.105em;
-  vertical-align: baseline;
+/* 语义停顿（空格、标点、演唱间隙）后的词组间距，宽度与 PopLyrics.tsx 的 PAUSE_GAP_EM 一致 */
+.pause {
+  margin-right: 0.45em;
 }
 
-/* 弹出层：由浏览器动画按播放时钟定位，平时不常驻合成层 */
+/* 一个字：字影层占位（决定字宽，显隐不重排），字墨层与强调色层叠在上面 */
 .pop {
   position: relative;
   display: inline-block;
-  max-width: 100%;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  transform-origin: center;
+  white-space: pre;
+  transform-origin: 50% 80%;
 }
 
-/* 底层是唱过后的颜色；上层高亮带辉光，唱完一小段后淡出 */
-.base {
-  color: color-mix(in srgb, var(--sm-text-primary) 88%, transparent);
+.ghost {
+  opacity: var(--pop-ghost);
+  transition: opacity 0.35s ease;
 }
 
-.accent .base {
-  color: var(--pop-accent);
-}
-
-.echo {
-  display: none;
+.ink {
   position: absolute;
   inset: 0;
-  -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 1px color-mix(in srgb, var(--pop-accent) 28%, transparent);
-  transform: translate(-0.045em, 0.065em) scale(1.08);
-  pointer-events: none;
-}
-
-.accent .echo {
-  display: block;
-}
-
-.words[data-composition='impact'] .echo {
-  transform: translate(-0.06em, 0.07em) scale(1.16);
-}
-
-.glow {
-  position: absolute;
-  inset: 0;
-  color: var(--pop-accent);
-  text-shadow:
-    0 0 18px color-mix(in srgb, var(--ambient-2, #9cc8ff) 70%, transparent),
-    0 0 42px color-mix(in srgb, var(--ambient-1, #b9a4ff) 45%, transparent);
-  pointer-events: none;
-}
-
-/* 关闭逐字动效 / 减少动效：整句直接显示为高亮态，不逐词弹出 */
-.static .glow {
   opacity: 0;
+  pointer-events: none;
 }
 
-.static .base {
-  color: var(--sm-text-primary);
+.hot {
+  position: absolute;
+  inset: 0;
+  color: var(--pop-accent);
+  text-shadow: var(--pop-halo);
+  opacity: 0;
+  pointer-events: none;
 }
 
-.static .echo {
+/* 关闭逐字动效 / 减少动效 / 极短句：整句直接显示为实字，没有强调 */
+.static .ink {
+  opacity: 1;
+}
+
+.static .hot {
   display: none;
 }
 
-.static .phrase {
-  transform: none;
+.aux {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+
+.translationSlot {
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  width: 100%;
+  height: calc(var(--pop-aux-size) * 1.5 * 2);
+}
+
+.translationSlot > * {
+  grid-area: 1 / 1;
 }
 
 .translation {
-  margin-top: 20px;
-  max-width: 48ch;
-  font-size: calc(clamp(15px, 1.6cqw, 22px) * var(--lyrics-font-scale, 1));
+  max-width: min(46ch, 100%);
+  font-size: var(--pop-aux-size);
   font-weight: 500;
-  color: color-mix(in srgb, var(--sm-text-primary) 78%, transparent);
-  line-height: 1.45;
+  line-height: 1.5;
   letter-spacing: 0.02em;
-}
-
-.next {
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: 0;
-  max-width: 100%;
-  font-size: calc(clamp(14px, 1.4cqw, 19px) * var(--lyrics-font-scale, 1));
-  font-weight: 600;
-  color: color-mix(in srgb, var(--sm-text-primary) 76%, transparent);
-  white-space: nowrap;
+  color: color-mix(in srgb, var(--sm-text-primary) 72%, transparent);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.next::before {
-  content: '';
-  width: 28px;
-  height: 1px;
-  flex: 0 0 auto;
-  background: currentColor;
-  opacity: 0.6;
-}
-
-.next > span {
-  min-width: 0;
+/* 下一句：在辅助区最底部，字号与浓度都低于译文，只作预告 */
+.next {
+  margin-top: auto;
+  max-width: 100%;
+  font-size: calc(var(--pop-aux-size) * 0.88);
+  font-weight: 500;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--sm-text-primary) 42%, transparent);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }

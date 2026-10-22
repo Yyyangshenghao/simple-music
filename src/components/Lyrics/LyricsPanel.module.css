@@ -1360,7 +1360,7 @@
   .lyricsScroll [data-line] { filter: none; }
 }
 
-/* 始终画暗场的动态样式（如绘光）：浅色主题下页头与选择器仍按深色舞台配色，否则深色字压在暗场上看不清。 */
+/* 始终画暗场的动态样式（如镜台）：浅色主题下页头与选择器仍按深色舞台配色，否则深色字压在暗场上看不清。 */
 .panel.panel.darkStage {
   --lyrics-ink-rgb: 255, 255, 255;
   --lyrics-surface-rgb: 12, 14, 22;

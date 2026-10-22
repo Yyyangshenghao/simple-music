@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { springSnappy } from '../../lib/motion-presets'
-import { DEFAULT_LYRIC_STYLE, LYRIC_STYLES, lyricStyleInfo, type TuningField, type TuningValue } from '../../lib/lyric-style-catalog'
+import { DEFAULT_LYRIC_STYLE, isLyricStyleId, LYRIC_STYLES, lyricStyleInfo, type TuningField, type TuningValue } from '../../lib/lyric-style-catalog'
 import { useLyricStylesStore, useLyricStyleTuning } from '../../stores/lyric-styles'
 import { useSettingsStore } from '../../stores/settings'
 import { useLyricModsStore } from '../../stores/lyric-mods'
@@ -81,8 +81,8 @@ export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps)
   const setTuning = useLyricStylesStore(state => state.setTuning)
   const resetTuning = useLyricStylesStore(state => state.resetTuning)
   const lyrics3dEnabled = useSettingsStore(state => state.performance.lyrics3dEnabled)
-  // 与舞台一致：3D 被关闭时实际显示默认样式，选中态与参数都跟随实际样式，不改写保存的选择。
-  const current = lyricStyleInfo(stored).needs3d && !lyrics3dEnabled ? DEFAULT_LYRIC_STYLE : stored
+  // 与舞台一致：3D 被关闭、或内存里是已撤下/未知的 ID 时实际显示默认样式，选中态与参数都跟随实际样式，不改写保存的选择。
+  const current = !isLyricStyleId(stored) || (lyricStyleInfo(stored).needs3d && !lyrics3dEnabled) ? DEFAULT_LYRIC_STYLE : stored
   const tuning = useLyricStyleTuning(current)
   const modified = useLyricStylesStore(state => !!state.tunings[current])
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
@@ -130,7 +130,8 @@ export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps)
                   {Preview ? <PreviewFrame><Preview /></PreviewFrame> : entry.glyph}
                 </span>
                 <span className={styles.cardLabel}>{style.label}</span>
-                <span className={styles.cardHint}>{unavailable ? '3D 歌词已关闭' : style.hint}</span>
+                {/* 样式说明放在悬停提示里；卡片上只在不可用时写明原因。 */}
+                {unavailable && <span className={styles.cardHint}>3D 歌词已关闭</span>}
               </button>
             )
           })}

@@ -10,7 +10,7 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 301;
-  width: 340px;
+  width: 312px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -45,9 +45,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  padding: 6px 6px 9px;
+  padding: 5px 5px 7px;
   border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
   border-radius: 12px;
   background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.04);
@@ -76,12 +76,13 @@
   display: grid;
   place-items: center;
   aspect-ratio: 16 / 10;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   overflow: hidden;
   border-radius: 8px;
+  /* 底色跟随主题的文字色取一层很淡的底：深色主题是暗底、浅色主题是浅底，缩略图里的字都清楚。 */
   background:
-    radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--ambient-1, #6d5bd0) 38%, transparent), transparent 70%),
-    rgba(0, 0, 0, 0.28);
+    radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--ambient-1, #6d5bd0) 22%, transparent), transparent 70%),
+    rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.05);
   color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.7);
 }
 
