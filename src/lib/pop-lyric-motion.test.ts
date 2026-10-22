@@ -1,77 +1,77 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createPopLyricTimeline } from './pop-lyric-motion'
+import { createPopLyricTimeline, popLiftFactor, POP_GHOST_OPACITY } from './pop-lyric-motion'
+import { POP_LEAD_MS } from './pop-lyric-timing'
 import { buildPopWords } from './pop-lyric-timing'
 
 const words = buildPopWords('甲乙', { time: 1, durationMs: 1600, words: [
-  { text: '甲', startMs: 0, durationMs: 600 }, { text: '乙', startMs: 700, durationMs: 900 },
+  { text: '甲', startMs: 0, durationMs: 600 }, { text: '乙', startMs: 700, durationMs: 120 },
 ] }, 2)
 
-function fixture() {
-  const animations = Array.from({ length: 4 }, () => ({ currentTime: 0, pause: vi.fn(), cancel: vi.fn() }))
-  const elements = animations.map(animation => ({ animate: vi.fn(() => animation) }))
-  const timeline = createPopLyricTimeline(elements.slice(0, 2) as unknown as HTMLElement[], elements.slice(2) as unknown as HTMLElement[], words, 1000)
-  return { timeline, animations, elements }
+function fixture(intensity?: number) {
+  const make = () => {
+    const animation = { currentTime: 0 as number | null, pause: vi.fn(), cancel: vi.fn() }
+    const element = { animate: vi.fn((_frames: Keyframe[], _options: KeyframeAnimationOptions) => animation) }
+    return { animation, element }
+  }
+  const pops = [make(), make()]
+  const inks = [make(), make()]
+  const accents = [make(), make()]
+  const els = (list: ReturnType<typeof make>[]) => list.map(item => item.element) as unknown as HTMLElement[]
+  const timeline = createPopLyricTimeline(els(pops), els(inks), els(accents), words, { intensity })
+  return { timeline, pops, inks, accents }
 }
 
-describe('跃字媒体时间轴', () => {
-  it('构图镜头随媒体定位，暂停原生动画且释放时一起清理', () => {
-    const camera = { currentTime: 0, pause: vi.fn(), cancel: vi.fn() }
-    const glyph = () => ({ animate: () => ({ currentTime: 0, pause: vi.fn(), cancel: vi.fn() }) }) as unknown as HTMLElement
-    const scene = { element: { animate: vi.fn(() => camera) } as unknown as HTMLElement, reveal: 'sweep' as const }
-    const timeline = createPopLyricTimeline([glyph(), glyph()], [glyph(), glyph()], words, 1000, scene)
-    expect(camera.pause).toHaveBeenCalledOnce()
-    timeline.seek(800)
-    expect(camera.currentTime).toBe(800)
-    timeline.seek(-100)
-    expect(camera.currentTime).toBe(0)
-    timeline.seek(10_000)
-    expect(camera.currentTime).toBe(1600)
+const liftOf = (frame: Keyframe) => Number(/translateY\((-?[\d.]+)em\)/.exec(String(frame.transform))![1])
+
+describe('跃字逐字动画', () => {
+  it('一种语法：静止 → 跃起 → 保持到唱完 → 回落；字影唱到时填满', () => {
+    const { pops, inks, timeline } = fixture()
+    const frames = pops[0].element.animate.mock.calls[0][0]
+    expect(liftOf(frames[0])).toBe(0)
+    expect(liftOf(frames[1])).toBeLessThan(0)
+    expect(frames[2].transform).toBe(frames[1].transform)
+    expect(liftOf(frames[3])).toBe(0)
+    // 长音保持在跃起位直到演唱结束：保持段终点 = 提前量 + 演唱时长。
+    const { duration } = pops[0].element.animate.mock.calls[0][1] as { duration: number }
+    expect((frames[2].offset as number) * duration).toBeCloseTo(POP_LEAD_MS + 600)
+    expect(inks[0].element.animate.mock.calls[0][0][0].opacity).toBe(POP_GHOST_OPACITY)
     timeline.dispose()
-    expect(camera.cancel).toHaveBeenCalledOnce()
-  })
-  it('暂停动画由媒体时钟定位，拖回时恢复等待态，跳到句尾完成回落', () => {
-    const { timeline, animations } = fixture()
-    expect(animations.every(animation => animation.pause.mock.calls.length === 1)).toBe(true)
-    timeline.seek(800)
-    expect(animations[0].currentTime).toBe(860)
-    expect(animations[1].currentTime).toBe(160)
-    expect(animations[3].currentTime).toBe(100)
-    timeline.seek(-100)
-    expect(animations.every(animation => animation.currentTime === 0)).toBe(true)
-    timeline.seek(10_000)
-    expect(animations[0].currentTime).toBeLessThan(2000)
-    expect(animations[3].currentTime).toBe(1260)
-    timeline.dispose()
-    expect(animations.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true)
   })
 
-  it('同一句重新进入时姿态一致，词之间有不同姿态', () => {
+  it('快字跃起幅度收敛，幅度参数按比例放大', () => {
+    const plain = fixture()
+    const slow = liftOf(plain.pops[0].element.animate.mock.calls[0][0][1])
+    const fast = liftOf(plain.pops[1].element.animate.mock.calls[0][0][1])
+    expect(Math.abs(fast)).toBeLessThan(Math.abs(slow))
+    expect(popLiftFactor(120)).toBeLessThan(popLiftFactor(600))
+    const strong = fixture(1.6)
+    expect(Math.abs(liftOf(strong.pops[0].element.animate.mock.calls[0][0][1]))).toBeGreaterThan(Math.abs(slow))
+    plain.timeline.dispose()
+    strong.timeline.dispose()
+  })
+
+  it('由媒体时间定位：拖回恢复字影，跳到句尾全部回落，释放时清理', () => {
+    const { pops, accents, timeline } = fixture()
+    const all = [...pops, ...accents].map(item => item.animation)
+    expect(all.every(animation => animation.pause.mock.calls.length === 1)).toBe(true)
+    timeline.seek(300)
+    expect(pops[0].animation.currentTime).toBe(300 + POP_LEAD_MS)
+    expect(pops[1].animation.currentTime).toBe(0)
+    timeline.seek(-100)
+    expect(all.every(animation => animation.currentTime === 0)).toBe(true)
+    timeline.seek(10_000)
+    const { duration } = pops[1].element.animate.mock.calls[0][1] as { duration: number }
+    expect(pops[1].animation.currentTime).toBe(duration)
+    timeline.dispose()
+    expect(all.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true)
+  })
+
+  it('同一句重新进入时动画完全一致，没有随机姿态', () => {
     const first = fixture()
     const second = fixture()
-    expect(first.elements[0].animate.mock.calls).toEqual(second.elements[0].animate.mock.calls)
-    expect(first.elements[0].animate.mock.calls).not.toEqual(first.elements[1].animate.mock.calls)
+    expect(first.pops[0].element.animate.mock.calls).toEqual(second.pops[0].element.animate.mock.calls)
+    expect(String(first.pops[0].element.animate.mock.calls[0][0][1].transform)).not.toMatch(/rotate/)
     first.timeline.dispose()
     second.timeline.dispose()
-  })
-
-  it('动效幅度与镜头推移可调，默认值与原设计一致', () => {
-    const run = (tuning: { intensity?: number; camera?: boolean }) => {
-      const camera = { currentTime: 0, pause: vi.fn(), cancel: vi.fn() }
-      const element = { animate: vi.fn(() => camera) }
-      const glyphs = Array.from({ length: 4 }, () => ({ animate: vi.fn((_frames: Keyframe[]) => ({ currentTime: 0, pause: vi.fn(), cancel: vi.fn() })) }))
-      const timeline = createPopLyricTimeline(glyphs.slice(0, 2) as unknown as HTMLElement[], glyphs.slice(2) as unknown as HTMLElement[], words, 1000,
-        { element: element as unknown as HTMLElement, reveal: 'rise', ...tuning })
-      timeline.dispose()
-      return { cameraCalls: element.animate.mock.calls.length, frames: glyphs[0].animate.mock.calls[0][0] as Keyframe[] }
-    }
-    const plain = run({})
-    expect(run({ intensity: 1, camera: true })).toEqual(plain)
-    expect(plain.cameraCalls).toBe(1)
-    expect(run({ camera: false }).cameraCalls).toBe(0)
-    // 幅度越大入场缩放越小（离 1 越远），回落终态始终是原尺寸。
-    const scaleOf = (frame: Keyframe) => Number(/scale\(([\d.]+)\)/.exec(String(frame.transform))![1])
-    expect(scaleOf(run({ intensity: 1.6 }).frames[0])).toBeLessThan(scaleOf(plain.frames[0]))
-    expect(scaleOf(run({ intensity: 0.4 }).frames[0])).toBeGreaterThan(scaleOf(plain.frames[0]))
-    expect(scaleOf(run({ intensity: 1.6 }).frames[3])).toBe(1)
   })
 })

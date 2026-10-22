@@ -1,32 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { buildPopLyricLayout } from './pop-lyric-layout'
+import { buildPopUnits, estimatePopRows, planPopRows, popTextWeight } from './pop-lyric-layout'
 import { buildPopWords } from './pop-lyric-timing'
 
-describe('跃字动态分句', () => {
-  it.each(['此刻', '让每个音符都有自己的形状', '把很长很长的故事留在风里，再让每个字随着旋律找到属于自己的位置。', 'Let every note find its own shape.'])('排版保留全部歌词和原生时间顺序：%s', text => {
+const plan = (text: string, maxEm: number) => {
+  const words = buildPopWords(text, undefined, 10)
+  const units = buildPopUnits(words)
+  const widths = units.map(unit => popTextWeight(unit.words.map(i => words[i].text).join('')))
+  const result = planPopRows(units, widths, 0.45, maxEm)
+  return { ...result, lines: result.rows.map(row => row.flatMap(u => units[u].words).map(i => words[i].text).join('')) }
+}
+
+describe('跃字分行', () => {
+  it.each(['此刻', '让每个音符都有自己的形状', '如果漂泊是成长 必经的路牌', 'Let every note find its own shape.'])('保留全部歌词与原有词序：%s', text => {
     const words = buildPopWords(text, undefined, 10)
     const before = JSON.stringify(words)
-    const layout = buildPopLyricLayout(words, 10, 1000)
-    expect(layout.phrases.flatMap(phrase => phrase.units.flat())).toEqual(words.map((_, index) => index))
+    const { units, rows } = estimatePopRows(words)
+    expect(rows.flat().flatMap(u => units[u].words)).toEqual(words.map((_, index) => index))
     expect(JSON.stringify(words)).toBe(before)
-    expect(layout.phrases.every(phrase => phrase.units.length > 0)).toBe(true)
   })
 
-  it('短句聚焦、中句错落、长句分阶，快句收回一段保证可读', () => {
-    const layout = (text: string, dwell = 8) => buildPopLyricLayout(buildPopWords(text, undefined, dwell), dwell, 1000)
-    expect(layout('此刻').composition).toBe('impact')
-    expect(layout('让每个音符都有自己的形状').phrases).toHaveLength(2)
-    expect(layout('把很长很长的故事留在风里，再让每个字随着旋律找到属于自己的位置。').phrases).toHaveLength(3)
-    expect(layout('让每个音符都有自己的形状', 0.5).phrases).toHaveLength(1)
+  it('放得下就排成一行；放不下才折行，不留一两个字的孤尾', () => {
+    expect(plan('让每个音符都有自己的形状', 14).lines).toEqual(['让每个音符都有自己的形状'])
+    const two = plan('让每个音符都有自己的形状', 9).lines
+    expect(two).toHaveLength(2)
+    expect(two.every(line => Array.from(line).length >= 4)).toBe(true)
   })
 
-  it('不拆原生整词 token；同一句构图稳定，相邻句改变方向', () => {
-    const words = buildPopWords('Alpha beta, gamma delta', { time: 5, durationMs: 4000, words: [
-      { text: 'Alpha beta, ', startMs: 0, durationMs: 1000 }, { text: 'gamma delta', startMs: 1200, durationMs: 1000 },
-    ] }, 4)
-    const layout = buildPopLyricLayout(words, 4, 1000)
-    expect(layout.phrases.flatMap(phrase => phrase.units.flat())).toEqual([0, 1])
-    expect(layout).toEqual(buildPopLyricLayout(words, 4, 1000))
-    expect(layout.phrases[0].align).not.toEqual(buildPopLyricLayout(words, 4, 2000).phrases[0].align)
+  it('优先在空格、标点处断开；单字方位词与介词不与所属词组分开', () => {
+    expect(plan('如果漂泊是成长 必经的路牌', 9).lines.map(line => line.trim())).toEqual(['如果漂泊是成长', '必经的路牌'])
+    const lines = plan('在这只属于你我的空旷夜空下慢慢地溶化成一片温柔的光', 15).lines
+    expect(lines).toHaveLength(2)
+    expect(lines.some(line => line.startsWith('下'))).toBe(false)
+    expect(lines[0].endsWith('下')).toBe(true)
+  })
+
+  it('三行仍放不下时整体缩字号，不让 CSS 再折行', () => {
+    const result = plan('Everything unforgettable eventually becomes extraordinary', 4)
+    expect(result.rows.length).toBeLessThanOrEqual(3)
+    expect(result.fit).toBeLessThan(1)
+    expect(plan('此刻', 10).fit).toBe(1)
+  })
+
+  it('同一句同一宽度分行固定', () => {
+    expect(plan('让每个音符都有自己的形状', 9)).toEqual(plan('让每个音符都有自己的形状', 9))
   })
 })

@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({ style: 'pop', enabled: true, mod: null as null | {
 vi.mock('./PopLyrics', () => ({ PopLyrics: ({ preview }: { preview?: boolean }) => <div data-testid={preview ? 'pop-preview' : 'pop-stage'} /> }))
 vi.mock('../../stores/lyric-styles', () => ({
   useLyricStylesStore: (selector: (value: object) => unknown) => selector({ style: h.style, tunings: {}, setStyle: vi.fn(), setTuning: vi.fn(), resetTuning: vi.fn() }),
-  useLyricStyleTuning: () => ({ intensity: 1, camera: true }),
+  useLyricStyleTuning: () => ({ intensity: 1 }),
 }))
 vi.mock('../../stores/lyric-mods', () => ({
   useLyricModsStore: Object.assign(
@@ -43,10 +43,9 @@ describe('动态歌词样式选择器', () => {
     expect(html.match(/role="radio" aria-checked="true"/g)).toHaveLength(1)
     expect(html).toContain('字号')
     expect(html).toContain('显示翻译')
-    expect(html).toContain('动效幅度')
-    expect(html).toContain('镜头推移')
+    expect(html).toContain('跃起幅度')
     // 实验入口在最后，与内置样式不同级。
-    expect(html.lastIndexOf('社区模组')).toBeGreaterThan(html.lastIndexOf('镜头推移'))
+    expect(html.lastIndexOf('社区模组')).toBeGreaterThan(html.lastIndexOf('跃起幅度'))
   })
 
   it('3D 歌词关闭时 3D 卡片不可选并说明原因', () => {
@@ -57,7 +56,7 @@ describe('动态歌词样式选择器', () => {
     h.style = 'stage3d'
     const fallback = render()
     expect(fallback).toMatch(/role="radio" aria-checked="true"[^>]*>(?:(?!<button).)*跃字/s)
-    expect(fallback).toContain('动效幅度')
+    expect(fallback).toContain('跃起幅度')
     expect(fallback).not.toContain('更多「3D 舞台」设置')
     h.style = 'pop'
     expect(html).toMatch(/aria-checked="false" disabled=""[^>]*title="已在设置的歌词与动效中关闭 3D 歌词"/)
@@ -77,7 +76,7 @@ describe('动态歌词样式选择器', () => {
     const html = render()
     expect(html).toContain('正在使用实验模组「巨幕」')
     expect(html).not.toMatch(/role="radio" aria-checked="true"/)
-    expect(html).not.toContain('动效幅度')
+    expect(html).not.toContain('跃起幅度')
     h.mod = null
   })
 })

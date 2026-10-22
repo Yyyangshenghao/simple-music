@@ -45,13 +45,12 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
   {
     id: 'pop',
     label: '跃字',
-    hint: '逐词旋入的大字海报，按停顿错落分句',
+    hint: '居中的连续字列，唱到的字轻轻跃起，是画面唯一的重心',
     order: 0,
     tuning: [
-      { key: 'intensity', type: 'number', label: '动效幅度', min: 0.4, max: 1.6, step: 0.05, defaultValue: 1, format: 'multiplier' },
-      { key: 'camera', type: 'boolean', label: '镜头推移', defaultValue: true },
+      { key: 'intensity', type: 'number', label: '跃起幅度', min: 0.4, max: 1.6, step: 0.05, defaultValue: 1, format: 'multiplier' },
     ],
-    quick: ['intensity', 'camera'],
+    quick: ['intensity'],
     preview: 'live',
   },
   {
