@@ -1,4 +1,4 @@
-/** 跃字模式：一句歌词排成居中的连续字列，唱到的字轻轻跃起并换上强调色，是画面唯一的重心。 */
+/** 跃字模式：一句歌词排成居中的连续字列，唱到的字放大跃起并换上强调色，是画面唯一的形态重心。 */
 
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -10,7 +10,7 @@ import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
 import { fitLyricTransition, lyricLineDwellSec } from '../../lib/lyric-tempo'
 import { buildPopWords, type PopWord } from '../../lib/pop-lyric-timing'
 import { estimatePopRows, planPopRows, type PopRowPlan, type PopUnit } from '../../lib/pop-lyric-layout'
-import { createPopLyricTimeline } from '../../lib/pop-lyric-motion'
+import { createPopLyricTimeline, popPeakScale } from '../../lib/pop-lyric-motion'
 import { hasWordTiming } from '../../lib/word-highlight-timeline'
 import { readLyricFrame, subscribeLyricFrames } from '../../lib/lyric-frame-clock'
 import { useLyricStyleTuning } from '../../stores/lyric-styles'
@@ -19,8 +19,38 @@ import styles from './PopLyrics.module.css'
 
 /** 语义停顿处的词组间距（em），与 CSS 的 .pause 保持一致 */
 const PAUSE_GAP_EM = 0.45
-/** 当前字跃起会略放大：可用宽度留出余量，跃起时不贴边 */
-const WIDTH_MARGIN = 0.94
+/** 当前字跃起会放大：可用宽度留出余量，行首行尾的字跃起时不贴边 */
+const WIDTH_MARGIN = 0.92
+/** 汉字字面约占字身的比例（两侧是字面留白） */
+const CJK_INK = 0.9
+
+/**
+ * 每个字跃起时可用的峰值放大量，按真实宽度与当前字号算。
+ * 两个字字面之间的空隙 = 前字右侧（汉字字面留白，或英文词尾空格）+ 字距 + 词组停顿间距 + 后字左侧字面留白；
+ * 一个字每侧只用与邻字空隙的一半，行首行尾一侧不受限，所以相邻两字同时放大也不会压叠。
+ */
+function measurePeaks(pops: HTMLElement[], words: PopWord[], intensity: number): number[] {
+  const host = pops[0]?.closest<HTMLElement>(`.${styles.words}`)
+  if (!host) return words.map(() => popPeakScale(1, Infinity, intensity))
+  const style = getComputedStyle(host)
+  const fontPx = parseFloat(style.fontSize) || 16
+  const tracking = (parseFloat(style.letterSpacing) || 0) / fontPx
+  const wordGap = (parseFloat(style.wordSpacing) || 0) / fontPx
+  const pauseGap = PAUSE_GAP_EM
+  const shape = pops.map((pop, i) => {
+    const text = words[i].text
+    const width = pop.offsetWidth / fontPx
+    const latin = /[\p{Script=Latin}\p{Number}]/u.test(text)
+    const trailing = latin && /\s$/u.test(text) ? 0.26 + wordGap : 0
+    const ink = latin ? Math.max(0.3, width - trailing - tracking) : Math.max(0.3, (width - tracking) * CJK_INK)
+    const bearing = latin ? 0 : (width - tracking - ink) / 2
+    const unit = pop.parentElement
+    const pause = unit?.classList.contains(styles.pause) && unit.lastElementChild === pop ? pauseGap : 0
+    return { ink, bearing, right: bearing + trailing + tracking + pause, row: unit?.parentElement }
+  })
+  const gap = (i: number) => (shape[i + 1] && shape[i + 1].row === shape[i].row ? shape[i].right + shape[i + 1].bearing : Infinity)
+  return shape.map((item, i) => popPeakScale(item.ink, Math.min(i > 0 ? gap(i - 1) : Infinity, gap(i)) / 2, intensity))
+}
 
 const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, animated, fontScale, intensity }: {
   text: string
@@ -77,8 +107,8 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
     const inks = pick(styles.ink)
     const accents = pick(styles.hot)
     if (pops.length !== words.length || inks.length !== words.length || accents.length !== words.length) return
-    // 各行是连续的词组区间，DOM 顺序即词序；分行变化会重建节点，所以 plan 也在依赖里。
-    const timeline = createPopLyricTimeline(pops, inks, accents, words, { intensity })
+    // 各行是连续的词组区间，DOM 顺序即词序；分行或字号变化会重建时间轴，所以 plan 也在依赖里。
+    const timeline = createPopLyricTimeline(pops, inks, accents, words, { intensity, peaks: measurePeaks(pops, words, intensity) })
     let raf = 0
     const sync = () => timeline.seek((lyricPlaybackPosition(usePlayerStore.getState()) + useLyricsStore.getState().offsetSec) * 1000 - lineStartMs)
     const loop = () => {
@@ -128,10 +158,12 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
   )
 })
 
+/** 一个字：字影层占位并决定字宽（显隐不重排），字墨与强调色两层叠在上面 */
 function PopGlyph({ word }: { word: PopWord }) {
   return (
     <span className={styles.pop}>
-      <span className={styles.ink}>{word.text}</span>
+      <span className={styles.ghost}>{word.text}</span>
+      <span className={styles.ink} aria-hidden="true">{word.text}</span>
       <span className={styles.hot} aria-hidden="true">{word.text}</span>
     </span>
   )
@@ -194,6 +226,7 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
   const translation = useLyricsStore((s) => s.translation)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion)
+  const playing = usePlayerStore((s) => s.status === 'playing')
   const fontScale = useSettingsStore((s) => s.lyricsFontScale)
   const reducedMotion = useReducedMotion()
   const animated = wordMotion && !reducedMotion
@@ -214,7 +247,7 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
   const exitCustom = { rapid: switchedAt.current.rapid, seconds: switchSec, still: reducedMotion }
 
   return (
-    <div className={`${styles.root}${preview ? ` ${styles.preview}` : ''}`} data-pop-lyrics={preview ? undefined : ''} style={{ '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
+    <div className={`${styles.root}${preview ? ` ${styles.preview}` : ''}`} data-pop-lyrics={preview ? undefined : ''} data-playing={playing && !preview ? '' : undefined} style={{ '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
       <div className={styles.stage}>
         <AnimatePresence mode="popLayout" initial={false} custom={exitCustom}>
           {current?.text.trim() && (
