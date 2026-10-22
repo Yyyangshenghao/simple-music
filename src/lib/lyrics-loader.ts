@@ -2,6 +2,7 @@ import { usePlayerStore } from '../stores/player'
 import { indexForPosition, useLyricsStore } from '../stores/lyrics'
 import { bindLyricsSourceActions, rememberLyricsSource, useLyricsSourceStore } from '../stores/lyrics-source'
 import { useProviderStore } from '../stores/providers'
+import { lyricServiceSources } from './lyric-service'
 import { useSettingsStore } from '../stores/settings'
 import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
@@ -34,13 +35,12 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
   ]))
 }
 
+/** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ。 */
 function participatingSources(): ProviderId[] {
-  const providers = useProviderStore.getState()
-  return providers.playbackOrder.filter(source => providers.byId[source].enabled && providers.byId[source].auth === 'authenticated')
+  return lyricServiceSources()
 }
 
 function sourceRows(track: Track): LyricOrigin[] {
-  if (track.source === 'local') return ['local']
   return Array.from(new Set<LyricOrigin>([track.source, 'netease', 'qq', 'amll', 'kugou']))
 }
 
@@ -206,6 +206,7 @@ export function initLyricsLoader(): () => void {
     const sources = new Set<ProviderId>()
     for (const candidate of candidates) {
       if (isProviderId(candidate.source)) sources.add(candidate.source)
+      // 本地歌曲的在线兜底由 fetchLyrics 按账号会话丢弃过期结果；无关账号切换不重取本地歌词。
       if (candidate.source !== 'local') lyricSources.forEach(source => sources.add(source))
     }
     // 手选补全与面板查询也受参与账号的会话变化约束。
@@ -215,7 +216,9 @@ export function initLyricsLoader(): () => void {
     const current = () => !disposed && request === session && decision === choiceVersion && !signal.aborted
     if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token).catch(() => {})
     void (async () => {
-      const globalOrigin = preferences.defaultSource === 'auto' ? null : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
+      // 本地歌曲优先用自己的歌词：全局偏好不覆盖，只有本首手动记住的来源才优先。
+      const globalOrigin = preferences.defaultSource === 'auto' || track.source === 'local' ? null
+        : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
       const preferred = Array.from(new Set([chosen?.origin, globalOrigin].filter((origin): origin is LyricOrigin => !!origin)))
       for (const origin of preferred) {
         const response = await queryLyricsSource(track, origin, lyricSources, signal, chosen?.origin === origin ? chosen.match : undefined)
@@ -261,7 +264,7 @@ export function initLyricsLoader(): () => void {
       if (origin === 'auto') {
         const preference = useLyricsSourceStore.getState().defaultSource
         const sources = participatingSources()
-        const preferred = preference === 'auto' ? null : preference === 'origin' ? track.source : preference
+        const preferred = preference === 'auto' || track.source === 'local' ? null : preference === 'origin' ? track.source : preference
         let response: LyricsSourceQueryResult | undefined
         let upgradeTrack = track
         let allowUpgrade = true
@@ -336,7 +339,9 @@ export function initLyricsLoader(): () => void {
   })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.lyricsAmllFallback !== previous.lyricsAmllFallback || state.lyricsKugouFallback !== previous.lyricsKugouFallback
-      || state.lyricsAmllHost !== previous.lyricsAmllHost) sync()
+      || state.lyricsAmllHost !== previous.lyricsAmllHost
+      || state.lyricsGuestSources.netease !== previous.lyricsGuestSources.netease
+      || state.lyricsGuestSources.qq !== previous.lyricsGuestSources.qq) sync()
   })
   let wasEnabled = lyricsEnabled()
   const syncEnabled = () => { const enabled = lyricsEnabled(); if (enabled !== wasEnabled) { wasEnabled = enabled; sync() } }

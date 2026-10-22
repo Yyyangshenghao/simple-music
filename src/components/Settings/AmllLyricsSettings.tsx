@@ -22,13 +22,18 @@ export function AmllLyricsSettings() {
   const setHost = useSettingsStore((s) => s.setLyricsAmllHost)
   const kugouEnabled = useSettingsStore((s) => s.lyricsKugouFallback)
   const setKugouEnabled = useSettingsStore((s) => s.setLyricsKugouFallback)
+  const guestSources = useSettingsStore((s) => s.lyricsGuestSources)
+  const setGuestSource = useSettingsStore((s) => s.setLyricsGuestSource)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
   const defaultSource = useLyricsSourceStore((s) => s.defaultSource)
   const rememberedCount = useLyricsSourceStore((s) => Object.keys(s.remembered).length)
   const [confirmClear, setConfirmClear] = useState(false)
   const preferredProvider = useProviderStore((s) => defaultSource === 'netease' || defaultSource === 'qq' ? s.byId[defaultSource] : null)
-  const providerIssue = preferredProvider?.auth !== 'authenticated' && preferredProvider ? '优先来源尚未登录；登录后才会参与选择。'
-    : preferredProvider && !preferredProvider.enabled ? '优先来源已停用；启用后才会参与选择。' : null
+  // 网易云、QQ 未登录或停用时，开启游客查询仍可作为歌词来源。
+  const preferredGuest = (defaultSource === 'netease' || defaultSource === 'qq') && guestSources[defaultSource]
+  const providerIssue = !preferredProvider || preferredGuest ? null
+    : preferredProvider.auth !== 'authenticated' ? '优先来源尚未登录，也未开启游客查询；登录或开启后才会参与选择。'
+    : !preferredProvider.enabled ? '优先来源已停用，也未开启游客查询；启用或开启后才会参与选择。' : null
 
   const runProbe = async () => {
     setProbe({ status: 'running' })
@@ -50,7 +55,7 @@ export function AmllLyricsSettings() {
         歌词来源
         <InfoButton
           label="歌词来源"
-          text="本首记住的选择优先于默认偏好，来源不可用时会临时回退。AMLL 会向所选线路（GitHub 或社区镜像）发送歌曲平台 ID；酷狗会接收歌名、歌手与时长，只接受同曲同版本的结果。来源开关始终优先于偏好。本地歌曲只读取同目录同名 .lrc。"
+          text="本首记住的选择优先于默认偏好，来源不可用时会临时回退。AMLL 会向所选线路（GitHub 或社区镜像）发送歌曲平台 ID；酷狗会接收歌名、歌手与时长，只接受同曲同版本的结果。来源开关始终优先于偏好。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。"
         />
       </h3>
       <div className={styles.row}>
@@ -74,6 +79,15 @@ export function AmllLyricsSettings() {
         <p>清除这 {rememberedCount} 首歌曲的来源选择？当前歌词继续播放，之后按默认规则选择。不删除歌词文件，不更改默认偏好。</p>
         <div><button type="button" className={styles.probe} onClick={() => setConfirmClear(false)}>保留</button><button type="button" className={styles.probe} onClick={() => { useLyricsSourceStore.getState().clearRemembered(); setConfirmClear(false) }}>清除记忆</button></div>
       </div>}
+      <div className={styles.row}>
+        <span className={styles.label}>游客查询网易云音乐歌词</span>
+        <Switch checked={guestSources.netease} onChange={(value) => setGuestSource('netease', value)} aria-label="游客查询网易云音乐歌词" />
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>游客查询 QQ 音乐歌词</span>
+        <Switch checked={guestSources.qq} onChange={(value) => setGuestSource('qq', value)} aria-label="游客查询 QQ 音乐歌词" />
+      </div>
+      <p className={styles.preferenceHint}>未登录或已停用的平台以游客身份查询歌词，不使用账号，只发送歌名与歌手；不影响播放音源。</p>
       <div className={styles.row}>
         <span className={styles.label}>使用 AMLL 逐字歌词库补全</span>
         <Switch checked={enabled} onChange={setEnabled} aria-label="使用 AMLL 逐字歌词库补全" />

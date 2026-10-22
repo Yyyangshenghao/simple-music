@@ -37,6 +37,8 @@ const deferred = () => {
 }
 
 beforeEach(() => {
+  // 以下用例校验账号参与语义；游客歌词来源在单独的用例里打开。
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   vi.clearAllMocks()
   archive = new Map()
   vi.stubGlobal('localStorage', { getItem: (key: string) => archive.get(key) ?? null, setItem: (key: string, value: string) => archive.set(key, value) })

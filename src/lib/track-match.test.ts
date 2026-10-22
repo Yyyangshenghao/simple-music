@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { providerFor } from '../providers/registry'
+import * as lyricService from './lyric-service'
 import type { Track } from '../types/domain'
 import {
   clearTrackMatchCache,
@@ -131,6 +132,32 @@ describe('track match', () => {
     })
     expect(search).toHaveBeenCalledTimes(1)
     expect(getByIds).not.toHaveBeenCalled()
+  })
+
+  it('游客匹配走游客搜索、独立缓存，播放匹配读不到也不会被覆盖', async () => {
+    const matched = track({ source: 'qq', provider: 'qq', id: 'q-guest' })
+    const guest = vi.spyOn(lyricService, 'searchGuestTracks').mockResolvedValue([matched])
+    const account = vi.spyOn(providerFor('qq').catalog, 'searchTracks').mockResolvedValue([])
+    const getByIds = vi.spyOn(providerFor('qq').catalog, 'getTracksByIds')
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
+    expect(guest).toHaveBeenCalledWith('qq', '晴天 周杰伦', undefined)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
+    expect(account).toHaveBeenCalledOnce()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1002, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
+    expect(guest).toHaveBeenCalledOnce()
+    expect(getByIds).not.toHaveBeenCalled()
+  })
+
+  it('游客搜索为空不落盘负缓存（可能是上游限流），只在内存里短暂记住；失败直接抛出', async () => {
+    const guest = vi.spyOn(lyricService, 'searchGuestTracks').mockResolvedValue([])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true, 'guest')).resolves.toBeNull()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true, 'guest')).resolves.toBeNull()
+    expect(guest).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('simplemusic-track-match-cache')).toBeNull()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000 + 5 * 60_000 + 1, true, 'guest')).resolves.toBeNull()
+    expect(guest).toHaveBeenCalledTimes(2)
+    guest.mockRejectedValueOnce(new Error('HTTP 500'))
+    await expect(findEquivalentTrack(track({ id: 'n-2' }), 'qq', undefined, 1002, true, 'guest')).rejects.toThrow('HTTP 500')
   })
 
   it('未命中使用 24 小时负缓存', async () => {

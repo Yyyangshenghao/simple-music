@@ -1,3 +1,4 @@
+import { useSettingsStore } from '../stores/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 import type { LyricsResult } from './lyrics-fetch'
@@ -7,9 +8,10 @@ import { useProviderStore } from '../stores/providers'
 import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { advanceProviderAccountSession } from './provider-account-session'
+import { useLyricsSourceStore } from '../stores/lyrics-source'
 
-const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), localSource: vi.fn() }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, localLyricSource: h.localSource, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 import { initLyricsLoader } from './lyrics-loader'
 
 const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1', name: '歌曲', artist: '歌手', artists: [], duration: 180_000 }
@@ -26,6 +28,8 @@ const deferred = () => {
 }
 
 beforeEach(() => {
+  // 以下用例校验账号参与语义；游客歌词来源在单独的用例里打开。
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   vi.clearAllMocks()
   h.fetch.mockReset().mockResolvedValue(result)
   h.upgrade.mockReset().mockResolvedValue(null)
@@ -278,6 +282,31 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'local:file1', source: 'local' })
     usePlayerStore.setState({ currentTrack: null })
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: null, loading: false, lines: [] })
+  })
+
+  it('本地歌曲不受全局优先来源影响，先用本地歌词', async () => {
+    const local: Track = { ...apple, provider: 'local', source: 'local', id: 'file1' }
+    const previous = useLyricsSourceStore.getState().defaultSource
+    useLyricsSourceStore.setState({ defaultSource: 'qq' })
+    try {
+      usePlayerStore.setState({ currentTrack: local })
+      h.fetch.mockResolvedValueOnce({ ...result, source: 'local' })
+      stopLoader = initLyricsLoader()
+      await flush()
+      expect(h.localSource).not.toHaveBeenCalled()
+      expect(h.fetch).toHaveBeenCalledWith(local, ['apple', 'qq'], expect.any(AbortSignal))
+      expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'local:file1', source: 'local' })
+    } finally { useLyricsSourceStore.setState({ defaultSource: previous }) }
+  })
+
+  it('开关游客歌词来源会重新取词，参与平台随之变化', async () => {
+    stopLoader = initLyricsLoader()
+    await flush()
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq'], expect.any(AbortSignal))
+    useSettingsStore.getState().setLyricsGuestSource('netease', true)
+    await flush()
+    expect(h.fetch).toHaveBeenCalledTimes(2)
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
   })
 
   it('无关在线账号交换不使本地LRC失效', async () => {

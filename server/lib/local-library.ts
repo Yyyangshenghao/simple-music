@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
 import { join, extname, isAbsolute, basename, sep } from 'node:path'
-import { parseFile } from 'music-metadata'
+import { parseFile, type ILyricsTag } from 'music-metadata'
 
 /**
  * 本地音乐库:扫描用户选择的文件夹,解析内嵌标签,索引持久化在 userDataDir/local-library.json。
@@ -280,5 +280,76 @@ export async function readLocalLyric(path: string): Promise<string> {
     return await fsp.readFile(lrcPath, 'utf8')
   } catch {
     return ''
+  }
+}
+
+/** 在线歌词匹配可用的曲目标签；只含曲目元数据，不含路径或文件内容。 */
+export interface LocalLyricMetadata {
+  name: string
+  artist: string
+  artists: string[]
+  album?: string
+  duration: number
+  isrc?: string
+}
+
+export interface LocalLyricSource {
+  lyric: string
+  /** 歌词来自同名 .lrc 还是音频内嵌的同步歌词 */
+  lyricOrigin: 'file' | 'embedded' | null
+  /** 标签齐全（标题、艺人、时长都来自文件标签）才返回，否则为 null，不按文件名在线套词 */
+  metadata: LocalLyricMetadata | null
+}
+
+const MAX_PARSED_TAGS = 64
+const parsedTags = new Map<string, Awaited<ReturnType<typeof parseFile>> | null>()
+
+const pad = (value: number, size = 2) => String(Math.floor(value)).padStart(size, '0')
+/** ID3 SYLT 时间戳格式：2 表示毫秒（1 为 MPEG 帧号，无法换算成时间）。 */
+const SYLT_MILLISECONDS = 2
+
+/** 内嵌同步歌词（ID3 SYLT 等，毫秒时间戳）转成 LRC；未同步的纯文本只在本身带 LRC 时间标记时采用。 */
+function embeddedLrc(lyrics: readonly ILyricsTag[] | undefined): string {
+  for (const tag of lyrics ?? []) {
+    const synced = (tag.syncText ?? []).filter(line => Number.isFinite(line.timestamp) && line.text?.trim())
+    if (synced.length && tag.timeStampFormat === SYLT_MILLISECONDS) {
+      return synced.map(line => {
+        const ms = Math.max(0, line.timestamp!)
+        return `[${pad(ms / 60000)}:${pad((ms / 1000) % 60)}.${pad((ms % 1000) / 10)}]${line.text.trim()}`
+      }).join('\n')
+    }
+    if (typeof tag.text === 'string' && /\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/.test(tag.text)) return tag.text
+  }
+  return ''
+}
+
+/**
+ * 本地曲目的歌词与匹配标签：优先同名 .lrc，其次内嵌同步歌词；同时按需重读一次标签，
+ * 给出可靠元数据（标题不是文件名回退、艺人与时长齐全）供在线匹配。
+ */
+export async function readLocalLyricSource(record: LocalTrackRecord): Promise<LocalLyricSource> {
+  const file = await readLocalLyric(record.path)
+  // 同一文件（路径与修改时间不变）的标签只解析一次；同名 .lrc 每次重读，外部改动立即生效。
+  const cacheKey = `${record.path}\u0000${record.mtimeMs}`
+  let meta = parsedTags.get(cacheKey)
+  if (meta === undefined) {
+    try {
+      meta = await parseFile(record.path, { skipCovers: true, duration: false })
+    } catch { meta = null /* 标签解析失败：只能使用同名 .lrc，不做在线匹配。 */ }
+    parsedTags.set(cacheKey, meta)
+    if (parsedTags.size > MAX_PARSED_TAGS) parsedTags.delete(parsedTags.keys().next().value!)
+  }
+  const embedded = file.trim() ? '' : embeddedLrc(meta?.common.lyrics)
+  const title = meta?.common.title?.trim()
+  const artists = (meta?.common.artists?.length ? meta.common.artists : meta?.common.artist ? [meta.common.artist] : [])
+    .map(name => name.trim()).filter(Boolean)
+  const duration = meta?.format.duration ? Math.round(meta.format.duration * 1000) : record.duration
+  const isrc = meta?.common.isrc?.find(value => /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/i.test(value.trim()))?.trim().toUpperCase()
+  return {
+    lyric: file.trim() ? file : embedded,
+    lyricOrigin: file.trim() ? 'file' : embedded ? 'embedded' : null,
+    metadata: title && artists.length && duration && duration > 0
+      ? { name: title, artist: artists.join('/'), artists, album: meta?.common.album?.trim() || undefined, duration, ...(isrc ? { isrc } : {}) }
+      : null,
   }
 }

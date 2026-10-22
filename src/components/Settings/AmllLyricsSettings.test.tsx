@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   source: { defaultSource: 'auto', remembered: { 'netease:1': { origin: 'qq' } }, setDefaultSource: vi.fn(), clearRemembered: vi.fn() },
-  settings: { lyricsAmllFallback: true, lyricsAmllHost: 'auto', lyricsKugouFallback: true, setLyricsAmllFallback: vi.fn(), setLyricsAmllHost: vi.fn(), setLyricsKugouFallback: vi.fn() },
+  settings: {
+    lyricsAmllFallback: true, lyricsAmllHost: 'auto', lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true },
+    setLyricsAmllFallback: vi.fn(), setLyricsAmllHost: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(),
+  },
   providers: { byId: { netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' } } },
   requestMusic: vi.fn(), navigateTo: vi.fn(),
   confirm: false, setConfirm: vi.fn(),
@@ -20,6 +23,13 @@ vi.mock('../ui/InfoButton', () => ({ InfoButton: () => null }))
 vi.mock('../ui/Switch', () => ({ Switch: () => null }))
 import { AmllLyricsSettings } from './AmllLyricsSettings'
 
+function labelled(node: unknown, label: string): ReactElement<any> | undefined {
+  if (!node || typeof node !== 'object') return undefined
+  if (Array.isArray(node)) return node.map((child) => labelled(child, label)).find(Boolean)
+  const element = node as ReactElement<any>
+  return element.props?.['aria-label'] === label ? element : labelled(element.props?.children, label)
+}
+
 function elements(node: unknown, type: string): ReactElement<any>[] {
   if (!node || typeof node !== 'object') return []
   if (Array.isArray(node)) return node.flatMap((child) => elements(child, type))
@@ -32,6 +42,7 @@ beforeEach(() => {
   h.confirm = false
   h.source.defaultSource = 'auto'
   h.settings.lyricsAmllFallback = true
+  h.settings.lyricsGuestSources = { netease: true, qq: true }
   h.providers.byId.netease = { enabled: true, auth: 'authenticated' }
   h.providers.byId.qq = { enabled: true, auth: 'authenticated' }
 })
@@ -69,8 +80,9 @@ describe('歌词来源设置', () => {
     expect(h.settings.setLyricsAmllFallback).not.toHaveBeenCalled()
   })
 
-  it.each(['netease', 'qq'] as const)('优先%s未登录或停用时给出真实原因与现有音源入口', (source) => {
+  it.each(['netease', 'qq'] as const)('优先%s未登录或停用且未开游客查询时给出真实原因与现有音源入口', (source) => {
     h.source.defaultSource = source
+    h.settings.lyricsGuestSources = { netease: false, qq: false }
     h.providers.byId[source].auth = 'anonymous'
     let element = AmllLyricsSettings()
     expect(elements(element, 'div').find((div) => div.props.role === 'status')?.props.children[0]).toContain('尚未登录')
@@ -80,6 +92,24 @@ describe('歌词来源设置', () => {
     h.providers.byId[source] = { auth: 'authenticated', enabled: false }
     element = AmllLyricsSettings()
     expect(elements(element, 'div').find((div) => div.props.role === 'status')?.props.children[0]).toContain('已停用')
+  })
+
+  it.each(['netease', 'qq'] as const)('优先%s未登录但开启游客查询时不提示登录', (source) => {
+    h.source.defaultSource = source
+    h.providers.byId[source].auth = 'anonymous'
+    const element = AmllLyricsSettings()
+    expect(elements(element, 'div').find((div) => div.props.role === 'status')).toBeUndefined()
+  })
+
+  it('游客查询按平台各自开关，并说明不使用账号与发送的内容', () => {
+    const element = AmllLyricsSettings()
+    labelled(element, '游客查询网易云音乐歌词')!.props.onChange(false)
+    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('netease', false)
+    labelled(element, '游客查询 QQ 音乐歌词')!.props.onChange(false)
+    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('qq', false)
+    const copy = elements(element, 'p').map((paragraph) => paragraph.props.children).flat().join('')
+    expect(copy).toContain('不使用账号')
+    expect(copy).toContain('只发送歌名与歌手')
   })
 
   it('AMLL线路与测速默认收起，参与开关仍在主设置层', () => {

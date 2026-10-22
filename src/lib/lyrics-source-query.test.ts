@@ -7,10 +7,13 @@ import { useProviderStore } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn() }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
-vi.mock('./local-music-service', () => ({ localMusicService: { getLyrics: h.local } }))
+vi.mock('./local-music-service', () => ({ localMusicService: {
+  getLyrics: h.local,
+  getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
+} }))
 vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq') => ({
   catalog: { searchTracks: h[source], getTracksByIds: vi.fn() },
 }) }))
@@ -24,6 +27,8 @@ const yrc = '[1000,1000](1000,500,0)甲(1500,500,0)乙'
 const krc = '[1000,1000]<0,500,0>甲<500,500,0>乙'
 
 beforeEach(() => {
+  // 以下用例校验账号参与语义；游客歌词来源在单独的用例里打开。
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   vi.resetAllMocks()
   clearProviderRequestCache()
   vi.stubGlobal('localStorage', undefined)
@@ -87,13 +92,29 @@ describe('来源锁定', () => {
 })
 
 describe('参与限制和取消', () => {
-  it('本地只读本地文件，任何在线来源都不会请求', async () => {
+  it('本地标签不完整时只读本地文件，任何在线来源都不会请求', async () => {
     for (const origin of ['netease', 'qq', 'apple', 'amll', 'kugou'] as const) {
       expect(await queryLyricsSource(song('local'), origin, ['netease', 'qq', 'apple'])).toMatchObject({ status: 'unavailable' })
     }
     expect(await queryLyricsSource(song('local'), 'local', [])).toMatchObject({ status: 'ready', result: { source: 'local' } })
     expect(api.get).not.toHaveBeenCalled()
     expect(h.qq).not.toHaveBeenCalled()
+  })
+
+  it('本地标签齐全时可手动选在线来源，按标签身份匹配；选本地来源从不在线查询', async () => {
+    const identity = song('local', { localTagged: true })
+    h.identity.mockReturnValue(identity)
+    h.local.mockResolvedValue([])
+    vi.mocked(api.get).mockResolvedValue({ qrc })
+    expect(await queryLyricsSource(song('local', { name: 'track01', artist: '未知艺人' }), 'qq', ['qq']))
+      .toMatchObject({ status: 'ready', result: { source: 'qq' }, match: { source: 'qq' } })
+    expect(h.qq).toHaveBeenCalledWith('晴天 周杰伦')
+    vi.mocked(api.get).mockClear()
+    h.qq.mockClear()
+    expect(await queryLyricsSource(song('local'), 'local', ['qq'])).toMatchObject({ status: 'empty' })
+    expect(api.get).not.toHaveBeenCalled()
+    expect(h.qq).not.toHaveBeenCalled()
+    expect(await queryLyricsSource(song('local'), 'apple', ['qq', 'apple'])).toMatchObject({ status: 'unavailable' })
   })
 
   it('Apple 原生不能作为其他平台的候选', () => {
@@ -200,5 +221,34 @@ describe('真实结果与错误分类', () => {
     vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[03:10.00]错误时间轴' })
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, song('qq'))).toMatchObject({ status: 'mismatch' })
     expect(h.qq).not.toHaveBeenCalled()
+  })
+})
+
+describe('游客歌词来源', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
+    useProviderStore.setState({ byId: {
+      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+    } })
+  })
+
+  it('未登录或已停用的平台在开启游客查询时可作为来源，用游客搜索与歌词接口', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/qq/search' ? { songs: [song('qq')] } : { qrc }) as never)
+    expect(candidateAvailability(song('apple'), 'qq', ['qq'])).toEqual({ status: 'idle' })
+    const result = await queryLyricsSource(song('apple'), 'qq', ['qq'])
+    expect(result).toMatchObject({ status: 'ready', result: { source: 'qq' } })
+    expect(h.qq).not.toHaveBeenCalled()
+    expect(vi.mocked(api.get).mock.calls.every(([, params]) => (params as Record<string, string>).guest === '1')).toBe(true)
+  })
+
+  it('游客上游失败报告连接失败，不冒充未收录或登录失效', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('HTTP 502'))
+    expect(await queryLyricsSource(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'error', message: '暂时连接失败' })
+  })
+
+  it('关闭游客查询后，未登录平台提示登录或开启，停用平台提示已关闭', () => {
+    useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
+    expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'login', message: '登录或开启游客查询后可查找' })
+    expect(candidateAvailability(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'disabled' })
   })
 })
