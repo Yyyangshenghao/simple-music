@@ -1,74 +1,72 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLyricsStore } from '../../../../stores/lyrics'
 import { useSettingsStore } from '../../../../stores/settings'
-import { useAmbientStore } from '../../../../stores/ambient'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
-import { useLightTheme } from '../../../../hooks/useLightTheme'
 import { useReducedMotion } from '../../../../hooks/useReducedMotion'
 import { readLyricFrame, subscribeLyricFrames, type LyricFrame } from '../../../../lib/lyric-frame-clock'
 import { lyricLineDwellSec } from '../../../../lib/lyric-tempo'
 import { buildStyleWords, seedFromText } from '../../../../lib/lyric-style-layouts'
 import {
-  buildFumeArticle, cameraSettled, fumeCameraTarget, printedGlyphs, stepFumeCamera,
-  type FumeArticle, type FumeCamera,
-} from '../../../../lib/fume-article'
+  buildFumeCollage, cameraSettled, fumeCameraTarget, nearestTextLine, printedGlyphs, stepFumeCamera,
+  type CollageLine, type FumeCamera, type FumeCollage, type Rect,
+} from '../../../../lib/fume-collage'
 import { usePreciseLineIndex } from '../../../../hooks/usePreciseLineIndex'
 import styles from './FumeLyrics.module.css'
 
 /**
- * 浮名：整首歌词排成一篇双栏文章，镜头在文章里推移、对准正在唱的句子。
- * 当前句随演唱逐字“打印”成强调色，打印位置有一块光标；唱过的句子慢慢褪成纸面上的余迹，
- * 还没唱到的句子以浅影铺在文章里。Canvas2D 绘制：缩放平移不重排文字，只重画可见的几行。
+ * 拼版（样式 ID 沿用 fume）：整首歌词拼成一张杂志版面，段落各有字号、横排或竖排与一种封面取色。
+ * 镜头在版面上平移到正在唱的句子，当前句随演唱逐字着墨；唱过的句子褪到保留亮度，没唱到的以浅色铺开。
+ * DOM 排版：文字只排一次，镜头只改整张版面的 transform（交给合成器），逐帧只改当前句几个字的透明度。
  */
 const SERIF = "'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Noto Serif SC', serif"
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-/** 文章画布与下方译文之间的间隙 */
+/** 版面与下方译文之间的间隙 */
 const TRANSLATION_GAP = 18
+/** 当前句还没唱到的字的透明度 */
+const UNPRINTED = 0.42
 
 interface FumeTuning {
   zoom: number
   float: number
   hold: number
-  cursor: boolean
+  vertical: boolean
+  color: boolean
   serif: boolean
 }
 
-interface Palette {
-  primary: string
-  accent: string
-}
-
-/** 读出探针上真实生效的颜色（CSS 变量经 color-mix 解析后），给 Canvas 使用；探针颜色写在 CSS 里，只读不写。 */
-function readColor(probe: HTMLElement | null, fallback: string): string {
-  return probe ? getComputedStyle(probe).color || fallback : fallback
+/** 一句的字：非空白字各占一个 span（逐字着墨），空白原样保留。 */
+function LineGlyphs({ line }: { line: CollageLine }) {
+  let index = 0
+  return line.rows.map((row, r) => (
+    <span key={r} className={styles.row}>
+      {Array.from(row).map((char, c) => /\s/.test(char) ? char : <span key={c} className={styles.glyph} data-glyph={index++}>{char}</span>)}
+    </span>
+  ))
 }
 
 export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const worldRef = useRef<HTMLDivElement>(null)
   const translationRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const primaryProbe = useRef<HTMLSpanElement>(null)
-  const accentProbe = useRef<HTMLSpanElement>(null)
   const trackKey = useLyricsStore(state => state.trackKey)
   const lines = useLyricsStore(state => state.lines)
   const wordLines = useLyricsStore(state => state.wordLines)
   const translations = useLyricsStore(state => state.translation)
   const storeIndex = useLyricsStore(state => state.currentIndex)
-  // 换句按帧时钟的精确时间（与跃字、云阶同一套）：镜头提前起步，到首字开唱时已推到新句。
+  // 换句按帧时钟的精确时间（与跃字、云阶同一套）：镜头提前起步，到首字开唱时已移到新句。
   const currentIndex = usePreciseLineIndex(lines, wordLines, storeIndex)
   const showTranslation = useSettingsStore(state => state.lyricsShowTranslation)
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
   const wordMotion = useSettingsStore(state => state.performance.lyricsWordMotion)
-  const palette = useAmbientStore(state => state.palette)
-  const light = useLightTheme()
   const reducedMotion = useReducedMotion()
   const animated = wordMotion && !reducedMotion
   const raw = useLyricStyleTuning('fume')
   const tuning = useMemo<FumeTuning>(() => ({
     zoom: Number(raw.zoom), float: Number(raw.float), hold: Number(raw.hold),
-    cursor: raw.cursor === true, serif: raw.serif === true,
+    vertical: raw.vertical === true, color: raw.color === true, serif: raw.serif === true,
   }), [raw])
   const [fontsReady, setFontsReady] = useState(0)
+  const [stage, setStage] = useState({ width: 0, height: 0 })
   // 非衬线时用歌词页实际生效的字体（含用户在设置里选的歌词字体）；从外层读，本层会被设成衬线。
   const [sansFamily, setSansFamily] = useState('system-ui, sans-serif')
   useLayoutEffect(() => {
@@ -85,66 +83,57 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   }, [])
 
   const family = tuning.serif ? SERIF : sansFamily
-  const article = useMemo<FumeArticle | null>(() => {
-    if (typeof document === 'undefined') return null
-    const ctx = document.createElement('canvas').getContext('2d')
-    if (!ctx) return null
+  const collage = useMemo<FumeCollage>(() => {
+    const ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
     const cache = new Map<string, number>()
+    // 没有画布（服务端渲染、测试）时按每字一个字号估算；排版只需要大致宽度，实际字形由浏览器排。
     const measure = (text: string, size: number) => {
       const key = `${size}|${text}`
       let width = cache.get(key)
       if (width === undefined) {
-        ctx.font = `700 ${size}px ${family}`
-        // 逐字位置按单字宽度累加，度量与绘制都关掉字距调整，整行与逐字才能对齐。
-        ctx.fontKerning = 'none'
-        width = ctx.measureText(text).width
+        if (ctx) {
+          ctx.font = `700 ${size}px ${family}`
+          width = ctx.measureText(text).width
+        } else {
+          width = Array.from(text).length * size
+        }
         cache.set(key, width)
       }
       return width
     }
-    return buildFumeArticle(lines, measure, seedFromText(trackKey ?? ''))
+    return buildFumeCollage(lines, measure, seedFromText(trackKey ?? ''), { vertical: tuning.vertical })
   // fontsReady 只用来在字体加载完成后触发重排。
-  }, [lines, trackKey, family, fontsReady])
+  }, [lines, trackKey, family, tuning.vertical, fontsReady])
 
-  // 当前句的逐词时序：打印进度按演唱时间推进。
+  // 基准字号随舞台高度走，再乘字号设置与“版面大小”。选择器缩略图整体缩得很小，字放大些才看得出版面。
+  const unit = Math.min(Math.max(stage.height * 0.085, 22), 84) * (preview ? 1.8 : fontScale) * tuning.zoom
+
+  // 当前句的逐词时序：着墨进度按演唱时间推进。
   const words = useMemo(() => {
     const line = currentIndex >= 0 ? lines[currentIndex] : undefined
     return line?.text.trim() ? buildStyleWords(line.text, wordLines[currentIndex], lyricLineDwellSec(lines, currentIndex)) : []
   }, [lines, wordLines, currentIndex])
 
-  // 绘制状态放在 ref 里，帧回调读取最新值，不随重渲染重新订阅。
+  // 逐帧状态放在 ref 里，帧回调读取最新值，不随重渲染重新订阅。
   const state = useRef({
-    camera: null as FumeCamera | null, lastNow: 0, lastIndex: -2, settleRaf: 0, paletteAt: -Infinity,
-    size: { width: 0, height: 0 }, palette: { primary: '#fff', accent: '#f6c' } as Palette,
+    camera: null as FumeCamera | null, lastNow: 0, lastIndex: -2, settleRaf: 0, transform: '',
+    rects: [] as (Rect | undefined)[], glyphs: [] as HTMLElement[], inks: [] as number[],
   })
-  const latest = useRef({ article, words, tuning, animated, fontScale, family, currentIndex, lines, preview })
-  latest.current = { article, words, tuning, animated, fontScale, family, currentIndex, lines, preview }
+  const latest = useRef({ collage, words, tuning, animated, currentIndex, lines, stage })
+  latest.current = { collage, words, tuning, animated, currentIndex, lines, stage }
 
   const draw = useRef<(frame: LyricFrame) => void>(() => {})
   draw.current = (frame: LyricFrame) => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
+    const world = worldRef.current
     const s = state.current
-    const { article: art, words: lineWords, tuning: t, animated: moving, fontScale: scaleSetting, family: font, currentIndex: index, lines: allLines } = latest.current
-    if (!canvas || !ctx || !art || !s.size.width || !s.size.height) return
-    const { width, height } = s.size
-    // 配色随主题和封面过渡，隔一会儿重读一次解析后的颜色。
-    if (frame.now - s.paletteAt > 400) {
-      s.paletteAt = frame.now
-      s.palette = { primary: readColor(primaryProbe.current, s.palette.primary), accent: readColor(accentProbe.current, s.palette.accent) }
-    }
-    const ratio = latest.current.preview ? 0.4 : Math.min(2, window.devicePixelRatio || 1)
-    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
-      canvas.width = Math.round(width * ratio)
-      canvas.height = Math.round(height * ratio)
-    }
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const { collage: page, words: lineWords, tuning: t, animated: moving, currentIndex: index, lines: allLines, stage: size } = latest.current
+    if (!world || !size.width || !size.height) return
+    const focus = nearestTextLine(page, Math.max(0, index))
+    const rect = s.rects[focus]
+    if (!rect) return
 
     // 镜头：平滑追向当前句；跳句（拖动）、首帧或静态模式直接到位。
-    const displaySize = Math.min(Math.max(height * 0.1, 28), 96) * (latest.current.preview ? 1 : scaleSetting) * t.zoom
-    const target = fumeCameraTarget(art, index, { width, height }, displaySize)
-    if (!target) return
+    const target = fumeCameraTarget(rect, size)
     const dt = s.lastNow ? Math.min(0.1, (frame.now - s.lastNow) / 1000) : 0
     s.lastNow = frame.now
     const jumped = s.lastIndex !== -2 && Math.abs(index - s.lastIndex) > 2
@@ -153,80 +142,23 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
     const camera = s.camera
     // 播放时镜头轻微漂浮，像手持跟拍。
     const drift = moving && frame.running ? t.float : 0
-    const floatX = Math.sin(frame.now / 2300) * 10 * drift
-    const floatY = Math.cos(frame.now / 3100) * 7 * drift
-    const centerY = height * 0.44
-    ctx.setTransform(ratio * camera.scale, 0, 0, ratio * camera.scale,
-      ratio * (width / 2 - camera.x * camera.scale + floatX), ratio * (centerY - camera.y * camera.scale + floatY))
+    const x = size.width / 2 - camera.x * camera.scale + Math.sin(frame.now / 2300) * 10 * drift
+    const y = size.height * 0.46 - camera.y * camera.scale + Math.cos(frame.now / 3100) * 7 * drift
+    const transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) scale(${camera.scale.toFixed(4)})`
+    if (transform !== s.transform) {
+      s.transform = transform
+      world.style.transform = transform
+    }
 
-    const { primary, accent } = s.palette
-    // 只画视野内的行。
-    const view = { x0: camera.x - (width / 2 + 40) / camera.scale, x1: camera.x + (width / 2 + 40) / camera.scale,
-      y0: camera.y - (centerY + 60) / camera.scale, y1: camera.y + (height - centerY + 60) / camera.scale }
+    // 当前句逐字着墨：只改变化了的字。
     const elapsed = index >= 0 ? frame.time * 1000 - (allLines[index]?.time ?? 0) * 1000 : 0
     const printed = printedGlyphs(lineWords, elapsed)
-    const holdLevel = 0.12 + 0.5 * t.hold
-    ctx.textBaseline = 'alphabetic'
-    ctx.fontKerning = 'none'
-    for (const row of art.rows) {
-      if (row.x > view.x1 || row.x + row.width < view.x0 || row.y - row.size > view.y1 || row.y + row.size < view.y0) continue
-      ctx.font = `700 ${row.size}px ${font}`
-      if (row.lineIndex !== index) {
-        let alpha = 0.13
-        if (row.lineIndex < index) {
-          // 唱过的句子：先保持清晰，约 3 秒内褪到保留亮度。
-          const end = (allLines[row.lineIndex + 1]?.time ?? allLines[row.lineIndex].time) * 1000
-          alpha = holdLevel + (0.82 - holdLevel) * (1 - clamp01((frame.time * 1000 - end) / 3000))
-          if (!moving) alpha = Math.max(alpha, 0.45)
-        }
-        ctx.globalAlpha = alpha
-        ctx.fillStyle = primary
-        ctx.shadowBlur = 0
-        ctx.fillText(row.text, row.x, row.y)
-        continue
-      }
-      // 当前句：未打印的字是浅影，已打印的强调色并发光，最后一个字随进度淡入。
-      ctx.globalAlpha = moving ? 0.16 : 0.85
-      ctx.fillStyle = primary
-      ctx.shadowBlur = 0
-      ctx.fillText(row.text, row.x, row.y)
-      ctx.fillStyle = accent
-      ctx.shadowColor = accent
-      // 只留一圈很淡的光：重心靠强调色与打印进度，不靠大片辉光。半径设上限，字号再大开销也不增长。
-      ctx.shadowBlur = moving ? Math.min(10 * ratio, row.size * 0.1 * camera.scale * ratio) : 0
-      // 已打完的字合成一次绘制，只有正在落下的那个字单独淡入，每行最多两次带阴影的绘制。
-      let visible = row.visibleStart
-      let full = 0
-      let falling = -1
-      let ink = 0
-      for (let g = 0; g < row.glyphs.length; g++) {
-        if (/\s/.test(row.glyphs[g].char)) { if (falling < 0 && full === g) full = g + 1; continue }
-        const amount = clamp01(printed - visible)
-        visible++
-        if (amount >= 1) { full = g + 1; continue }
-        if (amount > 0) { falling = g; ink = amount }
-        break
-      }
-      if (full > 0) {
-        ctx.globalAlpha = 1
-        ctx.fillText(row.glyphs.slice(0, full).map(glyph => glyph.char).join(''), row.x, row.y)
-      }
-      if (falling >= 0) {
-        ctx.globalAlpha = ink
-        ctx.fillText(row.glyphs[falling].char, row.x + row.glyphs[falling].x, row.y)
-      }
-      ctx.shadowBlur = 0
-      // 打字光标：一道细竖线，停在正在打印的字后面（落在字间的空隙里），不盖住任何字。
-      const glyphEnd = (g: number) => row.glyphs[g + 1]?.x ?? row.width
-      const cursorX = row.x + (falling >= 0 ? glyphEnd(falling) : full > 0 ? glyphEnd(full - 1) : 0)
-      const rowEnd = row.visibleStart + row.glyphs.filter(glyph => !/\s/.test(glyph.char)).length
-      if (t.cursor && moving && printed >= row.visibleStart && printed < rowEnd && (printed > row.visibleStart || index === row.lineIndex && elapsed > 0)) {
-        const caret = Math.max(1.5 / camera.scale, row.size * 0.045)
-        ctx.globalAlpha = 0.7
-        ctx.fillRect(cursorX - caret / 2, row.y - row.size * 0.82, caret, row.size * 0.92)
-      }
-    }
-    ctx.globalAlpha = 1
+    s.glyphs.forEach((glyph, i) => {
+      const ink = moving ? UNPRINTED + (1 - UNPRINTED) * clamp01(printed - i) : 1
+      if (Math.abs(ink - (s.inks[i] ?? -1)) < 0.01) return
+      s.inks[i] = ink
+      glyph.style.opacity = ink.toFixed(3)
+    })
 
     // 暂停时帧时钟不再推送：自己补几帧让镜头停稳。
     if (!frame.running && moving && !cameraSettled(camera, target) && !s.settleRaf) {
@@ -237,19 +169,32 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
     }
   }
 
-  // 换主题或封面配色时立刻重读颜色（下面每次渲染后的重画会用上）。
-  useLayoutEffect(() => { state.current.paletteAt = -Infinity }, [light, palette])
-  // 封面配色是逐步过渡的（约 0.8s）：暂停时没有新帧，过渡结束后再补画一次。
-  useEffect(() => {
-    const timer = setTimeout(() => { state.current.paletteAt = -Infinity; draw.current(readLyricFrame()) }, 900)
-    return () => clearTimeout(timer)
-  }, [light, palette])
-  // 换歌（文章重排）时镜头直接到位，不从上一首的坐标滑过来。
-  useLayoutEffect(() => { state.current.camera = null; state.current.lastIndex = -2 }, [article])
-  // 舞台尺寸变化时更新画布，然后按当前时间重画。显示译文时画布只铺到译文上方（留一点间隙），
-  // 文章不会从译文底下穿过；画布的渐隐遮罩也随之停在译文之上。
+  // 换歌（版面重排）时镜头直接到位，不从上一首的坐标滑过来。
+  useLayoutEffect(() => { state.current.camera = null; state.current.lastIndex = -2 }, [collage])
+  // 量出每句在版面上的位置（布局坐标，不受镜头 transform 影响），镜头按它对准。
+  useLayoutEffect(() => {
+    const world = worldRef.current
+    if (!world) return
+    const rects: (Rect | undefined)[] = []
+    world.querySelectorAll<HTMLElement>('[data-line]').forEach(line => {
+      const block = line.offsetParent as HTMLElement | null
+      rects[Number(line.dataset.line)] = {
+        x: (block?.offsetLeft ?? 0) + line.offsetLeft, y: (block?.offsetTop ?? 0) + line.offsetTop,
+        width: line.offsetWidth, height: line.offsetHeight,
+      }
+    })
+    state.current.rects = rects
+    // 镜头位置以像素计：基准字号变了（缩放窗口、改字号）直接到位，不从旧坐标滑过来。
+    state.current.camera = null
+  }, [collage, unit, family])
+  // 换句后重新收集当前句的字。
+  useLayoutEffect(() => {
+    state.current.glyphs = Array.from(worldRef.current?.querySelectorAll<HTMLElement>(`[data-line="${currentIndex}"] [data-glyph]`) ?? [])
+    state.current.inks = []
+  }, [currentIndex, collage, unit])
+  // 舞台尺寸变化时更新。显示译文时版面只铺到译文上方（留一点间隙），文字不会从译文底下穿过。
+  // 译文位固定高度（两行）且整首歌不变：句与句之间译文有无、行数不同，版面高度和镜头中心都不跟着跳。
   const translation = !preview && showTranslation && currentIndex >= 0 ? translations[currentIndex]?.text?.trim() : ''
-  // 译文位固定高度（两行）且整首歌不变：句与句之间译文有无、行数不同，画布高度和镜头中心都不跟着跳。
   const translationSlot = !preview && showTranslation && translations.some(item => item.text?.trim())
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -258,8 +203,8 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
       const note = translationRef.current
       const reserve = note ? Math.max(0, root.clientHeight - note.offsetTop + TRANSLATION_GAP) : 0
       root.style.setProperty('--fume-reserve', `${reserve}px`)
-      state.current.size = { width: root.clientWidth, height: Math.max(0, root.clientHeight - reserve) }
-      draw.current(readLyricFrame())
+      const next = { width: root.clientWidth, height: Math.max(0, root.clientHeight - reserve) }
+      setStage(previous => previous.width === next.width && previous.height === next.height ? previous : next)
     }
     const observer = new ResizeObserver(measureSize)
     observer.observe(root)
@@ -271,12 +216,27 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   useLayoutEffect(() => { draw.current(readLyricFrame()) })
   useEffect(() => () => cancelAnimationFrame(state.current.settleRaf), [])
 
+  const lineState = (lineIndex: number) => lineIndex === currentIndex ? styles.current : lineIndex < currentIndex ? styles.past : styles.future
   return (
-    <div ref={rootRef} className={styles.root} style={{ fontFamily: tuning.serif ? SERIF : undefined, '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
-      <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
-      <span ref={primaryProbe} className={`${styles.probe} ${styles.probePrimary}`} aria-hidden="true" />
-      <span ref={accentProbe} className={`${styles.probe} ${styles.probeAccent}`} aria-hidden="true" />
-      {/* 屏幕阅读器读当前句；画布只是视觉呈现。 */}
+    <div ref={rootRef} className={`${styles.root}${tuning.color ? '' : ` ${styles.mono}`}`}
+      style={{ fontFamily: tuning.serif ? SERIF : undefined, '--lyrics-font-scale': preview ? 1 : fontScale, '--fume-hold': 0.14 + 0.5 * tuning.hold } as React.CSSProperties}>
+      <div className={styles.stage} aria-hidden="true">
+        <div ref={worldRef} className={styles.world} style={{ '--b': `${unit}px` } as React.CSSProperties}>
+          {collage.blocks.map((block, b) => (
+            <div key={b} className={`${styles.block} ${block.vertical ? styles.vertical : styles.horizontal}`} data-tone={block.tone}
+              style={{ left: `calc(${block.x} * var(--b))`, top: `calc(${block.y} * var(--b))`, fontSize: `calc(${block.size} * var(--b))` }}>
+              {block.lines.map(line => (
+                <span key={line.lineIndex} className={`${styles.line} ${lineState(line.lineIndex)}`} data-line={line.lineIndex}>
+                  {line.lineIndex === currentIndex
+                    ? <LineGlyphs line={line} />
+                    : line.rows.map((row, r) => <span key={r} className={styles.row}>{row}</span>)}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* 屏幕阅读器读当前句；版面只是视觉呈现。 */}
       <span className={styles.srOnly} aria-live="off">{currentIndex >= 0 ? lines[currentIndex]?.text : ''}</span>
       {translationSlot && <div ref={translationRef} className={styles.translation}>{translation}</div>}
     </div>

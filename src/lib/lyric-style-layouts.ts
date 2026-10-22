@@ -3,7 +3,7 @@ import { buildPopWords } from './pop-lyric-timing'
 import { groupLyricBreakUnits } from './lyric-line-break'
 
 /**
- * 云阶、浮名等动态样式共用的逐词数据与排版纯函数。
+ * 云阶、拼版等动态样式共用的逐词数据与排版纯函数。
  * 排版只取决于歌词与种子（行起始时间），拖回同一句时几何不变，播放只推进各词的时间状态。
  */
 

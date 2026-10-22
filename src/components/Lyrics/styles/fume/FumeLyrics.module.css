@@ -1,31 +1,97 @@
-/* 浮名：画布铺满歌词舞台，上下边缘渐隐，让文章从页头和播放栏下面自然淡出。 */
+/* 拼版：版面铺满歌词舞台，上下边缘渐隐，让版面从页头和播放栏下面自然淡出。 */
 .root {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  /* 与其他动态样式同一套强调色定义，画布读取解析后的颜色。 */
+  /* 颜色档：0 是正文色，1–3 从封面三色出发，色相各错开一些（封面常是同一色系，不错开几块分不出颜色），
+     亮度夹在能读的范围、彩度给下限。 */
+  --fume-tone-0: var(--sm-text-primary);
+  --fume-tone-1: oklch(from var(--ambient-1) clamp(0.78, l, 0.88) max(c, 0.1) h);
+  --fume-tone-2: oklch(from var(--ambient-2) clamp(0.78, l, 0.88) max(c, 0.11) calc(h + 60));
+  --fume-tone-3: oklch(from var(--ambient-3) clamp(0.78, l, 0.88) max(c, 0.11) calc(h - 70));
   --style-accent: color-mix(in srgb, var(--ambient-2) 72%, var(--sm-text-primary));
 }
 
-/* 遮罩只作用于画布，不淡化下方译文。显示译文时画布底边停在译文上方（--fume-reserve 由组件按译文位置写入）。 */
-.canvas {
+:global([data-theme="light"]) .root {
+  --fume-tone-1: oklch(from var(--ambient-1) clamp(0.38, l, 0.5) max(c, 0.12) h);
+  --fume-tone-2: oklch(from var(--ambient-2) clamp(0.38, l, 0.5) max(c, 0.13) calc(h + 60));
+  --fume-tone-3: oklch(from var(--ambient-3) clamp(0.38, l, 0.5) max(c, 0.13) calc(h - 70));
+}
+
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme])) .root {
+    --fume-tone-1: oklch(from var(--ambient-1) clamp(0.38, l, 0.5) max(c, 0.12) h);
+    --fume-tone-2: oklch(from var(--ambient-2) clamp(0.38, l, 0.5) max(c, 0.13) calc(h + 60));
+    --fume-tone-3: oklch(from var(--ambient-3) clamp(0.38, l, 0.5) max(c, 0.13) calc(h - 70));
+  }
+}
+
+/* 遮罩只作用于版面，不淡化下方译文。显示译文时版面底边停在译文上方（--fume-reserve 由组件按译文位置写入）。 */
+.stage {
   position: absolute;
   inset: 0 0 var(--fume-reserve, 0px);
-  width: 100%;
-  height: calc(100% - var(--fume-reserve, 0px));
-  -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 18%, #000 78%, transparent 92%);
-  mask-image: linear-gradient(to bottom, transparent 4%, #000 18%, #000 78%, transparent 92%);
-}
-
-.probe {
-  position: absolute;
-  width: 0;
-  height: 0;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 3%, #000 16%, #000 80%, transparent 94%);
+  mask-image: linear-gradient(to bottom, transparent 3%, #000 16%, #000 80%, transparent 94%);
 }
 
-.probePrimary { color: var(--sm-text-primary); }
-.probeAccent { color: var(--style-accent); }
+/* 整张版面只排一次；镜头逐帧改 transform，交给合成器。 */
+.world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.block {
+  position: absolute;
+  font-weight: 700;
+  white-space: pre;
+  letter-spacing: -0.01em;
+  color: var(--fume-tone-0);
+}
+
+.block[data-tone='1'] { color: var(--fume-tone-1); }
+.block[data-tone='2'] { color: var(--fume-tone-2); }
+.block[data-tone='3'] { color: var(--fume-tone-3); }
+
+.horizontal { line-height: 1.3; }
+
+/* 竖排：从右往左成列，中日韩文直立。 */
+.vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+}
+
+.line,
+.row {
+  display: block;
+}
+
+.glyph { display: inline; }
+
+/* 没唱到的句子浅浅铺开；唱过的在 3 秒内褪到保留亮度；当前句逐字着墨（字的透明度由组件逐帧写）。 */
+.future {
+  opacity: 0.2;
+  transition: opacity 0.4s ease-out;
+}
+
+.past {
+  opacity: var(--fume-hold, 0.39);
+  transition: opacity 3s ease-out;
+}
+
+.current {
+  opacity: 1;
+  transition: opacity 0.25s ease-out;
+}
+
+/* 关闭封面取色：全部用正文色，只有当前句用强调色。 */
+.mono .block { color: var(--fume-tone-0); }
+.mono .current { color: var(--style-accent); }
 
 .srOnly {
   position: absolute;
@@ -48,7 +114,7 @@
   letter-spacing: 0.02em;
   text-align: center;
   color: color-mix(in srgb, var(--sm-text-primary) 74%, transparent);
-  /* 固定两行高：底边贴着同一位置，上边（画布的终点）整首歌不变；更长的译文截到两行。 */
+  /* 固定两行高：底边贴着同一位置，上边（版面的终点）整首歌不变；更长的译文截到两行。 */
   height: calc(1.45em * 2);
   display: flex;
   align-items: flex-end;

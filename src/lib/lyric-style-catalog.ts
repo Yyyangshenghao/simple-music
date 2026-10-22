@@ -72,17 +72,18 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
   },
   {
     id: 'fume',
-    label: '浮名',
-    hint: '整首歌词排成文章，镜头推到正在唱的句子逐字打印',
+    label: '拼版',
+    hint: '整首歌词拼成一张版面，大小字、横竖排与封面取色，镜头移到正在唱的句子',
     order: 2,
     tuning: [
-      { key: 'zoom', type: 'number', label: '镜头远近', min: 0.6, max: 1.6, step: 0.05, defaultValue: 1, format: 'multiplier' },
+      { key: 'zoom', type: 'number', label: '版面大小', min: 0.6, max: 1.4, step: 0.05, defaultValue: 1, format: 'multiplier' },
+      { key: 'vertical', type: 'boolean', label: '竖排短句', defaultValue: true },
+      { key: 'color', type: 'boolean', label: '封面取色', defaultValue: true },
       { key: 'hold', type: 'number', label: '唱后保留', min: 0, max: 1, step: 0.05, defaultValue: 0.5, format: 'percent' },
-      { key: 'cursor', type: 'boolean', label: '打字光标', defaultValue: true },
       { key: 'float', type: 'number', label: '镜头漂浮', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
       { key: 'serif', type: 'boolean', label: '衬线字体', defaultValue: true },
     ],
-    quick: ['zoom', 'hold', 'cursor'],
+    quick: ['zoom', 'vertical', 'color'],
     preview: 'live',
   },
   {

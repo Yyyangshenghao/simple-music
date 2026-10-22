@@ -38,7 +38,7 @@ describe('动态歌词样式选择器', () => {
     // 预览量到卡片宽度后才挂载内容；每个实时预览样式一块画布，3D 舞台只有示意图。
     expect(html.match(/class="[^"]*previewCanvas/g)).toHaveLength(LYRIC_STYLES.filter(style => style.preview === 'live').length)
     expect(html).toContain('云阶')
-    expect(html).toContain('浮名')
+    expect(html).toContain('拼版')
     // 撤下的样式不再出现
     for (const removed of ['流光', '倾诉', '绘光']) expect(html).not.toContain(`>${removed}<`)
     expect(html.match(/role="radio"/g)).toHaveLength(7)

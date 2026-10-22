@@ -51,10 +51,12 @@ describe('动态样式渲染', () => {
     expect(renderToStaticMarkup(<PartitaLyrics />)).not.toContain('夕阳')
   })
 
-  it('浮名：画布渲染文章，当前句留给读屏，主舞台显示译文而预览不显示', () => {
+  it('拼版：DOM 排出整首歌，当前句逐字成字、留给读屏，主舞台显示译文而预览不显示', () => {
     const html = renderToStaticMarkup(<FumeLyrics />)
-    expect(html).toContain('<canvas')
+    expect(html).not.toContain('<canvas')
     expect(html).toContain(text)
+    expect(html).toContain('下一句')
+    expect(count(html, 'data-glyph=')).toBe(Array.from(text).length)
     expect(html).toContain('今日所见的夕阳')
     expect(renderToStaticMarkup(<FumeLyrics preview />)).not.toContain('今日所见的夕阳')
   })
