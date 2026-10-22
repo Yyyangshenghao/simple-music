@@ -1,39 +1,8 @@
-/* 全屏背景,点击外部区域收起下拉 */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-}
-
-/* 下拉菜单本体,挂在 3D 按钮下方 */
-.menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 301;
-  width: 314px;
+/* 嵌在动态样式选择器的「更多设置」里，外壳与配色由选择器提供。 */
+.embedded {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  /* 留出歌词页头与播放栏，长菜单在可用区域内滚动。 */
-  max-height: min(680px, calc(100vh - var(--sm-player-clearance, 124px) - 100px));
-  overflow-y: auto;
-  padding: 6px;
-  /* 复用歌词舞台的局部配色，菜单与页头同步。 */
-  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), var(--lyrics-pop-opacity, 0.82));
-  --sm-scrollbar-thumb: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
-  --sm-scrollbar-thumb-hover: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.24);
-  --sm-scrollbar-thumb-active: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.32);
-  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--lyrics-shadow-strength, 1)));
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
-  pointer-events: auto;
-}
-
-:global([data-reduce-transparency="1"]) .menu {
-  background: rgb(var(--lyrics-menu-rgb, 24, 26, 32));
 }
 
 .menuTabs {

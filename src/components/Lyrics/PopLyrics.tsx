@@ -12,10 +12,11 @@ import { buildPopWords, type PopWord } from '../../lib/pop-lyric-timing'
 import { buildPopLyricLayout } from '../../lib/pop-lyric-layout'
 import { createPopLyricTimeline } from '../../lib/pop-lyric-motion'
 import { hasWordTiming } from '../../lib/word-highlight-timeline'
+import { useLyricStyleTuning } from '../../stores/lyric-styles'
 import type { WordLyricLine } from '../../types/domain'
 import styles from './PopLyrics.module.css'
 
-const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, animated, fontScale, subtitleText }: {
+const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, animated, fontScale, subtitleText, intensity, camera }: {
   text: string
   wordLine: WordLyricLine | undefined
   lineStartMs: number
@@ -23,6 +24,8 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
   animated: boolean
   fontScale: number
   subtitleText: string
+  intensity: number
+  camera: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const words = useMemo(() => buildPopWords(text, wordLine, dwellSec), [text, wordLine, dwellSec])
@@ -65,7 +68,7 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
     const pops = Array.from(root.querySelectorAll<HTMLElement>(`.${styles.pop}`))
     const glows = Array.from(root.querySelectorAll<HTMLElement>(`.${styles.glow}`))
     if (pops.length !== words.length || glows.length !== words.length) return
-    const timeline = createPopLyricTimeline(pops, glows, words, lineStartMs, { element: root, reveal: layout.reveal })
+    const timeline = createPopLyricTimeline(pops, glows, words, lineStartMs, { element: root, reveal: layout.reveal, intensity, camera })
     let raf = 0
     const sync = () => timeline.seek((lyricPlaybackPosition(usePlayerStore.getState()) + useLyricsStore.getState().offsetSec) * 1000 - lineStartMs)
     const loop = () => {
@@ -95,7 +98,7 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
       document.removeEventListener('visibilitychange', refresh)
       timeline.dispose()
     }
-  }, [moving, words, lineStartMs, layout.reveal])
+  }, [moving, words, lineStartMs, layout.reveal, intensity, camera])
 
   return (
     <div ref={rootRef} data-composition={layout.composition} className={`${styles.words}${moving ? '' : ` ${styles.static}`}`}>
@@ -127,7 +130,9 @@ function PopGlyph({ word }: { word: PopWord }) {
   )
 }
 
-export function PopLyrics() {
+/** preview：样式选择器卡片里的缩略预览，按卡片尺寸排版，不显示下一句与译文。 */
+export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
+  const tuning = useLyricStyleTuning('pop')
   const trackKey = useLyricsStore((s) => s.trackKey)
   const currentIndex = useLyricsStore((s) => s.currentIndex)
   const lines = useLyricsStore((s) => s.lines)
@@ -143,11 +148,11 @@ export function PopLyrics() {
   const next = lines[currentIndex + 1]
   const dwellSec = lyricLineDwellSec(lines, currentIndex)
   const switchSec = reducedMotion ? 0 : fitLyricTransition(0.45, dwellSec)
-  const transText = showTranslation && currentIndex >= 0 ? translation[currentIndex]?.text?.trim() : ''
+  const transText = !preview && showTranslation && currentIndex >= 0 ? translation[currentIndex]?.text?.trim() : ''
   const timed = wordLines[currentIndex]?.words && hasWordTiming(wordLines[currentIndex].words)
 
   return (
-    <div className={styles.root} data-pop-lyrics data-timed={!!timed} style={{ '--lyrics-font-scale': fontScale } as React.CSSProperties}>
+    <div className={styles.root} data-pop-lyrics={preview ? undefined : ''} data-timed={!!timed} style={{ '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
       <div className={styles.stage}>
         <AnimatePresence mode="popLayout" initial={false}>
           {current?.text.trim() && (
@@ -176,13 +181,15 @@ export function PopLyrics() {
                 animated={animated}
                 fontScale={fontScale}
                 subtitleText={transText || ''}
+                intensity={Number(tuning.intensity)}
+                camera={tuning.camera !== false}
               />
               {transText && <div className={styles.translation}>{transText}</div>}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-      <motion.div
+      {!preview && <motion.div
         key={`next-${trackKey}-${currentIndex}`}
         className={styles.next}
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
@@ -191,7 +198,7 @@ export function PopLyrics() {
         aria-hidden="true"
       >
         <span>{next?.text}</span>
-      </motion.div>
+      </motion.div>}
     </div>
   )
 }

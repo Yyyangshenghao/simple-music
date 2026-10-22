@@ -15,6 +15,9 @@ import { getGameMode, setGameMode, clearGameModeOverlayRestore } from './modules
 import { attachWindowClose } from './modules/window-close'
 import { createPlaybackHost, getPlaybackHost, closePlaybackHost, attachPlaybackUi, onPlaybackHostFailure } from './modules/playback-host'
 import { flushRendererListeningReports } from './modules/listening-flush'
+import { registerLyricModScheme, handleLyricModProtocol, attachLyricModFrameGuard } from './folium/protocol'
+
+registerLyricModScheme()
 
 const APP_NAME = 'Simple Music'
 const APP_USER_MODEL_ID = 'com.simplemusic.desktop'
@@ -50,6 +53,7 @@ let quitTimeout: ReturnType<typeof setTimeout> | undefined
 
 function createPlayerWindow(port: number, token: string): void {
   const win = createMainWindow(port, token)
+  attachLyricModFrameGuard(win)
   attachPlaybackUi(win)
   // Dock、托盘或设置菜单显示主窗口时，统一结束游戏模式。
   win.on('show', () => {
@@ -125,6 +129,7 @@ if (!gotLock) {
   app.quit()
 } else {
   const startup = app.whenReady().then(async () => {
+    handleLyricModProtocol()
     // 播放器不需要摄像头/麦克风/定位/通知等能力,只留窗口全屏、写剪贴板和播放宿主的 Apple 音频捕获。
     // Electron 默认是"全部允许",一旦渲染层被注入内容就能直接向系统要这些权限。
     configurePermissions(session.defaultSession)

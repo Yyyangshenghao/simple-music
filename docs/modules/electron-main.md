@@ -26,6 +26,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort/serverToken + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入,API token 经 `--simplemusic-server-token=` 传入。
 - `preload/overlay.ts` — 悬浮窗桥:`window.desktopOverlay`。
 - `ipc/` — 按域拆分注册,`ipc/index.ts` 统一 `registerIpc()`。
+- `folium/` — Folium 歌词模组市场的首版子集：`manager.ts` 读官方 `catalog.json`、下载与安装/卸载（串行、临时文件原子替换，存于 userData/lyric-mods）；`package.ts` 在内存读 ZIP（拒绝越界/符号链接/重复/超限解压），校验 SHA-256、Ed25519 签名、实际文件摘要和按 id+版本+摘要固定的兼容名单（虹光、52Hz、巨幕），不运行 main 入口或带权限的模组；`protocol.ts` 注册 `simplemusic-mod://` 只读提供校验后的包资源与宿主页（CSP 禁网络/嵌套/表单，`sandbox allow-scripts`），并阻止主窗口子框架外跳；`runtime.ts` 是序列化进沙箱页的 visualizers 注册与歌词/主题/时钟/只读频谱上下文。方案见 [docs/plans/2026-10-21-folium-lyrics-market.md](../plans/2026-10-21-folium-lyrics-market.md)。
 - `ipc/apple-audio.ts` — 只允许播放宿主请求固定的 Apple 音频捕获动作，供可视化频谱使用；捕获失败不影响播放。
 
 ## IPC 通道(invoke)
@@ -40,6 +41,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
 - `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`
+- `lyric-mods:*` — catalog / list / install / remove；只接受主窗口主 frame 的应用入口页调用。
 - `apple:audio-capture-start` — 播放宿主对 Apple 后台音轨的定向频谱采集请求。
 
 主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`、`lyrics:{lock-state-changed,size-changed,enabled-state-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。歌词 preload 缓存并向新订阅者重放完整快照，迷你条首屏重放完整快照、后续转发增量。

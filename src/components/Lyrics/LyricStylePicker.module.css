@@ -1,0 +1,246 @@
+/* 动态歌词样式选择器：挂在页头样式按钮下方，配色沿用歌词舞台的局部变量，与页头同步深浅。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 301;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* 留出歌词页头与播放栏，长内容在可用区域内滚动。 */
+  max-height: min(720px, calc(100vh - var(--sm-player-clearance, 124px) - 100px));
+  overflow-y: auto;
+  padding: 10px;
+  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), var(--lyrics-pop-opacity, 0.82));
+  --sm-scrollbar-thumb: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
+  --sm-scrollbar-thumb-hover: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.24);
+  --sm-scrollbar-thumb-active: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.32);
+  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--lyrics-shadow-strength, 1)));
+  backdrop-filter: var(--glass-blur-card);
+  -webkit-backdrop-filter: var(--glass-blur-card);
+  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
+  pointer-events: auto;
+}
+
+:global([data-reduce-transparency="1"]) .menu {
+  background: rgb(var(--lyrics-menu-rgb, 24, 26, 32));
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 6px 9px;
+  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+  border-radius: 12px;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.04);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.card:hover:not(:disabled) {
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+}
+
+.card:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.cardActive {
+  border-color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
+}
+
+.thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--ambient-1, #6d5bd0) 38%, transparent), transparent 70%),
+    rgba(0, 0, 0, 0.28);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.7);
+}
+
+.previewHost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 按 1280×800 的舞台尺寸排版（与卡片同为 16:10），再整体缩放到卡片宽度。 */
+.previewCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  height: 800px;
+  container-type: size;
+  transform-origin: 0 0;
+}
+
+.cardLabel {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cardHint {
+  padding: 0 4px;
+  overflow: hidden;
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.5);
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.78);
+  font-size: 12px;
+}
+
+.row > :global([role='switch']) {
+  grid-column: 3;
+}
+
+.row input[type='range'] {
+  width: 100%;
+  accent-color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
+}
+
+.row output {
+  min-width: 40px;
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.52);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.row select {
+  grid-column: 2 / 4;
+  padding: 4px 6px;
+  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.reset,
+.moreToggle,
+.modNotice button {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.07);
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.82);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reset:hover,
+.moreToggle:hover,
+.modNotice button:hover {
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
+}
+
+.reset {
+  margin-top: 4px;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+}
+
+.moreToggle {
+  align-self: stretch;
+  text-align: left;
+}
+
+.modNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.07);
+  font-size: 12px;
+}
+
+.modNotice button {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* 实验入口放在最底部、弱化呈现，与内置样式不同级。 */
+.experimental {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-top: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+  background: none;
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.experimental:hover {
+  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.85);
+}
+
+.experimental span {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+}

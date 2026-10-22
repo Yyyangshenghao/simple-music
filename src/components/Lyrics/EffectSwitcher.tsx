@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { motion } from 'motion/react'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { useSettingsStore } from '../../stores/settings'
@@ -104,11 +104,6 @@ const LYRIC_STYLES: StyleInfo[] = [
   }
 ]
 
-interface EffectSwitcherProps {
-  onClose: () => void
-  tab: 'scene' | 'adjust'
-  onTabChange: (tab: 'scene' | 'adjust') => void
-}
 
 function TuningSlider({ label, value, min, max, step, onChange, format = (v: number) => `${Math.round(v * 100)}%` }: {
   label: string
@@ -130,8 +125,9 @@ function TuningSlider({ label, value, min, max, step, onChange, format = (v: num
   )
 }
 
-/** 歌词播放页的 3D 场景选择与当前场景调节。 */
-export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProps) {
+/** 3D 舞台的文字风格与场景调节；嵌在动态样式选择器的「更多设置」里。 */
+export function Stage3dSettings() {
+  const [tab, onTabChange] = useState<'scene' | 'adjust'>('scene')
   const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
   const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
   const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
@@ -142,16 +138,7 @@ export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProp
   const patch = (key: keyof typeof params) => (value: number) => setParams({ [key]: value })
 
   return (
-    <>
-      <div className={`${styles.backdrop} no-drag`} onClick={onClose} />
-      <motion.div
-        className={`${styles.menu} no-drag`}
-        role="dialog"
-        aria-label="3D 歌词设置"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={springSnappy}
-      >
+    <div className={styles.embedded} aria-label="3D 舞台设置">
         <div className={styles.menuTabs} role="tablist" aria-label="3D 歌词选项">
           <button type="button" role="tab" aria-selected={tab === 'scene'}
             className={tab === 'scene' ? styles.menuTabActive : ''} onClick={() => onTabChange('scene')}>场景与文字</button>
@@ -227,7 +214,6 @@ export function EffectSwitcher({ onClose, tab, onTabChange }: EffectSwitcherProp
             <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />
           </>}
         </div>}
-      </motion.div>
-    </>
+    </div>
   )
 }

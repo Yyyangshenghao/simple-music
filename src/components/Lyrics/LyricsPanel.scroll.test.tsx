@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
     currentIndex: 15, translation: [], romaji: [], wordLines: [], offsetSec: 0, loading: false, source: null },
   settings: { lyricsPanelMode: 'lyrics', performance: { lyrics3dEnabled: true }, lyricsFontScale: 1,
     lyricsLayout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
+  styles: { style: 'pop' },
   seek: vi.fn(),
 }))
 
@@ -62,6 +63,14 @@ vi.mock('../../stores/providers', () => ({ useProviderStore: (selector: (state: 
 }) }))
 vi.mock('../../stores/visual', () => ({ useVisualStore: (selector: (state: object) => unknown) => selector({ fx: {} }) }))
 vi.mock('../../stores/ambient', () => ({ useAmbientStore: (selector: (state: object) => unknown) => selector({ coverLuma: 0 }) }))
+vi.mock('../../stores/lyric-styles', () => ({
+  useLyricStylesStore: (selector: (state: typeof h.styles) => unknown) => selector(h.styles),
+  useLyricStyleTuning: () => ({}),
+}))
+vi.mock('../../stores/lyric-mods', () => ({ useLyricModsStore: Object.assign(
+  (selector: (state: object) => unknown) => selector({ selectedId: null, installed: [] }),
+  { getState: () => ({ refreshInstalled: async () => {}, select: () => {} }) },
+) }))
 
 class ScrollContainer {
   clientHeight = 400
@@ -134,6 +143,8 @@ beforeEach(() => {
   h.lyrics.currentIndex = 15
   h.lyrics.offsetSec = 0
   h.settings.lyricsPanelMode = 'lyrics'
+  h.styles.style = 'pop'
+  h.settings.performance.lyrics3dEnabled = true
   h.settings.performance.lyrics3dEnabled = true
   h.seek.mockReset().mockImplementation((seconds: number) => {
     h.lyrics.currentIndex = h.lyrics.lines.reduce((index, line, i) => line.time <= seconds + h.lyrics.offsetSec ? i : index, -1)
@@ -148,17 +159,18 @@ afterEach(() => {
 
 describe('普通歌词定位', () => {
   it.each(['lyrics', '3d'])('%s 设置展开期间不随空闲隐藏，关闭后恢复沉浸', (mode) => {
-    h.settings.lyricsPanelMode = mode
+    h.settings.lyricsPanelMode = mode === '3d' ? 'dynamic' : 'lyrics'
+    h.styles.style = mode === '3d' ? 'stage3d' : 'pop'
     render()
     const trigger = find(tree, element => mode === '3d'
-      ? element.props.title === '选择 3D 场景与文字'
+      ? element.props.title === '选择动态歌词样式'
       : element.props['aria-label'] === '歌词设置')!
     const toggle = trigger.props.onClick as () => void
     toggle()
     render(true, true)
     expect(tree.props.className).not.toContain(styles.immersive)
     if (mode === '3d') {
-      const menu = find(tree, element => typeof element.props.onClose === 'function' && element.props.tab === 'scene')!
+      const menu = find(tree, element => typeof element.props.onClose === 'function' && typeof element.props.onOpenMods === 'function')!
       const close = menu.props.onClose as () => void
       close()
     } else {
@@ -232,7 +244,8 @@ describe('普通歌词定位', () => {
   it.each([false, true])('切回普通歌词恢复当前行，切换前浏览=%s', browsing => {
     render()
     if (browsing) browse(23)
-    h.settings.lyricsPanelMode = '3d'
+    h.settings.lyricsPanelMode = 'dynamic'
+    h.styles.style = 'stage3d'
     render()
     h.lyrics.currentIndex = 18
     h.settings.lyricsPanelMode = 'lyrics'
@@ -295,12 +308,17 @@ describe('普通歌词定位', () => {
     expect(container!.listeners.has('wheel')).toBe(true)
   })
 
-  it('禁用 3D 后回落普通歌词，也恢复当前行且保留模式偏好', () => {
-    h.settings.lyricsPanelMode = '3d'
+  it('禁用 3D 后动态回落跃字，保留模式与样式偏好；切回逐行仍恢复当前行', () => {
+    h.settings.lyricsPanelMode = 'dynamic'
+    h.styles.style = 'stage3d'
     render()
     h.settings.performance.lyrics3dEnabled = false
     render()
+    expect(find(tree, element => String(element.props.className).split(' ').includes(styles.styleStage))).toBeTruthy()
+    expect(h.settings.lyricsPanelMode).toBe('dynamic')
+    expect(h.styles.style).toBe('stage3d')
+    h.settings.lyricsPanelMode = 'lyrics'
+    render()
     expect(container!.scrollTop).toBe(center(15))
-    expect(h.settings.lyricsPanelMode).toBe('3d')
   })
 })

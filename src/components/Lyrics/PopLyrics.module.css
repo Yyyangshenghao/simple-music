@@ -1,4 +1,5 @@
-/* 跃字以歌词本身构成动态海报，封面色只落在演唱重心上。 */
+/* 跃字以歌词本身构成动态海报，封面色只落在演唱重心上。
+   字号按外层样式容器（歌词页舞台或选择器预览卡）的 cqw/cqh 计算：舞台铺满面板时与按视口计算一致。 */
 .root {
   position: absolute;
   inset: 96px 9% 150px;
@@ -35,7 +36,7 @@
   flex-direction: column;
   gap: 0.12em;
   padding: 0.22em 0.14em;
-  font-size: calc(clamp(32px, min(8.4vw, 11vh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
+  font-size: calc(clamp(32px, min(8.4cqw, 11cqh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
   font-weight: 800;
   line-height: 1.24;
   letter-spacing: -0.035em;
@@ -148,7 +149,7 @@
 .translation {
   margin-top: 20px;
   max-width: 48ch;
-  font-size: calc(clamp(15px, 1.6vw, 22px) * var(--lyrics-font-scale, 1));
+  font-size: calc(clamp(15px, 1.6cqw, 22px) * var(--lyrics-font-scale, 1));
   font-weight: 500;
   color: color-mix(in srgb, var(--sm-text-primary) 78%, transparent);
   line-height: 1.45;
@@ -162,7 +163,7 @@
   gap: 14px;
   margin: 0;
   max-width: 100%;
-  font-size: calc(clamp(14px, 1.4vw, 19px) * var(--lyrics-font-scale, 1));
+  font-size: calc(clamp(14px, 1.4cqw, 19px) * var(--lyrics-font-scale, 1));
   font-weight: 600;
   color: color-mix(in srgb, var(--sm-text-primary) 76%, transparent);
   white-space: nowrap;

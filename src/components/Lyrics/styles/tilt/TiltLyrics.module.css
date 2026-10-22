@@ -1,0 +1,41 @@
+/* 倾诉：居中多行，正体稳、斜体轻，用字重、倾斜与颜色区分上下句意。 */
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.08em;
+  max-width: 100%;
+  padding: 0.3em 0.4em;
+  font-size: calc(clamp(30px, min(6.4cqw, 10cqh), 86px) * var(--lyrics-font-scale, 1) * var(--style-fit, 1));
+  line-height: 1.3;
+}
+
+.row {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  white-space: nowrap;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  --row-color: var(--sm-text-primary);
+  --row-hot: var(--style-accent);
+}
+
+/* 斜体不依赖字体自带的斜体字形：统一用错切，中文也能得到一致的倾斜。 */
+.italic {
+  font-weight: 300;
+  font-size: 1.12em;
+  letter-spacing: 0.08em;
+  transform: skewX(-12deg);
+  --row-color: var(--style-accent);
+  --row-hot: var(--sm-text-primary);
+}
+
+.word {
+  display: inline-block;
+  white-space: pre;
+  /* 正在唱的词：正体行转向强调色，强调色行转向主文字色，深浅主题都保持对比。 */
+  color: color-mix(in srgb, var(--row-hot) calc(var(--heat, 0) * 100%), var(--row-color));
+  text-shadow: 0 0 calc(var(--heat, 0) * 0.35em) color-mix(in srgb, var(--row-hot) 45%, transparent);
+  will-change: transform, opacity;
+}

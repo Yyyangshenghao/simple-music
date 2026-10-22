@@ -464,6 +464,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     if (!raw) return
     try {
       const data = JSON.parse(raw) as Partial<PersistedSettings>
+      // 旧版把跃字 / 3D 存成歌词页模式；迁为「动态」前先把样式选择写进样式存档，
+      // 否则下面改写并保存后，3D 用户再也读不回原来的选择。
+      const legacyMode = data.lyricsPanelMode as string | undefined
+      if ((legacyMode === '3d' || legacyMode === 'pop') && localStorage.getItem('simplemusic-lyric-styles') === null) {
+        // 单独兜住：迁移写入失败不能让整份设置退回默认值。
+        try {
+          localStorage.setItem('simplemusic-lyric-styles', JSON.stringify({ style: legacyMode === '3d' ? 'stage3d' : 'pop', tunings: {} }))
+          // 旧版只在跃字下显示模组，3D 用户残留的模组选择不应在升级后突然覆盖 3D。
+          const mods = JSON.parse(localStorage.getItem('simplemusic-lyric-mods') ?? 'null') as { selectedId?: unknown } | null
+          if (legacyMode === '3d' && mods?.selectedId) localStorage.setItem('simplemusic-lyric-mods', JSON.stringify({ ...mods, selectedId: null }))
+        } catch { /* 存储不可用时样式 store 仍会按旧设置回读。 */ }
+      }
       const platform = typeof window !== 'undefined' ? window.desktop?.platform ?? 'win32' : 'win32'
       const storedLyricsStyle: Lyrics3dStyle = (() => {
         const value = data.lyrics3dStyle as unknown
@@ -484,7 +496,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
-        lyricsPanelMode: data.lyricsPanelMode === '3d' || data.lyricsPanelMode === 'pop' ? data.lyricsPanelMode : 'lyrics',
+        // 旧版的跃字 / 3D 是独立模式，统一迁为「动态」，具体样式由 lyric-styles 读回。
+        lyricsPanelMode: data.lyricsPanelMode === 'dynamic' || (data.lyricsPanelMode as string) === '3d' || (data.lyricsPanelMode as string) === 'pop' ? 'dynamic' : 'lyrics',
         // 频谱环、音箱沙粒已移除：旧存档里的任何场景值都迁回封面粒子云。
         lyrics3dEffect: 'cover-cloud',
         lyrics3dStyle: storedLyricsStyle,

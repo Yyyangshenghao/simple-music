@@ -202,8 +202,8 @@ describe('3D 歌词数值恢复', () => {
     })
   })
 
-  it('歌词页模式可读回跃字，未知值回落纯歌词', () => {
-    for (const [stored, expected] of [['pop', 'pop'], ['3d', '3d'], ['karaoke', 'lyrics']] as const) {
+  it('旧版跃字 / 3D 迁为动态，未知值回落纯歌词', () => {
+    for (const [stored, expected] of [['pop', 'dynamic'], ['3d', 'dynamic'], ['dynamic', 'dynamic'], ['karaoke', 'lyrics']] as const) {
       vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyricsPanelMode: stored }), setItem: vi.fn() })
       useSettingsStore.getState().loadFromLocal()
       expect(useSettingsStore.getState().lyricsPanelMode).toBe(expected)

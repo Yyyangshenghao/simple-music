@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { MotionConfig, MotionGlobalConfig } from 'motion/react'
 import { useReducedMotion } from './hooks/useReducedMotion'
+import { lyricStyleInfo, resolveLyricsView } from './lib/lyric-style-catalog'
+import { useLyricStylesStore } from './stores/lyric-styles'
+import { useLyricModsStore } from './stores/lyric-mods'
 import styles from './App.module.css'
 import { useDesktopBridge } from './hooks/useDesktopBridge'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -58,7 +61,9 @@ export default function App() {
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
-  const lyricsMode = storedLyricsMode === '3d' && !lyrics3dEnabled ? 'lyrics' : storedLyricsMode
+  const lyricStyle = useLyricStylesStore((s) => s.style)
+  const modActive = useLyricModsStore((s) => s.installed.some(mod => mod.id === s.selectedId && mod.valid))
+  const lyricsMode = resolveLyricsView({ mode: storedLyricsMode, style: lyricStyle, lyrics3dEnabled, modActive })
   // 歌词页打开时,鼠标/键盘空闲 3s 进入沉浸模式,淡出播放栏与歌词页控件
   const controlsHidden = useIdleHide(lyricsOpen && !gameEnabled)
   // 纯歌词页使用舞台控件时自带播放操作：播放栏先随封面飞出淡下去，过渡结束再卸载；
@@ -147,7 +152,7 @@ export default function App() {
       {mainVisible && !gameEnabled && <MotionConfig reducedMotion="never">
       <WindowChrome>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
-          <AmbientBackground hidden={(lyricsOpen && lyricsMode === '3d') || !!detailBackdropCover} />
+          <AmbientBackground hidden={(lyricsOpen && lyricsMode !== 'lyrics' && lyricsMode !== 'mod' && lyricStyleInfo(lyricsMode).webgl) || !!detailBackdropCover} />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />

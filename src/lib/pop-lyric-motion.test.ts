@@ -53,4 +53,25 @@ describe('跃字媒体时间轴', () => {
     first.timeline.dispose()
     second.timeline.dispose()
   })
+
+  it('动效幅度与镜头推移可调，默认值与原设计一致', () => {
+    const run = (tuning: { intensity?: number; camera?: boolean }) => {
+      const camera = { currentTime: 0, pause: vi.fn(), cancel: vi.fn() }
+      const element = { animate: vi.fn(() => camera) }
+      const glyphs = Array.from({ length: 4 }, () => ({ animate: vi.fn((_frames: Keyframe[]) => ({ currentTime: 0, pause: vi.fn(), cancel: vi.fn() })) }))
+      const timeline = createPopLyricTimeline(glyphs.slice(0, 2) as unknown as HTMLElement[], glyphs.slice(2) as unknown as HTMLElement[], words, 1000,
+        { element: element as unknown as HTMLElement, reveal: 'rise', ...tuning })
+      timeline.dispose()
+      return { cameraCalls: element.animate.mock.calls.length, frames: glyphs[0].animate.mock.calls[0][0] as Keyframe[] }
+    }
+    const plain = run({})
+    expect(run({ intensity: 1, camera: true })).toEqual(plain)
+    expect(plain.cameraCalls).toBe(1)
+    expect(run({ camera: false }).cameraCalls).toBe(0)
+    // 幅度越大入场缩放越小（离 1 越远），回落终态始终是原尺寸。
+    const scaleOf = (frame: Keyframe) => Number(/scale\(([\d.]+)\)/.exec(String(frame.transform))![1])
+    expect(scaleOf(run({ intensity: 1.6 }).frames[0])).toBeLessThan(scaleOf(plain.frames[0]))
+    expect(scaleOf(run({ intensity: 0.4 }).frames[0])).toBeGreaterThan(scaleOf(plain.frames[0]))
+    expect(scaleOf(run({ intensity: 1.6 }).frames[3])).toBe(1)
+  })
 })

@@ -16,14 +16,19 @@ import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import { PlayerBar } from '../Player/PlayerBar'
-import { EffectSwitcher } from './EffectSwitcher'
-import { PopLyrics } from './PopLyrics'
+import { LyricStylePicker } from './LyricStylePicker'
+import { LYRIC_STYLE_VIEWS } from './styles/registry'
+import { lyricStyleInfo, resolveLyricsView } from '../../lib/lyric-style-catalog'
+import { useLyricStylesStore } from '../../stores/lyric-styles'
+import { useLyricModsStore } from '../../stores/lyric-mods'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
 import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
 
 const LyricsScene = lazy(() => import('./LyricsScene'))
+const LyricModMarket = lazy(() => import('./LyricModMarket').then(module => ({ default: module.LyricModMarket })))
+const ModLyrics = lazy(() => import('./ModLyrics').then(module => ({ default: module.ModLyrics })))
 
 /** 当前句切行过渡相对正常句的时长比例（以跟随弹簧为基准），供 JS 动画和 CSS 过渡共用。 */
 function lyricSwitchScale(lines: readonly { time: number; text: string }[], index: number): number {
@@ -180,6 +185,16 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 }
 
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
+  const [modMarketOpen, setModMarketOpen] = useState(false)
+  const [modPreviewId, setModPreviewId] = useState<string | null>(null)
+  const selectedModId = useLyricModsStore(state => state.selectedId)
+  const installedMods = useLyricModsStore(state => state.installed)
+  const modId = modPreviewId ?? selectedModId
+  const activeMod = installedMods.find(mod => mod.id === modId && mod.valid)
+  useEffect(() => {
+    if (open) void useLyricModsStore.getState().refreshInstalled()
+    if (!open) { setModMarketOpen(false); setModPreviewId(null) }
+  }, [open])
   const reducedMotion = useReducedMotion()
   // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新系统偏好。
   const reducedMotionRef = useRef(reducedMotion)
@@ -209,8 +224,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const playerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
   const setPlayerStyle = useSettingsStore((s) => s.setLyricsPlayerStyle)
   const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
-  // 设置里关掉 3D 歌词时 3D 模式回落纯文字模式,不覆盖用户存的偏好(重新开启后原选择还在);跃字不依赖 3D
-  const mode = storedMode === '3d' && !lyrics3dEnabled ? 'lyrics' : storedMode
+  const lyricStyle = useLyricStylesStore((s) => s.style)
+  // 「动态」下实际显示的样式：3D 被设置关闭时回落默认样式，不改写用户的选择；试用或选中的实验模组覆盖内置样式。
+  const view = resolveLyricsView({ mode: modPreviewId ? 'dynamic' : storedMode, style: lyricStyle, lyrics3dEnabled, modActive: !!activeMod })
+  // 下方逐行歌词、封面飞入与 3D 场景沿用这三种布局：除 3D 舞台外的动态样式都走跃字这套舞台底。
+  const mode = view === 'stage3d' ? '3d' : view === 'lyrics' ? 'lyrics' : 'pop'
+  const StyleStage = view !== 'lyrics' && view !== 'mod' ? LYRIC_STYLE_VIEWS[view].Stage : undefined
+  const opaqueStyle = view !== 'lyrics' && view !== 'mod' && !!lyricStyleInfo(view).opaque
   const lightTheme = useLightTheme()
   const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
   const lowPower = useVisualStore((s) => s.performanceMode === 'eco')
@@ -236,9 +256,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     return () => clearTimeout(timer)
   }, [open])
 
-  // 3D 效果下拉菜单:已处于 3D 模式时再点一次 3D 按钮才展开
-  const [effectMenuOpen, setEffectMenuOpen] = useState(false)
-  const [effectMenuTab, setEffectMenuTab] = useState<'scene' | 'adjust'>('scene')
+  // 动态歌词样式选择器（页头样式按钮展开）
+  const [stylePickerOpen, setStylePickerOpen] = useState(false)
 
   // 右缘侧栏的歌词设置浮层(自由排版/字号/同步)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
@@ -374,7 +393,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 面板收起/切模式时顺带收起下拉与浮层,避免下次打开残留展开态
   useEffect(() => {
-    if (!open) setEffectMenuOpen(false)
+    if (!open || mode === 'lyrics') setStylePickerOpen(false)
     if (!open || mode !== 'lyrics') setSettingsPopOpen(false)
   }, [open, mode])
 
@@ -451,12 +470,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
-  const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d')
+  const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d' || opaqueStyle)
   // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
-  const immersive = controlsHidden && !(effectMenuOpen && mode === '3d') && !settingsPopOpen
+  const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !modMarketOpen
 
   return (
-    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
+    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${view !== 'lyrics' && view !== 'mod' && lyricStyleInfo(view).darkStage ? ` ${styles.darkStage}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
@@ -464,46 +483,47 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           <span className={styles.closeBtnLabel} aria-hidden="true"><span>收起</span></span>
         </button>
 
-        {/* 模式切换 Segmented Control */}
-        <div className={`${styles.modeSwitch} no-drag`}>
-          <button
-            className={`${styles.modeBtn}${mode === 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
-            onClick={() => {
-              setMode('lyrics')
-              setEffectMenuOpen(false)
-            }}
-          >
-            歌词
-          </button>
-          <button
-            className={`${styles.modeBtn}${mode === 'pop' ? ` ${styles.modeBtnActive}` : ''}`}
-            title="逐词跳出的大字单句"
-            onClick={() => {
-              setMode('pop')
-              setEffectMenuOpen(false)
-            }}
-          >
-            跃字
-          </button>
-          <div className={styles.modeBtnAnchor}>
+        {/* 模式切换：逐行歌词 / 动态；动态样式收在样式按钮的选择器里，平时不铺开 */}
+        <div className={`${styles.modeBar} no-drag`}>
+          {mode !== 'lyrics' && (
+            <div className={styles.modeBtnAnchor}>
+              <button
+                className={styles.styleChip}
+                aria-haspopup="dialog"
+                aria-expanded={stylePickerOpen}
+                title="选择动态歌词样式"
+                onClick={() => setStylePickerOpen(!stylePickerOpen)}
+              >
+                <span>{view === 'mod' ? activeMod?.name : lyricStyleInfo(view === 'lyrics' ? lyricStyle : view).label}</span>
+                {view === 'mod' && <span className={styles.styleChipTag}>实验</span>}
+                <ChevronDown />
+              </button>
+              {stylePickerOpen && (
+                <LyricStylePicker
+                  onClose={() => setStylePickerOpen(false)}
+                  onOpenMods={() => { setStylePickerOpen(false); setModMarketOpen(true) }}
+                />
+              )}
+            </div>
+          )}
+          <div className={styles.modeSwitch}>
             <button
-              className={`${styles.modeBtn}${mode === '3d' ? ` ${styles.modeBtnActive}` : ''}`}
-              disabled={!lyrics3dEnabled}
-              title={lyrics3dEnabled ? '选择 3D 场景与文字' : '已在设置的歌词与动效中关闭 3D 歌词'}
+              className={`${styles.modeBtn}${mode === 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
               onClick={() => {
-                if (mode !== '3d') {
-                  setMode('3d')
-                } else {
-                  setEffectMenuTab('scene')
-                  setEffectMenuOpen(effectMenuTab === 'scene' ? !effectMenuOpen : true)
-                }
+                setMode('lyrics')
+                setModPreviewId(null)
+                setStylePickerOpen(false)
               }}
             >
-              3D
+              歌词
             </button>
-            {effectMenuOpen && mode === '3d' && (
-              <EffectSwitcher tab={effectMenuTab} onTabChange={setEffectMenuTab} onClose={() => setEffectMenuOpen(false)} />
-            )}
+            <button
+              className={`${styles.modeBtn}${mode !== 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
+              title="动态歌词样式"
+              onClick={() => setMode('dynamic')}
+            >
+              动态
+            </button>
           </div>
         </div>
 
@@ -512,17 +532,34 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       {/* ===== 跃字模式 =====(与纯歌词共用封面虚化底与氛围霞光;收起后卸载) */}
       {mode === 'pop' && contentMounted && (
         <>
-          {track?.cover && (
-            <div
-              className={styles.blurBg}
-              style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
-            />
-          )}
-          <div className={styles.auroraStage} aria-hidden="true" />
-          <div className={styles.flowStage} aria-hidden="true" />
-          <PopLyrics />
+          {/* 不透明铺满的样式（绘光、镜台）会盖住底层：不垫封面虚化与霞光，免得它们在下面空转动画。 */}
+          {!opaqueStyle && <>
+            {track?.cover && (
+              <div
+                className={styles.blurBg}
+                style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
+              />
+            )}
+            <div className={styles.auroraStage} aria-hidden="true" />
+            <div className={styles.flowStage} aria-hidden="true" />
+          </>}
+          {view === 'mod' && activeMod
+            ? <Suspense fallback={null}><ModLyrics key={activeMod.id + ':' + activeMod.digest} id={activeMod.id} active={open} sidePanelOpen={modMarketOpen} /></Suspense>
+            : StyleStage && <div className={styles.styleStage}><StyleStage /></div>}
         </>
       )}
+
+      {open && modMarketOpen && <Suspense fallback={null}><LyricModMarket
+        previewId={modPreviewId}
+        onPreview={setModPreviewId}
+        onUse={id => {
+          useLyricModsStore.getState().select(id)
+          setMode('dynamic')
+          setModPreviewId(null)
+          setModMarketOpen(false)
+        }}
+        onClose={() => { setModMarketOpen(false); setModPreviewId(null) }}
+      /></Suspense>}
 
       {/* ===== 纯歌词模式 =====(关闭并收起完成后卸载,不在后台空转) */}
       {mode === 'lyrics' && contentMounted && (
