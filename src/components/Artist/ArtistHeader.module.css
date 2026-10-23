@@ -9,8 +9,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  /* 歌手信息优先分配宽度，简介靠右保持可读行宽。 */
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  /* 给歌手名保留宽度，简介紧随其后，不随宽窗口向右拉开。 */
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
   align-items: center;
   gap: 48px;
   min-height: 240px;
@@ -61,7 +61,7 @@
   --text-reveal-open: 0;
   width: 100%;
   max-width: 640px;
-  justify-self: end;
+  justify-self: start;
   min-width: 0;
   height: 176px;
   align-self: start;

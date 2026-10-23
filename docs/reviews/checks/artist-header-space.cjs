@@ -7,7 +7,7 @@ const { chromium } = require('playwright')
 const H = require('./ui-alignment-2.4.1.cjs')
 
 const root = path.resolve(__dirname, '../../..')
-const output = path.join(root, 'docs/reviews/assets/2.4.1-artist-header-space')
+const output = path.join(root, 'docs/reviews/assets/2.4.1-artist-header-balance')
 const longName = 'Florence + The Machine 与她的朋友们现场特别企划'
 const cases = [
   ['before', 'light', 1536, 864, 'normal'],
@@ -93,10 +93,10 @@ async function main() {
         if (phase === 'after' && variant !== 'no-description') {
           const { identity, description, content } = geometry
           if (width > 1024) {
-            assert.ok(identity.width > description.width)
             assert.ok(identity.right < description.x)
             assert.ok(description.width <= 641)
-            assert.ok(Math.abs(description.right - (content.right - (width > 1600 ? 0 : width * .03))) < 12)
+            assert.ok(identity.width >= 540)
+            assert.ok(description.x - content.x < 720, '简介被推得过右')
           } else {
             assert.ok(description.y >= identity.bottom + 20)
           }
@@ -145,10 +145,9 @@ async function main() {
     for (const variant of ['normal', 'long']) {
       const before = results.find(item => item.phase === 'before' && item.variant === variant)
       const after = results.find(item => item.phase === 'after' && item.variant === variant && item.width === 1536 && item.theme === 'light')
-      // 短名字仍取自身内容宽度；比较左侧分配宽度，长名字另检查实际文字列。
-      assert.ok(after.geometry.identity.width > before.geometry.identity.width + 200)
-      if (variant === 'long') assert.ok(after.geometry.info.width > before.geometry.info.width + 200)
-      assert.ok(after.geometry.description.x > before.geometry.description.x + 250)
+      // 保留长名字宽度，同时让简介相对上版向中间收回。
+      if (variant === 'long') assert.ok(after.geometry.info.width >= 380)
+      assert.ok(after.geometry.description.x < before.geometry.description.x - 150)
     }
   } finally {
     fs.writeFileSync(path.join(output, 'verification.json'), JSON.stringify({ generatedAt: new Date().toISOString(), environment: 'Headless installed Chrome, real React App + CSS, mocked services, no Electron preload or audio runtime', results }, null, 2) + '\n')
