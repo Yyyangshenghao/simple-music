@@ -256,6 +256,20 @@
   transition: color 0.2s;
 }
 
+.searchPrompt {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 0.2s;
+}
+
+.searchForm:hover:not(.searchExpanded) .searchPrompt { color: var(--sm-text-primary); }
+
+.searchInput::placeholder { color: var(--sm-text-muted); }
+
 .searchInput {
   min-width: 0;
   border: none;
@@ -488,11 +502,11 @@
   position: relative;
 }
 
-/* 氛围渐变描边圆钮（颜色随封面取色流动） */
+/* 氛围渐变描边圆钮（颜色随封面取色流动）；与搜索框、下载按钮同为 36px 高。 */
 .avatarBtn {
   display: flex;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 2px;
   border: none;
   background: var(--ambient-gradient);

@@ -37,13 +37,15 @@ describe('顶栏搜索入口与导航', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each(['qq', 'netease', null] as const)('当前平台为 %s 时，搜索入口只展示图标并保留无障碍名称', (source) => {
+  it.each(['qq', 'netease', null] as const)('当前平台为 %s 时，搜索入口显示固定用途提示，不随平台变化', (source) => {
     state.current = source
     const html = renderToStaticMarkup(<TopBar />)
     const search = html.match(/<div[^>]*role="search"[^>]*>(.*?)<\/div>/)?.[1]
     expect(html).toContain('aria-label="搜索歌曲、歌手"')
     expect(search).toContain('<svg')
-    expect(search?.replace(/<[^>]*>/g, '').trim()).toBe('')
+    // 提示只给视觉用户，读屏沿用入口的无障碍名称，不重复朗读。
+    expect(search).toContain('aria-hidden="true">搜索歌曲、歌手</span>')
+    expect(search?.replace(/<[^>]*>/g, '').trim()).toBe('搜索歌曲、歌手')
   })
 
   it('更新日志页面归属设置导航，不误选探索', () => {

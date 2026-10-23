@@ -35,7 +35,16 @@
   --sm-reading-max-width: 960px;
   --sm-page-gutter: clamp(20px, 3vw, 48px);
   --sm-rail-max-width: var(--sm-content-max-width);
-  --sm-ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+  /* 库、搜索、详情等同级功能页的共用起线与页头；设置页沿用自身布局，不引用这组变量。 */
+  --sm-page-inline: max(var(--sm-page-gutter), calc((100% - var(--sm-content-max-width)) / 2));
+  --sm-page-top: 28px;
+  --sm-page-title-size: 26px;
+  /* 常规对话框：圆角、内边距、标题与页脚按钮统一；宽度按任务各自决定。 */
+  --sm-dialog-radius: 20px;
+  --sm-dialog-padding: 24px;
+  --sm-dialog-title-size: 17px;
+  --sm-dialog-action-height: 36px;
+  --sm-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
   --sm-text-on-accent: #0c0c0c;
 

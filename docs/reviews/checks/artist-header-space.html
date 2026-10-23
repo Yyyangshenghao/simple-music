@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>歌手页布局验收（模拟平台数据）</title>
+<div id="root"></div>
+<script type="module">
+  import React from 'react'
+  import { createRoot } from 'react-dom/client'
+  import App from '/src/App.tsx'
+  import '/src/styles/global.css'
+  import '/src/styles/scroll-gradients.css'
+
+  // 独立浏览器上下文；先安装模拟平台，再挂载真实 App。不启动音频运行时。
+  window.mountReviewApp = () => createRoot(document.getElementById('root')).render(React.createElement(App))
+</script>
+</html>

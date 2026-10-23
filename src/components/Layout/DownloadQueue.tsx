@@ -77,7 +77,7 @@ export function DownloadQueue() {
   return (
     <div className={`${styles.root} no-drag`} ref={root}>
       <motion.button ref={toggle} type="button" className={styles.toggle} aria-label="下载队列" title="下载队列" aria-expanded={open} aria-controls="song-download-queue" data-active={open} onClick={() => store().setQueueOpen(!open)}>
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
         {!!(running + queued) && <span className={styles.badge}>{running + queued}</span>}
         {!running && !queued && failed > 0 && <span className={styles.failureDot} />}
       </motion.button>

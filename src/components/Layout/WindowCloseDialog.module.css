@@ -3,17 +3,17 @@
   max-height: calc(100vh - 48px);
   box-sizing: border-box;
   margin: auto;
-  padding: 20px;
+  padding: var(--sm-dialog-padding);
   overflow-y: auto;
   border: 1px solid var(--sm-border-strong);
-  border-radius: 16px;
+  border-radius: var(--sm-dialog-radius);
   background: var(--sm-bg-base);
   color: var(--sm-text-primary);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
 }
 
 .dialog::backdrop { background: rgba(0, 0, 0, 0.48); }
-.title { margin: 0 0 16px; font-size: 16px; font-weight: 600; line-height: 1.4; }
+.title { margin: 0 0 16px; font-size: var(--sm-dialog-title-size); font-weight: 600; line-height: 1.4; }
 .options { display: grid; margin: 0; padding: 0; min-width: 0; overflow: hidden; border: 1px solid var(--sm-border); border-radius: 10px; }
 .option { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 10px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; transition: background 140ms; }
 .option + .option { border-top: 1px solid var(--sm-border); }
@@ -21,12 +21,12 @@
 .option:hover { background: var(--sm-bg-overlay); }
 .option input, .remember input { flex-shrink: 0; width: 14px; height: 14px; margin: 0; accent-color: var(--sm-accent); }
 .remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--sm-text-secondary); font-size: 12px; cursor: pointer; }
-.error { margin: 12px 0 0; color: var(--sm-color-error, var(--sm-text-primary)); font-size: 12px; line-height: 1.5; }
-.footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.footer button { min-width: 64px; height: 32px; padding: 0 16px; border: 1px solid var(--sm-border); border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer; }
-.cancel { color: var(--sm-text-secondary); background: var(--sm-fill-subtle); }
-.cancel:hover:not(:disabled) { color: var(--sm-text-primary); background: var(--sm-bg-overlay); }
-.confirm { color: var(--sm-bg-base); background: var(--sm-accent); }
+.error { margin: 12px 0 0; color: var(--sm-color-danger); font-size: 12px; line-height: 1.5; }
+.footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.footer button { min-width: 72px; height: var(--sm-dialog-action-height); padding: 0 18px; border: 0; border-radius: var(--sm-radius-pill); font: inherit; font-size: 13px; cursor: pointer; }
+.cancel { color: var(--sm-text-secondary); background: transparent; }
+.cancel:hover:not(:disabled) { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+.confirm { color: var(--sm-text-on-accent); background: var(--sm-accent); font-weight: 600; }
 .confirm:hover:not(:disabled) { opacity: 0.85; }
 .dialog button:focus-visible, .dialog input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 .dialog button:disabled, .option:has(input:disabled), .remember:has(input:disabled) { opacity: 0.55; cursor: wait; }

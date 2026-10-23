@@ -1,10 +1,5 @@
-.shelf {
-  padding: 16px;
-  border: 1px solid var(--sm-border);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--glass-bg-card) 76%, transparent);
-}
-:global([data-content-layout='full']) .shelf { padding: 16px 0; border: 0; border-radius: 0; background: none; }
+/* 卡片本身已有底板，货架只保留标题行与间距，不再外套一层框。 */
+.shelf { padding: 4px 0 16px; }
 
 .header {
   display: flex;

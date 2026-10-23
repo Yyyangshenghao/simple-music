@@ -5,7 +5,7 @@
 .inner {
   width: min(var(--sm-content-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
   margin: 0 auto;
-  padding: 28px 0 80px;
+  padding: var(--sm-page-top) 0 80px;
 }
 
 .header {
@@ -16,7 +16,7 @@
   flex-wrap: wrap;
 }
 
-.pageTitle { font-size: 24px; font-weight: 700; color: var(--sm-text-primary); margin: 0; }
+.pageTitle { font-size: var(--sm-page-title-size); font-weight: 700; line-height: 1.25; color: var(--sm-text-primary); margin: 0; }
 
 .subTabs {
   position: relative;

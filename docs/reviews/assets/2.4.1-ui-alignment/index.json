@@ -1,0 +1,924 @@
+{
+  "description": "2.4.1 非设置页 UI 对齐：修改前后同场景、同 fixture、同视口/主题的原始截图配对（未拼图）。changedPixelRatio 为灰度差>24 的像素占比，仅供定位，不代表视觉结论；氛围背景流体本身有 <1% 级的不确定噪声。",
+  "before": {
+    "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+    "state": "源码与提交一致（src/overlays 无未提交修改）",
+    "generatedAt": "2026-10-22T17:28:54.992Z",
+    "reruns": [
+      {
+        "at": "2026-10-23T01:25:20.328Z",
+        "scenarios": "artist,artist-description-open",
+        "sourceRoot": "/private/tmp/claude-501/-Users-yangshenghao-github-Mineradio-Next/6373693a-1cce-4393-8436-8595b12e675a/scratchpad/baseline-bd10077",
+        "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+        "worktreeState": "源码与提交一致（src/overlays 无未提交修改）",
+        "reason": "修正 settle：不再 finish() 滚动时间线动画；在独立临时 clean 工作区（detached bd10077）重拍，未暂存或改动 feature 源码"
+      }
+    ]
+  },
+  "after": {
+    "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+    "state": "源码有未提交修改：\nM src/components/Artist/ArtistHeader.module.css\n M src/components/Explore/PlaylistPreviewModal.module.css\n M src/components/Explore/ProviderRecommendationSection.module.css\n M src/components/Explore/TrackRow.module.css\n M src/components/Layout/DownloadQueue.tsx\n M src/components/Layout/TopBar.module.css\n M src/components/Layout/TopBar.test.tsx\n M src/components/Layout/TopBar.tsx\n M src/components/Layout/WindowCloseDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.tsx\n M src/components/Playlist/NameDialog.module.css\n M src/components/Playlist/PlaylistDetailView.module.css\n M src/pages/ArtistPage.module.css\n M src/pages/LibraryPage.module.css\n M src/pages/LibraryShelf.module.css\n M src/pages/RoamPage.module.css\n M src/pages/RoamPage.test.tsx\n M src/pages/RoamPage.tsx\n M src/pages/SearchPage.module.css\n M src/pages/SearchPage.tsx\n M src/styles/tokens.css\n?? src/lib/search-preview.test.ts\n?? src/lib/search-preview.ts",
+    "generatedAt": "2026-10-22T17:45:18.919Z",
+    "reruns": [
+      {
+        "at": "2026-10-23T01:24:05.225Z",
+        "scenarios": "artist,artist-description-open",
+        "sourceRoot": "/Users/yangshenghao/github/Mineradio-Next-ui-align",
+        "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+        "worktreeState": "源码有未提交修改：\nM src/components/Artist/ArtistHeader.module.css\n M src/components/Explore/PlaylistPreviewModal.module.css\n M src/components/Explore/ProviderRecommendationSection.module.css\n M src/components/Explore/TrackRow.module.css\n M src/components/Layout/DownloadQueue.tsx\n M src/components/Layout/TopBar.module.css\n M src/components/Layout/TopBar.test.tsx\n M src/components/Layout/TopBar.tsx\n M src/components/Layout/WindowCloseDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.tsx\n M src/components/Playlist/NameDialog.module.css\n M src/components/Playlist/PlaylistDetailView.module.css\n M src/pages/ArtistPage.module.css\n M src/pages/LibraryPage.module.css\n M src/pages/LibraryShelf.module.css\n M src/pages/RoamPage.module.css\n M src/pages/RoamPage.test.tsx\n M src/pages/RoamPage.tsx\n M src/pages/SearchPage.module.css\n M src/pages/SearchPage.tsx\n M src/styles/tokens.css\n?? src/lib/search-preview.test.ts\n?? src/lib/search-preview.ts",
+        "reason": "修正 settle：不再 finish() 滚动时间线动画（follow-scroll 被推到吸顶终态，工具栏盖住歌手信息）"
+      }
+    ]
+  },
+  "pairs": [
+    {
+      "scenario": "explore",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/explore--dark-1536x864.png",
+      "after": "after/explore--dark-1536x864.png",
+      "changedPixelRatio": 0.0698,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "explore",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/explore--light-1536x864.png",
+      "after": "after/explore--light-1536x864.png",
+      "changedPixelRatio": 0.0719,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "explore",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/explore--dark-960x540.png",
+      "after": "after/explore--dark-960x540.png",
+      "changedPixelRatio": 0.0738,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "explore",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/explore--light-960x540.png",
+      "after": "after/explore--light-960x540.png",
+      "changedPixelRatio": 0.0735,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-playlists",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/library-playlists--dark-1536x864.png",
+      "after": "after/library-playlists--dark-1536x864.png",
+      "changedPixelRatio": 0.0755,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-playlists",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/library-playlists--light-1536x864.png",
+      "after": "after/library-playlists--light-1536x864.png",
+      "changedPixelRatio": 0.0708,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-playlists",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/library-playlists--dark-960x540.png",
+      "after": "after/library-playlists--dark-960x540.png",
+      "changedPixelRatio": 0.1091,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-playlists",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/library-playlists--light-960x540.png",
+      "after": "after/library-playlists--light-960x540.png",
+      "changedPixelRatio": 0.091,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-favorites",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/library-favorites--dark-1536x864.png",
+      "after": "after/library-favorites--dark-1536x864.png",
+      "changedPixelRatio": 0.0377,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-favorites",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/library-favorites--light-1536x864.png",
+      "after": "after/library-favorites--light-1536x864.png",
+      "changedPixelRatio": 0.0322,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-favorites",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/library-favorites--dark-960x540.png",
+      "after": "after/library-favorites--dark-960x540.png",
+      "changedPixelRatio": 0.0631,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "library-favorites",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/library-favorites--light-960x540.png",
+      "after": "after/library-favorites--light-960x540.png",
+      "changedPixelRatio": 0.0537,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-all",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/search-all--dark-1536x864.png",
+      "after": "after/search-all--dark-1536x864.png",
+      "changedPixelRatio": 0.0691,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-all",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/search-all--light-1536x864.png",
+      "after": "after/search-all--light-1536x864.png",
+      "changedPixelRatio": 0.0575,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-all",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/search-all--dark-960x540.png",
+      "after": "after/search-all--dark-960x540.png",
+      "changedPixelRatio": 0.0891,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-all",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/search-all--light-960x540.png",
+      "after": "after/search-all--light-960x540.png",
+      "changedPixelRatio": 0.0719,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-songs-qq",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/search-songs-qq--dark-1536x864.png",
+      "after": "after/search-songs-qq--dark-1536x864.png",
+      "changedPixelRatio": 0.0492,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-songs-qq",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/search-songs-qq--light-1536x864.png",
+      "after": "after/search-songs-qq--light-1536x864.png",
+      "changedPixelRatio": 0.045,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-songs-qq",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/search-songs-qq--dark-960x540.png",
+      "after": "after/search-songs-qq--dark-960x540.png",
+      "changedPixelRatio": 0.07,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-songs-qq",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/search-songs-qq--light-960x540.png",
+      "after": "after/search-songs-qq--light-960x540.png",
+      "changedPixelRatio": 0.058,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "playlist-detail",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/playlist-detail--dark-1536x864.png",
+      "after": "after/playlist-detail--dark-1536x864.png",
+      "changedPixelRatio": 0.0527,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "playlist-detail",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/playlist-detail--light-1536x864.png",
+      "after": "after/playlist-detail--light-1536x864.png",
+      "changedPixelRatio": 0.0483,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "playlist-detail",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/playlist-detail--dark-960x540.png",
+      "after": "after/playlist-detail--dark-960x540.png",
+      "changedPixelRatio": 0.0648,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "playlist-detail",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/playlist-detail--light-960x540.png",
+      "after": "after/playlist-detail--light-960x540.png",
+      "changedPixelRatio": 0.0589,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "roam",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/roam--dark-1536x864.png",
+      "after": "after/roam--dark-1536x864.png",
+      "changedPixelRatio": 0.0286,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "roam",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/roam--light-1536x864.png",
+      "after": "after/roam--light-1536x864.png",
+      "changedPixelRatio": 0.0347,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "roam",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/roam--dark-960x540.png",
+      "after": "after/roam--dark-960x540.png",
+      "changedPixelRatio": 0.0696,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "roam",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/roam--light-960x540.png",
+      "after": "after/roam--light-960x540.png",
+      "changedPixelRatio": 0.088,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-window-close-error",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-window-close-error--dark-1536x864.png",
+      "after": "after/dialog-window-close-error--dark-1536x864.png",
+      "changedPixelRatio": 0.0272,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-window-close-error",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-window-close-error--light-1536x864.png",
+      "after": "after/dialog-window-close-error--light-1536x864.png",
+      "changedPixelRatio": 0.0291,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-window-close-error",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-window-close-error--dark-960x540.png",
+      "after": "after/dialog-window-close-error--dark-960x540.png",
+      "changedPixelRatio": 0.0508,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-window-close-error",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-window-close-error--light-960x540.png",
+      "after": "after/dialog-window-close-error--light-960x540.png",
+      "changedPixelRatio": 0.0518,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-create-playlist",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-create-playlist--dark-1536x864.png",
+      "after": "after/dialog-create-playlist--dark-1536x864.png",
+      "changedPixelRatio": 0.0426,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-create-playlist",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-create-playlist--light-1536x864.png",
+      "after": "after/dialog-create-playlist--light-1536x864.png",
+      "changedPixelRatio": 0.0455,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-create-playlist",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-create-playlist--dark-960x540.png",
+      "after": "after/dialog-create-playlist--dark-960x540.png",
+      "changedPixelRatio": 0.0592,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-create-playlist",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-create-playlist--light-960x540.png",
+      "after": "after/dialog-create-playlist--light-960x540.png",
+      "changedPixelRatio": 0.0633,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-playlist-preview",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-playlist-preview--dark-1536x864.png",
+      "after": "after/dialog-playlist-preview--dark-1536x864.png",
+      "changedPixelRatio": 0.0519,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-playlist-preview",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/dialog-playlist-preview--light-1536x864.png",
+      "after": "after/dialog-playlist-preview--light-1536x864.png",
+      "changedPixelRatio": 0.0124,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-playlist-preview",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-playlist-preview--dark-960x540.png",
+      "after": "after/dialog-playlist-preview--dark-960x540.png",
+      "changedPixelRatio": 0.0359,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "dialog-playlist-preview",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/dialog-playlist-preview--light-960x540.png",
+      "after": "after/dialog-playlist-preview--light-960x540.png",
+      "changedPixelRatio": 0.0121,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-empty",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "empty",
+      "before": "before/search-empty--dark-1536x864.png",
+      "after": "after/search-empty--dark-1536x864.png",
+      "changedPixelRatio": 0.0286,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-empty",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "empty",
+      "before": "before/search-empty--light-960x540.png",
+      "after": "after/search-empty--light-960x540.png",
+      "changedPixelRatio": 0.0474,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-error",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "error",
+      "before": "before/search-error--dark-1536x864.png",
+      "after": "after/search-error--dark-1536x864.png",
+      "changedPixelRatio": 0.0632,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "search-error",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "error",
+      "before": "before/search-error--light-960x540.png",
+      "after": "after/search-error--light-960x540.png",
+      "changedPixelRatio": 0.0613,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false
+    },
+    {
+      "scenario": "artist",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/artist--dark-1536x864.png",
+      "after": "after/artist--dark-1536x864.png",
+      "changedPixelRatio": 0.0506,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/artist--light-1536x864.png",
+      "after": "after/artist--light-1536x864.png",
+      "changedPixelRatio": 0.0466,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/artist--dark-960x540.png",
+      "after": "after/artist--dark-960x540.png",
+      "changedPixelRatio": 0.0793,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/artist--light-960x540.png",
+      "after": "after/artist--light-960x540.png",
+      "changedPixelRatio": 0.0739,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist-description-open",
+      "theme": "dark",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/artist-description-open--dark-1536x864.png",
+      "after": "after/artist-description-open--dark-1536x864.png",
+      "changedPixelRatio": 0.0543,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist-description-open",
+      "theme": "light",
+      "size": "1536x864",
+      "mode": "normal",
+      "before": "before/artist-description-open--light-1536x864.png",
+      "after": "after/artist-description-open--light-1536x864.png",
+      "changedPixelRatio": 0.0501,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist-description-open",
+      "theme": "dark",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/artist-description-open--dark-960x540.png",
+      "after": "after/artist-description-open--dark-960x540.png",
+      "changedPixelRatio": 0.0939,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    },
+    {
+      "scenario": "artist-description-open",
+      "theme": "light",
+      "size": "960x540",
+      "mode": "normal",
+      "before": "before/artist-description-open--light-960x540.png",
+      "after": "after/artist-description-open--light-960x540.png",
+      "changedPixelRatio": 0.0879,
+      "beforeStatus": "ok",
+      "afterStatus": "ok",
+      "afterDocumentOverflow": false,
+      "reshot": "settle 修正后重拍（before 来自临时 clean bd10077 工作区）",
+      "beforeLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "afterLayout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 106,
+          "bottom": 346
+        },
+        "toolbar": {
+          "top": 346,
+          "bottom": 403
+        },
+        "firstRow": {
+          "top": 403,
+          "bottom": 459
+        },
+        "pinned": "false"
+      }
+    }
+  ],
+  "artistToolbarEvidence": "artist-toolbar-settle-evidence.json"
+}

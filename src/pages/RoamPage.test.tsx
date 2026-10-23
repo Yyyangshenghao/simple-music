@@ -86,7 +86,7 @@ describe('RoamPage 已保存歌单入口', () => {
   it('发现本地混合歌单时先让用户选择，不直接进入曲目结果', () => {
     const html = renderToStaticMarkup(<RoamPage />)
 
-    expect(html).toContain('SAVED ROAM')
+    expect(html).toMatch(/<h2>(今日|上次)漫游<\/h2>/)
     expect(html).toContain('继续听')
     expect(html).toContain('重新生成')
     expect(html).toContain('旧版漫游')
@@ -150,7 +150,7 @@ describe('RoamPage 已保存歌单入口', () => {
 
     const html = renderToStaticMarkup(<RoamPage />)
 
-    expect(html.match(/SAVED ROAM/g)).toHaveLength(2)
+    expect(html.match(/<h2>(今日|上次)漫游<\/h2>/g)).toHaveLength(2)
     expect(html.match(/旧版漫游/g)).toHaveLength(2)
     expect(html).not.toContain('已同步平台歌单')
   })

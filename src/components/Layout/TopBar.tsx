@@ -304,17 +304,20 @@ export function TopBar({ hidden = false }: TopBarProps) {
           >
             <svg
               className={styles.searchIcon}
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.8"
+              strokeLinecap="round"
               aria-hidden="true"
             >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
+              <circle cx="11" cy="11" r="7.5" />
+              <path d="m20.5 20.5-4.2-4.2" />
             </svg>
+            {/* 空闲时给出稳定的用途提示；展开后由输入框占位文字承接。 */}
+            {!isExpanded && <span className={styles.searchPrompt} aria-hidden="true">搜索歌曲、歌手</span>}
             {isExpanded && (
               <input
                 ref={inputRef}
@@ -326,6 +329,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   setSearchHistory(loadSearchHistory())
                 }}
                 aria-label="搜索歌曲、歌手"
+                placeholder="搜索歌曲、歌手"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault()
@@ -433,7 +437,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
             transition={springSnappy}
           >
             <span className={styles.avatarInner}>
-              <svg className={styles.accountGlyph} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <svg className={styles.accountGlyph} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
               </svg>

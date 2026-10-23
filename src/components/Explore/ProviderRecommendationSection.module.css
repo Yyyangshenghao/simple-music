@@ -94,13 +94,15 @@
   flex: 0 0 auto;
 }
 
+/* 堆叠靠近左侧推荐卡，与下方栏目共用左侧阅读起点；余量留在右侧，不在两组之间空出大缝。 */
 .stage {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: clamp(44px, 5vw, 64px);
+  padding-left: clamp(16px, 6vw, 112px);
 }
 
 .stage > div:first-child { flex-shrink: 0; }
@@ -135,6 +137,6 @@
 
 @media (max-width: 900px) {
   .content { align-items: flex-start; flex-direction: column; }
-  .stage { width: 100%; }
+  .stage { width: 100%; justify-content: center; padding-left: 0; }
   .topInfo { width: 180px; }
 }

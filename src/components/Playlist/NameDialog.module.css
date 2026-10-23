@@ -2,9 +2,9 @@
 .dialog {
   width: min(400px, calc(100vw - 48px));
   box-sizing: border-box;
-  padding: 28px 28px 22px;
+  padding: var(--sm-dialog-padding);
   border: 1px solid var(--glass-border-card);
-  border-radius: 24px;
+  border-radius: var(--sm-dialog-radius);
   color: var(--sm-text-primary);
   background: linear-gradient(var(--glass-bg-modal), var(--glass-bg-modal)), color-mix(in srgb, var(--sm-bg-base) 86%, transparent);
   backdrop-filter: var(--glass-blur-modal) saturate(130%);
@@ -16,8 +16,8 @@
 @keyframes dialogIn { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
 @keyframes backdropIn { from { opacity: 0; } }
 
-.header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
-.header h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.01em; }
+.header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.header h2 { margin: 0; font-size: var(--sm-dialog-title-size); font-weight: 600; letter-spacing: 0.01em; }
 
 .field { position: relative; }
 .field input {
@@ -44,13 +44,13 @@
 .note { display: flex; align-items: center; gap: 6px; margin: 12px 2px 0; color: var(--sm-text-secondary); font-size: 12px; }
 .error { margin: 12px 2px 0; color: var(--sm-color-danger); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; }
 
-.actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 28px; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 24px; }
 .ghost, .primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 36px;
+  height: var(--sm-dialog-action-height);
   border-radius: var(--sm-radius-pill);
   font: inherit;
   font-size: 13px;

@@ -1,0 +1,147 @@
+{
+  "generatedAt": "2026-10-22T23:52:32.021Z",
+  "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+  "worktreeState": "M src/components/Artist/ArtistHeader.module.css\n M src/components/Explore/PlaylistPreviewModal.module.css\n M src/components/Explore/ProviderRecommendationSection.module.css\n M src/components/Explore/TrackRow.module.css\n M src/components/Layout/DownloadQueue.tsx\n M src/components/Layout/TopBar.module.css\n M src/components/Layout/TopBar.test.tsx\n M src/components/Layout/TopBar.tsx\n M src/components/Layout/WindowCloseDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.tsx\n M src/components/Playlist/NameDialog.module.css\n M src/components/Playlist/PlaylistDetailView.module.css\n M src/pages/ArtistPage.module.css\n M src/pages/LibraryPage.module.css\n M src/pages/LibraryShelf.module.css\n M src/pages/RoamPage.module.css\n M src/pages/RoamPage.test.tsx\n M src/pages/RoamPage.tsx\n M src/pages/SearchPage.module.css\n M src/pages/SearchPage.tsx\n M src/styles/tokens.css\n?? src/lib/search-preview.test.ts\n?? src/lib/search-preview.ts",
+  "environment": "macOS Electron dev（electron-vite dev），独立 --user-data-dir；MOCK fixture；CDP 固定视口",
+  "settingsSourceDiff": "无改动（SettingsPage 与 components/Settings 相对 bd10077 无差异）",
+  "checks": [
+    {
+      "name": "搜索「全部」只预览前 10 首，并提供查看全部歌曲入口",
+      "ok": true,
+      "detail": {
+        "rows": 10
+      }
+    },
+    {
+      "name": "查看全部切到歌曲分类：完整 52 首、回到顶部、类型按钮同步选中",
+      "ok": true,
+      "detail": {
+        "rows": 52,
+        "scrollTop": 0
+      }
+    },
+    {
+      "name": "来源筛选：QQ 音乐只显示 12 首，返回全部平台恢复 52 首",
+      "ok": true
+    },
+    {
+      "name": "类型切回「全部」重新进入预览，结果顺序不变（首项仍为第 1 首）",
+      "ok": true
+    },
+    {
+      "name": "搜索结果多选只覆盖可见预览条目",
+      "ok": true,
+      "detail": {
+        "checked": 22
+      }
+    },
+    {
+      "name": "顶栏搜索空闲显示用途提示，点击后输入框带占位文字",
+      "ok": true
+    },
+    {
+      "name": "歌手简介：默认限宽截断，可展开并收起",
+      "ok": true,
+      "detail": {
+        "previewWidth": 640
+      }
+    },
+    {
+      "name": "歌手页返回按钮、标签栏、歌曲列表与库页共享内容起线（±1px）",
+      "ok": true,
+      "detail": {
+        "back": 46.1,
+        "tabs": 46.1,
+        "list": 46.1,
+        "library": 46.1
+      }
+    },
+    {
+      "name": "从库进入歌单详情再返回：封面可见，返回库并保留歌单标签",
+      "ok": true
+    },
+    {
+      "name": "新建歌单对话框：取消关闭",
+      "ok": true,
+      "detail": {
+        "titleFontSize": "17px"
+      }
+    },
+    {
+      "name": "关闭窗口对话框错误文字使用危险色（R03）",
+      "ok": true,
+      "detail": {
+        "color": "rgb(255, 139, 139)",
+        "danger": "rgb(255, 139, 139)",
+        "text": "rgba(255, 255, 255, 0.92)"
+      }
+    },
+    {
+      "name": "歌单预览弹层：右上关闭按钮可关闭",
+      "ok": true,
+      "detail": {
+        "closeSize": [
+          31,
+          31
+        ]
+      }
+    },
+    {
+      "name": "搜索空结果与失败状态保留提示和重试入口",
+      "ok": true
+    },
+    {
+      "name": "最小窗口 960×540（dark）各页面无横向溢出",
+      "ok": true,
+      "detail": {
+        "explore": {
+          "document": 0,
+          "scrollers": []
+        },
+        "library": {
+          "document": 0,
+          "scrollers": []
+        },
+        "roam": {
+          "document": 0,
+          "scrollers": []
+        },
+        "search": {
+          "document": 0,
+          "scrollers": []
+        },
+        "artist": {
+          "document": 0,
+          "scrollers": []
+        }
+      }
+    },
+    {
+      "name": "最小窗口 960×540（light）各页面无横向溢出",
+      "ok": true,
+      "detail": {
+        "explore": {
+          "document": 0,
+          "scrollers": []
+        },
+        "library": {
+          "document": 0,
+          "scrollers": []
+        },
+        "roam": {
+          "document": 0,
+          "scrollers": []
+        },
+        "search": {
+          "document": 0,
+          "scrollers": []
+        },
+        "artist": {
+          "document": 0,
+          "scrollers": []
+        }
+      }
+    }
+  ],
+  "pageErrors": []
+}

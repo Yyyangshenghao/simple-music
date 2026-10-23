@@ -235,7 +235,6 @@ export function RoamPage() {
           transition={springGentle}
         >
           <div className={styles.roamHeroCopy}>
-            <span className={styles.heroKicker}>PERSONAL RADIO</span>
             <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
             <p className={styles.subtitle}>
               选择喜欢的歌手，生成你的漫游歌单。
@@ -306,7 +305,6 @@ export function RoamPage() {
               transition={{ ...springGentle, delay: 0.06 + index * 0.04 }}
             >
               <div className={styles.savedPlaylistCopy}>
-                <span className={styles.heroKicker}>SAVED ROAM</span>
                 <h2>{savedPlaylist.date === todayKey() ? '今日漫游' : '上次漫游'}</h2>
                 <p>
                   {savedPlaylist.date} · {savedPlaylist.artists.length} 位歌手 · {savedPlaylist.tracks.length} 首

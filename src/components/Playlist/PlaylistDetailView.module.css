@@ -10,7 +10,8 @@
   overflow-y: auto;
 }
 
-.inner { padding: 24px 24px 80px; }
+/* 与库、搜索共用内容起线；宽屏下正文同样收在内容最大宽度内。 */
+.inner { padding: 16px var(--sm-page-inline) 80px; }
 
 .detailHeader { position: relative; z-index: 2; margin-bottom: 24px; }
 

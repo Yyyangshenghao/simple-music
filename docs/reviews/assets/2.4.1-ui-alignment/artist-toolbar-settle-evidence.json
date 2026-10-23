@@ -1,0 +1,352 @@
+{
+  "generatedAt": "2026-10-23T01:33:05.659Z",
+  "finding": "旧 settle 对 document.getAnimations() 全部 finish()，把歌手工具栏 follow-scroll 的 ScrollTimeline 提前推到吸顶终态，scrollTop=0 时栏目压到歌手信息上方。两版旧/新 helper 对照确认了该因果。基准吸顶通过；feature 单次打开可滚动，但重复导航探针的吸顶未通过，不能据此宣称所有滚动路径均无问题。",
+  "fix": "settle 跳过 timeline 非 DocumentTimeline 的动画；歌手场景截图后断言 scrollTop=0 时工具栏位于歌手信息之下、列表不与工具栏重叠。",
+  "reshot": "仅重拍 artist、artist-description-open 两个场景的 before/after 各 4 张；before 在独立临时 clean 工作区（detached bd10077）拍摄，未暂存或改动 feature 源码；其他场景原图未改。",
+  "results": [
+    {
+      "label": "feature",
+      "url": "http://127.0.0.1:9461",
+      "source": "feature 工作树（含 searchPreview）",
+      "oldSettle": {
+        "beforeSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 346,
+            "bottom": 403
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 346)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            }
+          ]
+        },
+        "afterSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 52,
+            "bottom": 109
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 52)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "finished",
+              "progress": "100%"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "finished",
+              "progress": "100%"
+            }
+          ]
+        }
+      },
+      "newSettle": {
+        "beforeSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 346,
+            "bottom": 403
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 346)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            }
+          ]
+        },
+        "afterSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 346,
+            "bottom": 403
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 346)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            }
+          ]
+        },
+        "scrollDrivenAnimationsSkipped": 2,
+        "assertion": "pass"
+      },
+      "causeConfirmed": true,
+      "stickyByWheel": {
+        "topbarHeight": 52,
+        "wheelAttempts": 3,
+        "afterScrollDown": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 346,
+            "bottom": 403
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 346)",
+          "pinned": "true",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            }
+          ]
+        },
+        "afterScrollUp": {
+          "scrollTop": 0,
+          "toolbarLayers": 2,
+          "header": {
+            "top": 106,
+            "bottom": 346
+          },
+          "toolbar": {
+            "top": 346,
+            "bottom": 403
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 346)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            },
+            {
+              "timeline": "null",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "null"
+            }
+          ]
+        },
+        "pass": false
+      },
+      "pageErrors": []
+    },
+    {
+      "label": "baseline",
+      "url": "http://127.0.0.1:9462",
+      "source": "bd10077 clean（无 searchPreview）",
+      "oldSettle": {
+        "beforeSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 1,
+          "header": {
+            "top": 102,
+            "bottom": 342
+          },
+          "toolbar": {
+            "top": 342,
+            "bottom": 399
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 342)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "0%"
+            }
+          ]
+        },
+        "afterSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 1,
+          "header": {
+            "top": 102,
+            "bottom": 342
+          },
+          "toolbar": {
+            "top": 52,
+            "bottom": 109
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 52)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "finished",
+              "progress": "15.956%"
+            }
+          ]
+        }
+      },
+      "newSettle": {
+        "beforeSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 1,
+          "header": {
+            "top": 102,
+            "bottom": 342
+          },
+          "toolbar": {
+            "top": 342,
+            "bottom": 399
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 342)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "0%"
+            }
+          ]
+        },
+        "afterSettle": {
+          "scrollTop": 0,
+          "toolbarLayers": 1,
+          "header": {
+            "top": 102,
+            "bottom": 342
+          },
+          "toolbar": {
+            "top": 342,
+            "bottom": 399
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 342)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "0%"
+            }
+          ]
+        },
+        "scrollDrivenAnimationsSkipped": 1,
+        "assertion": "pass"
+      },
+      "causeConfirmed": true,
+      "stickyByWheel": {
+        "topbarHeight": 52,
+        "wheelAttempts": 1,
+        "afterScrollDown": {
+          "scrollTop": 900,
+          "toolbarLayers": 1,
+          "header": {
+            "top": -798,
+            "bottom": -558
+          },
+          "toolbar": {
+            "top": 52,
+            "bottom": 109
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 52)",
+          "pinned": "true",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "finished",
+              "progress": "15.956%"
+            }
+          ]
+        },
+        "afterScrollUp": {
+          "scrollTop": 0,
+          "toolbarLayers": 1,
+          "header": {
+            "top": 102,
+            "bottom": 342
+          },
+          "toolbar": {
+            "top": 342,
+            "bottom": 399
+          },
+          "toolbarTransform": "matrix(1, 0, 0, 1, 0, 342)",
+          "pinned": "false",
+          "nonDocumentTimelineAnimations": [
+            {
+              "timeline": "ScrollTimeline",
+              "animation": "_follow-scroll_1i6of_1",
+              "playState": "running",
+              "progress": "0%"
+            }
+          ]
+        },
+        "pass": true
+      },
+      "pageErrors": []
+    }
+  ],
+  "probeNotes": {
+    "repeatedNavigationProbe": "feature 实例在多轮重载+导航后同时挂载 2 个歌手页/工具栏（follow-scroll timeline 为 null），真实滚轮未使可见视口滚动，故 feature 的 stickyByWheel=false；baseline 实例单个工具栏、吸顶通过。该残留出现在同一实例反复运行探针之后，未继续调查，也未修改产品代码。",
+    "standaloneSingleOpen": {
+      "feature": "单次打开歌手页：1 个工具栏、timeline=ScrollTimeline、scrollTop=0 时 toolbar.top=346 位于 header 底边 346 之下；真实滚轮在 (700,600)/(700,450)/(300,250) 各滚 400，视口 scrollTop 依次 400/800/1200（未在该次记录工具栏吸顶坐标）。",
+      "baseline": "单次打开：1 个工具栏、ScrollTimeline、toolbar.top=342；滚轮 scrollTop 依次 400/800/1200；在本 JSON 的 stickyByWheel 中吸顶 toolbar.top=52、pinned=true，回滚复位到 342。"
+    },
+    "conclusion": "定因由两个实例的旧/新 settle 实测确认：旧 settle 把 follow-scroll 推到吸顶终态（toolbar.top 346→52，header 仍在 106–346），新 settle 保持 346 并通过布局断言。16 张重拍截图均通过断言。"
+  }
+}

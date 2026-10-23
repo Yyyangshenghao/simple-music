@@ -17,6 +17,7 @@ import { useMultiSelection } from '../hooks/useMultiSelection'
 import { SelectionCheck, SelectionMarquee } from '../components/Playlist/SelectionControls'
 import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
 import { providerAccountSession } from '../lib/provider-account-session'
+import { searchPreview, type SearchPreviewKind } from '../lib/search-preview'
 import type { ArtistInfo, Playlist, Track } from '../types/domain'
 import styles from './SearchPage.module.css'
 
@@ -153,10 +154,15 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
     ...(artists[source]?.status === 'error' ? [{ source, label: '歌手', error: artists[source]?.error }] : []),
   ])
 
-  const displayedTracks = category === 'all' || category === 'songs' ? visibleSongs : []
+  // 「全部」只预览每类前几项，其余经「查看全部」进入分类；多选范围与可见条目一致。
+  const artistPreview = searchPreview(visibleArtists, 'artists', category)
+  const songPreview = searchPreview(visibleSongs, 'songs', category)
+  const albumPreview = searchPreview(visibleAlbums, 'albums', category)
+  const playlistPreview = searchPreview(visiblePlaylists, 'playlists', category)
+  const displayedTracks = category === 'all' || category === 'songs' ? songPreview.items : []
   const displayedCollections = [
-    ...(category === 'all' || category === 'albums' ? visibleAlbums : []),
-    ...(category === 'all' || category === 'playlists' ? visiblePlaylists : []),
+    ...(category === 'all' || category === 'albums' ? albumPreview.items : []),
+    ...(category === 'all' || category === 'playlists' ? playlistPreview.items : []),
   ]
   const selection = useMultiSelection({
     enabled: selecting,
@@ -187,6 +193,18 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
     setSelecting(false)
   }
 
+  function viewAll(kind: SearchPreviewKind) {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+    changeFilters({ category: kind })
+  }
+
+  function viewAllButton(kind: SearchPreviewKind, hidden: number, total: number) {
+    if (!hidden) return null
+    const unit = { songs: '首', artists: '位', albums: '张', playlists: '个' }[kind]
+    return <button type="button" className={styles.viewAll} onClick={() => viewAll(kind)}
+      aria-label={`查看全部${total}${unit}${categories[kind]}`}>查看全部 {total}</button>
+  }
+
   function playSong(track: Track) {
     if (isCatalogUnavailable(track)) return
     const queue = visibleSongs.filter((song) => !isCatalogUnavailable(song))
@@ -198,27 +216,27 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
     <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <div className={styles.content} ref={selection.rootRef} {...selection.surfaceProps}>
         <header className={styles.header}>
-          <p className={styles.eyebrow}>聚合搜索</p>
           <h1>“{keyword}”<span>的搜索结果</span></h1>
         </header>
 
-        <div className={styles.filters} role="group" aria-label="筛选搜索来源">
-          <button type="button" aria-pressed={!activeFilter} onClick={() => changeFilters({ sourceFilter: null })}>全部平台</button>
-          {sources.map((source) => (
-            <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => changeFilters({ sourceFilter: source })}>
-              <SourceBadge source={source} compact reveal />
-              <span><SourceName source={source} /></span>
-            </button>
-          ))}
+        {/* 类型与来源同处一行：类型是主筛选，来源靠右作为范围。 */}
+        <div className={styles.toolbar}>
+          {sources.length > 0 && <div className={styles.categories} role="group" aria-label="筛选搜索类型">
+            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => changeFilters({ category: item })}>{categories[item]}</button>)}
+          </div>}
+          <div className={styles.filters} role="group" aria-label="筛选搜索来源">
+            <button type="button" aria-pressed={!activeFilter} onClick={() => changeFilters({ sourceFilter: null })}>全部平台</button>
+            {sources.map((source) => (
+              <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => changeFilters({ sourceFilter: source })}>
+                <SourceBadge source={source} compact reveal />
+                <span><SourceName source={source} /></span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {sources.length > 0 && <>
-          <div className={styles.categories} role="group" aria-label="筛选搜索类型">
-            {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => changeFilters({ category: item })}>{categories[item]}</button>)}
-          </div>
-          {selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
-            selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
-        </>}
+        {sources.length > 0 && selecting && <BatchTrackActions tracks={selectedTracks} collections={selectedCollections} onDone={selection.clear}
+          selection={{ total: selectableCount, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
 
         {sources.length === 0 ? (
           <div className={styles.empty}>
@@ -238,14 +256,20 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
             )}
 
             {(category === 'all' || category === 'artists') && <section className={styles.section} aria-label="歌手搜索结果" aria-busy={artistsLoading}>
-              <div className={styles.sectionHeading}><h2>歌手</h2>{artistsLoading && <span role="status">搜索中…</span>}</div>
+              <div className={styles.sectionHeading}>
+                <h2>歌手</h2>
+                <div className={styles.sectionActions}>
+                  {artistsLoading && <span role="status">搜索中…</span>}
+                  {viewAllButton('artists', artistPreview.hidden, visibleArtists.length)}
+                </div>
+              </div>
               {visibleArtists.length > 0 ? (
-                <div className={`${styles.artistGrid}${visibleArtists.length <= 10 ? ` ${styles.artistGridFit}` : ''}`} ref={artistScrollRef} onScroll={(event) => {
+                <div className={`${styles.artistGrid}${artistPreview.items.length <= 10 ? ` ${styles.artistGridFit}` : ''}`} ref={artistScrollRef} onScroll={(event) => {
                   if (artistScrollRestored.current && useNavigationStore.getState().currentView === route.current) {
                     updatePageState(keyword, { artistScrollTop: event.currentTarget.scrollTop })
                   }
                 }}>
-                  {visibleArtists.map((artist) => (
+                  {artistPreview.items.map((artist) => (
                     <button key={`${artist.source}:${String(artist.id)}`} className={styles.artist} type="button" onClick={() => {
                       if (artist.source !== 'local') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
                     }}>
@@ -264,11 +288,12 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
                 <h2>歌曲</h2>
                 <div className={styles.sectionActions}>
                   {songsLoading && <span role="status">搜索中…</span>}
+                  {viewAllButton('songs', songPreview.hidden, visibleSongs.length)}
                   {!selecting && <BatchTrackActions compact menuLabel="歌曲搜索结果更多操作" label="当前歌曲搜索结果" selectLabel="多选搜索结果"
                     tracks={visibleSongs} onSelect={enterSelection} />}
                 </div>
               </div>
-              {visibleSongs.length > 0 ? visibleSongs.map((song, index) => (
+              {visibleSongs.length > 0 ? songPreview.items.map((song, index) => (
                 <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
                   {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} />}
                   <TrackRow track={song} index={index} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} statusColumn />
@@ -278,6 +303,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
 
             {(['albums', 'playlists'] as const).filter((kind) => category === 'all' || category === kind).map((kind) => {
               const items = kind === 'albums' ? visibleAlbums : visiblePlaylists
+              const preview = kind === 'albums' ? albumPreview : playlistPreview
               const loading = kind === 'albums' ? albumsLoading : playlistsLoading
               const label = categories[kind]
               return <section className={styles.section} key={kind} aria-label={`${label}搜索结果`} aria-busy={loading}>
@@ -285,12 +311,13 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
                   <h2>{label}</h2>
                   <div className={styles.sectionActions}>
                     {loading && <span role="status">搜索中…</span>}
+                    {viewAllButton(kind, preview.hidden, items.length)}
                     {!selecting && <BatchTrackActions compact menuLabel={`${label}搜索结果更多操作`} label={`当前${label}搜索结果`} selectLabel="多选搜索结果"
                       tracks={[]} collections={items} onSelect={enterSelection} />}
                   </div>
                 </div>
                 {items.length ? <div className={styles.collectionGrid}>
-                  {items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
+                  {preview.items.map((item) => <div key={collectionKey(item)} className={styles.selectableCard} data-selected={selected.has(collectionKey(item))} data-selection-key={collectionKey(item)}>
                     {selecting && <div className={styles.cardCheck}><SelectionCheck label={`选择${label}：${item.name}`} checked={selected.has(collectionKey(item))} /></div>}
                     {/* 隔离布局测量，筛选增删卡片时不触发其他封面的转场。 */}
                     <LayoutGroup inherit="id">
