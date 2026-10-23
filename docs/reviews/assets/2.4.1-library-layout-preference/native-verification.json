@@ -1,0 +1,23 @@
+{
+  "environment": "Isolated native Electron dev, mocked platform data",
+  "checks": [
+    {
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "padding": "16px",
+        "background": "color(srgb 1 1 1 / 0.494745)"
+      },
+      "ok": true
+    },
+    {
+      "layout": "full",
+      "style": {
+        "border": "0px",
+        "padding": "0px",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "ok": true
+    }
+  ]
+}

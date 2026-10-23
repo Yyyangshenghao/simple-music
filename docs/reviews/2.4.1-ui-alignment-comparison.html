@@ -10,6 +10,7 @@
 <main>
 <header>
   <h1>2.4.1 UI 修改前后对比</h1>
+  <p><strong>库页外框更正：</strong><a href="2.4.1-library-layout-preference.md">已恢复由“保留边框／内容延展”设置控制</a>。下方库页去框图保留为已撤回的历史方案。</p>
   <p><strong>歌手页后续更新：</strong><a href="2.4.1-artist-header-space.md">简介靠右与歌手名空间调整</a>。下方原图保留前一阶段结果。</p>
   <p class="intro">同一套示例数据、同一视口与主题，比较页面对齐、内容密度与操作层级。设置页保留原样，歌词与播放引擎不在本轮范围。</p>
   <p class="branch muted">feature/ui-visual-alignment-2.4.1 · 基准 bd10077 · 修改后为未提交工作树</p>
@@ -32,7 +33,7 @@
   <p id="state-note" class="muted"></p>
 </section>
 <section class="bottom">
-  <div><h2>这轮改进</h2><ul><li>搜索页缩短页头，两层筛选整合，全部结果改为分区预览并保留完整分类入口。</li><li>库、搜索与详情的内容起线统一，简介限宽，歌曲专辑列靠近正文，时长常驻。</li><li>我的库移除外层套框；常规弹层与顶栏用途提示更一致。</li><li>探索、漫游只调整比例与重复装饰，保留现有音乐内容和风格。</li></ul></div>
+  <div><h2>这轮改进</h2><ul><li>搜索页缩短页头，两层筛选整合，全部结果改为分区预览并保留完整分类入口。</li><li>库、搜索与详情的内容起线统一，简介限宽，歌曲专辑列靠近正文，时长常驻。</li><li>我的库外框恢复由页面布局设置控制；常规弹层与顶栏用途提示更一致。</li><li>探索、漫游只调整比例与重复装饰，保留现有音乐内容和风格。</li></ul></div>
   <div><h2>保留的边界</h2><ul><li>960×540 的全部搜索仍需滚动越过歌手预览，不能视为所有歌曲都能首屏可见。</li><li>歌单详情的小窗口首屏仍以封面与信息为主；普通歌词、设置与播放栏未重构。</li><li>平台数据与封面为明确的模拟 fixture；不是实际账号、真实音频或 Windows 验收。</li><li>流体氛围存在少量像素噪声；推荐卡日期取拍摄当天。像素差异不等同设计质量。</li><li>补充检查观察到删除应用歌单弹窗按 Esc 未关闭；重复导航的歌手页滚动探针也有未定因疑点，详见验收文档。</li></ul></div>
 </section>
 <details><summary>全部 52 组原图与证据</summary><p class="muted">可以直接打开原图放大；空结果和失败场景仅有深色大窗口、浅色小窗口两种组合。</p><table><thead><tr><th>场景</th><th>主题 / 视口</th><th>修改前</th><th>修改后</th></tr></thead><tbody id="all-pairs"></tbody></table><p><a href="assets/2.4.1-ui-alignment/README.md">素材说明与重放方法</a> · <a href="assets/2.4.1-ui-alignment/interactions.json">Claude 首轮交互记录</a> · <a href="assets/2.4.1-ui-alignment/index.json">截图配对清单</a> · <a href="assets/2.4.1-ui-alignment/supplemental/results.json">19 项补充检查</a></p></details>
@@ -45,8 +46,8 @@ const pairs=JSON.parse(document.getElementById('comparison-data').textContent);
 const descriptions={
  'search-all':['搜索 · 全部','页头显著缩短，首屏结果前移；每类只预览部分条目，完整结果通过“查看全部”进入。小窗口的歌曲区仍需滚动。'],
  'search-songs-qq':['搜索 · QQ 歌曲','核对来源与分类仍清楚，长歌名保持省略，专辑列起点前移，时长常驻。'],
- 'library-playlists':['我的库 · 歌单','移除货架外层底板和边框，保留卡片及新建、刷新入口；不是移除所有卡片阴影。'],
- 'library-favorites':['我的库 · 收藏','同样移除外框，分类层级和来源行保留，内容区域与标题共用起线。'],
+ 'library-playlists':['我的库 · 歌单','本图为已撤回的全局去框方案。最新库页在“保留边框”时保留外框，仅“内容延展”去框。'],
+ 'library-favorites':['我的库 · 收藏','本图为历史去框方案；最新收藏货架与其他库页一样，由页面布局设置控制外框。'],
  'artist':['歌手 · 简介收起','简介限制在 640px 阅读宽度内；列表、标签栏和返回入口共享内容起线。页面顺序仍是资料、栏目、列表，首轮拍图误推进吸顶的位置已更正，前后各 8 张已重拍。'],
  'artist-description-open':['歌手 · 简介展开','展开仍可阅读全文；更窄的阅读列让单行文字更易跟随，长内容在原区域滚动。首轮拍图误将滚动动画推进吸顶；现已修正脚本并替换前后 8 组歌手截图，详见 Markdown 更正记录。'],
  'playlist-detail':['歌单详情 · 长标题','详情正文边距与库页统一，保留封面与标题层次。小窗口的封面区仍占首屏较大比例。'],
