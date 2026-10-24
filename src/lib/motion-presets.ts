@@ -57,3 +57,9 @@ export const heartBurstTransition: Transition = {
   delay: heartBeatTransition.duration * heartBeatTransition.times[1],
   ease: 'easeOut'
 }
+
+/** 尾迹滑块（参考 React Bits WakeSlider）：填充头追随数值的临界阻尼弹簧，约 0.3s 落位。 */
+export const wakeHeadSpring = { stiffness: 946, damping: 61.5, mass: 1 }
+
+/** 尾迹滑块：对填充头速度再做一次平滑，波峰随拖动快慢起落而不抖。 */
+export const wakeSpeedSpring = { stiffness: 400, damping: 50, mass: 1 }

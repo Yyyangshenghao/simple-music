@@ -11,6 +11,7 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
+import { WakeSlider } from '../ui/WakeSlider'
 import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
@@ -481,16 +482,16 @@ function VolumeControl() {
               exit={{ opacity: 0, x: -6, transition: { duration: 0.1 } }}
               transition={{ duration: 0.26, delay: 0.06, ease: GLASS_EASE }}
             >
-              <ScrubSlider
-                size="compact"
-                variant="capsule"
+              <WakeSlider
                 ariaLabel="音量"
+                ariaValueText={(v) => `${Math.round(v * 100)}%`}
                 value={volume}
                 min={0}
                 max={1}
-                onPreview={(v) => {
-                  draggingRef.current = v !== null
-                  setDragging(v !== null)
+                step={0.01}
+                onDragChange={(active) => {
+                  draggingRef.current = active
+                  setDragging(active)
                 }}
                 onChange={setVolume}
               />
