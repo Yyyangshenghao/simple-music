@@ -30,10 +30,10 @@ describe('likes store', () => {
       },
       playbackOrder: ['netease'],
     })
-    useLikesStore.setState({ likedByKey: {}, qqMutationRevision: 0, unlikePrompt: null, skipUnlikeConfirmation: false, lastUnlike: null })
+    useLikesStore.setState({ likedByKey: {}, qqMutationRevision: 0, unlikePrompt: null })
     vi.mocked(recordShuangeFeedback).mockClear()
     useToastStore.getState().dismiss()
-    useSettingsStore.setState({ neteaseLoggedIn: true })
+    useSettingsStore.setState({ neteaseLoggedIn: true, unlikeConfirmation: true })
     vi.stubGlobal('window', { desktop: { showMainWindow: vi.fn(async () => {}) } })
     likeTrack.mockReset()
     checkLiked.mockClear()
@@ -57,14 +57,14 @@ describe('likes store', () => {
     await useLikesStore.getState().resolveUnlike(prompt!.id, true, skip)
   }
 
-  it.each(['netease', 'qq'] as const)('%s 首次取消等待确认，重复入口不替换歌曲，取消不写入或记住', async (source) => {
+  it.each(['netease', 'qq'] as const)('%s 取消等待确认，重复入口不替换歌曲，取消不写入或记住', async (source) => {
     enableQQ()
     const track = mk(10, source)
     const other = mk(11, source)
     useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true, [likeKeyOf(other)]: true } })
     await useLikesStore.getState().toggleLike(track)
     const prompt = useLikesStore.getState().unlikePrompt!
-    expect(prompt).toMatchObject({ track, allowSkip: false })
+    expect(prompt).toMatchObject({ track })
     expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
     await useLikesStore.getState().toggleLike(track)
     await useLikesStore.getState().toggleLike(other)
@@ -73,10 +73,11 @@ describe('likes store', () => {
     expect(useLikesStore.getState().unlikePrompt).toBe(prompt)
     await useLikesStore.getState().resolveUnlike(prompt.id, false, true)
     expect(likeTrack).not.toHaveBeenCalled()
-    expect(useLikesStore.getState()).toMatchObject({ unlikePrompt: null, skipUnlikeConfirmation: false, lastUnlike: null })
+    expect(useLikesStore.getState().unlikePrompt).toBeNull()
+    expect(useSettingsStore.getState().unlikeConfirmation).toBe(true)
   })
 
-  it('连续成功取消不同歌曲时才可选择免提示，跨平台共用且首次不能绕过', async () => {
+  it('首次确认即可勾选不再提示，成功后跨平台免确认，设置里重新打开后恢复确认', async () => {
     enableQQ()
     const first = mk(10)
     const second = mk(11, 'qq')
@@ -84,59 +85,30 @@ describe('likes store', () => {
     useLikesStore.setState({ likedByKey: { [likeKeyOf(first)]: true, [likeKeyOf(second)]: true, [likeKeyOf(third)]: true } })
     await useLikesStore.getState().toggleLike(first)
     await confirmUnlike(true)
-    expect(useLikesStore.getState().skipUnlikeConfirmation).toBe(false)
+    expect(useSettingsStore.getState().unlikeConfirmation).toBe(false)
     await useLikesStore.getState().toggleLike(second)
-    expect(useLikesStore.getState().unlikePrompt?.allowSkip).toBe(true)
-    await confirmUnlike(true)
-    expect(useLikesStore.getState().skipUnlikeConfirmation).toBe(true)
-    await useLikesStore.getState().toggleLike(third)
     expect(useLikesStore.getState().unlikePrompt).toBeNull()
-    expect(likeTrack.mock.calls).toEqual([[first, false], [second, false], [third, false]])
+    expect(likeTrack.mock.calls).toEqual([[first, false], [second, false]])
+    useSettingsStore.getState().setUnlikeConfirmation(true)
+    await useLikesStore.getState().toggleLike(third)
+    expect(useLikesStore.getState().unlikePrompt?.track).toBe(third)
   })
 
-  it('超过30秒或反复取消同一首不提供免提示，勾选后保留红心也不记住', async () => {
-    vi.useFakeTimers()
-    const first = mk(10)
-    const second = mk(11)
-    useLikesStore.setState({ likedByKey: { [likeKeyOf(first)]: true, [likeKeyOf(second)]: true } })
-    await useLikesStore.getState().toggleLike(first)
-    await confirmUnlike()
-    await useLikesStore.getState().toggleLike(first) // 重新加红心
-    await useLikesStore.getState().toggleLike(first)
-    expect(useLikesStore.getState().unlikePrompt?.allowSkip).toBe(false)
-    await confirmUnlike()
-    await useLikesStore.getState().toggleLike(second)
-    expect(useLikesStore.getState().unlikePrompt?.allowSkip).toBe(true)
-    await useLikesStore.getState().resolveUnlike(useLikesStore.getState().unlikePrompt!.id, false, true)
-    expect(useLikesStore.getState().skipUnlikeConfirmation).toBe(false)
-    await vi.advanceTimersByTimeAsync(30_001)
-    await useLikesStore.getState().toggleLike(second)
-    expect(useLikesStore.getState().unlikePrompt?.allowSkip).toBe(false)
-    await confirmUnlike()
-  })
-
-  it('失败不计入连续成功，第二次失败也不保存免提示，并可重试', async () => {
-    const first = mk(10)
-    const second = mk(11)
-    useLikesStore.setState({ likedByKey: { [likeKeyOf(first)]: true, [likeKeyOf(second)]: true } })
-    likeTrack.mockResolvedValueOnce(false)
-    await useLikesStore.getState().toggleLike(first)
-    await confirmUnlike()
-    expect(useLikesStore.getState().lastUnlike).toBeNull()
-    expect(useToastStore.getState().message).toBe('红心操作失败，请重试')
-    await useLikesStore.getState().toggleLike(first)
-    await confirmUnlike()
-    await useLikesStore.getState().toggleLike(second)
+  it('失败时不保存不再提示，并可重试', async () => {
+    const track = mk(10)
+    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true } })
+    await useLikesStore.getState().toggleLike(track)
     likeTrack.mockResolvedValueOnce(false)
     await confirmUnlike(true)
-    expect(useLikesStore.getState()).toMatchObject({ skipUnlikeConfirmation: false, lastUnlike: { key: likeKeyOf(first) } })
-    expect(useLikesStore.getState().likedByKey[likeKeyOf(second)]).toBe(true)
-    await useLikesStore.getState().toggleLike(second)
+    expect(useSettingsStore.getState().unlikeConfirmation).toBe(true)
+    expect(useToastStore.getState().message).toBe('红心操作失败，请重试')
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
+    await useLikesStore.getState().toggleLike(track)
     await confirmUnlike()
-    expect(useLikesStore.getState().likedByKey[likeKeyOf(second)]).toBe(false)
+    expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(false)
   })
 
-  it('换号作废待确认与会话选择，旧确认不能作用于新账号', async () => {
+  it('换号作废待确认，旧确认不能作用于新账号；不再提示是持久偏好，换号不重置', async () => {
     const track = mk(10)
     useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true } })
     await useLikesStore.getState().toggleLike(track)
@@ -148,9 +120,10 @@ describe('likes store', () => {
     expect(likeTrack).not.toHaveBeenCalled()
     expect(useLikesStore.getState().unlikePrompt?.id).not.toBe(id)
     await confirmUnlike()
-    useLikesStore.setState({ skipUnlikeConfirmation: true })
+    useSettingsStore.setState({ unlikeConfirmation: false })
     useProviderStore.getState().setAccountState('netease', 'anonymous')
-    expect(useLikesStore.getState()).toMatchObject({ unlikePrompt: null, skipUnlikeConfirmation: false, lastUnlike: null })
+    expect(useLikesStore.getState().unlikePrompt).toBeNull()
+    expect(useSettingsStore.getState().unlikeConfirmation).toBe(false)
   })
 
   it('确认锁定原歌曲，重复确认只写一次，刷歌反馈在成功后才记录', async () => {
@@ -180,9 +153,9 @@ describe('likes store', () => {
     expect(useLikesStore.getState().likedByKey[likeKeyOf(track)]).toBe(true)
   })
 
-  it('等待写入成功期间换号，旧成功不恢复免提示和连续操作记录', async () => {
+  it('等待写入成功期间换号，旧成功不保存不再提示', async () => {
     const track = mk(10)
-    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true }, lastUnlike: { key: 'netease:other', at: Date.now() } })
+    useLikesStore.setState({ likedByKey: { [likeKeyOf(track)]: true } })
     await useLikesStore.getState().toggleLike(track)
     let finish!: (value: boolean) => void
     likeTrack.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
@@ -191,7 +164,7 @@ describe('likes store', () => {
     useProviderStore.getState().setAccountState('netease', 'authenticated')
     finish(true)
     await confirming
-    expect(useLikesStore.getState()).toMatchObject({ skipUnlikeConfirmation: false, lastUnlike: null })
+    expect(useSettingsStore.getState().unlikeConfirmation).toBe(true)
   })
 
   it('QQ 查询与乐观状态不失效歌单缓存，写入确认成功后才更新版本', async () => {
@@ -405,7 +378,7 @@ describe('likes store', () => {
   })
 
   it('旧点赞失败不回滚新账号，新操作也不被更早的失败覆盖', async () => {
-    useLikesStore.setState({ skipUnlikeConfirmation: true })
+    useSettingsStore.setState({ unlikeConfirmation: false })
     let fail!: (error: Error) => void
     likeTrack.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
     const track = mk(2)
@@ -429,7 +402,7 @@ describe('likes store', () => {
   })
 
   it('快速点赞和取消均失败时恢复已确认状态，同曲写入按顺序提交', async () => {
-    useLikesStore.setState({ skipUnlikeConfirmation: true })
+    useSettingsStore.setState({ unlikeConfirmation: false })
     let fail!: (error: Error) => void
     likeTrack.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
     likeTrack.mockResolvedValueOnce(false)
@@ -445,7 +418,7 @@ describe('likes store', () => {
   })
 
   it('账号切换丢弃旧排队写入，旧操作完成后仍保留新账号队列', async () => {
-    useLikesStore.setState({ skipUnlikeConfirmation: true })
+    useSettingsStore.setState({ unlikeConfirmation: false })
     let finishOld!: (value: boolean) => void
     let finishNew!: (value: boolean) => void
     likeTrack.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve }))
@@ -456,7 +429,7 @@ describe('likes store', () => {
     await Promise.resolve()
     expect(likeTrack).toHaveBeenCalledTimes(1)
     useProviderStore.getState().setAccountState('netease', 'authenticated')
-    useLikesStore.setState({ skipUnlikeConfirmation: true })
+    useSettingsStore.setState({ unlikeConfirmation: false })
     const newFirst = useLikesStore.getState().toggleLike(track)
     const newQueued = useLikesStore.getState().toggleLike(track)
     await Promise.resolve()

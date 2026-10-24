@@ -101,6 +101,8 @@ interface PersistedSettings {
   mediaKeysEnabled: boolean
   shelfShowPodcasts: boolean
   shelfMergeCollections: boolean
+  /** 取消 QQ / 网易云红心前弹窗确认；确认框里勾选「不再提示」后关闭，可在设置里重新打开。 */
+  unlikeConfirmation: boolean
   liveBackgroundKeep: boolean
   lyricsPanelMode: LyricsPanelMode
   lyrics3dEffect: Lyrics3dEffect
@@ -171,6 +173,7 @@ interface SettingsStore extends PersistedSettings {
   setQQProfile(avatar: string, nickname: string): void
   setShelfShowPodcasts(v: boolean): void
   setShelfMergeCollections(v: boolean): void
+  setUnlikeConfirmation(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: LyricsPanelMode): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
@@ -222,6 +225,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   qqNickname: '',
   shelfShowPodcasts: true,
   shelfMergeCollections: false,
+  unlikeConfirmation: true,
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
   lyrics3dEffect: 'cover-cloud',
@@ -290,6 +294,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setShelfMergeCollections(v) {
     set({ shelfMergeCollections: v })
+    get().saveToLocal()
+  },
+  setUnlikeConfirmation(v) {
+    set({ unlikeConfirmation: v })
     get().saveToLocal()
   },
   setLiveBackgroundKeep(v) {
@@ -441,8 +449,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -480,6 +488,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         mediaKeysEnabled: data.mediaKeysEnabled ?? true,
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
+        unlikeConfirmation: data.unlikeConfirmation ?? true,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         // 旧版的跃字 / 3D 是独立模式，统一迁为「动态」，具体样式由 lyric-styles 读回。
         lyricsPanelMode: data.lyricsPanelMode === 'dynamic' || (data.lyricsPanelMode as string) === '3d' || (data.lyricsPanelMode as string) === 'pop' ? 'dynamic' : 'lyrics',

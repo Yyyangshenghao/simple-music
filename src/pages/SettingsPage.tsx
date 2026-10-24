@@ -703,6 +703,8 @@ export function SettingsPage() {
 
   const audioQuality = useSettingsStore((s) => s.audioQuality)
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
+  const unlikeConfirmation = useSettingsStore((s) => s.unlikeConfirmation)
+  const setUnlikeConfirmation = useSettingsStore((s) => s.setUnlikeConfirmation)
   const providerState = useProviderStore((s) => s.byId)
   const playbackOrder = useProviderStore((s) => s.playbackOrder)
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
@@ -1078,6 +1080,10 @@ export function SettingsPage() {
                         </motion.button>
                       ))}
                     </div>
+                  </div>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>取消红心前确认</span>
+                    <Switch checked={unlikeConfirmation} onChange={setUnlikeConfirmation} aria-label="取消红心前确认" />
                   </div>
                 </section>
               </div>

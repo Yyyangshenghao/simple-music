@@ -26,7 +26,7 @@ export function UnlikeConfirmDialog() {
   const decide = async (confirm: boolean) => {
     if (pending) return
     setPending(true)
-    try { await resolve(prompt.id, confirm, confirm && prompt.allowSkip && skip) }
+    try { await resolve(prompt.id, confirm, confirm && skip) }
     finally { setPending(false) }
   }
 
@@ -59,10 +59,10 @@ export function UnlikeConfirmDialog() {
         <p className={styles.track} title={prompt.track.name}>{prompt.track.name}</p>
         <p className={styles.artist}>{prompt.track.artist || '未知歌手'} · {source}</p>
         <p id="unlike-confirm-description" className={styles.description}>这首歌将从{source}的“我喜欢”中移除。</p>
-        {prompt.allowSkip && <label className={dialogStyles.remember}>
+        <label className={dialogStyles.remember}>
           <input type="checkbox" checked={skip} disabled={pending} onChange={(event) => setSkip(event.target.checked)} />
-          本次运行不再提示
-        </label>}
+          不再提示（可在设置中恢复）
+        </label>
         <div className={dialogStyles.footer}>
           <button ref={keep} type="button" className={dialogStyles.cancel} disabled={pending} onClick={() => void decide(false)}>保留红心</button>
           <button type="submit" className={dialogStyles.confirm} disabled={pending}>取消红心</button>
