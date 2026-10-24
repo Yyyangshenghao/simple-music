@@ -225,14 +225,15 @@ export function MiniPlayerBar({
       {volumeOpen && (
         <div className={styles.popover} onPointerDown={stop}>
           <VolumeIcon muted={volume <= 0} />
-          <ScrubSlider
+          <input
             className={styles.volumeSlider}
-            size="compact"
-            ariaLabel="音量"
-            value={volume}
+            type="range"
             min={0}
-            max={1}
-            onChange={(v) => onVolume?.(v)}
+            max={100}
+            step={1}
+            value={Math.round(volume * 100)}
+            onChange={(e) => onVolume?.(Number(e.target.value) / 100)}
+            aria-label="音量"
           />
           <span className={styles.volumeValue}>{Math.round(volume * 100)}</span>
         </div>

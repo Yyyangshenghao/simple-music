@@ -10,6 +10,7 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
+import { ElasticSlider } from '../ui/ElasticSlider'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -341,14 +342,14 @@ function VolumeControl() {
   return (
     <div className={styles.volumeGroup}>
       <VolumeButton />
-      <ScrubSlider
+      <ElasticSlider
         className={styles.volumeSlider}
-        ariaLabel="音量"
-        value={volume}
-        min={0}
-        max={1}
-        format={(v) => `${Math.round(v * 100)}%`}
-        onChange={setVolume}
+        leftIcon={null}
+        rightIcon={null}
+        defaultValue={Math.round(volume * 100)}
+        startingValue={0}
+        maxValue={100}
+        onChange={(v) => setVolume(v / 100)}
       />
     </div>
   )

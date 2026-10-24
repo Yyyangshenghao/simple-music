@@ -293,8 +293,22 @@
 
 .volumeSlider {
   width: 120px;
-  --scrub-fill: var(--mp-fg);
-  --scrub-track: var(--mp-line);
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 2px;
+  background: var(--mp-line);
+  cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--mp-fg);
+  border: none;
 }
 
 .volumeValue {
