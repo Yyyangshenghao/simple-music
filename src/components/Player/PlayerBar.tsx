@@ -335,22 +335,49 @@ function PlaybackProgress() {
   )
 }
 
-/** 悬停喇叭多久后弹出音量条，避免鼠标路过时误弹。 */
+/** 悬停喇叭多久后展开音量条，避免鼠标路过时误触发。 */
 const VOLUME_OPEN_DELAY = 280
 const VOLUME_CLOSE_DELAY = 260
-/** 滚轮调节后气泡停留时长。 */
-const VOLUME_WHEEL_BUBBLE = 900
+/** 滚轮调节后百分比停留时长。 */
+const VOLUME_WHEEL_LABEL = 900
+const GLASS_EASE = [0.22, 1, 0.36, 1] as const
 
-/** 音量：悬停喇叭片刻后浮现竖向音量条，拖动时显示百分比；点按喇叭静音，滚轮微调。 */
+interface CoverRect { width: number; height: number }
+
+/** 量出喇叭右侧同一行按钮占据的区域，音量条展开时用玻璃层盖住这片区域。 */
+function measureCover(group: HTMLElement): CoverRect | null {
+  const parent = group.parentElement
+  if (!parent) return null
+  const own = group.getBoundingClientRect()
+  const middle = own.top + own.height / 2
+  let right = own.right
+  let top = Infinity
+  let bottom = -Infinity
+  for (const button of parent.querySelectorAll('button')) {
+    if (group.contains(button)) continue
+    const rect = button.getBoundingClientRect()
+    if (rect.width === 0 || rect.left < own.right - 1 || rect.top > middle || rect.bottom < middle) continue
+    right = Math.max(right, rect.right)
+    top = Math.min(top, rect.top)
+    bottom = Math.max(bottom, rect.bottom)
+  }
+  if (right - own.right < 60) return null
+  return { width: right - own.right + 4, height: Math.max(own.height, bottom - top + 4) }
+}
+
+/** 音量：悬停喇叭片刻后，音量条从喇叭向右滑出，玻璃层同时盖住右侧按钮；拖动/滚轮时显示百分比，点按喇叭静音。 */
 function VolumeControl() {
   const volume = usePlayerStore((s) => s.volume)
   const setVolume = usePlayerStore((s) => s.setVolume)
+  const groupRef = useRef<HTMLDivElement>(null)
   const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const draggingRef = useRef(false)
-  const [open, setOpen] = useState(false)
+  const [cover, setCover] = useState<CoverRect | null>(null)
+  const [dragging, setDragging] = useState(false)
   const [wheeling, setWheeling] = useState(false)
+  const open = cover !== null
 
   useEffect(() => () => {
     clearTimeout(openTimer.current)
@@ -358,60 +385,77 @@ function VolumeControl() {
     clearTimeout(wheelTimer.current)
   }, [])
 
+  const expand = () => {
+    const group = groupRef.current
+    if (group) setCover(measureCover(group) ?? { width: 132, height: group.offsetHeight })
+  }
   const scheduleOpen = () => {
     clearTimeout(closeTimer.current)
     if (open) return
     clearTimeout(openTimer.current)
-    openTimer.current = setTimeout(() => setOpen(true), VOLUME_OPEN_DELAY)
+    openTimer.current = setTimeout(expand, VOLUME_OPEN_DELAY)
   }
   const scheduleClose = () => {
     clearTimeout(openTimer.current)
     clearTimeout(closeTimer.current)
     if (draggingRef.current) return
-    closeTimer.current = setTimeout(() => setOpen(false), VOLUME_CLOSE_DELAY)
+    closeTimer.current = setTimeout(() => setCover(null), VOLUME_CLOSE_DELAY)
   }
   const handleWheel = (event: React.WheelEvent) => {
     const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? -event.deltaY : event.deltaX
     if (!delta) return
     clearTimeout(openTimer.current)
     clearTimeout(closeTimer.current)
-    setOpen(true)
+    if (!open) expand()
     setWheeling(true)
     clearTimeout(wheelTimer.current)
-    wheelTimer.current = setTimeout(() => setWheeling(false), VOLUME_WHEEL_BUBBLE)
+    wheelTimer.current = setTimeout(() => setWheeling(false), VOLUME_WHEEL_LABEL)
     setVolume(Math.min(1, Math.max(0, Math.round((volume + Math.sign(delta) * 0.05) * 100) / 100)))
   }
 
   return (
-    <div className={styles.volumeGroup} onPointerEnter={scheduleOpen} onPointerLeave={scheduleClose} onWheel={handleWheel}>
+    <div
+      ref={groupRef}
+      className={styles.volumeGroup}
+      data-open={open || undefined}
+      onPointerEnter={scheduleOpen}
+      onPointerLeave={scheduleClose}
+      onWheel={handleWheel}
+    >
       <VolumeButton />
       <AnimatePresence>
-        {open && (
+        {cover && (
           <motion.div
-            className={styles.volumePopover}
-            // 不用 filter 做模糊入场：父层 filter 会成为 backdrop root，胶囊的毛玻璃会失效。
-            initial={{ opacity: 0, y: 6, scaleY: 0.82 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            exit={{ opacity: 0, y: 4, scaleY: 0.9, transition: { duration: 0.14, ease: [0.4, 0, 1, 1] } }}
-            transition={{ type: 'spring', stiffness: 460, damping: 32, mass: 0.7 }}
+            className={styles.volumeGlass}
+            style={{ width: cover.width, height: cover.height }}
+            // 玻璃层自喇叭一侧向右擦入，盖住右侧按钮；收起时原路退回。
+            initial={{ clipPath: 'inset(0% 100% 0% 0% round 999px)', opacity: 0.6 }}
+            animate={{ clipPath: 'inset(0% 0% 0% 0% round 999px)', opacity: 1 }}
+            exit={{ clipPath: 'inset(0% 100% 0% 0% round 999px)', opacity: 0.6, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+            transition={{ duration: 0.32, ease: GLASS_EASE }}
           >
-            <ScrubSlider
-              className={styles.volumeSlider}
-              orientation="vertical"
-              size="compact"
-              variant="capsule"
-              ariaLabel="音量"
-              value={volume}
-              min={0}
-              max={1}
-              bubble="drag"
-              showBubble={wheeling}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onPreview={(v) => {
-                draggingRef.current = v !== null
-              }}
-              onChange={setVolume}
-            />
+            <motion.div
+              className={styles.volumeTrack}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.26, delay: 0.06, ease: GLASS_EASE }}
+            >
+              <ScrubSlider
+                size="compact"
+                variant="capsule"
+                ariaLabel="音量"
+                value={volume}
+                min={0}
+                max={1}
+                onPreview={(v) => {
+                  draggingRef.current = v !== null
+                  setDragging(v !== null)
+                }}
+                onChange={setVolume}
+              />
+              <span className={styles.volumeValue} data-visible={dragging || wheeling || undefined}>{Math.round(volume * 100)}%</span>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -19,18 +19,12 @@ interface ScrubSliderProps {
   onChange(value: number): void
   /** 拖动中的预览值，结束或取消时回调 null；用于同步时间文字。 */
   onPreview?(value: number | null): void
-  /** 提供时显示数值气泡。 */
+  /** 提供时显示悬停/拖动气泡。 */
   format?(value: number): string
-  /** hover：悬停与拖动时都显示气泡；drag：只在拖动（或 showBubble）时显示。 */
-  bubble?: 'hover' | 'drag'
-  /** 外部要求临时显示气泡（如滚轮调节时）。 */
-  showBubble?: boolean
-  /** vertical：自下而上增大，气泡在轨道左侧。 */
-  orientation?: 'horizontal' | 'vertical'
   ariaLabel: string
   ariaValueText?(value: number): string
   size?: 'regular' | 'compact'
-  /** capsule：常态即为有体积的圆角胶囊，不显示滑块（无底框的音量条）。 */
+  /** capsule：常态即为有体积的圆角胶囊，不显示滑块与悬停预览段。 */
   variant?: 'line' | 'capsule'
   disabled?: boolean
   className?: string
@@ -50,8 +44,8 @@ function decay(overflow: number): number {
  * 拖出两端轨道橡皮筋拉伸、松手回弹。应用全局屏蔽控件键盘操作，这里不处理按键。
  */
 export function ScrubSlider({
-  value, min = 0, max, step, mode = 'live', onChange, onPreview, format, bubble = 'hover', showBubble,
-  ariaLabel, ariaValueText, size = 'regular', variant = 'line', orientation = 'horizontal', disabled, className
+  value, min = 0, max, step, mode = 'live', onChange, onPreview, format,
+  ariaLabel, ariaValueText, size = 'regular', variant = 'line', disabled, className
 }: ScrubSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ pointerId: number; value: number; moved: boolean } | null>(null)
@@ -78,16 +72,11 @@ export function ScrubSlider({
     return Math.min(max, Math.max(min, stepped))
   }
 
-  const vertical = orientation === 'vertical'
-
-  /** 指针位置换算成值；overflow 为拖出轨道的像素，正数在增大端、负数在起点端。 */
-  function read(event: PointerEvent<HTMLDivElement>): { value: number; overflow: number; ratio: number } {
+  function read(clientX: number): { value: number; overflow: number; ratio: number } {
     const rect = trackRef.current?.getBoundingClientRect()
-    const length = vertical ? rect?.height : rect?.width
-    if (!rect || !length || length <= 0 || range <= 0) return { value: shown, overflow: 0, ratio }
-    const offset = vertical ? rect.bottom - event.clientY : event.clientX - rect.left
-    const overflow = offset < 0 ? offset : offset > length ? offset - length : 0
-    const r = clamp01(offset / length)
+    if (!rect || rect.width <= 0 || range <= 0) return { value: shown, overflow: 0, ratio }
+    const overflow = clientX < rect.left ? clientX - rect.left : clientX > rect.right ? clientX - rect.right : 0
+    const r = clamp01((clientX - rect.left) / rect.width)
     return { value: quantize(min + r * range), overflow, ratio: r }
   }
 
@@ -121,14 +110,14 @@ export function ScrubSlider({
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
-    const hit = read(event)
+    const hit = read(event.clientX)
     dragRef.current = { pointerId: event.pointerId, value: hit.value, moved: false }
     setJumping(true)
     update(hit.value)
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>): void {
-    const hit = read(event)
+    const hit = read(event.clientX)
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) {
       if (event.pointerType === 'mouse' && !disabled) setHoverRatio(hit.ratio)
@@ -142,14 +131,12 @@ export function ScrubSlider({
     if (hit.value !== drag.value) update(hit.value)
   }
 
-  const bubbleRatio = dragging || showBubble ? ratio : bubble === 'hover' ? hoverRatio : null
+  const bubbleRatio = dragging ? ratio : hoverRatio
   const style = {
     '--scrub-ratio': ratio,
     '--scrub-hover': hoverRatio ?? 0,
     '--scrub-bubble': bubbleRatio ?? ratio,
     '--scrub-stretch': `${stretch}px`,
-    '--scrub-shift-x': vertical ? '0px' : `${stretch}px`,
-    '--scrub-shift-y': vertical ? `${-stretch}px` : '0px',
   } as CSSProperties
 
   return (
@@ -158,7 +145,6 @@ export function ScrubSlider({
       style={style}
       data-size={size}
       data-variant={variant}
-      data-orientation={orientation}
       data-dragging={dragging || undefined}
       data-jumping={jumping || undefined}
       data-hover={hoverRatio !== null || undefined}
@@ -168,7 +154,6 @@ export function ScrubSlider({
       aria-label={ariaLabel}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-orientation={orientation}
       aria-valuenow={Math.round(shown * 1000) / 1000}
       aria-valuetext={ariaValueText?.(shown) ?? format?.(shown)}
       aria-disabled={disabled || undefined}
@@ -187,7 +172,7 @@ export function ScrubSlider({
         <div className={styles.thumb} />
         {format && range > 0 && (
           <div className={styles.bubble} data-visible={bubbleRatio !== null || undefined} aria-hidden="true">
-            {format(dragging || showBubble ? shown : quantize(min + (bubbleRatio ?? ratio) * range))}
+            {format(dragging ? shown : quantize(min + (bubbleRatio ?? ratio) * range))}
           </div>
         )}
       </div>

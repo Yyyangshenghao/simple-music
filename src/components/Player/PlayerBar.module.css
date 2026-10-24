@@ -165,35 +165,60 @@
   isolation: isolate;
 }
 
-/* 悬停喇叭后浮现的细音量条:紧贴按钮上方,不加底框;弹层只提供拖动热区 */
-.volumePopover {
+/* 展开时整组抬到右侧按钮之上,玻璃层才能盖住它们 */
+.volumeGroup[data-open] { z-index: 2; }
+
+/* 被玻璃盖住的按钮同步虚化淡出,像沉到磨砂玻璃之下;收起时再浮上来 */
+.right .tools > * {
+  transition: opacity 260ms var(--sm-ease-out), filter 260ms var(--sm-ease-out);
+}
+
+.right:has(> .volumeGroup[data-open]) .tools > * {
+  opacity: 0.2;
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+/* 音量展开:毛玻璃层从喇叭右侧擦入,盖住同一行右侧的按钮,上面放横向胶囊音量条 */
+.volumeGlass {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 2px);
+  top: 50%;
+  left: 100%;
   z-index: 5;
   display: flex;
-  justify-content: center;
-  width: 26px;
-  height: 104px;
-  margin-left: -13px;
-  padding: 11px 0;
-  box-sizing: border-box;
-  transform-origin: 50% 100%;
+  align-items: center;
+  translate: 0 -50%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sm-bg-base) 74%, transparent);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-text-primary) 7%, transparent);
 }
 
-/* 透明桥接区：从按钮移向弹层时不会因中间空隙而关闭 */
-.volumePopover::after {
-  position: absolute;
-  inset: 100% 0 -6px;
-  content: '';
+.volumeTrack {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 14px 0 12px;
 }
 
-.volumeSlider {
-  height: 100%;
-  /* 无底框时靠一层极淡的投影,保证在任意背景上都看得清 */
-  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--sm-bg-base) 70%, transparent));
-  --scrub-bubble-bg: var(--sm-bg-base);
-  --scrub-bubble-fg: var(--sm-text-primary);
+.volumeValue {
+  flex: none;
+  min-width: 32px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 160ms var(--sm-ease-out), transform 220ms var(--sm-ease-out);
+}
+
+.volumeValue[data-visible] {
+  opacity: 1;
+  transform: none;
 }
 
 .miniPlayerBtn {
@@ -224,7 +249,11 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  transition: color 180ms var(--sm-ease-out), background-color 180ms var(--sm-ease-out);
+  transition:
+    color 180ms var(--sm-ease-out),
+    background-color 180ms var(--sm-ease-out),
+    opacity 260ms var(--sm-ease-out),
+    filter 260ms var(--sm-ease-out);
 }
 
 .bar .tools > button:hover:not(:disabled),
