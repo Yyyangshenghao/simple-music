@@ -130,7 +130,7 @@ describe('宿主持有歌词获取与归属', () => {
     pending.resolve(result)
     await flush()
     expect(h.fetch).toHaveBeenCalledOnce()
-    expect(h.fetch).toHaveBeenCalledWith(apple, ['apple', 'qq'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenCalledWith(apple, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
     expect(useLyricsStore.getState()).toMatchObject({ loading: false, trackKey: 'apple:a1', source: 'qq', lines: result.main, currentIndex: 1 })
     expect(usePlayerStore.getState().currentTrack).toBe(apple)
   })
@@ -149,13 +149,13 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a2', lines: [{ time: 0, text: '新歌词' }] })
   })
 
-  it('关闭歌词来源清除旧词和来源，排除已停用平台', async () => {
+  it('关闭播放平台不关闭游客歌词查询，按同曲规则重新同步', async () => {
     stopLoader = initLyricsLoader()
     await flush()
     h.fetch.mockResolvedValueOnce({ ...result, source: null, main: [] })
     useProviderStore.getState().setEnabled('qq', false)
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'netease', 'qq'], expect.any(AbortSignal))
     expect(useLyricsStore.getState()).toMatchObject({ source: null, lines: [], loading: false })
   })
 
@@ -169,7 +169,7 @@ describe('宿主持有歌词获取与归属', () => {
     usePlayerStore.setState({ resolvedTrack: resolved })
     expect(oldSignal.aborted).toBe(true)
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(resolved, ['apple', 'qq'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(resolved, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
     old.resolve({ ...result, main: [{ time: 0, text: '旧会话' }] })
     await flush()
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', source: 'qq', lines: result.main })
@@ -233,7 +233,7 @@ describe('宿主持有歌词获取与归属', () => {
     const full = { ...placeholder, pending: false, catalogId: '123456' }
     usePlayerStore.setState({ currentTrack: full })
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(full, ['apple', 'qq'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(full, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
     expect(useLyricsStore.getState().lines).toEqual(result.main)
     usePlayerStore.setState({ resolvedTrack: { ...full }, currentTrack: { ...full, cover: 'new-cover', url: 'new-url' } })
     await flush()

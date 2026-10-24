@@ -31,7 +31,6 @@ interface FumeTuning {
   hold: number
   vertical: boolean
   color: boolean
-  serif: boolean
 }
 
 /** 一句的字：非空白字各占一个 span（逐字着墨），空白原样保留。 */
@@ -63,16 +62,22 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   const raw = useLyricStyleTuning('fume')
   const tuning = useMemo<FumeTuning>(() => ({
     zoom: Number(raw.zoom), float: Number(raw.float), hold: Number(raw.hold),
-    vertical: raw.vertical === true, color: raw.color === true, serif: raw.serif === true,
+    vertical: raw.vertical === true, color: raw.color === true,
   }), [raw])
   const [fontsReady, setFontsReady] = useState(0)
   const [stage, setStage] = useState({ width: 0, height: 0 })
   // 非衬线时用歌词页实际生效的字体（含用户在设置里选的歌词字体）；从外层读，本层会被设成衬线。
   const [sansFamily, setSansFamily] = useState('system-ui, sans-serif')
+  const fontKey = useSettingsStore(s => [s.lyricsFontFamily, s.lyricsFontFamilyCjk, s.fontFamily, s.fontFamilyCjk].join('|'))
   useLayoutEffect(() => {
-    const host = rootRef.current?.parentElement
-    if (host) setSansFamily(getComputedStyle(host).fontFamily || 'system-ui, sans-serif')
-  }, [])
+    const read = () => {
+      const host = rootRef.current?.parentElement
+      if (host) setSansFamily(getComputedStyle(host).fontFamily || 'system-ui, sans-serif')
+    }
+    read()
+    const frame = requestAnimationFrame(read)
+    return () => cancelAnimationFrame(frame)
+  }, [fontKey])
 
   // 字体就绪后重排一次：度量依赖实际字形。
   useEffect(() => {
@@ -82,7 +87,7 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
     return () => { alive = false }
   }, [])
 
-  const family = tuning.serif ? SERIF : sansFamily
+  const family = fontKey.replaceAll('|', '') ? sansFamily : SERIF
   const collage = useMemo<FumeCollage>(() => {
     const ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
     const cache = new Map<string, number>()
@@ -219,7 +224,7 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   const lineState = (lineIndex: number) => lineIndex === currentIndex ? styles.current : lineIndex < currentIndex ? styles.past : styles.future
   return (
     <div ref={rootRef} className={`${styles.root}${tuning.color ? '' : ` ${styles.mono}`}`}
-      style={{ fontFamily: tuning.serif ? SERIF : undefined, '--lyrics-font-scale': preview ? 1 : fontScale, '--fume-hold': 0.14 + 0.5 * tuning.hold } as React.CSSProperties}>
+      style={{ fontFamily: family, '--lyrics-font-scale': preview ? 1 : fontScale, '--fume-hold': 0.14 + 0.5 * tuning.hold } as React.CSSProperties}>
       <div className={styles.stage} aria-hidden="true">
         <div ref={worldRef} className={styles.world} style={{ '--b': `${unit}px` } as React.CSSProperties}>
           {collage.blocks.map((block, b) => (

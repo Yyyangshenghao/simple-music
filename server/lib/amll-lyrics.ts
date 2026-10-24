@@ -69,14 +69,14 @@ export function isAmllHostId(value: unknown): value is string {
  * 本次的尝试顺序：用户手动指定的线路最先，其次是最近可用的线路，其余按默认顺序；
  * 正在熔断的线路跳过（手动指定的也一样，连不上时照样回落到其他线路）。
  */
-export function amllHostOrder(now: number, pinned?: string): AmllHost[] {
+export function amllHostOrder(now: number, pinned?: string, retry = false): AmllHost[] {
   const first = pinned && isAmllHostId(pinned) ? pinned : routeState.preferred
   const ordered = [
     ...AMLL_HOSTS.filter((host) => host.id === first),
     ...AMLL_HOSTS.filter((host) => host.id === routeState.preferred && host.id !== first),
     ...AMLL_HOSTS.filter((host) => host.id !== first && host.id !== routeState.preferred)
   ]
-  return ordered.filter((host) => (routeState.openUntil.get(host.id) ?? 0) <= now)
+  return ordered.filter((host) => retry || (routeState.openUntil.get(host.id) ?? 0) <= now)
 }
 
 interface CacheEntry {
@@ -119,18 +119,20 @@ export async function fetchAmllLyric(
   id: string,
   fetchImpl: typeof fetch = fetch,
   now: () => number = Date.now,
-  pinned?: string
+  pinned?: string,
+  refresh = false
 ): Promise<string | null> {
   if (!isValidAmllId(platform, id)) throw new Error('INVALID_ID')
   const key = `${platform}-${id}`
-  const pending = inflight.get(key)
+  const requestKey = refresh ? `${key}:probe` : key
+  const pending = inflight.get(requestKey)
   if (pending) return pending
   const task = (async () => {
     const dir = join(userDataDir, 'amll-lyrics')
     const file = join(dir, `${key}.json`)
     const cached = await readCache(file, now())
-    if (cached) return cached.text
-    const hosts = amllHostOrder(now(), pinned)
+    if (cached && !refresh) return cached.text
+    const hosts = amllHostOrder(now(), pinned, refresh)
     if (!hosts.length) throw new Error('ALL_HOSTS_UNAVAILABLE')
     for (const host of hosts) {
       let text: string | null
@@ -148,11 +150,11 @@ export async function fetchAmllLyric(
     }
     throw new Error('ALL_HOSTS_UNAVAILABLE')
   })()
-  inflight.set(key, task)
+  inflight.set(requestKey, task)
   try {
     return await task
   } finally {
-    inflight.delete(key)
+    inflight.delete(requestKey)
   }
 }
 

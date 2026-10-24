@@ -19,7 +19,7 @@ export const kugouLyricRoutes: RouteHandler = async (req, res, url, ctx: ServerC
     return true
   }
   try {
-    sendJson(res, { candidates: await fetchKugouLyric(ctx.userDataDir, query) })
+    sendJson(res, { candidates: await (url.searchParams.get('refresh') === '1' ? fetchKugouLyric(ctx.userDataDir, query, fetch, Date.now, true) : fetchKugouLyric(ctx.userDataDir, query)) })
   } catch (err) {
     console.warn('[KugouLyric]', err instanceof Error ? err.message : err)
     sendJson(res, { error: 'UPSTREAM_FAILED', candidates: [] }, 502)

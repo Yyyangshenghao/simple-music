@@ -9,6 +9,7 @@ import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
 import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import { candidateAvailability, queryLyricsSource, type LyricsSourceQueryResult } from './lyrics-source-query'
+import { createLyricsSourceProbe } from './lyrics-source-probe'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { hasWordTiming } from './word-highlight-timeline'
@@ -36,7 +37,7 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
 
 function participatingSources(): ProviderId[] {
   const providers = useProviderStore.getState()
-  return providers.playbackOrder.filter(source => providers.byId[source].enabled && providers.byId[source].auth === 'authenticated')
+  return Array.from(new Set([...providers.playbackOrder, ...PROVIDER_IDS])).filter(source => source !== 'apple' || (providers.byId[source].enabled && providers.byId[source].auth === 'authenticated'))
 }
 
 function sourceRows(track: Track): LyricOrigin[] {
@@ -65,6 +66,8 @@ export function initLyricsLoader(): () => void {
   let activeAccounts: Array<{ source: ProviderId; version: number }> = []
   let currentKey: string | null = null
   let activePreference = useLyricsSourceStore.getState().defaultSource
+  let activeSourceOrder = useLyricsSourceStore.getState().sourceOrder
+  const sourceProbe = createLyricsSourceProbe()
   let onceChoice: RememberedLyricSource | undefined
   let selection: SelectionSession | undefined
   // 只缓存本曲的来源结果，最多原平台、网易、QQ、AMLL、酷狗五份；切歌或账号/参与状态变化即清空。
@@ -173,6 +176,21 @@ export function initLyricsLoader(): () => void {
     pump(dialog)
   }
 
+  const selectOrdered = async (track: Track, sources: ProviderId[], signal: AbortSignal, order: NonNullable<typeof activeSourceOrder>, chosen?: RememberedLyricSource) => {
+    const origins: LyricOrigin[] = track.source === 'local' ? ['local']
+      : Array.from(new Set<LyricOrigin>([...(chosen ? [chosen.origin] : []), ...(track.source === 'apple' ? ['apple' as const] : []), ...order]))
+    for (const origin of origins) {
+      if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
+      const response = await queryLyricsSource(track, origin, sources, signal, chosen?.origin === origin ? chosen.match : undefined)
+      if (response.status === 'ready' && response.result?.main.length) {
+        results.set(origin, response)
+        return response
+      }
+      if (chosen?.origin === origin) useLyricsSourceStore.setState({ fallbackReason: `已记住${LYRIC_SOURCE_LABELS[origin]}，${response.message ?? '本次暂不可用'}；本次临时使用其他来源` })
+    }
+    return undefined
+  }
+
   const sync = () => {
     controller?.abort()
     const previousDialog = selection && { key: selection.key, token: selection.token }
@@ -186,10 +204,11 @@ export function initLyricsLoader(): () => void {
     if (identity !== currentKey) {
       onceChoice = undefined
       activePreference = useLyricsSourceStore.getState().defaultSource
+      activeSourceOrder = useLyricsSourceStore.getState().sourceOrder
     }
     currentKey = identity
     const key = lyricsEnabled() ? identity : null
-    const preferences = { ...useLyricsSourceStore.getState(), defaultSource: activePreference }
+    const preferences = { ...useLyricsSourceStore.getState(), defaultSource: activePreference, sourceOrder: activeSourceOrder }
     const remembered = identity ? preferences.remembered[identity] : undefined
     // 清除全部记忆不改变本次选择；同曲补详情或窗口重建也不重新解释它。
     if (!onceChoice && remembered) onceChoice = remembered
@@ -199,7 +218,7 @@ export function initLyricsLoader(): () => void {
     if (!key || !track) return
     controller = new AbortController()
     const signal = controller.signal
-    const lyricSources = participatingSources()
+    const lyricSources = track.source === 'local' ? [] : participatingSources()
     const candidates = [track, resolvedTrack]
       .filter((item): item is Track => !!item && (!isProviderId(item.source) || lyricSources.includes(item.source)))
       .filter((item, index, all) => all.findIndex(other => lyricTrackKey(other) === lyricTrackKey(item)) === index)
@@ -215,6 +234,11 @@ export function initLyricsLoader(): () => void {
     const current = () => !disposed && request === session && decision === choiceVersion && !signal.aborted
     if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token).catch(() => {})
     void (async () => {
+      if (preferences.sourceOrder) {
+        const response = await selectOrdered(track, lyricSources, signal, preferences.sourceOrder, chosen)
+        if (!current() || !sameAccounts(accounts)) return { result: emptyLyrics, track: null, locked: true }
+        return { result: response?.result ?? emptyLyrics, track: response?.match ?? track, locked: true }
+      }
       const globalOrigin = preferences.defaultSource === 'auto' ? null : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
       const preferred = Array.from(new Set([chosen?.origin, globalOrigin].filter((origin): origin is LyricOrigin => !!origin)))
       for (const origin of preferred) {
@@ -248,6 +272,10 @@ export function initLyricsLoader(): () => void {
   }
 
   const unbind = bindLyricsSourceActions({
+    async testSource(origin, sample) {
+      // 测试结果通过快照发布；不让慢来源占用播放命令回执。
+      void sourceProbe.test(origin, sample).catch(() => {})
+    },
     queryCandidates,
     cancelSelection(token) { if (selection?.token === token) cancelDialog() },
     async chooseSource(key, token, origin, remember) {
@@ -265,12 +293,18 @@ export function initLyricsLoader(): () => void {
         let response: LyricsSourceQueryResult | undefined
         let upgradeTrack = track
         let allowUpgrade = true
-        if (preferred) {
+        const order = useLyricsSourceStore.getState().sourceOrder
+        if (order) {
+          response = await selectOrdered(track, sources, application.signal, order)
+          if (!current()) throw new Error('歌词选择已取消')
+          if (response?.match) upgradeTrack = response.match
+          allowUpgrade = false
+        } else if (preferred) {
           response = results.get(preferred) ?? await queryLyricsSource(track, preferred, sources, application.signal)
           if (!current()) throw new Error('歌词选择已取消')
           if (response.status === 'ready') allowUpgrade = false
         }
-        if (!response?.result?.main.length) {
+        if (!order && !response?.result?.main.length) {
           const tracks = [track, usePlayerStore.getState().resolvedTrack]
             .filter((item): item is Track => !!item && (!isProviderId(item.source) || sources.includes(item.source)))
             .filter((item, index, all) => all.findIndex(other => lyricTrackKey(other) === lyricTrackKey(item)) === index)
@@ -289,6 +323,7 @@ export function initLyricsLoader(): () => void {
         if (Object.hasOwn(useLyricsSourceStore.getState().remembered, key) && !rememberLyricsSource(key, null)) throw new Error('无法清除本首歌词来源选择，请重试')
         onceChoice = undefined
         activePreference = preference
+        activeSourceOrder = order
         choiceVersion++
         controller?.abort()
         controller = new AbortController()
@@ -335,8 +370,8 @@ export function initLyricsLoader(): () => void {
       || activeAccounts.some(({ source, version }) => version !== providerAccountSession(source))) sync()
   })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
-    if (state.lyricsAmllFallback !== previous.lyricsAmllFallback || state.lyricsKugouFallback !== previous.lyricsKugouFallback
-      || state.lyricsAmllHost !== previous.lyricsAmllHost) sync()
+    if (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
+      || state.lyricsKugouFallback !== previous.lyricsKugouFallback)) sync()
   })
   let wasEnabled = lyricsEnabled()
   const syncEnabled = () => { const enabled = lyricsEnabled(); if (enabled !== wasEnabled) { wasEnabled = enabled; sync() } }
@@ -349,6 +384,7 @@ export function initLyricsLoader(): () => void {
     controller?.abort()
     cancelDialog()
     unbind()
+    sourceProbe.stop()
     stopPlayer()
     stopProviders()
     stopSettings()

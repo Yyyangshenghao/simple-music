@@ -18,7 +18,7 @@ export function isLyricStyleId(value: unknown): value is LyricStyleId {
 export type TuningValue = number | boolean | string
 
 export type TuningField =
-  | { key: string; type: 'number'; label: string; min: number; max: number; step: number; defaultValue: number; format?: 'percent' | 'multiplier' }
+  | { key: string; type: 'number'; label: string; min: number; max: number; step: number; defaultValue: number; format?: 'percent' | 'multiplier'; presets?: readonly { value: number; label: string }[] }
   | { key: string; type: 'boolean'; label: string; defaultValue: boolean }
   | { key: string; type: 'select'; label: string; options: readonly { value: string; label: string }[]; defaultValue: string }
 
@@ -34,8 +34,6 @@ export interface LyricStyleInfo {
   quick: readonly string[]
   /** live：卡片里用当前歌曲实时渲染缩略预览；still：重型样式只显示示意图 */
   preview: 'live' | 'still'
-  /** 依赖设置中的 3D 歌词开关；关闭时卡片不可选，已选的回落到默认样式 */
-  needs3d?: boolean
   /** 始终画暗场（深浅主题都一样）：页头控件改用深色舞台的浅色配色 */
   darkStage?: boolean
   /** 不透明铺满舞台：歌词页不再垫封面虚化与霞光层（被盖住还在后台动画） */
@@ -48,10 +46,10 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
   {
     id: 'pop',
     label: '跃字',
-    hint: '居中的连续字列，唱到的字轻轻跃起，是画面唯一的重心',
+    hint: '词组错落拼成大字海报，随演唱旋入，镜头轻轻推移',
     order: 0,
     tuning: [
-      { key: 'intensity', type: 'number', label: '跃起幅度', min: 0.4, max: 1.6, step: 0.05, defaultValue: 1, format: 'multiplier' },
+      { key: 'intensity', type: 'number', label: '动效幅度', min: 0.4, max: 1.6, step: 0.05, defaultValue: 1, presets: [{ value: 0.5, label: '轻柔' }, { value: 1, label: '标准' }, { value: 1.6, label: '强烈' }] },
     ],
     quick: ['intensity'],
     preview: 'live',
@@ -62,10 +60,9 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     hint: '词组成行台阶错落，引导线标出唱到的一级',
     order: 1,
     tuning: [
-      { key: 'step', type: 'number', label: '阶梯错落', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
-      { key: 'emphasis', type: 'number', label: '强调放大', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
+      { key: 'step', type: 'number', label: '阶梯错落', min: 0, max: 2, step: 0.05, defaultValue: 1, presets: [{ value: 0, label: '平齐' }, { value: 1, label: '适中' }, { value: 2, label: '错落' }] },
+      { key: 'emphasis', type: 'number', label: '强调放大', min: 0, max: 2, step: 0.05, defaultValue: 1, presets: [{ value: 0, label: '关闭' }, { value: 1, label: '适中' }, { value: 2, label: '明显' }] },
       { key: 'guides', type: 'boolean', label: '引导线', defaultValue: true },
-      { key: 'semantic', type: 'boolean', label: '按词组分行', defaultValue: true },
     ],
     quick: ['step', 'emphasis', 'guides'],
     preview: 'live',
@@ -76,14 +73,11 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     hint: '整首歌词拼成一张版面，大小字、横竖排与封面取色，镜头移到正在唱的句子',
     order: 2,
     tuning: [
-      { key: 'zoom', type: 'number', label: '版面大小', min: 0.6, max: 1.4, step: 0.05, defaultValue: 1, format: 'multiplier' },
       { key: 'vertical', type: 'boolean', label: '竖排短句', defaultValue: true },
       { key: 'color', type: 'boolean', label: '封面取色', defaultValue: true },
-      { key: 'hold', type: 'number', label: '唱后保留', min: 0, max: 1, step: 0.05, defaultValue: 0.5, format: 'percent' },
-      { key: 'float', type: 'number', label: '镜头漂浮', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
-      { key: 'serif', type: 'boolean', label: '衬线字体', defaultValue: true },
+      { key: 'hold', type: 'number', label: '历史歌词', min: 0, max: 1, step: 0.05, defaultValue: 0.5, presets: [{ value: 0, label: '淡出' }, { value: 0.5, label: '适中' }, { value: 1, label: '清晰' }] },
     ],
-    quick: ['zoom', 'vertical', 'color'],
+    quick: ['vertical', 'color', 'hold'],
     preview: 'live',
   },
   {
@@ -92,14 +86,12 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     hint: '平涂色块与网点的歌词 PV，镜头沿一个方向接力',
     order: 3,
     tuning: [
-      { key: 'settle', type: 'number', label: '落字节奏', min: 0, max: 1, step: 0.05, defaultValue: 0.5, format: 'percent' },
+      { key: 'settle', type: 'number', label: '落字节奏', min: 0, max: 1, step: 0.05, defaultValue: 0.5, presets: [{ value: 0, label: '利落' }, { value: 0.5, label: '标准' }, { value: 1, label: '舒缓' }] },
       { key: 'wholeLine', type: 'boolean', label: '整句成镜', defaultValue: false },
       { key: 'mono', type: 'boolean', label: '单色', defaultValue: false },
-      { key: 'echo', type: 'boolean', label: '运动残影', defaultValue: true },
-      { key: 'decor', type: 'boolean', label: '网点与线条', defaultValue: true },
-      { key: 'camera', type: 'number', label: '镜头推移', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
+      { key: 'decor', type: 'boolean', label: '丰富装饰', defaultValue: true },
     ],
-    quick: ['settle', 'wholeLine', 'mono'],
+    quick: ['wholeLine', 'mono', 'decor'],
     preview: 'live',
   },
   {
@@ -108,14 +100,11 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     hint: '印刷感的动态字体与几何线稿，随拍推镜、强拍撕裂',
     order: 4,
     tuning: [
-      { key: 'punch', type: 'number', label: '推镜裂光', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
-      { key: 'geometry', type: 'boolean', label: '几何线稿', defaultValue: true },
-      { key: 'hud', type: 'boolean', label: '界面读数', defaultValue: true },
+      { key: 'punch', type: 'number', label: '强拍效果', min: 0, max: 2, step: 0.05, defaultValue: 1, presets: [{ value: 0, label: '关闭' }, { value: 1, label: '适中' }, { value: 2, label: '强烈' }] },
+      { key: 'geometry', type: 'boolean', label: '版面装饰', defaultValue: true },
       { key: 'outline', type: 'boolean', label: '未唱描边', defaultValue: true },
-      { key: 'glitch', type: 'boolean', label: '强拍撕裂', defaultValue: true },
-      { key: 'camera', type: 'number', label: '镜头推移', min: 0, max: 2, step: 0.05, defaultValue: 1, format: 'multiplier' },
     ],
-    quick: ['punch', 'geometry', 'hud'],
+    quick: ['punch', 'geometry', 'outline'],
     preview: 'live',
   },
   {
@@ -124,30 +113,43 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     hint: '歌词立在雾中的路径上，镜头一句一景飞过去',
     order: 5,
     tuning: [
-      { key: 'distance', type: 'number', label: '镜头远近', min: 0.6, max: 1.6, step: 0.05, defaultValue: 1, format: 'multiplier' },
-      { key: 'ripples', type: 'boolean', label: '水镜涟漪', defaultValue: true },
-      { key: 'dust', type: 'boolean', label: '漂浮光尘', defaultValue: true },
-      { key: 'serif', type: 'boolean', label: '衬线字体', defaultValue: true },
+      { key: 'ambience', type: 'select', label: '场景氛围', options: [{ value: 'quiet', label: '简洁' }, { value: 'water', label: '水镜' }, { value: 'full', label: '丰富' }], defaultValue: 'full' },
     ],
-    quick: ['distance', 'ripples', 'dust'],
+    quick: ['ambience'],
     preview: 'still',
-    needs3d: true,
     darkStage: true,
     opaque: true,
     webgl: true,
   },
   {
     id: 'stage3d',
-    label: '3D 舞台',
-    hint: '封面粒子与立体歌词，多种文字风格',
+    label: '粒光',
+    hint: '封面化作粒子，歌词随音乐演出',
     order: 9,
     tuning: [],
     quick: [],
     preview: 'still',
-    needs3d: true,
     webgl: true,
   },
 ]
+
+export const FIXED_LYRIC_TUNING: Partial<Record<LyricStyleId, Record<string, TuningValue>>> = {
+  pop: { camera: true },
+  partita: { semantic: true },
+  fume: { zoom: 1, float: 1, serif: true },
+  tempera: { camera: 1, echo: true },
+  sonnet: { camera: 1, hud: true, glitch: true },
+  diorama: { distance: 1, serif: true, ripples: true, dust: true },
+}
+
+/** 合并后的玩法只控制有意义的组合；旧的细节参数不再干预演出。 */
+export function resolveStyleTuning(id: LyricStyleId, stored: unknown): Record<string, TuningValue> {
+  const values = { ...FIXED_LYRIC_TUNING[id], ...resolveTuning(lyricStyleInfo(id).tuning, stored) }
+  if (id === 'tempera') values.echo = values.decor
+  if (id === 'sonnet') { values.hud = values.geometry; values.glitch = Number(values.punch) > 0 }
+  if (id === 'diorama') { values.ripples = values.ambience !== 'quiet'; values.dust = values.ambience === 'full' }
+  return values
+}
 
 export function lyricStyleInfo(id: LyricStyleId): LyricStyleInfo {
   return LYRIC_STYLES.find(style => style.id === id) ?? LYRIC_STYLES[0]
@@ -183,17 +185,14 @@ export function sanitizeTuningPatch(fields: readonly TuningField[], patch: unkno
   return resolveTuning(valid, source)
 }
 
-export type LyricsView = 'lyrics' | LyricStyleId | 'mod'
+export type LyricsView = 'lyrics' | LyricStyleId
 
 /**
- * 歌词页实际显示的内容。3D 被设置关闭时回落到默认样式（不改写用户的选择），
- * 选中的实验模组覆盖内置样式。
+ * 歌词页实际显示的内容，由模式和所选样式决定。
  */
-export function resolveLyricsView(input: { mode: 'lyrics' | 'dynamic'; style: LyricStyleId; lyrics3dEnabled: boolean; modActive?: boolean }): LyricsView {
+export function resolveLyricsView(input: { mode: 'lyrics' | 'dynamic'; style: LyricStyleId }): LyricsView {
   if (input.mode === 'lyrics') return 'lyrics'
-  if (input.modActive) return 'mod'
   // 防御：内存里仍是已撤下或未知的 ID 时不去访问空的注册项。
   if (!isLyricStyleId(input.style)) return DEFAULT_LYRIC_STYLE
-  if (lyricStyleInfo(input.style).needs3d && !input.lyrics3dEnabled) return DEFAULT_LYRIC_STYLE
   return input.style
 }

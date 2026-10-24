@@ -1,3 +1,4 @@
+import { fitLyricFontScale } from './lyric-font-sizing'
 import { groupLyricBreakUnits } from './lyric-line-break'
 import { seededRandom, type StyleWord } from './lyric-style-layouts'
 
@@ -359,7 +360,7 @@ export interface TemperaGlyphRun {
  * 拼贴排版：重点词放大 1.45 倍、其余压到 0.82 倍形成视觉重心，行距紧凑；
  * 只在原文有空白处留空，按区域宽度换行，放不下整体缩小。
  */
-export function layoutShotText(words: readonly { text: string }[], hero: number, region: { w: number; h: number }, baseSize: number, measure: (text: string, size: number) => number): TemperaGlyphRun[] {
+export function layoutShotText(words: readonly { text: string }[], hero: number, region: { w: number; h: number }, baseSize: number, measure: (text: string, size: number) => number, fontScale = 1, available = region): TemperaGlyphRun[] {
   const sizes = words.map((_, i) => baseSize * (i === hero && words.length > 1 ? 1.45 : words.length > 1 ? 0.82 : 1.2))
   const attempt = (scale: number) => {
     const rows: { runs: Omit<TemperaGlyphRun, 'y'>[]; width: number; size: number }[] = []
@@ -400,7 +401,8 @@ export function layoutShotText(words: readonly { text: string }[], hero: number,
     for (const run of row.runs) runs.push({ ...run, x: left + run.x, y })
     y += row.size * 0.16
   }
-  return runs
+  const fontFit = fitLyricFontScale(fontScale, { width: result.width, height: result.height }, { width: available.w, height: available.h })
+  return runs.map(run => ({ ...run, x: run.x * fontFit, y: run.y * fontFit, size: run.size * fontFit, width: run.width * fontFit }))
 }
 
 const SETTLE_BASE_SEC = 0.34

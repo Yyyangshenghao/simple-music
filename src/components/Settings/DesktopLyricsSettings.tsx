@@ -1,4 +1,6 @@
 import { useId, type CSSProperties } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { fontFamilyCssValue } from '../../lib/font-family'
 import { useSettingsStore } from '../../stores/settings'
 import { useVisualStore } from '../../stores/visual'
@@ -20,6 +22,7 @@ export function DesktopLyricsSettings() {
   const interfaceFontFamily = useSettingsStore((s) => s.fontFamily)
   const interfaceFontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
   const id = useId()
+  const reducedMotion = useReducedMotion()
   const color = fx.desktopLyricsColor || '#ffffff'
   const backgroundOpacity = fx.desktopLyricsBackgroundOpacity ?? 0.68
   const platform = typeof window !== 'undefined' ? window.desktop?.platform : undefined
@@ -46,8 +49,16 @@ export function DesktopLyricsSettings() {
           <h3 id={`${id}-heading`}>桌面歌词</h3>
 
         </div>
-        <Switch checked={fx.desktopLyrics} onChange={(value) => updateFx({ desktopLyrics: value })} aria-label="启用桌面歌词" />
+        <Switch checked={fx.desktopLyrics} onChange={(value) => updateFx({ desktopLyrics: value })} aria-label="启用桌面歌词"
+          aria-expanded={fx.desktopLyrics} aria-controls={`${id}-details`} />
       </header>
+
+      <AnimatePresence initial={false}>
+      {fx.desktopLyrics && <motion.div key="details" id={`${id}-details`}
+        initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+        animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+        exit={{ height: 0, opacity: 0, overflow: 'hidden', transitionEnd: { overflow: 'hidden' } }}
+        transition={{ duration: reducedMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}>
 
       <div className={styles.preview}>
         <div className={styles.previewBackdrop} style={previewBackgroundStyle} />
@@ -190,6 +201,8 @@ export function DesktopLyricsSettings() {
           </div>
         </div>
       </div>
+      </motion.div>}
+      </AnimatePresence>
     </section>
   )
 }

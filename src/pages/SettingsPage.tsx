@@ -30,7 +30,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import type { ProviderId } from '../providers/types'
-import type { Lyrics3dDisplayMode, Lyrics3dParams, Lyrics3dStyle, PerformanceFlags } from '../types/domain'
+import type { PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
@@ -39,12 +39,24 @@ import pageScroll from '../styles/page-scroll.module.css'
 type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
 const SETTINGS_TABS = [
-  { id: 'music', label: '音源与播放' },
-  { id: 'visual', label: '界面与窗口' },
-  { id: 'lyrics', label: '歌词与动效' },
-  { id: 'cache', label: '缓存与下载' },
-  { id: 'shortcuts', label: '快捷键' },
-  { id: 'about', label: '关于应用' },
+  { id: 'music', label: '音源与播放', items: [
+    { id: 'accounts', label: '音源与账户' }, { id: 'playback', label: '播放偏好' },
+  ] },
+  { id: 'visual', label: '界面与窗口', items: [
+    { id: 'appearance', label: '主题与布局' }, { id: 'interface-font', label: '界面字体' },
+    { id: 'mini-player', label: '迷你播放条' }, { id: 'motion', label: '动效预设' },
+    { id: 'effects', label: '单项动效' }, { id: 'game', label: '游戏模式' },
+  ] },
+  { id: 'lyrics', label: '歌词与特效', items: [
+    { id: 'desktop-lyrics', label: '桌面歌词' }, { id: 'lyrics-font', label: '歌词字体' },
+    { id: 'lyrics-source', label: '歌词来源' },
+  ] },
+  { id: 'cache', label: '缓存与下载', items: [
+    { id: 'downloads', label: '歌曲下载' }, { id: 'temporary-cache', label: '自动缓存' },
+    { id: 'offline-audio', label: '离线音乐' }, { id: 'cache-location', label: '缓存位置' },
+  ] },
+  { id: 'shortcuts', label: '快捷键', items: [] },
+  { id: 'about', label: '关于应用', items: [] },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
@@ -326,26 +338,6 @@ const MINI_PLAYER_TINTS: { value: MiniPlayerAppearance['tint']; label: string }[
   { value: 'light', label: '浅色' }
 ]
 
-const LYRIC_STYLE_LABELS: Record<Lyrics3dStyle, string> = {
-  storyboard: '分镜',
-  glass: '玻璃',
-  smooth: '丝滑',
-  float: '漂浮',
-  quick: '快切',
-  shine: '流光',
-  glitch: '故障',
-  focus: '简洁叠层'
-}
-
-const LYRIC_DISPLAY_LABELS: Record<Lyrics3dDisplayMode, string> = {
-  single: '单行',
-  dual: '双行',
-  triple: '三行',
-  cinema: '电影五行'
-}
-
-const FPS_OPTIONS = [120, 0]
-
 const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
   standard: '标准',
   simple: '简单模式',
@@ -362,7 +354,7 @@ const PERFORMANCE_EFFECT_GROUPS: {
     hint: '关闭后直接显示完整说明，歌词按整行点亮。',
     effects: [
       { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
-      { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词及简洁歌词叠层按字点亮；关闭后按整行点亮并停止逐字动画，3D 场景独立控制' },
+      { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画，立体歌词随所选样式运行' },
     ],
   },
   {
@@ -400,185 +392,48 @@ function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | nu
   return null
 }
 
-/** 3D 歌词设置按当前场景与歌词样式展示生效的参数。 */
-function Lyrics3dSettings({ view }: { view: 'scene' | 'tuning' }) {
-  const reducedMotion = useReducedMotion()
-  const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  const setLyrics3dStyle = useSettingsStore((s) => s.setLyrics3dStyle)
-  const params = useSettingsStore((s) => s.lyrics3d)
-  const setParams = useSettingsStore((s) => s.setLyrics3dParams)
-  const resetParams = useSettingsStore((s) => s.resetLyrics3dParams)
-  const lyricsOverlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
-  const setLyricsOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
-  const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
-
-  const patch = (key: keyof Lyrics3dParams) => (v: number) => setParams({ [key]: v })
-  const percent = (v: number): string => `${Math.round(v * 100)}%`
-
-  const renderSettings = (
-      <section className={`${styles.group} ${styles.lyricsPerformanceGroup}`}>
-        <h3 className={styles.groupTitle}>3D 渲染</h3>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>帧率上限</span>
-          <div className={styles.segControl}>
-            {FPS_OPTIONS.map((fps) => (
-              <motion.button
-                key={fps}
-                className={`${styles.seg} no-drag ${params.fpsCap === fps ? styles.segActive : ''}`}
-                onClick={() => setParams({ fpsCap: fps })}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {fps === 0 ? '不限' : fps}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        <SliderRow label="渲染分辨率" min={0.75} max={2} step={0.05}
-          value={params.renderScale} format={(v) => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
-        <div className={styles.lyricsSubheading}>恢复设置</div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>恢复数值参数，保留场景与文字风格</span>
-          <button className={`${styles.action} ${styles.actionQuiet} no-drag`} onClick={() => resetParams()}>
-            恢复默认
-          </button>
-        </div>
-      </section>
-  )
-
-  return (
-    view === 'scene' ? <section className={`${styles.group} ${styles.lyricsEffectGroup}`}>
-        <h3 className={styles.groupTitle}>场景与文字</h3>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>文字演出</span>
-          <div className={styles.segControl}>
-            {(Object.keys(LYRIC_STYLE_LABELS) as Lyrics3dStyle[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${lyrics3dStyle === id ? styles.segActive : ''}`}
-                onClick={() => setLyrics3dStyle(id)}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {LYRIC_STYLE_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-        {lyrics3dStyle !== 'focus' && <div className={styles.row}>
-          <span className={styles.rowLabel}>
-            同屏歌词
-            <InfoButton label="同屏歌词" text="控制 3D 歌词舞台同时显示的歌词行数。" />
-          </span>
-          <div className={styles.segControl}>
-            {(Object.keys(LYRIC_DISPLAY_LABELS) as Lyrics3dDisplayMode[]).map((id) => (
-              <motion.button
-                key={id}
-                className={`${styles.seg} no-drag ${params.displayMode === id ? styles.segActive : ''}`}
-                onClick={() => setParams({ displayMode: id })}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {LYRIC_DISPLAY_LABELS[id]}
-              </motion.button>
-            ))}
-          </div>
-        </div>}
-      </section> : <div className={styles.lyricsGrid}>
-      <div className={styles.lyricsTuning}>
-      <div className={styles.lyricsTuningColumn}>
-      <section className={`${styles.group} ${styles.lyricsOverlayGroup}`}>
-        <h3 className={styles.groupTitle}>
-          {lyrics3dStyle === 'focus' ? '简洁叠层 · 歌词' : '3D 歌词 · 文字层次'}
-          <InfoButton label="3D 歌词文字层次" text="调整歌词的亮度、间距、切换过渡和辉光。辉光强度也会影响封面粒子云；简洁叠层只显示居中的当前歌词。" />
-        </h3>
-        {lyrics3dStyle === 'focus' ? <>
-          <SliderRow label="当前歌词底部模糊" min={0} max={1} step={0.01}
-            value={lyricsOverlayBlur} format={percent} onChange={setLyricsOverlayBlur} disabled={reduceTransparency} />
-          {reduceTransparency && <p className={styles.groupHint}>减少透明度已开启，歌词底部模糊暂不生效；原数值已保留。</p>}
-        </> : <>
-          <SliderRow label="前后歌词亮度" min={0.25} max={1} step={0.01}
-            value={params.contextOpacity} format={percent} onChange={patch('contextOpacity')} />
-          <SliderRow label="歌词行间距" min={0.6} max={2.4} step={0.02}
-            value={params.contextSpread} format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
-          <SliderRow label="远处歌词渐隐" min={0} max={1} step={0.01}
-            value={params.edgeFade} format={percent} onChange={patch('edgeFade')} />
-          <SliderRow label="切换柔和度" min={0.15} max={1.2} step={0.01}
-            value={params.motionSoftness} format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
-          <SliderRow label="辉光强度" min={0} max={2} step={0.05}
-            value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />
-        </>}
-      </section>
-      {renderSettings}
-      </div>
-      <motion.div layout className={styles.lyricsTuningColumn} transition={{ duration: reducedMotion ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.section
-            className={`${styles.group} ${styles.lyricsParticleGroup}`}
-            initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
-            transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <h3 className={styles.groupTitle}>
-              封面粒子云 · 场景细节
-              <InfoButton label="场景细节" text="下面的粒子与动效参数实时作用于 3D 背景的封面粒子云。" />
-            </h3>
-            <SliderRow label="粒子数量" min={0.25} max={2} step={0.05}
-              value={params.particleCount} format={percent} onChange={patch('particleCount')} />
-            <SliderRow label="粒子大小" min={0.2} max={2} step={0.05}
-              value={params.particleSize} format={percent} onChange={patch('particleSize')} />
-            <SliderRow label="场景亮度" min={0.3} max={2} step={0.05}
-              value={params.particleBrightness} format={percent} onChange={patch('particleBrightness')} />
-            <SliderRow label="动效强度" min={0.2} max={2} step={0.05}
-              value={params.motionIntensity} format={percent} onChange={patch('motionIntensity')} />
-            {lyrics3dStyle === 'focus' && <SliderRow label="辉光强度" min={0} max={2} step={0.05}
-              value={params.glowStrength} format={percent} onChange={patch('glowStrength')} />}
-            <div className={styles.lyricsSubheading}>鼓点波纹</div>
-            <SliderRow label="波纹数量" min={1} max={6} step={1}
-              value={params.rippleCount} format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
-            <SliderRow label="触发灵敏度" min={0} max={1} step={0.01}
-              value={params.rippleSensitivity} format={percent} onChange={patch('rippleSensitivity')} />
-            <SliderRow label="扩散时长" min={0.2} max={1.5} step={0.05}
-              value={params.rippleDuration} format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-          </motion.section>
-        </AnimatePresence>
-      </motion.div>
-      </div>
-    </div>
-  )
-}
-
 export function SettingsPage() {
   const reducedMotion = useReducedMotion()
   const systemReducedMotion = useSystemReducedMotion()
   const pageRef = useRef<HTMLDivElement>(null)
-  const selectedSectionRef = useRef<SettingsTab | null>(null)
+  const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
+  const [activeDetail, setActiveDetail] = useState('accounts')
+  const [expandedSection, setExpandedSection] = useState<SettingsTab | null>('music')
+  const activeSectionRef = useRef<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
 
   useEffect(() => {
     const page = pageRef.current
     if (!page) return
-    const updateActiveSection = () => {
-      if (selectedSectionRef.current) return
-      if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) {
-        setActiveSection(SETTINGS_TABS[SETTINGS_TABS.length - 1].id)
-        return
-      }
-      const topbarHeight = parseFloat(getComputedStyle(page).getPropertyValue('--sm-topbar-height')) || 0
-      const threshold = page.getBoundingClientRect().top + topbarHeight + 120
-      let current: SettingsTab = 'music'
+    const updateActiveDetail = () => {
+      if (selectedDetailRef.current) return
+      let current = SETTINGS_TABS[0] as (typeof SETTINGS_TABS)[number]
       for (const section of SETTINGS_TABS) {
         const node = document.getElementById(`settings-section-${section.id}`)
-        if (node && node.getBoundingClientRect().top <= threshold) current = section.id
+        if (!node) continue
+        const offset = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
+        if (node.getBoundingClientRect().top <= page.getBoundingClientRect().top + offset + 28) current = section
       }
-      setActiveSection(current)
+      if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) current = SETTINGS_TABS[SETTINGS_TABS.length - 1]
+      if (activeSectionRef.current !== current.id) {
+        activeSectionRef.current = current.id
+        setActiveSection(current.id)
+        setExpandedSection(current.items.length ? current.id : null)
+      }
+      let detail: string = current.items[0]?.id ?? ''
+      for (const item of current.items) {
+        const node = document.getElementById(`settings-detail-${item.id}`)
+        if (!node) continue
+        const offset = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
+        if (node.getBoundingClientRect().top <= page.getBoundingClientRect().top + offset + 28) detail = item.id
+      }
+      setActiveDetail(detail)
     }
     const resumeScrollTracking = () => {
-      selectedSectionRef.current = null
-      updateActiveSection()
+      selectedDetailRef.current = null
+      updateActiveDetail()
     }
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target === page) resumeScrollTracking()
@@ -586,14 +441,14 @@ export function SettingsPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) resumeScrollTracking()
     }
-    page.addEventListener('scroll', updateActiveSection, { passive: true })
+    page.addEventListener('scroll', updateActiveDetail, { passive: true })
     page.addEventListener('wheel', resumeScrollTracking, { passive: true })
     page.addEventListener('touchstart', resumeScrollTracking, { passive: true })
     page.addEventListener('keydown', handleKeyDown)
     page.addEventListener('pointerdown', handlePointerDown)
-    updateActiveSection()
+    updateActiveDetail()
     return () => {
-      page.removeEventListener('scroll', updateActiveSection)
+      page.removeEventListener('scroll', updateActiveDetail)
       page.removeEventListener('wheel', resumeScrollTracking)
       page.removeEventListener('touchstart', resumeScrollTracking)
       page.removeEventListener('keydown', handleKeyDown)
@@ -601,14 +456,18 @@ export function SettingsPage() {
     }
   }, [])
 
-  const scrollToSection = useCallback((id: SettingsTab): void => {
+  const scrollToSection = useCallback((section: SettingsTab, detail?: string): void => {
     const page = pageRef.current
-    const section = document.getElementById(`settings-section-${id}`)
-    if (!page || !section) return
-    selectedSectionRef.current = id
-    const top = section.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - parseFloat(window.getComputedStyle(section).scrollMarginTop)
+    const node = document.getElementById(detail ? `settings-detail-${detail}` : `settings-section-${section}`)
+    if (!page || !node) return
+    selectedDetailRef.current = detail ?? section
+    activeSectionRef.current = section
+    setActiveSection(section)
+    setExpandedSection(SETTINGS_TABS.find(item => item.id === section)!.items.length ? section : null)
+    setActiveDetail(detail ?? SETTINGS_TABS.find(item => item.id === section)!.items[0]?.id ?? '')
+    const margin = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
+    const top = node.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - margin
     page.scrollTo({ top, behavior: reducedMotion ? 'instant' : 'smooth' })
-    setActiveSection(id)
   }, [reducedMotion])
   useEffect(() => {
     const navigation = useNavigationStore.getState()
@@ -638,10 +497,6 @@ export function SettingsPage() {
   const setLyricsFontFamily = useSettingsStore((s) => s.setLyricsFontFamily)
   const lyricsFontFamilyCjk = useSettingsStore((s) => s.lyricsFontFamilyCjk)
   const setLyricsFontFamilyCjk = useSettingsStore((s) => s.setLyricsFontFamilyCjk)
-  const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
-  const setLyrics3dFontFamily = useSettingsStore((s) => s.setLyrics3dFontFamily)
-  const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
-  const setLyrics3dFontFamilyCjk = useSettingsStore((s) => s.setLyrics3dFontFamilyCjk)
   const fx = useVisualStore((s) => s.fx)
   const updateFx = useVisualStore((s) => s.updateFx)
   const [systemFonts, setSystemFonts] = useState<SystemFontFamily[]>([])
@@ -710,10 +565,6 @@ export function SettingsPage() {
   const applyPerformancePreset = useSettingsStore((s) => s.applyPerformancePreset)
   const activePerformancePreset = matchPerformancePreset(performance)
   const eco = useVisualStore((s) => s.performanceMode === 'eco')
-
-  const setLyrics3dEnabled = (enabled: boolean): void => {
-    setPerformance({ lyrics3dEnabled: enabled })
-  }
 
   const [audioCache, setAudioCache] = useState<AudioCacheStatsInfo | null>(null)
   const downloadDir = useOfflineCacheStore((state) => state.downloadDir)
@@ -797,31 +648,56 @@ export function SettingsPage() {
         <header className={styles.hero}>
           <h1 className={styles.title}>设置</h1>
         </header>
-        <div className={styles.settingsLayout}>
-          <nav className={styles.tabBar} aria-label="设置导航">
-            {SETTINGS_TABS.map(({ id, label }) => (
-              <motion.button
-                key={id}
-                type="button"
-                aria-current={activeSection === id ? 'location' : undefined}
-                aria-label={label}
-                className={`${styles.tab} no-drag ${activeSection === id ? styles.tabActive : ''}`}
-                onClick={(event) => {
-                  scrollToSection(id)
-                  if (event.detail > 0) event.currentTarget.blur()
-                }}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                {label}
-              </motion.button>
-            ))}
+        <div className={styles.settingsLayout} data-reduced-motion={reducedMotion}>
+          <aside className={styles.drawer}>
+          <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
+            <div className={styles.tabBar}>
+              {SETTINGS_TABS.map(({ id, label, items }) => (
+                <div key={id} className={styles.navCategory}>
+                  <motion.button
+                    type="button"
+                    aria-current={activeSection === id ? 'page' : undefined}
+                    aria-expanded={items.length ? expandedSection === id : undefined}
+                    aria-controls={items.length ? `settings-section-${id} settings-subnav-${id}` : `settings-section-${id}`}
+                    className={`${styles.tab} no-drag ${activeSection === id ? styles.tabActive : ''}`}
+                    onClick={(event) => {
+                      if (activeSection !== id || items.length === 0) scrollToSection(id)
+                      else setExpandedSection(value => value === id ? null : id)
+                      if (event.detail > 0) event.currentTarget.blur()
+                    }}
+                    whileTap={tapScale}
+                    transition={springSnappy}
+                  >{label}</motion.button>
+                  {items.length > 0 && <div id={`settings-subnav-${id}`} className={styles.subNav} data-expanded={expandedSection === id}
+                    aria-hidden={expandedSection !== id} {...(expandedSection !== id ? { inert: '' } : {})}>
+                    <div className={styles.subNavInner} aria-label={`${label}分组`}>
+                    {items.map(item => <button key={item.id} type="button"
+                      aria-current={activeDetail === item.id ? 'location' : undefined}
+                      aria-controls={`settings-detail-${item.id}`}
+                      className={`${styles.subTab} no-drag`}
+                      onClick={() => scrollToSection(id, item.id)}>{item.label}</button>)}
+                    </div>
+                  </div>}
+                </div>
+              ))}
+            </div>
+            <div className={styles.compactSubNav} data-expanded={expandedSection === activeSection} aria-hidden={expandedSection !== activeSection}
+              {...(expandedSection !== activeSection ? { inert: '' } : {})}>
+              <div className={styles.compactSubNavInner} aria-label="当前分类分组">
+              {SETTINGS_TABS.find(section => section.id === activeSection)!.items.map(item => <button
+                key={item.id} type="button" className={styles.subTab}
+                aria-current={activeDetail === item.id ? 'location' : undefined}
+                aria-controls={`settings-detail-${item.id}`}
+                onClick={() => scrollToSection(activeSection, item.id)}>{item.label}</button>)}
+              </div>
+            </div>
           </nav>
+          </aside>
           <div className={styles.settingsContent}>
             <section id="settings-section-music" className={styles.settingsSection} aria-labelledby="settings-heading-music">
               <SectionHeading section={SETTINGS_TABS[0]} />
               <div className={`${styles.settingsGrid} ${styles.musicGrid}`}>
-                <section className={styles.group}>
+                <section id="settings-detail-accounts" className={styles.group}>
                   <h3 className={styles.groupTitle}>
                     音源与账户
                     <InfoButton label="音源与账户" text="登录并启用后，平台才会参与浏览和联网播放。停用或退出登录后不再向它获取歌曲，但已有本地缓存仍可播放。来源标识只控制角标显示，不改变播放平台。" />
@@ -893,7 +769,7 @@ export function SettingsPage() {
                     )
                   })}
                 </section>
-                <section className={styles.group}>
+                <section id="settings-detail-playback" className={styles.group}>
                   <div className={`${styles.groupTitle} ${styles.playbackCardHeader}`}>
                     <h3>播放偏好</h3>
                     <div className={styles.playbackHeadingActions}>
@@ -1036,7 +912,7 @@ export function SettingsPage() {
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
                   {window.desktop?.platform === 'win32' && <WindowCloseSettings />}
-                  <section className={styles.group}>
+                  <section id="settings-detail-appearance" className={styles.group}>
                     <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
@@ -1089,7 +965,7 @@ export function SettingsPage() {
                     {performance.reduceTransparency && <p className={styles.groupHint}>减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。</p>}
                   </section>
 
-                  <section className={styles.group}>
+                  <section id="settings-detail-interface-font" className={styles.group}>
                     <h3 className={styles.groupTitle}>
                       界面字体
                       <InfoButton label="界面字体" text={`西文优先显示，中文字符使用中文回退字体。系统默认：${defaultFonts.western} / ${defaultFonts.cjk}`} />
@@ -1117,7 +993,7 @@ export function SettingsPage() {
                       onCjkChange={setFontFamilyCjk}
                     />
                   </section>
-                  <section className={`${styles.group} ${styles.miniPlayerGroup}`}>
+                  <section id="settings-detail-mini-player" className={`${styles.group} ${styles.miniPlayerGroup}`}>
                     <h3 className={styles.groupTitle}>
                       迷你播放条
                       <InfoButton label="迷你播放条" text={`开关在播放栏右侧。悬浮条可拖动、拖右边缘可调宽度；加宽到 ${MINI_PLAYER_LYRICS_WIDTH}px 以上会显示当前歌词。`} />
@@ -1174,7 +1050,7 @@ export function SettingsPage() {
                   </section>
                 </div>
                 <div className={styles.visualColumn}>
-                  <section className={styles.group}>
+                  <section id="settings-detail-motion" className={styles.group}>
                     <h3 className={styles.groupTitle}>
                       动效预设
                       <InfoButton label="动效预设" text="批量调整减少动态效果、文字与下方装饰效果，随后仍可单独调整每一项。" />
@@ -1203,21 +1079,21 @@ export function SettingsPage() {
                     </div>
                     <p className={styles.groupHint}>
                       标准：保留完整动效；简单：静止背景、直接显示说明；极简：再停止界面转场与歌词逐字高亮。
-                      <br />透明度与 3D 歌词独立设置，切换预设不会改变。
+                      <br />减少透明度独立设置，切换预设不会改变。
                     </p>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>
                         减少动态效果
-                        <InfoButton label="减少动态效果" text="页面与弹层直接切换，停止封面飞行、分类回弹、歌词换句、文字滚动和装饰动画；保留各单项偏好。3D 场景与透明度仍需单独调整。" />
+                        <InfoButton label="减少动态效果" text="页面与弹层直接切换，停止封面飞行、分类回弹、歌词换句、文字滚动和装饰动画；保留各单项偏好。透明度仍需单独调整；立体歌词仅在选中时运行。" />
                       </span>
                       <Switch checked={performance.reduceMotion} onChange={(v) => setPerformance({ reduceMotion: v })} aria-label="减少动态效果" />
                     </div>
                     {systemReducedMotion && <p className={styles.groupHint}>系统已开启减弱动态，相关动效暂不生效；原设置已保留。</p>}
-                    {!systemReducedMotion && performance.reduceMotion && <p className={styles.groupHint}>已暂停界面转场与下方动效，关闭后恢复各项选择。3D 场景仍独立运行，可在歌词设置中关闭。</p>}
+                    {!systemReducedMotion && performance.reduceMotion && <p className={styles.groupHint}>已暂停界面转场与下方动效，关闭后恢复各项选择。立体歌词仅在选中对应样式时运行。</p>}
                     {eco && <p className={styles.groupHint}>当前为节能档，背景流体与音频辉光暂不生效；原设置已保留。</p>}
                   </section>
-                  {PERFORMANCE_EFFECT_GROUPS.map((group) => (
-                    <section className={styles.group} key={group.title}>
+                  {PERFORMANCE_EFFECT_GROUPS.map((group, index) => (
+                    <section id={index === 0 ? 'settings-detail-effects' : undefined} className={styles.group} key={group.title}>
                       <h3 className={styles.groupTitle}>{group.title}</h3>
                       <p className={styles.groupHint}>{group.hint}</p>
                       {group.effects.map(({ key, label, hint }) => {
@@ -1240,7 +1116,7 @@ export function SettingsPage() {
                       })}
                     </section>
                   ))}
-                  <section className={styles.group}>
+                  <section id="settings-detail-game" className={styles.group}>
                     <h3 className={styles.groupTitle}>游戏模式</h3>
                     <p className={styles.groupHint}>收起主窗口、壁纸与迷你条，音乐继续播放。可通过托盘或已启用的全局快捷键控制，从托盘退出并恢复。</p>
                     <div className={styles.row}>
@@ -1253,11 +1129,11 @@ export function SettingsPage() {
             <section id="settings-section-lyrics" className={styles.settingsSection} aria-labelledby="settings-heading-lyrics">
               <SectionHeading section={SETTINGS_TABS[2]} />
               <div className={styles.lyricsPage}>
-                <DesktopLyricsSettings />
-                <section className={styles.group}>
+                <div id="settings-detail-desktop-lyrics" className={styles.detailSection}><DesktopLyricsSettings /></div>
+                <section id="settings-detail-lyrics-font" className={styles.group}>
                   <h3 className={styles.groupTitle}>
                     歌词字体
-                    <InfoButton label="歌词字体" text="桌面、普通和 3D 歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
+                    <InfoButton label="歌词字体" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
                   </h3>
                   <div className={styles.fontGuide}>
                     <span role="status" aria-live="polite">
@@ -1293,53 +1169,16 @@ export function SettingsPage() {
                     onWesternChange={setLyricsFontFamily}
                     onCjkChange={setLyricsFontFamilyCjk}
                   />
-                  <FontPairSetting
-                    label="3D 歌词"
-                    idPrefix="settings-lyrics-3d-font"
-                    westernValue={lyrics3dFontFamily}
-                    cjkValue={lyrics3dFontFamilyCjk}
-                    fonts={systemFonts}
-                    loading={fontsLoading}
-                    westernDefaultLabel={`跟随界面：${inheritedWesternFont}`}
-                    cjkDefaultLabel={`跟随界面：${inheritedCjkFont}`}
-                    onWesternChange={setLyrics3dFontFamily}
-                    onCjkChange={setLyrics3dFontFamilyCjk}
-                  />
+
                 </section>
-                <AmllLyricsSettings />
-                <section className={styles.group}>
-                  <div className={styles.row}>
-                    <span className={styles.rowLabel}>
-                      启用 3D 歌词舞台
-                      <InfoButton label="3D 歌词" text="关闭后播放页使用普通歌词；下方场景与渲染设置保留，重新启用后生效。" />
-                    </span>
-                    <Switch
-                      checked={performance.lyrics3dEnabled}
-                      onChange={setLyrics3dEnabled}
-                      aria-label="启用 3D 歌词舞台"
-                      aria-controls="settings-lyrics3d-details"
-                    />
-                  </div>
-                </section>
-                <fieldset
-                  id="settings-lyrics3d-details"
-                  className={styles.lyricsDetails}
-                  disabled={!performance.lyrics3dEnabled}
-                  aria-describedby="settings-lyrics3d-hint"
-                >
-                  <legend>3D 歌词详细设置</legend>
-                  <p id="settings-lyrics3d-hint" className={styles.lyricsDetailsHint}>
-                    {performance.lyrics3dEnabled ? '调整场景、文字与渲染效果。' : '启用 3D 歌词舞台后可调整；当前设置已保留，歌词字体仍可独立选择。'}
-                  </p>
-                  <Lyrics3dSettings view="scene" />
-                  <Lyrics3dSettings view="tuning" />
-                </fieldset>
+                <div id="settings-detail-lyrics-source" className={styles.detailSection}><AmllLyricsSettings /></div>
+
               </div>
             </section>
             <section id="settings-section-cache" className={styles.settingsSection} aria-labelledby="settings-heading-cache">
               <SectionHeading section={SETTINGS_TABS[3]} />
               <div className={`${styles.settingsGrid} ${styles.storageGrid}`}>
-                <section className={`${styles.group} ${styles.storageShared}`}>
+                <section id="settings-detail-downloads" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>歌曲下载</h3>
                   <p className={styles.groupHint}>更改目录只影响之后加入的任务，已有文件保留。</p>
                   <div className={`${styles.row} ${styles.pathRow}`}>
@@ -1348,7 +1187,7 @@ export function SettingsPage() {
                     <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载</button>
                   </div>
                 </section>
-                <section className={styles.group}>
+                <section id="settings-detail-temporary-cache" className={styles.group}>
                   <h3 className={styles.groupTitle}>自动缓存</h3>
                   <p className={styles.groupHint}>播放时自动保存，容量满后可自动清理。清理缓存不会删除下载目录中的歌曲。</p>
                   <div className={styles.row}>
@@ -1377,7 +1216,7 @@ export function SettingsPage() {
                     </div>
                   </div>
                 </section>
-                <section className={styles.group}>
+                <section id="settings-detail-offline-audio" className={styles.group}>
                   <h3 className={styles.groupTitle}>播放器离线音乐</h3>
                   <p className={styles.groupHint}>不占自动缓存额度，可在“我的库 → 离线音乐”中查看，与下载目录中的歌曲分别管理。</p>
                   <div className={styles.row}>
@@ -1390,7 +1229,7 @@ export function SettingsPage() {
                     </button>
                   </div>
                 </section>
-                <section className={`${styles.group} ${styles.storageShared}`}>
+                <section id="settings-detail-cache-location" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>播放器缓存位置</h3>
                   <p className={styles.groupHint}>更改位置会删除原目录中的缓存、离线音频及未识别旧文件，下载目录中的歌曲不受影响。</p>
                   <div className={`${styles.row} ${styles.pathRow}`}>

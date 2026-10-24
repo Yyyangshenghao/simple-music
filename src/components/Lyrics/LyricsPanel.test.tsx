@@ -4,15 +4,15 @@ import { LyricsPanel } from './LyricsPanel'
 import styles from './LyricsPanel.module.css'
 
 const scene = vi.hoisted(() => ({ loads: 0 }))
-const settings = vi.hoisted(() => ({ mode: 'lyrics' as 'lyrics' | 'dynamic', enabled: true, theme: 'dark' as 'light' | 'dark' }))
+const settings = vi.hoisted(() => ({ mode: 'lyrics' as 'lyrics' | 'dynamic', style: 'stage3d', theme: 'dark' as 'light' | 'dark' }))
 
 vi.mock('./LyricsScene', () => {
   scene.loads += 1
   return { default: ({ lightBackground }: { lightBackground: boolean }) => <div data-testid="lyrics-scene" data-light-background={lightBackground} /> }
 })
-// 动态样式选 3D 舞台；3D 被设置关闭时回落跃字，同样不应加载场景。
+// 只选中粒光并打开歌词页时才加载其场景。
 vi.mock('../../stores/lyric-styles', () => ({
-  useLyricStylesStore: (selector: (value: { style: string }) => unknown) => selector({ style: 'stage3d' }),
+  useLyricStylesStore: (selector: (value: { style: string }) => unknown) => selector({ style: settings.style }),
   useLyricStyleTuning: () => ({ intensity: 1, camera: true }),
 }))
 vi.mock('../../stores/settings', async (importOriginal) => {
@@ -24,15 +24,14 @@ vi.mock('../../stores/settings', async (importOriginal) => {
       return selector({
         ...state,
         lyricsPanelMode: settings.mode,
-        themeMode: settings.theme,
-        performance: { ...state.performance, lyrics3dEnabled: settings.enabled }
+        themeMode: settings.theme
       })
     }, original.useSettingsStore)
   }
 })
 
 describe('歌词场景按需加载', () => {
-  it('关闭、纯歌词和禁用 3D 时均不加载，打开 3D 舞台样式才加载场景', async () => {
+  it('关闭、纯歌词和其他样式均不加载粒光，打开粒光才加载场景', async () => {
     const render = (open: boolean) => renderToStaticMarkup(<LyricsPanel open={open} onClose={vi.fn()} />)
 
     settings.mode = 'dynamic'
@@ -44,12 +43,12 @@ describe('歌词场景按需加载', () => {
     expect(ordinary).not.toContain('aria-label="查看歌词"')
     expect(render(false)).not.toContain('aria-label="歌词播放控制"')
     settings.mode = 'dynamic'
-    settings.enabled = false
+    settings.style = 'pop'
     expect(render(true)).not.toContain('data-testid="lyrics-scene"')
     await vi.dynamicImportSettled()
     expect(scene.loads).toBe(0)
 
-    settings.enabled = true
+    settings.style = 'stage3d'
     render(true)
     await vi.dynamicImportSettled()
     expect(scene.loads).toBe(1)

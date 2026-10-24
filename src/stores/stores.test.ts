@@ -108,7 +108,7 @@ describe('settings export/import', () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ lyricsStage3d: false }))
     useSettingsStore.setState({ lyrics3dStyle: 'float' })
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
   })
 
   it('migrates the retired cascade style and fills Mineradio track defaults', () => {
@@ -125,12 +125,21 @@ describe('settings export/import', () => {
   it('keeps the legacy stage switch consistent when only the new style was stored', () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ lyrics3dStyle: 'focus' }))
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyrics3dStyle).toBe('focus')
-    expect(useSettingsStore.getState().lyricsStage3d).toBe(false)
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
+    expect(useSettingsStore.getState().lyricsStage3d).toBe(true)
+  })
+
+  it('maps retired focus requests from legacy clients to smooth', () => {
+    useSettingsStore.getState().setLyrics3dStyle('focus' as never)
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
+    expect(useSettingsStore.getState().lyricsStage3d).toBe(true)
   })
 
   it('keeps the legacy stage switch in sync with lyric style changes', () => {
     useSettingsStore.getState().setLyrics3dStyle('smooth')
+    expect(useSettingsStore.getState().lyricsStage3d).toBe(true)
+    useSettingsStore.getState().setLyricsStage3d(false)
+    expect(useSettingsStore.getState().lyrics3dStyle).toBe('smooth')
     expect(useSettingsStore.getState().lyricsStage3d).toBe(true)
     useSettingsStore.getState().setLyricsStage3d(true)
     expect(useSettingsStore.getState().lyrics3dStyle).toBe('float')

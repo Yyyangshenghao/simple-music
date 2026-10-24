@@ -70,7 +70,6 @@ const initialWindowClose = useWindowCloseStore.getState()
 beforeEach(() => {
   reducedMotion.value = false
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
-  useSettingsStore.setState((state) => ({ performance: { ...state.performance, lyrics3dEnabled: false } }))
   useVisualStore.setState((state) => ({ fx: { ...state.fx, desktopLyricsFontFamily: 'Helvetica Neue', desktopLyricsFontFamilyCjk: 'Songti SC' } }))
 })
 afterEach(() => {
@@ -246,9 +245,9 @@ describe('动效设置的实际生效状态', () => {
 
   it('独立透明度和 3D 歌词偏好不改变装饰预设匹配', () => {
     useSettingsStore.getState().applyPerformancePreset('standard')
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: true, lyrics3dEnabled: false } }))
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: true } }))
     expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false, lyrics3dEnabled: true } }))
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
     expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
   })
 
@@ -292,35 +291,25 @@ describe('动效设置的实际生效状态', () => {
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
     expect(html).toContain('标准：保留完整动效；简单：静止背景、直接显示说明；极简：再停止界面转场与歌词逐字高亮。')
-    expect(html).toContain('透明度与 3D 歌词独立设置，切换预设不会改变。')
+    expect(html).toContain('减少透明度独立设置，切换预设不会改变。')
   })
 })
 
 describe('歌词设置分组', () => {
-  it('减少透明度时禁用简洁叠层模糊，原数值仍保留', () => {
-    useSettingsStore.setState((state) => ({
-      lyrics3dStyle: 'focus', lyricsOverlayBlur: 0.8,
-      performance: { ...state.performance, lyrics3dEnabled: true, reduceTransparency: true }
-    }))
+  it('粒光参数和专用字体统一放在歌词页，设置页不再重复展示', () => {
     const html = lyricsMarkup()
-    const blurRow = html.slice(html.indexOf('当前歌词底部模糊'), html.indexOf('当前歌词底部模糊') + 500)
-    expect(blurRow).toMatch(/<input[^>]*disabled=""/)
-    expect(html).toContain('减少透明度已开启，歌词底部模糊暂不生效；原数值已保留。')
-    expect(useSettingsStore.getState().lyricsOverlayBlur).toBe(0.8)
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
-    const restored = lyricsMarkup()
-    const restoredRow = restored.slice(restored.indexOf('当前歌词底部模糊'), restored.indexOf('当前歌词底部模糊') + 500)
-    expect(restoredRow).not.toMatch(/<input[^>]*disabled=/)
-    expect(restoredRow).toContain('value="0.8"')
+    for (const label of ['粒光设置', '粒光选项', '同屏歌词', '歌词行间距', '粒光歌词中文字体', '启用立体歌词']) {
+      expect(html).not.toContain(label)
+    }
   })
 
-  it('字体合并到独立卡片，桌面和 3D 字体在禁用详情之外仍可选择', () => {
+  it('桌面和普通歌词字体保留在独立卡片', () => {
     const html = lyricsMarkup()
     const [beforeDetails] = html.split('<fieldset')
     expect(beforeDetails).toContain('aria-label="桌面歌词西文字体"')
     expect(beforeDetails).toContain('aria-label="桌面歌词中文字体"')
     expect(beforeDetails).toContain('aria-label="普通歌词西文字体"')
-    expect(beforeDetails).toContain('aria-label="3D 歌词中文字体"')
+    expect(beforeDetails).not.toContain('粒光歌词中文字体')
     expect(beforeDetails).toContain('Helvetica Neue')
     expect(beforeDetails).toContain('Songti SC')
     const fontCard = beforeDetails.slice(beforeDetails.indexOf('歌词字体'), beforeDetails.indexOf('</section>', beforeDetails.indexOf('歌词字体')))
@@ -328,30 +317,32 @@ describe('歌词设置分组', () => {
     expect(fontCard).not.toContain('aria-expanded=')
   })
 
-  it('关闭舞台时保留所有详细控件，并以原生 fieldset 禁用', () => {
-    const html = lyricsMarkup()
-    expect(html).toMatch(/<fieldset[^>]*id="settings-lyrics3d-details"[^>]*disabled=""/)
-    const details = html.slice(html.indexOf('<fieldset'))
-    expect(details).toContain('<legend>3D 歌词详细设置</legend>')
-    // 背景场景只剩封面粒子云，已不再提供选择
-    expect(details).not.toContain('背景场景')
-    expect(details).toContain('文字演出')
-    expect(details).toContain('分镜')
-    expect(details).toContain('粒子数量')
-    expect(details).toContain('渲染分辨率')
-    expect(details).toContain('type="range"')
-    expect(details).toContain('恢复默认')
-    expect(details).not.toMatch(/\shidden(?:=|[\s>])/)
-    expect(details).not.toContain('role="button"')
+
+})
+
+
+describe('设置分类导航', () => {
+  it('全部分类连续展示，原分类按钮负责收放二级目录', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const sections = [...html.matchAll(/<section id="settings-section-([^"]+)"([^>]*)>/g)]
+    expect(sections).toHaveLength(6)
+    expect(sections.find(section => section[1] === 'music')![2]).not.toContain('hidden=')
+    expect(sections.some(section => section[2].includes('hidden='))).toBe(false)
+    expect(html).not.toContain('收起设置目录')
+    expect(html).not.toContain('展开设置目录')
+    expect(html).toMatch(/aria-current="page"[^>]*aria-expanded="true"/)
+    expect(html).toMatch(/aria-current="page"[^>]*aria-controls="settings-section-music settings-subnav-music"/)
   })
 
-  it('重新开启舞台仅解除禁用，详细参数仍然显示', () => {
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, lyrics3dEnabled: true } }))
-    const html = lyricsMarkup()
-    const fieldset = html.slice(html.indexOf('<fieldset'), html.indexOf('>', html.indexOf('<fieldset')))
-    expect(fieldset).not.toContain('disabled=')
-    expect(html).toContain('aria-checked="true"')
-    expect(html).toContain('文字演出')
-    expect(html).toContain('粒子数量')
+  it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    for (const id of ['accounts', 'playback', 'appearance', 'interface-font', 'mini-player', 'motion', 'effects', 'game',
+      'desktop-lyrics', 'lyrics-font', 'lyrics-source', 'downloads', 'temporary-cache', 'offline-audio', 'cache-location']) {
+      expect(html.match(new RegExp(`id="settings-detail-${id}"`, 'g'))).toHaveLength(1)
+    }
+    expect(html).toContain('aria-controls="settings-detail-accounts"')
+    expect(html).toContain('清理缓存不会删除下载目录中的歌曲')
+    expect(html).not.toContain('粒光设置')
+    expect(html).not.toContain('社区模组')
   })
 })

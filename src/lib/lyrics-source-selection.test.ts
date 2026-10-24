@@ -51,7 +51,7 @@ beforeEach(() => {
   } })
   useSettingsStore.setState({ ...initialSettings, lyricsAmllFallback: true, lyricsKugouFallback: true })
   useGameModeStore.setState({ enabled: false })
-  useLyricsSourceStore.setState({ defaultSource: 'auto', remembered: {}, candidates: [], candidateToken: null, candidateTrackKey: null, appliedOrigin: null, requestedOrigin: 'auto', fallbackReason: null, appliedPreference: 'auto' })
+  useLyricsSourceStore.setState({ sourceOrder: null, health: {}, probes: {}, defaultSource: 'auto', remembered: {}, candidates: [], candidateToken: null, candidateTrackKey: null, appliedOrigin: null, requestedOrigin: 'auto', fallbackReason: null, appliedPreference: 'auto' })
 })
 afterEach(() => { stop?.(); stop = undefined; vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
@@ -104,6 +104,7 @@ describe('歌词来源：宿主命令到正式快照', () => {
     stop = undefined
     useLyricsSourceStore.setState({ remembered: {}, defaultSource: 'auto' })
     loadLyricsSourcePreferences()
+    useLyricsSourceStore.setState({ sourceOrder: null })
     stop = initLyricsLoader()
     await flush()
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
@@ -124,13 +125,13 @@ describe('歌词来源：宿主命令到正式快照', () => {
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
   })
 
-  it('全局偏好修改后，同曲补详情和连接设置重同步仍使用本次规则', async () => {
+  it('全局偏好修改后，同曲补详情和歌词开关重同步仍使用本次规则', async () => {
     stop = initLyricsLoader()
     await flush()
     await action('setDefaultSource', 'amll')
     usePlayerStore.setState({ currentTrack: { ...track, catalogId: 'detail' } })
     await flush()
-    useSettingsStore.getState().setLyricsAmllHost('github')
+    useSettingsStore.getState().setLyricsKugouFallback(false)
     await flush()
     expect(useLyricsSourceStore.getState()).toMatchObject({ appliedOrigin: 'apple', appliedPreference: 'auto', defaultSource: 'amll' })
     expect(h.query).not.toHaveBeenCalled()
@@ -262,5 +263,97 @@ describe('歌词来源：宿主命令到正式快照', () => {
     expect(useLyricsSourceStore.getState().candidateToken).toBe('dialog-2')
     await expect(action('chooseSource', 'apple:a1', 'dialog-2', 'unsafe', true)).rejects.toThrow('无效')
     await expect(action('queryCandidates', 'apple:a1', 'x'.repeat(161))).rejects.toThrow('无效')
+  })
+})
+
+
+describe('四来源完整顺序', () => {
+  const onlineTrack: Track = { ...track, source: 'netease', provider: 'netease', id: 'n1' }
+  beforeEach(() => {
+    usePlayerStore.setState({ currentTrack: onlineTrack })
+    useLyricsSourceStore.setState({ sourceOrder: ['qq', 'amll', 'kugou', 'netease'] })
+  })
+
+  it('依完整顺序回退，取得歌词即停止且不被低优先补全覆盖', async () => {
+    h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => origin === 'kugou'
+      ? { status: 'ready', result: result(origin) } : { status: 'empty', message: '未收录' })
+    stop = initLyricsLoader()
+    await flush()
+    expect(h.query.mock.calls.map(call => call[1])).toEqual(['qq', 'amll', 'kugou'])
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('kugou')
+    expect(h.fetch).not.toHaveBeenCalled()
+    expect(h.upgrade).not.toHaveBeenCalled()
+  })
+
+  it('歌曲记忆优先于完整顺序，失败后保留记忆并依次回退', async () => {
+    useLyricsSourceStore.setState({ remembered: { 'netease:n1': { origin: 'netease', name: track.name, artist: track.artist } } })
+    h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => origin === 'netease'
+      ? { status: 'error', message: '连接失败' } : { status: 'ready', result: result(origin) })
+    stop = initLyricsLoader()
+    await flush()
+    expect(h.query.mock.calls.map(call => call[1])).toEqual(['netease', 'qq'])
+    expect(useLyricsSourceStore.getState()).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'netease', remembered: { 'netease:n1': { origin: 'netease' } } })
+    expect(useLyricsSourceStore.getState().fallbackReason).toContain('连接失败')
+  })
+
+  it('宿主顺序动作同步快照，当前歌曲稳定、下一首应用新顺序', async () => {
+    stop = initLyricsLoader()
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+    await action('setSourceOrder', ['amll', 'kugou', 'netease', 'qq'])
+    expect(takePlaybackSnapshot(true).stores.lyricSources.sourceOrder).toEqual(['amll', 'kugou', 'netease', 'qq'])
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+    usePlayerStore.setState({ currentTrack: { ...onlineTrack, id: 'n2' } })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+    expect(h.upgrade).not.toHaveBeenCalled()
+  })
+
+  it('启用并测试旧停用来源只更新测试快照，不重载当前歌词或歌曲记忆', async () => {
+    useSettingsStore.setState({ lyricsAmllFallback: false })
+    useLyricsSourceStore.setState({ remembered: { 'netease:n1': { origin: 'qq', name: track.name, artist: track.artist } } })
+    stop = initLyricsLoader()
+    await flush()
+    const shown = useLyricsStore.getState().lines
+    const current = useLyricsSourceStore.getState()
+    const remembered = current.remembered
+    expect(current).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'qq' })
+    expect(h.query).toHaveBeenCalledTimes(1)
+
+    const pending = deferred()
+    h.query.mockReturnValueOnce(pending.promise)
+    useSettingsStore.getState().setLyricsAmllFallback(true)
+    await flush()
+    expect(h.query).toHaveBeenCalledTimes(1)
+    await action('testSource', 'amll', 'sunny')
+    expect(h.query).toHaveBeenCalledTimes(2)
+    expect(h.query).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq'],
+      expect.any(AbortSignal), undefined, { probe: true },
+    )
+    expect(takePlaybackSnapshot(true).stores.lyricSources.probes).toMatchObject({ amll: { status: 'loading', sample: '晴天' } })
+    expect(useLyricsStore.getState().lines).toBe(shown)
+
+    pending.resolve({ status: 'ready', result: result('amll') })
+    await flush()
+    const snapshot = takePlaybackSnapshot(true).stores.lyricSources
+    expect(snapshot.probes).toMatchObject({ amll: { status: 'ready', sample: '晴天', ms: expect.any(Number) } })
+    expect(snapshot).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'qq', remembered })
+    expect(useLyricsSourceStore.getState().remembered).toBe(remembered)
+    expect(useLyricsStore.getState().lines).toBe(shown)
+    expect(h.query).toHaveBeenCalledTimes(2)
+  })
+
+  it('宿主可以忘记单首记忆，不影响当前歌词及其他歌曲', async () => {
+    useLyricsSourceStore.setState({ remembered: {
+      'netease:n1': { origin: 'amll', name: track.name, artist: track.artist },
+      'netease:n2': { origin: 'qq', name: '另一首', artist: track.artist },
+    } })
+    stop = initLyricsLoader()
+    await flush()
+    const shown = useLyricsStore.getState().lines
+    await action('forgetTrack', 'netease:n1')
+    expect(useLyricsStore.getState().lines).toBe(shown)
+    expect(useLyricsSourceStore.getState().remembered).toEqual({ 'netease:n2': { origin: 'qq', name: '另一首', artist: track.artist } })
   })
 })

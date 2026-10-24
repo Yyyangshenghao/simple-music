@@ -178,7 +178,7 @@ export function SonnetLyrics({ preview = false }: { preview?: boolean }) {
 
     // 字：开唱时落定；没唱到是空心描边，正在唱换强调色并拉出下划线。
     if (shot) {
-      const baseSize = Math.min(Math.max(H * 0.12, 30), 118) * (L.preview ? 1 : L.fontScale)
+      const baseSize = Math.min(Math.max(H * 0.12, 30), 118)
       const key = `${index}|${W}|${H}`
       let runs = s.layouts.get(key)
       if (!runs) {
@@ -186,7 +186,7 @@ export function SonnetLyrics({ preview = false }: { preview?: boolean }) {
           ctx.font = `900 ${size}px ${L.family}`
           return ctx.measureText(text).width
         }
-        runs = layoutSonnetShot(shot, W, H, baseSize, measure)
+        runs = layoutSonnetShot(shot, W, H, baseSize, measure, L.preview ? 1 : L.fontScale)
         if (s.layouts.size > 64) s.layouts.clear()
         s.layouts.set(key, runs)
       }

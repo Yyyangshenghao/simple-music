@@ -82,7 +82,7 @@ export default function LyricsScene({ coverUrl, lightBackground = false }: { cov
         <FrameLimiter fps={fpsCap} />
         <CoverParticleCloud coverUrl={coverUrl} lightBackground={lightBackground} />
         {phase === 'wait' && <FirstFrameSignal key={shown} onReady={markReady} />}
-        {shown !== 'focus' && <StageLyrics3D key={shown} lightBackground={lightBackground} style={shown} />}
+        <StageLyrics3D key={shown} lightBackground={lightBackground} style={shown} />
       </Canvas>
       {shown === 'storyboard' && <StoryboardFrame />}
     </div>

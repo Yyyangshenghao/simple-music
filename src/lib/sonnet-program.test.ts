@@ -48,6 +48,14 @@ describe('商籁排版与几何', () => {
     layout, geometry: 'sunburst', hero: 0, side: 1, seed: 3,
   })
 
+  it('受约束的长词放大不会再被布局抵消，且仍保持画面边界', () => {
+    const line = { ...shot('center'), words: [{ text: '在这只属于你我的空旷夜空下慢慢地溶化成一片温柔的光', startMs: 0, endMs: 4000 }] }
+    const small = layoutSonnetShot(line, 900, 700, 80, measure, 0.7)
+    const large = layoutSonnetShot(line, 900, 700, 80, measure, 1.5)
+    expect(large[0].size / small[0].size).toBeCloseTo(1.5 / 0.7)
+    expect(large[0].width).toBeLessThanOrEqual(900 * 0.92)
+  })
+
   it('四种构图都覆盖全部词并缩放到画面里；巨字柱里重点词竖排', () => {
     for (const layout of ['pillar', 'stack', 'center', 'diagonal'] as const) {
       const runs = layoutSonnetShot(shot(layout), 1200, 800, 120, measure)

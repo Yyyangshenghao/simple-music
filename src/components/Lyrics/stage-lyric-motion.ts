@@ -9,8 +9,7 @@ export const LYRIC_STYLE_LOOKS = {
   float: { glow: 0.65, particles: 1, panel: 0, depth: 0.65, stagger: 0.34, context: 1 },
   quick: { glow: 0, particles: 0, panel: 2, depth: 0, stagger: 0, context: 1 },
   shine: { glow: 1.35, particles: 0.45, panel: 0, depth: 0.12, stagger: 0, context: 1 },
-  glitch: { glow: 0.12, particles: 0, panel: 0, depth: 0.08, stagger: 0, context: 1 },
-  focus: { glow: 0, particles: 0, panel: 0, depth: 0, stagger: 0, context: 1 }
+  glitch: { glow: 0.12, particles: 0, panel: 0, depth: 0.08, stagger: 0, context: 1 }
 } as const
 
 /** 不改变歌词时钟与 KTV 进度；入场和周期效果均服从动效强度。 */

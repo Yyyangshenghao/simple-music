@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
-import { springGentle } from '../../lib/motion-presets'
 import { usePlayerStore } from '../../stores/player'
 import { useProviderStore } from '../../stores/providers'
 import { useSettingsStore } from '../../stores/settings'
@@ -9,11 +8,8 @@ import { useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useVisualStore } from '../../stores/visual'
-import { useAmbientStore } from '../../stores/ambient'
 import { useLightTheme } from '../../hooks/useLightTheme'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
-import { lightLyricPalette } from '../../lib/lyric-palette'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -22,15 +18,12 @@ import { LyricStylePicker } from './LyricStylePicker'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
 import { lyricStyleInfo, resolveLyricsView } from '../../lib/lyric-style-catalog'
 import { useLyricStylesStore } from '../../stores/lyric-styles'
-import { useLyricModsStore } from '../../stores/lyric-mods'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
 import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
 
 const LyricsScene = lazy(() => import('./LyricsScene'))
-const LyricModMarket = lazy(() => import('./LyricModMarket').then(module => ({ default: module.LyricModMarket })))
-const ModLyrics = lazy(() => import('./ModLyrics').then(module => ({ default: module.ModLyrics })))
 
 /** 当前句切行过渡相对正常句的时长比例（以跟随弹簧为基准），供 JS 动画和 CSS 过渡共用。 */
 function lyricSwitchScale(lines: readonly { time: number; text: string }[], index: number): number {
@@ -187,16 +180,6 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 }
 
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
-  const [modMarketOpen, setModMarketOpen] = useState(false)
-  const [modPreviewId, setModPreviewId] = useState<string | null>(null)
-  const selectedModId = useLyricModsStore(state => state.selectedId)
-  const installedMods = useLyricModsStore(state => state.installed)
-  const modId = modPreviewId ?? selectedModId
-  const activeMod = installedMods.find(mod => mod.id === modId && mod.valid)
-  useEffect(() => {
-    if (open) void useLyricModsStore.getState().refreshInstalled()
-    if (!open) { setModMarketOpen(false); setModPreviewId(null) }
-  }, [open])
   const reducedMotion = useReducedMotion()
   // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新系统偏好。
   const reducedMotionRef = useRef(reducedMotion)
@@ -224,26 +207,17 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setShowRoma = useSettingsStore((s) => s.setLyricsShowRoma)
   const playerStyle = useSettingsStore((s) => s.lyricsPlayerStyle)
   const setPlayerStyle = useSettingsStore((s) => s.setLyricsPlayerStyle)
-  const lyrics3dEnabled = useSettingsStore((s) => s.performance.lyrics3dEnabled)
   const lyricStyle = useLyricStylesStore((s) => s.style)
-  // 「动态」下实际显示的样式：3D 被设置关闭时回落默认样式，不改写用户的选择；试用或选中的实验模组覆盖内置样式。
-  const view = resolveLyricsView({ mode: modPreviewId ? 'dynamic' : storedMode, style: lyricStyle, lyrics3dEnabled, modActive: !!activeMod })
+  // 「动态」下实际显示的样式：未知样式回落默认样式，不改写用户的选择。
+  const view = resolveLyricsView({ mode: storedMode, style: lyricStyle })
   // 下方逐行歌词、封面飞入与 3D 场景沿用这三种布局：除 3D 舞台外的动态样式都走跃字这套舞台底。
   const mode = view === 'stage3d' ? '3d' : view === 'lyrics' ? 'lyrics' : 'pop'
-  const StyleStage = view !== 'lyrics' && view !== 'mod' ? LYRIC_STYLE_VIEWS[view].Stage : undefined
-  const opaqueStyle = view !== 'lyrics' && view !== 'mod' && !!lyricStyleInfo(view).opaque
+  const StyleStage = view !== 'lyrics' ? LYRIC_STYLE_VIEWS[view].Stage : undefined
+  const opaqueStyle = view !== 'lyrics' && !!lyricStyleInfo(view).opaque
   const lightTheme = useLightTheme()
   const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
   const lowPower = useVisualStore((s) => s.performanceMode === 'eco')
   const backgroundColor = useVisualStore((s) => s.fx.backgroundColor)
-  const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
-  const lyrics3dStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  // 浅色主题使用深色叠层文字；深色主题下仍按封面粒子墙的亮度补偿。
-  // 阈值 0.65:粒子墙点间有暗色缝隙,画面实际亮度低于封面本身,不必等到接近纯白才翻转
-  const coverLuma = useAmbientStore((s) => s.coverLuma)
-  const lightCover = lightTheme || coverLuma > 0.65
-  const focusPalette = useCoverLyricPalette(open && mode === '3d' && lyrics3dStyle === 'focus' ? track?.cover : undefined)
-  const focusTextPalette = lightTheme ? lightLyricPalette(focusPalette) : undefined
 
   // 面板常驻挂载,关闭时仅 translateY(100%) 移出视口——若内容照常渲染,
   // 激活行 KtvLine 的 rAF 扫光、封面模糊层、数百行歌词节点会在后台空转。
@@ -267,14 +241,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const openSourceDialog = () => {
     setSettingsPopOpen(false)
     setStylePickerOpen(false)
-    setModMarketOpen(false)
     useLyricsSourceDialogStore.getState().show()
   }
   useEffect(() => {
     if (!sourceDialogOpen) return
     setSettingsPopOpen(false)
     setStylePickerOpen(false)
-    setModMarketOpen(false)
   }, [sourceDialogOpen])
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -471,26 +443,14 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     scrollToLine(index, 'smooth')
   }
 
-  // 当前行的逐字数据
-  const currentWordLine = currentIndex >= 0 ? wordLines[currentIndex] : undefined
-
-  // 纯 LRC 行数据
-  const currentPlainLine = currentIndex >= 0 ? lines[currentIndex] : undefined
-  const previousPlainLine = currentIndex > 0 ? lines[currentIndex - 1] : undefined
-  const nextPlainLine = currentIndex >= 0 ? lines[currentIndex + 1] : undefined
-  // 聚焦叠层的切句过渡：短句改为压缩后的补间，避免弹簧拖尾与下一句叠在一起。
-  const currentDwellSec = lyricLineDwellSec(lines, currentIndex)
-  const switchScale = lyricSwitchScale(lines, currentIndex)
-  const overlaySwitch = switchScale < 1 ? { duration: 0.45 * switchScale, ease: 'easeOut' as const } : springGentle
-
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
   const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d' || opaqueStyle)
   // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
-  const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !modMarketOpen && !sourceDialogOpen
+  const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !sourceDialogOpen
 
   return (
-    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${view !== 'lyrics' && view !== 'mod' && lyricStyleInfo(view).darkStage ? ` ${styles.darkStage}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
+    <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${view !== 'lyrics' && lyricStyleInfo(view).darkStage ? ` ${styles.darkStage}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
         <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
@@ -509,14 +469,12 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 title="选择动态歌词样式"
                 onClick={() => setStylePickerOpen(!stylePickerOpen)}
               >
-                <span>{view === 'mod' ? activeMod?.name : lyricStyleInfo(view === 'lyrics' ? lyricStyle : view).label}</span>
-                {view === 'mod' && <span className={styles.styleChipTag}>实验</span>}
+                <span>{lyricStyleInfo(view === 'lyrics' ? lyricStyle : view).label}</span>
                 <ChevronDown />
               </button>
               {stylePickerOpen && (
                 <LyricStylePicker
                   onClose={() => setStylePickerOpen(false)}
-                  onOpenMods={() => { setStylePickerOpen(false); setModMarketOpen(true) }}
                 />
               )}
             </div>
@@ -526,7 +484,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
               className={`${styles.modeBtn}${mode === 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
               onClick={() => {
                 setMode('lyrics')
-                setModPreviewId(null)
                 setStylePickerOpen(false)
               }}
             >
@@ -558,23 +515,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <div className={styles.auroraStage} aria-hidden="true" />
             <div className={styles.flowStage} aria-hidden="true" />
           </>}
-          {view === 'mod' && activeMod
-            ? <Suspense fallback={null}><ModLyrics key={activeMod.id + ':' + activeMod.digest} id={activeMod.id} active={open} sidePanelOpen={modMarketOpen} /></Suspense>
-            : StyleStage && <div className={styles.styleStage}><StyleStage /></div>}
+          {StyleStage && <div className={styles.styleStage}><StyleStage /></div>}
         </>
       )}
-
-      {open && modMarketOpen && <Suspense fallback={null}><LyricModMarket
-        previewId={modPreviewId}
-        onPreview={setModPreviewId}
-        onUse={id => {
-          useLyricModsStore.getState().select(id)
-          setMode('dynamic')
-          setModPreviewId(null)
-          setModMarketOpen(false)
-        }}
-        onClose={() => { setModMarketOpen(false); setModPreviewId(null) }}
-      /></Suspense>}
 
       {/* ===== 纯歌词模式 =====(关闭并收起完成后卸载,不在后台空转) */}
       {mode === 'lyrics' && contentMounted && (
@@ -741,13 +684,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     <div className={styles.popHeader}>
                       <div>
                         <strong>舞台排版</strong>
-                        <span>封面与歌词可独立移动、缩放</span>
+                        <span>选择排版，再按阅读习惯调整字号</span>
                       </div>
                       <button className={styles.resetLayoutBtn} onClick={() => resetLyricsLayout()}>重置</button>
                     </div>
                     <div className={styles.layoutPresets}>
                       {LAYOUT_PRESETS.map((preset) => (
-                        <button key={preset.label} onClick={() => {
+                        <button key={preset.label} aria-pressed={Object.entries(preset.layout).every(([key, value]) => lyricsLayout[key as keyof typeof lyricsLayout] === value)} onClick={() => {
                           setLyricsLayout(preset.layout)
                           setLyricsFontScale(preset.fontScale)
                         }}>{preset.label}</button>
@@ -770,17 +713,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                       </div>
                     </div>
                     <div className={styles.layoutGroup}>
-                      <span className={styles.layoutGroupTitle}>封面</span>
-                      <LayoutSlider label="大小" value={lyricsLayout.coverScale} min={0.6} max={1.4} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(coverScale) => setLyricsLayout({ coverScale })} />
-                      <LayoutSlider label="水平" value={lyricsLayout.coverX} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(coverX) => setLyricsLayout({ coverX })} />
-                      <LayoutSlider label="垂直" value={lyricsLayout.coverY} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(coverY) => setLyricsLayout({ coverY })} />
-                    </div>
-                    <div className={styles.layoutGroup}>
-                      <span className={styles.layoutGroupTitle}>歌词</span>
                       <LayoutSlider label="字号" value={lyricsFontScale} min={0.7} max={1.5} step={0.05} format={(v) => `${v.toFixed(2)}×`} onChange={setLyricsFontScale} />
-                      <LayoutSlider label="宽度" value={lyricsLayout.lyricsWidth} min={36} max={68} step={1} format={(v) => `${v}%`} onChange={(lyricsWidth) => setLyricsLayout({ lyricsWidth })} />
-                      <LayoutSlider label="水平" value={lyricsLayout.lyricsX} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(lyricsX) => setLyricsLayout({ lyricsX })} />
-                      <LayoutSlider label="垂直" value={lyricsLayout.lyricsY} min={-20} max={20} step={1} format={(v) => `${v > 0 ? '+' : ''}${v}`} onChange={(lyricsY) => setLyricsLayout({ lyricsY })} />
                     </div>
                     <div className={`${styles.popRow} ${styles.syncRow}`}>
                       <span className={styles.popLabel}>歌词同步</span>
@@ -856,67 +789,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             aria-hidden="true"
           />
 
-          {/* 聚焦叠层：居中大字 + 上下文预览 */}
-          {lyrics3dStyle === 'focus' && (
-          <div className={`${styles.lyricsOverlay} ${lightCover ? styles.lightCover : ''}`}
-            style={focusTextPalette ? {
-              '--lyric-fill-hi': focusTextPalette.highlight,
-              '--lyric-fill-lo': focusTextPalette.primary,
-              '--lyric-active-color': focusTextPalette.highlight,
-              '--lyric-active-fill': `linear-gradient(${focusTextPalette.primary}, ${focusTextPalette.highlight})`,
-              '--lyric-active-glow': 'none',
-              '--lyric-active-drop': 'none',
-              '--lyric-trans-active': focusTextPalette.primary,
-              '--lyric-trans': focusTextPalette.primary,
-              '--lyric-roma': focusTextPalette.primary,
-              '--overlay-context-color': focusTextPalette.primary
-            } as React.CSSProperties : undefined}>
-            <div className={styles.overlayLineStack}>
-              <motion.div key={`previous-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayPreviousLine}`}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: previousPlainLine ? 0.42 : 0, y: 0 }} transition={overlaySwitch}>
-                {previousPlainLine?.text}
-              </motion.div>
-              <AnimatePresence mode="popLayout" initial={false}>
-                <motion.div
-                  key={currentIndex}
-                  className={styles.overlayCurrentLine}
-                  style={{
-                    '--overlay-blur': `${overlayBlur * 26}px`,
-                    '--overlay-bg': overlayBlur * 0.46,
-                    '--overlay-shadow': overlayBlur * 0.4
-                  } as React.CSSProperties}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={overlaySwitch}
-                >
-                  {currentWordLine?.words.length ? (
-                    <KtvLine
-                      words={currentWordLine.words}
-                      lineStartMs={currentWordLine.time * 1000}
-                      active={true}
-                      translationText={showTranslation ? translation[currentIndex]?.text || undefined : undefined}
-                      instantFill={lyricLineInstantFill(currentDwellSec)}
-                    />
-                  ) : currentPlainLine ? (
-                    <LyricLine
-                      text={currentPlainLine.text}
-                      translation={showTranslation ? translation[currentIndex]?.text || undefined : undefined}
-                      active={true}
-                      overlay
-                    />
-                  ) : (
-                    <div className={styles.overlayPlaceholder}>—</div>
-                  )}
-                </motion.div>
-              </AnimatePresence>
-              <motion.div key={`next-${currentIndex}`} className={`${styles.overlayContextLine} ${styles.overlayNextLine}`}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: nextPlainLine ? 0.3 : 0, y: 0 }} transition={overlaySwitch}>
-                {nextPlainLine?.text}
-              </motion.div>
-            </div>
-          </div>
-          )}
         </div>
       )}
     </div>

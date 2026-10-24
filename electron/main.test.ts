@@ -46,7 +46,6 @@ vi.mock('./modules/playback-host', () => ({
 }))
 vi.mock('./modules/listening-flush', () => ({ flushRendererListeningReports: h.flushListening }))
 vi.mock('./ipc', () => ({ registerIpc: h.registerIpc }))
-vi.mock('./folium/protocol', () => ({ registerLyricModScheme: vi.fn(), handleLyricModProtocol: vi.fn(), attachLyricModFrameGuard: vi.fn() }))
 vi.mock('./modules/window-manager', () => ({
   getMainWindow: () => h.main, createMainWindow: h.createMainWindow,
   getServerPort: () => 35530, getServerToken: () => 'test-token', scheduleWindowStateSend: vi.fn(),

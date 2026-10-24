@@ -3,7 +3,9 @@ import { api } from './api'
 import { queryLyricsSource, candidateAvailability } from './lyrics-source-query'
 import { clearProviderRequestCache } from './provider-request-cache'
 import { advanceProviderAccountSession } from './provider-account-session'
-import { useProviderStore } from '../stores/providers'
+import { fetchLyrics } from './lyrics-fetch'
+import { useLyricsSourceStore } from '../stores/lyrics-source'
+import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
@@ -26,8 +28,9 @@ const krc = '[1000,1000]<0,500,0>甲<500,500,0>乙'
 beforeEach(() => {
   vi.resetAllMocks()
   clearProviderRequestCache()
+  useLyricsSourceStore.setState({ health: {}, probes: {} })
   vi.stubGlobal('localStorage', undefined)
-  useSettingsStore.setState({ lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsAmllHost: 'auto' })
+  useSettingsStore.setState({ lyricsAmllFallback: true, lyricsKugouFallback: true })
   useProviderStore.setState({ byId: {
     netease: { enabled: true, auth: 'authenticated' },
     qq: { enabled: true, auth: 'authenticated' },
@@ -61,6 +64,7 @@ describe('来源锁定', () => {
   it('原生已具备逐字时依然能主动选 AMLL，保留对应翻译来源', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric'
       ? { text: yrc } : { yrc, tlyric: '[00:01.00]译文' }) as never)
+    await fetchLyrics(song('netease'))
     const result = await queryLyricsSource(song('netease'), 'amll', ['netease'])
     expect(result).toMatchObject({ status: 'ready', result: {
       source: 'netease', origin: 'amll', translationOrigin: 'netease', aligned: [{ time: 1, text: '译文' }],
@@ -73,7 +77,7 @@ describe('来源锁定', () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric'
       ? { text: null } : { yrc }) as never)
     expect(await queryLyricsSource(song('netease'), 'amll', ['netease'])).toMatchObject({ status: 'empty' })
-    expect(vi.mocked(api.get).mock.calls.map(([path]) => path)).toEqual(['/api/lyric', '/api/amll/lyric'])
+    expect(vi.mocked(api.get).mock.calls.map(([path]) => path)).toEqual(['/api/amll/lyric'])
   })
 
   it('酷狗只查询自身，原生平台不参与且能标记自带译文', async () => {
@@ -100,12 +104,12 @@ describe('参与限制和取消', () => {
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'unavailable' })
   })
 
-  it('来源关闭或未登录时，记住的同曲引用不能绕过参与限制', async () => {
+  it('真实游客初始化后仍可查询歌词，播放权限保持关闭', async () => {
     expect(await queryLyricsSource(song('apple'), 'qq', [], undefined, song('qq'))).toMatchObject({ status: 'disabled' })
-    useProviderStore.setState(state => ({ byId: { ...state.byId, qq: { enabled: true, auth: 'anonymous' } } }))
-    expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, song('qq'))).toMatchObject({ status: 'login' })
-    expect(api.get).not.toHaveBeenCalled()
-    expect(h.qq).not.toHaveBeenCalled()
+    useProviderStore.getState().setAccountState('qq', 'anonymous')
+    expect(isProviderParticipating('qq')).toBe(false)
+    expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, song('qq'))).toMatchObject({ status: 'ready' })
+    expect(isProviderParticipating('qq')).toBe(false)
   })
 
   it('AMLL 需要已参与的网易或 QQ，Apple 记忆匹配不能绕过', async () => {
@@ -129,13 +133,12 @@ describe('参与限制和取消', () => {
     expect(api.get).not.toHaveBeenCalled()
   })
 
-  it('AMLL 辅助层加载期间停用映射平台后不能再查询该平台 ID', async () => {
-    vi.mocked(api.get).mockImplementation(async () => {
-      useProviderStore.setState(state => ({ byId: { ...state.byId, netease: { ...state.byId.netease, enabled: false } } }))
-      return { lyric: '' } as never
-    })
-    expect(await queryLyricsSource(song('netease'), 'amll', ['netease'])).toMatchObject({ status: 'unavailable' })
-    expect(api.get).toHaveBeenCalledTimes(1)
+  it('AMLL 不等待原生辅助请求，平台播放关闭也不影响公共歌词', async () => {
+    vi.mocked(api.get).mockImplementation(async path => path === '/api/amll/lyric'
+      ? { text: yrc } as never : await new Promise(() => {}))
+    useProviderStore.getState().setAccountState('netease', 'anonymous')
+    expect(await queryLyricsSource(song('netease'), 'amll', ['netease'])).toMatchObject({ status: 'ready' })
+    expect(api.get).toHaveBeenCalledOnce()
   })
 
   it('取消查询后不会继续获取歌词', async () => {
@@ -201,4 +204,65 @@ describe('真实结果与错误分类', () => {
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, song('qq'))).toMatchObject({ status: 'mismatch' })
     expect(h.qq).not.toHaveBeenCalled()
   })
+})
+
+
+describe('本次运行异常暂停', () => {
+  it('连续三次失败后不再请求，只有手动测试成功可以恢复', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('offline'))
+    for (let i = 0; i < 3; i++) expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'error' })
+    expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'unavailable' })
+    expect(api.get).toHaveBeenCalledTimes(3)
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '' })
+    expect(await queryLyricsSource(song('netease'), 'netease', ['netease'], undefined, undefined, { probe: true })).toMatchObject({ status: 'empty' })
+    expect(useLyricsSourceStore.getState().health.netease?.suspended).toBe(true)
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]恢复' })
+    expect(await queryLyricsSource(song('netease'), 'netease', ['netease'], undefined, undefined, { probe: true })).toMatchObject({ status: 'ready' })
+    expect(useLyricsSourceStore.getState().health.netease?.suspended).toBe(false)
+  })
+
+  it('未收录中断连续失败计数', async () => {
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ lyric: '' }).mockRejectedValueOnce(new Error('offline'))
+    for (let i = 0; i < 3; i++) await queryLyricsSource(song('netease'), 'netease', ['netease'])
+    expect(useLyricsSourceStore.getState().health.netease).toEqual({ failures: 1, suspended: false })
+  })
+
+  it('映射平台搜索失败不会暂停从未访问的 AMLL', async () => {
+    h.qq.mockRejectedValue(new Error('offline'))
+    for (let i = 0; i < 4; i++) expect(await queryLyricsSource(song('apple'), 'amll', ['qq'])).toMatchObject({ status: 'error' })
+    expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('映射搜索超时不计入 AMLL，原生超时则计数', async () => {
+    vi.useFakeTimers()
+    try {
+      h.qq.mockReturnValue(new Promise(() => {}))
+      const mapping = queryLyricsSource(song('apple'), 'amll', ['qq'])
+      await vi.advanceTimersByTimeAsync(8000)
+      expect(await mapping).toMatchObject({ status: 'error', message: '连接超时' })
+      expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()
+      vi.mocked(api.get).mockReturnValue(new Promise(() => {}))
+      const native = queryLyricsSource(song('netease'), 'netease', ['netease'])
+      await vi.advanceTimersByTimeAsync(8000)
+      expect(await native).toMatchObject({ status: 'error' })
+      expect(useLyricsSourceStore.getState().health.netease?.failures).toBe(1)
+    } finally { vi.useRealTimers() }
+  })
+})
+
+
+it('AMLL 正常未收录后第二映射失败或超时不算目标库故障', async () => {
+  vi.mocked(api.get).mockResolvedValue({ text: null })
+  h.qq.mockRejectedValue(new Error('mapping offline'))
+  expect(await queryLyricsSource(song('netease'), 'amll', ['netease', 'qq'])).toMatchObject({ status: 'error' })
+  expect(useLyricsSourceStore.getState().health.amll).toEqual({ failures: 0, suspended: false })
+  vi.useFakeTimers()
+  try {
+    h.qq.mockReturnValue(new Promise(() => {}))
+    const pending = queryLyricsSource(song('netease'), 'amll', ['netease', 'qq'])
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(await pending).toMatchObject({ status: 'error' })
+    expect(useLyricsSourceStore.getState().health.amll).toEqual({ failures: 0, suspended: false })
+  } finally { vi.useRealTimers() }
 })

@@ -1,3 +1,4 @@
+import { fitLyricFontScale } from '../../../../lib/lyric-font-sizing'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useLyricsStore } from '../../../../stores/lyrics'
@@ -32,7 +33,6 @@ interface DioramaTuning {
   distance: number
   ripples: boolean
   dust: boolean
-  serif: boolean
 }
 
 interface LineMesh {
@@ -132,14 +132,13 @@ export function DioramaLyrics({ preview = false }: { preview?: boolean }) {
   const showTranslation = useSettingsStore(state => state.lyricsShowTranslation)
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
   const wordMotionEnabled = useSettingsStore(state => state.performance.lyricsWordMotion)
-  const appFont = useSettingsStore(state => state.fontFamily)
-  const lyricFont = useSettingsStore(state => state.lyricsFontFamily)
+  const fontKey = useSettingsStore(s => [s.lyricsFontFamily, s.lyricsFontFamilyCjk, s.fontFamily, s.fontFamilyCjk].join('|'))
   const palette = useAmbientStore(state => state.palette)
   const reducedMotion = useReducedMotion()
   const animated = wordMotionEnabled && !reducedMotion
   const raw = useLyricStyleTuning('diorama')
   const tuning = useMemo<DioramaTuning>(() => ({
-    distance: Number(raw.distance), ripples: raw.ripples === true, dust: raw.dust === true, serif: raw.serif === true,
+    distance: Number(raw.distance), ripples: raw.ripples === true, dust: raw.dust === true,
   }), [raw])
   const beatState = useBeatState(animated && tuning.ripples)
   // 字体加载完成后重新栅格化：之前按回退字体画的面板会一直留在窗口里。
@@ -161,8 +160,8 @@ export function DioramaLyrics({ preview = false }: { preview?: boolean }) {
     read()
     const frame = requestAnimationFrame(read)
     return () => cancelAnimationFrame(frame)
-  }, [appFont, lyricFont])
-  const family = tuning.serif ? SERIF : sansFamily
+  }, [fontKey])
+  const family = fontKey.replaceAll('|', '') ? sansFamily : SERIF
   const seed = seedFromText(trackKey ?? '')
   const translation = !preview && showTranslation && currentIndex >= 0 ? translations[currentIndex]?.text?.trim() : ''
 
@@ -277,16 +276,24 @@ export function DioramaLyrics({ preview = false }: { preview?: boolean }) {
       three.lines.delete(i)
     }
 
-    // 字越大镜头越近；长句退到能看全整句。
+    // 先确定基础取景，再独立应用字号倍率，避免长句的退镜下限抵消字号。
     const aspect = s.size.width / s.size.height
     const fitBack = (i: number) => fitDistance(three.lines.get(i)?.width ?? 0, FOV, aspect)
     const lineSec = (i: number) => lineStart(i + 1) - lineStart(i)
-    const pose = cameraAt(index, sinceSwitch, lineDuration, L.seed, L.tuning.distance / (L.preview ? 1 : Math.max(0.7, L.fontScale)), moving, fitBack, lineSec)
+    const pose = cameraAt(index, sinceSwitch, lineDuration, L.seed, L.tuning.distance, moving, fitBack, lineSec)
     three.camera.position.set(...pose.position)
     three.camera.lookAt(...pose.target)
     // 雾从镜头到当前句之后才开始，长句退远时当前句不被雾吃掉。
     const fog = three.scene.fog as THREE.Fog
     const reach = Math.hypot(pose.position[0] - pose.target[0], pose.position[1] - pose.target[1], pose.position[2] - pose.target[2])
+    const visibleH = 2 * Math.tan(FOV * Math.PI / 360) * reach
+    const zoom = L.preview ? 1 : fitLyricFontScale(L.fontScale,
+      { width: three.lines.get(index)?.width ?? 0, height: PANEL_HEIGHT },
+      { width: visibleH * aspect * 0.88, height: visibleH * 0.8 })
+    if (three.camera.zoom !== zoom) {
+      three.camera.zoom = zoom
+      three.camera.updateProjectionMatrix()
+    }
     fog.near = reach + 2
     fog.far = reach + 25
     // 挡在镜头与当前句之间的面板（多是上一句）按深度淡出，不糊在镜头前：比当前句近 4 以上就完全隐去。
@@ -420,7 +427,7 @@ export function DioramaLyrics({ preview = false }: { preview?: boolean }) {
       <span ref={accentProbe} className={`${styles.probe} ${styles.probeAccent}`} aria-hidden="true" />
       <span ref={accent2Probe} className={`${styles.probe} ${styles.probeAccent2}`} aria-hidden="true" />
       <span className={styles.srOnly}>{currentIndex >= 0 ? lines[currentIndex]?.text : ''}</span>
-      {translation && <div className={styles.translation} style={{ fontFamily: tuning.serif ? SERIF : undefined }}>{translation}</div>}
+      {translation && <div className={styles.translation} style={{ fontFamily: family }}>{translation}</div>}
     </div>
   )
 }

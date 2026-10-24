@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import { DEFAULT_LYRIC_STYLE, isLyricStyleId, lyricStyleInfo, LYRIC_STYLE_IDS, RETIRED_LYRIC_STYLE_IDS, resolveTuning, sanitizeTuningPatch, type LyricStyleId, type TuningValue } from '../lib/lyric-style-catalog'
+import { DEFAULT_LYRIC_STYLE, FIXED_LYRIC_TUNING, isLyricStyleId, lyricStyleInfo, LYRIC_STYLE_IDS, RETIRED_LYRIC_STYLE_IDS, resolveStyleTuning, sanitizeTuningPatch, type LyricStyleId, type TuningValue } from '../lib/lyric-style-catalog'
 
 export const LYRIC_STYLES_STORAGE_KEY = 'simplemusic-lyric-styles'
 const LEGACY_SETTINGS_KEY = 'simplemusic-settings'
@@ -19,6 +19,7 @@ interface LyricStylesStore {
 
 /** 已撤下样式在存档里的旧参数：不再使用，但每次保存原样写回，不因撤下而丢失 */
 let retiredTunings: Record<string, unknown> = {}
+let archivedDetails: Tunings = {}
 
 function readJson(key: string): unknown {
   try { return JSON.parse(localStorage.getItem(key) ?? 'null') } catch { return null }
@@ -33,8 +34,16 @@ function load(): Pick<LyricStylesStore, 'style' | 'tunings'> {
   }
   const tunings: Tunings = {}
   const source = saved.tunings && typeof saved.tunings === 'object' ? saved.tunings as Record<string, unknown> : {}
+  archivedDetails = {}
   for (const id of LYRIC_STYLE_IDS) {
-    const values = sanitizeTuningPatch(lyricStyleInfo(id).tuning, source[id])
+    const old = source[id] && typeof source[id] === 'object' ? source[id] as Record<string, unknown> : {}
+    const archived = Object.fromEntries(Object.keys(FIXED_LYRIC_TUNING[id] ?? {}).filter(key =>
+      typeof old[key] === 'boolean' || typeof old[key] === 'string' || (typeof old[key] === 'number' && Number.isFinite(old[key]))
+    ).map(key => [key, old[key] as TuningValue]))
+    if (Object.keys(archived).length) archivedDetails[id] = archived
+    const migrated = id === 'diorama' && old.ambience === undefined && ('dust' in old || 'ripples' in old)
+      ? { ...old, ambience: old.dust !== false ? 'full' : old.ripples !== false ? 'water' : 'quiet' } : old
+    const values = sanitizeTuningPatch(lyricStyleInfo(id).tuning, migrated)
     if (Object.keys(values).length) tunings[id] = values
   }
   retiredTunings = {}
@@ -46,7 +55,11 @@ function load(): Pick<LyricStylesStore, 'style' | 'tunings'> {
 }
 
 function save(state: Pick<LyricStylesStore, 'style' | 'tunings'>): void {
-  try { localStorage.setItem(LYRIC_STYLES_STORAGE_KEY, JSON.stringify({ style: state.style, tunings: { ...retiredTunings, ...state.tunings } })) } catch { /* 存储不可用时本次会话仍可切换。 */ }
+  const tunings = { ...retiredTunings }
+  for (const id of LYRIC_STYLE_IDS) {
+    if (archivedDetails[id] || state.tunings[id]) tunings[id] = { ...archivedDetails[id], ...state.tunings[id] }
+  }
+  try { localStorage.setItem(LYRIC_STYLES_STORAGE_KEY, JSON.stringify({ style: state.style, tunings })) } catch { /* 存储不可用时本次会话仍可切换。 */ }
 }
 
 export const useLyricStylesStore = create<LyricStylesStore>((set, get) => ({
@@ -68,6 +81,7 @@ export const useLyricStylesStore = create<LyricStylesStore>((set, get) => ({
     if (!isLyricStyleId(id)) return
     const tunings = { ...get().tunings }
     delete tunings[id]
+    delete archivedDetails[id]
     set({ tunings })
     save(get())
   },
@@ -77,5 +91,5 @@ export const useLyricStylesStore = create<LyricStylesStore>((set, get) => ({
 export function useLyricStyleTuning(id: LyricStyleId): Record<string, TuningValue> {
   const stored = useLyricStylesStore(state => state.tunings[id])
   // 保持引用稳定：参数对象会进入渲染组件的 effect 依赖。
-  return useMemo(() => resolveTuning(lyricStyleInfo(id).tuning, stored), [id, stored])
+  return useMemo(() => resolveStyleTuning(id, stored), [id, stored])
 }

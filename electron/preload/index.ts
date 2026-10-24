@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Track } from '../../src/types/domain'
-import type { InstalledLyricMod, LyricModCatalog } from '../../src/types/folium'
 import type {
   PlaybackRequest,
   PlaybackHostCommand,
@@ -51,13 +50,6 @@ const api = {
   platform: process.platform,
   serverPort: readServerPort(),
   serverToken: readServerToken(),
-
-  lyricMods: {
-    catalog: (): Promise<LyricModCatalog> => ipcRenderer.invoke('lyric-mods:catalog'),
-    list: (): Promise<InstalledLyricMod[]> => ipcRenderer.invoke('lyric-mods:list'),
-    install: (id: string): Promise<void> => ipcRenderer.invoke('lyric-mods:install', id),
-    remove: (id: string): Promise<void> => ipcRenderer.invoke('lyric-mods:remove', id)
-  },
 
   // 窗口
   showMainWindow: (): Promise<void> => ipcRenderer.invoke('window:show'),

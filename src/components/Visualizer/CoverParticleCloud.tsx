@@ -6,6 +6,8 @@ import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { api } from '../../lib/api'
 import { bandEnergiesFrom, type BandEnergies } from '../../lib/audio-energy'
+import { createParticleRippleBeatDetector, type ParticleRippleBeat } from '../../lib/particle-ripple-beat'
+import { createParticleMusicDrive } from '../../lib/particle-music-drive'
 import { frameBlend } from '../../lib/frame-blend'
 import { buildEdgeDepthData } from '../../lib/cover-edge'
 import { getDotSpriteTexture } from '../../lib/dot-texture'
@@ -17,8 +19,8 @@ import { sizedImage, CANVAS_COVER_PX } from '../../lib/image-size'
  * 与旧实现(烘焙颜色属性 + 径向分频弹跳)的关键差异:
  * - 颜色在 shader 里直接采样封面纹理,切歌时新旧封面 520ms 交叉渐变;
  * - 位移 = 三层 simplex 噪声场(bass 呼吸/mid 丝绸波/treble 微闪),整体像布料起伏;
- * - 鼓点涟漪 = 中心隆起 + 扩散环,带淡入淡出包络,2s 生命周期,12 道并发,
- *   bass 上升沿在 3×3 九宫格随机爆 2-3 个点;
+ * - 轻鼓从分散落点柔和荡漾,少数显著重鼓从中心扩散,叠加位移有界;
+ *   每拍一道,现有涟漪自然消退,不会被后续鼓点替换;
  * - 封面经 box blur+Sobel 生成边缘/深度纹理(cover-edge.ts),边缘粒子增亮放大、
  *   背景按前景 mask 压暗,轮廓更立体;
  * - 片元用柔和点精灵纹理,亮粒子加暗描边/暗粒子加亮描边(可读性),
@@ -32,7 +34,6 @@ const FOV = 45
 const RIPPLE_MAX = 12
 const COVER_TEX_SIZE = 384
 const EDGE_TEX_SIZE = 256
-const RIPPLE_COOLDOWN = 0.32
 const COLOR_MIX_MS = 520
 const AUDIO_SAMPLE_INTERVAL = 1 / 30
 
@@ -48,16 +49,8 @@ const GRID_CAP_BY_MODE: Record<PerformanceMode, number> = {
   ultra: 183
 }
 
-// 涟漪爆点的 3×3 九宫格中心(原版 initRippleRegions)
-const RIPPLE_REGIONS: Array<[number, number]> = []
-for (let ry = 0; ry < 3; ry++) {
-  for (let rx = 0; rx < 3; rx++) {
-    RIPPLE_REGIONS.push([(rx / 2 - 0.5) * PLANE_SIZE * 0.72, (ry / 2 - 0.5) * PLANE_SIZE * 0.72])
-  }
-}
-
 const particleVertexShader = /* glsl */ `
-  uniform float uTime, uBass, uMid, uTreble, uBeat, uEnergy;
+  uniform float uTime, uBass, uMid, uTreble, uBeat, uEnergy, uDrive, uRippleGain;
   uniform float uIntensity, uPointScale, uColorBoost, uBgFade, uUserBright;
   uniform float uHasCover, uHasDepth, uEdgeEnabled;
   uniform float uMouseActive, uPixel, uColorMixT;
@@ -108,30 +101,33 @@ const particleVertexShader = /* glsl */ `
     return clamp(p, vec2(0.0012), vec2(0.9988));
   }
 
-  // 涟漪场:每道 = 中心高斯隆起(随年龄变宽变矮) + 扩散环,fadeIn/fadeOut 包络
-  float rippleSumAt(vec2 p, out float maxAmp) {
-    float sum = 0.0; maxAmp = 0.0;
+  // 环形亮度与位移分开：小鼓点也能看清波前，形变仍保持轻柔、有界。
+  float rippleSumAt(vec2 p, out float rippleLight, out vec2 rippleDrift) {
+    float sum = 0.0; float lightSum = 0.0;
+    vec2 driftSum = vec2(0.0);
     for (int ri = 0; ri < ${RIPPLE_MAX}; ri++) {
       if (ri >= uRippleCount) break;
       float vCoord = (float(ri) + 0.5) / ${RIPPLE_MAX}.0;
       vec4 rd = texture2D(uRippleTex, vec2(0.5, vCoord));
       float age = rd.z; float str = rd.w;
-      if (str < 0.005 || age < 0.0 || age > 2.0) continue;
+      float life = 1.15 + str * 0.85;
+      if (str < 0.005 || age < 0.0 || age > life) continue;
       float dist = length(p - rd.xy);
-      float lifeN = age / 2.0;
-      float fadeIn  = smoothstep(0.0, 0.06, age);
-      float fadeOut = 1.0 - smoothstep(0.7, 1.0, lifeN);
-      float env = fadeIn * fadeOut;
-      float bulgeW = 0.55 + age * 0.80;
-      float bulge  = exp(-dist*dist / (2.0 * bulgeW * bulgeW)) * (1.0 - smoothstep(0.0, 0.55, lifeN));
-      float waveR  = age * 2.10;
-      float ringW  = 0.40 + age * 0.22;
-      float ring   = exp(-pow((dist - waveR) / ringW, 2.0));
-      float local  = (bulge * 2.4 + ring * 1.30) * env * str;
+      float fadeIn = smoothstep(0.0, 0.14, age);
+      float fadeOut = 1.0 - smoothstep(life * 0.35, life, age);
+      float accent = smoothstep(0.25, 0.45, str);
+      float waveR = age * (1.45 + str * 1.1);
+      float ringW = mix(0.12, 0.20, accent) + age * 0.08;
+      float ring = exp(-pow((dist - waveR) / ringW, 2.0));
+      float profile = ring * fadeIn * fadeOut * exp(-age * 0.4);
+      float local = profile * str * (1.8 + accent * 1.2);
       sum += local;
-      maxAmp = max(maxAmp, abs(local));
+      driftSum += (p - rd.xy) / max(dist, 0.001) * local;
+      lightSum += profile * sqrt(str) * 1.8;
     }
-    return sum;
+    rippleLight = 1.0 - exp(-lightSum * uRippleGain);
+    rippleDrift = driftSum / (1.0 + sum / 0.5) * 0.22 * uRippleGain;
+    return sum / (1.0 + sum / 0.5) * uRippleGain;
   }
 
   void main() {
@@ -157,19 +153,24 @@ const particleVertexShader = /* glsl */ `
     float K = uIntensity * 1.6;
 
     vec3 pos = position;
-    float maxRippleAmp = 0.0;
-    float rippleZ = rippleSumAt(pos.xy, maxRippleAmp);
+    float rippleLight = 0.0;
+    vec2 rippleDrift;
+    float rippleZ = rippleSumAt(pos.xy, rippleLight, rippleDrift);
 
     // 丝绸噪声场:mid 双八度波浪(带慢变空间 mask)+ treble 高频微闪 + bass 低频呼吸
     float midN = snoise(vec3(pos.x*1.4, pos.y*1.4, t*0.55)) * 0.6
                + snoise(vec3(pos.x*2.8+5.0, pos.y*2.8-3.0, t*0.85)) * 0.4;
     float midMask = 0.55 + 0.45 * snoise(vec3(pos.x*0.4, pos.y*0.4, t*0.18));
-    float midDisp = midN * uMid * 0.55 * midMask * K;
+    float midDisp = midN * uMid * 0.55 * midMask * K * (1.0 + uDrive * 0.65);
 
     float trebleJ = snoise(vec3(pos.x*6.5, pos.y*6.5, t*3.5 + aRand*4.0)) * uTreble * 0.18 * K;
     float bassBreath = snoise(vec3(pos.x*0.35, pos.y*0.35, t*0.4)) * uBass * 0.42 * K;
 
-    pos.z = rippleZ * 1.30 + midDisp + trebleJ + bassBreath;
+    pos.xy += rippleDrift;
+    // 段落能量带来连贯的舒展，不依赖每次鼓点都升级为重浪。
+    float phraseFlow = sin(pos.x * 0.9 + pos.y * 0.55 - t * 1.7)
+                     * sin(pos.y * 0.65 - t * 0.8) * uDrive * 0.15 * K;
+    pos.z = rippleZ * 1.30 + midDisp + trebleJ + bassBreath + phraseFlow;
 
     // 鼠标悬停:附近粒子朝镜头推起
     if (uMouseActive > 0.5) {
@@ -189,17 +190,17 @@ const particleVertexShader = /* glsl */ `
     float edgeColorMix = edgeBoost * 0.50 * (1.0 - blackParticleGuard);
     vColor = mix(vColor, vColor + vec3(0.20), edgeColorMix);
 
-    vBright = 0.82 + maxRippleAmp * 0.55 + uBass * 0.10 + edgeBoost * 0.30 + uEnergy * 0.05;
+    vBright = 0.82 + uDrive * 0.15 + rippleLight * 0.85 + uBass * 0.10 + edgeBoost * 0.30 + uEnergy * 0.05;
     // 背景压暗:前景 mask 之外按 uBgFade 变暗,突出封面主体
     if (uHasDepth > 0.5) {
       vBright *= mix(1.0, 0.55, uBgFade * (1.0 - fgMask));
     }
     vBright *= uUserBright;
-    vRipple = clamp(maxRippleAmp * 1.5, 0.0, 1.0);
+    vRipple = clamp(rippleLight * 1.5, 0.0, 1.0);
 
     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
     float depthSize = 36.0 / max(0.5, -mvPos.z);
-    float audioBoost = 1.0 + maxRippleAmp * 0.7 + edgeBoost * 0.55 + uBeat * 0.30;
+    float audioBoost = 1.0 + rippleLight * 0.7 + edgeBoost * 0.55 + uBeat * 0.30;
     float sz = clamp(depthSize * audioBoost, 1.05, 4.95);
     gl_PointSize = sz * uPixel * uPointScale;
     gl_Position = projectionMatrix * mvPos;
@@ -278,6 +279,7 @@ interface RippleState {
   y: number
   start: number
   str: number
+  speed: number
 }
 
 interface CoverParticleCloudProps {
@@ -302,11 +304,10 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
   const mouseLocal = useRef(new THREE.Vector3())
 
   const ripplesRef = useRef<RippleState[]>(
-    Array.from({ length: RIPPLE_MAX }, () => ({ x: 0, y: 0, start: -100, str: 0 }))
+    Array.from({ length: RIPPLE_MAX }, () => ({ x: 0, y: 0, start: -100, str: 0, speed: 1 }))
   )
-  const rippleSlotRef = useRef(0)
-  const bassAboveRef = useRef(false)
-  const lastRippleAtRef = useRef(-10)
+  const rippleBeatRef = useRef(createParticleRippleBeatDetector())
+  const musicDriveRef = useRef(createParticleMusicDrive())
   const beatEnvRef = useRef(0)
   const colorMixStartRef = useRef(-1)
   const sampleElapsedRef = useRef(0)
@@ -378,6 +379,8 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
       uMid: { value: 0 },
       uTreble: { value: 0 },
       uBeat: { value: 0 },
+      uDrive: { value: 0 },
+      uRippleGain: { value: 1 },
       uEnergy: { value: 0 },
       uIntensity: { value: 0.85 },
       uPointScale: { value: 1 },
@@ -518,15 +521,23 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
       if (p >= 1) colorMixStartRef.current = -1
     }
 
-    // 均衡/节能档只限制频谱采样；插值、节拍衰减与涟漪仍逐帧推进。
+    const params = useSettingsStore.getState().lyrics3d
+    // 均衡/节能档只限制频谱采样；鼓点只在新样本上检测，衰减与涟漪仍逐帧推进。
+    let hit: ParticleRippleBeat | null = null
     sampleElapsedRef.current += delta
     if (!throttle || !sampledBandsRef.current || sampleElapsedRef.current + 1e-9 >= AUDIO_SAMPLE_INTERVAL) {
-      sampledBandsRef.current = bandEnergiesFrom(usePlayerStore.getState()._frequencyData())
+      const frequency = usePlayerStore.getState()._frequencyData()
+      const bands = bandEnergiesFrom(frequency)
+      sampledBandsRef.current = bands
+      if (frequency.length) hit = rippleBeatRef.current.update(
+        bands.subBass + bands.bass, t, params.rippleSensitivity,
+        bands.lowMid * 0.2 + bands.mid * 0.35 + bands.highMid * 0.3 + bands.presence * 0.15
+      )
+      else rippleBeatRef.current.reset()
       const samplePeriods = Math.floor((sampleElapsedRef.current + 1e-9) / AUDIO_SAMPLE_INTERVAL)
       sampleElapsedRef.current = Math.max(0, sampleElapsedRef.current - samplePeriods * AUDIO_SAMPLE_INTERVAL)
     }
 
-    const params = useSettingsStore.getState().lyrics3d
     uniforms.uPointScale.value = params.particleSize
     uniforms.uUserBright.value = params.particleBrightness
     uniforms.uBloomStrength.value = 0.62 * params.glowStrength
@@ -554,61 +565,59 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
     uniforms.uTreble.value = trebleSmoothRef.current
     uniforms.uEnergy.value = energySmoothRef.current
 
-    // 节拍包络:鼓点瞬间 1,随后按时间衰减,驱动点径涨缩
-    beatEnvRef.current = Math.max(0, beatEnvRef.current - delta * 3.5)
+    const drive = musicDriveRef.current.update(
+      rawBassSum * 0.175 + (bands.lowMid + bands.mid + bands.highMid + bands.presence) * 0.1 + bands.energy * 0.25,
+      t, hit !== null
+    )
+    uniforms.uDrive.value = drive
 
-    // bass 上升沿(带迟滞)触发涟漪:九宫格随机挑 2-3 个爆点。
-    // 阈值随灵敏度线性下降:灵敏度 0.5 时为历史默认 0.38
-    const beatThreshold = 0.58 - 0.4 * params.rippleSensitivity
-    // 起播先用短包络把能量推入场景，首个 analyser 阶跃不直接触发多道涟漪。
-    const isHit = audioGate > 0.72 && bassSum > beatThreshold && !bassAboveRef.current
-    bassAboveRef.current = bassSum > beatThreshold * 0.75
-    if (isHit && t - lastRippleAtRef.current > RIPPLE_COOLDOWN) {
-      lastRippleAtRef.current = t
-      beatEnvRef.current = 1
-      const burst = 2 + (Math.random() < 0.5 ? 0 : 1)
-      const count = THREE.MathUtils.clamp(Math.round((params.rippleCount / 6) * burst), 1, 4)
-      const used = new Set<number>()
-      for (let k = 0; k < count; k++) {
-        let idx = Math.floor(Math.random() * 9)
-        for (let tries = 0; used.has(idx) && tries < 12; tries++) idx = Math.floor(Math.random() * 9)
-        used.add(idx)
-        const [rx, ry] = RIPPLE_REGIONS[idx]
-        const slot = ripplesRef.current[rippleSlotRef.current]
-        slot.x = rx + (Math.random() - 0.5) * 0.7
-        slot.y = ry + (Math.random() - 0.5) * 0.7
+    // 先让已有波纹按各自年龄自然推进，再接纳新鼓点；不抢占、重置或排队补发。
+    const ageScale = 0.55 / THREE.MathUtils.clamp(params.rippleDuration, 0.15, 2)
+    const maxActive = params.rippleAmplitude <= 0 ? 0 : 6
+    const gainTarget = THREE.MathUtils.clamp(params.rippleAmplitude, 0, 1) * 2
+    uniforms.uRippleGain.value += (gainTarget - uniforms.uRippleGain.value) * -Math.expm1(-delta * 8)
+    let liveCount = 0
+    for (const ripple of ripplesRef.current) {
+      if (maxActive === 0 || (t - ripple.start) * ageScale * ripple.speed >= 1.15 + ripple.str * 0.85) ripple.str = 0
+      if (ripple.str > 0.005) liveCount++
+    }
+    // 数量允许时为少数重鼓留一个空位，避免轻鼓铺满后吞掉强拍。
+    const admissionLimit = hit?.kind === 'soft' ? Math.max(1, maxActive - 1) : maxActive
+    if (hit && maxActive > 0 && liveCount < admissionLimit) {
+      const slot = ripplesRef.current.find(ripple => ripple.str <= 0.005)
+      if (slot) {
+        // 每一圈只在出生时选落点，后续保持不动；避免随机位置逐帧跳动。
+        slot.x = slot.y = 0
+        if (hit.kind === 'soft') {
+          const angle = Math.random() * Math.PI * 2
+          const radius = Math.sqrt(Math.random()) * PLANE_SIZE * 0.3
+          slot.x = Math.cos(angle) * radius
+          slot.y = Math.sin(angle) * radius
+        }
         slot.start = t
-        slot.str = 0.65 + uniforms.uBass.value * 1.4 + Math.random() * 0.25
-        rippleSlotRef.current = (rippleSlotRef.current + 1) % RIPPLE_MAX
+        slot.str = hit.kind === 'soft' ? Math.min(0.24, hit.strength * (1 + drive * 0.7)) : hit.strength
+        // 只影响新波纹；在途波纹的速度保持不变，密集段落有更多空位接住后续节奏。
+        slot.speed = hit.kind === 'soft' ? 1 + Math.max(0, drive - 0.15) * 0.95 : 1
       }
     }
 
-    uniforms.uBeat.value = beatEnvRef.current
-
-    // 涟漪推进:年龄写入数据纹理;时长滑块缩放年龄流速(默认 0.55 → 原版 2s 生命)
-    const ageScale = 0.55 / THREE.MathUtils.clamp(params.rippleDuration, 0.15, 2)
+    // 涟漪推进：时长滑块统一缩放年龄，强度连续决定每圈的自然消退时长。
     const data = textures.rippleTex.image.data as unknown as Float32Array
-    const maxActive = THREE.MathUtils.clamp(Math.round(params.rippleCount), 1, 6)
     const activeIndices = activeRippleIndicesRef.current
     activeIndices.length = 0
     for (let i = 0; i < RIPPLE_MAX; i++) {
       const r = ripplesRef.current[i]
-      const age = (t - r.start) * ageScale
-      if (r.str > 0.005 && age > 2.0) r.str = 0
-      if (r.str <= 0.005) continue
-      // 按触发时间倒序插入，达到上限时优先保留最新鼓点，旧涟漪不会遮住刚触发的新波纹。
-      let insertAt = activeIndices.length
-      activeIndices.push(i)
-      while (insertAt > 0 && ripplesRef.current[activeIndices[insertAt - 1]].start < r.start) {
-        activeIndices[insertAt] = activeIndices[insertAt - 1]
-        insertAt--
-      }
-      activeIndices[insertAt] = i
+      if (r.str > 0.005) activeIndices.push(i)
     }
-    const active = Math.min(activeIndices.length, maxActive)
+    // 数量由音乐驱动，用户调节只影响幅度；关闭时清空在途波纹。
+    const active = activeIndices.length
+    let beatTarget = 0
     for (let i = 0; i < active; i++) {
       const r = ripplesRef.current[activeIndices[i]]
-      const age = (t - r.start) * ageScale
+      const age = (t - r.start) * ageScale * r.speed
+      const life = 1.15 + r.str * 0.85
+      beatTarget = Math.max(beatTarget, r.str * THREE.MathUtils.smoothstep(age, 0, 0.14)
+        * (1 - THREE.MathUtils.smoothstep(age, life * 0.35, life)))
       // 紧凑写入活跃涟漪，shader 循环次数等于真实数量，不再因环形槽位下标升高而空跑。
       const dataOff = i * 4
       data[dataOff] = r.x
@@ -616,6 +625,8 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
       data[dataOff + 2] = age
       data[dataOff + 3] = r.str
     }
+    beatEnvRef.current += (beatTarget * 0.12 - beatEnvRef.current) * -Math.expm1(-delta * 8)
+    uniforms.uBeat.value = beatEnvRef.current
     textures.rippleTex.needsUpdate = true
     uniforms.uRippleCount.value = active
   })

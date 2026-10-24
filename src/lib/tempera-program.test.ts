@@ -90,6 +90,14 @@ describe('凝彩构图与文字', () => {
     expect(width).toBeLessThanOrEqual(600)
   })
 
+  it('长词经过适配后，字号设置仍改变实际字形尺寸', () => {
+    const words = [{ text: '在这只属于你我的空旷夜空下慢慢地溶化成一片温柔的光' }]
+    const small = layoutShotText(words, 0, { w: 500, h: 250 }, 80, measure, 0.7)
+    const large = layoutShotText(words, 0, { w: 500, h: 250 }, 80, measure, 1.5)
+    expect(large[0].size / small[0].size).toBeCloseTo(1.5 / 0.7)
+    expect(large[0].width).toBeLessThanOrEqual(500)
+  })
+
   it('落字：起跑前不可见，透明度先于位移到位，唱完后才开始外扩', () => {
     const word = { text: '夕', startMs: 1000, endMs: 1400, enter: 'left' as const }
     expect(wordMotion(word, 0.5, 2, 0, 0.5).opacity).toBe(0)

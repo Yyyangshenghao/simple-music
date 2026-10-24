@@ -608,7 +608,7 @@ interface MotionProfile {
   floatAmp: number
 }
 
-const MOTION_PROFILES: Record<Exclude<Lyrics3dStyle, 'focus'>, MotionProfile> = {
+const MOTION_PROFILES: Record<Lyrics3dStyle, MotionProfile> = {
   storyboard: { enter: 0.7, exit: 0.6, slide: 0.42, contextDrift: 0.03, glowLift: 0.9, floatAmp: 0 },
   glass: { enter: 0.62, exit: 0.52, slide: 0.38, contextDrift: 0.066, glowLift: 1, floatAmp: 1 },
   smooth: { enter: 0.72, exit: 0.62, slide: 0.24, contextDrift: 0.03, glowLift: 0.74, floatAmp: 0.55 },
@@ -626,7 +626,7 @@ function shotPose(shots: readonly import('./stage-lyric-shots').ShotFraming[], i
 }
 
 function motionProfile(style: Lyrics3dStyle, softness: number, dwellSec = Infinity): MotionProfile {
-  const profile = style === 'focus' ? MOTION_PROFILES.smooth : MOTION_PROFILES[style]
+  const profile = MOTION_PROFILES[style]
   const softScale = THREE.MathUtils.clamp(softness / 0.72, 0.42, 1.65)
   const enter = profile.enter * softScale
   const scale = softScale * fitLyricTransition(enter, dwellSec) / enter
@@ -1073,15 +1073,16 @@ export function StageLyrics3D({ lightBackground = false, style: shownStyle }: { 
       root.lookAt(state.camera.position)
       const cam = state.camera as THREE.PerspectiveCamera
       const distToRoot = cam.position.distanceTo(root.getWorldPosition(rootWorldPositionRef.current))
-      const distToLyrics = Math.max(1.4, distToRoot - 1.46 * root.scale.z)
+      // 先预留字号范围的空间，用户倍率不参与反馈，避免放大后又被下一帧缩回。
+      const distToLyrics = Math.max(1.4, distToRoot - 1.46 * fitScaleRef.current * 1.5)
       const visibleH = 2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) * distToLyrics
       const visibleW = visibleH * cam.aspect
       const needW = currentRef.current ? Math.max(2.4, currentRef.current.data.textWorldW) : WORLD_W
       const offsets = displayOffsets(params.displayMode)
       const verticalSpan = (Math.max(...offsets) - Math.min(...offsets)) * lineStep + WORLD_H * 1.25
-      const fit = Math.min(1, (visibleW * 0.84) / needW, (visibleH * 0.72) / verticalSpan)
+      const fit = Math.min(1, (visibleW * 0.84) / (needW * 1.5), (visibleH * 0.72) / (verticalSpan * 1.5))
       fitScaleRef.current += (fit - fitScaleRef.current) * frameBlend(fit < fitScaleRef.current ? 0.18 : 0.1, dt)
-      root.scale.setScalar(Math.max(0.42, fitScaleRef.current))
+      root.scale.setScalar(Math.max(0.42, fitScaleRef.current) * settings.lyricsFontScale)
       frameWidthRef.current = visibleW / root.scale.x
     }
 

@@ -1,15 +1,14 @@
-/** 跃字模式：一句歌词排成居中的连续字列，唱到的字放大跃起并换上强调色，是画面唯一的形态重心。 */
+/** 跃字模式：词组错落拼成文字海报，逐词旋入、演唱保持，整句镜头随媒体时间轻推。 */
 
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
-import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
+import { subscribeLyricFrames } from '../../lib/lyric-frame-clock'
 import { fitLyricTransition, lyricLineDwellSec } from '../../lib/lyric-tempo'
 import { buildPopWords, type PopWord } from '../../lib/pop-lyric-timing'
-import { estimatePopRows, planPopRows, type PopRowPlan, type PopUnit } from '../../lib/pop-lyric-layout'
+import { estimatePopRows, planPopRows, popScene, popPhrasePose, type PopRowPlan, type PopUnit } from '../../lib/pop-lyric-layout'
 import { createPopLyricTimeline, popPeakScale } from '../../lib/pop-lyric-motion'
 import { usePreciseLineIndex } from '../../hooks/usePreciseLineIndex'
 import { useLyricStyleTuning } from '../../stores/lyric-styles'
@@ -31,12 +30,12 @@ const CJK_INK = 0.9
 function measurePeaks(pops: HTMLElement[], words: PopWord[], intensity: number): number[] {
   const host = pops[0]?.closest<HTMLElement>(`.${styles.words}`)
   if (!host) return words.map(() => popPeakScale(1, Infinity, intensity))
-  const style = getComputedStyle(host)
-  const fontPx = parseFloat(style.fontSize) || 16
-  const tracking = (parseFloat(style.letterSpacing) || 0) / fontPx
-  const wordGap = (parseFloat(style.wordSpacing) || 0) / fontPx
   const pauseGap = PAUSE_GAP_EM
   const shape = pops.map((pop, i) => {
+    const style = getComputedStyle(pop)
+    const fontPx = parseFloat(style.fontSize) || 16
+    const tracking = (parseFloat(style.letterSpacing) || 0) / fontPx
+    const wordGap = (parseFloat(style.wordSpacing) || 0) / fontPx
     const text = words[i].text
     const width = pop.offsetWidth / fontPx
     const latin = /[\p{Script=Latin}\p{Number}]/u.test(text)
@@ -51,7 +50,7 @@ function measurePeaks(pops: HTMLElement[], words: PopWord[], intensity: number):
   return shape.map((item, i) => popPeakScale(item.ink, Math.min(i > 0 ? gap(i - 1) : Infinity, gap(i)) / 2, intensity))
 }
 
-const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, animated, fontScale, intensity }: {
+const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, animated, fontScale, intensity, camera }: {
   text: string
   wordLine: WordLyricLine | undefined
   lineStartMs: number
@@ -59,10 +58,12 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
   animated: boolean
   fontScale: number
   intensity: number
+  camera: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const words = useMemo(() => buildPopWords(text, wordLine, dwellSec), [text, wordLine, dwellSec])
-  const estimate = useMemo(() => estimatePopRows(words), [words])
+  const scene = useMemo(() => popScene(words, dwellSec), [words, dwellSec])
+  const estimate = useMemo(() => estimatePopRows(words, 13, scene.rows), [words, scene.rows])
   const units = estimate.units
   // 分行结果连同它所依据的单元一起保存：同一句从逐行升级为逐字时序（key 不变）时，旧分行不能套到新单元上。
   const [measured, setMeasured] = useState<PopRowPlan & { units: PopUnit[] }>(estimate)
@@ -81,12 +82,16 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
       root.style.setProperty('--pop-fit', '1')
       const nodes = Array.from(root.querySelectorAll<HTMLElement>('[data-pop-unit]'))
       if (nodes.length !== units.length) return
+      // 所有词组先按基础字号、最大字重量，避免词换到重点组后变宽；只在本次同步测量期间应用。
+      root.setAttribute('data-pop-measuring', '')
       const fontPx = parseFloat(getComputedStyle(root).fontSize) || 16
       const widths = nodes.map(node => node.offsetWidth)
-      const next = planPopRows(units, widths, PAUSE_GAP_EM * fontPx, stage.clientWidth * WIDTH_MARGIN)
+      root.removeAttribute('data-pop-measuring')
+      const next = planPopRows(units, widths, PAUSE_GAP_EM * fontPx, stage.clientWidth * WIDTH_MARGIN / 1.12, 3, scene.rows)
       // 行数 × 行高也不能超出舞台高度。
-      const lineHeight = fontPx * 1.36
-      const fit = Math.min(next.fit, stage.clientHeight / Math.max(1, next.rows.length * lineHeight))
+      // 倾角、跃起和镜头缩放均在舞台内留出余量。
+      const height = next.rows.reduce((sum, _, i) => sum + fontPx * popPhrasePose(next.rows.length, i, lineStartMs).scale * 1.5, 0) + fontPx * 0.3
+      const fit = Math.min(next.fit, stage.clientHeight / Math.max(1, height))
       root.style.setProperty('--pop-fit', String(Math.min(1, fit)))
       setMeasured(prev => (prev.units === units && JSON.stringify(prev.rows) === JSON.stringify(next.rows) && prev.fit === fit ? prev : { units, rows: next.rows, fit }))
     }
@@ -95,7 +100,7 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
     void document.fonts.ready.then(measure)
     measure()
     return () => { disposed = true; observer.disconnect() }
-  }, [units, fontScale])
+  }, [units, fontScale, scene.rows, lineStartMs])
 
   // 绘制前接管：重新分行或拖进句中时，新节点第一帧就是按当前时间的状态，不会先闪一帧全字影。
   useLayoutEffect(() => {
@@ -107,52 +112,35 @@ const PopLine = memo(function PopLine({ text, wordLine, lineStartMs, dwellSec, a
     const accents = pick(styles.hot)
     if (pops.length !== words.length || inks.length !== words.length || accents.length !== words.length) return
     // 各行是连续的词组区间，DOM 顺序即词序；分行或字号变化会重建时间轴，所以 plan 也在依赖里。
-    const timeline = createPopLyricTimeline(pops, inks, accents, words, { intensity, peaks: measurePeaks(pops, words, intensity) })
-    let raf = 0
-    const sync = () => timeline.seek((lyricPlaybackPosition(usePlayerStore.getState()) + useLyricsStore.getState().offsetSec) * 1000 - lineStartMs)
-    const loop = () => {
-      sync()
-      raf = requestAnimationFrame(loop)
-    }
-    const refresh = () => {
-      cancelAnimationFrame(raf)
-      raf = 0
-      if (document.hidden) return
-      sync()
-      if (usePlayerStore.getState().status === 'playing') raf = requestAnimationFrame(loop)
-    }
-    const stopPlayer = usePlayerStore.subscribe((state, previous) => {
-      if (state.status !== previous.status) refresh()
-      else if (!raf && state.position !== previous.position && !document.hidden) sync()
+    const timeline = createPopLyricTimeline(pops, inks, accents, words, {
+      intensity, peaks: measurePeaks(pops, words, intensity), reveal: scene.reveal, scene: camera ? root : undefined,
     })
-    const stopOffset = useLyricsStore.subscribe((state, previous) => {
-      if (state.offsetSec !== previous.offsetSec && !document.hidden) sync()
-    })
-    document.addEventListener('visibilitychange', refresh)
-    refresh()
+    const stopFrames = subscribeLyricFrames(frame => timeline.seek(frame.time * 1000 - lineStartMs))
     return () => {
-      cancelAnimationFrame(raf)
-      stopPlayer()
-      stopOffset()
-      document.removeEventListener('visibilitychange', refresh)
+      stopFrames()
       timeline.dispose()
     }
-  }, [moving, words, lineStartMs, intensity, plan])
+  }, [moving, words, lineStartMs, intensity, plan, scene.reveal, camera])
 
   return (
     <div ref={rootRef} className={`${styles.words}${moving ? '' : ` ${styles.static}`}`}>
-      {plan.rows.map((row, rowIndex) => (
-        <div key={rowIndex} className={styles.row}>
-          {row.map((unitIndex, i) => {
-            const unit = units[unitIndex]
-            return (
-              <span key={unitIndex} data-pop-unit className={`${styles.unit}${unit.pause && i < row.length - 1 ? ` ${styles.pause}` : ''}`}>
-                {unit.words.map(index => <PopGlyph key={index} word={words[index]} />)}
-              </span>
-            )
-          })}
-        </div>
-      ))}
+      {plan.rows.map((row, rowIndex) => {
+        const pose = popPhrasePose(plan.rows.length, rowIndex, lineStartMs)
+        return (
+          <div key={rowIndex} className={`${styles.row}${pose.accent ? ` ${styles.accent}` : ''}`} style={{
+            alignSelf: pose.align, '--phrase-scale': pose.scale, '--phrase-angle': animated ? `${pose.angle}deg` : '0deg',
+          } as React.CSSProperties}>
+            {row.map((unitIndex, i) => {
+              const unit = units[unitIndex]
+              return (
+                <span key={unitIndex} data-pop-unit className={`${styles.unit}${unit.pause && i < row.length - 1 ? ` ${styles.pause}` : ''}`}>
+                  {unit.words.map(index => <PopGlyph key={index} word={words[index]} />)}
+                </span>
+              )
+            })}
+          </div>
+        )
+      })}
     </div>
   )
 })
@@ -188,7 +176,6 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
   const translation = useLyricsStore((s) => s.translation)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion)
-  const playing = usePlayerStore((s) => s.status === 'playing')
   const fontScale = useSettingsStore((s) => s.lyricsFontScale)
   const reducedMotion = useReducedMotion()
   const animated = wordMotion && !reducedMotion
@@ -209,7 +196,7 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
   const exitCustom = { rapid: switchedAt.current.rapid, seconds: switchSec, still: reducedMotion }
 
   return (
-    <div className={`${styles.root}${preview ? ` ${styles.preview}` : ''}`} data-pop-lyrics={preview ? undefined : ''} data-playing={playing && !preview ? '' : undefined} style={{ '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
+    <div className={`${styles.root}${preview ? ` ${styles.preview}` : ''}`} data-pop-lyrics={preview ? undefined : ''} style={{ '--lyrics-font-scale': preview ? 1 : fontScale } as React.CSSProperties}>
       <div className={styles.stage}>
         <AnimatePresence mode="popLayout" initial={false} custom={exitCustom}>
           {current?.text.trim() && (
@@ -234,6 +221,7 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
                 animated={animated}
                 fontScale={fontScale}
                 intensity={Number(tuning.intensity)}
+                camera={tuning.camera !== false}
               />
             </motion.div>
           )}

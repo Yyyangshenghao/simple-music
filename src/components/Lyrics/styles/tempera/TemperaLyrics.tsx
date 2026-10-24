@@ -166,7 +166,7 @@ export function TemperaLyrics({ preview = false }: { preview?: boolean }) {
     ctx.fillStyle = rgbCss(paper, 0.82)
     ctx.fillRect(0, 0, W, H)
 
-    const baseSize = Math.min(Math.max(H * 0.13, 30), 128) * (small ? 1 : scaleSetting)
+    const baseSize = Math.min(Math.max(H * 0.13, 30), 128)
     for (const { shot, index, push } of placements) {
       const local = frame.time - shot.start
       const duration = Math.max(0.1, shot.end - shot.start)
@@ -280,7 +280,10 @@ export function TemperaLyrics({ preview = false }: { preview?: boolean }) {
             ctx.font = `900 ${size}px ${font}`
             return ctx.measureText(text).width
           }
-          runs = layoutShotText(shot.words, shot.hero, region, baseSize, measure)
+          runs = layoutShotText(shot.words, shot.hero, region, baseSize, measure, small ? 1 : scaleSetting, {
+            w: Math.max(16, Math.min(region.x - W * 0.04, W * 0.96 - region.x) * 2),
+            h: Math.max(16, Math.min(region.y - H * 0.04, (withTranslation ? H * 0.7 : H * 0.94) - region.y) * 2)
+          })
           if (s.layouts.size > 64) s.layouts.clear()
           s.layouts.set(key, runs)
         }

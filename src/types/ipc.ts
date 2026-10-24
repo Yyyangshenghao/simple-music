@@ -1,5 +1,4 @@
 import type { Track, WordLyricLine } from './domain'
-import type { InstalledLyricMod, LyricModCatalog } from './folium'
 export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeControlApi, ProbeHostApi } from './playback-probe'
 
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
@@ -227,10 +226,6 @@ export interface SystemFontResult {
 
 // ---------- 主窗口契约 ----------
 export interface IpcChannels {
-  'lyric-mods:catalog': { req: void; res: LyricModCatalog }
-  'lyric-mods:list': { req: void; res: InstalledLyricMod[] }
-  'lyric-mods:install': { req: string; res: void }
-  'lyric-mods:remove': { req: string; res: void }
   'playback:request': { req: PlaybackRequest; res: unknown }
   'playback:reply': { req: { id: string; result: PlaybackHostReply }; res: void }
   'playback:publish': { req: unknown; res: void }

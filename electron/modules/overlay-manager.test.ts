@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => {
     setResizable: ReturnType<typeof vi.fn>
     setOpacity: ReturnType<typeof vi.fn>
     setIgnoreMouseEvents: ReturnType<typeof vi.fn>
+    setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
     showInactive: ReturnType<typeof vi.fn>
     show: ReturnType<typeof vi.fn>
     webContents: { mainFrame: object; send: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
@@ -606,6 +607,25 @@ describe('桌面歌词窗口交互', () => {
       harness.getDisplayMatching.mockImplementation(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
     }
   })
+  it.each(['darwin', 'linux', 'win32'] as const)('%s 开启桌面歌词不隐藏主窗口，macOS panel 不再切换应用类型', (platform) => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      harness.hideMainWindow.mockClear()
+      setLyricsEnabled(true, { clickThrough: false })
+      const win = harness.instances[0]
+      if (platform === 'darwin') {
+        expect(harness.BrowserWindow.mock.calls.at(-1)?.[0]?.type).toBe('panel')
+        expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+      } else {
+        expect(win.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, { visibleOnFullScreen: true })
+      }
+      expect(harness.hideMainWindow).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
+  })
+
   it('桌面歌词点击和拖动使用不激活应用的窗口，首次点击可直接操作', () => {
     setLyricsEnabled(true, { clickThrough: false })
     const win = harness.instances[0]

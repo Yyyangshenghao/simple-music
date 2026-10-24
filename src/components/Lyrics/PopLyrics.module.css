@@ -1,4 +1,4 @@
-/* 跃字：居中的连续字列，清楚的实体字面；只有正在唱的字放大跃起、换强调色，是形态重心。
+/* 跃字：词组错落、重点放大的动态文字海报；未唱的字占位，轮到时旋入并留下实字。
    字号按外层样式容器（歌词页舞台或选择器预览卡）的 cqw/cqh 计算；分行由排版器决定，行内不折行。 */
 .root {
   position: absolute;
@@ -14,13 +14,6 @@
   /* 强调色取封面氛围色的色相，限定明度、保证彩度：暗底上提亮，浅底上压暗，与正文实字明显区分 */
   --pop-accent: oklch(from var(--ambient-2) max(l, 0.8) max(c, 0.13) h);
   --pop-halo: 0 0 0.3em color-mix(in srgb, var(--ambient-2) 38%, transparent);
-  /* 未唱字影：暂停时保持可读；播放时压轻，让已唱与正在唱的字一路接力浮到前面 */
-  --pop-ghost: 0.3;
-  --pop-ghost-playing: 0.12;
-}
-
-.root[data-playing] {
-  --pop-ghost: var(--pop-ghost-playing);
 }
 
 :global([data-theme="light"]) .root {
@@ -56,23 +49,40 @@
 }
 
 .words {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.06em;
-  font-size: calc(clamp(30px, min(5.8cqw, 9.5cqh), 82px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
-  font-weight: 600;
+  gap: 0.18em;
+  font-size: calc(clamp(32px, min(7.4cqw, 10.5cqh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
+  font-weight: 550;
   line-height: 1.3;
-  /* 中文字面略松一点，词组之间另有语义间距；不再给每个字和词组叠加内边距 */
-  letter-spacing: 0.04em;
-  /* 英文词间多留一点：演唱词放大时不碰邻词 */
-  word-spacing: 0.12em;
   color: var(--sm-text-primary);
 }
 
 /* 排版器给出的最终一行：不允许再折行 */
 .row {
+  width: fit-content;
+  max-width: 100%;
+  font-size: calc(1em * var(--phrase-scale, 1));
+  letter-spacing: 0.015em;
+  word-spacing: 0.14em;
   white-space: nowrap;
+  transform: rotate(var(--phrase-angle, 0deg));
+  transform-origin: center;
+}
+
+.accent {
+  font-weight: 850;
+}
+
+.words[data-pop-measuring] .row {
+  font-size: 1em;
+  font-weight: 850;
+}
+
+.accent .ink {
+  color: color-mix(in srgb, var(--sm-text-primary) 78%, var(--pop-accent));
 }
 
 .unit {
@@ -94,8 +104,7 @@
 }
 
 .ghost {
-  opacity: var(--pop-ghost);
-  transition: opacity 0.35s ease;
+  opacity: 0;
 }
 
 .ink {

@@ -2,13 +2,15 @@ import { groupLyricBreakUnits } from './lyric-line-break'
 import type { PopWord } from './pop-lyric-timing'
 
 /**
- * 跃字排版：一句歌词排成居中的连续字列，放不下时才按语义边界折成 2–3 行。
+ * 跃字排版：按语义边界拼成有主次的文字海报，实测宽度决定分行与缩放。
  * 最终分行由这里决定（行内不再交给 CSS 折行），同一句在同一窗口里构图固定。
  */
 
 export interface PopUnit {
   /** 词序号（指向 PopWord 数组） */
   words: number[]
+  /** 字面权重（汉字约为 1），不能把一个英文词误当成一个字 */
+  weight: number
   /** 之后是否为语义停顿（空格、标点或演唱间隙）：同一行里在这里留一段词组间距 */
   pause: boolean
   /** 在此处折行的偏好：标点 > 空格 > 演唱间隙 > 普通词界 */
@@ -36,9 +38,10 @@ export function buildPopUnits(words: readonly PopWord[]): PopUnit[] {
     return Array.from(text).length === 1 && set.has(text)
   }
   return groups.map((group, index) => {
+    const weight = popTextWeight(group.map(i => words[i].text).join(''))
     const last = words[group.at(-1)!]
     const nextGroup = groups[index + 1]
-    if (!nextGroup) return { words: group, pause: false, breakBonus: 0 }
+    if (!nextGroup) return { words: group, weight, pause: false, breakBonus: 0 }
     const next = words[nextGroup[0]]
     const gap = next.startMs - last.startMs - last.durationMs
     const punct = PUNCTUATION_END.test(last.text)
@@ -48,7 +51,7 @@ export function buildPopUnits(words: readonly PopWord[]): PopUnit[] {
     let breakBonus = punct ? 3 : space ? 2.4 : gap >= PAUSE_GAP_MS ? 1.2 : latinSpace ? 0.6 : 0
     // 在这里断会让“夜空 / 下”“在 / 风里”这类单字脱离它依附的词组。
     if (!punct && !space && (single(nextGroup, LEANS_BACK) || single(group, LEANS_FORWARD))) breakBonus -= 4
-    return { words: group, pause, breakBonus }
+    return { words: group, weight, pause, breakBonus }
   })
 }
 
@@ -59,11 +62,32 @@ export interface PopRowPlan {
   fit: number
 }
 
+export type PopReveal = 'fold' | 'sweep' | 'rise'
+
+/** 短句聚成一击，中句两组、长句三组；短促连句优先一眼读完。 */
+export function popScene(words: readonly PopWord[], dwellSec: number): { rows: number; reveal: PopReveal } {
+  const weight = popTextWeight(words.map(word => word.text).join(''))
+  const rows = weight <= 6 || dwellSec < 1.2 ? 1 : weight > 22 ? 3 : 2
+  return { rows, reveal: rows === 1 ? 'fold' : rows === 2 ? 'sweep' : 'rise' }
+}
+
+/** 每句姿态固定：重点词组放大，其余收小；左右交替而不形成等距台阶。 */
+export function popPhrasePose(count: number, index: number, seed: number) {
+  const direction = Math.floor(seed / 1000) % 2 ? 1 : -1
+  const accent = index === count - 1
+  return {
+    accent,
+    scale: count === 1 ? 1.12 : accent ? 1.12 : 0.82,
+    align: count === 1 ? 'center' as const : (index + (direction > 0 ? 0 : 1)) % 2 ? 'end' as const : 'start' as const,
+    angle: count === 1 ? direction * 1.2 : direction * (index % 2 ? 1.4 : -1.8),
+  }
+}
+
 /**
  * 按真实宽度分行。widths 为各单元宽、gap 为语义停顿处的词组间距（同单位），maxWidth 为可用宽。
  * 先求能放下的最少行数；同样行数里优先在语义停顿处断、两行长度接近、不留一两个字的孤尾。
  */
-export function planPopRows(units: readonly PopUnit[], widths: readonly number[], gap: number, maxWidth: number, maxRows = 3): PopRowPlan {
+export function planPopRows(units: readonly PopUnit[], widths: readonly number[], gap: number, maxWidth: number, maxRows = 3, minRows = 1): PopRowPlan {
   const n = units.length
   if (!n) return { rows: [], fit: 1 }
   const rowWidth = (from: number, to: number) => {
@@ -73,12 +97,12 @@ export function planPopRows(units: readonly PopUnit[], widths: readonly number[]
   }
   const unitChars = (from: number, to: number) => {
     let chars = 0
-    for (let i = from; i < to; i++) chars += units[i].words.length
+    for (let i = from; i < to; i++) chars += units[i].weight
     return chars
   }
   const total = rowWidth(0, n)
   let best: { rows: number[][]; widest: number; score: number } | null = null
-  for (let count = 1; count <= Math.min(maxRows, n); count++) {
+  for (let count = Math.min(minRows, maxRows, n); count <= Math.min(maxRows, n); count++) {
     const candidates: number[][] = []
     const walk = (start: number, left: number, cuts: number[]) => {
       if (left === 1) { candidates.push(cuts); return }
@@ -117,8 +141,8 @@ function range(from: number, to: number): number[] {
 }
 
 /** 未测量前的首帧分行：按估算字宽、以 em 为单位（maxEm 为一行大约能放的汉字数）。 */
-export function estimatePopRows(words: readonly PopWord[], maxEm = 13): PopRowPlan & { units: PopUnit[] } {
+export function estimatePopRows(words: readonly PopWord[], maxEm = 13, minRows = 1): PopRowPlan & { units: PopUnit[] } {
   const units = buildPopUnits(words)
   const widths = units.map(unit => popTextWeight(unit.words.map(i => words[i].text).join('')))
-  return { units, ...planPopRows(units, widths, 0.45, maxEm) }
+  return { units, ...planPopRows(units, widths, 0.45, maxEm, 3, minRows) }
 }

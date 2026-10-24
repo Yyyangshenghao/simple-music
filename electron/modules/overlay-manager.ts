@@ -336,7 +336,8 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   hardenOverlayWindow(win)
   try {
     lyricsWindow.setAlwaysOnTop(true, 'screen-saver')
-    lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // macOS panel 已覆盖所有桌面和全屏；重复设置会切换应用类型并短暂隐藏主窗口。
+    if (process.platform !== 'darwin') lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   } catch (e) {
     console.warn('Desktop lyrics topmost setup skipped:', (e as Error).message)
   }

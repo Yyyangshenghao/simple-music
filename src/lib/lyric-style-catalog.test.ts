@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { LYRIC_STYLES, lyricStyleInfo, resolveLyricsView, resolveTuning, sanitizeTuningPatch, type TuningField } from './lyric-style-catalog'
+import { LYRIC_STYLES, lyricStyleInfo, resolveLyricsView, resolveStyleTuning, resolveTuning, sanitizeTuningPatch, type TuningField } from './lyric-style-catalog'
 
 const fields: TuningField[] = [
   { key: 'speed', type: 'number', label: '速度', min: 0, max: 2, step: 0.1, defaultValue: 1 },
@@ -8,6 +8,19 @@ const fields: TuningField[] = [
 ]
 
 describe('样式参数声明', () => {
+  it('只留下有意义的玩法，固定演出细节不再受旧参数影响', () => {
+    expect(LYRIC_STYLES.reduce((sum, style) => sum + style.tuning.length, 0)).toBe(15)
+    expect(lyricStyleInfo('stage3d').label).toBe('粒光')
+    expect(resolveStyleTuning('pop', { camera: false }).camera).toBe(true)
+    expect(resolveStyleTuning('partita', { semantic: false }).semantic).toBe(true)
+    expect(resolveStyleTuning('fume', { zoom: 1.4, float: 0 }).zoom).toBe(1)
+  })
+  it('合并的装饰、强拍和氛围档位共同驱动相关效果', () => {
+    expect(resolveStyleTuning('tempera', { decor: false })).toMatchObject({ decor: false, echo: false })
+    expect(resolveStyleTuning('sonnet', { punch: 0, geometry: false })).toMatchObject({ glitch: false, hud: false })
+    expect(resolveStyleTuning('diorama', { ambience: 'quiet' })).toMatchObject({ ripples: false, dust: false })
+    expect(resolveStyleTuning('diorama', { ambience: 'water' })).toMatchObject({ ripples: true, dust: false })
+  })
   it('缺失或非法值回到默认，数值夹在范围内', () => {
     expect(resolveTuning(fields, undefined)).toEqual({ speed: 1, glow: true, layout: 'a' })
     expect(resolveTuning(fields, { speed: 9, glow: 'yes', layout: 'z', extra: 1 })).toEqual({ speed: 2, glow: true, layout: 'a' })
@@ -29,16 +42,15 @@ describe('样式参数声明', () => {
 })
 
 describe('歌词页实际视图', () => {
-  it('逐行模式不受样式影响；模组覆盖内置样式；3D 关闭时回落默认样式', () => {
-    expect(resolveLyricsView({ mode: 'lyrics', style: 'stage3d', lyrics3dEnabled: true, modActive: true })).toBe('lyrics')
-    expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: true, modActive: true })).toBe('mod')
+  it('逐行模式不受样式影响；动态模式遵循所选样式', () => {
+    expect(resolveLyricsView({ mode: 'lyrics', style: 'stage3d' })).toBe('lyrics')
     // 已撤下的样式不再出现在清单里，误传进来的旧 ID 回到默认样式
     expect(LYRIC_STYLES.map(style => style.id)).not.toContain('lumiere')
     expect(LYRIC_STYLES.map(style => style.id)).not.toContain('luminous')
-    expect(resolveLyricsView({ mode: 'dynamic', style: 'lumiere' as never, lyrics3dEnabled: true })).toBe('pop')
+    expect(resolveLyricsView({ mode: 'dynamic', style: 'lumiere' as never })).toBe('pop')
     expect(lyricStyleInfo('tilt' as never).id).toBe('pop')
-    expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: true })).toBe('stage3d')
-    expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d', lyrics3dEnabled: false })).toBe('pop')
-    expect(resolveLyricsView({ mode: 'dynamic', style: 'pop', lyrics3dEnabled: false })).toBe('pop')
+    expect(resolveLyricsView({ mode: 'dynamic', style: 'stage3d' })).toBe('stage3d')
+    expect(resolveLyricsView({ mode: 'dynamic', style: 'diorama' })).toBe('diorama')
+    expect(resolveLyricsView({ mode: 'dynamic', style: 'pop' })).toBe('pop')
   })
 })

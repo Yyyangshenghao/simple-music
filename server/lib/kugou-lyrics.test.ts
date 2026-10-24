@@ -94,3 +94,20 @@ describe('酷狗逐字歌词兜底', () => {
     await expect(fetchKugouLyric(dir, query, fetchMock as typeof fetch)).rejects.toThrow()
   })
 })
+
+
+it('手动测试绕过未收录缓存与临时熔断', async () => {
+  const network = vi.fn().mockImplementation(async () => search([]))
+  await fetchKugouLyric(dir, query, network)
+  await fetchKugouLyric(dir, query, network)
+  expect(network).toHaveBeenCalledOnce()
+  await fetchKugouLyric(dir, query, network, Date.now, true)
+  expect(network).toHaveBeenCalledTimes(2)
+  resetKugouLyricState()
+  const another = { ...query, title: '另一首' }
+  const offline = vi.fn().mockRejectedValue(new Error('offline'))
+  await expect(fetchKugouLyric(dir, another, offline)).rejects.toThrow()
+  await expect(fetchKugouLyric(dir, another, network)).rejects.toThrow('UPSTREAM_UNAVAILABLE')
+  await expect(fetchKugouLyric(dir, another, network, Date.now, true)).resolves.toEqual([])
+  expect(network).toHaveBeenCalledTimes(3)
+})

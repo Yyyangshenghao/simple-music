@@ -4,8 +4,8 @@ import { springSnappy } from '../../lib/motion-presets'
 import { DEFAULT_LYRIC_STYLE, isLyricStyleId, LYRIC_STYLES, lyricStyleInfo, type TuningField, type TuningValue } from '../../lib/lyric-style-catalog'
 import { useLyricStylesStore, useLyricStyleTuning } from '../../stores/lyric-styles'
 import { useSettingsStore } from '../../stores/settings'
-import { useLyricModsStore } from '../../stores/lyric-mods'
 import { Switch } from '../ui/Switch'
+import { LyricOptionGroup } from './LyricOptionGroup'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
 import styles from './LyricStylePicker.module.css'
 
@@ -25,15 +25,10 @@ function TuningControl({ field, value, onChange }: { field: TuningField; value: 
     )
   }
   if (field.type === 'select') {
-    return (
-      <label className={styles.row} htmlFor={id}>
-        <span>{field.label}</span>
-        <select id={id} value={String(value)} onChange={event => onChange(event.currentTarget.value)}>
-          {field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </label>
-    )
+    return <LyricOptionGroup label={field.label} options={field.options} value={String(value)} onChange={onChange} />
   }
+  if (field.presets) return <LyricOptionGroup label={field.label} options={field.presets}
+    value={field.presets.some(preset => preset.value === value) ? Number(value) : undefined} onChange={onChange} />
   const number = Number(value)
   return (
     <label className={styles.row} htmlFor={id}>
@@ -70,27 +65,22 @@ function PreviewFrame({ children }: { children: ReactNode }) {
 
 interface LyricStylePickerProps {
   onClose(): void
-  /** 打开实验区的社区模组侧栏 */
-  onOpenMods(): void
 }
 
-/** 「动态」歌词的样式选择器：样式卡片（实时预览）、常用参数、更多设置与实验入口。 */
-export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps) {
+/** 「动态」歌词的样式选择器：样式卡片（实时预览）、常用参数与更多设置。 */
+export function LyricStylePicker({ onClose }: LyricStylePickerProps) {
   const stored = useLyricStylesStore(state => state.style)
   const setStyle = useLyricStylesStore(state => state.setStyle)
   const setTuning = useLyricStylesStore(state => state.setTuning)
   const resetTuning = useLyricStylesStore(state => state.resetTuning)
-  const lyrics3dEnabled = useSettingsStore(state => state.performance.lyrics3dEnabled)
-  // 与舞台一致：3D 被关闭、或内存里是已撤下/未知的 ID 时实际显示默认样式，选中态与参数都跟随实际样式，不改写保存的选择。
-  const current = !isLyricStyleId(stored) || (lyricStyleInfo(stored).needs3d && !lyrics3dEnabled) ? DEFAULT_LYRIC_STYLE : stored
+  // 与舞台一致：内存里是已撤下/未知的 ID 时实际显示默认样式，选中态与参数都跟随实际样式，不改写保存的选择。
+  const current = !isLyricStyleId(stored) ? DEFAULT_LYRIC_STYLE : stored
   const tuning = useLyricStyleTuning(current)
   const modified = useLyricStylesStore(state => !!state.tunings[current])
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
   const setFontScale = useSettingsStore(state => state.setLyricsFontScale)
   const showTranslation = useSettingsStore(state => state.lyricsShowTranslation)
   const setShowTranslation = useSettingsStore(state => state.setLyricsShowTranslation)
-  const modId = useLyricModsStore(state => state.selectedId)
-  const activeMod = useLyricModsStore(state => state.installed.find(mod => mod.id === state.selectedId && mod.valid))
   const [expanded, setExpanded] = useState(false)
   useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -104,47 +94,39 @@ export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps)
   const quick = info.tuning.filter(field => info.quick.includes(field.key))
   const Settings = view.Settings
   const hasMore = !!Settings || info.tuning.length > quick.length
+  const focusedSettings = expanded && !!Settings
 
   return (
     <>
       <div className={`${styles.backdrop} no-drag`} onClick={onClose} />
       <motion.div className={`${styles.menu} no-drag`} role="dialog" aria-label="动态歌词样式"
         initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={springSnappy}>
-        <div className={styles.cards} role="radiogroup" aria-label="样式">
+        {focusedSettings ? <div className={styles.settingsHeader}>
+          <strong>{info.label}</strong>
+          <button type="button" onClick={() => setExpanded(false)}>返回样式</button>
+        </div> : <div className={styles.cards} role="radiogroup" aria-label="样式">
           {[...LYRIC_STYLES].sort((a, b) => a.order - b.order).map(style => {
             const entry = LYRIC_STYLE_VIEWS[style.id]
-            const unavailable = !!style.needs3d && !lyrics3dEnabled
-            const selected = current === style.id && !activeMod
+            const selected = current === style.id
             const Preview = style.preview === 'live' ? entry.Preview : undefined
             return (
-              <button key={style.id} type="button" role="radio" aria-checked={selected} disabled={unavailable}
+              <button key={style.id} type="button" role="radio" aria-checked={selected}
                 className={`${styles.card}${selected ? ` ${styles.cardActive}` : ''}`}
-                title={unavailable ? '已在设置的歌词与动效中关闭 3D 歌词' : style.hint}
+                title={style.hint}
                 onClick={() => {
                   setStyle(style.id)
-                  // 选内置样式即停用实验模组，回到内置效果。
-                  if (modId) useLyricModsStore.getState().select(null)
                   setExpanded(false)
                 }}>
                 <span className={styles.thumb} aria-hidden="true">
                   {Preview ? <PreviewFrame><Preview /></PreviewFrame> : entry.glyph}
                 </span>
                 <span className={styles.cardLabel}>{style.label}</span>
-                {/* 样式说明放在悬停提示里；卡片上只在不可用时写明原因。 */}
-                {unavailable && <span className={styles.cardHint}>3D 歌词已关闭</span>}
               </button>
             )
           })}
-        </div>
+        </div>}
 
-        {activeMod && (
-          <div className={styles.modNotice} role="status">
-            <span>正在使用实验模组「{activeMod.name}」</span>
-            <button type="button" onClick={() => useLyricModsStore.getState().select(null)}>停用</button>
-          </div>
-        )}
-
-        <div className={styles.section}>
+        {!focusedSettings && <div className={styles.section}>
           <label className={styles.row} htmlFor={fontId}>
             <span>字号</span>
             <input id={fontId} type="range" min={0.7} max={1.5} step={0.05} value={fontScale}
@@ -156,19 +138,19 @@ export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps)
             <span>显示翻译</span>
             <Switch checked={showTranslation} onChange={setShowTranslation} aria-label="显示翻译" />
           </div>
-          {!activeMod && quick.map(field => (
+          {quick.map(field => (
             <TuningControl key={field.key} field={field} value={tuning[field.key]} onChange={value => setTuning(current, { [field.key]: value })} />
           ))}
-          {!activeMod && !hasMore && modified && (
+          {!hasMore && modified && (
             <button type="button" className={styles.reset} onClick={() => resetTuning(current)}>恢复「{info.label}」默认</button>
           )}
-        </div>
+        </div>}
 
-        {!activeMod && hasMore && (
+        {hasMore && (
           <div className={styles.more}>
-            <button type="button" className={styles.moreToggle} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+            {!focusedSettings && <button type="button" className={styles.moreToggle} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
               {expanded ? '收起设置' : `更多「${info.label}」设置`}
-            </button>
+            </button>}
             {expanded && (Settings ? <Settings /> : (
               <div className={styles.section}>
                 {info.tuning.filter(field => !info.quick.includes(field.key)).map(field => (
@@ -180,9 +162,6 @@ export function LyricStylePicker({ onClose, onOpenMods }: LyricStylePickerProps)
           </div>
         )}
 
-        <button type="button" className={styles.experimental} onClick={onOpenMods}>
-          <span>实验</span>社区模组
-        </button>
       </motion.div>
     </>
   )

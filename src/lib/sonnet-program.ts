@@ -1,3 +1,4 @@
+import { fitLyricFontScale } from './lyric-font-sizing'
 import { groupLyricBreakUnits } from './lyric-line-break'
 import { seededRandom, type StyleWord } from './lyric-style-layouts'
 
@@ -125,7 +126,7 @@ const isCjk = (text: string) => /[぀-ヿ㐀-鿿가-힯]/.test(text)
  * 四种构图的排版：pillar 把重点词竖排成一根巨字柱，其余词在另一侧横排成块；stack 大小交替逐行堆叠；
  * center 整句一行居中；diagonal 沿斜线逐词下行。放不下时整体缩小。measure 返回横排宽度。
  */
-export function layoutSonnetShot(shot: SonnetShot, width: number, height: number, baseSize: number, measure: (text: string, size: number) => number): SonnetRun[] {
+export function layoutSonnetShot(shot: SonnetShot, width: number, height: number, baseSize: number, measure: (text: string, size: number) => number, fontScale = 1): SonnetRun[] {
   const random = seededRandom(shot.seed + 41)
   const words = shot.words.map(word => word.text.trim())
   const attempt = (k: number): { runs: SonnetRun[]; box: { w: number; h: number } } => {
@@ -236,7 +237,10 @@ export function layoutSonnetShot(shot: SonnetShot, width: number, height: number
     k *= fit * 0.98
     result = attempt(k)
   }
-  return result.runs
+  const radiusX = Math.max(1, ...result.runs.map(run => Math.abs(run.x) + (Math.abs(Math.cos(run.rotate)) * run.width + Math.abs(Math.sin(run.rotate)) * run.height) / 2))
+  const radiusY = Math.max(1, ...result.runs.map(run => Math.abs(run.y) + (Math.abs(Math.sin(run.rotate)) * run.width + Math.abs(Math.cos(run.rotate)) * run.height) / 2))
+  const fontFit = fitLyricFontScale(fontScale, { width: radiusX * 2, height: radiusY * 2 }, { width: width * 0.92, height: height * 0.8 })
+  return result.runs.map(run => ({ ...run, x: run.x * fontFit, y: run.y * fontFit, size: run.size * fontFit, width: run.width * fontFit, height: run.height * fontFit }))
 }
 
 // ---------- 几何线稿 ----------

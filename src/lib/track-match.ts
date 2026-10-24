@@ -206,7 +206,8 @@ export async function findEquivalentTrack(
   targetSource: ProviderId,
   signal?: AbortSignal,
   now = Date.now(),
-  strictMatch = false
+  strictMatch = false,
+  forceRefresh = false
 ): Promise<TrackMatchResult | null> {
   if (signal?.aborted) throw abortError()
   const archive = readArchive()
@@ -215,7 +216,7 @@ export async function findEquivalentTrack(
   const provider = providerFor(targetSource)
   // 旧负缓存没有记录是否存在错版本；严格查询重新取一次，避免将错配误报成未收录。
   const hasMatchDiagnostics = cached?.targetId != null || typeof cached?.mismatch === 'boolean'
-  if (cached && cached.expiresAt > now && (!strictMatch || hasMatchDiagnostics)) {
+  if (!forceRefresh && cached && cached.expiresAt > now && (!strictMatch || hasMatchDiagnostics)) {
     if (cached.targetId == null) {
       if (strictMatch && cached.mismatch) throw new TrackMatchMismatchError()
       return null

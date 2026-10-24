@@ -122,3 +122,20 @@ describe('AMLL 逐字歌词兜底', () => {
     expect(result.filter((r) => r.ms !== null)).toHaveLength(2)
   })
 })
+
+
+it('手动测试绕过缓存与临时故障线路，恢复后普通请求可复用新结果', async () => {
+  const network = byHost({ github: 404 })
+  await fetchAmllLyric(dir, 'ncm', '42', network)
+  network.mockClear()
+  await fetchAmllLyric(dir, 'ncm', '42', network)
+  expect(network).not.toHaveBeenCalled()
+  await fetchAmllLyric(dir, 'ncm', '42', network, Date.now, undefined, true)
+  expect(network).toHaveBeenCalledOnce()
+  resetAmllRouteState()
+  const offline = byHost({ github: 'down', gbclstudio: 'down', bikonoo: 'down' })
+  await expect(fetchAmllLyric(dir, 'ncm', '43', offline)).rejects.toThrow()
+  const recovered = byHost({ github: 200, gbclstudio: 200, bikonoo: 200 })
+  expect(await fetchAmllLyric(dir, 'ncm', '43', recovered, Date.now, undefined, true)).toBe('[0,1](0,1,0)a')
+  expect(recovered).toHaveBeenCalledOnce()
+})

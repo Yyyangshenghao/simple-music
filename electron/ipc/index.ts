@@ -7,7 +7,6 @@ import { registerLoginIpc } from './login'
 import { registerMiscIpc } from './misc'
 import { registerAppleAudioIpc } from './apple-audio'
 import { registerGameModeIpc } from './game-mode'
-import { registerLyricModIpc } from './lyric-mods'
 
 export function registerIpc(): void {
   registerPlaybackHostIpc()
@@ -19,5 +18,4 @@ export function registerIpc(): void {
   registerMiscIpc()
   registerAppleAudioIpc()
   registerGameModeIpc()
-  registerLyricModIpc()
 }

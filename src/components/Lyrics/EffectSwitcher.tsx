@@ -1,8 +1,9 @@
-import { useId, useState } from 'react'
-import { motion } from 'motion/react'
-import { springSnappy, tapScale } from '../../lib/motion-presets'
+import { useEffect, useId, useState } from 'react'
 import { useSettingsStore } from '../../stores/settings'
-import type { Lyrics3dStyle } from '../../types/domain'
+import type { Lyrics3dParams, Lyrics3dStyle } from '../../types/domain'
+import type { SystemFontFamily } from '../../types/ipc'
+import { SystemFontPicker } from '../ui/SystemFontPicker'
+import { LyricOptionGroup } from './LyricOptionGroup'
 import styles from './EffectSwitcher.module.css'
 
 interface StyleInfo {
@@ -89,18 +90,6 @@ const LYRIC_STYLES: StyleInfo[] = [
         <path d="M3 5h9v3h5M5 10h10M3 15h6v-3h8" />
       </svg>
     )
-  },
-  {
-    id: 'focus',
-    label: '简洁叠层',
-    hint: '关闭 3D 轨道，保留大字',
-    icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor"
-        strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 6 V3h3 M14 3h3v3 M17 14v3h-3 M6 17H3v-3" />
-        <path d="M5 10 H15" />
-      </svg>
-    )
   }
 ]
 
@@ -111,7 +100,7 @@ function TuningSlider({ label, value, min, max, step, onChange, format = (v: num
   min: number
   max: number
   step: number
-  onChange: (value: number) => void
+  onChange(value: number): void
   format?: (value: number) => string
 }) {
   const id = useId()
@@ -119,101 +108,102 @@ function TuningSlider({ label, value, min, max, step, onChange, format = (v: num
     <label className={styles.tuningRow} htmlFor={id}>
       <span>{label}</span>
       <input id={id} type="range" min={min} max={max} step={step} value={value}
-        aria-valuetext={format(value)} onChange={(event) => onChange(Number(event.currentTarget.value))} />
+        aria-valuetext={format(value)} onChange={event => onChange(Number(event.currentTarget.value))} />
       <output htmlFor={id}>{format(value)}</output>
     </label>
   )
 }
 
-/** 3D 舞台的文字风格与场景调节；嵌在动态样式选择器的「更多设置」里。 */
+/** 粒光歌词页内的完整设置，按文字、氛围和画质分组。 */
 export function Stage3dSettings() {
-  const [tab, onTabChange] = useState<'scene' | 'adjust'>('scene')
-  const activeStyle = useSettingsStore((s) => s.lyrics3dStyle)
-  const setStyle = useSettingsStore((s) => s.setLyrics3dStyle)
-  const displayMode = useSettingsStore((s) => s.lyrics3d.displayMode)
-  const params = useSettingsStore((s) => s.lyrics3d)
-  const overlayBlur = useSettingsStore((s) => s.lyricsOverlayBlur)
-  const setOverlayBlur = useSettingsStore((s) => s.setLyricsOverlayBlur)
-  const setParams = useSettingsStore((s) => s.setLyrics3dParams)
-  const patch = (key: keyof typeof params) => (value: number) => setParams({ [key]: value })
-
+  const panelId = useId()
+  const [tab, setTab] = useState<'text' | 'scene' | 'quality'>('text')
+  const activeStyle = useSettingsStore(s => s.lyrics3dStyle)
+  const setStyle = useSettingsStore(s => s.setLyrics3dStyle)
+  const params = useSettingsStore(s => s.lyrics3d)
+  const setParams = useSettingsStore(s => s.setLyrics3dParams)
+  const resetParams = useSettingsStore(s => s.resetLyrics3dParams)
+  const westernFont = useSettingsStore(s => s.lyrics3dFontFamily)
+  const cjkFont = useSettingsStore(s => s.lyrics3dFontFamilyCjk)
+  const setWesternFont = useSettingsStore(s => s.setLyrics3dFontFamily)
+  const setCjkFont = useSettingsStore(s => s.setLyrics3dFontFamilyCjk)
+  const [fonts, setFonts] = useState<SystemFontFamily[]>([])
+  const [fontsLoading, setFontsLoading] = useState(true)
+  const [fontsError, setFontsError] = useState(false)
+  const [fontAttempt, setFontAttempt] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    setFontsLoading(true)
+    setFontsError(false)
+    void (async () => {
+      try {
+        const result = await window.desktop?.listSystemFonts()
+        if (cancelled) return
+        setFonts(result?.fonts ?? [])
+        setFontsError(!result?.ok)
+      } catch {
+        if (!cancelled) setFontsError(true)
+      } finally {
+        if (!cancelled) setFontsLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [fontAttempt])
+  const patch = (key: keyof Lyrics3dParams) => (value: number) => setParams({ [key]: value })
   return (
-    <div className={styles.embedded} aria-label="3D 舞台设置">
-        <div className={styles.menuTabs} role="tablist" aria-label="3D 歌词选项">
-          <button type="button" role="tab" aria-selected={tab === 'scene'}
-            className={tab === 'scene' ? styles.menuTabActive : ''} onClick={() => onTabChange('scene')}>场景与文字</button>
-          <button type="button" role="tab" aria-selected={tab === 'adjust'}
-            className={tab === 'adjust' ? styles.menuTabActive : ''} onClick={() => onTabChange('adjust')}>细节调节</button>
-        </div>
-        {tab === 'scene' ? <>
-          {activeStyle !== 'focus' && <>
-          <div className={styles.sectionLabel}>同屏歌词</div>
-          <div className={styles.displayModes} role="group" aria-label="同屏歌词行数">
-            {([['single', '1 行'], ['dual', '2 行'], ['triple', '3 行'], ['cinema', '5 行']] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`${styles.displayModeBtn}${displayMode === id ? ` ${styles.displayModeBtnActive}` : ''}`}
-                aria-pressed={displayMode === id}
-                onClick={() => {
-                  setParams({ displayMode: id })
-                }}
-              >
-                {label}
-              </button>
-            ))}
+    <div className={styles.embedded} aria-label="粒光设置">
+      <div className={styles.menuTabs} role="tablist" aria-label="粒光选项">
+        {([['text', '文字'], ['scene', '氛围'], ['quality', '画质']] as const).map(([id, label]) =>
+          <button key={id} type="button" role="tab" id={`${panelId}-${id}`} aria-selected={tab === id}
+            aria-controls={`${panelId}-panel`} onClick={() => setTab(id)}>{label}</button>)}
+      </div>
+      <div id={`${panelId}-panel`} role="tabpanel" aria-labelledby={`${panelId}-${tab}`} className={styles.panel}>
+        {tab === 'text' && <>
+          <div className={styles.styleGrid} role="group" aria-label="文字演出">
+            {LYRIC_STYLES.map(style => <button key={style.id} type="button" aria-pressed={activeStyle === style.id}
+              title={style.hint} onClick={() => setStyle(style.id)}>{style.icon}<span>{style.label}</span></button>)}
           </div>
-          <div className={styles.divider} aria-hidden="true" />
-          </>}
-          <div className={styles.sectionLabel}>歌词样式</div>
-          {LYRIC_STYLES.map((style) => {
-            const isActive = activeStyle === style.id
-            return (
-              <motion.button
-                key={style.id}
-                aria-pressed={isActive}
-                className={`${styles.item}${isActive ? ` ${styles.itemActive}` : ''}`}
-                onClick={() => {
-                  setStyle(style.id)
-                }}
-                whileTap={tapScale}
-                transition={springSnappy}
-              >
-                <span className={styles.icon}>{style.icon}</span>
-                <span className={styles.itemCopy}>
-                  <span className={styles.label}>{style.label}</span>
-                  <span className={styles.hint}>{style.hint}</span>
-                </span>
-              </motion.button>
-            )
-          })}
-        </> : <div className={styles.tuningPanel}>
-          <div className={styles.tuningHeading}>
-            <strong>封面粒子云</strong>
-            <span>调整时可直接看到舞台变化</span>
+          <div className={styles.fontPair}>
+            <div><label htmlFor={`${panelId}-western`}>西文字体</label>
+              <SystemFontPicker id={`${panelId}-western`} ariaLabel="粒光歌词西文字体" value={westernFont}
+                fonts={fonts} loading={fontsLoading} defaultLabel="跟随界面" onChange={setWesternFont} /></div>
+            <div><label htmlFor={`${panelId}-cjk`}>中文字体</label>
+              <SystemFontPicker id={`${panelId}-cjk`} ariaLabel="粒光歌词中文字体" value={cjkFont}
+                fonts={fonts} loading={fontsLoading} defaultLabel="跟随界面" onChange={setCjkFont} /></div>
           </div>
+          {fontsError && <p className={styles.hint}>系统字体读取失败。<button type="button" className={styles.retry} onClick={() => setFontAttempt(value => value + 1)}>重试</button></p>}
+          <LyricOptionGroup label="同屏歌词" options={[
+              { value: 'single', label: '1 行' }, { value: 'dual', label: '2 行' }, { value: 'triple', label: '3 行' }, { value: 'cinema', label: '5 行' },
+            ]} value={params.displayMode} onChange={value => setParams({ displayMode: value })} />
+          <TuningSlider label="前后歌词亮度" value={params.contextOpacity} min={0.25} max={1} step={0.01} onChange={patch('contextOpacity')} />
+          <TuningSlider label="歌词行间距" value={params.contextSpread} min={0.6} max={2.4} step={0.02}
+            format={v => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
+          <TuningSlider label="远处歌词渐隐" value={params.edgeFade} min={0} max={1} step={0.01} onChange={patch('edgeFade')} />
+          <TuningSlider label="切换柔和度" value={params.motionSoftness} min={0.15} max={1.2} step={0.01}
+            format={v => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
+        </>}
+        {tab === 'scene' && <>
           <TuningSlider label="粒子数量" value={params.particleCount} min={0.25} max={2} step={0.05} onChange={patch('particleCount')} />
           <TuningSlider label="粒子大小" value={params.particleSize} min={0.2} max={2} step={0.05} onChange={patch('particleSize')} />
           <TuningSlider label="场景亮度" value={params.particleBrightness} min={0.3} max={2} step={0.05} onChange={patch('particleBrightness')} />
           <TuningSlider label="动效强度" value={params.motionIntensity} min={0.2} max={2} step={0.05} onChange={patch('motionIntensity')} />
-          {activeStyle === 'focus' && <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />}
-          <div className={styles.tuningDivider}>鼓点波纹 · 封面粒子云</div>
-          <TuningSlider label="波纹数量" value={params.rippleCount} min={1} max={6} step={1}
-            format={(v) => `${v} 道`} onChange={patch('rippleCount')} />
+          <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />
+          <div className={styles.tuningDivider}>鼓点波纹</div>
+          <TuningSlider label="荡漾幅度" value={params.rippleAmplitude} min={0} max={1} step={0.01}
+            format={v => v === 0 ? '关闭' : v <= 0.33 ? '轻柔' : v <= 0.66 ? '明显' : '强烈'} onChange={patch('rippleAmplitude')} />
           <TuningSlider label="触发灵敏度" value={params.rippleSensitivity} min={0} max={1} step={0.01} onChange={patch('rippleSensitivity')} />
           <TuningSlider label="扩散时长" value={params.rippleDuration} min={0.2} max={1.5} step={0.05}
-            format={(v) => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
-          <div className={styles.tuningDivider}>{activeStyle === 'focus' ? '简洁叠层' : '3D 歌词 · 文字层次'}</div>
-          {activeStyle === 'focus' ? <TuningSlider label="歌词底部模糊" value={overlayBlur} min={0} max={1} step={0.01} onChange={setOverlayBlur} /> : <>
-            <TuningSlider label="前后歌词亮度" value={params.contextOpacity} min={0.25} max={1} step={0.01} onChange={patch('contextOpacity')} />
-            <TuningSlider label="歌词行间距" value={params.contextSpread} min={0.6} max={2.4} step={0.02}
-              format={(v) => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
-            <TuningSlider label="远处歌词渐隐" value={params.edgeFade} min={0} max={1} step={0.01} onChange={patch('edgeFade')} />
-            <TuningSlider label="切换柔和度" value={params.motionSoftness} min={0.15} max={1.2} step={0.01}
-              format={(v) => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
-            <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />
-          </>}
-        </div>}
+            format={v => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+        </>}
+        {tab === 'quality' && <>
+          <LyricOptionGroup label="帧率上限" options={[
+            { value: 60, label: '60' }, { value: 120, label: '120' }, { value: 0, label: '不限' },
+          ]} value={params.fpsCap} onChange={value => setParams({ fpsCap: value })} />
+          <TuningSlider label="渲染分辨率" value={params.renderScale} min={0.75} max={2} step={0.05}
+            format={v => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
+          <button type="button" className={styles.reset} onClick={resetParams}>恢复粒光默认</button>
+        </>}
+      </div>
     </div>
   )
 }

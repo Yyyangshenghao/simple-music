@@ -26,7 +26,7 @@ export const amllLyricRoutes: RouteHandler = async (req, res, url, ctx: ServerCo
   }
   const host = url.searchParams.get('host')
   try {
-    sendJson(res, { text: await fetchAmllLyric(ctx.userDataDir, platform, id, fetch, Date.now, isAmllHostId(host) ? host : undefined) })
+    sendJson(res, { text: await fetchAmllLyric(ctx.userDataDir, platform, id, fetch, Date.now, isAmllHostId(host) ? host : undefined, ...(url.searchParams.get('refresh') === '1' ? [true] as const : [])) })
   } catch (err) {
     console.warn('[AmllLyric]', err instanceof Error ? err.message : err)
     sendJson(res, { error: 'UPSTREAM_FAILED', text: null }, 502)

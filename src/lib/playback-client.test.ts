@@ -91,6 +91,58 @@ it('Apple 整秒进度之间持续推进，迟到采样不让逐字高亮回退'
   expect(read()).toBeCloseTo(31.2)
 })
 
+it('普通音频迟到的进度和重复状态不使凝彩时间倒退', async () => {
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const h = await setup()
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(240)
+  expect(read()).toBeCloseTo(12.24)
+  h.publish({ ...h.initial, full: false, revision: 2, stores: { player: { position: 12.18 } } })
+  expect(read()).toBeCloseTo(12.24)
+  now.mockReturnValue(300)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { status: 'playing' } } })
+  expect(read()).toBeCloseTo(12.3)
+})
+
+it('普通音频暂停定格，淡出期间晚到进度和重读不使彩条抽动', async () => {
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const h = await setup()
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  now.mockReturnValue(240)
+  h.publish({ ...h.initial, full: false, revision: 2, stores: { player: { status: 'paused' } } })
+  expect(read()).toBeCloseTo(12.24)
+  now.mockReturnValue(400)
+  h.publish({ ...h.initial, full: false, revision: 3, stores: { player: { position: 12.29 } } })
+  now.mockReturnValue(1200)
+  expect(read()).toBeCloseTo(12.24)
+  h.publish({ ...h.initial, full: false, revision: 4, stores: { player: { seekRevision: 1, position: 12 } } })
+  expect(read()).toBe(12)
+  now.mockReturnValue(2000)
+  expect(read()).toBe(12)
+})
+
+it('普通音频换曲、切换传输和宿主会话立即重置；断开后冻结', async () => {
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const h = await setup()
+  const read = h.stores.player.getState()._lyricPosition as () => number
+  let revision = 1
+  const publish = (player: Record<string, unknown>, session = h.initial.session) =>
+    h.publish({ ...h.initial, session, full: session !== h.initial.session, revision: ++revision, stores: { player } })
+  now.mockReturnValue(240)
+  publish({ currentTrack: { id: 'new', source: 'local' }, position: 12 })
+  expect(read()).toBe(12)
+  now.mockReturnValue(480)
+  publish({ playbackTransport: 'offline', position: 12 })
+  expect(read()).toBe(12)
+  now.mockReturnValue(720)
+  publish({ position: 12 }, 'host-2')
+  expect(read()).toBe(12)
+  now.mockReturnValue(960)
+  h.publish({ type: 'host-error', error: 'PLAYBACK_HOST_GONE' })
+  now.mockReturnValue(2000)
+  expect(read()).toBeCloseTo(12.24)
+})
+
 it('Apple 重复快照不延长停滞推算，暂停冻结，跳播和换曲立即重新定位', async () => {
   const h = await setup()
   const now = vi.spyOn(performance, 'now').mockReturnValue(0)

@@ -212,7 +212,7 @@ export type BackgroundMode = 'auto' | 'keep' | 'release'
 
 /** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
 export interface PerformanceFlags {
-  /** 暂停界面转场和装饰动效；保留各单项偏好，3D 场景仍独立控制。 */
+  /** 暂停界面转场和装饰动效；保留各单项偏好与歌词样式选择。 */
   reduceMotion: boolean
   /** 简介、帮助说明的逐字显现；关闭后直接渲染完整文本。 */
   textRevealMotion: boolean
@@ -222,8 +222,6 @@ export interface PerformanceFlags {
   bgFluidMotion: boolean
   /** 流体背景跟随鼠标/触摸；关闭后仍自动流动。 */
   bgPointerMotion: boolean
-  /** 歌词页 3D 模式(封面粒子云等)整体可用性,关闭后歌词页只剩纯文字滚动。 */
-  lyrics3dEnabled: boolean
   /** 卡片跟随鼠标的 3D 倾斜(TiltCard)。 */
   cardTiltEffect: boolean
   /** 卡片内跟随鼠标的光斑，与倾斜独立。 */
@@ -242,8 +240,8 @@ export type Lyrics3dEffect = 'cover-cloud'
 /** 歌词页展示模式：纯歌词列表、3D 舞台、跃字（逐词跳出的大字单句）。 */
 /** 歌词页：逐行歌词，或「动态」——具体样式由 stores/lyric-styles 决定。 */
 export type LyricsPanelMode = 'lyrics' | 'dynamic'
-/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层，storyboard 是每句一个镜头的分镜演出。 */
-export type Lyrics3dStyle = 'storyboard' | 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
+/** Mineradio 舞台歌词的运动风格；storyboard 是每句一个镜头的分镜演出。 */
+export type Lyrics3dStyle = 'storyboard' | 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch'
 /** Mineradio 舞台歌词的同屏行数模式。 */
 export type Lyrics3dDisplayMode = 'single' | 'dual' | 'triple' | 'cinema'
 export type ShelfMode = 'dynamic' | 'static'
@@ -280,13 +278,13 @@ export interface Lyrics3dParams {
   glowStrength: number
   /** 动效强度倍率(0.2~2,弹跳/踢飞/频谱振幅) */
   motionIntensity: number
-  /** 同屏最大波纹数(1~6,封面粒子云鼓点涟漪的并发槽位) */
-  rippleCount: number
+  /** 鼓点荡漾幅度(0 关闭，0~1，默认 0.5) */
+  rippleAmplitude: number
   /** 波纹触发灵敏度(0~1,越高鼓点越容易触发涟漪) */
   rippleSensitivity: number
   /** 单道波纹扩散时长(秒,0.2~1.5) */
   rippleDuration: number
-  /** 帧率上限(0=不限制,否则至少 120 fps) */
+  /** 帧率上限(0=不限制,否则至少 30 fps) */
   fpsCap: number
   /** 渲染分辨率倍率(0.75~2,即 Canvas dpr) */
   renderScale: number

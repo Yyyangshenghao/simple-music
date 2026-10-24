@@ -164,18 +164,20 @@ export async function fetchKugouLyric(
   userDataDir: string,
   query: KugouLyricQuery,
   fetchImpl: typeof fetch = fetch,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  refresh = false
 ): Promise<KugouLyricCandidate[]> {
   // 时长取整到秒，同一首歌不同平台的毫秒差不会各占一份缓存。
   const key = createHash('sha1').update(JSON.stringify([query.title, query.artist, Math.round(query.duration / 1000)])).digest('hex')
-  const pending = inflight.get(key)
+  const requestKey = refresh ? `${key}:probe` : key
+  const pending = inflight.get(requestKey)
   if (pending) return pending
   const task = (async () => {
     const dir = join(userDataDir, 'kugou-lyrics')
     const file = join(dir, `${key}.json`)
     const cached = await readCache(file, now())
-    if (cached) return cached.candidates
-    if (breaker.openUntil > now()) throw new Error('UPSTREAM_UNAVAILABLE')
+    if (cached && !refresh) return cached.candidates
+    if (!refresh && breaker.openUntil > now()) throw new Error('UPSTREAM_UNAVAILABLE')
     let candidates: KugouLyricCandidate[]
     try {
       candidates = await searchAndDownload(query, fetchImpl)
@@ -188,10 +190,10 @@ export async function fetchKugouLyric(
     await writeFile(file, JSON.stringify({ fetchedAt: now(), candidates } satisfies CacheEntry))
     return candidates
   })()
-  inflight.set(key, task)
+  inflight.set(requestKey, task)
   try {
     return await task
   } finally {
-    inflight.delete(key)
+    inflight.delete(requestKey)
   }
 }

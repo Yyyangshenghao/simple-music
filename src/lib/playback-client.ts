@@ -7,6 +7,7 @@ import { initProviderAuthFailureSync } from '../stores/provider-auth'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { shouldIgnoreShortcut } from './shortcuts'
 import { AppleLyricClock } from './apple-lyric-clock'
+import { PlaybackLyricClock } from './playback-lyric-clock'
 
 interface PlaybackSnapshot {
   session: string
@@ -55,8 +56,8 @@ export async function startPlaybackClient(): Promise<() => void> {
   let observedSpectrum = false
   let observedVisible: boolean | undefined
   let spectrumObservedAt = -Infinity
-  let positionReceivedAt = performance.now()
   const appleLyricClock = new AppleLyricClock()
+  const audioLyricClock = new PlaybackLyricClock()
   let shortcutBlocked: boolean | undefined
   const visible = () => !document.hidden && useWindowStore.getState().isVisible
   const request = (payload: Parameters<typeof desktop.playbackRequest>[0]) => desktop.playbackRequest(payload)
@@ -104,16 +105,19 @@ export async function startPlaybackClient(): Promise<() => void> {
       const current = store.getState()
       const patch = Object.fromEntries(Object.entries(data).filter(([name]) => name in current && typeof current[name] !== 'function'))
       if (key === 'player') {
-        if ('position' in patch || 'status' in patch) positionReceivedAt = performance.now()
         const next = { ...current, ...patch }
+        const previousTrack = current.currentTrack as { source: string; id: unknown } | null
+        const nextTrack = next.currentTrack as typeof previousTrack
+        const reset = sessionChanged || current.playbackTransport !== next.playbackTransport
+          || current.seekRevision !== next.seekRevision
+          || previousTrack?.source !== nextTrack?.source || String(previousTrack?.id) !== String(nextTrack?.id)
         if (next.playbackTransport === 'musickit') {
-          const previousTrack = current.currentTrack as { source: string; id: unknown } | null
-          const nextTrack = next.currentTrack as typeof previousTrack
-          const reset = sessionChanged || current.playbackTransport !== next.playbackTransport
-            || current.seekRevision !== next.seekRevision
-            || previousTrack?.source !== nextTrack?.source || String(previousTrack?.id) !== String(nextTrack?.id)
           if (reset) appleLyricClock.reset(Number(next.position) || 0, next.status === 'playing', Number(next.duration) || 0)
           else appleLyricClock.update(Number(next.position) || 0, next.status === 'playing', Number(next.duration) || 0)
+        } else {
+          const args = [Number(next.position) || 0, next.status === 'playing', Number(next.duration) || 0, Number(next.rate) || 1] as const
+          if (reset || next.status === 'idle' || next.status === 'ended') audioLyricClock.reset(...args)
+          else audioLyricClock.update(...args)
         }
       }
       store.setState(patch)
@@ -140,6 +144,8 @@ export async function startPlaybackClient(): Promise<() => void> {
       failed = true
       frequency = new Uint8Array(0)
       appleLyricClock.reset(appleLyricClock.read(), false)
+      const player = stores.player.getState()
+      audioLyricClock.reset(audioLyricClock.read(), false, Number(player.duration) || 0, Number(player.rate) || 1)
       stores.player.setState({ status: 'paused' })
       showError(event.error && event.error !== 'PLAYBACK_HOST_GONE' ? event.error : '独立播放器已停止，请重启应用恢复播放')
     }
@@ -190,9 +196,7 @@ export async function startPlaybackClient(): Promise<() => void> {
     const state = player.getState()
     // MusicKit 可能只发送整秒进度，不能用普通音频的半秒插值上限反复停住或回退。
     if (state.playbackTransport === 'musickit') return appleLyricClock.read()
-    const position = typeof state.position === 'number' ? state.position : 0
-    const elapsed = state.status === 'playing' ? Math.min(0.5, Math.max(0, performance.now() - positionReceivedAt) / 1000) : 0
-    return Math.min(Number(state.duration) || Infinity, position + elapsed * (Number(state.rate) || 1))
+    return audioLyricClock.read()
   }
   player.setState({
     _engine: () => ({ get position() { return lyricPosition() } }),

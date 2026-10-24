@@ -5,7 +5,7 @@ import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './track-match'
-import { BROWSE_CACHE_MAX_AGE_MS, requestProviderData } from './provider-request-cache'
+import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
 import type { LyricOrigin } from '../types/lyrics-source'
@@ -77,7 +77,7 @@ export function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
  * 只按已知曲目本身的 ID 查询；跨源匹配先拿到对端曲目，再进入本函数。时间轴超出本曲时长
  * 视为错配版本丢弃；默认失败返回 null，严格查询则保留请求与错配原因。
  */
-export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false): Promise<LyricsResult | null> {
+export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false, refresh = false): Promise<LyricsResult | null> {
   if (hasTimedLyrics(result) || result.source !== track.source || signal?.aborted) return null
   const settings = useSettingsStore.getState()
   if (!settings.lyricsAmllFallback) return null
@@ -87,13 +87,12 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
       ? { platform: 'qq' as const, ids: [qqLyricIdentifiers(track).mid, qqLyricIdentifiers(track).id].map(id => String(id ?? '')), parse: parseQrc }
       : null
   if (!target) return null
-  const host = settings.lyricsAmllHost === 'auto' ? undefined : settings.lyricsAmllHost
   let failure: unknown
   let mismatch = false
   for (const id of new Set(target.ids.filter(Boolean))) {
     if (signal?.aborted) return null
     try {
-      const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id, host }, { signal })
+      const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id, ...(refresh ? { refresh: '1' } : {}) }, { signal })
       const wordLines = typeof rec.text === 'string' ? target.parse(rec.text) : []
       if (signal?.aborted) return null
       if (!wordLines.length) continue
@@ -123,7 +122,7 @@ interface KugouLyricResponse {
  * 酷狗没有可对应的平台 ID，候选以 KRC 自带的歌名（含版本标记）、歌手和时长走同曲校验，
  * 时间轴超出本曲时长同样视为错配；默认失败返回 null，严格查询则保留原因。
  */
-export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false): Promise<LyricsResult | null> {
+export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false, refresh = false): Promise<LyricsResult | null> {
   if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
   if (!useSettingsStore.getState().lyricsKugouFallback) return null
   const title = String(track.name ?? '').trim()
@@ -133,7 +132,7 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   const artist = (names.length ? names.join('、') : String(track.artist ?? '')).trim()
   let rec: KugouLyricResponse
   try {
-    rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)) }, { signal })
+    rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)), ...(refresh ? { refresh: '1' } : {}) }, { signal })
   } catch (error) {
     if (strict) throw error
     return null
@@ -202,6 +201,14 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
   return await upgradeLyricsWithKugou(track, fallback ?? result, signal) ?? (signal?.aborted ? null : fallback)
 }
 
+/** 只读取已完成且未过期的伴随歌词，不发起原生请求。 */
+export function cachedLyrics(track: Track): LyricsResult | undefined {
+  if (track.source !== 'netease' && track.source !== 'qq') return undefined
+  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}`
+  return getCachedProviderData<LyricsResult>(track.source, `${key}:words`)
+    ?? getCachedProviderData<LyricsResult>(track.source, key)
+}
+
 /**
  * 共享网易与 QQ 的歌词请求及解析结果
  *
@@ -209,8 +216,9 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 当前消费者的取消信号
  */
-export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false): Promise<LyricsResult> {
+export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false, refresh = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
+  if (refresh) return loadLyrics(track, sources, signal, wordTiming, strict)
   if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal, wordTiming, strict)
   const source = track.source
   const session = providerAccountSession(source)

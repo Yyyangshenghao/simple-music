@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createPopLyricTimeline, popLiftFactor, popPeakScale, POP_PEAK_SCALE } from './pop-lyric-motion'
+import { createPopLyricTimeline, popLiftFactor, popPeakScale, POP_PEAK_SCALE, type PopMotionTuning } from './pop-lyric-motion'
 import { POP_LEAD_MS } from './pop-lyric-timing'
 import { buildPopWords } from './pop-lyric-timing'
 
@@ -7,7 +7,7 @@ const words = buildPopWords('甲乙', { time: 1, durationMs: 1600, words: [
   { text: '甲', startMs: 0, durationMs: 600 }, { text: '乙', startMs: 700, durationMs: 120 },
 ] }, 2)
 
-function fixture(intensity?: number, peaks?: number[]) {
+function fixture(intensity?: number, peaks?: number[], options: PopMotionTuning = {}) {
   const make = () => {
     const animation = { currentTime: 0 as number | null, pause: vi.fn(), cancel: vi.fn() }
     const element = { animate: vi.fn((_frames: Keyframe[], _options: KeyframeAnimationOptions) => animation) }
@@ -17,14 +17,39 @@ function fixture(intensity?: number, peaks?: number[]) {
   const inks = [make(), make()]
   const accents = [make(), make()]
   const els = (list: ReturnType<typeof make>[]) => list.map(item => item.element) as unknown as HTMLElement[]
-  const timeline = createPopLyricTimeline(els(pops), els(inks), els(accents), words, { intensity, peaks })
-  return { timeline, pops, inks, accents }
+  const scene = make()
+  const timeline = createPopLyricTimeline(els(pops), els(inks), els(accents), words, { intensity, peaks, ...options, scene: options.scene ? scene.element as unknown as HTMLElement : undefined })
+  return { timeline, pops, inks, accents, scene }
 }
 
 const liftOf = (frame: Keyframe) => Number(/translateY\((-?[\d.]+)em\)/.exec(String(frame.transform))![1])
 const scaleOf = (frame: Keyframe) => Number(/scale\(([\d.]+)\)/.exec(String(frame.transform))![1])
 
 describe('跃字逐字动画', () => {
+  it.each(['fold', 'sweep', 'rise'] as const)('%s 构图有各自入场方向，唱完回到相同落位', reveal => {
+    const { pops, timeline } = fixture(1, undefined, { reveal })
+    const frames = pops[0].element.animate.mock.calls[0][0]
+    expect(frames[0].transform).not.toBe(frames[3].transform)
+    expect(frames[0].transform).toContain('rotate')
+    expect(frames[3].transform).toBe('translateY(0em) scale(1)')
+    timeline.dispose()
+  })
+
+  it('镜头与逐字共用媒体时间：暂停重读保持，倒拖回位，销毁时取消', () => {
+    const { timeline, scene } = fixture(1, undefined, { scene: {} as HTMLElement, reveal: 'sweep' })
+    expect(scene.animation.pause).toHaveBeenCalledOnce()
+    timeline.seek(600)
+    expect(scene.animation.currentTime).toBe(600)
+    timeline.seek(600)
+    expect(scene.animation.currentTime).toBe(600)
+    timeline.seek(-100)
+    expect(scene.animation.currentTime).toBe(0)
+    timeline.seek(10000)
+    expect(scene.animation.currentTime).toBe(1200)
+    timeline.dispose()
+    expect(scene.animation.cancel).toHaveBeenCalledOnce()
+  })
+
   it('一种语法：静止 → 放大跃起 → 保持到唱完 → 回落原位；字墨唱到时填满', () => {
     const { pops, inks, timeline } = fixture()
     const frames = pops[0].element.animate.mock.calls[0][0]

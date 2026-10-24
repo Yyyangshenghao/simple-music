@@ -213,7 +213,7 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
   const base = (extra: Partial<LyricsResult> = {}): LyricsResult => ({
     source: 'netease', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '占位译文' }], roma: [], wordLines: [], ...extra
   })
-  beforeEach(() => { useSettingsStore.setState({ lyricsAmllFallback: true, lyricsAmllHost: 'auto' }) })
+  beforeEach(() => { useSettingsStore.setState({ lyricsAmllFallback: true }) })
 
   it('拉取不在 fetchLyrics 路径上，歌词先按行返回', async () => {
     vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙' } as never)
@@ -226,7 +226,7 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     vi.mocked(api.get).mockResolvedValue({ text: yrc } as never)
     const upgraded = await upgradeLyricsWithAmll(song('netease'), base())
     expect(upgraded).toMatchObject({ source: 'netease', origin: 'amll' })
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34', host: undefined }, { signal: undefined })
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34' }, { signal: undefined })
     expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
     expect(upgraded?.aligned[0]?.text).toBe('占位译文')
   })
@@ -242,11 +242,12 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(upgraded?.aligned).toEqual([])
   })
 
-  it('用户指定线路时透传给 server；QQ 用 mid', async () => {
-    useSettingsStore.setState({ lyricsAmllHost: 'gbclstudio' })
+  it('旧存档的线路选择不再透传，交由 server 自动判断；QQ 用 mid', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyricsAmllHost: 'gbclstudio' }) })
+    useSettingsStore.getState().loadFromLocal()
     vi.mocked(api.get).mockResolvedValue({ text: null } as never)
     await upgradeLyricsWithAmll(song('qq'), base({ source: 'qq' }))
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'qq', id: 'qmid', host: 'gbclstudio' }, { signal: undefined })
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'qq', id: 'qmid' }, { signal: undefined })
   })
 
   it('QQ mid 未收录时继续用数字 qqId 查询', async () => {

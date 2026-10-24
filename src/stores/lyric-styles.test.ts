@@ -9,6 +9,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('动态歌词样式存档', () => {
+  it('旧细节仅归档，镜台氛围迁移；修改新玩法不清除旧数值', async () => {
+    storage.set('simplemusic-lyric-styles', JSON.stringify({ style: 'diorama', tunings: {
+      pop: { camera: false, intensity: 1.3 }, fume: { zoom: 1.4 }, diorama: { ripples: true, dust: false, distance: 1.4 },
+    } }))
+    const { useLyricStylesStore: store } = await import('./lyric-styles')
+    expect(store.getState().style).toBe('diorama')
+    expect(store.getState().tunings.diorama).toEqual({ ambience: 'water' })
+    expect(store.getState().tunings.pop).toEqual({ intensity: 1.3 })
+    store.getState().setTuning('pop', { intensity: 1 })
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!).tunings).toMatchObject({
+      pop: { camera: false, intensity: 1 }, fume: { zoom: 1.4 }, diorama: { ambience: 'water', distance: 1.4 },
+    })
+    store.getState().resetTuning('diorama')
+    expect(JSON.parse(storage.get('simplemusic-lyric-styles')!).tunings.diorama).toBeUndefined()
+  })
   it('默认跃字；切换样式与参数会持久化，非法参数被丢弃', async () => {
     const { useLyricStylesStore: store } = await import('./lyric-styles')
     expect(store.getState().style).toBe('pop')
@@ -76,19 +91,15 @@ describe('动态歌词样式存档', () => {
     expect(store.getState().style).toBe('stage3d')
   })
 
-  it('旧版 3D 用户迁移时清掉残留的模组选择，跃字用户保留', async () => {
-    storage.set('simplemusic-settings', JSON.stringify({ lyricsPanelMode: '3d' }))
-    storage.set('simplemusic-lyric-mods', JSON.stringify({ selectedId: 'cinerama', values: { cinerama: { a: 1 } } }))
-    const { useSettingsStore } = await import('./settings')
-    useSettingsStore.getState().loadFromLocal()
-    expect(JSON.parse(storage.get('simplemusic-lyric-mods')!)).toEqual({ selectedId: null, values: { cinerama: { a: 1 } } })
-  })
-
-  it('旧版跃字用户的模组选择保持不变', async () => {
-    storage.set('simplemusic-settings', JSON.stringify({ lyricsPanelMode: 'pop' }))
+  it.each([['3d', 'stage3d'], ['pop', 'pop']])('旧版 %s 用户的模组残留不影响内置样式', async (mode, expected) => {
+    storage.set('simplemusic-settings', JSON.stringify({ lyricsPanelMode: mode }))
     storage.set('simplemusic-lyric-mods', JSON.stringify({ selectedId: 'cinerama', values: {} }))
     const { useSettingsStore } = await import('./settings')
     useSettingsStore.getState().loadFromLocal()
-    expect(JSON.parse(storage.get('simplemusic-lyric-mods')!).selectedId).toBe('cinerama')
+    const { useLyricStylesStore: store } = await import('./lyric-styles')
+    const { resolveLyricsView } = await import('../lib/lyric-style-catalog')
+    expect(resolveLyricsView({ mode: useSettingsStore.getState().lyricsPanelMode,
+      style: store.getState().style })).toBe(expected)
   })
+
 })

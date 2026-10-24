@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Track } from '../types/domain'
-import { LYRIC_ORIGINS, type LyricOrigin, type LyricSourcePreference, type LyricSourceCandidate, type RememberedLyricSource, type LyricSourceActions } from '../types/lyrics-source'
+import { LYRIC_ORIGINS, LYRIC_PRIORITY_SOURCES, type LyricPrioritySource, type LyricSourceHealth, type LyricSourceProbe, type LyricOrigin, type LyricSourcePreference, type LyricSourceCandidate, type RememberedLyricSource, type LyricSourceActions } from '../types/lyrics-source'
 import { useToastStore } from './toast'
 
 export const LYRICS_SOURCE_STORAGE_KEY = 'simplemusic-lyrics-source-v1'
@@ -10,6 +10,11 @@ let handlers: LyricSourceActions | undefined
 
 interface LyricsSourceStore extends LyricSourceActions {
   defaultSource: LyricSourcePreference
+  sourceOrder: LyricPrioritySource[] | null
+  health: Partial<Record<LyricPrioritySource, LyricSourceHealth>>
+  probes: Partial<Record<LyricPrioritySource, LyricSourceProbe>>
+  setSourceOrder(order: LyricPrioritySource[]): void
+  forgetTrack(key: string): void
   remembered: Record<string, RememberedLyricSource>
   candidates: LyricSourceCandidate[]
   candidateTrackKey: string | null
@@ -51,9 +56,9 @@ export function lyricMatchReference(value: unknown): Track | undefined {
   return result
 }
 
-function write(defaultSource: LyricSourcePreference, remembered: Record<string, RememberedLyricSource>): boolean {
+function write(defaultSource: LyricSourcePreference, remembered: Record<string, RememberedLyricSource>, sourceOrder = useLyricsSourceStore.getState().sourceOrder): boolean {
   try {
-    const value = JSON.stringify({ schema: 1, defaultSource, remembered })
+    const value = JSON.stringify({ schema: 2, defaultSource, sourceOrder, remembered })
     localStorage.setItem(LYRICS_SOURCE_STORAGE_KEY, value)
     if (localStorage.getItem(LYRICS_SOURCE_STORAGE_KEY) !== value) return false
     return true
@@ -61,13 +66,21 @@ function write(defaultSource: LyricSourcePreference, remembered: Record<string, 
 }
 
 /** 只由播放宿主启动时读取；UI 从宿主快照恢复，不能回写旧分区偏好。 */
+export function normalizeLyricsSourceOrder(value: unknown, preferred?: LyricSourcePreference): LyricPrioritySource[] {
+  const stored = Array.isArray(value) ? value.filter((item): item is LyricPrioritySource => LYRIC_PRIORITY_SOURCES.includes(item as LyricPrioritySource)) : []
+  if (!stored.length && LYRIC_PRIORITY_SOURCES.includes(preferred as LyricPrioritySource)) stored.push(preferred as LyricPrioritySource)
+  return Array.from(new Set([...stored, ...LYRIC_PRIORITY_SOURCES]))
+}
+
 export function loadLyricsSourcePreferences(): void {
   let defaultSource: LyricSourcePreference = 'auto'
   let remembered: Record<string, RememberedLyricSource> = {}
+  let sourceOrder = normalizeLyricsSourceOrder(null)
   try {
     const archive = JSON.parse(localStorage.getItem(LYRICS_SOURCE_STORAGE_KEY) ?? 'null')
-    if (archive?.schema === 1) {
+    if (archive?.schema === 1 || archive?.schema === 2) {
       if (preferences.includes(archive.defaultSource)) defaultSource = archive.defaultSource
+      sourceOrder = normalizeLyricsSourceOrder(archive.sourceOrder, defaultSource)
       if (archive.remembered && typeof archive.remembered === 'object' && !Array.isArray(archive.remembered)) {
         remembered = Object.fromEntries(Object.entries(archive.remembered).slice(0, MAX_REMEMBERED).flatMap(([key, value]) => {
           const entry = value as RememberedLyricSource | null
@@ -77,7 +90,7 @@ export function loadLyricsSourcePreferences(): void {
       }
     }
   } catch { /* 旧存档不可读时沿用自动选择，不阻止播放。 */ }
-  useLyricsSourceStore.setState({ defaultSource, remembered })
+  useLyricsSourceStore.setState({ defaultSource, sourceOrder, remembered })
 }
 
 export function rememberLyricsSource(key: string, entry: RememberedLyricSource | null): boolean {
@@ -102,8 +115,22 @@ function runtime(): LyricSourceActions {
 }
 
 export const useLyricsSourceStore = create<LyricsSourceStore>((set, get) => ({
-  defaultSource: 'auto', remembered: {}, candidates: [], candidateTrackKey: null, candidateToken: null,
+  defaultSource: 'auto', sourceOrder: null, health: {}, probes: {}, remembered: {}, candidates: [], candidateTrackKey: null, candidateToken: null,
   appliedOrigin: null, requestedOrigin: 'auto', fallbackReason: null, appliedPreference: 'auto',
+  setSourceOrder(order) {
+    if (!Array.isArray(order) || order.length !== LYRIC_PRIORITY_SOURCES.length || new Set(order).size !== order.length
+      || order.some(item => !LYRIC_PRIORITY_SOURCES.includes(item))) throw new Error('无效的歌词来源顺序')
+    // 存档成功后再发布新偏好，避免宿主和界面看见未保存的顺序。
+    if (!write('auto', get().remembered, order)) { useToastStore.getState().show('无法保存歌词来源顺序，请重试'); return }
+    set({ sourceOrder: [...order], defaultSource: 'auto' })
+  },
+  forgetTrack(key) {
+    if (!rememberLyricsSource(key, null)) useToastStore.getState().show('无法清除这首歌的来源选择，请重试')
+  },
+  async testSource(source, sample) {
+    if (!LYRIC_PRIORITY_SOURCES.includes(source) || !['sunny', 'ocean'].includes(sample)) throw new Error('无效的歌词测试')
+    return runtime().testSource(source, sample)
+  },
   setDefaultSource(value) {
     if (!preferences.includes(value)) throw new Error('无效的默认歌词来源')
     if (get().defaultSource === value) return

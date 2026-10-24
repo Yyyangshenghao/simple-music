@@ -46,7 +46,13 @@
   --sm-dialog-action-height: 36px;
   --sm-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
+  /* 带轻微过冲的落位曲线：开关圆点、小型指示器 */
+  --sm-ease-overshoot: cubic-bezier(0.34, 1.45, 0.5, 1);
   --sm-text-on-accent: #0c0c0c;
+  /* 开关：深色下开态轨道为亮色、圆点反转为深色，关态圆点保持浅色凸起 */
+  --sm-switch-track-off: rgba(255, 255, 255, 0.12);
+  --sm-switch-knob-off:  rgba(255, 255, 255, 0.86);
+  --sm-switch-knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.35);
 
   /* 字体:用户可在设置里自定义,留空则用此默认系统字体栈 */
   --sm-font-sans:      -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -102,6 +108,10 @@
     --sm-fill-active:    rgba(0, 0, 0, 0.10);
     --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.12);
     --sm-text-on-accent: #ffffff;
+    /* 开关：浅色下圆点始终为白色凸起，靠阴影与轨道区分层次 */
+    --sm-switch-track-off: rgba(0, 0, 0, 0.11);
+    --sm-switch-knob-off:  #ffffff;
+    --sm-switch-knob-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.16), 0 3px 8px rgba(0, 0, 0, 0.10);
 
     --sm-color-success:  #166534;
     --sm-color-danger:   #b91c1c;
@@ -143,6 +153,10 @@
   --sm-fill-active:    rgba(0, 0, 0, 0.10);
   --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.12);
   --sm-text-on-accent: #ffffff;
+  /* 开关：浅色下圆点始终为白色凸起，靠阴影与轨道区分层次 */
+  --sm-switch-track-off: rgba(0, 0, 0, 0.11);
+  --sm-switch-knob-off:  #ffffff;
+  --sm-switch-knob-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.16), 0 3px 8px rgba(0, 0, 0, 0.10);
 
   --sm-color-success:  #166534;
   --sm-color-danger:   #b91c1c;
@@ -182,6 +196,10 @@
   --sm-fill-active:    rgba(255, 255, 255, 0.14);
   --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.60);
   --sm-text-on-accent: #0c0c0c;
+  /* 开关：深色下开态轨道为亮色、圆点反转为深色，关态圆点保持浅色凸起 */
+  --sm-switch-track-off: rgba(255, 255, 255, 0.12);
+  --sm-switch-knob-off:  rgba(255, 255, 255, 0.86);
+  --sm-switch-knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.35);
 
   --sm-color-success:  #7fdca4;
   --sm-color-danger:   #ff8b8b;

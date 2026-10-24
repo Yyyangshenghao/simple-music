@@ -1,19 +1,67 @@
+/* 尺寸集中在变量里：圆点行程 = 轨道宽 - 2×内边距 - 圆点直径 */
 .track {
+  --sw-w: 40px;
+  --sw-h: 24px;
+  --sw-pad: 3px;
+  --sw-knob: calc(var(--sw-h) - var(--sw-pad) * 2);
+  --sw-travel: calc(var(--sw-w) - var(--sw-pad) * 2 - var(--sw-knob));
+  --sw-stretch: 5px;
+  /* 开态轨道混入少量封面主色，跟随氛围色变化但仍以单色强调为主 */
+  --sw-on: color-mix(in srgb, var(--sm-accent) 90%, var(--ambient-1));
+
   position: relative;
-  width: 38px;
-  height: 22px;
+  width: var(--sw-w);
+  height: var(--sw-h);
   flex-shrink: 0;
-  padding: 2px;
-  border: 1px solid var(--sm-border);
+  padding: 0;
+  border: none;
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-base);
+  background: var(--sm-switch-track-off);
+  box-shadow:
+    inset 0 0 0 1px var(--sm-border),
+    inset 0 1px 2px rgba(0, 0, 0, 0.18);
   cursor: pointer;
-  transition: background 150ms var(--sm-ease-out), border-color 150ms var(--sm-ease-out);
+  isolation: isolate;
+  transition:
+    background-color 240ms var(--sm-ease-out),
+    box-shadow 240ms var(--sm-ease-out),
+    transform 160ms var(--sm-ease-out);
+}
+
+/* 开态顶部高光：单独一层做透明度过渡，避免渐变背景无法插值 */
+.track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 70%);
+  opacity: 0;
+  transition: opacity 240ms var(--sm-ease-out);
+}
+
+.track:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sm-switch-track-off), var(--sm-text-primary) 8%);
+}
+
+.track:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .track.on {
-  background: var(--sm-accent);
-  border-color: var(--sm-accent);
+  background: var(--sw-on);
+  box-shadow:
+    inset 0 0 0 1px transparent,
+    0 0 0 0 transparent,
+    0 2px 10px -3px color-mix(in srgb, var(--sw-on) 55%, transparent);
+}
+
+.track.on::before {
+  opacity: 1;
+}
+
+.track.on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sw-on), var(--sm-text-on-accent) 8%);
 }
 
 .track:disabled {
@@ -21,16 +69,51 @@
   cursor: not-allowed;
 }
 
-.thumb {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+.knob {
+  position: absolute;
+  top: var(--sw-pad);
+  left: var(--sw-pad);
+  width: var(--sw-knob);
+  height: var(--sw-knob);
+  border-radius: var(--sm-radius-pill);
+  background-color: var(--sm-switch-knob-off);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 60%);
+  box-shadow: var(--sm-switch-knob-shadow);
+  pointer-events: none;
+  transition:
+    transform 420ms var(--sm-ease-overshoot),
+    width 220ms var(--sm-ease-out),
+    background-color 240ms var(--sm-ease-out);
 }
 
-.track.on .thumb {
-  margin-left: 16px;
-  background: var(--sm-text-on-accent);
+.track.on .knob {
+  transform: translateX(var(--sw-travel));
+  background-color: var(--sm-text-on-accent);
+}
+
+/* 按住时圆点朝行进方向拉长，松手后弹回圆形 */
+.track:active:not(:disabled) .knob {
+  width: calc(var(--sw-knob) + var(--sw-stretch));
+}
+
+.track.on:active:not(:disabled) .knob {
+  transform: translateX(calc(var(--sw-travel) - var(--sw-stretch)));
+}
+
+.ripple {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: sw-ripple 560ms var(--sm-ease-out) forwards;
+}
+
+@keyframes sw-ripple {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sm-accent) 32%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--sm-accent) 0%, transparent);
+  }
 }

@@ -1,15 +1,14 @@
 import { POP_LEAD_MS, type PopWord } from './pop-lyric-timing'
+import type { PopReveal } from './pop-lyric-layout'
 
 /**
- * 跃字的逐字动画：一种语法——跃起、演唱保持、回落。
- * 未唱的字只留淡字影（由 CSS 的字影层显示，播放时更轻）；轮到时字墨填满，字放大并跃起、换上强调色，
+ * 跃字的逐字动画：按构图旋入、演唱保持、回落。
+ * 未唱的字透明占位；轮到时字墨填满，字放大并跃起、换上强调色，
  * 成为画面的形态重心；唱完回落到原位成实字，强调色随即褪去，重心交给下一个字。
  * 幅度随该字演唱时长收敛：快字只轻点一下，长音一直保持在跃起位，唱完才回落。
  * 全部由媒体时间定位（暂停、拖动、倒拖都准确），同一句每次进入的动画完全一致。
  */
 
-/** 暂停时未唱字影的不透明度（与 CSS 的 --pop-ghost 默认值一致） */
-export const POP_GHOST_OPACITY = 0.3
 /** 演唱字的目标峰值放大量；实际值受相邻字的空隙限制，见 popPeakScale */
 export const POP_PEAK_SCALE = 1.15
 /** 回落用时：要短，重心尽快交给下一个字 */
@@ -26,6 +25,8 @@ const LIFT_EM = 0.12
 export interface PopMotionTuning {
   intensity?: number
   peaks?: readonly number[]
+  reveal?: PopReveal
+  scene?: HTMLElement
 }
 
 /** 演唱时长对应的幅度系数：快字收敛，320ms 以上为满幅。 */
@@ -56,8 +57,15 @@ export function createPopLyricTimeline(pops: HTMLElement[], inks: HTMLElement[],
     const peak = tuning.peaks?.[index] ?? popPeakScale(1, Infinity, k)
     const up = `translateY(${(-LIFT_EM * factor * k).toFixed(3)}em) scale(${(1 + (peak - 1) * factor).toFixed(3)})`
     const rest = 'translateY(0em) scale(1)'
+    // 三种构图共用演唱保持/回落，只在入场时改变方向；落定后不残留随机歪字。
+    const side = index % 2 ? -1 : 1
+    const entrance = tuning.reveal === 'sweep'
+      ? `translate(${side * 0.34 * k}em, ${0.08 * k}em) rotate(${-side * 4 * k}deg) scale(0.92)`
+      : tuning.reveal === 'fold'
+        ? `translateY(${0.3 * k}em) rotate(${-3 * k}deg) scale(0.84)`
+        : tuning.reveal === 'rise' ? `translateY(${0.35 * k}em) rotate(${side * 3 * k}deg) scale(0.94)` : rest
     const pop = pops[index].animate([
-      { transform: rest },
+      { transform: entrance, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
       { transform: up, offset: rise / duration, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
       { transform: up, offset: held / duration, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' },
       { transform: rest },
@@ -80,9 +88,20 @@ export function createPopLyricTimeline(pops: HTMLElement[], inks: HTMLElement[],
     accent.pause()
     return { word, animations: [pop, ink, accent], durations: [duration, duration, accentDuration] }
   })
+  // 镜头与字使用同一媒体时间：暂停不漂移，倒拖时精确回到原构图。
+  const sceneDuration = Math.max(1200, ...words.map(word => word.startMs + word.durationMs))
+  const camera = tuning.scene?.animate([
+    { transform: `translateX(${0.1 * k}em) scale(0.99) rotate(-0.25deg)` },
+    { transform: `translateX(${-0.1 * k}em) scale(1.015) rotate(0.25deg)` },
+  ], { duration: sceneDuration, fill: 'both', easing: 'linear' })
+  camera?.pause()
   return {
     seek(elapsed: number) {
       if (!Number.isFinite(elapsed)) return
+      if (camera) {
+        const at = Math.min(sceneDuration, Math.max(0, elapsed))
+        if (camera.currentTime !== at) camera.currentTime = at
+      }
       for (const entry of entries) {
         const local = elapsed - entry.word.startMs + POP_LEAD_MS
         entry.animations.forEach((animation, i) => {
@@ -92,6 +111,7 @@ export function createPopLyricTimeline(pops: HTMLElement[], inks: HTMLElement[],
       }
     },
     dispose() {
+      camera?.cancel()
       entries.forEach(({ animations }) => animations.forEach(animation => animation.cancel()))
     },
   }

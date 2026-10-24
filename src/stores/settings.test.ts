@@ -101,20 +101,20 @@ afterEach(() => {
 })
 
 describe('3D 歌词帧率', () => {
-  it('默认 120 FPS，旧存档的 60 FPS 加载后提升到 120', () => {
+  it('默认 120 FPS，旧存档的 60 FPS 保留为省电选择', () => {
     expect(DEFAULT_LYRICS_3D.fpsCap).toBe(120)
     vi.stubGlobal('localStorage', {
       getItem: vi.fn((key: string) => key === SETTINGS_STORAGE_KEY ? JSON.stringify({ lyrics3d: { fpsCap: 60 } }) : null),
       setItem: vi.fn()
     })
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(120)
+    expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(60)
   })
 
-  it('有限帧率至少 120 FPS，仍允许不限帧', () => {
+  it('有限帧率至少 30 FPS，支持省电档并仍允许不限帧', () => {
     vi.stubGlobal('localStorage', { setItem: vi.fn() })
     useSettingsStore.getState().setLyrics3dParams({ fpsCap: 30 })
-    expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(120)
+    expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(30)
     useSettingsStore.getState().setLyrics3dParams({ fpsCap: 0 })
     expect(useSettingsStore.getState().lyrics3d.fpsCap).toBe(0)
   })
@@ -139,16 +139,7 @@ describe('界面动效预设', () => {
     }
   })
 
-  it('切换预设不会改变 3D 歌词总开关', () => {
-    vi.stubGlobal('localStorage', { setItem: vi.fn() })
-    useSettingsStore.getState().setPerformance({ lyrics3dEnabled: false })
-    useSettingsStore.getState().applyPerformancePreset('standard')
-    expect(useSettingsStore.getState().performance.lyrics3dEnabled).toBe(false)
 
-    useSettingsStore.getState().setPerformance({ lyrics3dEnabled: true })
-    useSettingsStore.getState().applyPerformancePreset('minimal')
-    expect(useSettingsStore.getState().performance.lyrics3dEnabled).toBe(true)
-  })
 })
 
 describe('视觉设置解耦与升级', () => {
@@ -156,11 +147,12 @@ describe('视觉设置解耦与升级', () => {
     let saved = JSON.stringify({ performance: { bgFluidMotion: false, lyrics3dEnabled: false } })
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
     useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance).not.toHaveProperty('lyrics3dEnabled')
     expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion: false, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: false })
     useSettingsStore.getState().setPerformance({ reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false })
     useSettingsStore.setState(initialState, true)
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, lyrics3dEnabled: false })
+    expect(useSettingsStore.getState().performance).toMatchObject({ reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false })
   })
   it.each([true, false])('旧组合开关为 %s 时，新选项继承原选择，废弃火花不再保存', (enabled) => {
     let saved = JSON.stringify({ performance: { cardTiltEffect: enabled, bgFluidMotion: enabled, clickSparkEffect: true } })
@@ -186,7 +178,7 @@ describe('视觉设置解耦与升级', () => {
 })
 
 describe('3D 歌词数值恢复', () => {
-  it('恢复默认数值也恢复简洁叠层模糊，并保留场景和文字风格', () => {
+  it('恢复默认数值保留旧版底衬兼容值、场景和文字风格', () => {
     const setItem = vi.fn()
     vi.stubGlobal('localStorage', { setItem })
     const settings = useSettingsStore.getState()
@@ -218,4 +210,36 @@ describe('3D 歌词数值恢复', () => {
       expect(useSettingsStore.getState().lyrics3dStyle).toBe('storyboard')
     }
   })
+})
+
+
+describe('粒光荡漾幅度', () => {
+  it.each([0, 1, 6])('迁移旧数量 %s，保留关闭意图，其余使用默认幅度', count => {
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyrics3d: { rippleCount: count } }), setItem: vi.fn() })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyrics3d.rippleAmplitude).toBe(count === 0 ? 0 : 0.5)
+    expect(useSettingsStore.getState().lyrics3d).not.toHaveProperty('rippleCount')
+  })
+
+  it('新幅度优先保留，修改后持久化并约束范围', () => {
+    const save = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ lyrics3d: { rippleCount: 0, rippleAmplitude: 0.8 } }), setItem: save })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyrics3d.rippleAmplitude).toBe(0.8)
+    useSettingsStore.getState().setLyrics3dParams({ rippleAmplitude: 2 })
+    expect(useSettingsStore.getState().lyrics3d.rippleAmplitude).toBe(1)
+    expect(JSON.parse(save.mock.calls.at(-1)![1]).lyrics3d.rippleAmplitude).toBe(1)
+  })
+})
+
+
+it('忽略旧版手动线路偏好，保存其他设置时不再写回', () => {
+  let saved = JSON.stringify({ lyricsAmllHost: 'gbclstudio', lyricsFontScale: 1.2 })
+  vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+  useSettingsStore.getState().loadFromLocal()
+  expect(useSettingsStore.getState()).not.toHaveProperty('lyricsAmllHost')
+  expect(useSettingsStore.getState().lyricsFontScale).toBe(1.2)
+  useSettingsStore.getState().saveToLocal()
+  expect(JSON.parse(saved)).not.toHaveProperty('lyricsAmllHost')
+  expect(JSON.parse(saved).lyricsFontScale).toBe(1.2)
 })

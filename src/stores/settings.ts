@@ -60,7 +60,7 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
   particleBrightness: 1,
   glowStrength: 1,
   motionIntensity: 1,
-  rippleCount: 6,
+  rippleAmplitude: 0.5,
   rippleSensitivity: 0.5,
   rippleDuration: 0.55,
   fpsCap: 120,
@@ -73,7 +73,6 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   lyricsWordMotion: true,
   bgFluidMotion: true,
   bgPointerMotion: true,
-  lyrics3dEnabled: true,
   cardTiltEffect: true,
   cardSpotlightEffect: true,
   gradientTextMotion: true,
@@ -83,21 +82,17 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
 
 function normalizeLyrics3dFpsCap(fps: number): number {
   if (fps === 0) return 0
-  return Number.isFinite(fps) ? Math.max(120, Math.round(fps)) : 120
+  return Number.isFinite(fps) ? Math.max(30, Math.round(fps)) : 120
 }
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 
 /** 动效预设控制界面与装饰效果；透明度与 3D 歌词保持独立。 */
-export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'lyrics3dEnabled' | 'reduceTransparency'>> = {
+export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'reduceTransparency'>> = {
   standard: { reduceMotion: false, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
   simple: { reduceMotion: false, textRevealMotion: false, lyricsWordMotion: true, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
   minimal: { reduceMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
-
-/** AMLL 逐字歌词库线路选项，与 server/lib/amll-lyrics.ts 的 AMLL_HOSTS id 一致。 */
-export const AMLL_HOST_PREFERENCES = ['auto', 'github', 'gbclstudio', 'bikonoo'] as const
-export type AmllHostPreference = typeof AMLL_HOST_PREFERENCES[number]
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
@@ -129,8 +124,6 @@ interface PersistedSettings {
   lyricsAmllFallback: boolean
   /** 以上来源都没有逐字时序时，按歌名、歌手与时长去酷狗歌词库补全；会向酷狗发送这三项。 */
   lyricsKugouFallback: boolean
-  /** AMLL 逐字歌词库的优先线路；auto 按 GitHub → 社区镜像自动切换并记住可用线路。 */
-  lyricsAmllHost: AmllHostPreference
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
@@ -193,7 +186,6 @@ interface SettingsStore extends PersistedSettings {
   setLyricsShowRoma(v: boolean): void
   setLyricsAmllFallback(v: boolean): void
   setLyricsKugouFallback(v: boolean): void
-  setLyricsAmllHost(v: AmllHostPreference): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setContentLayout(layout: 'framed' | 'full'): void
@@ -243,7 +235,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsShowRoma: true,
   lyricsAmllFallback: true,
   lyricsKugouFallback: true,
-  lyricsAmllHost: 'auto',
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   contentLayout: 'framed',
@@ -315,7 +306,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setLyrics3dStyle(style) {
     // 同步旧字段，保持降级到旧版时仍能回到最接近的歌词形态。
-    set({ lyrics3dStyle: style, lyricsStage3d: style !== 'focus' })
+    set({ lyrics3dStyle: (style as string) === 'focus' ? 'smooth' : style, lyricsStage3d: true })
     get().saveToLocal()
   },
   setLyricsOverlayBlur(v) {
@@ -323,13 +314,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   setLyricsStage3d(v) {
-    set({ lyricsStage3d: v, lyrics3dStyle: v ? 'float' : 'focus' })
+    set({ lyricsStage3d: true, lyrics3dStyle: v ? 'float' : 'smooth' })
     get().saveToLocal()
   },
   setLyrics3dParams(patch) {
     set({ lyrics3d: {
       ...get().lyrics3d,
       ...patch,
+      ...(patch.rippleAmplitude === undefined ? null : { rippleAmplitude: Math.max(0, Math.min(1, Number.isFinite(patch.rippleAmplitude) ? patch.rippleAmplitude : DEFAULT_LYRICS_3D.rippleAmplitude)) }),
       ...(patch.fpsCap === undefined ? null : { fpsCap: normalizeLyrics3dFpsCap(patch.fpsCap) })
     } })
     get().saveToLocal()
@@ -370,10 +362,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setLyricsKugouFallback(v) {
     set({ lyricsKugouFallback: v })
-    get().saveToLocal()
-  },
-  setLyricsAmllHost(v) {
-    set({ lyricsAmllHost: v })
     get().saveToLocal()
   },
   setLyricsShowRoma(v) {
@@ -453,8 +441,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsAmllHost, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsAmllHost, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -471,18 +459,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         // 单独兜住：迁移写入失败不能让整份设置退回默认值。
         try {
           localStorage.setItem('simplemusic-lyric-styles', JSON.stringify({ style: legacyMode === '3d' ? 'stage3d' : 'pop', tunings: {} }))
-          // 旧版只在跃字下显示模组，3D 用户残留的模组选择不应在升级后突然覆盖 3D。
-          const mods = JSON.parse(localStorage.getItem('simplemusic-lyric-mods') ?? 'null') as { selectedId?: unknown } | null
-          if (legacyMode === '3d' && mods?.selectedId) localStorage.setItem('simplemusic-lyric-mods', JSON.stringify({ ...mods, selectedId: null }))
         } catch { /* 存储不可用时样式 store 仍会按旧设置回读。 */ }
       }
       const platform = typeof window !== 'undefined' ? window.desktop?.platform ?? 'win32' : 'win32'
       const storedLyricsStyle: Lyrics3dStyle = (() => {
         const value = data.lyrics3dStyle as unknown
         if (value === 'stage') return 'float'
-        if (value === 'cascade') return 'smooth'
-        if (value === 'storyboard' || value === 'glass' || value === 'smooth' || value === 'float' || value === 'quick' || value === 'shine' || value === 'glitch' || value === 'focus') return value
-        return data.lyricsStage3d === false ? 'focus' : 'float'
+        if (value === 'cascade' || value === 'focus') return 'smooth'
+        if (value === 'storyboard' || value === 'glass' || value === 'smooth' || value === 'float' || value === 'quick' || value === 'shine' || value === 'glitch') return value
+        return data.lyricsStage3d === false ? 'smooth' : 'float'
       })()
       set({
         // 旧版默认写入空列表但没有配置入口；升级补上默认键。新版空列表表示主动清除。
@@ -502,20 +487,24 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyrics3dEffect: 'cover-cloud',
         lyrics3dStyle: storedLyricsStyle,
         lyricsOverlayBlur: data.lyricsOverlayBlur ?? 0.4,
-        lyricsStage3d: storedLyricsStyle !== 'focus',
+        lyricsStage3d: true,
         // 与默认值合并:旧存档缺少新增参数时取默认,保证升级后字段完整
-        lyrics3d: {
-          ...DEFAULT_LYRICS_3D,
-          ...data.lyrics3d,
-          fpsCap: normalizeLyrics3dFpsCap(data.lyrics3d?.fpsCap ?? DEFAULT_LYRICS_3D.fpsCap)
-        },
+        lyrics3d: (() => {
+          const { rippleCount: legacyCount, ...stored } = (data.lyrics3d ?? {}) as Partial<Lyrics3dParams> & { rippleCount?: number }
+          const amplitude = stored.rippleAmplitude ?? (legacyCount === 0 ? 0 : DEFAULT_LYRICS_3D.rippleAmplitude)
+          return {
+            ...DEFAULT_LYRICS_3D,
+            ...stored,
+            rippleAmplitude: Math.max(0, Math.min(1, Number.isFinite(amplitude) ? amplitude : DEFAULT_LYRICS_3D.rippleAmplitude)),
+            fpsCap: normalizeLyrics3dFpsCap(stored.fpsCap ?? DEFAULT_LYRICS_3D.fpsCap)
+          }
+        })(),
         lyricsFontScale: data.lyricsFontScale ?? 1,
         lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT, ...data.lyricsLayout },
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
         lyricsAmllFallback: data.lyricsAmllFallback ?? true,
         lyricsKugouFallback: data.lyricsKugouFallback ?? true,
-        lyricsAmllHost: (AMLL_HOST_PREFERENCES as readonly unknown[]).includes(data.lyricsAmllHost) ? data.lyricsAmllHost : 'auto',
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
@@ -533,8 +522,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         // 关掉了流光呼吸(极简/自定义省电组合)的用户,默认也不要音频辉光
         performance: (() => {
           // 旧存档字段可能不全,按 Partial 处理
-          // 移除旧全局火花；新拆出的跟随/光斑继承旧组合选择，已单独配置时原样保留。
-          const { clickSparkEffect: _removed, ...stored } = (data.performance ?? {}) as Partial<PerformanceFlags> & { clickSparkEffect?: boolean }
+          // 移除旧全局火花和立体歌词总开关；跟随/光斑继承旧组合选择，已单独配置时原样保留。
+          const { clickSparkEffect: _removed, lyrics3dEnabled: _removed3dGate, ...stored } = (data.performance ?? {}) as Partial<PerformanceFlags> & { clickSparkEffect?: boolean; lyrics3dEnabled?: boolean }
           return {
             ...DEFAULT_PERFORMANCE,
             ...stored,

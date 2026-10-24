@@ -61,6 +61,10 @@ export const LYRIC_STYLE_VIEWS: Record<LyricStyleId, LyricStyleView> = {
   },
   stage3d: {
     Settings: Stage3dSettings,
-    glyph: glyph(<><path d="M10 28l22-10 22 10-22 8z" opacity=".55" /><path d="M18 16h28M22 10h20" /><circle cx="14" cy="8" r="1.2" /><circle cx="52" cy="12" r="1" /></>),
+    glyph: glyph(<>
+      <rect x="18" y="5" width="28" height="30" rx="2" opacity=".25" />
+      {Array.from({ length: 25 }, (_, i) => <circle key={i} cx={22 + i % 5 * 5} cy={10 + Math.floor(i / 5) * 5} r={i % 3 ? 0.65 : 1.1} fill="currentColor" stroke="none" opacity={0.35 + (i % 4) * 0.2} />)}
+      <circle cx="11" cy="15" r="1" opacity=".5" /><circle cx="52" cy="26" r="1.2" opacity=".6" />
+    </>),
   },
 }

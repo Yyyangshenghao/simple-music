@@ -21,7 +21,7 @@ vi.mock('../../../stores/player', () => ({ usePlayerStore: { getState: () => ({ 
 vi.mock('../../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }))
 vi.mock('../../../stores/lyric-styles', async () => {
   const catalog = await vi.importActual<typeof import('../../../lib/lyric-style-catalog')>('../../../lib/lyric-style-catalog')
-  return { useLyricStyleTuning: (id: 'partita' | 'fume' | 'tempera' | 'sonnet' | 'diorama') => catalog.resolveTuning(catalog.lyricStyleInfo(id).tuning, h.tunings[id]) }
+  return { useLyricStyleTuning: (id: 'partita' | 'fume' | 'tempera' | 'sonnet' | 'diorama') => catalog.resolveStyleTuning(id, h.tunings[id]) }
 })
 
 beforeEach(() => {

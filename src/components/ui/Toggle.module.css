@@ -8,38 +8,7 @@
 
 .label { opacity: 0.82; }
 
-.track {
-  position: relative;
-  width: 40px;
-  height: 22px;
-  border-radius: 999px;
-  border: none;
-  background: var(--sm-bg-overlay);
-  cursor: pointer;
-  transition: background 0.2s ease;
-  padding: 0;
-}
+.disabled { pointer-events: none; }
 
-.on { background: var(--sm-accent); }
-
-.thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--sm-accent);
-  transition: transform 0.2s ease;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.30);
-}
-
-.on .thumb {
-  transform: translateX(18px);
-  background: var(--sm-text-on-accent);
-}
-
-.disabled {
-  opacity: 0.4;
-  pointer-events: none;
-}
+/* 开关本身已降透明度，这里只把文字同步变灰，避免叠加成双倍淡化 */
+.disabled .label { opacity: 0.4; }
