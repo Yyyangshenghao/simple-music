@@ -8,6 +8,7 @@ import { usePlayerStore } from '../stores/player'
 import { useProviderStore } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import { useGameModeStore } from '../stores/game-mode'
+import { usePlaylistStore } from '../stores/playlist'
 import { advanceProviderAccountSession } from './provider-account-session'
 
 const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), query: vi.fn(), available: vi.fn() }))
@@ -276,10 +277,12 @@ describe('四来源完整顺序', () => {
 
   it('依完整顺序回退，取得歌词即停止且不被低优先补全覆盖', async () => {
     h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => origin === 'kugou'
-      ? { status: 'ready', result: result(origin) } : { status: 'empty', message: '未收录' })
+      ? { status: 'ready', result: result(origin) } : origin === 'netease' ? new Promise(() => {}) : { status: 'empty', message: '未收录' })
     stop = initLyricsLoader()
     await flush()
-    expect(h.query.mock.calls.map(call => call[1])).toEqual(['qq', 'amll', 'kugou'])
+    // 并发探测全部来源，前面都未收录时落定到酷狗，并取消排在其后的网易。
+    expect(h.query.mock.calls.map(call => call[1])).toEqual(['qq', 'amll', 'kugou', 'netease'])
+    expect((h.query.mock.calls[3][3] as AbortSignal).aborted).toBe(true)
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('kugou')
     expect(h.fetch).not.toHaveBeenCalled()
     expect(h.upgrade).not.toHaveBeenCalled()
@@ -291,7 +294,7 @@ describe('四来源完整顺序', () => {
       ? { status: 'error', message: '连接失败' } : { status: 'ready', result: result(origin) })
     stop = initLyricsLoader()
     await flush()
-    expect(h.query.mock.calls.map(call => call[1])).toEqual(['netease', 'qq'])
+    expect(h.query.mock.calls.map(call => call[1])).toEqual(['netease', 'qq', 'amll', 'kugou'])
     expect(useLyricsSourceStore.getState()).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'netease', remembered: { 'netease:n1': { origin: 'netease' } } })
     expect(useLyricsSourceStore.getState().fallbackReason).toContain('连接失败')
   })
@@ -318,15 +321,15 @@ describe('四来源完整顺序', () => {
     const current = useLyricsSourceStore.getState()
     const remembered = current.remembered
     expect(current).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'qq' })
-    expect(h.query).toHaveBeenCalledTimes(1)
+    const initial = h.query.mock.calls.length
 
     const pending = deferred()
     h.query.mockReturnValueOnce(pending.promise)
     useSettingsStore.getState().setLyricsAmllFallback(true)
     await flush()
-    expect(h.query).toHaveBeenCalledTimes(1)
+    expect(h.query).toHaveBeenCalledTimes(initial)
     await action('testSource', 'amll', 'sunny')
-    expect(h.query).toHaveBeenCalledTimes(2)
+    expect(h.query).toHaveBeenCalledTimes(initial + 1)
     expect(h.query).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq'],
       expect.any(AbortSignal), undefined, { probe: true },
@@ -341,7 +344,7 @@ describe('四来源完整顺序', () => {
     expect(snapshot).toMatchObject({ appliedOrigin: 'qq', requestedOrigin: 'qq', remembered })
     expect(useLyricsSourceStore.getState().remembered).toBe(remembered)
     expect(useLyricsStore.getState().lines).toBe(shown)
-    expect(h.query).toHaveBeenCalledTimes(2)
+    expect(h.query).toHaveBeenCalledTimes(initial + 1)
   })
 
   it('宿主可以忘记单首记忆，不影响当前歌词及其他歌曲', async () => {
@@ -355,5 +358,119 @@ describe('四来源完整顺序', () => {
     await action('forgetTrack', 'netease:n1')
     expect(useLyricsStore.getState().lines).toBe(shown)
     expect(useLyricsSourceStore.getState().remembered).toEqual({ 'netease:n2': { origin: 'qq', name: '另一首', artist: track.artist } })
+  })
+})
+
+
+describe('并发探测与下一首预取', () => {
+  const onlineTrack: Track = { ...track, source: 'netease', provider: 'netease', id: 'n1' }
+  const nextTrack: Track = { ...onlineTrack, id: 'n2', name: '下一首' }
+  const initialPlaylist = usePlaylistStore.getState()
+  beforeEach(() => {
+    vi.useFakeTimers()
+    usePlayerStore.setState({ currentTrack: onlineTrack })
+    useLyricsSourceStore.setState({ sourceOrder: ['qq', 'amll', 'kugou', 'netease'] })
+  })
+  afterEach(() => {
+    stop?.()
+    stop = undefined
+    usePlaylistStore.setState(initialPlaylist)
+    vi.useRealTimers()
+  })
+
+  it('高优先级未结束时等待；超过 1.5 秒先显示已到达的歌词，高优先级就绪后替换一次', async () => {
+    const qq = deferred()
+    h.query.mockImplementation((_track: Track, origin: LyricOrigin) => origin === 'qq' ? qq.promise
+      : origin === 'amll' ? Promise.resolve({ status: 'ready', result: result(origin) }) : new Promise(() => {}))
+    stop = initLyricsLoader()
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ loading: true, lines: [] })
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+    qq.resolve({ status: 'ready', result: result('qq') })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+    expect(useLyricsStore.getState().lines).toEqual(result('qq').main)
+  })
+
+  it('兜底显示的来源最终胜出时不重复提交，保留用户已调的偏移', async () => {
+    const qq = deferred()
+    h.query.mockImplementation((_track: Track, origin: LyricOrigin) => origin === 'qq' ? qq.promise
+      : origin === 'amll' ? Promise.resolve({ status: 'ready', result: result(origin) }) : new Promise(() => {}))
+    stop = initLyricsLoader()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1500)
+    useLyricsStore.getState().setOffsetSec(.5)
+    qq.resolve({ status: 'empty', message: '未收录' } as never)
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+    expect(useLyricsStore.getState().offsetSec).toBe(.5)
+  })
+
+  it('当前歌词落定后串行预取下一首，切到下一首直接使用缓存', async () => {
+    usePlaylistStore.setState({ queue: [onlineTrack, nextTrack], queueIndex: 0, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => origin === 'amll'
+      ? { status: 'ready', result: result(origin) } : { status: 'empty', message: '未收录' })
+    stop = initLyricsLoader()
+    await flush()
+    const before = h.query.mock.calls.length
+    await vi.advanceTimersByTimeAsync(1000)
+    await flush()
+    // 预取逐个查询，命中 AMLL 即停，不再查酷狗和网易。
+    expect(h.query.mock.calls.slice(before).map(call => [(call[0] as Track).id, call[1]])).toEqual([['n2', 'qq'], ['n2', 'amll']])
+    const prefetched = h.query.mock.calls.length
+    usePlayerStore.setState({ currentTrack: nextTrack })
+    await flush()
+    expect(h.query).toHaveBeenCalledTimes(prefetched)
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+  })
+
+  it('前序来源连接失败的降级结果不进缓存，切到该曲时重新探测', async () => {
+    usePlaylistStore.setState({ queue: [onlineTrack, nextTrack], queueIndex: 0, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    h.query.mockImplementation(async (current: Track, origin: LyricOrigin) => current.id === 'n2' && origin === 'qq'
+      ? { status: 'error', message: '暂时连接失败' } : { status: 'ready', result: result(origin) })
+    stop = initLyricsLoader()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1000)
+    await flush()
+    const before = h.query.mock.calls.length
+    usePlayerStore.setState({ currentTrack: nextTrack })
+    await flush()
+    expect(h.query.mock.calls.slice(before).map(call => call[1])).toContain('qq')
+  })
+
+  it('切到预取以外的歌时取消进行中的预取', async () => {
+    const other: Track = { ...onlineTrack, id: 'n3' }
+    usePlaylistStore.setState({ queue: [onlineTrack, nextTrack, other], queueIndex: 0, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    h.query.mockImplementation((current: Track, origin: LyricOrigin) => current.id === 'n2'
+      ? new Promise(() => {}) : Promise.resolve({ status: 'ready', result: result(origin) }))
+    stop = initLyricsLoader()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1000)
+    const prefetch = h.query.mock.calls.find(call => (call[0] as Track).id === 'n2')!
+    usePlayerStore.setState({ currentTrack: other })
+    await flush()
+    expect((prefetch[3] as AbortSignal).aborted).toBe(true)
+  })
+
+  it('切到预取中的下一首时接手已发出的查询并并发补齐其余来源', async () => {
+    usePlaylistStore.setState({ queue: [onlineTrack, nextTrack], queueIndex: 0, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    const pendingQQ = deferred()
+    h.query.mockImplementation((current: Track, origin: LyricOrigin) => current.id === 'n2' && origin === 'qq'
+      ? pendingQQ.promise : Promise.resolve({ status: 'empty', message: '未收录' }))
+    stop = initLyricsLoader()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1000)
+    const before = h.query.mock.calls.length
+    usePlayerStore.setState({ currentTrack: nextTrack })
+    await flush()
+    expect(h.query.mock.calls.slice(before).map(call => call[1])).toEqual(['amll', 'kugou', 'netease'])
+    pendingQQ.resolve({ status: 'ready', result: result('qq') })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
   })
 })

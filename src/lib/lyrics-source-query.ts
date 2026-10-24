@@ -37,7 +37,7 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
     ? { status: 'idle' } : { status: 'unavailable', message: '本地歌曲仅使用本地歌词' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
   if (origin === 'apple' && track.source !== 'apple') return { status: 'unavailable', message: '仅 Apple Music 曲目可用' }
-  if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，本次运行已暂停；可在设置中测试恢复' }
+  if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
   const settings = useSettingsStore.getState()
   if (origin === 'amll') {
     if (!settings.lyricsAmllFallback) return { status: 'disabled', message: '已在设置中关闭' }

@@ -214,8 +214,8 @@ describe('真实结果与错误分类', () => {
 })
 
 
-describe('本次运行异常暂停', () => {
-  it('连续三次失败后不再请求，只有手动测试成功可以恢复', async () => {
+describe('连接异常暂停与自动恢复', () => {
+  it('连续三次失败后冷却期内不再请求，手动测试成功可随时恢复', async () => {
     vi.mocked(api.get).mockRejectedValue(new Error('offline'))
     for (let i = 0; i < 3; i++) expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'error' })
     expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'unavailable' })
@@ -226,6 +226,24 @@ describe('本次运行异常暂停', () => {
     vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]恢复' })
     expect(await queryLyricsSource(song('netease'), 'netease', ['netease'], undefined, undefined, { probe: true })).toMatchObject({ status: 'ready' })
     expect(useLyricsSourceStore.getState().health.netease?.suspended).toBe(false)
+  })
+
+  it('暂停 30 秒后自动放行试探，失败冷却翻倍，成功即恢复', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(api.get).mockRejectedValue(new Error('offline'))
+      for (let i = 0; i < 3; i++) await queryLyricsSource(song('netease'), 'netease', ['netease'])
+      vi.setSystemTime(Date.now() + 29_000)
+      expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'unavailable' })
+      vi.setSystemTime(Date.now() + 1_000)
+      expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'error' })
+      expect(useLyricsSourceStore.getState().health.netease).toMatchObject({ suspended: true, cooldownMs: 60_000 })
+      expect(api.get).toHaveBeenCalledTimes(4)
+      vi.setSystemTime(Date.now() + 60_000)
+      vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]恢复' })
+      expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'ready' })
+      expect(useLyricsSourceStore.getState().health.netease).toEqual({ failures: 0, suspended: false })
+    } finally { vi.useRealTimers() }
   })
 
   it('未收录中断连续失败计数', async () => {

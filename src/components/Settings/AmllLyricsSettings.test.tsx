@@ -87,7 +87,7 @@ describe('歌词来源设置', () => {
     h.source.health.qq = { failures: 3, suspended: true }
     h.source.probes.amll = { status: 'loading', sample: '晴天' }
     const element = AmllLyricsSettings()
-    expect(text(element)).toContain('连接异常，本次运行已暂停')
+    expect(text(element)).toContain('连接异常，稍后自动重试')
     button(element, '测试恢复').props.onClick()
     expect(h.source.testSource).toHaveBeenCalledWith('qq', 'sunny')
     expect(button(element, '测试中…').props.disabled).toBe(true)

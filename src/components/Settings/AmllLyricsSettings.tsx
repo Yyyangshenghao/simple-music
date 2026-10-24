@@ -54,7 +54,7 @@ export function AmllLyricsSettings() {
         const suspended = health[source]?.suspended
         const disabled = source === 'amll' ? !enabled : source === 'kugou' ? !kugouEnabled : false
         const status = probe?.status === 'loading' ? '正在获取测试歌词…'
-          : suspended ? probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，仍暂停访问' : '连接异常，本次运行已暂停'
+          : suspended ? probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，仍暂停访问' : '连接异常，稍后自动重试'
           : disabled ? '已停用'
           : probe?.status === 'ready' ? `已获取歌词 · ${probe.ms} ms`
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'

@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../stores/player'
+import { usePlaylistStore } from '../stores/playlist'
 import { indexForPosition, useLyricsStore } from '../stores/lyrics'
 import { bindLyricsSourceActions, rememberLyricsSource, useLyricsSourceStore } from '../stores/lyrics-source'
 import { useProviderStore } from '../stores/providers'
@@ -10,6 +11,9 @@ import { providerAccountSession } from './provider-account-session'
 import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import { candidateAvailability, queryLyricsSource, type LyricsSourceQueryResult } from './lyrics-source-query'
 import { createLyricsSourceProbe } from './lyrics-source-probe'
+import { isReadyLyrics, LYRICS_PROVISIONAL_MS, lyricsOriginOrder, resolveLyricsParallel, type OrderedLyricsResult } from './lyrics-ordered-resolve'
+import { createLyricsPrefetcher } from './lyrics-prefetch'
+import { getQueueStep } from './queue-state'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { hasWordTiming } from './word-highlight-timeline'
@@ -40,6 +44,24 @@ function participatingSources(): ProviderId[] {
   return Array.from(new Set([...providers.playbackOrder, ...PROVIDER_IDS])).filter(source => source !== 'apple' || (providers.byId[source].enabled && providers.byId[source].auth === 'authenticated'))
 }
 
+/** 影响来源落定结果的全部条件；任一变化时跨曲缓存与预取都不能复用。 */
+function lyricsContext(origins: LyricOrigin[], sources: ProviderId[], chosen?: RememberedLyricSource): string {
+  const settings = useSettingsStore.getState()
+  return JSON.stringify([origins, sources, settings.lyricsAmllFallback, settings.lyricsKugouFallback,
+    PROVIDER_IDS.map(source => providerAccountSession(source)), chosen?.match ? lyricTrackKey(chosen.match) : null])
+}
+
+/** 按 next 的走序取下一首；随机走序尚未建立时不预取，避免预取方替播放器生成洗牌顺序。 */
+function nextQueueTrack(): Track | undefined {
+  if (String(usePlayerStore.getState().contextId ?? '').startsWith('shuange:')) return undefined
+  const { queue, queueIndex, shuffleOrder } = usePlaylistStore.getState()
+  if (queueIndex < 0 || queue.length < 2) return undefined
+  const playMode = useSettingsStore.getState().playMode
+  if (playMode === 'shuffle' && shuffleOrder.length !== queue.length) return undefined
+  const { index } = getQueueStep({ queue, queueIndex, shuffleOrder }, playMode, 1)
+  return index === queueIndex ? undefined : queue[index]
+}
+
 function sourceRows(track: Track): LyricOrigin[] {
   if (track.source === 'local') return ['local']
   return Array.from(new Set<LyricOrigin>([track.source, 'netease', 'qq', 'amll', 'kugou']))
@@ -68,6 +90,10 @@ export function initLyricsLoader(): () => void {
   let activePreference = useLyricsSourceStore.getState().defaultSource
   let activeSourceOrder = useLyricsSourceStore.getState().sourceOrder
   const sourceProbe = createLyricsSourceProbe()
+  const prefetcher = createLyricsPrefetcher()
+  let prefetchTimer: ReturnType<typeof setTimeout> | undefined
+  // 兜底显示后 loading 已结束，预取改看当前曲是否最终落定。
+  let currentLanded = false
   let onceChoice: RememberedLyricSource | undefined
   let selection: SelectionSession | undefined
   // 只缓存本曲的来源结果，最多原平台、网易、QQ、AMLL、酷狗五份；切歌或账号/参与状态变化即清空。
@@ -176,19 +202,55 @@ export function initLyricsLoader(): () => void {
     pump(dialog)
   }
 
-  const selectOrdered = async (track: Track, sources: ProviderId[], signal: AbortSignal, order: NonNullable<typeof activeSourceOrder>, chosen?: RememberedLyricSource) => {
-    const origins: LyricOrigin[] = track.source === 'local' ? ['local']
-      : Array.from(new Set<LyricOrigin>([...(chosen ? [chosen.origin] : []), ...(track.source === 'apple' ? ['apple' as const] : []), ...order]))
-    for (const origin of origins) {
-      if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
-      const response = await queryLyricsSource(track, origin, sources, signal, chosen?.origin === origin ? chosen.match : undefined)
-      if (response.status === 'ready' && response.result?.main.length) {
-        results.set(origin, response)
-        return response
-      }
-      if (chosen?.origin === origin) useLyricsSourceStore.setState({ fallbackReason: `已记住${LYRIC_SOURCE_LABELS[origin]}，${response.message ?? '本次暂不可用'}；本次临时使用其他来源` })
+  /** 跨曲缓存 → 接手同曲预取 → 全部来源并发、按优先级落定；`onProvisional` 仅当前播放首屏使用。 */
+  const resolveOrdered = async (
+    track: Track, sources: ProviderId[], signal: AbortSignal, order: NonNullable<typeof activeSourceOrder>,
+    chosen?: RememberedLyricSource, onProvisional?: (found: OrderedLyricsResult) => void,
+  ) => {
+    const origins = lyricsOriginOrder(track, order, chosen)
+    const key = lyricTrackKey(track)
+    const context = lyricsContext(origins, sources, chosen)
+    const fallback = (origin: LyricOrigin, message?: string) => {
+      if (chosen?.origin === origin) useLyricsSourceStore.setState({ fallbackReason: `已记住${LYRIC_SOURCE_LABELS[origin]}，${message ?? '本次暂不可用'}；本次临时使用其他来源` })
     }
-    return undefined
+    // 本地歌词读文件很快且可能被用户改写，不进跨曲缓存。
+    const cacheable = track.source !== 'local'
+    const cached = cacheable ? prefetcher.take(key, context) : undefined
+    if (cached) {
+      results.set(cached.origin, cached.response)
+      if (chosen && cached.origin !== chosen.origin) fallback(chosen.origin)
+      return cached.response
+    }
+    const existing = prefetcher.adopt(key, context)
+    // 接手不了的预取属于别的歌或旧条件，不能继续与当前曲抢网络。
+    prefetcher.cancel()
+    const found = await resolveLyricsParallel({
+      track, origins, sources, signal, chosen, existing,
+      provisionalMs: onProvisional ? LYRICS_PROVISIONAL_MS : undefined, onProvisional,
+      onSettled(origin, response) {
+        if (isReadyLyrics(response)) results.set(origin, response)
+        else fallback(origin, response.message)
+      },
+    })
+    if (found && cacheable && !found.degraded) prefetcher.store(key, context, found)
+    return found?.response
+  }
+
+  /** 当前曲歌词落定 1 秒后串行预取下一首，不与当前曲抢网络；快速切歌或改队列只保留最后一次。 */
+  const schedulePrefetch = () => {
+    if (prefetchTimer) clearTimeout(prefetchTimer)
+    prefetchTimer = setTimeout(() => {
+      prefetchTimer = undefined
+      const order = useLyricsSourceStore.getState().sourceOrder
+      if (disposed || !order || !lyricsEnabled() || !currentLanded) return
+      const next = nextQueueTrack()
+      if (!next || next.pending || next.source === 'local' || lyricTrackKey(next) === currentKey) return
+      const sources = participatingSources()
+      if (!sources.includes(next.source)) return
+      const chosen = useLyricsSourceStore.getState().remembered[lyricTrackKey(next)]
+      const origins = lyricsOriginOrder(next, order, chosen)
+      prefetcher.prefetch(lyricTrackKey(next), lyricsContext(origins, sources, chosen), { track: next, origins, sources, chosen })
+    }, 1000)
   }
 
   const sync = () => {
@@ -196,6 +258,7 @@ export function initLyricsLoader(): () => void {
     const previousDialog = selection && { key: selection.key, token: selection.token }
     cancelDialog()
     results.clear()
+    currentLanded = false
     const request = ++session
     const decision = choiceVersion
     activeAccounts = []
@@ -215,7 +278,7 @@ export function initLyricsLoader(): () => void {
     const chosen = onceChoice ?? remembered
     useLyricsSourceStore.setState({ appliedOrigin: null, requestedOrigin: chosen?.origin ?? 'auto', fallbackReason: null, appliedPreference: preferences.defaultSource })
     useLyricsStore.setState({ trackKey: key, source: null, loading: !!key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
-    if (!key || !track) return
+    if (!key || !track) { prefetcher.cancel(); return }
     controller = new AbortController()
     const signal = controller.signal
     const lyricSources = track.source === 'local' ? [] : participatingSources()
@@ -233,9 +296,14 @@ export function initLyricsLoader(): () => void {
     activeAccounts = accounts
     const current = () => !disposed && request === session && decision === choiceVersion && !signal.aborted
     if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token).catch(() => {})
+    let provisional: LyricsResult | undefined
     void (async () => {
       if (preferences.sourceOrder) {
-        const response = await selectOrdered(track, lyricSources, signal, preferences.sourceOrder, chosen)
+        const response = await resolveOrdered(track, lyricSources, signal, preferences.sourceOrder, chosen, ({ response }) => {
+          if (!current() || !sameAccounts(accounts) || useLyricsStore.getState().trackKey !== key) return
+          provisional = response.result
+          apply(response.result!, false, response.match ?? track)
+        })
         if (!current() || !sameAccounts(accounts)) return { result: emptyLyrics, track: null, locked: true }
         return { result: response?.result ?? emptyLyrics, track: response?.match ?? track, locked: true }
       }
@@ -259,7 +327,10 @@ export function initLyricsLoader(): () => void {
     })().catch(() => ({ result: emptyLyrics, track: null, locked: false })).then(({ result, track: fetchedTrack, locked }) => {
       if (!current() || useLyricsStore.getState().trackKey !== key) return
       const shown = sameAccounts(accounts) ? result : emptyLyrics
-      apply(shown, false, fetchedTrack ?? undefined)
+      // 兜底先显示的就是最终来源时不重复提交，避免重置用户刚调的偏移。
+      if (!provisional || shown !== provisional) apply(shown, false, fetchedTrack ?? undefined)
+      currentLanded = true
+      schedulePrefetch()
       const upgradeTrack = fetchedTrack ?? candidates[0]
       if (locked || !upgradeTrack || !sameAccounts(accounts)) return
       void upgradeLyrics(upgradeTrack, shown, lyricSources, signal).then(upgraded => {
@@ -295,7 +366,7 @@ export function initLyricsLoader(): () => void {
         let allowUpgrade = true
         const order = useLyricsSourceStore.getState().sourceOrder
         if (order) {
-          response = await selectOrdered(track, sources, application.signal, order)
+          response = await resolveOrdered(track, sources, application.signal, order)
           if (!current()) throw new Error('歌词选择已取消')
           if (response?.match) upgradeTrack = response.match
           allowUpgrade = false
@@ -369,7 +440,11 @@ export function initLyricsLoader(): () => void {
         || state.byId[source].auth !== previous.byId[source].auth)
       || activeAccounts.some(({ source, version }) => version !== providerAccountSession(source))) sync()
   })
+  const stopQueue = usePlaylistStore.subscribe((state, previous) => {
+    if (state.queue !== previous.queue || state.queueIndex !== previous.queueIndex || state.shuffleOrder !== previous.shuffleOrder) schedulePrefetch()
+  })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
+    if (state.playMode !== previous.playMode) schedulePrefetch()
     if (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
       || state.lyricsKugouFallback !== previous.lyricsKugouFallback)) sync()
   })
@@ -385,6 +460,9 @@ export function initLyricsLoader(): () => void {
     cancelDialog()
     unbind()
     sourceProbe.stop()
+    if (prefetchTimer) clearTimeout(prefetchTimer)
+    prefetcher.clear()
+    stopQueue()
     stopPlayer()
     stopProviders()
     stopSettings()
