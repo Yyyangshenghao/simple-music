@@ -5,7 +5,7 @@ import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
-import { fetchTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
+import { loadTrackQualities, peekTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
@@ -183,8 +183,8 @@ function QualitySection({ open }: { open: boolean }) {
     const source = state.byId[qualityTrack.source]
     return source.enabled && source.auth === 'authenticated'
   })
-  // null = 检测中;[] = 无可选档(本地音乐/探测失败)
-  const [options, setOptions] = useState<TrackQualityOption[] | null>(null)
+  // null = 检测中;[] = 无可选档(本地音乐/探测失败)。换曲时已预取过的直接用缓存
+  const [options, setOptions] = useState<TrackQualityOption[] | null>(() => qualityTrack ? peekTrackQualities(qualityTrack) ?? null : null)
   const fetchSession = useRef(0)
 
   const trackKey = qualityTrack ? `${qualityTrack.source}:${String(qualityTrack.mid ?? qualityTrack.id ?? '')}` : ''
@@ -193,14 +193,14 @@ function QualitySection({ open }: { open: boolean }) {
   useEffect(() => {
     if (!open) return
     const session = ++fetchSession.current
-    setOptions(null)
     const player = usePlayerStore.getState()
     const track = player.resolvedTrack ?? player.currentTrack
     if (!track || !currentSourceParticipating) {
       setOptions([])
       return
     }
-    fetchTrackQualities(track)
+    setOptions(peekTrackQualities(track) ?? null)
+    loadTrackQualities(track)
       .then((list) => {
         if (session === fetchSession.current) setOptions(list)
       })
@@ -329,6 +329,23 @@ function SleepSection() {
   )
 }
 
+/** 换曲后延迟预取实际播放源的音质档位，打开「更多」时直接显示；快速切歌时只取最后停下的那首。 */
+const QUALITY_PREFETCH_DELAY_MS = 1200
+
+function useQualityPrefetch() {
+  const track = usePlayerStore((s) => s.resolvedTrack ?? s.currentTrack)
+  const participating = useProviderStore((state) => {
+    if (!track || !isProviderId(track.source)) return false
+    const source = state.byId[track.source]
+    return source.enabled && source.auth === 'authenticated'
+  })
+  useEffect(() => {
+    if (!track || !participating || (track.source !== 'netease' && track.source !== 'qq') || peekTrackQualities(track)) return
+    const timer = window.setTimeout(() => { void loadTrackQualities(track).catch(() => {}) }, QUALITY_PREFETCH_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [track, participating])
+}
+
 /** 低频的倍速与定时关闭：默认收起放在最底部，收起时标题旁概括当前生效的设置。 */
 function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; onToggle(): void; showRate: boolean }) {
   const rate = usePlayerStore((s) => s.rate)
@@ -373,6 +390,7 @@ export function MoreMenu() {
   const [open, setOpen] = useState(false)
   // 低频项默认收起；本次运行内记住展开状态
   const [extrasOpen, setExtrasOpen] = useState(false)
+  useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const hasTrack = usePlayerStore((s) => !!s.currentTrack)

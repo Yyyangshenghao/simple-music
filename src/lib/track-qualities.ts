@@ -1,4 +1,5 @@
 import { api } from './api'
+import { providerAccountSession } from './provider-account-session'
 import type { Track } from '../types/domain'
 
 /** 单曲真实可得的音质档(服务端逐档探测的结果),按从高到低排序。 */
@@ -31,4 +32,51 @@ export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]>
           { timeoutMs: 60_000 }
         )
   return req.then((r) => r.qualities ?? [])
+}
+
+/** 最多缓存的曲目数；按最近使用淘汰。 */
+const CACHE_LIMIT = 40
+const cache = new Map<string, TrackQualityOption[]>()
+const inflight = new Map<string, Promise<TrackQualityOption[]>>()
+
+/** 档位随账号（VIP）不同，键里带上账号会话，切换账号后自然失效。 */
+function cacheKey(track: Track): string | null {
+  if (track.source !== 'netease' && track.source !== 'qq') return null
+  const id = track.source === 'qq' ? `${String(track.mid ?? track.id ?? '')}:${String(track.mediaMid ?? '')}` : String(track.id ?? '')
+  return `${track.source}:${providerAccountSession(track.source)}:${id}`
+}
+
+/** 已探测过的档位；未探测或不支持档位时返回 undefined。 */
+export function peekTrackQualities(track: Track): TrackQualityOption[] | undefined {
+  const key = cacheKey(track)
+  return key ? cache.get(key) : undefined
+}
+
+/** 带缓存的档位探测：同曲并发请求合并，成功结果缓存，失败不缓存以便下次重试。 */
+export function loadTrackQualities(track: Track): Promise<TrackQualityOption[]> {
+  const key = cacheKey(track)
+  if (!key) return fetchTrackQualities(track)
+  const hit = cache.get(key)
+  if (hit) {
+    cache.delete(key)
+    cache.set(key, hit)
+    return Promise.resolve(hit)
+  }
+  const pending = inflight.get(key)
+  if (pending) return pending
+  const request = fetchTrackQualities(track)
+    .then((list) => {
+      cache.set(key, list)
+      if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value as string)
+      return list
+    })
+    .finally(() => inflight.delete(key))
+  inflight.set(key, request)
+  return request
+}
+
+/** 测试用：清空缓存。 */
+export function clearTrackQualityCache(): void {
+  cache.clear()
+  inflight.clear()
 }
