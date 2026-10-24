@@ -30,6 +30,16 @@ function QueueIcon() {
   )
 }
 
+/** 设为下一首：播放三角插在列表最上方。 */
+function PlayNextIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 4.5v6l5-3z" fill="currentColor" />
+      <path d="M13 7.5h7M4 14h16M4 19h16" />
+    </svg>
+  )
+}
+
 /** 播放队列按钮 + 弹层：锚定在播放栏上方,展示当前队列,高亮当前曲目,点击切歌。 */
 export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false)
@@ -222,7 +232,9 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                               disabled={playMode === 'one'}
                               title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
                               aria-label={`将 ${t.name} 设为下一首`}
-                              onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>下一首</button>
+                              onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>
+                              <PlayNextIcon />
+                            </button>
                             <button type="button" className={styles.rowAction} data-queue-no-drag
                               title="从队列移除" aria-label={`从队列移除 ${t.name}`}
                               onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
