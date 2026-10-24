@@ -399,6 +399,7 @@ function VolumeControl() {
               className={styles.volumeSlider}
               orientation="vertical"
               size="compact"
+              variant="capsule"
               ariaLabel="音量"
               value={volume}
               min={0}

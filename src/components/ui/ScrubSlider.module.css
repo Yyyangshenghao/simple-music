@@ -225,6 +225,24 @@
 .root[data-size='compact'][data-orientation='vertical'] { width: 14px; }
 .root[data-size='compact'][data-orientation='vertical'] .bubble { right: calc(100% + 13px); }
 
+/* 胶囊变体:常态就是 6px 圆角胶囊(半透明底槽 + 实色填充),不显示滑块;拖动时整条略微加宽 */
+.root[data-variant='capsule'] {
+  --scrub-thickness: 6px;
+  --scrub-idle-scale: 1;
+  --scrub-track-color: var(--scrub-track, color-mix(in srgb, var(--sm-text-primary) 16%, transparent));
+}
+
+.root[data-variant='capsule'] .thumb { display: none; }
+.root[data-variant='capsule'] .ghost { display: none; }
+/* 滚轮/轻点的跳变用短补间,拖动中保持跟手 */
+.root[data-variant='capsule']:not([data-dragging]) .fill { transition: transform 180ms var(--sm-ease-out); }
+
+.root[data-variant='capsule'][data-orientation='vertical'] .rail,
+.root[data-variant='capsule'][data-orientation='vertical']:hover .rail { transform: scaleX(1); }
+.root[data-variant='capsule'][data-orientation='vertical'][data-dragging] .rail { transform: scaleX(1.34); }
+
+.root[data-variant='capsule'][data-orientation='vertical'] .bubble { right: calc(100% + 10px); }
+
 @media (prefers-reduced-motion: reduce) {
   .rail, .ghost, .thumb, .bubble,
   .root[data-jumping] .fill,

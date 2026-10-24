@@ -30,6 +30,8 @@ interface ScrubSliderProps {
   ariaLabel: string
   ariaValueText?(value: number): string
   size?: 'regular' | 'compact'
+  /** capsule：常态即为有体积的圆角胶囊，不显示滑块（无底框的音量条）。 */
+  variant?: 'line' | 'capsule'
   disabled?: boolean
   className?: string
 }
@@ -49,7 +51,7 @@ function decay(overflow: number): number {
  */
 export function ScrubSlider({
   value, min = 0, max, step, mode = 'live', onChange, onPreview, format, bubble = 'hover', showBubble,
-  ariaLabel, ariaValueText, size = 'regular', orientation = 'horizontal', disabled, className
+  ariaLabel, ariaValueText, size = 'regular', variant = 'line', orientation = 'horizontal', disabled, className
 }: ScrubSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ pointerId: number; value: number; moved: boolean } | null>(null)
@@ -155,6 +157,7 @@ export function ScrubSlider({
       className={`${styles.root} no-drag${className ? ` ${className}` : ''}`}
       style={style}
       data-size={size}
+      data-variant={variant}
       data-orientation={orientation}
       data-dragging={dragging || undefined}
       data-jumping={jumping || undefined}
