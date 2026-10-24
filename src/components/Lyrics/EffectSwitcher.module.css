@@ -77,17 +77,6 @@
 .field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .field:disabled { opacity: 0.55; }
 
-.tuningRow {
-  display: grid;
-  grid-template-columns: 94px minmax(0, 1fr) 48px;
-  align-items: center;
-  gap: 9px;
-  min-height: 38px;
-  font-size: 12px;
-}
-
-.tuningRow input { width: 100%; min-width: 0; accent-color: var(--particle-ink); }
-.tuningRow output { opacity: 0.65; text-align: right; font-variant-numeric: tabular-nums; }
 .tuningDivider {
   margin-top: 10px;
   padding-top: 12px;

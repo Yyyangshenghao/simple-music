@@ -24,7 +24,8 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('../../stores/visual', () => ({
-  useVisualStore: (selector: (state: typeof h) => unknown) => selector(h)
+  useVisualStore: (selector: (state: typeof h) => unknown) => selector(h),
+  DEFAULT_FX: { desktopLyricsSize: 38, desktopLyricsOpacity: 0.92, desktopLyricsBackgroundOpacity: 0.68 }
 }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof h.settings) => unknown) => selector(h.settings) }))
 vi.mock('../ui/Switch', () => ({
@@ -173,8 +174,8 @@ describe('桌面歌词设置', () => {
   it('窗口缩放产生大字号时，滑杆保留实际字号而不截到原上限', () => {
     h.fx.desktopLyricsSize = 243.6
     const html = renderToStaticMarkup(<DesktopLyricsSettings />)
-    expect(html).toContain('max="244"')
-    expect(html).toContain('value="243.6"')
+    expect(html).toContain('aria-valuemax="244"')
+    expect(html).toContain('aria-valuenow="243.6"')
     expect(html).toContain('244 px')
     expect(html).toContain('横向拉宽不会改变字号')
   })

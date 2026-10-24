@@ -1,8 +1,9 @@
 import { useEffect, useId, useState } from 'react'
-import { useSettingsStore } from '../../stores/settings'
+import { DEFAULT_LYRICS_3D, useSettingsStore } from '../../stores/settings'
 import type { Lyrics3dParams, Lyrics3dStyle } from '../../types/domain'
 import type { SystemFontFamily } from '../../types/ipc'
 import { SystemFontPicker } from '../ui/SystemFontPicker'
+import { ScrubField } from '../ui/ScrubField'
 import { LyricOptionGroup } from './LyricOptionGroup'
 import styles from './EffectSwitcher.module.css'
 
@@ -94,24 +95,23 @@ const LYRIC_STYLES: StyleInfo[] = [
 ]
 
 
-function TuningSlider({ label, value, min, max, step, onChange, format = (v: number) => `${Math.round(v * 100)}%` }: {
+type Lyrics3dNumberKey = Exclude<keyof Lyrics3dParams, 'displayMode'>
+
+/** 粒光参数项：拖拽数值框，双击标签恢复该项默认。 */
+function TuningField({ field, label, min, max, step, scale = 100, suffix = '%', note }: {
+  field: Lyrics3dNumberKey
   label: string
-  value: number
   min: number
   max: number
   step: number
-  onChange(value: number): void
-  format?: (value: number) => string
+  scale?: number
+  suffix?: string
+  note?(value: number): string
 }) {
-  const id = useId()
-  return (
-    <label className={styles.tuningRow} htmlFor={id}>
-      <span>{label}</span>
-      <input id={id} type="range" min={min} max={max} step={step} value={value}
-        aria-valuetext={format(value)} onChange={event => onChange(Number(event.currentTarget.value))} />
-      <output htmlFor={id}>{format(value)}</output>
-    </label>
-  )
+  const value = useSettingsStore(s => s.lyrics3d[field])
+  const setParams = useSettingsStore(s => s.setLyrics3dParams)
+  return <ScrubField label={label} value={value} min={min} max={max} step={step} defaultValue={DEFAULT_LYRICS_3D[field]}
+    scale={scale} suffix={suffix} note={note} onChange={v => setParams({ [field]: v })} />
 }
 
 /** 粒光歌词页内的完整设置，按文字、氛围和画质分组。 */
@@ -149,7 +149,6 @@ export function Stage3dSettings() {
     })()
     return () => { cancelled = true }
   }, [fontAttempt])
-  const patch = (key: keyof Lyrics3dParams) => (value: number) => setParams({ [key]: value })
   return (
     <div className={styles.embedded} aria-label="粒光设置">
       <div className={styles.menuTabs} role="tablist" aria-label="粒光选项">
@@ -175,32 +174,28 @@ export function Stage3dSettings() {
           <LyricOptionGroup label="同屏歌词" options={[
               { value: 'single', label: '1 行' }, { value: 'dual', label: '2 行' }, { value: 'triple', label: '3 行' }, { value: 'cinema', label: '5 行' },
             ]} value={params.displayMode} onChange={value => setParams({ displayMode: value })} />
-          <TuningSlider label="前后歌词亮度" value={params.contextOpacity} min={0.25} max={1} step={0.01} onChange={patch('contextOpacity')} />
-          <TuningSlider label="歌词行间距" value={params.contextSpread} min={0.6} max={2.4} step={0.02}
-            format={v => `${v.toFixed(2)}×`} onChange={patch('contextSpread')} />
-          <TuningSlider label="远处歌词渐隐" value={params.edgeFade} min={0} max={1} step={0.01} onChange={patch('edgeFade')} />
-          <TuningSlider label="切换柔和度" value={params.motionSoftness} min={0.15} max={1.2} step={0.01}
-            format={v => `${v.toFixed(2)}×`} onChange={patch('motionSoftness')} />
+          <TuningField field="contextOpacity" label="前后歌词亮度" min={0.25} max={1} step={0.01} />
+          <TuningField field="contextSpread" label="歌词行间距" min={0.6} max={2.4} step={0.02} scale={1} suffix="×" />
+          <TuningField field="edgeFade" label="远处歌词渐隐" min={0} max={1} step={0.01} />
+          <TuningField field="motionSoftness" label="切换柔和度" min={0.15} max={1.2} step={0.01} scale={1} suffix="×" />
         </>}
         {tab === 'scene' && <>
-          <TuningSlider label="粒子数量" value={params.particleCount} min={0.25} max={2} step={0.05} onChange={patch('particleCount')} />
-          <TuningSlider label="粒子大小" value={params.particleSize} min={0.2} max={2} step={0.05} onChange={patch('particleSize')} />
-          <TuningSlider label="场景亮度" value={params.particleBrightness} min={0.3} max={2} step={0.05} onChange={patch('particleBrightness')} />
-          <TuningSlider label="动效强度" value={params.motionIntensity} min={0.2} max={2} step={0.05} onChange={patch('motionIntensity')} />
-          <TuningSlider label="辉光强度" value={params.glowStrength} min={0} max={2} step={0.05} onChange={patch('glowStrength')} />
+          <TuningField field="particleCount" label="粒子数量" min={0.25} max={2} step={0.05} />
+          <TuningField field="particleSize" label="粒子大小" min={0.2} max={2} step={0.05} />
+          <TuningField field="particleBrightness" label="场景亮度" min={0.3} max={2} step={0.05} />
+          <TuningField field="motionIntensity" label="动效强度" min={0.2} max={2} step={0.05} />
+          <TuningField field="glowStrength" label="辉光强度" min={0} max={2} step={0.05} />
           <div className={styles.tuningDivider}>鼓点波纹</div>
-          <TuningSlider label="荡漾幅度" value={params.rippleAmplitude} min={0} max={1} step={0.01}
-            format={v => v === 0 ? '关闭' : v <= 0.33 ? '轻柔' : v <= 0.66 ? '明显' : '强烈'} onChange={patch('rippleAmplitude')} />
-          <TuningSlider label="触发灵敏度" value={params.rippleSensitivity} min={0} max={1} step={0.01} onChange={patch('rippleSensitivity')} />
-          <TuningSlider label="扩散时长" value={params.rippleDuration} min={0.2} max={1.5} step={0.05}
-            format={v => `${v.toFixed(2)}s`} onChange={patch('rippleDuration')} />
+          <TuningField field="rippleAmplitude" label="荡漾幅度" min={0} max={1} step={0.01}
+            note={v => v === 0 ? '关闭' : v <= 0.33 ? '轻柔' : v <= 0.66 ? '明显' : '强烈'} />
+          <TuningField field="rippleSensitivity" label="触发灵敏度" min={0} max={1} step={0.01} />
+          <TuningField field="rippleDuration" label="扩散时长" min={0.2} max={1.5} step={0.05} scale={1} suffix="s" />
         </>}
         {tab === 'quality' && <>
           <LyricOptionGroup label="帧率上限" options={[
             { value: 60, label: '60' }, { value: 120, label: '120' }, { value: 0, label: '不限' },
           ]} value={params.fpsCap} onChange={value => setParams({ fpsCap: value })} />
-          <TuningSlider label="渲染分辨率" value={params.renderScale} min={0.75} max={2} step={0.05}
-            format={v => `${v.toFixed(2)}×`} onChange={patch('renderScale')} />
+          <TuningField field="renderScale" label="渲染分辨率" min={0.75} max={2} step={0.05} scale={1} suffix="×" />
           <button type="button" className={styles.reset} onClick={resetParams}>恢复粒光默认</button>
         </>}
       </div>

@@ -98,3 +98,6 @@ export const switchFlowSpring = { stiffness: 320, damping: 40, mass: 0.6 }
 /** 挤压开关：悬停 / 按住时滑块微鼓的弹簧与幅度。 */
 export const switchSwellSpring = { stiffness: 520, damping: 34, mass: 0.6 }
 export const switchSwell = { hover: 1.06, press: 0.92 }
+
+/** 拖拽数值框（参考 React Bits ScrubField）：拖出范围松手后弹回边界。 */
+export const scrubFieldReturn: Transition = { type: 'spring', duration: 0.3, bounce: 0 }

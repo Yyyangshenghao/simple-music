@@ -3,7 +3,7 @@ import defaultArchive from '../data/default-fx-archive.json'
 import { readDesktopLyricsSettings, saveDesktopLyricsSettings } from '../lib/desktop-lyrics-settings'
 import type { FxParams, FxSnapshot, FxArchive, PresetId, PerformanceMode, BackgroundMode } from '../types/domain'
 
-const DEFAULT_FX = (defaultArchive as FxArchive).snapshot
+export const DEFAULT_FX = (defaultArchive as FxArchive).snapshot
 
 interface VisualStore {
   preset: PresetId

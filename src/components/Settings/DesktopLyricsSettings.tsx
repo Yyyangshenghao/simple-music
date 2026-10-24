@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { fontFamilyCssValue } from '../../lib/font-family'
 import { useSettingsStore } from '../../stores/settings'
-import { useVisualStore } from '../../stores/visual'
 import { InfoButton } from '../ui/InfoButton'
 import { Switch } from '../ui/Switch'
+import { SettingSlider } from '../ui/SettingSlider'
+import { DEFAULT_FX, useVisualStore } from '../../stores/visual'
 import styles from './DesktopLyricsSettings.module.css'
 
 const COLORS = [
@@ -76,20 +77,13 @@ export function DesktopLyricsSettings() {
           <h4 className={styles.sectionTitle}>文字外观</h4>
           <div className={styles.sizeSetting}>
             <div className={styles.labelLine}>
-              <span className={styles.settingLabel}><label htmlFor={`${id}-size`}>字体大小</label><InfoButton label="桌面歌词字体大小" text="拖动歌词框调整高度，文字会跟着缩放；横向拉宽不会改变字号。" align="left" /></span>
-              <output htmlFor={`${id}-size`}>{Math.round(fx.desktopLyricsSize)} px</output>
+              <span className={styles.settingLabel}><span>字体大小</span><InfoButton label="桌面歌词字体大小" text="拖动歌词框调整高度，文字会跟着缩放；横向拉宽不会改变字号。" align="left" /></span>
             </div>
-            <input
-              id={`${id}-size`}
-              type="range"
-              min={12}
-              max={Math.max(160, Math.ceil(fx.desktopLyricsSize))}
-              step={1}
-              value={fx.desktopLyricsSize}
-              aria-valuetext={`${Math.round(fx.desktopLyricsSize)}像素`}
-              onChange={(event) => updateFx({ desktopLyricsSize: Number(event.target.value) })}
-              className="no-drag"
-            />
+            <div className={styles.sliderLine}>
+              <SettingSlider value={fx.desktopLyricsSize} min={12} max={Math.max(160, Math.ceil(fx.desktopLyricsSize))} step={1}
+                  defaultValue={DEFAULT_FX.desktopLyricsSize} format={(v) => `${Math.round(v)} px`} unit="px" ariaLabel="桌面歌词字体大小"
+                  onChange={(value) => updateFx({ desktopLyricsSize: value })} />
+            </div>
           </div>
 
           <div className={styles.colorSetting}>
@@ -121,20 +115,13 @@ export function DesktopLyricsSettings() {
           </div>
           <div className={styles.opacitySetting}>
             <div className={styles.labelLine}>
-              <label htmlFor={`${id}-opacity`}>文字不透明度</label>
-              <output htmlFor={`${id}-opacity`}>{Math.round(fx.desktopLyricsOpacity * 100)}%</output>
+              <span>文字不透明度</span>
             </div>
-            <input
-              id={`${id}-opacity`}
-              type="range"
-              min={0.28}
-              max={1}
-              step={0.01}
-              value={fx.desktopLyricsOpacity}
-              aria-valuetext={`${Math.round(fx.desktopLyricsOpacity * 100)}%`}
-              onChange={(event) => updateFx({ desktopLyricsOpacity: Number(event.target.value) })}
-              className="no-drag"
-            />
+            <div className={styles.sliderLine}>
+              <SettingSlider value={fx.desktopLyricsOpacity} min={0.28} max={1} step={0.01}
+                  defaultValue={DEFAULT_FX.desktopLyricsOpacity} format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" ariaLabel="桌面歌词文字不透明度"
+                  onChange={(value) => updateFx({ desktopLyricsOpacity: value })} />
+            </div>
           </div>
           <div className={styles.row}>
             <span>文字发光</span>
@@ -167,20 +154,13 @@ export function DesktopLyricsSettings() {
           <h4 className={styles.sectionTitle}>底框与位置</h4>
           <div className={styles.opacitySetting}>
             <div className={styles.labelLine}>
-              <label htmlFor={`${id}-background-opacity`}>底框不透明度</label>
-              <output htmlFor={`${id}-background-opacity`}>{Math.round(backgroundOpacity * 100)}%</output>
+              <span>底框不透明度</span>
             </div>
-            <input
-              id={`${id}-background-opacity`}
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={backgroundOpacity}
-              aria-valuetext={`${Math.round(backgroundOpacity * 100)}%`}
-              onChange={(event) => updateFx({ desktopLyricsBackgroundOpacity: Number(event.target.value) })}
-              className="no-drag"
-            />
+            <div className={styles.sliderLine}>
+              <SettingSlider value={backgroundOpacity} min={0} max={1} step={0.01}
+                  defaultValue={DEFAULT_FX.desktopLyricsBackgroundOpacity} format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" ariaLabel="桌面歌词底框不透明度"
+                  onChange={(value) => updateFx({ desktopLyricsBackgroundOpacity: value })} />
+            </div>
           </div>
           <div className={styles.row}>
             <span className={styles.settingLabel}>底框效果<InfoButton label="桌面歌词底框效果" text={`${!supportsFrosted ? '此系统使用暗灰色底框。' : platform === 'win32' ? 'Windows 10 1803 及以上支持毛玻璃，系统效果不可用时回退暗灰色。' : ''}底框常态显示，锁定后也保留；设为 0% 可隐藏底框。`} align="left" /></span>

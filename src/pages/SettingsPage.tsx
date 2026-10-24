@@ -4,13 +4,14 @@ import { useReducedMotion, useSystemReducedMotion } from '../hooks/useReducedMot
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
-import { CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
-import { MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
+import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
+import { DEFAULT_MINI_PLAYER_APPEARANCE, MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
+import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
@@ -30,7 +31,7 @@ import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
-import { MEDIA_BLUR_MAX, MEDIA_DIM_MAX, solidBackgroundsFor, useBackgroundStore } from '../stores/background'
+import { DEFAULT_BACKGROUND, MEDIA_BLUR_MAX, MEDIA_DIM_MAX, solidBackgroundsFor, useBackgroundStore } from '../stores/background'
 import { useLightTheme } from '../hooks/useLightTheme'
 import type { ProviderId } from '../providers/types'
 import type { AppBackgroundKind, PerformanceFlags } from '../types/domain'
@@ -275,35 +276,26 @@ function PlaybackOrderEditor({
   )
 }
 
-/** 通用滑杆行:label + range + 格式化后的当前值。 */
-function SliderRow({ label, min, max, step, value, format, onChange, disabled }: {
+/** 通用滑杆行:label + 胶囊滑条（数值可点开输入，双击滑条恢复默认）。 */
+function SliderRow({ label, min, max, step, value, defaultValue, format, scale, unit, onChange, disabled }: {
   label: string
   min: number
   max: number
   step: number
   value: number
+  defaultValue: number
   format: (v: number) => string
+  /** 输入换算：显示值 = 值 × scale（百分比传 100）。 */
+  scale?: number
+  unit?: string
   onChange: (v: number) => void
   disabled?: boolean
 }) {
-  const inputId = useId()
-
   return (
     <div className={styles.row}>
-      <label className={styles.rowLabel} htmlFor={inputId}>{label}</label>
-      <input
-        id={inputId}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        aria-valuetext={format(value)}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="no-drag"
-      />
-      <span className={styles.rowValue}>{format(value)}</span>
+      <span className={styles.rowLabel}>{label}</span>
+      <SettingSlider value={value} min={min} max={max} step={step} defaultValue={defaultValue} format={format}
+        scale={scale} unit={unit} ariaLabel={label} disabled={disabled} onChange={onChange} />
     </div>
   )
 }
@@ -526,8 +518,10 @@ function BackgroundSettings() {
         </div>
         {!media && <p className={styles.groupHint}>{view === 'image' ? '支持 jpg、png、webp、gif、avif。' : '支持 mp4、webm、mov 与 Wallpaper Engine 视频壁纸的 project.json。'}导入后生效。</p>}
         {media && <>
-          <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} format={(v) => `${v} px`} onChange={(v) => update({ mediaBlur: v })} />
-          <SliderRow label="压暗" min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => update({ mediaDim: v })} />
+          <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} defaultValue={DEFAULT_BACKGROUND.mediaBlur}
+            format={(v) => `${v} px`} unit="px" onChange={(v) => update({ mediaBlur: v })} />
+          <SliderRow label="压暗" min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
+            format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
           {view === 'video' && <p className={styles.groupHint}>窗口失焦、隐藏或处于节能档时视频暂停。视频背景会持续占用 GPU。</p>}
         </>}
       </>}
@@ -1175,7 +1169,7 @@ export function SettingsPage() {
                     {contentLayout === 'full' && <SliderRow
                       label="左右留白"
                       min={CONTENT_GUTTER_MIN} max={CONTENT_GUTTER_MAX} step={1}
-                      value={contentGutter} format={(v) => `${v} px`}
+                      value={contentGutter} defaultValue={CONTENT_GUTTER_DEFAULT} format={(v) => `${v} px`} unit="px"
                       onChange={setContentGutter}
                     />}
                   </section>
@@ -1235,7 +1229,10 @@ export function SettingsPage() {
                       max={1}
                       step={0.01}
                       value={miniPlayerAppearance.opacity}
+                      defaultValue={DEFAULT_MINI_PLAYER_APPEARANCE.opacity}
                       format={(v) => `${Math.round(v * 100)}%`}
+                      scale={100}
+                      unit="%"
                       onChange={(v) => setMiniPlayerAppearance({ opacity: v })}
                     />
                     <SliderRow
@@ -1244,7 +1241,9 @@ export function SettingsPage() {
                       max={36}
                       step={1}
                       value={miniPlayerAppearance.blur}
+                      defaultValue={DEFAULT_MINI_PLAYER_APPEARANCE.blur}
                       format={(v) => `${Math.round(v)}px`}
+                      unit="px"
                       onChange={(v) => setMiniPlayerAppearance({ blur: v })}
                     />
                     <div className={styles.row}>
