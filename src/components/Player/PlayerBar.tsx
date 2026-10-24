@@ -10,7 +10,6 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
-import { VolumePill } from './VolumePill'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -391,19 +390,26 @@ function VolumeControl() {
           <motion.div
             className={styles.volumePopover}
             // 不用 filter 做模糊入场：父层 filter 会成为 backdrop root，胶囊的毛玻璃会失效。
-            initial={{ opacity: 0, y: 14, scaleY: 0.55, scaleX: 0.8 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1, scaleX: 1 }}
-            exit={{ opacity: 0, y: 8, scaleY: 0.7, scaleX: 0.9, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}
-            transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.8 }}
+            initial={{ opacity: 0, y: 6, scaleY: 0.82 }}
+            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+            exit={{ opacity: 0, y: 4, scaleY: 0.9, transition: { duration: 0.14, ease: [0.4, 0, 1, 1] } }}
+            transition={{ type: 'spring', stiffness: 460, damping: 32, mass: 0.7 }}
           >
-            <VolumePill
+            <ScrubSlider
+              className={styles.volumeSlider}
+              orientation="vertical"
+              size="compact"
+              ariaLabel="音量"
               value={volume}
-              onChange={setVolume}
-              showValue={wheeling}
-              icon={<VolumeIcon level={volume <= 0 ? 'mute' : volume < 0.5 ? 'low' : 'high'} />}
-              onDragChange={(dragging) => {
-                draggingRef.current = dragging
+              min={0}
+              max={1}
+              bubble="drag"
+              showBubble={wheeling}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onPreview={(v) => {
+                draggingRef.current = v !== null
               }}
+              onChange={setVolume}
             />
           </motion.div>
         )}

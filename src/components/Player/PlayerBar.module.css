@@ -165,22 +165,37 @@
   isolation: isolate;
 }
 
-/* 悬停喇叭后浮现的胶囊音量:居中于按钮上方,自底部生长 */
+/* 悬停喇叭后浮现的细音量条:紧贴按钮上方,窄而轻,只做必要的底与描边 */
 .volumePopover {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 12px);
+  bottom: calc(100% + 2px);
   z-index: 5;
-  width: 48px;
-  margin-left: -24px;
+  display: flex;
+  justify-content: center;
+  width: 26px;
+  height: 104px;
+  margin-left: -13px;
+  padding: 11px 0;
+  box-sizing: border-box;
+  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
+  border: 1px solid var(--sm-border);
+  border-radius: 13px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
   transform-origin: 50% 100%;
 }
 
 /* 透明桥接区：从按钮移向弹层时不会因中间空隙而关闭 */
 .volumePopover::after {
   position: absolute;
-  inset: 100% 0 -14px;
+  inset: 100% 0 -6px;
   content: '';
+}
+
+.volumeSlider {
+  height: 100%;
+  --scrub-bubble-bg: var(--sm-bg-base);
+  --scrub-bubble-fg: var(--sm-text-primary);
 }
 
 .miniPlayerBtn {
