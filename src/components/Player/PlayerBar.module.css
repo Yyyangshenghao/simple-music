@@ -172,6 +172,45 @@
   min-width: 0;
 }
 
+/* 窄窗口：行内音量条收起，按钮靠右；悬停弹出完整长度的音量条。 */
+.volumeGroup[data-compact] {
+  position: relative;
+  justify-content: flex-end;
+}
+
+.volumePopover {
+  position: absolute;
+  right: -6px;
+  bottom: calc(100% + 10px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 188px;
+  padding: 2px 12px 2px 14px;
+  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  box-shadow: var(--sm-shadow);
+  transform-origin: calc(100% - 24px) 100%;
+}
+
+/* 透明桥接区：从按钮移向弹层时不会因中间空隙而关闭 */
+.volumePopover::after {
+  position: absolute;
+  inset: 100% 0 -12px;
+  content: '';
+}
+
+.volumeValue {
+  flex-shrink: 0;
+  min-width: 24px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .miniPlayerBtn {
   width: 32px;
   height: 32px;
