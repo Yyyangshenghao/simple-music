@@ -88,3 +88,13 @@ export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, e
 
 /** 设为下一首：落位后整行氛围色闪一下。 */
 export const queueRowFlashTiming: KeyframeAnimationOptions = { duration: 900, easing: 'ease-out' }
+
+/** 挤压开关（参考 React Bits SquishSwitch）：滑块切换的弹簧，略带过冲。 */
+export const switchSlideSpring = { stiffness: 170, damping: 21.5, mass: 0.9, restDelta: 0.001, restSpeed: 0.01 }
+
+/** 挤压开关：对滑块速度做平滑，横移越快越拉长压扁。 */
+export const switchFlowSpring = { stiffness: 320, damping: 40, mass: 0.6 }
+
+/** 挤压开关：悬停 / 按住时滑块微鼓的弹簧与幅度。 */
+export const switchSwellSpring = { stiffness: 520, damping: 34, mass: 0.6 }
+export const switchSwell = { hover: 1.06, press: 0.92 }
