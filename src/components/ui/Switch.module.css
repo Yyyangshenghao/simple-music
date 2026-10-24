@@ -1,67 +1,22 @@
-/* 尺寸集中在变量里：圆点行程 = 轨道宽 - 2×内边距 - 圆点直径 */
+/* 流体玻璃开关。尺寸与 Switch.tsx 中的常量一致：轨道 46×24，胶囊圆点 28×20，内边距 2 */
 .track {
-  --sw-w: 40px;
-  --sw-h: 24px;
-  --sw-pad: 3px;
-  --sw-knob: calc(var(--sw-h) - var(--sw-pad) * 2);
-  --sw-travel: calc(var(--sw-w) - var(--sw-pad) * 2 - var(--sw-knob));
-  --sw-stretch: 5px;
-  /* 开态轨道混入少量封面主色，跟随氛围色变化但仍以单色强调为主 */
-  --sw-on: color-mix(in srgb, var(--sm-accent) 90%, var(--ambient-1));
-
   position: relative;
-  width: var(--sw-w);
-  height: var(--sw-h);
+  display: inline-block;
+  width: 46px;
+  height: 24px;
   flex-shrink: 0;
   padding: 0;
   border: none;
   border-radius: var(--sm-radius-pill);
   background: var(--sm-switch-track-off);
-  box-shadow:
-    inset 0 0 0 1px var(--sm-border),
-    inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 0.5px var(--sm-switch-track-edge);
   cursor: pointer;
-  isolation: isolate;
-  transition:
-    background-color 240ms var(--sm-ease-out),
-    box-shadow 240ms var(--sm-ease-out),
-    transform 160ms var(--sm-ease-out);
-}
-
-/* 开态顶部高光：单独一层做透明度过渡，避免渐变背景无法插值 */
-.track::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 70%);
-  opacity: 0;
-  transition: opacity 240ms var(--sm-ease-out);
+  touch-action: none;
+  transition: background-color 200ms var(--sm-ease-out);
 }
 
 .track:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--sm-switch-track-off), var(--sm-text-primary) 8%);
-}
-
-.track:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.track.on {
-  background: var(--sw-on);
-  box-shadow:
-    inset 0 0 0 1px transparent,
-    0 0 0 0 transparent,
-    0 2px 10px -3px color-mix(in srgb, var(--sw-on) 55%, transparent);
-}
-
-.track.on::before {
-  opacity: 1;
-}
-
-.track.on:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--sw-on), var(--sm-text-on-accent) 8%);
+  background: color-mix(in srgb, var(--sm-switch-track-off), var(--sm-text-primary) 6%);
 }
 
 .track:disabled {
@@ -69,51 +24,83 @@
   cursor: not-allowed;
 }
 
-.knob {
-  position: absolute;
-  top: var(--sw-pad);
-  left: var(--sw-pad);
-  width: var(--sw-knob);
-  height: var(--sw-knob);
-  border-radius: var(--sm-radius-pill);
-  background-color: var(--sm-switch-knob-off);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 60%);
-  box-shadow: var(--sm-switch-knob-shadow);
-  pointer-events: none;
-  transition:
-    transform 420ms var(--sm-ease-overshoot),
-    width 220ms var(--sm-ease-out),
-    background-color 240ms var(--sm-ease-out);
-}
-
-.track.on .knob {
-  transform: translateX(var(--sw-travel));
-  background-color: var(--sm-text-on-accent);
-}
-
-/* 按住时圆点朝行进方向拉长，松手后弹回圆形 */
-.track:active:not(:disabled) .knob {
-  width: calc(var(--sw-knob) + var(--sw-stretch));
-}
-
-.track.on:active:not(:disabled) .knob {
-  transform: translateX(calc(var(--sw-travel) - var(--sw-stretch)));
-}
-
-.ripple {
+/* 开态底色：随圆点推进裁剪，透明度跟随进度 */
+.fill {
   position: absolute;
   inset: 0;
-  z-index: -2;
   border-radius: inherit;
+  background: var(--sm-switch-track-on);
   pointer-events: none;
-  animation: sw-ripple 560ms var(--sm-ease-out) forwards;
 }
 
-@keyframes sw-ripple {
-  from {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sm-accent) 32%, transparent);
-  }
-  to {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--sm-accent) 0%, transparent);
-  }
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 28px;
+  height: 20px;
+  border-radius: var(--sm-radius-pill);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.solid,
+.lens {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* 静止态：实心胶囊，底部微压暗 */
+.solid {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.04)),
+    var(--sm-switch-thumb);
+  box-shadow: var(--sm-switch-thumb-shadow);
+}
+
+/* 浮起态：通透透镜。先给不支持 SVG 背景滤镜的环境一个轻模糊，Chromium 下换成真实折射 */
+.lens {
+  overflow: hidden;
+  background: radial-gradient(closest-side, transparent 70%, rgba(255, 255, 255, 0.10));
+  backdrop-filter: blur(0.6px) saturate(160%) brightness(1.08);
+  backdrop-filter: url(#sm-switch-refraction) saturate(160%) brightness(1.08);
+  /* 内圈暗边表现玻璃厚度，盖在亮底上也能看出轮廓 */
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.25),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.18),
+    inset 0 0 4px rgba(0, 0, 0, 0.14),
+    0 0 0 0.5px rgba(0, 0, 0, 0.12),
+    0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+/* 玻璃厚度：上沿亮、下沿弱的高光细边 */
+.lens::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.3)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* 左上高光弧 */
+.lens::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 14%;
+  width: 46%;
+  height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 40% 35%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%);
 }

@@ -11,6 +11,7 @@ import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
 import { SourceName } from '../ui/SourceName'
+import { SwitchIndicator } from '../ui/Switch'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -64,7 +65,7 @@ function GameModeSection() {
           <span className={styles.sectionTitle}>游戏模式</span>
           <span className={styles.tip}>后台播放，可从托盘返回</span>
         </span>
-        <span className={styles.optionState} aria-hidden="true" />
+        <SwitchIndicator checked={enabled} />
       </button>
     </section>
   )
@@ -351,7 +352,7 @@ function SleepSection() {
         onClick={() => useSleepTimerStore.getState().setFinishTrack(!finishTrack)}
       >
         <span>到点后播完当前曲</span>
-        <span className={styles.optionState} aria-hidden="true" />
+        <SwitchIndicator checked={finishTrack} />
       </button>
     </section>
   )
