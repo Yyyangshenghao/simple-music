@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
 import { useReducedMotion, useSystemReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
@@ -535,6 +535,9 @@ function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | nu
   return null
 }
 
+/** 本次运行内记住设置页滚动位置，切到别的页面再回来时回到原处。 */
+let savedSettingsScrollTop = 0
+
 export function SettingsPage() {
   const reducedMotion = useReducedMotion()
   const systemReducedMotion = useSystemReducedMotion()
@@ -546,6 +549,31 @@ export function SettingsPage() {
   const activeSectionRef = useRef<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
+
+  // 在首帧绘制前恢复；字体、缓存信息等异步内容撑开高度前不够滚时，等内容长高再补一次，用户先动则放弃。
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    const target = savedSettingsScrollTop
+    if (!page || target <= 0) return
+    page.scrollTop = target
+    if (page.scrollTop >= target - 1) return
+    const content = page.firstElementChild
+    const stop = () => {
+      observer.disconnect()
+      clearTimeout(timeout)
+      page.removeEventListener('wheel', stop)
+      page.removeEventListener('pointerdown', stop)
+    }
+    const observer = new ResizeObserver(() => {
+      page.scrollTop = target
+      if (page.scrollTop >= target - 1) stop()
+    })
+    if (content) observer.observe(content)
+    const timeout = setTimeout(stop, 1500)
+    page.addEventListener('wheel', stop, { passive: true })
+    page.addEventListener('pointerdown', stop)
+    return stop
+  }, [])
 
   useEffect(() => {
     const page = pageRef.current
@@ -584,6 +612,8 @@ export function SettingsPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) resumeScrollTracking()
     }
+    const rememberScroll = () => { savedSettingsScrollTop = page.scrollTop }
+    page.addEventListener('scroll', rememberScroll, { passive: true })
     page.addEventListener('scroll', updateActiveDetail, { passive: true })
     page.addEventListener('wheel', resumeScrollTracking, { passive: true })
     page.addEventListener('touchstart', resumeScrollTracking, { passive: true })
@@ -591,6 +621,7 @@ export function SettingsPage() {
     page.addEventListener('pointerdown', handlePointerDown)
     updateActiveDetail()
     return () => {
+      page.removeEventListener('scroll', rememberScroll)
       page.removeEventListener('scroll', updateActiveDetail)
       page.removeEventListener('wheel', resumeScrollTracking)
       page.removeEventListener('touchstart', resumeScrollTracking)
