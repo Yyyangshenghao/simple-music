@@ -10,6 +10,7 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
+import { VolumePill } from './VolumePill'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -389,25 +390,20 @@ function VolumeControl() {
         {open && (
           <motion.div
             className={styles.volumePopover}
-            initial={{ opacity: 0, y: 10, scale: 0.88 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.92, transition: { duration: 0.14 } }}
-            transition={springSnappy}
+            // 不用 filter 做模糊入场：父层 filter 会成为 backdrop root，胶囊的毛玻璃会失效。
+            initial={{ opacity: 0, y: 14, scaleY: 0.55, scaleX: 0.8 }}
+            animate={{ opacity: 1, y: 0, scaleY: 1, scaleX: 1 }}
+            exit={{ opacity: 0, y: 8, scaleY: 0.7, scaleX: 0.9, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}
+            transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.8 }}
           >
-            <ScrubSlider
-              className={styles.volumeSlider}
-              orientation="vertical"
-              ariaLabel="音量"
+            <VolumePill
               value={volume}
-              min={0}
-              max={1}
-              bubble="drag"
-              showBubble={wheeling}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onPreview={(v) => {
-                draggingRef.current = v !== null
-              }}
               onChange={setVolume}
+              showValue={wheeling}
+              icon={<VolumeIcon level={volume <= 0 ? 'mute' : volume < 0.5 ? 'low' : 'high'} />}
+              onDragChange={(dragging) => {
+                draggingRef.current = dragging
+              }}
             />
           </motion.div>
         )}

@@ -93,17 +93,17 @@
   border-radius: 50%;
   background: var(--scrub-thumb, var(--scrub-fill-color));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28), 0 0 0 0 color-mix(in srgb, var(--scrub-fill-color) 0%, transparent);
-  transform: translate(var(--scrub-shift-x), var(--scrub-shift-y)) scale(0);
+  transform: translateX(var(--scrub-stretch)) scale(0);
   transition:
     transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 200ms var(--sm-ease-out);
   pointer-events: none;
 }
 
-.root:hover .thumb { transform: translate(var(--scrub-shift-x), var(--scrub-shift-y)) scale(1); }
+.root:hover .thumb { transform: translateX(var(--scrub-stretch)) scale(1); }
 
 .root[data-dragging] .thumb {
-  transform: translate(var(--scrub-shift-x), var(--scrub-shift-y)) scale(1.25);
+  transform: translateX(var(--scrub-stretch)) scale(1.25);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 5px color-mix(in srgb, var(--scrub-fill-color) 18%, transparent);
 }
 
@@ -142,72 +142,6 @@
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
 }
-
-/* ---------- 竖向:自下而上增大,轨道变粗方向改为横向,气泡在左侧 ---------- */
-.root[data-orientation='vertical'] {
-  flex-direction: column;
-  justify-content: center;
-  width: 20px;
-  height: 100%;
-}
-
-.root[data-orientation='vertical'] .track {
-  width: var(--scrub-thickness);
-  height: 100%;
-}
-
-.root[data-orientation='vertical'] .rail {
-  left: 0;
-  right: 0;
-  top: calc(max(var(--scrub-stretch), 0px) * -1);
-  bottom: min(var(--scrub-stretch), 0px);
-  transform: scaleX(var(--scrub-idle-scale));
-  transition:
-    transform 240ms var(--sm-ease-out),
-    top 520ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    bottom 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.root[data-orientation='vertical']:hover .rail,
-.root[data-orientation='vertical'][data-dragging] .rail { transform: scaleX(1); }
-
-.root[data-orientation='vertical'][data-stretch] .rail { transition: transform 240ms var(--sm-ease-out); }
-
-.root[data-orientation='vertical'] .fill,
-.root[data-orientation='vertical'] .ghost { transform-origin: center bottom; }
-.root[data-orientation='vertical'] .fill { transform: scaleY(var(--scrub-ratio)); }
-.root[data-orientation='vertical'] .ghost { transform: scaleY(var(--scrub-hover)); }
-
-/* 竖条只在弹层里出现,本身就是明确的操作入口,滑块常显 */
-.root[data-orientation='vertical'] .thumb {
-  top: auto;
-  left: 50%;
-  bottom: calc(var(--scrub-ratio) * 100%);
-  margin: 0 0 calc(var(--scrub-thumb-size) / -2) calc(var(--scrub-thumb-size) / -2);
-  transform: translate(var(--scrub-shift-x), var(--scrub-shift-y)) scale(1);
-}
-
-.root[data-orientation='vertical'][data-dragging] .thumb {
-  transform: translate(var(--scrub-shift-x), var(--scrub-shift-y)) scale(1.25);
-}
-
-.root[data-orientation='vertical'][data-jumping] .thumb {
-  transition:
-    bottom 200ms var(--sm-ease-out),
-    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 200ms var(--sm-ease-out);
-}
-
-.root[data-orientation='vertical'] .bubble {
-  top: auto;
-  left: auto;
-  right: calc(100% + 12px);
-  bottom: calc(var(--scrub-bubble) * 100%);
-  transform: translate(4px, 50%) scale(0.92);
-  transform-origin: 100% 50%;
-}
-
-.root[data-orientation='vertical'] .bubble[data-visible] { transform: translate(0, 50%) scale(1); }
 
 @media (prefers-reduced-motion: reduce) {
   .rail, .ghost, .thumb, .bubble,
