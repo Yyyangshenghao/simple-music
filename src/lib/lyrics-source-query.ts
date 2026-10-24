@@ -102,7 +102,8 @@ async function queryLyricsSourceImpl(
       if (mapping.status !== 'idle') return mapping
     }
     if (!result?.main.length) return { status: 'empty', message: '未找到本曲歌词' }
-    if (!fitsLyricDuration(track, result)) return { status: 'mismatch', message: '未找到匹配版本' }
+    // 本曲平台按自身 ID 取到的歌词不存在错配；网易音乐人歌词末尾常带 [99:00] 推广行，不能因此整份丢弃。
+    if (origin !== track.source && !fitsLyricDuration(track, result)) return { status: 'mismatch', message: '未找到匹配版本' }
     return { status: 'ready', result, match }
   }
   try {

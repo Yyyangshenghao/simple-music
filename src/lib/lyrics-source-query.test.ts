@@ -191,6 +191,13 @@ describe('真实结果与错误分类', () => {
     expect(await queryLyricsSource(track, origin, ['netease'])).toMatchObject({ status: 'error' })
   })
 
+  it('本曲平台歌词末尾的 [99:00] 推广行不判错配，跨平台仍校验时长', async () => {
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙\n[99:00.01]本歌曲来自〖网易音乐人〗' })
+    expect(await queryLyricsSource(song('netease'), 'netease', ['netease'])).toMatchObject({ status: 'ready' })
+    clearProviderRequestCache()
+    expect(await queryLyricsSource(song('qq'), 'netease', ['netease', 'qq'])).toMatchObject({ status: 'mismatch' })
+  })
+
   it('保存过的同曲必须重新校验，不复用错误录音', async () => {
     h.qq.mockResolvedValueOnce([])
     const remembered = song('qq', { name: '晴天 (Live)' })
