@@ -16,6 +16,9 @@ import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
+import { useLyricsSourceStore } from '../../stores/lyrics-source'
+import { useLyricsStore } from '../../stores/lyrics'
+import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import styles from './MoreMenu.module.css'
 
@@ -393,7 +396,12 @@ export function MoreMenu() {
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
-  const hasTrack = usePlayerStore((s) => !!s.currentTrack)
+  const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
+  const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
+  const lyricsLoading = useLyricsStore((s) => s.loading)
+  const appliedOrigin = useLyricsSourceStore((s) => s.appliedOrigin)
+  const lyricsSourceLabel = lyricsLoading ? '正在加载…'
+    : lyricsTrackKey === trackKey && appliedOrigin ? LYRIC_SOURCE_LABELS[appliedOrigin] : '暂无歌词'
   const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -466,12 +474,15 @@ export function MoreMenu() {
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
-              {hasTrack && <section className={styles.section}>
+              {trackKey && <section className={styles.section}>
                 <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="m9 6 6 6-6 6" />
-                  </svg>
+                  <span className={styles.extrasSummary}>
+                    <span className={styles.sectionStatus} title={lyricsSourceLabel}>{lyricsSourceLabel}</span>
+                    <svg className={styles.chevron} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
+                  </span>
                 </button>
               </section>}
               <ExtrasSection expanded={extrasOpen} onToggle={() => setExtrasOpen((v) => !v)} showRate={!apple} />
