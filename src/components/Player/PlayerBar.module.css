@@ -92,28 +92,128 @@
   opacity: 0.7;
 }
 
-/* 悬浮岛播放键：顶部高光 + 封面氛围色投影，悬停略微抬起光晕。 */
-.bar .playBtn {
-  width: 44px;
-  height: 44px;
+/* 悬浮岛与歌词页播放键：流体玻璃，与音乐库分段控件透镜同一套语言——无色通透的玻璃体，
+   背景轻微模糊提亮；渐变细边上沿亮、下沿弱表现厚度，内缘上亮下暗像凸透镜。
+   --play-glass-ink / --play-glass-edge / --play-glass-icon-shadow 让歌词页换成歌词墨色。 */
+.bar .playBtn,
+.lyricsPlayer .playBtn {
+  --play-glass-ink: var(--sm-text-primary);
+  --play-glass-edge: var(--sm-border-strong);
+  --play-glass-icon-shadow: color-mix(in srgb, var(--sm-bg-base) 35%, transparent);
   border: none;
+  color: var(--play-glass-ink);
+  isolation: isolate;
+  /* 自上而下：底部焦散（光穿过玻璃聚在下沿，带一点封面色）、边缘折射暗环、通透的玻璃体 */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%),
-    var(--sm-accent);
+    radial-gradient(70% 38% at 50% 100%, color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 30%, white) 34%, transparent), transparent),
+    radial-gradient(closest-side, transparent 74%, color-mix(in srgb, var(--play-glass-ink) 9%, transparent) 96%, transparent),
+    linear-gradient(180deg, color-mix(in srgb, white 20%, transparent), color-mix(in srgb, white 5%, transparent) 55%, color-mix(in srgb, white 9%, transparent));
+  backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
+  -webkit-backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 1px 2px rgba(0, 0, 0, 0.16),
-    0 6px 18px -6px color-mix(in srgb, var(--ambient-1) 60%, rgba(0, 0, 0, 0.5));
+    inset 0 8px 10px -8px color-mix(in srgb, white 45%, transparent),
+    0 0 0 0.5px var(--play-glass-edge),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 6px 16px -6px rgba(0, 0, 0, 0.32);
+  transition: box-shadow 180ms var(--sm-ease-out), backdrop-filter 180ms var(--sm-ease-out);
 }
 
-.bar .playBtn:hover {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%),
-    var(--sm-accent);
+.bar .playBtn::before,
+.lyricsPlayer .playBtn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  /* 镜面细边：左上主高光、右下次高光，两侧收暗，像光沿玻璃厚度绕过去 */
+  background: conic-gradient(from 225deg,
+    color-mix(in srgb, white 85%, transparent),
+    color-mix(in srgb, white 10%, transparent) 22%,
+    color-mix(in srgb, white 4%, transparent) 30%,
+    color-mix(in srgb, white 45%, transparent) 50%,
+    color-mix(in srgb, white 4%, transparent) 70%,
+    color-mix(in srgb, white 10%, transparent) 78%,
+    color-mix(in srgb, white 85%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+.bar .playBtn .playIconWrap,
+.lyricsPlayer .playBtn .playIconWrap {
+  filter: drop-shadow(0 1px 1.5px var(--play-glass-icon-shadow));
+}
+
+.bar .playBtn:hover,
+.lyricsPlayer .playBtn:hover {
+  color: var(--play-glass-ink);
+  backdrop-filter: blur(4px) saturate(200%) brightness(1.16);
+  -webkit-backdrop-filter: blur(4px) saturate(200%) brightness(1.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 1px 2px rgba(0, 0, 0, 0.16),
-    0 10px 24px -6px color-mix(in srgb, var(--ambient-1) 70%, rgba(0, 0, 0, 0.5));
+    inset 0 8px 10px -8px color-mix(in srgb, white 60%, transparent),
+    0 0 0 0.5px var(--play-glass-edge),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 10px 22px -8px rgba(0, 0, 0, 0.38);
+}
+
+.bar .playBtn { width: 44px; height: 44px; }
+
+/* 歌词页按歌词墨色走：深底白字、浅底深字都能看清。 */
+.lyricsPlayer .playBtn {
+  --play-glass-ink: rgb(var(--lyrics-ink-rgb));
+  --play-glass-edge: rgba(var(--lyrics-ink-rgb), 0.22);
+  --play-glass-icon-shadow: rgba(0, 0, 0, 0.28);
+}
+
+/* 点击流光（Star Border 式）：两颗光点沿玻璃细边左右对称绕行半圈后淡出。
+   --play-star 是光点离顶端的角度，用 @property 注册才能逐帧插值。 */
+@property --play-star { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.playStar {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  /* 光点取封面氛围色提亮：深色底上像白光带色，浅色底上也看得见 */
+  --play-star-color: color-mix(in srgb, var(--ambient-1) 35%, white);
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    transparent calc(var(--play-star) - 34deg),
+    var(--play-star-color) var(--play-star),
+    transparent calc(var(--play-star) + 34deg),
+    transparent calc(360deg - var(--play-star) - 34deg),
+    var(--play-star-color) calc(360deg - var(--play-star)),
+    transparent calc(360deg - var(--play-star) + 34deg));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 3px var(--ambient-1)) drop-shadow(0 0 1px var(--play-star-color));
+  opacity: 0;
+}
+
+.playStar[data-dir] { animation: playStar 820ms var(--sm-ease-in-out) forwards; }
+
+@keyframes playStar {
+  0% { --play-star: 0deg; opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 0.9; }
+  100% { --play-star: 180deg; opacity: 0; }
+}
+
+/* 开始播放时从底端升到顶端，暂停时从顶端落到底端。 */
+.playStar[data-dir='up'] { animation-name: playStarUp; }
+
+@keyframes playStarUp {
+  0% { --play-star: 180deg; opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 0.9; }
+  100% { --play-star: 0deg; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playStar { display: none; }
 }
 
 .modeBalance {

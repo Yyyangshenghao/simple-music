@@ -504,6 +504,16 @@ function VolumeControl() {
   )
 }
 
+/** 重播播放键的点击流光：开始播放时从下往上、暂停时从上往下。直接改 DOM 属性而不走 state，
+ *  先移除再强制回流后写回，连点也能从头重播。 */
+function replayPlayStar(button: Element | undefined, dir: 'up' | 'down') {
+  const star = button?.querySelector<HTMLElement>(`.${styles.playStar}`)
+  if (!star) return
+  delete star.dataset.dir
+  void star.offsetWidth
+  star.dataset.dir = dir
+}
+
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
   const status = usePlayerStore((s) => s.status)
@@ -535,7 +545,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <motion.button
             type="button"
             className={`${styles.btn} ${styles.playBtn} no-drag`}
-            onClick={() => toggle()}
+            onClick={(e) => { replayPlayStar(e?.currentTarget, isPlaying ? 'down' : 'up'); toggle() }}
             title={isPlaying ? '暂停' : '播放'}
             aria-label={isPlaying ? '暂停' : '播放'}
             data-loading={isLoading}
@@ -554,6 +564,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </motion.span>
             </AnimatePresence>
+            <span className={styles.playStar} aria-hidden="true" />
           </motion.button>
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
