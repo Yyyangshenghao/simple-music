@@ -8,6 +8,7 @@ import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
 import { SourceBadge } from '../ui/SourceBadge'
+import { EqIndicator } from '../ui/EqIndicator'
 import { QueueDiscovery } from './QueueDiscovery'
 import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
@@ -189,7 +190,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                         >
                           <span className={styles.index}>
                             {isCurrent ? (
-                              <span className={styles.playingDot} data-playing={isPlaying} aria-hidden="true" />
+                              <EqIndicator paused={!isPlaying} />
                             ) : (
                               i + 1
                             )}

@@ -217,8 +217,27 @@
   cursor: not-allowed;
 }
 
+/* 当前曲目：氛围色淡底 + 左缘色条 + 均衡器，曲名加粗，一眼可辨（与歌曲列表的当前行一致） */
+.row { position: relative; }
+.row[data-current='true'] {
+  background: color-mix(in srgb, var(--ambient-1) 12%, transparent);
+}
+.row[data-current='true']:hover {
+  background: color-mix(in srgb, var(--ambient-1) 18%, transparent);
+}
+.row[data-current='true']::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ambient-1);
+}
 .row[data-current='true'] .rowName {
-  color: var(--sm-accent);
+  color: var(--sm-text-primary);
+  font-weight: 650;
 }
 
 .index {
@@ -229,22 +248,6 @@
   font-size: 12px;
   color: var(--sm-text-secondary);
   font-variant-numeric: tabular-nums;
-}
-
-.playingDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--sm-accent);
-}
-
-.playingDot[data-playing='true'] {
-  animation: queue-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes queue-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.65); opacity: 0.6; }
 }
 
 .rowText {
