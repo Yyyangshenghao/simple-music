@@ -17,6 +17,7 @@ import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -288,7 +289,7 @@ function RateSection() {
   const rate = usePlayerStore((s) => s.rate)
   const setRate = usePlayerStore((s) => s.setRate)
   return (
-    <section className={styles.section}>
+    <div className={styles.subSection}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>倍速</span>
       </div>
@@ -300,7 +301,7 @@ function RateSection() {
         onChange={(v) => setRate(Number(v))}
         items={RATE_OPTIONS.map((r) => ({ value: String(r), label: `${r}x` }))}
       />
-    </section>
+    </div>
   )
 }
 
@@ -319,7 +320,7 @@ function SleepSection() {
         : '未开启'
 
   return (
-    <section className={styles.section}>
+    <div className={styles.subSection}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>定时关闭</span>
         <span className={styles.sectionStatus}>{statusText}</span>
@@ -346,6 +347,45 @@ function SleepSection() {
         <span>到点后播完当前曲</span>
         <SwitchIndicator checked={finishTrack} />
       </button>
+    </div>
+  )
+}
+
+/** 低频的倍速与定时关闭：默认收起放在最底部，收起时标题旁概括当前生效的设置。 */
+function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; onToggle(): void; showRate: boolean }) {
+  const rate = usePlayerStore((s) => s.rate)
+  const phase = useSleepTimerStore((s) => s.phase)
+  const remainingSec = useSleepTimerStore((s) => s.remainingSec)
+  const summary = [
+    showRate && rate !== 1 ? `${rate}x` : null,
+    phase === 'counting' ? `${formatCountdown(remainingSec)} 后停止` : phase === 'finishing-track' ? '播完当前曲后停止' : null,
+  ].filter(Boolean).join(' · ')
+  const reducedMotion = useReducedMotion()
+  return (
+    <section className={styles.section}>
+      <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} aria-expanded={expanded} onClick={onToggle}>
+        <span className={styles.sectionTitle}>{showRate ? '倍速与定时关闭' : '定时关闭'}</span>
+        <span className={styles.extrasSummary}>
+          {!expanded && summary && <span className={styles.sectionStatus}>{summary}</span>}
+          <svg className={styles.chevron} data-open={expanded} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            className={styles.extrasBody}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={reducedMotion ? { duration: 0 } : springGentle}
+          >
+            {showRate && <RateSection />}
+            <SleepSection />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }
@@ -353,6 +393,8 @@ function SleepSection() {
 /** 「更多」菜单:整合游戏模式与播放设置，给播放栏右侧腾出空间。 */
 export function MoreMenu() {
   const [open, setOpen] = useState(false)
+  // 低频项默认收起；本次运行内记住展开状态
+  const [extrasOpen, setExtrasOpen] = useState(false)
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const hasTrack = usePlayerStore((s) => !!s.currentTrack)
@@ -426,8 +468,6 @@ export function MoreMenu() {
             </div>
             <div className={styles.content}>
               <GameModeSection />
-              {!apple && <RateSection />}
-              <SleepSection />
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
@@ -439,6 +479,7 @@ export function MoreMenu() {
                   </svg>
                 </button>
               </section>}
+              <ExtrasSection expanded={extrasOpen} onToggle={() => setExtrasOpen((v) => !v)} showRate={!apple} />
             </div>
           </motion.div>
         )}
