@@ -1,0 +1,25 @@
+/* 图标按钮悬停提示:反色小胶囊,上浮淡入 */
+.tip {
+  position: absolute;
+  z-index: 20;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--sm-text-primary);
+  color: var(--sm-bg-base);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  animation: tipIn 160ms var(--sm-ease-out) both;
+}
+
+@keyframes tipIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip { animation: none; }
+}

@@ -10,6 +10,7 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
+import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -178,7 +179,6 @@ function DesktopLyricsButton() {
       className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
       data-active={enabled}
       onClick={() => useVisualStore.getState().updateFx({ desktopLyrics: !enabled })}
-      title={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
       aria-label={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
       aria-pressed={enabled}
       whileTap={tapScale}
@@ -206,7 +206,6 @@ function MiniPlayerButton() {
         useSettingsStore.getState().setMiniPlayerEnabled(next)
         void window.desktop?.setMiniPlayerEnabled(next, miniPlayerWidth)
       }}
-      title={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
       aria-label={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
       aria-pressed={enabled}
       whileTap={tapScale}
@@ -284,7 +283,6 @@ function AddToAppPlaylistButton() {
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(event) => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
-      title="加入歌单"
       aria-label="加入歌单"
       whileTap={tapScale}
       transition={springSnappy}
@@ -535,6 +533,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />
         </div>
+        <HoverTips exclude={`.${styles.volumeGroup}`} />
       </div>
     </div>
   )

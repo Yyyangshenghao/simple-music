@@ -403,7 +403,7 @@ export function MoreMenu() {
         className={`${styles.toggleBtn} no-drag`}
         data-active={open || hasActive}
         onClick={() => setOpen((v) => !v)}
-        title="更多:游戏模式 / 来源 / 离线 / 音质 / 倍速 / 定时关闭"
+        data-tip="更多：音质、倍速、定时关闭等"
         aria-label="更多"
         aria-expanded={open}
         whileTap={tapScale}

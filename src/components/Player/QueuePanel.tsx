@@ -103,7 +103,6 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
         className={`${styles.toggleBtn} no-drag`}
         data-active={open}
         onClick={() => setOpen((v) => !v)}
-        title="播放队列"
         aria-label="播放队列"
         aria-expanded={open}
         whileTap={tapScale}
