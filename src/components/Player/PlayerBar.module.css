@@ -211,15 +211,11 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity 160ms var(--sm-ease-out), transform 220ms var(--sm-ease-out);
+  transition: color 160ms var(--sm-ease-out);
 }
 
-.volumeValue[data-visible] {
-  opacity: 1;
-  transform: none;
-}
+/* 常显；拖动/滚轮调节时提亮 */
+.volumeValue[data-active] { color: var(--sm-text-primary); }
 
 .miniPlayerBtn {
   width: 32px;

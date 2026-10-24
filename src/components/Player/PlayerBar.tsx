@@ -454,7 +454,7 @@ function VolumeControl() {
                 }}
                 onChange={setVolume}
               />
-              <span className={styles.volumeValue} data-visible={dragging || wheeling || undefined}>{Math.round(volume * 100)}%</span>
+              <span className={styles.volumeValue} data-active={dragging || wheeling || undefined}>{Math.round(volume * 100)}%</span>
             </motion.div>
           </motion.div>
         )}
