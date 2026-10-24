@@ -377,12 +377,14 @@ interface QualityCandidate {
   br: number
   label: string
   svip?: boolean
+  /** 音效变体档（环绕声 / 鲸云音效），不是更高保真；「最高」不取。 */
+  effect?: boolean
 }
 const NETEASE_QUALITY_CANDIDATES: QualityCandidate[] = [
   { level: 'jymaster', br: 1999000, label: '超清母带', svip: true },
   // sky/jyeffect 是音效变体档(码率高于 hires):无母带的歌请求 jymaster 时上游常降级返回 jyeffect
-  { level: 'sky', br: 1999000, label: '沉浸环绕声', svip: true },
-  { level: 'jyeffect', br: 1999000, label: '鲸云音效' },
+  { level: 'sky', br: 1999000, label: '沉浸环绕声', svip: true, effect: true },
+  { level: 'jyeffect', br: 1999000, label: '鲸云音效', effect: true },
   { level: 'hires', br: 1999000, label: '高清臻音' },
   { level: 'lossless', br: 1411000, label: '无损' },
   { level: 'exhigh', br: 999000, label: '极高' },
@@ -391,7 +393,7 @@ const NETEASE_QUALITY_CANDIDATES: QualityCandidate[] = [
 ]
 export function normalizeQualityPreference(value: unknown): string {
   const raw = String(value || '').toLowerCase().trim()
-  // max = 逐首歌取实际可得的最高档;candidates 里无此 level,findIndex 落空后从头(母带)开始整链回退
+  // max = 逐首歌取实际可得的最高保真档(跳过音效变体);candidates 里无此 level,findIndex 落空后从头(母带)开始整链回退
   if (['max', 'best', 'highest', 'auto'].includes(raw)) return 'max'
   if (['jymaster', 'master', 'studio', 'svip'].includes(raw)) return 'jymaster'
   if (['sky', 'surround'].includes(raw)) return 'sky'
@@ -686,8 +688,10 @@ export async function handleSongUrl(
   console.log('[SongUrl] id:', id, 'logged-in:', !!cookie)
   const requestedQuality = normalizeQualityPreference(qualityPreference)
   const svipReady = hasNeteaseSvip(loginInfo)
+  // 「最高」按保真取：母带 → 臻音 → 无损…，环绕声 / 鲸云音效只在用户明确选择时取
+  const skipEffects = requestedQuality === 'max'
   const qualities = qualityCandidatesFrom(requestedQuality, NETEASE_QUALITY_CANDIDATES).filter(
-    (q) => !q.svip || svipReady
+    (q) => (!q.svip || svipReady) && !(skipEffects && q.effect)
   )
 
   let trialFallback: SongUrlResult | null = null
@@ -710,6 +714,8 @@ export async function handleSongUrl(
       const actualLevel = asStr(d.level) || q.level
       const actualMeta = NETEASE_QUALITY_CANDIDATES.find((c) => c.level === actualLevel)
       console.log('[SongUrl]', q.level, '->', url ? `OK (${actualLevel})` : 'no url', freeTrial ? '(TRIAL)' : '')
+      // 无母带的歌请求母带时上游常降级成鲸云音效：「最高」不收，继续向下取臻音 / 无损
+      if (url && skipEffects && actualMeta?.effect) continue
       if (url && !freeTrial) {
         return {
           url: asStr(url),

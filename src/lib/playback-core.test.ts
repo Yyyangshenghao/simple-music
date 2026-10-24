@@ -139,7 +139,8 @@ describe('无界面播放核心', () => {
   it.each([
     ['jyeffect', 'lossless', true, false],
     ['lossless', 'lossless', true, true],
-    ['jyeffect', 'max', true, true],
+    ['jyeffect', 'max', true, false],
+    ['hires', 'max', true, true],
     ['standard', 'max', true, false],
     ['jyeffect', 'lossless', false, true],
     [undefined, 'lossless', true, true],

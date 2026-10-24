@@ -234,7 +234,7 @@ function QualitySection({ open }: { open: boolean }) {
           data-on={quality === 'max'}
           aria-pressed={quality === 'max'}
           onClick={() => setQuality('max')}
-          title="自动取本曲最高档"
+          title="自动取本曲最高保真档：超清母带、高清臻音或无损，不含环绕声和鲸云音效"
         >
           最高
         </button>

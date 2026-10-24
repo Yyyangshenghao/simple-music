@@ -104,8 +104,8 @@ export interface PlaybackPlayer {
 }
 
 /** 会话编排只通过宿主接口读写状态、控制音频；创建时不注册全局订阅。 */
-/** 「最高」档下仍可直接复用的缓存档位；更低的缓存档会重新在线解析以取到本曲最高档。 */
-const MAX_QUALITY_CACHE_LEVELS = new Set(['lossless', 'hires', 'jyeffect', 'sky', 'jymaster'])
+/** 「最高」档下仍可直接复用的缓存档位；更低的档和音效变体（环绕声 / 鲸云音效）会重新在线解析。 */
+const MAX_QUALITY_CACHE_LEVELS = new Set(['lossless', 'hires', 'jymaster'])
 
 /**
  * 离线 / 自动缓存的文件是否符合当前所选音质。缓存只记得写入时的档位，
