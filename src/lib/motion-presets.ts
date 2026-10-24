@@ -44,3 +44,16 @@ export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
 
 /** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
 export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
+
+/** 红心点亮心跳：先收缩成小点、再过冲回弹（参考 React Bits PulseHeart）；times 中段即收缩最低点。 */
+export const heartBeatTransition = { duration: 0.56, times: [0, 0.4, 1], ease: ['easeOut', 'backOut'] } satisfies Transition
+
+/** 心跳收缩到最低点时的缩放；填充在此刻切换，粒子由此迸出。 */
+export const heartBeatMinScale = 0.3
+
+/** 红心粒子迸散：从心跳最低点起外扩并淡出。 */
+export const heartBurstTransition: Transition = {
+  duration: 0.42,
+  delay: heartBeatTransition.duration * heartBeatTransition.times[1],
+  ease: 'easeOut'
+}
