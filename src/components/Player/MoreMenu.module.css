@@ -212,9 +212,6 @@
 
 .linkRow:hover { background: var(--sm-fill-hover); }
 
-.gameModeRow { padding: 0; text-align: left; }
-.gameModeIcon { flex-shrink: 0; color: var(--sm-text-secondary); }
-.gameModeCopy { display: flex; flex: 1; flex-direction: column; gap: 4px; }
 
 
 /* 倍速与定时关闭：收起在最底部，展开后两组内容以细线分隔 */

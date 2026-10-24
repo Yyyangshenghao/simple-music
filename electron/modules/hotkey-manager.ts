@@ -2,6 +2,7 @@ import { globalShortcut, Menu } from 'electron'
 import { sendMainWindowEvent } from './window-manager'
 import { sendPlaybackEvent } from './playback-host'
 import { returnFromMiniPlayer } from './overlay-manager'
+import { getGameMode, setGameMode } from './game-mode'
 import { isShortcutAction, isSafeGlobalAccelerator, isSystemReservedAccelerator, normalizeAccelerator } from '../../src/lib/shortcuts'
 import type { HotkeyBinding, HotkeyResult, HotkeyOutcome } from '../../src/types/ipc'
 
@@ -12,6 +13,9 @@ function triggerAction(action: string): void {
   if (action === 'settings') {
     returnFromMiniPlayer()
     sendMainWindowEvent('hotkey:triggered', { action })
+  } else if (action === 'game-mode') {
+    // 游戏模式下主窗口已释放，直接在主进程切换，与托盘勾选项同一入口
+    setGameMode({ ...getGameMode(), enabled: !getGameMode().enabled })
   } else sendPlaybackEvent('hotkey:triggered', { action })
 }
 

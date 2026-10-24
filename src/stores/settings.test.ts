@@ -51,8 +51,8 @@ describe('快捷键设置持久化', () => {
   })
   it('升级完整旧默认组合，但保留自定义和主动清除的配置', () => {
     vi.stubGlobal('window', { desktop: { platform: 'darwin' } })
-    const oldGlobal = defaultShortcuts('global').filter((item) => item.action !== 'settings').map((item) => ({ ...item, accelerator: item.action === 'mini-player' ? 'CommandOrControl+Alt+M' : item.accelerator.replace('+Shift', '') }))
-    const oldLocal = defaultShortcuts('local').filter((item) => item.action !== 'settings').map((item) => ({ ...item, accelerator: item.action === 'mini-player' ? 'CommandOrControl+Shift+M' : item.accelerator }))
+    const oldGlobal = defaultShortcuts('global').filter((item) => item.action !== 'settings' && item.action !== 'game-mode').map((item) => ({ ...item, accelerator: item.action === 'mini-player' ? 'CommandOrControl+Alt+M' : item.accelerator.replace('+Shift', '') }))
+    const oldLocal = defaultShortcuts('local').filter((item) => item.action !== 'settings' && item.action !== 'game-mode').map((item) => ({ ...item, accelerator: item.action === 'mini-player' ? 'CommandOrControl+Shift+M' : item.accelerator }))
     const getItem = vi.fn(() => JSON.stringify({ hotkeys: oldGlobal, localHotkeys: oldLocal }))
     vi.stubGlobal('localStorage', { getItem })
     useSettingsStore.getState().loadFromLocal()
@@ -65,17 +65,25 @@ describe('快捷键设置持久化', () => {
     expect(useSettingsStore.getState().hotkeys.find((item) => item.action === 'mini-player')?.accelerator).toBe('Command+Alt+M')
     expect(useSettingsStore.getState().localHotkeys).toEqual([{ action: 'settings', accelerator: 'Command+,' }])
   })
-  it('旧版空热键存档补上默认，新增设置入口不恢复其他已清除的绑定', () => {
+  it('旧版空热键存档补上默认，新增设置入口与游戏模式不恢复其他已清除的绑定', () => {
     const getItem = vi.fn(() => JSON.stringify({ hotkeys: [] }))
     vi.stubGlobal('localStorage', { getItem, setItem: vi.fn() })
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().hotkeys).toEqual(defaultShortcuts('global'))
     getItem.mockReturnValue(JSON.stringify({ hotkeys: [], localHotkeys: [], globalHotkeysEnabled: false, mediaKeysEnabled: false }))
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().hotkeys).toEqual([])
+    expect(useSettingsStore.getState().hotkeys).toEqual([{ action: 'game-mode', accelerator: 'Control+Alt+Shift+G' }])
     expect(useSettingsStore.getState().localHotkeys).toEqual([{ action: 'settings', accelerator: 'Control+,' }])
     expect(useSettingsStore.getState().globalHotkeysEnabled).toBe(false)
     expect(useSettingsStore.getState().mediaKeysEnabled).toBe(false)
+  })
+  it('旧全局快捷键存档补上游戏模式默认键，主动清除后保留清除', () => {
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ localHotkeys: [], hotkeys: [{ action: 'next', accelerator: 'F8' }] }) })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().hotkeys).toContainEqual({ action: 'game-mode', accelerator: expect.stringMatching(/\+Alt\+Shift\+G$/) })
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ localHotkeys: [], hotkeys: [{ action: 'game-mode', accelerator: '' }] }) })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().hotkeys).toEqual([{ action: 'game-mode', accelerator: '' }])
   })
   it('编辑、清除与开关跨重启保留，恢复默认不改变其他设置', () => {
     let saved = ''

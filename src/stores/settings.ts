@@ -24,7 +24,7 @@ function normalizeContentGutter(value: unknown): number {
 // 仅升级完整的旧默认配置；任何自定义或主动清除的绑定都保留。
 function migrateShortcutDefaults(value: unknown, scope: ShortcutScope, platform: string): unknown {
   if (!Array.isArray(value)) return value
-  const defaults = defaultShortcuts(scope).filter((binding) => binding.action !== 'settings')
+  const defaults = defaultShortcuts(scope).filter((binding) => binding.action !== 'settings' && binding.action !== 'game-mode')
   const isOldDefault = value.length === defaults.length && defaults.every((binding) => {
     const old = binding.action === 'mini-player'
       ? scope === 'local' ? 'CommandOrControl+Shift+M' : 'CommandOrControl+Alt+M'
@@ -33,9 +33,11 @@ function migrateShortcutDefaults(value: unknown, scope: ShortcutScope, platform:
       && normalizeAccelerator(item.accelerator, platform) === normalizeAccelerator(old, platform))
   })
   const bindings = isOldDefault ? defaultShortcuts(scope) : value
-  // 新增设置入口：旧存档补上，已自定义或主动清除此项时保留。
-  return scope === 'local' && !bindings.some((item) => item?.action === 'settings')
-    ? [...bindings, { action: 'settings', accelerator: 'CommandOrControl+,' }] : bindings
+  // 后加的动作（设置入口、游戏模式）：旧存档补上默认键，已自定义或主动清除此项时保留。
+  const added = defaultShortcuts(scope).filter((binding) => binding.accelerator
+    && (binding.action === 'settings' || binding.action === 'game-mode')
+    && !bindings.some((item) => item?.action === binding.action))
+  return added.length ? [...bindings, ...added] : bindings
 }
 
 export const DEFAULT_LYRICS_LAYOUT: LyricsLayoutParams = {

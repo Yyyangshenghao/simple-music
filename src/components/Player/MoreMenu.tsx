@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
-import { useGameModeStore } from '../../stores/game-mode'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
@@ -50,27 +49,6 @@ function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-function GameModeSection() {
-  const enabled = useGameModeStore((s) => s.enabled)
-  return (
-    <section className={styles.section}>
-      <button type="button" className={`${styles.optionRow} ${styles.gameModeRow}`} role="switch"
-        aria-label="游戏模式" aria-checked={enabled} data-on={enabled}
-        onClick={() => void useGameModeStore.getState().configure({ enabled: !enabled })}>
-        <svg className={styles.gameModeIcon} viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M7 7h10c2 0 3 2 3.5 5l.5 4c.3 2-2 3-3.3 1.5L15 15H9l-2.7 2.5C5 19 2.7 18 3 16l.5-4C4 9 5 7 7 7Z" />
-          <path d="M7 10v4m-2-2h4m7-1h.01m2 2h.01" />
-        </svg>
-        <span className={styles.gameModeCopy}>
-          <span className={styles.sectionTitle}>游戏模式</span>
-          <span className={styles.tip}>后台播放，可从托盘返回</span>
-        </span>
-        <SwitchIndicator checked={enabled} />
-      </button>
-    </section>
-  )
 }
 
 /** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
@@ -390,7 +368,7 @@ function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; on
   )
 }
 
-/** 「更多」菜单:整合游戏模式与播放设置，给播放栏右侧腾出空间。 */
+/** 「更多」菜单:整合播放设置，给播放栏右侧腾出空间。游戏模式入口在托盘菜单与全局快捷键。 */
 export function MoreMenu() {
   const [open, setOpen] = useState(false)
   // 低频项默认收起；本次运行内记住展开状态
@@ -467,7 +445,6 @@ export function MoreMenu() {
               </button>
             </div>
             <div className={styles.content}>
-              <GameModeSection />
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
