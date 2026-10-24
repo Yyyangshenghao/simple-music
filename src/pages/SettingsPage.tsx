@@ -63,6 +63,35 @@ const SETTINGS_TABS = [
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
+/** 分支导航几何（参考 React Bits BranchedMenu）：子项行高、分支区宽度、主干横坐标与圆角半径。 */
+const BRANCH_ROW = 32
+const BRANCH_INDENT = 26
+const BRANCH_TRUNK = 7
+const BRANCH_RADIUS = 8
+const branchY = (k: number) => k * BRANCH_ROW + BRANCH_ROW / 2
+const branchEnd = BRANCH_INDENT - 6
+const branchLength = (k: number) => branchY(k) - BRANCH_RADIUS + (Math.PI * BRANCH_RADIUS) / 2 + (branchEnd - BRANCH_TRUNK - BRANCH_RADIUS)
+const branchArc = `A ${BRANCH_RADIUS} ${BRANCH_RADIUS} 0 0 0 ${BRANCH_TRUNK + BRANCH_RADIUS}`
+
+/** 子项分支线：灰色主干与弧形分支常显，当前子项从主干顶端描出一条强调色通路。 */
+function BranchLines({ items, active }: { items: readonly { id: string }[]; active: string }) {
+  const height = items.length * BRANCH_ROW
+  return (
+    <svg className={styles.branchLines} width={BRANCH_INDENT} height={height} aria-hidden="true">
+      <path className={styles.branchBase} d={`M ${BRANCH_TRUNK} 0 V ${branchY(items.length - 1) - BRANCH_RADIUS}`} />
+      {items.map((item, k) => (
+        <path key={item.id} className={styles.branchBase}
+          d={`M ${BRANCH_TRUNK} ${branchY(k) - BRANCH_RADIUS} ${branchArc} ${branchY(k)} H ${branchEnd}`} />
+      ))}
+      {items.map((item, k) => (
+        <path key={item.id} className={styles.branchReach}
+          d={`M ${BRANCH_TRUNK} 0 V ${branchY(k) - BRANCH_RADIUS} ${branchArc} ${branchY(k)} H ${branchEnd}`}
+          style={{ strokeDasharray: branchLength(k), strokeDashoffset: item.id === active ? 0 : branchLength(k) }} />
+      ))}
+    </svg>
+  )
+}
+
 function SectionHeading({ section }: { section: (typeof SETTINGS_TABS)[number] }) {
   return (
     <div className={styles.sectionHeading}>
@@ -546,6 +575,9 @@ export function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
   const [activeDetail, setActiveDetail] = useState('accounts')
   const [expandedSection, setExpandedSection] = useState<SettingsTab | null>('music')
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  const navMarkerRef = useRef<HTMLSpanElement>(null)
+  const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({})
   const activeSectionRef = useRef<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
@@ -629,6 +661,31 @@ export function SettingsPage() {
       page.removeEventListener('pointerdown', handlePointerDown)
     }
   }, [])
+
+  // 左侧导轨标记滑到当前分类；子菜单展开收起改变高度时无过渡地跟随。
+  useLayoutEffect(() => {
+    const marker = navMarkerRef.current
+    const bar = tabBarRef.current
+    if (!marker || !bar) return
+    const place = (glide: boolean) => {
+      const tab = tabRefs.current[activeSection]
+      if (!tab) return
+      if (!glide) marker.style.transition = 'none'
+      marker.style.top = `${tab.offsetTop + (tab.offsetHeight - marker.offsetHeight) / 2}px`
+      if (!glide) {
+        void marker.offsetHeight
+        marker.style.transition = ''
+      }
+    }
+    place(true)
+    let first = true
+    const observer = new ResizeObserver(() => {
+      if (first) { first = false; return }
+      place(false)
+    })
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [activeSection])
 
   const scrollToSection = useCallback((section: SettingsTab, detail?: string): void => {
     const page = pageRef.current
@@ -828,10 +885,12 @@ export function SettingsPage() {
         <div className={styles.settingsLayout} data-reduced-motion={reducedMotion}>
           <aside className={styles.drawer}>
           <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
-            <div className={styles.tabBar}>
+            <div className={styles.tabBar} ref={tabBarRef}>
+              <span ref={navMarkerRef} className={styles.navMarker} aria-hidden="true" />
               {SETTINGS_TABS.map(({ id, label, items }) => (
                 <div key={id} className={styles.navCategory}>
                   <motion.button
+                    ref={(el) => { tabRefs.current[id] = el }}
                     type="button"
                     aria-current={activeSection === id ? 'page' : undefined}
                     aria-expanded={items.length ? expandedSection === id : undefined}
@@ -848,6 +907,7 @@ export function SettingsPage() {
                   {items.length > 0 && <div id={`settings-subnav-${id}`} className={styles.subNav} data-expanded={expandedSection === id}
                     aria-hidden={expandedSection !== id} {...(expandedSection !== id ? { inert: '' } : {})}>
                     <div className={styles.subNavInner} aria-label={`${label}分组`}>
+                    <BranchLines items={items} active={activeSection === id ? activeDetail : ''} />
                     {items.map(item => <button key={item.id} type="button"
                       aria-current={activeDetail === item.id ? 'location' : undefined}
                       aria-controls={`settings-detail-${item.id}`}
