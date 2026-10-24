@@ -165,7 +165,7 @@
   isolation: isolate;
 }
 
-/* 悬停喇叭后浮现的细音量条:紧贴按钮上方,窄而轻,只做必要的底与描边 */
+/* 悬停喇叭后浮现的细音量条:紧贴按钮上方,不加底框;弹层只提供拖动热区 */
 .volumePopover {
   position: absolute;
   left: 50%;
@@ -178,10 +178,6 @@
   margin-left: -13px;
   padding: 11px 0;
   box-sizing: border-box;
-  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
-  border: 1px solid var(--sm-border);
-  border-radius: 13px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
   transform-origin: 50% 100%;
 }
 
@@ -194,6 +190,8 @@
 
 .volumeSlider {
   height: 100%;
+  /* 无底框时靠一层极淡的投影,保证在任意背景上都看得清 */
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--sm-bg-base) 70%, transparent));
   --scrub-bubble-bg: var(--sm-bg-base);
   --scrub-bubble-fg: var(--sm-text-primary);
 }
