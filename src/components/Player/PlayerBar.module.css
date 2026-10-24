@@ -158,57 +158,42 @@
 }
 
 .volumeGroup {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-  max-width: 168px;
+  flex: none;
   isolation: isolate;
 }
 
-.volumeSlider {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 窄窗口：行内音量条收起，按钮靠右；悬停弹出完整长度的音量条。 */
-.volumeGroup[data-compact] {
-  position: relative;
-  justify-content: flex-end;
-}
-
+/* 悬停喇叭后浮现的竖向音量条:居中于按钮上方,自底部生长 */
 .volumePopover {
   position: absolute;
-  right: -6px;
-  bottom: calc(100% + 10px);
+  left: 50%;
+  bottom: calc(100% + 12px);
   z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 188px;
-  padding: 2px 12px 2px 14px;
+  justify-content: center;
+  width: 44px;
+  height: 164px;
+  margin-left: -22px;
+  padding: 22px 0;
+  box-sizing: border-box;
   background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
   box-shadow: var(--sm-shadow);
-  transform-origin: calc(100% - 24px) 100%;
+  transform-origin: 50% 100%;
 }
 
 /* 透明桥接区：从按钮移向弹层时不会因中间空隙而关闭 */
 .volumePopover::after {
   position: absolute;
-  inset: 100% 0 -12px;
+  inset: 100% 0 -14px;
   content: '';
 }
 
-.volumeValue {
-  flex-shrink: 0;
-  min-width: 24px;
-  color: var(--sm-text-secondary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+.volumeSlider {
+  height: 100%;
 }
 
 .miniPlayerBtn {
@@ -288,7 +273,6 @@
 .lyricsPlayer .buttons { width: 100%; justify-content: center; gap: clamp(12px, 1.5vw, 24px); }
 .lyricsPlayer .playBtn { width: 54px; height: 54px; }
 .lyricsPlayer .right { justify-content: center; gap: 8px; flex-wrap: wrap; }
-.lyricsPlayer .volumeGroup { max-width: 116px; flex: 1 1 72px; }
 .lyricsPlayer .tools { display: contents; }
 .likeSlot { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; }
 

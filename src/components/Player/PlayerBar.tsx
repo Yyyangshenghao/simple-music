@@ -10,7 +10,6 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
-import { ElasticSlider } from '../ui/ElasticSlider'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -336,86 +335,80 @@ function PlaybackProgress() {
   )
 }
 
-/** 行内音量条短于此宽度（px）时不好拖，改为悬停音量按钮弹出完整长度的音量条。 */
-const COMPACT_VOLUME_TRACK = 64
-/** 音量按钮宽 36 + 间距 6。 */
-const VOLUME_BUTTON_SPACE = 42
-const POPOVER_CLOSE_DELAY = 220
+/** 悬停喇叭多久后弹出音量条，避免鼠标路过时误弹。 */
+const VOLUME_OPEN_DELAY = 280
+const VOLUME_CLOSE_DELAY = 260
+/** 滚轮调节后气泡停留时长。 */
+const VOLUME_WHEEL_BUBBLE = 900
 
+/** 音量：悬停喇叭片刻后浮现竖向音量条，拖动时显示百分比；点按喇叭静音，滚轮微调。 */
 function VolumeControl() {
   const volume = usePlayerStore((s) => s.volume)
   const setVolume = usePlayerStore((s) => s.setVolume)
-  const groupRef = useRef<HTMLDivElement>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [compact, setCompact] = useState(false)
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const draggingRef = useRef(false)
   const [open, setOpen] = useState(false)
+  const [wheeling, setWheeling] = useState(false)
 
-  // 音量组在弹性布局中占满剩余空间，紧凑态也保留该宽度，因此两种形态下都能量到可用长度。
-  useEffect(() => {
-    const group = groupRef.current
-    if (!group || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => {
-      setCompact(entry.contentRect.width - VOLUME_BUTTON_SPACE < COMPACT_VOLUME_TRACK)
-    })
-    observer.observe(group)
-    return () => observer.disconnect()
+  useEffect(() => () => {
+    clearTimeout(openTimer.current)
+    clearTimeout(closeTimer.current)
+    clearTimeout(wheelTimer.current)
   }, [])
-  useEffect(() => {
-    if (!compact) setOpen(false)
-  }, [compact])
-  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
-  const show = () => {
+  const scheduleOpen = () => {
     clearTimeout(closeTimer.current)
-    if (compact) setOpen(true)
+    if (open) return
+    clearTimeout(openTimer.current)
+    openTimer.current = setTimeout(() => setOpen(true), VOLUME_OPEN_DELAY)
   }
-  const hide = () => {
+  const scheduleClose = () => {
+    clearTimeout(openTimer.current)
     clearTimeout(closeTimer.current)
-    closeTimer.current = setTimeout(() => setOpen(false), POPOVER_CLOSE_DELAY)
+    if (draggingRef.current) return
+    closeTimer.current = setTimeout(() => setOpen(false), VOLUME_CLOSE_DELAY)
   }
-  // 滚轮微调：行内条与紧凑态通用，短轨道时尤其省力。
   const handleWheel = (event: React.WheelEvent) => {
     const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? -event.deltaY : event.deltaX
     if (!delta) return
+    clearTimeout(openTimer.current)
+    clearTimeout(closeTimer.current)
+    setOpen(true)
+    setWheeling(true)
+    clearTimeout(wheelTimer.current)
+    wheelTimer.current = setTimeout(() => setWheeling(false), VOLUME_WHEEL_BUBBLE)
     setVolume(Math.min(1, Math.max(0, Math.round((volume + Math.sign(delta) * 0.05) * 100) / 100)))
   }
 
-  const slider = (
-    <ElasticSlider
-      className={styles.volumeSlider}
-      leftIcon={null}
-      rightIcon={null}
-      defaultValue={Math.round(volume * 100)}
-      startingValue={0}
-      maxValue={100}
-      onChange={(v) => setVolume(v / 100)}
-    />
-  )
-
   return (
-    <div
-      ref={groupRef}
-      className={styles.volumeGroup}
-      data-compact={compact || undefined}
-      onPointerEnter={show}
-      onPointerLeave={hide}
-      onWheel={handleWheel}
-    >
+    <div className={styles.volumeGroup} onPointerEnter={scheduleOpen} onPointerLeave={scheduleClose} onWheel={handleWheel}>
       <VolumeButton />
-      {!compact && slider}
       <AnimatePresence>
-        {compact && open && (
+        {open && (
           <motion.div
             className={styles.volumePopover}
-            role="group"
-            aria-label="音量"
-            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            initial={{ opacity: 0, y: 10, scale: 0.88 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            exit={{ opacity: 0, y: 6, scale: 0.92, transition: { duration: 0.14 } }}
             transition={springSnappy}
           >
-            {slider}
-            <span className={styles.volumeValue}>{Math.round(volume * 100)}</span>
+            <ScrubSlider
+              className={styles.volumeSlider}
+              orientation="vertical"
+              ariaLabel="音量"
+              value={volume}
+              min={0}
+              max={1}
+              bubble="drag"
+              showBubble={wheeling}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onPreview={(v) => {
+                draggingRef.current = v !== null
+              }}
+              onChange={setVolume}
+            />
           </motion.div>
         )}
       </AnimatePresence>
