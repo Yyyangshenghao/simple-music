@@ -15,6 +15,7 @@ vi.mock('react', async original => ({
   useMemo: (factory: () => unknown) => factory(),
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => { h.effects.push(effect) },
+  useLayoutEffect: () => {},
 }))
 vi.mock('../../stores/playlist', () => ({ usePlaylistStore: (select: (state: unknown) => unknown) => select({ queue: tracks, queueIndex: 0, shuffleOrder: [], playAt: h.playAt }) }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ playMode: 'list' }) }))

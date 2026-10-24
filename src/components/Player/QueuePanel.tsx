@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlaylistStore } from '../../stores/playlist'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useToastStore } from '../../stores/toast'
-import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
+import { tapScale, springSnappy, springGentle, queueRowFlashTiming, queueRowFlipTiming, queueRowRemoveTiming } from '../../lib/motion-presets'
 import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
 import { SourceBadge } from '../ui/SourceBadge'
@@ -22,6 +22,10 @@ import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
 const ROW_HEIGHT = 48
+/** 重排补间最多从几行外滑入，远处移来的歌曲不必横穿整个列表。 */
+const FLIP_MAX_ROWS = 6
+
+const trackKeyOf = (track: { source: string; id: unknown }) => `${track.source}:${String(track.id)}`
 
 function QueueIcon() {
   return (
@@ -31,12 +35,22 @@ function QueueIcon() {
   )
 }
 
-/** 设为下一首：播放三角插在列表最上方。 */
+/** 设为下一首：播放三角插在列表最上方；悬停时三角向前轻推。 */
 function PlayNextIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 4.5v6l5-3z" fill="currentColor" />
-      <path d="M13 7.5h7M4 14h16M4 19h16" />
+    <svg className={styles.playNextIcon} viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path className={styles.playNextTriangle} d="M4 4.5v6l5-3z" fill="currentColor" />
+      <path className={styles.playNextLead} d="M13 7.5h7" />
+      <path d="M4 14h16M4 19h16" />
+    </svg>
+  )
+}
+
+/** 从队列移除：悬停时叉号转四分之一圈。 */
+function RemoveIcon() {
+  return (
+    <svg className={styles.removeIcon} viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   )
 }
@@ -79,6 +93,66 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
     })
     void ensureQueueDetails(indices)
   }, [display.indices, ensureQueueDetails, providers, queue])
+
+  // 设为下一首 / 移除后的重排补间（FLIP）：操作前记下各曲目所在行，重排提交后让各行从原位滑到新位置。
+  const flipFrom = useRef<{ positions: Map<string, number>; flashKey?: string; cleanup?: () => void } | null>(null)
+  const snapshotPositions = (flashKey?: string, cleanup?: () => void) => {
+    const positions = new Map<string, number>()
+    display.indices.forEach((queueIndexAt, row) => {
+      const track = queue[queueIndexAt]
+      if (track && !positions.has(trackKeyOf(track))) positions.set(trackKeyOf(track), row)
+    })
+    flipFrom.current = { positions, flashKey, cleanup }
+  }
+  useLayoutEffect(() => {
+    const flip = flipFrom.current
+    const list = listRef.current
+    if (!flip || !list) return
+    flipFrom.current = null
+    flip.cleanup?.()
+    if (reducedMotion) return
+    const ambient = getComputedStyle(list).getPropertyValue('--ambient-1').trim() || 'currentColor'
+    list.querySelectorAll<HTMLElement>('[data-queue-key]').forEach((row) => {
+      const key = row.dataset.queueKey!
+      const before = flip.positions.get(key)
+      const now = Number(row.dataset.queueRow)
+      if (before !== undefined && before !== now) {
+        const delta = Math.max(-FLIP_MAX_ROWS, Math.min(FLIP_MAX_ROWS, before - now)) * ROW_HEIGHT
+        row.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }], queueRowFlipTiming)
+      }
+      if (key === flip.flashKey) {
+        row.animate([
+          { backgroundColor: `color-mix(in srgb, ${ambient} 30%, transparent)` },
+          { backgroundColor: `color-mix(in srgb, ${ambient} 0%, transparent)` },
+        ], { ...queueRowFlashTiming, delay: Number(queueRowFlipTiming.duration) * 0.6 })
+      }
+    })
+  }, [queue, display, reducedMotion])
+
+  const playNextWithAnimation = (originalIndex: number, key: string) => {
+    snapshotPositions(key)
+    playNextInQueue(originalIndex, key)
+  }
+  /** 移除：该行先向左滑出淡掉，再提交移除并让下方各行补位；减弱动态时直接移除。 */
+  const removeWithAnimation = (row: HTMLElement | null, originalIndex: number, key: string) => {
+    if (reducedMotion || !row) {
+      snapshotPositions()
+      removeQueueItem(originalIndex, key)
+      return
+    }
+    row.style.pointerEvents = 'none'
+    const leaving = row.animate(
+      [{ transform: 'none', opacity: 1 }, { transform: 'translateX(-28px)', opacity: 0 }],
+      { ...queueRowRemoveTiming, fill: 'forwards' }
+    )
+    // 定格的淡出要等重排提交后再撤（否则移除前会闪回一帧）；移除被拒时稍后自行恢复。
+    const restore = () => { leaving.cancel(); row.style.pointerEvents = '' }
+    void leaving.finished.then(() => {
+      snapshotPositions(undefined, restore)
+      removeQueueItem(originalIndex, key)
+      setTimeout(() => { if (flipFrom.current?.cleanup === restore) { flipFrom.current = null; restore() } }, 120)
+    }, restore)
+  }
 
   const keyAt = (displayIndex: number) => {
     const track = queue[display.indices[displayIndex]]
@@ -174,6 +248,8 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                     return (
                       <div
                         className={styles.row}
+                        data-queue-key={trackKeyOf(t)}
+                        data-queue-row={i}
                         data-current={isCurrent}
                         data-reordering={drag ? true : undefined}
                         data-drag-placeholder={drag?.from === i || undefined}
@@ -234,12 +310,14 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                               data-tip="下一首播放"
                               title={playMode === 'one' ? '单曲循环时不会自动切歌' : undefined}
                               aria-label={`将 ${t.name} 设为下一首`}
-                              onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>
+                              onClick={() => playNextWithAnimation(originalIndex, trackKeyOf(t))}>
                               <PlayNextIcon />
                             </button>
                             <button type="button" className={styles.rowAction} data-queue-no-drag
                               data-tip="从队列移除" aria-label={`从队列移除 ${t.name}`}
-                              onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
+                              onClick={(event) => removeWithAnimation(event.currentTarget.closest<HTMLElement>('[data-queue-key]'), originalIndex, trackKeyOf(t))}>
+                              <RemoveIcon />
+                            </button>
                           </>
                         )}
                       </div>

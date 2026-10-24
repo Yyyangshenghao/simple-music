@@ -219,6 +219,27 @@
   color: var(--sm-text-primary);
 }
 
+/* 行按钮悬停动效：下一首的三角向前轻推、引线收短；移除的叉号转四分之一圈 */
+.rowAction svg { display: block; margin: 0 auto; }
+.playNextTriangle,
+.playNextLead,
+.removeIcon {
+  transition: transform 220ms var(--sm-ease-out);
+  transform-box: fill-box;
+}
+.playNextLead { transform-origin: right center; }
+.rowAction:hover:not(:disabled) .playNextTriangle { transform: translateX(2px); }
+.rowAction:hover:not(:disabled) .playNextLead { transform: scaleX(0.7); }
+.rowAction:hover:not(:disabled) .removeIcon { transform: rotate(90deg); }
+.rowAction:active:not(:disabled) svg { transform: scale(0.86); transition: transform 90ms var(--sm-ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .playNextTriangle, .playNextLead, .removeIcon { transition: none; }
+}
+:global([data-reduce-motion]) .playNextTriangle,
+:global([data-reduce-motion]) .playNextLead,
+:global([data-reduce-motion]) .removeIcon { transition: none; }
+
 .rowAction:disabled {
   opacity: 0.4;
   cursor: not-allowed;

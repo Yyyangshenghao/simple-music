@@ -79,3 +79,12 @@ export const tooltipPop = { duration: 0.16, ease: [0.23, 1, 0.32, 1], scale: 0.9
 /** 悬停提示已出现时移到相邻按钮：气泡滑过去并伸缩宽度，文字按移动方向错位淡换。 */
 export const tooltipGlide: Transition = { type: 'spring', duration: 0.32, bounce: 0.1 }
 export const tooltipSwap: Transition = { duration: 0.14, ease: [0.23, 1, 0.32, 1] }
+
+/** 队列重排补间（FLIP）：设为下一首、移除后各行从原位滑到新位置。 */
+export const queueRowFlipTiming: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+
+/** 队列移除：该行向左滑出并淡出，结束后其余行再补位。 */
+export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
+
+/** 设为下一首：落位后整行氛围色闪一下。 */
+export const queueRowFlashTiming: KeyframeAnimationOptions = { duration: 900, easing: 'ease-out' }
