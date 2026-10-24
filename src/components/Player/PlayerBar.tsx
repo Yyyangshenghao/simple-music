@@ -538,7 +538,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
 
       <div className={styles.center}>
         <div className={styles.buttons}>
-          <PlayModeButton />
+          {embedded ? <div className={styles.modeSlot}><PlayModeButton /></div> : <PlayModeButton />}
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
             <PrevIcon />
           </motion.button>
@@ -569,8 +569,10 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>
-          {/* 与左侧播放模式等宽，播放键落在进度条正中。 */}
-          {embedded ? <div className={styles.likeSlot}><LikeButton /></div> : <span className={styles.modeBalance} aria-hidden="true" />}
+          {/* 歌词页红心与加入歌单紧挨，顺序同主播放栏；两侧槽位等分剩余宽度，播放键始终居中，无红心时加入歌单顶到原位。 */}
+          {embedded
+            ? <div className={styles.trackActionSlot}><LikeButton /><AddToAppPlaylistButton /></div>
+            : <span className={styles.modeBalance} aria-hidden="true" />}
         </div>
 
         <PlaybackProgress />
@@ -582,8 +584,6 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
-          {/* 歌词页红心与播放模式左右对称，加入歌单放到右侧操作组。 */}
-          {embedded && <AddToAppPlaylistButton />}
           <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />
         </div>

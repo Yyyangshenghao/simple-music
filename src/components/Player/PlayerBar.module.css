@@ -400,7 +400,11 @@
 .lyricsPlayer .playBtn { width: 54px; height: 54px; }
 .lyricsPlayer .right { justify-content: center; gap: 8px; flex-wrap: wrap; }
 .lyricsPlayer .tools { display: contents; }
-.likeSlot { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; }
+.modeSlot,
+.trackActionSlot { display: flex; flex: 1 1 0; align-items: center; min-width: 0; height: 32px; }
+.modeSlot { justify-content: flex-end; }
+/* 间距同主播放栏曲名后的红心与加入歌单 */
+.trackActionSlot { justify-content: flex-start; gap: 2px; }
 
 @media (max-height: 650px) {
   .lyricsPlayer { gap: 4px; }
