@@ -25,9 +25,9 @@ const QUALITY_LABELS: Record<AudioQuality, string> = {
   exhigh: '极高',
   lossless: '无损',
   hires: '臻音',
-  jyeffect: '鲸云',
-  sky: '环绕',
-  jymaster: '母带',
+  jyeffect: '鲸云音效',
+  sky: '沉浸环绕声',
+  jymaster: '超清母带',
   aac: 'AAC',
   max: '最高'
 }
@@ -224,7 +224,7 @@ function QualitySection({ open }: { open: boolean }) {
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>音质</span>
         <span className={styles.sectionStatus} title={currentQuality ?? QUALITY_LABELS[quality]}>
-          {currentQuality ? `当前 · ${currentQuality}` : QUALITY_LABELS[quality]}
+          {currentQuality ? `当前 · ${QUALITY_LABELS[currentQuality as AudioQuality] ?? currentQuality}` : QUALITY_LABELS[quality]}
         </span>
       </div>
       <div className={styles.qualityChips}>

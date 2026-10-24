@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPlaybackCore, type PlaybackCoreDependencies, type PlaybackPlayer } from './playback-core'
+import { createPlaybackCore, offlineQualityUsable, type PlaybackCoreDependencies, type PlaybackPlayer } from './playback-core'
 import type { AudioEngineCallbacks } from './audio-engine'
 import type { ApplePlaybackState } from './apple-music-playback'
 import type { OfflineCacheStatus } from './offline-cache'
@@ -124,6 +124,27 @@ describe('无界面播放核心', () => {
     await h.state.loadTrack(track)
     expect(h.engine.clearSource).toHaveBeenLastCalledWith()
     expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 0, 'netease:1:lossless', expect.any(Object))
+  })
+
+  it('缓存档位与所选音质不符时改走在线解析，平台不可用时仍用缓存', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'local', quality: 'jyeffect' })
+    await h.state.loadTrack(track)
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 0, 'netease:1:lossless', expect.any(Object))
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'local', quality: 'lossless' })
+    await h.state.loadTrack(track)
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/audio-cache/file?entryId=test', 0)
+  })
+
+  it.each([
+    ['jyeffect', 'lossless', true, false],
+    ['lossless', 'lossless', true, true],
+    ['jyeffect', 'max', true, true],
+    ['standard', 'max', true, false],
+    ['jyeffect', 'lossless', false, true],
+    [undefined, 'lossless', true, true],
+  ] as const)('缓存 %s / 所选 %s / 平台可用 %s → 复用缓存 %s', (cached, wanted, online, expected) => {
+    expect(offlineQualityUsable(cached, wanted, () => online)).toBe(expected)
   })
 
   it('刷歌预加载仍服从离线优先与媒体失败回退', async () => {

@@ -104,6 +104,20 @@ export interface PlaybackPlayer {
 }
 
 /** 会话编排只通过宿主接口读写状态、控制音频；创建时不注册全局订阅。 */
+/** 「最高」档下仍可直接复用的缓存档位；更低的缓存档会重新在线解析以取到本曲最高档。 */
+const MAX_QUALITY_CACHE_LEVELS = new Set(['lossless', 'hires', 'jyeffect', 'sky', 'jymaster'])
+
+/**
+ * 离线 / 自动缓存的文件是否符合当前所选音质。缓存只记得写入时的档位，
+ * 不一致时（包括切换音质后的热重载）改走在线解析，否则切换音质永远听到旧缓存；
+ * 平台未登录或已停用时仍用缓存，保证离线可播。
+ */
+export function offlineQualityUsable(cached: string | undefined, wanted: AudioQuality, online: () => boolean): boolean {
+  if (!cached || (wanted === 'max' ? MAX_QUALITY_CACHE_LEVELS.has(cached) : cached === wanted)) return true
+  // 档位不符才查平台状态：离线命中本身不依赖登录
+  return !online()
+}
+
 export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   const get = deps.getState
   const set = deps.setState
@@ -759,8 +773,9 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       if (activePlayback !== active || active.session !== loadSession) return
       const offlineUrl = offlineStatus ? deps.offlineFileUrl(offlineStatus, track) : null
       // 手动优先的平台与缓存实际音源不一致时，交给解析器按本次选择起播。
-      const canUseOfflineCache = !active.preferredSource
-        || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source)
+      const canUseOfflineCache = (!active.preferredSource
+        || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source))
+        && (!offlineStatus || offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source)))
       if (offlineStatus && offlineUrl && canUseOfflineCache) {
         deps.appleSpectrum.stop()
         active.candidateKind = 'offline'
