@@ -12,6 +12,7 @@ import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
 import { SourceName } from '../ui/SourceName'
 import { SwitchIndicator } from '../ui/Switch'
+import { JellyRadio } from '../ui/JellyRadio'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
@@ -117,23 +118,20 @@ function PlaybackSourceSection() {
       {isProviderId(currentTrack.source) && currentTrack.source !== 'apple' && participants.length > 0 && (
         <div className={styles.sourcePreference}>
           <span className={styles.tip}>本次优先</span>
-          <div className={styles.sourceChoices}>
-            {participants.map((source) => (
-              <button
-                key={source}
-                type="button"
-                className={styles.chip}
-                data-on={actualSource === source}
-                aria-pressed={actualSource === source}
-                aria-label={`本次优先使用${SOURCE_BRAND[source].label}`}
-                onClick={() => preferSourceOnce(source)}
-                title={`当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`}
-              >
-                <SourceBadge source={source} compact reveal />
-                <SourceName source={source} />
-              </button>
-            ))}
-          </div>
+          <JellyRadio
+            size="sm"
+            block
+            ariaLabel="本次优先使用的平台"
+            value={participants.find((source) => source === actualSource) ?? null}
+            onChange={preferSourceOnce}
+            items={participants.map((source) => ({
+              value: source,
+              icon: <SourceBadge source={source} compact reveal />,
+              label: <SourceName source={source} />,
+              ariaLabel: `本次优先使用${SOURCE_BRAND[source].label}`,
+              title: `当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`,
+            }))}
+          />
         </div>
       )}
     </section>
@@ -293,15 +291,15 @@ function RateSection() {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>倍速</span>
-        <span className={styles.sectionStatus}>{rate}x</span>
       </div>
-      <div className={styles.rateChips}>
-        {RATE_OPTIONS.map((r) => (
-          <button key={r} type="button" className={styles.chip} data-on={rate === r} aria-pressed={rate === r} onClick={() => setRate(r)}>
-            {r}x
-          </button>
-        ))}
-      </div>
+      <JellyRadio
+        size="sm"
+        block
+        ariaLabel="倍速"
+        value={String(rate)}
+        onChange={(v) => setRate(Number(v))}
+        items={RATE_OPTIONS.map((r) => ({ value: String(r), label: `${r}x` }))}
+      />
     </section>
   )
 }
@@ -311,7 +309,7 @@ function SleepSection() {
   const phase = useSleepTimerStore((s) => s.phase)
   const remainingSec = useSleepTimerStore((s) => s.remainingSec)
   const finishTrack = useSleepTimerStore((s) => s.finishTrack)
-  const active = phase !== 'idle'
+  const minutes = useSleepTimerStore((s) => s.minutes)
 
   const statusText =
     phase === 'counting'
@@ -326,26 +324,20 @@ function SleepSection() {
         <span className={styles.sectionTitle}>定时关闭</span>
         <span className={styles.sectionStatus}>{statusText}</span>
       </div>
-      <div className={styles.sleepChips}>
-        {SLEEP_PRESETS.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={styles.chip}
-            onClick={() => useSleepTimerStore.getState().start(m)}
-          >
-            {m} 分
-          </button>
-        ))}
-        {active && (
-          <button type="button" className={styles.chip} onClick={() => useSleepTimerStore.getState().cancel()}>
-            取消
-          </button>
-        )}
-      </div>
+      <JellyRadio
+        size="sm"
+        block
+        ariaLabel="定时关闭时长"
+        value={phase === 'idle' ? 'off' : String(minutes)}
+        onChange={(v) => {
+          if (v === 'off') useSleepTimerStore.getState().cancel()
+          else useSleepTimerStore.getState().start(Number(v))
+        }}
+        items={[{ value: 'off', label: '关' }, ...SLEEP_PRESETS.map((m) => ({ value: String(m), label: `${m} 分` }))]}
+      />
       <button
         type="button"
-        className={styles.optionRow}
+        className={`${styles.optionRow} ${styles.subRow}`}
         role="switch"
         aria-checked={finishTrack}
         data-on={finishTrack}
@@ -434,16 +426,19 @@ export function MoreMenu() {
             </div>
             <div className={styles.content}>
               <GameModeSection />
-              <PlaybackSourceSection />
-              {hasTrack && <section className={styles.section}>
-                <button type="button" className={styles.optionRow} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
-                  <span className={styles.sectionTitle}>歌词来源…</span>
-                </button>
-              </section>}
-              <OfflineSection open={open} />
-              <QualitySection open={open} />
               {!apple && <RateSection />}
               <SleepSection />
+              <QualitySection open={open} />
+              <PlaybackSourceSection />
+              <OfflineSection open={open} />
+              {hasTrack && <section className={styles.section}>
+                <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
+                  <span className={styles.sectionTitle}>歌词来源</span>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </section>}
             </div>
           </motion.div>
         )}

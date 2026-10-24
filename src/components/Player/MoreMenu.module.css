@@ -78,7 +78,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 0;
+  padding: 12px 0;
 }
 
 .section + .section { border-top: 1px solid var(--sm-border); }
@@ -116,11 +116,8 @@
 .chips .chip { flex: 1; }
 
 .sourcePreference { display: flex; flex-direction: column; gap: 6px; }
-.sourceChoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .qualityChips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .qualityChips .tip { grid-column: span 2; }
-.sleepChips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.sleepChips .chip:last-child:nth-child(5) { grid-column: 1 / -1; }
 
 .sourceFacts {
   display: grid;
@@ -143,33 +140,16 @@
   font-weight: 500;
 }
 
-/* 倍速五档等分一行,避免 flex-wrap 换出孤零零的一个 */
-.rateChips {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--sm-fill-subtle);
-}
-
-.rateChips .chip {
-  min-width: 0;
-  padding-inline: 2px;
-  border-color: transparent;
-  background: transparent;
-}
-
 .chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-width: 0;
-  height: 32px;
+  height: 28px;
   padding: 0 10px;
   border: 1px solid var(--sm-border);
-  border-radius: 8px;
+  border-radius: var(--sm-radius-pill);
   background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
   font: inherit;
@@ -190,12 +170,6 @@
   color: var(--sm-text-on-accent);
   border-color: var(--sm-accent);
   background: var(--sm-accent);
-}
-
-.sourceChoices .chip[data-on='true'] {
-  color: var(--sm-text-primary);
-  border-color: var(--sm-border-strong);
-  background: var(--sm-fill-active);
 }
 
 .closeBtn:focus-visible,
@@ -223,9 +197,20 @@
   cursor: pointer;
 }
 
-.optionRow:hover {
-  background: var(--sm-bg-elevated);
+.optionRow:hover { color: var(--sm-text-primary); }
+
+/* 定时下的附属开关：次级文字，紧贴上方档位 */
+.subRow { padding: 2px 0 0; color: var(--sm-text-secondary); }
+
+/* 跳转到其他面板的行：整行可点，右侧箭头 */
+.linkRow {
+  margin: -6px -8px;
+  padding: 8px;
+  color: var(--sm-text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
+
+.linkRow:hover { background: var(--sm-fill-hover); }
 
 .gameModeRow { padding: 0; text-align: left; }
 .gameModeIcon { flex-shrink: 0; color: var(--sm-text-secondary); }

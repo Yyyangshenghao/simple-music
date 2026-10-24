@@ -14,6 +14,8 @@ interface SleepTimerStore {
   phase: SleepTimerPhase
   /** 到点时间戳(counting 时有效)。 */
   endAt: number | null
+  /** 最近一次开启的时长（分钟），供 UI 标出当前档位。 */
+  minutes: number | null
   /** 到点后是否播完当前曲再停。 */
   finishTrack: boolean
   /** 剩余秒数,每秒刷新,供 UI 倒计时显示。 */
@@ -55,6 +57,7 @@ export const useSleepTimerStore = create<SleepTimerStore>((set, get) => {
   return {
     phase: 'idle',
     endAt: null,
+    minutes: null,
     finishTrack: true,
     remainingSec: 0,
 
@@ -62,7 +65,7 @@ export const useSleepTimerStore = create<SleepTimerStore>((set, get) => {
       clearTick()
       setStopAfterCurrent(null)
       const endAt = Date.now() + minutes * 60_000
-      set({ phase: 'counting', endAt, remainingSec: minutes * 60 })
+      set({ phase: 'counting', endAt, minutes, remainingSec: minutes * 60 })
       tickTimer = setInterval(() => {
         const at = get().endAt
         if (at == null) return

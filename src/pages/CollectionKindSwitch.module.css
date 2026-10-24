@@ -1,47 +1,18 @@
-.track {
-  position: relative;
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--glass-border-base);
-  border-radius: var(--sm-radius-pill);
-  background: var(--glass-bg-base);
-  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--sm-bg-base) 18%, transparent);
-}
-
-.option {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 14px 0 12px;
-  border: 0;
-  border-radius: var(--sm-radius-pill);
-  background: transparent;
-  color: var(--sm-text-secondary);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 200ms var(--sm-ease-out);
-}
-.option:hover:not([aria-pressed='true']) { color: var(--sm-text-primary); }
-.option:focus-visible { outline: none; }
-.option[aria-pressed='true'] { color: var(--sm-text-primary); font-weight: 600; }
-
-/* 选中滑块：实体玻璃片，顶部细高光 + 轻投影表现厚度，弹簧横移。 */
-.pill {
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--glass-border-card);
-  border-radius: inherit;
-  background: linear-gradient(color-mix(in srgb, white 7%, transparent), transparent), var(--sm-fill-active);
-  box-shadow:
+/* 果冻单选的玻璃配色：未选为浅玻璃，选中为带顶部高光的实体玻璃片。
+   左侧抵掉预留空间，选专辑时被挤开的「歌单」也不越出下方网格的左边。 */
+.radio {
+  --jr-chip: var(--glass-bg-base);
+  --jr-edge: var(--glass-border-base);
+  --jr-active: linear-gradient(color-mix(in srgb, white 7%, transparent), transparent), var(--sm-fill-active);
+  --jr-active-text: var(--sm-text-primary);
+  --jr-active-edge: var(--glass-border-card);
+  --jr-active-shadow:
     inset 0 1px 0 color-mix(in srgb, white 22%, transparent),
     0 1px 2px color-mix(in srgb, black 14%, transparent),
     0 4px 12px -4px color-mix(in srgb, black 22%, transparent);
+  align-self: flex-start;
+  margin: calc(-1 * var(--jr-pad-y)) 0 calc(-1 * var(--jr-pad-y)) calc(12px - var(--jr-pad-x));
 }
 
-.icon, .label { position: relative; z-index: 1; }
 .icon { opacity: .72; transition: opacity 200ms var(--sm-ease-out); }
-.option[aria-pressed='true'] .icon { opacity: 1; }
+.radio [data-on='true'] .icon { opacity: 1; }

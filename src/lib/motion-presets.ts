@@ -101,3 +101,10 @@ export const switchSwell = { hover: 1.06, press: 0.92 }
 
 /** 拖拽数值框（参考 React Bits ScrubField）：拖出范围松手后弹回边界。 */
 export const scrubFieldReturn: Transition = { type: 'spring', duration: 0.3, bounce: 0 }
+
+/**
+ * 果冻单选（参考 React Bits JellyRadio）：选中项鼓起、把两侧邻居挤开，未选项微缩。
+ * swell 选中放大比例，barge 额外挤开像素，shrink 未选缩小比例，stagger 每隔一项的延迟毫秒，
+ * stiffness 基础刚度，bounce 回弹量，jelly 横纵向错拍的程度。
+ */
+export const jellyRadio = { swell: 0.16, barge: 5, shrink: 0.04, jelly: 1, bounce: 0.25, stagger: 22, stiffness: 580 }
