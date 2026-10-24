@@ -9,6 +9,7 @@ import { queueDisplayOrder } from '../../lib/queue-display'
 import { VirtualList } from '../ui/VirtualList'
 import { SourceBadge } from '../ui/SourceBadge'
 import { EqIndicator } from '../ui/EqIndicator'
+import { HoverTips } from '../ui/HoverTips'
 import { QueueDiscovery } from './QueueDiscovery'
 import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
@@ -222,7 +223,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                         </button>
                         <button type="button" className={styles.rowAction} data-queue-no-drag
                           data-track-action-trigger aria-haspopup="dialog"
-                          title="加入歌单" aria-label={`将 ${t.name} 加入歌单`}
+                          data-tip="加入歌单" aria-label={`将 ${t.name} 加入歌单`}
                           onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
                           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                         </button>
@@ -230,13 +231,14 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                           <>
                             <button type="button" className={styles.rowAction} data-queue-no-drag
                               disabled={playMode === 'one'}
-                              title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
+                              data-tip="下一首播放"
+                              title={playMode === 'one' ? '单曲循环时不会自动切歌' : undefined}
                               aria-label={`将 ${t.name} 设为下一首`}
                               onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>
                               <PlayNextIcon />
                             </button>
                             <button type="button" className={styles.rowAction} data-queue-no-drag
-                              title="从队列移除" aria-label={`从队列移除 ${t.name}`}
+                              data-tip="从队列移除" aria-label={`从队列移除 ${t.name}`}
                               onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
                           </>
                         )}
@@ -264,6 +266,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
             </AnimatePresence>
             {ghost}
             {strips}
+            {!drag && <HoverTips match="button[data-tip]" />}
             {open && canDiscover && currentTrack && (
               <QueueDiscovery key={`${currentTrack.source}:${String(currentTrack.id)}:${discoverySongId}`}
                 track={currentTrack} onOpenPlaylist={() => setOpen(false)} />

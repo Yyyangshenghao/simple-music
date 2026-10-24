@@ -72,3 +72,10 @@ export const queueDragLift = { scale: 1.03, maxTilt: 6 }
 
 /** 队列碎纸：纸条依次落下并淡出，相邻纸条错开 stagger 秒。 */
 export const queueShredStrip = { duration: 0.62, stagger: 0.035, ease: [0.4, 0, 1, 1] } as const
+
+/** 悬停提示首次出现（参考 React Bits WarmTooltip）：由略小、略糊上浮弹出。 */
+export const tooltipPop = { duration: 0.16, ease: [0.23, 1, 0.32, 1], scale: 0.94, blur: 4, rise: 4 } as const
+
+/** 悬停提示已出现时移到相邻按钮：气泡滑过去并伸缩宽度，文字按移动方向错位淡换。 */
+export const tooltipGlide: Transition = { type: 'spring', duration: 0.32, bounce: 0.1 }
+export const tooltipSwap: Transition = { duration: 0.14, ease: [0.23, 1, 0.32, 1] }
