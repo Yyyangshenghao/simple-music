@@ -8,8 +8,8 @@ const DRAG_THRESHOLD = 4
 /** 指针进入列表上下边缘此范围内自动滚动，越靠边越快。 */
 const EDGE = 32
 const MAX_SCROLL_STEP = 10
-/** 碎纸条数。 */
-const STRIPS = 9
+/** 碎纸条数（横切成条）。 */
+const STRIPS = 6
 
 export interface QueueDragState {
   from: number
@@ -103,14 +103,15 @@ export function useQueueDrag({ panelRef, listRef, slitRef, total, rowHeight, red
     const listRect = list.getBoundingClientRect()
 
     if (!s.returning) {
-      // 自动滚动：拖到列表上下边缘时滚动，碎纸口上方不往下滚。
-      const slitTop = slitRef.current?.getBoundingClientRect().top ?? Infinity
+      // 碎纸口在面板右缘：指针向右拖进竖缝才算，上下拖动排序不会误入。
+      const slitLeft = slitRef.current?.getBoundingClientRect().left ?? Infinity
       const wasOver = s.overSlit
-      s.overSlit = s.py >= slitTop - 6
+      s.overSlit = s.px >= slitLeft - 6
+      // 自动滚动：拖到列表上下边缘时滚动。
       const up = listRect.top + EDGE - s.py
       const down = s.py - (listRect.bottom - EDGE)
       if (up > 0) list.scrollTop -= Math.ceil(MAX_SCROLL_STEP * Math.min(1, up / EDGE))
-      else if (down > 0 && !s.overSlit) list.scrollTop += Math.ceil(MAX_SCROLL_STEP * Math.min(1, down / EDGE))
+      else if (down > 0) list.scrollTop += Math.ceil(MAX_SCROLL_STEP * Math.min(1, down / EDGE))
       const centerY = s.py - s.grabY + row / 2 - contentTop(list)
       const target = s.overSlit ? s.from : clamp(Math.floor(centerY / row), 0, count - 1)
       if (target !== s.target || s.overSlit !== wasOver) {
@@ -269,7 +270,7 @@ export function useQueueDrag({ panelRef, listRef, slitRef, total, rowHeight, red
   return { drag, onRowPointerDown, rowShift, ghost, strips }
 }
 
-/** 碎纸：把被移除的行切成竖条，依次错开落下、散开并淡出。 */
+/** 碎纸：被移除的行从右侧竖缝穿出，横切成条，依次错开向右飘落并淡出。 */
 function ShredStrips({ shred, onDone }: { shred: Shred; onDone(): void }) {
   const mounted = useRef(0)
   return (
@@ -277,14 +278,14 @@ function ShredStrips({ shred, onDone }: { shred: Shred; onDone(): void }) {
       {Array.from({ length: STRIPS }, (_, k) => {
         const from = (k / STRIPS) * 100
         const to = 100 - ((k + 1) / STRIPS) * 100
-        const spread = (k - (STRIPS - 1) / 2) * 1.6
+        const spread = (k - (STRIPS - 1) / 2) * 3
         return (
           <motion.div
             key={k}
             className={styles.shredStrip}
-            style={{ clipPath: `inset(0 ${to}% 0 ${from}%)` }}
+            style={{ clipPath: `inset(${from}% 0 ${to}% 0)` }}
             initial={{ y: 0, x: 0, rotate: 0, opacity: 1 }}
-            animate={{ y: shred.height * 1.6 + (k % 3) * 10, x: spread, rotate: ((k * 37) % 11) - 5, opacity: 0 }}
+            animate={{ x: shred.width * 0.45 + (k % 3) * 14, y: spread + 18, rotate: ((k * 37) % 11) - 5, opacity: 0 }}
             transition={{ duration: queueShredStrip.duration, ease: queueShredStrip.ease, delay: k * queueShredStrip.stagger }}
             onAnimationComplete={() => { if (++mounted.current === STRIPS) onDone() }}
             ref={(el) => { if (el && !el.firstChild) el.appendChild(shred.node.cloneNode(true)) }}

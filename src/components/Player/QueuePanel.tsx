@@ -240,13 +240,13 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                   className={styles.shredSlot}
                   data-over={drag.overSlit || undefined}
                   data-blocked={!drag.canShred || undefined}
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 44, opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
+                  initial={{ x: 40, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 40, opacity: 0 }}
                   transition={springSnappy}
                 >
                   <div ref={slitRef} className={styles.shredSlit} aria-hidden="true" />
-                  <span className={styles.shredHint}>{drag.canShred ? (drag.overSlit ? '松手移除' : '拖到这里移除') : '正在播放的歌曲不能移除'}</span>
+                  <span className={styles.shredHint}>{drag.canShred ? (drag.overSlit ? '松手移除' : '拖到此处移除') : '播放中不可移除'}</span>
                 </motion.div>
               )}
             </AnimatePresence>
