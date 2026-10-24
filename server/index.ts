@@ -15,6 +15,7 @@ import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
 import { localMusicRoutes } from './routes/local-music'
+import { customBackgroundRoutes } from './routes/custom-background'
 import { weatherRoutes } from './routes/weather'
 import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
@@ -44,6 +45,7 @@ const chain: RouteHandler[] = [
   beatmapRoutes,
   qqRoutes,
   localMusicRoutes,
+  customBackgroundRoutes,
   weatherRoutes,
   updateRoutes,
   staticRoutes

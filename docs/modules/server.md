@@ -37,6 +37,7 @@
 - **`routes/kugou-lyrics.ts`**(`lib/kugou-lyrics.ts`):`GET /api/kugou/lyric?title&artist&duration` 在酷狗歌词库按“歌手 - 歌名 + 时长”搜索，时长 ±3 秒粗筛后最多下载 2 个候选并解密 KRC，返回 `{ candidates: [{ title, artist, duration, text }] }`；歌名取 KRC `[ti:]` 以保留版本标记。不需要登录或设备注册，签名与解密参考 LDDC。固定上游域名，2.5 秒超时，失败熔断 10 分钟；结果缓存在 userDataDir/kugou-lyrics（命中 7 天、未收录 6 小时），上游失败不写缓存。
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。
+- **`routes/custom-background.ts`** + `lib/custom-background.ts`:`/api/background/file?id=` 只按随机 id 读取主进程复制进 userDataDir/backgrounds 的自定义背景图片/视频(视频支持 Range);导入与删除只走主进程 IPC,不接受客户端文件路径。Wallpaper Engine 仅支持 `type=video` 的 project.json,且 file 不能越出工程目录。
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
 - **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `simplemusic.update` 字段(GitHub Release + 国内镜像列表)

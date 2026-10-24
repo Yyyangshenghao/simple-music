@@ -1,11 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useSpring, useMotionValueEvent } from 'motion/react'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
+import { solidBackgroundCss, useBackgroundStore } from '../../stores/background'
+import { useLightTheme } from '../../hooks/useLightTheme'
 import { gentleSpringValues } from '../../lib/motion-presets'
+import { api } from '../../lib/api'
 import styles from './AmbientBackground.module.css'
 
 const LiquidEther = lazy(() => import('../Visualizer/LiquidEther'))
@@ -15,16 +18,55 @@ interface AmbientBackgroundProps {
   hidden?: boolean
 }
 
-/** 全局氛围背景层：封面调色板驱动的流体/CSS 霞光。播放缓动的高频 state 隔离在本组件内。 */
+export function backgroundFileUrl(id: string): string {
+  return api.url('/api/background/file', { id })
+}
+
+/** 图片/视频背景的模糊与压暗；模糊时外扩画面，避免边缘羽化露出底色。 */
+function mediaStyle(blur: number): CSSProperties | undefined {
+  if (blur <= 0) return undefined
+  const bleed = blur * 2
+  return { filter: `blur(${blur}px)`, top: -bleed, left: -bleed, width: `calc(100% + ${bleed * 2}px)`, height: `calc(100% + ${bleed * 2}px)` }
+}
+
+/** 视频背景：窗口隐藏/失焦、节能档或减弱动态时停在当前帧，省下逐帧解码与玻璃面板重采样。 */
+function VideoBackground({ src, blur, paused }: { src: string; blur: number; paused: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [inactive, setInactive] = useState(() => typeof document !== 'undefined' && (document.hidden || !document.hasFocus()))
+  useEffect(() => {
+    const sync = () => setInactive(document.hidden || !document.hasFocus())
+    document.addEventListener('visibilitychange', sync)
+    window.addEventListener('focus', sync)
+    window.addEventListener('blur', sync)
+    return () => {
+      document.removeEventListener('visibilitychange', sync)
+      window.removeEventListener('focus', sync)
+      window.removeEventListener('blur', sync)
+    }
+  }, [])
+  const stopped = paused || inactive
+  useEffect(() => {
+    const video = ref.current
+    if (!video) return
+    if (stopped) video.pause()
+    else void video.play().catch(() => {})
+  }, [stopped, src])
+  return <video ref={ref} className={styles.media} style={mediaStyle(blur)} src={src} muted loop playsInline preload="auto" aria-hidden="true" />
+}
+
+/** 全局背景层：流体（封面/自定义配色）、自定义图片、视频与静态底色。播放缓动的高频 state 隔离在本组件内。 */
 export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
-  const palette = useAmbientStore((s) => s.palette)
+  const coverPalette = useAmbientStore((s) => s.palette)
+  const background = useBackgroundStore()
+  const light = useLightTheme()
+  const palette = background.fluidPalette === 'custom' ? background.fluidColors : coverPalette
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
   const bgPointerMotion = useSettingsStore((s) => s.performance.bgPointerMotion)
   const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
   const reducedMotion = useReducedMotion()
   const playing = usePlayerStore((s) => s.status === 'playing')
-  const fluidEnabled = !hidden && bgFluidMotion && !reduceTransparency && !reducedMotion && performanceMode !== 'eco'
+  const fluidEnabled = !hidden && background.kind === 'fluid' && bgFluidMotion && !reduceTransparency && !reducedMotion && performanceMode !== 'eco'
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
   const playSpring = useSpring(playing ? 1 : 0, gentleSpringValues)
@@ -38,8 +80,29 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   // 隐藏时释放 WebGL 上下文与纹理，避免与歌词场景同时占用显存。
   if (hidden) return null
 
+  const media = background.kind === 'image' ? background.image : background.kind === 'video' ? background.video : null
+  if (media) {
+    return (
+      <div className={styles.background} data-background={media.kind}>
+        {media.kind === 'image'
+          ? <img className={styles.media} style={mediaStyle(background.mediaBlur)} src={backgroundFileUrl(media.id)} alt="" aria-hidden="true" draggable={false} />
+          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} paused={reducedMotion || performanceMode === 'eco'} />}
+        <div className={styles.mediaDim} style={{ opacity: background.mediaDim }} aria-hidden="true" />
+      </div>
+    )
+  }
+
+  if (background.kind === 'solid') {
+    return <div className={styles.background} data-background="solid" style={{ background: solidBackgroundCss(background, light) }} />
+  }
+
+  // 自定义配色只作用于背景层，界面强调色仍跟随封面。
+  const fallbackStyle = background.fluidPalette === 'custom'
+    ? { '--ambient-1': palette[0], '--ambient-2': palette[1], '--ambient-3': palette[2] } as CSSProperties
+    : undefined
+
   return (
-    <div className={styles.background}>
+    <div className={styles.background} data-background="fluid" style={fallbackStyle}>
       {!fluidEnabled ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (

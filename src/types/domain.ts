@@ -210,6 +210,16 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 
+/** 主窗口背景类型：流体（封面或自定义三色）、自定义图片、视频（含 Wallpaper Engine 视频工程）、静态纯色/渐变。 */
+export type AppBackgroundKind = 'fluid' | 'image' | 'video' | 'solid'
+
+/** 主进程复制进 userData/backgrounds 的背景文件，与 server/lib/custom-background.ts 保持一致。 */
+export interface CustomBackgroundMedia {
+  id: string
+  kind: 'image' | 'video'
+  name: string
+}
+
 /** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
 export interface PerformanceFlags {
   /** 暂停界面转场和装饰动效；保留各单项偏好与歌词样式选择。 */

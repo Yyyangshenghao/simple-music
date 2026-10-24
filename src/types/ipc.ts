@@ -1,4 +1,4 @@
-import type { Track, WordLyricLine } from './domain'
+import type { CustomBackgroundMedia, Track, WordLyricLine } from './domain'
 export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeControlApi, ProbeHostApi } from './playback-probe'
 
 // IPC 类型契约：渲染层 ↔ 主进程。所有面向主窗口的通道都必须在此声明。
@@ -203,6 +203,13 @@ export interface FileResult {
   error?: string
 }
 
+export interface BackgroundImportResult {
+  ok: boolean
+  media?: CustomBackgroundMedia
+  canceled?: boolean
+  error?: string
+}
+
 export interface ImportResult {
   ok: boolean
   filePath?: string
@@ -265,6 +272,8 @@ export interface IpcChannels {
   'file:import-json': { req: void; res: ImportResult }
   'file:select-directory': { req: { title?: string; defaultPath?: string }; res: FileResult }
   'file:open-directory': { req: { path: string }; res: OkResult }
+  'background:import': { req: void; res: BackgroundImportResult }
+  'background:remove': { req: { id: string }; res: OkResult }
 
   'system:list-fonts': { req: void; res: SystemFontResult }
 

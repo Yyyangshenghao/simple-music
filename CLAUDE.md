@@ -44,7 +44,7 @@ npm run build:mac      # 打包 mac(build:win 同理)
 - **动效统一引用 `src/lib/motion-presets.ts`**(springSnappy/springGentle/tapScale/fadeRise 等)与 `src/styles/tokens.css` 的 `--sm-*`/`--glass-*`/`--ambient-*`/`--glow-*` 变量,不要另写魔法数值。全屏 WebGL 场景同屏只跑一个。
 - **页面、文案和控件遵循根目录 `DESIGN.md`**：减少重复说明，明确操作层级，保留风险与不可用原因；颜色、字体与玻璃表面沿用 `tokens.css`，用实际界面截图验收。
 - **样式用 CSS Modules**(`*.module.css` 与组件同目录),主题切换靠 `data-theme` 属性 + tokens.css 变量。
-- **设置持久化分层**:通用设置在 `simplemusic-settings`,平台参与/播放顺序在 `simplemusic-provider-settings`,全局内容平台在 `simplemusic-content-provider`,播放队列与断点在 `simplemusic-playback`,动态歌词样式与其参数在 `simplemusic-lyric-styles`;FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
+- **设置持久化分层**:通用设置在 `simplemusic-settings`,平台参与/播放顺序在 `simplemusic-provider-settings`,全局内容平台在 `simplemusic-content-provider`,播放队列与断点在 `simplemusic-playback`,动态歌词样式与其参数在 `simplemusic-lyric-styles`,应用背景(流体配色/图片/视频/纯色)在 `simplemusic-background`;FxParams 存档格式需与 `public/default-user-fx-archive.json` 保持互通。
 - **`Track`/`Playlist` 的 `id` 类型是 `unknown`**(各来源 id 形态不同,QQ 还有 mid),比较/拼 URL 前先 `String()`。
 - **跨音源实体按自身来源取能力**:新代码优先 `providerFor(数据.source)` 的对应 capability,仍走兼容层的调用使用 `serviceFor(数据.source)`;不要从当前内容平台或播放优先级猜来源。导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存。
 - 网易私人雷达是固定歌单 id `3136952023` + 登录 cookie(`/api/netease/radar`);每日推荐/雷达为网易专属,`MusicService` 中是可选方法,未实现的音源不渲染对应卡片。

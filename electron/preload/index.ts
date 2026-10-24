@@ -18,6 +18,7 @@ import type {
   HotkeyBinding,
   HotkeyResult,
   ExportPayload,
+  BackgroundImportResult,
   FileResult,
   ImportResult,
   SystemFontResult
@@ -114,6 +115,8 @@ const api = {
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
   openDirectory: (path: string): Promise<OkResult> => ipcRenderer.invoke('file:open-directory', { path }),
+  importBackground: (): Promise<BackgroundImportResult> => ipcRenderer.invoke('background:import'),
+  removeBackground: (id: string): Promise<OkResult> => ipcRenderer.invoke('background:remove', { id }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
   installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })

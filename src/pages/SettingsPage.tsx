@@ -30,8 +30,10 @@ import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
+import { MEDIA_BLUR_MAX, MEDIA_DIM_MAX, solidBackgroundsFor, useBackgroundStore } from '../stores/background'
+import { useLightTheme } from '../hooks/useLightTheme'
 import type { ProviderId } from '../providers/types'
-import type { PerformanceFlags } from '../types/domain'
+import type { AppBackgroundKind, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
@@ -43,7 +45,8 @@ const SETTINGS_TABS = [
     { id: 'accounts', label: '音源与账户' }, { id: 'playback', label: '播放偏好' },
   ] },
   { id: 'visual', label: '界面与窗口', items: [
-    { id: 'appearance', label: '主题与布局' }, { id: 'interface-font', label: '界面字体' },
+    { id: 'appearance', label: '主题与布局' }, { id: 'background', label: '应用背景' },
+    { id: 'interface-font', label: '界面字体' },
     { id: 'mini-player', label: '迷你播放条' }, { id: 'motion', label: '动效预设' },
     { id: 'effects', label: '单项动效' }, { id: 'game', label: '游戏模式' },
   ] },
@@ -383,6 +386,146 @@ const PERFORMANCE_EFFECT_GROUPS: {
   },
 ]
 
+const BACKGROUND_KINDS: { value: AppBackgroundKind; label: string }[] = [
+  { value: 'fluid', label: '流体' }, { value: 'image', label: '图片' },
+  { value: 'video', label: '视频' }, { value: 'solid', label: '纯色' },
+]
+
+function backgroundImportError(code = ''): string {
+  if (code.startsWith('WE_UNSUPPORTED_TYPE')) return '暂只支持 Wallpaper Engine 视频壁纸，场景和网页壁纸无法导入'
+  if (code === 'WE_PROJECT_INVALID') return '无法识别这个 project.json'
+  if (code === 'UNSUPPORTED_FILE') return '不支持这个文件格式'
+  if (code === 'FILE_MISSING') return '找不到壁纸对应的文件'
+  return '导入背景失败，请重试'
+}
+
+/** 应用背景：类型标签只切换编辑视图，图片/视频导入成功后才替换当前背景。 */
+function BackgroundSettings() {
+  const background = useBackgroundStore()
+  const { update, setMedia, clearMedia } = background
+  const [view, setView] = useState<AppBackgroundKind>(background.kind)
+  const [importing, setImporting] = useState(false)
+  const idPrefix = useId()
+  const light = useLightTheme()
+  const solids = solidBackgroundsFor(light)
+  const solidActive = background.solid === 'custom' || solids.some(item => item.id === background.solid) ? background.solid : 'theme'
+  const canImport = !!window.desktop?.importBackground
+  const media = view === 'image' ? background.image : view === 'video' ? background.video : null
+
+  function selectView(kind: AppBackgroundKind): void {
+    setView(kind)
+    if (kind === 'fluid' || kind === 'solid' || background[kind]) update({ kind })
+  }
+  async function importMedia(): Promise<void> {
+    const picker = window.desktop?.importBackground
+    if (!picker || importing) return
+    setImporting(true)
+    try {
+      const result = await picker()
+      if (result.ok && result.media) {
+        setMedia(result.media)
+        setView(result.media.kind)
+      } else if (!result.canceled) {
+        useToastStore.getState().show(backgroundImportError(result.error))
+      }
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <section id="settings-detail-background" className={styles.group}>
+      <h3 className={styles.groupTitle}>
+        应用背景
+        <InfoButton label="应用背景" text="导入的图片和视频会复制到应用数据目录，原文件移动或删除不影响。视频支持 mp4、webm、mov，也可以选 Wallpaper Engine 视频壁纸目录里的 project.json；场景和网页壁纸暂不支持。打开立体歌词时背景会暂时隐藏。" />
+      </h3>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>背景类型</span>
+        <div className={styles.segControl} role="group" aria-label="背景类型">
+          {BACKGROUND_KINDS.map(({ value, label }) => <button
+            key={value}
+            type="button"
+            className={`${styles.seg} no-drag ${view === value ? styles.segActive : ''}`}
+            aria-pressed={view === value}
+            onClick={() => selectView(value)}
+          >{label}</button>)}
+        </div>
+      </div>
+
+      {view === 'fluid' && <>
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>流体配色</span>
+          <div className={styles.segControl} role="group" aria-label="流体配色">
+            {(['cover', 'custom'] as const).map(source => <button
+              key={source}
+              type="button"
+              className={`${styles.seg} no-drag ${background.fluidPalette === source ? styles.segActive : ''}`}
+              aria-pressed={background.fluidPalette === source}
+              onClick={() => update({ fluidPalette: source })}
+            >{source === 'cover' ? '跟随封面' : '自定义'}</button>)}
+          </div>
+        </div>
+        {background.fluidPalette === 'custom' && <div className={styles.row}>
+          <span className={styles.rowLabel}>主色 / 副色 / 点缀</span>
+          <div className={styles.backgroundColors}>
+            {background.fluidColors.map((color, index) => <input
+              key={index}
+              type="color"
+              className={`${styles.colorInput} no-drag`}
+              value={color}
+              aria-label={['流体主色', '流体副色', '流体点缀色'][index]}
+              onChange={(event) => {
+                const next = [...background.fluidColors] as typeof background.fluidColors
+                next[index] = event.target.value
+                update({ fluidColors: next })
+              }}
+            />)}
+          </div>
+        </div>}
+        <p className={styles.groupHint}>{background.fluidPalette === 'custom' ? '自定义配色只改变背景，界面强调色仍跟随封面。' : '切歌时按封面主色变化。'}流动与鼠标跟随在「单项动效」中调整。</p>
+      </>}
+
+      {(view === 'image' || view === 'video') && <>
+        <div className={styles.row}>
+          <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={media?.name}>
+            {media ? media.name : view === 'image' ? '尚未选择图片' : '尚未选择视频'}
+          </span>
+          {media && <button type="button" className={`${styles.action} no-drag`} onClick={() => clearMedia(view)}>移除</button>}
+          <button type="button" className={`${styles.action} no-drag`} disabled={!canImport || importing} onClick={() => void importMedia()}>
+            {importing ? '导入中…' : media ? '更换' : view === 'image' ? '选择图片' : '选择视频'}
+          </button>
+        </div>
+        {!media && <p className={styles.groupHint}>{view === 'image' ? '支持 jpg、png、webp、gif、avif。' : '支持 mp4、webm、mov 与 Wallpaper Engine 视频壁纸的 project.json。'}导入后生效。</p>}
+        {media && <>
+          <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} format={(v) => `${v} px`} onChange={(v) => update({ mediaBlur: v })} />
+          <SliderRow label="压暗" min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => update({ mediaDim: v })} />
+          {view === 'video' && <p className={styles.groupHint}>窗口失焦、隐藏或处于节能档时视频暂停。视频背景会持续占用 GPU。</p>}
+        </>}
+      </>}
+
+      {view === 'solid' && <><div className={styles.row}>
+        <span className={styles.rowLabel}>底色</span>
+        <div className={styles.backgroundColors} role="group" aria-label="底色">
+          {solids.map(item => <button
+            key={item.id}
+            type="button"
+            className={`${styles.backgroundSwatch} no-drag`}
+            style={{ background: item.css }}
+            aria-pressed={solidActive === item.id}
+            aria-label={item.label}
+            title={item.label}
+            onClick={() => update({ solid: item.id })}
+          />)}
+          <label className={`${styles.backgroundSwatch} ${styles.backgroundCustom} no-drag`} htmlFor={`${idPrefix}-solid`} title="自定义" data-active={background.solid === 'custom'} style={{ background: background.solidColor }}>
+            <input id={`${idPrefix}-solid`} type="color" value={background.solidColor} aria-label="自定义底色" onChange={(event) => update({ solid: 'custom', solidColor: event.target.value })} />
+          </label>
+        </div>
+      </div>
+      <p className={styles.groupHint}>{light ? '浅色主题只列出浅色底，' : '深色主题只列出深色底，'}切换主题后不匹配的底色回到主题底色。自定义颜色按所选显示。</p></>}
+    </section>
+  )
+}
+
 /** 当前开关组合与某预设完全一致时返回该预设 id,否则返回 null(自定义组合,不高亮任何预设)。 */
 function matchPerformancePreset(flags: PerformanceFlags): PerformancePreset | null {
   for (const id of Object.keys(PERFORMANCE_PRESETS) as PerformancePreset[]) {
@@ -619,6 +762,7 @@ export function SettingsPage() {
     if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('更改缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
     await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
   }
+  const backgroundKind = useBackgroundStore((s) => s.kind)
   const miniPlayerAppearance = useSettingsStore((s) => s.miniPlayerAppearance)
   const setMiniPlayerAppearance = useSettingsStore((s) => s.setMiniPlayerAppearance)
 
@@ -939,6 +1083,8 @@ export function SettingsPage() {
                     />}
                   </section>
 
+                  <BackgroundSettings />
+
                   <section className={styles.group}>
                     <h3 className={styles.groupTitle}>可读性</h3>
                     <p className={styles.groupHint}>使用更实的面板底色并关闭背景模糊，方便阅读。</p>
@@ -1089,6 +1235,7 @@ export function SettingsPage() {
                         const reason = systemReducedMotion ? '已随系统暂停'
                           : performance.reduceMotion ? '已随减少动态效果暂停'
                           : background && performance.reduceTransparency ? '已随减少透明度暂停'
+                            : background && backgroundKind !== 'fluid' ? '仅流体背景生效'
                             : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
                               : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''
                         return (

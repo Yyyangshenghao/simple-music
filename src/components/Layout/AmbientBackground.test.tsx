@@ -24,6 +24,12 @@ vi.mock('../../stores/settings', async (importOriginal) => {
     )
   }
 })
+const backgroundState = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+vi.mock('../../stores/background', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../stores/background')>()
+  // 静态渲染读的是 store 初始快照，这里直接按测试状态返回。
+  return { ...original, useBackgroundStore: () => ({ ...original.DEFAULT_BACKGROUND, ...backgroundState.current }) }
+})
 vi.mock('../../stores/visual', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../stores/visual')>()
   return {
@@ -76,5 +82,29 @@ describe('氛围背景按需加载', () => {
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-pointer="false"')
     flags.bgPointerMotion = true
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-pointer="true"')
+  })
+})
+
+describe('自定义应用背景', () => {
+  it('图片、视频与纯色模式各自渲染且不加载流体', async () => {
+    const useBackgroundStore = { setState: (patch: Record<string, unknown>) => { backgroundState.current = { ...backgroundState.current, ...patch } } }
+    const image = { id: `${'a'.repeat(32)}.png`, kind: 'image' as const, name: 'a.png' }
+    const video = { id: `${'b'.repeat(32)}.mp4`, kind: 'video' as const, name: 'b.mp4' }
+    flags.bgFluidMotion = true
+    useBackgroundStore.setState({ kind: 'image', image, mediaBlur: 10 })
+    let html = renderToStaticMarkup(<AmbientBackground />)
+    expect(html).toContain('/api/background/file?id=' + image.id)
+    expect(html).toContain('blur(10px)')
+    expect(html).not.toContain('liquid-ether')
+    useBackgroundStore.setState({ kind: 'video', video })
+    html = renderToStaticMarkup(<AmbientBackground />)
+    expect(html).toContain('<video')
+    expect(html).toContain('muted')
+    useBackgroundStore.setState({ kind: 'solid', solid: 'custom', solidColor: '#123456' })
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('background:#123456')
+    useBackgroundStore.setState({ kind: 'fluid', fluidPalette: 'custom', fluidColors: ['#111111', '#222222', '#333333'] })
+    flags.bgFluidMotion = false
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('--ambient-1:#111111')
+    backgroundState.current = null
   })
 })

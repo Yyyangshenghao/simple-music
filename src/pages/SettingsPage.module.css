@@ -749,3 +749,17 @@
 @media (prefers-reduced-motion: reduce) {
   .subNav, .compactSubNav { transition: none !important; }
 }
+
+/* 应用背景:文件名截断、取色与底色色块 */
+.backgroundFile { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.backgroundColors { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.colorInput { width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; }
+.colorInput::-webkit-color-swatch-wrapper { padding: 0; }
+.colorInput::-webkit-color-swatch { border: 1px solid var(--sm-border-strong); border-radius: 50%; }
+.colorInput:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
+.backgroundSwatch { position: relative; flex: 0 0 26px; width: 26px; height: 26px; padding: 0; border: 1px solid var(--sm-border-strong); border-radius: 50%; cursor: pointer; }
+.backgroundSwatch:focus-visible, .backgroundCustom:focus-within { outline: 2px solid var(--sm-accent); outline-offset: 4px; }
+.backgroundSwatch[aria-pressed='true']::after, .backgroundSwatch[data-active='true']::after { position: absolute; inset: -5px; border: 1px solid var(--sm-accent); border-radius: inherit; content: ''; }
+.backgroundCustom { overflow: visible; }
+.backgroundCustom::before { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 14px; content: '+'; mix-blend-mode: difference; }
+.backgroundCustom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
