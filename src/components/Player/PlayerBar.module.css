@@ -225,25 +225,10 @@
 
 .bar .progress:hover .time { color: var(--sm-accent-warm); }
 
-.bar .progressSlider input[type='range'] {
-  background-size: 100% 4px;
-  transition: background-size 180ms var(--sm-ease-out);
-}
-
-.bar .progressSlider input[type='range']::-webkit-slider-thumb {
-  width: 12px;
-  height: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  transform: scale(0);
-  transition: transform 180ms var(--sm-ease-out);
-}
-
-.bar .progress:hover .progressSlider input[type='range'] { background-size: 100% 6px; }
-.bar .progress:hover .progressSlider input[type='range']::-webkit-slider-thumb { transform: scale(1); }
+/* 拖动进度时当前时间点亮,提示松手会跳到这里 */
+.progress[data-scrubbing] .time:first-child { color: var(--sm-text-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-  .bar .progressSlider input[type='range'],
-  .bar .progressSlider input[type='range']::-webkit-slider-thumb,
   .bar .tools > button,
   .bar .tools > * > button { transition: none; }
 }

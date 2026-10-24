@@ -1,0 +1,150 @@
+/* 统一拖动条。颜色可由外层覆盖:--scrub-fill / --scrub-track / --scrub-thumb / --scrub-bubble-bg / --scrub-bubble-fg。
+   所有动效只动 transform/opacity;拖动中关闭补间保证跟手,点按跳转与松手回弹才有缓动。 */
+.root {
+  --scrub-fill-color: var(--scrub-fill, var(--sm-accent));
+  --scrub-track-color: var(--scrub-track, var(--sm-fill-active));
+  --scrub-thickness: 6px;
+  --scrub-idle-scale: 0.6667;
+  --scrub-thumb-size: 13px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.root[data-size='compact'] {
+  --scrub-thickness: 4px;
+  --scrub-idle-scale: 0.5;
+  --scrub-thumb-size: 10px;
+  height: 12px;
+}
+
+.root[data-disabled] { cursor: default; opacity: 0.5; }
+
+.track {
+  position: relative;
+  width: 100%;
+  height: var(--scrub-thickness);
+}
+
+/* 轨道:悬停/拖动时由细变粗;拖出两端时朝该方向橡皮筋拉伸 */
+.rail {
+  position: absolute;
+  inset: 0;
+  left: min(var(--scrub-stretch), 0px);
+  right: calc(max(var(--scrub-stretch), 0px) * -1);
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--scrub-track-color);
+  transform: scaleY(var(--scrub-idle-scale));
+  transition:
+    transform 240ms var(--sm-ease-out),
+    left 520ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.root:hover .rail,
+.root[data-dragging] .rail {
+  transform: scaleY(1);
+}
+
+.root[data-stretch] .rail { transition: transform 240ms var(--sm-ease-out); }
+
+.fill,
+.ghost {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+}
+
+.fill {
+  background: var(--scrub-fill-color);
+  transform: scaleX(var(--scrub-ratio));
+}
+
+/* 悬停预览段:从起点到指针位置的淡色,提示点下去会到哪 */
+.ghost {
+  background: var(--scrub-fill-color);
+  opacity: 0;
+  transform: scaleX(var(--scrub-hover));
+  transition: opacity 160ms var(--sm-ease-out);
+}
+
+.root[data-hover]:not([data-dragging]) .ghost { opacity: 0.22; }
+
+.root[data-jumping] .fill { transition: transform 200ms var(--sm-ease-out); }
+
+/* 滑块:默认收起,悬停浮现,拖动时放大并带一圈柔光 */
+.thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--scrub-ratio) * 100%);
+  width: var(--scrub-thumb-size);
+  height: var(--scrub-thumb-size);
+  margin: calc(var(--scrub-thumb-size) / -2) 0 0 calc(var(--scrub-thumb-size) / -2);
+  border-radius: 50%;
+  background: var(--scrub-thumb, var(--scrub-fill-color));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28), 0 0 0 0 color-mix(in srgb, var(--scrub-fill-color) 0%, transparent);
+  transform: translateX(var(--scrub-stretch)) scale(0);
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 200ms var(--sm-ease-out);
+  pointer-events: none;
+}
+
+.root:hover .thumb { transform: translateX(var(--scrub-stretch)) scale(1); }
+
+.root[data-dragging] .thumb {
+  transform: translateX(var(--scrub-stretch)) scale(1.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 5px color-mix(in srgb, var(--scrub-fill-color) 18%, transparent);
+}
+
+.root[data-stretch] .thumb { transition: box-shadow 200ms var(--sm-ease-out); }
+
+.root[data-jumping] .thumb {
+  transition:
+    left 200ms var(--sm-ease-out),
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 200ms var(--sm-ease-out);
+}
+
+/* 预览气泡:跟随指针/滑块,上浮淡入 */
+.bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: calc(var(--scrub-bubble) * 100%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--scrub-bubble-bg, var(--sm-text-primary));
+  color: var(--scrub-bubble-fg, var(--sm-bg-base));
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  transform: translate(-50%, 4px) scale(0.92);
+  transform-origin: 50% 100%;
+  transition: opacity 140ms var(--sm-ease-out), transform 200ms var(--sm-ease-out);
+  pointer-events: none;
+}
+
+.bubble[data-visible] {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail, .ghost, .thumb, .bubble,
+  .root[data-jumping] .fill,
+  .root[data-jumping] .thumb { transition: none; }
+}

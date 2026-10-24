@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
@@ -9,8 +9,7 @@ import { appPlaylistTrackKey } from '../../stores/app-playlists'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
-import { Slider } from '../ui/Slider'
-import { ElasticSlider } from '../ui/ElasticSlider'
+import { ScrubSlider } from '../ui/ScrubSlider'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -310,21 +309,25 @@ interface PlayerBarProps {
   handoff?: boolean
 }
 
-/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
+/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。拖动只预览，松手才 seek。 */
 function PlaybackProgress() {
   const position = usePlayerStore((s) => s.position)
   const duration = usePlayerStore((s) => s.duration)
   const seek = usePlayerStore((s) => s.seek)
+  const [preview, setPreview] = useState<number | null>(null)
   return (
-    <div className={styles.progress}>
-      <span className={styles.time}>{formatTime(position)}</span>
-      <Slider
+    <div className={styles.progress} data-scrubbing={preview !== null || undefined}>
+      <span className={styles.time}>{formatTime(preview ?? position)}</span>
+      <ScrubSlider
         className={styles.progressSlider}
         ariaLabel="播放进度"
+        mode="commit"
         value={position}
         min={0}
         max={duration > 0 ? duration : 1}
-        step={1}
+        disabled={duration <= 0}
+        format={formatTime}
+        onPreview={setPreview}
         onChange={seek}
       />
       <span className={styles.time}>{formatTime(duration)}</span>
@@ -338,14 +341,14 @@ function VolumeControl() {
   return (
     <div className={styles.volumeGroup}>
       <VolumeButton />
-      <ElasticSlider
+      <ScrubSlider
         className={styles.volumeSlider}
-        leftIcon={null}
-        rightIcon={null}
-        defaultValue={Math.round(volume * 100)}
-        startingValue={0}
-        maxValue={100}
-        onChange={(v) => setVolume(v / 100)}
+        ariaLabel="音量"
+        value={volume}
+        min={0}
+        max={1}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={setVolume}
       />
     </div>
   )
