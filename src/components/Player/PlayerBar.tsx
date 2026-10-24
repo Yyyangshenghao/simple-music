@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useAnimate } from 'motion/react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
@@ -60,42 +61,83 @@ function PauseIcon() {
   )
 }
 
-function RepeatIcon() {
+const LOOP_PATHS = ['M17 2l4 4-4 4', 'M3 11v-1a4 4 0 0 1 4-4h14', 'M7 22l-4-4 4-4', 'M21 13v1a4 4 0 0 1-4 4H3']
+const SHUFFLE_PATHS = ['M4 20L21 3', 'M16 3h5v5', 'M4 4l5 5', 'M15 15l6 6', 'M21 16v5h-5']
+const DRAW_EASE = [0.22, 1, 0.36, 1] as const
+
+/**
+ * 播放模式图标，三种状态之间连续过渡：
+ * 列表循环 → 随机：循环线条沿路径收回，交叉线依次画出；
+ * 随机 → 单曲：交叉线收回，循环线条画回，「1」随后弹入；
+ * 单曲 → 列表：「1」缩出，循环整体转半圈（图形中心对称，转完无缝衔接）。
+ * 每次切换整枚图标还有一次轻微的按压回弹。
+ */
+function PlayModeIcon({ mode }: { mode: PlayMode }) {
+  const reducedMotion = useReducedMotion()
+  // 回弹作用在外层 span：svg 自身的 transform 留给按钮悬停放大，避免互相覆盖。
+  const [scope, animate] = useAnimate<HTMLSpanElement>()
+  const previous = useRef(mode)
+  const [spin, setSpin] = useState(0)
+
+  useEffect(() => {
+    const from = previous.current
+    previous.current = mode
+    if (from === mode || reducedMotion || !scope.current) return
+    if (from === 'one' && mode === 'order') setSpin((value) => value + 180)
+    animate(scope.current, { scale: [1, 0.82, 1.08, 1] }, { duration: 0.46, ease: DRAW_EASE, times: [0, 0.28, 0.66, 1] })
+  }, [mode, reducedMotion, animate, scope])
+
+  const loops = mode !== 'shuffle'
+  const instant = { duration: 0 }
+  const draw = (visible: boolean, index: number, enterDelay: number) => reducedMotion ? instant : {
+    pathLength: { duration: visible ? 0.34 : 0.18, delay: visible ? enterDelay + index * 0.045 : index * 0.02, ease: DRAW_EASE },
+    // 圆头线帽在长度为 0 时仍会留一个点，收回时透明度同步提前淡出，不留残点。
+    opacity: { duration: visible ? 0.1 : 0.12, delay: visible ? enterDelay + index * 0.045 : 0.03 + index * 0.02 },
+  }
+
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 2l4 4-4 4" />
-      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-      <path d="M7 22l-4-4 4-4" />
-      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-    </svg>
+    <span ref={scope} style={{ display: 'inline-flex' }}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <motion.g
+          style={{ transformOrigin: '12px 12px' }}
+          initial={false}
+          animate={{ rotate: spin }}
+          transition={reducedMotion ? instant : { type: 'spring', stiffness: 260, damping: 22, mass: 0.9 }}
+        >
+          {LOOP_PATHS.map((d, i) => (
+            <motion.path
+              key={d}
+              d={d}
+              initial={false}
+              animate={{ pathLength: loops ? 1 : 0, opacity: loops ? 1 : 0 }}
+              transition={draw(loops, i, 0.1)}
+            />
+          ))}
+        </motion.g>
+        {SHUFFLE_PATHS.map((d, i) => (
+          <motion.path
+            key={d}
+            d={d}
+            initial={false}
+            animate={{ pathLength: loops ? 0 : 1, opacity: loops ? 0 : 1 }}
+            transition={draw(!loops, i, 0.1)}
+          />
+        ))}
+        <motion.path
+          d="M11 10h2v5"
+          strokeWidth="2.2"
+          style={{ transformOrigin: '12px 12.5px' }}
+          initial={false}
+          animate={{ scale: mode === 'one' ? 1 : 0, opacity: mode === 'one' ? 1 : 0 }}
+          transition={reducedMotion ? instant : mode === 'one'
+            ? { type: 'spring', stiffness: 520, damping: 14, mass: 0.6, delay: 0.26 }
+            : { duration: 0.14, ease: [0.4, 0, 1, 1] }}
+        />
+      </svg>
+    </span>
   )
 }
 
-function RepeatOneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 2l4 4-4 4" />
-      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-      <path d="M7 22l-4-4 4-4" />
-      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-      <path d="M11 10h2v5" strokeWidth="2.2" />
-    </svg>
-  )
-}
-
-function ShuffleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16 3h5v5" />
-      <path d="M4 20L21 3" />
-      <path d="M21 16v5h-5" />
-      <path d="M15 15l6 6" />
-      <path d="M4 4l5 5" />
-    </svg>
-  )
-}
-
-/** 音量图标:喇叭主体常驻不跳变,音波弧线与静音斜线按音量档位各自淡入淡出。 */
 function VolumeIcon({ level }: { level: 'mute' | 'low' | 'high' }) {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -234,7 +276,7 @@ function PlayModeButton() {
       whileTap={tapScale}
       transition={springSnappy}
     >
-      {playMode === 'shuffle' ? <ShuffleIcon /> : playMode === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
+      <PlayModeIcon mode={playMode} />
     </motion.button>
   )
 }
