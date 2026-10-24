@@ -105,8 +105,78 @@
   background: var(--sm-bg-elevated);
 }
 
-.row[data-drag-over='true'] {
-  box-shadow: inset 0 0 0 1px var(--sm-accent);
+/* 指针拖动排序（参考 React Bits Shredder）：其余行平滑让位，被拖行留下空位 */
+.row { touch-action: none; user-select: none; }
+.row[data-reordering] { transition: transform 220ms var(--sm-ease-out); }
+.row[data-reordering]:hover { background: transparent; }
+.row[data-drag-placeholder] { opacity: 0; }
+
+.dragGhost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.dragGhost:empty { display: none; }
+
+.dragGhost > .row {
+  background: var(--sm-bg-elevated);
+  box-shadow: var(--sm-shadow), inset 0 0 0 1px var(--sm-border);
+  cursor: grabbing;
+}
+
+/* 碎纸口：拖动时从面板底部升起，悬停其上时缝隙亮起 */
+.shredSlot {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  border-top: 1px solid var(--sm-border);
+}
+
+.shredSlit {
+  width: calc(100% - 32px);
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--sm-text-primary) 18%, transparent);
+  transition: background-color 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out);
+}
+
+.shredSlot[data-over] .shredSlit {
+  background: var(--sm-color-danger);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--sm-color-danger) 55%, transparent);
+}
+
+.shredSlot[data-blocked] .shredSlit { background: color-mix(in srgb, var(--sm-text-primary) 8%, transparent); box-shadow: none; }
+
+.shredHint {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+}
+
+.shredSlot[data-over]:not([data-blocked]) .shredHint { color: var(--sm-color-danger); }
+
+.shred {
+  position: absolute;
+  z-index: 11;
+  pointer-events: none;
+}
+
+.shredStrip {
+  position: absolute;
+  inset: 0;
+}
+
+.shredStrip > .row {
+  background: var(--sm-bg-elevated);
 }
 
 .rowMain {

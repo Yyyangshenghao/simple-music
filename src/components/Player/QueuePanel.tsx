@@ -14,6 +14,8 @@ import { providerFor } from '../../providers/registry'
 import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
 import { isProviderId } from '../../providers/types'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useQueueDrag } from './useQueueDrag'
 import styles from './QueuePanel.module.css'
 
 /** 固定行高:VirtualList 要求,正常行与 pending skeleton 行一致 */
@@ -30,8 +32,6 @@ function QueueIcon() {
 /** 播放队列按钮 + 弹层：锚定在播放栏上方,展示当前队列,高亮当前曲目,点击切歌。 */
 export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false)
-  const [dragOver, setDragOver] = useState<number | null>(null)
-  const dragFrom = useRef<{ index: number; key: string } | null>(null)
   const queue = usePlaylistStore((s) => s.queue)
   const queueIndex = usePlaylistStore((s) => s.queueIndex)
   const shuffleOrder = usePlaylistStore((s) => s.shuffleOrder)
@@ -52,6 +52,9 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const slitRef = useRef<HTMLDivElement>(null)
+  const reducedMotion = useReducedMotion()
   const display = useMemo(
     () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
     [playMode, queue.length, queueIndex, shuffleOrder]
@@ -64,6 +67,17 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
     })
     void ensureQueueDetails(indices)
   }, [display.indices, ensureQueueDetails, providers, queue])
+
+  const keyAt = (displayIndex: number) => {
+    const track = queue[display.indices[displayIndex]]
+    return track ? `${track.source}:${String(track.id)}` : ''
+  }
+  const { drag, onRowPointerDown, rowShift, ghost, strips } = useQueueDrag({
+    panelRef, listRef, slitRef, total: display.indices.length, rowHeight: ROW_HEIGHT, reducedMotion,
+    canShred: (i) => display.indices[i] !== queueIndex,
+    onMove: (from, to) => moveQueueItem(from, to, { from: keyAt(from), to: keyAt(to) }),
+    onShred: (i) => removeQueueItem(display.indices[i], keyAt(i)),
+  })
 
   // Esc 关闭 + 点击弹层/按钮之外关闭
   useEffect(() => {
@@ -114,6 +128,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
             className={`${styles.panel}${align === 'start' ? ` ${styles.alignStart}` : ''}`}
             // 缩放会让虚拟列表的视口坐标与 scrollTop 不一致，深队列打开时出现空白。
             initial={{ opacity: 0, y: 12 }}
@@ -128,8 +143,6 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                 title="清空队列并停止播放" aria-label="清空播放队列并停止播放"
                 onClick={() => {
                   clearQueue()
-                  dragFrom.current = null
-                  setDragOver(null)
                   useToastStore.getState().show('已清空播放队列')
                 }}>清空</button>
             </div>
@@ -150,29 +163,10 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                       <div
                         className={styles.row}
                         data-current={isCurrent}
-                        data-drag-over={dragOver === i}
-                        draggable={queue.length > 1}
-                        onDragStart={(event) => {
-                          dragFrom.current = { index: i, key: `${t.source}:${String(t.id)}` }
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('text/plain', String(i))
-                        }}
-                        onDragOver={(event) => {
-                          if (dragFrom.current === null) return
-                          event.preventDefault()
-                          setDragOver(i)
-                        }}
-                        onDrop={(event) => {
-                          if (dragFrom.current === null) return
-                          event.preventDefault()
-                          moveQueueItem(dragFrom.current.index, i, { from: dragFrom.current.key, to: `${t.source}:${String(t.id)}` })
-                          dragFrom.current = null
-                          setDragOver(null)
-                        }}
-                        onDragEnd={() => {
-                          dragFrom.current = null
-                          setDragOver(null)
-                        }}
+                        data-reordering={drag ? true : undefined}
+                        data-drag-placeholder={drag?.from === i || undefined}
+                        style={drag ? { transform: `translateY(${rowShift(i)}px)` } : undefined}
+                        onPointerDown={(event) => onRowPointerDown(i, event)}
                       >
                         <button
                           type="button"
@@ -190,7 +184,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                             })
                           }}
                           data-queue-display-index={i}
-                          title={`${t.name} · 拖动或 Alt + ↑/↓ 调整顺序`}
+                          title={`${t.name} · 拖动或 Alt + ↑/↓ 调整顺序，拖到底部移除`}
                           aria-label={isCurrent ? `正在播放 ${t.name}` : `播放 ${t.name}`}
                         >
                           <span className={styles.index}>
@@ -215,7 +209,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                           </span>
                           <SourceBadge source={t.source} compact />
                         </button>
-                        <button type="button" className={styles.rowAction}
+                        <button type="button" className={styles.rowAction} data-queue-no-drag
                           data-track-action-trigger aria-haspopup="dialog"
                           title="加入歌单" aria-label={`将 ${t.name} 加入歌单`}
                           onClick={event => useTrackActionsStore.getState().toggleQuickAdd(t, anchorOf(event.currentTarget))}>
@@ -223,12 +217,12 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                         </button>
                         {!isCurrent && (
                           <>
-                            <button type="button" className={styles.rowAction}
+                            <button type="button" className={styles.rowAction} data-queue-no-drag
                               disabled={playMode === 'one'}
                               title={playMode === 'one' ? '单曲循环时不会自动切歌' : '设为下一首'}
                               aria-label={`将 ${t.name} 设为下一首`}
                               onClick={() => playNextInQueue(originalIndex, `${t.source}:${String(t.id)}`)}>下一首</button>
-                            <button type="button" className={styles.rowAction}
+                            <button type="button" className={styles.rowAction} data-queue-no-drag
                               title="从队列移除" aria-label={`从队列移除 ${t.name}`}
                               onClick={() => removeQueueItem(originalIndex, `${t.source}:${String(t.id)}`)}>×</button>
                           </>
@@ -239,6 +233,24 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                 />
               )}
             </div>
+            <AnimatePresence>
+              {drag && (
+                <motion.div
+                  className={styles.shredSlot}
+                  data-over={drag.overSlit || undefined}
+                  data-blocked={!drag.canShred || undefined}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 44, opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={springSnappy}
+                >
+                  <div ref={slitRef} className={styles.shredSlit} aria-hidden="true" />
+                  <span className={styles.shredHint}>{drag.canShred ? (drag.overSlit ? '松手移除' : '拖到这里移除') : '正在播放的歌曲不能移除'}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {ghost}
+            {strips}
             {open && canDiscover && currentTrack && (
               <QueueDiscovery key={`${currentTrack.source}:${String(currentTrack.id)}:${discoverySongId}`}
                 track={currentTrack} onOpenPlaylist={() => setOpen(false)} />

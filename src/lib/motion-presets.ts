@@ -63,3 +63,12 @@ export const wakeHeadSpring = { stiffness: 946, damping: 61.5, mass: 1 }
 
 /** 尾迹滑块：对填充头速度再做一次平滑，波峰随拖动快慢起落而不抖。 */
 export const wakeSpeedSpring = { stiffness: 400, damping: 50, mass: 1 }
+
+/** 队列拖动排序（参考 React Bits Shredder）：浮起卡片向指针指数逼近的速率（1/秒），越大越跟手。 */
+export const queueDragFollow = 30
+
+/** 队列拖动：浮起时放大倍率与最大倾斜角（度），倾斜随横向速度变化。 */
+export const queueDragLift = { scale: 1.03, maxTilt: 6 }
+
+/** 队列碎纸：纸条依次落下并淡出，相邻纸条错开 stagger 秒。 */
+export const queueShredStrip = { duration: 0.62, stagger: 0.035, ease: [0.4, 0, 1, 1] } as const
