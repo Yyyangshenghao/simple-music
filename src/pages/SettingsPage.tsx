@@ -21,6 +21,7 @@ import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
 import { AmllLyricsSettings } from '../components/Settings/AmllLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
+import { ThemeModePicker } from '../components/Settings/ThemeModePicker'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useAppleMusicConnection } from '../stores/apple-music-connection'
@@ -36,7 +37,6 @@ import { version as appVersion } from '../../package.json'
 import styles from './SettingsPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
 
-type ThemeMode = 'auto' | 'light' | 'dark'
 type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
 const SETTINGS_TABS = [
   { id: 'music', label: '音源与播放', items: [
@@ -916,19 +916,7 @@ export function SettingsPage() {
                     <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
-                      <div className={styles.segControl}>
-                        {(['auto', 'light', 'dark'] as ThemeMode[]).map((m) => (
-                          <motion.button
-                            key={m}
-                            className={`${styles.seg} no-drag ${themeMode === m ? styles.segActive : ''}`}
-                            onClick={() => setThemeMode(m)}
-                            whileTap={tapScale}
-                            transition={springSnappy}
-                          >
-                            {{ auto: '自动', light: '浅色', dark: '深色' }[m]}
-                          </motion.button>
-                        ))}
-                      </div>
+                      <ThemeModePicker value={themeMode} onChange={setThemeMode} />
                     </div>
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>页面布局</span>
