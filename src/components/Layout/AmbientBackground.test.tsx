@@ -7,7 +7,7 @@ const flags = vi.hoisted(() => ({ bgFluidMotion: false, bgPointerMotion: true, r
 
 vi.mock('../Visualizer/LiquidEther', () => {
   fluid.loads += 1
-  return { default: ({ pointerInteraction }: { pointerInteraction: boolean }) => <div data-testid="liquid-ether" data-pointer={String(pointerInteraction)} /> }
+  return { default: ({ pointerInteraction, pauseOnBlur }: { pointerInteraction: boolean; pauseOnBlur: boolean }) => <div data-testid="liquid-ether" data-pointer={String(pointerInteraction)} data-pause-on-blur={String(pauseOnBlur)} /> }
 })
 vi.mock('../../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../stores/settings')>()
@@ -73,6 +73,17 @@ describe('氛围背景按需加载', () => {
     flags.performanceMode = 'balanced'
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-testid="liquid-ether"')
     flags.reduceTransparency = false
+  })
+
+  it('失焦暂停开关原样传给流体背景', async () => {
+    flags.bgFluidMotion = true
+    flags.performanceMode = 'balanced'
+    backgroundState.current = { pauseOnBlur: false }
+    renderToStaticMarkup(<AmbientBackground />)
+    await vi.dynamicImportSettled()
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-pause-on-blur="false"')
+    backgroundState.current = null
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-pause-on-blur="true"')
   })
 
   it('鼠标跟随可单独关闭，背景流动仍保持挂载', async () => {

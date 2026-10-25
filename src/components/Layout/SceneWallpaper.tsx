@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { apiBase } from '../../lib/api'
 import { logBandsFrom } from '../../lib/audio-energy'
+import { useBackgroundInactive } from '../../hooks/useBackgroundInactive'
 import { usePlayerStore } from '../../stores/player'
 import { wallpaperEngineSceneUrl } from '../../lib/wallpaper-engine'
 import type { WallpaperSceneSettings } from '../../stores/background'
@@ -15,6 +16,8 @@ interface SceneWallpaperProps {
   token: string
   /** 节能档：暂停渲染，保留最后一帧。 */
   paused: boolean
+  /** 窗口失焦时停帧；关闭后切到其他窗口仍继续渲染。最小化/隐藏始终停。 */
+  pauseOnBlur: boolean
   /** 帧率、画质、脚本、频谱与鼠标交互选项。 */
   scene: WallpaperSceneSettings
   previewUrl: string | null
@@ -29,7 +32,7 @@ interface SceneWallpaperProps {
  *
  * 缩略图垫在 iframe 下面：加载期间不会露出空白，失败时也自然停在封面上。
  */
-export function SceneWallpaper({ id, token, paused, scene, previewUrl, style }: SceneWallpaperProps) {
+export function SceneWallpaper({ id, token, paused, pauseOnBlur, scene, previewUrl, style }: SceneWallpaperProps) {
   const frame = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -37,8 +40,8 @@ export function SceneWallpaper({ id, token, paused, scene, previewUrl, style }: 
   const [retryKey, setRetryKey] = useState(0)
   // 画质与脚本在挂载时读取；改这两项就换 key 重挂遥控页。
   const frameKey = `${id}|${scene.quality}|${scene.scripts ? '1' : '0'}|${retryKey}`
-  // 窗口失焦或最小化时也停帧；与视频背景的省电口径一致。
-  const [inactive, setInactive] = useState(() => typeof document !== 'undefined' && (document.hidden || !document.hasFocus()))
+  // 窗口失焦（可关）或最小化时停帧；与视频背景的省电口径一致。
+  const inactive = useBackgroundInactive(pauseOnBlur)
   const stopped = paused || inactive
   const inactiveRef = useRef(inactive)
   const failedWhileInactive = useRef(false)
@@ -56,18 +59,6 @@ export function SceneWallpaper({ id, token, paused, scene, previewUrl, style }: 
     setReady(false)
     setFailed(false)
   }, [frameKey])
-
-  useEffect(() => {
-    const sync = () => setInactive(document.hidden || !document.hasFocus())
-    document.addEventListener('visibilitychange', sync)
-    window.addEventListener('focus', sync)
-    window.addEventListener('blur', sync)
-    return () => {
-      document.removeEventListener('visibilitychange', sync)
-      window.removeEventListener('focus', sync)
-      window.removeEventListener('blur', sync)
-    }
-  }, [])
 
   useEffect(() => {
     const expected = apiBase()

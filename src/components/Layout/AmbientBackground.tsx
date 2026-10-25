@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { solidBackgroundCss, useBackgroundStore } from '../../stores/background'
 import { useLightTheme } from '../../hooks/useLightTheme'
+import { useBackgroundInactive } from '../../hooks/useBackgroundInactive'
 import { gentleSpringValues } from '../../lib/motion-presets'
 import { api } from '../../lib/api'
 import {
@@ -91,21 +92,10 @@ function useVideoLuma(ref: RefObject<HTMLVideoElement | null>, onLuma: (stats: L
   }, [ref, onLuma, stopped])
 }
 
-/** 视频背景：窗口隐藏/失焦、节能档或减弱动态时停在当前帧，省下逐帧解码与玻璃面板重采样。 */
-function VideoBackground({ src, blur, tone, paused, onLuma }: { src: string; blur: number; tone: string; paused: boolean; onLuma: (stats: LumaStats) => void }) {
+/** 视频背景：窗口隐藏、失焦（可在设置里关闭）、节能档或减弱动态时停在当前帧，省下逐帧解码与玻璃面板重采样。 */
+function VideoBackground({ src, blur, tone, paused, pauseOnBlur, onLuma }: { src: string; blur: number; tone: string; paused: boolean; pauseOnBlur: boolean; onLuma: (stats: LumaStats) => void }) {
   const ref = useRef<HTMLVideoElement>(null)
-  const [inactive, setInactive] = useState(() => typeof document !== 'undefined' && (document.hidden || !document.hasFocus()))
-  useEffect(() => {
-    const sync = () => setInactive(document.hidden || !document.hasFocus())
-    document.addEventListener('visibilitychange', sync)
-    window.addEventListener('focus', sync)
-    window.addEventListener('blur', sync)
-    return () => {
-      document.removeEventListener('visibilitychange', sync)
-      window.removeEventListener('focus', sync)
-      window.removeEventListener('blur', sync)
-    }
-  }, [])
+  const inactive = useBackgroundInactive(pauseOnBlur)
   const stopped = paused || inactive
   useEffect(() => {
     const video = ref.current
@@ -172,7 +162,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
         {media.kind === 'image'
           ? <img className={styles.media} style={mediaStyle(background.mediaBlur, tone.filter)} src={backgroundFileUrl(media.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false}
             onLoad={(event) => { const next = sampleLuma(event.currentTarget); if (next) reportLuma(next) }} />
-          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} onLuma={reportLuma} />}
+          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />}
         <div className={styles.mediaDim} style={{ opacity: tone.scrim }} aria-hidden="true" />
       </div>
     )
@@ -186,7 +176,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
       <div className={styles.background} data-background="wallpaper">
         <LiftFilter id={liftFilterId} gamma={gamma} />
         {wallpaper.type === 'video'
-          ? <VideoBackground src={wallpaperEngineVideoUrl(wallpaper.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} onLuma={reportLuma} />
+          ? <VideoBackground src={wallpaperEngineVideoUrl(wallpaper.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />
           : wallpaper.type === 'web'
             // 网页型壁纸整页在 iframe 里运行；token 放在路径段里，同目录资源才能一起加载。
             // 沙箱只给脚本与自身源，不能导航顶层窗口或弹窗；声音由 server 注入的脚本静音。
@@ -200,6 +190,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
                   id={wallpaper.id}
                   token={webToken}
                   paused={performanceMode === 'eco'}
+                  pauseOnBlur={background.pauseOnBlur}
                   scene={background.wallpaperScene}
                   previewUrl={wallpaper.hasPreview ? wallpaperEnginePreviewUrl(wallpaper.id) : null}
                   style={frameStyle}
@@ -241,6 +232,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
           <LiquidEther
             colors={palette}
             pointerInteraction={bgPointerMotion}
+            pauseOnBlur={background.pauseOnBlur}
             mouseForce={12}
             cursorSize={80}
             resolution={performanceMode === 'balanced' ? 0.4 : 0.5}

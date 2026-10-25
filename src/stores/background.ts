@@ -66,7 +66,7 @@ export const DEFAULT_WALLPAPER_SCENE: WallpaperSceneSettings = {
 /**
  * 存档版本：2 起 mediaDim 表示自动遮罩之外的额外强度；旧存档里的是总遮罩，直接叠加会把画面盖没，读取时回到默认。
  * 3 起新增独立的 wallpaper 槽位（Wallpaper Engine 壁纸），不再与视频背景共用。
- * wallpaperScene 是后续追加的增量字段，旧存档缺省时按默认值补齐，不影响已有语义。
+ * wallpaperScene 与 pauseOnBlur 是后续追加的增量字段，旧存档缺省时按默认值补齐，不影响已有语义。
  */
 const BACKGROUND_VERSION = 3
 /** mediaDim 语义改动的起始版本；之后的版本新增字段不影响它。 */
@@ -90,6 +90,8 @@ export interface BackgroundSettings {
   mediaBlur: number
   /** 媒体类背景在自动可读遮罩之外再加的强度（0 = 只用自动值）；遮罩为主题底色，深色压暗、浅色提亮。 */
   mediaDim: number
+  /** 窗口失焦时停帧；关闭后切到其他窗口仍继续播放，适合放在副屏。最小化/隐藏始终停。 */
+  pauseOnBlur: boolean
   solid: SolidBackgroundId
   solidColor: string
 }
@@ -113,6 +115,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   wallpaperScene: DEFAULT_WALLPAPER_SCENE,
   mediaBlur: 0,
   mediaDim: 0.1,
+  pauseOnBlur: true,
   solid: 'theme',
   solidColor: '#1b1d24',
 }
@@ -176,6 +179,7 @@ export function normalizeBackground(value: unknown): BackgroundSettings {
     wallpaperScene: normalizeWallpaperScene(saved.wallpaperScene),
     mediaBlur: clamp(saved.mediaBlur, MEDIA_BLUR_MAX, DEFAULT_BACKGROUND.mediaBlur),
     mediaDim: typeof saved.version === 'number' && saved.version >= MEDIA_DIM_VERSION ? clamp(saved.mediaDim, MEDIA_DIM_MAX, DEFAULT_BACKGROUND.mediaDim) : DEFAULT_BACKGROUND.mediaDim,
+    pauseOnBlur: typeof saved.pauseOnBlur === 'boolean' ? saved.pauseOnBlur : DEFAULT_BACKGROUND.pauseOnBlur,
     solid: SOLID_IDS.includes(saved.solid as SolidBackgroundId) ? saved.solid as SolidBackgroundId : DEFAULT_BACKGROUND.solid,
     solidColor: typeof saved.solidColor === 'string' && HEX.test(saved.solidColor) ? saved.solidColor : DEFAULT_BACKGROUND.solidColor,
   }
@@ -186,8 +190,8 @@ function load(): BackgroundSettings {
 }
 
 function save(state: BackgroundSettings): void {
-  const { kind, fluidPalette, fluidColors, image, video, wallpaper, wallpaperScene, mediaBlur, mediaDim, solid, solidColor } = state
-  const data: BackgroundSettings = { kind, fluidPalette, fluidColors, image, video, wallpaper, wallpaperScene: { ...wallpaperScene }, mediaBlur, mediaDim, solid, solidColor }
+  const { kind, fluidPalette, fluidColors, image, video, wallpaper, wallpaperScene, mediaBlur, mediaDim, pauseOnBlur, solid, solidColor } = state
+  const data: BackgroundSettings = { kind, fluidPalette, fluidColors, image, video, wallpaper, wallpaperScene: { ...wallpaperScene }, mediaBlur, mediaDim, pauseOnBlur, solid, solidColor }
   try { localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify({ ...data, version: BACKGROUND_VERSION })) } catch { /* 存储不可用时本次会话仍可切换。 */ }
 }
 

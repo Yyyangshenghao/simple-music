@@ -22,6 +22,8 @@ function errorMessage(code: string): string {
 /**
  * Steam 订阅的 Wallpaper Engine 壁纸库。文件留在 Steam 目录里不复制，
  * 这里只做选择与预览；场景型由隔离页面渲染，应用型是独立程序，只显示封面。
+ * 只在用户点开壁纸库时挂载：读取要扫 Steam 目录，展开网格还会加载大量预览图，
+ * 每次进设置页都挂载太贵。
  */
 export function WallpaperEnginePicker({ selected }: { selected: WallpaperSelection | null }) {
   const setWallpaper = useBackgroundStore((s) => s.setWallpaper)

@@ -485,14 +485,14 @@ function backgroundImportError(code = ''): string {
 }
 
 function wallpaperHint(type: WallpaperSelection['type']): string {
-  if (type === 'video') return '视频壁纸会持续占用 GPU，窗口失焦、隐藏或节能档时暂停。'
-  if (type === 'web') return '网页壁纸在隔离页面中运行，声音已静音；节能档不会暂停它。'
-  if (type === 'scene') return '场景壁纸在隔离页面中用 WebGL 渲染，壁纸脚本接触不到应用数据；窗口失焦、隐藏或节能档时停在最后一帧。上面的渲染选项只作用于场景型壁纸。'
+  if (type === 'video') return '视频壁纸会持续占用 GPU；窗口隐藏或节能档时暂停，失焦是否暂停取决于上面的开关。'
+  if (type === 'web') return '网页壁纸在隔离页面中运行，声音已静音；节能档与失焦暂停都不会影响它。'
+  if (type === 'scene') return '场景壁纸在隔离页面中用 WebGL 渲染，壁纸脚本接触不到应用数据；窗口隐藏或节能档时停在最后一帧，失焦是否停帧取决于上面的开关。渲染选项只作用于场景型壁纸。'
   return '应用型壁纸是独立程序，不能嵌入应用，只能显示封面图。'
 }
 
-/** 场景壁纸的开关行：关闭时仍保留说明，避免用户以为设置丢了。 */
-function SceneSwitchRow({ label, hint, checked, disabled, reason, onChange }: {
+/** 背景的开关行：关闭时仍保留说明，避免用户以为设置丢了。 */
+function BackgroundSwitchRow({ label, hint, checked, disabled, reason, onChange }: {
   label: string
   hint: string
   checked: boolean
@@ -520,6 +520,8 @@ function BackgroundSettings() {
   const { update, setMedia, clearMedia, setWallpaper } = background
   const [view, setView] = useState<AppBackgroundKind>(background.kind)
   const [importing, setImporting] = useState(false)
+  // 壁纸库按需展开：读取目录与预览图都很贵，不能每次进设置页都挂载。
+  const [wallpaperPickerOpen, setWallpaperPickerOpen] = useState(false)
   const idPrefix = useId()
   const light = useLightTheme()
   const solids = solidBackgroundsFor(light)
@@ -529,6 +531,7 @@ function BackgroundSettings() {
 
   function selectView(kind: AppBackgroundKind): void {
     setView(kind)
+    if (kind !== 'wallpaper') setWallpaperPickerOpen(false)
     if (kind === 'fluid' || kind === 'solid' || background[kind]) update({ kind })
   }
   async function importMedia(): Promise<void> {
@@ -570,6 +573,13 @@ function BackgroundSettings() {
           >{label}</button>)}
         </div>
       </div>
+
+      {(view === 'fluid' || view === 'video' || view === 'wallpaper') && <BackgroundSwitchRow
+        label="失焦时暂停"
+        hint="窗口失去焦点后暂停背景动画；关闭后切到其他窗口时仍继续播放，适合把窗口放在副屏或只被部分遮挡时查看。最小化或隐藏窗口时始终暂停。流体、视频与场景壁纸都受此开关控制；网页型壁纸由页面自行运行，暂不受控。"
+        checked={background.pauseOnBlur}
+        onChange={(pauseOnBlur) => update({ pauseOnBlur })}
+      />}
 
       {view === 'fluid' && <>
         <div className={styles.row}>
@@ -622,7 +632,7 @@ function BackgroundSettings() {
             format={(v) => `${v} px`} unit="px" onChange={(v) => update({ mediaBlur: v })} />
           <SliderRow label={light ? '额外提亮' : '额外压暗'} min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
             format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
-          {view === 'video' && <p className={styles.groupHint}>视频背景会持续占用 GPU，窗口失焦、隐藏或节能档时暂停。</p>}
+          {view === 'video' && <p className={styles.groupHint}>视频背景会持续占用 GPU；窗口隐藏或节能档时暂停，失焦是否暂停取决于上面的开关。</p>}
         </>}
       </>}
 
@@ -632,8 +642,14 @@ function BackgroundSettings() {
             {background.wallpaper ? background.wallpaper.title : '尚未选择壁纸'}
           </span>
           {background.wallpaper && <button type="button" className={`${styles.action} no-drag`} onClick={() => setWallpaper(null)}>移除</button>}
+          <button
+            type="button"
+            className={`${styles.action} no-drag`}
+            aria-expanded={wallpaperPickerOpen}
+            onClick={() => setWallpaperPickerOpen(value => !value)}
+          >{wallpaperPickerOpen ? '收起' : background.wallpaper ? '更换壁纸' : '选择壁纸'}</button>
         </div>
-        <WallpaperEnginePicker selected={background.wallpaper} />
+        {wallpaperPickerOpen && <WallpaperEnginePicker selected={background.wallpaper} />}
         {background.wallpaper && <>
           <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} defaultValue={DEFAULT_BACKGROUND.mediaBlur}
             format={(v) => `${v} px`} unit="px" onChange={(v) => update({ mediaBlur: v })} />
@@ -643,7 +659,7 @@ function BackgroundSettings() {
             <div className={styles.row}>
               <span className={styles.rowLabel}>
                 帧率
-                <InfoButton label="场景壁纸帧率" text="限制场景壁纸的渲染帧率。24 帧更省电，30 帧足够顺滑，60 帧适合带视差或快速动画的壁纸；窗口失焦、隐藏或节能档时仍会停帧。" />
+                <InfoButton label="场景壁纸帧率" text="限制场景壁纸的渲染帧率。24 帧更省电，30 帧足够顺滑，60 帧适合带视差或快速动画的壁纸；窗口隐藏或节能档时停帧，失焦是否停帧取决于「失焦时暂停」。" />
               </span>
               <div className={styles.segControl} role="group" aria-label="场景壁纸帧率">
                 {WALLPAPER_SCENE_FPS.map(fps => <button
@@ -670,19 +686,19 @@ function BackgroundSettings() {
                 >{item.label}</button>)}
               </div>
             </div>
-            <SceneSwitchRow
+            <BackgroundSwitchRow
               label="场景脚本"
               hint="执行壁纸自带的 SceneScript，用于时钟、文字、音频响应与交互效果。关闭后停在初始参数，遇到脚本报错或占用过高时可以关。"
               checked={wallpaperScene.scripts}
               onChange={(scripts) => updateScene({ scripts })}
             />
-            <SceneSwitchRow
+            <BackgroundSwitchRow
               label="跟随音乐"
               hint="把当前歌曲的频谱传给壁纸；着色器与场景脚本都可以消费，只有音频响应型壁纸会变化。"
               checked={wallpaperScene.audio}
               onChange={(audio) => updateScene({ audio })}
             />
-            <SceneSwitchRow
+            <BackgroundSwitchRow
               label="响应鼠标"
               hint="把鼠标位置传给壁纸，用于视差与点击效果。背景在界面下方，本身收不到指针事件。"
               checked={wallpaperScene.pointer}

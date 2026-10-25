@@ -58,9 +58,9 @@ const colors = ['#5227FF', '#FF9FFC']
 let now = 0
 let nextFrame = 0
 
-function render(pointerInteraction?: boolean, autoDemo = true) {
+function render(pointerInteraction?: boolean, autoDemo = true, pauseOnBlur?: boolean) {
   h.refIndex = h.effectIndex = 0
-  LiquidEther({ pointerInteraction, colors, autoDemo, fpsCap: 20, interactFpsCap: 60, autoResumeDelay: 2000 })
+  LiquidEther({ pointerInteraction, colors, autoDemo, fpsCap: 20, interactFpsCap: 60, autoResumeDelay: 2000, pauseOnBlur })
   h.pending.splice(0).forEach((effect) => effect())
 }
 
@@ -168,6 +168,22 @@ describe('流体鼠标跟随解耦', () => {
     h.effects.forEach((effect) => effect.cleanup?.())
     expect(listeners.size).toBe(0)
     expect(documentListeners.size).toBe(0)
+    expect(frames.size).toBe(0)
+  })
+
+  it('失焦是否停帧可热切换，关闭后切走窗口仍继续渲染', () => {
+    render(undefined, true, false)
+    const doc = document as unknown as { hasFocus: () => boolean }
+    doc.hasFocus = () => false
+    listeners.get('blur')?.({} as Event)
+    expect(frames.size).toBe(1)
+    const count = h.forces.length
+    frame(100)
+    frame(300)
+    expect(h.forces.length).toBeGreaterThan(count)
+
+    // 打开失焦暂停后，不等新的焦点事件就立即停帧。
+    render(undefined, true, true)
     expect(frames.size).toBe(0)
   })
 })

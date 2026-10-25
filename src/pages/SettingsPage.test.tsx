@@ -351,6 +351,10 @@ describe('场景壁纸渲染设置', () => {
       wallpaperScene: { ...DEFAULT_WALLPAPER_SCENE, fps: 60, quality: 'detailed', scripts: false, audio: true, pointer: false },
     })
     const html = renderToStaticMarkup(<SettingsPage />)
+    // 壁纸库默认折叠，进入设置页不读取目录、不渲染预览网格。
+    expect(html).toContain('更换壁纸')
+    expect(html).not.toContain('aria-label="搜索壁纸"')
+    expect(html).not.toContain('/api/wallpaper-engine/preview')
     expect(html).toContain('aria-label="场景壁纸帧率"')
     expect(html).toContain('aria-label="场景壁纸画质"')
     expect(html).toContain('aria-label="场景脚本"')
@@ -369,6 +373,28 @@ describe('场景壁纸渲染设置', () => {
     const video = renderToStaticMarkup(<SettingsPage />)
     expect(video).not.toContain('aria-label="场景壁纸帧率"')
     expect(video).toContain('视频壁纸会持续占用 GPU')
+  })
+
+  it('未选择壁纸时在移除按钮的位置提供选择入口，不提前挂载壁纸库', () => {
+    useBackgroundStore.setState({ kind: 'wallpaper', wallpaper: null })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toContain('选择壁纸')
+    expect(html).not.toContain('aria-label="搜索壁纸"')
+    expect(html).not.toContain('重新扫描')
+  })
+})
+
+describe('背景失焦暂停', () => {
+  it('流体、视频与壁纸视图提供开关，默认开启且跟随存档', () => {
+    let html = renderToStaticMarkup(<SettingsPage />)
+    expect(effectSwitch(html, '失焦时暂停')).toContain('aria-checked="true"')
+
+    useBackgroundStore.getState().update({ pauseOnBlur: false })
+    html = renderToStaticMarkup(<SettingsPage />)
+    expect(effectSwitch(html, '失焦时暂停')).toContain('aria-checked="false"')
+
+    useBackgroundStore.setState({ kind: 'image', image: { id: 'a.png', kind: 'image', name: 'a.png' } })
+    expect(renderToStaticMarkup(<SettingsPage />)).not.toContain('aria-label="失焦时暂停"')
   })
 })
 

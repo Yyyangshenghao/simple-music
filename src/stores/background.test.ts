@@ -36,6 +36,13 @@ describe('应用背景设置归一化', () => {
     expect(normalizeBackground({ kind: 'wallpaper', wallpaper })).toMatchObject({ kind: 'wallpaper', wallpaper })
   })
 
+  it('失焦暂停默认开启，只接受布尔值', () => {
+    expect(DEFAULT_BACKGROUND.pauseOnBlur).toBe(true)
+    expect(normalizeBackground({}).pauseOnBlur).toBe(true)
+    expect(normalizeBackground({ pauseOnBlur: false }).pauseOnBlur).toBe(false)
+    expect(normalizeBackground({ pauseOnBlur: 'no' }).pauseOnBlur).toBe(true)
+  })
+
   it('场景壁纸渲染选项只接受有效档位，缺省与坏值回到默认', () => {
     expect(normalizeBackground({ wallpaperScene: { fps: 15, quality: 'nope', scripts: 'yes', audio: 0, pointer: null } }).wallpaperScene)
       .toEqual(DEFAULT_WALLPAPER_SCENE)
