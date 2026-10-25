@@ -55,7 +55,7 @@ const SETTINGS_TABS = [
     { id: 'game', label: '游戏模式' },
   ] },
   { id: 'lyrics', label: '歌词与特效', items: [
-    { id: 'desktop-lyrics', label: '桌面歌词' }, { id: 'lyrics-font', label: '歌词字体' },
+    { id: 'desktop-lyrics', label: '桌面歌词' }, { id: 'lyrics-display', label: '歌词显示' },
     { id: 'lyrics-source', label: '歌词来源' },
   ] },
   { id: 'cache', label: '缓存与下载', items: [
@@ -374,12 +374,13 @@ type EffectItem = { key: PreviewEffect; label: string; hint: string }
 
 const MOTION_EFFECTS: EffectItem[] = [
   { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
-  { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画，立体歌词随所选样式运行' },
   { key: 'cardTiltEffect', label: '卡片倾斜', hint: '歌单与推荐卡片随鼠标轻微倾斜；关闭后保留按钮与卡片的基本悬停、按压反馈。' },
   { key: 'cardSpotlightEffect', label: '卡片跟手光斑', hint: '光斑沿卡片表面跟随鼠标，可独立于倾斜启用' },
   { key: 'gradientTextMotion', label: '标题流光', hint: '页面标题的渐变流动与呼吸' },
   { key: 'audioGlowEffect', label: '音频辉光', hint: '播放栏辉光随低频呼吸，关闭可减少持续渲染' },
 ]
+
+const LYRICS_WORD_EFFECT: EffectItem = { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画，立体歌词随所选样式运行' }
 
 const BACKGROUND_EFFECTS: EffectItem[] = [
   { key: 'bgFluidMotion', label: '流体背景', hint: '让氛围背景缓慢流动；关闭后使用静态渐变' },
@@ -1405,11 +1406,12 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[2]} />
               <div className={styles.lyricsPage}>
                 <div id="settings-detail-desktop-lyrics" className={styles.detailSection}><DesktopLyricsSettings /></div>
-                <section id="settings-detail-lyrics-font" className={styles.group}>
+                <section id="settings-detail-lyrics-display" className={styles.group}>
                   <h3 className={styles.groupTitle}>
-                    歌词字体
-                    <InfoButton label="歌词字体" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
+                    歌词显示
+                    <InfoButton label="歌词显示" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
                   </h3>
+                  <EffectSwitchRow effect={LYRICS_WORD_EFFECT} />
                   <div className={styles.fontGuide} hidden={!fontsLoading && !fontsError}>
                     <span role="status" aria-live="polite">
                       {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : ''}

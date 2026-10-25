@@ -208,7 +208,7 @@ function effectSwitch(html: string, label: string): string {
 describe('动效设置的实际生效状态', () => {
   it('减少动态开关可随时解除，其他动效保留选择并显示暂停原因', () => {
     useSettingsStore.getState().setPerformance({ reduceMotion: true })
-    const html = visualMarkup()
+    const html = renderToStaticMarkup(<SettingsPage />)
     expect(effectSwitch(html, '减少动态效果')).toContain('aria-checked="true"')
     expect(effectSwitch(html, '减少动态效果')).not.toContain('disabled=')
     for (const label of ['文字逐字显现', '歌词逐字高亮', '流体背景', '卡片倾斜', '音频辉光']) {
@@ -217,7 +217,7 @@ describe('动效设置的实际生效状态', () => {
     }
     expect(html).toContain('已随减少动态效果暂停')
     useSettingsStore.getState().setPerformance({ reduceMotion: false })
-    expect(effectSwitch(visualMarkup(), '歌词逐字高亮')).not.toContain('disabled=')
+    expect(effectSwitch(lyricsMarkup(), '歌词逐字高亮')).not.toContain('disabled=')
   })
   it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
     const html = visualMarkup()
@@ -225,11 +225,15 @@ describe('动效设置的实际生效状态', () => {
       expect(html).not.toMatch(new RegExp(`<h3[^>]*>${title}`))
     }
     const motion = html.slice(html.indexOf('id="settings-detail-motion"'), html.indexOf('id="settings-detail-game"'))
-    for (const label of ['文字逐字显现', '歌词逐字高亮', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
+    for (const label of ['文字逐字显现', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
+    expect(motion).not.toContain('aria-label="歌词逐字高亮"')
+    const lyricsDisplay = lyricsMarkup()
+    expect(effectSwitch(lyricsDisplay.slice(lyricsDisplay.indexOf('id="settings-detail-lyrics-display"')), '歌词逐字高亮')).toBeDefined()
+    expect(lyricsDisplay).toContain('data-effect="lyricsWordMotion"')
     const background = html.slice(html.indexOf('id="settings-detail-background"'), html.indexOf('id="settings-detail-interface-font"'))
     expect(effectSwitch(background, '流体背景')).toBeDefined()
     expect(effectSwitch(background, '背景鼠标跟随')).toBeDefined()
-    for (const effect of ['textRevealMotion', 'lyricsWordMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
+    for (const effect of ['textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
       expect(motion).toContain(`data-effect="${effect}"`)
     }
     for (const effect of ['bgFluidMotion', 'bgPointerMotion']) expect(background).toContain(`data-effect="${effect}"`)
@@ -315,7 +319,7 @@ describe('歌词设置分组', () => {
     expect(beforeDetails).not.toContain('粒光歌词中文字体')
     expect(beforeDetails).toContain('Helvetica Neue')
     expect(beforeDetails).toContain('Songti SC')
-    const fontCard = beforeDetails.slice(beforeDetails.indexOf('歌词字体'), beforeDetails.indexOf('</section>', beforeDetails.indexOf('歌词字体')))
+    const fontCard = beforeDetails.slice(beforeDetails.indexOf('歌词显示'), beforeDetails.indexOf('</section>', beforeDetails.indexOf('歌词显示')))
     expect(fontCard).not.toContain('disabled=""')
     expect(fontCard).not.toContain('aria-expanded=')
   })
@@ -340,7 +344,7 @@ describe('设置分类导航', () => {
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
     for (const id of ['accounts', 'playback', 'appearance', 'background', 'interface-font', 'mini-player', 'motion', 'game',
-      'desktop-lyrics', 'lyrics-font', 'lyrics-source', 'downloads', 'player-cache']) {
+      'desktop-lyrics', 'lyrics-display', 'lyrics-source', 'downloads', 'player-cache']) {
       expect(html.match(new RegExp(`id="settings-detail-${id}"`, 'g'))).toHaveLength(1)
     }
     expect(html).toContain('aria-controls="settings-detail-accounts"')

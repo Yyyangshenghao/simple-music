@@ -313,7 +313,10 @@
 /* 单项动效两列排布，分隔线沿用行边框。 */
 .effectGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--sm-border); }
 .effectGrid .row:nth-child(odd) { border-right: 1px solid var(--sm-border); }
-.effectGrid .row:nth-last-child(-n + 2) { border-bottom: none; }
+.effectGrid .row:last-child,
+.effectGrid .row:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+/* 奇数项时最后一项独占一行 */
+.effectGrid .row:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: none; }
 
 /* 只有一个操作的卡片：标题与按钮同行，不再单独占一行。 */
 .groupTitleBare { border-bottom: none; padding-bottom: 17px; }
