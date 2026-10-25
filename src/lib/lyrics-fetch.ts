@@ -8,6 +8,7 @@ import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD } from './t
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
+import { lyricServiceMode, type LyricServiceMode } from './lyric-service'
 import type { LyricOrigin } from '../types/lyrics-source'
 import type { ProviderId } from '../providers/types'
 import { useSettingsStore } from '../stores/settings'
@@ -62,6 +63,17 @@ export function isLyricMatch(track: Track, target: Track): boolean {
   const originIsrc = String(track.isrc ?? track.ISRC ?? '').trim().toUpperCase()
   const targetIsrc = String(target.isrc ?? target.ISRC ?? '').trim().toUpperCase()
   return !originIsrc || !targetIsrc || originIsrc === targetIsrc
+}
+
+/** 按该平台当前的歌词模式找同曲：账号模式沿用播放匹配缓存，游客模式走游客搜索与独立缓存。 */
+export function findLyricMatch(track: Track, source: 'netease' | 'qq', signal?: AbortSignal, strict = false, refresh = false) {
+  return findEquivalentTrack(track, source, signal, Date.now(), strict, refresh, lyricServiceMode(source) === 'guest' ? 'guest' : 'account')
+}
+
+/** 本地曲目：本地歌词与在线匹配身份（标签齐全时才有）。 */
+export async function localLyricSource(track: Track, signal?: AbortSignal): Promise<{ lines: LyricLineType[]; identity: Track | null }> {
+  if (track.source !== 'local') return { lines: [], identity: null }
+  return localMusicService.getLyricSource(track, signal)
 }
 
 export function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
@@ -123,7 +135,8 @@ interface KugouLyricResponse {
  * 时间轴超出本曲时长同样视为错配；默认失败返回 null，严格查询则保留原因。
  */
 export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false, refresh = false): Promise<LyricsResult | null> {
-  if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
+  // 本地曲目只接受已由标签确认的身份（localLyricSource 的 identity），不按文件名回退的歌名查询。
+  if ((track.source === 'local' && track.localTagged !== true) || hasTimedLyrics(result) || signal?.aborted) return null
   if (!useSettingsStore.getState().lyricsKugouFallback) return null
   const title = String(track.name ?? '').trim()
   const duration = Number(track.duration)
@@ -170,7 +183,14 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
 
 /** 逐行结果先展示，后台按已参与平台查找同曲逐字；始终保留原来的可用逐行版本。 */
 export async function upgradeLyrics(track: Track, result: LyricsResult, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult | null> {
-  if (track.source === 'local' || hasTimedLyrics(result) || signal?.aborted) return null
+  if (hasTimedLyrics(result) || signal?.aborted) return null
+  if (track.source === 'local') {
+    // 本地已有歌词时保留本地版本，不在后台替换；没有本地歌词时只按标签身份在线补全。
+    if (result.source === 'local' && result.main.length) return null
+    const { identity } = await localLyricSource(track, signal)
+    if (!identity || signal?.aborted) return null
+    track = identity
+  }
   if (track.source === 'qq' && (result.source === 'qq' || !result.main.length)) {
     const native = await fetchLyrics(track, [], signal, true)
     if (signal?.aborted) return null
@@ -184,7 +204,7 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
     if (signal?.aborted) return null
     if ((source !== 'netease' && source !== 'qq') || source === track.source) continue
     try {
-      const match = await findEquivalentTrack(track, source, signal)
+      const match = await findLyricMatch(track, source, signal)
       if (signal?.aborted) return null
       if (!match || match.track.source !== source || !isLyricMatch(track, match.track)) continue
       const candidate = await fetchLyrics(match.track, [], signal, source === 'qq')
@@ -204,7 +224,7 @@ export async function upgradeLyrics(track: Track, result: LyricsResult, sources:
 /** 只读取已完成且未过期的伴随歌词，不发起原生请求。 */
 export function cachedLyrics(track: Track): LyricsResult | undefined {
   if (track.source !== 'netease' && track.source !== 'qq') return undefined
-  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}`
+  const key = `lyrics:${lyricServiceMode(track.source) ?? 'account'}:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}`
   return getCachedProviderData<LyricsResult>(track.source, `${key}:words`)
     ?? getCachedProviderData<LyricsResult>(track.source, key)
 }
@@ -218,19 +238,25 @@ export function cachedLyrics(track: Track): LyricsResult | undefined {
  */
 export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false, refresh = false): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
-  if (refresh) return loadLyrics(track, sources, signal, wordTiming, strict)
   if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal, wordTiming, strict)
   const source = track.source
+  // 未参与播放且游客关闭时沿用旧行为（账号请求），供其他调用方兼容。
+  const mode: LyricServiceMode = lyricServiceMode(source) ?? 'account'
   const session = providerAccountSession(source)
-  const key = `lyrics:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}${wordTiming ? ':words' : ''}`
+  // 游客模式下 QQ 只有逐字接口会返回翻译与音译，直接走逐字请求。
+  const words = wordTiming || (mode === 'guest' && source === 'qq')
+  if (refresh) return loadLyrics(track, sources, signal, words, strict, mode)
+  // 游客与账号结果分开缓存。
+  const key = `lyrics:${mode}:${String(track.id)}:${String(track.mid ?? '')}:${String(track.qqId ?? '')}${words ? ':words' : ''}`
   try {
     const result = await requestProviderData(source, key, async () => {
       // 共享请求不绑定单个页面的取消信号 避免切歌中断仍在使用的预热
-      const lyrics = await loadLyrics(track, [], undefined, wordTiming, true)
+      const lyrics = await loadLyrics(track, [], undefined, words, true, mode)
       if (!lyrics.main.length) throw new Error('EMPTY_LYRICS')
       return lyrics
     }, { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS })
-    return signal?.aborted || session !== providerAccountSession(source) ? emptyLyrics : result
+    // 账号结果在账号切换后作废；游客结果与账号无关。
+    return signal?.aborted || (mode === 'account' && session !== providerAccountSession(source)) ? emptyLyrics : result
   } catch (error) {
     if (strict && !(error instanceof Error && error.message === 'EMPTY_LYRICS')) throw error
     return emptyLyrics
@@ -244,7 +270,7 @@ export async function fetchLyrics(track: Track, sources: ProviderId[] = [], sign
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 非共享请求的取消信号
  */
-async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal, wordTiming = false, strict = false): Promise<LyricsResult> {
+async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSignal, wordTiming = false, strict = false, mode: LyricServiceMode = 'account'): Promise<LyricsResult> {
   if (signal?.aborted) return emptyLyrics
   if (track.source === 'apple') {
     const native = await fetchNativeAppleLyrics(track, signal, strict)
@@ -255,7 +281,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       if (signal?.aborted) return emptyLyrics
       if (source !== 'netease' && source !== 'qq') continue
       try {
-        const match = await findEquivalentTrack(track, source, signal)
+        const match = await findLyricMatch(track, source, signal)
         if (signal?.aborted) return emptyLyrics
         if (!match || match.track.source !== source) continue
         const target = match.track
@@ -270,7 +296,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
   }
   try {
     if (track.source === 'netease') {
-      const rec = await api.get<NeteaseLyricResponse>('/api/lyric', { id: String(track.id) }, { signal })
+      const rec = await api.get<NeteaseLyricResponse>('/api/lyric', { id: String(track.id), ...(mode === 'guest' ? { guest: '1' } : {}) }, { signal })
       if (strict && rec.error) throw new Error(rec.error)
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
@@ -300,7 +326,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
 
     if (track.source === 'qq') {
       const { mid, id } = qqLyricIdentifiers(track)
-      const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id, ...(wordTiming ? { words: '1' } : {}) }, { signal })
+      const rec = await api.get<QQLyricResponse>('/api/qq/lyric', { mid, id, ...(wordTiming ? { words: '1' } : {}), ...(mode === 'guest' ? { guest: '1' } : {}) }, { signal })
       if (strict && rec.error) throw new Error(rec.error)
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
@@ -328,10 +354,24 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
     // 本地音乐:曲目同目录的同名 .lrc。server 端点与 localMusicService.getLyrics 一直都在,
     // 但这条管线此前只有网易/QQ 两个分支,本地曲目直接落到下面的
     // return emptyLyrics —— 表现为本地音乐永远没有歌词。
+    // 本地优先：同名 .lrc 或内嵌同步歌词可用时直接使用；都没有时，只有标签齐全才按标签在线找同录音。
     if (track.source === 'local') {
-      const main = await localMusicService.getLyrics(track, signal)
-      if (!main.length) return emptyLyrics
-      return { source: track.source, main, aligned: [], roma: [], wordLines: [] }
+      const { lines: main, identity } = await localLyricSource(track, signal)
+      if (main.length) return { source: track.source, main, aligned: [], roma: [], wordLines: [] }
+      if (!identity) return emptyLyrics
+      for (const source of new Set(sources)) {
+        if (signal?.aborted) return emptyLyrics
+        if (source !== 'netease' && source !== 'qq') continue
+        try {
+          const match = await findLyricMatch(identity, source, signal)
+          if (signal?.aborted) return emptyLyrics
+          if (!match || match.track.source !== source || !isLyricMatch(identity, match.track)) continue
+          const result = await fetchLyrics(match.track, [], signal)
+          if (signal?.aborted) return emptyLyrics
+          if (result.main.length && fitsLyricDuration(identity, result)) return result
+        } catch { /* 一个平台失败时继续下一个，本地播放不受影响。 */ }
+      }
+      return emptyLyrics
     }
 
     return emptyLyrics

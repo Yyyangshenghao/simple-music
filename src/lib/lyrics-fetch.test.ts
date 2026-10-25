@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
+import { emptyLyrics, fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
+import { advanceProviderAccountSession } from './provider-account-session'
+import { useProviderStore } from '../stores/providers'
 import type { Track } from '../types/domain'
 import { TRACK_MATCH_SCHEMA } from './track-match'
 import { clearProviderRequestCache } from './provider-request-cache'
 import { useSettingsStore } from '../stores/settings'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn() }))
-vi.mock('./local-music-service', () => ({ localMusicService: { getLyrics: h.local } }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
+vi.mock('./local-music-service', () => ({ localMusicService: {
+  getLyrics: h.local,
+  getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
+} }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq') => ({
@@ -17,6 +22,8 @@ const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1
 const song = (source: 'netease' | 'qq', extra: Partial<Track> = {}): Track => ({ ...apple, source, provider: source, id: source === 'qq' ? 12 : 34, mid: source === 'qq' ? 'qmid' : undefined, ...extra })
 
 beforeEach(() => {
+  // 以下用例校验账号参与语义；游客歌词来源在单独的用例里打开。
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   clearProviderRequestCache()
   vi.resetAllMocks()
   // 这里的用例校验请求共享；AMLL 兜底单独覆盖，默认关掉免得多出一次请求
@@ -415,5 +422,75 @@ describe('指定来源的错误诊断', () => {
     vi.mocked(api.get).mockResolvedValueOnce({ lyric: '' }).mockResolvedValueOnce({ error: 'UPSTREAM_FAILED' })
     await expect(fetchLyrics(song('netease'), [], undefined, false, true)).resolves.toMatchObject({ main: [] })
     await expect(fetchLyrics(song('netease'), [], undefined, false, true)).rejects.toThrow('UPSTREAM_FAILED')
+  })
+})
+
+describe('游客歌词来源', () => {
+  const guestApi = (path: string, params?: Record<string, string>) => {
+    if (path === '/api/qq/search') return { songs: [song('qq')] }
+    if (path === '/api/search') return { songs: [song('netease')] }
+    if (path === '/api/qq/lyric') return { qrc: '[1000,1000]甲(1000,500)乙(1500,500)', tlyric: '[00:01.00]译文' }
+    if (path === '/api/lyric') return { lyric: params?.guest === '1' ? '[00:01.00]游客' : '[00:01.00]账号' }
+    return {}
+  }
+
+  beforeEach(() => {
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
+    useProviderStore.setState({ byId: {
+      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' }, apple: { enabled: true, auth: 'authenticated' },
+    } as never })
+    vi.mocked(api.get).mockImplementation(async (path: string, params?: unknown) => guestApi(path, params as Record<string, string>) as never)
+  })
+
+  it('Apple 曲目未登录 QQ 时以游客搜索并请求逐字（含翻译），不用账号搜索', async () => {
+    const result = await fetchLyrics(apple, ['apple', 'qq'])
+    expect(result).toMatchObject({ source: 'qq', main: [{ time: 1, text: '甲乙' }], aligned: [{ time: 1, text: '译文' }] })
+    expect(h.qq).not.toHaveBeenCalled()
+    expect(api.get).toHaveBeenCalledWith('/api/qq/search', expect.objectContaining({ guest: '1' }), expect.anything())
+    expect(api.get).toHaveBeenCalledWith('/api/qq/lyric', expect.objectContaining({ guest: '1', words: '1' }), expect.anything())
+  })
+
+  it('游客与账号结果分开缓存；账号会话变化不作废游客结果', async () => {
+    expect((await fetchLyrics(song('netease'))).main[0].text).toBe('游客')
+    advanceProviderAccountSession('netease')
+    expect((await fetchLyrics(song('netease'))).main[0].text).toBe('游客')
+    expect(api.get).toHaveBeenCalledOnce()
+    useProviderStore.setState(state => ({ byId: { ...state.byId, netease: { enabled: true, auth: 'authenticated' } } }))
+    expect((await fetchLyrics(song('netease'))).main[0].text).toBe('账号')
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('本地有歌词时不在线匹配；没有歌词只按标签身份匹配，只发送元数据', async () => {
+    const local: Track = { ...apple, source: 'local', provider: 'local', id: 'file1', name: 'track01', artist: '未知艺人', path: '/music/私人/track01.mp3' }
+    const identity: Track = { ...apple, source: 'local', provider: 'local', id: 'file1', localTagged: true }
+    h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
+    h.identity.mockReturnValue(identity)
+    expect((await fetchLyrics(local, ['netease', 'qq'])).main).toEqual([{ time: 1, text: '本地歌词' }])
+    expect(api.get).not.toHaveBeenCalled()
+    expect(await upgradeLyrics(local, await fetchLyrics(local, ['netease', 'qq']), ['netease', 'qq'])).toBeNull()
+
+    h.local.mockResolvedValue([])
+    const result = await fetchLyrics(local, ['netease', 'qq'])
+    expect(result).toMatchObject({ source: 'netease', main: [{ time: 1, text: '游客' }] })
+    const sent = JSON.stringify(vi.mocked(api.get).mock.calls)
+    expect(sent).not.toContain('/music/')
+    expect(sent).not.toContain('track01')
+    expect(api.get).toHaveBeenCalledWith('/api/search', expect.objectContaining({ keywords: '晴天 周杰伦', guest: '1' }), expect.anything())
+  })
+
+  it('本地标签不全时不在线套词', async () => {
+    h.local.mockResolvedValue([])
+    h.identity.mockReturnValue(null)
+    const local: Track = { ...apple, source: 'local', provider: 'local', id: 'file2' }
+    expect((await fetchLyrics(local, ['netease', 'qq'])).main).toEqual([])
+    expect(await upgradeLyrics(local, emptyLyrics, ['netease', 'qq'])).toBeNull()
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('本地身份同样经过版本、歌手、时长守卫', async () => {
+    h.local.mockResolvedValue([])
+    h.identity.mockReturnValue({ ...apple, source: 'local', provider: 'local', id: 'file3', localTagged: true, name: '晴天 (Live)' })
+    expect((await fetchLyrics({ ...apple, source: 'local', provider: 'local', id: 'file3' }, ['netease', 'qq'])).main).toEqual([])
+    expect(vi.mocked(api.get).mock.calls.map(([path]) => path)).toEqual(['/api/search', '/api/qq/search'])
   })
 })

@@ -49,6 +49,8 @@
 .clearConfirm > div { display: flex; justify-content: flex-end; gap: 8px; }
 
 .sampleRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; color: var(--sm-text-secondary); font-size: 12px; }
+.guestRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--sm-border); color: var(--sm-text-primary); font-size: 13px; }
+.guestHint { display: block; margin: 0; padding: 0 20px 14px; }
 .priorityList { margin: 0 20px 14px; padding: 0; list-style: none; }
 .sourceRow { display: flex; align-items: center; gap: 12px; min-height: 70px; border-top: 1px solid var(--sm-border); }
 .rank { flex: 0 0 20px; color: var(--sm-text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }

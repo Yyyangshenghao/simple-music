@@ -273,3 +273,27 @@ it('忽略旧版手动线路偏好，保存其他设置时不再写回', () => {
   expect(JSON.parse(saved)).not.toHaveProperty('lyricsAmllHost')
   expect(JSON.parse(saved).lyricsFontScale).toBe(1.2)
 })
+describe('游客歌词来源设置', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('按平台独立保存，重载保留；旧存档或非法值默认开启', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
+    useSettingsStore.getState().setLyricsGuestSource('qq', false)
+    useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: true } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: false })
+    saved = JSON.stringify({ lyricsGuestSources: { netease: 'no' } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: true })
+  })
+
+  it('拒绝未知平台与非布尔值', () => {
+    vi.stubGlobal('localStorage', { setItem: vi.fn() })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
+    useSettingsStore.getState().setLyricsGuestSource('apple' as 'qq', false)
+    useSettingsStore.getState().setLyricsGuestSource('qq', 'false' as unknown as boolean)
+    expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: true })
+  })
+})

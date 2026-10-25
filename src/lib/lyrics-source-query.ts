@@ -6,10 +6,11 @@ import type { LyricCandidateStatus, LyricOrigin } from '../types/lyrics-source'
 import { reportLyricsSource, suspendedLyricsSource } from './lyrics-source-health'
 import { ProviderAuthError, providerAccountSession } from './provider-account-session'
 import {
-  emptyLyrics, cachedLyrics, fetchLyrics, fitsLyricDuration, isLyricMatch, LyricMismatchError,
+  emptyLyrics, cachedLyrics, fetchLyrics, findLyricMatch, fitsLyricDuration, isLyricMatch, localLyricSource, LyricMismatchError,
   upgradeLyricsWithAmll, upgradeLyricsWithKugou, type LyricsResult,
 } from './lyrics-fetch'
-import { findEquivalentTrack, TrackMatchMismatchError } from './track-match'
+import { lyricServiceMode } from './lyric-service'
+import { TrackMatchMismatchError } from './track-match'
 
 export interface LyricsSourceQueryResult {
   status: LyricCandidateStatus
@@ -20,10 +21,15 @@ export interface LyricsSourceQueryResult {
 
 type Availability = Pick<LyricsSourceQueryResult, 'status' | 'message'>
 
+/** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要账号，固定歌曲测试可绕过其停用状态。 */
 function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false): Availability {
-  const state = useProviderStore.getState().byId[origin]
-  if (origin === 'apple' && state.auth !== 'authenticated') return { status: 'login', message: '登录后可查找' }
-  if ((origin === 'apple' && !state.enabled && !probe) || !sources.includes(origin)) return { status: 'disabled', message: '已在设置中关闭' }
+  if (!lyricServiceMode(origin)) {
+    if (useProviderStore.getState().byId[origin].auth !== 'authenticated') {
+      return { status: 'login', message: origin === 'apple' ? '登录后可查找' : '登录或开启游客查询后可查找' }
+    }
+    if (!(origin === 'apple' && probe)) return { status: 'disabled', message: '已在设置中关闭' }
+  }
+  if (!sources.includes(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   return { status: 'idle' }
 }
 
@@ -33,8 +39,7 @@ function matchingSources(sources: ProviderId[], probe = false): Array<'netease' 
 }
 
 export function candidateAvailability(track: Track, origin: LyricOrigin, sources: ProviderId[], probe = false): Availability {
-  if (track.source === 'local') return origin === 'local'
-    ? { status: 'idle' } : { status: 'unavailable', message: '本地歌曲仅使用本地歌词' }
+  if (track.source === 'local' && origin === 'local') return { status: 'idle' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
   if (origin === 'apple' && track.source !== 'apple') return { status: 'unavailable', message: '仅 Apple Music 曲目可用' }
   if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
@@ -66,7 +71,7 @@ function failureResult(error: unknown): LyricsSourceQueryResult {
 
 /** 只查询指定的歌词库，绝不调用自动补全链或改变正式歌词。 */
 async function queryLyricsSourceImpl(
-  track: Track,
+  playing: Track,
   origin: LyricOrigin,
   sources: ProviderId[],
   signal?: AbortSignal,
@@ -74,8 +79,21 @@ async function queryLyricsSourceImpl(
   probe = false,
   targetAccess: (status: LyricCandidateStatus) => void = () => {},
 ): Promise<LyricsSourceQueryResult> {
-  const availability = candidateAvailability(track, origin, sources, probe)
+  const availability = candidateAvailability(playing, origin, sources, probe)
   if (availability.status !== 'idle') return availability
+  let track = playing
+  // 本地曲目查在线来源时改用文件标签确认的身份；标签不全不自动套词。只发送曲目元数据。
+  if (playing.source === 'local' && origin !== 'local') {
+    try {
+      const { identity } = await localLyricSource(playing, signal)
+      if (signal?.aborted) throw new DOMException('Lyrics source query cancelled', 'AbortError')
+      if (!identity) return { status: 'unavailable', message: '本地标签不完整，无法可靠匹配' }
+      track = identity
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return { status: 'error', message: '暂时连接失败' }
+    }
+  }
   const sessions = new Map(sources.map(source => [source, providerAccountSession(source)]))
   const checkCurrent = () => {
     if (signal?.aborted || [...sessions].some(([source, epoch]) => providerAccountSession(source) !== epoch)) {
@@ -87,7 +105,7 @@ async function queryLyricsSourceImpl(
     if (track.source === source) return track
     if (!probe && suspendedLyricsSource(source)) return undefined
     if (rememberedMatch?.source === source && isLyricMatch(track, rememberedMatch)) return rememberedMatch
-    const match = await findEquivalentTrack(track, source, signal, Date.now(), true, probe)
+    const match = await findLyricMatch(track, source, signal, true, probe)
     checkCurrent()
     if (!match) return undefined
     if (match.track.source !== source || !isLyricMatch(track, match.track)) throw new LyricMismatchError()

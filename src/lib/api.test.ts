@@ -87,6 +87,22 @@ describe('api.get', () => {
     }
   })
 
+  it('游客歌词与搜索请求失败不当作账号失效', async () => {
+    stubPort(40000)
+    const onFailure = vi.fn()
+    const dispose = registerApiProviderAuthFailureHandler(onFailure)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
+    try {
+      await expect(api.get('/api/lyric', { id: '1', guest: '1' })).rejects.toThrow('HTTP 401')
+      await expect(api.get('/api/qq/search', { keywords: 'a', guest: '1' })).rejects.toThrow('HTTP 401')
+      expect(onFailure).not.toHaveBeenCalled()
+      await expect(api.get('/api/lyric', { id: '1' })).rejects.toThrow('HTTP 401')
+      expect(onFailure).toHaveBeenCalledWith('netease', 401)
+    } finally {
+      dispose()
+    }
+  })
+
   // 漫游生成「点了卡在生成中没反应」的根因兜底:上游停滞不返回时,整条链路原先会永远挂起。
   it('请求超过兜底超时(30s)被中止并抛 REQUEST_TIMEOUT', async () => {
     stubPort(40000)

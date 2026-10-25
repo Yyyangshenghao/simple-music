@@ -9,7 +9,10 @@ const h = vi.hoisted(() => ({
     probes: {} as Record<string, { status: string; sample?: string; ms?: number }>,
     setSourceOrder: vi.fn(), clearRemembered: vi.fn(), forgetTrack: vi.fn(), testSource: vi.fn(),
   },
-  settings: { lyricsAmllFallback: true, lyricsKugouFallback: true, setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn() },
+  settings: {
+    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true },
+    setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(),
+  },
   providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' } } },
   confirm: false, setConfirm: vi.fn(), search: '', sample: 'sunny', setSample: vi.fn(),
 }))
@@ -26,7 +29,15 @@ vi.mock('../../stores/lyrics-source', async (original) => ({
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof h.settings) => unknown) => selector(h.settings) }))
 vi.mock('../../stores/providers', () => ({ useProviderStore: (selector: (state: typeof h.providers) => unknown) => selector(h.providers) }))
 vi.mock('../ui/InfoButton', () => ({ InfoButton: () => null }))
+vi.mock('../ui/Switch', () => ({ Switch: () => null }))
 import { AmllLyricsSettings } from './AmllLyricsSettings'
+
+function labelled(node: unknown, label: string): ReactElement<any> | undefined {
+  if (!node || typeof node !== 'object') return undefined
+  if (Array.isArray(node)) return node.map((child) => labelled(child, label)).find(Boolean)
+  const element = node as ReactElement<any>
+  return element.props?.['aria-label'] === label ? element : labelled(element.props?.children, label)
+}
 
 function elements(node: unknown, type: string): ReactElement<any>[] {
   if (!node || typeof node !== 'object') return []
@@ -62,6 +73,7 @@ beforeEach(() => {
   h.source.probes = {}
   h.settings.lyricsAmllFallback = true
   h.settings.lyricsKugouFallback = true
+  h.settings.lyricsGuestSources = { netease: true, qq: true }
   h.providers.byId.netease = { enabled: true, auth: 'anonymous' }
   h.providers.byId.qq = { enabled: true, auth: 'anonymous' }
 })
@@ -141,5 +153,20 @@ describe('歌词来源设置', () => {
     expect(elements(element, 'select')).toHaveLength(1)
     expect(elements(element, 'details')).toHaveLength(1)
     expect(text(element)).not.toContain('连接线路')
+  })
+
+  it('游客查询按平台各自开关，并说明不使用账号与发送的内容', () => {
+    const element = AmllLyricsSettings()
+    labelled(element, '游客查询网易云音乐歌词')!.props.onChange(false)
+    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('netease', false)
+    labelled(element, '游客查询 QQ 音乐歌词')!.props.onChange(false)
+    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('qq', false)
+    expect(text(element)).toContain('不使用账号')
+    expect(text(element)).toContain('只发送歌名与歌手')
+  })
+
+  it('未登录且关闭游客查询的平台显示已停用', () => {
+    h.settings.lyricsGuestSources = { netease: false, qq: true }
+    expect(text(AmllLyricsSettings())).toContain('已停用')
   })
 })
