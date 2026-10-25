@@ -177,7 +177,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const kw = url.searchParams.get('keywords') || ''
       const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '20', 10) || 20))
-      const songs = await handleSearch(kw, limit, getCookie(ctx, 'netease'))
+      // guest=1：独立歌词来源的游客查询，显式不带账号 Cookie。
+      const songs = await handleSearch(kw, limit, url.searchParams.get('guest') === '1' ? '' : getCookie(ctx, 'netease'))
       sendJson(res, { songs })
     } catch (err) {
       console.error('[Search]', err)
@@ -1113,7 +1114,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { error: 'Missing song id', lyric: '' }, 400)
         return true
       }
-      const cookie = getCookie(ctx, 'netease')
+      const cookie = url.searchParams.get('guest') === '1' ? '' : getCookie(ctx, 'netease')
       let body: Record<string, unknown> = {}
       let source = 'lyric'
       try {

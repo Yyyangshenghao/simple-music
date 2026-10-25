@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useSettingsStore } from '../../stores/settings'
+import { useProviderStore } from '../../stores/providers'
 import { useMotion } from '../../hooks/useMotion'
 import { LYRIC_SOURCE_LABELS, LYRICS_TEST_SONGS, type LyricPrioritySource } from '../../types/lyrics-source'
 import { InfoButton } from '../ui/InfoButton'
+import { Switch } from '../ui/Switch'
 import styles from './AmllLyricsSettings.module.css'
 
 export function AmllLyricsSettings() {
@@ -16,6 +18,9 @@ export function AmllLyricsSettings() {
   const setEnabled = useSettingsStore(s => s.setLyricsAmllFallback)
   const kugouEnabled = useSettingsStore(s => s.lyricsKugouFallback)
   const setKugouEnabled = useSettingsStore(s => s.setLyricsKugouFallback)
+  const guestSources = useSettingsStore(s => s.lyricsGuestSources)
+  const setGuestSource = useSettingsStore(s => s.setLyricsGuestSource)
+  const providers = useProviderStore(s => s.byId)
   const reduced = !useMotion('dragMotion')
   const [sample, setSample] = useState('sunny')
   const [search, setSearch] = useState('')
@@ -40,7 +45,7 @@ export function AmllLyricsSettings() {
   }
 
   return <section className={styles.group}>
-    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，本地歌曲只读取同目录同名歌词。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
+    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，网易云、QQ 未登录或已停用时，可按下方开关以游客身份查询，不使用账号。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
     <div className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
       <select id="lyrics-test-song" className={`${styles.select} no-drag`} value={sample} onChange={event => setSample(event.target.value)}>
@@ -51,7 +56,9 @@ export function AmllLyricsSettings() {
       {order.map((source, index) => {
         const probe = probes[source]
         const suspended = health[source]?.suspended
-        const disabled = source === 'amll' ? !enabled : source === 'kugou' ? !kugouEnabled : false
+        // 网易云、QQ 未登录或停用且未开游客查询时不参与。
+        const disabled = source === 'amll' ? !enabled : source === 'kugou' ? !kugouEnabled
+          : !guestSources[source] && !(providers[source]?.enabled && providers[source]?.auth === 'authenticated')
         const status = probe?.status === 'loading' ? '正在获取测试歌词…'
           : suspended ? probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，仍暂停访问' : '连接异常，稍后自动重试'
           : disabled ? '已停用'
@@ -72,6 +79,15 @@ export function AmllLyricsSettings() {
         </motion.li>
       })}
     </ol>
+    <div className={styles.guestRow}>
+      <span>游客查询网易云音乐歌词</span>
+      <Switch checked={guestSources.netease} onChange={value => setGuestSource('netease', value)} aria-label="游客查询网易云音乐歌词" />
+    </div>
+    <div className={styles.guestRow}>
+      <span>游客查询 QQ 音乐歌词</span>
+      <Switch checked={guestSources.qq} onChange={value => setGuestSource('qq', value)} aria-label="游客查询 QQ 音乐歌词" />
+    </div>
+    <p className={`${styles.hint} ${styles.guestHint}`}>未登录或已停用的平台以游客身份查询歌词，不使用账号，只发送歌名与歌手；不影响播放音源。</p>
     <details className={styles.remembered}>
       <summary>歌曲来源记忆 <span>{entries.length} 首</span></summary>
       <div className={styles.memoryBody}>

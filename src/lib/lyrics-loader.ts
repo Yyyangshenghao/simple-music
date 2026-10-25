@@ -3,6 +3,7 @@ import { usePlaylistStore } from '../stores/playlist'
 import { indexForPosition, useLyricsStore } from '../stores/lyrics'
 import { bindLyricsSourceActions, rememberLyricsSource, useLyricsSourceStore } from '../stores/lyrics-source'
 import { useProviderStore } from '../stores/providers'
+import { lyricServiceSources } from './lyric-service'
 import { useSettingsStore } from '../stores/settings'
 import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
@@ -12,7 +13,7 @@ import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './ly
 import { candidateAvailability, queryLyricsSource, type LyricsSourceQueryResult } from './lyrics-source-query'
 import { createLyricsSourceProbe } from './lyrics-source-probe'
 import { suspendedLyricsSource } from './lyrics-source-health'
-import { isReadyLyrics, LYRICS_PROVISIONAL_MS, lyricsOriginOrder, resolveLyricsParallel, type OrderedLyricsResult } from './lyrics-ordered-resolve'
+import { isReadyLyrics, LYRICS_PROVISIONAL_MS, lyricsOriginOrder, resolveLyricsParallel, resolveLyricsSerial, type OrderedLyricsResult } from './lyrics-ordered-resolve'
 import { createLyricsPrefetcher } from './lyrics-prefetch'
 import { getQueueStep } from './queue-state'
 import { lyricPlaybackPosition } from './lyric-playback-position'
@@ -40,9 +41,9 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
   ]))
 }
 
+/** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ。 */
 function participatingSources(): ProviderId[] {
-  const providers = useProviderStore.getState()
-  return Array.from(new Set([...providers.playbackOrder, ...PROVIDER_IDS])).filter(source => source !== 'apple' || (providers.byId[source].enabled && providers.byId[source].auth === 'authenticated'))
+  return lyricServiceSources()
 }
 
 /** 影响来源落定结果的全部条件；任一变化时跨曲缓存与预取都不能复用。 */
@@ -65,7 +66,6 @@ function nextQueueTrack(): Track | undefined {
 }
 
 function sourceRows(track: Track): LyricOrigin[] {
-  if (track.source === 'local') return ['local']
   return Array.from(new Set<LyricOrigin>([track.source, 'netease', 'qq', 'amll', 'kugou']))
 }
 
@@ -226,14 +226,17 @@ export function initLyricsLoader(): () => void {
     const existing = prefetcher.adopt(key, context)
     // 接手不了的预取属于别的歌或旧条件，不能继续与当前曲抢网络。
     prefetcher.cancel()
-    const found = await resolveLyricsParallel({
-      track, origins, sources, signal, chosen, existing,
-      provisionalMs: onProvisional ? LYRICS_PROVISIONAL_MS : undefined, onProvisional,
-      onSettled(origin, response) {
-        if (isReadyLyrics(response)) results.set(origin, response)
-        else fallback(origin, response.message)
-      },
-    })
+    const onSettled = (origin: LyricOrigin, response: LyricsSourceQueryResult) => {
+      if (isReadyLyrics(response)) results.set(origin, response)
+      else fallback(origin, response.message)
+    }
+    // 本地歌曲逐个查询：本地有歌词就不向在线来源发送标签。
+    const found = cacheable
+      ? await resolveLyricsParallel({
+        track, origins, sources, signal, chosen, existing,
+        provisionalMs: onProvisional ? LYRICS_PROVISIONAL_MS : undefined, onProvisional, onSettled,
+      })
+      : await resolveLyricsSerial({ track, origins, sources, signal, chosen, onSettled })
     if (found && cacheable && !found.degraded) prefetcher.store(key, context, found)
     return found?.response
   }
@@ -283,13 +286,15 @@ export function initLyricsLoader(): () => void {
     if (!key || !track) { prefetcher.cancel(); return }
     controller = new AbortController()
     const signal = controller.signal
-    const lyricSources = track.source === 'local' ? [] : participatingSources()
+    // 本地歌曲也带上可用平台：本地没有歌词时按文件标签在线匹配。
+    const lyricSources = participatingSources()
     const candidates = [track, resolvedTrack]
       .filter((item): item is Track => !!item && (!isProviderId(item.source) || lyricSources.includes(item.source)))
       .filter((item, index, all) => all.findIndex(other => lyricTrackKey(other) === lyricTrackKey(item)) === index)
     const sources = new Set<ProviderId>()
     for (const candidate of candidates) {
       if (isProviderId(candidate.source)) sources.add(candidate.source)
+      // 本地歌曲的在线兜底由 fetchLyrics 按账号会话丢弃过期结果；无关账号切换不重取本地歌词。
       if (candidate.source !== 'local') lyricSources.forEach(source => sources.add(source))
     }
     // 手选补全与面板查询也受参与账号的会话变化约束。
@@ -309,7 +314,9 @@ export function initLyricsLoader(): () => void {
         if (!current() || !sameAccounts(accounts)) return { result: emptyLyrics, track: null, locked: true }
         return { result: response?.result ?? emptyLyrics, track: response?.match ?? track, locked: true }
       }
-      const globalOrigin = preferences.defaultSource === 'auto' ? null : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
+      // 本地歌曲优先用自己的歌词：全局偏好不覆盖，只有本首手动记住的来源才优先。
+      const globalOrigin = preferences.defaultSource === 'auto' || track.source === 'local' ? null
+        : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
       const preferred = Array.from(new Set([chosen?.origin, globalOrigin].filter((origin): origin is LyricOrigin => !!origin)))
       for (const origin of preferred) {
         const response = await queryLyricsSource(track, origin, lyricSources, signal, chosen?.origin === origin ? chosen.match : undefined)
@@ -362,7 +369,7 @@ export function initLyricsLoader(): () => void {
       if (origin === 'auto') {
         const preference = useLyricsSourceStore.getState().defaultSource
         const sources = participatingSources()
-        const preferred = preference === 'auto' ? null : preference === 'origin' ? track.source : preference
+        const preferred = preference === 'auto' || track.source === 'local' ? null : preference === 'origin' ? track.source : preference
         let response: LyricsSourceQueryResult | undefined
         let upgradeTrack = track
         let allowUpgrade = true
@@ -447,8 +454,10 @@ export function initLyricsLoader(): () => void {
   })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.playMode !== previous.playMode) schedulePrefetch()
-    if (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
-      || state.lyricsKugouFallback !== previous.lyricsKugouFallback)) sync()
+    const guestChanged = state.lyricsGuestSources.netease !== previous.lyricsGuestSources.netease
+      || state.lyricsGuestSources.qq !== previous.lyricsGuestSources.qq
+    if (guestChanged || (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
+      || state.lyricsKugouFallback !== previous.lyricsKugouFallback))) sync()
   })
   let wasEnabled = lyricsEnabled()
   const syncEnabled = () => { const enabled = lyricsEnabled(); if (enabled !== wasEnabled) { wasEnabled = enabled; sync() } }

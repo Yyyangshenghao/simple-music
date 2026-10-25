@@ -113,6 +113,8 @@ export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlag
   minimal: { pageTransitionMotion: false, ...controlMotionFlags(false), smoothScrollMotion: false, lyricsLineMotion: false, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
 
+export interface LyricsGuestSources { netease: boolean; qq: boolean }
+
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
   localHotkeys: HotkeyBinding[]
@@ -145,6 +147,8 @@ interface PersistedSettings {
   lyricsAmllFallback: boolean
   /** 以上来源都没有逐字时序时，按歌名、歌手与时长去酷狗歌词库补全；会向酷狗发送这三项。 */
   lyricsKugouFallback: boolean
+  /** 网易云、QQ 作为独立歌词来源：未登录或已停用该平台时，以游客身份（不带账号 Cookie）查询歌词，搜索只发送歌名与歌手。 */
+  lyricsGuestSources: LyricsGuestSources
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
@@ -211,6 +215,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsShowRoma(v: boolean): void
   setLyricsAmllFallback(v: boolean): void
   setLyricsKugouFallback(v: boolean): void
+  setLyricsGuestSource(source: keyof LyricsGuestSources, enabled: boolean): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAccent(mode: AccentMode, custom?: string): void
@@ -262,6 +267,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsShowRoma: true,
   lyricsAmllFallback: true,
   lyricsKugouFallback: true,
+  lyricsGuestSources: { netease: true, qq: true },
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   accentMode: 'mono',
@@ -397,6 +403,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsKugouFallback: v })
     get().saveToLocal()
   },
+  setLyricsGuestSource(source, enabled) {
+    if ((source !== 'netease' && source !== 'qq') || typeof enabled !== 'boolean') return
+    if (get().lyricsGuestSources[source] === enabled) return
+    set({ lyricsGuestSources: { ...get().lyricsGuestSources, [source]: enabled } })
+    get().saveToLocal()
+  },
   setLyricsShowRoma(v) {
     set({ lyricsShowRoma: v })
     get().saveToLocal()
@@ -478,8 +490,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -543,6 +555,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsShowRoma: data.lyricsShowRoma ?? true,
         lyricsAmllFallback: data.lyricsAmllFallback ?? true,
         lyricsKugouFallback: data.lyricsKugouFallback ?? true,
+        lyricsGuestSources: {
+          netease: typeof data.lyricsGuestSources?.netease === 'boolean' ? data.lyricsGuestSources.netease : true,
+          qq: typeof data.lyricsGuestSources?.qq === 'boolean' ? data.lyricsGuestSources.qq : true,
+        },
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
         accentMode: ACCENT_MODES.includes(data.accentMode as AccentMode) ? data.accentMode as AccentMode : 'mono',

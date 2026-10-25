@@ -18,6 +18,11 @@ interface LocalTrackRaw {
   mtimeMs?: number
 }
 
+interface LocalLyricResponse {
+  lyric?: string
+  metadata?: { name: string; artist: string; artists?: string[]; album?: string; duration: number; isrc?: string } | null
+}
+
 function toTrack(raw: LocalTrackRaw): Track {
   return {
     provider: 'local',
@@ -115,8 +120,28 @@ export class LocalMusicService implements MusicService {
   }
 
   async getLyrics(track: Track, signal?: AbortSignal): Promise<LyricLine[]> {
-    const res = await api.get<{ lyric: string }>('/api/local/lyric', { id: String(track.id) }, { signal })
-    return res.lyric ? parseLrc(res.lyric) : []
+    return (await this.getLyricSource(track, signal)).lines
+  }
+
+  /**
+   * 本地歌词（同名 .lrc 或内嵌同步歌词）与在线匹配用的曲目身份。身份只在文件标签给出标题、艺人和时长时存在，
+   * 只含这些元数据（及 ISRC），不含路径、封面或音频地址；按文件名回退的曲目不做在线匹配。
+   */
+  async getLyricSource(track: Track, signal?: AbortSignal): Promise<{ lines: LyricLine[]; identity: Track | null }> {
+    const res = await api.get<LocalLyricResponse>('/api/local/lyric', { id: String(track.id) }, { signal })
+    const meta = res.metadata
+    const identity: Track | null = meta && typeof meta.name === 'string' && typeof meta.artist === 'string'
+      && Number.isFinite(meta.duration) && meta.duration > 0
+      ? {
+          provider: 'local', source: 'local', type: 'local', id: track.id,
+          name: meta.name, artist: meta.artist,
+          artists: (Array.isArray(meta.artists) ? meta.artists : [meta.artist]).map(name => ({ id: `local:${name}`, name })),
+          album: meta.album, duration: meta.duration, ...(meta.isrc ? { isrc: meta.isrc } : {}),
+          // 标记：这是由文件标签确认的身份，在线歌词兜底只接受带此标记的本地曲目。
+          localTagged: true,
+        }
+      : null
+    return { lines: res.lyric ? parseLrc(res.lyric) : [], identity }
   }
 }
 

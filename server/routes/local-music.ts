@@ -9,7 +9,7 @@ import {
   findLocalTrack,
   availableLocalTrackIds,
   localCoverPath,
-  readLocalLyric,
+  readLocalLyricSource,
   localAudioContentType,
 } from '../lib/local-library'
 
@@ -97,7 +97,8 @@ export const localMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
     const id = url.searchParams.get('id') || ''
     const record = id ? await findLocalTrack(ctx.userDataDir, id) : null
     if (!record) return sendError(res, 404, 'NOT_FOUND'), true
-    sendJson(res, { lyric: await readLocalLyric(record.path) })
+    // 只回传歌词文本与标签元数据，不回传文件路径。
+    sendJson(res, await readLocalLyricSource(record))
     return true
   }
 

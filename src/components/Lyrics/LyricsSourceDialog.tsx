@@ -162,7 +162,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
               {selectedCandidate.hasRomaji && <p>音译：{LYRIC_SOURCE_LABELS[selectedCandidate.romajiOrigin ?? selectedCandidate.origin]}</p>}
             </details>
           </> : <p className={styles.previewEmpty}>{selectedCandidate ? candidateDescription(selectedCandidate) : '选择来源后可预览歌词，播放中的歌词保持不变。'}</p>}
-          {track.source === 'local' && <p className={styles.capabilities}>读取同目录同名 .lrc 文件</p>}
+          {track.source === 'local' && <p className={styles.capabilities}>本地歌词读取同名 .lrc 或文件内嵌的同步歌词；在线来源按文件标签匹配，只发送歌名、歌手与时长，不上传文件或路径</p>}
         </section>
       </div>
       <footer className={styles.footer}>

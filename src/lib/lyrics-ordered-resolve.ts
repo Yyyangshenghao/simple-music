@@ -32,9 +32,9 @@ export function isReadyLyrics(response: LyricsSourceQueryResult | undefined): re
   return response?.status === 'ready' && !!response.result?.main.length
 }
 
-/** 记住的来源排最前，Apple 曲目其次查自带歌词，再按用户顺序；本地歌曲只查本地。 */
+/** 记住的来源排最前，Apple 曲目其次查自带歌词，再按用户顺序；本地歌曲先查本地，在线来源只按文件标签匹配。 */
 export function lyricsOriginOrder(track: Track, order: readonly LyricOrigin[], chosen?: RememberedLyricSource): LyricOrigin[] {
-  if (track.source === 'local') return ['local']
+  if (track.source === 'local') return Array.from(new Set<LyricOrigin>([...(chosen ? [chosen.origin] : []), 'local', ...order]))
   return Array.from(new Set<LyricOrigin>([...(chosen ? [chosen.origin] : []), ...(track.source === 'apple' ? ['apple' as const] : []), ...order]))
 }
 

@@ -2199,6 +2199,8 @@ export async function handleQQLyric(cookie: string, mid: string, id: string, wor
   let qrcText = ''
   let romaText = ''
   let source = 'qq-musicu'
+  // 至少有一个上游请求成功返回过；全部失败时如实报错，不当作“未收录”。
+  let reached = false
 
   try {
     const param: { songMID?: string; songID?: number } = {}
@@ -2218,6 +2220,7 @@ export async function handleQQLyric(cookie: string, mid: string, id: string, wor
         { cookie: true }
       )
     )
+    reached = true
     const data = rec(rec(json.lyric).data)
     lyricText = decodeQQLyricText(data.lyric)
     transText = decodeQQLyricText(data.trans)
@@ -2244,6 +2247,7 @@ export async function handleQQLyric(cookie: string, mid: string, id: string, wor
       }))
       const block = rec(json.lyric)
       if (!Number(json.code) && !Number(block.code)) {
+        reached = true
         const data = rec(block.data)
         const main = decodeQQLyricText(data.lyric)
         if (/\[\d+,\d+\]/.test(main) && /\(\d+,\d+\)/.test(main)) qrcText = main
@@ -2281,6 +2285,7 @@ export async function handleQQLyric(cookie: string, mid: string, id: string, wor
           { headers: { Referer: 'https://y.qq.com/portal/player.html' } }
         )
       )
+      reached = true
       lyricText = decodeQQLyricText(body.lyric)
       transText = decodeQQLyricText(body.trans || body.tlyric) || transText
       source = 'qq-legacy'
@@ -2299,5 +2304,6 @@ export async function handleQQLyric(cookie: string, mid: string, id: string, wor
     qrc: qrcText,
     roma: romaText,
     source: lyricText || qrcText ? source : 'qq-empty',
+    ...(!reached && !lyricText && !qrcText ? { error: 'QQ_LYRIC_UPSTREAM_FAILED' } : {}),
   }
 }
