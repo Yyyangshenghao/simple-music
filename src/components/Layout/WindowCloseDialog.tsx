@@ -32,21 +32,7 @@ export function WindowCloseDialog() {
       aria-labelledby="window-close-title"
       aria-busy={pending}
       onCancel={(event) => { event.preventDefault(); void resolve('cancel', false) }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key !== 'Tab') return
-        const controls = event.currentTarget.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button:not(:disabled), input:not(:disabled):not([type="radio"]), input[type="radio"]:checked:not(:disabled)')
-        const first = controls[0]
-        const last = controls[controls.length - 1]
-        if (!first || !last) return
-        if (event.shiftKey && event.target === first) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && event.target === last) {
-          event.preventDefault()
-          first.focus()
-        }
-      }}
+      onKeyDown={(event) => event.stopPropagation()}
     >
       <form onSubmit={(event) => { event.preventDefault(); void resolve(action, remember) }}>
         <h2 id="window-close-title" className={styles.title}>关闭窗口</h2>

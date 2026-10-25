@@ -44,15 +44,7 @@ export function UnlikeConfirmDialog() {
         const rect = event.currentTarget.getBoundingClientRect()
         if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void decide(false)
       }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key !== 'Tab') return
-        const controls = event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)')
-        const first = controls[0]
-        const last = controls[controls.length - 1]
-        if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus() }
-        else if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus() }
-      }}
+      onKeyDown={(event) => event.stopPropagation()}
     >
       <form onSubmit={(event) => { event.preventDefault(); void decide(true) }}>
         <h2 id="unlike-confirm-title" className={dialogStyles.title}>取消红心？</h2>

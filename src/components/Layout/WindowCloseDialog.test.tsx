@@ -100,7 +100,7 @@ describe('关闭确认交互', () => {
     expect(WindowCloseDialog()).toBeNull()
   })
 
-  it('Tab 在首尾控件间循环，焦点不会落到窗口背景', () => {
+  it('Tab 不在弹窗控件间移动焦点，按键只截留在弹窗内', () => {
     const element = WindowCloseDialog()!
     const first = { focus: vi.fn() }
     const last = { focus: vi.fn() }
@@ -110,9 +110,9 @@ describe('关闭确认交互', () => {
       preventDefault: vi.fn(), stopPropagation: vi.fn()
     }
     element.props.onKeyDown(event)
-    expect(first.focus).toHaveBeenCalledOnce()
     element.props.onKeyDown({ ...event, shiftKey: true, target: first })
-    expect(last.focus).toHaveBeenCalledOnce()
-    expect(event.preventDefault).toHaveBeenCalledTimes(2)
+    expect(first.focus).not.toHaveBeenCalled()
+    expect(last.focus).not.toHaveBeenCalled()
+    expect(event.stopPropagation).toHaveBeenCalledTimes(2)
   })
 })
