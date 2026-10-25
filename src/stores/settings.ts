@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import { defaultShortcuts, normalizeAccelerator, normalizeBindings, type ShortcutScope } from '../lib/shortcuts'
+import { ACCENT_MODES, isHexColor, type AccentMode } from '../lib/theme-tone'
 import {
   DEFAULT_MINI_PLAYER_APPEARANCE,
   MINI_PLAYER_DEFAULT_WIDTH,
@@ -131,6 +132,9 @@ interface PersistedSettings {
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
+  /** 主题色：mono=原黑白单色，cover=跟随封面主色，custom=accentCustom，其余为预设。 */
+  accentMode: AccentMode
+  accentCustom: string
   contentLayout: 'framed' | 'full'
   contentGutter: number
   audioQuality: AudioQuality
@@ -193,6 +197,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsKugouFallback(v: boolean): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
+  setAccent(mode: AccentMode, custom?: string): void
   setContentLayout(layout: 'framed' | 'full'): void
   setContentGutter(value: number): void
   setAudioQuality(q: AudioQuality): void
@@ -243,6 +248,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsKugouFallback: true,
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
+  accentMode: 'mono',
+  accentCustom: '#6366f1',
   contentLayout: 'framed',
   contentGutter: CONTENT_GUTTER_DEFAULT,
   audioQuality: 'max',
@@ -386,6 +393,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ themeMode: m })
     get().saveToLocal()
   },
+  setAccent(mode, custom) {
+    set({ accentMode: mode, ...(isHexColor(custom) ? { accentCustom: custom } : {}) })
+    get().saveToLocal()
+  },
   setContentGutter(value) {
     set({ contentGutter: normalizeContentGutter(value) })
     get().saveToLocal()
@@ -451,8 +462,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -518,6 +529,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsKugouFallback: data.lyricsKugouFallback ?? true,
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
+        accentMode: ACCENT_MODES.includes(data.accentMode as AccentMode) ? data.accentMode as AccentMode : 'mono',
+        accentCustom: isHexColor(data.accentCustom) ? data.accentCustom : '#6366f1',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
         contentGutter: normalizeContentGutter(data.contentGutter),
         audioQuality: data.audioQuality ?? 'max',

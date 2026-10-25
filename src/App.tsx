@@ -10,6 +10,7 @@ import { useScrollbarActivity } from './hooks/useScrollbarActivity'
 import { useShuangeCoverPreload } from './hooks/useShuangeCoverPreload'
 import { useNowPlayingCoverPreload } from './hooks/useNowPlayingCoverPreload'
 import { useAmbientPalette } from './hooks/useAmbientPalette'
+import { useAccentTheme } from './hooks/useAccentTheme'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useSettingsStore } from './stores/settings'
 import { useUpdateStore } from './stores/update'
@@ -90,6 +91,7 @@ export default function App() {
   useShuangeCoverPreload(mainVisible && !gameEnabled)
   useNowPlayingCoverPreload(mainVisible && !gameEnabled)
   useAmbientPalette(!gameEnabled)
+  useAccentTheme()
 
   useEffect(() => initWindowCloseSync(), [])
   useEffect(() => useNavigationStore.subscribe((state, previous) => {

@@ -8,8 +8,11 @@
 /* ── 深色模式（主） ── */
 :root {
   --sm-bg-base:        #0c0c0c;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.06);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.10);
+  /* 主题色轻染：useAccentTheme 写入 --sm-tint 与比例；默认 0% 即原中性玻璃 */
+  --sm-tint:           transparent;
+  --sm-tint-strength:  0%;
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.10));
   --sm-accent:         rgba(255, 255, 255, 0.92);
   --sm-accent-warm:    rgba(255, 255, 255, 0.70);
   --sm-text-primary:   rgba(255, 255, 255, 0.92);
@@ -69,9 +72,9 @@
   --glass-blur-base:   blur(12px);
   --glass-blur-card:   blur(18px);
   --glass-blur-modal:  blur(32px);
-  --glass-bg-base:     rgba(255, 255, 255, 0.06);
-  --glass-bg-card:     rgba(255, 255, 255, 0.08);
-  --glass-bg-modal:    rgba(0, 0, 0, 0.55);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.08));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(0, 0, 0, 0.55));
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
@@ -93,8 +96,8 @@
 @media (prefers-color-scheme: light) {
   :root {
     --sm-bg-base:        #f0f0f0;
-    --sm-bg-elevated:    rgba(255, 255, 255, 0.72);
-    --sm-bg-overlay:     rgba(255, 255, 255, 0.88);
+    --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.72));
+    --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.88));
     --sm-accent:         rgba(0, 0, 0, 0.85);
     --sm-accent-warm:    rgba(0, 0, 0, 0.60);
     --sm-text-primary:   rgba(0, 0, 0, 0.90);
@@ -120,9 +123,9 @@
     --sm-color-gold:     #b45309;
     --sm-color-like:     #e11d48;
 
-    --glass-bg-base:     rgba(255, 255, 255, 0.50);
-    --glass-bg-card:     rgba(255, 255, 255, 0.65);
-    --glass-bg-modal:    rgba(240, 240, 240, 0.80);
+    --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.50));
+    --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.65));
+    --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(240, 240, 240, 0.80));
     --glass-border-base: rgba(0, 0, 0, 0.08);
     --glass-border-card: rgba(0, 0, 0, 0.10);
     --glass-border-modal:rgba(0, 0, 0, 0.06);
@@ -140,8 +143,8 @@
 /* ── 手动 theme 覆盖 ── */
 [data-theme="light"] {
   --sm-bg-base:        #f0f0f0;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.72);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.88);
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.72));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.88));
   --sm-accent:         rgba(0, 0, 0, 0.85);
   --sm-accent-warm:    rgba(0, 0, 0, 0.60);
   --sm-text-primary:   rgba(0, 0, 0, 0.90);
@@ -167,9 +170,9 @@
   --sm-color-gold:     #b45309;
   --sm-color-like:     #e11d48;
 
-  --glass-bg-base:     rgba(255, 255, 255, 0.50);
-  --glass-bg-card:     rgba(255, 255, 255, 0.65);
-  --glass-bg-modal:    rgba(240, 240, 240, 0.80);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.50));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.65));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(240, 240, 240, 0.80));
   --glass-border-base: rgba(0, 0, 0, 0.08);
   --glass-border-card: rgba(0, 0, 0, 0.10);
   --glass-border-modal:rgba(0, 0, 0, 0.06);
@@ -185,8 +188,8 @@
 
 [data-theme="dark"] {
   --sm-bg-base:        #0c0c0c;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.06);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.10);
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.10));
   --sm-accent:         rgba(255, 255, 255, 0.92);
   --sm-accent-warm:    rgba(255, 255, 255, 0.70);
   --sm-text-primary:   rgba(255, 255, 255, 0.92);
@@ -212,9 +215,9 @@
   --sm-color-gold:     #f4d28a;
   --sm-color-like:     #ff6b81;
 
-  --glass-bg-base:     rgba(255, 255, 255, 0.06);
-  --glass-bg-card:     rgba(255, 255, 255, 0.08);
-  --glass-bg-modal:    rgba(0, 0, 0, 0.55);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.08));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(0, 0, 0, 0.55));
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
@@ -244,21 +247,21 @@
   --glass-blur-modal: blur(0);
   --sm-blur:          blur(0);
   /* 深色（含手动 dark 与 auto 跟随系统深色）：底色提到近乎不透明，补偿失去的模糊背景 */
-  --glass-bg-base:    rgba(22, 22, 22, 0.88);
-  --glass-bg-card:    rgba(28, 28, 28, 0.92);
-  --glass-bg-modal:   rgba(14, 14, 14, 0.95);
+  --glass-bg-base:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(22, 22, 22, 0.88));
+  --glass-bg-card:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(28, 28, 28, 0.92));
+  --glass-bg-modal:   color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(14, 14, 14, 0.95));
 }
 [data-reduce-transparency="1"][data-theme="light"] {
-  --glass-bg-base:    rgba(244, 244, 244, 0.92);
-  --glass-bg-card:    rgba(250, 250, 250, 0.95);
-  --glass-bg-modal:   rgba(238, 238, 238, 0.97);
+  --glass-bg-base:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(244, 244, 244, 0.92));
+  --glass-bg-card:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(250, 250, 250, 0.95));
+  --glass-bg-modal:   color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(238, 238, 238, 0.97));
 }
 @media (prefers-color-scheme: light) {
   /* auto 主题跟随系统浅色时（无 data-theme 属性）也要用浅色不透明底 */
   :root[data-reduce-transparency="1"]:not([data-theme]) {
-    --glass-bg-base:  rgba(244, 244, 244, 0.92);
-    --glass-bg-card:  rgba(250, 250, 250, 0.95);
-    --glass-bg-modal: rgba(238, 238, 238, 0.97);
+    --glass-bg-base:  color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(244, 244, 244, 0.92));
+    --glass-bg-card:  color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(250, 250, 250, 0.95));
+    --glass-bg-modal: color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(238, 238, 238, 0.97));
   }
 }
 /* 兜底：彻底关掉 backdrop-filter，消除 saturate()/blur() 的逐帧重取样成本 */

@@ -31,9 +31,17 @@
   user-select: none;
 }
 
-/* 主题底色压暗层,保证玻璃面板上的文字可读;浅色主题下即为提亮 */
+/* 主题底色遮罩:不透明度按背景亮度与主题自动计算(深色主题压暗、浅色主题提亮),保证文字可读 */
 .mediaDim {
   position: absolute;
   inset: 0;
   background: var(--sm-bg-base);
+  transition: opacity 600ms var(--sm-ease-out), background-color 300ms var(--sm-ease-out);
+}
+
+/* 只承载 gamma 提亮滤镜定义，不占位 */
+.filterDefs {
+  position: absolute;
+  width: 0;
+  height: 0;
 }

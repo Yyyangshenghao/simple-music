@@ -33,6 +33,9 @@ export function solidBackgroundCss(settings: Pick<BackgroundSettings, 'solid' | 
 
 export type SolidBackgroundId = (typeof SOLID_BACKGROUNDS)[number]['id'] | 'custom'
 
+/** 存档版本：2 起 mediaDim 表示自动遮罩之外的额外强度；旧存档里的是总遮罩，直接叠加会把画面盖没，读取时回到默认。 */
+const BACKGROUND_VERSION = 2
+
 export const MEDIA_BLUR_MAX = 40
 export const MEDIA_DIM_MAX = 0.8
 
@@ -45,7 +48,7 @@ export interface BackgroundSettings {
   video: CustomBackgroundMedia | null
   /** 图片/视频背景的模糊半径(px)。 */
   mediaBlur: number
-  /** 图片/视频背景上方的主题底色压暗比例，保证文字可读。 */
+  /** 图片/视频背景在自动可读遮罩之外再加的强度（0 = 只用自动值）；遮罩为主题底色，深色压暗、浅色提亮。 */
   mediaDim: number
   solid: SolidBackgroundId
   solidColor: string
@@ -65,7 +68,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   image: null,
   video: null,
   mediaBlur: 0,
-  mediaDim: 0.35,
+  mediaDim: 0.1,
   solid: 'theme',
   solidColor: '#1b1d24',
 }
@@ -85,7 +88,7 @@ function normalizeMedia(value: unknown, kind: CustomBackgroundMedia['kind']): Cu
 }
 
 export function normalizeBackground(value: unknown): BackgroundSettings {
-  const saved = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof BackgroundSettings, unknown>>
+  const saved = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof BackgroundSettings | 'version', unknown>>
   const colors = Array.isArray(saved.fluidColors) && saved.fluidColors.length === 3 && saved.fluidColors.every(c => typeof c === 'string' && HEX.test(c))
     ? saved.fluidColors as FluidColors : DEFAULT_BACKGROUND.fluidColors
   const image = normalizeMedia(saved.image, 'image')
@@ -100,7 +103,7 @@ export function normalizeBackground(value: unknown): BackgroundSettings {
     image,
     video,
     mediaBlur: clamp(saved.mediaBlur, MEDIA_BLUR_MAX, DEFAULT_BACKGROUND.mediaBlur),
-    mediaDim: clamp(saved.mediaDim, MEDIA_DIM_MAX, DEFAULT_BACKGROUND.mediaDim),
+    mediaDim: saved.version === BACKGROUND_VERSION ? clamp(saved.mediaDim, MEDIA_DIM_MAX, DEFAULT_BACKGROUND.mediaDim) : DEFAULT_BACKGROUND.mediaDim,
     solid: SOLID_IDS.includes(saved.solid as SolidBackgroundId) ? saved.solid as SolidBackgroundId : DEFAULT_BACKGROUND.solid,
     solidColor: typeof saved.solidColor === 'string' && HEX.test(saved.solidColor) ? saved.solidColor : DEFAULT_BACKGROUND.solidColor,
   }
@@ -113,7 +116,7 @@ function load(): BackgroundSettings {
 function save(state: BackgroundSettings): void {
   const { kind, fluidPalette, fluidColors, image, video, mediaBlur, mediaDim, solid, solidColor } = state
   const data: BackgroundSettings = { kind, fluidPalette, fluidColors, image, video, mediaBlur, mediaDim, solid, solidColor }
-  try { localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(data)) } catch { /* 存储不可用时本次会话仍可切换。 */ }
+  try { localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify({ ...data, version: BACKGROUND_VERSION })) } catch { /* 存储不可用时本次会话仍可切换。 */ }
 }
 
 function removeFile(media: CustomBackgroundMedia | null): void {
@@ -123,7 +126,8 @@ function removeFile(media: CustomBackgroundMedia | null): void {
 export const useBackgroundStore = create<BackgroundStore>((set, get) => ({
   ...load(),
   update(patch) {
-    const next = normalizeBackground({ ...get(), ...patch })
+    // 内存状态已是新语义，带上版本号，避免被当成旧存档重置压暗强度。
+    const next = normalizeBackground({ ...get(), ...patch, version: BACKGROUND_VERSION })
     set(next)
     save(next)
   },

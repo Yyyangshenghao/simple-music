@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
 import { useReducedMotion, useSystemReducedMotion } from '../hooks/useReducedMotion'
 import { api } from '../lib/api'
@@ -33,6 +33,8 @@ import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import { DEFAULT_BACKGROUND, MEDIA_BLUR_MAX, MEDIA_DIM_MAX, solidBackgroundsFor, useBackgroundStore } from '../stores/background'
 import { useLightTheme } from '../hooks/useLightTheme'
+import { useAmbientStore } from '../stores/ambient'
+import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
 import type { ProviderId } from '../providers/types'
 import type { AppBackgroundKind, PerformanceFlags } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
@@ -520,8 +522,9 @@ function BackgroundSettings() {
         {media && <>
           <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} defaultValue={DEFAULT_BACKGROUND.mediaBlur}
             format={(v) => `${v} px`} unit="px" onChange={(v) => update({ mediaBlur: v })} />
-          <SliderRow label="压暗" min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
+          <SliderRow label={light ? '额外提亮' : '额外压暗'} min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
             format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
+          <p className={styles.groupHint}>{light ? '偏暗的画面会自动提亮' : '偏亮的画面会自动压暗'}，切换主题后文字依然清楚；滑杆在此基础上再加强。</p>
           {view === 'video' && <p className={styles.groupHint}>窗口失焦、隐藏或处于节能档时视频暂停。视频背景会持续占用 GPU。</p>}
         </>}
       </>}
@@ -547,6 +550,41 @@ function BackgroundSettings() {
       <p className={styles.groupHint}>{light ? '浅色主题只列出浅色底，' : '深色主题只列出深色底，'}切换主题后不匹配的底色回到主题底色。自定义颜色按所选显示。</p></>}
     </section>
   )
+}
+
+/** 主题色：单色沿用黑白，其余按当前主题自动调亮/调暗，保证文字与按钮对比度。 */
+function AccentPicker() {
+  const mode = useSettingsStore((s) => s.accentMode)
+  const custom = useSettingsStore((s) => s.accentCustom)
+  const setAccent = useSettingsStore((s) => s.setAccent)
+  const coverColor = useAmbientStore((s) => s.palette[0])
+  const light = useLightTheme()
+  const idPrefix = useId()
+  const swatch = (color: string) => accentTokensFor(color, light)?.accent ?? color
+  return <>
+    <div className={styles.row}>
+      <span className={styles.rowLabel}>主题色</span>
+      <div className={styles.backgroundColors} role="group" aria-label="主题色">
+        <button type="button" className={`${styles.backgroundSwatch} ${styles.accentMono} no-drag`} aria-pressed={mode === 'mono'} aria-label="单色" title="单色" onClick={() => setAccent('mono')} />
+        <button type="button" className={`${styles.backgroundSwatch} ${styles.accentCover} no-drag`} style={{ '--accent-cover': swatch(coverColor) } as CSSProperties}
+          aria-pressed={mode === 'cover'} aria-label="跟随封面" title="跟随封面" onClick={() => setAccent('cover')} />
+        {ACCENT_PRESETS.map(item => <button
+          key={item.id}
+          type="button"
+          className={`${styles.backgroundSwatch} no-drag`}
+          style={{ background: swatch(item.color) }}
+          aria-pressed={mode === item.id}
+          aria-label={item.label}
+          title={item.label}
+          onClick={() => setAccent(item.id)}
+        />)}
+        <label className={`${styles.backgroundSwatch} ${styles.backgroundCustom} no-drag`} htmlFor={`${idPrefix}-accent`} title="自定义" data-active={mode === 'custom'} style={{ background: swatch(custom) }}>
+          <input id={`${idPrefix}-accent`} type="color" value={custom} aria-label="自定义主题色" onChange={(event) => setAccent('custom', event.target.value)} />
+        </label>
+      </div>
+    </div>
+    <p className={styles.groupHint}>作用于按钮、开关、选中状态，并给面板与弹窗染上一层淡色。{mode === 'cover' ? '随当前歌曲封面变化。' : ''}</p>
+  </>
 }
 
 /** 当前开关组合与某预设完全一致时返回该预设 id,否则返回 null(自定义组合,不高亮任何预设)。 */
@@ -1153,6 +1191,7 @@ export function SettingsPage() {
                       <span className={styles.rowLabel}>主题模式</span>
                       <ThemeModePicker value={themeMode} onChange={setThemeMode} />
                     </div>
+                    <AccentPicker />
                     <div className={styles.row}>
                       <span className={styles.rowLabel}>页面布局</span>
                       <div className={styles.segControl} role="group" aria-label="页面布局">
