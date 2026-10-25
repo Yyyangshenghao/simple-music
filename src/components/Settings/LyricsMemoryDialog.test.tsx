@@ -28,6 +28,7 @@ vi.mock('../../stores/lyrics-source', async (original) => ({
   ...await original<typeof import('../../stores/lyrics-source')>(),
   useLyricsSourceStore: Object.assign((selector: (state: typeof h.state) => unknown) => selector(h.state), { getState: () => h.state }),
 }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => (transition: unknown) => transition }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
 import { LyricsMemoryDialog, queryMemory, type MemoryEntry } from './LyricsMemoryDialog'
 
@@ -74,8 +75,9 @@ describe('歌曲歌词来源管理', () => {
   })
 
   it('筛选项只列出已使用的来源并带数量', () => {
-    const filters = labelled(render(), '按来源筛选')
-    expect(elements(filters, element => element.type === 'button').map(text)).toEqual(['全部3', 'QQ 音乐1', '本地歌词1', '酷狗歌词库1'])
+    const filters = elements(render(), element => element.props?.ariaLabel === '按来源筛选')[0]
+    expect(filters.props.items.map((item: { ariaLabel: string }) => item.ariaLabel)).toEqual(['全部 3 首', 'QQ 音乐 1 首', '本地歌词 1 首', '酷狗歌词库 1 首'])
+    expect(filters.props.value).toBe('all')
   })
 
   it('单曲可改来源或忘记；本地歌曲额外可选本地歌词', () => {
@@ -93,7 +95,7 @@ describe('歌曲歌词来源管理', () => {
   it('全选当前列表后可批量改来源，批量忘记需先确认', async () => {
     labelled(render(), '全选当前列表').props.onChange()
     let element = render()
-    expect(text(element)).toContain('已选 3 首')
+    expect(labelled(element, '已选 3 首')).toBeTruthy()
     labelled(element, '将所选歌曲改为').props.onChange({ target: { value: 'netease' } })
     expect(h.state.updateRemembered).toHaveBeenCalledWith(['qq:3', 'local:2', 'netease:1'], 'netease')
     await Promise.resolve()
@@ -110,13 +112,24 @@ describe('歌曲歌词来源管理', () => {
     expect(text(render())).toContain('勾选歌曲可批量修改或忘记')
   })
 
+  it('单首忘记只移出该首的选择，取消事件走退场关闭', async () => {
+    labelled(render(), '全选当前列表').props.onChange()
+    labelled(render(), '忘记安静的歌词来源').props.onClick()
+    await Promise.resolve()
+    expect(labelled(render(), '已选 2 首')).toBeTruthy()
+    const event = { preventDefault: vi.fn() }
+    render().props.onCancel(event)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(render().props['data-closing']).toBe(true)
+  })
+
   it('宿主保存失败时不显示成功反馈，也不清空选择', async () => {
     h.state.updateRemembered.mockResolvedValueOnce(false as never)
     labelled(render(), '全选当前列表').props.onChange()
     labelled(render(), '将所选歌曲改为').props.onChange({ target: { value: 'qq' } })
     await Promise.resolve()
     expect(h.toast).not.toHaveBeenCalled()
-    expect(text(render())).toContain('已选 3 首')
+    expect(labelled(render(), '已选 3 首')).toBeTruthy()
   })
 
   it('清除全部需确认，确认说明当前歌词不改变', () => {
