@@ -44,9 +44,6 @@
 }
 
 .select { max-width: 230px; min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
-.clearConfirm { padding: 0 20px 16px; border-bottom: 1px solid var(--sm-border); }
-.clearConfirm p { margin: 0 0 10px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
-.clearConfirm > div { display: flex; justify-content: flex-end; gap: 8px; }
 
 .sampleRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; color: var(--sm-text-secondary); font-size: 12px; }
 .guestRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--sm-border); color: var(--sm-text-primary); font-size: 13px; }
@@ -62,18 +59,7 @@
 .reorder button { display: grid; place-items: center; width: 26px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-secondary); cursor: pointer; }
 .reorder button:hover:not(:disabled) { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
 .reorder button:disabled { opacity: 0.25; cursor: default; }
-.remembered { border-top: 1px solid var(--sm-border); }
-.remembered > summary { padding: 16px 20px; color: var(--sm-text-primary); font-size: 13px; cursor: pointer; }
-.remembered > summary span { margin-left: 8px; color: var(--sm-text-secondary); font-size: 12px; }
-.memoryBody { padding: 0 20px 16px; }
-.search { box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; font-size: 12px; }
-.memoryList { max-height: 300px; overflow: auto; margin: 8px 0 12px; padding: 0; list-style: none; }
-.memoryList li { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--sm-border); }
-.memoryList li > div { display: grid; flex: 1; min-width: 0; gap: 4px; }
-.memoryList strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sm-text-primary); font-size: 12px; font-weight: 500; }
-.memoryList span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sm-text-secondary); font-size: 11px; }
-.clearAll { padding: 6px 0; border: 0; background: transparent; color: var(--sm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
-.clearAll:hover { color: var(--sm-text-primary); }
+.memoryRow { display: flex; align-items: center; gap: 12px; padding: 14px 20px 16px; border-top: 1px solid var(--sm-border); }
 @media (max-width: 700px) {
   .sourceRow { gap: 8px; flex-wrap: wrap; padding: 10px 0; }
   .sourceName { min-width: 130px; }

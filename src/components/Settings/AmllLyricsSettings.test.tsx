@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
+  useCallback: (callback: unknown) => callback,
   useState: (value: unknown) => typeof value === 'boolean' ? [h.confirm, h.setConfirm] : value === 'sunny' ? [h.sample, h.setSample] : value === '' ? [h.search, vi.fn()] : [value, vi.fn()],
 }))
 vi.mock('framer-motion', () => ({ motion: { li: 'li' } }))
@@ -30,6 +31,7 @@ vi.mock('../../stores/settings', () => ({ useSettingsStore: (selector: (state: t
 vi.mock('../../stores/providers', () => ({ useProviderStore: (selector: (state: typeof h.providers) => unknown) => selector(h.providers) }))
 vi.mock('../ui/InfoButton', () => ({ InfoButton: () => null }))
 vi.mock('../ui/Switch', () => ({ Switch: () => null }))
+vi.mock('./LyricsMemoryDialog', () => ({ LyricsMemoryDialog: () => null }))
 import { AmllLyricsSettings } from './AmllLyricsSettings'
 
 function labelled(node: unknown, label: string): ReactElement<any> | undefined {
@@ -69,6 +71,7 @@ beforeEach(() => {
   h.search = ''
   h.sample = 'sunny'
   h.source.sourceOrder = ['netease', 'qq', 'amll', 'kugou']
+  h.source.remembered = { 'netease:1': { origin: 'qq', name: '晴天', artist: '周杰伦' } }
   h.source.health = {}
   h.source.probes = {}
   h.settings.lyricsAmllFallback = true
@@ -120,38 +123,28 @@ describe('歌词来源设置', () => {
     expect(h.source.testSource).toHaveBeenCalledWith('amll', 'sunny')
   })
 
-  it('显示歌曲与记住的来源，可搜索并单独忘记', () => {
-    const element = AmllLyricsSettings()
-    const memory = elements(element, 'details')[0]
-    expect(text(memory)).toContain('晴天周杰伦 · QQ 音乐')
-    button(memory, '忘记晴天的歌词来源').props.onClick()
-    expect(h.source.forgetTrack).toHaveBeenCalledWith('netease:1')
-    expect(h.source.clearRemembered).not.toHaveBeenCalled()
-    h.search = '不存在'
-    expect(text(AmllLyricsSettings())).toContain('没有匹配的歌曲')
-    h.search = 'QQ'
-    expect(text(AmllLyricsSettings())).toContain('晴天')
-  })
-
-  it('清除全部先确认，保留不清除，确认说明当前歌词不改变', () => {
+  it('歌曲来源记忆显示数量，管理入口打开独立弹窗', async () => {
+    const { LyricsMemoryDialog } = await import('./LyricsMemoryDialog')
     let element = AmllLyricsSettings()
-    button(element, '清除全部记忆…').props.onClick()
+    expect(text(element)).toContain('1 首歌曲使用指定来源')
+    expect(elements(element, LyricsMemoryDialog as never)).toHaveLength(0)
+    button(element, '管理…').props.onClick()
     expect(h.setConfirm).toHaveBeenCalledWith(true)
-    expect(h.source.clearRemembered).not.toHaveBeenCalled()
     h.confirm = true
     element = AmllLyricsSettings()
-    expect(text(element)).toContain('当前歌词继续显示')
-    button(element, '保留').props.onClick()
-    expect(h.setConfirm).toHaveBeenCalledWith(false)
-    expect(h.source.clearRemembered).not.toHaveBeenCalled()
-    button(element, '清除记忆').props.onClick()
-    expect(h.source.clearRemembered).toHaveBeenCalledOnce()
+    expect(elements(element, LyricsMemoryDialog as never)).toHaveLength(1)
+  })
+
+  it('没有记住的歌曲时管理入口不可用', () => {
+    h.source.remembered = {} as typeof h.source.remembered
+    const element = AmllLyricsSettings()
+    expect(button(element, '管理…').props.disabled).toBe(true)
+    expect(text(element)).toContain('在歌词页选择来源并记住后')
   })
 
   it('只保留测试歌曲选择，线路交给应用自动判断', () => {
     const element = AmllLyricsSettings()
     expect(elements(element, 'select')).toHaveLength(1)
-    expect(elements(element, 'details')).toHaveLength(1)
     expect(text(element)).not.toContain('连接线路')
   })
 

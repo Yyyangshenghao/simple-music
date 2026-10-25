@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useSettingsStore } from '../../stores/settings'
@@ -7,6 +7,7 @@ import { useMotion } from '../../hooks/useMotion'
 import { LYRIC_SOURCE_LABELS, LYRICS_TEST_SONGS, type LyricPrioritySource } from '../../types/lyrics-source'
 import { InfoButton } from '../ui/InfoButton'
 import { Switch } from '../ui/Switch'
+import { LyricsMemoryDialog } from './LyricsMemoryDialog'
 import styles from './AmllLyricsSettings.module.css'
 
 export function AmllLyricsSettings() {
@@ -23,12 +24,10 @@ export function AmllLyricsSettings() {
   const providers = useProviderStore(s => s.byId)
   const reduced = !useMotion('dragMotion')
   const [sample, setSample] = useState('sunny')
-  const [search, setSearch] = useState('')
-  const [limit, setLimit] = useState(20)
-  const [confirmClear, setConfirmClear] = useState(false)
+  const [managing, setManaging] = useState(false)
+  const closeManaging = useCallback(() => setManaging(false), [])
   const order = normalizeLyricsSourceOrder(sourceOrder)
-  const entries = Object.entries(remembered)
-  const filtered = entries.filter(([, song]) => `${song.name} ${song.artist} ${LYRIC_SOURCE_LABELS[song.origin]}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
+  const entries = Object.keys(remembered)
   const move = (index: number, direction: number) => {
     const next = [...order]
     const other = index + direction
@@ -88,25 +87,13 @@ export function AmllLyricsSettings() {
       <Switch checked={guestSources.qq} onChange={value => setGuestSource('qq', value)} aria-label="游客查询 QQ 音乐歌词" />
     </div>
     <p className={`${styles.hint} ${styles.guestHint}`}>未登录或已停用的平台以游客身份查询歌词，不使用账号，只发送歌名与歌手；不影响播放音源。</p>
-    <details className={styles.remembered}>
-      <summary>歌曲来源记忆 <span>{entries.length} 首</span></summary>
-      <div className={styles.memoryBody}>
-        {entries.length ? <>
-          <input className={styles.search} type="search" aria-label="查找已记住来源的歌曲" placeholder="搜索歌曲、歌手或来源" value={search} onChange={event => { setSearch(event.target.value); setLimit(20) }} />
-          <ul className={styles.memoryList}>
-            {filtered.slice(0, limit).map(([key, song]) => <li key={key}>
-              <div><strong title={`${song.name} · ${song.artist}`}>{song.name}</strong><span>{song.artist} · {LYRIC_SOURCE_LABELS[song.origin]}</span></div>
-              <button type="button" className={styles.probe} onClick={() => useLyricsSourceStore.getState().forgetTrack(key)} aria-label={`忘记${song.name}的歌词来源`}>忘记选择</button>
-            </li>)}
-          </ul>
-          {!filtered.length && <p className={styles.hint}>没有匹配的歌曲</p>}
-          {filtered.length > limit && <button type="button" className={styles.probe} onClick={() => setLimit(value => value + 20)}>显示更多</button>}
-          {confirmClear ? <div className={styles.clearConfirm}>
-            <p>清除这 {entries.length} 首歌曲的来源选择？当前歌词继续显示，之后按来源顺序查找。</p>
-            <div><button type="button" className={styles.probe} onClick={() => setConfirmClear(false)}>保留</button><button type="button" className={styles.probe} onClick={() => { useLyricsSourceStore.getState().clearRemembered(); setConfirmClear(false) }}>清除记忆</button></div>
-          </div> : <button type="button" className={styles.clearAll} onClick={() => setConfirmClear(true)}>清除全部记忆…</button>}
-        </> : <p className={styles.hint}>在歌词页选择来源并记住后，可在这里查看和管理。</p>}
+    <div className={styles.memoryRow}>
+      <div className={styles.sourceName}>
+        <strong>歌曲来源记忆</strong>
+        <span>{entries.length ? `${entries.length} 首歌曲使用指定来源` : '在歌词页选择来源并记住后，可在这里管理'}</span>
       </div>
-    </details>
+      <button type="button" className={`${styles.probe} no-drag`} disabled={!entries.length} onClick={() => setManaging(true)}>管理…</button>
+    </div>
+    {managing && <LyricsMemoryDialog onClose={closeManaging} />}
   </section>
 }

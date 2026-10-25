@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LYRICS_SOURCE_STORAGE_KEY, loadLyricsSourcePreferences, normalizeLyricsSourceOrder, rememberLyricsSource, useLyricsSourceStore } from './lyrics-source'
+import { LYRICS_SOURCE_STORAGE_KEY, loadLyricsSourcePreferences, normalizeLyricsSourceOrder, rememberableOrigins, rememberLyricsSource, useLyricsSourceStore } from './lyrics-source'
 import { useToastStore } from './toast'
 
 let archive: Map<string, string>
@@ -77,5 +77,45 @@ describe('歌词来源完整顺序存档', () => {
     vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota') })
     useLyricsSourceStore.getState().forgetTrack('netease:2')
     expect(useLyricsSourceStore.getState().remembered['netease:2'].origin).toBe('amll')
+  })
+})
+
+describe('批量管理歌曲来源记忆', () => {
+  const match = { source: 'qq' as const, provider: 'qq' as const, type: 'song' as const, id: '2', name: '歌曲', artist: '歌手', artists: [] }
+  beforeEach(() => {
+    useLyricsSourceStore.setState({ remembered: {
+      'netease:1': { origin: 'qq', name: '歌曲', artist: '歌手', match },
+      'local:2': { origin: 'local', name: '本地', artist: '歌手' },
+      'apple:3': { origin: 'apple', name: '苹果', artist: '歌手' },
+    } })
+  })
+
+  it('一次存档改写多首来源，换平台时丢弃旧匹配引用', () => {
+    expect(useLyricsSourceStore.getState().updateRemembered(['netease:1', 'local:2'], 'kugou')).toBe(true)
+    const { remembered } = useLyricsSourceStore.getState()
+    expect(remembered['netease:1']).toEqual({ origin: 'kugou', name: '歌曲', artist: '歌手', match: undefined })
+    expect(remembered['local:2'].origin).toBe('kugou')
+    expect(JSON.parse(archive.get(LYRICS_SOURCE_STORAGE_KEY)!).remembered['local:2'].origin).toBe('kugou')
+    useLyricsSourceStore.getState().updateRemembered(['netease:1'], 'qq')
+    expect(useLyricsSourceStore.getState().remembered['netease:1'].match).toBeUndefined()
+  })
+
+  it('平台自带来源只能用于本平台歌曲', () => {
+    expect(rememberableOrigins('netease:1')).toEqual(['netease', 'qq', 'amll', 'kugou'])
+    expect(rememberableOrigins('local:2')[0]).toBe('local')
+    useLyricsSourceStore.getState().updateRemembered(['netease:1', 'apple:3'], 'local')
+    expect(useLyricsSourceStore.getState().remembered['netease:1'].origin).toBe('qq')
+    expect(useLyricsSourceStore.getState().remembered['apple:3'].origin).toBe('apple')
+    expect(archive.has(LYRICS_SOURCE_STORAGE_KEY)).toBe(false)
+  })
+
+  it('批量忘记；存档失败时整体不生效并提示', () => {
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota') })
+    expect(useLyricsSourceStore.getState().updateRemembered(['netease:1', 'local:2'], null)).toBe(false)
+    expect(Object.keys(useLyricsSourceStore.getState().remembered)).toHaveLength(3)
+    expect(useToastStore.getState().message).toContain('无法清除')
+    vi.restoreAllMocks()
+    expect(useLyricsSourceStore.getState().updateRemembered(['netease:1', 'local:2'], null)).toBe(true)
+    expect(Object.keys(useLyricsSourceStore.getState().remembered)).toEqual(['apple:3'])
   })
 })

@@ -15,6 +15,8 @@ interface LyricsSourceStore extends LyricSourceActions {
   probes: Partial<Record<LyricPrioritySource, LyricSourceProbe>>
   setSourceOrder(order: LyricPrioritySource[]): void
   forgetTrack(key: string): void
+  /** 批量改写或忘记记住的来源；一次存档，失败时整体不生效。 */
+  updateRemembered(keys: string[], origin: LyricOrigin | null): boolean
   remembered: Record<string, RememberedLyricSource>
   candidates: LyricSourceCandidate[]
   candidateTrackKey: string | null
@@ -105,6 +107,12 @@ export function rememberLyricsSource(key: string, entry: RememberedLyricSource |
   return true
 }
 
+/** 这首歌可被记住的来源：通用歌词来源，加上歌曲自身平台（Apple Music 自带歌词、本地歌词）。 */
+export function rememberableOrigins(key: string): LyricOrigin[] {
+  const own = key.slice(0, key.indexOf(':'))
+  return own === 'apple' || own === 'local' ? [own, ...LYRIC_PRIORITY_SOURCES] : [...LYRIC_PRIORITY_SOURCES]
+}
+
 export function bindLyricsSourceActions(actions: LyricSourceActions): () => void {
   handlers = actions
   return () => { if (handlers === actions) handlers = undefined }
@@ -126,6 +134,23 @@ export const useLyricsSourceStore = create<LyricsSourceStore>((set, get) => ({
   },
   forgetTrack(key) {
     if (!rememberLyricsSource(key, null)) useToastStore.getState().show('无法清除这首歌的来源选择，请重试')
+  },
+  updateRemembered(keys, next) {
+    if (next !== null && !origin(next)) throw new Error('无效的歌词来源')
+    const remembered = { ...get().remembered }
+    let changed = false
+    for (const key of keys) {
+      const entry = remembered[key]
+      if (!entry || (next && (entry.origin === next || !rememberableOrigins(key).includes(next)))) continue
+      // 匹配引用只对同一平台有效，换来源后由宿主按歌名、歌手与时长重新匹配。
+      if (next) remembered[key] = { ...entry, origin: next, match: entry.match?.source === next ? entry.match : undefined }
+      else delete remembered[key]
+      changed = true
+    }
+    if (!changed) return true
+    if (!write(get().defaultSource, remembered)) { useToastStore.getState().show(next ? '无法保存歌词来源选择，请重试' : '无法清除歌词来源选择，请重试'); return false }
+    set({ remembered })
+    return true
   },
   async testSource(source, sample) {
     if (!LYRIC_PRIORITY_SOURCES.includes(source) || !['sunny', 'ocean'].includes(sample)) throw new Error('无效的歌词测试')
