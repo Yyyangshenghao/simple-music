@@ -210,8 +210,17 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 
-/** 主窗口背景类型：流体（封面或自定义三色）、自定义图片、视频（含 Wallpaper Engine 视频工程）、静态纯色/渐变。 */
-export type AppBackgroundKind = 'fluid' | 'image' | 'video' | 'solid'
+/** 主窗口背景类型：流体（封面或自定义三色）、自定义图片、自定义视频、Wallpaper Engine 壁纸、静态纯色/渐变。 */
+export type AppBackgroundKind = 'fluid' | 'image' | 'video' | 'wallpaper' | 'solid'
+
+/** Wallpaper Engine 壁纸库里的一个条目；文件由本地 API 按 workshop id 直接从 Steam 目录读取。 */
+export interface WallpaperSelection {
+  id: string
+  title: string
+  /** 视频、网页与场景型可在应用内播放；应用型是独立程序，只能显示预览图。 */
+  type: 'video' | 'web' | 'scene' | 'application' | 'unknown'
+  hasPreview: boolean
+}
 
 /** 主进程复制进 userData/backgrounds 的背景文件，与 server/lib/custom-background.ts 保持一致。 */
 export interface CustomBackgroundMedia {

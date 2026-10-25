@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,6 +17,8 @@ import { beatmapRoutes } from './routes/beatmap'
 import { qqRoutes } from './routes/qq-music'
 import { localMusicRoutes } from './routes/local-music'
 import { customBackgroundRoutes } from './routes/custom-background'
+import { wallpaperEngineRoutes } from './routes/wallpaper-engine'
+import { wallpaperEngineWebRoutes } from './routes/wallpaper-engine-web'
 import { weatherRoutes } from './routes/weather'
 import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
@@ -46,6 +49,7 @@ const chain: RouteHandler[] = [
   qqRoutes,
   localMusicRoutes,
   customBackgroundRoutes,
+  wallpaperEngineRoutes,
   weatherRoutes,
   updateRoutes,
   staticRoutes
@@ -62,7 +66,9 @@ export function startServer(
     allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,
     appleMusicWeb: partial.appleMusicWeb,
     appleMusicLoginMode: partial.appleMusicLoginMode,
-    token: partial.token
+    token: partial.token,
+    // 每次启动随机：壁纸页面只能读取壁纸目录，拿不到 API token。
+    wallpaperWebToken: partial.wallpaperWebToken ?? randomBytes(32).toString('hex')
   }
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
@@ -78,6 +84,14 @@ export function startServer(
         if (await publicAppleMusicBridgeRoutes(req, res, url, ctx)) return
       } catch {
         if (!res.headersSent) sendError(res, 500, 'Apple Music 播放连接失败')
+        else res.end()
+        return
+      }
+      // 网页型壁纸在 iframe 里整页加载，子资源带不上 query token，由路由自行校验路径里的 token。
+      try {
+        if (await wallpaperEngineWebRoutes(req, res, url, ctx)) return
+      } catch {
+        if (!res.headersSent) sendError(res, 500, '壁纸加载失败')
         else res.end()
         return
       }

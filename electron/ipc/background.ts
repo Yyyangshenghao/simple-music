@@ -14,12 +14,9 @@ export function registerBackgroundIpc(): void {
     try {
       const owner = getMainWindow() ?? undefined
       const result = await dialog.showOpenDialog(owner!, {
-        title: '选择背景图片、视频或 Wallpaper Engine 工程',
+        title: '选择背景图片或视频',
         properties: ['openFile'],
-        filters: [
-          { name: '图片、视频或 Wallpaper Engine', extensions: [...CUSTOM_BACKGROUND_EXTENSIONS, 'json'] },
-          { name: 'Wallpaper Engine 工程 (project.json)', extensions: ['json'] }
-        ]
+        filters: [{ name: '图片或视频', extensions: CUSTOM_BACKGROUND_EXTENSIONS }]
       })
       if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true }
       return { ok: true, media: await importCustomBackground(app.getPath('userData'), result.filePaths[0]) }

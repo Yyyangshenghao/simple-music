@@ -5,6 +5,7 @@ import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { useProviderStore } from '../stores/providers'
 import { useWindowCloseStore } from '../stores/window-close'
+import { DEFAULT_WALLPAPER_SCENE, useBackgroundStore } from '../stores/background'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
@@ -17,6 +18,14 @@ vi.mock('../stores/window-close', async (importOriginal) => {
   ) }
 })
 
+vi.mock('../stores/background', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/background')>()
+  const store = original.useBackgroundStore
+  return { ...original, useBackgroundStore: Object.assign(
+    (selector?: (state: ReturnType<typeof store.getState>) => unknown) => selector ? selector(store.getState()) : store.getState(),
+    store
+  ) }
+})
 vi.mock('../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/settings')>()
   const store = original.useSettingsStore
@@ -61,6 +70,7 @@ const initialVisual = useVisualStore.getState()
 const initialUpdate = useUpdateStore.getState()
 const initialProviders = useProviderStore.getState()
 const initialWindowClose = useWindowCloseStore.getState()
+const initialBackground = useBackgroundStore.getState()
 
 beforeEach(() => {
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -72,6 +82,7 @@ afterEach(() => {
   useUpdateStore.setState(initialUpdate, true)
   useProviderStore.setState(initialProviders, true)
   useWindowCloseStore.setState(initialWindowClose, true)
+  useBackgroundStore.setState(initialBackground, true)
   vi.unstubAllGlobals()
 })
 
@@ -329,6 +340,35 @@ describe('动效设置的实际生效状态', () => {
     expect(html).toContain('极简模式关闭全部动效，包括歌词显示里的两项')
     expect(html).toContain('不会互相压制')
     expect(html).toContain('减少透明度不受影响')
+  })
+})
+
+describe('场景壁纸渲染设置', () => {
+  it('只在选中场景壁纸时显示，帧率/画质/脚本状态与控制一致', () => {
+    useBackgroundStore.setState({
+      kind: 'wallpaper',
+      wallpaper: { id: '123456', title: '月球', type: 'scene', hasPreview: true },
+      wallpaperScene: { ...DEFAULT_WALLPAPER_SCENE, fps: 60, quality: 'detailed', scripts: false, audio: true, pointer: false },
+    })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toContain('aria-label="场景壁纸帧率"')
+    expect(html).toContain('aria-label="场景壁纸画质"')
+    expect(html).toContain('aria-label="场景脚本"')
+    // 着色器也能消费频谱，关掉脚本不应连累「跟随音乐」。
+    const musicSwitch = effectSwitch(html, '跟随音乐')
+    expect(musicSwitch).not.toContain('disabled=')
+    expect(musicSwitch).toContain('aria-checked="true"')
+    expect(html).not.toContain('关闭场景脚本后不生效')
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>60<\/button>/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>精细<\/button>/)
+
+    useBackgroundStore.setState({
+      kind: 'wallpaper',
+      wallpaper: { id: '123456', title: '视频', type: 'video', hasPreview: true },
+    })
+    const video = renderToStaticMarkup(<SettingsPage />)
+    expect(video).not.toContain('aria-label="场景壁纸帧率"')
+    expect(video).toContain('视频壁纸会持续占用 GPU')
   })
 })
 

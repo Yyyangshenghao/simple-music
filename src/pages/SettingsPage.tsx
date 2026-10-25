@@ -23,6 +23,7 @@ import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSetti
 import { AmllLyricsSettings } from '../components/Settings/AmllLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { ThemeModePicker } from '../components/Settings/ThemeModePicker'
+import { WallpaperEnginePicker } from '../components/Settings/WallpaperEnginePicker'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useAppleMusicConnection } from '../stores/apple-music-connection'
@@ -31,12 +32,21 @@ import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
 import { useOfflineCacheStore } from '../stores/offline-cache'
-import { DEFAULT_BACKGROUND, MEDIA_BLUR_MAX, MEDIA_DIM_MAX, solidBackgroundsFor, useBackgroundStore } from '../stores/background'
+import {
+  DEFAULT_BACKGROUND,
+  MEDIA_BLUR_MAX,
+  MEDIA_DIM_MAX,
+  WALLPAPER_SCENE_FPS,
+  WALLPAPER_SCENE_QUALITIES,
+  solidBackgroundsFor,
+  useBackgroundStore,
+  type WallpaperSceneSettings
+} from '../stores/background'
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
 import type { ProviderId } from '../providers/types'
-import type { AppBackgroundKind, PerformanceFlags } from '../types/domain'
+import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import { EffectPreview, type PreviewEffect } from '../components/Settings/EffectPreview'
@@ -464,21 +474,50 @@ function EffectSwitchRow({ effect: { key, label, hint } }: { effect: EffectItem 
 
 const BACKGROUND_KINDS: { value: AppBackgroundKind; label: string }[] = [
   { value: 'fluid', label: '流体' }, { value: 'image', label: '图片' },
-  { value: 'video', label: '视频' }, { value: 'solid', label: '纯色' },
+  { value: 'video', label: '视频' }, { value: 'wallpaper', label: '壁纸' },
+  { value: 'solid', label: '纯色' },
 ]
 
 function backgroundImportError(code = ''): string {
-  if (code.startsWith('WE_UNSUPPORTED_TYPE')) return '暂只支持 Wallpaper Engine 视频壁纸，场景和网页壁纸无法导入'
-  if (code === 'WE_PROJECT_INVALID') return '无法识别这个 project.json'
   if (code === 'UNSUPPORTED_FILE') return '不支持这个文件格式'
-  if (code === 'FILE_MISSING') return '找不到壁纸对应的文件'
+  if (code === 'FILE_MISSING') return '找不到对应的文件'
   return '导入背景失败，请重试'
+}
+
+function wallpaperHint(type: WallpaperSelection['type']): string {
+  if (type === 'video') return '视频壁纸会持续占用 GPU，窗口失焦、隐藏或节能档时暂停。'
+  if (type === 'web') return '网页壁纸在隔离页面中运行，声音已静音；节能档不会暂停它。'
+  if (type === 'scene') return '场景壁纸在隔离页面中用 WebGL 渲染，壁纸脚本接触不到应用数据；窗口失焦、隐藏或节能档时停在最后一帧。上面的渲染选项只作用于场景型壁纸。'
+  return '应用型壁纸是独立程序，不能嵌入应用，只能显示封面图。'
+}
+
+/** 场景壁纸的开关行：关闭时仍保留说明，避免用户以为设置丢了。 */
+function SceneSwitchRow({ label, hint, checked, disabled, reason, onChange }: {
+  label: string
+  hint: string
+  checked: boolean
+  disabled?: boolean
+  reason?: string
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <div className={styles.row}>
+      <span className={styles.rowLabel}>
+        {label}
+        {reason && <small className={styles.effectReason}>{reason}</small>}
+      </span>
+      <div className={styles.rowControls}>
+        <InfoButton label={label} text={hint} />
+        <Switch checked={checked} disabled={disabled} onChange={onChange} aria-label={label} />
+      </div>
+    </div>
+  )
 }
 
 /** 应用背景：类型标签只切换编辑视图，图片/视频导入成功后才替换当前背景。 */
 function BackgroundSettings() {
   const background = useBackgroundStore()
-  const { update, setMedia, clearMedia } = background
+  const { update, setMedia, clearMedia, setWallpaper } = background
   const [view, setView] = useState<AppBackgroundKind>(background.kind)
   const [importing, setImporting] = useState(false)
   const idPrefix = useId()
@@ -508,12 +547,16 @@ function BackgroundSettings() {
       setImporting(false)
     }
   }
+  const wallpaperScene = background.wallpaperScene
+  function updateScene(patch: Partial<WallpaperSceneSettings>): void {
+    update({ wallpaperScene: { ...wallpaperScene, ...patch } })
+  }
 
   return (
     <section id="settings-detail-background" className={styles.group}>
       <h3 className={styles.groupTitle}>
         应用背景
-        <InfoButton label="应用背景" text="导入的图片和视频会复制到应用数据目录，原文件移动或删除不影响。画面过亮或过暗时会自动压暗或提亮，滑杆在此基础上再加强。视频支持 mp4、webm、mov，也可以选 Wallpaper Engine 视频壁纸目录里的 project.json；场景和网页壁纸暂不支持。打开立体歌词时背景会暂时隐藏。" />
+        <InfoButton label="应用背景" text="图片和视频会复制到应用数据目录，原文件移动或删除不影响；视频支持 mp4、webm、mov。壁纸直接从 Steam 的 Wallpaper Engine 订阅目录读取，不复制文件，视频、网页与场景型能作为背景播放（场景型在隔离页面渲染，可调帧率、画质与脚本），应用型只显示封面。画面过亮或过暗时会自动压暗或提亮，滑杆在此基础上再加强。打开立体歌词时背景会暂时隐藏。" />
       </h3>
       <div className={styles.row}>
         <span className={styles.rowLabel}>背景类型</span>
@@ -566,7 +609,7 @@ function BackgroundSettings() {
 
       {(view === 'image' || view === 'video') && <>
         <div className={styles.row}>
-          <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={media?.name ?? (view === 'image' ? '支持 jpg、png、webp、gif、avif' : '支持 mp4、webm、mov 与 Wallpaper Engine 视频壁纸的 project.json')}>
+          <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={media?.name ?? (view === 'image' ? '支持 jpg、png、webp、gif、avif' : '支持 mp4、webm、mov')}>
             {media ? media.name : view === 'image' ? '尚未选择图片' : '尚未选择视频'}
           </span>
           {media && <button type="button" className={`${styles.action} no-drag`} onClick={() => clearMedia(view)}>移除</button>}
@@ -580,6 +623,73 @@ function BackgroundSettings() {
           <SliderRow label={light ? '额外提亮' : '额外压暗'} min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
             format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
           {view === 'video' && <p className={styles.groupHint}>视频背景会持续占用 GPU，窗口失焦、隐藏或节能档时暂停。</p>}
+        </>}
+      </>}
+
+      {view === 'wallpaper' && <>
+        <div className={styles.row}>
+          <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={background.wallpaper?.title ?? '从 Steam 订阅的 Wallpaper Engine 壁纸中选择'}>
+            {background.wallpaper ? background.wallpaper.title : '尚未选择壁纸'}
+          </span>
+          {background.wallpaper && <button type="button" className={`${styles.action} no-drag`} onClick={() => setWallpaper(null)}>移除</button>}
+        </div>
+        <WallpaperEnginePicker selected={background.wallpaper} />
+        {background.wallpaper && <>
+          <SliderRow label="模糊" min={0} max={MEDIA_BLUR_MAX} step={1} value={background.mediaBlur} defaultValue={DEFAULT_BACKGROUND.mediaBlur}
+            format={(v) => `${v} px`} unit="px" onChange={(v) => update({ mediaBlur: v })} />
+          <SliderRow label={light ? '额外提亮' : '额外压暗'} min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
+            format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
+          {background.wallpaper.type === 'scene' && <>
+            <div className={styles.row}>
+              <span className={styles.rowLabel}>
+                帧率
+                <InfoButton label="场景壁纸帧率" text="限制场景壁纸的渲染帧率。24 帧更省电，30 帧足够顺滑，60 帧适合带视差或快速动画的壁纸；窗口失焦、隐藏或节能档时仍会停帧。" />
+              </span>
+              <div className={styles.segControl} role="group" aria-label="场景壁纸帧率">
+                {WALLPAPER_SCENE_FPS.map(fps => <button
+                  key={fps}
+                  type="button"
+                  className={`${styles.seg} no-drag ${wallpaperScene.fps === fps ? styles.segActive : ''}`}
+                  aria-pressed={wallpaperScene.fps === fps}
+                  onClick={() => updateScene({ fps })}
+                >{fps}</button>)}
+              </div>
+            </div>
+            <div className={styles.row}>
+              <span className={styles.rowLabel}>
+                画质
+                <InfoButton label="场景壁纸画质" text="流畅：降低内部渲染分辨率，并减少粒子与后处理；均衡：默认档，按实测帧率自动降级；精细：提高渲染分辨率并开抗锯齿，更吃显存。" />
+              </span>
+              <div className={styles.segControl} role="group" aria-label="场景壁纸画质">
+                {WALLPAPER_SCENE_QUALITIES.map(item => <button
+                  key={item.value}
+                  type="button"
+                  className={`${styles.seg} no-drag ${wallpaperScene.quality === item.value ? styles.segActive : ''}`}
+                  aria-pressed={wallpaperScene.quality === item.value}
+                  onClick={() => updateScene({ quality: item.value })}
+                >{item.label}</button>)}
+              </div>
+            </div>
+            <SceneSwitchRow
+              label="场景脚本"
+              hint="执行壁纸自带的 SceneScript，用于时钟、文字、音频响应与交互效果。关闭后停在初始参数，遇到脚本报错或占用过高时可以关。"
+              checked={wallpaperScene.scripts}
+              onChange={(scripts) => updateScene({ scripts })}
+            />
+            <SceneSwitchRow
+              label="跟随音乐"
+              hint="把当前歌曲的频谱传给壁纸；着色器与场景脚本都可以消费，只有音频响应型壁纸会变化。"
+              checked={wallpaperScene.audio}
+              onChange={(audio) => updateScene({ audio })}
+            />
+            <SceneSwitchRow
+              label="响应鼠标"
+              hint="把鼠标位置传给壁纸，用于视差与点击效果。背景在界面下方，本身收不到指针事件。"
+              checked={wallpaperScene.pointer}
+              onChange={(pointer) => updateScene({ pointer })}
+            />
+          </>}
+          <p className={styles.groupHint}>{wallpaperHint(background.wallpaper.type)}</p>
         </>}
       </>}
 

@@ -15,6 +15,11 @@ export interface ServerContext {
    * 请求校验。缺省(独立 server / dev / 测试未注入)时不校验,见 isAllowedToken。
    */
   token?: string
+  /**
+   * 网页型 Wallpaper Engine 壁纸的 iframe 专用 token。与 API token 分开，
+   * 第三方壁纸页面即使从地址里读到它，也无法调用 `/api/*`。
+   */
+  wallpaperWebToken?: string
 }
 
 /**

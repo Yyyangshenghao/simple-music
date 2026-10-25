@@ -35,6 +35,15 @@ vi.mock('../../stores/visual', async (importOriginal) => {
     )
   }
 })
+// 静态渲染拿不到壁纸库响应，这里固定一个遥控页 token。
+vi.mock('../../lib/wallpaper-engine', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../lib/wallpaper-engine')>()
+  return {
+    ...original,
+    wallpaperEngineCachedWebToken: () => 'scene-token',
+    ensureWallpaperEngineWebToken: async () => 'scene-token'
+  }
+})
 
 describe('氛围背景按需加载', () => {
   it('隐藏与节能背景不加载流体，流体加载期间仍显示霞光，隐藏后移除场景', async () => {
@@ -99,6 +108,35 @@ describe('自定义应用背景', () => {
     useBackgroundStore.setState({ kind: 'fluid', fluidPalette: 'custom', fluidColors: ['#111111', '#222222', '#333333'] })
     flags.bgFluidMotion = false
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('--ambient-1:#111111')
+    backgroundState.current = null
+  })
+})
+
+describe('Wallpaper Engine 背景', () => {
+  it('场景型渲染隔离遥控页并垫一张封面，应用型只显示封面', () => {
+    const useBackgroundStore = { setState: (patch: Record<string, unknown>) => { backgroundState.current = { ...backgroundState.current, ...patch } } }
+    const scene = { id: '3503864903', title: '场景', type: 'scene' as const, hasPreview: true }
+    useBackgroundStore.setState({ kind: 'wallpaper', wallpaper: scene })
+
+    const html = renderToStaticMarkup(<AmbientBackground />)
+    expect(html).toContain('/we-scene/scene-token/host?id=3503864903')
+    expect(html).toContain('sandbox="allow-scripts allow-same-origin"')
+    // 加载期间与渲染失败时都停在封面上。
+    expect(html).toContain('/api/wallpaper-engine/preview?id=3503864903')
+
+    useBackgroundStore.setState({ wallpaper: { ...scene, id: '42', type: 'application' } })
+    const application = renderToStaticMarkup(<AmbientBackground />)
+    expect(application).not.toContain('/we-scene/')
+    expect(application).toContain('/api/wallpaper-engine/preview?id=42')
+
+    // 画质与脚本在挂载时传入遥控页；帧率等其余选项在加载后经 postMessage 生效。
+    useBackgroundStore.setState({
+      wallpaper: scene,
+      wallpaperScene: { fps: 24, quality: 'smooth', scripts: false, audio: false, pointer: false }
+    })
+    const tuned = renderToStaticMarkup(<AmbientBackground />)
+    expect(tuned).toContain('dpr=0.75')
+    expect(tuned).toContain('scripts=0')
     backgroundState.current = null
   })
 })

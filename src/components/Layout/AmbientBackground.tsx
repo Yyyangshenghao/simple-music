@@ -8,7 +8,16 @@ import { solidBackgroundCss, useBackgroundStore } from '../../stores/background'
 import { useLightTheme } from '../../hooks/useLightTheme'
 import { gentleSpringValues } from '../../lib/motion-presets'
 import { api } from '../../lib/api'
+import {
+  ensureWallpaperEngineWebToken,
+  subscribeWallpaperEngineWebToken,
+  wallpaperEngineCachedWebToken,
+  wallpaperEnginePreviewUrl,
+  wallpaperEngineVideoUrl,
+  wallpaperEngineWebUrl
+} from '../../lib/wallpaper-engine'
 import { lumaStatsFromPixels, mediaTone, parseColor, scrimOpacity, type LumaStats } from '../../lib/theme-tone'
+import { SceneWallpaper } from './SceneWallpaper'
 import styles from './AmbientBackground.module.css'
 
 const LiquidEther = lazy(() => import('../Visualizer/LiquidEther'))
@@ -32,6 +41,22 @@ function mediaStyle(blur: number, tone: string): CSSProperties | undefined {
 /** 尚未测得亮度时按中等亮度处理：亮图不会先闪一下刺眼的原图，暗图也只多压一点。 */
 const UNKNOWN_LUMA: LumaStats = { mean: 0.5, high: 0.6, low: 0.4 }
 const VIDEO_SAMPLE_MS = 3000
+
+/** gamma 提亮只能用 SVG 滤镜表达；sRGB 插值与 CSS 遮罩的混合空间一致。 */
+function LiftFilter({ id, gamma }: { id: string; gamma: number }) {
+  if (gamma >= 1) return null
+  return (
+    <svg className={styles.filterDefs} aria-hidden="true">
+      <filter id={id} colorInterpolationFilters="sRGB">
+        <feComponentTransfer>
+          <feFuncR type="gamma" exponent={gamma} />
+          <feFuncG type="gamma" exponent={gamma} />
+          <feFuncB type="gamma" exponent={gamma} />
+        </feComponentTransfer>
+      </filter>
+    </svg>
+  )
+}
 
 /** 缩到 32×18 统计亮度；跨源被拒（canvas 污染）等异常时返回 null，保留上一次结果。 */
 function sampleLuma(source: HTMLImageElement | HTMLVideoElement): LumaStats | null {
@@ -114,12 +139,26 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   }, [playing, playSpring, fluidEnabled])
   useMotionValueEvent(playSpring, 'change', (v) => setPlayAmount(v))
 
-  // 图片/视频的亮度统计按文件记录，换文件时回到未知值重新测。
+  // 图片/视频/壁纸的亮度统计按文件记录，换文件时回到未知值重新测。
   const media = background.kind === 'image' ? background.image : background.kind === 'video' ? background.video : null
+  const wallpaper = background.kind === 'wallpaper' ? background.wallpaper : null
   const [mediaLuma, setMediaLuma] = useState<{ id: string; stats: LumaStats } | null>(null)
-  const mediaId = media?.id ?? ''
+  const mediaId = media?.id ?? (wallpaper ? `we-${wallpaper.id}` : '')
   const liftFilterId = `sm-bg-lift${useId().replace(/:/g, '')}`
   const reportLuma = useCallback((stats: LumaStats) => setMediaLuma({ id: mediaId, stats }), [mediaId])
+
+  // 网页/场景型壁纸的 iframe token 只随壁纸库接口下发；启动后直接用它作背景时补取一次。
+  const [webToken, setWebToken] = useState(() => wallpaperEngineCachedWebToken())
+  useEffect(() => {
+    if ((wallpaper?.type !== 'web' && wallpaper?.type !== 'scene') || webToken) return
+    let canceled = false
+    // 启动补取失败时停在静态兜底；设置页读取壁纸库成功后，订阅会补上 token。
+    const unsubscribe = subscribeWallpaperEngineWebToken((token) => { if (!canceled) setWebToken(token) })
+    void ensureWallpaperEngineWebToken()
+      .then((token) => { if (!canceled && token) setWebToken(token) })
+      .catch(() => { /* 等下一次壁纸库读取 */ })
+    return () => { canceled = true; unsubscribe() }
+  }, [wallpaper?.type, wallpaper?.id, webToken])
 
   // 隐藏时释放 WebGL 上下文与纹理，避免与歌词场景同时占用显存。
   if (hidden) return null
@@ -129,21 +168,50 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
     const tone = { scrim, filter: gamma < 1 ? `url(#${liftFilterId}) saturate(${saturate.toFixed(3)})` : '' }
     return (
       <div className={styles.background} data-background={media.kind}>
-        {/* gamma 提亮只能用 SVG 滤镜表达；sRGB 插值与 CSS 遮罩的混合空间一致 */}
-        {gamma < 1 && <svg className={styles.filterDefs} aria-hidden="true">
-          <filter id={liftFilterId} colorInterpolationFilters="sRGB">
-            <feComponentTransfer>
-              <feFuncR type="gamma" exponent={gamma} />
-              <feFuncG type="gamma" exponent={gamma} />
-              <feFuncB type="gamma" exponent={gamma} />
-            </feComponentTransfer>
-          </filter>
-        </svg>}
+        <LiftFilter id={liftFilterId} gamma={gamma} />
         {media.kind === 'image'
           ? <img className={styles.media} style={mediaStyle(background.mediaBlur, tone.filter)} src={backgroundFileUrl(media.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false}
             onLoad={(event) => { const next = sampleLuma(event.currentTarget); if (next) reportLuma(next) }} />
           : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} onLuma={reportLuma} />}
         <div className={styles.mediaDim} style={{ opacity: tone.scrim }} aria-hidden="true" />
+      </div>
+    )
+  }
+
+  if (wallpaper) {
+    const { scrim, gamma, saturate } = mediaTone(mediaLuma?.id === mediaId ? mediaLuma.stats : UNKNOWN_LUMA, light, background.mediaDim)
+    const tone = { filter: gamma < 1 ? `url(#${liftFilterId}) saturate(${saturate.toFixed(3)})` : '' }
+    const frameStyle = mediaStyle(background.mediaBlur, tone.filter)
+    return (
+      <div className={styles.background} data-background="wallpaper">
+        <LiftFilter id={liftFilterId} gamma={gamma} />
+        {wallpaper.type === 'video'
+          ? <VideoBackground src={wallpaperEngineVideoUrl(wallpaper.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} onLuma={reportLuma} />
+          : wallpaper.type === 'web'
+            // 网页型壁纸整页在 iframe 里运行；token 放在路径段里，同目录资源才能一起加载。
+            // 沙箱只给脚本与自身源，不能导航顶层窗口或弹窗；声音由 server 注入的脚本静音。
+            ? webToken
+              ? <iframe className={styles.wallpaperFrame} style={frameStyle} src={wallpaperEngineWebUrl(wallpaper.id, webToken)} title="" aria-hidden="true" tabIndex={-1} sandbox="allow-scripts allow-same-origin" />
+              : <div className={styles.auroraFallback} aria-hidden="true" />
+            : wallpaper.type === 'scene'
+              // 场景型交给隔离的遥控页跑 WebWallGL；没有 token 或渲染失败时停在封面。
+              ? webToken
+                ? <SceneWallpaper
+                  id={wallpaper.id}
+                  token={webToken}
+                  paused={performanceMode === 'eco'}
+                  scene={background.wallpaperScene}
+                  previewUrl={wallpaper.hasPreview ? wallpaperEnginePreviewUrl(wallpaper.id) : null}
+                  style={frameStyle}
+                />
+                : wallpaper.hasPreview
+                  ? <img className={styles.media} style={frameStyle} src={wallpaperEnginePreviewUrl(wallpaper.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false} />
+                  : <div className={styles.auroraFallback} aria-hidden="true" />
+              : wallpaper.hasPreview
+                // 应用型是独立 exe，不能嵌入，只显示预览图。
+                ? <img className={styles.media} style={frameStyle} src={wallpaperEnginePreviewUrl(wallpaper.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false} />
+                : <div className={styles.auroraFallback} aria-hidden="true" />}
+        <div className={styles.mediaDim} style={{ opacity: scrim }} aria-hidden="true" />
       </div>
     )
   }

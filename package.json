@@ -28,7 +28,8 @@
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.14.0",
     "NeteaseCloudMusicApi": "^4.32.0",
-    "qrc-decoder": "1.0.2"
+    "qrc-decoder": "1.0.2",
+    "webwallgl": "^3.0.0"
   },
   "devDependencies": {
     "@react-three/fiber": "^8.17.0",
