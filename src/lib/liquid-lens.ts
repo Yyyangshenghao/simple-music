@@ -15,6 +15,8 @@ export interface LensFrame {
   /** 边缘斜面宽度与最大折射偏移，CSS px。 */
   bezel: number
   depth: number
+  /** 边缘镜面高光强度，0 为不加（由 CSS 负责高光时）。 */
+  rim?: number
 }
 
 /** 由透镜的布局尺寸与缩放算出可见矩形；缩放以透镜中心为原点。 */
@@ -42,6 +44,7 @@ uniform vec2 uSize;
 uniform float uMagnify;
 uniform float uBezel;
 uniform float uDepth;
+uniform float uRim;
 
 vec4 tap(vec2 p) {
   vec2 uv = (uOrigin + p) / uStripSize;
@@ -69,7 +72,11 @@ void main() {
   float t = clamp(-d / uBezel, 0.0, 1.0);
   float bend = uDepth * (1.0 - smoothstep(0.0, 1.0, t));
   vec2 base = c + p / uMagnify;
-  gl_FragColor = tap(base - n * bend);
+  vec4 color = tap(base - n * bend);
+  // 斜面镜面高光：越靠边越亮，左上迎光、右下有弱反光。
+  float facing = dot(n, normalize(vec2(-0.6, -0.8)));
+  float glint = uRim * pow(1.0 - t, 3.0) * (0.25 + 0.75 * max(facing, 0.0) + 0.3 * max(-facing, 0.0));
+  gl_FragColor = color + vec4(glint) * (1.0 - color.a);
 }`
 
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
@@ -116,7 +123,7 @@ export class LiquidLensRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
-    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth']
+    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth', 'uRim']
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]))
     return new LiquidLensRenderer(gl, program, texture, uniforms)
   }
@@ -149,6 +156,7 @@ export class LiquidLensRenderer {
     gl.uniform1f(u.uMagnify, frame.magnify)
     gl.uniform1f(u.uBezel, frame.bezel)
     gl.uniform1f(u.uDepth, frame.depth)
+    gl.uniform1f(u.uRim, frame.rim ?? 0)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
   }
 }
@@ -168,10 +176,10 @@ function loadSvg(svg: SVGSVGElement, width: number, height: number, color: strin
 }
 
 /**
- * 把标签条上每个按钮的图标与文字按真实布局画进画布（统一用 color 着色），坐标与 offsetLeft 同系。
+ * 把容器内各条目的图标与末尾文字按真实布局画进画布（统一用 color 着色），坐标为容器内容区坐标。
  * scale 为贴图相对 CSS 的倍率，透镜放大后仍保持清晰。
  */
-export async function rasterizeTabStrip(root: HTMLElement, buttons: HTMLElement[], color: string, scale: number) {
+export async function rasterizeContent(root: HTMLElement, entries: HTMLElement[], color: string, scale: number) {
   const width = root.scrollWidth
   const height = root.clientHeight
   const canvas = document.createElement('canvas')
@@ -186,7 +194,7 @@ export async function rasterizeTabStrip(root: HTMLElement, buttons: HTMLElement[
   ctx.fillStyle = color
   ctx.textBaseline = 'middle'
   const icons: Promise<void>[] = []
-  for (const button of buttons) {
+  for (const button of entries) {
     const svg = button.querySelector('svg')
     if (svg) {
       const rect = svg.getBoundingClientRect()

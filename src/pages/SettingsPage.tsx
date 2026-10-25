@@ -394,7 +394,7 @@ const MOTION_EFFECTS: EffectItem[] = [
 ]
 
 const CONTROL_EFFECTS: EffectItem[] = [
-  { key: 'tapFeedbackMotion', label: '按压回弹', hint: '按钮和卡片按下时轻微缩小，松开回弹；关闭后按下没有缩放。' },
+  { key: 'tapFeedbackMotion', label: '按压回弹', hint: '按钮和卡片按下时轻微缩小，松开回弹；播放键按下浮起成流体玻璃透镜。关闭后按下没有缩放。' },
   { key: 'hoverLiftMotion', label: '悬停浮起', hint: '卡片悬停上浮、播放栏封面放大、播放控件图标轻移；关闭后悬停只改颜色。' },
   { key: 'toggleMotion', label: '开关与选项', hint: '开关滑块拉伸回弹、分段选择的果冻底块、主题图标切换、勾选框与平台切换面板。' },
   { key: 'indicatorMotion', label: '标签指示条', hint: '顶栏、我的库标签和设置目录的指示条滑到新位置；关闭后直接跳到位。' },
