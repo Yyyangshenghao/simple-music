@@ -55,6 +55,32 @@ describe('镜台路径与取景', () => {
     expect(cameraAt(-1, 3, 4, 2, 1, true)).toEqual(shotPose(0, 2, 0.75))
   })
 
+  it('有逐句时长时提前起飞，跨换句逐帧连续、无跳变，落位后回正', () => {
+    const starts = [0, 4, 7.5, 8.3, 12, 16]
+    const lineSec = (i: number) => (starts[i + 1] ?? 0) - starts[i]
+    const fit = () => 0
+    const poseAtTime = (t: number) => {
+      let i = 0
+      while (i + 1 < starts.length && starts[i + 1] <= t) i++
+      return cameraAt(i, t - starts[i], Math.max(1, lineSec(i)), 4, 1, true, fit, lineSec)
+    }
+    // 换句前 0.3 秒镜头已经离开上一句的取景。
+    expect(dist(poseAtTime(3.7).position, shotPose(0, 4, 3.7 / 4).position)).toBeGreaterThan(0.01)
+    // 60fps 采样：相邻帧位移与视线变化都很小（含 0.8 秒的短句）。
+    let maxStep = 0
+    let maxLook = 0
+    let prev = poseAtTime(0)
+    for (let t = 1 / 60; t < 15; t += 1 / 60) {
+      const pose = poseAtTime(t)
+      maxStep = Math.max(maxStep, dist(pose.position, prev.position))
+      maxLook = Math.max(maxLook, dist(pose.target, prev.target))
+      prev = pose
+    }
+    expect(maxStep).toBeLessThan(0.45)
+    expect(maxLook).toBeLessThan(0.45)
+    expect(poseAtTime(14).roll ?? 0).toBe(0)
+  })
+
   it('逐字揭示按字的右缘插值；涟漪扩散后消失', () => {
     const edges = [0.2, 0.5, 1]
     expect(revealFraction(edges, 0)).toBe(0)

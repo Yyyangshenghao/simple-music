@@ -114,8 +114,9 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     order: 5,
     tuning: [
       { key: 'ambience', type: 'select', label: '场景氛围', options: [{ value: 'quiet', label: '简洁' }, { value: 'water', label: '水镜' }, { value: 'full', label: '丰富' }], defaultValue: 'full' },
+      { key: 'font', type: 'select', label: '字体', options: [{ value: 'follow', label: '跟随歌词字体' }, { value: 'serif', label: '宋体' }], defaultValue: 'follow' },
     ],
-    quick: ['ambience'],
+    quick: ['ambience', 'font'],
     preview: 'still',
     darkStage: true,
     opaque: true,
@@ -139,7 +140,7 @@ export const FIXED_LYRIC_TUNING: Partial<Record<LyricStyleId, Record<string, Tun
   fume: { zoom: 1, float: 1, serif: true },
   tempera: { camera: 1, echo: true },
   sonnet: { camera: 1, hud: true, glitch: true },
-  diorama: { distance: 1, serif: true, ripples: true, dust: true },
+  diorama: { distance: 1, ripples: true, dust: true },
 }
 
 /** 合并后的玩法只控制有意义的组合；旧的细节参数不再干预演出。 */

@@ -9,7 +9,7 @@ const fields: TuningField[] = [
 
 describe('样式参数声明', () => {
   it('只留下有意义的玩法，固定演出细节不再受旧参数影响', () => {
-    expect(LYRIC_STYLES.reduce((sum, style) => sum + style.tuning.length, 0)).toBe(15)
+    expect(LYRIC_STYLES.reduce((sum, style) => sum + style.tuning.length, 0)).toBe(16)
     expect(lyricStyleInfo('stage3d').label).toBe('粒光')
     expect(resolveStyleTuning('pop', { camera: false }).camera).toBe(true)
     expect(resolveStyleTuning('partita', { semantic: false }).semantic).toBe(true)
@@ -20,6 +20,8 @@ describe('样式参数声明', () => {
     expect(resolveStyleTuning('sonnet', { punch: 0, geometry: false })).toMatchObject({ glitch: false, hud: false })
     expect(resolveStyleTuning('diorama', { ambience: 'quiet' })).toMatchObject({ ripples: false, dust: false })
     expect(resolveStyleTuning('diorama', { ambience: 'water' })).toMatchObject({ ripples: true, dust: false })
+    expect(resolveStyleTuning('diorama', {})).toMatchObject({ font: 'follow' })
+    expect(resolveStyleTuning('diorama', { font: 'serif' })).toMatchObject({ font: 'serif' })
   })
   it('缺失或非法值回到默认，数值夹在范围内', () => {
     expect(resolveTuning(fields, undefined)).toEqual({ speed: 1, glow: true, layout: 'a' })
