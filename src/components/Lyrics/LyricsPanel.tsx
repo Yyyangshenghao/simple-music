@@ -180,10 +180,9 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 }
 
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
-  const reducedMotion = !useMotion('smoothScrollMotion')
+  // 跟随当前行的滚动属于换句的一部分，由「歌词换句动画」统一控制。
+  const reducedMotion = !useMotion('lyricsLineMotion')
   const coverFlight = useMotion('pageTransitionMotion')
-  const lineMotionRef = useRef(true)
-  lineMotionRef.current = useMotion('lyricsLineMotion')
   // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新开关。
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
@@ -297,7 +296,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     const view = container.clientHeight
     const from = container.scrollTop
     const top = el.offsetTop - view / 2 + el.clientHeight / 2
-    if (!natural || reducedMotionRef.current || !lineMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
+    if (!natural || reducedMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
       for (const anim of anims.values()) anim.finish()
       anims.clear()
       scrollToLine(index, 'smooth')

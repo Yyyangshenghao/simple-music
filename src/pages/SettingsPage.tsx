@@ -374,7 +374,7 @@ type EffectItem = { key: PreviewEffect; label: string; hint: string }
 
 const MOTION_EFFECTS: EffectItem[] = [
   { key: 'pageTransitionMotion', label: '页面转场', hint: '切换页面、弹出菜单与面板、列表滚动入场和封面飞行时的过渡；关闭后直接切换。' },
-  { key: 'smoothScrollMotion', label: '平滑滚动', hint: '歌词跟随当前行、点击目录跳转等自动滚动；关闭后直接跳到目标位置。' },
+  { key: 'smoothScrollMotion', label: '平滑滚动', hint: '点击设置目录、切换歌手页标签、翻动卡片栏等页面跳转时平滑滚过去；关闭后直接跳到目标位置。歌词跟随在「歌词换句动画」里。' },
   { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
   { key: 'cardTiltEffect', label: '卡片倾斜', hint: '歌单与推荐卡片随鼠标轻微倾斜；关闭后保留按钮与卡片的基本悬停、按压反馈。' },
   { key: 'cardSpotlightEffect', label: '卡片跟手光斑', hint: '光斑沿卡片表面跟随鼠标，可独立于倾斜启用' },
@@ -426,7 +426,7 @@ function ControlMotionGroup() {
 
 const LYRICS_EFFECTS: EffectItem[] = [
   { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画' },
-  { key: 'lyricsLineMotion', label: '歌词换句动画', hint: '换句时的淡入淡出、立体歌词的行间滚动与歌词样式切换过渡；关闭后直接换句。' },
+  { key: 'lyricsLineMotion', label: '歌词换句动画', hint: '换句时发生的一切：歌词列表滚到新的一行、当前行亮起与其它行淡化、立体歌词与桌面歌词的换行滚动、歌词样式切换过渡；关闭后直接换句。' },
 ]
 
 const BACKGROUND_EFFECTS: EffectItem[] = [

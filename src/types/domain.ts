@@ -239,9 +239,9 @@ export interface PerformanceFlags {
   dragMotion: boolean
   /** 红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出、搜索框展开。 */
   iconMotion: boolean
-  /** 歌词跟随、页内跳转等平滑滚动；关闭后直接跳到目标位置。 */
+  /** 设置目录、歌手页标签、卡片栏等页面跳转的平滑滚动；关闭后直接跳到目标位置。 */
   smoothScrollMotion: boolean
-  /** 歌词换句淡入淡出与歌词样式切换过渡；关闭后直接换句。 */
+  /** 换句时的一切：歌词列表跟随滚动、换句淡入淡出、立体与桌面歌词换行、样式切换过渡；关闭后直接换句。 */
   lyricsLineMotion: boolean
   /** 简介、帮助说明的逐字显现；关闭后直接渲染完整文本。 */
   textRevealMotion: boolean
