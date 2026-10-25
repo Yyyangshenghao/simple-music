@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../../stores/lyrics'
 import { usePlayerStore } from '../../../stores/player'
 import { useSettingsStore } from '../../../stores/settings'
-import { useReducedMotion } from '../../../hooks/useReducedMotion'
+import { useMotion } from '../../../hooks/useMotion'
 import { readLyricFrame, subscribeLyricFrames } from '../../../lib/lyric-frame-clock'
 import { createOnsetDetector } from '../../../lib/lyric-beat'
 import { fitLyricTransition, lyricLineDwellSec } from '../../../lib/lyric-tempo'
@@ -38,7 +38,7 @@ export function useStyleLine(preview: boolean): StyleLine {
   const translations = useLyricsStore(state => state.translation)
   const showTranslation = useSettingsStore(state => state.lyricsShowTranslation)
   const wordMotion = useSettingsStore(state => state.performance.lyricsWordMotion)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('lyricsLineMotion')
   const current = index >= 0 ? lines[index] : undefined
   const wordLine = index >= 0 ? wordLines[index] : undefined
   const dwellSec = lyricLineDwellSec(lines, index)
@@ -52,7 +52,7 @@ export function useStyleLine(preview: boolean): StyleLine {
     dwellSec,
     words,
     translation: !preview && showTranslation && index >= 0 ? translations[index]?.text?.trim() ?? '' : '',
-    animated: wordMotion && !reducedMotion,
+    animated: wordMotion,
     switchSec: reducedMotion ? 0 : fitLyricTransition(0.5, dwellSec),
   }
 }

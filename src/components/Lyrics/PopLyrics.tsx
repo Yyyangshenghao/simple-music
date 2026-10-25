@@ -4,7 +4,7 @@ import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { useSettingsStore } from '../../stores/settings'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { subscribeLyricFrames } from '../../lib/lyric-frame-clock'
 import { fitLyricTransition, lyricLineDwellSec } from '../../lib/lyric-tempo'
 import { buildPopWords, type PopWord } from '../../lib/pop-lyric-timing'
@@ -177,8 +177,8 @@ export function PopLyrics({ preview = false }: { preview?: boolean } = {}) {
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion)
   const fontScale = useSettingsStore((s) => s.lyricsFontScale)
-  const reducedMotion = useReducedMotion()
-  const animated = wordMotion && !reducedMotion
+  const reducedMotion = !useMotion('lyricsLineMotion')
+  const animated = wordMotion
 
   const current = currentIndex >= 0 ? lines[currentIndex] : undefined
   const next = lines[currentIndex + 1]

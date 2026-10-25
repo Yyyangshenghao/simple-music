@@ -138,6 +138,3 @@
   .avatar { width: 112px; height: 112px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .descriptionPreview, .descriptionFull { transition: none; }
-}

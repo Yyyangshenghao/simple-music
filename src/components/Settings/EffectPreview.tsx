@@ -4,7 +4,19 @@ import styles from './EffectPreview.module.css'
 
 export type PreviewEffect = Extract<keyof PerformanceFlags,
   'textRevealMotion' | 'lyricsWordMotion' | 'cardTiltEffect' | 'cardSpotlightEffect'
-  | 'gradientTextMotion' | 'audioGlowEffect' | 'bgFluidMotion' | 'bgPointerMotion'>
+  | 'gradientTextMotion' | 'audioGlowEffect' | 'bgFluidMotion' | 'bgPointerMotion'
+  | 'pageTransitionMotion' | 'controlMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'>
+
+const LYRIC_LINES = ['故事的小黄花', '从出生那年就飘着', '童年的荡秋千', '随记忆一直晃到现在']
+
+function MiniPage({ className }: { className: string }) {
+  return (
+    <span className={`${styles.page} ${className}`}>
+      <i className={styles.pageTitle} />
+      <span className={styles.pageGrid}><i /><i /><i /></span>
+    </span>
+  )
+}
 
 const REVEAL_TEXT = '简介和说明逐字淡入'
 
@@ -36,6 +48,17 @@ export function EffectPreview({ effect }: { effect: PreviewEffect }) {
         <span className={styles.cover} />
         <span className={styles.lines}><i /><i /></span>
         <span className={styles.play} />
+      </span>}
+      {effect === 'pageTransitionMotion' && <span className={styles.pages}>
+        <MiniPage className={styles.pageOut} />
+        <MiniPage className={styles.pageIn} />
+      </span>}
+      {effect === 'controlMotion' && <span className={styles.toggle}><span className={styles.toggleThumb} /></span>}
+      {effect === 'smoothScrollMotion' && <span className={styles.scrollView}>
+        <span className={styles.scrollList}>{Array.from({ length: 8 }, (_, index) => <i key={index} data-target={index === 5 || undefined} />)}</span>
+      </span>}
+      {effect === 'lyricsLineMotion' && <span className={styles.lineView}>
+        <span className={styles.lineList}>{LYRIC_LINES.map((text, index) => <span key={text} style={{ '--i': index } as CSSProperties}>{text}</span>)}</span>
       </span>}
       {(effect === 'bgFluidMotion' || effect === 'bgPointerMotion') && <span className={styles.fluid} data-follow={effect === 'bgPointerMotion'}>
         <span className={styles.blobA} />

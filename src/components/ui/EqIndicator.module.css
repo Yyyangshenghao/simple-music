@@ -28,8 +28,4 @@
   50%      { transform: scaleY(1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .eq i { animation: none; }
-}
-
-:global([data-reduce-motion]) .eq i { animation: none; }
+:global([data-control-motion-off]) .eq i { animation: none; }

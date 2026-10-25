@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import styles from './SearchHistory.module.css'
 
 const RECENT_COUNT = 10
@@ -12,7 +12,7 @@ interface SearchHistoryProps {
 }
 
 export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHistoryProps) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('smoothScrollMotion')
   const [visibleCount, setVisibleCount] = useState(RECENT_COUNT)
   const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)

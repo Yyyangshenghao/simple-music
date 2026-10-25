@@ -51,6 +51,3 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .track, .thumb { transition-duration: 1ms; }
-}

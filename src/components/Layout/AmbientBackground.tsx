@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useSpring, useMotionValueEvent } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useAmbientStore } from '../../stores/ambient'
 import { useVisualStore } from '../../stores/visual'
 import { useSettingsStore } from '../../stores/settings'
@@ -103,9 +102,8 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
   const bgPointerMotion = useSettingsStore((s) => s.performance.bgPointerMotion)
-  const reducedMotion = useReducedMotion()
   const playing = usePlayerStore((s) => s.status === 'playing')
-  const fluidEnabled = !hidden && background.kind === 'fluid' && bgFluidMotion && !reducedMotion && performanceMode !== 'eco'
+  const fluidEnabled = !hidden && background.kind === 'fluid' && bgFluidMotion && performanceMode !== 'eco'
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
   const playSpring = useSpring(playing ? 1 : 0, gentleSpringValues)
@@ -144,7 +142,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
         {media.kind === 'image'
           ? <img className={styles.media} style={mediaStyle(background.mediaBlur, tone.filter)} src={backgroundFileUrl(media.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false}
             onLoad={(event) => { const next = sampleLuma(event.currentTarget); if (next) reportLuma(next) }} />
-          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={reducedMotion || performanceMode === 'eco'} onLuma={reportLuma} />}
+          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} onLuma={reportLuma} />}
         <div className={styles.mediaDim} style={{ opacity: tone.scrim }} aria-hidden="true" />
       </div>
     )

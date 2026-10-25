@@ -36,6 +36,7 @@ const h = vi.hoisted(() => {
   }
 })
 
+vi.mock('../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useControlFeedback: () => <T,>(t: T) => t }))
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useCallback: (callback: unknown) => callback,

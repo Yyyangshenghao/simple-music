@@ -30,4 +30,3 @@
 
 @container (max-width: 800px) { .carousel { grid-auto-columns: calc((100% - 16px) / 2); } .recommendationCard { height: 340px; } }
 @container (max-width: 480px) { .carousel { grid-auto-columns: 100%; } .recommendationCard { height: 320px; } }
-@media (prefers-reduced-motion: reduce) { .chartCard, .recommendationCard { transition: none; } }

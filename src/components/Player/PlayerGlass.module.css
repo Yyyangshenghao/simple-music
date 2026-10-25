@@ -92,11 +92,6 @@
   transition-duration: 0.3s;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dock,
-  .dock .panel { animation: none; }
-}
-
 /* 沉浸模式:淡出下沉，页面视口保持不变 */
 .dock.hidden {
   transform: translateY(10px);

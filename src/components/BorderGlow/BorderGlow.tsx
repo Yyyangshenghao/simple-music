@@ -1,5 +1,4 @@
 import { useRef, useCallback, useEffect, type ReactNode } from 'react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useSettingsStore } from '../../stores/settings'
 import './BorderGlow.css'
 
@@ -68,8 +67,7 @@ export function BorderGlow({
   const activeRef = useRef(false)
   // 边缘辉光同属“卡片跟手光斑”，关闭或系统减少动态时不跟随光标。
   const spotlightEffect = useSettingsStore((s) => s.performance.cardSpotlightEffect)
-  const reducedMotion = useReducedMotion()
-  const glowEnabled = spotlightEffect && !reducedMotion
+  const glowEnabled = spotlightEffect
 
   const getCenter = useCallback((el: HTMLDivElement) => {
     const { width, height } = el.getBoundingClientRect()

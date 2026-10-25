@@ -23,6 +23,7 @@ import { springBouncy, springGentle, springSnappy, tapScale } from '../../lib/mo
 import type { Simulation } from 'd3-force'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPickerOverlay.module.css'
+import { useControlFeedback, usePageTransition } from '../../hooks/useMotion'
 
 interface ArtistPickerOverlayProps {
   /** 重开编辑时预置已选歌手(保留选中态,曲库池等到确认时由 store 决定是否复用)。 */
@@ -89,13 +90,14 @@ interface ArtistGraphNodeContentProps {
  * 越选越卡的根源之一。
  */
 const ArtistGraphNodeContent = memo(function ArtistGraphNodeContent({ meta, disabled, onToggle }: ArtistGraphNodeContentProps) {
+  const pageTransition = usePageTransition()
   // 相似歌手节点要有"从父头像里生出来"的观感:出生位置紧贴父节点中心(见 growChildren 的小抖动),
   // 缩放从接近 0 起步 + 低阻尼 Q 弹弹簧带明显过冲;种子节点没有"出生自谁"的语义,保持利落入场。
   return (
     <motion.div
       initial={{ opacity: 0, scale: meta.parentId ? 0.05 : 0.3 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={meta.parentId ? { ...springBouncy, delay: meta.spawnIndex * 0.05 } : springSnappy}
+      transition={pageTransition(meta.parentId ? { ...springBouncy, delay: meta.spawnIndex * 0.05 } : springSnappy)}
     >
       <ArtistPill
         artist={meta.artist}
@@ -119,6 +121,8 @@ const ArtistGraphNodeContent = memo(function ArtistGraphNodeContent({ meta, disa
  * 只管结构性数据(选中/展开/父子关系),新增/移除节点这类结构变化才触发一次渲染去挂载/卸载 DOM。
  */
 export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClose }: ArtistPickerOverlayProps) {
+  const pageTransition = usePageTransition()
+  const tap = useControlFeedback()
   const sourceSignature = sources.join(',')
 
   const suggestions = useRoamStore((s) => s.suggestions)
@@ -440,14 +444,14 @@ export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClo
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      transition={springGentle}
+      transition={pageTransition(springGentle)}
     >
       <div className={styles.header}>
         <motion.button
           className={`${styles.closeBtn} no-drag`}
           onClick={onClose}
           aria-label="关闭选歌手"
-          whileTap={tapScale}
+          whileTap={tap(tapScale)}
           transition={springSnappy}
         >
           <CloseIcon size={16} />
@@ -536,7 +540,7 @@ export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClo
         onClick={recenterCanvas}
         aria-label="回到节点中心"
         title="回到节点中心"
-        whileTap={tapScale}
+        whileTap={tap(tapScale)}
         transition={springSnappy}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -568,7 +572,7 @@ export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClo
           className={`${styles.confirmBtn} no-drag`}
           disabled={selectedArtists.length === 0}
           onClick={confirm}
-          whileTap={tapScale}
+          whileTap={tap(tapScale)}
           transition={springSnappy}
         >
           确认,共 {selectedArtists.length} 位 →

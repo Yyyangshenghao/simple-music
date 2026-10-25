@@ -15,6 +15,7 @@ import styles from './PlaylistPreviewModal.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
+import { usePageTransition } from '../../hooks/useMotion'
 
 interface PlaylistPreviewModalProps {
   playlist: Playlist | null
@@ -111,6 +112,7 @@ function LazyPreviewPanel({ playlist, onClose }: { playlist: Playlist; onClose()
 }
 
 function PreviewPanelView({ playlist, onClose, data }: { playlist: Playlist; onClose(): void; data: PreviewData }) {
+  const pageTransition = usePageTransition()
   const { tracks, total, loading, loadingMore, error, moreError, starting } = data
   const displayCover = playlist.cover || tracks.find((track) => track?.cover)?.cover || ''
 
@@ -131,14 +133,14 @@ function PreviewPanelView({ playlist, onClose, data }: { playlist: Playlist; onC
       initial={{ opacity: 0, y: 24, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 24, scale: 0.96 }}
-      transition={springGentle}
+      transition={pageTransition(springGentle)}
       onClick={(e) => e.stopPropagation()}
     >
       <div className={styles.header}>
         <motion.div className={styles.cover}
           layoutId={playlist.type === 'album' ? `album-cover-${playlist.source}-${String(playlist.id)}` : `explore-cover-${String(playlist.id)}`}
           layoutCrossfade={false}
-          transition={playlist.type === 'album' ? albumCoverTransition : springGentle}
+          transition={pageTransition(playlist.type === 'album' ? albumCoverTransition : springGentle)}
           style={{ borderRadius: 12 }}>
           {displayCover
             ? <img src={sizedImage(displayCover, 176)} alt="" />

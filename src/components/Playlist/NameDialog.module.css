@@ -67,10 +67,6 @@
 .spinner { width: 13px; height: 13px; border: 1.6px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin 760ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .dialog[open], .dialog::backdrop, .spinner { animation: none; }
-}
-
 .header + .subtitle { margin: -14px 0 20px; color: var(--sm-text-secondary); font-size: 12.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 加入歌单：选择列表 ---- */
@@ -120,7 +116,6 @@
 
 .picker .actions { margin-top: 18px; }
 
-@media (prefers-reduced-motion: reduce) { .skeletonRow { animation: none; } }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* 应用歌单 / 平台歌单切换：分段胶囊，选中项抬起。 */
@@ -140,3 +135,7 @@
 .lock:disabled { opacity: .4; cursor: default; }
 .lock:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sm-accent) 45%, transparent); }
 .lock[aria-pressed='true'] { background: color-mix(in srgb, var(--sm-accent) 16%, transparent); color: var(--sm-accent); }
+
+/* 关闭「页面转场」时弹窗直接出现。 */
+:global([data-page-motion-off]) .dialog[open],
+:global([data-page-motion-off]) .dialog::backdrop { animation: none; }

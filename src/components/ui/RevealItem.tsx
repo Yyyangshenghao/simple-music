@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { motion, useInView } from 'motion/react'
 import { fadeRise, springGentle } from '../../lib/motion-presets'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 
 interface RevealItemProps {
   children: ReactNode
@@ -16,7 +16,7 @@ interface RevealItemProps {
 /** 进入视口时淡入上移一次（fadeRise + springGentle），配合 delay 做序列入场。 */
 export function RevealItem({ children, delay = 0, className, disabled = false }: RevealItemProps) {
   const ref = useRef<HTMLDivElement>(null)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
   const immediate = disabled || reducedMotion
   const inView = useInView(ref, { amount: 0.1, once: true })
 

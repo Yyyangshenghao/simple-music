@@ -127,3 +127,6 @@
   /* 光晕只属于主歌词行 */
   text-shadow: none;
 }
+
+/* 关闭「歌词换句动画」时直接到位。 */
+:global([data-lyrics-line-motion-off]) :is(.line) { transition: none !important; animation: none !important; }

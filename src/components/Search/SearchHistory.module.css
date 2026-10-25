@@ -92,6 +92,3 @@
   .section .remove { opacity: 1; pointer-events: auto; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bubbleReveal { animation: none; }
-}

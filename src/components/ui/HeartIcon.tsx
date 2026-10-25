@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useAnimate } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { heartBeatMinScale, heartBeatTransition, heartBurstTransition } from '../../lib/motion-presets'
 import styles from './HeartIcon.module.css'
 
@@ -30,7 +30,7 @@ const PARTICLES = Array.from({ length: 16 }, (_, i) => {
  * 首次挂载与非点击引起的变化(切歌、异步核对)不播。供 PlayerBar / TrackRow 等红心按钮复用。
  */
 export function HeartIcon({ filled, size = 17 }: { filled: boolean; size?: number }) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   const [scope, animate] = useAnimate<SVGGElement>()
   const clickedAt = useRef(-Infinity)
   const [prevFilled, setPrevFilled] = useState(filled)

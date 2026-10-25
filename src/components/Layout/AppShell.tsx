@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { pageTransition } from '../../lib/motion-presets'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import styles from './AppShell.module.css'
 import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
@@ -30,7 +30,7 @@ const pageVariants: Variants = {
 }
 
 export function AppShell() {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
   const view = useNavigationStore((s) => s.currentView)
   const lastAction = useNavigationStore((s) => s.lastAction)
   const revision = useNavigationStore((s) => s.navigationRevision)

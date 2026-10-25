@@ -5,6 +5,7 @@ import { springSnappy } from '../../lib/motion-presets'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from './brand-logos'
 import styles from './SourceAvatar.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { usePageTransition } from '../../hooks/useMotion'
 
 interface SourceAvatarProps {
   source: MusicSource
@@ -23,6 +24,7 @@ function BrandBadge({ source }: { source: MusicSource }) {
 
 /** 顶栏头像：按当前音源显示真实头像（已登录）/ 通用图标（未登录），叠加品牌角标与光晕，切源时弹入。 */
 export function SourceAvatar({ source, avatarUrl }: SourceAvatarProps) {
+  const pageTransition = usePageTransition()
   const brand = SOURCE_BRAND[source]
   return (
     <motion.span
@@ -31,7 +33,7 @@ export function SourceAvatar({ source, avatarUrl }: SourceAvatarProps) {
       style={{ '--brand-glow': brand.colorSoft } as React.CSSProperties}
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      transition={springSnappy}
+      transition={pageTransition(springSnappy)}
       title={brand.label}
     >
       {avatarUrl ? (

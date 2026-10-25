@@ -37,6 +37,7 @@ import { CollectionKindSwitch, type CollectionKind } from './CollectionKindSwitc
 import { LibraryShelf, ShelfGrid, ShelfMessage, ShelfRefreshButton, ShelfSkeleton, ShelfCreateButton } from './LibraryShelf'
 import { motion } from 'motion/react'
 import { pageTransition } from '../lib/motion-presets'
+import { usePageTransition } from '../hooks/useMotion'
 
 type SubTab = 'app-playlists' | 'playlists' | 'favorites' | 'recent' | 'offline' | 'local'
 
@@ -125,6 +126,7 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 })
 
 export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
+  const pageMotion = usePageTransition()
   const [selectedTab, setSelectedTab] = useState<SubTab>(readStoredTab())
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
@@ -160,7 +162,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
         />
       </div>
 
-      <motion.div key={tab} initial={{ opacity: 0.75 }} animate={{ opacity: 1 }} transition={pageTransition}>
+      <motion.div key={tab} initial={{ opacity: 0.75 }} animate={{ opacity: 1 }} transition={pageMotion(pageTransition)}>
       {tab === 'app-playlists' && <AppPlaylistsTab scrollRef={scrollRef} />}
 
       {tab === 'playlists' && (contentSource
@@ -190,6 +192,7 @@ function readStoredKind(): CollectionKind {
 
 /** 收藏：歌单与专辑二选一展示，选择跨会话记住；平台不支持专辑时只显示歌单。 */
 function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: ProviderId; albumsAvailable: boolean; scrollRef: RefObject<HTMLDivElement> }) {
+  const pageMotion = usePageTransition()
   const [stored, setStored] = useState(readStoredKind)
   const kind: CollectionKind = albumsAvailable ? stored : 'collected'
   function select(next: CollectionKind) {
@@ -199,7 +202,7 @@ function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: Provider
   return (
     <div className={styles.favorites}>
       {albumsAvailable && <CollectionKindSwitch value={kind} onChange={select} />}
-      <motion.div key={kind} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={pageTransition}>
+      <motion.div key={kind} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={pageMotion(pageTransition)}>
         <ProviderLibraryGrid mode={kind} source={source} scrollRef={scrollRef} />
       </motion.div>
     </div>

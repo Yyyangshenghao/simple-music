@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useAnimate } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
@@ -74,7 +74,7 @@ const DRAW_EASE = [0.22, 1, 0.36, 1] as const
  * 每次切换整枚图标还有一次轻微的按压回弹。
  */
 function PlayModeIcon({ mode }: { mode: PlayMode }) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   // 回弹作用在外层 span：svg 自身的 transform 留给按钮悬停放大，避免互相覆盖。
   const [scope, animate] = useAnimate<HTMLSpanElement>()
   const previous = useRef(mode)

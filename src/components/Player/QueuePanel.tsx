@@ -16,7 +16,7 @@ import { providerFor } from '../../providers/registry'
 import { qqRelatedSongId } from '../../lib/qq-related-identifiers'
 import { isProviderId } from '../../providers/types'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { useQueueDrag } from './useQueueDrag'
 import styles from './QueuePanel.module.css'
 
@@ -80,7 +80,9 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const listRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const slitRef = useRef<HTMLDivElement>(null)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
+  // 拖拽倾斜、抬升与碎纸属于控件手感，与列表补位过渡分开控制。
+  const dragStill = !useMotion('controlMotion')
   const display = useMemo(
     () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
     [playMode, queue.length, queueIndex, shuffleOrder]
@@ -159,7 +161,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
     return track ? `${track.source}:${String(track.id)}` : ''
   }
   const { drag, onRowPointerDown, rowShift, ghost, strips } = useQueueDrag({
-    panelRef, listRef, slitRef, total: display.indices.length, rowHeight: ROW_HEIGHT, reducedMotion,
+    panelRef, listRef, slitRef, total: display.indices.length, rowHeight: ROW_HEIGHT, reducedMotion: dragStill,
     canShred: (i) => display.indices[i] !== queueIndex,
     onMove: (from, to) => moveQueueItem(from, to, { from: keyAt(from), to: keyAt(to) }),
     onShred: (i) => removeQueueItem(display.indices[i], keyAt(i)),

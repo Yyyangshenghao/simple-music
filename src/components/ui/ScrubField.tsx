@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type PointerEvent } from 'react'
 import { animate, motion, useMotionTemplate, useMotionValue, useMotionValueEvent, useTransform } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { scrubFieldReturn } from '../../lib/motion-presets'
 import styles from './ScrubField.module.css'
 
@@ -43,7 +43,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  */
 export function ScrubField({ label, value, min, max, step, defaultValue, onChange, scale = 1, suffix = '', note, disabled }: ScrubFieldProps) {
   const id = useId()
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   const [dragging, setDragging] = useState(false)
   const [typing, setTyping] = useState(false)
   const display = useMotionValue(value)

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useSettingsStore } from '../../stores/settings'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { LYRIC_SOURCE_LABELS, LYRICS_TEST_SONGS, type LyricPrioritySource } from '../../types/lyrics-source'
 import { InfoButton } from '../ui/InfoButton'
 import styles from './AmllLyricsSettings.module.css'
@@ -16,7 +16,7 @@ export function AmllLyricsSettings() {
   const setEnabled = useSettingsStore(s => s.setLyricsAmllFallback)
   const kugouEnabled = useSettingsStore(s => s.lyricsKugouFallback)
   const setKugouEnabled = useSettingsStore(s => s.setLyricsKugouFallback)
-  const reduced = useReducedMotion()
+  const reduced = !useMotion('controlMotion')
   const [sample, setSample] = useState('sunny')
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(20)

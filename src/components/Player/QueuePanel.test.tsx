@@ -23,7 +23,7 @@ vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown
 vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: { qq: { enabled: false, auth: 'anonymous' } } }) }))
 vi.mock('../../stores/track-actions', () => ({ useTrackActionsStore: { getState: () => ({ toggleQuickAdd: h.quickAdd }) }, anchorOf: () => ({ x: 10, y: 20, width: 26, height: 26 }) }))
 vi.mock('./QueueDiscovery', () => ({ QueueDiscovery: () => null }))
-vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('./useQueueDrag', () => ({ useQueueDrag: () => ({ drag: null, onRowPointerDown: vi.fn(), rowShift: () => 0, ghost: null, strips: [] }) }))
 
 type NodeElement = ReactElement<{ children?: ReactNode; ariaLabel?: string; 'aria-label'?: string; onClick?: (event: unknown) => void; renderRow?: (index: number) => ReactNode }>

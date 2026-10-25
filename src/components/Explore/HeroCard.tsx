@@ -8,6 +8,7 @@ import styles from './HeroCard.module.css'
 import { sizedImage } from '../../lib/image-size'
 import type { MusicSource } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
+import { usePageTransition } from '../../hooks/useMotion'
 
 interface HeroCardProps {
   title: string
@@ -22,12 +23,13 @@ interface HeroCardProps {
 }
 
 export function HeroCard({ title, subtitle, cover, source, badge, layoutId, onClick }: HeroCardProps) {
+  const pageTransition = usePageTransition()
   const returning = useNavigationStore((state) => state.lastAction === 'pop')
   return (
     <TiltCard className={styles.wrap}>
       <BorderGlow borderRadius={16}>
         <button className={`${styles.card} no-drag`} onClick={onClick}>
-          <motion.div className={styles.coverWrap} layoutId={layoutId} layoutCrossfade={false} transition={returning ? coverReturnTransition : springGentle} style={{ borderRadius: 16 }}>
+          <motion.div className={styles.coverWrap} layoutId={layoutId} layoutCrossfade={false} transition={pageTransition(returning ? coverReturnTransition : springGentle)} style={{ borderRadius: 16 }}>
             {cover
               ? <img className={styles.cover} src={sizedImage(cover, 320)} alt="" loading="lazy" />
               : <div className={styles.coverFallback} />}

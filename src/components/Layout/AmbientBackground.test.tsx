@@ -4,11 +4,6 @@ import { AmbientBackground } from './AmbientBackground'
 
 const fluid = vi.hoisted(() => ({ loads: 0 }))
 const flags = vi.hoisted(() => ({ bgFluidMotion: false, bgPointerMotion: true, reduceTransparency: false, performanceMode: 'balanced' }))
-const motionPreference = vi.hoisted(() => ({ reduced: false }))
-
-vi.mock('../../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => motionPreference.reduced,
-}))
 
 vi.mock('../Visualizer/LiquidEther', () => {
   fluid.loads += 1
@@ -48,20 +43,18 @@ describe('氛围背景按需加载', () => {
     expect(renderToStaticMarkup(<AmbientBackground hidden />)).toBe('')
     flags.performanceMode = 'eco'
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
-    flags.performanceMode = 'balanced'
-    motionPreference.reduced = true
-    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
     await vi.dynamicImportSettled()
     expect(fluid.loads).toBe(0)
     expect(flags.bgFluidMotion).toBe(true)
 
-    motionPreference.reduced = false
+    flags.performanceMode = 'balanced'
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
     await vi.dynamicImportSettled()
     expect(fluid.loads).toBe(1)
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-testid="liquid-ether"')
-    motionPreference.reduced = true
+    flags.bgFluidMotion = false
     expect(renderToStaticMarkup(<AmbientBackground />)).not.toContain('data-testid="liquid-ether"')
+    flags.bgFluidMotion = true
     expect(renderToStaticMarkup(<AmbientBackground hidden />)).toBe('')
   })
 
@@ -69,7 +62,6 @@ describe('氛围背景按需加载', () => {
     flags.bgFluidMotion = true
     flags.reduceTransparency = true
     flags.performanceMode = 'balanced'
-    motionPreference.reduced = false
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-testid="liquid-ether"')
     flags.reduceTransparency = false
   })
@@ -78,7 +70,6 @@ describe('氛围背景按需加载', () => {
     flags.bgFluidMotion = true
     flags.reduceTransparency = false
     flags.performanceMode = 'balanced'
-    motionPreference.reduced = false
     flags.bgPointerMotion = false
     renderToStaticMarkup(<AmbientBackground />)
     await vi.dynamicImportSettled()

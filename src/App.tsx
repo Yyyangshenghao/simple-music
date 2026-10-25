@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { MotionConfig, MotionGlobalConfig } from 'motion/react'
-import { useReducedMotion } from './hooks/useReducedMotion'
+import { MotionConfig } from 'motion/react'
+import { useMotion } from './hooks/useMotion'
 import { lyricStyleInfo, resolveLyricsView } from './lib/lyric-style-catalog'
 import { useLyricStylesStore } from './stores/lyric-styles'
 import styles from './App.module.css'
@@ -42,23 +42,16 @@ const APPEARANCE_KEYS = [
 ] as const
 
 export default function App() {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
+  const controlMotion = useMotion('controlMotion')
+  const lyricsLineMotion = useMotion('lyricsLineMotion')
+  // 纯 CSS 的过渡按根节点属性分别停用，各开关互不牵连。
   useLayoutEffect(() => {
-    const previous = MotionGlobalConfig.skipAnimations
-    // MotionConfig 的策略只在 VisualElement 挂载时读取；全局策略让已挂载控件也即时生效。
-    MotionGlobalConfig.skipAnimations = reducedMotion
     const root = document.documentElement
-    root.toggleAttribute('data-reduce-motion', reducedMotion)
-    if (reducedMotion) {
-      for (const animation of document.getAnimations()) {
-        if (animation.timeline === document.timeline && animation.effect?.getComputedTiming().endTime !== Infinity) animation.finish()
-      }
-    }
-    return () => {
-      MotionGlobalConfig.skipAnimations = previous
-      root.removeAttribute('data-reduce-motion')
-    }
-  }, [reducedMotion])
+    root.toggleAttribute('data-page-motion-off', reducedMotion)
+    root.toggleAttribute('data-control-motion-off', !controlMotion)
+    root.toggleAttribute('data-lyrics-line-motion-off', !lyricsLineMotion)
+  }, [reducedMotion, controlMotion, lyricsLineMotion])
   const gameEnabled = useGameModeStore((s) => s.enabled)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)

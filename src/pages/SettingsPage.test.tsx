@@ -8,7 +8,6 @@ import { useWindowCloseStore } from '../stores/window-close'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
-const reducedMotion = vi.hoisted(() => ({ value: false }))
 vi.mock('../stores/window-close', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/window-close')>()
   const store = original.useWindowCloseStore
@@ -17,10 +16,6 @@ vi.mock('../stores/window-close', async (importOriginal) => {
     store
   ) }
 })
-vi.mock('../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => reducedMotion.value,
-  useSystemReducedMotion: () => reducedMotion.value,
-}))
 
 vi.mock('../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/settings')>()
@@ -68,7 +63,6 @@ const initialProviders = useProviderStore.getState()
 const initialWindowClose = useWindowCloseStore.getState()
 
 beforeEach(() => {
-  reducedMotion.value = false
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
   useVisualStore.setState((state) => ({ fx: { ...state.fx, desktopLyricsFontFamily: 'Helvetica Neue', desktopLyricsFontFamilyCjk: 'Songti SC' } }))
 })
@@ -206,18 +200,20 @@ function effectSwitch(html: string, label: string): string {
 }
 
 describe('动效设置的实际生效状态', () => {
-  it('减少动态开关可随时解除，其他动效保留选择并显示暂停原因', () => {
-    useSettingsStore.getState().setPerformance({ reduceMotion: true })
+  it('没有总开关；四项界面动效全关时，其它开关仍可独立切换且不显示暂停原因', () => {
+    useSettingsStore.getState().setPerformance({ pageTransitionMotion: false, controlMotion: false, smoothScrollMotion: false, lyricsLineMotion: false })
     const html = renderToStaticMarkup(<SettingsPage />)
-    expect(effectSwitch(html, '减少动态效果')).toContain('aria-checked="true"')
-    expect(effectSwitch(html, '减少动态效果')).not.toContain('disabled=')
+    expect(html).not.toContain('减少动态效果')
+    for (const label of ['页面转场', '控件动效', '平滑滚动', '歌词换句动画']) {
+      expect(effectSwitch(html, label)).toContain('aria-checked="false"')
+      expect(effectSwitch(html, label)).not.toContain('disabled=')
+    }
     for (const label of ['文字逐字显现', '歌词逐字高亮', '流体背景', '卡片倾斜', '音频辉光']) {
-      expect(effectSwitch(html, label)).toContain('disabled=""')
+      expect(effectSwitch(html, label)).not.toContain('disabled=')
       expect(effectSwitch(html, label)).toContain('aria-checked="true"')
     }
-    expect(html).toContain('已随减少动态效果暂停')
-    useSettingsStore.getState().setPerformance({ reduceMotion: false })
-    expect(effectSwitch(lyricsMarkup(), '歌词逐字高亮')).not.toContain('disabled=')
+    expect(html).not.toContain('已随减少动态效果暂停')
+    expect(html).not.toContain('已随系统暂停')
   })
   it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
     const html = visualMarkup()
@@ -225,15 +221,17 @@ describe('动效设置的实际生效状态', () => {
       expect(html).not.toMatch(new RegExp(`<h3[^>]*>${title}`))
     }
     const motion = html.slice(html.indexOf('id="settings-detail-motion"'), html.indexOf('id="settings-detail-game"'))
-    for (const label of ['文字逐字显现', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
+    for (const label of ['页面转场', '控件动效', '平滑滚动', '文字逐字显现', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
     expect(motion).not.toContain('aria-label="歌词逐字高亮"')
     const lyricsDisplay = lyricsMarkup()
     expect(effectSwitch(lyricsDisplay.slice(lyricsDisplay.indexOf('id="settings-detail-lyrics-display"')), '歌词逐字高亮')).toBeDefined()
     expect(lyricsDisplay).toContain('data-effect="lyricsWordMotion"')
+    expect(effectSwitch(lyricsDisplay, '歌词换句动画')).toBeDefined()
+    expect(lyricsDisplay).toContain('data-effect="lyricsLineMotion"')
     const background = html.slice(html.indexOf('id="settings-detail-background"'), html.indexOf('id="settings-detail-interface-font"'))
     expect(effectSwitch(background, '流体背景')).toBeDefined()
     expect(effectSwitch(background, '背景鼠标跟随')).toBeDefined()
-    for (const effect of ['textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
+    for (const effect of ['pageTransitionMotion', 'controlMotion', 'smoothScrollMotion', 'textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
       expect(motion).toContain(`data-effect="${effect}"`)
     }
     for (const effect of ['bgFluidMotion', 'bgPointerMotion']) expect(background).toContain(`data-effect="${effect}"`)
@@ -271,17 +269,6 @@ describe('动效设置的实际生效状态', () => {
     expect(html).not.toContain('已随减少透明度暂停')
   })
 
-  it('系统减弱动态时解释受限效果，并保留已开启偏好', () => {
-    reducedMotion.value = true
-    const html = visualMarkup()
-    for (const label of ['流体背景', '背景鼠标跟随', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) {
-      expect(effectSwitch(html, label)).toContain('disabled=""')
-      expect(effectSwitch(html, label)).toContain('aria-checked="true"')
-    }
-    expect(html).toContain('系统已开启减弱动态，相关动效暂不生效；原设置已保留。')
-    expect(effectSwitch(html, '减少透明度')).not.toContain('disabled=')
-  })
-
   it('节能档禁用背景流体和音频辉光，但不影响卡片开关', () => {
     useVisualStore.setState({ performanceMode: 'eco' })
     const html = visualMarkup()
@@ -297,7 +284,8 @@ describe('动效设置的实际生效状态', () => {
     const html = visualMarkup()
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
-    expect(html).toContain('标准保留完整动效；简单模式静止背景、直接显示说明；极简模式再停止界面转场与歌词逐字高亮。')
+    expect(html).toContain('极简模式关闭全部动效，包括歌词显示里的两项')
+    expect(html).toContain('不会互相压制')
     expect(html).toContain('减少透明度不受影响')
   })
 })

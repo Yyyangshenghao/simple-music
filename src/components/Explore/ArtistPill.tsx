@@ -6,6 +6,7 @@ import { CheckIcon } from '../ui/CheckIcon'
 import { SourceBadge } from '../ui/SourceBadge'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPill.module.css'
+import { useControlFeedback } from '../../hooks/useMotion'
 
 interface ArtistPillProps {
   artist: ArtistInfo
@@ -20,13 +21,14 @@ export const ArtistPill = forwardRef<HTMLButtonElement, ArtistPillProps>(functio
   { artist, selected, disabled, size = 'md', onClick },
   ref
 ) {
+  const tap = useControlFeedback()
   return (
     <motion.button
       ref={ref}
       className={`${styles.pill} ${size === 'sm' ? styles.sm : ''} ${selected ? styles.selected : ''} no-drag`}
       onClick={onClick}
       disabled={disabled}
-      whileTap={disabled ? undefined : tapScale}
+      whileTap={tap(disabled ? undefined : tapScale)}
       transition={springSnappy}
       title={artist.name}
     >

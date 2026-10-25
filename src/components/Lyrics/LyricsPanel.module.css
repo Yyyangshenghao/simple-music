@@ -241,12 +241,6 @@
   transition-delay: 0.06s;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .closeBtn,
-  .closeBtnLabel > span { transition: none; }
-  .closeBtn:hover .closeBtnIcon svg { animation: none; }
-}
-
 /* 封面、曲目信息与操作组成同一唱片区，两列共用稳定的垂直空间。 */
 .splitLayout {
   --lyrics-right-space: calc(1.5vw + 84px);
@@ -459,12 +453,6 @@
   }
   86%, 100% {
     transform: translateX(calc(-1 * var(--marquee-dist, 0px)));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trackNameScrolling .trackNameInner {
-    animation: none;
   }
 }
 
@@ -752,8 +740,6 @@
 .styleChip[aria-expanded='true'] svg {
   transform: rotate(180deg);
 }
-
-
 
 /* 动态样式舞台：铺满面板的尺寸容器，样式内部用 cqw/cqh 排版。 */
 .styleStage {
@@ -1095,7 +1081,6 @@
   --scene-surface: color-mix(in srgb, var(--sm-bg-base) 94%, var(--scene-base, #05060c));
 }
 
-
 /* 顶部渐变：保证悬浮 header 控件在亮色粒子上可读 */
 .sceneTopFade {
   position: absolute;
@@ -1233,28 +1218,6 @@
   .listeningRoom { padding-bottom: 14px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .panel,
-  .header,
-  .coverSection,
-  .record,
-  .coverFlip,
-  .recordIdentity,
-  .coverBreath,
-  .coverArt,
-  .coverPlaceholder,
-  .stageControls,
-  .lyricsScroll { transition: none; }
-  .auroraStage,
-  .flowStage,
-  .trackMeta,
-  .stageControls,
-  .lyricsScroll,
-  .empty { animation: none !important; }
-  .coverBreath[data-playing='false'] { transform: none; }
-  .lyricsScroll [data-line] { filter: none; }
-}
-
 /* 始终画暗场的动态样式（如镜台）：浅色主题下页头与选择器仍按深色舞台配色，否则深色字压在暗场上看不清。 */
 .panel.panel.darkStage {
   --lyrics-ink-rgb: 255, 255, 255;
@@ -1267,3 +1230,6 @@
   --lyrics-menu-rgb: 24, 26, 32;
   --lyrics-pop-opacity: 0.82;
 }
+
+/* 关闭「歌词换句动画」时纵深淡化直接到位，只保留悬停底色过渡。 */
+:global([data-lyrics-line-motion-off]) .lyricsScroll [data-line] { transition: background 0.2s ease; }

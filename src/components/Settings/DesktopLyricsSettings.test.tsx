@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopLyricsSettings } from './DesktopLyricsSettings'
 
 const h = vi.hoisted(() => ({
-  settings: { fontFamily: '', fontFamilyCjk: '', performance: { reduceMotion: false, textRevealMotion: true } },
+  settings: { fontFamily: '', fontFamilyCjk: '', performance: { pageTransitionMotion: true, textRevealMotion: true } },
   fx: {
     desktopLyrics: true,
     desktopLyricsSize: 38,

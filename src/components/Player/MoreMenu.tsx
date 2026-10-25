@@ -19,7 +19,7 @@ import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import { useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsStore } from '../../stores/lyrics'
 import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -358,7 +358,7 @@ function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; on
     showRate && rate !== 1 ? `${rate}x` : null,
     phase === 'counting' ? `${formatCountdown(remainingSec)} 后停止` : phase === 'finishing-track' ? '播完当前曲后停止' : null,
   ].filter(Boolean).join(' · ')
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
   return (
     <section className={styles.section}>
       <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} aria-expanded={expanded} onClick={onToggle}>

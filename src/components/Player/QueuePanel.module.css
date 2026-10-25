@@ -233,12 +233,9 @@
 .rowAction:hover:not(:disabled) .removeIcon { transform: rotate(90deg); }
 .rowAction:active:not(:disabled) svg { transform: scale(0.86); transition: transform 90ms var(--sm-ease-out); }
 
-@media (prefers-reduced-motion: reduce) {
-  .playNextTriangle, .playNextLead, .removeIcon { transition: none; }
-}
-:global([data-reduce-motion]) .playNextTriangle,
-:global([data-reduce-motion]) .playNextLead,
-:global([data-reduce-motion]) .removeIcon { transition: none; }
+:global([data-control-motion-off]) .playNextTriangle,
+:global([data-control-motion-off]) .playNextLead,
+:global([data-control-motion-off]) .removeIcon { transition: none; }
 
 .rowAction:disabled {
   opacity: 0.4;

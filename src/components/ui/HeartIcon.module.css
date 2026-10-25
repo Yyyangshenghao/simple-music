@@ -19,8 +19,4 @@
 
 .heart circle { pointer-events: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  .heart path { transition: none; }
-}
-
-:global([data-reduce-motion]) .heart path { transition: none; }
+:global([data-control-motion-off]) .heart path { transition: none; }

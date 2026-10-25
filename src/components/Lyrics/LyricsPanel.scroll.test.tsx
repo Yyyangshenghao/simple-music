@@ -47,8 +47,8 @@ vi.mock('react', async (importOriginal) => ({
     }
   },
 }))
-vi.mock('../../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => h.reducedMotion,
+vi.mock('../../hooks/useMotion', () => ({
+  useMotion: () => !h.reducedMotion,
 }))
 vi.mock('../Player/PlayerBar', () => ({ PlayerBar: () => null }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: Object.assign(
@@ -176,7 +176,7 @@ describe('普通歌词定位', () => {
     expect(tree.props.className).toContain(styles.immersive)
   })
 
-  it('系统减少动态时自动跟唱立即定位', () => {
+  it('关闭平滑滚动时自动跟唱立即定位', () => {
     h.reducedMotion = true
     render()
     container!.scrollTo.mockClear()
@@ -185,7 +185,7 @@ describe('普通歌词定位', () => {
     expect(container!.scrollTo).toHaveBeenLastCalledWith({ top: center(18), behavior: 'instant' })
   })
 
-  it('运行时开启减少动态，当前歌词立即结束平滑定位', () => {
+  it('运行时关闭平滑滚动，当前歌词立即结束平滑定位', () => {
     render()
     container!.scrollTo.mockClear()
     h.reducedMotion = true
@@ -193,7 +193,7 @@ describe('普通歌词定位', () => {
     expect(container!.scrollTo).toHaveBeenLastCalledWith({ top: center(15), behavior: 'instant' })
   })
 
-  it.each([true, false])('浏览期间系统减少动态切换为 %s，恢复跟唱采用最新偏好', (reducedMotion) => {
+  it.each([true, false])('浏览期间关闭平滑滚动切换为 %s，恢复跟唱采用最新偏好', (reducedMotion) => {
     h.reducedMotion = !reducedMotion
     render()
     browse(23)
@@ -207,7 +207,7 @@ describe('普通歌词定位', () => {
     })
   })
 
-  it('系统减少动态时点击歌词立即定位', () => {
+  it('关闭平滑滚动时点击歌词立即定位', () => {
     h.reducedMotion = true
     render()
     browse(23)

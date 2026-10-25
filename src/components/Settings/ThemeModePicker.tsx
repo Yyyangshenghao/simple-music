@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { motion, type Transition } from 'motion/react'
 import { liquidPillSpring, springBouncy, springSnappy, tapScale } from '../../lib/motion-presets'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import styles from './ThemeModePicker.module.css'
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
@@ -124,7 +124,7 @@ const ICONS = { auto: AutoIcon, light: SunIcon, dark: MoonIcon }
 
 /** 主题模式图标分段控件：玻璃胶囊指示器在三项间弹簧滑动，图标各自带进入选中态的小动画。 */
 export function ThemeModePicker({ value, onChange }: { value: ThemeMode; onChange(mode: ThemeMode): void }) {
-  const motionOff = useReducedMotion()
+  const motionOff = !useMotion('controlMotion')
   const groupId = useId()
   return (
     <div className={`${styles.root} no-drag`} role="radiogroup" aria-label="主题模式">

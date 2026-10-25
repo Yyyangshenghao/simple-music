@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { animate, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { switchFlowSpring, switchSlideSpring, switchSwell, switchSwellSpring } from '../../lib/motion-presets'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import styles from './Switch.module.css'
 
 // 尺寸需参与弹簧与拖动计算，与 Switch.module.css 保持一致：轨道 44×24，滑块 18，内边距 3
@@ -26,7 +26,7 @@ interface SwitchProps {
 
 /** 滑块位置与形变：值变化时弹簧滑到新位置，横移越快越横向拉长、纵向压扁（体积守恒），swell 控制悬停/按住时的鼓缩。 */
 function useSquishThumb(checked: boolean, holding: boolean) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   const x = useMotionValue(checked ? TRAVEL : 0)
   const flow = useSpring(useVelocity(x), switchFlowSpring)
   const swell = useSpring(1, switchSwellSpring)

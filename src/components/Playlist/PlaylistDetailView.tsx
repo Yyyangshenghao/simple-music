@@ -38,6 +38,7 @@ import styles from './PlaylistDetailView.module.css'
 import pageScroll from '../../styles/page-scroll.module.css'
 import { BackButton } from '../ui/BackButton'
 import { useCollectionSubscription } from '../../hooks/useCollectionSubscription'
+import { usePageTransition } from '../../hooks/useMotion'
 
 /** TrackRow 实测高度:上下 padding 8×2 + 封面 40。虚拟列表按此定位,改 TrackRow 尺寸需同步。 */
 export const TRACK_ROW_HEIGHT = 56
@@ -71,6 +72,7 @@ function formatPlayCount(count: number): string {
 }
 
 export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: PlaylistDetailViewProps) {
+  const pageTransition = usePageTransition()
   const active = useNavigationStore((state) => {
     const view = state.currentView
     return typeof view === 'object' && view.type === 'playlist'
@@ -308,7 +310,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                 className={styles.detailCover}
                 layoutId={coverLayoutId}
                 layoutCrossfade={false}
-                transition={isAlbum ? albumCoverTransition : springGentle}
+                transition={pageTransition(isAlbum ? albumCoverTransition : springGentle)}
                 style={{ borderRadius: 16 }}
               >
                 {displayCover
@@ -316,7 +318,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
                   : <PlaylistCoverFallback name={displayPlaylist.name} source={displayPlaylist.source} />}
                 {displayCover && <QQLikedCoverOverlay playlist={displayPlaylist} />}
               </motion.div>
-              <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+              <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={pageTransition({ ...springGentle, delay: 0.15 })}>
                 <div className={styles.titleRow}>
                   <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
                   {collectable && <button type="button" className={`${styles.collectBtn} no-drag`} aria-pressed={collection.state === 'subscribed'}
@@ -387,7 +389,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               variants={fadeRise}
               initial="hidden"
               animate="visible"
-              transition={{ ...springGentle, delay: 0.15 }}
+              transition={pageTransition({ ...springGentle, delay: 0.15 })}
             >
               <VirtualList
                 total={searching ? matches.length : total}

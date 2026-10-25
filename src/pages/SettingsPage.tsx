@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
-import { useReducedMotion, useSystemReducedMotion } from '../hooks/useReducedMotion'
+import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
@@ -373,6 +373,9 @@ const PERFORMANCE_PRESET_LABELS: Record<PerformancePreset, string> = {
 type EffectItem = { key: PreviewEffect; label: string; hint: string }
 
 const MOTION_EFFECTS: EffectItem[] = [
+  { key: 'pageTransitionMotion', label: '页面转场', hint: '切换页面、弹出菜单与面板、列表滚动入场和封面飞行时的过渡；关闭后直接切换。' },
+  { key: 'controlMotion', label: '控件动效', hint: '开关回弹、红心、标签指示条、提示气泡和卡片悬停上浮等手感动画；关闭后状态直接到位。' },
+  { key: 'smoothScrollMotion', label: '平滑滚动', hint: '歌词跟随当前行、点击目录跳转等自动滚动；关闭后直接跳到目标位置。' },
   { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
   { key: 'cardTiltEffect', label: '卡片倾斜', hint: '歌单与推荐卡片随鼠标轻微倾斜；关闭后保留按钮与卡片的基本悬停、按压反馈。' },
   { key: 'cardSpotlightEffect', label: '卡片跟手光斑', hint: '光斑沿卡片表面跟随鼠标，可独立于倾斜启用' },
@@ -380,24 +383,24 @@ const MOTION_EFFECTS: EffectItem[] = [
   { key: 'audioGlowEffect', label: '音频辉光', hint: '播放栏辉光随低频呼吸，关闭可减少持续渲染' },
 ]
 
-const LYRICS_WORD_EFFECT: EffectItem = { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画，立体歌词随所选样式运行' }
+const LYRICS_EFFECTS: EffectItem[] = [
+  { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画' },
+  { key: 'lyricsLineMotion', label: '歌词换句动画', hint: '换句时的淡入淡出、立体歌词的行间滚动与歌词样式切换过渡；关闭后直接换句。' },
+]
 
 const BACKGROUND_EFFECTS: EffectItem[] = [
   { key: 'bgFluidMotion', label: '流体背景', hint: '让氛围背景缓慢流动；关闭后使用静态渐变' },
   { key: 'bgPointerMotion', label: '背景鼠标跟随', hint: '让流体随鼠标移动，需要先开启流体背景' },
 ]
 
-/** 单项动效开关：被系统减弱动态、减少动态效果、节能档或背景类型压住时禁用并给出原因，保留原选择。 */
+/** 单项动效开关：只管自己的效果；仅在背景类型或节能档使其无从生效时禁用并说明原因。 */
 function EffectSwitchRow({ effect: { key, label, hint } }: { effect: EffectItem }) {
   const performance = useSettingsStore((s) => s.performance)
   const setPerformance = useSettingsStore((s) => s.setPerformance)
-  const systemReducedMotion = useSystemReducedMotion()
   const eco = useVisualStore((s) => s.performanceMode === 'eco')
   const backgroundKind = useBackgroundStore((s) => s.kind)
   const background = key === 'bgFluidMotion' || key === 'bgPointerMotion'
-  const reason = systemReducedMotion ? '已随系统暂停'
-    : performance.reduceMotion ? '已随减少动态效果暂停'
-      : background && backgroundKind !== 'fluid' ? '仅流体背景生效'
+  const reason = background && backgroundKind !== 'fluid' ? '仅流体背景生效'
       : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
         : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''
   return (
@@ -633,8 +636,8 @@ function markLanded(page: HTMLElement, node: HTMLElement, waitForScroll: boolean
 }
 
 export function SettingsPage() {
-  const reducedMotion = useReducedMotion()
-  const systemReducedMotion = useSystemReducedMotion()
+  const smoothScroll = useMotion('smoothScrollMotion')
+  const controlMotion = useMotion('controlMotion')
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -763,9 +766,9 @@ export function SettingsPage() {
     setActiveDetail(detail ?? SETTINGS_TABS.find(item => item.id === section)!.items[0]?.id ?? '')
     const margin = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
     const top = node.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - margin
-    page.scrollTo({ top, behavior: reducedMotion ? 'instant' : 'smooth' })
-    if (detail) markLanded(page, node, Math.abs(page.scrollTop - top) > 1 && !reducedMotion)
-  }, [reducedMotion])
+    page.scrollTo({ top, behavior: smoothScroll ? 'smooth' : 'instant' })
+    if (detail) markLanded(page, node, Math.abs(page.scrollTop - top) > 1 && smoothScroll)
+  }, [smoothScroll])
   useEffect(() => {
     const navigation = useNavigationStore.getState()
     if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
@@ -948,7 +951,7 @@ export function SettingsPage() {
         <header className={styles.hero}>
           <h1 className={styles.title}>设置</h1>
         </header>
-        <div className={styles.settingsLayout} data-reduced-motion={reducedMotion}>
+        <div className={styles.settingsLayout} data-reduced-motion={!controlMotion}>
           <aside className={styles.drawer}>
           <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
             <div className={styles.tabBar} ref={tabBarRef}>
@@ -1352,7 +1355,7 @@ export function SettingsPage() {
                   <section id="settings-detail-motion" className={styles.group}>
                     <h3 className={styles.groupTitle}>
                       动效
-                      <InfoButton label="动效预设" text="标准保留完整动效；简单模式静止背景、直接显示说明；极简模式再停止界面转场与歌词逐字高亮。预设批量调整下方各项，随后仍可单独调整；减少透明度不受影响。" />
+                      <InfoButton label="动效预设" text="标准保留完整动效；简单模式静止背景、直接显示说明；极简模式关闭全部动效，包括歌词显示里的两项。预设只是一次性批量设置各项，之后每项独立调整，不会互相压制；减少透明度不受影响。" />
                     </h3>
                     <div className={styles.effectPresetOptions}>
                       <div className={`${styles.segControl} ${styles.effectPresetControl}`} role="group" aria-label="动效预设">
@@ -1376,15 +1379,6 @@ export function SettingsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className={styles.row}>
-                      <span className={styles.rowLabel}>
-                        减少动态效果
-                        <InfoButton label="减少动态效果" text="页面与弹层直接切换，停止封面飞行、分类回弹、歌词换句、文字滚动和装饰动画；保留各单项偏好。透明度仍需单独调整；立体歌词仅在选中时运行。" />
-                      </span>
-                      <Switch checked={performance.reduceMotion} onChange={(v) => setPerformance({ reduceMotion: v })} aria-label="减少动态效果" />
-                    </div>
-                    {systemReducedMotion && <p className={styles.groupHint}>系统已开启减弱动态，相关动效暂不生效；原设置已保留。</p>}
-                    {!systemReducedMotion && performance.reduceMotion && <p className={styles.groupHint}>已暂停界面转场与下方动效，关闭后恢复各项选择。立体歌词仅在选中对应样式时运行。</p>}
                     {eco && <p className={styles.groupHint}>当前为节能档，背景流体与音频辉光暂不生效；原设置已保留。</p>}
                     <div className={styles.effectGrid}>
                       {MOTION_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
@@ -1411,7 +1405,7 @@ export function SettingsPage() {
                     歌词显示
                     <InfoButton label="歌词显示" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
                   </h3>
-                  <EffectSwitchRow effect={LYRICS_WORD_EFFECT} />
+                  {LYRICS_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
                   <div className={styles.fontGuide} hidden={!fontsLoading && !fontsError}>
                     <span role="status" aria-live="polite">
                       {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : ''}

@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLyricsStore } from '../../../../stores/lyrics'
 import { useSettingsStore } from '../../../../stores/settings'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
-import { useReducedMotion } from '../../../../hooks/useReducedMotion'
 import { readLyricFrame, subscribeLyricFrames, type LyricFrame } from '../../../../lib/lyric-frame-clock'
 import { lyricLineDwellSec } from '../../../../lib/lyric-tempo'
 import { buildStyleWords, seedFromText } from '../../../../lib/lyric-style-layouts'
@@ -57,8 +56,7 @@ export function FumeLyrics({ preview = false }: { preview?: boolean }) {
   const showTranslation = useSettingsStore(state => state.lyricsShowTranslation)
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
   const wordMotion = useSettingsStore(state => state.performance.lyricsWordMotion)
-  const reducedMotion = useReducedMotion()
-  const animated = wordMotion && !reducedMotion
+  const animated = wordMotion
   const raw = useLyricStyleTuning('fume')
   const tuning = useMemo<FumeTuning>(() => ({
     zoom: Number(raw.zoom), float: Number(raw.float), hold: Number(raw.hold),

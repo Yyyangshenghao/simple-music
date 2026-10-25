@@ -212,10 +212,6 @@
   100% { --play-star: 0deg; opacity: 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .playStar { display: none; }
-}
-
 .modeBalance {
   width: 32px;
   height: 32px;
@@ -377,11 +373,6 @@
 
 /* 拖动进度时当前时间点亮,提示松手会跳到这里 */
 .progress[data-scrubbing] .time:first-child { color: var(--sm-text-primary); }
-
-@media (prefers-reduced-motion: reduce) {
-  .bar .tools > button,
-  .bar .tools > * > button { transition: none; }
-}
 
 /* 歌词页沿封面宽度展开操作，不重复显示封面、歌名和歌手。 */
 .lyricsPlayer {

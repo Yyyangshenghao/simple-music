@@ -1,5 +1,4 @@
 import { useMemo, type CSSProperties } from 'react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { useSettingsStore } from '../../stores/settings'
 import styles from './RevealText.module.css'
 
@@ -7,8 +6,7 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 const MAX_CHARACTERS = 120
 
 export function RevealText({ text }: { text: string }) {
-  const reducedMotion = useReducedMotion()
-  const enabled = useSettingsStore((s) => s.performance.textRevealMotion) && !reducedMotion
+  const enabled = useSettingsStore((s) => s.performance.textRevealMotion)
   const parts = useMemo(() => {
     if (!enabled) return []
     const characters: string[] = []

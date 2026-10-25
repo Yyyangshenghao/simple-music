@@ -87,12 +87,6 @@
   transition-delay: 0.06s;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .backBtn,
-  .label > span { transition: none; }
-  .backBtn:hover .icon svg { animation: none; }
-}
-
 /* 自动躲藏：外壳保留按钮原位与页面外边距，按钮本身向左滑出视口。
    外壳向左、上延伸出一块透明感应区，指针移到页面左上角即可唤回。 */
 .dock {
@@ -135,7 +129,5 @@
 
 .dock > .backBtn:active { transform: scale(0.94); }
 
-@media (prefers-reduced-motion: reduce) {
-  .dock > .backBtn,
-  .dock[data-hidden='true'] > .backBtn { transition: opacity 0.2s ease; }
-}
+/* 关闭「控件动效」时直接到位。 */
+:global([data-control-motion-off]) :is(.backBtn, .label > span, .dock > .backBtn, .dock[data-hidden='true'] > .backBtn) { transition: none !important; animation: none !important; }

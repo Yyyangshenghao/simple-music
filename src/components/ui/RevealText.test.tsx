@@ -2,17 +2,15 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RevealText } from './RevealText'
 
-const motion = vi.hoisted(() => ({ reduced: false, enabled: true }))
-vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => motion.reduced }))
+const motion = vi.hoisted(() => ({ enabled: true }))
 vi.mock('../../stores/settings', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) => selector({ performance: { textRevealMotion: motion.enabled } }),
 }))
-beforeEach(() => { motion.reduced = false; motion.enabled = true })
+beforeEach(() => { motion.enabled = true })
 
 describe('说明文字逐字过渡', () => {
-  it.each(['setting', 'reduced'] as const)('%s 关闭动效时直接渲染完整文本，没有逐字节点', (mode) => {
-    if (mode === 'setting') motion.enabled = false
-    else motion.reduced = true
+  it('关闭逐字显现时直接渲染完整文本，没有逐字节点', () => {
+    motion.enabled = false
     const html = renderToStaticMarkup(<RevealText text={'长'.repeat(10000) + '<完整结尾>'} />)
     expect(html.match(/<span/g)).toHaveLength(1)
     expect(html).toContain('&lt;完整结尾&gt;')

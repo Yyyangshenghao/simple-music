@@ -18,7 +18,7 @@ vi.mock('react', async (original) => ({
   useState: (value: unknown) => typeof value === 'boolean' ? [h.confirm, h.setConfirm] : value === 'sunny' ? [h.sample, h.setSample] : value === '' ? [h.search, vi.fn()] : [value, vi.fn()],
 }))
 vi.mock('framer-motion', () => ({ motion: { li: 'li' } }))
-vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('../../stores/lyrics-source', async (original) => ({
   ...await original<typeof import('../../stores/lyrics-source')>(),
   useLyricsSourceStore: Object.assign((selector: (state: typeof h.source) => unknown) => selector(h.source), { getState: () => h.source }),

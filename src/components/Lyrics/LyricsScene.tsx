@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useSettingsStore } from '../../stores/settings'
 import { useLyricsStore } from '../../stores/lyrics'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { CoverParticleCloud } from '../Visualizer/CoverParticleCloud'
 import { FrameLimiter } from '../Visualizer/FrameLimiter'
 import { StageLyrics3D } from './StageLyrics3D'
@@ -68,7 +68,7 @@ export default function LyricsScene({ coverUrl, lightBackground = false }: { cov
   const style = useSettingsStore((s) => s.lyrics3dStyle)
   const fpsCap = useSettingsStore((s) => s.lyrics3d.fpsCap)
   const renderScale = useSettingsStore((s) => s.lyrics3d.renderScale)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('lyricsLineMotion')
   const { shown, phase, markReady } = useSoftFocusSwap(style, reducedMotion)
 
   return (

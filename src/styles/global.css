@@ -108,23 +108,3 @@ button, input, a, .no-drag {
   -webkit-app-region: no-drag;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; }
-}
-
-/* 同时覆盖伪元素和原生弹层。状态样式直接切换，文字与操作仍保持可用。 */
-[data-reduce-motion] *,
-[data-reduce-motion] *::before,
-[data-reduce-motion] *::after,
-[data-reduce-motion] *::backdrop {
-  transition: none !important;
-  scroll-behavior: auto !important;
-}
-
-/* 歌手工具栏的滚动时间线负责吸顶定位，保留这一功能性动画。 */
-[data-reduce-motion] *:not([data-artist-toolbar-scrollable]),
-[data-reduce-motion] *::before,
-[data-reduce-motion] *::after,
-[data-reduce-motion] *::backdrop {
-  animation: none !important;
-}

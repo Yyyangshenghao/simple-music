@@ -5,7 +5,6 @@ import { indexForPosition, useLyricsStore } from '../../../../stores/lyrics'
 import { useSettingsStore } from '../../../../stores/settings'
 import { useAmbientStore } from '../../../../stores/ambient'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
-import { useReducedMotion } from '../../../../hooks/useReducedMotion'
 import { readLyricFrame, subscribeLyricFrames, type LyricFrame } from '../../../../lib/lyric-frame-clock'
 import { lyricLineDwellSec } from '../../../../lib/lyric-tempo'
 import { buildStyleWords, seededRandom, seedFromText } from '../../../../lib/lyric-style-layouts'
@@ -204,8 +203,7 @@ export function DioramaLyrics({ preview = false }: { preview?: boolean }) {
   const wordMotionEnabled = useSettingsStore(state => state.performance.lyricsWordMotion)
   const fontKey = useSettingsStore(s => [s.lyricsFontFamily, s.lyricsFontFamilyCjk, s.fontFamily, s.fontFamilyCjk].join('|'))
   const palette = useAmbientStore(state => state.palette)
-  const reducedMotion = useReducedMotion()
-  const animated = wordMotionEnabled && !reducedMotion
+  const animated = wordMotionEnabled
   const raw = useLyricStyleTuning('diorama')
   const tuning = useMemo<DioramaTuning>(() => ({
     distance: Number(raw.distance), ripples: raw.ripples === true, dust: raw.dust === true, serif: raw.font === 'serif',

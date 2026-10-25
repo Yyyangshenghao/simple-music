@@ -158,8 +158,5 @@
 /* 滚轮/轻点的跳变用短补间,拖动中保持跟手 */
 .root[data-variant='capsule']:not([data-dragging]) .fill { transition: transform 180ms var(--sm-ease-out); }
 
-@media (prefers-reduced-motion: reduce) {
-  .rail, .ghost, .thumb, .bubble,
-  .root[data-jumping] .fill,
-  .root[data-jumping] .thumb { transition: none; }
-}
+/* 关闭「控件动效」时直接到位。 */
+:global([data-control-motion-off]) :is(.rail, .ghost, .fill, .thumb, .bubble) { transition: none !important; animation: none !important; }

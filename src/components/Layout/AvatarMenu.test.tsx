@@ -9,6 +9,7 @@ import { useProviderStore } from '../../stores/providers'
 import { AvatarMenu } from './AvatarMenu'
 
 const h = vi.hoisted(() => ({ toast: vi.fn() }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useControlFeedback: () => <T,>(t: T) => t }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => [initial, vi.fn()],

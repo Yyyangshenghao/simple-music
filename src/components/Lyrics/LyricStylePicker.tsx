@@ -8,6 +8,7 @@ import { Switch } from '../ui/Switch'
 import { LyricOptionGroup } from './LyricOptionGroup'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
 import styles from './LyricStylePicker.module.css'
+import { usePageTransition } from '../../hooks/useMotion'
 
 function formatValue(field: Extract<TuningField, { type: 'number' }>, value: number): string {
   if (field.format === 'percent') return `${Math.round(value * 100)}%`
@@ -69,6 +70,7 @@ interface LyricStylePickerProps {
 
 /** 「动态」歌词的样式选择器：样式卡片（实时预览）、常用参数与更多设置。 */
 export function LyricStylePicker({ onClose }: LyricStylePickerProps) {
+  const pageTransition = usePageTransition()
   const stored = useLyricStylesStore(state => state.style)
   const setStyle = useLyricStylesStore(state => state.setStyle)
   const setTuning = useLyricStylesStore(state => state.setTuning)
@@ -100,7 +102,7 @@ export function LyricStylePicker({ onClose }: LyricStylePickerProps) {
     <>
       <div className={`${styles.backdrop} no-drag`} onClick={onClose} />
       <motion.div className={`${styles.menu} no-drag`} role="dialog" aria-label="动态歌词样式"
-        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={springSnappy}>
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={pageTransition(springSnappy)}>
         {focusedSettings ? <div className={styles.settingsHeader}>
           <strong>{info.label}</strong>
           <button type="button" onClick={() => setExpanded(false)}>返回样式</button>

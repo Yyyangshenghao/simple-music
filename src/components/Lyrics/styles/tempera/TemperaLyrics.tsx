@@ -4,7 +4,6 @@ import { useSettingsStore } from '../../../../stores/settings'
 import { useAmbientStore } from '../../../../stores/ambient'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
 import { useLightTheme } from '../../../../hooks/useLightTheme'
-import { useReducedMotion } from '../../../../hooks/useReducedMotion'
 import { readLyricFrame, subscribeLyricFrames, type LyricFrame } from '../../../../lib/lyric-frame-clock'
 import { lyricLineDwellSec } from '../../../../lib/lyric-tempo'
 import { buildStyleWords, seededRandom, seedFromText } from '../../../../lib/lyric-style-layouts'
@@ -83,8 +82,7 @@ export function TemperaLyrics({ preview = false }: { preview?: boolean }) {
   const wordMotionEnabled = useSettingsStore(state => state.performance.lyricsWordMotion)
   const palette = useAmbientStore(state => state.palette)
   const light = useLightTheme()
-  const reducedMotion = useReducedMotion()
-  const animated = wordMotionEnabled && !reducedMotion
+  const animated = wordMotionEnabled
   const raw = useLyricStyleTuning('tempera')
   const tuning = useMemo<TemperaTuning>(() => ({
     settle: Number(raw.settle), wholeLine: raw.wholeLine === true, echo: raw.echo === true,

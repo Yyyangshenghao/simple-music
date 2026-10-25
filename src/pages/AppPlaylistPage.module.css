@@ -27,4 +27,3 @@
 .reorderActions button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .reorderActions button:disabled { opacity: .35; cursor: default; }
 @media (max-width: 580px) { .reorderActions { padding-right: 0; gap: 0; } .reorderActions button { width: 26px; } }
-@media (prefers-reduced-motion: reduce) { .unavailableChip { transition: none; } }

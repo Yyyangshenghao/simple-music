@@ -9,7 +9,7 @@ import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useVisualStore } from '../../stores/visual'
 import { useLightTheme } from '../../hooks/useLightTheme'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -104,7 +104,7 @@ function MarqueeTrackName({ text }: { text: string }) {
 
 /** 舞台封面：切歌时旧封面叠在上方，等新封面解码完成后再淡出，未命中预热时也不露出空白。 */
 function StageCoverArt({ src, alt }: { src: string; alt: string }) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('lyricsLineMotion')
   const [current, setCurrent] = useState(src)
   const [leaving, setLeaving] = useState<string | null>(null)
   const [loaded, setLoaded] = useState<string | null>(null)
@@ -180,8 +180,11 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
 }
 
 export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps) {
-  const reducedMotion = useReducedMotion()
-  // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新系统偏好。
+  const reducedMotion = !useMotion('smoothScrollMotion')
+  const coverFlight = useMotion('pageTransitionMotion')
+  const lineMotionRef = useRef(true)
+  lineMotionRef.current = useMotion('lyricsLineMotion')
+  // 浏览恢复计时器会保留旧闭包，滚动执行时读取最新开关。
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
@@ -294,7 +297,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     const view = container.clientHeight
     const from = container.scrollTop
     const top = el.offsetTop - view / 2 + el.clientHeight / 2
-    if (!natural || reducedMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
+    if (!natural || reducedMotionRef.current || !lineMotionRef.current || Math.abs(top - from) < 1 || Math.abs(top - from) > view) {
       for (const anim of anims.values()) anim.finish()
       anims.clear()
       scrollToLine(index, 'smooth')
@@ -337,7 +340,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     const wasOpen = wasOpenRef.current
     wasOpenRef.current = open
     const flip = coverFlipRef.current
-    if (reducedMotion) {
+    if (!coverFlight) {
       for (const animation of flip?.getAnimations() ?? []) animation.cancel()
       return
     }
@@ -355,7 +358,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         ? { duration: 620, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
         : { duration: 420, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' }
     )
-  }, [open, mode, reducedMotion])
+  }, [open, mode, coverFlight])
 
   // 舞台控件随沉浸隐去后，封面区要整体下移半个控件高度，才与居中的歌词列重新对齐。
   // 控件高度随窗口与字号变化，按实际尺寸写入 CSS 变量，不触发重渲染。

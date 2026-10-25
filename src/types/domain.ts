@@ -220,10 +220,16 @@ export interface CustomBackgroundMedia {
   name: string
 }
 
-/** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
+/** 独立视觉选项：每个开关只管自己的效果，互不压制；动效预设只批量设置取值。 */
 export interface PerformanceFlags {
-  /** 暂停界面转场和装饰动效；保留各单项偏好与歌词样式选择。 */
-  reduceMotion: boolean
+  /** 页面切换、菜单弹出、列表滚动入场与封面飞行等转场；关闭后直接切换。 */
+  pageTransitionMotion: boolean
+  /** 开关回弹、红心、标签指示条、提示气泡等控件手感动画；关闭后状态直接到位。 */
+  controlMotion: boolean
+  /** 歌词跟随、页内跳转等平滑滚动；关闭后直接跳到目标位置。 */
+  smoothScrollMotion: boolean
+  /** 歌词换句淡入淡出与歌词样式切换过渡；关闭后直接换句。 */
+  lyricsLineMotion: boolean
   /** 简介、帮助说明的逐字显现；关闭后直接渲染完整文本。 */
   textRevealMotion: boolean
   /** DOM 歌词逐字高亮；关闭后按整行点亮，不创建逐字动画。 */

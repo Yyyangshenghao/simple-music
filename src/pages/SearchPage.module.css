@@ -76,4 +76,3 @@
 .selectableCard[data-selected='true'] { box-shadow: 0 0 0 2px var(--sm-accent), 0 0 0 6px color-mix(in srgb, var(--sm-accent) 10%, transparent); }
 .cardCheck { position: absolute; top: 12px; right: 12px; z-index: 3; }
 .content[data-selecting='true'] .selectableCard img { -webkit-user-drag: none; }
-@media (prefers-reduced-motion: reduce) { .selectableRow, .selectableCard { transition: none; } }

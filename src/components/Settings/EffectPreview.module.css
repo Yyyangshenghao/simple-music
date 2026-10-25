@@ -1,4 +1,4 @@
-/* 动效示意小样：默认暂停，悬停 ⓘ 时播放；系统减弱动态时停在静帧。 */
+/* 动效示意小样：默认暂停，悬停 ⓘ 时播放。 */
 .stage {
   position: relative;
   display: grid;
@@ -142,6 +142,87 @@
   50% { transform: translate(22px, -6px); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .stage, .stage * { animation: none !important; }
+
+/* 页面转场：旧页淡出左移，新页上浮淡入 */
+.pages { position: relative; width: 150px; height: 70px; }
+.page {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 8px;
+  background: var(--sm-bg-elevated);
+}
+.pageTitle { display: block; width: 46%; height: 7px; border-radius: 4px; background: var(--sm-text-faint); }
+.pageGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pageGrid i { display: block; height: 28px; border-radius: 5px; background: var(--sm-fill-active); }
+.pageIn .pageGrid i { background: var(--ambient-gradient); opacity: 0.7; }
+.pageOut { animation: pageOut 3200ms var(--sm-ease-out) infinite; }
+.pageIn { animation: pageIn 3200ms var(--sm-ease-out) infinite; }
+@keyframes pageOut {
+  0%, 30% { opacity: 1; transform: none; }
+  45%, 85% { opacity: 0; transform: translateX(-18px) scale(0.97); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes pageIn {
+  0%, 30% { opacity: 0; transform: translateY(12px); }
+  50%, 85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+
+/* 控件动效：开关滑块拉伸回弹 */
+.toggle { position: relative; width: 58px; height: 32px; border-radius: 16px; background: var(--sm-fill-active); animation: toggleTrack 2400ms ease-in-out infinite; }
+.toggleThumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--sm-text-primary);
+  transform-origin: center;
+  animation: toggleThumb 2400ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes toggleTrack {
+  0%, 40% { background: var(--sm-fill-active); }
+  50%, 90% { background: color-mix(in srgb, var(--sm-accent) 70%, transparent); }
+  100% { background: var(--sm-fill-active); }
+}
+@keyframes toggleThumb {
+  0%, 40% { transform: translateX(0) scaleX(1); }
+  46% { transform: translateX(10px) scaleX(1.35); }
+  55%, 90% { transform: translateX(26px) scaleX(1); }
+  95% { transform: translateX(14px) scaleX(1.35); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+/* 平滑滚动：列表缓动滚到目标行 */
+.scrollView { position: relative; width: 150px; height: 70px; overflow: hidden; border-radius: 6px; }
+.scrollList { display: grid; gap: 6px; animation: scrollGlide 3200ms cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+.scrollList i { display: block; height: 12px; border-radius: 4px; background: var(--sm-fill-active); }
+.scrollList i[data-target] { background: color-mix(in srgb, var(--sm-accent) 55%, transparent); }
+@keyframes scrollGlide {
+  0%, 20% { transform: translateY(0); }
+  60%, 85% { transform: translateY(-72px); }
+  100% { transform: translateY(0); }
+}
+
+/* 歌词换句：整列上移一行，当前行亮起 */
+.lineView { height: 72px; overflow: hidden; }
+.lineList { display: grid; justify-items: center; animation: lineStep 4800ms var(--sm-ease-out) infinite; }
+.lineList span { height: 24px; color: var(--sm-text-faint); font-size: 13px; font-weight: 650; line-height: 24px; animation: lineLit 4800ms var(--sm-ease-out) infinite; animation-delay: calc(var(--i) * 1200ms - 1200ms); }
+@keyframes lineStep {
+  0%, 20% { transform: translateY(24px); }
+  25%, 45% { transform: translateY(0); }
+  50%, 70% { transform: translateY(-24px); }
+  75%, 95% { transform: translateY(-48px); }
+  100% { transform: translateY(24px); }
+}
+@keyframes lineLit {
+  0%, 20% { color: var(--sm-text-faint); }
+  25%, 45% { color: var(--sm-text-primary); }
+  50%, 100% { color: var(--sm-text-faint); }
 }

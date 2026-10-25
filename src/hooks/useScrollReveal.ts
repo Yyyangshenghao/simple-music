@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { useReducedMotion } from './useReducedMotion'
+import { useMotion } from './useMotion'
 
 export function useScrollReveal<T extends HTMLElement>() {
   const ref = useRef<T>(null)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
 
   useEffect(() => {
     const el = ref.current

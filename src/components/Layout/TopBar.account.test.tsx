@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Track } from '../../types/domain'
 
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as (() => void)[], search: vi.fn() }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useControlFeedback: () => <T,>(t: T) => t }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: (initial: unknown) => {

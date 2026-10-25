@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { animate, motion, motionValue, useTransform, type HTMLMotionProps, type MotionValue } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { jellyRadio } from '../../lib/motion-presets'
 import styles from './JellyRadio.module.css'
 
@@ -50,7 +50,7 @@ const Chip = forwardRef<HTMLButtonElement, HTMLMotionProps<'button'> & { mv: Chi
  */
 export function JellyRadio<T extends string>({ items, value, onChange, ariaLabel, size = 'md', block, disabled, className }: JellyRadioProps<T>) {
   const at = items.findIndex(it => it.value === value)
-  const reduce = useReducedMotion()
+  const reduce = !useMotion('controlMotion')
   const groupRef = useRef<HTMLDivElement>(null)
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
   const widths = useRef<number[]>([])

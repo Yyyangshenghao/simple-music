@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { motion } from 'motion/react'
 import { queueDragFollow, queueDragLift, queueShredStrip } from '../../lib/motion-presets'
 import styles from './QueuePanel.module.css'
+import { useMotion } from '../../hooks/useMotion'
 
 /** 按下后移动超过此距离才算拖动，否则仍是点击。 */
 const DRAG_THRESHOLD = 4
@@ -272,6 +273,7 @@ export function useQueueDrag({ panelRef, listRef, slitRef, total, rowHeight, red
 
 /** 碎纸：被移除的行从右侧竖缝穿出，横切成条，依次错开向右飘落并淡出。 */
 function ShredStrips({ shred, onDone }: { shred: Shred; onDone(): void }) {
+  const controlMotion = useMotion('controlMotion')
   const mounted = useRef(0)
   return (
     <div className={styles.shred} style={{ left: shred.left, top: shred.top, width: shred.width, height: shred.height }} aria-hidden="true">
@@ -286,7 +288,7 @@ function ShredStrips({ shred, onDone }: { shred: Shred; onDone(): void }) {
             style={{ clipPath: `inset(${from}% 0 ${to}% 0)` }}
             initial={{ y: 0, x: 0, rotate: 0, opacity: 1 }}
             animate={{ x: shred.width * 0.45 + (k % 3) * 14, y: spread + 18, rotate: ((k * 37) % 11) - 5, opacity: 0 }}
-            transition={{ duration: queueShredStrip.duration, ease: queueShredStrip.ease, delay: k * queueShredStrip.stagger }}
+            transition={controlMotion ? { duration: queueShredStrip.duration, ease: queueShredStrip.ease, delay: k * queueShredStrip.stagger } : { duration: 0 }}
             onAnimationComplete={() => { if (++mounted.current === STRIPS) onDone() }}
             ref={(el) => { if (el && !el.firstChild) el.appendChild(shred.node.cloneNode(true)) }}
           />

@@ -61,8 +61,6 @@
   background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
 }
 
-
-
 .cardActive {
   border-color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
   background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
@@ -106,8 +104,6 @@
   font-size: 13px;
   font-weight: 650;
 }
-
-
 
 .section {
   display: flex;
@@ -205,6 +201,3 @@
   text-align: left;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .card { transition: none; }
-}

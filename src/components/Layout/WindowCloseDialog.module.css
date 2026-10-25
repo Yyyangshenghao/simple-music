@@ -30,4 +30,3 @@
 .confirm:hover:not(:disabled) { opacity: 0.85; }
 .dialog button:focus-visible, .dialog input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 .dialog button:disabled, .option:has(input:disabled), .remember:has(input:disabled) { opacity: 0.55; cursor: wait; }
-@media (prefers-reduced-motion: reduce) { .option { transition: none; } }

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, animate, motion, useMotionValue, useTransform, type AnimationPlaybackControls, type Variants } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { tooltipGlide, tooltipPop, tooltipSwap } from '../../lib/motion-presets'
 import styles from './HoverTips.module.css'
 
@@ -42,7 +42,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * 放在父容器内即可；match 限定哪些按钮提示，exclude 内的按钮不提示，容器内有面板展开时也不提示。
  */
 export function HoverTips({ exclude, match = 'button' }: { exclude?: string; match?: string }) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   const anchorRef = useRef<HTMLSpanElement>(null)
   const textRef = useRef<HTMLSpanElement | null>(null)
   const [tip, setTip] = useState<Tip | null>(null)

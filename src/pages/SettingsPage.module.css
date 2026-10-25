@@ -197,7 +197,6 @@
 }
 .actionDanger { color: var(--sm-color-danger); }
 
-
 .visualGrid { grid-template-columns: minmax(0, 1fr); }
 .visualColumn { display: contents; }
 
@@ -205,7 +204,6 @@
   display: grid;
   gap: 18px;
 }
-
 
 .lyricsGrid {
   display: grid;
@@ -783,19 +781,6 @@
   .groupTitle { padding-right: 16px; padding-left: 16px; }
   .groupHint { padding-right: 16px; padding-left: 16px; }
   .providerRow { padding-right: 16px; padding-left: 16px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .settingsGrid,
-  .lyricsGrid { animation: none; }
-
-  .group { transition: none; }
-  .tabBar { transition: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .subNav, .compactSubNav { transition: none !important; }
-  .navMarker, .branchReach { transition: none; }
 }
 
 /* 应用背景:文件名截断、取色与底色色块 */

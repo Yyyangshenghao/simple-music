@@ -120,7 +120,3 @@
   scale: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .field[data-dragging] .label { transform: none; }
-  .ghost { scale: 1; transition: opacity 200ms ease; }
-}

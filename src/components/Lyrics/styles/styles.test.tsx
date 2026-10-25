@@ -18,7 +18,7 @@ vi.mock('../../../stores/lyrics', () => ({ useLyricsStore: (selector: (state: ob
 vi.mock('../../../stores/settings', () => ({ useSettingsStore: (selector: (state: object) => unknown) => selector(h.settings) }))
 // 帧时钟（lyric-frame-clock）读播放器状态：不 mock 会加载真实播放器 store，而它依赖上面被 mock 掉的设置模块。
 vi.mock('../../../stores/player', () => ({ usePlayerStore: { getState: () => ({ status: 'paused' }), subscribe: () => () => {} } }))
-vi.mock('../../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }))
+vi.mock('../../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('../../../stores/lyric-styles', async () => {
   const catalog = await vi.importActual<typeof import('../../../lib/lyric-style-catalog')>('../../../lib/lyric-style-catalog')
   return { useLyricStyleTuning: (id: 'partita' | 'fume' | 'tempera' | 'sonnet' | 'diorama') => catalog.resolveStyleTuning(id, h.tunings[id]) }

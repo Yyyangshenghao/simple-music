@@ -4,7 +4,6 @@ import { useSettingsStore } from '../../../../stores/settings'
 import { useAmbientStore } from '../../../../stores/ambient'
 import { useLyricStyleTuning } from '../../../../stores/lyric-styles'
 import { useLightTheme } from '../../../../hooks/useLightTheme'
-import { useReducedMotion } from '../../../../hooks/useReducedMotion'
 import { readLyricFrame, subscribeLyricFrames, type LyricFrame } from '../../../../lib/lyric-frame-clock'
 import { lyricLineDwellSec } from '../../../../lib/lyric-tempo'
 import { buildStyleWords, seededRandom, seedFromText } from '../../../../lib/lyric-style-layouts'
@@ -49,8 +48,7 @@ export function SonnetLyrics({ preview = false }: { preview?: boolean }) {
   const lyricFont = useSettingsStore(state => state.lyricsFontFamily)
   const palette = useAmbientStore(state => state.palette)
   const light = useLightTheme()
-  const reducedMotion = useReducedMotion()
-  const animated = wordMotionEnabled && !reducedMotion
+  const animated = wordMotionEnabled
   const raw = useLyricStyleTuning('sonnet')
   const tuning = useMemo<SonnetTuning>(() => ({
     punch: Number(raw.punch), camera: Number(raw.camera), geometry: raw.geometry === true,

@@ -32,6 +32,7 @@ import { fadeRise, springGentle } from '../lib/motion-presets'
 import { appPlaylistCoverLayoutId, appPlaylistCovers } from '../lib/app-playlist-presentation'
 import { rememberTarget } from '../stores/track-actions'
 import { BackButton } from '../components/ui/BackButton'
+import { usePageTransition } from '../hooks/useMotion'
 
 type Mode = 'browse' | 'select' | 'reorder'
 
@@ -47,6 +48,7 @@ function DetailIcon({ kind }: { kind: IconKind }) {
 }
 
 export function AppPlaylistPage({ id }: { id: string }) {
+  const pageTransition = usePageTransition()
   const item = useAppPlaylistsStore(state => state.items.find(item => item.id === id))
   const archiveError = useAppPlaylistsStore(state => state.error)
   const providers = useProviderStore(state => state.byId)
@@ -216,10 +218,10 @@ export function AppPlaylistPage({ id }: { id: string }) {
           <BackButton className={playlistStyles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
           {item && !archiveError && <div className={playlistStyles.detailMeta}>
             <motion.div className={playlistStyles.detailCover} layoutId={appPlaylistCoverLayoutId(item.id)} layoutCrossfade={false}
-              transition={springGentle} style={{ borderRadius: 16 }}>
+              transition={pageTransition(springGentle)} style={{ borderRadius: 16 }}>
               <AppPlaylistCover tracks={item.tracks} />
             </motion.div>
-            <motion.div className={playlistStyles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+            <motion.div className={playlistStyles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={pageTransition({ ...springGentle, delay: 0.15 })}>
               <div className={playlistStyles.titleRow}>
                 <h1 className={playlistStyles.detailTitle}><GradientText>{item.name}</GradientText></h1>
                 {mode === 'browse' && <BatchTrackActions compact menuLabel="歌单更多操作" label="整个歌单" tracks={item.tracks}
@@ -275,7 +277,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
             <button type="button" className={`${playlistStyles.retryBtn} no-drag`} onClick={goToSearch}>去搜索歌曲</button></div>
             : !visible.length ? <div className={playlistStyles.emptyPlaylist}><p>没有符合条件的歌曲</p>
               <button type="button" className={`${playlistStyles.retryBtn} no-drag`} onClick={clearFilters}>清除筛选</button></div>
-            : <motion.div className={playlistStyles.trackList} ref={listRef} variants={fadeRise} initial="hidden" animate="visible" transition={{ ...springGentle, delay: 0.15 }}>
+            : <motion.div className={playlistStyles.trackList} ref={listRef} variants={fadeRise} initial="hidden" animate="visible" transition={pageTransition({ ...springGentle, delay: 0.15 })}>
               <VirtualList total={visible.length} rowHeight={TRACK_ROW_HEIGHT} scrollRef={scrollRef} renderRow={renderRow} />
             </motion.div>}
           {editing === 'rename' && <AppPlaylistNameDialog title="重命名应用歌单" initialName={item.name} onClose={() => setEditing(null)} onSubmit={name => useAppPlaylistsStore.getState().rename(id, name)} />}

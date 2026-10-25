@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { frame, useMotionValue, useMotionValueEvent, useSpring, useVelocity } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { wakeHeadSpring, wakeSpeedSpring } from '../../lib/motion-presets'
 import styles from './WakeSlider.module.css'
 
@@ -40,7 +40,7 @@ interface WakeSliderProps {
 export function WakeSlider({
   value, min = 0, max, step, onChange, onDragChange, ariaLabel, ariaValueText, bars = 18, disabled, className
 }: WakeSliderProps) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
   const clamped = clamp(value, min, max)
   const pct = max > min ? ((clamped - min) / (max - min)) * 100 : 0
   const trackRef = useRef<HTMLDivElement>(null)

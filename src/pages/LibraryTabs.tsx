@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
-import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useMotion } from '../hooks/useMotion'
 import styles from './LibraryPage.module.css'
 
 interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode }
@@ -31,7 +31,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const [dragging, setDragging] = useState(false)
   const [holding, setHolding] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('controlMotion')
 
   const targetX = useMotionValue(0)
   const targetWidth = useMotionValue(0)

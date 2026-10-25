@@ -7,8 +7,10 @@ import { useNavigationStore } from '../stores/navigation'
 import { useShortcutStore } from '../stores/shortcuts'
 import { shouldIgnoreShortcut } from '../lib/shortcuts'
 import styles from './ShuangePage.module.css'
+import { usePageTransition } from '../hooks/useMotion'
 
 export function ShuangePage() {
+  const pageTransition = usePageTransition()
   const present = useIsPresent()
   const current = useNavigationStore((s) => s.currentView === 'shuange')
   const pageActive = present && current
@@ -116,7 +118,7 @@ export function ShuangePage() {
           className={styles.slide}
           initial={{ opacity: 0.2, y: direction > 0 ? '20%' : '-20%', scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          transition={pageTransition({ duration: 0.28, ease: [0.22, 1, 0.36, 1] })}
           drag="y"
           dragConstraints={{ top: 0, bottom: 0 }}
           dragElastic={0.13}

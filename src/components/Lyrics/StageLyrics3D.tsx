@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import * as THREE from 'three'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
@@ -706,7 +706,7 @@ export function StageLyrics3D({ lightBackground = false, style: shownStyle }: { 
   const styleRef = useRef(shownStyle)
   styleRef.current = shownStyle
   lightBackgroundRef.current = lightBackground
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('lyricsLineMotion')
   const rootRef = useRef<THREE.Group>(null)
   const glassBackdropRef = useRef<StageGlassBackdrop | null>(null)
   const glassCaptureAtRef = useRef(-Infinity)

@@ -49,8 +49,5 @@
 }
 
 /* 减弱动态：竖条恒为静止高度 */
-@media (prefers-reduced-motion: reduce) {
-  .bar { height: var(--wake-rest) !important; }
-}
 
-:global([data-reduce-motion]) .bar { height: var(--wake-rest) !important; }
+:global([data-control-motion-off]) .bar { height: var(--wake-rest) !important; }

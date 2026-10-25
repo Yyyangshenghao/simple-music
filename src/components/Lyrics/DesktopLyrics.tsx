@@ -71,7 +71,7 @@ export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'singl
     const frame = { trackKey, lineIndex, double: lineMode === 'double', line, nextLine: nextLine || '' }
     const previous = previousFrameRef.current
     previousFrameRef.current = frame
-    if (!canScrollDesktopLyrics(previous, frame) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!canScrollDesktopLyrics(previous, frame)) return
     const current = wordsRef.current
     const outgoing = outgoingRef.current
     if (!current || !outgoing || !previous) return

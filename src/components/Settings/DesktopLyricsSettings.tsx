@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { fontFamilyCssValue } from '../../lib/font-family'
 import { useSettingsStore } from '../../stores/settings'
 import { InfoButton } from '../ui/InfoButton'
@@ -23,7 +23,7 @@ export function DesktopLyricsSettings() {
   const interfaceFontFamily = useSettingsStore((s) => s.fontFamily)
   const interfaceFontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
   const id = useId()
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
   const color = fx.desktopLyricsColor || '#ffffff'
   const backgroundOpacity = fx.desktopLyricsBackgroundOpacity ?? 0.68
   const platform = typeof window !== 'undefined' ? window.desktop?.platform : undefined

@@ -22,6 +22,7 @@ import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-pr
 import styles from './RoamPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
 import { BackButton } from '../components/ui/BackButton'
+import { useControlFeedback, usePageTransition } from '../hooks/useMotion'
 
 type SavedPlaylistSlot = 'netease' | 'local'
 
@@ -49,6 +50,8 @@ function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[
 }
 
 export function RoamPage() {
+  const pageTransition = usePageTransition()
+  const tap = useControlFeedback()
   const scrollRef = useRef<HTMLDivElement>(null)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
@@ -181,7 +184,7 @@ export function RoamPage() {
             variants={fadeRise}
             initial="hidden"
             animate="visible"
-            transition={springGentle}
+            transition={pageTransition(springGentle)}
           >
             <div>
               <h1 className={styles.title}>
@@ -202,7 +205,7 @@ export function RoamPage() {
               <motion.button
                 className={`${styles.resetBtn} no-drag`}
                 onClick={() => handleRegenerate(openedPlaylist)}
-                whileTap={tapScale}
+                whileTap={tap(tapScale)}
                 transition={springSnappy}
               >
                 重新选择
@@ -214,7 +217,7 @@ export function RoamPage() {
             variants={fadeRise}
             initial="hidden"
             animate="visible"
-            transition={{ ...springGentle, delay: 0.08 }}
+            transition={pageTransition({ ...springGentle, delay: 0.08 })}
           >
             <VirtualList total={openedPlaylist.tracks.length} rowHeight={56} scrollRef={scrollRef}
               renderRow={i => <TrackRow track={openedPlaylist.tracks[i]} index={i} onPlay={() => playAt(i)} />} />
@@ -232,7 +235,7 @@ export function RoamPage() {
           variants={fadeRise}
           initial="hidden"
           animate="visible"
-          transition={springGentle}
+          transition={pageTransition(springGentle)}
         >
           <div className={styles.roamHeroCopy}>
             <h1 className={styles.title}><GradientText>漫游</GradientText></h1>
@@ -280,7 +283,7 @@ export function RoamPage() {
                   setDrafting(true)
                   setPickerOpen(true)
                 }}
-                whileTap={tapScale}
+                whileTap={tap(tapScale)}
                 transition={springSnappy}
               >
                 {loading
@@ -302,7 +305,7 @@ export function RoamPage() {
               variants={fadeRise}
               initial="hidden"
               animate="visible"
-              transition={{ ...springGentle, delay: 0.06 + index * 0.04 }}
+              transition={pageTransition({ ...springGentle, delay: 0.06 + index * 0.04 })}
             >
               <div className={styles.savedPlaylistCopy}>
                 <h2>{savedPlaylist.date === todayKey() ? '今日漫游' : '上次漫游'}</h2>
@@ -321,7 +324,7 @@ export function RoamPage() {
                 <motion.button
                   className={`${styles.savedPrimaryBtn} no-drag`}
                   onClick={() => setOpenedPlaylist(savedPlaylist)}
-                  whileTap={tapScale}
+                  whileTap={tap(tapScale)}
                   transition={springSnappy}
                 >
                   继续听
@@ -351,7 +354,7 @@ export function RoamPage() {
               className={`${styles.generateBtn} no-drag`}
               disabled={totalTracks === 0 || generating || anyLoading}
               onClick={() => { void handleGenerate() }}
-              whileTap={tapScale}
+              whileTap={tap(tapScale)}
               transition={springSnappy}
             >
               {generating ? '生成中…' : anyLoading ? '曲库加载中…' : `生成漫游歌单(${totalTracks} 首)`}

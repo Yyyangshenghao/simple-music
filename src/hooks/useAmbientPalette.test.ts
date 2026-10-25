@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   cleanup: undefined as (() => void) | undefined,
   reducedMotion: false,
 }))
-vi.mock('./useReducedMotion', () => ({ useReducedMotion: () => h.reducedMotion }))
+vi.mock('./useMotion', () => ({ useMotion: () => !h.reducedMotion }))
 vi.mock('react', () => ({
   useEffect: (effect: () => (() => void) | undefined, dependencies: unknown[]) => {
     if (h.dependencies && dependencies.every((value, index) => Object.is(value, h.dependencies![index]))) return
@@ -44,7 +44,7 @@ afterEach(() => {
 })
 
 describe('界面消费氛围色', () => {
-  it('运行中减少动态会停止补间计时器并直接应用最新颜色', () => {
+  it('运行中关闭页面转场会停止补间计时器并直接应用最新颜色', () => {
     useAmbientPalette()
     expect(vi.getTimerCount()).toBe(1)
     h.reducedMotion = true

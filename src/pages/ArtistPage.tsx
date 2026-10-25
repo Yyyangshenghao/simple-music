@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useMotion } from '../hooks/useMotion'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
 import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
@@ -36,7 +36,8 @@ interface ArtistPageProps {
 }
 
 export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
+  const smoothScroll = useMotion('smoothScrollMotion')
   const runtime = useProviderStore((state) => state.byId[source])
   const participating = runtime.enabled && runtime.auth === 'authenticated'
   const scope = (part: string) => `artist:${String(id)}:${part}`
@@ -139,7 +140,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
       return
     }
     tabScrollTarget.current = null
-    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, reducedMotion ? 'auto' : 'smooth', () => {
+    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, smoothScroll ? 'smooth' : 'auto', () => {
       cancelTabScroll.current = null
       setHeldContentHeight(retainedContentHeight() || undefined)
     })

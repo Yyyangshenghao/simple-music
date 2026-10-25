@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useReducedMotion } from './useReducedMotion'
+import { useMotion } from './useMotion'
 import { useAmbientStore, type AmbientPalette } from '../stores/ambient'
 import { useNavigationStore } from '../stores/navigation'
 
@@ -58,7 +58,7 @@ function applyPalette(palette: AmbientPalette): void {
 
 /** 只消费运行时调色板更新界面颜色；卸载不停止取色或重置全局颜色。 */
 export function useAmbientPalette(enabled = true): void {
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('pageTransitionMotion')
   const palette = useAmbientStore((s) => s.palette)
   const shuangeActive = useNavigationStore((s) => s.currentView === 'shuange')
 

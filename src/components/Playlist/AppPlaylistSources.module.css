@@ -40,4 +40,3 @@
 .filter .source[aria-pressed='true'] { border-color: var(--glass-border-card); background: var(--sm-bg-overlay); }
 .filter .source[aria-pressed='true'] .count { color: var(--sm-text-primary); }
 .filter[data-filtered] .source[aria-pressed='false'] { opacity: 0.55; }
-@media (prefers-reduced-motion: reduce) { .filter .source { transition: none; } }
