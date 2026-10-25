@@ -40,8 +40,7 @@ export function AmllLyricsSettings() {
   }
 
   return <section className={styles.group}>
-    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，本地歌曲只读取同目录同名歌词。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。" /></h3>
-    <p className={styles.intro}>按顺序查找，找到可用歌词后停止。调整顺序从下一首歌曲生效。</p>
+    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，本地歌曲只读取同目录同名歌词。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
     <div className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
       <select id="lyrics-test-song" className={`${styles.select} no-drag`} value={sample} onChange={event => setSample(event.target.value)}>
@@ -59,7 +58,7 @@ export function AmllLyricsSettings() {
           : probe?.status === 'ready' ? `已获取歌词 · ${probe.ms} ms`
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'
           : probe?.status === 'error' ? '暂时连接失败，可重新测试'
-          : probe?.message ?? '可测试当前网络的获取情况'
+          : probe?.message ?? ''
         return <motion.li key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow}>
           <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
           <div className={styles.sourceName}><strong>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={suspended ? styles.statusIssue : ''}>{status}</span></div>
@@ -73,7 +72,6 @@ export function AmllLyricsSettings() {
         </motion.li>
       })}
     </ol>
-    <p className={styles.preferenceHint}>连续连接失败会暂停本次运行的自动访问，测试成功后恢复。测试不会切歌或替换正在显示的歌词。</p>
     <details className={styles.remembered}>
       <summary>歌曲来源记忆 <span>{entries.length} 首</span></summary>
       <div className={styles.memoryBody}>

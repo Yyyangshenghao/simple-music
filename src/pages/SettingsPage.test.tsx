@@ -219,17 +219,25 @@ describe('动效设置的实际生效状态', () => {
     useSettingsStore.getState().setPerformance({ reduceMotion: false })
     expect(effectSwitch(visualMarkup(), '歌词逐字高亮')).not.toContain('disabled=')
   })
-  it('按影响区域分组，卡片倾斜和光斑分别提供开关', () => {
+  it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
     const html = visualMarkup()
-    for (const title of ['可读性', '动效预设', '背景氛围', '交互反馈', '播放视觉']) {
-      expect(html).toMatch(new RegExp(`<h3[^>]*>${title}`))
+    for (const title of ['可读性', '背景氛围', '交互反馈', '播放视觉', '单项动效']) {
+      expect(html).not.toMatch(new RegExp(`<h3[^>]*>${title}`))
     }
-    expect(effectSwitch(html, '卡片倾斜')).toBeDefined()
-    expect(effectSwitch(html, '卡片跟手光斑')).toBeDefined()
+    const motion = html.slice(html.indexOf('id="settings-detail-motion"'), html.indexOf('id="settings-detail-game"'))
+    for (const label of ['文字逐字显现', '歌词逐字高亮', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
+    const background = html.slice(html.indexOf('id="settings-detail-background"'), html.indexOf('id="settings-detail-interface-font"'))
+    expect(effectSwitch(background, '流体背景')).toBeDefined()
+    expect(effectSwitch(background, '背景鼠标跟随')).toBeDefined()
+    for (const effect of ['textRevealMotion', 'lyricsWordMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
+      expect(motion).toContain(`data-effect="${effect}"`)
+    }
+    for (const effect of ['bgFluidMotion', 'bgPointerMotion']) expect(background).toContain(`data-effect="${effect}"`)
+    const appearance = html.slice(html.indexOf('id="settings-detail-appearance"'), html.indexOf('id="settings-detail-background"'))
+    expect(effectSwitch(appearance, '减少透明度')).toBeDefined()
     expect(html).not.toContain('点击火花')
     expect(html).toContain('保留按钮与卡片的基本悬停、按压反馈。')
-    expect(html.indexOf('可读性')).toBeLessThan(html.indexOf('界面字体'))
-    expect(html.indexOf('游戏模式')).toBeGreaterThan(html.indexOf('播放视觉'))
+    expect(html.indexOf('游戏模式')).toBeGreaterThan(html.indexOf('音频辉光'))
   })
 
   it('关闭流体背景只暂停鼠标跟随，保留跟随偏好供重新开启时恢复', () => {
@@ -285,8 +293,8 @@ describe('动效设置的实际生效状态', () => {
     const html = visualMarkup()
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
-    expect(html).toContain('标准：保留完整动效；简单：静止背景、直接显示说明；极简：再停止界面转场与歌词逐字高亮。')
-    expect(html).toContain('减少透明度独立设置，切换预设不会改变。')
+    expect(html).toContain('标准保留完整动效；简单模式静止背景、直接显示说明；极简模式再停止界面转场与歌词逐字高亮。')
+    expect(html).toContain('减少透明度不受影响')
   })
 })
 
@@ -331,8 +339,8 @@ describe('设置分类导航', () => {
 
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
-    for (const id of ['accounts', 'playback', 'appearance', 'interface-font', 'mini-player', 'motion', 'effects', 'game',
-      'desktop-lyrics', 'lyrics-font', 'lyrics-source', 'downloads', 'temporary-cache', 'offline-audio', 'cache-location']) {
+    for (const id of ['accounts', 'playback', 'appearance', 'background', 'interface-font', 'mini-player', 'motion', 'game',
+      'desktop-lyrics', 'lyrics-font', 'lyrics-source', 'downloads', 'player-cache']) {
       expect(html.match(new RegExp(`id="settings-detail-${id}"`, 'g'))).toHaveLength(1)
     }
     expect(html).toContain('aria-controls="settings-detail-accounts"')

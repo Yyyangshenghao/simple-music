@@ -1,8 +1,8 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { RevealText } from './RevealText'
 import styles from './InfoButton.module.css'
 
-export function InfoButton({ label, text: description, align = 'right' }: { label: string; text: string; align?: 'left' | 'right' }) {
+export function InfoButton({ label, text: description, align = 'right', preview }: { label: string; text: string; align?: 'left' | 'right'; preview?: ReactNode }) {
   const tooltipId = useId()
   return (
     <span className={styles.infoWrap} data-settings-info>
@@ -11,14 +11,10 @@ export function InfoButton({ label, text: description, align = 'right' }: { labe
         className={styles.infoButton}
         aria-label={`${label}说明`}
         aria-describedby={tooltipId}
-        onClick={(event) => event.currentTarget.focus()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') event.currentTarget.blur()
-        }}
       >
         i
       </button>
-      <span id={tooltipId} className={styles.infoTooltip} data-info-tooltip data-align={align} role="tooltip"><RevealText text={description} /></span>
+      <span id={tooltipId} className={styles.infoTooltip} data-info-tooltip data-align={align} role="tooltip">{preview}<RevealText text={description} /></span>
     </span>
   )
 }

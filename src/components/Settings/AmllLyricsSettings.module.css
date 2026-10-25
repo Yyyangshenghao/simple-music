@@ -9,7 +9,6 @@
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
-.group:has(:global([data-settings-info]:focus-within)),
 .group:has(:global([data-settings-info]:hover)) { z-index: 2; }
 
 .title {
@@ -20,8 +19,8 @@
   padding: 17px 20px 14px;
   border-bottom: 1px solid var(--sm-border);
   color: var(--sm-text-primary);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .probe {
@@ -45,13 +44,11 @@
 }
 
 .select { max-width: 230px; min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
-.preferenceHint { margin: 0; padding: 0 20px 13px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
 .clearConfirm { padding: 0 20px 16px; border-bottom: 1px solid var(--sm-border); }
 .clearConfirm p { margin: 0 0 10px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
 .clearConfirm > div { display: flex; justify-content: flex-end; gap: 8px; }
 
-.intro { margin: 0; padding: 16px 20px 12px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
-.sampleRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 20px 14px; color: var(--sm-text-secondary); font-size: 12px; }
+.sampleRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; color: var(--sm-text-secondary); font-size: 12px; }
 .priorityList { margin: 0 20px 14px; padding: 0; list-style: none; }
 .sourceRow { display: flex; align-items: center; gap: 12px; min-height: 70px; border-top: 1px solid var(--sm-border); }
 .rank { flex: 0 0 20px; color: var(--sm-text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }

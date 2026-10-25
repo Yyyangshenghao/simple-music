@@ -1,0 +1,147 @@
+/* 动效示意小样：默认暂停，悬停 ⓘ 时播放；系统减弱动态时停在静帧。 */
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 92px;
+  margin-bottom: 9px;
+  overflow: hidden;
+  border: 1px solid var(--sm-border);
+  border-radius: 8px;
+  background: var(--sm-fill-subtle);
+  perspective: 420px;
+}
+.stage,
+.stage * { animation-play-state: paused; }
+:global([data-settings-info]:hover) .stage,
+:global([data-settings-info]:hover) .stage * { animation-play-state: running; }
+
+/* 文字逐字显现 */
+.reveal { font-size: 15px; font-weight: 600; color: var(--sm-text-primary); }
+.reveal > span { display: inline-block; animation: revealChar 2800ms var(--sm-ease-out) infinite; animation-delay: calc(var(--i) * 70ms); }
+@keyframes revealChar {
+  0% { opacity: 0; filter: blur(4px); transform: translateY(3px); }
+  22%, 82% { opacity: 1; filter: blur(0); transform: none; }
+  100% { opacity: 0; filter: blur(0); }
+}
+
+/* 歌词逐字高亮 */
+.lyric { position: relative; font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+.lyricDim { color: var(--sm-text-faint); }
+.lyricLit { position: absolute; inset: 0; color: var(--sm-text-primary); clip-path: inset(0 100% 0 0); animation: lyricFill 3000ms linear infinite; }
+@keyframes lyricFill {
+  0% { clip-path: inset(0 100% 0 0); }
+  80%, 100% { clip-path: inset(0 0 0 0); }
+}
+
+/* 迷你卡片（倾斜 / 光斑共用） */
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 150px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 10px;
+  background: var(--sm-bg-elevated);
+}
+.cover { flex: 0 0 34px; height: 34px; border-radius: 6px; background: var(--ambient-gradient); }
+.lines { display: grid; flex: 1; gap: 6px; }
+.lines i { display: block; height: 6px; border-radius: 3px; background: var(--sm-fill-active); }
+.lines i:last-child { width: 60%; }
+
+.tilt { display: block; transform-style: preserve-3d; animation: cardTilt 3200ms ease-in-out infinite; }
+@keyframes cardTilt {
+  0%, 100% { transform: rotateX(8deg) rotateY(-12deg); }
+  50% { transform: rotateX(-8deg) rotateY(12deg); }
+}
+
+.spot {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70px circle at var(--spot-x, 20%) 50%, color-mix(in srgb, var(--ambient-2) 36%, transparent), transparent 70%);
+  animation: spotMove 3200ms ease-in-out infinite;
+}
+@property --spot-x { syntax: '<percentage>'; inherits: false; initial-value: 20%; }
+@keyframes spotMove {
+  0%, 100% { --spot-x: 10%; }
+  50% { --spot-x: 90%; }
+}
+
+/* 指针示意：与倾斜、光斑、鼠标跟随同一路径 */
+.cursor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border: 1.5px solid var(--sm-text-primary);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sm-bg-base) 40%, transparent);
+  animation: cursorMove 3200ms ease-in-out infinite;
+}
+@keyframes cursorMove {
+  0%, 100% { transform: translate(-62px, 14px); }
+  50% { transform: translate(62px, -14px); }
+}
+
+/* 标题流光 */
+.gradientTitle {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  background: linear-gradient(110deg, var(--sm-text-primary) 20%, var(--ambient-2) 40%, var(--ambient-1) 52%, var(--sm-text-primary) 72%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: titleFlow 3600ms linear infinite;
+}
+@keyframes titleFlow {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+/* 音频辉光 */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 12px;
+  background: var(--sm-bg-elevated);
+  animation: barGlow 1100ms ease-out infinite;
+}
+.bar .cover { flex-basis: 26px; height: 26px; }
+.play { flex: 0 0 18px; height: 18px; border-radius: 50%; background: var(--sm-text-primary); }
+@keyframes barGlow {
+  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--ambient-1) 20%, transparent); }
+  12% { box-shadow: 0 0 22px 2px color-mix(in srgb, var(--ambient-2) 55%, transparent); }
+  45% { box-shadow: 0 0 12px color-mix(in srgb, var(--ambient-1) 32%, transparent); }
+  58% { box-shadow: 0 0 18px 1px color-mix(in srgb, var(--ambient-2) 45%, transparent); }
+}
+
+/* 流体背景 / 鼠标跟随 */
+.fluid { position: absolute; inset: 0; filter: blur(16px); }
+.blobA, .blobB, .blobC { position: absolute; width: 90px; height: 90px; border-radius: 50%; opacity: 0.75; }
+.blobA { top: -20px; left: 20px; background: var(--ambient-1); animation: blobA 6000ms ease-in-out infinite; }
+.blobB { top: 20px; left: 110px; background: var(--ambient-2); animation: blobB 7000ms ease-in-out infinite; }
+.blobC { top: -10px; left: 170px; background: var(--ambient-3); animation: blobC 5000ms ease-in-out infinite; }
+@keyframes blobA { 50% { transform: translate(50px, 30px) scale(1.15); } }
+@keyframes blobB { 50% { transform: translate(-40px, -20px) scale(0.85); } }
+@keyframes blobC { 50% { transform: translate(-30px, 30px) scale(1.1); } }
+/* 跟随时整团流体随指针偏移，并稍稍落后于指针 */
+.fluid[data-follow='true'] { animation: fluidFollow 3200ms ease-in-out infinite; animation-delay: -200ms; }
+@keyframes fluidFollow {
+  0%, 100% { transform: translate(-22px, 6px); }
+  50% { transform: translate(22px, -6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage, .stage * { animation: none !important; }
+}

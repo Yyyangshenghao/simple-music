@@ -97,8 +97,9 @@
   line-height: 1.5;
   text-align: left;
   cursor: pointer;
+  transition: color 160ms ease;
 }
-.subTab:hover { color: var(--sm-text-primary); background: var(--sm-fill-subtle); }
+.subTab:hover { color: var(--sm-text-primary); }
 .subTab[aria-current='location'] { color: var(--sm-text-primary); font-weight: 650; }
 
 .tab {
@@ -265,7 +266,14 @@
 
 }
 
-.group:has(:global([data-settings-info]:focus-within)),
+/* 从左侧子菜单跳转后，目标卡片短暂描边提示落点。 */
+.group[data-settings-landed],
+[data-settings-landed] > section { animation: settingsLanded 1600ms var(--sm-ease-out); }
+@keyframes settingsLanded {
+  0%, 35% { border-color: var(--sm-border-strong); box-shadow: 0 0 0 1px var(--sm-border-strong), var(--glow-soft); }
+  100% { box-shadow: 0 0 0 1px transparent; }
+}
+
 .group:has(:global([data-settings-info]:hover)) { z-index: 2; }
 
 .groupHint {
@@ -282,12 +290,12 @@
   justify-content: space-between;
   gap: 12px;
   margin: 0;
-  padding: 17px 20px 14px;
+  padding: 18px 20px 14px;
   border-bottom: 1px solid var(--sm-border);
   color: var(--sm-text-primary);
-  font-size: 14px;
-  font-weight: 680;
-  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 .row {
@@ -302,9 +310,19 @@
 
 .row:last-child { border-bottom: none; }
 
+/* 单项动效两列排布，分隔线沿用行边框。 */
+.effectGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--sm-border); }
+.effectGrid .row:nth-child(odd) { border-right: 1px solid var(--sm-border); }
+.effectGrid .row:nth-last-child(-n + 2) { border-bottom: none; }
+
+/* 只有一个操作的卡片：标题与按钮同行，不再单独占一行。 */
+.groupTitleBare { border-bottom: none; padding-bottom: 17px; }
+.groupTitleBare h3 { display: flex; align-items: center; margin: 0; font: inherit; }
+.groupTitleBare [data-settings-info] { margin-left: 8px; }
+
 .rowIcon { color: var(--sm-text-secondary); display: flex; align-items: center; }
 
-.rowLabel { min-width: 0; color: var(--sm-text-primary); font-size: 13px; flex: 1; }
+.rowLabel { min-width: 0; color: color-mix(in srgb, var(--sm-text-primary) 74%, transparent); font-size: 13px; flex: 1; }
 .rowLabel [data-settings-info],
 .playbackFieldLabel [data-settings-info] { margin-left: 8px; }
 .rowLabel [data-info-tooltip],
@@ -312,7 +330,7 @@
 
 .rowValue { color: var(--sm-text-secondary); font-size: 12px; }
 
-.effectPresetOptions { padding: 16px 20px 0; }
+.effectPresetOptions { padding: 16px 20px 4px; }
 
 .effectPresetControl { width: 100%; }
 .effectPresetControl .seg { flex: 1; padding: 7px 8px; text-align: center; }
@@ -376,15 +394,6 @@
 .providerStatus { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--sm-text-muted); }
 .providerStatus[data-connected='true'] { background: var(--sm-color-gold); }
 .providerStatus[data-active='true'] { background: var(--sm-color-success); }
-
-.providerExplanation {
-  margin: 0;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--sm-border);
-  color: var(--sm-text-secondary);
-  font-size: 12px;
-  line-height: 1.7;
-}
 
 .playbackStrategyRow {
   border-bottom: 1px solid var(--sm-border);
@@ -669,6 +678,7 @@
 .segCustom:hover { color: var(--sm-text-secondary); }
 .segCustom.segActive:hover { color: var(--sm-text-primary); }
 
+.fontGuide[hidden] { display: none; }
 .fontGuide {
   display: flex;
   align-items: center;
@@ -758,6 +768,9 @@
   }
 
   .rowLabel { flex-basis: 42%; }
+  .effectGrid { grid-template-columns: minmax(0, 1fr); }
+  .effectGrid .row:nth-child(odd) { border-right: none; }
+  .effectGrid .row:nth-last-child(2) { border-bottom: 1px solid var(--sm-border); }
   .rowValue { margin-left: auto; }
   .fontPairRow .rowLabel { flex-basis: 100%; }
   .fontPair { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }

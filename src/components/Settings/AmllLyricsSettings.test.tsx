@@ -40,6 +40,13 @@ function text(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
   return text((node as ReactElement<any>).props?.children)
 }
+/** ⓘ 说明（InfoButton 已被 mock 为空渲染）的文字，从元素 props.text 收集。 */
+function infoText(node: unknown): string {
+  if (!node || typeof node !== 'object') return ''
+  if (Array.isArray(node)) return node.map(infoText).join('')
+  const props = (node as ReactElement<any>).props
+  return `${typeof props?.text === 'string' ? props.text : ''}${infoText(props?.children)}`
+}
 function button(node: unknown, label: string) {
   return elements(node, 'button').find(item => item.props['aria-label'] === label || text(item) === label)!
 }
@@ -68,7 +75,7 @@ describe('歌词来源设置', () => {
     expect(button(element, '提高网易云音乐优先级').props.disabled).toBe(true)
     button(element, '提高QQ 音乐优先级').props.onClick()
     expect(h.source.setSourceOrder).toHaveBeenCalledWith(['qq', 'netease', 'amll', 'kugou'])
-    expect(text(element)).toContain('从下一首歌曲生效')
+    expect(infoText(element)).toContain('从下一首歌曲生效')
   })
 
   it('游客可测试固定歌曲，不引导登录或展示补全实现开关', () => {
@@ -80,7 +87,7 @@ describe('歌词来源设置', () => {
     button(rows[1], '测试').props.onClick()
     expect(h.source.testSource).toHaveBeenCalledWith('qq', 'ocean')
     expect(text(element)).not.toMatch(/尚未登录|使用.*补全/)
-    expect(text(element)).toContain('测试不会切歌或替换正在显示的歌词')
+    expect(infoText(element)).toContain('测试不会切歌或替换正在显示的歌词')
   })
 
   it('暂停来源提供测试恢复，测试中的来源禁止重复点击', () => {

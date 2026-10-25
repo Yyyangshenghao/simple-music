@@ -42,7 +42,6 @@ export function ShortcutSettings() {
   return (
     <div className={styles.panel}>
       <div className={styles.intro}>
-        <h3>让常用操作触手可及</h3>
         <p>点击按键后按下新组合。Esc 取消，Delete 或 Backspace 清除。</p>
       </div>
       <table className={styles.table}>

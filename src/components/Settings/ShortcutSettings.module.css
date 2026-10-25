@@ -6,8 +6,7 @@
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.09);
 }
 
-.intro { padding: 22px 24px 14px; }
-.intro h3 { margin: 0 0 8px; color: var(--sm-text-primary); font-size: 15px; font-weight: 680; }
+.intro { padding: 16px 24px 10px; }
 .intro p, .option p, .footer p { margin: 0; color: var(--sm-text-secondary); font-size: 11px; line-height: 1.7; }
 .table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .table th { text-align: left; font-weight: 560; }

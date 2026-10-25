@@ -17,7 +17,7 @@
   padding: 20px 24px;
 }
 
-.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 14px; font-weight: 680; }
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 16px; font-weight: 700; }
 
 .preview {
   position: relative;
