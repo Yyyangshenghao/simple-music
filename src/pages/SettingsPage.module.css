@@ -316,6 +316,30 @@
 /* 奇数项时最后一项独占一行 */
 .effectGrid .row:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: none; }
 
+/* 控件动效：批量开关一行，细节展开为嵌套两列。 */
+.controlGroup { border-top: 1px solid var(--sm-border); }
+.detailToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+.detailToggle:hover { color: var(--sm-text-primary); }
+.detailToggle svg { transition: transform 220ms var(--sm-ease-out); }
+.detailToggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.controlDetail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 260ms var(--sm-ease-out); }
+.controlDetail[data-expanded='true'] { grid-template-rows: 1fr; }
+.controlDetailInner { min-height: 0; overflow: hidden; background: var(--sm-fill-subtle); }
+:global([data-page-motion-off]) :is(.controlDetail, .detailToggle svg) { transition: none; }
+
 /* 只有一个操作的卡片：标题与按钮同行，不再单独占一行。 */
 .groupTitleBare { border-bottom: none; padding-bottom: 17px; }
 .groupTitleBare h3 { display: flex; align-items: center; margin: 0; font: inherit; }

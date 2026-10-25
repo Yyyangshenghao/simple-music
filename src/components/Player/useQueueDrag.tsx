@@ -273,7 +273,7 @@ export function useQueueDrag({ panelRef, listRef, slitRef, total, rowHeight, red
 
 /** 碎纸：被移除的行从右侧竖缝穿出，横切成条，依次错开向右飘落并淡出。 */
 function ShredStrips({ shred, onDone }: { shred: Shred; onDone(): void }) {
-  const controlMotion = useMotion('controlMotion')
+  const controlMotion = useMotion('dragMotion')
   const mounted = useRef(0)
   return (
     <div className={styles.shred} style={{ left: shred.left, top: shred.top, width: shred.width, height: shred.height }} aria-hidden="true">

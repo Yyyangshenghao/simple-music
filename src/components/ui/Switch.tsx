@@ -26,7 +26,7 @@ interface SwitchProps {
 
 /** 滑块位置与形变：值变化时弹簧滑到新位置，横移越快越横向拉长、纵向压扁（体积守恒），swell 控制悬停/按住时的鼓缩。 */
 function useSquishThumb(checked: boolean, holding: boolean) {
-  const reducedMotion = !useMotion('controlMotion')
+  const reducedMotion = !useMotion('toggleMotion')
   const x = useMotionValue(checked ? TRAVEL : 0)
   const flow = useSpring(useVelocity(x), switchFlowSpring)
   const swell = useSpring(1, switchSwellSpring)

@@ -50,4 +50,4 @@
 
 /* 减弱动态：竖条恒为静止高度 */
 
-:global([data-control-motion-off]) .bar { height: var(--wake-rest) !important; }
+:global([data-slider-motion-off]) .bar { height: var(--wake-rest) !important; }

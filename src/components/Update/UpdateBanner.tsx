@@ -3,12 +3,12 @@ import { useUpdateStore } from '../../stores/update'
 import { springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
 import styles from './UpdateBanner.module.css'
-import { useControlFeedback, usePageTransition } from '../../hooks/useMotion'
+import { useFeedback, usePageTransition } from '../../hooks/useMotion'
 
 /** 顶部更新提示条：检测到新版本时出现，下载/安装走 job 状态机，用户可关闭并记住该版本不再提示。 */
 export function UpdateBanner() {
   const pageTransition = usePageTransition()
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   const info = useUpdateStore((s) => s.info)
   const job = useUpdateStore((s) => s.job)
   const downloading = useUpdateStore((s) => s.downloading)

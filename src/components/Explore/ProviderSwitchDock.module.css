@@ -191,5 +191,5 @@
   .open .panel { transform: translateX(0); }
 }
 
-/* 关闭「控件动效」时直接到位。 */
-:global([data-control-motion-off]) :is(.panel, .heading, .option, .edgeHint) { transition: none !important; animation: none !important; }
+/* 关闭「开关与选项」时直接到位。 */
+:global([data-toggle-motion-off]) :is(.panel, .heading, .option, .edgeHint) { transition: none !important; animation: none !important; }

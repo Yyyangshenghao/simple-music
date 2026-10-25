@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSettingsStore } from '../stores/settings'
+import { useSettingsStore, CONTROL_MOTION_KEYS, controlMotionFlags } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { useProviderStore } from '../stores/providers'
@@ -201,7 +201,7 @@ function effectSwitch(html: string, label: string): string {
 
 describe('动效设置的实际生效状态', () => {
   it('没有总开关；四项界面动效全关时，其它开关仍可独立切换且不显示暂停原因', () => {
-    useSettingsStore.getState().setPerformance({ pageTransitionMotion: false, controlMotion: false, smoothScrollMotion: false, lyricsLineMotion: false })
+    useSettingsStore.getState().setPerformance({ pageTransitionMotion: false, ...controlMotionFlags(false), smoothScrollMotion: false, lyricsLineMotion: false })
     const html = renderToStaticMarkup(<SettingsPage />)
     expect(html).not.toContain('减少动态效果')
     for (const label of ['页面转场', '控件动效', '平滑滚动', '歌词换句动画']) {
@@ -214,6 +214,21 @@ describe('动效设置的实际生效状态', () => {
     }
     expect(html).not.toContain('已随减少动态效果暂停')
     expect(html).not.toContain('已随系统暂停')
+  })
+  it('控件动效拆成七项，各带示意；批量开关只在全部开启时显示开启，部分开启时提示数量', () => {
+    const items = ['按压回弹', '悬停浮起', '开关与选项', '标签指示条', '滑杆手感', '拖拽手感', '图标小动画']
+    let html = visualMarkup()
+    const detail = html.slice(html.indexOf('id="settings-control-motion-detail"'))
+    for (const label of items) expect(effectSwitch(detail, label)).toContain('aria-checked="true"')
+    for (const key of CONTROL_MOTION_KEYS) expect(detail).toContain(`data-effect="${key}"`)
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    useSettingsStore.getState().setPerformance({ dragMotion: false, iconMotion: false })
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="false"')
+    expect(html).toContain('已开启 5/7 项')
+    expect(effectSwitch(html, '按压回弹')).not.toContain('disabled=')
+    useSettingsStore.getState().setPerformance(controlMotionFlags(true))
+    expect(visualMarkup()).not.toContain('已开启')
   })
   it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
     const html = visualMarkup()
@@ -231,7 +246,7 @@ describe('动效设置的实际生效状态', () => {
     const background = html.slice(html.indexOf('id="settings-detail-background"'), html.indexOf('id="settings-detail-interface-font"'))
     expect(effectSwitch(background, '流体背景')).toBeDefined()
     expect(effectSwitch(background, '背景鼠标跟随')).toBeDefined()
-    for (const effect of ['pageTransitionMotion', 'controlMotion', 'smoothScrollMotion', 'textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
+    for (const effect of ['pageTransitionMotion', 'smoothScrollMotion', 'textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
       expect(motion).toContain(`data-effect="${effect}"`)
     }
     for (const effect of ['bgFluidMotion', 'bgPointerMotion']) expect(background).toContain(`data-effect="${effect}"`)

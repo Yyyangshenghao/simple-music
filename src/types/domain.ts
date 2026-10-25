@@ -224,8 +224,21 @@ export interface CustomBackgroundMedia {
 export interface PerformanceFlags {
   /** 页面切换、菜单弹出、列表滚动入场与封面飞行等转场；关闭后直接切换。 */
   pageTransitionMotion: boolean
-  /** 开关回弹、红心、标签指示条、提示气泡等控件手感动画；关闭后状态直接到位。 */
-  controlMotion: boolean
+  /** 控件手感七项，各自独立；设置页「控件动效」只是一次性批量开关。 */
+  /** 按钮与卡片按下时的缩小回弹。 */
+  tapFeedbackMotion: boolean
+  /** 卡片悬停上浮、播放栏封面放大、播放控件图标位移。 */
+  hoverLiftMotion: boolean
+  /** 开关拉伸回弹、分段选择果冻、主题图标、勾选框与平台切换面板。 */
+  toggleMotion: boolean
+  /** 顶栏、我的库标签与设置目录的滑动指示条。 */
+  indicatorMotion: boolean
+  /** 进度、音量等滑杆的拉伸、倾斜与数值气泡。 */
+  sliderMotion: boolean
+  /** 队列拖动倾斜与碎纸、探索卡片堆甩动、歌词来源排序。 */
+  dragMotion: boolean
+  /** 红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出、搜索框展开。 */
+  iconMotion: boolean
   /** 歌词跟随、页内跳转等平滑滚动；关闭后直接跳到目标位置。 */
   smoothScrollMotion: boolean
   /** 歌词换句淡入淡出与歌词样式切换过渡；关闭后直接换句。 */

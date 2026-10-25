@@ -4,7 +4,7 @@ import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
 import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
-import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, PERFORMANCE_PRESETS, useSettingsStore, type PerformancePreset } from '../stores/settings'
+import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, CONTROL_MOTION_KEYS, PERFORMANCE_PRESETS, controlMotionFlags, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { DEFAULT_MINI_PLAYER_APPEARANCE, MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
 import { useUpdateStore } from '../stores/update'
@@ -374,7 +374,6 @@ type EffectItem = { key: PreviewEffect; label: string; hint: string }
 
 const MOTION_EFFECTS: EffectItem[] = [
   { key: 'pageTransitionMotion', label: '页面转场', hint: '切换页面、弹出菜单与面板、列表滚动入场和封面飞行时的过渡；关闭后直接切换。' },
-  { key: 'controlMotion', label: '控件动效', hint: '开关回弹、红心、标签指示条、提示气泡和卡片悬停上浮等手感动画；关闭后状态直接到位。' },
   { key: 'smoothScrollMotion', label: '平滑滚动', hint: '歌词跟随当前行、点击目录跳转等自动滚动；关闭后直接跳到目标位置。' },
   { key: 'textRevealMotion', label: '文字逐字显现', hint: '简介和帮助说明逐字淡入；关闭后使用普通文本，减少文字节点' },
   { key: 'cardTiltEffect', label: '卡片倾斜', hint: '歌单与推荐卡片随鼠标轻微倾斜；关闭后保留按钮与卡片的基本悬停、按压反馈。' },
@@ -382,6 +381,48 @@ const MOTION_EFFECTS: EffectItem[] = [
   { key: 'gradientTextMotion', label: '标题流光', hint: '页面标题的渐变流动与呼吸' },
   { key: 'audioGlowEffect', label: '音频辉光', hint: '播放栏辉光随低频呼吸，关闭可减少持续渲染' },
 ]
+
+const CONTROL_EFFECTS: EffectItem[] = [
+  { key: 'tapFeedbackMotion', label: '按压回弹', hint: '按钮和卡片按下时轻微缩小，松开回弹；关闭后按下没有缩放。' },
+  { key: 'hoverLiftMotion', label: '悬停浮起', hint: '卡片悬停上浮、播放栏封面放大、播放控件图标轻移；关闭后悬停只改颜色。' },
+  { key: 'toggleMotion', label: '开关与选项', hint: '开关滑块拉伸回弹、分段选择的果冻底块、主题图标切换、勾选框与平台切换面板。' },
+  { key: 'indicatorMotion', label: '标签指示条', hint: '顶栏、我的库标签和设置目录的指示条滑到新位置；关闭后直接跳到位。' },
+  { key: 'sliderMotion', label: '滑杆手感', hint: '进度、音量等滑杆拖动时的拉伸、倾斜和数值气泡过渡。' },
+  { key: 'dragMotion', label: '拖拽手感', hint: '队列拖动时的倾斜、抬起与碎纸删除，探索卡片堆的甩动，歌词来源排序的位移。' },
+  { key: 'iconMotion', label: '图标小动画', hint: '红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出和搜索框展开。' },
+]
+
+/** 控件动效：批量开关只一次性设置七项，不压制子项；细节里逐项调整。 */
+function ControlMotionGroup() {
+  const performance = useSettingsStore((s) => s.performance)
+  const setPerformance = useSettingsStore((s) => s.setPerformance)
+  const [open, setOpen] = useState(false)
+  const enabledCount = CONTROL_MOTION_KEYS.filter(key => performance[key]).length
+  const all = enabledCount === CONTROL_MOTION_KEYS.length
+  return (
+    <div className={styles.controlGroup}>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>
+          控件动效
+          <InfoButton label="控件动效" text="按压、悬停、开关、指示条、滑杆、拖拽与图标的手感动画。这里的开关只是一次性全开或全关，展开细节可逐项调整，各项互不影响。" />
+          {enabledCount > 0 && !all && <small className={styles.effectReason}>已开启 {enabledCount}/{CONTROL_MOTION_KEYS.length} 项</small>}
+        </span>
+        <button type="button" className={`${styles.detailToggle} no-drag`} aria-expanded={open} aria-controls="settings-control-motion-detail" onClick={() => setOpen(value => !value)}>
+          细节
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
+        <Switch checked={all} onChange={(enabled) => setPerformance(controlMotionFlags(enabled))} aria-label="控件动效" />
+      </div>
+      <div id="settings-control-motion-detail" className={styles.controlDetail} data-expanded={open} aria-hidden={!open} {...(open ? {} : { inert: '' })}>
+        <div className={styles.controlDetailInner}>
+          <div className={styles.effectGrid}>
+            {CONTROL_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const LYRICS_EFFECTS: EffectItem[] = [
   { key: 'lyricsWordMotion', label: '歌词逐字高亮', hint: '普通歌词按字点亮；关闭后按整行点亮并停止逐字动画' },
@@ -637,7 +678,7 @@ function markLanded(page: HTMLElement, node: HTMLElement, waitForScroll: boolean
 
 export function SettingsPage() {
   const smoothScroll = useMotion('smoothScrollMotion')
-  const controlMotion = useMotion('controlMotion')
+  const indicatorMotion = useMotion('indicatorMotion')
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -951,7 +992,7 @@ export function SettingsPage() {
         <header className={styles.hero}>
           <h1 className={styles.title}>设置</h1>
         </header>
-        <div className={styles.settingsLayout} data-reduced-motion={!controlMotion}>
+        <div className={styles.settingsLayout} data-reduced-motion={!indicatorMotion}>
           <aside className={styles.drawer}>
           <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
             <div className={styles.tabBar} ref={tabBarRef}>
@@ -1383,6 +1424,7 @@ export function SettingsPage() {
                     <div className={styles.effectGrid}>
                       {MOTION_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
                     </div>
+                    <ControlMotionGroup />
                   </section>
                   <section id="settings-detail-game" className={styles.group}>
                     <div className={`${styles.groupTitle} ${styles.groupTitleBare}`}>

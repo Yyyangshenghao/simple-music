@@ -82,7 +82,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
   const slitRef = useRef<HTMLDivElement>(null)
   const reducedMotion = !useMotion('pageTransitionMotion')
   // 拖拽倾斜、抬升与碎纸属于控件手感，与列表补位过渡分开控制。
-  const dragStill = !useMotion('controlMotion')
+  const dragStill = !useMotion('dragMotion')
   const display = useMemo(
     () => queueDisplayOrder(queue.length, queueIndex, shuffleOrder, playMode),
     [playMode, queue.length, queueIndex, shuffleOrder]

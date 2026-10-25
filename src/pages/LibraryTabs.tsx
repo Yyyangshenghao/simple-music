@@ -31,7 +31,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const [dragging, setDragging] = useState(false)
   const [holding, setHolding] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
-  const reducedMotion = !useMotion('controlMotion')
+  const reducedMotion = !useMotion('indicatorMotion')
 
   const targetX = useMotionValue(0)
   const targetWidth = useMotionValue(0)

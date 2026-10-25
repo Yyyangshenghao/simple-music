@@ -20,7 +20,7 @@ interface TrackSearchProps {
 }
 
 export function TrackSearch({ value, onChange, placeholder, count, loading, error, onRetry, children }: TrackSearchProps) {
-  const controlMotion = useMotion('controlMotion')
+  const controlMotion = useMotion('iconMotion')
   const active = Boolean(value.trim())
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)

@@ -43,7 +43,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  */
 export function ScrubField({ label, value, min, max, step, defaultValue, onChange, scale = 1, suffix = '', note, disabled }: ScrubFieldProps) {
   const id = useId()
-  const reducedMotion = !useMotion('controlMotion')
+  const reducedMotion = !useMotion('sliderMotion')
   const [dragging, setDragging] = useState(false)
   const [typing, setTyping] = useState(false)
   const display = useMotionValue(value)

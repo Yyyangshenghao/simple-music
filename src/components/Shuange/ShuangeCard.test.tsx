@@ -5,7 +5,7 @@ import { ShuangeCard } from './ShuangeCard'
 
 const h = vi.hoisted(() => ({ quickAdd: vi.fn(), next: vi.fn(), like: vi.fn(), playFull: vi.fn() }))
 const track: Track = { provider: 'netease', source: 'netease', type: 'song', id: 12, name: '刷到的歌曲', artist: '歌手', artists: [] }
-vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useControlFeedback: () => <T,>(t: T) => t }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useFeedback: () => <T,>(t: T) => t }))
 vi.mock('react', async original => ({
   ...await original<typeof import('react')>(),
   useState: (initial: unknown) => [initial, vi.fn()],

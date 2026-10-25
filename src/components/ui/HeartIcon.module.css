@@ -19,4 +19,4 @@
 
 .heart circle { pointer-events: none; }
 
-:global([data-control-motion-off]) .heart path { transition: none; }
+:global([data-icon-motion-off]) .heart path { transition: none; }

@@ -16,7 +16,7 @@ export function AmllLyricsSettings() {
   const setEnabled = useSettingsStore(s => s.setLyricsAmllFallback)
   const kugouEnabled = useSettingsStore(s => s.lyricsKugouFallback)
   const setKugouEnabled = useSettingsStore(s => s.setLyricsKugouFallback)
-  const reduced = !useMotion('controlMotion')
+  const reduced = !useMotion('dragMotion')
   const [sample, setSample] = useState('sunny')
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(20)

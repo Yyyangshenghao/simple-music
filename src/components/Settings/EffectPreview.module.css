@@ -226,3 +226,102 @@
   25%, 45% { color: var(--sm-text-primary); }
   50%, 100% { color: var(--sm-text-faint); }
 }
+
+/* 指针：按压 / 悬停 / 拖拽三种示意共用，路径随 data-effect 变化 */
+.pointer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border: 1.5px solid var(--sm-text-primary);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sm-bg-base) 40%, transparent);
+}
+.pointer[data-effect='tapFeedbackMotion'] { animation: pointerTap 1800ms ease-in-out infinite; }
+.pointer[data-effect='hoverLiftMotion'] { animation: pointerHover 2800ms ease-in-out infinite; }
+.pointer[data-effect='dragMotion'] { animation: pointerDrag 2800ms ease-in-out infinite; }
+@keyframes pointerTap {
+  0%, 100% { transform: translate(30px, 22px); }
+  30%, 70% { transform: translate(10px, 4px); }
+  40%, 52% { transform: translate(10px, 4px) scale(0.7); }
+}
+@keyframes pointerHover {
+  0%, 100% { transform: translate(110px, 30px); }
+  35%, 70% { transform: translate(20px, 2px); }
+}
+@keyframes pointerDrag {
+  0%, 15% { transform: translate(40px, 0); }
+  55%, 80% { transform: translate(40px, 22px); }
+  100% { transform: translate(40px, 0); }
+}
+
+/* 按压回弹 */
+.tapButton {
+  padding: 8px 18px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-text-primary);
+  color: var(--sm-bg-base);
+  font-size: 12px;
+  font-weight: 650;
+  animation: tapPress 1800ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes tapPress {
+  0%, 38% { transform: scale(1); }
+  44%, 50% { transform: scale(0.92); }
+  62%, 100% { transform: scale(1); }
+}
+
+/* 悬停浮起 */
+.hoverLift { display: block; animation: hoverLift 2800ms var(--sm-ease-out) infinite; }
+@keyframes hoverLift {
+  0%, 25%, 85%, 100% { transform: none; filter: drop-shadow(0 0 0 transparent); }
+  40%, 70% { transform: translateY(-5px) scale(1.03); filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3)); }
+}
+
+/* 标签指示条 */
+.tabs { position: relative; display: grid; grid-template-columns: repeat(3, 52px); padding: 4px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); font-size: 12px; color: var(--sm-text-secondary); text-align: center; }
+.tabs > span:not(.tabPill) { position: relative; z-index: 1; line-height: 26px; }
+.tabPill { position: absolute; top: 4px; left: 4px; width: 52px; height: 26px; border-radius: 13px; background: var(--sm-fill-active); animation: tabSlide 3600ms cubic-bezier(0.34, 1.3, 0.64, 1) infinite; transform-origin: left center; }
+@keyframes tabSlide {
+  0%, 22% { transform: translateX(0) scaleX(1); }
+  28% { transform: translateX(20px) scaleX(1.3); }
+  36%, 55% { transform: translateX(52px) scaleX(1); }
+  61% { transform: translateX(72px) scaleX(1.3); }
+  69%, 88% { transform: translateX(104px) scaleX(1); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+/* 滑杆手感 */
+.slider { position: relative; width: 160px; height: 28px; }
+.sliderRail { position: absolute; top: 12px; left: 0; right: 0; height: 4px; overflow: hidden; border-radius: 2px; background: var(--sm-fill-active); animation: railStretch 3000ms ease-in-out infinite; }
+.sliderFill { display: block; height: 100%; width: 100%; background: var(--sm-text-primary); transform-origin: left; animation: sliderFill 3000ms ease-in-out infinite; }
+.sliderThumb { position: absolute; top: 7px; left: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--sm-text-primary); animation: sliderThumb 3000ms ease-in-out infinite; }
+.sliderBubble { position: absolute; bottom: 20px; left: 50%; width: 26px; height: 16px; margin-left: -13px; border-radius: 5px; background: var(--sm-fill-active); animation: sliderBubble 3000ms ease-in-out infinite; }
+@keyframes sliderFill { 0%, 10% { transform: scaleX(0.2); } 55%, 70% { transform: scaleX(0.8); } 100% { transform: scaleX(0.2); } }
+@keyframes sliderThumb { 0%, 10% { transform: translateX(32px); } 55%, 70% { transform: translateX(128px); } 100% { transform: translateX(32px); } }
+@keyframes railStretch { 0%, 10%, 70%, 100% { transform: scaleY(1); } 20%, 55% { transform: scaleY(1.8); } }
+@keyframes sliderBubble { 0%, 10%, 72%, 100% { opacity: 0; transform: translateY(4px) scale(0.8); } 20%, 60% { opacity: 1; transform: none; } }
+
+/* 拖拽手感 */
+.dragList { display: grid; gap: 6px; width: 150px; }
+.dragList i { display: block; height: 14px; border-radius: 5px; background: var(--sm-fill-active); }
+.dragList .dragRow { background: color-mix(in srgb, var(--sm-accent) 55%, transparent); animation: dragRow 2800ms ease-in-out infinite; }
+@keyframes dragRow {
+  0%, 15% { transform: none; box-shadow: none; }
+  25% { transform: translateY(-2px) rotate(-2deg) scale(1.04); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); }
+  55%, 80% { transform: translateY(20px) rotate(2deg) scale(1.04); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); }
+  100% { transform: none; box-shadow: none; }
+}
+
+/* 图标小动画：红心爆开 */
+.heart { position: relative; width: 34px; height: 34px; }
+.heart svg { width: 34px; height: 34px; fill: var(--ambient-2); animation: heartPop 2000ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite; }
+.heart i { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--ambient-2); opacity: 0; animation: heartBurst 2000ms ease-out infinite; }
+@keyframes heartPop { 0%, 30% { transform: scale(1); } 38% { transform: scale(0.7); } 50% { transform: scale(1.2); } 62%, 100% { transform: scale(1); } }
+@keyframes heartBurst {
+  0%, 40% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(0); }
+  45% { opacity: 1; }
+  75%, 100% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(-26px); }
+}

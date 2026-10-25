@@ -72,7 +72,13 @@ export const DEFAULT_LYRICS_3D: Lyrics3dParams = {
 
 export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   pageTransitionMotion: true,
-  controlMotion: true,
+  tapFeedbackMotion: true,
+  hoverLiftMotion: true,
+  toggleMotion: true,
+  indicatorMotion: true,
+  sliderMotion: true,
+  dragMotion: true,
+  iconMotion: true,
   smoothScrollMotion: true,
   lyricsLineMotion: true,
   textRevealMotion: true,
@@ -93,11 +99,18 @@ function normalizeLyrics3dFpsCap(fps: number): number {
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 
+/** 控件动效七项；设置页的「控件动效」批量开关与旧存档迁移共用这份清单。 */
+export const CONTROL_MOTION_KEYS = ['tapFeedbackMotion', 'hoverLiftMotion', 'toggleMotion', 'indicatorMotion', 'sliderMotion', 'dragMotion', 'iconMotion'] as const satisfies readonly (keyof PerformanceFlags)[]
+
+export function controlMotionFlags(enabled: boolean): Record<(typeof CONTROL_MOTION_KEYS)[number], boolean> {
+  return Object.fromEntries(CONTROL_MOTION_KEYS.map(key => [key, enabled])) as Record<(typeof CONTROL_MOTION_KEYS)[number], boolean>
+}
+
 /** 动效预设控制界面与装饰效果；透明度与 3D 歌词保持独立。 */
 export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlags, 'reduceTransparency'>> = {
-  standard: { pageTransitionMotion: true, controlMotion: true, smoothScrollMotion: true, lyricsLineMotion: true, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  simple: { pageTransitionMotion: true, controlMotion: true, smoothScrollMotion: true, lyricsLineMotion: true, textRevealMotion: false, lyricsWordMotion: true, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
-  minimal: { pageTransitionMotion: false, controlMotion: false, smoothScrollMotion: false, lyricsLineMotion: false, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
+  standard: { pageTransitionMotion: true, ...controlMotionFlags(true), smoothScrollMotion: true, lyricsLineMotion: true, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: true, bgPointerMotion: true, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  simple: { pageTransitionMotion: true, ...controlMotionFlags(true), smoothScrollMotion: true, lyricsLineMotion: true, textRevealMotion: false, lyricsWordMotion: true, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: true, cardSpotlightEffect: true, gradientTextMotion: true, audioGlowEffect: true },
+  minimal: { pageTransitionMotion: false, ...controlMotionFlags(false), smoothScrollMotion: false, lyricsLineMotion: false, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false, bgPointerMotion: false, cardTiltEffect: false, cardSpotlightEffect: false, gradientTextMotion: false, audioGlowEffect: false },
 }
 
 interface PersistedSettings {
@@ -551,8 +564,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           // 旧存档字段可能不全,按 Partial 处理
           // 移除旧全局火花和立体歌词总开关；跟随/光斑继承旧组合选择，已单独配置时原样保留。
           // 旧「减少动态效果」总开关拆成四项：开着的用户四项都关，之后各自独立。
-          const { clickSparkEffect: _removed, lyrics3dEnabled: _removed3dGate, reduceMotion, ...stored } = (data.performance ?? {}) as Partial<PerformanceFlags> & { clickSparkEffect?: boolean; lyrics3dEnabled?: boolean; reduceMotion?: boolean }
-          const legacyMotion = reduceMotion === true ? { pageTransitionMotion: false, controlMotion: false, smoothScrollMotion: false, lyricsLineMotion: false } : {}
+          // 「控件动效」又拆成七项：旧的单一选择带到每一项。
+          const { clickSparkEffect: _removed, lyrics3dEnabled: _removed3dGate, reduceMotion, controlMotion, ...stored } = (data.performance ?? {}) as Partial<PerformanceFlags> & { clickSparkEffect?: boolean; lyrics3dEnabled?: boolean; reduceMotion?: boolean; controlMotion?: boolean }
+          const legacyMotion = {
+            ...(reduceMotion === true ? { pageTransitionMotion: false, smoothScrollMotion: false, lyricsLineMotion: false, ...controlMotionFlags(false) } : {}),
+            ...(typeof controlMotion === 'boolean' ? controlMotionFlags(controlMotion) : {}),
+          }
           return {
             ...DEFAULT_PERFORMANCE,
             ...legacyMotion,

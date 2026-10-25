@@ -116,4 +116,4 @@
 .icon { position: relative; display: inline-flex; flex: none; }
 .label { position: relative; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-:global([data-control-motion-off]) .chip:active .skin { transform: none; }
+:global([data-toggle-motion-off]) .chip:active .skin { transform: none; }

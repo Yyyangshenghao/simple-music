@@ -6,7 +6,7 @@ import { CheckIcon } from '../ui/CheckIcon'
 import { SourceBadge } from '../ui/SourceBadge'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPill.module.css'
-import { useControlFeedback } from '../../hooks/useMotion'
+import { useFeedback } from '../../hooks/useMotion'
 
 interface ArtistPillProps {
   artist: ArtistInfo
@@ -21,7 +21,7 @@ export const ArtistPill = forwardRef<HTMLButtonElement, ArtistPillProps>(functio
   { artist, selected, disabled, size = 'md', onClick },
   ref
 ) {
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   return (
     <motion.button
       ref={ref}

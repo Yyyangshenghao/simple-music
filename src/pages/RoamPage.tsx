@@ -22,7 +22,7 @@ import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-pr
 import styles from './RoamPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
 import { BackButton } from '../components/ui/BackButton'
-import { useControlFeedback, usePageTransition } from '../hooks/useMotion'
+import { useFeedback, usePageTransition } from '../hooks/useMotion'
 
 type SavedPlaylistSlot = 'netease' | 'local'
 
@@ -51,7 +51,7 @@ function playlistIsAvailable(playlist: RoamPlaylist, enabledSources: ProviderId[
 
 export function RoamPage() {
   const pageTransition = usePageTransition()
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   const scrollRef = useRef<HTMLDivElement>(null)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')

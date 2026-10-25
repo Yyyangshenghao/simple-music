@@ -40,7 +40,7 @@ interface WakeSliderProps {
 export function WakeSlider({
   value, min = 0, max, step, onChange, onDragChange, ariaLabel, ariaValueText, bars = 18, disabled, className
 }: WakeSliderProps) {
-  const reducedMotion = !useMotion('controlMotion')
+  const reducedMotion = !useMotion('sliderMotion')
   const clamped = clamp(value, min, max)
   const pct = max > min ? ((clamped - min) / (max - min)) * 100 : 0
   const trackRef = useRef<HTMLDivElement>(null)

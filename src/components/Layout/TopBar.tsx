@@ -19,7 +19,7 @@ import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 import { sizedImage } from '../../lib/image-size'
-import { useControlFeedback, useMotion } from '../../hooks/useMotion'
+import { useFeedback, useMotion } from '../../hooks/useMotion'
 
 const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '探索', view: 'explore' },
@@ -40,8 +40,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ hidden = false }: TopBarProps) {
-  const tap = useControlFeedback()
-  const controlMotion = useMotion('controlMotion')
+  const tap = useFeedback('tapFeedbackMotion')
+  const controlMotion = useMotion('indicatorMotion')
   const { current: contentSource } = useContentProvider()
   const currentView = useNavigationStore((s) => s.currentView)
   const history = useNavigationStore((s) => s.history)

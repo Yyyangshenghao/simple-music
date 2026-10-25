@@ -13,7 +13,7 @@ import { CloseIcon } from '../ui/CloseIcon'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import type { Track } from '../../types/domain'
 import styles from './ShuangeCard.module.css'
-import { useControlFeedback, usePageTransition } from '../../hooks/useMotion'
+import { useFeedback, usePageTransition } from '../../hooks/useMotion'
 
 interface ShuangeCardProps {
   track: Track
@@ -57,7 +57,7 @@ function ClipProgress({ track, startSec, endSec, label = '精彩片段播放进�
 
 export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
   const pageTransition = usePageTransition()
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   const titleViewportRef = useRef<HTMLHeadingElement>(null)
   const titleTextRef = useRef<HTMLSpanElement>(null)
   const [titleOverflow, setTitleOverflow] = useState(false)

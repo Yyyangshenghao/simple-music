@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useSettingsStore } from '../stores/settings'
 import type { PerformanceFlags } from '../types/domain'
 
-export type MotionFlag = 'pageTransitionMotion' | 'controlMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'
+export type MotionFlag = 'pageTransitionMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'
+  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion'
 
 const INSTANT = { duration: 0 } as const
 
@@ -17,8 +18,8 @@ export function usePageTransition(): <T>(transition: T) => T | typeof INSTANT {
   return useCallback(<T,>(transition: T) => enabled ? transition : INSTANT, [enabled])
 }
 
-/** 按压、悬停等控件反馈：控件动效关闭时不传动画目标。 */
-export function useControlFeedback(): <T>(target: T) => T | undefined {
-  const enabled = useMotion('controlMotion')
+/** whileTap / whileHover 一类的控件反馈：对应开关关闭时不传动画目标。 */
+export function useFeedback(flag: 'tapFeedbackMotion' | 'hoverLiftMotion'): <T>(target: T) => T | undefined {
+  const enabled = useMotion(flag)
   return useCallback(<T,>(target: T) => enabled ? target : undefined, [enabled])
 }

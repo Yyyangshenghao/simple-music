@@ -50,7 +50,7 @@ const Chip = forwardRef<HTMLButtonElement, HTMLMotionProps<'button'> & { mv: Chi
  */
 export function JellyRadio<T extends string>({ items, value, onChange, ariaLabel, size = 'md', block, disabled, className }: JellyRadioProps<T>) {
   const at = items.findIndex(it => it.value === value)
-  const reduce = !useMotion('controlMotion')
+  const reduce = !useMotion('toggleMotion')
   const groupRef = useRef<HTMLDivElement>(null)
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
   const widths = useRef<number[]>([])

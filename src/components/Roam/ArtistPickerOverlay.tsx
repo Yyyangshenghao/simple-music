@@ -23,7 +23,7 @@ import { springBouncy, springGentle, springSnappy, tapScale } from '../../lib/mo
 import type { Simulation } from 'd3-force'
 import type { ArtistInfo } from '../../types/domain'
 import styles from './ArtistPickerOverlay.module.css'
-import { useControlFeedback, usePageTransition } from '../../hooks/useMotion'
+import { useFeedback, usePageTransition } from '../../hooks/useMotion'
 
 interface ArtistPickerOverlayProps {
   /** 重开编辑时预置已选歌手(保留选中态,曲库池等到确认时由 store 决定是否复用)。 */
@@ -122,7 +122,7 @@ const ArtistGraphNodeContent = memo(function ArtistGraphNodeContent({ meta, disa
  */
 export function ArtistPickerOverlay({ initialSelected, sources, onConfirm, onClose }: ArtistPickerOverlayProps) {
   const pageTransition = usePageTransition()
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   const sourceSignature = sources.join(',')
 
   const suggestions = useRoamStore((s) => s.suggestions)

@@ -14,7 +14,7 @@ import { SourceName } from '../ui/SourceName'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
 import { Switch } from '../ui/Switch'
 import styles from './AvatarMenu.module.css'
-import { useControlFeedback } from '../../hooks/useMotion'
+import { useFeedback } from '../../hooks/useMotion'
 
 interface AvatarMenuProps {
   onClose(): void
@@ -27,7 +27,7 @@ function ProviderMark({ source }: { source: ProviderId }) {
 }
 
 export function AvatarMenu({ onClose }: AvatarMenuProps) {
-  const tap = useControlFeedback()
+  const tap = useFeedback('tapFeedbackMotion')
   const providers = listProviders()
   const runtime = useProviderStore((state) => state.byId)
   const setEnabled = useProviderStore((state) => state.setEnabled)

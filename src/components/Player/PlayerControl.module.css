@@ -33,5 +33,5 @@
   outline-offset: 3px;
 }
 
-/* 关闭「控件动效」时直接到位。 */
-:global([data-control-motion-off]) :is(.control, .control svg) { transition: none !important; animation: none !important; }
+/* 关闭「悬停浮起」时直接到位。 */
+:global([data-hover-lift-motion-off]) :is(.control, .control svg) { transition: none !important; animation: none !important; }

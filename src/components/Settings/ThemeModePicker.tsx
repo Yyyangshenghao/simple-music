@@ -124,7 +124,7 @@ const ICONS = { auto: AutoIcon, light: SunIcon, dark: MoonIcon }
 
 /** 主题模式图标分段控件：玻璃胶囊指示器在三项间弹簧滑动，图标各自带进入选中态的小动画。 */
 export function ThemeModePicker({ value, onChange }: { value: ThemeMode; onChange(mode: ThemeMode): void }) {
-  const motionOff = !useMotion('controlMotion')
+  const motionOff = !useMotion('toggleMotion')
   const groupId = useId()
   return (
     <div className={`${styles.root} no-drag`} role="radiogroup" aria-label="主题模式">

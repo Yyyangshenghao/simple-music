@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_LYRICS_3D, SETTINGS_STORAGE_KEY, useSettingsStore } from './settings'
+import { DEFAULT_LYRICS_3D, SETTINGS_STORAGE_KEY, useSettingsStore, controlMotionFlags } from './settings'
 import { defaultShortcuts } from '../lib/shortcuts'
 
 const initialState = useSettingsStore.getState()
@@ -136,7 +136,7 @@ describe('界面动效预设', () => {
     ] as const) {
       useSettingsStore.getState().applyPerformancePreset(preset)
       expect(useSettingsStore.getState().performance).toMatchObject({
-        pageTransitionMotion: ui, controlMotion: ui, smoothScrollMotion: ui, lyricsLineMotion: ui, textRevealMotion, lyricsWordMotion,
+        pageTransitionMotion: ui, ...controlMotionFlags(ui), smoothScrollMotion: ui, lyricsLineMotion: ui, textRevealMotion, lyricsWordMotion,
       })
       expect(useSettingsStore.getState().performance).not.toHaveProperty('reduceMotion')
     }
@@ -160,10 +160,18 @@ describe('视觉设置解耦与升级', () => {
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().performance).not.toHaveProperty('lyrics3dEnabled')
     expect(useSettingsStore.getState().performance).toMatchObject({ pageTransitionMotion: true, textRevealMotion: true, lyricsWordMotion: true, bgFluidMotion: false })
-    useSettingsStore.getState().setPerformance({ controlMotion: false, textRevealMotion: false, lyricsWordMotion: false })
+    useSettingsStore.getState().setPerformance({ dragMotion: false, textRevealMotion: false, lyricsWordMotion: false })
     useSettingsStore.setState(initialState, true)
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().performance).toMatchObject({ pageTransitionMotion: true, controlMotion: false, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false })
+    expect(useSettingsStore.getState().performance).toMatchObject({ pageTransitionMotion: true, dragMotion: false, tapFeedbackMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false })
+  })
+  it.each([true, false])('旧「控件动效」为 %s 时七项都继承这个选择，且不再保存旧字段', (controlMotion) => {
+    let saved = JSON.stringify({ performance: { controlMotion } })
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().loadFromLocal()
+    const performance = useSettingsStore.getState().performance
+    expect(performance).not.toHaveProperty('controlMotion')
+    expect(performance).toMatchObject(controlMotionFlags(controlMotion))
   })
   it.each([true, false])('旧「减少动态效果」为 %s 时拆成四项，其它开关保持原值且不再保存总开关', (reduceMotion) => {
     let saved = JSON.stringify({ performance: { reduceMotion, cardTiltEffect: true, lyricsWordMotion: true } })
@@ -172,7 +180,7 @@ describe('视觉设置解耦与升级', () => {
     const performance = useSettingsStore.getState().performance
     expect(performance).not.toHaveProperty('reduceMotion')
     expect(performance).toMatchObject({
-      pageTransitionMotion: !reduceMotion, controlMotion: !reduceMotion, smoothScrollMotion: !reduceMotion, lyricsLineMotion: !reduceMotion,
+      pageTransitionMotion: !reduceMotion, ...controlMotionFlags(!reduceMotion), smoothScrollMotion: !reduceMotion, lyricsLineMotion: !reduceMotion,
       cardTiltEffect: true, lyricsWordMotion: true,
     })
   })

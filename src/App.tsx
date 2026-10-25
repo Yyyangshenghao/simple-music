@@ -43,15 +43,18 @@ const APPEARANCE_KEYS = [
 
 export default function App() {
   const reducedMotion = !useMotion('pageTransitionMotion')
-  const controlMotion = useMotion('controlMotion')
+  const motionFlags = useSettingsStore((s) => s.performance)
   const lyricsLineMotion = useMotion('lyricsLineMotion')
   // 纯 CSS 的过渡按根节点属性分别停用，各开关互不牵连。
   useLayoutEffect(() => {
     const root = document.documentElement
     root.toggleAttribute('data-page-motion-off', reducedMotion)
-    root.toggleAttribute('data-control-motion-off', !controlMotion)
     root.toggleAttribute('data-lyrics-line-motion-off', !lyricsLineMotion)
-  }, [reducedMotion, controlMotion, lyricsLineMotion])
+    root.toggleAttribute('data-hover-lift-motion-off', !motionFlags.hoverLiftMotion)
+    root.toggleAttribute('data-toggle-motion-off', !motionFlags.toggleMotion)
+    root.toggleAttribute('data-slider-motion-off', !motionFlags.sliderMotion)
+    root.toggleAttribute('data-icon-motion-off', !motionFlags.iconMotion)
+  }, [reducedMotion, lyricsLineMotion, motionFlags.hoverLiftMotion, motionFlags.toggleMotion, motionFlags.sliderMotion, motionFlags.iconMotion])
   const gameEnabled = useGameModeStore((s) => s.enabled)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)

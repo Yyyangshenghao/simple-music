@@ -28,4 +28,4 @@
   50%      { transform: scaleY(1); }
 }
 
-:global([data-control-motion-off]) .eq i { animation: none; }
+:global([data-icon-motion-off]) .eq i { animation: none; }

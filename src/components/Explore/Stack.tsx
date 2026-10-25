@@ -61,7 +61,7 @@ interface StackProps {
 }
 
 export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
-  const reduced = !useMotion('controlMotion')
+  const reduced = !useMotion('dragMotion')
   // 每张卡固定一个 -3°~3° 的"杂乱角"，按 id 记忆，重渲染不跳动
   const rotations = useRef(new Map<unknown, number>())
 

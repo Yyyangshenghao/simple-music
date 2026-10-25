@@ -51,7 +51,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
 - `useAmbientPalette` — 只消费 ambient store，把 `--ambient-1/2/3` CSS 变量分 12 步补间到当前颜色；游戏/刷歌及卸载时停止补间，重挂直接消费最新颜色，不取图或改写 store。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
-- `useMotion(flag)` — 读取单项界面动效开关（页面转场 `pageTransitionMotion`、控件动效 `controlMotion`、平滑滚动 `smoothScrollMotion`、歌词换句 `lyricsLineMotion`）。各开关只管自己的范围，互不压制，也不跟随系统「减弱动态效果」；动效预设只做一次性批量设置。
+- `useMotion(flag)` — 读取单项界面动效开关（页面转场 `pageTransitionMotion`、控件动效七项 `tapFeedbackMotion`/`hoverLiftMotion`/`toggleMotion`/`indicatorMotion`/`sliderMotion`/`dragMotion`/`iconMotion`、平滑滚动 `smoothScrollMotion`、歌词换句 `lyricsLineMotion`）。各开关只管自己的范围，互不压制，也不跟随系统「减弱动态效果」；动效预设只做一次性批量设置。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollReveal` — 滚动内容入场 stagger。
 

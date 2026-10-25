@@ -5,7 +5,8 @@ import styles from './EffectPreview.module.css'
 export type PreviewEffect = Extract<keyof PerformanceFlags,
   'textRevealMotion' | 'lyricsWordMotion' | 'cardTiltEffect' | 'cardSpotlightEffect'
   | 'gradientTextMotion' | 'audioGlowEffect' | 'bgFluidMotion' | 'bgPointerMotion'
-  | 'pageTransitionMotion' | 'controlMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'>
+  | 'pageTransitionMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'
+  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion'>
 
 const LYRIC_LINES = ['故事的小黄花', '从出生那年就飘着', '童年的荡秋千', '随记忆一直晃到现在']
 
@@ -53,7 +54,24 @@ export function EffectPreview({ effect }: { effect: PreviewEffect }) {
         <MiniPage className={styles.pageOut} />
         <MiniPage className={styles.pageIn} />
       </span>}
-      {effect === 'controlMotion' && <span className={styles.toggle}><span className={styles.toggleThumb} /></span>}
+      {effect === 'toggleMotion' && <span className={styles.toggle}><span className={styles.toggleThumb} /></span>}
+      {effect === 'tapFeedbackMotion' && <span className={styles.tapButton}>播放全部</span>}
+      {effect === 'hoverLiftMotion' && <span className={styles.hoverLift}><MiniCard /></span>}
+      {effect === 'indicatorMotion' && <span className={styles.tabs}>
+        <span className={styles.tabPill} />
+        <span>歌单</span><span>专辑</span><span>歌手</span>
+      </span>}
+      {effect === 'sliderMotion' && <span className={styles.slider}>
+        <span className={styles.sliderRail}><span className={styles.sliderFill} /></span>
+        <span className={styles.sliderThumb}><span className={styles.sliderBubble} /></span>
+      </span>}
+      {effect === 'dragMotion' && <span className={styles.dragList}>
+        <i /><i className={styles.dragRow} /><i />
+      </span>}
+      {effect === 'iconMotion' && <span className={styles.heart}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /></svg>
+        {Array.from({ length: 6 }, (_, index) => <i key={index} style={{ '--i': index } as CSSProperties} />)}
+      </span>}
       {effect === 'smoothScrollMotion' && <span className={styles.scrollView}>
         <span className={styles.scrollList}>{Array.from({ length: 8 }, (_, index) => <i key={index} data-target={index === 5 || undefined} />)}</span>
       </span>}
@@ -66,6 +84,7 @@ export function EffectPreview({ effect }: { effect: PreviewEffect }) {
         <span className={styles.blobC} />
       </span>}
       {(effect === 'cardTiltEffect' || effect === 'cardSpotlightEffect' || effect === 'bgPointerMotion') && <span className={styles.cursor} />}
+      {(effect === 'tapFeedbackMotion' || effect === 'hoverLiftMotion' || effect === 'dragMotion') && <span className={styles.pointer} data-effect={effect} />}
     </span>
   )
 }
