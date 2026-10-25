@@ -8,7 +8,7 @@ import { isSafeUpstreamUrl } from './security'
  * 只在用户播放时按需拉取单曲，不打包歌词；结果（包括"库里没有"）缓存到磁盘，
  * 大多数歌不在库里，负缓存避免每次切歌重复请求。
  *
- * 线路：GitHub 官方 → 两个与仓库目录结构一致的社区镜像（国内可直连）。按顺序尝试，
+ * 线路：两个与仓库目录结构一致的社区镜像（国内可直连）在前，GitHub 官方兜底。按顺序尝试，
  * 记住最近一次可用的线路下次优先；某条线路连不上就熔断一段时间，避免每首歌都等超时。
  */
 export type AmllPlatform = 'ncm' | 'qq'
@@ -18,10 +18,11 @@ export interface AmllHost {
   base: string
 }
 
+/** 国内镜像在前：多数用户连 GitHub 要等超时才能切线，重启后线路记忆也会清空。 */
 export const AMLL_HOSTS: readonly AmllHost[] = [
-  { id: 'github', base: 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main' },
   { id: 'gbclstudio', base: 'https://amll-ttml-db.gbclstudio.cn' },
-  { id: 'bikonoo', base: 'https://amlldb.bikonoo.com' }
+  { id: 'bikonoo', base: 'https://amlldb.bikonoo.com' },
+  { id: 'github', base: 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main' }
 ]
 
 const AMLL_FILES: Record<AmllPlatform, { dir: string; ext: string }> = {
