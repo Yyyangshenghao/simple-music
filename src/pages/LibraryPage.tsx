@@ -195,14 +195,17 @@ function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: Provider
   const pageMotion = usePageTransition()
   const [stored, setStored] = useState(readStoredKind)
   const kind: CollectionKind = albumsAvailable ? stored : 'collected'
+  // 首次挂载已有外层 tab 淡入，内层不再叠一层整网格的淡入位移，只在切换歌单/专辑时播放。
+  const switched = useRef(false)
   function select(next: CollectionKind) {
+    switched.current = true
     setStored(next)
     try { localStorage.setItem(FAVORITES_KIND_STORAGE_KEY, next) } catch { /* 存储不可用时仅本次生效 */ }
   }
   return (
     <div className={styles.favorites}>
       {albumsAvailable && <CollectionKindSwitch value={kind} onChange={select} />}
-      <motion.div key={kind} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={pageMotion(pageTransition)}>
+      <motion.div key={kind} initial={switched.current ? { opacity: 0, y: 6 } : false} animate={{ opacity: 1, y: 0 }} transition={pageMotion(pageTransition)}>
         <ProviderLibraryGrid mode={kind} source={source} scrollRef={scrollRef} />
       </motion.div>
     </div>

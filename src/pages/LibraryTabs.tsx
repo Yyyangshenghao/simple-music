@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
+import { cancelFrame, frame, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
 import { useMotion } from '../hooks/useMotion'
 import styles from './LibraryPage.module.css'
@@ -26,6 +26,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const holdTimer = useRef<number>()
   const transitTimer = useRef<number>()
   const measured = useRef(false)
+  const rootHeight = useRef(0)
   const lastValue = useRef(value)
   const [ready, setReady] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -110,7 +111,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       measure(items.findIndex(item => item.value === value))
       for (const button of buttons()) button.style.setProperty('--btn-left', `${button.offsetLeft}px`)
       const root = rootRef.current
-      if (root) setOverflowing(root.scrollWidth > root.clientWidth + 1)
+      if (root) { rootHeight.current = root.clientHeight; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
     }
     update()
     const observer = new ResizeObserver(update)
@@ -140,19 +141,25 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
 
   // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；透镜沉下时洞随之收拢。
+  // 多个弹簧值同帧变化只合并写一次；高度取缓存值，避免写样式后读布局逼出整页同步重排。
   useEffect(() => {
+    let holeOpen = true
     const sync = () => {
       const root = rootRef.current
       if (!root) return
       const l = lift.get()
       const hole = l > 0.01 ? l : 0
+      // 洞已收拢且仍收拢时不再改变量，普通横移不触发标签的 mask 重算。
+      if (!hole && !holeOpen) return
+      holeOpen = hole > 0
       root.style.setProperty('--lens-cx', `${x.get() + width.get() / 2}px`)
       root.style.setProperty('--lens-rx', `${width.get() * scaleX.get() / 2 * hole}px`)
-      root.style.setProperty('--lens-ry', `${(root.clientHeight - 6) * scaleY.get() / 2 * hole}px`)
+      root.style.setProperty('--lens-ry', `${(rootHeight.current - 6) * scaleY.get() / 2 * hole}px`)
     }
-    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', sync))
+    const schedule = () => frame.render(sync)
+    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', schedule))
     sync()
-    return () => stops.forEach(stop => stop())
+    return () => { stops.forEach(stop => stop()); cancelFrame(sync) }
   }, [])
 
   const activeIndex = items.findIndex(item => item.value === value)
