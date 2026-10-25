@@ -7,7 +7,7 @@ const flags = vi.hoisted(() => ({ bgFluidMotion: false, bgPointerMotion: true, r
 
 vi.mock('../Visualizer/LiquidEther', () => {
   fluid.loads += 1
-  return { default: ({ pointerInteraction, pauseOnBlur }: { pointerInteraction: boolean; pauseOnBlur: boolean }) => <div data-testid="liquid-ether" data-pointer={String(pointerInteraction)} data-pause-on-blur={String(pauseOnBlur)} /> }
+  return { default: ({ pointerInteraction, pauseOnBlur, paused }: { pointerInteraction: boolean; pauseOnBlur: boolean; paused: boolean }) => <div data-testid="liquid-ether" data-pointer={String(pointerInteraction)} data-pause-on-blur={String(pauseOnBlur)} data-paused={String(paused)} /> }
 })
 vi.mock('../../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../stores/settings')>()
@@ -86,6 +86,18 @@ describe('氛围背景按需加载', () => {
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-pause-on-blur="true"')
   })
 
+  it('详情页封面遮挡只停帧不卸载流体，揭开后继续', async () => {
+    flags.bgFluidMotion = true
+    flags.performanceMode = 'balanced'
+    renderToStaticMarkup(<AmbientBackground />)
+    await vi.dynamicImportSettled()
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-paused="false"')
+    const covered = renderToStaticMarkup(<AmbientBackground covered />)
+    expect(covered).toContain('data-paused="true"')
+    expect(covered).toContain('data-testid="liquid-ether"')
+    expect(covered).toContain('data-covered')
+  })
+
   it('鼠标跟随可单独关闭，背景流动仍保持挂载', async () => {
     flags.bgFluidMotion = true
     flags.reduceTransparency = false
@@ -148,6 +160,20 @@ describe('Wallpaper Engine 背景', () => {
     const tuned = renderToStaticMarkup(<AmbientBackground />)
     expect(tuned).toContain('dpr=0.75')
     expect(tuned).toContain('scripts=0')
+    backgroundState.current = null
+  })
+
+  it('详情页封面遮挡时保留视频与场景遥控页，返回列表不重新加载', () => {
+    const useBackgroundStore = { setState: (patch: Record<string, unknown>) => { backgroundState.current = { ...backgroundState.current, ...patch } } }
+    useBackgroundStore.setState({ kind: 'video', video: { id: `${'b'.repeat(32)}.mp4`, kind: 'video', name: 'b.mp4' } })
+    const video = renderToStaticMarkup(<AmbientBackground covered />)
+    expect(video).toContain('<video')
+    expect(video).toContain('data-covered')
+
+    useBackgroundStore.setState({ kind: 'wallpaper', wallpaper: { id: '3503864903', title: '场景', type: 'scene', hasPreview: true } })
+    const scene = renderToStaticMarkup(<AmbientBackground covered />)
+    expect(scene).toContain('/we-scene/scene-token/host?id=3503864903')
+    expect(scene).toContain('data-covered')
     backgroundState.current = null
   })
 })

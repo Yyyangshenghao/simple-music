@@ -153,7 +153,11 @@ export default function App() {
       {mainVisible && !gameEnabled && <MotionConfig reducedMotion="never">
       <WindowChrome lyricsOpen={lyricsOpen}>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
-          <AmbientBackground hidden={(lyricsOpen && lyricsMode !== 'lyrics' && lyricStyleInfo(lyricsMode).webgl) || !!detailBackdropCover} />
+          {/* 详情页只是用封面盖住背景，不能卸载：卸载会重建视频解码与壁纸 WebGL，返回时闪白。 */}
+          <AmbientBackground
+            hidden={lyricsOpen && lyricsMode !== 'lyrics' && lyricStyleInfo(lyricsMode).webgl}
+            covered={!!detailBackdropCover}
+          />
           <DetailBackdrop />
           <TopBar hidden={lyricsOpen} />
           <AppShell />

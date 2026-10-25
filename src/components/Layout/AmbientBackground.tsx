@@ -24,8 +24,13 @@ import styles from './AmbientBackground.module.css'
 const LiquidEther = lazy(() => import('../Visualizer/LiquidEther'))
 
 interface AmbientBackgroundProps {
-  /** 为 true 时隐藏背景层（如歌词页 3D 模式打开，保证同屏只有一个全屏 WebGL）。 */
+  /** 为 true 时卸载背景层（如歌词页 3D 模式打开，保证同屏只有一个全屏 WebGL）。 */
   hidden?: boolean
+  /**
+   * 被详情页封面遮住：只停帧并隐藏，不卸载。视频/壁纸的 iframe 重新挂载要重新解码、
+   * 重建 WebGL，返回列表时会闪一下底色并卡顿；保留住就能接着画。
+   */
+  covered?: boolean
 }
 
 export function backgroundFileUrl(id: string): string {
@@ -109,7 +114,7 @@ function VideoBackground({ src, blur, tone, paused, pauseOnBlur, onLuma }: { src
 }
 
 /** 全局背景层：流体（封面/自定义配色）、自定义图片、视频与静态底色。播放缓动的高频 state 隔离在本组件内。 */
-export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
+export function AmbientBackground({ hidden, covered = false }: AmbientBackgroundProps) {
   const coverPalette = useAmbientStore((s) => s.palette)
   const background = useBackgroundStore()
   const light = useLightTheme()
@@ -157,12 +162,12 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
     const { scrim, gamma, saturate } = mediaTone(mediaLuma?.id === media.id ? mediaLuma.stats : UNKNOWN_LUMA, light, background.mediaDim)
     const tone = { scrim, filter: gamma < 1 ? `url(#${liftFilterId}) saturate(${saturate.toFixed(3)})` : '' }
     return (
-      <div className={styles.background} data-background={media.kind}>
+      <div className={styles.background} data-background={media.kind} data-covered={covered || undefined}>
         <LiftFilter id={liftFilterId} gamma={gamma} />
         {media.kind === 'image'
           ? <img className={styles.media} style={mediaStyle(background.mediaBlur, tone.filter)} src={backgroundFileUrl(media.id)} crossOrigin="anonymous" alt="" aria-hidden="true" draggable={false}
             onLoad={(event) => { const next = sampleLuma(event.currentTarget); if (next) reportLuma(next) }} />
-          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />}
+          : <VideoBackground src={backgroundFileUrl(media.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco' || covered} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />}
         <div className={styles.mediaDim} style={{ opacity: tone.scrim }} aria-hidden="true" />
       </div>
     )
@@ -173,10 +178,10 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
     const tone = { filter: gamma < 1 ? `url(#${liftFilterId}) saturate(${saturate.toFixed(3)})` : '' }
     const frameStyle = mediaStyle(background.mediaBlur, tone.filter)
     return (
-      <div className={styles.background} data-background="wallpaper">
+      <div className={styles.background} data-background="wallpaper" data-covered={covered || undefined}>
         <LiftFilter id={liftFilterId} gamma={gamma} />
         {wallpaper.type === 'video'
-          ? <VideoBackground src={wallpaperEngineVideoUrl(wallpaper.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco'} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />
+          ? <VideoBackground src={wallpaperEngineVideoUrl(wallpaper.id)} blur={background.mediaBlur} tone={tone.filter} paused={performanceMode === 'eco' || covered} pauseOnBlur={background.pauseOnBlur} onLuma={reportLuma} />
           : wallpaper.type === 'web'
             // 网页型壁纸整页在 iframe 里运行；token 放在路径段里，同目录资源才能一起加载。
             // 沙箱只给脚本与自身源，不能导航顶层窗口或弹窗；声音由 server 注入的脚本静音。
@@ -189,7 +194,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
                 ? <SceneWallpaper
                   id={wallpaper.id}
                   token={webToken}
-                  paused={performanceMode === 'eco'}
+                  paused={performanceMode === 'eco' || covered}
                   pauseOnBlur={background.pauseOnBlur}
                   scene={background.wallpaperScene}
                   previewUrl={wallpaper.hasPreview ? wallpaperEnginePreviewUrl(wallpaper.id) : null}
@@ -212,7 +217,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
     const rgb = background.solid === 'custom' ? parseColor(background.solidColor) : null
     const luma = rgb ? (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255 : 0
     return (
-      <div className={styles.background} data-background="solid" style={{ background: solidBackgroundCss(background, light) }}>
+      <div className={styles.background} data-background="solid" data-covered={covered || undefined} style={{ background: solidBackgroundCss(background, light) }}>
         {rgb && <div className={styles.mediaDim} style={{ opacity: scrimOpacity({ mean: luma, high: luma, low: luma }, light, 0) }} aria-hidden="true" />}
       </div>
     )
@@ -224,7 +229,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
     : undefined
 
   return (
-    <div className={styles.background} data-background="fluid" style={fallbackStyle}>
+    <div className={styles.background} data-background="fluid" data-covered={covered || undefined} style={fallbackStyle}>
       {!fluidEnabled ? (
         <div className={styles.auroraFallback} aria-hidden="true" />
       ) : (
@@ -233,6 +238,7 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
             colors={palette}
             pointerInteraction={bgPointerMotion}
             pauseOnBlur={background.pauseOnBlur}
+            paused={covered}
             mouseForce={12}
             cursorSize={80}
             resolution={performanceMode === 'balanced' ? 0.4 : 0.5}

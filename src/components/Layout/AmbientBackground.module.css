@@ -7,6 +7,12 @@
   pointer-events: none;
 }
 
+/* 详情页封面盖住背景时隐藏但不卸载：保留视频解码位置、壁纸 iframe 与 WebGL 上下文，
+   返回列表时立刻就是上一帧，不用等重新加载（卸载会闪一块亮色并卡一下）。 */
+.background[data-covered] {
+  visibility: hidden;
+}
+
 /* eco 档:无 WebGL 的 CSS 霞光(引用氛围变量,切歌自动跟色)。
    静态渐变,不做持续 transform 动画——实测这层只要每帧位移,就会让页面里
    所有 backdrop-filter 玻璃面板(与它是否自带 filter:blur 无关)被迫逐帧重新
