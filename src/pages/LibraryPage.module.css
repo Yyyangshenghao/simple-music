@@ -64,8 +64,8 @@
 .tabLens {
   z-index: 2;
   overflow: hidden;
-  /* 供 WebGL 透镜读取选中态文字色。 */
-  color: var(--sm-text-primary);
+  /* 供 WebGL 透镜读取选中态文字色：跟随主题色，单色主题时即黑白主文字色。 */
+  color: var(--sm-accent);
   background: radial-gradient(closest-side, transparent 78%, color-mix(in srgb, var(--sm-text-primary) 6%, transparent));
   backdrop-filter: blur(1.5px) saturate(160%);
   -webkit-backdrop-filter: blur(1.5px) saturate(160%);
@@ -121,7 +121,7 @@
   padding: 3px;
 }
 .tabLensCopy .subTab,
-.tabLensCopy .subTab .subTabIcon { color: var(--sm-text-primary); opacity: 1; }
+.tabLensCopy .subTab .subTabIcon { color: var(--sm-accent); opacity: 1; }
 
 /* 透镜浮起时把真实标签在透镜范围内挖空，避免与放大副本叠成重影；椭圆内切于透镜，四角留给模糊边。 */
 .subTabs > .subTab {
@@ -155,7 +155,8 @@
 .subTabActive .subTabIcon { opacity: 1; }
 
 .subTab:hover { color: var(--sm-text-primary); }
-.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
+/* 选中项文字与图标跟随主题色。 */
+.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-accent); }
 /* 按住拖动时选中态交给透镜，原选中项退回普通色。 */
 .subTabs[data-holding='true'] > .subTabActive { color: var(--sm-text-secondary); }
 .subTabs[data-holding='true'] > .subTabActive .subTabIcon { opacity: 0.85; }

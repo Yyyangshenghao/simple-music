@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cancelFrame, frame, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
 import { useMotion } from '../hooks/useMotion'
-import { LiquidLensRenderer, lensRect, rasterizeTabStrip } from '../lib/liquid-lens'
+import { LiquidLensRenderer, lensRect, rasterizeContent } from '../lib/liquid-lens'
 import styles from './LibraryPage.module.css'
 
 interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode }
@@ -186,6 +186,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     if (!renderer) { setGlFailed(true); return }
     let version = 0
     let disposed = false
+    let lastColor = ''
     const draw = () => {
       if (disposed || lift.get() < 0.01) return
       const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get(), scaleY.get())
@@ -194,7 +195,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     const rebuild = async () => {
       const current = ++version
       const color = lensRef.current ? getComputedStyle(lensRef.current).color : '#fff'
-      const strip = await rasterizeTabStrip(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
+      lastColor = color
+      const strip = await rasterizeContent(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
       if (disposed || current !== version || !strip) return
       renderer.setStrip(strip.canvas, strip.width, strip.height)
       draw()
@@ -203,8 +205,11 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', schedule))
     const resize = new ResizeObserver(() => void rebuild())
     resize.observe(root)
-    const theme = new MutationObserver(() => void rebuild())
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    // 明暗主题与主题色（含跟随封面）都写在根节点上；只有透镜文字色真的变了才重画。
+    const theme = new MutationObserver(() => {
+      if (lensRef.current && getComputedStyle(lensRef.current).color !== lastColor) void rebuild()
+    })
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-accent', 'style'] })
     const onLost = (event: Event) => { event.preventDefault(); setGlFailed(true) }
     canvas.addEventListener('webglcontextlost', onLost)
     void rebuild()
