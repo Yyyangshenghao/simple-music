@@ -151,7 +151,7 @@ export default function App() {
       <WindowCloseDialog />
       <UnlikeConfirmDialog />
       {mainVisible && !gameEnabled && <MotionConfig reducedMotion="never">
-      <WindowChrome>
+      <WindowChrome lyricsOpen={lyricsOpen}>
         <div data-app-root className={styles.root} data-view={currentView === 'shuange' ? 'shuange' : undefined}>
           <AmbientBackground hidden={(lyricsOpen && lyricsMode !== 'lyrics' && lyricStyleInfo(lyricsMode).webgl) || !!detailBackdropCover} />
           <DetailBackdrop />

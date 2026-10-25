@@ -171,13 +171,28 @@ function visualMarkup(): string {
 }
 
 describe('Windows 关闭方式设置', () => {
+  it.each(['win32', 'darwin', 'linux'])('%s 的关闭窗口目录与实际分组一致', (platform) => {
+    window.desktop.platform = platform as typeof window.desktop.platform
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const navigation = html.slice(html.indexOf('<nav id="settings-navigation"'), html.indexOf('</nav>'))
+    const target = 'settings-detail-window-close'
+    if (platform === 'win32') {
+      expect(navigation).toMatch(new RegExp(`<button[^>]*aria-controls="${target}"[^>]*>关闭窗口</button>`))
+      expect(html.match(new RegExp(`id="${target}"`, 'g'))).toHaveLength(1)
+      expect(navigation.indexOf(`aria-controls="${target}"`)).toBeLessThan(navigation.indexOf('aria-controls="settings-detail-appearance"'))
+    } else {
+      expect(navigation).not.toContain(`aria-controls="${target}"`)
+      expect(html).not.toContain(`id="${target}"`)
+    }
+  })
+
   it('macOS 不展示关闭方式，Windows 加载完成后展示当前选择', () => {
     expect(visualMarkup()).not.toContain('关闭窗口方式')
     window.desktop.platform = 'win32'
     useWindowCloseStore.setState({ behavior: 'tray', initialized: true })
     const html = visualMarkup()
     expect(html).toContain('关闭窗口方式')
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>缩回托盘<\/button>/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>最小化到托盘<\/button>/)
     expect(html).toContain('每次询问')
     expect(html).toContain('退出应用')
   })
@@ -215,20 +230,32 @@ describe('动效设置的实际生效状态', () => {
     expect(html).not.toContain('已随减少动态效果暂停')
     expect(html).not.toContain('已随系统暂停')
   })
-  it('控件动效拆成七项，各带示意；批量开关只在全部开启时显示开启，部分开启时提示数量', () => {
+  it('控件动效总开关在任一子项开启时亮起，部分开启时提示数量，全关时关闭', () => {
     const items = ['按压回弹', '悬停浮起', '开关与选项', '标签指示条', '滑杆手感', '拖拽手感', '图标小动画']
     let html = visualMarkup()
     const detail = html.slice(html.indexOf('id="settings-control-motion-detail"'))
     for (const label of items) expect(effectSwitch(detail, label)).toContain('aria-checked="true"')
     for (const key of CONTROL_MOTION_KEYS) expect(detail).toContain(`data-effect="${key}"`)
+    expect(effectSwitch(html, '控件动效')).toContain('role="switch"')
     expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(effectSwitch(html, '控件动效')).not.toContain('aria-describedby=')
     useSettingsStore.getState().setPerformance({ dragMotion: false, iconMotion: false })
     html = visualMarkup()
-    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="false"')
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(effectSwitch(html, '控件动效')).toContain('aria-describedby="settings-control-motion-status"')
     expect(html).toContain('已开启 5/7 项')
     expect(effectSwitch(html, '按压回弹')).not.toContain('disabled=')
     useSettingsStore.getState().setPerformance(controlMotionFlags(true))
     expect(visualMarkup()).not.toContain('已开启')
+    useSettingsStore.getState().setPerformance({ ...controlMotionFlags(false), toggleMotion: true })
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(html).toContain('已开启 1/7 项')
+    useSettingsStore.getState().setPerformance(controlMotionFlags(false))
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="false"')
+    expect(effectSwitch(html, '控件动效')).not.toContain('aria-describedby=')
+    expect(html).not.toContain('已开启')
   })
   it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
     const html = visualMarkup()

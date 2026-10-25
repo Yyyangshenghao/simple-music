@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
@@ -49,6 +49,7 @@ const SETTINGS_TABS = [
     { id: 'accounts', label: '音源与账户' }, { id: 'playback', label: '播放偏好' },
   ] },
   { id: 'visual', label: '界面与窗口', items: [
+    { id: 'window-close', label: '关闭窗口' },
     { id: 'appearance', label: '主题与布局' }, { id: 'background', label: '应用背景' },
     { id: 'interface-font', label: '界面字体' },
     { id: 'mini-player', label: '迷你播放条' }, { id: 'motion', label: '动效' },
@@ -141,16 +142,16 @@ function WindowCloseSettings() {
   const refresh = useWindowCloseStore((s) => s.refresh)
 
   return (
-    <section className={styles.group}>
+    <section id="settings-detail-window-close" className={styles.group}>
       <h3 className={styles.groupTitle}>关闭窗口</h3>
-      <p className={styles.groupHint}>选择点击关闭按钮时的行为。缩回托盘会继续播放，退出应用会停止播放。</p>
+      <p className={styles.groupHint}>选择点击关闭按钮时的行为。最小化到托盘会继续播放，退出应用会停止播放。</p>
       <div className={styles.row}>
         <span className={styles.rowLabel}>关闭时</span>
         <div className={styles.segControl} role="group" aria-label="关闭窗口方式">
           {(['ask', 'tray', 'quit'] as const).map((value) => (
             <button key={value} type="button" className={`${styles.seg} ${initialized && behavior === value ? styles.segActive : ''}`}
               disabled={!initialized || pending} aria-pressed={initialized && behavior === value} onClick={() => void configure(value)}>
-              {{ ask: '每次询问', tray: '缩回托盘', quit: '退出应用' }[value]}
+              {{ ask: '每次询问', tray: '最小化到托盘', quit: '退出应用' }[value]}
             </button>
           ))}
         </div>
@@ -398,20 +399,23 @@ function ControlMotionGroup() {
   const setPerformance = useSettingsStore((s) => s.setPerformance)
   const [open, setOpen] = useState(false)
   const enabledCount = CONTROL_MOTION_KEYS.filter(key => performance[key]).length
-  const all = enabledCount === CONTROL_MOTION_KEYS.length
+  const enabled = enabledCount > 0
+  const partial = enabled && enabledCount < CONTROL_MOTION_KEYS.length
   return (
     <div className={styles.controlGroup}>
       <div className={styles.row}>
         <span className={styles.rowLabel}>
           控件动效
-          <InfoButton label="控件动效" text="按压、悬停、开关、指示条、滑杆、拖拽与图标的手感动画。这里的开关只是一次性全开或全关，展开细节可逐项调整，各项互不影响。" />
-          {enabledCount > 0 && !all && <small className={styles.effectReason}>已开启 {enabledCount}/{CONTROL_MOTION_KEYS.length} 项</small>}
+          {partial && <small id="settings-control-motion-status" className={styles.effectReason}>已开启 {enabledCount}/{CONTROL_MOTION_KEYS.length} 项</small>}
         </span>
-        <button type="button" className={`${styles.detailToggle} no-drag`} aria-expanded={open} aria-controls="settings-control-motion-detail" onClick={() => setOpen(value => !value)}>
-          细节
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-        </button>
-        <Switch checked={all} onChange={(enabled) => setPerformance(controlMotionFlags(enabled))} aria-label="控件动效" />
+        <div className={styles.rowControls}>
+          <button type="button" className={`${styles.detailToggle} no-drag`} aria-expanded={open} aria-controls="settings-control-motion-detail" onClick={() => setOpen(value => !value)}>
+            细节
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+          </button>
+          <InfoButton label="控件动效" text="按压、悬停、开关、指示条、滑杆、拖拽与图标的手感动画。这里可一次性全开或全关，展开细节可逐项调整，各项互不影响。" />
+          <Switch checked={enabled} onChange={(value) => setPerformance(controlMotionFlags(value))} aria-label="控件动效" aria-describedby={partial ? 'settings-control-motion-status' : undefined} />
+        </div>
       </div>
       <div id="settings-control-motion-detail" className={styles.controlDetail} data-expanded={open} aria-hidden={!open} {...(open ? {} : { inert: '' })}>
         <div className={styles.controlDetailInner}>
@@ -448,10 +452,12 @@ function EffectSwitchRow({ effect: { key, label, hint } }: { effect: EffectItem 
     <div className={styles.row}>
       <span className={styles.rowLabel}>
         {label}
-        <InfoButton label={label} text={hint} preview={<EffectPreview effect={key} />} />
         {reason && <small className={styles.effectReason}>{reason}</small>}
       </span>
-      <Switch checked={performance[key]} disabled={Boolean(reason)} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+      <div className={styles.rowControls}>
+        <InfoButton label={label} text={hint} preview={<EffectPreview effect={key} />} />
+        <Switch checked={performance[key]} disabled={Boolean(reason)} onChange={(v) => setPerformance({ [key]: v })} aria-label={label} />
+      </div>
     </div>
   )
 }
@@ -679,6 +685,11 @@ function markLanded(page: HTMLElement, node: HTMLElement, waitForScroll: boolean
 export function SettingsPage() {
   const smoothScroll = useMotion('smoothScrollMotion')
   const indicatorMotion = useMotion('indicatorMotion')
+  const isWindows = window.desktop?.platform === 'win32'
+  const settingsTabs = useMemo(() => SETTINGS_TABS.map(section => ({
+    ...section,
+    items: section.items.filter(item => item.id !== 'window-close' || isWindows)
+  })), [isWindows])
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -721,14 +732,14 @@ export function SettingsPage() {
     if (!page) return
     const updateActiveDetail = () => {
       if (selectedDetailRef.current) return
-      let current = SETTINGS_TABS[0] as (typeof SETTINGS_TABS)[number]
-      for (const section of SETTINGS_TABS) {
+      let current = settingsTabs[0]
+      for (const section of settingsTabs) {
         const node = document.getElementById(`settings-section-${section.id}`)
         if (!node) continue
         const offset = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
         if (node.getBoundingClientRect().top <= page.getBoundingClientRect().top + offset + 28) current = section
       }
-      if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) current = SETTINGS_TABS[SETTINGS_TABS.length - 1]
+      if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) current = settingsTabs[settingsTabs.length - 1]
       if (activeSectionRef.current !== current.id) {
         activeSectionRef.current = current.id
         setActiveSection(current.id)
@@ -769,7 +780,7 @@ export function SettingsPage() {
       page.removeEventListener('keydown', handleKeyDown)
       page.removeEventListener('pointerdown', handlePointerDown)
     }
-  }, [])
+  }, [settingsTabs])
 
   // 左侧导轨标记滑到当前分类；子菜单展开收起改变高度时无过渡地跟随。
   useLayoutEffect(() => {
@@ -803,13 +814,13 @@ export function SettingsPage() {
     selectedDetailRef.current = detail ?? section
     activeSectionRef.current = section
     setActiveSection(section)
-    setExpandedSection(SETTINGS_TABS.find(item => item.id === section)!.items.length ? section : null)
-    setActiveDetail(detail ?? SETTINGS_TABS.find(item => item.id === section)!.items[0]?.id ?? '')
+    setExpandedSection(settingsTabs.find(item => item.id === section)!.items.length ? section : null)
+    setActiveDetail(detail ?? settingsTabs.find(item => item.id === section)!.items[0]?.id ?? '')
     const margin = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
     const top = node.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - margin
     page.scrollTo({ top, behavior: smoothScroll ? 'smooth' : 'instant' })
     if (detail) markLanded(page, node, Math.abs(page.scrollTop - top) > 1 && smoothScroll)
-  }, [smoothScroll])
+  }, [smoothScroll, settingsTabs])
   useEffect(() => {
     const navigation = useNavigationStore.getState()
     if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
@@ -997,7 +1008,7 @@ export function SettingsPage() {
           <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
             <div className={styles.tabBar} ref={tabBarRef}>
               <span ref={navMarkerRef} className={styles.navMarker} aria-hidden="true" />
-              {SETTINGS_TABS.map(({ id, label, items }) => (
+              {settingsTabs.map(({ id, label, items }) => (
                 <div key={id} className={styles.navCategory}>
                   <motion.button
                     ref={(el) => { tabRefs.current[id] = el }}
@@ -1031,7 +1042,7 @@ export function SettingsPage() {
             <div className={styles.compactSubNav} data-expanded={expandedSection === activeSection} aria-hidden={expandedSection !== activeSection}
               {...(expandedSection !== activeSection ? { inert: '' } : {})}>
               <div className={styles.compactSubNavInner} aria-label="当前分类分组">
-              {SETTINGS_TABS.find(section => section.id === activeSection)!.items.map(item => <button
+              {settingsTabs.find(section => section.id === activeSection)!.items.map(item => <button
                 key={item.id} type="button" className={styles.subTab}
                 aria-current={activeDetail === item.id ? 'location' : undefined}
                 aria-controls={`settings-detail-${item.id}`}
@@ -1259,7 +1270,7 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
-                  {window.desktop?.platform === 'win32' && <WindowCloseSettings />}
+                  {isWindows && <WindowCloseSettings />}
                   <section id="settings-detail-appearance" className={styles.group}>
                     <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div className={styles.row}>
@@ -1289,15 +1300,15 @@ export function SettingsPage() {
                       onChange={setContentGutter}
                     />}
                     <div className={styles.row}>
-                      <span className={styles.rowLabel}>
-                        减少透明度
+                      <span className={styles.rowLabel}>减少透明度</span>
+                      <div className={styles.rowControls}>
                         <InfoButton label="减少透明度" text="使用更实的面板底色并关闭背景模糊，方便阅读。切换动效预设不会改变这一项。" />
-                      </span>
-                      <Switch
-                        checked={performance.reduceTransparency}
-                        onChange={(v) => setPerformance({ reduceTransparency: v })}
-                        aria-label="减少透明度"
-                      />
+                        <Switch
+                          checked={performance.reduceTransparency}
+                          onChange={(v) => setPerformance({ reduceTransparency: v })}
+                          aria-label="减少透明度"
+                        />
+                      </div>
                     </div>
                   </section>
 

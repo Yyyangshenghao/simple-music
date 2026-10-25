@@ -54,6 +54,7 @@
 .columns > .settings + .settings { padding-left: 24px; border-left: 1px solid var(--sm-border); }
 .row, .labelLine { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--sm-text-primary); font-size: 12px; }
 .row { min-height: 48px; }
+.rowControls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .row > label, .row > span { flex: 0 0 auto; }
 .choices { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--sm-border); border-radius: 9px; }
 .choices button { padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-secondary); font: inherit; cursor: pointer; }

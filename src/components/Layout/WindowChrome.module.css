@@ -55,3 +55,43 @@
   background: #f1707a;
   color: #fff;
 }
+
+/* 仅 Windows 使用玻璃胶囊；总占位仍落在顶栏预留的 140px 内。 */
+.captionButtonsWin {
+  top: 8px;
+  right: 12px;
+  gap: 2px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--glass-border-base);
+  border-radius: var(--sm-radius-pill);
+  background: color-mix(in srgb, var(--sm-bg-base) 60%, var(--glass-bg-base));
+  backdrop-filter: var(--glass-blur-base);
+}
+
+.captionButtonsWin .captionBtn {
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--sm-radius-pill);
+  color: color-mix(in srgb, var(--sm-text-primary) 75%, var(--sm-text-secondary));
+  transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out);
+}
+
+.captionButtonsWin .captionBtn:hover {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}
+
+.captionButtonsWin .captionBtn:active {
+  background: var(--sm-fill-active);
+}
+
+.captionButtonsWin .captionClose:hover {
+  background: color-mix(in srgb, var(--sm-color-danger) 14%, transparent);
+  color: var(--sm-color-danger);
+}
+
+.captionButtonsWin .captionClose:active {
+  background: color-mix(in srgb, var(--sm-color-danger) 24%, transparent);
+}

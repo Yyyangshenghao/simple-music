@@ -307,6 +307,7 @@
 }
 
 .row:last-child { border-bottom: none; }
+.rowControls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* 单项动效两列排布，分隔线沿用行边框。 */
 .effectGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--sm-border); }
@@ -337,7 +338,9 @@
 .detailToggle[aria-expanded='true'] svg { transform: rotate(180deg); }
 .controlDetail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 260ms var(--sm-ease-out); }
 .controlDetail[data-expanded='true'] { grid-template-rows: 1fr; }
-.controlDetailInner { min-height: 0; overflow: hidden; background: var(--sm-fill-subtle); }
+/* clip 不创建内部滚动容器，悬停时放开提示不会恢复内部滚动偏移、导致位置跳动。 */
+.controlDetailInner { min-height: 0; overflow: clip; background: var(--sm-fill-subtle); }
+.controlDetail[data-expanded='true'] .controlDetailInner:has(:global([data-settings-info]:hover)) { overflow: visible; }
 :global([data-page-motion-off]) :is(.controlDetail, .detailToggle svg) { transition: none; }
 
 /* 只有一个操作的卡片：标题与按钮同行，不再单独占一行。 */

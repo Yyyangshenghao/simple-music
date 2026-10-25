@@ -12,6 +12,10 @@ export const springGentle: Transition = { type: 'spring', ...gentleSpringValues 
 /** Q 弹弹簧：低阻尼、带明显过冲回弹,用于「从无到有蹦出来」的诞生类动画(如画布相似歌手节点弹出)。 */
 export const springBouncy: Transition = { type: 'spring', stiffness: 420, damping: 15, mass: 0.9 }
 
+/** 弹簧勾选（参考 React Bits Spring Check）：填充和勾线共用进度，过冲时边框轻微鼓起。 */
+export const springCheckTransition: Transition = { type: 'spring', visualDuration: 0.2, bounce: 0.55 }
+export const springCheckSwell = 0.35
+
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }
 

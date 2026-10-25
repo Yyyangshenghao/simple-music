@@ -20,6 +20,7 @@ interface SwitchProps {
   onChange(v: boolean): void
   disabled?: boolean
   'aria-label'?: string
+  'aria-describedby'?: string
   'aria-controls'?: string
   'aria-expanded'?: boolean
 }

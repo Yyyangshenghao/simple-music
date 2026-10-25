@@ -138,8 +138,11 @@ export function DesktopLyricsSettings() {
             </div>
           </div>
           <div className={styles.row}>
-            <span className={styles.settingLabel}>逐字高亮<InfoButton label="桌面歌词逐字高亮" text="歌曲没有逐字时间数据时，仍按整句显示。" align="left" /></span>
-            <Switch checked={fx.desktopLyricsWordByWord ?? false} onChange={(value) => updateFx({ desktopLyricsWordByWord: value })} aria-label="桌面歌词逐字高亮" />
+            <span>逐字高亮</span>
+            <div className={styles.rowControls}>
+              <InfoButton label="桌面歌词逐字高亮" text="歌曲没有逐字时间数据时，仍按整句显示。" />
+              <Switch checked={fx.desktopLyricsWordByWord ?? false} onChange={(value) => updateFx({ desktopLyricsWordByWord: value })} aria-label="桌面歌词逐字高亮" />
+            </div>
           </div>
           <div className={styles.row}>
             <span>显示翻译</span>
@@ -170,13 +173,19 @@ export function DesktopLyricsSettings() {
             </div>
           </div>
           <div className={styles.row}>
-            <span className={styles.settingLabel}>宽度自适应<InfoButton label="桌面歌词宽度自适应" text="宽度跟随最长一行歌词，超出屏幕时显示省略号；关闭后恢复手动宽度。" align="left" /></span>
-            <Switch checked={fx.desktopLyricsAutoWidth ?? false} onChange={(value) => updateFx({ desktopLyricsAutoWidth: value })} aria-label="桌面歌词宽度自适应" />
+            <span>宽度自适应</span>
+            <div className={styles.rowControls}>
+              <InfoButton label="桌面歌词宽度自适应" text="宽度跟随最长一行歌词，超出屏幕时显示省略号；关闭后恢复手动宽度。" />
+              <Switch checked={fx.desktopLyricsAutoWidth ?? false} onChange={(value) => updateFx({ desktopLyricsAutoWidth: value })} aria-label="桌面歌词宽度自适应" />
+            </div>
           </div>
           <div className={styles.lockSetting}>
             <div className={styles.row}>
-              <span className={styles.settingLabel}>锁定位置<InfoButton label="锁定桌面歌词" text="移到歌词上可拖动，左上角可缩放；锁定后鼠标可穿透。悬停歌词 0.5 秒，点击出现的解锁图标即可调整。" align="left" /></span>
-              <Switch checked={fx.desktopLyricsClickThrough} onChange={(value) => updateFx({ desktopLyricsClickThrough: value })} aria-label="锁定桌面歌词" />
+              <span>锁定位置</span>
+              <div className={styles.rowControls}>
+                <InfoButton label="锁定桌面歌词" text="移到歌词上可拖动，左上角可缩放；锁定后鼠标可穿透。悬停歌词 0.5 秒，点击出现的解锁图标即可调整。" />
+                <Switch checked={fx.desktopLyricsClickThrough} onChange={(value) => updateFx({ desktopLyricsClickThrough: value })} aria-label="锁定桌面歌词" />
+              </div>
             </div>
           </div>
         </div>
