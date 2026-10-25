@@ -1,0 +1,888 @@
+{
+  "phase": "before",
+  "generatedAt": "2026-10-22T17:28:54.992Z",
+  "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+  "worktreeState": "源码与提交一致（src/overlays 无未提交修改）",
+  "environment": "macOS Electron dev（electron-vite dev），独立 --user-data-dir；CDP Emulation 固定视口、deviceScaleFactor=1；平台数据为模拟 fixture；截图前有限文档时间线动画跳到终态、循环动画冻结到起点，滚动/视图时间线动画保持随滚动位置",
+  "fixture": "docs/reviews/checks/ui-alignment-2.4.1.cjs（MOCK 数据，网易+QQ 已登录且启用，Apple 关闭）",
+  "shots": [
+    {
+      "file": "explore--dark-1536x864.png",
+      "scenario": "explore",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "explore--light-1536x864.png",
+      "scenario": "explore",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "explore--dark-960x540.png",
+      "scenario": "explore",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": [
+          "div._viewport_hwquq_9 _fadeRight_hwquq_23 _row_19yup_13"
+        ]
+      }
+    },
+    {
+      "file": "explore--light-960x540.png",
+      "scenario": "explore",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": [
+          "div._viewport_hwquq_9 _fadeRight_hwquq_23 _row_19yup_13"
+        ]
+      }
+    },
+    {
+      "file": "library-playlists--dark-1536x864.png",
+      "scenario": "library-playlists",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-playlists--light-1536x864.png",
+      "scenario": "library-playlists",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-playlists--dark-960x540.png",
+      "scenario": "library-playlists",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-playlists--light-960x540.png",
+      "scenario": "library-playlists",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-favorites--dark-1536x864.png",
+      "scenario": "library-favorites",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-favorites--light-1536x864.png",
+      "scenario": "library-favorites",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-favorites--dark-960x540.png",
+      "scenario": "library-favorites",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "library-favorites--light-960x540.png",
+      "scenario": "library-favorites",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-all--dark-1536x864.png",
+      "scenario": "search-all",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-all--light-1536x864.png",
+      "scenario": "search-all",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-all--dark-960x540.png",
+      "scenario": "search-all",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-all--light-960x540.png",
+      "scenario": "search-all",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-songs-qq--dark-1536x864.png",
+      "scenario": "search-songs-qq",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-songs-qq--light-1536x864.png",
+      "scenario": "search-songs-qq",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-songs-qq--dark-960x540.png",
+      "scenario": "search-songs-qq",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-songs-qq--light-960x540.png",
+      "scenario": "search-songs-qq",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "playlist-detail--dark-1536x864.png",
+      "scenario": "playlist-detail",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "playlist-detail--light-1536x864.png",
+      "scenario": "playlist-detail",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "playlist-detail--dark-960x540.png",
+      "scenario": "playlist-detail",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "playlist-detail--light-960x540.png",
+      "scenario": "playlist-detail",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "roam--dark-1536x864.png",
+      "scenario": "roam",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "roam--light-1536x864.png",
+      "scenario": "roam",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "roam--dark-960x540.png",
+      "scenario": "roam",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "roam--light-960x540.png",
+      "scenario": "roam",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-window-close-error--dark-1536x864.png",
+      "scenario": "dialog-window-close-error",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-window-close-error--light-1536x864.png",
+      "scenario": "dialog-window-close-error",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-window-close-error--dark-960x540.png",
+      "scenario": "dialog-window-close-error",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-window-close-error--light-960x540.png",
+      "scenario": "dialog-window-close-error",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-create-playlist--dark-1536x864.png",
+      "scenario": "dialog-create-playlist",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-create-playlist--light-1536x864.png",
+      "scenario": "dialog-create-playlist",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-create-playlist--dark-960x540.png",
+      "scenario": "dialog-create-playlist",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-create-playlist--light-960x540.png",
+      "scenario": "dialog-create-playlist",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-playlist-preview--dark-1536x864.png",
+      "scenario": "dialog-playlist-preview",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-playlist-preview--light-1536x864.png",
+      "scenario": "dialog-playlist-preview",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "dialog-playlist-preview--dark-960x540.png",
+      "scenario": "dialog-playlist-preview",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": [
+          "div._viewport_hwquq_9 _fadeRight_hwquq_23 _row_19yup_13"
+        ]
+      }
+    },
+    {
+      "file": "dialog-playlist-preview--light-960x540.png",
+      "scenario": "dialog-playlist-preview",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": [
+          "div._viewport_hwquq_9 _fadeRight_hwquq_23 _row_19yup_13"
+        ]
+      }
+    },
+    {
+      "file": "search-empty--dark-1536x864.png",
+      "scenario": "search-empty",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "empty",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-empty--light-960x540.png",
+      "scenario": "search-empty",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "empty",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-error--dark-1536x864.png",
+      "scenario": "search-error",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "error",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "search-error--light-960x540.png",
+      "scenario": "search-error",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "error",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      }
+    },
+    {
+      "file": "artist--dark-1536x864.png",
+      "scenario": "artist",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:25.563Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist--light-1536x864.png",
+      "scenario": "artist",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:30.738Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist--dark-960x540.png",
+      "scenario": "artist",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:35.796Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist--light-960x540.png",
+      "scenario": "artist",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:41.009Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist-description-open--dark-1536x864.png",
+      "scenario": "artist-description-open",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:46.603Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist-description-open--light-1536x864.png",
+      "scenario": "artist-description-open",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:52.198Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist-description-open--dark-960x540.png",
+      "scenario": "artist-description-open",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:25:57.654Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    },
+    {
+      "file": "artist-description-open--light-960x540.png",
+      "scenario": "artist-description-open",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "mode": "normal",
+      "status": "ok",
+      "overflow": {
+        "documentOverflow": false,
+        "scrollers": []
+      },
+      "scrollDrivenAnimationsSkipped": 1,
+      "layout": {
+        "scrollTop": 0,
+        "header": {
+          "top": 102,
+          "bottom": 342
+        },
+        "toolbar": {
+          "top": 342,
+          "bottom": 399
+        },
+        "firstRow": {
+          "top": 399,
+          "bottom": 455
+        },
+        "pinned": "false"
+      },
+      "capturedAt": "2026-10-23T01:26:03.140Z",
+      "sourceCommit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "sourceState": "clean"
+    }
+  ],
+  "errors": [],
+  "unexpectedApi": [
+    "/api/netease/artist/albums",
+    "/api/netease/artist/detail",
+    "/api/netease/artist/similar",
+    "/api/netease/artist/songs",
+    "/api/netease/radar",
+    "/api/netease/recent/playlists",
+    "/api/netease/recommend/playlists",
+    "/api/netease/recommend/songs",
+    "/api/netease/search/albums",
+    "/api/netease/search/playlists",
+    "/api/netease/toplist",
+    "/api/playlist/tracks",
+    "/api/qq/search",
+    "/api/qq/search/albums",
+    "/api/qq/search/artists",
+    "/api/qq/search/playlists",
+    "/api/qq/song/like/check",
+    "/api/search",
+    "/api/search/artists",
+    "/api/update/latest",
+    "/api/user/playlists"
+  ],
+  "reruns": [
+    {
+      "at": "2026-10-23T01:25:20.328Z",
+      "scenarios": "artist,artist-description-open",
+      "sourceRoot": "/private/tmp/claude-501/-Users-yangshenghao-github-Mineradio-Next/6373693a-1cce-4393-8436-8595b12e675a/scratchpad/baseline-bd10077",
+      "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+      "worktreeState": "源码与提交一致（src/overlays 无未提交修改）",
+      "reason": "修正 settle：不再 finish() 滚动时间线动画；在独立临时 clean 工作区（detached bd10077）重拍，未暂存或改动 feature 源码"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+/* 云阶：粗衬线大字，行与行左右错开成台阶；引导线与刻度标出每一级的位置。 */
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12em;
+  max-width: 100%;
+  padding-block: 0.3em;
+  font-family: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Noto Serif SC', serif;
+  font-size: calc(clamp(32px, min(6.8cqw, 9.8cqh), 100px) * var(--lyrics-font-scale, 1) * var(--style-fit, 1));
+  font-weight: 800;
+  line-height: 1.18;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  --row-heat: 0;
+}
+
+/* 引导线：贯穿本行并向两侧延伸，末端一个竖向刻度；演唱中的行点亮为强调色。 */
+.guided::after {
+  content: '';
+  position: absolute;
+  left: -0.35em;
+  right: -0.9em;
+  bottom: 0.02em;
+  height: 1px;
+  background: color-mix(in srgb, var(--style-accent) calc(var(--row-heat) * 100%), color-mix(in srgb, var(--sm-text-primary) 32%, transparent));
+}
+
+.guided::before {
+  content: '';
+  position: absolute;
+  right: -0.9em;
+  bottom: -0.16em;
+  width: 1px;
+  height: 0.36em;
+  background: color-mix(in srgb, var(--style-accent) calc(var(--row-heat) * 100%), color-mix(in srgb, var(--sm-text-primary) 45%, transparent));
+}
+
+.word {
+  display: inline-block;
+  white-space: pre;
+  transform-origin: 50% 85%;
+  color: color-mix(in srgb, var(--style-accent) calc(var(--heat, 0) * 100%), var(--sm-text-primary));
+  text-shadow: 0 0 calc(var(--heat, 0) * 0.4em) color-mix(in srgb, var(--style-accent) 70%, transparent);
+  will-change: transform, opacity;
+}

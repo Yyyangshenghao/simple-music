@@ -1,11 +1,14 @@
 import { useMemo, type CSSProperties } from 'react'
+import { useSettingsStore } from '../../stores/settings'
 import styles from './RevealText.module.css'
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 const MAX_CHARACTERS = 120
 
 export function RevealText({ text }: { text: string }) {
+  const enabled = useSettingsStore((s) => s.performance.textRevealMotion)
   const parts = useMemo(() => {
+    if (!enabled) return []
     const characters: string[] = []
     for (const part of segmenter.segment(text)) {
       if (characters.length === MAX_CHARACTERS) {
@@ -15,7 +18,9 @@ export function RevealText({ text }: { text: string }) {
       characters.push(part.segment)
     }
     return characters
-  }, [text])
+  }, [text, enabled])
+
+  if (!enabled) return <span className={styles.text}>{text}</span>
 
   return (
     <span className={styles.text}>

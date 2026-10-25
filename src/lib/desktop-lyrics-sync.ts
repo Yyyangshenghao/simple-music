@@ -54,6 +54,7 @@ export function initDesktopLyricsSync(): () => void {
     const backgroundStyle = gameEnabled || (platform && platform !== 'darwin' && platform !== 'win32') ? 'dark' : fx.desktopLyricsBackgroundStyle
     const autoWidth = !gameEnabled && fx.desktopLyricsAutoWidth
     const lineMode = gameEnabled ? 'single' : fx.desktopLyricsLineMode
+    const lineMotion = settings.performance.lyricsLineMotion
     const wordByWord = !gameEnabled && fx.desktopLyricsWordByWord
     if (sizeFromWindow !== null && size !== sizeFromWindow) sizeFromWindow = null
     const currentKey = currentTrack ? `${currentTrack.source}:${String(currentTrack.id)}` : null
@@ -68,7 +69,7 @@ export function initDesktopLyricsSync(): () => void {
       && candidate.words.map((word) => word.text).join('') === lines[currentIndex]?.text
       ? candidate : undefined
     const payload: LyricsPayload = {
-      trackKey: currentKey, lineIndex: hasCurrentLyric ? currentIndex : -1, lineMode,
+      trackKey: currentKey, lineIndex: hasCurrentLyric ? currentIndex : -1, lineMode, lineMotion,
       line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || currentTrack?.name || fallback) : fallback,
       translation: matching && showTranslation && currentIndex >= 0 ? (translation[currentIndex]?.text ?? '') : '',
       roma: matching && showRoma && currentIndex >= 0 ? (romaji[currentIndex]?.text ?? '') : '',
@@ -119,7 +120,8 @@ export function initDesktopLyricsSync(): () => void {
     if (state.fx !== previous.fx) sync()
   })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
-    if (state.fontFamily !== previous.fontFamily || state.fontFamilyCjk !== previous.fontFamilyCjk) sync()
+    if (state.fontFamily !== previous.fontFamily || state.fontFamilyCjk !== previous.fontFamilyCjk
+      || state.performance.lyricsLineMotion !== previous.performance.lyricsLineMotion) sync()
   })
   const stopGame = useGameModeStore.subscribe((state, previous) => {
     if (state.enabled !== previous.enabled || state.sequence !== previous.sequence) sync()

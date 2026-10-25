@@ -1,8 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RevealText } from './RevealText'
 
+const motion = vi.hoisted(() => ({ enabled: true }))
+vi.mock('../../stores/settings', () => ({
+  useSettingsStore: (selector: (state: unknown) => unknown) => selector({ performance: { textRevealMotion: motion.enabled } }),
+}))
+beforeEach(() => { motion.enabled = true })
+
 describe('说明文字逐字过渡', () => {
+  it('关闭逐字显现时直接渲染完整文本，没有逐字节点', () => {
+    motion.enabled = false
+    const html = renderToStaticMarkup(<RevealText text={'长'.repeat(10000) + '<完整结尾>'} />)
+    expect(html.match(/<span/g)).toHaveLength(1)
+    expect(html).toContain('&lt;完整结尾&gt;')
+    expect(html).not.toContain('--reveal-delay')
+  })
   it('保留一份完整可读文本，视觉字符隐藏于辅助技术且 HTML 仍转义', () => {
     const html = renderToStaticMarkup(<RevealText text="<script>介绍</script>" />)
     expect(html).toContain('&lt;script&gt;介绍&lt;/script&gt;</span>')

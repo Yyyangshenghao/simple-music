@@ -15,6 +15,7 @@ vi.mock('react', async original => ({
   useMemo: (factory: () => unknown) => factory(),
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => { h.effects.push(effect) },
+  useLayoutEffect: () => {},
 }))
 vi.mock('../../stores/playlist', () => ({ usePlaylistStore: (select: (state: unknown) => unknown) => select({ queue: tracks, queueIndex: 0, shuffleOrder: [], playAt: h.playAt }) }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ playMode: 'list' }) }))
@@ -22,6 +23,8 @@ vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown
 vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: { qq: { enabled: false, auth: 'anonymous' } } }) }))
 vi.mock('../../stores/track-actions', () => ({ useTrackActionsStore: { getState: () => ({ toggleQuickAdd: h.quickAdd }) }, anchorOf: () => ({ x: 10, y: 20, width: 26, height: 26 }) }))
 vi.mock('./QueueDiscovery', () => ({ QueueDiscovery: () => null }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
+vi.mock('./useQueueDrag', () => ({ useQueueDrag: () => ({ drag: null, onRowPointerDown: vi.fn(), rowShift: () => 0, ghost: null, strips: [] }) }))
 
 type NodeElement = ReactElement<{ children?: ReactNode; ariaLabel?: string; 'aria-label'?: string; onClick?: (event: unknown) => void; renderRow?: (index: number) => ReactNode }>
 function nodes(node: ReactNode): NodeElement[] {
@@ -51,7 +54,7 @@ describe('队列歌曲收藏', () => {
     vi.stubGlobal('Element', Target)
     try {
       QueuePanel({})
-      h.refs[1].current = { contains: () => false }
+      h.refs[0].current = { contains: () => false } // rootRef
       h.effects[0]()
       listeners.get('pointerdown')!({ target: new Target(true) })
       expect(h.setOpen).not.toHaveBeenCalled()

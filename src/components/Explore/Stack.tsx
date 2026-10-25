@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { motion, useMotionValue, useTransform } from 'motion/react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import type { PanInfo } from 'motion/react'
 import type { Playlist } from '../../types/domain'
 import styles from './Stack.module.css'
@@ -61,7 +61,7 @@ interface StackProps {
 }
 
 export function Stack({ cards, onSwipe, onCardClick }: StackProps) {
-  const reduced = useReducedMotion() ?? false
+  const reduced = !useMotion('dragMotion')
   // 每张卡固定一个 -3°~3° 的"杂乱角"，按 id 记忆，重渲染不跳动
   const rotations = useRef(new Map<unknown, number>())
 

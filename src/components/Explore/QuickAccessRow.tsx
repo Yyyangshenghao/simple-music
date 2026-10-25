@@ -9,6 +9,7 @@ import type { Playlist } from '../../types/domain'
 import styles from './QuickAccessRow.module.css'
 import { HeartIcon } from '../ui/HeartIcon'
 import { sizedImage } from '../../lib/image-size'
+import { usePageTransition } from '../../hooks/useMotion'
 
 function PlayIcon() {
   return (
@@ -91,6 +92,7 @@ function slotGeometry(off: number, speed: number) {
  * 点中间卡直接播放整个歌单,点两侧卡把它转到中间。
  */
 export function QuickAccessRow() {
+  const pageTransition = usePageTransition()
   const source = useProviderStore((s) => (
     s.playbackOrder.find((id) => s.byId[id].enabled && s.byId[id].auth === 'authenticated') ?? null
   ))
@@ -210,7 +212,7 @@ export function QuickAccessRow() {
       className={`${styles.panel} no-drag`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={springGentle}
+      transition={pageTransition(springGentle)}
     >
       <div className={styles.body}>
         <div className={styles.stage} ref={stageRef}>
@@ -237,7 +239,7 @@ export function QuickAccessRow() {
                 }}
                 initial={slotGeometry(enterOff, speed)}
                 animate={slotGeometry(off, speed)}
-                transition={springSnappy}
+                transition={pageTransition(springSnappy)}
                 tabIndex={a > HIT_RANGE ? -1 : 0}
                 aria-hidden={a > HIT_RANGE || undefined}
                 onClick={() => { if (center) void play(item); else commit(pos + off, false) }}

@@ -1,0 +1,42 @@
+/* 动态样式的共同外壳：与跃字同一块舞台区域，避开页头与播放栏。 */
+.root {
+  position: absolute;
+  inset: 96px 7% 150px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  /* 列宽固定为舞台宽度：不换行的长行不能把网格撑宽（否则试排量到的也是被撑大的宽度，译文被挤出屏幕）。 */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  pointer-events: none;
+  text-align: center;
+  color: var(--sm-text-primary);
+  /* 演唱中的强调色：取封面氛围色，与主文字拉开但不刺眼。 */
+  --style-accent: color-mix(in srgb, var(--ambient-2) 72%, var(--sm-text-primary));
+  --style-accent-soft: color-mix(in srgb, var(--ambient-1) 55%, transparent);
+}
+
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.line {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.translation {
+  justify-self: center;
+  max-width: 48ch;
+  font-size: calc(clamp(15px, 1.6cqw, 22px) * var(--lyrics-font-scale, 1));
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--sm-text-primary) 74%, transparent);
+}

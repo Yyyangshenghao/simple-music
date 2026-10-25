@@ -134,12 +134,3 @@
   cursor: default;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .frame,
-  .closeButton,
-  .lockButton,
-  .resizeHandle,
-  .unlockButton {
-    transition: none;
-  }
-}

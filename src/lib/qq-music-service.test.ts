@@ -1,3 +1,4 @@
+import { useSettingsStore } from '../stores/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 
@@ -15,6 +16,8 @@ import { advanceProviderAccountSession } from './provider-account-session'
 import { clearProviderRequestCache } from './provider-request-cache'
 
 beforeEach(() => {
+  // 以下用例校验账号参与语义；游客歌词来源在单独的用例里打开。
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   apiGet.mockReset()
   apiPost.mockReset()
   clearProviderRequestCache()

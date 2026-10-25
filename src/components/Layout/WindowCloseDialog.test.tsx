@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   cancel: { focus: vi.fn() }
 }))
 vi.mock('../../stores/window-close', () => ({ useWindowCloseStore: (selector: (state: typeof h.state) => unknown) => selector(h.state) }))
+vi.mock('../ui/JellyRadio', () => ({ JellyRadio: () => null }))
+vi.mock('../ui/SpringCheck', () => ({ SpringCheck: () => null }))
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useEffect: (effect: typeof h.effects[number]) => h.effects.push(effect),
@@ -18,8 +20,10 @@ vi.mock('react', async (importOriginal) => ({
   useState: (initial: unknown) => initial === 'tray' ? [h.action, h.setAction] : [h.remember, h.setRemember]
 }))
 import { WindowCloseDialog } from './WindowCloseDialog'
+import { JellyRadio } from '../ui/JellyRadio'
+import { SpringCheck } from '../ui/SpringCheck'
 
-function elements(node: unknown, type: string): ReactElement<any>[] {
+function elements(node: unknown, type: ReactElement['type']): ReactElement<any>[] {
   if (!node || typeof node !== 'object') return []
   if (Array.isArray(node)) return node.flatMap(child => elements(child, type))
   const element = node as ReactElement<any>
@@ -53,11 +57,13 @@ describe('关闭确认交互', () => {
   it('切换选项不执行关闭，点击确定才提交所选行为与记住选项', () => {
     h.remember = true
     let element = WindowCloseDialog()!
-    const radios = elements(element, 'input').filter(input => input.props.type === 'radio')
-    expect(radios.map(input => input.props.checked)).toEqual([true, false])
-    radios[1].props.onChange()
+    const options = elements(element, JellyRadio)[0]
+    expect(options.props.value).toBe('tray')
+    options.props.onChange('quit')
     expect(h.setAction).toHaveBeenCalledWith('quit')
     expect(h.state.resolve).not.toHaveBeenCalled()
+    elements(element, SpringCheck)[0].props.onChange(true)
+    expect(h.setRemember).toHaveBeenCalledWith(true)
     h.action = 'quit'
     h.refs = 0
     element = WindowCloseDialog()!
@@ -67,12 +73,13 @@ describe('关闭确认交互', () => {
     expect(h.state.resolve).toHaveBeenCalledWith('quit', true)
     const html = renderToStaticMarkup(element)
     expect(html).toContain('type="submit"')
-    expect(html).toContain('确定')
+    expect(elements(element, 'button').find(button => button.props.type === 'submit')!.props.children).toBe('确定')
     expect(html).not.toContain('让音乐继续')
   })
 
-  it('默认确定缩回托盘，取消和 Esc 不保存已经切换的选择', () => {
+  it('默认确认最小化到托盘，取消和 Esc 不保存已经切换的选择', () => {
     let element = WindowCloseDialog()!
+    expect(elements(element, 'button').find(button => button.props.type === 'submit')!.props.children).toBe('确定')
     elements(element, 'form')[0].props.onSubmit({ preventDefault: vi.fn() })
     expect(h.state.resolve).toHaveBeenCalledWith('tray', false)
     h.state.resolve.mockClear()
@@ -90,7 +97,9 @@ describe('关闭确认交互', () => {
     h.state.error = '操作未完成，请重试。'
     const element = WindowCloseDialog()!
     expect(elements(element, 'button').every(button => button.props.disabled)).toBe(true)
-    expect(elements(element, 'fieldset')[0].props.disabled).toBe(true)
+    expect(elements(element, JellyRadio)[0].props.disabled).toBe(true)
+    expect(elements(element, SpringCheck)[0].props.disabled).toBe(true)
+    expect(elements(element, 'button').find(button => button.props.type === 'submit')!.props.children).toBe('处理中…')
     h.refs = 0
     const html = renderToStaticMarkup(<WindowCloseDialog />)
     expect(html).toContain('aria-busy="true"')
@@ -100,7 +109,7 @@ describe('关闭确认交互', () => {
     expect(WindowCloseDialog()).toBeNull()
   })
 
-  it('Tab 在首尾控件间循环，焦点不会落到窗口背景', () => {
+  it('Tab 不在弹窗控件间移动焦点，按键只截留在弹窗内', () => {
     const element = WindowCloseDialog()!
     const first = { focus: vi.fn() }
     const last = { focus: vi.fn() }
@@ -110,9 +119,9 @@ describe('关闭确认交互', () => {
       preventDefault: vi.fn(), stopPropagation: vi.fn()
     }
     element.props.onKeyDown(event)
-    expect(first.focus).toHaveBeenCalledOnce()
     element.props.onKeyDown({ ...event, shiftKey: true, target: first })
-    expect(last.focus).toHaveBeenCalledOnce()
-    expect(event.preventDefault).toHaveBeenCalledTimes(2)
+    expect(first.focus).not.toHaveBeenCalled()
+    expect(last.focus).not.toHaveBeenCalled()
+    expect(event.stopPropagation).toHaveBeenCalledTimes(2)
   })
 })

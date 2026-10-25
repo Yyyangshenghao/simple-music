@@ -7,6 +7,7 @@ import {
   type MiniPlayerResizeSession
 } from '../../lib/mini-player-resize'
 import type { MiniPlayerAppearance } from '../../types/ipc'
+import { ScrubSlider } from '../ui/ScrubSlider'
 import styles from './MiniPlayerBar.module.css'
 
 interface MiniPlayerBarProps {
@@ -150,7 +151,6 @@ export function MiniPlayerBar({
   const hasTrack = !!trackTitle
   const expanded = width >= MINI_PLAYER_LYRICS_WIDTH
   const showLyrics = expanded && appearance.showLyrics
-  const progress = duration > 0 ? Math.min(1, Math.max(0, position / duration)) : 0
 
   const base = appearance.tint === 'light' ? '246, 246, 248' : appearance.tint === 'cover' ? coverBase(accent) : '18, 18, 20'
   const rootStyle = {
@@ -172,16 +172,6 @@ export function MiniPlayerBar({
     window.addEventListener('pointerdown', onDown)
     return () => window.removeEventListener('pointerdown', onDown)
   }, [volumeOpen])
-
-  const handleSeek = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (!onSeek || duration <= 0) return
-      const rect = e.currentTarget.getBoundingClientRect()
-      if (rect.width <= 0) return
-      onSeek(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * duration)
-    },
-    [onSeek, duration]
-  )
 
   const flushResize = useCallback(() => {
     resizeFrame.current = null
@@ -312,10 +302,18 @@ export function MiniPlayerBar({
         </div>
 
         {appearance.showProgress && (
-          <div className={styles.progress} onPointerDown={(e) => { stop(e); handleSeek(e) }} title={`${formatTime(position)} / ${formatTime(duration)}`}>
-            <div className={styles.progressTrack}>
-              <div className={styles.progressFill} style={{ transform: `scaleX(${progress})` }} />
-            </div>
+          <div className={styles.progress} onPointerDown={stop}>
+            <ScrubSlider
+              size="compact"
+              ariaLabel="播放进度"
+              mode="commit"
+              value={position}
+              min={0}
+              max={duration > 0 ? duration : 1}
+              disabled={!onSeek || duration <= 0}
+              format={formatTime}
+              onChange={(sec) => onSeek?.(sec)}
+            />
           </div>
         )}
 

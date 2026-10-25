@@ -39,7 +39,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `miniplayer:*` — set-enabled / update
 - `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
-- `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`
+- `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`;`background:import`(系统对话框选图片/视频/WE project.json 并复制进 userData)/ `background:remove`
 - `apple:audio-capture-start` — 播放宿主对 Apple 后台音轨的定向频谱采集请求。
 
 主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`、`lyrics:{lock-state-changed,size-changed,enabled-state-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。歌词 preload 缓存并向新订阅者重放完整快照，迷你条首屏重放完整快照、后续转发增量。

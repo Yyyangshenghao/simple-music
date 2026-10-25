@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { providerFor } from '../providers/registry'
+import * as lyricService from './lyric-service'
 import type { Track } from '../types/domain'
 import {
   clearTrackMatchCache,
@@ -7,6 +8,7 @@ import {
   matchBestTrack,
   normalizeMatchText,
   scoreTrackMatch,
+  TrackMatchMismatchError,
 } from './track-match'
 
 function track(partial: Partial<Track> = {}): Track {
@@ -132,12 +134,61 @@ describe('track match', () => {
     expect(getByIds).not.toHaveBeenCalled()
   })
 
+  it('游客匹配走游客搜索、独立缓存，播放匹配读不到也不会被覆盖', async () => {
+    const matched = track({ source: 'qq', provider: 'qq', id: 'q-guest' })
+    const guest = vi.spyOn(lyricService, 'searchGuestTracks').mockResolvedValue([matched])
+    const account = vi.spyOn(providerFor('qq').catalog, 'searchTracks').mockResolvedValue([])
+    const getByIds = vi.spyOn(providerFor('qq').catalog, 'getTracksByIds')
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, false, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
+    expect(guest).toHaveBeenCalledWith('qq', '晴天 周杰伦', undefined)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
+    expect(account).toHaveBeenCalledOnce()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1002, false, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
+    expect(guest).toHaveBeenCalledOnce()
+    expect(getByIds).not.toHaveBeenCalled()
+  })
+
+  it('游客搜索为空不落盘负缓存（可能是上游限流），只在内存里短暂记住；失败直接抛出', async () => {
+    const guest = vi.spyOn(lyricService, 'searchGuestTracks').mockResolvedValue([])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true, false, 'guest')).resolves.toBeNull()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true, false, 'guest')).resolves.toBeNull()
+    expect(guest).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('simplemusic-track-match-cache')).toBeNull()
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000 + 5 * 60_000 + 1, true, false, 'guest')).resolves.toBeNull()
+    expect(guest).toHaveBeenCalledTimes(2)
+    guest.mockRejectedValueOnce(new Error('HTTP 500'))
+    await expect(findEquivalentTrack(track({ id: 'n-2' }), 'qq', undefined, 1002, true, false, 'guest')).rejects.toThrow('HTTP 500')
+  })
+
   it('未命中使用 24 小时负缓存', async () => {
     const provider = providerFor('qq')
     const search = vi.spyOn(provider.catalog, 'searchTracks').mockResolvedValue([])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000)).resolves.toBeNull()
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
     expect(search).toHaveBeenCalledTimes(1)
+  })
+
+  it('严格查询区分未找到候选与仅有错版本，负缓存保留该区别', async () => {
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
+      .mockResolvedValue([track({ source: 'qq', provider: 'qq', name: '晴天 (Live)' })])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1002)).resolves.toBeNull()
+    expect(search).toHaveBeenCalledOnce()
+    clearTrackMatchCache()
+    search.mockResolvedValue([])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1003, true)).resolves.toBeNull()
+  })
+
+  it('严格查询不把旧版缺少诊断信息的负缓存误报成未收录', async () => {
+    localStorage.setItem('simplemusic-track-match-cache', JSON.stringify({
+      schema: 2,
+      entries: { 'netease:n-1->qq': { verifiedAt: 1000, expiresAt: 86_401_000 } },
+    }))
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
+      .mockResolvedValue([track({ source: 'qq', provider: 'qq', name: '晴天 (Live)' })])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
+    expect(search).toHaveBeenCalledOnce()
   })
 
   it('匹配规则升级后忽略旧版负缓存并重新搜索', async () => {

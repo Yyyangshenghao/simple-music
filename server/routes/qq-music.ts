@@ -140,7 +140,8 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const kw = url.searchParams.get('keywords') || ''
       const limit = Math.max(4, Math.min(20, parseInt(url.searchParams.get('limit') || '8', 10) || 8))
-      const songs = await handleQQSearch(getCookie(ctx, 'qq'), kw, limit)
+      // guest=1：独立歌词来源的游客查询，显式不带账号 Cookie。
+      const songs = await handleQQSearch(url.searchParams.get('guest') === '1' ? '' : getCookie(ctx, 'qq'), kw, limit)
       sendJson(res, { provider: 'qq', songs })
     } catch (err) {
       console.error('[QQSearch]', err)
@@ -198,7 +199,8 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
         sendJson(res, { provider: 'qq', error: 'Missing QQ song mid or id', lyric: '' }, 400)
         return true
       }
-      const data = await handleQQLyric(getCookie(ctx, 'qq'), mid, id)
+      const cookie = url.searchParams.get('guest') === '1' ? '' : getCookie(ctx, 'qq')
+      const data = await handleQQLyric(cookie, mid, id, url.searchParams.get('words') === '1')
       sendJson(res, data)
     } catch (err) {
       console.error('[QQLyric]', err)

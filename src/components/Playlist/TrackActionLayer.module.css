@@ -39,4 +39,3 @@
 .menu button > svg { flex-shrink: 0; color: var(--sm-text-secondary); }
 
 @keyframes floatingEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .floating { animation: none; } }

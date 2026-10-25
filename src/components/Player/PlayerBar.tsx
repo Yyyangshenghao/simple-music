@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useAnimate } from 'motion/react'
+import { useMotion } from '../../hooks/useMotion'
 import { usePlayerStore } from '../../stores/player'
 import { usePlaylistStore } from '../../stores/playlist'
 import { useSettingsStore } from '../../stores/settings'
@@ -9,8 +10,9 @@ import { appPlaylistTrackKey } from '../../stores/app-playlists'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
-import { Slider } from '../ui/Slider'
-import { ElasticSlider } from '../ui/ElasticSlider'
+import { ScrubSlider } from '../ui/ScrubSlider'
+import { WakeSlider } from '../ui/WakeSlider'
+import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { TrackInfo } from './TrackInfo'
@@ -60,42 +62,83 @@ function PauseIcon() {
   )
 }
 
-function RepeatIcon() {
+const LOOP_PATHS = ['M17 2l4 4-4 4', 'M3 11v-1a4 4 0 0 1 4-4h14', 'M7 22l-4-4 4-4', 'M21 13v1a4 4 0 0 1-4 4H3']
+const SHUFFLE_PATHS = ['M4 20L21 3', 'M16 3h5v5', 'M4 4l5 5', 'M15 15l6 6', 'M21 16v5h-5']
+const DRAW_EASE = [0.22, 1, 0.36, 1] as const
+
+/**
+ * 播放模式图标，三种状态之间连续过渡：
+ * 列表循环 → 随机：循环线条沿路径收回，交叉线依次画出；
+ * 随机 → 单曲：交叉线收回，循环线条画回，「1」随后弹入；
+ * 单曲 → 列表：「1」缩出，循环整体转半圈（图形中心对称，转完无缝衔接）。
+ * 每次切换整枚图标还有一次轻微的按压回弹。
+ */
+function PlayModeIcon({ mode }: { mode: PlayMode }) {
+  const reducedMotion = !useMotion('iconMotion')
+  // 回弹作用在外层 span：svg 自身的 transform 留给按钮悬停放大，避免互相覆盖。
+  const [scope, animate] = useAnimate<HTMLSpanElement>()
+  const previous = useRef(mode)
+  const [spin, setSpin] = useState(0)
+
+  useEffect(() => {
+    const from = previous.current
+    previous.current = mode
+    if (from === mode || reducedMotion || !scope.current) return
+    if (from === 'one' && mode === 'order') setSpin((value) => value + 180)
+    animate(scope.current, { scale: [1, 0.82, 1.08, 1] }, { duration: 0.46, ease: DRAW_EASE, times: [0, 0.28, 0.66, 1] })
+  }, [mode, reducedMotion, animate, scope])
+
+  const loops = mode !== 'shuffle'
+  const instant = { duration: 0 }
+  const draw = (visible: boolean, index: number, enterDelay: number) => reducedMotion ? instant : {
+    pathLength: { duration: visible ? 0.34 : 0.18, delay: visible ? enterDelay + index * 0.045 : index * 0.02, ease: DRAW_EASE },
+    // 圆头线帽在长度为 0 时仍会留一个点，收回时透明度同步提前淡出，不留残点。
+    opacity: { duration: visible ? 0.1 : 0.12, delay: visible ? enterDelay + index * 0.045 : 0.03 + index * 0.02 },
+  }
+
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 2l4 4-4 4" />
-      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-      <path d="M7 22l-4-4 4-4" />
-      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-    </svg>
+    <span ref={scope} style={{ display: 'inline-flex' }}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <motion.g
+          style={{ transformOrigin: '12px 12px' }}
+          initial={false}
+          animate={{ rotate: spin }}
+          transition={reducedMotion ? instant : { type: 'spring', stiffness: 260, damping: 22, mass: 0.9 }}
+        >
+          {LOOP_PATHS.map((d, i) => (
+            <motion.path
+              key={d}
+              d={d}
+              initial={false}
+              animate={{ pathLength: loops ? 1 : 0, opacity: loops ? 1 : 0 }}
+              transition={draw(loops, i, 0.1)}
+            />
+          ))}
+        </motion.g>
+        {SHUFFLE_PATHS.map((d, i) => (
+          <motion.path
+            key={d}
+            d={d}
+            initial={false}
+            animate={{ pathLength: loops ? 0 : 1, opacity: loops ? 0 : 1 }}
+            transition={draw(!loops, i, 0.1)}
+          />
+        ))}
+        <motion.path
+          d="M11 10h2v5"
+          strokeWidth="2.2"
+          style={{ transformOrigin: '12px 12.5px' }}
+          initial={false}
+          animate={{ scale: mode === 'one' ? 1 : 0, opacity: mode === 'one' ? 1 : 0 }}
+          transition={reducedMotion ? instant : mode === 'one'
+            ? { type: 'spring', stiffness: 520, damping: 14, mass: 0.6, delay: 0.26 }
+            : { duration: 0.14, ease: [0.4, 0, 1, 1] }}
+        />
+      </svg>
+    </span>
   )
 }
 
-function RepeatOneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 2l4 4-4 4" />
-      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-      <path d="M7 22l-4-4 4-4" />
-      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-      <path d="M11 10h2v5" strokeWidth="2.2" />
-    </svg>
-  )
-}
-
-function ShuffleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16 3h5v5" />
-      <path d="M4 20L21 3" />
-      <path d="M21 16v5h-5" />
-      <path d="M15 15l6 6" />
-      <path d="M4 4l5 5" />
-    </svg>
-  )
-}
-
-/** 音量图标:喇叭主体常驻不跳变,音波弧线与静音斜线按音量档位各自淡入淡出。 */
 function VolumeIcon({ level }: { level: 'mute' | 'low' | 'high' }) {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -179,7 +222,6 @@ function DesktopLyricsButton() {
       className={`${styles.btn} ${styles.miniPlayerBtn} no-drag`}
       data-active={enabled}
       onClick={() => useVisualStore.getState().updateFx({ desktopLyrics: !enabled })}
-      title={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
       aria-label={enabled ? '关闭桌面歌词' : '开启桌面歌词'}
       aria-pressed={enabled}
       whileTap={tapScale}
@@ -207,7 +249,6 @@ function MiniPlayerButton() {
         useSettingsStore.getState().setMiniPlayerEnabled(next)
         void window.desktop?.setMiniPlayerEnabled(next, miniPlayerWidth)
       }}
-      title={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
       aria-label={enabled ? '关闭迷你播放条' : '开启迷你播放条'}
       aria-pressed={enabled}
       whileTap={tapScale}
@@ -236,7 +277,7 @@ function PlayModeButton() {
       whileTap={tapScale}
       transition={springSnappy}
     >
-      {playMode === 'shuffle' ? <ShuffleIcon /> : playMode === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
+      <PlayModeIcon mode={playMode} />
     </motion.button>
   )
 }
@@ -285,7 +326,6 @@ function AddToAppPlaylistButton() {
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(event) => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
-      title="加入歌单"
       aria-label="加入歌单"
       whileTap={tapScale}
       transition={springSnappy}
@@ -310,21 +350,25 @@ interface PlayerBarProps {
   handoff?: boolean
 }
 
-/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。 */
+/** 高频进度订阅限定在滑轨内，避免唤醒队列、封面和菜单。拖动只预览，松手才 seek。 */
 function PlaybackProgress() {
   const position = usePlayerStore((s) => s.position)
   const duration = usePlayerStore((s) => s.duration)
   const seek = usePlayerStore((s) => s.seek)
+  const [preview, setPreview] = useState<number | null>(null)
   return (
-    <div className={styles.progress}>
-      <span className={styles.time}>{formatTime(position)}</span>
-      <Slider
+    <div className={styles.progress} data-scrubbing={preview !== null || undefined}>
+      <span className={styles.time}>{formatTime(preview ?? position)}</span>
+      <ScrubSlider
         className={styles.progressSlider}
         ariaLabel="播放进度"
+        mode="commit"
         value={position}
         min={0}
         max={duration > 0 ? duration : 1}
-        step={1}
+        disabled={duration <= 0}
+        format={formatTime}
+        onPreview={setPreview}
         onChange={seek}
       />
       <span className={styles.time}>{formatTime(duration)}</span>
@@ -332,23 +376,142 @@ function PlaybackProgress() {
   )
 }
 
+/** 悬停喇叭多久后展开音量条，避免鼠标路过时误触发。 */
+const VOLUME_OPEN_DELAY = 280
+const VOLUME_CLOSE_DELAY = 260
+/** 滚轮调节后百分比停留时长。 */
+const VOLUME_WHEEL_LABEL = 900
+const GLASS_EASE = [0.22, 1, 0.36, 1] as const
+
+interface CoverRect { width: number; height: number }
+
+/** 量出喇叭右侧同一行按钮占据的区域，音量条展开时用玻璃层盖住这片区域。 */
+function measureCover(group: HTMLElement): CoverRect | null {
+  const parent = group.parentElement
+  if (!parent) return null
+  const own = group.getBoundingClientRect()
+  const middle = own.top + own.height / 2
+  let right = own.right
+  let top = Infinity
+  let bottom = -Infinity
+  for (const button of parent.querySelectorAll('button')) {
+    if (group.contains(button)) continue
+    const rect = button.getBoundingClientRect()
+    if (rect.width === 0 || rect.left < own.right - 1 || rect.top > middle || rect.bottom < middle) continue
+    right = Math.max(right, rect.right)
+    top = Math.min(top, rect.top)
+    bottom = Math.max(bottom, rect.bottom)
+  }
+  if (right - own.right < 60) return null
+  return { width: right - own.right + 4, height: Math.max(own.height, bottom - top + 4) }
+}
+
+/** 音量：悬停喇叭片刻后，音量条从喇叭向右滑出，玻璃层同时盖住右侧按钮；拖动/滚轮时显示百分比，点按喇叭静音。 */
 function VolumeControl() {
   const volume = usePlayerStore((s) => s.volume)
   const setVolume = usePlayerStore((s) => s.setVolume)
+  const groupRef = useRef<HTMLDivElement>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const draggingRef = useRef(false)
+  const [cover, setCover] = useState<CoverRect | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [wheeling, setWheeling] = useState(false)
+  const open = cover !== null
+
+  useEffect(() => () => {
+    clearTimeout(openTimer.current)
+    clearTimeout(closeTimer.current)
+    clearTimeout(wheelTimer.current)
+  }, [])
+
+  const expand = () => {
+    const group = groupRef.current
+    if (group) setCover(measureCover(group) ?? { width: 132, height: group.offsetHeight })
+  }
+  const scheduleOpen = () => {
+    clearTimeout(closeTimer.current)
+    if (open) return
+    clearTimeout(openTimer.current)
+    openTimer.current = setTimeout(expand, VOLUME_OPEN_DELAY)
+  }
+  const scheduleClose = () => {
+    clearTimeout(openTimer.current)
+    clearTimeout(closeTimer.current)
+    if (draggingRef.current) return
+    closeTimer.current = setTimeout(() => setCover(null), VOLUME_CLOSE_DELAY)
+  }
+  const handleWheel = (event: React.WheelEvent) => {
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? -event.deltaY : event.deltaX
+    if (!delta) return
+    clearTimeout(openTimer.current)
+    clearTimeout(closeTimer.current)
+    if (!open) expand()
+    setWheeling(true)
+    clearTimeout(wheelTimer.current)
+    wheelTimer.current = setTimeout(() => setWheeling(false), VOLUME_WHEEL_LABEL)
+    setVolume(Math.min(1, Math.max(0, Math.round((volume + Math.sign(delta) * 0.05) * 100) / 100)))
+  }
+
   return (
-    <div className={styles.volumeGroup}>
+    <div
+      ref={groupRef}
+      className={styles.volumeGroup}
+      data-open={open || undefined}
+      onPointerEnter={scheduleOpen}
+      onPointerLeave={scheduleClose}
+      onWheel={handleWheel}
+    >
       <VolumeButton />
-      <ElasticSlider
-        className={styles.volumeSlider}
-        leftIcon={null}
-        rightIcon={null}
-        defaultValue={Math.round(volume * 100)}
-        startingValue={0}
-        maxValue={100}
-        onChange={(v) => setVolume(v / 100)}
-      />
+      <AnimatePresence>
+        {cover && (
+          <motion.div
+            className={styles.volumeGlass}
+            style={{ width: cover.width, height: cover.height }}
+            // 玻璃层自喇叭一侧向右擦入，盖住右侧按钮；收起时原路退回。
+            initial={{ clipPath: 'inset(0% 100% 0% 0% round 999px)', opacity: 0.6 }}
+            animate={{ clipPath: 'inset(0% 0% 0% 0% round 999px)', opacity: 1 }}
+            exit={{ clipPath: 'inset(0% 100% 0% 0% round 999px)', opacity: 0.6, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+            transition={{ duration: 0.32, ease: GLASS_EASE }}
+          >
+            <motion.div
+              className={styles.volumeTrack}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.26, delay: 0.06, ease: GLASS_EASE }}
+            >
+              <WakeSlider
+                ariaLabel="音量"
+                ariaValueText={(v) => `${Math.round(v * 100)}%`}
+                value={volume}
+                min={0}
+                max={1}
+                step={0.01}
+                onDragChange={(active) => {
+                  draggingRef.current = active
+                  setDragging(active)
+                }}
+                onChange={setVolume}
+              />
+              <span className={styles.volumeValue} data-active={dragging || wheeling || undefined}>{Math.round(volume * 100)}%</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
+}
+
+/** 重播播放键的点击流光：开始播放时从下往上、暂停时从上往下。直接改 DOM 属性而不走 state，
+ *  先移除再强制回流后写回，连点也能从头重播。 */
+function replayPlayStar(button: Element | undefined, dir: 'up' | 'down') {
+  const star = button?.querySelector<HTMLElement>(`.${styles.playStar}`)
+  if (!star) return
+  delete star.dataset.dir
+  void star.offsetWidth
+  star.dataset.dir = dir
 }
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
@@ -375,14 +538,14 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
 
       <div className={styles.center}>
         <div className={styles.buttons}>
-          <PlayModeButton />
+          {embedded ? <div className={styles.modeSlot}><PlayModeButton /></div> : <PlayModeButton />}
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
             <PrevIcon />
           </motion.button>
           <motion.button
             type="button"
             className={`${styles.btn} ${styles.playBtn} no-drag`}
-            onClick={() => toggle()}
+            onClick={(e) => { replayPlayStar(e?.currentTarget, isPlaying ? 'down' : 'up'); toggle() }}
             title={isPlaying ? '暂停' : '播放'}
             aria-label={isPlaying ? '暂停' : '播放'}
             data-loading={isLoading}
@@ -401,12 +564,15 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </motion.span>
             </AnimatePresence>
+            <span className={styles.playStar} aria-hidden="true" />
           </motion.button>
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>
-          {/* 与左侧播放模式等宽，播放键落在进度条正中。 */}
-          {embedded ? <div className={styles.likeSlot}><LikeButton /></div> : <span className={styles.modeBalance} aria-hidden="true" />}
+          {/* 歌词页红心与加入歌单紧挨，顺序同主播放栏；两侧槽位等分剩余宽度，播放键始终居中，无红心时加入歌单顶到原位。 */}
+          {embedded
+            ? <div className={styles.trackActionSlot}><LikeButton /><AddToAppPlaylistButton /></div>
+            : <span className={styles.modeBalance} aria-hidden="true" />}
         </div>
 
         <PlaybackProgress />
@@ -418,11 +584,10 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
-          {/* 歌词页红心与播放模式左右对称，加入歌单放到右侧操作组。 */}
-          {embedded && <AddToAppPlaylistButton />}
           <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />
         </div>
+        <HoverTips exclude={`.${styles.volumeGroup}`} />
       </div>
     </div>
   )

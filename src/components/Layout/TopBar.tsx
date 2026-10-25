@@ -19,6 +19,7 @@ import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { useFeedback, useMotion } from '../../hooks/useMotion'
 
 const NAV_ITEMS: { label: string; view: AppView }[] = [
   { label: '探索', view: 'explore' },
@@ -39,6 +40,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ hidden = false }: TopBarProps) {
+  const tap = useFeedback('tapFeedbackMotion')
+  const controlMotion = useMotion('indicatorMotion')
   const { current: contentSource } = useContentProvider()
   const currentView = useNavigationStore((s) => s.currentView)
   const history = useNavigationStore((s) => s.history)
@@ -271,7 +274,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   <motion.span
                     layoutId="topbar-seg-pill"
                     className={styles.segPill}
-                    transition={springSnappy}
+                    transition={controlMotion ? springSnappy : { duration: 0 }}
                   />
                 )}
                 <span className={styles.segLabel}>{item.label}</span>
@@ -304,17 +307,20 @@ export function TopBar({ hidden = false }: TopBarProps) {
           >
             <svg
               className={styles.searchIcon}
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.8"
+              strokeLinecap="round"
               aria-hidden="true"
             >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
+              <circle cx="11" cy="11" r="7.5" />
+              <path d="m20.5 20.5-4.2-4.2" />
             </svg>
+            {/* 空闲时给出稳定的用途提示；展开后由输入框占位文字承接。 */}
+            {!isExpanded && <span className={styles.searchPrompt} aria-hidden="true">搜索歌曲、歌手</span>}
             {isExpanded && (
               <input
                 ref={inputRef}
@@ -326,6 +332,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   setSearchHistory(loadSearchHistory())
                 }}
                 aria-label="搜索歌曲、歌手"
+                placeholder="搜索歌曲、歌手"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault()
@@ -429,11 +436,11 @@ export function TopBar({ hidden = false }: TopBarProps) {
             className={styles.avatarBtn}
             onClick={() => setAvatarMenuOpen((v) => !v)}
             aria-label={`音源与账号，已启用 ${enabledSources.length} 个平台`}
-            whileTap={tapScale}
+            whileTap={tap(tapScale)}
             transition={springSnappy}
           >
             <span className={styles.avatarInner}>
-              <svg className={styles.accountGlyph} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <svg className={styles.accountGlyph} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
               </svg>

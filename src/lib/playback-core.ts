@@ -66,6 +66,8 @@ export interface PlaybackPlayer {
   status: PlaybackStatus
   currentTrack: Track | null
   position: number
+  /** 显式定位序号，供各窗口区分 seek 与迟到的离散进度采样；不持久化。 */
+  seekRevision: number
   duration: number
   volume: number
   quality: AudioQuality
@@ -102,6 +104,20 @@ export interface PlaybackPlayer {
 }
 
 /** 会话编排只通过宿主接口读写状态、控制音频；创建时不注册全局订阅。 */
+/** 「最高」档下仍可直接复用的缓存档位；更低的档和音效变体（环绕声 / 鲸云音效）会重新在线解析。 */
+const MAX_QUALITY_CACHE_LEVELS = new Set(['lossless', 'hires', 'jymaster'])
+
+/**
+ * 离线 / 自动缓存的文件是否符合当前所选音质。缓存只记得写入时的档位，
+ * 不一致时（包括切换音质后的热重载）改走在线解析，否则切换音质永远听到旧缓存；
+ * 平台未登录或已停用时仍用缓存，保证离线可播。
+ */
+export function offlineQualityUsable(cached: string | undefined, wanted: AudioQuality, online: () => boolean): boolean {
+  if (!cached || (wanted === 'max' ? MAX_QUALITY_CACHE_LEVELS.has(cached) : cached === wanted)) return true
+  // 档位不符才查平台状态：离线命中本身不依赖登录
+  return !online()
+}
+
 export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   const get = deps.getState
   const set = deps.setState
@@ -207,6 +223,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     candidate: PlaybackCandidate | null
     candidateKind: 'external' | 'resolver' | 'offline' | 'local'
     offlineStatus?: OfflineCacheStatus
+    offlineFallback?: { status: OfflineCacheStatus; url: string }
     engineLoadId: number
     startAt: number
     /** 仅刷歌允许接管暂停预加载元素 */
@@ -392,13 +409,43 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     }
   }
 
+  function loadOfflineCandidate(active: ActivePlayback): boolean {
+    const fallback = active.offlineFallback
+    if (!fallback) return false
+    // 只尝试一次；文件损坏后不能从耗尽的在线候选再次回到同一缓存。
+    active.offlineFallback = undefined
+    deps.appleSpectrum.stop()
+    active.candidate = null
+    active.candidateKind = 'offline'
+    active.offlineStatus = fallback.status
+    set({
+      status: active.autoplay ? 'loading' : 'paused',
+      actualSource: null, resolvedTrack: null, resolution: null,
+      playbackTransport: null, currentQuality: null,
+    })
+    const eng = ensureEngine()
+    const loadId = active.usePreparedAudio
+      ? eng.load(fallback.url, active.startAt, undefined, undefined, true)
+      : eng.load(fallback.url, active.startAt)
+    active.engineLoadId = loadId
+    eng.setVolume(get().volume)
+    if (active.autoplay) {
+      void eng.play().catch((error) => {
+        const reason = mediaFailureReasonFromPlayError(error)
+        if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
+        void advancePlayback(reason)
+      })
+    }
+    return true
+  }
+
   async function advancePlayback(reason?: string): Promise<void> {
     const active = activePlayback
     if (!active || active.advancing) return
-    if (!active.resolver && active.candidateKind === 'offline') {
+    if (active.candidateKind === 'offline') {
       // 本次在线回退不得经代理重新读到同一个坏缓存，也不删除用户固定的文件。
       active.offlineFailed = true
-      active.resolver = createResolver(active)
+      active.resolver ??= createResolver(active)
     }
     if (!active.resolver) {
       failPlayback(active)
@@ -422,7 +469,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       }
       if (activePlayback !== active || active.session !== loadSession) return
       if (!candidate) {
-        failPlayback(active)
+        if (!loadOfflineCandidate(active)) failPlayback(active)
         return
       }
       loadCandidate(active, candidate, 'resolver')
@@ -558,6 +605,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     status: 'idle',
     currentTrack: null,
     position: 0,
+    seekRevision: 0,
     duration: 0,
     volume: 0.8,
     quality: deps.getQuality(),
@@ -639,13 +687,14 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       suspendListening()
       listening?.clock.rebase(seconds, now())
       if (activePlayback) activePlayback.startAt = seconds
-      if (applePlayback) { appleCommand({ type: 'seek', seconds }); set({ position: seconds }); return }
+      const patch = { position: seconds, seekRevision: get().seekRevision + 1 }
+      if (applePlayback) { appleCommand({ type: 'seek', seconds }); set(patch); return }
       if (activePlayback?.originTrack.source === 'apple' && !activePlayback.candidate) {
-        set({ position: seconds })
+        set(patch)
         return
       }
       ensureEngine().seek(seconds)
-      set({ position: seconds })
+      set(patch)
     },
     setVolume(v) {
       if (disposed) return
@@ -758,23 +807,12 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       const canUseOfflineCache = !active.preferredSource
         || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source)
       if (offlineStatus && offlineUrl && canUseOfflineCache) {
-        deps.appleSpectrum.stop()
-        active.candidateKind = 'offline'
-        active.offlineStatus = offlineStatus
-        set({ status: active.autoplay ? 'loading' : 'paused' })
-        const loadId = active.usePreparedAudio
-          ? eng.load(offlineUrl, active.startAt, undefined, undefined, true)
-          : eng.load(offlineUrl, active.startAt)
-        active.engineLoadId = loadId
-        eng.setVolume(get().volume)
-        if (active.autoplay) {
-          void eng.play().catch((error) => {
-            const reason = mediaFailureReasonFromPlayError(error)
-            if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
-            void advancePlayback(reason)
-          })
+        // 音质不符时先尝试在线升级；账号有效不代表网络可用，保留文件供候选耗尽后兜底。
+        active.offlineFallback = { status: offlineStatus, url: offlineUrl }
+        if (offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source))) {
+          loadOfflineCandidate(active)
+          return
         }
-        return
       }
 
       const resolver = createResolver(active)

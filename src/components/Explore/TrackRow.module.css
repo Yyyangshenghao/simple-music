@@ -67,7 +67,7 @@
 
 .coverEmpty { background: var(--sm-bg-elevated); }
 
-.info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.info { flex: 1.25 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 
 .name {
   font-size: 14px;
@@ -96,10 +96,10 @@
 
 .artistLine .artist { min-width: 0; }
 
+/* 宽行按比例分配标题与专辑列：专辑起点稳定落在行宽中段，宽屏不必横跨整行寻找。 */
 .album {
   display: none;
-  flex: 0 1 32%;
-  max-width: 280px;
+  flex: 1 1 0;
   min-width: 0;
   font-size: 12px;
   color: var(--sm-text-secondary);
@@ -109,14 +109,14 @@
 }
 @container (min-width: 720px) { .album { display: block; } }
 
-/* 时长是次要信息：与行内操作一起悬停显形。不可播放原因（status）常驻。 */
+/* 时长常驻为弱化的末列，给宽行稳定的列线索；行内操作仍悬停显形。不可播放原因（status）常驻。 */
 .duration,
 .status { font-size: 12px; color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 /* 定宽元信息列：时长与不可播放原因共用，长原因省略显示（悬停整行可见 title）。 */
 .metaColumn { font-size: 12px; width: 8em; min-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; flex-shrink: 0; }
-.duration { min-width: 34px; text-align: right; opacity: 0; transition: opacity 160ms var(--sm-ease-out); }
+.duration { min-width: 34px; text-align: right; opacity: 0.7; transition: opacity 160ms var(--sm-ease-out); }
 .row:hover .duration,
-.row:focus-within .duration { opacity: 0.85; }
+.row:focus-within .duration { opacity: 1; }
 
 .offlineBtn {
   display: inline-flex;
@@ -215,38 +215,7 @@
 :global([data-selecting='true']) .row { background: none; }
 :global([data-selecting='true']) .row:not(.rowActive)::before { opacity: 0; }
 
-/* 迷你均衡器：3 根动画柱 */
-.eq {
-  width: 20px;
-  height: 14px;
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.eq i {
-  width: 3px;
-  border-radius: 1px;
-  background: var(--ambient-1);
-  animation: eqBounce 0.9s ease-in-out infinite;
-  transform-origin: 50% 100%;
-}
-
-.eq i:nth-child(1) { height: 60%; animation-delay: 0s; }
-.eq i:nth-child(2) { height: 100%; animation-delay: 0.25s; }
-.eq i:nth-child(3) { height: 75%; animation-delay: 0.5s; }
-
-.eqPaused i { animation-play-state: paused; }
-
-@keyframes eqBounce {
-  0%, 100% { transform: scaleY(0.4); }
-  50%      { transform: scaleY(1); }
-}
-
 @media (hover: none) {
-  .duration,
   .addBtn,
   .offlineBtn,
   .likeBtn { opacity: 0.85; }

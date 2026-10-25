@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-10-23T11:23:23.712Z",
+  "environment": "Headless Chrome, actual App/settings controls, mocked platform data",
+  "results": [
+    {
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.494745)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "layout": "full",
+      "style": {
+        "border": "0px",
+        "radius": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.494745)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.0596078)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "layout": "full",
+      "style": {
+        "border": "0px",
+        "radius": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.0596078)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.494745)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "layout": "full",
+      "style": {
+        "border": "0px",
+        "radius": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.494745)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.0596078)",
+        "padding": "16px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "layout": "full",
+      "style": {
+        "border": "0px",
+        "radius": "0px",
+        "background": "rgba(0, 0, 0, 0)",
+        "padding": "0px"
+      },
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "layout": "framed",
+      "style": {
+        "border": "1px",
+        "radius": "18px",
+        "background": "color(srgb 1 1 1 / 0.0596078)",
+        "padding": "16px"
+      },
+      "ok": true
+    }
+  ],
+  "regressionBefore": "Before restoration, framed measured border=0px and assertion expecting 1px failed",
+  "typecheck": "passed",
+  "fullVitest": {
+    "files": 336,
+    "tests": 3117,
+    "status": "passed"
+  },
+  "productChange": "Restore original LibraryShelf.module.css only; no settings/store/default/persistence changes"
+}

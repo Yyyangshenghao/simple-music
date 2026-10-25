@@ -13,6 +13,7 @@ import { CloseIcon } from '../ui/CloseIcon'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 import type { Track } from '../../types/domain'
 import styles from './ShuangeCard.module.css'
+import { useFeedback, usePageTransition } from '../../hooks/useMotion'
 
 interface ShuangeCardProps {
   track: Track
@@ -55,6 +56,8 @@ function ClipProgress({ track, startSec, endSec, label = '精彩片段播放进�
 }
 
 export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
+  const pageTransition = usePageTransition()
+  const tap = useFeedback('tapFeedbackMotion')
   const titleViewportRef = useRef<HTMLHeadingElement>(null)
   const titleTextRef = useRef<HTMLSpanElement>(null)
   const [titleOverflow, setTitleOverflow] = useState(false)
@@ -115,7 +118,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
           className={`${styles.refreshAction} no-drag`}
           onClick={() => void useShuangeStore.getState().refresh()}
           disabled={switching}
-          whileTap={tapScale}
+          whileTap={tap(tapScale)}
           aria-label={refreshError ? `换一批：${refreshError}` : '换一批'}
           title={refreshError || '换一批'}
         >
@@ -161,7 +164,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.24 }}
+                transition={pageTransition({ duration: 0.24 })}
               >
                 <strong>{currentLine || (switching ? '先等一拍，马上开唱' : '听听这一段')}</strong>
                 {nextLine && <span>{nextLine}</span>}
@@ -180,7 +183,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
               className={`${styles.iconAction} no-drag`}
               data-track-action-trigger
               onClick={event => useTrackActionsStore.getState().toggleQuickAdd(track, anchorOf(event.currentTarget))}
-              whileTap={tapScale}
+              whileTap={tap(tapScale)}
               aria-label="加入歌单"
               aria-haspopup="dialog"
               title="加入歌单"
@@ -193,7 +196,7 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
                 className={`${styles.iconAction} no-drag`}
                 data-liked={liked}
                 onClick={() => void useShuangeStore.getState().toggleLike(track)}
-                whileTap={tapScale}
+                whileTap={tap(tapScale)}
                 aria-label={liked ? '取消喜欢' : '喜欢'}
                 title={liked ? '取消喜欢' : '喜欢'}
               >
@@ -205,16 +208,16 @@ export function ShuangeCard({ track, switching, onExit }: ShuangeCardProps) {
               className={`${styles.dismissAction} no-drag`}
               onClick={() => void notInterested()}
               disabled={switching}
-              whileTap={tapScale}
+              whileTap={tap(tapScale)}
               title="不感兴趣"
             >
               不感兴趣
             </motion.button>
-            <motion.button type="button" className={`${styles.fullAction} no-drag`} onClick={() => playFull()} whileTap={tapScale}>
+            <motion.button type="button" className={`${styles.fullAction} no-drag`} onClick={() => playFull()} whileTap={tap(tapScale)}>
               播放全曲
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
             </motion.button>
-            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tapScale} aria-label="退出刷歌" title="退出刷歌">
+            <motion.button type="button" className={`${styles.iconAction} no-drag`} onClick={onExit} whileTap={tap(tapScale)} aria-label="退出刷歌" title="退出刷歌">
               <CloseIcon size={17} />
             </motion.button>
           </div>

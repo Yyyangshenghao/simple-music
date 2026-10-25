@@ -1,0 +1,244 @@
+{
+  "generatedAt": "2026-10-22T23:51:51.705Z",
+  "commit": "bd10077c2b8c71d50792e9a0fb8982c111fb1f46",
+  "worktreeState": "M src/components/Artist/ArtistHeader.module.css\n M src/components/Explore/PlaylistPreviewModal.module.css\n M src/components/Explore/ProviderRecommendationSection.module.css\n M src/components/Explore/TrackRow.module.css\n M src/components/Layout/DownloadQueue.tsx\n M src/components/Layout/TopBar.module.css\n M src/components/Layout/TopBar.test.tsx\n M src/components/Layout/TopBar.tsx\n M src/components/Layout/WindowCloseDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.module.css\n M src/components/Playlist/AppPlaylistDialog.tsx\n M src/components/Playlist/NameDialog.module.css\n M src/components/Playlist/PlaylistDetailView.module.css\n M src/pages/ArtistPage.module.css\n M src/pages/LibraryPage.module.css\n M src/pages/LibraryShelf.module.css\n M src/pages/RoamPage.module.css\n M src/pages/RoamPage.test.tsx\n M src/pages/RoamPage.tsx\n M src/pages/SearchPage.module.css\n M src/pages/SearchPage.tsx\n M src/styles/tokens.css\n?? src/lib/search-preview.test.ts\n?? src/lib/search-preview.ts",
+  "environment": "macOS Electron dev（electron-vite dev），独立 --user-data-dir；MOCK fixture；CDP 固定视口；播放命令通过替换 playlist store 的 setQueue/addManyToQueue 记录，不进入播放引擎",
+  "checks": [
+    {
+      "name": "歌手「查看全部」（全部平台）：切到歌手分类，9 位全部可达，来源仍为全部平台",
+      "ok": true,
+      "detail": {
+        "artists": 9
+      }
+    },
+    {
+      "name": "歌手「查看全部」（网易云）：6 位全部可达，网易云筛选保持",
+      "ok": true,
+      "detail": {
+        "artists": 6
+      }
+    },
+    {
+      "name": "专辑「查看全部」（网易云）：切到专辑分类，8 张全部可达，网易云筛选保持",
+      "ok": true,
+      "detail": {
+        "albums": 8
+      }
+    },
+    {
+      "name": "歌单「查看全部」（QQ 音乐）：切到歌单分类，8 个全部可达，QQ 筛选保持",
+      "ok": true,
+      "detail": {
+        "playlists": 8
+      }
+    },
+    {
+      "name": "专辑「查看全部」（全部平台）：16 张全部可达",
+      "ok": true,
+      "detail": {
+        "albums": 16
+      }
+    },
+    {
+      "name": "多选后切换来源：选择清空并退出多选",
+      "ok": true,
+      "detail": {
+        "selectedBefore": 22,
+        "selectedAfter": 0
+      }
+    },
+    {
+      "name": "多选后切换分类：选择清空并退出多选",
+      "ok": true,
+      "detail": {
+        "selectedBefore": 22,
+        "selectedAfter": 0
+      }
+    },
+    {
+      "name": "「全部」预览中点歌：队列为全部平台完整可播列表（49 首），起点为所点歌曲",
+      "ok": true,
+      "detail": {
+        "length": 49,
+        "startIndex": 3,
+        "includesBeyondPreview": true
+      }
+    },
+    {
+      "name": "网易云筛选下预览点歌：队列为网易云完整可播列表（37 首）",
+      "ok": true,
+      "detail": {
+        "length": 37,
+        "startIndex": 5
+      }
+    },
+    {
+      "name": "网易云筛选下「添加到播放队列」（搜索页的整组播放入口）：包含完整可播结果（37 首）而非 10 首预览",
+      "ok": true,
+      "detail": {
+        "length": 37,
+        "previewRows": 10
+      }
+    },
+    {
+      "name": "QQ 筛选下预览点歌：队列为 QQ 完整列表（12 首）",
+      "ok": true,
+      "detail": {
+        "length": 12,
+        "startIndex": 0
+      }
+    },
+    {
+      "name": "960×540（dark）搜索歌曲行悬停：长标题/长专辑/暂无版权行各列不重叠、操作不被裁切",
+      "ok": true,
+      "detail": {
+        "长标题": {
+          "nameTruncated": true,
+          "albumTruncated": false,
+          "meta": "3:26",
+          "actions": [
+            "add",
+            "offline",
+            "like"
+          ]
+        },
+        "长专辑": {
+          "nameTruncated": false,
+          "albumTruncated": true,
+          "meta": "4:21",
+          "actions": [
+            "add",
+            "offline",
+            "like"
+          ]
+        },
+        "暂无版权": {
+          "nameTruncated": false,
+          "albumTruncated": false,
+          "meta": "暂无版权",
+          "actions": [
+            "add",
+            "offline"
+          ]
+        }
+      }
+    },
+    {
+      "name": "960×540（dark）歌单详情行悬停：长专辑行各列不重叠、时长与操作完整",
+      "ok": true,
+      "detail": {
+        "albumTruncated": false,
+        "meta": "4:21"
+      }
+    },
+    {
+      "name": "960×540（light）搜索歌曲行悬停：长标题/长专辑/暂无版权行各列不重叠、操作不被裁切",
+      "ok": true,
+      "detail": {
+        "长标题": {
+          "nameTruncated": true,
+          "albumTruncated": false,
+          "meta": "3:26",
+          "actions": [
+            "add",
+            "offline",
+            "like"
+          ]
+        },
+        "长专辑": {
+          "nameTruncated": false,
+          "albumTruncated": true,
+          "meta": "4:21",
+          "actions": [
+            "add",
+            "offline",
+            "like"
+          ]
+        },
+        "暂无版权": {
+          "nameTruncated": false,
+          "albumTruncated": false,
+          "meta": "暂无版权",
+          "actions": [
+            "add",
+            "offline"
+          ]
+        }
+      }
+    },
+    {
+      "name": "960×540（light）歌单详情行悬停：长专辑行各列不重叠、时长与操作完整",
+      "ok": true,
+      "detail": {
+        "albumTruncated": false,
+        "meta": "4:21"
+      }
+    },
+    {
+      "name": "应用歌单删除弹窗：右上关闭按钮关闭，歌单未被删除",
+      "ok": true,
+      "detail": {
+        "closeSize": [
+          32,
+          32
+        ]
+      }
+    },
+    {
+      "name": "应用歌单删除弹窗：「取消」关闭，歌单未被删除",
+      "ok": true
+    },
+    {
+      "name": "重命名弹窗：清空名称时「保存」禁用，「取消」关闭且名称不变",
+      "ok": true
+    },
+    {
+      "name": "浅色 960×540 删除弹窗：标题、关闭图标与按钮在小窗口内完整显示",
+      "ok": true
+    }
+  ],
+  "observations": [
+    {
+      "name": "应用歌单删除弹窗按 Esc",
+      "result": "未关闭（本分支对该弹窗只替换关闭图标，未改键盘处理；未在基准提交上复测）"
+    }
+  ],
+  "shots": [
+    "trackrow-hover-search-长标题--dark-960x540.png",
+    "trackrow-hover-search-长标题-row--dark-960x540.png",
+    "trackrow-hover-search-长专辑--dark-960x540.png",
+    "trackrow-hover-search-长专辑-row--dark-960x540.png",
+    "trackrow-hover-search-暂无版权--dark-960x540.png",
+    "trackrow-hover-search-暂无版权-row--dark-960x540.png",
+    "trackrow-hover-playlist--dark-960x540.png",
+    "trackrow-hover-search-长标题--light-960x540.png",
+    "trackrow-hover-search-长标题-row--light-960x540.png",
+    "trackrow-hover-search-长专辑--light-960x540.png",
+    "trackrow-hover-search-长专辑-row--light-960x540.png",
+    "trackrow-hover-search-暂无版权--light-960x540.png",
+    "trackrow-hover-search-暂无版权-row--light-960x540.png",
+    "trackrow-hover-playlist--light-960x540.png",
+    "app-playlist-delete-modal--dark-1536x864.png",
+    "app-playlist-rename-empty--dark-1536x864.png",
+    "app-playlist-delete-modal--light-960x540.png"
+  ],
+  "pageErrors": [],
+  "blockedApi": [
+    "/api/netease/radar",
+    "/api/netease/recommend/playlists",
+    "/api/netease/recommend/songs",
+    "/api/netease/search/albums",
+    "/api/netease/search/playlists",
+    "/api/playlist/tracks",
+    "/api/qq/search",
+    "/api/qq/search/albums",
+    "/api/qq/search/artists",
+    "/api/qq/search/playlists",
+    "/api/qq/song/like/check",
+    "/api/search",
+    "/api/search/artists",
+    "/api/song/like/check",
+    "/api/update/latest",
+    "/api/user/playlists"
+  ]
+}

@@ -6,8 +6,10 @@
   transform-origin: center;
   /* 不加 will-change:歌词行可达数百个,常驻提升为合成层会撑爆层树与显存;
      切行过渡时由 transition 临时提升即可 */
-  transition: opacity 0.55s ease, filter 0.55s ease,
-    transform 0.55s cubic-bezier(0.22, 0.9, 0.32, 1.02);
+  /* --lyric-switch-scale:短句压缩切行过渡(见 lib/lyric-tempo.ts) */
+  transition: opacity calc(0.55s * var(--lyric-switch-scale, 1)) ease,
+    filter calc(0.55s * var(--lyric-switch-scale, 1)) ease,
+    transform calc(0.55s * var(--lyric-switch-scale, 1)) cubic-bezier(0.22, 0.9, 0.32, 1.02);
 }
 
 .active {
@@ -32,6 +34,14 @@
   line-height: 1.3;
 }
 
+/* 换行单元(见 lib/lyric-line-break.ts):词组内不换行，只在单元之间折行 */
+.unit {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* 两层文字共享排版；只裁剪亮层，避免每帧重建渐变和重算整行 CSS 变量。 */
 .char {
   position: relative;
@@ -51,6 +61,10 @@
   color: var(--lyric-fill-hi, rgba(255, 255, 255, 1));
   clip-path: inset(0 100% 0 0);
   pointer-events: none;
+}
+
+.untimed.active .char {
+  color: var(--lyric-fill-hi, rgba(255, 255, 255, 1));
 }
 
 .line:not(.active) .charFill,
@@ -113,3 +127,6 @@
   /* 光晕只属于主歌词行 */
   text-shadow: none;
 }
+
+/* 关闭「歌词换句动画」时直接到位。 */
+:global([data-lyrics-line-motion-off]) :is(.line) { transition: none !important; animation: none !important; }

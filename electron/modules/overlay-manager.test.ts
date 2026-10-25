@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => {
     setResizable: ReturnType<typeof vi.fn>
     setOpacity: ReturnType<typeof vi.fn>
     setIgnoreMouseEvents: ReturnType<typeof vi.fn>
+    setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
     showInactive: ReturnType<typeof vi.fn>
     show: ReturnType<typeof vi.fn>
     webContents: { mainFrame: object; send: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn>; once: ReturnType<typeof vi.fn>; getZoomFactor: ReturnType<typeof vi.fn> }
@@ -606,6 +607,25 @@ describe('桌面歌词窗口交互', () => {
       harness.getDisplayMatching.mockImplementation(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
     }
   })
+  it.each(['darwin', 'linux', 'win32'] as const)('%s 开启桌面歌词不隐藏主窗口，macOS panel 不再切换应用类型', (platform) => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      harness.hideMainWindow.mockClear()
+      setLyricsEnabled(true, { clickThrough: false })
+      const win = harness.instances[0]
+      if (platform === 'darwin') {
+        expect(harness.BrowserWindow.mock.calls.at(-1)?.[0]?.type).toBe('panel')
+        expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+      } else {
+        expect(win.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, { visibleOnFullScreen: true })
+      }
+      expect(harness.hideMainWindow).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
+  })
+
   it('桌面歌词点击和拖动使用不激活应用的窗口，首次点击可直接操作', () => {
     setLyricsEnabled(true, { clickThrough: false })
     const win = harness.instances[0]
@@ -634,6 +654,23 @@ describe('迷你播放器窗口尺寸', () => {
     harness.mainSend.mockReset()
     harness.hideMainWindow.mockReset()
     harness.focusMainWindow.mockReset()
+  })
+
+  it.each(['win32', 'darwin', 'linux'] as const)('%s 迷你窗口保持透明无系统边框，自绘手柄仍可改宽', (platform) => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      setMiniPlayerEnabled(true, 360)
+      const options = harness.BrowserWindow.mock.calls.at(-1)?.[0]
+      expect(options).toMatchObject({ frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false, resizable: false })
+      if (platform === 'win32') expect(options?.thickFrame).toBe(false)
+      else expect(options).not.toHaveProperty('thickFrame')
+      resizeMiniPlayerBy(20)
+      expect(harness.instances[0].setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ width: 380, height: 80 }), false)
+      if (platform !== 'darwin') expect(harness.instances[0].setResizable).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
   })
 
   it('移动时保持用户设置的宽度，不吸收平台上报的瞬时宽度漂移', () => {

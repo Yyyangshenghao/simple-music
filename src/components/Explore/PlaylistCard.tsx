@@ -11,6 +11,7 @@ import { SourceBadge } from '../ui/SourceBadge'
 import { PlaylistCoverFallback } from '../ui/PlaylistCoverFallback'
 import { QQLikedCoverOverlay } from '../ui/QQLikedCoverOverlay'
 import { getCachedPlaylistTrackCount } from '../../hooks/useLazyPlaylist'
+import { usePageTransition } from '../../hooks/useMotion'
 
 interface PlaylistCardProps {
   playlist: Playlist
@@ -38,6 +39,7 @@ export function CollectionCard({ ariaLabel, onClick, cover, coverLayoutId, cover
   footer?: ReactNode
   selectionMode?: boolean
 }) {
+  const pageTransition = usePageTransition()
   return (
     <TiltCard className={styles.glowWrap} disabled={selectionMode}>
       <BorderGlow borderRadius={16}>
@@ -47,7 +49,7 @@ export function CollectionCard({ ariaLabel, onClick, cover, coverLayoutId, cover
             layoutId={coverLayoutId}
             layoutDependency={layoutDependency}
             layoutCrossfade={false}
-            transition={coverTransition}
+            transition={pageTransition(coverTransition)}
             style={{ borderRadius: 12 }}
           >
             {cover}

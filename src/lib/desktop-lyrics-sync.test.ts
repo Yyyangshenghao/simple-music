@@ -78,6 +78,13 @@ describe('桌面歌词窗口同步', () => {
     expect(vi.mocked(window.desktop.updateDesktopLyrics).mock.calls.every(([payload]) => Object.keys(payload).length === 1 && 'wordClock' in payload)).toBe(true)
   })
 
+  it('歌词换句动画开关同步到桌面歌词，切换时立即补发', () => {
+    render()
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ lineMotion: true }))
+    useSettingsStore.getState().setPerformance({ lyricsLineMotion: false })
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ lineMotion: false }))
+  })
+
   it('关闭桌面歌词时不读取普通引擎的精准时钟', () => {
     fx({ desktopLyricsWordByWord: true })
     useLyricsStore.setState({ wordLines: [{ time: 0, durationMs: 2000, words: [{ text: '歌词', startMs: 0, durationMs: 2000 }] }] })

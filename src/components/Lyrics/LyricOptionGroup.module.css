@@ -1,0 +1,46 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.65fr) minmax(0, 1.35fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  color: inherit;
+  font-size: 12px;
+}
+
+.custom {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.options button {
+  flex: 1;
+  min-width: 42px;
+  padding: 7px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.options button:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.options button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-weight: 650;
+}
+
+@media (max-width: 540px) {
+  .row { grid-template-columns: 1fr; gap: 6px; padding-block: 6px; }
+}

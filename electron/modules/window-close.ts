@@ -100,7 +100,10 @@ export function attachWindowClose(win: BrowserWindow, isQuitting: () => boolean)
   loadBehavior()
   const context: NonNullable<typeof active> = { win, isQuitting, ready: false, promptId: null, nativePromptOpen: false }
   active = context
-  win.webContents.on('did-start-loading', () => { context.ready = false })
+  // 壁纸的 iframe 加载同样会触发 did-start-loading；只有主框架换页才说明界面正在重载。
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) context.ready = false
+  })
   win.webContents.on('render-process-gone', () => {
     context.ready = false
     context.promptId = null

@@ -8,8 +8,11 @@
 /* ── 深色模式（主） ── */
 :root {
   --sm-bg-base:        #0c0c0c;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.06);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.10);
+  /* 主题色轻染：useAccentTheme 写入 --sm-tint 与比例；默认 0% 即原中性玻璃 */
+  --sm-tint:           transparent;
+  --sm-tint-strength:  0%;
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.10));
   --sm-accent:         rgba(255, 255, 255, 0.92);
   --sm-accent-warm:    rgba(255, 255, 255, 0.70);
   --sm-text-primary:   rgba(255, 255, 255, 0.92);
@@ -35,9 +38,24 @@
   --sm-reading-max-width: 960px;
   --sm-page-gutter: clamp(20px, 3vw, 48px);
   --sm-rail-max-width: var(--sm-content-max-width);
-  --sm-ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+  /* 库、搜索、详情等同级功能页的共用起线与页头；设置页沿用自身布局，不引用这组变量。 */
+  --sm-page-inline: max(var(--sm-page-gutter), calc((100% - var(--sm-content-max-width)) / 2));
+  --sm-page-top: 28px;
+  --sm-page-title-size: 26px;
+  /* 常规对话框：圆角、内边距、标题与页脚按钮统一；宽度按任务各自决定。 */
+  --sm-dialog-radius: 20px;
+  --sm-dialog-padding: 24px;
+  --sm-dialog-title-size: 17px;
+  --sm-dialog-action-height: 36px;
+  --sm-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
   --sm-ease-in-out:    cubic-bezier(0.4, 0, 0.2, 1);
   --sm-text-on-accent: #0c0c0c;
+  /* 流体玻璃开关：轨道底色与白色胶囊圆点；开态底色比强调色略暗，让白色胶囊在深色下仍分得清 */
+  --sm-switch-track-off:  rgba(255, 255, 255, 0.16);
+  --sm-switch-track-edge: rgba(255, 255, 255, 0.06);
+  --sm-switch-track-on:   rgba(255, 255, 255, 0.62);
+  --sm-switch-thumb:      #ffffff;
+  --sm-switch-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.30), 0 3px 8px rgba(0, 0, 0, 0.35);
 
   /* 字体:用户可在设置里自定义,留空则用此默认系统字体栈 */
   --sm-font-sans:      -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -54,9 +72,9 @@
   --glass-blur-base:   blur(12px);
   --glass-blur-card:   blur(18px);
   --glass-blur-modal:  blur(32px);
-  --glass-bg-base:     rgba(255, 255, 255, 0.06);
-  --glass-bg-card:     rgba(255, 255, 255, 0.08);
-  --glass-bg-modal:    rgba(0, 0, 0, 0.55);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.08));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(0, 0, 0, 0.55));
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
@@ -78,8 +96,8 @@
 @media (prefers-color-scheme: light) {
   :root {
     --sm-bg-base:        #f0f0f0;
-    --sm-bg-elevated:    rgba(255, 255, 255, 0.72);
-    --sm-bg-overlay:     rgba(255, 255, 255, 0.88);
+    --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.72));
+    --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.88));
     --sm-accent:         rgba(0, 0, 0, 0.85);
     --sm-accent-warm:    rgba(0, 0, 0, 0.60);
     --sm-text-primary:   rgba(0, 0, 0, 0.90);
@@ -93,15 +111,21 @@
     --sm-fill-active:    rgba(0, 0, 0, 0.10);
     --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.12);
     --sm-text-on-accent: #ffffff;
+    /* 流体玻璃开关：浅色下轨道浅灰，白色胶囊靠投影立体 */
+    --sm-switch-track-off:  rgba(0, 0, 0, 0.10);
+    --sm-switch-track-edge: rgba(0, 0, 0, 0.04);
+    --sm-switch-track-on:   rgba(0, 0, 0, 0.82);
+    --sm-switch-thumb:      #ffffff;
+    --sm-switch-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.14), 0 3px 8px rgba(0, 0, 0, 0.12);
 
     --sm-color-success:  #166534;
     --sm-color-danger:   #b91c1c;
     --sm-color-gold:     #b45309;
     --sm-color-like:     #e11d48;
 
-    --glass-bg-base:     rgba(255, 255, 255, 0.50);
-    --glass-bg-card:     rgba(255, 255, 255, 0.65);
-    --glass-bg-modal:    rgba(240, 240, 240, 0.80);
+    --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.50));
+    --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.65));
+    --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(240, 240, 240, 0.80));
     --glass-border-base: rgba(0, 0, 0, 0.08);
     --glass-border-card: rgba(0, 0, 0, 0.10);
     --glass-border-modal:rgba(0, 0, 0, 0.06);
@@ -119,8 +143,8 @@
 /* ── 手动 theme 覆盖 ── */
 [data-theme="light"] {
   --sm-bg-base:        #f0f0f0;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.72);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.88);
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.72));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.88));
   --sm-accent:         rgba(0, 0, 0, 0.85);
   --sm-accent-warm:    rgba(0, 0, 0, 0.60);
   --sm-text-primary:   rgba(0, 0, 0, 0.90);
@@ -134,15 +158,21 @@
   --sm-fill-active:    rgba(0, 0, 0, 0.10);
   --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.12);
   --sm-text-on-accent: #ffffff;
+  /* 流体玻璃开关：浅色下轨道浅灰，白色胶囊靠投影立体 */
+  --sm-switch-track-off:  rgba(0, 0, 0, 0.10);
+  --sm-switch-track-edge: rgba(0, 0, 0, 0.04);
+  --sm-switch-track-on:   rgba(0, 0, 0, 0.82);
+  --sm-switch-thumb:      #ffffff;
+  --sm-switch-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.14), 0 3px 8px rgba(0, 0, 0, 0.12);
 
   --sm-color-success:  #166534;
   --sm-color-danger:   #b91c1c;
   --sm-color-gold:     #b45309;
   --sm-color-like:     #e11d48;
 
-  --glass-bg-base:     rgba(255, 255, 255, 0.50);
-  --glass-bg-card:     rgba(255, 255, 255, 0.65);
-  --glass-bg-modal:    rgba(240, 240, 240, 0.80);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.50));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.65));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(240, 240, 240, 0.80));
   --glass-border-base: rgba(0, 0, 0, 0.08);
   --glass-border-card: rgba(0, 0, 0, 0.10);
   --glass-border-modal:rgba(0, 0, 0, 0.06);
@@ -158,8 +188,8 @@
 
 [data-theme="dark"] {
   --sm-bg-base:        #0c0c0c;
-  --sm-bg-elevated:    rgba(255, 255, 255, 0.06);
-  --sm-bg-overlay:     rgba(255, 255, 255, 0.10);
+  --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.10));
   --sm-accent:         rgba(255, 255, 255, 0.92);
   --sm-accent-warm:    rgba(255, 255, 255, 0.70);
   --sm-text-primary:   rgba(255, 255, 255, 0.92);
@@ -173,15 +203,21 @@
   --sm-fill-active:    rgba(255, 255, 255, 0.14);
   --sm-shadow:         0 4px 24px rgba(0, 0, 0, 0.60);
   --sm-text-on-accent: #0c0c0c;
+  /* 流体玻璃开关：轨道底色与白色胶囊圆点；开态底色比强调色略暗，让白色胶囊在深色下仍分得清 */
+  --sm-switch-track-off:  rgba(255, 255, 255, 0.16);
+  --sm-switch-track-edge: rgba(255, 255, 255, 0.06);
+  --sm-switch-track-on:   rgba(255, 255, 255, 0.62);
+  --sm-switch-thumb:      #ffffff;
+  --sm-switch-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.30), 0 3px 8px rgba(0, 0, 0, 0.35);
 
   --sm-color-success:  #7fdca4;
   --sm-color-danger:   #ff8b8b;
   --sm-color-gold:     #f4d28a;
   --sm-color-like:     #ff6b81;
 
-  --glass-bg-base:     rgba(255, 255, 255, 0.06);
-  --glass-bg-card:     rgba(255, 255, 255, 0.08);
-  --glass-bg-modal:    rgba(0, 0, 0, 0.55);
+  --glass-bg-base:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
+  --glass-bg-card:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.08));
+  --glass-bg-modal:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(0, 0, 0, 0.55));
   --glass-border-base: rgba(255, 255, 255, 0.10);
   --glass-border-card: rgba(255, 255, 255, 0.12);
   --glass-border-modal:rgba(255, 255, 255, 0.08);
@@ -204,6 +240,7 @@
    叠在全屏动态流体背景上，背景每帧变化会逼玻璃层逐帧重取样模糊，是 GPU 占用大头。
    仅把 --glass-blur-* 置 0 不够——不少玻璃层写成 `var(--glass-blur-*) saturate(120%)`，
    saturate() 本身仍会每帧重取样，故再用一条兜底规则把 backdrop-filter 整体关掉。
+   backdrop-filter 关掉后流体背景不再拖累玻璃层，故流体保持运行，不随本开关暂停。
    放文件末尾：与 data-theme 单属性选择器同特异性时靠后者胜出。 */
 [data-reduce-transparency="1"] {
   --glass-blur-base:  blur(0);
@@ -211,21 +248,21 @@
   --glass-blur-modal: blur(0);
   --sm-blur:          blur(0);
   /* 深色（含手动 dark 与 auto 跟随系统深色）：底色提到近乎不透明，补偿失去的模糊背景 */
-  --glass-bg-base:    rgba(22, 22, 22, 0.88);
-  --glass-bg-card:    rgba(28, 28, 28, 0.92);
-  --glass-bg-modal:   rgba(14, 14, 14, 0.95);
+  --glass-bg-base:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(22, 22, 22, 0.88));
+  --glass-bg-card:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(28, 28, 28, 0.92));
+  --glass-bg-modal:   color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(14, 14, 14, 0.95));
 }
 [data-reduce-transparency="1"][data-theme="light"] {
-  --glass-bg-base:    rgba(244, 244, 244, 0.92);
-  --glass-bg-card:    rgba(250, 250, 250, 0.95);
-  --glass-bg-modal:   rgba(238, 238, 238, 0.97);
+  --glass-bg-base:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(244, 244, 244, 0.92));
+  --glass-bg-card:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(250, 250, 250, 0.95));
+  --glass-bg-modal:   color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(238, 238, 238, 0.97));
 }
 @media (prefers-color-scheme: light) {
   /* auto 主题跟随系统浅色时（无 data-theme 属性）也要用浅色不透明底 */
   :root[data-reduce-transparency="1"]:not([data-theme]) {
-    --glass-bg-base:  rgba(244, 244, 244, 0.92);
-    --glass-bg-card:  rgba(250, 250, 250, 0.95);
-    --glass-bg-modal: rgba(238, 238, 238, 0.97);
+    --glass-bg-base:  color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(244, 244, 244, 0.92));
+    --glass-bg-card:  color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(250, 250, 250, 0.95));
+    --glass-bg-modal: color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(238, 238, 238, 0.97));
   }
 }
 /* 兜底：彻底关掉 backdrop-filter，消除 saturate()/blur() 的逐帧重取样成本 */
@@ -238,10 +275,3 @@
 }
 
 /* ── 无障碍：去除动画 ── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}

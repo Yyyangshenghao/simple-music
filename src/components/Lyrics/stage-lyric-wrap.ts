@@ -1,5 +1,6 @@
 import type { WordToken } from '../../types/domain'
 import { measureWordBoundaries, normalizeStageLyricText } from './stage-lyric-progress'
+import { lyricBreakPoints } from '../../lib/lyric-line-break'
 
 export interface StageLyricRows {
   lines: string[]
@@ -7,7 +8,7 @@ export interface StageLyricRows {
   wordBoundaries: number[]
 }
 
-/** 只在整句明显超宽时分两行；逐字行只能在原生 token 边界换行。 */
+/** 只在整句明显超宽时分两行；逐字行只能在原生 token 边界换行，且优先词组边界、标点不落到行首。 */
 export function planStageLyricRows(
   text: string,
   maxWidth: number,
@@ -22,6 +23,9 @@ export function planStageLyricRows(
   if (units.length < 2) {
     return { lines: [normalized], splitWordIndex: 0, wordBoundaries: words ? measureWordBoundaries(words, measure) : [] }
   }
+  // 只在词组之间断开；整句找不到可断处（如一整个长单词）时才退回任意 token 边界。
+  const breakPoints = lyricBreakPoints(units)
+  const allowed = (i: number) => breakPoints.size === 0 || breakPoints.has(i)
   let best = 1
   let bestWidth = Infinity
   let bestSpace = 0
@@ -29,7 +33,7 @@ export function planStageLyricRows(
   for (let i = 1; i < units.length; i++) {
     const left = normalizeStageLyricText(units.slice(0, i).join(''))
     const right = normalizeStageLyricText(units.slice(i).join(''))
-    if (!left || !right) continue
+    if (!left || !right || !allowed(i)) continue
     const width = Math.max(measure(left), measure(right))
     if (!words?.length && units[i - 1] === ' ' && width < bestSpaceWidth) {
       bestSpace = i

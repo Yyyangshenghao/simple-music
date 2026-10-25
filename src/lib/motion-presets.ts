@@ -12,6 +12,10 @@ export const springGentle: Transition = { type: 'spring', ...gentleSpringValues 
 /** Q 弹弹簧：低阻尼、带明显过冲回弹,用于「从无到有蹦出来」的诞生类动画(如画布相似歌手节点弹出)。 */
 export const springBouncy: Transition = { type: 'spring', stiffness: 420, damping: 15, mass: 0.9 }
 
+/** 弹簧勾选（参考 React Bits Spring Check）：填充和勾线共用进度，过冲时边框轻微鼓起。 */
+export const springCheckTransition: Transition = { type: 'spring', visualDuration: 0.2, bounce: 0.55 }
+export const springCheckSwell = 0.35
+
 /** 按压反馈（配 whileTap）。 */
 export const tapScale = { scale: 0.94 }
 
@@ -44,3 +48,67 @@ export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
 
 /** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
 export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
+
+/** 红心点亮心跳：先收缩成小点、再过冲回弹（参考 React Bits PulseHeart）；times 中段即收缩最低点。 */
+export const heartBeatTransition = { duration: 0.56, times: [0, 0.4, 1], ease: ['easeOut', 'backOut'] } satisfies Transition
+
+/** 心跳收缩到最低点时的缩放；填充在此刻切换，粒子由此迸出。 */
+export const heartBeatMinScale = 0.3
+
+/** 红心粒子迸散：从心跳最低点起外扩并淡出。 */
+export const heartBurstTransition: Transition = {
+  duration: 0.42,
+  delay: heartBeatTransition.duration * heartBeatTransition.times[1],
+  ease: 'easeOut'
+}
+
+/** 尾迹滑块（参考 React Bits WakeSlider）：填充头追随数值的临界阻尼弹簧，约 0.3s 落位。 */
+export const wakeHeadSpring = { stiffness: 946, damping: 61.5, mass: 1 }
+
+/** 尾迹滑块：对填充头速度再做一次平滑，波峰随拖动快慢起落而不抖。 */
+export const wakeSpeedSpring = { stiffness: 400, damping: 50, mass: 1 }
+
+/** 队列拖动排序（参考 React Bits Shredder）：浮起卡片向指针指数逼近的速率（1/秒），越大越跟手。 */
+export const queueDragFollow = 30
+
+/** 队列拖动：浮起时放大倍率与最大倾斜角（度），倾斜随横向速度变化。 */
+export const queueDragLift = { scale: 1.03, maxTilt: 6 }
+
+/** 队列碎纸：纸条依次落下并淡出，相邻纸条错开 stagger 秒。 */
+export const queueShredStrip = { duration: 0.62, stagger: 0.035, ease: [0.4, 0, 1, 1] } as const
+
+/** 悬停提示首次出现（参考 React Bits WarmTooltip）：由略小、略糊上浮弹出。 */
+export const tooltipPop = { duration: 0.16, ease: [0.23, 1, 0.32, 1], scale: 0.94, blur: 4, rise: 4 } as const
+
+/** 悬停提示已出现时移到相邻按钮：气泡滑过去并伸缩宽度，文字按移动方向错位淡换。 */
+export const tooltipGlide: Transition = { type: 'spring', duration: 0.32, bounce: 0.1 }
+export const tooltipSwap: Transition = { duration: 0.14, ease: [0.23, 1, 0.32, 1] }
+
+/** 队列重排补间（FLIP）：设为下一首、移除后各行从原位滑到新位置。 */
+export const queueRowFlipTiming: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+
+/** 队列移除：该行向左滑出并淡出，结束后其余行再补位。 */
+export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
+
+/** 设为下一首：落位后整行氛围色闪一下。 */
+export const queueRowFlashTiming: KeyframeAnimationOptions = { duration: 900, easing: 'ease-out' }
+
+/** 挤压开关（参考 React Bits SquishSwitch）：滑块切换的弹簧，略带过冲。 */
+export const switchSlideSpring = { stiffness: 170, damping: 21.5, mass: 0.9, restDelta: 0.001, restSpeed: 0.01 }
+
+/** 挤压开关：对滑块速度做平滑，横移越快越拉长压扁。 */
+export const switchFlowSpring = { stiffness: 320, damping: 40, mass: 0.6 }
+
+/** 挤压开关：悬停 / 按住时滑块微鼓的弹簧与幅度。 */
+export const switchSwellSpring = { stiffness: 520, damping: 34, mass: 0.6 }
+export const switchSwell = { hover: 1.06, press: 0.92 }
+
+/** 拖拽数值框（参考 React Bits ScrubField）：拖出范围松手后弹回边界。 */
+export const scrubFieldReturn: Transition = { type: 'spring', duration: 0.3, bounce: 0 }
+
+/**
+ * 果冻单选（参考 React Bits JellyRadio）：选中项鼓起、把两侧邻居挤开，未选项微缩。
+ * swell 选中放大比例，barge 额外挤开像素，shrink 未选缩小比例，stagger 每隔一项的延迟毫秒，
+ * stiffness 基础刚度，bounce 回弹量，jelly 横纵向错拍的程度。
+ */
+export const jellyRadio = { swell: 0.16, barge: 5, shrink: 0.04, jelly: 1, bounce: 0.25, stagger: 22, stiffness: 580 }

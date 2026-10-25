@@ -1,205 +1,91 @@
-/* 全屏背景,点击外部区域收起下拉 */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-}
-
-/* 下拉菜单本体,挂在 3D 按钮下方 */
-.menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 301;
-  width: 314px;
+.embedded {
+  --particle-ink: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
+  color: var(--particle-ink);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  /* 留出歌词页头与播放栏，长菜单在可用区域内滚动。 */
-  max-height: min(680px, calc(100vh - var(--sm-player-clearance, 124px) - 100px));
-  overflow-y: auto;
-  padding: 6px;
-  /* 复用歌词舞台的局部配色，菜单与页头同步。 */
-  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), var(--lyrics-pop-opacity, 0.82));
-  --sm-scrollbar-thumb: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
-  --sm-scrollbar-thumb-hover: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.24);
-  --sm-scrollbar-thumb-active: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.32);
-  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--lyrics-shadow-strength, 1)));
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
-  pointer-events: auto;
-}
-
-:global([data-reduce-transparency="1"]) .menu {
-  background: rgb(var(--lyrics-menu-rgb, 24, 26, 32));
+  gap: 14px;
 }
 
 .menuTabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  padding: 3px;
-  margin-bottom: 4px;
-  border-radius: 10px;
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.06);
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--particle-ink) 12%, transparent);
 }
 
 .menuTabs button {
-  padding: 8px 4px;
+  padding: 9px 2px;
   border: 0;
-  border-radius: 7px;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
-  font-size: 11px;
+  color: color-mix(in srgb, var(--particle-ink) 65%, transparent);
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.menuTabs .menuTabActive {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.15);
-  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
+.menuTabs button[aria-selected='true'] {
+  border-bottom-color: var(--particle-ink);
+  color: var(--particle-ink);
+  font-weight: 650;
 }
 
-.tuningPanel {
-  padding: 3px 7px 9px;
-}
-
-.tuningHeading {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 7px 4px 12px;
-}
-
-.tuningHeading strong { color: rgb(var(--lyrics-ink-rgb, 255, 255, 255)); font-size: 13px; }
-.tuningHeading span { color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.48); font-size: 10px; }
-
-.tuningDivider {
-  margin: 12px 2px 5px;
-  padding-top: 11px;
-  border-top: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.7);
-  font-size: 11px;
-  font-weight: 620;
-}
-
-.tuningRow {
+.panel { display: flex; flex-direction: column; gap: 6px; }
+.styleGrid {
   display: grid;
-  grid-template-columns: 94px minmax(0, 1fr) 42px;
-  align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.78);
-  font-size: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
-.tuningRow input { width: 100%; accent-color: rgb(var(--lyrics-ink-rgb, 255, 255, 255)); }
-.tuningRow output { color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.52); text-align: right; font-variant-numeric: tabular-nums; }
-
-.item {
+.styleGrid button {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.65);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--particle-ink) 5%, transparent);
+  color: color-mix(in srgb, var(--particle-ink) 80%, transparent);
+  font: inherit;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
 }
 
-.sectionLabel {
-  padding: 7px 11px 4px;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.34);
-  font-size: 9px;
-  font-weight: 680;
-  letter-spacing: 0.18em;
+.styleGrid button:hover { background: color-mix(in srgb, var(--particle-ink) 10%, transparent); }
+.styleGrid button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--particle-ink) 35%, transparent);
+  color: var(--particle-ink);
+  font-weight: 650;
 }
 
-.displayModes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  padding: 2px 5px;
-}
-
-.displayModeBtn {
-  padding: 7px 2px;
-  border: 0;
+.hint { margin: 8px 0; font-size: 12px; line-height: 1.6; opacity: 0.65; }
+.reset {
+  align-self: flex-start;
+  margin-top: 12px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--particle-ink) 20%, transparent);
   border-radius: 7px;
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.05);
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.62);
-  font-size: 11px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.displayModeBtn:hover {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
-  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
+.field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.field:disabled { opacity: 0.55; }
+
+.tuningDivider {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--particle-ink) 12%, transparent);
+  font-size: 12px;
+  font-weight: 650;
 }
 
-.displayModeBtnActive {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.18);
-  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
-}
-
-.item:hover {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.9);
-}
-
-/* 效果单选与舞台歌词开关之间的分隔线 */
-.divider {
-  height: 1px;
-  margin: 6px 4px;
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
-}
-
-.itemActive {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.14);
-  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
-  box-shadow: var(--glow-ring);
-}
-
-.itemActive:hover {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.18);
-  color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
-}
-
-.icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.label {
-  white-space: nowrap;
-}
-
-.itemCopy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.hint {
-  overflow: hidden;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.34);
-  font-size: 9px;
-  font-weight: 450;
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.itemActive .hint {
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.56);
-}
+.fontPair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.fontPair > div { min-width: 0; }
+.fontPair label { display: block; margin-bottom: 6px; font-size: 12px; opacity: 0.7; }
+.retry { border: 0; padding: 0 4px; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMotion } from '../hooks/useMotion'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
 import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
@@ -35,6 +36,8 @@ interface ArtistPageProps {
 }
 
 export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
+  const reducedMotion = !useMotion('pageTransitionMotion')
+  const smoothScroll = useMotion('smoothScrollMotion')
   const runtime = useProviderStore((state) => state.byId[source])
   const participating = runtime.enabled && runtime.auth === 'authenticated'
   const scope = (part: string) => `artist:${String(id)}:${part}`
@@ -59,6 +62,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const [tab, setTab] = useState<ArtistTab>(initialState?.tab ?? 'songs')
   const [heldContentHeight, setHeldContentHeight] = useState<number | undefined>()
   const [switchingTab, setSwitchingTab] = useState(false)
+  if (reducedMotion && switchingTab) setSwitchingTab(false)
   const [slideDirection, setSlideDirection] = useState(1)
   const [songsHasMore, setSongsHasMore] = useState(cachedSongs?.hasMore ?? false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -136,7 +140,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
       return
     }
     tabScrollTarget.current = null
-    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', () => {
+    cancelTabScroll.current = scrollArtistTabToStart(viewport, top, smoothScroll ? 'smooth' : 'auto', () => {
       cancelTabScroll.current = null
       setHeldContentHeight(retainedContentHeight() || undefined)
     })
@@ -266,7 +270,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     // 切换前保留滚动范围，短列表也不会裁掉资料区的当前位置。
     setHeldContentHeight(contentRef.current?.getBoundingClientRect().height)
     setSlideDirection(tabs.indexOf(next) >= tabs.indexOf(tab) ? 1 : -1)
-    setSwitchingTab(next !== tab && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    setSwitchingTab(next !== tab && !reducedMotion)
     tabScrollTarget.current = { tab: next, scrollToStart: shouldScrollArtistTabToStart(viewport.scrollTop, tabScrollTop('songs')) }
     setTab(next)
     updatePageState(id, source, { tab: next, scrollTop: viewport.scrollTop })

@@ -37,6 +37,7 @@ interface NavigationStore {
   searchPageState: SearchPageState
   navigationRevision: number
   settingsMusicRequest: number
+  settingsLyricsRequest: number
   history: AppView[]
   /** 后退后可前进的视图栈；任何新导航都会清空。 */
   future: AppView[]
@@ -47,6 +48,8 @@ interface NavigationStore {
   updateSearchPageState(keyword: string, patch: Partial<SearchPageState>): void
   requestSettingsMusic(): void
   consumeSettingsMusicRequest(request: number): void
+  requestSettingsLyrics(): void
+  consumeSettingsLyricsRequest(request: number): void
   goBack(): void
   goForward(): void
 }
@@ -77,6 +80,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   searchPageState: DEFAULT_SEARCH_PAGE_STATE,
   navigationRevision: 0,
   settingsMusicRequest: 0,
+  settingsLyricsRequest: 0,
   history: [],
   future: [],
   lastAction: 'push',
@@ -114,6 +118,14 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 
   consumeSettingsMusicRequest(request) {
     if (get().settingsMusicRequest === request) set({ settingsMusicRequest: 0 })
+  },
+
+  requestSettingsLyrics() {
+    set((s) => ({ settingsLyricsRequest: s.settingsLyricsRequest + 1 }))
+  },
+
+  consumeSettingsLyricsRequest(request) {
+    if (get().settingsLyricsRequest === request) set({ settingsLyricsRequest: 0 })
   },
 
   goBack() {

@@ -12,6 +12,7 @@ import { isProviderId } from '../../providers/types'
 import { isProviderParticipating, useProviderStore } from '../../stores/providers'
 import type { ToplistEntry, ToplistPreviewTrack } from '../../lib/music-service'
 import styles from './ToplistCard.module.css'
+import { useFeedback } from '../../hooks/useMotion'
 
 function PlayIcon() {
   return (
@@ -38,6 +39,7 @@ interface ToplistCardProps {
  * 整卡点击进详情,封面上的圆钮直接把整榜灌进播放队列(不进详情页)。
  */
 export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistCardProps) {
+  const tap = useFeedback('hoverLiftMotion')
   const scrolling = useContext(ListScrollActivity)
   const [loading, setLoading] = useState(false)
   const { playlist, updateFrequency } = entry
@@ -122,7 +124,7 @@ export const ToplistCard = memo(function ToplistCard({ entry, onOpen }: ToplistC
           onOpen()
         }
       }}
-      whileHover={scrolling ? {} : { y: -3 }}
+      whileHover={tap(scrolling ? {} : { y: -3 })}
       transition={scrolling ? { duration: 0 } : springGentle}
       aria-label={`${playlist.name},共 ${playlist.trackCount} 首`}
     >

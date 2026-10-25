@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { pageTransition } from '../../lib/motion-presets'
+import { useMotion } from '../../hooks/useMotion'
 import { useNavigationStore, type AppView } from '../../stores/navigation'
 import styles from './AppShell.module.css'
 import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
@@ -29,6 +30,7 @@ const pageVariants: Variants = {
 }
 
 export function AppShell() {
+  const reducedMotion = !useMotion('pageTransitionMotion')
   const view = useNavigationStore((s) => s.currentView)
   const lastAction = useNavigationStore((s) => s.lastAction)
   const revision = useNavigationStore((s) => s.navigationRevision)
@@ -78,10 +80,10 @@ export function AppShell() {
             {...(page.hidden ? { inert: '' } : {})}
             custom={dir}
             variants={pageVariants}
-            initial={isDetailView(page.view) ? false : 'enter'}
+            initial={reducedMotion || isDetailView(page.view) ? false : 'enter'}
             animate="center"
             exit="exit"
-            transition={pageTransition}
+            transition={reducedMotion ? { duration: 0 } : pageTransition}
           >
             <Suspense fallback={
               <div className={styles.loading} role="status">

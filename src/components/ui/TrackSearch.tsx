@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { springSnappy } from '../../lib/motion-presets'
 import styles from './TrackSearch.module.css'
+import { useMotion } from '../../hooks/useMotion'
 
 const COLLAPSED_WIDTH = 36
 const EXPANDED_WIDTH = 280
@@ -19,6 +20,7 @@ interface TrackSearchProps {
 }
 
 export function TrackSearch({ value, onChange, placeholder, count, loading, error, onRetry, children }: TrackSearchProps) {
+  const controlMotion = useMotion('iconMotion')
   const active = Boolean(value.trim())
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -39,7 +41,7 @@ export function TrackSearch({ value, onChange, placeholder, count, loading, erro
           data-expanded={expanded}
           initial={false}
           animate={{ width: expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
-          transition={springSnappy}
+          transition={controlMotion ? springSnappy : { duration: 0 }}
           onClick={() => inputRef.current?.focus()}
         >
           <svg className={styles.searchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

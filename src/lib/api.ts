@@ -28,7 +28,10 @@ export function registerApiProviderAuthFailureHandler(
 }
 
 function providerSourceForApiUrl(input: string): ApiProviderSource | null {
-  const path = new URL(input, 'http://127.0.0.1').pathname
+  const url = new URL(input, 'http://127.0.0.1')
+  // 游客查询不属于任何账号：失败不能触发登录失效处理。
+  if (url.searchParams.get('guest') === '1') return null
+  const path = url.pathname
   if (path.startsWith('/api/apple-music/')) return 'apple'
   if (path.startsWith('/api/qq/')) return 'qq'
   if (
@@ -88,7 +91,7 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
     if (!res.ok) {
       // Apple Music 的配置、订阅和播放页错误由本地服务端转换为可操作的提示。
       const path = new URL(input, 'http://127.0.0.1').pathname
-      const body = source === 'apple' || path.startsWith('/api/downloads/') || /^\/api\/(netease|qq)\/playlist-management(?:\/|$)/.test(path)
+      const body = source === 'apple' || path.startsWith('/api/downloads/') || path.startsWith('/api/wallpaper-engine/') || /^\/api\/(netease|qq)\/playlist-management(?:\/|$)/.test(path)
         ? await res.json().catch(() => null) as { error?: string } | null
         : null
       const message = body?.error || `HTTP ${res.status}`
@@ -107,6 +110,14 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
     clearTimeout(timer)
     callerSignal?.removeEventListener('abort', onCallerAbort)
   }
+}
+
+/**
+ * 整页加载的本地内容(网页型 Wallpaper Engine 壁纸的 iframe)没法在子资源请求上附 query token,
+ * 把 token 放进路径前缀,由对应路由自行校验。token 缺省时用 `-` 占位。
+ */
+export function tokenPathBase(prefix: string, token = apiToken()): string {
+  return `${apiBase()}${prefix}/${token ? encodeURIComponent(token) : '-'}`
 }
 
 /**

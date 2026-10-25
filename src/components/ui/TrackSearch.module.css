@@ -78,7 +78,3 @@
   .toolbar { gap: 12px; }
   .search { align-items: stretch; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .field, .searchIcon, .field input { transition: none; }
-  .spinner { animation: none; }
-}

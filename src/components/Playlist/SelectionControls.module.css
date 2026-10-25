@@ -49,7 +49,6 @@
 }
 .check:disabled { opacity: .3; cursor: default; }
 .marquee { position: fixed; z-index: 90; pointer-events: none; border: 1px solid var(--sm-accent); border-radius: 5px; background: color-mix(in srgb, var(--sm-accent) 10%, transparent); }
-@media (prefers-reduced-motion: reduce) {
-  .toggle, .check, .check svg { transition: none; }
-  .check[aria-checked='true'] { animation: none; }
-}
+
+/* 关闭「开关与选项」时直接到位。 */
+:global([data-toggle-motion-off]) :is(.toggle, .check, .check svg) { transition: none !important; animation: none !important; }

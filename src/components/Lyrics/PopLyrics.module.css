@@ -1,0 +1,180 @@
+/* 跃字：词组错落、重点放大的动态文字海报；未唱的字占位，轮到时旋入并留下实字。
+   字号按外层样式容器（歌词页舞台或选择器预览卡）的 cqw/cqh 计算；分行由排版器决定，行内不折行。 */
+.root {
+  position: absolute;
+  inset: 96px 7% 132px;
+  display: grid;
+  /* 辅助区高度固定：译文开关、长短都不改变主句所在的舞台 */
+  grid-template-rows: minmax(0, 1fr) var(--pop-aux-height);
+  gap: 20px;
+  pointer-events: none;
+  text-align: center;
+  --pop-aux-size: calc(clamp(14px, 1.45cqw, 19px) * var(--lyrics-font-scale, 1));
+  --pop-aux-height: calc(var(--pop-aux-size) * 1.5 * 2 + var(--pop-aux-size) * 0.88 * 1.5 + 10px);
+  /* 强调色取封面氛围色的色相，限定明度、保证彩度：暗底上提亮，浅底上压暗，与正文实字明显区分 */
+  --pop-accent: oklch(from var(--ambient-2) max(l, 0.8) max(c, 0.13) h);
+  --pop-halo: 0 0 0.3em color-mix(in srgb, var(--ambient-2) 38%, transparent);
+}
+
+:global([data-theme="light"]) .root {
+  --pop-accent: oklch(from var(--ambient-2) min(l, 0.52) max(c, 0.16) h);
+  --pop-halo: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme])) .root {
+    --pop-accent: oklch(from var(--ambient-2) min(l, 0.52) max(c, 0.16) h);
+    --pop-halo: none;
+  }
+}
+
+.preview {
+  inset: 10% 6%;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.line {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.words {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18em;
+  font-size: calc(clamp(32px, min(7.4cqw, 10.5cqh), 96px) * var(--lyrics-font-scale, 1) * var(--pop-fit, 1));
+  font-weight: 550;
+  line-height: 1.3;
+  color: var(--sm-text-primary);
+}
+
+/* 排版器给出的最终一行：不允许再折行 */
+.row {
+  width: fit-content;
+  max-width: 100%;
+  font-size: calc(1em * var(--phrase-scale, 1));
+  letter-spacing: 0.015em;
+  word-spacing: 0.14em;
+  white-space: nowrap;
+  transform: rotate(var(--phrase-angle, 0deg));
+  transform-origin: center;
+}
+
+.accent {
+  font-weight: 850;
+}
+
+.words[data-pop-measuring] .row {
+  font-size: 1em;
+  font-weight: 850;
+}
+
+.accent .ink {
+  color: color-mix(in srgb, var(--sm-text-primary) 78%, var(--pop-accent));
+}
+
+.unit {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 语义停顿（空格、标点、演唱间隙）后的词组间距，宽度与 PopLyrics.tsx 的 PAUSE_GAP_EM 一致 */
+.pause {
+  margin-right: 0.45em;
+}
+
+/* 一个字：字影层占位（决定字宽，显隐不重排），字墨层与强调色层叠在上面 */
+.pop {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+  transform-origin: 50% 80%;
+}
+
+.ghost {
+  opacity: 0;
+}
+
+.ink {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hot {
+  position: absolute;
+  inset: 0;
+  color: var(--pop-accent);
+  text-shadow: var(--pop-halo);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 关闭逐字动效 / 减少动效 / 极短句：整句直接显示为实字，没有强调 */
+.static .ink {
+  opacity: 1;
+}
+
+.static .hot {
+  display: none;
+}
+
+.aux {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+
+.translationSlot {
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  width: 100%;
+  height: calc(var(--pop-aux-size) * 1.5 * 2);
+}
+
+.translationSlot > * {
+  grid-area: 1 / 1;
+}
+
+.translation {
+  max-width: min(46ch, 100%);
+  font-size: var(--pop-aux-size);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--sm-text-primary) 72%, transparent);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 下一句：在辅助区最底部，字号与浓度都低于译文，只作预告 */
+.next {
+  margin-top: auto;
+  max-width: 100%;
+  font-size: calc(var(--pop-aux-size) * 0.88);
+  font-weight: 500;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--sm-text-primary) 42%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

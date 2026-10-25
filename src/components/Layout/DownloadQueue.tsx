@@ -5,6 +5,7 @@ import { offlineTrackKey } from '../../lib/offline-cache'
 import { fadeRise, springSnappy } from '../../lib/motion-presets'
 import { SourceName } from '../ui/SourceName'
 import styles from './DownloadQueue.module.css'
+import { usePageTransition } from '../../hooks/useMotion'
 
 function active(job: OfflineSaveJob): boolean {
   return job.status !== 'done' && job.status !== 'failed'
@@ -15,6 +16,7 @@ function sizeText(bytes: number): string {
 }
 
 export function DownloadQueue() {
+  const pageTransition = usePageTransition()
   const jobs = useOfflineCacheStore((state) => state.jobs)
   const open = useOfflineCacheStore((state) => state.queueOpen)
   const paused = useOfflineCacheStore((state) => state.paused)
@@ -77,12 +79,12 @@ export function DownloadQueue() {
   return (
     <div className={`${styles.root} no-drag`} ref={root}>
       <motion.button ref={toggle} type="button" className={styles.toggle} aria-label="下载队列" title="下载队列" aria-expanded={open} aria-controls="song-download-queue" data-active={open} onClick={() => store().setQueueOpen(!open)}>
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /></svg>
         {!!(running + queued) && <span className={styles.badge}>{running + queued}</span>}
         {!running && !queued && failed > 0 && <span className={styles.failureDot} />}
       </motion.button>
       <AnimatePresence>
-        {open && <motion.section id="song-download-queue" className={styles.panel} role="region" aria-label="歌曲下载队列" variants={fadeRise} initial="hidden" animate="visible" exit="hidden" transition={springSnappy}>
+        {open && <motion.section id="song-download-queue" className={styles.panel} role="region" aria-label="歌曲下载队列" variants={fadeRise} initial="hidden" animate="visible" exit="hidden" transition={pageTransition(springSnappy)}>
           <header className={styles.header}>
             <div><h2>下载队列</h2><p role="status">{running} 首进行中 · {queued} 首等待 · {completed} 首完成{failed ? ` · ${failed} 首失败` : ''}</p></div>
             <button type="button" aria-label="关闭下载队列" onClick={() => store().setQueueOpen(false)}>×</button>

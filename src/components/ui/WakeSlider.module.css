@@ -1,0 +1,53 @@
+/* 竖条静止高 6px，波峰最高 20px；--wake-lift(0–1) 由组件逐帧写入。
+   直接改高度保持胶囊圆角（scaleY 会把两端压扁）；重排被 contain 限制在这一排竖条内。 */
+.track {
+  --wake-rest: 6px;
+  --wake-peak: 20px;
+
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 28px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  contain: layout;
+}
+
+.track[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.bar {
+  --wake-lift: 0;
+
+  flex: 1 1 0;
+  min-width: 0;
+  height: calc(var(--wake-rest) + (var(--wake-peak) - var(--wake-rest)) * var(--wake-lift));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sm-text-primary) 16%, transparent);
+  transition: background-color 120ms var(--sm-ease-out);
+}
+
+.bar[data-on='true'] { background: var(--sm-text-primary); }
+
+.track:hover .bar[data-on='true'] { background: var(--sm-accent); }
+
+.handle {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  outline: none;
+}
+
+.handle:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sm-text-primary) 40%, transparent);
+}
+
+/* 减弱动态：竖条恒为静止高度 */
+
+:global([data-slider-motion-off]) .bar { height: var(--wake-rest) !important; }

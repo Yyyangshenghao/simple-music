@@ -210,14 +210,56 @@ export interface FxArchive {
 export type PerformanceMode = 'eco' | 'balanced' | 'high' | 'ultra'
 export type BackgroundMode = 'auto' | 'keep' | 'release'
 
-/** 独立视觉选项；动效预设只批量调整装饰效果，保留可读性与歌词舞台选择。 */
+/** 主窗口背景类型：流体（封面或自定义三色）、自定义图片、自定义视频、Wallpaper Engine 壁纸、静态纯色/渐变。 */
+export type AppBackgroundKind = 'fluid' | 'image' | 'video' | 'wallpaper' | 'solid'
+
+/** Wallpaper Engine 壁纸库里的一个条目；文件由本地 API 按 workshop id 直接从 Steam 目录读取。 */
+export interface WallpaperSelection {
+  id: string
+  title: string
+  /** 视频、网页与场景型可在应用内播放；应用型是独立程序，只能显示预览图。 */
+  type: 'video' | 'web' | 'scene' | 'application' | 'unknown'
+  hasPreview: boolean
+}
+
+/** 主进程复制进 userData/backgrounds 的背景文件，与 server/lib/custom-background.ts 保持一致。 */
+export interface CustomBackgroundMedia {
+  id: string
+  kind: 'image' | 'video'
+  name: string
+}
+
+/** 独立视觉选项：每个开关只管自己的效果，互不压制；动效预设只批量设置取值。 */
 export interface PerformanceFlags {
+  /** 页面切换、菜单弹出、列表滚动入场与封面飞行等转场；关闭后直接切换。 */
+  pageTransitionMotion: boolean
+  /** 控件手感七项，各自独立；设置页「控件动效」只是一次性批量开关。 */
+  /** 按钮与卡片按下时的缩小回弹。 */
+  tapFeedbackMotion: boolean
+  /** 卡片悬停上浮、播放栏封面放大、播放控件图标位移。 */
+  hoverLiftMotion: boolean
+  /** 开关拉伸回弹、分段选择果冻、主题图标、勾选框与平台切换面板。 */
+  toggleMotion: boolean
+  /** 顶栏、我的库标签与设置目录的滑动指示条。 */
+  indicatorMotion: boolean
+  /** 进度、音量等滑杆的拉伸、倾斜与数值气泡。 */
+  sliderMotion: boolean
+  /** 队列拖动倾斜与碎纸、探索卡片堆甩动、歌词来源排序。 */
+  dragMotion: boolean
+  /** 红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出、搜索框展开。 */
+  iconMotion: boolean
+  /** 设置目录、歌手页标签、卡片栏等页面跳转的平滑滚动；关闭后直接跳到目标位置。 */
+  smoothScrollMotion: boolean
+  /** 换句时的一切：歌词列表跟随滚动、换句淡入淡出、立体与桌面歌词换行、样式切换过渡；关闭后直接换句。 */
+  lyricsLineMotion: boolean
+  /** 简介、帮助说明的逐字显现；关闭后直接渲染完整文本。 */
+  textRevealMotion: boolean
+  /** DOM 歌词逐字高亮；关闭后按整行点亮，不创建逐字动画。 */
+  lyricsWordMotion: boolean
   /** 氛围背景 LiquidEther 自动流动,关闭后退化为静态渐变。 */
   bgFluidMotion: boolean
   /** 流体背景跟随鼠标/触摸；关闭后仍自动流动。 */
   bgPointerMotion: boolean
-  /** 歌词页 3D 模式(封面粒子云等)整体可用性,关闭后歌词页只剩纯文字滚动。 */
-  lyrics3dEnabled: boolean
   /** 卡片跟随鼠标的 3D 倾斜(TiltCard)。 */
   cardTiltEffect: boolean
   /** 卡片内跟随鼠标的光斑，与倾斜独立。 */
@@ -231,10 +273,13 @@ export interface PerformanceFlags {
    *  底色提到近乎不透明,消除 backdrop-filter 随全屏动态背景逐帧重取样的 GPU 大头开销。 */
   reduceTransparency: boolean
 }
-/** 歌词面板 3D 模式下的视觉效果类型 */
-export type Lyrics3dEffect = 'cover-cloud' | 'waveform-3d' | 'speaker-particles'
-/** Mineradio 舞台歌词的运动风格；focus 是兼容旧版的 DOM 简洁叠层。 */
-export type Lyrics3dStyle = 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch' | 'focus'
+/** 歌词面板 3D 模式下的背景场景；频谱环与音箱沙粒已移除，旧存档读取时迁回封面粒子云。 */
+export type Lyrics3dEffect = 'cover-cloud'
+/** 歌词页展示模式：纯歌词列表、3D 舞台、跃字（逐词跳出的大字单句）。 */
+/** 歌词页：逐行歌词，或「动态」——具体样式由 stores/lyric-styles 决定。 */
+export type LyricsPanelMode = 'lyrics' | 'dynamic'
+/** Mineradio 舞台歌词的运动风格；storyboard 是每句一个镜头的分镜演出。 */
+export type Lyrics3dStyle = 'storyboard' | 'glass' | 'smooth' | 'float' | 'quick' | 'shine' | 'glitch'
 /** Mineradio 舞台歌词的同屏行数模式。 */
 export type Lyrics3dDisplayMode = 'single' | 'dual' | 'triple' | 'cinema'
 export type ShelfMode = 'dynamic' | 'static'
@@ -271,13 +316,13 @@ export interface Lyrics3dParams {
   glowStrength: number
   /** 动效强度倍率(0.2~2,弹跳/踢飞/频谱振幅) */
   motionIntensity: number
-  /** 同屏最大波纹数(1~6,封面粒子云鼓点涟漪的并发槽位) */
-  rippleCount: number
+  /** 鼓点荡漾幅度(0 关闭，0~1，默认 0.5) */
+  rippleAmplitude: number
   /** 波纹触发灵敏度(0~1,越高鼓点越容易触发涟漪) */
   rippleSensitivity: number
   /** 单道波纹扩散时长(秒,0.2~1.5) */
   rippleDuration: number
-  /** 帧率上限(0=不限制,否则至少 120 fps) */
+  /** 帧率上限(0=不限制,否则至少 30 fps) */
   fpsCap: number
   /** 渲染分辨率倍率(0.75~2,即 Canvas dpr) */
   renderScale: number

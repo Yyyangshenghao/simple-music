@@ -40,6 +40,3 @@
 
 .help[data-open='true'] .panel { visibility: visible; transition-delay: 0s; }
 
-@media (prefers-reduced-motion: reduce) {
-  .trigger svg, .panel { transition: none; }
-}

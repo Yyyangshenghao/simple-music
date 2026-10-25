@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useMotion } from '../../hooks/useMotion'
+import { CloseIcon } from '../ui/CloseIcon'
 import styles from './SearchHistory.module.css'
 
 const RECENT_COUNT = 10
@@ -11,6 +13,7 @@ interface SearchHistoryProps {
 }
 
 export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHistoryProps) {
+  const reducedMotion = !useMotion('smoothScrollMotion')
   const [visibleCount, setVisibleCount] = useState(RECENT_COUNT)
   const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -45,9 +48,18 @@ export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHist
     const top = firstNew.offsetTop - list.clientHeight / 2
     list.scrollTo({
       top: Math.max(list.scrollTop, top),
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      behavior: reducedMotion ? 'instant' : 'smooth',
     })
-  }, [visibleCount])
+  }, [visibleCount, reducedMotion])
+
+  // 借 ReactBits SpotlightCard 的思路：光斑跟随指针，委托在列表上只写当前气泡的两个变量。
+  function trackSpotlight(event: React.PointerEvent<HTMLDivElement>) {
+    const bubble = (event.target as HTMLElement).closest<HTMLElement>(`.${styles.bubble}`)
+    if (!bubble) return
+    const rect = bubble.getBoundingClientRect()
+    bubble.style.setProperty('--spot-x', `${event.clientX - rect.left}px`)
+    bubble.style.setProperty('--spot-y', `${event.clientY - rect.top}px`)
+  }
 
   if (!terms.length) return null
   return (
@@ -59,11 +71,11 @@ export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHist
         </div>
         <button type="button" className={styles.clear} onClick={onClear}>清空</button>
       </div>
-      <div id={listId} ref={listRef} className={styles.terms}>
+      <div id={listId} ref={listRef} className={styles.terms} onPointerMove={trackSpotlight}>
         {visibleTerms.map((term, index) => (
           <div className={`${styles.bubble}${index >= RECENT_COUNT ? ` ${styles.bubbleReveal}` : ''}`} style={index >= RECENT_COUNT ? { animationDelay: `${180 + ((index - RECENT_COUNT) % RECENT_COUNT) * 36}ms` } : undefined} key={term}>
             <button type="button" className={styles.term} title={term} onClick={() => onSelect(term)}>{term}</button>
-            <button type="button" className={styles.remove} title={`删除：${term}`} aria-label={`删除搜索历史：${term}`} onClick={() => onRemove(term)}>×</button>
+            <button type="button" className={styles.remove} title={`删除：${term}`} aria-label={`删除搜索历史：${term}`} onClick={() => onRemove(term)}><CloseIcon size={12} /></button>
           </div>
         ))}
       </div>

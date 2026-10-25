@@ -1,6 +1,7 @@
 import { providerFor } from '../providers/registry'
 import type { ProviderId } from '../providers/types'
 import type { Track } from '../types/domain'
+import { searchGuestTracks } from './lyric-service'
 
 export const TRACK_MATCH_SCHEMA = 2
 export const TRACK_MATCH_THRESHOLD = 80
@@ -18,11 +19,18 @@ interface MatchCacheEntry {
   score?: number
   verifiedAt: number
   expiresAt: number
+  mismatch?: boolean
 }
 
 interface MatchCacheArchive {
   schema: typeof TRACK_MATCH_SCHEMA
   entries: Record<string, MatchCacheEntry>
+}
+
+export class TrackMatchMismatchError extends Error {
+  constructor() {
+    super('TRACK_VERSION_MISMATCH')
+  }
 }
 
 export interface TrackMatchResult {
@@ -180,9 +188,15 @@ function writeArchive(archive: MatchCacheArchive): void {
   }
 }
 
-function originKey(track: Track, targetSource: ProviderId): string {
-  return `${track.source}:${String(track.mid ?? track.id ?? '')}->${targetSource}`
+function originKey(track: Track, targetSource: ProviderId, guest: boolean): string {
+  // 游客匹配单独成键：只供歌词使用，不会被播放跨源兜底读到。
+  return `${track.source}:${String(track.mid ?? track.id ?? '')}->${targetSource}${guest ? '#guest' : ''}`
 }
+
+/** 游客搜索为空的短期内存记录：不落盘（可能是上游限流），只避免同一首歌在几分钟内反复搜索。 */
+const GUEST_EMPTY_TTL_MS = 5 * 60 * 1000
+const MAX_GUEST_EMPTY = 200
+const guestEmpty = new Map<string, number>()
 
 function cacheableTrack(track: Track): Track {
   const { url: _url, pending: _pending, ...rest } = track
@@ -193,36 +207,60 @@ function abortError(): Error {
   return new DOMException('Playback match cancelled', 'AbortError')
 }
 
-/** 搜索并缓存目标平台的可靠同曲；负缓存 24 小时，自动命中缓存 30 天。 */
+/**
+ * 搜索并缓存目标平台的可靠同曲；负缓存 24 小时，自动命中缓存 30 天。
+ * scope 为 guest 时走游客搜索（不带账号），独立缓存，且搜索结果为空时不写负缓存——空结果可能是上游限流。
+ */
 export async function findEquivalentTrack(
   origin: Track,
   targetSource: ProviderId,
   signal?: AbortSignal,
-  now = Date.now()
+  now = Date.now(),
+  strictMatch = false,
+  forceRefresh = false,
+  scope: 'account' | 'guest' = 'account'
 ): Promise<TrackMatchResult | null> {
   if (signal?.aborted) throw abortError()
+  const guest = scope === 'guest' && (targetSource === 'netease' || targetSource === 'qq')
   const archive = readArchive()
-  const key = originKey(origin, targetSource)
+  const key = originKey(origin, targetSource, guest)
   const cached = archive.entries[key]
   const provider = providerFor(targetSource)
-  if (cached && cached.expiresAt > now) {
-    if (cached.targetId == null) return null
+  // 旧负缓存没有记录是否存在错版本；严格查询重新取一次，避免将错配误报成未收录。
+  const hasMatchDiagnostics = cached?.targetId != null || typeof cached?.mismatch === 'boolean'
+  if (!forceRefresh && cached && cached.expiresAt > now && (!strictMatch || hasMatchDiagnostics)) {
+    if (cached.targetId == null) {
+      if (strictMatch && cached.mismatch) throw new TrackMatchMismatchError()
+      return null
+    }
     if (cached.targetTrack?.source === targetSource) {
       return { track: cached.targetTrack, score: cached.score ?? TRACK_MATCH_THRESHOLD }
     }
-    const tracks = await provider.catalog.getTracksByIds([cached.targetId])
-    if (signal?.aborted) throw abortError()
-    const track = tracks[0]
-    if (track) return { track, score: cached.score ?? TRACK_MATCH_THRESHOLD }
+    // 游客缓存总带快照；没有快照时重新搜索，不用账号接口补详情。
+    if (!guest) {
+      const tracks = await provider.catalog.getTracksByIds([cached.targetId])
+      if (signal?.aborted) throw abortError()
+      const track = tracks[0]
+      if (track) return { track, score: cached.score ?? TRACK_MATCH_THRESHOLD }
+    }
     delete archive.entries[key]
     writeArchive(archive)
   }
 
   const keyword = `${origin.name ?? ''} ${origin.artist ?? ''}`.trim()
   if (!keyword) return null
-  const candidates = await provider.catalog.searchTracks(keyword)
+  if (guest && !forceRefresh && (guestEmpty.get(key) ?? 0) > now) return null
+  const candidates = guest
+    ? await searchGuestTracks(targetSource as 'netease' | 'qq', keyword, signal)
+    : await provider.catalog.searchTracks(keyword)
   if (signal?.aborted) throw abortError()
   const result = matchBestTrack(origin, candidates)
+  if (guest && !result && !candidates.length) {
+    guestEmpty.delete(key)
+    guestEmpty.set(key, now + GUEST_EMPTY_TTL_MS)
+    if (guestEmpty.size > MAX_GUEST_EMPTY) guestEmpty.delete(guestEmpty.keys().next().value!)
+    return null
+  }
   archive.entries[key] = result
     ? {
         targetId: result.track.id,
@@ -231,12 +269,14 @@ export async function findEquivalentTrack(
         verifiedAt: now,
         expiresAt: now + POSITIVE_TTL_MS,
       }
-    : { verifiedAt: now, expiresAt: now + NEGATIVE_TTL_MS }
+    : { verifiedAt: now, expiresAt: now + NEGATIVE_TTL_MS, mismatch: candidates.length > 0 }
   writeArchive(archive)
+  if (strictMatch && !result && candidates.length) throw new TrackMatchMismatchError()
   return result
 }
 
 export function clearTrackMatchCache(): void {
+  guestEmpty.clear()
   if (typeof localStorage === 'undefined') return
   localStorage.removeItem(MATCH_CACHE_KEY)
 }

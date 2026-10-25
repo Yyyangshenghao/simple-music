@@ -1,14 +1,15 @@
 import type { Lyrics3dStyle } from '../../types/domain'
 
 /** 每种风格有独立的外观和空间布局，静音时也能区分。 */
+/** context 为上下文行的亮度系数：分镜只聚焦当前镜头，上下文压得很淡。 */
 export const LYRIC_STYLE_LOOKS = {
-  glass: { glow: 0, particles: 0, panel: 0, depth: 0.18, stagger: 0 },
-  smooth: { glow: 0, particles: 0, panel: 0, depth: 0, stagger: 0 },
-  float: { glow: 0.65, particles: 1, panel: 0, depth: 0.65, stagger: 0.34 },
-  quick: { glow: 0, particles: 0, panel: 2, depth: 0, stagger: 0 },
-  shine: { glow: 1.35, particles: 0.45, panel: 0, depth: 0.12, stagger: 0 },
-  glitch: { glow: 0.12, particles: 0, panel: 0, depth: 0.08, stagger: 0 },
-  focus: { glow: 0, particles: 0, panel: 0, depth: 0, stagger: 0 }
+  storyboard: { glow: 0.35, particles: 0, panel: 0, depth: 0.3, stagger: 0, context: 0.3 },
+  glass: { glow: 0, particles: 0, panel: 0, depth: 0.18, stagger: 0, context: 1 },
+  smooth: { glow: 0, particles: 0, panel: 0, depth: 0, stagger: 0, context: 1 },
+  float: { glow: 0.65, particles: 1, panel: 0, depth: 0.65, stagger: 0.34, context: 1 },
+  quick: { glow: 0, particles: 0, panel: 2, depth: 0, stagger: 0, context: 1 },
+  shine: { glow: 1.35, particles: 0.45, panel: 0, depth: 0.12, stagger: 0, context: 1 },
+  glitch: { glow: 0.12, particles: 0, panel: 0, depth: 0.08, stagger: 0, context: 1 }
 } as const
 
 /** 不改变歌词时钟与 KTV 进度；入场和周期效果均服从动效强度。 */

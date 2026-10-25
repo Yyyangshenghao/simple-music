@@ -179,10 +179,6 @@
   84%, 100% { transform: translateX(calc(-50% - 0.75em)); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .titleTrack[data-overflow='true'] { animation: none; }
-}
-
 .artist { margin: 10px 0 0; color: var(--sm-text-secondary); font-size: 15px; }
 
 .lyric {

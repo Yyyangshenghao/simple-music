@@ -328,6 +328,44 @@ describe('handleQQLyric identifiers', () => {
 
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
     expect(request.lyric.param).toEqual({ songMID: '003a1B2c', songID: 123456 })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('主动请求并解密原生 QRC，保留原歌词和可用翻译', async () => {
+    const encrypted = 'd6a2be95d6447372f1c836c6befe6ce995bc11112bc2380fdfb9b9b3515995f3fbbc1a2ca81c78b0'
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ lyric: { data: { lyric: '[00:01.00]甲乙', trans: '[00:01.00]译文' } } }) })
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ lyric: { code: 0, data: { lyric: encrypted, trans: '损坏密文' } } }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await handleQQLyric(LOGGED_IN_COOKIE, '003a1B2c', '123456', true)
+    expect(result).toMatchObject({ lyric: '[00:01.00]甲乙', tlyric: '[00:01.00]译文', qrc: '[1000,1000]甲(1000,500)乙(1500,500)' })
+    const request = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(request.lyric.param).toMatchObject({ songID: 123456, qrc: 1, crypt: 1, trans: 1, roma: 1 })
+    expect(fetchMock.mock.calls[1][1]?.headers).not.toHaveProperty('Cookie')
+  })
+
+  it('所有上游请求都失败时如实报错，不当作未收录；游客不带 Cookie', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await handleQQLyric('', '003a1B2c', '123456', true)).toMatchObject({ lyric: '', qrc: '', error: 'QQ_LYRIC_UPSTREAM_FAILED' })
+    expect(fetchMock.mock.calls.every(([, init]) => !(init?.headers as Record<string, string> | undefined)?.Cookie)).toBe(true)
+  })
+
+  it('上游正常返回但没有歌词时不报错（确实未收录）', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ lyric: { code: 0, data: {} } }) })
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ retcode: 0, lyric: '' }) }))
+    const result = await handleQQLyric('', '003a1B2c', '')
+    expect(result).toMatchObject({ lyric: '', source: 'qq-empty' })
+    expect(result).not.toHaveProperty('error')
+  })
+
+  it('逐字接口失败时仍保留逐行版本', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ lyric: { data: { lyric: '[00:01.00]普通歌词' } } }) })
+      .mockRejectedValueOnce(new Error('offline'))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await handleQQLyric(LOGGED_IN_COOKIE, '003a1B2c', '123456', true)).toMatchObject({ lyric: '[00:01.00]普通歌词', qrc: '' })
   })
 })
 

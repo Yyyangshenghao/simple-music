@@ -1,19 +1,28 @@
+/* 挤压开关（参考 React Bits SquishSwitch）。尺寸与 Switch.tsx 中的常量一致：轨道 44×24，滑块 18，内边距 3。
+   开态轨道与滑块反色：关时浅轨深块，开时实色轨道、滑块取页面底色。 */
 .track {
   position: relative;
-  width: 38px;
-  height: 22px;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
   flex-shrink: 0;
-  padding: 2px;
-  border: 1px solid var(--sm-border);
+  padding: 0;
+  border: none;
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-base);
+  background: var(--sm-switch-track-off);
+  box-shadow: inset 0 0 0 0.5px var(--sm-switch-track-edge);
   cursor: pointer;
-  transition: background 150ms var(--sm-ease-out), border-color 150ms var(--sm-ease-out);
+  touch-action: none;
+  transition: background-color 320ms ease;
 }
 
-.track.on {
-  background: var(--sm-accent);
-  border-color: var(--sm-accent);
+.track:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sm-switch-track-off), var(--sm-text-primary) 6%);
+}
+
+.track.on,
+.track.on:hover:not(:disabled) {
+  background: var(--sm-switch-track-on);
 }
 
 .track:disabled {
@@ -21,16 +30,24 @@
   cursor: not-allowed;
 }
 
+.track:focus-visible {
+  outline: 2px solid var(--sm-accent);
+  outline-offset: 2px;
+}
+
 .thumb {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--sm-radius-pill);
+  background: color-mix(in srgb, var(--sm-text-primary) 55%, transparent);
+  transition: background-color 320ms ease, box-shadow 320ms ease;
 }
 
 .track.on .thumb {
-  margin-left: 16px;
-  background: var(--sm-text-on-accent);
+  background: var(--sm-bg-base);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
+

@@ -9,6 +9,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'like', label: '喜欢 / 取消喜欢', local: 'CommandOrControl+L', global: 'CommandOrControl+Alt+Shift+L' },
   { id: 'desktop-lyrics', label: '打开 / 关闭桌面歌词', local: 'CommandOrControl+Shift+L', global: 'CommandOrControl+Alt+Shift+R' },
   { id: 'mini-player', label: '迷你 / 完整模式', local: 'CommandOrControl+Shift+P', global: 'CommandOrControl+Alt+Shift+P' },
+  { id: 'game-mode', label: '进入 / 退出游戏模式', local: '', global: 'CommandOrControl+Alt+Shift+G' },
   { id: 'settings', label: '打开设置', local: 'CommandOrControl+,', global: '' }
 ] as const
 

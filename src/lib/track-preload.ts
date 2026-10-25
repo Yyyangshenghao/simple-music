@@ -7,7 +7,7 @@ import { providerAccountSession } from './provider-account-session'
  * 相邻曲目预加载:提前解析队列中前/后曲目的播放 URL、预热封面图 HTTP 缓存,
  * 切歌时省掉 URL 解析 RTT(起播延迟的大头)与封面网络等待。
  *
- * 普通队列与刷歌各保留一个窗口 合并保留集后再释放无人使用的资源
+ * 普通队列、刷歌与当前播放封面各保留一个窗口 合并保留集后再释放无人使用的资源
  */
 
 export interface SongUrlResponse {
@@ -91,15 +91,15 @@ interface UrlRequest {
   promise: Promise<SongUrlResponse>
 }
 const songUrlRequests = new Map<string, UrlRequest>()
-type PreloadOwner = 'player' | 'shuange'
+type PreloadOwner = 'player' | 'shuange' | 'nowPlaying'
 const windows = new Map<PreloadOwner, { urls: Set<string>; covers: Set<string> }>()
 // 最近一个批次的保留集:在途请求晚到时若已不在窗口内,直接丢弃不入缓存
 let latestKeep = new Set<string>()
 
 export interface TrackPreloadOptions {
-  /** 必须与实际渲染请求一致，否则浏览器图片缓存无法命中。 */
-  coverPx?: number
-  /** 仅支持普通播放和刷歌两个有界窗口 */
+  /** 必须与实际渲染请求一致，否则浏览器图片缓存无法命中；多个尺寸时第一个按高优先级取。 */
+  coverPx?: number | number[]
+  /** 普通播放、刷歌与当前播放封面各一个有界窗口 */
   owner?: PreloadOwner
   /** 刷歌由自己的并发队列调度 URL 仅在此登记窗口和封面 */
   deferUrls?: boolean
@@ -210,13 +210,15 @@ export function preloadTracks(
   currentTrack?: Track | null,
   options: TrackPreloadOptions = {}
 ): void {
-  const coverPx = options.coverPx ?? 128
+  const coverSizes = Array.isArray(options.coverPx) ? options.coverPx : [options.coverPx ?? 128]
   const windowTracks = currentTrack ? [currentTrack, ...tracks] : tracks
   const keep = new Set<string>()
   const keepCovers = new Set<string>()
   for (const t of windowTracks) {
     keep.add(trackKey(t, quality))
-    if (typeof t.cover === 'string' && (typeof window === 'undefined' || window.desktop?.playbackRole !== 'host')) keepCovers.add(sizedImage(t.cover, coverPx))
+    if (typeof t.cover === 'string' && (typeof window === 'undefined' || window.desktop?.playbackRole !== 'host')) {
+      for (const px of coverSizes) keepCovers.add(sizedImage(t.cover, px))
+    }
   }
   // 旧方案 latestKeep = keep 会驱逐另一个消费者的窗口
   windows.set(options.owner ?? 'player', { urls: keep, covers: keepCovers })
@@ -245,13 +247,16 @@ export function preloadTracks(
     // 占位曲目缺 mid/cover 等详情,等 playAt 补全后的下个批次再预载
     if (track.pending) continue
 
-    const coverUrl = track.cover ? sizedImage(track.cover, coverPx) : ''
-    if (coverUrl && keepCovers.has(coverUrl) && !coverCache.has(coverUrl) && typeof Image !== 'undefined') {
+    coverSizes.forEach((px, index) => {
+      const coverUrl = track.cover ? sizedImage(track.cover, px) : ''
+      if (!coverUrl || !keepCovers.has(coverUrl) || coverCache.has(coverUrl) || typeof Image === 'undefined') return
       const img = new Image()
       img.decoding = 'async'
+      // 小图直接上屏，大图让路，避免几张大图把首屏小封面挤慢
+      if (coverSizes.length > 1) img.fetchPriority = index === 0 ? 'high' : 'low'
       img.src = coverUrl
       coverCache.set(coverUrl, img)
-    }
+    })
   }
 
   if (!options.deferUrls) for (const track of tracks) void preloadTrackUrl(track, quality)
@@ -285,7 +290,7 @@ export function preloadTrackUrl(track: Track, quality: AudioQuality): Promise<vo
 /**
  * 只释放指定使用方的窗口
  *
- * @param owner 普通队列或刷歌
+ * @param owner 普通队列、刷歌或当前播放封面
  */
 export function releasePreloadWindow(owner: PreloadOwner): void {
   preloadTracks([], 'standard', null, { owner })

@@ -8,6 +8,7 @@ import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
+import { EqIndicator } from '../ui/EqIndicator'
 import { SourceBadge } from '../ui/SourceBadge'
 import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
@@ -27,15 +28,6 @@ interface TrackRowProps {
   showInactiveSource?: boolean
   /** 列表混有不可播放原因时开启：时长与原因共用定宽列，专辑列逐行对齐。 */
   statusColumn?: boolean
-}
-
-/** 播放中指示：3 根氛围色动画柱，暂停时定格。 */
-function EqIndicator({ paused }: { paused: boolean }) {
-  return (
-    <span className={`${styles.eq}${paused ? ` ${styles.eqPaused}` : ''}`} aria-hidden="true">
-      <i /><i /><i />
-    </span>
-  )
 }
 
 function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {

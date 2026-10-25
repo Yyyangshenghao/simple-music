@@ -23,7 +23,7 @@ vi.mock('motion/react', () => ({
   useSpring: (value: unknown) => value,
   useTransform: () => 'pointer-rotation',
 }))
-vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => h.reduced }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => !h.reduced }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: typeof h) => unknown) => select(h) }))
 
 const style = { setProperty: vi.fn(), removeProperty: vi.fn() }
@@ -84,7 +84,7 @@ describe('卡片交互解耦', () => {
     expect(tree.props.whileTap).toEqual({ scale: 0.97 })
   })
 
-  it('运行时关闭各效果分别清理残留，系统减少动态暂停全部指针与位移反馈', () => {
+  it('运行时关闭各效果分别清理残留；关闭控件动效只停悬停上浮与按压，倾斜光斑照常', () => {
     render()
     vi.clearAllMocks()
     h.performance.cardTiltEffect = false
@@ -98,7 +98,7 @@ describe('卡片交互解耦', () => {
     h.performance.cardTiltEffect = h.performance.cardSpotlightEffect = true
     h.reduced = true
     const tree = render()
-    expect(tree.props.onPointerMove).toBeUndefined()
+    expect(tree.props.onPointerMove).toBeDefined()
     expect(tree.props.whileTap).toBeUndefined()
     expect(tree.props.whileHover).toBeUndefined()
     expect(h.performance).toEqual({ cardTiltEffect: true, cardSpotlightEffect: true })

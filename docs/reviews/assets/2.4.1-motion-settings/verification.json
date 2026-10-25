@@ -1,0 +1,29 @@
+{
+  "environment": "macOS Electron dev，独立 userData，无播放、无 3D 场景",
+  "checks": [
+    "总开关卸载流体 WebGL，暂停装饰效果与动画，保留单项偏好",
+    "减少动态期间挂载的 Motion 控件在关闭总开关后恢复动画",
+    "文字显现与歌词高亮独立关闭：说明降为一个文本节点，24 个逐字动画全部清理",
+    "系统偏好运行中生效，应用开关不能覆盖系统减少动态",
+    "重载后总开关与各单项选择保留",
+    "减少动态时歌手工具栏的功能性滚动时间线仍正确吸顶",
+    "深色宽屏与浅色最小宽度设置可用，无横向溢出"
+  ],
+  "samples": {
+    "standard": {
+      "rendererTaskPercent": 6.24,
+      "jsHeapMiB": 20.37,
+      "canvases": 1,
+      "animations": 0
+    },
+    "reduced": {
+      "rendererTaskPercent": 0.59,
+      "jsHeapMiB": 18.11,
+      "canvases": 0,
+      "animations": 0
+    },
+    "textNodesBefore": 124,
+    "textNodesAfter": 1
+  },
+  "errors": []
+}

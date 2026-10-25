@@ -1,0 +1,119 @@
+/* 果冻单选（参考 React Bits JellyRadio）。配色经变量覆盖：
+   --jr-chip 未选底色，--jr-text 未选文字，--jr-active / --jr-active-text 选中底色与文字，--jr-edge / --jr-active-edge 描边，--jr-active-shadow 选中投影。
+   --jr-pad-x / --jr-pad-y 由组件按最宽一项测量后写入，给鼓起与挤开留空间。
+   默认值放在 :where() 里（零优先级），调用方的类名总能覆盖。 */
+:where(.group) {
+  --jr-chip: var(--sm-fill-subtle);
+  --jr-text: var(--sm-text-secondary);
+  --jr-hover: var(--sm-text-primary);
+  --jr-active: var(--sm-accent);
+  --jr-active-text: var(--sm-text-on-accent);
+  --jr-edge: var(--sm-border);
+  --jr-active-edge: transparent;
+  --jr-active-shadow: 0 0 0 transparent;
+  --jr-gap: 6px;
+  --jr-h: 32px;
+  --jr-font: 12.5px;
+  --jr-px: 14px;
+  --jr-pad-x: 12px;
+  --jr-pad-y: 4px;
+}
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jr-gap);
+  padding: var(--jr-pad-y) var(--jr-pad-x);
+  user-select: none;
+}
+
+:where(.group[data-size='sm']) {
+  --jr-h: 28px;
+  --jr-font: 12px;
+  --jr-px: 10px;
+  --jr-gap: 4px;
+}
+
+/* 撑满一行：负外边距抵掉大部分预留空间，边缘项被挤开时也基本不越出上下文的对齐线 */
+.group[data-block] {
+  display: flex;
+  margin: calc(-1 * var(--jr-pad-y)) calc(10px - var(--jr-pad-x));
+}
+
+.group[data-block] .chip { flex: 1 1 0; min-width: 0; }
+.group[data-block] .skin { width: 100%; padding-inline: 4px; }
+
+.group[data-disabled] { opacity: 0.5; pointer-events: none; }
+
+.chip {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+  transform-origin: 50% 50%;
+  touch-action: manipulation;
+}
+
+.chip[data-on='true'] { cursor: default; }
+
+.group:not([data-disabled]) .chip:disabled { cursor: default; opacity: 0.4; }
+
+.skin {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--jr-h);
+  padding: 0 var(--jr-px);
+  border-radius: var(--sm-radius-pill);
+  overflow: hidden;
+  background: var(--jr-chip);
+  box-shadow: inset 0 0 0 1px var(--jr-edge);
+  color: var(--jr-text);
+  font-size: var(--jr-font);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    transform 160ms var(--sm-ease-out),
+    background-color 200ms ease,
+    box-shadow 200ms ease,
+    color 200ms ease;
+}
+
+.skin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip[data-on='false']:not(:disabled):hover .skin { color: var(--jr-hover); }
+  .chip[data-on='false']:not(:disabled):hover .skin::before { opacity: 0.07; }
+}
+
+.chip:active .skin { transform: scale(0.97); }
+
+.chip[data-on='true'] .skin {
+  background: var(--jr-active);
+  box-shadow: inset 0 0 0 1px var(--jr-active-edge), var(--jr-active-shadow);
+  color: var(--jr-active-text);
+  font-weight: 600;
+}
+
+.chip:focus-visible .skin { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+
+.icon { position: relative; display: inline-flex; flex: none; }
+.label { position: relative; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+:global([data-toggle-motion-off]) .chip:active .skin { transform: none; }

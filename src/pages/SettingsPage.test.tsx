@@ -1,14 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSettingsStore } from '../stores/settings'
+import { useSettingsStore, CONTROL_MOTION_KEYS, controlMotionFlags } from '../stores/settings'
 import { useVisualStore } from '../stores/visual'
 import { useUpdateStore } from '../stores/update'
 import { useProviderStore } from '../stores/providers'
 import { useWindowCloseStore } from '../stores/window-close'
+import { DEFAULT_WALLPAPER_SCENE, useBackgroundStore } from '../stores/background'
 import { version } from '../../package.json'
 import { SettingsPage } from './SettingsPage'
 
-const reducedMotion = vi.hoisted(() => ({ value: false }))
 vi.mock('../stores/window-close', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/window-close')>()
   const store = original.useWindowCloseStore
@@ -17,10 +17,15 @@ vi.mock('../stores/window-close', async (importOriginal) => {
     store
   ) }
 })
-vi.mock('../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => reducedMotion.value
-}))
 
+vi.mock('../stores/background', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../stores/background')>()
+  const store = original.useBackgroundStore
+  return { ...original, useBackgroundStore: Object.assign(
+    (selector?: (state: ReturnType<typeof store.getState>) => unknown) => selector ? selector(store.getState()) : store.getState(),
+    store
+  ) }
+})
 vi.mock('../stores/settings', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/settings')>()
   const store = original.useSettingsStore
@@ -59,17 +64,22 @@ vi.mock('../stores/providers', async (importOriginal) => {
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
 vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null, AppleMusicAccountInfo: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
+// 说明里的示意只在悬停时挂载，静态渲染时直接展开，校验每个开关接对了示意。
+vi.mock('../components/ui/InfoButton', () => ({
+  InfoButton: ({ label, text, preview }: { label: string; text: string; preview?: React.ReactNode }) => (
+    <span data-settings-info><button type="button" aria-label={`${label}说明`}>i</button><span role="tooltip">{preview}{text}</span></span>
+  ),
+}))
 
 const initialSettings = useSettingsStore.getState()
 const initialVisual = useVisualStore.getState()
 const initialUpdate = useUpdateStore.getState()
 const initialProviders = useProviderStore.getState()
 const initialWindowClose = useWindowCloseStore.getState()
+const initialBackground = useBackgroundStore.getState()
 
 beforeEach(() => {
-  reducedMotion.value = false
   vi.stubGlobal('window', { desktop: { platform: 'darwin' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
-  useSettingsStore.setState((state) => ({ performance: { ...state.performance, lyrics3dEnabled: false } }))
   useVisualStore.setState((state) => ({ fx: { ...state.fx, desktopLyricsFontFamily: 'Helvetica Neue', desktopLyricsFontFamilyCjk: 'Songti SC' } }))
 })
 afterEach(() => {
@@ -78,6 +88,7 @@ afterEach(() => {
   useUpdateStore.setState(initialUpdate, true)
   useProviderStore.setState(initialProviders, true)
   useWindowCloseStore.setState(initialWindowClose, true)
+  useBackgroundStore.setState(initialBackground, true)
   vi.unstubAllGlobals()
 })
 
@@ -177,13 +188,28 @@ function visualMarkup(): string {
 }
 
 describe('Windows 关闭方式设置', () => {
+  it.each(['win32', 'darwin', 'linux'])('%s 的关闭窗口目录与实际分组一致', (platform) => {
+    window.desktop.platform = platform as typeof window.desktop.platform
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const navigation = html.slice(html.indexOf('<nav id="settings-navigation"'), html.indexOf('</nav>'))
+    const target = 'settings-detail-window-close'
+    if (platform === 'win32') {
+      expect(navigation).toMatch(new RegExp(`<button[^>]*aria-controls="${target}"[^>]*>关闭窗口</button>`))
+      expect(html.match(new RegExp(`id="${target}"`, 'g'))).toHaveLength(1)
+      expect(navigation.indexOf(`aria-controls="${target}"`)).toBeLessThan(navigation.indexOf('aria-controls="settings-detail-appearance"'))
+    } else {
+      expect(navigation).not.toContain(`aria-controls="${target}"`)
+      expect(html).not.toContain(`id="${target}"`)
+    }
+  })
+
   it('macOS 不展示关闭方式，Windows 加载完成后展示当前选择', () => {
     expect(visualMarkup()).not.toContain('关闭窗口方式')
     window.desktop.platform = 'win32'
     useWindowCloseStore.setState({ behavior: 'tray', initialized: true })
     const html = visualMarkup()
     expect(html).toContain('关闭窗口方式')
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>缩回托盘<\/button>/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>最小化到托盘<\/button>/)
     expect(html).toContain('每次询问')
     expect(html).toContain('退出应用')
   })
@@ -206,17 +232,73 @@ function effectSwitch(html: string, label: string): string {
 }
 
 describe('动效设置的实际生效状态', () => {
-  it('按影响区域分组，卡片倾斜和光斑分别提供开关', () => {
-    const html = visualMarkup()
-    for (const title of ['可读性', '动效预设', '背景氛围', '交互反馈', '播放视觉']) {
-      expect(html).toMatch(new RegExp(`<h3[^>]*>${title}`))
+  it('没有总开关；四项界面动效全关时，其它开关仍可独立切换且不显示暂停原因', () => {
+    useSettingsStore.getState().setPerformance({ pageTransitionMotion: false, ...controlMotionFlags(false), smoothScrollMotion: false, lyricsLineMotion: false })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).not.toContain('减少动态效果')
+    for (const label of ['页面转场', '控件动效', '平滑滚动', '歌词换句动画']) {
+      expect(effectSwitch(html, label)).toContain('aria-checked="false"')
+      expect(effectSwitch(html, label)).not.toContain('disabled=')
     }
-    expect(effectSwitch(html, '卡片倾斜')).toBeDefined()
-    expect(effectSwitch(html, '卡片跟手光斑')).toBeDefined()
+    for (const label of ['文字逐字显现', '歌词逐字高亮', '流体背景', '卡片倾斜', '音频辉光']) {
+      expect(effectSwitch(html, label)).not.toContain('disabled=')
+      expect(effectSwitch(html, label)).toContain('aria-checked="true"')
+    }
+    expect(html).not.toContain('已随减少动态效果暂停')
+    expect(html).not.toContain('已随系统暂停')
+  })
+  it('控件动效总开关在任一子项开启时亮起，部分开启时提示数量，全关时关闭', () => {
+    const items = ['按压回弹', '悬停浮起', '开关与选项', '标签指示条', '滑杆手感', '拖拽手感', '图标小动画']
+    let html = visualMarkup()
+    const detail = html.slice(html.indexOf('id="settings-control-motion-detail"'))
+    for (const label of items) expect(effectSwitch(detail, label)).toContain('aria-checked="true"')
+    for (const key of CONTROL_MOTION_KEYS) expect(detail).toContain(`data-effect="${key}"`)
+    expect(effectSwitch(html, '控件动效')).toContain('role="switch"')
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(effectSwitch(html, '控件动效')).not.toContain('aria-describedby=')
+    useSettingsStore.getState().setPerformance({ dragMotion: false, iconMotion: false })
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(effectSwitch(html, '控件动效')).toContain('aria-describedby="settings-control-motion-status"')
+    expect(html).toContain('已开启 5/7 项')
+    expect(effectSwitch(html, '按压回弹')).not.toContain('disabled=')
+    useSettingsStore.getState().setPerformance(controlMotionFlags(true))
+    expect(visualMarkup()).not.toContain('已开启')
+    useSettingsStore.getState().setPerformance({ ...controlMotionFlags(false), toggleMotion: true })
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="true"')
+    expect(html).toContain('已开启 1/7 项')
+    useSettingsStore.getState().setPerformance(controlMotionFlags(false))
+    html = visualMarkup()
+    expect(effectSwitch(html, '控件动效')).toContain('aria-checked="false"')
+    expect(effectSwitch(html, '控件动效')).not.toContain('aria-describedby=')
+    expect(html).not.toContain('已开启')
+  })
+  it('动效合为一张卡片，背景流动开关归应用背景，减少透明度归主题', () => {
+    const html = visualMarkup()
+    for (const title of ['可读性', '背景氛围', '交互反馈', '播放视觉', '单项动效']) {
+      expect(html).not.toMatch(new RegExp(`<h3[^>]*>${title}`))
+    }
+    const motion = html.slice(html.indexOf('id="settings-detail-motion"'), html.indexOf('id="settings-detail-game"'))
+    for (const label of ['页面转场', '控件动效', '平滑滚动', '文字逐字显现', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) expect(effectSwitch(motion, label)).toBeDefined()
+    expect(motion).not.toContain('aria-label="歌词逐字高亮"')
+    const lyricsDisplay = lyricsMarkup()
+    expect(effectSwitch(lyricsDisplay.slice(lyricsDisplay.indexOf('id="settings-detail-lyrics-display"')), '歌词逐字高亮')).toBeDefined()
+    expect(lyricsDisplay).toContain('data-effect="lyricsWordMotion"')
+    expect(effectSwitch(lyricsDisplay, '歌词换句动画')).toBeDefined()
+    expect(lyricsDisplay).toContain('data-effect="lyricsLineMotion"')
+    const background = html.slice(html.indexOf('id="settings-detail-background"'), html.indexOf('id="settings-detail-interface-font"'))
+    expect(effectSwitch(background, '流体背景')).toBeDefined()
+    expect(effectSwitch(background, '背景鼠标跟随')).toBeDefined()
+    for (const effect of ['pageTransitionMotion', 'smoothScrollMotion', 'textRevealMotion', 'cardTiltEffect', 'cardSpotlightEffect', 'gradientTextMotion', 'audioGlowEffect']) {
+      expect(motion).toContain(`data-effect="${effect}"`)
+    }
+    for (const effect of ['bgFluidMotion', 'bgPointerMotion']) expect(background).toContain(`data-effect="${effect}"`)
+    const appearance = html.slice(html.indexOf('id="settings-detail-appearance"'), html.indexOf('id="settings-detail-background"'))
+    expect(effectSwitch(appearance, '减少透明度')).toBeDefined()
     expect(html).not.toContain('点击火花')
     expect(html).toContain('保留按钮与卡片的基本悬停、按压反馈。')
-    expect(html.indexOf('可读性')).toBeLessThan(html.indexOf('界面字体'))
-    expect(html.indexOf('游戏模式')).toBeGreaterThan(html.indexOf('播放视觉'))
+    expect(html.indexOf('游戏模式')).toBeGreaterThan(html.indexOf('音频辉光'))
   })
 
   it('关闭流体背景只暂停鼠标跟随，保留跟随偏好供重新开启时恢复', () => {
@@ -232,34 +314,18 @@ describe('动效设置的实际生效状态', () => {
 
   it('独立透明度和 3D 歌词偏好不改变装饰预设匹配', () => {
     useSettingsStore.getState().applyPerformancePreset('standard')
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: true, lyrics3dEnabled: false } }))
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: true } }))
     expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false, lyrics3dEnabled: true } }))
-    expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
-  })
-
-  it('减少透明度时禁用流体并解释原因，关闭后仍保留原偏好', () => {
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: true, reduceTransparency: true } }))
-    const suppressed = visualMarkup()
-    expect(effectSwitch(suppressed, '流体背景')).toContain('disabled=""')
-    expect(effectSwitch(suppressed, '流体背景')).toContain('aria-checked="true"')
-    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('disabled=""')
-    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('aria-checked="true"')
-    expect(suppressed).toContain('减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。')
     useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
-    expect(effectSwitch(visualMarkup(), '流体背景')).not.toContain('disabled=')
-    expect(useSettingsStore.getState().performance.bgFluidMotion).toBe(true)
+    expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
   })
 
-  it('系统减弱动态时解释受限效果，并保留已开启偏好', () => {
-    reducedMotion.value = true
+  it('减少透明度时流体背景仍可用', () => {
+    useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: true, reduceTransparency: true } }))
     const html = visualMarkup()
-    for (const label of ['流体背景', '背景鼠标跟随', '卡片倾斜', '卡片跟手光斑', '标题流光', '音频辉光']) {
-      expect(effectSwitch(html, label)).toContain('disabled=""')
-      expect(effectSwitch(html, label)).toContain('aria-checked="true"')
-    }
-    expect(html).toContain('系统已开启减弱动态，相关装饰动效暂不生效；原设置已保留。')
-    expect(effectSwitch(html, '减少透明度')).not.toContain('disabled=')
+    expect(effectSwitch(html, '流体背景')).not.toContain('disabled=')
+    expect(effectSwitch(html, '背景鼠标跟随')).not.toContain('disabled=')
+    expect(html).not.toContain('已随减少透明度暂停')
   })
 
   it('节能档禁用背景流体和音频辉光，但不影响卡片开关', () => {
@@ -277,64 +343,115 @@ describe('动效设置的实际生效状态', () => {
     const html = visualMarkup()
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
     expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>简单模式<\/button>/)
-    expect(html).toContain('标准：开启全部装饰动效；简单：静止背景；极简：关闭全部装饰动效。')
-    expect(html).toContain('透明度与 3D 歌词独立设置，切换预设不会改变。')
+    expect(html).toContain('极简模式关闭全部动效，包括歌词显示里的两项')
+    expect(html).toContain('不会互相压制')
+    expect(html).toContain('减少透明度不受影响')
+  })
+})
+
+describe('场景壁纸渲染设置', () => {
+  it('只在选中场景壁纸时显示，帧率/画质/脚本状态与控制一致', () => {
+    useBackgroundStore.setState({
+      kind: 'wallpaper',
+      wallpaper: { id: '123456', title: '月球', type: 'scene', hasPreview: true },
+      wallpaperScene: { ...DEFAULT_WALLPAPER_SCENE, fps: 60, quality: 'detailed', scripts: false, audio: true, pointer: false },
+    })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    // 壁纸库默认折叠，进入设置页不读取目录、不渲染预览网格。
+    expect(html).toContain('更换壁纸')
+    expect(html).not.toContain('aria-label="搜索壁纸"')
+    expect(html).not.toContain('/api/wallpaper-engine/preview')
+    expect(html).toContain('aria-label="场景壁纸帧率"')
+    expect(html).toContain('aria-label="场景壁纸画质"')
+    expect(html).toContain('aria-label="场景脚本"')
+    // 着色器也能消费频谱，关掉脚本不应连累「跟随音乐」。
+    const musicSwitch = effectSwitch(html, '跟随音乐')
+    expect(musicSwitch).not.toContain('disabled=')
+    expect(musicSwitch).toContain('aria-checked="true"')
+    expect(html).not.toContain('关闭场景脚本后不生效')
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>60<\/button>/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>精细<\/button>/)
+
+    useBackgroundStore.setState({
+      kind: 'wallpaper',
+      wallpaper: { id: '123456', title: '视频', type: 'video', hasPreview: true },
+    })
+    const video = renderToStaticMarkup(<SettingsPage />)
+    expect(video).not.toContain('aria-label="场景壁纸帧率"')
+    expect(video).toContain('视频壁纸会持续占用 GPU')
+  })
+
+  it('未选择壁纸时在移除按钮的位置提供选择入口，不提前挂载壁纸库', () => {
+    useBackgroundStore.setState({ kind: 'wallpaper', wallpaper: null })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toContain('选择壁纸')
+    expect(html).not.toContain('aria-label="搜索壁纸"')
+    expect(html).not.toContain('重新扫描')
+  })
+})
+
+describe('背景失焦暂停', () => {
+  it('流体、视频与壁纸视图提供开关，默认开启且跟随存档', () => {
+    let html = renderToStaticMarkup(<SettingsPage />)
+    expect(effectSwitch(html, '失焦时暂停')).toContain('aria-checked="true"')
+
+    useBackgroundStore.getState().update({ pauseOnBlur: false })
+    html = renderToStaticMarkup(<SettingsPage />)
+    expect(effectSwitch(html, '失焦时暂停')).toContain('aria-checked="false"')
+
+    useBackgroundStore.setState({ kind: 'image', image: { id: 'a.png', kind: 'image', name: 'a.png' } })
+    expect(renderToStaticMarkup(<SettingsPage />)).not.toContain('aria-label="失焦时暂停"')
   })
 })
 
 describe('歌词设置分组', () => {
-  it('减少透明度时禁用简洁叠层模糊，原数值仍保留', () => {
-    useSettingsStore.setState((state) => ({
-      lyrics3dStyle: 'focus', lyricsOverlayBlur: 0.8,
-      performance: { ...state.performance, lyrics3dEnabled: true, reduceTransparency: true }
-    }))
+  it('粒光参数和专用字体统一放在歌词页，设置页不再重复展示', () => {
     const html = lyricsMarkup()
-    const blurRow = html.slice(html.indexOf('当前歌词底部模糊'), html.indexOf('当前歌词底部模糊') + 500)
-    expect(blurRow).toMatch(/<input[^>]*disabled=""/)
-    expect(html).toContain('减少透明度已开启，歌词底部模糊暂不生效；原数值已保留。')
-    expect(useSettingsStore.getState().lyricsOverlayBlur).toBe(0.8)
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
-    const restored = lyricsMarkup()
-    const restoredRow = restored.slice(restored.indexOf('当前歌词底部模糊'), restored.indexOf('当前歌词底部模糊') + 500)
-    expect(restoredRow).not.toMatch(/<input[^>]*disabled=/)
-    expect(restoredRow).toContain('value="0.8"')
+    for (const label of ['粒光设置', '粒光选项', '同屏歌词', '歌词行间距', '粒光歌词中文字体', '启用立体歌词']) {
+      expect(html).not.toContain(label)
+    }
   })
 
-  it('字体合并到独立卡片，桌面和 3D 字体在禁用详情之外仍可选择', () => {
+  it('桌面和普通歌词字体保留在独立卡片', () => {
     const html = lyricsMarkup()
     const [beforeDetails] = html.split('<fieldset')
     expect(beforeDetails).toContain('aria-label="桌面歌词西文字体"')
     expect(beforeDetails).toContain('aria-label="桌面歌词中文字体"')
     expect(beforeDetails).toContain('aria-label="普通歌词西文字体"')
-    expect(beforeDetails).toContain('aria-label="3D 歌词中文字体"')
+    expect(beforeDetails).not.toContain('粒光歌词中文字体')
     expect(beforeDetails).toContain('Helvetica Neue')
     expect(beforeDetails).toContain('Songti SC')
-    expect(beforeDetails).not.toContain('disabled=""')
-    expect(beforeDetails).not.toContain('aria-expanded=')
+    const fontCard = beforeDetails.slice(beforeDetails.indexOf('歌词显示'), beforeDetails.indexOf('</section>', beforeDetails.indexOf('歌词显示')))
+    expect(fontCard).not.toContain('disabled=""')
+    expect(fontCard).not.toContain('aria-expanded=')
   })
 
-  it('关闭舞台时保留所有详细控件，并以原生 fieldset 禁用', () => {
-    const html = lyricsMarkup()
-    expect(html).toMatch(/<fieldset[^>]*id="settings-lyrics3d-details"[^>]*disabled=""/)
-    const details = html.slice(html.indexOf('<fieldset'))
-    expect(details).toContain('<legend>3D 歌词详细设置</legend>')
-    expect(details).toContain('背景场景')
-    expect(details).toContain('文字演出')
-    expect(details).toContain('粒子数量')
-    expect(details).toContain('渲染分辨率')
-    expect(details).toContain('type="range"')
-    expect(details).toContain('恢复默认')
-    expect(details).not.toMatch(/\shidden(?:=|[\s>])/)
-    expect(details).not.toContain('role="button"')
+
+})
+
+
+describe('设置分类导航', () => {
+  it('全部分类连续展示，原分类按钮负责收放二级目录', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const sections = [...html.matchAll(/<section id="settings-section-([^"]+)"([^>]*)>/g)]
+    expect(sections).toHaveLength(6)
+    expect(sections.find(section => section[1] === 'music')![2]).not.toContain('hidden=')
+    expect(sections.some(section => section[2].includes('hidden='))).toBe(false)
+    expect(html).not.toContain('收起设置目录')
+    expect(html).not.toContain('展开设置目录')
+    expect(html).toMatch(/aria-current="page"[^>]*aria-expanded="true"/)
+    expect(html).toMatch(/aria-current="page"[^>]*aria-controls="settings-section-music settings-subnav-music"/)
   })
 
-  it('重新开启舞台仅解除禁用，详细参数仍然显示', () => {
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, lyrics3dEnabled: true } }))
-    const html = lyricsMarkup()
-    const fieldset = html.slice(html.indexOf('<fieldset'), html.indexOf('>', html.indexOf('<fieldset')))
-    expect(fieldset).not.toContain('disabled=')
-    expect(html).toContain('aria-checked="true"')
-    expect(html).toContain('背景场景')
-    expect(html).toContain('粒子数量')
+  it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    for (const id of ['accounts', 'playback', 'appearance', 'background', 'interface-font', 'mini-player', 'motion', 'game',
+      'desktop-lyrics', 'lyrics-display', 'lyrics-source', 'downloads', 'player-cache']) {
+      expect(html.match(new RegExp(`id="settings-detail-${id}"`, 'g'))).toHaveLength(1)
+    }
+    expect(html).toContain('aria-controls="settings-detail-accounts"')
+    expect(html).toContain('清理缓存不会删除下载目录中的歌曲')
+    expect(html).not.toContain('粒光设置')
+    expect(html).not.toContain('社区模组')
   })
 })

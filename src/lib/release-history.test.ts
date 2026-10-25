@@ -90,4 +90,31 @@ describe('离线发行历史', () => {
     expect(releases[0].compatibility.length).toBeGreaterThan(0)
     expect(releases.some((entry) => entry.version === '2.0.0')).toBe(true)
   })
+
+  it('四条更新摘要后的分组详情也能离线展示，保留每项的类别与标题', () => {
+    const detailed = `## 更新日志
+- 新增：动态歌词。
+- 新增：歌词来源。
+- 优化：设置与背景。
+- 修复：播放缓存。
+
+### 动态歌词
+
+- 新增：商籁：动态字体与几何线稿。
+
+### 播放
+
+- 修复：音质切换：不再一直沿用旧音质的缓存。
+
+## 兼容说明
+- 沿用现有设置。
+## 验证情况
+- 内部验收记录。
+`
+    const entry = buildReleaseHistory({ '/docs/release-notes-2.5.0.md': detailed }, '2.5.0')[0]
+    expect(entry.updates).toHaveLength(6)
+    expect(entry.updates[4]).toEqual({ type: 'feat', title: '商籁', description: '动态字体与几何线稿。' })
+    expect(entry.updates[5]).toEqual({ type: 'fix', title: '音质切换', description: '不再一直沿用旧音质的缓存。' })
+    expect(entry.compatibility).toEqual(['沿用现有设置。'])
+  })
 })

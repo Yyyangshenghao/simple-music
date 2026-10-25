@@ -13,6 +13,7 @@ import { providerAccountSession } from '../lib/provider-account-session'
 import type { Playlist } from '../types/domain'
 import styles from './ExplorePage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
+import { usePageTransition } from '../hooks/useMotion'
 
 const scrollPositions = new Map<string, { session: number; top: number }>()
 
@@ -43,6 +44,7 @@ function greeting(): string {
 }
 
 export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
+  const pageMotion = usePageTransition()
   const present = useIsPresent()
   const current = useNavigationStore(state => state.currentView === 'explore')
   const active = present && current && !detail
@@ -142,7 +144,7 @@ export function ExplorePage({ detail = null }: { detail?: Extract<AppView, { typ
             initial={{ opacity: 0, x: switchDirection * 12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: switchDirection * -12 }}
-            transition={pageTransition}
+            transition={pageMotion(pageTransition)}
           >
             <ProviderRecommendationSection
               source={activeHomeSource}

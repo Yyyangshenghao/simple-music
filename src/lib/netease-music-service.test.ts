@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import { NeteaseMusicService } from './netease-music-service'
 import type { Track } from '../types/domain'
 import { fetchLyrics } from './lyrics-fetch'
 import { clearProviderRequestCache } from './provider-request-cache'
+import { useSettingsStore } from '../stores/settings'
 
 describe('网易云刷歌选段与展示歌词共享', () => {
+  // 校验的是请求共享，AMLL 逐字兜底在 lyrics-fetch.test 单独覆盖
+  beforeEach(() => { useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false }) })
   afterEach(() => {
     clearProviderRequestCache()
     vi.restoreAllMocks()

@@ -29,7 +29,3 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .button { transition: none; }
-  .spinner { animation: none; }
-}

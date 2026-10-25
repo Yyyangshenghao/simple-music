@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { promises as fsp } from 'node:fs'
 import { join, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { addLocalFolder, availableLocalTrackIds, findLocalTrack, listLocalLibrary, removeLocalFolder } from './local-library'
+import { parseFile } from 'music-metadata'
+import { addLocalFolder, availableLocalTrackIds, findLocalTrack, listLocalLibrary, readLocalLyricSource, removeLocalFolder, type LocalTrackRecord } from './local-library'
 
 vi.mock('music-metadata', () => ({
   parseFile: vi.fn(async (path: string) => ({
@@ -173,5 +174,72 @@ describe('本地音乐索引快照', () => {
     expect(await findLocalTrack(directory, tracks[0].id)).toBeNull()
     expect(await listLocalLibrary(directory)).toEqual({ folders: [], tracks: [] })
     await expect(fsp.stat(cover)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+describe('本地歌词与匹配标签', () => {
+  // 每次给不同的修改时间：标签解析按路径与修改时间缓存，用例里同一路径换标签要视为文件已改动。
+  let mtime = 0
+  const record = (path: string): LocalTrackRecord => ({ id: 'x', path, name: 'song', artist: '未知艺人', hasCover: false, mtimeMs: ++mtime })
+  type Meta = Awaited<ReturnType<typeof parseFile>>
+
+  it('同名 .lrc 优先；标签齐全时给出可靠元数据，不含路径', async () => {
+    const folder = await createFolder('lrc', 'song.mp3')
+    await fsp.writeFile(join(folder, 'song.lrc'), '[00:01.00]本地')
+    vi.mocked(parseFile).mockResolvedValueOnce({
+      common: { title: '晴天', artists: ['周杰伦'], album: '叶惠美', isrc: ['twk970300013'], lyrics: [{ syncText: [{ text: '内嵌', timestamp: 0 }], timeStampFormat: 2 }] },
+      format: { duration: 269.4 },
+    } as unknown as Meta)
+    const source = await readLocalLyricSource(record(join(folder, 'song.mp3')))
+    expect(source).toEqual({
+      lyric: '[00:01.00]本地', lyricOrigin: 'file',
+      metadata: { name: '晴天', artist: '周杰伦', artists: ['周杰伦'], album: '叶惠美', duration: 269_400, isrc: 'TWK970300013' },
+    })
+    expect(JSON.stringify(source)).not.toContain(folder)
+  })
+
+  it('没有 .lrc 时使用毫秒同步的内嵌歌词；帧号时间戳和无时间纯文本不采用', async () => {
+    const folder = await createFolder('embedded', 'song.mp3')
+    const path = join(folder, 'song.mp3')
+    vi.mocked(parseFile).mockResolvedValueOnce({
+      common: { title: '晴天', artist: '周杰伦', lyrics: [
+        { syncText: [{ text: '帧号', timestamp: 10 }], timeStampFormat: 1 },
+        { syncText: [{ text: '第一句', timestamp: 1500 }, { text: '第二句', timestamp: 62_250 }], timeStampFormat: 2 },
+      ] },
+      format: { duration: 200 },
+    } as unknown as Meta)
+    expect(await readLocalLyricSource(record(path))).toMatchObject({ lyric: '[00:01.50]第一句\n[01:02.25]第二句', lyricOrigin: 'embedded' })
+    vi.mocked(parseFile).mockResolvedValueOnce({
+      common: { title: '晴天', artist: '周杰伦', lyrics: [{ text: '没有时间轴的歌词', syncText: [] }] },
+      format: { duration: 200 },
+    } as unknown as Meta)
+    expect(await readLocalLyricSource(record(path))).toMatchObject({ lyric: '', lyricOrigin: null })
+  })
+
+  it('同一文件的标签只解析一次，.lrc 每次重读', async () => {
+    const folder = await createFolder('cached', 'song.mp3')
+    const path = join(folder, 'song.mp3')
+    vi.mocked(parseFile).mockClear()
+    vi.mocked(parseFile).mockResolvedValue({ common: { title: '晴天', artist: '周杰伦' }, format: { duration: 200 } } as unknown as Meta)
+    const cached = { ...record(path), mtimeMs: 42 }
+    expect((await readLocalLyricSource(cached)).lyric).toBe('')
+    await fsp.writeFile(join(folder, 'song.lrc'), '[00:01.00]新歌词')
+    expect(await readLocalLyricSource(cached)).toMatchObject({ lyric: '[00:01.00]新歌词', metadata: { name: '晴天' } })
+    expect(parseFile).toHaveBeenCalledOnce()
+  })
+
+  it('标题来自文件名、缺艺人或时长、标签损坏时不给匹配元数据', async () => {
+    const folder = await createFolder('untagged', 'song.mp3')
+    const path = join(folder, 'song.mp3')
+    for (const meta of [
+      { common: { artist: '周杰伦' }, format: { duration: 200 } },
+      { common: { title: '晴天' }, format: { duration: 200 } },
+      { common: { title: '晴天', artist: '周杰伦' }, format: {} },
+    ]) {
+      vi.mocked(parseFile).mockResolvedValueOnce(meta as unknown as Meta)
+      expect((await readLocalLyricSource(record(path))).metadata).toBeNull()
+    }
+    vi.mocked(parseFile).mockRejectedValueOnce(new Error('corrupt'))
+    expect(await readLocalLyricSource(record(path))).toEqual({ lyric: '', lyricOrigin: null, metadata: null })
   })
 })

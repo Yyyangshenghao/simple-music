@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopLyricsSettings } from './DesktopLyricsSettings'
 
 const h = vi.hoisted(() => ({
-  settings: { fontFamily: '', fontFamilyCjk: '' },
+  settings: { fontFamily: '', fontFamilyCjk: '', performance: { pageTransitionMotion: true, textRevealMotion: true } },
   fx: {
     desktopLyrics: true,
     desktopLyricsSize: 38,
@@ -24,7 +24,8 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('../../stores/visual', () => ({
-  useVisualStore: (selector: (state: typeof h) => unknown) => selector(h)
+  useVisualStore: (selector: (state: typeof h) => unknown) => selector(h),
+  DEFAULT_FX: { desktopLyricsSize: 38, desktopLyricsOpacity: 0.92, desktopLyricsBackgroundOpacity: 0.68 }
 }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (selector: (state: typeof h.settings) => unknown) => selector(h.settings) }))
 vi.mock('../ui/Switch', () => ({
@@ -36,6 +37,7 @@ vi.mock('../ui/Switch', () => ({
 beforeEach(() => {
   Object.assign(h.settings, { fontFamily: '', fontFamilyCjk: '' })
   Object.assign(h.fx, {
+    desktopLyrics: true,
     desktopLyricsSize: 38,
     desktopLyricsFontFamily: '',
     desktopLyricsFontFamilyCjk: '',
@@ -53,8 +55,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('桌面歌词设置', () => {
+  it('关闭时仅保留开启入口，开启后展开预览与原有设置', () => {
+    h.fx.desktopLyrics = false
+    h.fx.desktopLyricsSize = 52
+    h.fx.desktopLyricsColor = '#123456'
+    const collapsed = renderToStaticMarkup(<DesktopLyricsSettings />)
+    expect(collapsed).toContain('aria-label="启用桌面歌词"')
+    expect(collapsed).toContain('aria-checked="false"')
+    expect(collapsed).not.toContain('歌词与底框预览')
+    expect(collapsed).not.toContain('字体大小')
+    expect(collapsed).not.toContain('文字外观')
+    expect(collapsed).not.toContain('锁定桌面歌词')
+
+    h.fx.desktopLyrics = true
+    const expanded = renderToStaticMarkup(<DesktopLyricsSettings />)
+    expect(expanded).toContain('歌词与底框预览')
+    expect(expanded).toContain('字体大小')
+    expect(expanded).toContain('52 px')
+    expect(expanded).toContain('color:#123456')
+    expect(expanded).toContain('锁定桌面歌词')
+  })
+
   it.each(['linux'])('在 %s 禁用毛玻璃并将旧保存效果回退为暗灰色预览', (platform) => {
-    vi.stubGlobal('window', { desktop: { platform } })
+    vi.stubGlobal('window', { desktop: { platform }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
     h.fx.desktopLyricsBackgroundStyle = 'frosted'
     const html = renderToStaticMarkup(<DesktopLyricsSettings />)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-pressed="false"[^>]*>毛玻璃/)
@@ -67,7 +90,7 @@ describe('桌面歌词设置', () => {
   })
 
   it('Windows 可选择毛玻璃并预览，说明系统不可用时回退', () => {
-    vi.stubGlobal('window', { desktop: { platform: 'win32' } })
+    vi.stubGlobal('window', { desktop: { platform: 'win32' }, addEventListener: vi.fn(), removeEventListener: vi.fn() })
     h.fx.desktopLyricsBackgroundStyle = 'frosted'
     const html = renderToStaticMarkup(<DesktopLyricsSettings />)
     expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>毛玻璃/)
@@ -151,8 +174,8 @@ describe('桌面歌词设置', () => {
   it('窗口缩放产生大字号时，滑杆保留实际字号而不截到原上限', () => {
     h.fx.desktopLyricsSize = 243.6
     const html = renderToStaticMarkup(<DesktopLyricsSettings />)
-    expect(html).toContain('max="244"')
-    expect(html).toContain('value="243.6"')
+    expect(html).toContain('aria-valuemax="244"')
+    expect(html).toContain('aria-valuenow="243.6"')
     expect(html).toContain('244 px')
     expect(html).toContain('横向拉宽不会改变字号')
   })

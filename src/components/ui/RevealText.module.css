@@ -15,7 +15,4 @@
   user-select: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .character { transition: none; }
-}
 .text { position: relative; }

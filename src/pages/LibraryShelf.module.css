@@ -76,10 +76,6 @@
 .iconButton[data-refreshing='true'] svg { animation: spin 800ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .skeleton, .iconButton[data-refreshing='true'] svg { animation: none; }
-}
-
 @media (max-width: 640px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 18px 14px; }
 }

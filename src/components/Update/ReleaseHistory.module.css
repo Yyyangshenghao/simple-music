@@ -116,6 +116,3 @@
   .body { padding: 0 16px 16px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .chevron { transition: none; }
-}

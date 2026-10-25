@@ -1,10 +1,12 @@
 /** 原生时间戳驱动的逐字高亮：每个词独立裁剪，媒体时钟直接定位浏览器动画。 */
 
-import { memo, useEffect, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
+import { useSettingsStore } from '../../stores/settings'
 import { usePlayerStore } from '../../stores/player'
 import { useLyricsStore } from '../../stores/lyrics'
 import { lyricPlaybackPosition } from '../../lib/lyric-playback-position'
 import { createWordHighlightTimeline, hasWordTiming } from '../../lib/word-highlight-timeline'
+import { groupLyricBreakUnits } from '../../lib/lyric-line-break'
 import type { WordToken } from '../../types/domain'
 import styles from './KtvLine.module.css'
 
@@ -17,14 +19,18 @@ interface KtvLineProps {
   translationText?: string
   romaText?: string        // 罗马音注音行,显示在主歌词与翻译之间
   alignLeft?: boolean      // 左对齐（歌词页左右布局的右栏）；默认居中（3D 叠加层）
+  instantFill?: boolean    // 极短句：不逐字扫光，激活即整句点亮
 }
 
-export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft }: KtvLineProps) {
+export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, past, translationText, romaText, alignLeft, instantFill }: KtvLineProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
+  const wordMotion = useSettingsStore((s) => s.performance.lyricsWordMotion)
 
-  const timed = hasWordTiming(words)
+  const timed = hasWordTiming(words) && !instantFill
+  // 按词组成不可拆的换行单元，标点不落单；亮层顺序与 words 一致，逐字时间轴照常对应。
+  const units = useMemo(() => groupLyricBreakUnits(words.map((word) => word.text)), [words])
   useEffect(() => {
-    if (!active || !timed || !wordsRef.current) return
+    if (!active || !timed || !wordMotion || !wordsRef.current) return
     const elements = Array.from(wordsRef.current.querySelectorAll(`.${styles.charFill}`))
     const timeline = createWordHighlightTimeline(elements, words)
     if (!timeline) return
@@ -44,22 +50,26 @@ export const KtvLine = memo(function KtvLine({ words, lineStartMs, active, dim, 
       cancelAnimationFrame(raf)
       timeline.dispose()
     }
-  }, [active, timed, lineStartMs, words])
+  }, [active, timed, wordMotion, lineStartMs, words])
 
   return (
     <div className={[
       styles.line,
       active ? styles.active : '',
-      !timed ? styles.untimed : '',
+      !timed || !wordMotion ? styles.untimed : '',
       dim ? styles.dim : '',
       past ? styles.past : '',
       alignLeft ? styles.alignLeft : '',
     ].filter(Boolean).join(' ')}>
       <div className={styles.words} ref={wordsRef}>
-        {words.map((word, i) => (
-          <span key={i} className={styles.char}>
-            {word.text}
-            <span className={styles.charFill} aria-hidden="true">{word.text}</span>
+        {!wordMotion ? <span className={styles.char}>{words.map(word => word.text).join('')}</span> : units.map((unit) => (
+          <span key={unit[0]} className={styles.unit}>
+            {unit.map((i) => (
+              <span key={i} className={styles.char}>
+                {words[i].text}
+                <span className={styles.charFill} aria-hidden="true">{words[i].text}</span>
+              </span>
+            ))}
           </span>
         ))}
       </div>

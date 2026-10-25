@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   load: vi.fn(),
   setQueue: vi.fn(),
 }))
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useFeedback: () => <T,>(t: T) => t }))
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useContext: () => h.scrolling,

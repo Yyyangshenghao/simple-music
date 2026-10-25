@@ -60,5 +60,10 @@ export function runShortcutAction(action: ShortcutAction): void {
       void window.desktop?.setMiniPlayerEnabled(enabled, settings.miniPlayerWidth)
       break
     }
+    case 'game-mode': {
+      const gameMode = useGameModeStore.getState()
+      void gameMode.configure({ enabled: !gameMode.enabled })
+      break
+    }
   }
 }

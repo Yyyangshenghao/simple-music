@@ -7,6 +7,7 @@ import { useSleepTimerStore } from '../stores/sleep-timer'
 import { useSettingsStore } from '../stores/settings'
 import { useProviderStore } from '../stores/providers'
 import { useLyricsStore } from '../stores/lyrics'
+import { useLyricsSourceStore } from '../stores/lyrics-source'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import { useRecentPlaysStore } from '../stores/recent'
 import { useLikesStore } from '../stores/likes'
@@ -31,11 +32,15 @@ export type PlaybackStore = StoreApi<Record<string, unknown>>
 export const playbackStores = {
   player: usePlayerStore, playlist: usePlaylistStore, shuange: useShuangeStore,
   sleep: useSleepTimerStore, settings: useSettingsStore, providers: useProviderStore,
-  lyrics: useLyricsStore, downloads: useOfflineCacheStore, recent: useRecentPlaysStore,
+  lyrics: useLyricsStore, lyricSources: useLyricsSourceStore, downloads: useOfflineCacheStore, recent: useRecentPlaysStore,
   likes: useLikesStore, apple: useAppleMusicConnection, visual: useVisualStore,
   ambient: useAmbientStore, shortcuts: useShortcutStore, navigation: useNavigationStore,
   toast: useToastStore,
   controls: createStore(() => ({
+    cancelLyricsSelection() {
+      const state = useLyricsSourceStore.getState()
+      if (state.candidateToken) state.cancelSelection(state.candidateToken)
+    },
     shortcut(action: unknown) {
       if (typeof action !== 'string' || !isShortcutAction(action)) throw new Error('不支持的快捷键命令')
       runShortcutAction(action)
@@ -62,15 +67,16 @@ export const remoteActions: Record<string, readonly string[]> = {
   playlist: ['loadUserPlaylists', 'setCurrentPlaylist', 'setQueue', 'clearQueue', 'addToQueue', 'addManyToQueue', 'moveQueueItem', 'playNextInQueue', 'removeQueueItem', 'ensureQueueDetails', 'playAt', 'next', 'prev', 'toggleShelf', 'setShelfMode'],
   shuange: ['enter', 'refresh', 'leave', 'next', 'prev', 'playFullCurrent', 'notInterestedCurrent', 'toggleLike', 'loadIndex'],
   sleep: ['start', 'setFinishTrack', 'cancel'],
-  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setAudioQuality', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
+  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setUnlikeConfirmation', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsAmllFallback', 'setLyricsKugouFallback', 'setLyricsGuestSource', 'setLyricsPlatformSource', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setAudioQuality', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
   providers: ['setEnabled', 'setPlaybackOrder', 'setPreferOriginSource', 'setMultiSourceFallback', 'setSourceBadgeMode', 'setContentSource', 'setAccountState', 'setPlaybackAvailability'],
   lyrics: ['setOffsetSec', 'updateLayout', 'setDesktopLyricsEnabled'],
+  lyricSources: ['queryCandidates', 'cancelSelection', 'chooseSource', 'setDefaultSource', 'clearRemembered', 'setSourceOrder', 'forgetTrack', 'updateRemembered', 'testSource'],
   downloads: ['ensure', 'ensureMany', 'save', 'saveMany', 'setPaused', 'setQueueOpen', 'loadDownloadDir', 'setDownloadDir', 'setPinned', 'deleteLocal', 'cancelSave', 'dismissJob', 'invalidate'],
   recent: ['clear'], likes: ['ensureChecked', 'toggleLike', 'resolveUnlike'],
   apple: ['refresh', 'connect', 'disconnect'],
   visual: ['setPreset', 'updateFx', 'setPerformanceMode', 'setBackgroundMode', 'loadArchive'],
   ambient: [], shortcuts: ['setRecording'],
-  navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'goBack', 'goForward'],
+  navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
-  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount'],
+  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

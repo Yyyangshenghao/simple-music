@@ -111,3 +111,15 @@ it('音源设置定位由权威导航消费，迟到消费不清除更新请求'
   navigation.consumeSettingsMusicRequest(2)
   expect(useNavigationStore.getState().settingsMusicRequest).toBe(0)
 })
+
+it('歌词设置定位独立于音源请求，迟到消费保留新请求', () => {
+  useNavigationStore.setState({ settingsMusicRequest: 0, settingsLyricsRequest: 0 })
+  const navigation = useNavigationStore.getState()
+  navigation.requestSettingsLyrics()
+  navigation.requestSettingsLyrics()
+  navigation.consumeSettingsLyricsRequest(1)
+  expect(useNavigationStore.getState().settingsLyricsRequest).toBe(2)
+  expect(useNavigationStore.getState().settingsMusicRequest).toBe(0)
+  navigation.consumeSettingsLyricsRequest(2)
+  expect(useNavigationStore.getState().settingsLyricsRequest).toBe(0)
+})

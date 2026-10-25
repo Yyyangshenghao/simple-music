@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { useMotion } from '../../hooks/useMotion'
 import { bindRailDrag, measureRail, nearestRailPosition, railProgress } from './rail-navigation'
 import styles from './HorizontalCardRail.module.css'
 
@@ -36,7 +36,7 @@ export function HorizontalCardRail({ children, label, className }: HorizontalCar
   const viewportRef = useRef<HTMLDivElement>(null)
   const navigationRef = useRef<HTMLDivElement>(null)
   const scrubGestureRef = useRef<{ start: number; moved: boolean } | null>(null)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = !useMotion('smoothScrollMotion')
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
   const cancelMotionRef = useRef<(() => void) | null>(null)

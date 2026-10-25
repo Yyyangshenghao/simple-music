@@ -9,7 +9,7 @@
 .inner {
   width: min(var(--sm-reading-max-width), calc(100% - (var(--sm-page-gutter) * 2)));
   margin: 0 auto;
-  padding: 28px 0 80px;
+  padding: var(--sm-page-top) 0 80px;
 }
 
 .title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
@@ -18,11 +18,11 @@
 .roamHero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(310px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.8fr);
   align-items: center;
-  gap: 38px;
+  gap: 32px;
   margin-bottom: 24px;
-  padding: 30px 32px;
+  padding: 24px 28px;
   overflow: hidden;
   border: 1px solid var(--glass-border-card);
   border-radius: 24px;
@@ -46,7 +46,6 @@
   filter: blur(76px);
 }
 
-.heroKicker,
 .scopeLabel {
   display: block;
   color: var(--sm-text-muted);
@@ -55,9 +54,8 @@
   letter-spacing: 0.16em;
 }
 
-.heroKicker { margin-bottom: 10px; }
-.roamHero .title { font-size: clamp(30px, 3.2vw, 42px); letter-spacing: -0.05em; }
-.roamHero .subtitle { max-width: 540px; margin: 12px 0 0; line-height: 1.75; }
+.roamHero .title { font-size: var(--sm-page-title-size); line-height: 1.25; }
+.roamHero .subtitle { max-width: 540px; margin: 8px 0 0; line-height: 1.75; }
 
 .roamHeroActions {
   min-width: 0;
@@ -65,7 +63,7 @@
   border-left: 1px solid var(--sm-border);
 }
 
-.scopeLabel { margin: 0 0 10px 2px; }
+.scopeLabel { margin: 0 0 10px 2px; font-size: 11px; letter-spacing: 0.04em; }
 .roamHero .scopePicker { margin: 0; }
 .roamHero .pickBtn { max-width: none; margin-top: 16px; }
 
@@ -80,19 +78,23 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 31px;
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
-  background: var(--glass-bg-base);
+  background: transparent;
   color: var(--sm-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
+  transition: background 150ms, border-color 150ms, color 150ms;
 }
 
+.scopeButton:hover:not(:disabled) { border-color: var(--sm-border-strong); color: var(--sm-text-primary); }
+
+/* 与搜索页来源筛选同一规范：范围选中用浅填充，不用强调描边。 */
 .scopeButtonActive {
-  border-color: var(--sm-accent);
-  background: var(--sm-bg-overlay);
+  border-color: var(--sm-border-strong);
+  background: var(--sm-fill-active);
   color: var(--sm-text-primary);
 }
 

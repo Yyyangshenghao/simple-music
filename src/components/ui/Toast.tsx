@@ -2,9 +2,11 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useActionToastStore, useToastStore } from '../../stores/toast'
 import { springGentle } from '../../lib/motion-presets'
 import styles from './Toast.module.css'
+import { usePageTransition } from '../../hooks/useMotion'
 
 /** 全局轻提示:播放受限等一次性消息,底部居中淡入淡出,自动消失。 */
 export function Toast() {
+  const pageTransition = usePageTransition()
   const message = useToastStore((s) => s.message)
   const notification = useActionToastStore((s) => s.notification)
 
@@ -18,7 +20,7 @@ export function Toast() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            transition={springGentle}
+            transition={pageTransition(springGentle)}
           >
             <span>{notification.message}</span>
             <button type="button" onClick={() => useActionToastStore.getState().activate()}>{notification.label}</button>
@@ -31,7 +33,7 @@ export function Toast() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            transition={springGentle}
+            transition={pageTransition(springGentle)}
           >
             {message}
           </motion.div>

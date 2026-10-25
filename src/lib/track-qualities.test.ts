@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types/domain'
 
 const apiGet = vi.fn()
@@ -8,11 +8,15 @@ vi.mock('./api', () => ({
   },
 }))
 
-import { fetchTrackQualities } from './track-qualities'
+import { clearTrackQualityCache, fetchTrackQualities, loadTrackQualities, peekTrackQualities } from './track-qualities'
+import { advanceProviderAccountSession } from './provider-account-session'
 
 beforeEach(() => {
   apiGet.mockReset()
+  clearTrackQualityCache()
 })
+
+afterEach(() => { vi.useRealTimers() })
 
 describe('fetchTrackQualities', () => {
   it('QQ 曲目使用 mediaMid 探测真实音频文件档位', async () => {
@@ -35,5 +39,61 @@ describe('fetchTrackQualities', () => {
       mid: 'song-mid',
       mediaMid: 'file-mid',
     }, { timeoutMs: 60_000 })
+  })
+})
+
+describe('loadTrackQualities', () => {
+  const track = { provider: 'netease', source: 'netease', type: 'song', id: 42, name: '歌', artist: '人', artists: [] } as unknown as Track
+
+  it('同曲并发合并为一次请求，成功后可同步读到缓存', async () => {
+    apiGet.mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }] })
+    expect(peekTrackQualities(track)).toBeUndefined()
+    const [a, b] = await Promise.all([loadTrackQualities(track), loadTrackQualities(track)])
+    expect(apiGet).toHaveBeenCalledOnce()
+    expect(a).toBe(b)
+    expect(peekTrackQualities(track)).toEqual([{ level: 'lossless', label: '无损' }])
+    await loadTrackQualities(track)
+    expect(apiGet).toHaveBeenCalledOnce()
+  })
+
+  it('失败不缓存，切换账号后重新探测', async () => {
+    apiGet.mockRejectedValueOnce(new Error('timeout')).mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }] })
+    await expect(loadTrackQualities(track)).rejects.toThrow('timeout')
+    expect(peekTrackQualities(track)).toBeUndefined()
+    await loadTrackQualities(track)
+    expect(peekTrackQualities(track)).toEqual([{ level: 'lossless', label: '无损' }])
+    advanceProviderAccountSession('netease')
+    expect(peekTrackQualities(track)).toBeUndefined()
+    await loadTrackQualities(track)
+    expect(apiGet).toHaveBeenCalledTimes(3)
+  })
+
+  it('空探测结果不缓存，网络恢复后可立即重试', async () => {
+    apiGet.mockResolvedValueOnce({ qualities: [] }).mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }] })
+    expect(await loadTrackQualities(track)).toEqual([])
+    expect(peekTrackQualities(track)).toBeUndefined()
+    expect(await loadTrackQualities(track)).toEqual([{ level: 'lossless', label: '无损' }])
+    expect(apiGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('不完整档位缓存一分钟后重新探测，读取不会延长有效期', async () => {
+    vi.useFakeTimers()
+    apiGet.mockResolvedValueOnce({ qualities: [{ level: 'standard', label: '标准' }] })
+      .mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }, { level: 'standard', label: '标准' }] })
+    await loadTrackQualities(track)
+    vi.advanceTimersByTime(30_000)
+    expect(await loadTrackQualities(track)).toEqual([{ level: 'standard', label: '标准' }])
+    expect(apiGet).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(30_000)
+    expect(peekTrackQualities(track)).toBeUndefined()
+    expect(await loadTrackQualities(track)).toHaveLength(2)
+    expect(apiGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('本地与 Apple Music 不缓存也不请求', async () => {
+    const local = { ...track, source: 'local', provider: 'local' } as Track
+    expect(await loadTrackQualities(local)).toEqual([])
+    expect(peekTrackQualities(local)).toBeUndefined()
+    expect(apiGet).not.toHaveBeenCalled()
   })
 })

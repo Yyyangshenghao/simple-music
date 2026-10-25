@@ -17,7 +17,7 @@
   padding: 20px 24px;
 }
 
-.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 14px; font-weight: 680; }
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 16px; font-weight: 700; }
 
 .preview {
   position: relative;
@@ -54,14 +54,15 @@
 .columns > .settings + .settings { padding-left: 24px; border-left: 1px solid var(--sm-border); }
 .row, .labelLine { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--sm-text-primary); font-size: 12px; }
 .row { min-height: 48px; }
+.rowControls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .row > label, .row > span { flex: 0 0 auto; }
 .choices { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--sm-border); border-radius: 9px; }
 .choices button { padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-secondary); font: inherit; cursor: pointer; }
 .choices button[aria-pressed='true'] { background: var(--glass-bg-card); color: var(--sm-text-primary); }
 .choices button:disabled { opacity: 0.45; cursor: default; }
 .choices button:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
-.labelLine output { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.settings input[type='range'] { display: block; width: 100%; margin: 14px 0 0; accent-color: var(--sm-accent); cursor: pointer; }
+.sliderLine { margin-top: 10px; }
+.sliderLine > div { width: 100%; }
 .settingLabel { display: inline-flex; align-items: center; gap: 8px; }
 .sizeSetting { margin-bottom: 14px; }
 .opacitySetting { margin-bottom: 14px; }

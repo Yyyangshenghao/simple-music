@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), send: vi.fn(), restore: vi.fn(), destroyed: false, menu: [] as Array<{ accelerator: string }> }))
+const h = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), send: vi.fn(), restore: vi.fn(), game: { enabled: false }, setGame: vi.fn(), destroyed: false, menu: [] as Array<{ accelerator: string }> }))
 vi.mock('electron', () => ({ globalShortcut: { register: h.register, unregister: h.unregister }, Menu: { getApplicationMenu: () => ({ items: h.menu }) } }))
 vi.mock('./window-manager', () => ({ sendMainWindowEvent: h.send }))
 vi.mock('./playback-host', () => ({ sendPlaybackEvent: h.send }))
 vi.mock('./overlay-manager', () => ({ returnFromMiniPlayer: h.restore }))
+vi.mock('./game-mode', () => ({ getGameMode: () => ({ ...h.game }), setGameMode: h.setGame }))
 import { configureHotkeys, unregisterHotkeys } from './hotkey-manager'
 
 beforeEach(() => {
@@ -12,6 +13,8 @@ beforeEach(() => {
   h.unregister.mockClear()
   h.send.mockClear()
   h.restore.mockClear()
+  h.setGame.mockClear()
+  h.game = { enabled: false }
   h.destroyed = false
   h.menu = []
 })
@@ -26,6 +29,15 @@ describe('全局快捷键注册', () => {
     h.register.mock.calls[0][1]()
     expect(h.restore).toHaveBeenCalledOnce()
     expect(h.send).toHaveBeenCalledWith('hotkey:triggered', { action: 'settings' })
+  })
+  it('全局游戏模式快捷键在主进程直接切换，不转发给播放宿主', () => {
+    configureHotkeys([{ action: 'game-mode', accelerator: 'CommandOrControl+Alt+Shift+G' }])
+    h.register.mock.calls[0][1]()
+    expect(h.setGame).toHaveBeenCalledWith({ enabled: true })
+    h.game = { enabled: true }
+    h.register.mock.calls[0][1]()
+    expect(h.setGame).toHaveBeenLastCalledWith({ enabled: false })
+    expect(h.send).not.toHaveBeenCalled()
   })
   it('应用菜单占用的按键返回提示且不抢占', () => {
     h.menu = [{ accelerator: 'CommandOrControl+Q' }]

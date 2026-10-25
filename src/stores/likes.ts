@@ -6,6 +6,7 @@ import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { useToastStore } from './toast'
+import { useSettingsStore } from './settings'
 import { recordShuangeFeedback } from '../lib/shuange-recommendation'
 
 /** 红心状态缓存:key 为 `source:id`,乐观更新,服务端失败回滚。 */
@@ -26,7 +27,6 @@ const failedCooldown = new Map<string, number>()
  *  避免逐行红心对每首网易曲目各发一个请求(列表 50 首就 50 个 HTTP)。
  *  debounce 窗口内收集,到期一次 flush;同一 key 多次 await(滚动重复挂载)共用 resolve。 */
 const BATCH_DELAY_MS = 200
-const REPEAT_UNLIKE_MS = 30_000
 let nextUnlikeId = 0
 
 function canInteract(track: Track): boolean {
@@ -144,10 +144,7 @@ interface LikesStore {
   revision: number
   /** QQ 写后确认成功才失效账号歌单缓存，查询/乐观更新不触发重载。 */
   qqMutationRevision: number
-  unlikePrompt: { id: number; track: Track; accountSession: number; allowSkip: boolean; shuange: boolean } | null
-  /** 仅后台内存保存，重新启动应用后恢复确认。 */
-  skipUnlikeConfirmation: boolean
-  lastUnlike: { key: string; at: number } | null
+  unlikePrompt: { id: number; track: Track; accountSession: number; shuange: boolean } | null
   /** 该曲目所属音源是否支持红心。 */
   supports(track: Track | null): boolean
   /** 首次遇到该曲目时查询红心状态(已知则跳过)。 */
@@ -173,9 +170,8 @@ async function writeLike(track: Track, next: boolean, shuange: boolean, skip = f
       if (!(await svc.likeTrack!(track, next))) throw new Error(track.source === 'qq' ? 'QQ 音乐收藏失败，请重试' : '红心操作失败，请重试')
       if (accountSession === sessionOf(track)) {
         if (track.source === 'qq') set((s) => ({ qqMutationRevision: s.qqMutationRevision + 1 }))
-        if (!next && (track.source === 'qq' || track.source === 'netease') && revision === get().revision) {
-          set((s) => ({ lastUnlike: { key, at: Date.now() }, skipUnlikeConfirmation: s.skipUnlikeConfirmation || skip }))
-        }
+        // 勾选「不再提示」只在取消成功后生效，失败或换号不记住。
+        if (skip && !next && revision === get().revision) useSettingsStore.getState().setUnlikeConfirmation(false)
         if (shuange && next !== confirmed) recordShuangeFeedback(track, next ? 'like' : 'unlike')
       }
       return next
@@ -201,8 +197,6 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
   revision: 0,
   qqMutationRevision: 0,
   unlikePrompt: null,
-  skipUnlikeConfirmation: false,
-  lastUnlike: null,
 
   supports(track) {
     if (!track) return false
@@ -244,13 +238,9 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     if (!serviceFor(track.source).likeTrack || get().unlikePrompt) return
     const key = keyOf(track)
     const current = !!get().likedByKey[key]
-    if (current && (track.source === 'qq' || track.source === 'netease') && !get().skipUnlikeConfirmation) {
-      const last = get().lastUnlike
+    if (current && (track.source === 'qq' || track.source === 'netease') && useSettingsStore.getState().unlikeConfirmation) {
       const id = ++nextUnlikeId
-      set({ unlikePrompt: {
-        id, track, accountSession: sessionOf(track), shuange,
-        allowSkip: !!last && last.key !== key && Date.now() - last.at <= REPEAT_UNLIKE_MS,
-      } })
+      set({ unlikePrompt: { id, track, accountSession: sessionOf(track), shuange } })
       // 不等待用户选择，避免长时间占用播放命令；确认通过单独命令提交。
       void window.desktop?.showMainWindow?.().catch(() => {
         if (get().unlikePrompt?.id !== id) return
@@ -268,7 +258,7 @@ export const useLikesStore = create<LikesStore>((set, get) => ({
     set({ unlikePrompt: null })
     if (confirm !== true || prompt.accountSession !== sessionOf(prompt.track)
       || !get().likedByKey[keyOf(prompt.track)]) return
-    await writeLike(prompt.track, false, prompt.shuange, prompt.allowSkip && skip === true)
+    await writeLike(prompt.track, false, prompt.shuange, skip === true)
   }
 }))
 
@@ -290,8 +280,6 @@ useProviderStore.subscribe(() => {
       likedByKey: Object.fromEntries(Object.entries(state.likedByKey).filter(([key]) => !key.startsWith(prefix))),
       revision: state.revision + 1,
       unlikePrompt: state.unlikePrompt?.track.source === source ? null : state.unlikePrompt,
-      skipUnlikeConfirmation: false,
-      lastUnlike: null,
     }))
   }
 })

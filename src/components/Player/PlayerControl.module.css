@@ -33,8 +33,5 @@
   outline-offset: 3px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .control,
-  .control svg { transition: none; }
-  .control:hover:not(:disabled) svg { transform: none; }
-}
+/* 关闭「悬停浮起」时直接到位。 */
+:global([data-hover-lift-motion-off]) :is(.control, .control svg) { transition: none !important; animation: none !important; }

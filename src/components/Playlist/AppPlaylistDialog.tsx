@@ -9,6 +9,7 @@ import type { Track } from '../../types/domain'
 import styles from './AppPlaylistDialog.module.css'
 import { CHECK_ICON, NameDialog, PLUS_ICON, SEARCH_ICON, nameDialogStyles as nameStyles } from './NameDialog'
 import { AppPlaylistCover } from './AppPlaylistCover'
+import { CloseIcon } from '../ui/CloseIcon'
 
 export function AppPlaylistModal({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -21,7 +22,7 @@ export function AppPlaylistModal({ title, onClose, children }: { title: string; 
   }, [])
   return <dialog ref={ref} className={`${styles.dialog} no-drag`} aria-labelledby={titleId}
     onCancel={event => { event.preventDefault(); onClose() }} onKeyDown={event => event.stopPropagation()}>
-    <div className={styles.header}><h2 id={titleId}>{title}</h2><button type="button" aria-label="关闭对话框" onClick={onClose}>×</button></div>
+    <div className={styles.header}><h2 id={titleId}>{title}</h2><button type="button" aria-label="关闭对话框" onClick={onClose}><CloseIcon size={14} /></button></div>
     {children}
   </dialog>
 }

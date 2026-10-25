@@ -2,17 +2,19 @@
   width: min(440px, calc(100vw - 48px));
   max-height: calc(100vh - 80px);
   box-sizing: border-box;
-  padding: 24px;
+  padding: var(--sm-dialog-padding);
   border: 1px solid var(--sm-border-strong);
-  border-radius: 20px;
+  border-radius: var(--sm-dialog-radius);
   color: var(--sm-text-primary);
   background: var(--sm-bg-base);
   box-shadow: var(--sm-shadow);
 }
 .dialog::backdrop { background: rgba(0, 0, 0, 0.48); backdrop-filter: var(--glass-blur-base); }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.header h2 { margin: 0; font-size: 19px; }
+.header h2 { margin: 0; font-size: var(--sm-dialog-title-size); font-weight: 600; }
 .dialog button { padding: 8px 14px; border: 1px solid var(--sm-border); border-radius: 10px; background: var(--sm-bg-elevated); color: var(--sm-text-primary); cursor: pointer; }
 .dialog button:hover:not(:disabled) { background: var(--sm-fill-hover); }
 .dialog button:disabled { opacity: 0.4; cursor: default; }
-.header button { padding: 2px 8px; font-size: 22px; border: none; background: none; }
+/* 关闭按钮与歌单预览一致：图标圆钮，不用文字 ×。 */
+.header button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--sm-text-secondary); }
+.header button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }

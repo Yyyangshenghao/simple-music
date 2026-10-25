@@ -1,0 +1,323 @@
+/* 动效示意小样：只在 ⓘ 展开时挂载（见 InfoButton），挂载即播放。 */
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 92px;
+  margin-bottom: 9px;
+  overflow: hidden;
+  border: 1px solid var(--sm-border);
+  border-radius: 8px;
+  background: var(--sm-fill-subtle);
+  perspective: 420px;
+}
+
+/* 文字逐字显现 */
+.reveal { font-size: 15px; font-weight: 600; color: var(--sm-text-primary); }
+.reveal > span { display: inline-block; animation: revealChar 2800ms var(--sm-ease-out) infinite; animation-delay: calc(var(--i) * 70ms); }
+@keyframes revealChar {
+  0% { opacity: 0; filter: blur(4px); transform: translateY(3px); }
+  22%, 82% { opacity: 1; filter: blur(0); transform: none; }
+  100% { opacity: 0; filter: blur(0); }
+}
+
+/* 歌词逐字高亮 */
+.lyric { position: relative; font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+.lyricDim { color: var(--sm-text-faint); }
+.lyricLit { position: absolute; inset: 0; color: var(--sm-text-primary); clip-path: inset(0 100% 0 0); animation: lyricFill 3000ms linear infinite; }
+@keyframes lyricFill {
+  0% { clip-path: inset(0 100% 0 0); }
+  80%, 100% { clip-path: inset(0 0 0 0); }
+}
+
+/* 迷你卡片（倾斜 / 光斑共用） */
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 150px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 10px;
+  background: var(--sm-bg-elevated);
+}
+.cover { flex: 0 0 34px; height: 34px; border-radius: 6px; background: var(--ambient-gradient); }
+.lines { display: grid; flex: 1; gap: 6px; }
+.lines i { display: block; height: 6px; border-radius: 3px; background: var(--sm-fill-active); }
+.lines i:last-child { width: 60%; }
+
+.tilt { display: block; transform-style: preserve-3d; animation: cardTilt 3200ms ease-in-out infinite; }
+@keyframes cardTilt {
+  0%, 100% { transform: rotateX(8deg) rotateY(-12deg); }
+  50% { transform: rotateX(-8deg) rotateY(12deg); }
+}
+
+.spot {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70px circle at var(--spot-x, 20%) 50%, color-mix(in srgb, var(--ambient-2) 36%, transparent), transparent 70%);
+  animation: spotMove 3200ms ease-in-out infinite;
+}
+@property --spot-x { syntax: '<percentage>'; inherits: false; initial-value: 20%; }
+@keyframes spotMove {
+  0%, 100% { --spot-x: 10%; }
+  50% { --spot-x: 90%; }
+}
+
+/* 指针示意：与倾斜、光斑、鼠标跟随同一路径 */
+.cursor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border: 1.5px solid var(--sm-text-primary);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sm-bg-base) 40%, transparent);
+  animation: cursorMove 3200ms ease-in-out infinite;
+}
+@keyframes cursorMove {
+  0%, 100% { transform: translate(-62px, 14px); }
+  50% { transform: translate(62px, -14px); }
+}
+
+/* 标题流光 */
+.gradientTitle {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  background: linear-gradient(110deg, var(--sm-text-primary) 20%, var(--ambient-2) 40%, var(--ambient-1) 52%, var(--sm-text-primary) 72%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: titleFlow 3600ms linear infinite;
+}
+@keyframes titleFlow {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+/* 音频辉光 */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 12px;
+  background: var(--sm-bg-elevated);
+  animation: barGlow 1100ms ease-out infinite;
+}
+.bar .cover { flex-basis: 26px; height: 26px; }
+.play { flex: 0 0 18px; height: 18px; border-radius: 50%; background: var(--sm-text-primary); }
+@keyframes barGlow {
+  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--ambient-1) 20%, transparent); }
+  12% { box-shadow: 0 0 22px 2px color-mix(in srgb, var(--ambient-2) 55%, transparent); }
+  45% { box-shadow: 0 0 12px color-mix(in srgb, var(--ambient-1) 32%, transparent); }
+  58% { box-shadow: 0 0 18px 1px color-mix(in srgb, var(--ambient-2) 45%, transparent); }
+}
+
+/* 流体背景 / 鼠标跟随 */
+.fluid { position: absolute; inset: 0; filter: blur(16px); }
+.blobA, .blobB, .blobC { position: absolute; width: 90px; height: 90px; border-radius: 50%; opacity: 0.75; }
+.blobA { top: -20px; left: 20px; background: var(--ambient-1); animation: blobA 6000ms ease-in-out infinite; }
+.blobB { top: 20px; left: 110px; background: var(--ambient-2); animation: blobB 7000ms ease-in-out infinite; }
+.blobC { top: -10px; left: 170px; background: var(--ambient-3); animation: blobC 5000ms ease-in-out infinite; }
+@keyframes blobA { 50% { transform: translate(50px, 30px) scale(1.15); } }
+@keyframes blobB { 50% { transform: translate(-40px, -20px) scale(0.85); } }
+@keyframes blobC { 50% { transform: translate(-30px, 30px) scale(1.1); } }
+/* 跟随时整团流体随指针偏移，并稍稍落后于指针 */
+.fluid[data-follow='true'] { animation: fluidFollow 3200ms ease-in-out infinite; animation-delay: -200ms; }
+@keyframes fluidFollow {
+  0%, 100% { transform: translate(-22px, 6px); }
+  50% { transform: translate(22px, -6px); }
+}
+
+
+/* 页面转场：旧页淡出左移，新页上浮淡入 */
+.pages { position: relative; width: 150px; height: 70px; }
+.page {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: 8px;
+  background: var(--sm-bg-elevated);
+}
+.pageTitle { display: block; width: 46%; height: 7px; border-radius: 4px; background: var(--sm-text-faint); }
+.pageGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pageGrid i { display: block; height: 28px; border-radius: 5px; background: var(--sm-fill-active); }
+.pageIn .pageGrid i { background: var(--ambient-gradient); opacity: 0.7; }
+.pageOut { animation: pageOut 3200ms var(--sm-ease-out) infinite; }
+.pageIn { animation: pageIn 3200ms var(--sm-ease-out) infinite; }
+@keyframes pageOut {
+  0%, 30% { opacity: 1; transform: none; }
+  45%, 85% { opacity: 0; transform: translateX(-18px) scale(0.97); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes pageIn {
+  0%, 30% { opacity: 0; transform: translateY(12px); }
+  50%, 85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+
+/* 控件动效：开关滑块拉伸回弹 */
+.toggle { position: relative; width: 58px; height: 32px; border-radius: 16px; background: var(--sm-fill-active); animation: toggleTrack 2400ms ease-in-out infinite; }
+.toggleThumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--sm-text-primary);
+  transform-origin: center;
+  animation: toggleThumb 2400ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes toggleTrack {
+  0%, 40% { background: var(--sm-fill-active); }
+  50%, 90% { background: color-mix(in srgb, var(--sm-accent) 70%, transparent); }
+  100% { background: var(--sm-fill-active); }
+}
+@keyframes toggleThumb {
+  0%, 40% { transform: translateX(0) scaleX(1); }
+  46% { transform: translateX(10px) scaleX(1.35); }
+  55%, 90% { transform: translateX(26px) scaleX(1); }
+  95% { transform: translateX(14px) scaleX(1.35); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+/* 平滑滚动：列表缓动滚到目标行 */
+.scrollView { position: relative; width: 150px; height: 70px; overflow: hidden; border-radius: 6px; }
+.scrollList { display: grid; gap: 6px; animation: scrollGlide 3200ms cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+.scrollList i { display: block; height: 12px; border-radius: 4px; background: var(--sm-fill-active); }
+.scrollList i[data-target] { background: color-mix(in srgb, var(--sm-accent) 55%, transparent); }
+@keyframes scrollGlide {
+  0%, 20% { transform: translateY(0); }
+  60%, 85% { transform: translateY(-72px); }
+  100% { transform: translateY(0); }
+}
+
+/* 歌词换句：整列上移一行，当前行亮起 */
+.lineView { height: 72px; overflow: hidden; }
+.lineList { display: grid; justify-items: center; animation: lineStep 4800ms var(--sm-ease-out) infinite; }
+.lineList span { height: 24px; color: var(--sm-text-faint); font-size: 13px; font-weight: 650; line-height: 24px; animation: lineLit 4800ms var(--sm-ease-out) infinite; animation-delay: calc(var(--i) * 1200ms - 1200ms); }
+@keyframes lineStep {
+  0%, 20% { transform: translateY(24px); }
+  25%, 45% { transform: translateY(0); }
+  50%, 70% { transform: translateY(-24px); }
+  75%, 95% { transform: translateY(-48px); }
+  100% { transform: translateY(24px); }
+}
+@keyframes lineLit {
+  0%, 20% { color: var(--sm-text-faint); }
+  25%, 45% { color: var(--sm-text-primary); }
+  50%, 100% { color: var(--sm-text-faint); }
+}
+
+/* 指针：按压 / 悬停 / 拖拽三种示意共用，路径随 data-effect 变化 */
+.pointer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border: 1.5px solid var(--sm-text-primary);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sm-bg-base) 40%, transparent);
+}
+.pointer[data-effect='tapFeedbackMotion'] { animation: pointerTap 1800ms ease-in-out infinite; }
+.pointer[data-effect='hoverLiftMotion'] { animation: pointerHover 2800ms ease-in-out infinite; }
+.pointer[data-effect='dragMotion'] { animation: pointerDrag 2800ms ease-in-out infinite; }
+@keyframes pointerTap {
+  0%, 100% { transform: translate(30px, 22px); }
+  30%, 70% { transform: translate(10px, 4px); }
+  40%, 52% { transform: translate(10px, 4px) scale(0.7); }
+}
+@keyframes pointerHover {
+  0%, 100% { transform: translate(110px, 30px); }
+  35%, 70% { transform: translate(20px, 2px); }
+}
+@keyframes pointerDrag {
+  0%, 15% { transform: translate(40px, 0); }
+  55%, 80% { transform: translate(40px, 22px); }
+  100% { transform: translate(40px, 0); }
+}
+
+/* 按压回弹 */
+.tapButton {
+  padding: 8px 18px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-text-primary);
+  color: var(--sm-bg-base);
+  font-size: 12px;
+  font-weight: 650;
+  animation: tapPress 1800ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes tapPress {
+  0%, 38% { transform: scale(1); }
+  44%, 50% { transform: scale(0.92); }
+  62%, 100% { transform: scale(1); }
+}
+
+/* 悬停浮起 */
+.hoverLift { display: block; animation: hoverLift 2800ms var(--sm-ease-out) infinite; }
+@keyframes hoverLift {
+  0%, 25%, 85%, 100% { transform: none; filter: drop-shadow(0 0 0 transparent); }
+  40%, 70% { transform: translateY(-5px) scale(1.03); filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3)); }
+}
+
+/* 标签指示条 */
+.tabs { position: relative; display: grid; grid-template-columns: repeat(3, 52px); padding: 4px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); font-size: 12px; color: var(--sm-text-secondary); text-align: center; }
+.tabs > span:not(.tabPill) { position: relative; z-index: 1; line-height: 26px; }
+.tabPill { position: absolute; top: 4px; left: 4px; width: 52px; height: 26px; border-radius: 13px; background: var(--sm-fill-active); animation: tabSlide 3600ms cubic-bezier(0.34, 1.3, 0.64, 1) infinite; transform-origin: left center; }
+@keyframes tabSlide {
+  0%, 22% { transform: translateX(0) scaleX(1); }
+  28% { transform: translateX(20px) scaleX(1.3); }
+  36%, 55% { transform: translateX(52px) scaleX(1); }
+  61% { transform: translateX(72px) scaleX(1.3); }
+  69%, 88% { transform: translateX(104px) scaleX(1); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+/* 滑杆手感 */
+.slider { position: relative; width: 160px; height: 28px; }
+.sliderRail { position: absolute; top: 12px; left: 0; right: 0; height: 4px; overflow: hidden; border-radius: 2px; background: var(--sm-fill-active); animation: railStretch 3000ms ease-in-out infinite; }
+.sliderFill { display: block; height: 100%; width: 100%; background: var(--sm-text-primary); transform-origin: left; animation: sliderFill 3000ms ease-in-out infinite; }
+.sliderThumb { position: absolute; top: 7px; left: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--sm-text-primary); animation: sliderThumb 3000ms ease-in-out infinite; }
+.sliderBubble { position: absolute; bottom: 20px; left: 50%; width: 26px; height: 16px; margin-left: -13px; border-radius: 5px; background: var(--sm-fill-active); animation: sliderBubble 3000ms ease-in-out infinite; }
+@keyframes sliderFill { 0%, 10% { transform: scaleX(0.2); } 55%, 70% { transform: scaleX(0.8); } 100% { transform: scaleX(0.2); } }
+@keyframes sliderThumb { 0%, 10% { transform: translateX(32px); } 55%, 70% { transform: translateX(128px); } 100% { transform: translateX(32px); } }
+@keyframes railStretch { 0%, 10%, 70%, 100% { transform: scaleY(1); } 20%, 55% { transform: scaleY(1.8); } }
+@keyframes sliderBubble { 0%, 10%, 72%, 100% { opacity: 0; transform: translateY(4px) scale(0.8); } 20%, 60% { opacity: 1; transform: none; } }
+
+/* 拖拽手感 */
+.dragList { display: grid; gap: 6px; width: 150px; }
+.dragList i { display: block; height: 14px; border-radius: 5px; background: var(--sm-fill-active); }
+.dragList .dragRow { background: color-mix(in srgb, var(--sm-accent) 55%, transparent); animation: dragRow 2800ms ease-in-out infinite; }
+@keyframes dragRow {
+  0%, 15% { transform: none; box-shadow: none; }
+  25% { transform: translateY(-2px) rotate(-2deg) scale(1.04); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); }
+  55%, 80% { transform: translateY(20px) rotate(2deg) scale(1.04); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); }
+  100% { transform: none; box-shadow: none; }
+}
+
+/* 图标小动画：红心爆开 */
+.heart { position: relative; width: 34px; height: 34px; }
+.heart svg { width: 34px; height: 34px; fill: var(--ambient-2); animation: heartPop 2000ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite; }
+.heart i { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--ambient-2); opacity: 0; animation: heartBurst 2000ms ease-out infinite; }
+@keyframes heartPop { 0%, 30% { transform: scale(1); } 38% { transform: scale(0.7); } 50% { transform: scale(1.2); } 62%, 100% { transform: scale(1); } }
+@keyframes heartBurst {
+  0%, 40% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(0); }
+  45% { opacity: 1; }
+  75%, 100% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(-26px); }
+}

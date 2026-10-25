@@ -108,6 +108,3 @@ button, input, a, .no-drag {
   -webkit-app-region: no-drag;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; }
-}

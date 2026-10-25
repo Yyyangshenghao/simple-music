@@ -22,7 +22,7 @@ vi.mock('node:fs', async importOriginal => ({ ...await importOriginal<typeof imp
 vi.mock('../modules/window-manager', () => ({ getMainWindow: vi.fn(), setShortcutRecording: vi.fn() }))
 vi.mock('../modules/hotkey-manager', () => ({ configureHotkeys: vi.fn() }))
 vi.mock('../modules/settings-menu', () => ({ configureSettingsMenu: vi.fn() }))
-vi.mock('../modules/font-manager', () => ({ listSystemFonts: vi.fn() }))
+vi.mock('../modules/font-manager', () => ({ listSystemFontsCached: vi.fn() }))
 vi.mock('../modules/update-installer', () => ({ installUpdateWindows: h.installWindows, installUpdateMac: h.installMac }))
 
 describe('应用重启和更新退出', () => {

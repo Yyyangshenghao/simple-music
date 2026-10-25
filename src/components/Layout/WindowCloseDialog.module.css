@@ -1,33 +1,58 @@
 .dialog {
-  width: min(320px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   box-sizing: border-box;
   margin: auto;
-  padding: 20px;
+  padding: var(--sm-dialog-padding);
   overflow-y: auto;
   border: 1px solid var(--sm-border-strong);
-  border-radius: 16px;
-  background: var(--sm-bg-base);
+  border-radius: var(--sm-dialog-radius);
+  background: linear-gradient(145deg, var(--sm-fill-subtle), transparent 55%), var(--sm-bg-base);
   color: var(--sm-text-primary);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--sm-shadow);
 }
 
-.dialog::backdrop { background: rgba(0, 0, 0, 0.48); }
-.title { margin: 0 0 16px; font-size: 16px; font-weight: 600; line-height: 1.4; }
-.options { display: grid; margin: 0; padding: 0; min-width: 0; overflow: hidden; border: 1px solid var(--sm-border); border-radius: 10px; }
-.option { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 10px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; transition: background 140ms; }
-.option + .option { border-top: 1px solid var(--sm-border); }
-.option:has(input:checked) { background: var(--sm-fill-subtle); }
-.option:hover { background: var(--sm-bg-overlay); }
-.option input, .remember input { flex-shrink: 0; width: 14px; height: 14px; margin: 0; accent-color: var(--sm-accent); }
-.remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--sm-text-secondary); font-size: 12px; cursor: pointer; }
-.error { margin: 12px 0 0; color: var(--sm-color-error, var(--sm-text-primary)); font-size: 12px; line-height: 1.5; }
-.footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.footer button { min-width: 64px; height: 32px; padding: 0 16px; border: 1px solid var(--sm-border); border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer; }
-.cancel { color: var(--sm-text-secondary); background: var(--sm-fill-subtle); }
-.cancel:hover:not(:disabled) { color: var(--sm-text-primary); background: var(--sm-bg-overlay); }
-.confirm { color: var(--sm-bg-base); background: var(--sm-accent); }
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.48);
+  backdrop-filter: var(--glass-blur-base);
+}
+
+.title { margin: 0 0 20px; font-size: var(--sm-dialog-title-size); font-weight: 600; line-height: 1.4; }
+.options {
+  --jr-chip: var(--glass-bg-base);
+  --jr-edge: var(--glass-border-base);
+  --jr-active: linear-gradient(color-mix(in srgb, white 7%, transparent), transparent), var(--sm-fill-active);
+  --jr-active-text: var(--sm-text-primary);
+  --jr-active-edge: var(--glass-border-card);
+  --jr-active-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 22%, transparent),
+    0 1px 2px color-mix(in srgb, black 14%, transparent),
+    0 4px 12px -4px color-mix(in srgb, black 22%, transparent);
+  --jr-h: 36px;
+  --jr-font: 13px;
+}
+
+.remember { display: flex; align-items: center; gap: 8px; color: var(--sm-text-secondary); font-size: 12px; white-space: nowrap; cursor: pointer; }
+.remember:hover:not(:has(input:disabled)) { color: var(--sm-text-primary); }
+.rememberHint { margin: 6px 0 0 24px; color: var(--sm-text-secondary); font-size: 10px; line-height: 1.5; }
+
+.error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sm-color-danger) 8%, transparent);
+  color: var(--sm-color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.actions { display: flex; gap: 8px; margin-left: auto; }
+.actions button { min-width: 64px; height: var(--sm-dialog-action-height); padding: 0 16px; border: 0; border-radius: var(--sm-radius-pill); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out), opacity 160ms var(--sm-ease-out); }
+.cancel { color: var(--sm-text-secondary); background: transparent; }
+.cancel:hover:not(:disabled) { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+.actions .confirm { min-width: 88px; color: var(--sm-text-on-accent); background: var(--sm-accent); font-weight: 600; }
 .confirm:hover:not(:disabled) { opacity: 0.85; }
 .dialog button:focus-visible, .dialog input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
-.dialog button:disabled, .option:has(input:disabled), .remember:has(input:disabled) { opacity: 0.55; cursor: wait; }
-@media (prefers-reduced-motion: reduce) { .option { transition: none; } }
+.actions button:disabled, .remember:has(input:disabled) { opacity: 0.55; cursor: wait; }

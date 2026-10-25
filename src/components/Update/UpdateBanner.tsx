@@ -3,9 +3,12 @@ import { useUpdateStore } from '../../stores/update'
 import { springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
 import styles from './UpdateBanner.module.css'
+import { useFeedback, usePageTransition } from '../../hooks/useMotion'
 
 /** 顶部更新提示条：检测到新版本时出现，下载/安装走 job 状态机，用户可关闭并记住该版本不再提示。 */
 export function UpdateBanner() {
+  const pageTransition = usePageTransition()
+  const tap = useFeedback('tapFeedbackMotion')
   const info = useUpdateStore((s) => s.info)
   const job = useUpdateStore((s) => s.job)
   const downloading = useUpdateStore((s) => s.downloading)
@@ -49,7 +52,7 @@ export function UpdateBanner() {
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
-            transition={springGentle}
+            transition={pageTransition(springGentle)}
           >
             <div className={styles.text}>
               <span className={styles.title}>发现新版本 v{info.release.version}</span>
@@ -64,7 +67,7 @@ export function UpdateBanner() {
               <motion.button
                 className={styles.actionBtn}
                 onClick={handleAction}
-                whileTap={tapScale}
+                whileTap={tap(tapScale)}
                 transition={springSnappy}
                 disabled={(downloading && !ready && !errored) || installing}
               >

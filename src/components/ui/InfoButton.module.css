@@ -23,8 +23,7 @@
   cursor: pointer;
 }
 
-.infoButton:hover,
-.infoButton:focus-visible {
+.infoButton:hover {
   border-color: var(--sm-accent);
   color: var(--sm-accent);
   outline: none;
@@ -57,17 +56,12 @@
   transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
 }
 
-.infoWrap:hover .infoTooltip,
-.infoWrap:focus-within .infoTooltip {
+.infoTooltip[data-open='true'] {
   --text-reveal-open: 1;
   visibility: visible;
   opacity: 1;
   transform: translateY(0);
 }
 
-
 .infoTooltip[data-align='left'] { right: auto; left: 0; }
 
-@media (prefers-reduced-motion: reduce) {
-  .infoTooltip { transition: none; }
-}

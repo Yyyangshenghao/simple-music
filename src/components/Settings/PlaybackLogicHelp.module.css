@@ -90,6 +90,3 @@
   .notes { grid-template-columns: 1fr; gap: 14px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .detailsBody, .detailsTrigger svg { transition: none; }
-}

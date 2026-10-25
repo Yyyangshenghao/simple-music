@@ -3,7 +3,7 @@ import { parseAppleLyrics } from './apple-lyric-parser'
 import type { Track } from '../types/domain'
 import type { LyricsResult } from './lyrics-fetch'
 
-export async function fetchNativeAppleLyrics(track: Track, signal?: AbortSignal): Promise<LyricsResult | null> {
+export async function fetchNativeAppleLyrics(track: Track, signal?: AbortSignal, strict = false): Promise<LyricsResult | null> {
   try {
     const catalogId = String(track.catalogId ?? '')
     const id = catalogId || String(track.id)
@@ -13,5 +13,8 @@ export async function fetchNativeAppleLyrics(track: Track, signal?: AbortSignal)
     const parsed = parseAppleLyrics(data.ttml)
     if (!parsed.main.length) return null
     return { source: 'apple', ...parsed }
-  } catch { return null }
+  } catch (error) {
+    if (strict) throw error
+    return null
+  }
 }

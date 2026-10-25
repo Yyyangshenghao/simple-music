@@ -67,6 +67,16 @@ interface LiquidEtherProps {
   interactFpsCap?: number;
   /** 交互提帧的持续窗口(ms),每次交互事件都会刷新计时。 */
   interactBoostMs?: number;
+  /**
+   * 窗口失焦时暂停渲染。关闭后切到其他窗口仍继续跑(背景在副屏可见时有用);
+   * 最小化或页面隐藏始终暂停。
+   */
+  pauseOnBlur?: boolean;
+  /**
+   * 被详情页封面等完全遮住时暂停渲染，但保留模拟状态与 WebGL 上下文。
+   * 直接卸载会让返回时重建整个流体模拟，既慢又会闪一帧底色。
+   */
+  paused?: boolean;
 }
 
 export default function LiquidEther({
@@ -93,6 +103,8 @@ export default function LiquidEther({
   fpsCap = 0,
   interactFpsCap,
   interactBoostMs = 2000,
+  pauseOnBlur = true,
+  paused = false,
 }: LiquidEtherProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,6 +122,12 @@ export default function LiquidEther({
   interactFpsCapRef.current = interactFpsCap;
   const interactBoostMsRef = useRef(interactBoostMs);
   interactBoostMsRef.current = interactBoostMs;
+  // 同样走热更新:切换失焦暂停不能重建流体模拟与 WebGL 上下文
+  const pauseOnBlurRef = useRef(pauseOnBlur);
+  pauseOnBlurRef.current = pauseOnBlur;
+  // 遮挡暂停同样热更新：启动条件都从这里读，避免焦点/可见性事件把已遮挡的流体又拉起来
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1103,8 +1121,9 @@ export default function LiquidEther({
       autoDriver!: AutoDriver;
       lastUserInteraction: number;
       running = false;
-      // 窗口失焦（切到别的 App/窗口）时也要暂停：否则即使被完全挡住，全屏流体模拟仍会一直满帧跑，
+      // 窗口失焦（切到别的 App/窗口）时默认暂停：否则即使被完全挡住，全屏流体模拟仍会一直满帧跑，
       // 是 Electron 端风扇狂转的主因之一（Chromium 的 backgroundThrottling 在本项目里被全局关闭了）。
+      // 用户可关闭失焦暂停，把背景放在副屏时继续流动；最小化/隐藏仍会停。
       focused = typeof document !== 'undefined' ? document.hasFocus() : true;
 
       constructor(props: WebGLManager['props']) {
@@ -1149,17 +1168,17 @@ export default function LiquidEther({
         const hidden = document.hidden;
         if (hidden) {
           this.pause();
-        } else if (isVisibleRef.current && this.focused) {
+        } else if (!pausedRef.current && isVisibleRef.current && (this.focused || !pauseOnBlurRef.current)) {
           this.start();
         }
       };
       _onBlur = () => {
         this.focused = false;
-        this.pause();
+        if (pauseOnBlurRef.current) this.pause();
       };
       _onFocus = () => {
         this.focused = true;
-        if (!document.hidden && isVisibleRef.current) this.start();
+        if (!pausedRef.current && !document.hidden && isVisibleRef.current) this.start();
       };
       init() {
         this.props.$wrapper.prepend(Common.renderer!.domElement);
@@ -1265,7 +1284,7 @@ export default function LiquidEther({
     };
     applyOptionsFromProps();
 
-    if (webgl.focused) webgl.start();
+    if (!pausedRef.current && !document.hidden && (webgl.focused || !pauseOnBlurRef.current)) webgl.start();
 
     // IntersectionObserver to pause rendering when not visible
     const io = new IntersectionObserver(
@@ -1274,7 +1293,7 @@ export default function LiquidEther({
         const isVisible = entry.isIntersecting && entry.intersectionRatio > 0;
         isVisibleRef.current = isVisible;
         if (!webglRef.current) return;
-        if (isVisible && !document.hidden && webglRef.current.focused) {
+        if (!pausedRef.current && isVisible && !document.hidden && (webglRef.current.focused || !pauseOnBlurRef.current)) {
           webglRef.current.start();
         } else {
           webglRef.current.pause();
@@ -1339,6 +1358,16 @@ export default function LiquidEther({
   useEffect(() => {
     webglRef.current?.setPointerInteraction(pointerInteraction);
   }, [pointerInteraction]);
+
+  // 失焦暂停与遮挡暂停只同步运行状态，不重建流体：
+  // 关掉失焦暂停后即便窗口已失焦也立即续跑；被封面遮住时停帧并在揭开后接着画。
+  useEffect(() => {
+    const webgl = webglRef.current;
+    if (!webgl || document.hidden || !isVisibleRef.current) return;
+    if (paused) webgl.pause();
+    else if (webgl.focused || !pauseOnBlur) webgl.start();
+    else webgl.pause();
+  }, [pauseOnBlur, paused]);
 
   // colors 变化：补间旧→新调色板并热替换 palette uniform，避免重建整个模拟
   useEffect(() => {

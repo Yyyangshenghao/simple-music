@@ -1,0 +1,54 @@
+/* 柔焦换歌词风格（见 lib/soft-focus-swap.ts）：时长与 SOFT_FOCUS_OUT_MS / SOFT_FOCUS_IN_MS 一致。
+   平时不挂 filter，只在过渡期间临时模糊整块画布。 */
+.stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  transition:
+    filter 420ms var(--sm-ease-out),
+    transform 420ms var(--sm-ease-out),
+    opacity 420ms var(--sm-ease-out);
+}
+
+/* 放大 5% 让模糊后的透明边缘落到视口外，不露出羽化边 */
+.stage[data-phase='out'],
+.stage[data-phase='wait'] {
+  filter: blur(12px);
+  transform: scale(1.05);
+  opacity: 0.4;
+  transition-duration: 220ms;
+  transition-timing-function: var(--sm-ease-in-out);
+}
+
+/* 分镜取景框：避开顶部控件与底部播放栏，四角细框线 + 场记号。
+   属于画面本身（像遮幅），沉浸模式下不随控件淡出。 */
+.viewfinder {
+  position: absolute;
+  inset: 96px 6% 156px;
+  pointer-events: none;
+  color: var(--sm-text-secondary);
+}
+
+.corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 0 solid currentColor;
+  opacity: 0.7;
+}
+
+.cornerTl { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+.cornerTr { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+.cornerBl { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.cornerBr { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+.slate {
+  position: absolute;
+  top: 10px;
+  left: 40px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}

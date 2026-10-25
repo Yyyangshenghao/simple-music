@@ -58,9 +58,9 @@ const colors = ['#5227FF', '#FF9FFC']
 let now = 0
 let nextFrame = 0
 
-function render(pointerInteraction?: boolean, autoDemo = true) {
+function render(pointerInteraction?: boolean, autoDemo = true, pauseOnBlur?: boolean, paused?: boolean) {
   h.refIndex = h.effectIndex = 0
-  LiquidEther({ pointerInteraction, colors, autoDemo, fpsCap: 20, interactFpsCap: 60, autoResumeDelay: 2000 })
+  LiquidEther({ pointerInteraction, colors, autoDemo, fpsCap: 20, interactFpsCap: 60, autoResumeDelay: 2000, pauseOnBlur, paused })
   h.pending.splice(0).forEach((effect) => effect())
 }
 
@@ -169,5 +169,36 @@ describe('流体鼠标跟随解耦', () => {
     expect(listeners.size).toBe(0)
     expect(documentListeners.size).toBe(0)
     expect(frames.size).toBe(0)
+  })
+
+  it('失焦是否停帧可热切换，关闭后切走窗口仍继续渲染', () => {
+    render(undefined, true, false)
+    const doc = document as unknown as { hasFocus: () => boolean }
+    doc.hasFocus = () => false
+    listeners.get('blur')?.({} as Event)
+    expect(frames.size).toBe(1)
+    const count = h.forces.length
+    frame(100)
+    frame(300)
+    expect(h.forces.length).toBeGreaterThan(count)
+
+    // 打开失焦暂停后，不等新的焦点事件就立即停帧。
+    render(undefined, true, true)
+    expect(frames.size).toBe(0)
+  })
+
+  it('被详情页封面遮挡时停帧，揭开后接着画且不重建流体', () => {
+    render(undefined, true, true, false)
+    expect(frames.size).toBe(1)
+
+    // 遮挡期间即便重新获得焦点也不能把已经看不见的流体拉起来。
+    render(undefined, true, true, true)
+    expect(frames.size).toBe(0)
+    listeners.get('focus')?.({} as Event)
+    expect(frames.size).toBe(0)
+
+    render(undefined, true, true, false)
+    expect(frames.size).toBe(1)
+    expect(h.rendererCount).toBe(1)
   })
 })

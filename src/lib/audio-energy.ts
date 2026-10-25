@@ -56,6 +56,24 @@ function averageRange(data: Uint8Array | number[], start: number, end: number): 
   return sum / (to - from) / 255
 }
 
+/**
+ * 按对数刻度压成 `count` 段（0–1），供 Wallpaper Engine 的 64 段频谱接口使用。
+ * 线性切分会把绝大多数段堆在几乎无内容的高频，低频只有一两段，观感上像没反应。
+ */
+export function logBandsFrom(data: Uint8Array | number[], count = 64): Float32Array {
+  const result = new Float32Array(count)
+  if (!data.length || count <= 0) return result
+  const maxBin = Math.min(data.length, 1024)
+  for (let i = 0; i < count; i++) {
+    const start = Math.max(0, Math.floor(Math.pow(maxBin, i / count)) - 1)
+    const end = Math.min(data.length, Math.max(start + 1, Math.floor(Math.pow(maxBin, (i + 1) / count))))
+    let sum = 0
+    for (let j = start; j < end; j++) sum += data[j]
+    result[i] = sum / (end - start) / 255
+  }
+  return result
+}
+
 /** 把频谱数据切成 7 段能量 + 整体能量，供 CoverParticleCloud 的逐粒子径向弹跳使用。 */
 export function bandEnergiesFrom(data: Uint8Array | number[]): BandEnergies {
   return {

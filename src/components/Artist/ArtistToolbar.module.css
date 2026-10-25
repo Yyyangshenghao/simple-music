@@ -49,6 +49,3 @@
 
 .layer[data-artist-toolbar-pinned='true']::before { opacity: 1; }
 
-@media (prefers-reduced-motion: reduce) {
-  .layer::before { transition: none; }
-}

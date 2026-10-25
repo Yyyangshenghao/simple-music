@@ -1,0 +1,24 @@
+{
+  "environment": "Isolated Electron dev, mocked platform data",
+  "layout": {
+    "scrollTop": 0,
+    "header": {
+      "top": 106,
+      "bottom": 346
+    },
+    "toolbar": {
+      "top": 346,
+      "bottom": 403
+    },
+    "firstRow": {
+      "top": 403,
+      "bottom": 459
+    },
+    "pinned": "false"
+  },
+  "intro": {
+    "x": 654.078125,
+    "width": 640
+  },
+  "ok": true
+}

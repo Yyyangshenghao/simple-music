@@ -1,0 +1,834 @@
+{
+  "generatedAt": "2026-10-23T10:48:24.709Z",
+  "environment": "Headless installed Chrome, real React App + CSS, mocked services, no Electron preload or audio runtime",
+  "results": [
+    {
+      "phase": "before",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "variant": "normal",
+      "file": "before-normal--light-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 45,
+          "right": 342.1,
+          "bottom": 195.5
+        },
+        "info": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 151,
+          "right": 342.1,
+          "bottom": 301.5
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 150.5,
+          "width": 296,
+          "height": 151,
+          "right": 342.1,
+          "bottom": 301.5
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "description": {
+          "x": 390.1,
+          "y": 138,
+          "width": 640,
+          "height": 176,
+          "right": 1030.1,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 346,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 403
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "variant": "normal",
+      "file": "after-normal--light-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 45,
+          "right": 342.1,
+          "bottom": 195.5
+        },
+        "info": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 151,
+          "right": 342.1,
+          "bottom": 301.5
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 150.5,
+          "width": 755.9,
+          "height": 151,
+          "right": 802,
+          "bottom": 301.5
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "description": {
+          "x": 850,
+          "y": 138,
+          "width": 629.9,
+          "height": 176,
+          "right": 1479.9,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 346,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 403
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": {
+        "top": 60,
+        "total": 243,
+        "height": 132
+      },
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "dark",
+      "width": 1536,
+      "height": 864,
+      "variant": "normal",
+      "file": "after-normal--dark-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 45,
+          "right": 342.1,
+          "bottom": 195.5
+        },
+        "info": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 151,
+          "right": 342.1,
+          "bottom": 301.5
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 150.5,
+          "width": 755.9,
+          "height": 151,
+          "right": 802,
+          "bottom": 301.5
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "description": {
+          "x": 850,
+          "y": 138,
+          "width": 629.9,
+          "height": 176,
+          "right": 1479.9,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 346,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 403
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": {
+        "top": 60,
+        "total": 243,
+        "height": 132
+      },
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "before",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "variant": "long",
+      "file": "before-long--light-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 138,
+          "width": 252,
+          "height": 180,
+          "right": 466.1,
+          "bottom": 318
+        },
+        "info": {
+          "x": 214.1,
+          "y": 138,
+          "width": 252,
+          "height": 286,
+          "right": 466.1,
+          "bottom": 424
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 138,
+          "width": 420,
+          "height": 286,
+          "right": 466.1,
+          "bottom": 424
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 350,
+          "right": 1526,
+          "bottom": 456
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 350,
+          "right": 1526,
+          "bottom": 456
+        },
+        "description": {
+          "x": 514.1,
+          "y": 138,
+          "width": 640,
+          "height": 176,
+          "right": 1154.1,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 456,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 513
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "variant": "long",
+      "file": "after-long--light-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 138,
+          "width": 587.9,
+          "height": 90,
+          "right": 802,
+          "bottom": 228
+        },
+        "info": {
+          "x": 214.1,
+          "y": 138,
+          "width": 587.9,
+          "height": 196,
+          "right": 802,
+          "bottom": 334
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 138,
+          "width": 755.9,
+          "height": 196,
+          "right": 802,
+          "bottom": 334
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 260,
+          "right": 1526,
+          "bottom": 366
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 260,
+          "right": 1526,
+          "bottom": 366
+        },
+        "description": {
+          "x": 850,
+          "y": 138,
+          "width": 629.9,
+          "height": 176,
+          "right": 1479.9,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 366,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 423
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "variant": "normal",
+      "file": "after-normal--light-960x540.png",
+      "geometry": {
+        "heading": {
+          "x": 160.8,
+          "y": 130,
+          "width": 128,
+          "height": 45,
+          "right": 288.8,
+          "bottom": 175
+        },
+        "info": {
+          "x": 160.8,
+          "y": 130,
+          "width": 128,
+          "height": 151,
+          "right": 288.8,
+          "bottom": 281
+        },
+        "identity": {
+          "x": 28.8,
+          "y": 130,
+          "width": 892.4,
+          "height": 151,
+          "right": 921.2,
+          "bottom": 281
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 399,
+          "right": 950,
+          "bottom": 505
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 399,
+          "right": 950,
+          "bottom": 505
+        },
+        "description": {
+          "x": 28.8,
+          "y": 305,
+          "width": 892.4,
+          "height": 176,
+          "right": 921.2,
+          "bottom": 481
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 505,
+          "width": 960,
+          "height": 57,
+          "right": 960,
+          "bottom": 562
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 960,
+      "height": 540,
+      "variant": "long",
+      "file": "after-long--light-960x540.png",
+      "geometry": {
+        "heading": {
+          "x": 160.8,
+          "y": 130,
+          "width": 760.4,
+          "height": 90,
+          "right": 921.2,
+          "bottom": 220
+        },
+        "info": {
+          "x": 160.8,
+          "y": 130,
+          "width": 760.4,
+          "height": 196,
+          "right": 921.2,
+          "bottom": 326
+        },
+        "identity": {
+          "x": 28.8,
+          "y": 130,
+          "width": 892.4,
+          "height": 196,
+          "right": 921.2,
+          "bottom": 326
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 444,
+          "right": 950,
+          "bottom": 550
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 444,
+          "right": 950,
+          "bottom": 550
+        },
+        "description": {
+          "x": 28.8,
+          "y": 350,
+          "width": 892.4,
+          "height": 176,
+          "right": 921.2,
+          "bottom": 526
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 550,
+          "width": 960,
+          "height": 57,
+          "right": 960,
+          "bottom": 607
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": 180,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "dark",
+      "width": 960,
+      "height": 540,
+      "variant": "long",
+      "file": "after-long--dark-960x540.png",
+      "geometry": {
+        "heading": {
+          "x": 160.8,
+          "y": 130,
+          "width": 760.4,
+          "height": 90,
+          "right": 921.2,
+          "bottom": 220
+        },
+        "info": {
+          "x": 160.8,
+          "y": 130,
+          "width": 760.4,
+          "height": 196,
+          "right": 921.2,
+          "bottom": 326
+        },
+        "identity": {
+          "x": 28.8,
+          "y": 130,
+          "width": 892.4,
+          "height": 196,
+          "right": 921.2,
+          "bottom": 326
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 444,
+          "right": 950,
+          "bottom": 550
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 950,
+          "height": 444,
+          "right": 950,
+          "bottom": 550
+        },
+        "description": {
+          "x": 28.8,
+          "y": 350,
+          "width": 892.4,
+          "height": 176,
+          "right": 921.2,
+          "bottom": 526
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 550,
+          "width": 960,
+          "height": 57,
+          "right": 960,
+          "bottom": 607
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 1025,
+      "height": 768,
+      "variant": "long",
+      "file": "after-long--light-1025x768.png",
+      "geometry": {
+        "heading": {
+          "x": 198.8,
+          "y": 138,
+          "width": 325.9,
+          "height": 135,
+          "right": 524.7,
+          "bottom": 273
+        },
+        "info": {
+          "x": 198.8,
+          "y": 138,
+          "width": 325.9,
+          "height": 241,
+          "right": 524.7,
+          "bottom": 379
+        },
+        "identity": {
+          "x": 30.8,
+          "y": 138,
+          "width": 493.9,
+          "height": 241,
+          "right": 524.7,
+          "bottom": 379
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1015,
+          "height": 305,
+          "right": 1015,
+          "bottom": 411
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1015,
+          "height": 305,
+          "right": 1015,
+          "bottom": 411
+        },
+        "description": {
+          "x": 572.7,
+          "y": 138,
+          "width": 411.6,
+          "height": 176,
+          "right": 984.3,
+          "bottom": 314
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 411,
+          "width": 1025,
+          "height": 57,
+          "right": 1025,
+          "bottom": 468
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 1024,
+      "height": 768,
+      "variant": "long",
+      "file": "after-long--light-1024x768.png",
+      "geometry": {
+        "heading": {
+          "x": 162.7,
+          "y": 130,
+          "width": 762.2,
+          "height": 45,
+          "right": 924.9,
+          "bottom": 175
+        },
+        "info": {
+          "x": 162.7,
+          "y": 130,
+          "width": 762.2,
+          "height": 151,
+          "right": 924.9,
+          "bottom": 281
+        },
+        "identity": {
+          "x": 30.7,
+          "y": 130,
+          "width": 952.6,
+          "height": 151,
+          "right": 983.3,
+          "bottom": 281
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1014,
+          "height": 399,
+          "right": 1014,
+          "bottom": 505
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1014,
+          "height": 399,
+          "right": 1014,
+          "bottom": 505
+        },
+        "description": {
+          "x": 30.7,
+          "y": 305,
+          "width": 952.6,
+          "height": 176,
+          "right": 983.3,
+          "bottom": 481
+        },
+        "toolbar": {
+          "x": 0,
+          "y": 505,
+          "width": 1024,
+          "height": 57,
+          "right": 1024,
+          "bottom": 562
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    },
+    {
+      "phase": "after",
+      "theme": "light",
+      "width": 1536,
+      "height": 864,
+      "variant": "no-description",
+      "file": "after-no-description--light-1536x864.png",
+      "geometry": {
+        "heading": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 45,
+          "right": 342.1,
+          "bottom": 195.5
+        },
+        "info": {
+          "x": 214.1,
+          "y": 150.5,
+          "width": 128,
+          "height": 151,
+          "right": 342.1,
+          "bottom": 301.5
+        },
+        "identity": {
+          "x": 46.1,
+          "y": 150.5,
+          "width": 1433.8,
+          "height": 151,
+          "right": 1479.9,
+          "bottom": 301.5
+        },
+        "content": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "header": {
+          "x": 0,
+          "y": 106,
+          "width": 1526,
+          "height": 240,
+          "right": 1526,
+          "bottom": 346
+        },
+        "description": null,
+        "toolbar": {
+          "x": 0,
+          "y": 346,
+          "width": 1536,
+          "height": 57,
+          "right": 1536,
+          "bottom": 403
+        },
+        "overflow": false,
+        "headingOverflow": false,
+        "fontSize": "32px",
+        "pinned": "false"
+      },
+      "expandedScroll": null,
+      "scrolledDescription": null,
+      "errors": [],
+      "ok": true
+    }
+  ],
+  "implementer": "Codex (user authorized direct implementation)",
+  "branch": "feature/ui-visual-alignment-2.4.1",
+  "changedSourceFiles": [
+    "src/components/Artist/ArtistHeader.module.css"
+  ],
+  "sourceSha256": "2c54aa2ea3e8e2f3c3f7adacabb22531cc432aa08c5f618133a346bbf2641cb2",
+  "existingUnitTests": {
+    "file": "src/components/Artist/ArtistHeader.test.tsx",
+    "passed": 2
+  },
+  "layoutScan": [],
+  "diffCheck": "passed",
+  "status": "passed; native Electron/Windows not verified; previous repeated-navigation probe unresolved"
+}

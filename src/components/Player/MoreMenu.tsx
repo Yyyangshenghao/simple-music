@@ -2,18 +2,24 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
-import { useGameModeStore } from '../../stores/game-mode'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
-import { fetchTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
+import { loadTrackQualities, peekTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
 import type { AudioQuality } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
 import { SourceName } from '../ui/SourceName'
+import { SwitchIndicator } from '../ui/Switch'
+import { JellyRadio } from '../ui/JellyRadio'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
+import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
+import { useLyricsSourceStore } from '../../stores/lyrics-source'
+import { useLyricsStore } from '../../stores/lyrics'
+import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
+import { useMotion } from '../../hooks/useMotion'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -22,9 +28,9 @@ const QUALITY_LABELS: Record<AudioQuality, string> = {
   exhigh: '极高',
   lossless: '无损',
   hires: '臻音',
-  jyeffect: '鲸云',
-  sky: '环绕',
-  jymaster: '母带',
+  jyeffect: '鲸云音效',
+  sky: '沉浸环绕声',
+  jymaster: '超清母带',
   aac: 'AAC',
   max: '最高'
 }
@@ -46,27 +52,6 @@ function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-function GameModeSection() {
-  const enabled = useGameModeStore((s) => s.enabled)
-  return (
-    <section className={styles.section}>
-      <button type="button" className={`${styles.optionRow} ${styles.gameModeRow}`} role="switch"
-        aria-label="游戏模式" aria-checked={enabled} data-on={enabled}
-        onClick={() => void useGameModeStore.getState().configure({ enabled: !enabled })}>
-        <svg className={styles.gameModeIcon} viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M7 7h10c2 0 3 2 3.5 5l.5 4c.3 2-2 3-3.3 1.5L15 15H9l-2.7 2.5C5 19 2.7 18 3 16l.5-4C4 9 5 7 7 7Z" />
-          <path d="M7 10v4m-2-2h4m7-1h.01m2 2h.01" />
-        </svg>
-        <span className={styles.gameModeCopy}>
-          <span className={styles.sectionTitle}>游戏模式</span>
-          <span className={styles.tip}>后台播放，可从托盘返回</span>
-        </span>
-        <span className={styles.optionState} aria-hidden="true" />
-      </button>
-    </section>
-  )
 }
 
 /** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
@@ -115,23 +100,20 @@ function PlaybackSourceSection() {
       {isProviderId(currentTrack.source) && currentTrack.source !== 'apple' && participants.length > 0 && (
         <div className={styles.sourcePreference}>
           <span className={styles.tip}>本次优先</span>
-          <div className={styles.sourceChoices}>
-            {participants.map((source) => (
-              <button
-                key={source}
-                type="button"
-                className={styles.chip}
-                data-on={actualSource === source}
-                aria-pressed={actualSource === source}
-                aria-label={`本次优先使用${SOURCE_BRAND[source].label}`}
-                onClick={() => preferSourceOnce(source)}
-                title={`当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`}
-              >
-                <SourceBadge source={source} compact reveal />
-                <SourceName source={source} />
-              </button>
-            ))}
-          </div>
+          <JellyRadio
+            size="sm"
+            block
+            ariaLabel="本次优先使用的平台"
+            value={participants.find((source) => source === actualSource) ?? null}
+            onChange={preferSourceOnce}
+            items={participants.map((source) => ({
+              value: source,
+              icon: <SourceBadge source={source} compact reveal />,
+              label: <SourceName source={source} />,
+              ariaLabel: `本次优先使用${SOURCE_BRAND[source].label}`,
+              title: `当前曲目优先使用${SOURCE_BRAND[source].label}，失败后仍按设置降级`,
+            }))}
+          />
         </div>
       )}
     </section>
@@ -204,8 +186,8 @@ function QualitySection({ open }: { open: boolean }) {
     const source = state.byId[qualityTrack.source]
     return source.enabled && source.auth === 'authenticated'
   })
-  // null = 检测中;[] = 无可选档(本地音乐/探测失败)
-  const [options, setOptions] = useState<TrackQualityOption[] | null>(null)
+  // null = 检测中;[] = 无可选档(本地音乐/探测失败)。换曲时已预取过的直接用缓存
+  const [options, setOptions] = useState<TrackQualityOption[] | null>(() => qualityTrack ? peekTrackQualities(qualityTrack) ?? null : null)
   const fetchSession = useRef(0)
 
   const trackKey = qualityTrack ? `${qualityTrack.source}:${String(qualityTrack.mid ?? qualityTrack.id ?? '')}` : ''
@@ -214,14 +196,14 @@ function QualitySection({ open }: { open: boolean }) {
   useEffect(() => {
     if (!open) return
     const session = ++fetchSession.current
-    setOptions(null)
     const player = usePlayerStore.getState()
     const track = player.resolvedTrack ?? player.currentTrack
     if (!track || !currentSourceParticipating) {
       setOptions([])
       return
     }
-    fetchTrackQualities(track)
+    setOptions(peekTrackQualities(track) ?? null)
+    loadTrackQualities(track)
       .then((list) => {
         if (session === fetchSession.current) setOptions(list)
       })
@@ -245,7 +227,7 @@ function QualitySection({ open }: { open: boolean }) {
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>音质</span>
         <span className={styles.sectionStatus} title={currentQuality ?? QUALITY_LABELS[quality]}>
-          {currentQuality ? `当前 · ${currentQuality}` : QUALITY_LABELS[quality]}
+          {currentQuality ? `当前 · ${QUALITY_LABELS[currentQuality as AudioQuality] ?? currentQuality}` : QUALITY_LABELS[quality]}
         </span>
       </div>
       <div className={styles.qualityChips}>
@@ -255,7 +237,7 @@ function QualitySection({ open }: { open: boolean }) {
           data-on={quality === 'max'}
           aria-pressed={quality === 'max'}
           onClick={() => setQuality('max')}
-          title="自动取本曲最高档"
+          title="自动取本曲最高保真档：超清母带、高清臻音或无损，不含环绕声和鲸云音效"
         >
           最高
         </button>
@@ -288,19 +270,19 @@ function RateSection() {
   const rate = usePlayerStore((s) => s.rate)
   const setRate = usePlayerStore((s) => s.setRate)
   return (
-    <section className={styles.section}>
+    <div className={styles.subSection}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>倍速</span>
-        <span className={styles.sectionStatus}>{rate}x</span>
       </div>
-      <div className={styles.rateChips}>
-        {RATE_OPTIONS.map((r) => (
-          <button key={r} type="button" className={styles.chip} data-on={rate === r} aria-pressed={rate === r} onClick={() => setRate(r)}>
-            {r}x
-          </button>
-        ))}
-      </div>
-    </section>
+      <JellyRadio
+        size="sm"
+        block
+        ariaLabel="倍速"
+        value={String(rate)}
+        onChange={(v) => setRate(Number(v))}
+        items={RATE_OPTIONS.map((r) => ({ value: String(r), label: `${r}x` }))}
+      />
+    </div>
   )
 }
 
@@ -309,7 +291,7 @@ function SleepSection() {
   const phase = useSleepTimerStore((s) => s.phase)
   const remainingSec = useSleepTimerStore((s) => s.remainingSec)
   const finishTrack = useSleepTimerStore((s) => s.finishTrack)
-  const active = phase !== 'idle'
+  const minutes = useSleepTimerStore((s) => s.minutes)
 
   const statusText =
     phase === 'counting'
@@ -319,53 +301,115 @@ function SleepSection() {
         : '未开启'
 
   return (
-    <section className={styles.section}>
+    <div className={styles.subSection}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>定时关闭</span>
         <span className={styles.sectionStatus}>{statusText}</span>
       </div>
-      <div className={styles.sleepChips}>
-        {SLEEP_PRESETS.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={styles.chip}
-            onClick={() => useSleepTimerStore.getState().start(m)}
-          >
-            {m} 分
-          </button>
-        ))}
-        {active && (
-          <button type="button" className={styles.chip} onClick={() => useSleepTimerStore.getState().cancel()}>
-            取消
-          </button>
-        )}
-      </div>
+      <JellyRadio
+        size="sm"
+        block
+        ariaLabel="定时关闭时长"
+        value={phase === 'idle' ? 'off' : String(minutes)}
+        onChange={(v) => {
+          if (v === 'off') useSleepTimerStore.getState().cancel()
+          else useSleepTimerStore.getState().start(Number(v))
+        }}
+        items={[{ value: 'off', label: '关' }, ...SLEEP_PRESETS.map((m) => ({ value: String(m), label: `${m} 分` }))]}
+      />
       <button
         type="button"
-        className={styles.optionRow}
+        className={`${styles.optionRow} ${styles.subRow}`}
         role="switch"
         aria-checked={finishTrack}
         data-on={finishTrack}
         onClick={() => useSleepTimerStore.getState().setFinishTrack(!finishTrack)}
       >
         <span>到点后播完当前曲</span>
-        <span className={styles.optionState} aria-hidden="true" />
+        <SwitchIndicator checked={finishTrack} />
       </button>
+    </div>
+  )
+}
+
+/** 换曲后延迟预取实际播放源的音质档位，打开「更多」时直接显示；快速切歌时只取最后停下的那首。 */
+const QUALITY_PREFETCH_DELAY_MS = 1200
+
+function useQualityPrefetch() {
+  const track = usePlayerStore((s) => s.resolvedTrack ?? s.currentTrack)
+  const participating = useProviderStore((state) => {
+    if (!track || !isProviderId(track.source)) return false
+    const source = state.byId[track.source]
+    return source.enabled && source.auth === 'authenticated'
+  })
+  useEffect(() => {
+    if (!track || !participating || (track.source !== 'netease' && track.source !== 'qq') || peekTrackQualities(track)) return
+    const timer = window.setTimeout(() => { void loadTrackQualities(track).catch(() => {}) }, QUALITY_PREFETCH_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [track, participating])
+}
+
+/** 低频的倍速与定时关闭：默认收起放在最底部，收起时标题旁概括当前生效的设置。 */
+function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; onToggle(): void; showRate: boolean }) {
+  const rate = usePlayerStore((s) => s.rate)
+  const phase = useSleepTimerStore((s) => s.phase)
+  const remainingSec = useSleepTimerStore((s) => s.remainingSec)
+  const summary = [
+    showRate && rate !== 1 ? `${rate}x` : null,
+    phase === 'counting' ? `${formatCountdown(remainingSec)} 后停止` : phase === 'finishing-track' ? '播完当前曲后停止' : null,
+  ].filter(Boolean).join(' · ')
+  const reducedMotion = !useMotion('pageTransitionMotion')
+  return (
+    <section className={styles.section}>
+      <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} aria-expanded={expanded} onClick={onToggle}>
+        <span className={styles.sectionTitle}>{showRate ? '倍速与定时关闭' : '定时关闭'}</span>
+        <span className={styles.extrasSummary}>
+          {!expanded && summary && <span className={styles.sectionStatus}>{summary}</span>}
+          <svg className={styles.chevron} data-open={expanded} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            className={styles.extrasBody}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={reducedMotion ? { duration: 0 } : springGentle}
+          >
+            {showRate && <RateSection />}
+            <SleepSection />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }
 
-/** 「更多」菜单:整合游戏模式与播放设置，给播放栏右侧腾出空间。 */
+/** 「更多」菜单:整合播放设置，给播放栏右侧腾出空间。游戏模式入口在托盘菜单与全局快捷键。 */
 export function MoreMenu() {
   const [open, setOpen] = useState(false)
+  // 低频项默认收起；本次运行内记住展开状态
+  const [extrasOpen, setExtrasOpen] = useState(false)
+  useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
+  const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
+  const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
+  const lyricsLoading = useLyricsStore((s) => s.loading)
+  const appliedOrigin = useLyricsSourceStore((s) => s.appliedOrigin)
+  const lyricsSourceLabel = lyricsLoading ? '正在加载…'
+    : lyricsTrackKey === trackKey && appliedOrigin ? LYRIC_SOURCE_LABELS[appliedOrigin] : '暂无歌词'
+  const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
   const hasActive = rate !== 1 || sleepPhase !== 'idle'
+
+  useEffect(() => { if (lyricsSourceOpen) setOpen(false) }, [lyricsSourceOpen])
 
   function closeMenu() {
     setOpen(false)
@@ -397,7 +441,7 @@ export function MoreMenu() {
         className={`${styles.toggleBtn} no-drag`}
         data-active={open || hasActive}
         onClick={() => setOpen((v) => !v)}
-        title="更多:游戏模式 / 来源 / 离线 / 音质 / 倍速 / 定时关闭"
+        data-tip="更多：音质、倍速、定时关闭等"
         aria-label="更多"
         aria-expanded={open}
         whileTap={tapScale}
@@ -427,12 +471,21 @@ export function MoreMenu() {
               </button>
             </div>
             <div className={styles.content}>
-              <GameModeSection />
+              <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
-              <QualitySection open={open} />
-              {!apple && <RateSection />}
-              <SleepSection />
+              {trackKey && <section className={styles.section}>
+                <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
+                  <span className={styles.sectionTitle}>歌词来源</span>
+                  <span className={styles.extrasSummary}>
+                    <span className={styles.sectionStatus} title={lyricsSourceLabel}>{lyricsSourceLabel}</span>
+                    <svg className={styles.chevron} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
+                  </span>
+                </button>
+              </section>}
+              <ExtrasSection expanded={extrasOpen} onToggle={() => setExtrasOpen((v) => !v)} showRate={!apple} />
             </div>
           </motion.div>
         )}

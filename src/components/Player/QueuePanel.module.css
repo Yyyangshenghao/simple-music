@@ -105,8 +105,85 @@
   background: var(--sm-bg-elevated);
 }
 
-.row[data-drag-over='true'] {
-  box-shadow: inset 0 0 0 1px var(--sm-accent);
+/* 指针拖动排序（参考 React Bits Shredder）：其余行平滑让位，被拖行留下空位 */
+.row { touch-action: none; user-select: none; }
+.row[data-reordering] { transition: transform 220ms var(--sm-ease-out); }
+.row[data-reordering]:hover { background: transparent; }
+.row[data-drag-placeholder] { opacity: 0; }
+
+.dragGhost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.dragGhost:empty { display: none; }
+
+.dragGhost > .row {
+  background: var(--sm-bg-elevated);
+  box-shadow: var(--sm-shadow), inset 0 0 0 1px var(--sm-border);
+  cursor: grabbing;
+}
+
+/* 碎纸口：拖动时从面板右缘浮出一道竖缝，悬停其上时缝隙亮起；浮在列表上，不改变列表高度 */
+.shredSlot {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  bottom: 12px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 44px;
+  padding-right: 8px;
+  justify-content: flex-end;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--sm-bg-base) 92%, transparent) 40%);
+}
+
+.shredSlit {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--sm-text-primary) 18%, transparent);
+  transition: background-color 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out);
+}
+
+.shredSlot[data-over] .shredSlit {
+  background: var(--sm-color-danger);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--sm-color-danger) 55%, transparent);
+}
+
+.shredSlot[data-blocked] .shredSlit { background: color-mix(in srgb, var(--sm-text-primary) 8%, transparent); box-shadow: none; }
+
+.shredHint {
+  order: -1;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+}
+
+.shredSlot[data-over]:not([data-blocked]) .shredHint { color: var(--sm-color-danger); }
+
+.shred {
+  position: absolute;
+  z-index: 11;
+  pointer-events: none;
+}
+
+.shredStrip {
+  position: absolute;
+  inset: 0;
+}
+
+.shredStrip > .row {
+  background: var(--sm-bg-elevated);
 }
 
 .rowMain {
@@ -142,13 +219,50 @@
   color: var(--sm-text-primary);
 }
 
+/* 行按钮悬停动效：下一首的三角向前轻推、引线收短；移除的叉号转四分之一圈 */
+.rowAction svg { display: block; margin: 0 auto; }
+.playNextTriangle,
+.playNextLead,
+.removeIcon {
+  transition: transform 220ms var(--sm-ease-out);
+  transform-box: fill-box;
+}
+.playNextLead { transform-origin: right center; }
+.rowAction:hover:not(:disabled) .playNextTriangle { transform: translateX(2px); }
+.rowAction:hover:not(:disabled) .playNextLead { transform: scaleX(0.7); }
+.rowAction:hover:not(:disabled) .removeIcon { transform: rotate(90deg); }
+.rowAction:active:not(:disabled) svg { transform: scale(0.86); transition: transform 90ms var(--sm-ease-out); }
+
+:global([data-icon-motion-off]) .playNextTriangle,
+:global([data-icon-motion-off]) .playNextLead,
+:global([data-icon-motion-off]) .removeIcon { transition: none; }
+
 .rowAction:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* 当前曲目：氛围色淡底 + 左缘色条 + 均衡器，曲名加粗，一眼可辨（与歌曲列表的当前行一致） */
+.row { position: relative; }
+.row[data-current='true'] {
+  background: color-mix(in srgb, var(--ambient-1) 12%, transparent);
+}
+.row[data-current='true']:hover {
+  background: color-mix(in srgb, var(--ambient-1) 18%, transparent);
+}
+.row[data-current='true']::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ambient-1);
+}
 .row[data-current='true'] .rowName {
-  color: var(--sm-accent);
+  color: var(--sm-text-primary);
+  font-weight: 650;
 }
 
 .index {
@@ -159,22 +273,6 @@
   font-size: 12px;
   color: var(--sm-text-secondary);
   font-variant-numeric: tabular-nums;
-}
-
-.playingDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--sm-accent);
-}
-
-.playingDot[data-playing='true'] {
-  animation: queue-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes queue-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.65); opacity: 0.6; }
 }
 
 .rowText {

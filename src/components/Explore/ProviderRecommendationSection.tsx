@@ -21,6 +21,7 @@ import { ProviderPlaylistRail } from './ProviderPlaylistRail'
 import { AppleHomeLibrary } from './AppleHomeLibrary'
 import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import styles from './ProviderRecommendationSection.module.css'
+import { usePageTransition } from '../../hooks/useMotion'
 
 type SurfaceResult = ProviderResult<RecommendationPage> & { surface: RecommendationSurface }
 
@@ -66,6 +67,7 @@ interface ProviderRecommendationSectionProps {
 }
 
 export const ProviderRecommendationSection = memo(function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
+  const pageTransition = usePageTransition()
   const provider = providerFor(source)
   const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
   const [dailyDay, setDailyDay] = useState(qqDay)
@@ -216,7 +218,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
       className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      transition={springGentle}
+      transition={pageTransition(springGentle)}
       aria-label={`${provider.descriptor.label}推荐`}
     >
       <header className={styles.header}>
@@ -281,7 +283,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
                 initial={{ x: 70, opacity: 0, rotate: 4 }}
                 animate={{ x: 0, opacity: 1, rotate: 0 }}
                 exit={{ x: -90, opacity: 0, rotate: -6 }}
-                transition={springGentle}
+                transition={pageTransition(springGentle)}
               >
                 <Stack cards={pool.hand} onSwipe={() => setPool((current) => swipeTop(current))} onCardClick={onPreview} />
               </motion.div>

@@ -23,6 +23,17 @@
   background: var(--sm-fill-subtle);
 }
 
+/* 减少透明度：卡片默认无底、直接压在流体背景上，这里补一层近乎不透明的卡片底；
+   悬停改为在不透明底上叠浅色，避免回落到半透明的 --sm-fill-subtle。 */
+:global([data-reduce-transparency="1"]) .card {
+  background: var(--glass-bg-card);
+  box-shadow: inset 0 0 0 1px var(--sm-border);
+}
+:global([data-reduce-transparency="1"]) .card:hover,
+:global([data-reduce-transparency="1"]) .card:focus-visible {
+  background: linear-gradient(var(--sm-fill-hover), var(--sm-fill-hover)), var(--glass-bg-card);
+}
+
 .coverWrap {
   position: relative;
   width: 100%;

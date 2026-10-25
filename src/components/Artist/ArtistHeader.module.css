@@ -9,11 +9,12 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: fit-content(420px) minmax(0, 1fr);
+  /* 给歌手名保留宽度，简介紧随其后，不随宽窗口向右拉开。 */
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
   align-items: center;
-  gap: 32px;
+  gap: 48px;
   min-height: 240px;
-  padding: 32px 48px;
+  padding: 32px var(--sm-page-inline);
 }
 
 .identity {
@@ -58,6 +59,9 @@
 
 .description {
   --text-reveal-open: 0;
+  width: 100%;
+  max-width: 640px;
+  justify-self: start;
   min-width: 0;
   height: 176px;
   align-self: start;
@@ -126,13 +130,11 @@
 }
 .description[data-open='true'] .descriptionFull { visibility: visible; transition-delay: 0s; }
 
-@media (max-width: 800px) {
+@media (max-width: 1024px) {
   .header { overflow: visible; }
-  .content { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 24px; }
+  .content { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 24px var(--sm-page-inline); }
+  .description { max-width: none; }
   .identity { gap: 20px; }
   .avatar { width: 112px; height: 112px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .descriptionPreview, .descriptionFull { transition: none; }
-}

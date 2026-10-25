@@ -105,9 +105,5 @@
   cursor: default;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .coverImg,
-  .coverHint,
-  .coverHint svg { transition: none; }
-  .cover:hover .coverImg { transform: none; }
-}
+/* 关闭「悬停浮起」时直接到位。 */
+:global([data-hover-lift-motion-off]) :is(.coverImg, .coverHint, .coverHint svg) { transition: none !important; animation: none !important; }

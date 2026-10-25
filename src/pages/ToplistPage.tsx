@@ -14,10 +14,12 @@ import type { Playlist } from '../types/domain'
 import styles from './ToplistPage.module.css'
 import { useProviderStore } from '../stores/providers'
 import { BackButton } from '../components/ui/BackButton'
+import { usePageTransition } from '../hooks/useMotion'
 
 /** 全部榜单:服务端按主题分组(官方榜/云村特色/曲风/ACG/语种海外/更多),每组一片网格。
  *  卡片交互与探索页「榜单精选」完全一致(点开预览、封面钮直接播放整榜)。 */
 export function ToplistPage() {
+  const pageTransition = usePageTransition()
   const currentView = useNavigationStore((s) => s.currentView)
   const source = typeof currentView === 'object' && currentView.type === 'toplist'
     ? currentView.source
@@ -52,7 +54,7 @@ export function ToplistPage() {
     <ScrollArea className={styles.page}>
       <BackButton className={styles.back} onClick={() => goBack()} ariaLabel="返回上一页" />
 
-      <motion.h1 className={styles.heading} variants={fadeRise} initial="hidden" animate="visible" transition={springGentle}>
+      <motion.h1 className={styles.heading} variants={fadeRise} initial="hidden" animate="visible" transition={pageTransition(springGentle)}>
         <GradientText>榜单精选</GradientText>
         <SourceBadge source={source} reveal />
         {participating && <span className={styles.sourceLabel}><SourceName source={source} /></span>}

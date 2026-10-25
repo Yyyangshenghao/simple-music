@@ -212,7 +212,5 @@
   text-align: center;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .panel { animation: none; }
-  .chevron { transition: none; }
-}
+/* 关闭「页面转场」时直接到位。 */
+:global([data-page-motion-off]) :is(.panel) { transition: none !important; animation: none !important; }

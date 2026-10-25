@@ -14,11 +14,11 @@ vi.mock('electron', () => ({
 
 function fixture() {
   const events = new Map<string, (...args: any[]) => void>()
-  const webEvents = new Map<string, () => void>()
+  const webEvents = new Map<string, (...args: any[]) => void>()
   const win = {
     isDestroyed: vi.fn(() => false), isMinimized: () => false,
     show: vi.fn(), hide: vi.fn(), focus: vi.fn(), restore: vi.fn(),
-    webContents: { send: vi.fn(), on: (name: string, cb: () => void) => webEvents.set(name, cb) },
+    webContents: { send: vi.fn(), on: (name: string, cb: (...args: any[]) => void) => webEvents.set(name, cb) },
     on: (name: string, cb: (...args: any[]) => void) => events.set(name, cb)
   }
   return { win, events, webEvents }
@@ -134,12 +134,22 @@ describe('Windows 关闭偏好与确认', () => {
     const { api, webEvents, close } = await setup()
     close()
     const first = api.getWindowCloseState().promptId
-    webEvents.get('did-start-loading')!()
+    webEvents.get('did-start-navigation')!({ isMainFrame: true, isSameDocument: false })
     expect(api.getWindowCloseState().promptId).toBe(first)
     webEvents.get('render-process-gone')!()
     close()
     expect(h.dialog).toHaveBeenCalledOnce()
     await Promise.resolve()
+  })
+
+  it('壁纸 iframe 与页内导航不会退回系统提示', async () => {
+    const { api, win, webEvents, close } = await setup()
+    webEvents.get('did-start-navigation')!({ isMainFrame: false, isSameDocument: false })
+    webEvents.get('did-start-navigation')!({ isMainFrame: true, isSameDocument: true })
+    close()
+    expect(api.getWindowCloseState().promptId).not.toBeNull()
+    expect(win.webContents.send).toHaveBeenCalledOnce()
+    expect(h.dialog).not.toHaveBeenCalled()
   })
 
   it('渲染进程崩溃后的系统兜底不依赖页面收消息，仍能执行退出', async () => {

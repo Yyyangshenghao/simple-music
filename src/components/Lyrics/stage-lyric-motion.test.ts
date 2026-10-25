@@ -43,7 +43,7 @@ describe('lyricStyleFrame', () => {
     expect(lyricStyleFrame('quick', 10, 0.5, 0, 0, 1).slideX).toBe(0)
   })
 
-  it.each<Lyrics3dStyle>(['glass', 'smooth', 'float', 'quick', 'shine', 'glitch', 'focus'])(
+  it.each<Lyrics3dStyle>(['glass', 'smooth', 'float', 'quick', 'shine', 'glitch'])(
     '%s 在零动效强度下关闭装饰运动', (style) => {
       const frame = lyricStyleFrame(style, 0, 0, 4, 1, 0)
       expect([frame.sheen, frame.prism, frame.glitch, frame.tiltX, frame.tiltY, frame.slideX].every(value => value === 0)).toBe(true)

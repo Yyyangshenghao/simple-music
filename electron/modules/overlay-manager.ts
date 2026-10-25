@@ -336,7 +336,8 @@ function createLyricsWindow(payload: LyricsPayload): BrowserWindow {
   hardenOverlayWindow(win)
   try {
     lyricsWindow.setAlwaysOnTop(true, 'screen-saver')
-    lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // macOS panel 已覆盖所有桌面和全屏；重复设置会切换应用类型并短暂隐藏主窗口。
+    if (process.platform !== 'darwin') lyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   } catch (e) {
     console.warn('Desktop lyrics topmost setup skipped:', (e as Error).message)
   }
@@ -545,6 +546,8 @@ function createMiniPlayerWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     title: 'Simple Music Mini Player',
+    // Windows 默认厚边框会在浅色桌面上留下矩形外沿；尺寸已由自绘手柄控制。
+    ...(process.platform === 'win32' ? { thickFrame: false } : {}),
     // 显式保留 Chromium 默认后台节流,避免迷你条被遮挡时继续高频刷新
     webPreferences: {
       preload: overlayPreload(),

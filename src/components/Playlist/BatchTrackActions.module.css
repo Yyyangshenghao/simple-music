@@ -36,7 +36,6 @@
   .bar .exit { margin-left: auto; }
   .selectionTools { margin-left: auto; }
 }
-@media (prefers-reduced-motion: reduce) { .bar button { transition: none; } }
 
 .compact { position: relative; flex-shrink: 0; }
 .more { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--sm-text-secondary); cursor: pointer; transition: background 160ms, color 160ms; }
@@ -55,4 +54,3 @@
 .spinner { width: 14px; height: 14px; border: 1.5px solid var(--sm-border-strong); border-top-color: var(--sm-text-primary); border-radius: 50%; animation: spin 800ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes menuEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .more { transition: none; } .menu, .spinner { animation: none; } }

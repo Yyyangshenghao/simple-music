@@ -29,10 +29,6 @@
 
 :global([data-app-root]:has([data-artist-toolbar-pinned='true'])) .bar::before { opacity: 0; }
 
-@media (prefers-reduced-motion: reduce) {
-  .bar::before { transition: none; }
-}
-
 /* macOS 交通灯内嵌在左上角，顶栏内容需相应右移 */
 .barMac {
   padding-left: 88px;
@@ -128,11 +124,6 @@
 .navBtn:disabled {
   opacity: 0.26;
   cursor: default;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navBtn svg { transition: none; }
-  .navArrowGo { animation: none; }
 }
 
 /* ---- Center ---- */
@@ -255,6 +246,20 @@
   color: var(--sm-text-secondary);
   transition: color 0.2s;
 }
+
+.searchPrompt {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 0.2s;
+}
+
+.searchForm:hover:not(.searchExpanded) .searchPrompt { color: var(--sm-text-primary); }
+
+.searchInput::placeholder { color: var(--sm-text-muted); }
 
 .searchInput {
   min-width: 0;
@@ -488,11 +493,11 @@
   position: relative;
 }
 
-/* 氛围渐变描边圆钮（颜色随封面取色流动） */
+/* 氛围渐变描边圆钮（颜色随封面取色流动）；与搜索框、下载按钮同为 36px 高。 */
 .avatarBtn {
   display: flex;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 2px;
   border: none;
   background: var(--ambient-gradient);
@@ -524,7 +529,6 @@
 }
 
 .accountGlyph { flex-shrink: 0; }
-
 
 .clusterLogo:first-child { margin-left: 0; }
 

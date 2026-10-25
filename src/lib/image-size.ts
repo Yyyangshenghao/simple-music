@@ -32,6 +32,12 @@ export function normalizeImageUrl(value: unknown): string {
   }
 }
 
+/** 播放栏封面尺寸；可见界面的预热窗口按此尺寸命中图片缓存。 */
+export const DOCK_COVER_PX = 128
+
+/** 歌词页舞台封面与模糊背景共用的尺寸；预热窗口必须与之一致才能命中图片缓存。 */
+export const LYRICS_COVER_PX = 840
+
 export function sizedImage(url: string, px: number): string {
   if (!url || px <= 0) return url
   let u: URL

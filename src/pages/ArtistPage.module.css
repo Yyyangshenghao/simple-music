@@ -1,8 +1,11 @@
 
-.back { margin: 12px 0 0 24px; }
+/* 详情页与库、搜索共用内容起线（--sm-page-inline），返回按钮与正文左缘对齐。 */
+.back { margin: 16px 0 0 var(--sm-page-inline); }
 
 .subTabs {
-  padding: 0 24px;
+  /* 工具栏浮层位于滚动视口之外，按视口扣除常驻滚动条后的宽度计算起线，与下方列表对齐。 */
+  --artist-toolbar-inline: max(var(--sm-page-gutter), calc((100% - var(--sm-scrollbar-size) - var(--sm-content-max-width)) / 2));
+  padding: 0 calc(var(--artist-toolbar-inline) + var(--sm-scrollbar-size)) 0 var(--artist-toolbar-inline);
   --track-toolbar-height: 56px;
   --track-toolbar-padding: 8px 0;
   --track-toolbar-margin: 0px;
@@ -26,7 +29,7 @@
 
 .subTab.active { color: var(--sm-accent); border-bottom-color: var(--sm-accent); }
 
-.trackList { padding: 0 24px 32px; }
+.trackList { padding: 0 var(--sm-page-inline) 32px; }
 
 .tabContentSwitching {
   --tab-enter-x: 18px;
@@ -68,14 +71,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 24px;
-  padding: 16px 24px;
+  padding: 16px var(--sm-page-inline);
 }
 
 .similarGrid {
   display: flex;
   flex-wrap: wrap;
   gap: 20px 12px;
-  padding: 16px 24px;
+  padding: 16px var(--sm-page-inline);
 }
 
 .similarEmpty {
