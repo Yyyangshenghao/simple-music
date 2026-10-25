@@ -72,6 +72,11 @@ interface LiquidEtherProps {
    * 最小化或页面隐藏始终暂停。
    */
   pauseOnBlur?: boolean;
+  /**
+   * 被详情页封面等完全遮住时暂停渲染，但保留模拟状态与 WebGL 上下文。
+   * 直接卸载会让返回时重建整个流体模拟，既慢又会闪一帧底色。
+   */
+  paused?: boolean;
 }
 
 export default function LiquidEther({
@@ -99,6 +104,7 @@ export default function LiquidEther({
   interactFpsCap,
   interactBoostMs = 2000,
   pauseOnBlur = true,
+  paused = false,
 }: LiquidEtherProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,6 +125,9 @@ export default function LiquidEther({
   // 同样走热更新:切换失焦暂停不能重建流体模拟与 WebGL 上下文
   const pauseOnBlurRef = useRef(pauseOnBlur);
   pauseOnBlurRef.current = pauseOnBlur;
+  // 遮挡暂停同样热更新：启动条件都从这里读，避免焦点/可见性事件把已遮挡的流体又拉起来
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1159,7 +1168,7 @@ export default function LiquidEther({
         const hidden = document.hidden;
         if (hidden) {
           this.pause();
-        } else if (isVisibleRef.current && (this.focused || !pauseOnBlurRef.current)) {
+        } else if (!pausedRef.current && isVisibleRef.current && (this.focused || !pauseOnBlurRef.current)) {
           this.start();
         }
       };
@@ -1169,7 +1178,7 @@ export default function LiquidEther({
       };
       _onFocus = () => {
         this.focused = true;
-        if (!document.hidden && isVisibleRef.current) this.start();
+        if (!pausedRef.current && !document.hidden && isVisibleRef.current) this.start();
       };
       init() {
         this.props.$wrapper.prepend(Common.renderer!.domElement);
@@ -1275,7 +1284,7 @@ export default function LiquidEther({
     };
     applyOptionsFromProps();
 
-    if (!document.hidden && (webgl.focused || !pauseOnBlurRef.current)) webgl.start();
+    if (!pausedRef.current && !document.hidden && (webgl.focused || !pauseOnBlurRef.current)) webgl.start();
 
     // IntersectionObserver to pause rendering when not visible
     const io = new IntersectionObserver(
@@ -1284,7 +1293,7 @@ export default function LiquidEther({
         const isVisible = entry.isIntersecting && entry.intersectionRatio > 0;
         isVisibleRef.current = isVisible;
         if (!webglRef.current) return;
-        if (isVisible && !document.hidden && (webglRef.current.focused || !pauseOnBlurRef.current)) {
+        if (!pausedRef.current && isVisible && !document.hidden && (webglRef.current.focused || !pauseOnBlurRef.current)) {
           webglRef.current.start();
         } else {
           webglRef.current.pause();
@@ -1350,13 +1359,15 @@ export default function LiquidEther({
     webglRef.current?.setPointerInteraction(pointerInteraction);
   }, [pointerInteraction]);
 
-  // 失焦暂停开关只同步运行状态：关掉后即便窗口已失焦也立即续跑，打开时立即停。
+  // 失焦暂停与遮挡暂停只同步运行状态，不重建流体：
+  // 关掉失焦暂停后即便窗口已失焦也立即续跑；被封面遮住时停帧并在揭开后接着画。
   useEffect(() => {
     const webgl = webglRef.current;
     if (!webgl || document.hidden || !isVisibleRef.current) return;
-    if (webgl.focused || !pauseOnBlur) webgl.start();
+    if (paused) webgl.pause();
+    else if (webgl.focused || !pauseOnBlur) webgl.start();
     else webgl.pause();
-  }, [pauseOnBlur]);
+  }, [pauseOnBlur, paused]);
 
   // colors 变化：补间旧→新调色板并热替换 palette uniform，避免重建整个模拟
   useEffect(() => {
