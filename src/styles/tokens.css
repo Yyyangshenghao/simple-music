@@ -240,6 +240,7 @@
    叠在全屏动态流体背景上，背景每帧变化会逼玻璃层逐帧重取样模糊，是 GPU 占用大头。
    仅把 --glass-blur-* 置 0 不够——不少玻璃层写成 `var(--glass-blur-*) saturate(120%)`，
    saturate() 本身仍会每帧重取样，故再用一条兜底规则把 backdrop-filter 整体关掉。
+   backdrop-filter 关掉后流体背景不再拖累玻璃层，故流体保持运行，不随本开关暂停。
    放文件末尾：与 data-theme 单属性选择器同特异性时靠后者胜出。 */
 [data-reduce-transparency="1"] {
   --glass-blur-base:  blur(0);

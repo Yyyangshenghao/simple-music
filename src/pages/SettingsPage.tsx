@@ -1226,7 +1226,6 @@ export function SettingsPage() {
                         aria-label="减少透明度"
                       />
                     </div>
-                    {performance.reduceTransparency && <p className={styles.groupHint}>减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。</p>}
                   </section>
 
                   <section id="settings-detail-interface-font" className={styles.group}>
@@ -1369,7 +1368,6 @@ export function SettingsPage() {
                         const background = key === 'bgFluidMotion' || key === 'bgPointerMotion'
                         const reason = systemReducedMotion ? '已随系统暂停'
                           : performance.reduceMotion ? '已随减少动态效果暂停'
-                          : background && performance.reduceTransparency ? '已随减少透明度暂停'
                             : background && backgroundKind !== 'fluid' ? '仅流体背景生效'
                             : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
                               : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''

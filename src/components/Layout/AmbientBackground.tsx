@@ -103,10 +103,9 @@ export function AmbientBackground({ hidden }: AmbientBackgroundProps) {
   const performanceMode = useVisualStore((s) => s.performanceMode)
   const bgFluidMotion = useSettingsStore((s) => s.performance.bgFluidMotion)
   const bgPointerMotion = useSettingsStore((s) => s.performance.bgPointerMotion)
-  const reduceTransparency = useSettingsStore((s) => s.performance.reduceTransparency)
   const reducedMotion = useReducedMotion()
   const playing = usePlayerStore((s) => s.status === 'playing')
-  const fluidEnabled = !hidden && background.kind === 'fluid' && bgFluidMotion && !reduceTransparency && !reducedMotion && performanceMode !== 'eco'
+  const fluidEnabled = !hidden && background.kind === 'fluid' && bgFluidMotion && !reducedMotion && performanceMode !== 'eco'
 
   // 播放/暂停背景强度缓动：单弹簧 0↔1，避免流体参数跳变
   const playSpring = useSpring(playing ? 1 : 0, gentleSpringValues)

@@ -49,12 +49,6 @@ describe('氛围背景按需加载', () => {
     flags.performanceMode = 'eco'
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
     flags.performanceMode = 'balanced'
-    flags.reduceTransparency = true
-    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
-    await vi.dynamicImportSettled()
-    expect(fluid.loads).toBe(0)
-
-    flags.reduceTransparency = false
     motionPreference.reduced = true
     expect(renderToStaticMarkup(<AmbientBackground />)).toContain('auroraFallback')
     await vi.dynamicImportSettled()
@@ -69,6 +63,15 @@ describe('氛围背景按需加载', () => {
     motionPreference.reduced = true
     expect(renderToStaticMarkup(<AmbientBackground />)).not.toContain('data-testid="liquid-ether"')
     expect(renderToStaticMarkup(<AmbientBackground hidden />)).toBe('')
+  })
+
+  it('减少透明度不再暂停流体背景', () => {
+    flags.bgFluidMotion = true
+    flags.reduceTransparency = true
+    flags.performanceMode = 'balanced'
+    motionPreference.reduced = false
+    expect(renderToStaticMarkup(<AmbientBackground />)).toContain('data-testid="liquid-ether"')
+    flags.reduceTransparency = false
   })
 
   it('鼠标跟随可单独关闭，背景流动仍保持挂载', async () => {

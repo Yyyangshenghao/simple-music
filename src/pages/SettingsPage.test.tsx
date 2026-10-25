@@ -251,17 +251,12 @@ describe('动效设置的实际生效状态', () => {
     expect(visualMarkup()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>标准<\/button>/)
   })
 
-  it('减少透明度时禁用流体并解释原因，关闭后仍保留原偏好', () => {
+  it('减少透明度时流体背景仍可用', () => {
     useSettingsStore.setState((state) => ({ performance: { ...state.performance, bgFluidMotion: true, reduceTransparency: true } }))
-    const suppressed = visualMarkup()
-    expect(effectSwitch(suppressed, '流体背景')).toContain('disabled=""')
-    expect(effectSwitch(suppressed, '流体背景')).toContain('aria-checked="true"')
-    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('disabled=""')
-    expect(effectSwitch(suppressed, '背景鼠标跟随')).toContain('aria-checked="true"')
-    expect(suppressed).toContain('减少透明度已开启，背景流体暂不生效；关闭后恢复原设置。')
-    useSettingsStore.setState((state) => ({ performance: { ...state.performance, reduceTransparency: false } }))
-    expect(effectSwitch(visualMarkup(), '流体背景')).not.toContain('disabled=')
-    expect(useSettingsStore.getState().performance.bgFluidMotion).toBe(true)
+    const html = visualMarkup()
+    expect(effectSwitch(html, '流体背景')).not.toContain('disabled=')
+    expect(effectSwitch(html, '背景鼠标跟随')).not.toContain('disabled=')
+    expect(html).not.toContain('已随减少透明度暂停')
   })
 
   it('系统减弱动态时解释受限效果，并保留已开启偏好', () => {
