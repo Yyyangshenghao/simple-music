@@ -40,7 +40,8 @@ jobs:
             throw new Error('发行说明必须依次包含更新日志、兼容说明和验证情况')
           }
 
-          const summaries = lines.slice(updates + 1, compatibility).filter((line) => line.trim())
+          const details = lines.findIndex((line, index) => index > updates && index < compatibility && /^###\s+\S/.test(line.trim()))
+          const summaries = lines.slice(updates + 1, details < 0 ? compatibility : details).filter((line) => line.trim())
           const compatibilityBody = lines.slice(compatibility + 1, verification).some((line) => line.trim())
           const verificationBody = lines.slice(verification + 1).some((line) => line.trim())
           if (summaries.length !== 4 || summaries.some((line) => !/^-\s+\S/.test(line.trim()) || line.length > 72)) {
