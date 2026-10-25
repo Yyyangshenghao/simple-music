@@ -223,6 +223,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     candidate: PlaybackCandidate | null
     candidateKind: 'external' | 'resolver' | 'offline' | 'local'
     offlineStatus?: OfflineCacheStatus
+    offlineFallback?: { status: OfflineCacheStatus; url: string }
     engineLoadId: number
     startAt: number
     /** 仅刷歌允许接管暂停预加载元素 */
@@ -408,13 +409,43 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     }
   }
 
+  function loadOfflineCandidate(active: ActivePlayback): boolean {
+    const fallback = active.offlineFallback
+    if (!fallback) return false
+    // 只尝试一次；文件损坏后不能从耗尽的在线候选再次回到同一缓存。
+    active.offlineFallback = undefined
+    deps.appleSpectrum.stop()
+    active.candidate = null
+    active.candidateKind = 'offline'
+    active.offlineStatus = fallback.status
+    set({
+      status: active.autoplay ? 'loading' : 'paused',
+      actualSource: null, resolvedTrack: null, resolution: null,
+      playbackTransport: null, currentQuality: null,
+    })
+    const eng = ensureEngine()
+    const loadId = active.usePreparedAudio
+      ? eng.load(fallback.url, active.startAt, undefined, undefined, true)
+      : eng.load(fallback.url, active.startAt)
+    active.engineLoadId = loadId
+    eng.setVolume(get().volume)
+    if (active.autoplay) {
+      void eng.play().catch((error) => {
+        const reason = mediaFailureReasonFromPlayError(error)
+        if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
+        void advancePlayback(reason)
+      })
+    }
+    return true
+  }
+
   async function advancePlayback(reason?: string): Promise<void> {
     const active = activePlayback
     if (!active || active.advancing) return
-    if (!active.resolver && active.candidateKind === 'offline') {
+    if (active.candidateKind === 'offline') {
       // 本次在线回退不得经代理重新读到同一个坏缓存，也不删除用户固定的文件。
       active.offlineFailed = true
-      active.resolver = createResolver(active)
+      active.resolver ??= createResolver(active)
     }
     if (!active.resolver) {
       failPlayback(active)
@@ -438,7 +469,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       }
       if (activePlayback !== active || active.session !== loadSession) return
       if (!candidate) {
-        failPlayback(active)
+        if (!loadOfflineCandidate(active)) failPlayback(active)
         return
       }
       loadCandidate(active, candidate, 'resolver')
@@ -773,27 +804,15 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       if (activePlayback !== active || active.session !== loadSession) return
       const offlineUrl = offlineStatus ? deps.offlineFileUrl(offlineStatus, track) : null
       // 手动优先的平台与缓存实际音源不一致时，交给解析器按本次选择起播。
-      const canUseOfflineCache = (!active.preferredSource
-        || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source))
-        && (!offlineStatus || offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source)))
+      const canUseOfflineCache = !active.preferredSource
+        || active.preferredSource === (offlineStatus?.resolved?.source ?? track.source)
       if (offlineStatus && offlineUrl && canUseOfflineCache) {
-        deps.appleSpectrum.stop()
-        active.candidateKind = 'offline'
-        active.offlineStatus = offlineStatus
-        set({ status: active.autoplay ? 'loading' : 'paused' })
-        const loadId = active.usePreparedAudio
-          ? eng.load(offlineUrl, active.startAt, undefined, undefined, true)
-          : eng.load(offlineUrl, active.startAt)
-        active.engineLoadId = loadId
-        eng.setVolume(get().volume)
-        if (active.autoplay) {
-          void eng.play().catch((error) => {
-            const reason = mediaFailureReasonFromPlayError(error)
-            if (!reason || activePlayback !== active || active.engineLoadId !== loadId) return
-            void advancePlayback(reason)
-          })
+        // 音质不符时先尝试在线升级；账号有效不代表网络可用，保留文件供候选耗尽后兜底。
+        active.offlineFallback = { status: offlineStatus, url: offlineUrl }
+        if (offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source))) {
+          loadOfflineCandidate(active)
+          return
         }
-        return
       }
 
       const resolver = createResolver(active)

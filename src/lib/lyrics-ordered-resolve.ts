@@ -12,7 +12,7 @@ export interface LyricsSourceQuery {
 export interface OrderedLyricsResult {
   origin: LyricOrigin
   response: LyricsSourceQueryResult
-  /** 排在前面的来源有连接失败，结果只是本次降级，不应进入跨曲缓存。 */
+  /** 排在前面的来源连接失败或暂不可用，结果只是本次降级，不应进入跨曲缓存。 */
   degraded: boolean
 }
 
@@ -55,6 +55,10 @@ function settle(query: LyricsSourceQuery): Promise<LyricsSourceQueryResult | nul
   return query.promise.catch(() => query.controller.signal.aborted ? null : { status: 'error' as const, message: '暂时连接失败' })
 }
 
+function isDegradedLyrics(response: LyricsSourceQueryResult | undefined): boolean {
+  return response?.status === 'error' || response?.status === 'unavailable'
+}
+
 /**
  * 预取用：逐个查询，查到即停。`started` 交出每个已发出的查询，`stopped` 为真时不再发起下一项，
  * 供当前播放接手后改为并发。
@@ -77,7 +81,7 @@ export async function resolveLyricsSerial(
     if (!response) return undefined
     options.onSettled?.(origin, response)
     if (isReadyLyrics(response)) return { origin, response, degraded }
-    if (response.status === 'error') degraded = true
+    if (isDegradedLyrics(response)) degraded = true
   }
   return undefined
 }
@@ -117,7 +121,7 @@ export function resolveLyricsParallel(
       for (const query of queries.values()) query.controller.abort()
       reject(cancelled())
     }
-    const degradedBefore = (origin: LyricOrigin) => origins.slice(0, origins.indexOf(origin)).some(item => settled.get(item)?.status === 'error')
+    const degradedBefore = (origin: LyricOrigin) => origins.slice(0, origins.indexOf(origin)).some(item => isDegradedLyrics(settled.get(item)))
     const showProvisional = () => {
       if (provisional || done) return
       const origin = origins.find(item => isReadyLyrics(settled.get(item)))

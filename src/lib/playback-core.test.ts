@@ -148,6 +148,63 @@ describe('无界面播放核心', () => {
     expect(offlineQualityUsable(cached, wanted, () => online)).toBe(expected)
   })
 
+  it('登录态有效但在线解析耗尽时，仍回退到不符所选音质的已保存歌曲', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'pinned', entryId: 'saved', quality: 'standard' })
+    h.resolver.next.mockResolvedValue(null)
+    await h.state.loadTrack(track, { startAt: 30 })
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/audio-cache/file?entryId=test', 30)
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.playbackTransport).toBe('offline')
+    expect(h.state.currentQuality).toBe('standard')
+    expect(h.deps.notify).not.toHaveBeenCalled()
+
+    // 兜底缓存损坏时不能反复重试同一文件。
+    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(h.engine.load).toHaveBeenCalledTimes(1)
+    expect(h.state.status).toBe('idle')
+  })
+
+  it('在线等待期间暂停和定位后，缓存兜底遵循最新播放意图', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'cached', quality: 'standard' })
+    const pending = deferred<PlaybackCandidate | null>()
+    h.resolver.next.mockReturnValue(pending.promise)
+    const loading = h.state.loadTrack(track)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    h.state.pause()
+    h.state.seek(45)
+    pending.resolve(null)
+    await loading
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/audio-cache/file?entryId=test', 45)
+    expect(h.engine.play).not.toHaveBeenCalled()
+    expect(h.state.status).toBe('paused')
+  })
+
+  it('换曲后旧在线解析耗尽，不能加载上一首的兜底缓存', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValueOnce({ source: 'netease', id: '1', state: 'cached', entryId: 'cached', quality: 'standard' })
+    const pending = deferred<PlaybackCandidate | null>()
+    h.resolver.next.mockReturnValueOnce(pending.promise)
+    const loading = h.state.loadTrack(track)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    await h.state.loadTrack({ ...track, id: 2 })
+    pending.resolve(null)
+    await loading
+    expect(h.engine.load).toHaveBeenCalledTimes(1)
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 0, 'netease:1:lossless', expect.any(Object))
+  })
+
+  it('指定本次优先平台时，不用其他平台的缓存兜底', async () => {
+    const h = createHost()
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'pinned', entryId: 'saved', quality: 'standard', resolved: { source: 'netease', id: '1' } })
+    h.resolver.next.mockResolvedValue(null)
+    await h.state.loadTrack(track, { preferredSource: 'qq' })
+    expect(h.engine.load).not.toHaveBeenCalled()
+    expect(h.state.status).toBe('idle')
+  })
+
   it('刷歌预加载仍服从离线优先与媒体失败回退', async () => {
     const h = createHost()
     vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'local' })

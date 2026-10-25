@@ -11,6 +11,7 @@ import { providerAccountSession } from './provider-account-session'
 import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import { candidateAvailability, queryLyricsSource, type LyricsSourceQueryResult } from './lyrics-source-query'
 import { createLyricsSourceProbe } from './lyrics-source-probe'
+import { suspendedLyricsSource } from './lyrics-source-health'
 import { isReadyLyrics, LYRICS_PROVISIONAL_MS, lyricsOriginOrder, resolveLyricsParallel, type OrderedLyricsResult } from './lyrics-ordered-resolve'
 import { createLyricsPrefetcher } from './lyrics-prefetch'
 import { getQueueStep } from './queue-state'
@@ -45,10 +46,11 @@ function participatingSources(): ProviderId[] {
 }
 
 /** 影响来源落定结果的全部条件；任一变化时跨曲缓存与预取都不能复用。 */
-function lyricsContext(origins: LyricOrigin[], sources: ProviderId[], chosen?: RememberedLyricSource): string {
+function lyricsContext(track: Track, origins: LyricOrigin[], sources: ProviderId[], chosen?: RememberedLyricSource): string {
   const settings = useSettingsStore.getState()
-  return JSON.stringify([origins, sources, settings.lyricsAmllFallback, settings.lyricsKugouFallback,
-    PROVIDER_IDS.map(source => providerAccountSession(source)), chosen?.match ? lyricTrackKey(chosen.match) : null])
+  return JSON.stringify([lyricCandidateSignature(track, chosen?.match ?? null), origins, sources,
+    settings.lyricsAmllFallback, settings.lyricsKugouFallback,
+    PROVIDER_IDS.map(source => providerAccountSession(source)), origins.map(origin => suspendedLyricsSource(origin))])
 }
 
 /** 按 next 的走序取下一首；随机走序尚未建立时不预取，避免预取方替播放器生成洗牌顺序。 */
@@ -209,7 +211,7 @@ export function initLyricsLoader(): () => void {
   ) => {
     const origins = lyricsOriginOrder(track, order, chosen)
     const key = lyricTrackKey(track)
-    const context = lyricsContext(origins, sources, chosen)
+    const context = lyricsContext(track, origins, sources, chosen)
     const fallback = (origin: LyricOrigin, message?: string) => {
       if (chosen?.origin === origin) useLyricsSourceStore.setState({ fallbackReason: `已记住${LYRIC_SOURCE_LABELS[origin]}，${message ?? '本次暂不可用'}；本次临时使用其他来源` })
     }
@@ -249,7 +251,7 @@ export function initLyricsLoader(): () => void {
       if (!sources.includes(next.source)) return
       const chosen = useLyricsSourceStore.getState().remembered[lyricTrackKey(next)]
       const origins = lyricsOriginOrder(next, order, chosen)
-      prefetcher.prefetch(lyricTrackKey(next), lyricsContext(origins, sources, chosen), { track: next, origins, sources, chosen })
+      prefetcher.prefetch(lyricTrackKey(next), lyricsContext(next, origins, sources, chosen), { track: next, origins, sources, chosen })
     }, 1000)
   }
 

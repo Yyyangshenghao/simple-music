@@ -10,6 +10,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useGameModeStore } from '../stores/game-mode'
 import { usePlaylistStore } from '../stores/playlist'
 import { advanceProviderAccountSession } from './provider-account-session'
+import { reportLyricsSource, suspendedLyricsSource } from './lyrics-source-health'
 
 const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), query: vi.fn(), available: vi.fn() }))
 vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
@@ -439,6 +440,89 @@ describe('并发探测与下一首预取', () => {
     usePlayerStore.setState({ currentTrack: nextTrack })
     await flush()
     expect(h.query.mock.calls.slice(before).map(call => call[1])).toContain('qq')
+  })
+
+  it.each(['当前播放', '下一首预取'] as const)('%s跳过冷却来源的结果不长期缓存，恢复后重新探测', async (mode) => {
+    const target = mode === '当前播放' ? onlineTrack : nextTrack
+    usePlaylistStore.setState({ queue: mode === '下一首预取' ? [onlineTrack, nextTrack] : [], queueIndex: mode === '下一首预取' ? 0 : -1, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    for (let i = 0; i < 3; i++) reportLyricsSource('qq', 'error')
+    h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => suspendedLyricsSource(origin)
+      ? { status: 'unavailable', message: '来源连接异常，稍后自动重试' } : { status: 'ready', result: result(origin) })
+    stop = initLyricsLoader()
+    await flush()
+    if (mode === '下一首预取') await vi.advanceTimersByTimeAsync(1000)
+    const count = () => h.query.mock.calls.filter(call => (call[0] as Track).id === target.id && call[1] === 'qq').length
+    const before = count()
+    if (mode === '当前播放') {
+      usePlayerStore.setState({ currentTrack: nextTrack })
+      await flush()
+    }
+    usePlayerStore.setState({ currentTrack: target })
+    await flush()
+    expect(count()).toBeGreaterThan(before)
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+    usePlaylistStore.setState({ queue: [], queueIndex: -1 })
+    if (mode === '当前播放') await vi.advanceTimersByTimeAsync(30_000)
+    else reportLyricsSource('qq', 'ready', true)
+    usePlayerStore.setState({ currentTrack: { ...onlineTrack, id: 'n3' } })
+    await flush()
+    usePlayerStore.setState({ currentTrack: target })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+  })
+
+  it('缓存来源随后进入冷却时不再直接应用旧缓存', async () => {
+    usePlaylistStore.setState({ queue: [], queueIndex: -1 })
+    h.query.mockImplementation(async (_track: Track, origin: LyricOrigin) => suspendedLyricsSource(origin)
+      ? { status: 'unavailable', message: '来源连接异常，稍后自动重试' } : { status: 'ready', result: result(origin) })
+    stop = initLyricsLoader()
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+    for (let i = 0; i < 3; i++) reportLyricsSource('qq', 'error')
+    usePlayerStore.setState({ currentTrack: nextTrack })
+    await flush()
+    usePlayerStore.setState({ currentTrack: onlineTrack })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+  })
+
+  it.each([undefined, 120_000])('同曲时长从 %s 补为完整详情后重新选择歌词', async (duration) => {
+    usePlaylistStore.setState({ queue: [], queueIndex: -1 })
+    usePlayerStore.setState({ currentTrack: { ...onlineTrack, duration } })
+    h.query.mockImplementation(async (current: Track, origin: LyricOrigin) => origin === 'qq' && current.duration !== onlineTrack.duration
+      ? { status: duration ? 'mismatch' : 'unavailable', message: '无法匹配版本' } : { status: 'ready', result: result(origin) })
+    stop = initLyricsLoader()
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('amll')
+    usePlayerStore.setState({ currentTrack: onlineTrack })
+    await flush()
+    expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
+  })
+
+  it.each(['缓存', '在途'] as const)('下一首补详情后不复用旧元数据的%s预取', async (mode) => {
+    const incomplete = { ...nextTrack, artist: '旧歌手' }
+    const pending = deferred()
+    const stale = { ...result('qq'), main: [{ time: 0, text: '旧歌手歌词' }] }
+    usePlaylistStore.setState({ queue: [onlineTrack, incomplete], queueIndex: 0, shuffleOrder: [] })
+    useSettingsStore.setState({ playMode: 'order' })
+    h.query.mockImplementation((current: Track, origin: LyricOrigin) => current.id === nextTrack.id && current.artist === incomplete.artist && origin === 'qq'
+      ? mode === '在途' ? pending.promise : Promise.resolve({ status: 'ready', result: stale })
+      : Promise.resolve({ status: 'ready', result: result(origin) }))
+    stop = initLyricsLoader()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1000)
+    const oldQuery = h.query.mock.calls.find(call => (call[0] as Track).id === nextTrack.id)!
+    usePlaylistStore.setState({ queue: [onlineTrack, nextTrack], queueIndex: 1 })
+    usePlayerStore.setState({ currentTrack: nextTrack })
+    await flush()
+    if (mode === '在途') {
+      expect((oldQuery[3] as AbortSignal).aborted).toBe(true)
+      pending.resolve({ status: 'ready', result: stale })
+      await flush()
+    }
+    expect(h.query.mock.calls.some(call => (call[0] as Track).id === nextTrack.id && (call[0] as Track).artist === nextTrack.artist && call[1] === 'qq')).toBe(true)
+    expect(useLyricsStore.getState().lines).toEqual(result('qq').main)
   })
 
   it('切到预取以外的歌时取消进行中的预取', async () => {
