@@ -64,6 +64,8 @@
 .tabLens {
   z-index: 2;
   overflow: hidden;
+  /* 供 WebGL 透镜读取选中态文字色。 */
+  color: var(--sm-text-primary);
   background: radial-gradient(closest-side, transparent 78%, color-mix(in srgb, var(--sm-text-primary) 6%, transparent));
   backdrop-filter: blur(1.5px) saturate(160%);
   -webkit-backdrop-filter: blur(1.5px) saturate(160%);
@@ -106,7 +108,10 @@
   mask-composite: intersect;
 }
 
-/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大，统一用选中态文字色。 */
+/* WebGL 透镜画布：铺满透镜，着色器按透镜可见尺寸完成折射与放大。 */
+.tabLensCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 透镜内的标签副本（WebGL 不可用时的退路）：与真实标签逐像素对齐后等比放大，统一用选中态文字色。 */
 .tabLensCopy {
   position: absolute;
   top: -3px;

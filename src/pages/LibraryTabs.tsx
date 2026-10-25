@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cancelFrame, frame, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
 import { useMotion } from '../hooks/useMotion'
+import { LiquidLensRenderer, lensRect, rasterizeTabStrip } from '../lib/liquid-lens'
 import styles from './LibraryPage.module.css'
 
 interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode }
@@ -10,10 +11,13 @@ interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode 
 const TRANSIT_LIFT_MS = 260
 /** 按住不动多久后浮起成透镜。 */
 const HOLD_LIFT_MS = 140
+/** 透镜放大倍数。 */
+const LENS_MAGNIFY = 1.08
 
 /**
  * 流体玻璃分段控件（参照 Apple Music）：指示器按速度横向拉伸、落位过冲回弹；
- * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，换成清晰放大的副本，只有边缘轻微模糊。
+ * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，由 WebGL 按玻璃折射重绘放大的标签，边缘斜面弯折；
+ * 拿不到 WebGL 时退回清晰放大的 DOM 副本。
  */
 export function LibraryTabs<T extends string>({ items, value, onChange }: {
   items: TabItem<T>[]
@@ -32,6 +36,13 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const [dragging, setDragging] = useState(false)
   const [holding, setHolding] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
+  const [glFailed, setGlFailed] = useState(false)
+  const lensRef = useRef<HTMLSpanElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  // 渲染器跟随 canvas 复用：同一 canvas 上的 WebGL 上下文一旦释放就拿不回来，效果重跑时不能重建。
+  const rendererRef = useRef<{ canvas: HTMLCanvasElement; renderer: LiquidLensRenderer } | null>(null)
+  // 父组件每次渲染都会新建 items，按内容签名触发标签贴图重画。
+  const itemsKey = items.map(item => `${item.value}:${item.label}`).join('|')
   const reducedMotion = !useMotion('indicatorMotion')
 
   const targetX = useMotionValue(0)
@@ -48,7 +59,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const pillOpacity = useTransform(lift, l => 1 - l)
   const lensCopyX = useTransform(x, v => -v)
   // 透镜外形会被拉伸，副本反向缩放抵消，保证透镜内文字始终等比放大。
-  const magnify = useTransform(lift, l => 1 + l * 0.08)
+  const magnify = useTransform(lift, l => 1 + l * (LENS_MAGNIFY - 1))
   const lensCopyScaleX = useTransform(() => magnify.get() / scaleX.get())
   const lensCopyScaleY = useTransform(() => magnify.get() / scaleY.get())
   const lensCopyOrigin = useTransform(() => `${x.get() + width.get() / 2}px 50%`)
@@ -162,6 +173,52 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     return () => { stops.forEach(stop => stop()); cancelFrame(sync) }
   }, [])
 
+  // WebGL 透镜：标签条预先画成贴图，布局、主题或字体变化时重画；弹簧值变化时同帧合并重绘一次，透镜沉下时不画。
+  useEffect(() => {
+    const root = rootRef.current
+    const canvas = canvasRef.current
+    if (!ready || reducedMotion || glFailed || !root || !canvas) return
+    if (rendererRef.current?.canvas !== canvas) {
+      const created = LiquidLensRenderer.create(canvas)
+      rendererRef.current = created ? { canvas, renderer: created } : null
+    }
+    const renderer = rendererRef.current?.renderer
+    if (!renderer) { setGlFailed(true); return }
+    let version = 0
+    let disposed = false
+    const draw = () => {
+      if (disposed || lift.get() < 0.01) return
+      const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get(), scaleY.get())
+      renderer.render({ ...rect, magnify: LENS_MAGNIFY, bezel: rect.height * 0.22, depth: rect.height * 0.09 }, window.devicePixelRatio || 1)
+    }
+    const rebuild = async () => {
+      const current = ++version
+      const color = lensRef.current ? getComputedStyle(lensRef.current).color : '#fff'
+      const strip = await rasterizeTabStrip(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
+      if (disposed || current !== version || !strip) return
+      renderer.setStrip(strip.canvas, strip.width, strip.height)
+      draw()
+    }
+    const schedule = () => frame.render(draw)
+    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', schedule))
+    const resize = new ResizeObserver(() => void rebuild())
+    resize.observe(root)
+    const theme = new MutationObserver(() => void rebuild())
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    const onLost = (event: Event) => { event.preventDefault(); setGlFailed(true) }
+    canvas.addEventListener('webglcontextlost', onLost)
+    void rebuild()
+    void document.fonts?.ready.then(() => void rebuild())
+    return () => {
+      disposed = true
+      stops.forEach(stop => stop())
+      cancelFrame(draw)
+      resize.disconnect()
+      theme.disconnect()
+      canvas.removeEventListener('webglcontextlost', onLost)
+    }
+  }, [ready, reducedMotion, glFailed, itemsKey])
+
   const activeIndex = items.findIndex(item => item.value === value)
   const content = (item: TabItem<T>) => <>
     {item.icon && <span className={styles.subTabIcon}>{item.icon}</span>}
@@ -234,14 +291,16 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       }}
     >{content(item)}</button>)}
     {ready && !reducedMotion && <motion.span
+      ref={lensRef}
       className={styles.tabLens}
       aria-hidden="true"
       style={{ x, width, scaleX, scaleY, opacity: lift }}
     >
       <span className={styles.tabLensClip}>
-        <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
+        {!glFailed && <canvas ref={canvasRef} className={styles.tabLensCanvas} />}
+        {glFailed && <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
           {items.map(item => <span key={item.value} className={styles.subTab}>{content(item)}</span>)}
-        </motion.span>
+        </motion.span>}
       </span>
     </motion.span>}
   </div>
