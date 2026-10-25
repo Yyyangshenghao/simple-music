@@ -193,6 +193,7 @@ function OverlayApp() {
           opacity={asNum(payload.opacity, 0.92)}
           fitHeight
           highlight={payload.highlight !== false}
+          lineMotion={payload.lineMotion !== false}
         />
         {!locked && <button
           className={styles.resizeHandle}

@@ -18,6 +18,8 @@ interface DesktopLyricsProps {
   roma?: string
   size?: number
   highlight?: boolean
+  /** 双行换句时的上滑滚动；对应「歌词换句动画」开关。 */
+  lineMotion?: boolean
   fontFamily?: string
   fontFamilyCjk?: string
   color?: string
@@ -26,7 +28,7 @@ interface DesktopLyricsProps {
 }
 
 /** 桌面歌词展示（overlay 窗口内用，纯展示）。 */
-export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'single', line, nextLine, wordLine, wordClock, translation, roma, size = 38, highlight = true, fontFamily = '', fontFamilyCjk = '', color = '#ffffff', opacity = 0.92, fitHeight = false }: DesktopLyricsProps) {
+export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'single', line, nextLine, wordLine, wordClock, translation, roma, size = 38, highlight = true, lineMotion = true, fontFamily = '', fontFamilyCjk = '', color = '#ffffff', opacity = 0.92, fitHeight = false }: DesktopLyricsProps) {
   const wordsRef = useRef<HTMLDivElement>(null)
   const clockRef = useRef({ elapsedMs: 0, playing: false, rate: 1, receivedAt: 0 })
   const timelineRef = useRef<ReturnType<typeof createWordHighlightTimeline>>(null)
@@ -71,13 +73,13 @@ export function DesktopLyrics({ trackKey = '', lineIndex = -1, lineMode = 'singl
     const frame = { trackKey, lineIndex, double: lineMode === 'double', line, nextLine: nextLine || '' }
     const previous = previousFrameRef.current
     previousFrameRef.current = frame
-    if (!canScrollDesktopLyrics(previous, frame)) return
+    if (!lineMotion || !canScrollDesktopLyrics(previous, frame)) return
     const current = wordsRef.current
     const outgoing = outgoingRef.current
     if (!current || !outgoing || !previous) return
     // 只移动文字，外层行框保持稳定，供解锁热区和宽度自适应测量。
     return scrollDesktopLyrics(outgoing, current, nextRef.current, previous.line, current.getBoundingClientRect().height + DESKTOP_LYRICS_GAP)
-  }, [trackKey, lineIndex, lineMode, line, nextLine, size, fontFamily, fontFamilyCjk, highlight, fitHeight])
+  }, [trackKey, lineIndex, lineMode, line, nextLine, size, fontFamily, fontFamilyCjk, highlight, fitHeight, lineMotion])
 
   const secondaryLines = Number(!!translation) + Number(!!roma)
   const primaryLines = 1 + Number(!!nextLine)

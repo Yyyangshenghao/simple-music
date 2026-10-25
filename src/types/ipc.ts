@@ -95,6 +95,8 @@ export interface LyricsPayload {
   trackKey?: string | null
   lineIndex?: number
   lineMode?: 'single' | 'double'
+  /** 跟随主窗口「歌词换句动画」：关闭时双行换句不做上滑滚动。 */
+  lineMotion?: boolean
   autoWidth?: boolean
   size?: number
   fontFamily?: string
