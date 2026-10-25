@@ -41,7 +41,7 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
   ]))
 }
 
-/** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ。 */
+/** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ；设置中关闭的平台除外。 */
 function participatingSources(): ProviderId[] {
   return lyricServiceSources()
 }
@@ -456,6 +456,8 @@ export function initLyricsLoader(): () => void {
     if (state.playMode !== previous.playMode) schedulePrefetch()
     const guestChanged = state.lyricsGuestSources.netease !== previous.lyricsGuestSources.netease
       || state.lyricsGuestSources.qq !== previous.lyricsGuestSources.qq
+      || state.lyricsPlatformSources.netease !== previous.lyricsPlatformSources.netease
+      || state.lyricsPlatformSources.qq !== previous.lyricsPlatformSources.qq
     if (guestChanged || (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
       || state.lyricsKugouFallback !== previous.lyricsKugouFallback))) sync()
   })

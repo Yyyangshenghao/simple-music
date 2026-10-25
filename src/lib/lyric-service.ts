@@ -16,7 +16,13 @@ function participating(source: ProviderId): boolean {
   return !!state?.enabled && state.auth === 'authenticated'
 }
 
+/** 设置中关闭的网易云、QQ 不参与歌词查询，账号与游客都不用。 */
+export function lyricPlatformEnabled(source: ProviderId): boolean {
+  return (source !== 'netease' && source !== 'qq') || useSettingsStore.getState().lyricsPlatformSources[source]
+}
+
 export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
+  if (!lyricPlatformEnabled(source)) return null
   if (participating(source)) return 'account'
   if (source !== 'netease' && source !== 'qq') return null
   const state = useProviderStore.getState().byId[source]
@@ -28,7 +34,7 @@ export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
 /** 可用于歌词的平台：参与播放的平台按播放顺序在前，其余可游客查询的网易云、QQ 在后。 */
 export function lyricServiceSources(): ProviderId[] {
   const { playbackOrder } = useProviderStore.getState()
-  const sources = playbackOrder.filter(participating)
+  const sources = playbackOrder.filter(source => participating(source) && lyricPlatformEnabled(source))
   for (const source of ['netease', 'qq'] as const) {
     if (!sources.includes(source) && lyricServiceMode(source) === 'guest') sources.push(source)
   }

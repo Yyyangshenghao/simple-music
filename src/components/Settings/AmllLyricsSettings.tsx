@@ -21,6 +21,8 @@ export function AmllLyricsSettings() {
   const setKugouEnabled = useSettingsStore(s => s.setLyricsKugouFallback)
   const guestSources = useSettingsStore(s => s.lyricsGuestSources)
   const setGuestSource = useSettingsStore(s => s.setLyricsGuestSource)
+  const platformSources = useSettingsStore(s => s.lyricsPlatformSources)
+  const setPlatformSource = useSettingsStore(s => s.setLyricsPlatformSource)
   const providers = useProviderStore(s => s.byId)
   const reduced = !useMotion('dragMotion')
   const [sample, setSample] = useState('sunny')
@@ -37,14 +39,22 @@ export function AmllLyricsSettings() {
     next[other] = previous
     useLyricsSourceStore.getState().setSourceOrder(next)
   }
+  const isOn = (source: LyricPrioritySource) => source === 'amll' ? enabled : source === 'kugou' ? kugouEnabled : platformSources[source]
+  const toggle = (source: LyricPrioritySource, value: boolean) => {
+    if (source === 'amll') setEnabled(value)
+    else if (source === 'kugou') setKugouEnabled(value)
+    else {
+      setPlatformSource(source, value)
+      // 游客查询不再单独设开关：重新启用平台时一并恢复，未登录也能直接用。
+      if (value && !guestSources[source]) setGuestSource(source, true)
+    }
+  }
   const test = (source: LyricPrioritySource) => {
-    if (source === 'amll' && !enabled) setEnabled(true)
-    if (source === 'kugou' && !kugouEnabled) setKugouEnabled(true)
     void useLyricsSourceStore.getState().testSource(source, sample).catch(() => {})
   }
 
   return <section className={styles.group}>
-    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，网易云、QQ 未登录或已停用时，可按下方开关以游客身份查询，不使用账号。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
+    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，网易云、QQ 未登录或已停用播放时，以游客身份查询歌词，不使用账号，只发送歌名与歌手。不想用的来源直接关闭，关闭后不再向它查询歌词，也不影响播放音源。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
     <div className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
       <select id="lyrics-test-song" className={`${styles.select} no-drag`} value={sample} onChange={event => setSample(event.target.value)}>
@@ -55,22 +65,22 @@ export function AmllLyricsSettings() {
       {order.map((source, index) => {
         const probe = probes[source]
         const suspended = health[source]?.suspended
-        // 网易云、QQ 未登录或停用且未开游客查询时不参与。
-        const disabled = source === 'amll' ? !enabled : source === 'kugou' ? !kugouEnabled
-          : !guestSources[source] && !(providers[source]?.enabled && providers[source]?.auth === 'authenticated')
-        const status = probe?.status === 'loading' ? '正在获取测试歌词…'
+        const on = isOn(source)
+        const account = source !== 'amll' && source !== 'kugou' && providers[source]?.enabled && providers[source]?.auth === 'authenticated'
+        const status = !on ? '已关闭'
+          : probe?.status === 'loading' ? '正在获取测试歌词…'
           : suspended ? probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，仍暂停访问' : '连接异常，稍后自动重试'
-          : disabled ? '已停用'
           : probe?.status === 'ready' ? `已获取歌词 · ${probe.ms} ms`
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'
           : probe?.status === 'error' ? '暂时连接失败，可重新测试'
-          : probe?.message ?? ''
-        return <motion.li key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow}>
+          : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : '未登录，以游客身份查询')
+        return <motion.li key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined}>
           <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
-          <div className={styles.sourceName}><strong>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={suspended ? styles.statusIssue : ''}>{status}</span></div>
-          <button type="button" className={`${styles.probe} no-drag`} disabled={probe?.status === 'loading'} onClick={() => test(source)}>
-            {probe?.status === 'loading' ? '测试中…' : disabled && (source === 'amll' || source === 'kugou') ? '启用并测试' : suspended ? '测试恢复' : '测试'}
+          <div className={styles.sourceName}><strong>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? styles.statusIssue : ''}>{status}</span></div>
+          <button type="button" className={`${styles.probe} no-drag`} disabled={!on || probe?.status === 'loading'} onClick={() => test(source)}>
+            {probe?.status === 'loading' ? '测试中…' : suspended ? '测试恢复' : '测试'}
           </button>
+          <Switch checked={on} onChange={value => toggle(source, value)} aria-label={`使用${LYRIC_SOURCE_LABELS[source]}`} />
           <div className={styles.reorder}>
             <button type="button" aria-label={`提高${LYRIC_SOURCE_LABELS[source]}优先级`} disabled={index === 0} onClick={() => move(index, -1)}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 10 4-4 4 4" /></svg></button>
             <button type="button" aria-label={`降低${LYRIC_SOURCE_LABELS[source]}优先级`} disabled={index === order.length - 1} onClick={() => move(index, 1)}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 6 4 4 4-4" /></svg></button>
@@ -78,15 +88,6 @@ export function AmllLyricsSettings() {
         </motion.li>
       })}
     </ol>
-    <div className={styles.guestRow}>
-      <span>游客查询网易云音乐歌词</span>
-      <Switch checked={guestSources.netease} onChange={value => setGuestSource('netease', value)} aria-label="游客查询网易云音乐歌词" />
-    </div>
-    <div className={styles.guestRow}>
-      <span>游客查询 QQ 音乐歌词</span>
-      <Switch checked={guestSources.qq} onChange={value => setGuestSource('qq', value)} aria-label="游客查询 QQ 音乐歌词" />
-    </div>
-    <p className={`${styles.hint} ${styles.guestHint}`}>未登录或已停用的平台以游客身份查询歌词，不使用账号，只发送歌名与歌手；不影响播放音源。</p>
     <div className={styles.memoryRow}>
       <div className={styles.sourceName}>
         <strong>歌曲来源记忆</strong>

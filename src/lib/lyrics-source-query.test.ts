@@ -338,7 +338,13 @@ describe('游客歌词来源', () => {
 
   it('关闭游客查询后，未登录平台提示登录或开启，停用平台提示已关闭', () => {
     useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
-    expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'login', message: '登录或开启游客查询后可查找' })
+    expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'login', message: '登录后可查找' })
     expect(candidateAvailability(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'disabled' })
+  })
+
+  it('设置中关闭平台后，即使已登录也显示已关闭', () => {
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true } })
+    expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true } })
   })
 })

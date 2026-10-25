@@ -140,7 +140,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
             </button>
             {selected === candidate.origin && ['error', 'empty', 'mismatch'].includes(candidate.status) && <button className={styles.sourceAction} disabled={busy} onClick={() => query(candidate.origin)}>重试</button>}
             {selected === candidate.origin && (candidate.status === 'login' || (candidate.status === 'unavailable' && candidate.message === '需启用可匹配的平台')) && <button className={styles.sourceAction} onClick={() => openSettings('music')}>音源设置…</button>}
-            {selected === candidate.origin && candidate.status === 'disabled' && <button className={styles.sourceAction} onClick={() => openSettings(candidate.origin === 'amll' || candidate.origin === 'kugou' ? 'lyrics' : 'music')}>前往启用…</button>}
+            {selected === candidate.origin && candidate.status === 'disabled' && <button className={styles.sourceAction} onClick={() => openSettings(candidate.origin === 'apple' ? 'music' : 'lyrics')}>前往启用…</button>}
           </div>)}
           {candidates.length === 0 && <>
             <p className={styles.sourceHint} role="status">{error ? '未能获取来源信息' : '正在查找歌词来源…'}</p>

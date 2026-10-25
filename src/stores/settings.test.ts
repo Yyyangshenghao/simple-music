@@ -289,6 +289,20 @@ describe('游客歌词来源设置', () => {
     expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: true })
   })
 
+  it('平台参与开关独立保存，重载保留；旧存档默认开启', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true } })
+    useSettingsStore.getState().setLyricsPlatformSource('netease', false)
+    useSettingsStore.getState().setLyricsPlatformSource('apple' as 'qq', false)
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: false, qq: true })
+    saved = '{}'
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: true, qq: true })
+  })
+
   it('拒绝未知平台与非布尔值', () => {
     vi.stubGlobal('localStorage', { setItem: vi.fn() })
     useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })

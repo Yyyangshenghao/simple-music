@@ -9,7 +9,7 @@ import {
   emptyLyrics, cachedLyrics, fetchLyrics, findLyricMatch, fitsLyricDuration, isLyricMatch, localLyricSource, LyricMismatchError,
   upgradeLyricsWithAmll, upgradeLyricsWithKugou, type LyricsResult,
 } from './lyrics-fetch'
-import { lyricServiceMode } from './lyric-service'
+import { lyricPlatformEnabled, lyricServiceMode } from './lyric-service'
 import { TrackMatchMismatchError } from './track-match'
 
 export interface LyricsSourceQueryResult {
@@ -23,9 +23,10 @@ type Availability = Pick<LyricsSourceQueryResult, 'status' | 'message'>
 
 /** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要账号，固定歌曲测试可绕过其停用状态。 */
 function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false): Availability {
+  if (!lyricPlatformEnabled(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   if (!lyricServiceMode(origin)) {
     if (useProviderStore.getState().byId[origin].auth !== 'authenticated') {
-      return { status: 'login', message: origin === 'apple' ? '登录后可查找' : '登录或开启游客查询后可查找' }
+      return { status: 'login', message: '登录后可查找' }
     }
     if (!(origin === 'apple' && probe)) return { status: 'disabled', message: '已在设置中关闭' }
   }

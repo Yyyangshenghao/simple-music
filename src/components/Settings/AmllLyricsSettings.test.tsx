@@ -10,8 +10,8 @@ const h = vi.hoisted(() => ({
     setSourceOrder: vi.fn(), clearRemembered: vi.fn(), forgetTrack: vi.fn(), testSource: vi.fn(),
   },
   settings: {
-    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true },
-    setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(),
+    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true },
+    setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(), setLyricsPlatformSource: vi.fn(),
   },
   providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' } } },
   confirm: false, setConfirm: vi.fn(), search: '', sample: 'sunny', setSample: vi.fn(),
@@ -77,6 +77,7 @@ beforeEach(() => {
   h.settings.lyricsAmllFallback = true
   h.settings.lyricsKugouFallback = true
   h.settings.lyricsGuestSources = { netease: true, qq: true }
+  h.settings.lyricsPlatformSources = { netease: true, qq: true }
   h.providers.byId.netease = { enabled: true, auth: 'anonymous' }
   h.providers.byId.qq = { enabled: true, auth: 'anonymous' }
 })
@@ -115,12 +116,34 @@ describe('歌词来源设置', () => {
     expect(button(element, '测试中…').props.disabled).toBe(true)
   })
 
-  it('已停用的歌词库可明确启用并测试', () => {
+  it('每个来源一个开关，关闭后不可测试并显示已关闭', () => {
     h.settings.lyricsAmllFallback = false
+    h.settings.lyricsPlatformSources = { netease: false, qq: true }
     const element = AmllLyricsSettings()
-    button(element, '启用并测试').props.onClick()
+    const rows = elements(elements(element, 'ol')[0], 'li')
+    expect(text(rows[0])).toContain('已关闭')
+    expect(button(rows[0], '测试').props.disabled).toBe(true)
+    expect(text(rows[2])).toContain('已关闭')
+    labelled(element, '使用AMLL 逐字歌词库')!.props.onChange(true)
     expect(h.settings.setLyricsAmllFallback).toHaveBeenCalledWith(true)
-    expect(h.source.testSource).toHaveBeenCalledWith('amll', 'sunny')
+    labelled(element, '使用酷狗歌词库')!.props.onChange(false)
+    expect(h.settings.setLyricsKugouFallback).toHaveBeenCalledWith(false)
+    labelled(element, '使用QQ 音乐')!.props.onChange(false)
+    expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('qq', false)
+    expect(h.settings.setLyricsGuestSource).not.toHaveBeenCalled()
+  })
+
+  it('重新启用平台时一并恢复游客查询，未登录显示以游客身份查询', () => {
+    h.settings.lyricsGuestSources = { netease: false, qq: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true }
+    const element = AmllLyricsSettings()
+    labelled(element, '使用网易云音乐')!.props.onChange(true)
+    expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('netease', true)
+    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('netease', true)
+    const rows = elements(elements(element, 'ol')[0], 'li')
+    expect(text(rows[1])).toContain('未登录，以游客身份查询')
+    expect(infoText(element)).toContain('不使用账号')
+    expect(infoText(element)).toContain('只发送歌名与歌手')
   })
 
   it('歌曲来源记忆显示数量，管理入口打开独立弹窗', async () => {
@@ -146,20 +169,5 @@ describe('歌词来源设置', () => {
     const element = AmllLyricsSettings()
     expect(elements(element, 'select')).toHaveLength(1)
     expect(text(element)).not.toContain('连接线路')
-  })
-
-  it('游客查询按平台各自开关，并说明不使用账号与发送的内容', () => {
-    const element = AmllLyricsSettings()
-    labelled(element, '游客查询网易云音乐歌词')!.props.onChange(false)
-    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('netease', false)
-    labelled(element, '游客查询 QQ 音乐歌词')!.props.onChange(false)
-    expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('qq', false)
-    expect(text(element)).toContain('不使用账号')
-    expect(text(element)).toContain('只发送歌名与歌手')
-  })
-
-  it('未登录且关闭游客查询的平台显示已停用', () => {
-    h.settings.lyricsGuestSources = { netease: false, qq: true }
-    expect(text(AmllLyricsSettings())).toContain('已停用')
   })
 })
