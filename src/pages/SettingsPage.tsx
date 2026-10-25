@@ -858,12 +858,13 @@ export function SettingsPage() {
     if (!page) return
     const updateActiveDetail = () => {
       if (selectedDetailRef.current) return
+      const pageTop = page.getBoundingClientRect().top
       let current = settingsTabs[0]
       for (const section of settingsTabs) {
         const node = document.getElementById(`settings-section-${section.id}`)
         if (!node) continue
         const offset = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
-        if (node.getBoundingClientRect().top <= page.getBoundingClientRect().top + offset + 28) current = section
+        if (node.getBoundingClientRect().top <= pageTop + offset + 28) current = section
       }
       if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2) current = settingsTabs[settingsTabs.length - 1]
       if (activeSectionRef.current !== current.id) {
@@ -876,9 +877,18 @@ export function SettingsPage() {
         const node = document.getElementById(`settings-detail-${item.id}`)
         if (!node) continue
         const offset = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
-        if (node.getBoundingClientRect().top <= page.getBoundingClientRect().top + offset + 28) detail = item.id
+        if (node.getBoundingClientRect().top <= pageTop + offset + 28) detail = item.id
       }
       setActiveDetail(detail)
+    }
+    // 滚动事件可能一帧多次，量位置会强制布局，合并到每帧一次。
+    let scrollFrame = 0
+    const scheduleActiveDetail = () => {
+      if (scrollFrame) return
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0
+        updateActiveDetail()
+      })
     }
     const resumeScrollTracking = () => {
       selectedDetailRef.current = null
@@ -892,15 +902,16 @@ export function SettingsPage() {
     }
     const rememberScroll = () => { savedSettingsScrollTop = page.scrollTop }
     page.addEventListener('scroll', rememberScroll, { passive: true })
-    page.addEventListener('scroll', updateActiveDetail, { passive: true })
+    page.addEventListener('scroll', scheduleActiveDetail, { passive: true })
     page.addEventListener('wheel', resumeScrollTracking, { passive: true })
     page.addEventListener('touchstart', resumeScrollTracking, { passive: true })
     page.addEventListener('keydown', handleKeyDown)
     page.addEventListener('pointerdown', handlePointerDown)
     updateActiveDetail()
     return () => {
+      cancelAnimationFrame(scrollFrame)
       page.removeEventListener('scroll', rememberScroll)
-      page.removeEventListener('scroll', updateActiveDetail)
+      page.removeEventListener('scroll', scheduleActiveDetail)
       page.removeEventListener('wheel', resumeScrollTracking)
       page.removeEventListener('touchstart', resumeScrollTracking)
       page.removeEventListener('keydown', handleKeyDown)
@@ -1014,7 +1025,8 @@ export function SettingsPage() {
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
   const multiSourceFallback = useProviderStore((s) => s.multiSourceFallback)
   const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
-  const apple = useAppleMusicConnection()
+  const appleRestoring = useAppleMusicConnection((s) => !!s.account?.restoring)
+  const appleWaiting = useAppleMusicConnection((s) => s.phase === 'waiting')
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
   const changeProviderAccount = async (source: 'netease' | 'qq', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
@@ -1211,8 +1223,8 @@ export function SettingsPage() {
                     const connected = runtime.auth === 'authenticated'
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
-                    const accountLabel = source === 'apple' && apple.account?.restoring ? '恢复登录中'
-                      : source === 'apple' && apple.phase === 'waiting' && !connected ? '等待授权'
+                    const accountLabel = source === 'apple' && appleRestoring ? '恢复登录中'
+                      : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
                         ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
                           : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'

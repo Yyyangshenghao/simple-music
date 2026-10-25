@@ -137,3 +137,18 @@ export async function listSystemFonts(platform = process.platform): Promise<Syst
 
   throw new Error('UNSUPPORTED_PLATFORM')
 }
+
+/** 合并并缓存字体读取；失败的读取不缓存，设置页的「重试」能重新读。 */
+export function createFontListCache(read: () => Promise<SystemFontFamily[]>): () => Promise<SystemFontFamily[]> {
+  let pending: Promise<SystemFontFamily[]> | null = null
+  return () => {
+    if (!pending) {
+      pending = read()
+      pending.catch(() => { pending = null })
+    }
+    return pending
+  }
+}
+
+/** 读字体要起 osascript / PowerShell 子进程，本次运行内只读一次；新装的字体重启应用后出现。 */
+export const listSystemFontsCached = createFontListCache(() => listSystemFonts())

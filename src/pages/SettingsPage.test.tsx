@@ -64,6 +64,12 @@ vi.mock('../stores/providers', async (importOriginal) => {
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
 vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null, AppleMusicAccountInfo: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
+// 说明里的示意只在悬停时挂载，静态渲染时直接展开，校验每个开关接对了示意。
+vi.mock('../components/ui/InfoButton', () => ({
+  InfoButton: ({ label, text, preview }: { label: string; text: string; preview?: React.ReactNode }) => (
+    <span data-settings-info><button type="button" aria-label={`${label}说明`}>i</button><span role="tooltip">{preview}{text}</span></span>
+  ),
+}))
 
 const initialSettings = useSettingsStore.getState()
 const initialVisual = useVisualStore.getState()

@@ -56,7 +56,7 @@
   transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
 }
 
-.infoWrap:hover .infoTooltip {
+.infoTooltip[data-open='true'] {
   --text-reveal-open: 1;
   visibility: visible;
   opacity: 1;

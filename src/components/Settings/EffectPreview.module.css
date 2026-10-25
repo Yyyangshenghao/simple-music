@@ -1,4 +1,4 @@
-/* 动效示意小样：默认暂停，悬停 ⓘ 时播放。 */
+/* 动效示意小样：只在 ⓘ 展开时挂载（见 InfoButton），挂载即播放。 */
 .stage {
   position: relative;
   display: grid;
@@ -11,10 +11,6 @@
   background: var(--sm-fill-subtle);
   perspective: 420px;
 }
-.stage,
-.stage * { animation-play-state: paused; }
-:global([data-settings-info]:hover) .stage,
-:global([data-settings-info]:hover) .stage * { animation-play-state: running; }
 
 /* 文字逐字显现 */
 .reveal { font-size: 15px; font-weight: 600; color: var(--sm-text-primary); }

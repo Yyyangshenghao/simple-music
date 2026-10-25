@@ -5,7 +5,7 @@ import { getMainWindow, setShortcutRecording } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
 import { configureSettingsMenu } from '../modules/settings-menu'
 import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
-import { listSystemFonts } from '../modules/font-manager'
+import { listSystemFontsCached } from '../modules/font-manager'
 import { updateWorkDir } from '../../server/lib/update-download-dir'
 import type {
   HotkeyConfiguration,
@@ -29,7 +29,7 @@ export function registerMiscIpc(): void {
 
   ipcMain.handle('system:list-fonts', async (): Promise<SystemFontResult> => {
     try {
-      return { ok: true, fonts: await listSystemFonts() }
+      return { ok: true, fonts: await listSystemFontsCached() }
     } catch (e) {
       return { ok: false, fonts: [], error: (e as Error).message || 'LIST_FONTS_FAILED' }
     }
