@@ -1,0 +1,17 @@
+/* 与 LibraryPage.module.css 的 .tabLens / .tabLensRim 同款：通透玻璃 + 渐变细边 + 浅投影。 */
+.surface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.28);
+}
+
+.rim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}

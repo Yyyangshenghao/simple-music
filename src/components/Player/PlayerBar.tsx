@@ -8,13 +8,14 @@ import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { appPlaylistTrackKey } from '../../stores/app-playlists'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
-import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
+import { tapScale, springSnappy, iconSwap, liquidLiftSpring } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
 import { WakeSlider } from '../ui/WakeSlider'
 import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
+import { PlayButtonGlass } from './PlayButtonGlass'
 import { TrackInfo } from './TrackInfo'
 import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
@@ -516,6 +517,8 @@ function replayPlayStar(button: Element | undefined, dir: 'up' | 'down') {
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
+  const glassHover = useMotion('hoverLiftMotion')
+  const glassPress = useMotion('tapFeedbackMotion')
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -549,9 +552,12 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
             title={isPlaying ? '暂停' : '播放'}
             aria-label={isPlaying ? '暂停' : '播放'}
             data-loading={isLoading}
-            whileTap={tapScale}
-            transition={springSnappy}
+            animate={{ scaleX: 1, scaleY: 1 }}
+            whileHover={glassHover ? { scaleX: 1.04, scaleY: 1.04 } : undefined}
+            whileTap={glassPress ? { scaleX: 1.1, scaleY: 1.06 } : undefined}
+            transition={{ type: 'spring', ...liquidLiftSpring }}
           >
+            <PlayButtonGlass />
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={isPlaying ? 'pause' : 'play'}
