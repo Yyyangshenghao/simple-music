@@ -11,6 +11,7 @@ import { platformCollectionRoutes } from './routes/platform-collections'
 import { qqFavoriteRoutes } from './routes/qq-favorites'
 import { qqAccountDataRoutes } from './routes/qq-account-data'
 import { audioCacheRoutes } from './routes/audio-cache'
+import { karaokeRoutes } from './routes/karaoke'
 import { songDownloadRoutes } from './routes/song-downloads'
 import { podcastRoutes } from './routes/podcast'
 import { beatmapRoutes } from './routes/beatmap'
@@ -34,6 +35,7 @@ const chain: RouteHandler[] = [
   appleMusicBridgeRoutes,
   appleMusicRoutes,
   audioCacheRoutes,
+  karaokeRoutes,
   songDownloadRoutes,
   catalogSearchRoutes,
   neteasePlaylistManagementRoutes,

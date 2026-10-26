@@ -536,3 +536,134 @@ describe('无界面播放核心', () => {
     expect(next).not.toHaveBeenCalled()
   })
 })
+
+describe('K 歌 AI 分离', () => {
+  function withKaraoke(supported = true) {
+    const h = createHost()
+    const job = deferred<string>()
+    const known = new Map<string, string>()
+    const port = {
+      supported: vi.fn(async () => supported),
+      knownStem: vi.fn((key: string) => known.get(key) ?? null),
+      forget: vi.fn((key: string) => { known.delete(key) }),
+      separate: vi.fn((_key: string, _src: string, onProgress: (p: { phase: 'model' | 'separating'; progress: number }) => void) => {
+        onProgress({ phase: 'separating', progress: 0.5 })
+        return job.promise
+      }),
+      release: vi.fn(),
+    }
+    h.deps.karaoke = port
+    const setKaraoke = vi.fn()
+    Object.assign(h.engine, { setKaraoke })
+    return { h, port, job, known, setKaraoke }
+  }
+  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve() }
+
+  it('提交后按实际曲目分离，完成即在当前进度换成伴奏且不重复提交候选', async () => {
+    const { h, port, job } = withKaraoke()
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.setKaraoke(true)
+    await flush()
+    expect(port.separate).toHaveBeenCalledWith('netease:1', h.candidate.url, expect.any(Function), expect.any(AbortSignal))
+    expect(h.state.karaokeStatus).toEqual({ phase: 'separating', progress: 0 })
+    h.patch({ position: 42 })
+    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
+    await flush()
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/karaoke/stem?key=netease%3A1', 42)
+    expect(h.state.karaokeStatus.phase).toBe('ready')
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.resolver.complete).toHaveBeenCalledOnce()
+  })
+
+  it('关闭时取消分离、释放引擎并带原缓存参数切回原曲', async () => {
+    const { h, port, job } = withKaraoke()
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.setKaraoke(true)
+    await flush()
+    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
+    await flush()
+    h.patch({ position: 50 })
+    h.state.setKaraoke(false)
+    expect(port.release).toHaveBeenCalled()
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 50, 'netease:1:lossless', expect.any(Object))
+    expect(h.state.karaokeStatus.phase).toBe('off')
+  })
+
+  it('伴奏已知时换歌直接加载伴奏，伴奏读取失败则忘记并回原曲', async () => {
+    const { h, port, known } = withKaraoke()
+    h.state.setKaraoke(true)
+    known.set('netease:1', 'http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
+    await h.state.loadTrack(track, { startAt: 10 })
+    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/karaoke/stem?key=netease%3A1', 10)
+    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
+    expect(port.forget).toHaveBeenCalledWith('netease:1')
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, expect.any(Number), 'netease:1:lossless', expect.any(Object))
+    expect(h.resolver.recordExternalMediaFailure).not.toHaveBeenCalled()
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.actualSource).toBe('netease')
+  })
+
+  it('不支持 WebGPU 时退回中置消除；刷歌不分离', async () => {
+    const { h, port, setKaraoke } = withKaraoke(false)
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.setKaraoke(true)
+    await flush()
+    expect(setKaraoke).toHaveBeenCalledWith(true)
+    expect(h.state.karaokeStatus.phase).toBe('fallback')
+    await h.state.loadTrack({ ...track, id: 2 }, { contextId: 'shuange:1' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.karaokeStatus.phase).toBe('unavailable')
+    expect(port.separate).not.toHaveBeenCalled()
+  })
+
+  it('当前曲完成后预分离队列下一首', async () => {
+    const { h, port, job } = withKaraoke()
+    const next = { ...track, id: 9 }
+    h.core.registerNextTrackPeek(() => next)
+    vi.mocked(h.deps.getPreloadedResolution).mockReturnValue({ url: 'https://cdn.example.com/next.mp3' })
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.state.setKaraoke(true)
+    await flush()
+    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
+    await flush()
+    expect(port.separate).toHaveBeenLastCalledWith('netease:9', 'https://cdn.example.com/next.mp3', expect.any(Function), expect.any(AbortSignal))
+  })
+})
+
+describe('K 歌复审回归', () => {
+  it('伴奏已直接加载但未提交时关闭 K 歌，原曲仍走正常提交', async () => {
+    const h = createHost()
+    const port = {
+      supported: vi.fn(async () => true),
+      knownStem: vi.fn(() => 'http://127.0.0.1/api/karaoke/stem?key=netease%3A1'),
+      forget: vi.fn(), separate: vi.fn(() => new Promise<string>(() => {})), release: vi.fn(),
+    }
+    h.deps.karaoke = port
+    h.state.setKaraoke(true)
+    await h.state.loadTrack(track)
+    h.state.setKaraoke(false)
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.actualSource).toBe('netease')
+    expect(h.state.playbackTransport).toBe('online')
+  })
+
+  it('试听片段不分离，并停掉上一首的任务', async () => {
+    const h = createHost()
+    const port = {
+      supported: vi.fn(async () => true), knownStem: vi.fn(() => null), forget: vi.fn(),
+      separate: vi.fn(() => new Promise<string>(() => {})), release: vi.fn(),
+    }
+    h.deps.karaoke = port
+    h.state.setKaraoke(true)
+    h.candidate.trial = true
+    await h.state.loadTrack(track)
+    h.callbacks.onCanPlay?.(h.loadId)
+    await Promise.resolve()
+    expect(port.separate).not.toHaveBeenCalled()
+    expect(h.state.karaokeStatus).toMatchObject({ phase: 'unavailable', message: '试听片段不分离人声' })
+  })
+})
