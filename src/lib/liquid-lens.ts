@@ -1,7 +1,7 @@
 /**
  * 流体玻璃透镜（折射思路参照 childrentime/liquid-glass 的 SDF 位移，改用 WebGL 自行渲染）：
  * 把透镜下方的标签预先画成一张贴图，片元着色器按胶囊 SDF 沿边缘法线向内取样，
- * 斜面内产生厚玻璃的弯折，中心平坦区只做等比放大。
+ * 斜面内产生厚玻璃的弯折与轻微色散，中心平坦区只做等比放大。
  * 不依赖 SVG 滤镜：backdrop-filter / filter 里的 SVG 坐标原点在嵌套变换下会偏离元素自身。
  */
 
@@ -42,6 +42,7 @@ uniform vec2 uSize;
 uniform float uMagnify;
 uniform float uBezel;
 uniform float uDepth;
+uniform vec3 uBackdrop;
 
 vec4 tap(vec2 p) {
   vec2 uv = (uOrigin + p) / uStripSize;
@@ -69,7 +70,17 @@ void main() {
   float t = clamp(-d / uBezel, 0.0, 1.0);
   float bend = uDepth * (1.0 - smoothstep(0.0, 1.0, t));
   vec2 base = c + p / uMagnify;
-  gl_FragColor = tap(base - n * bend);
+  vec2 samplePoint = base - n * bend;
+  // 三个波段在倒角边缘略微分开；中心保持同一次取样位置，避免文字整体染色。
+  float dispersion = min(uDepth * 0.45, 2.5) * (1.0 - smoothstep(0.0, 1.0, t));
+  vec4 red = tap(samplePoint + n * dispersion);
+  vec4 green = tap(samplePoint);
+  vec4 blue = tap(samplePoint - n * dispersion);
+  // 各波段的覆盖率不同：以底色补足缺少的通道，黑字在浅底上也能产生互补彩边。
+  float alpha = max(red.a, max(green.a, blue.a));
+  vec3 coverage = vec3(red.a, green.a, blue.a);
+  vec3 color = vec3(red.r, green.g, blue.b) + uBackdrop * (vec3(alpha) - coverage);
+  gl_FragColor = vec4(color, alpha);
 }`
 
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
@@ -85,6 +96,7 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 export class LiquidLensRenderer {
   private stripWidth = 0
   private stripHeight = 0
+  private backdrop: readonly number[] = [0, 0, 0]
   private constructor(
     private gl: WebGLRenderingContext,
     private program: WebGLProgram,
@@ -116,18 +128,19 @@ export class LiquidLensRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
-    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth']
+    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth', 'uBackdrop']
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]))
     return new LiquidLensRenderer(gl, program, texture, uniforms)
   }
 
   /** 上传标签条贴图；cssWidth/cssHeight 是贴图对应的标签条 CSS 尺寸。 */
-  setStrip(source: HTMLCanvasElement, cssWidth: number, cssHeight: number) {
+  setStrip(source: HTMLCanvasElement, cssWidth: number, cssHeight: number, backdrop: readonly number[] = [0, 0, 0]) {
     const { gl } = this
     gl.bindTexture(gl.TEXTURE_2D, this.texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
     this.stripWidth = cssWidth
     this.stripHeight = cssHeight
+    this.backdrop = backdrop
   }
 
   get hasStrip() { return this.stripWidth > 0 }
@@ -149,6 +162,7 @@ export class LiquidLensRenderer {
     gl.uniform1f(u.uMagnify, frame.magnify)
     gl.uniform1f(u.uBezel, frame.bezel)
     gl.uniform1f(u.uDepth, frame.depth)
+    gl.uniform3f(u.uBackdrop, this.backdrop[0], this.backdrop[1], this.backdrop[2])
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
   }
 }
@@ -179,6 +193,15 @@ export async function rasterizeTabStrip(root: HTMLElement, buttons: HTMLElement[
   canvas.height = Math.ceil(height * scale)
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
+  // 透明标签贴图不含底色；仅用于色散通道的合成补偿，不把底色画进透镜。
+  const rootStyle = getComputedStyle(root)
+  ctx.fillStyle = rootStyle.getPropertyValue('--sm-bg-base').trim() || '#000'
+  ctx.fillRect(0, 0, 1, 1)
+  ctx.fillStyle = rootStyle.backgroundColor
+  ctx.fillRect(0, 0, 1, 1)
+  const pixel = ctx.getImageData(0, 0, 1, 1).data
+  const backdrop = [pixel[0] / 255, pixel[1] / 255, pixel[2] / 255]
+  ctx.clearRect(0, 0, 1, 1)
   const base = root.getBoundingClientRect()
   const ox = base.left + root.clientLeft - root.scrollLeft
   const oy = base.top + root.clientTop
@@ -203,5 +226,5 @@ export async function rasterizeTabStrip(root: HTMLElement, buttons: HTMLElement[
     }
   }
   await Promise.all(icons)
-  return { canvas, width, height }
+  return { canvas, width, height, backdrop }
 }
