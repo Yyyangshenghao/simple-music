@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cancelFrame, frame, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
 import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
 import { useMotion } from '../hooks/useMotion'
-import { LiquidLensRenderer, lensRect, rasterizeContent } from '../lib/liquid-lens'
+import { LiquidLensRenderer, lensRect, rasterizeTabStrip } from '../lib/liquid-lens'
 import styles from './LibraryPage.module.css'
 
 interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode }
@@ -196,7 +196,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       const current = ++version
       const color = lensRef.current ? getComputedStyle(lensRef.current).color : '#fff'
       lastColor = color
-      const strip = await rasterizeContent(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
+      const strip = await rasterizeTabStrip(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
       if (disposed || current !== version || !strip) return
       renderer.setStrip(strip.canvas, strip.width, strip.height)
       draw()
