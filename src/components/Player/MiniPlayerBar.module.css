@@ -204,6 +204,53 @@
   opacity: 1;
 }
 
+/* 播放键流体玻璃：与主播放栏同一套语言——无色通透的玻璃体，渐变细边上沿亮、下沿弱，
+   内缘上亮下暗像凸透镜；按下浮起时图标交给 WebGL 透镜（见 LiquidPlayButton）。 */
+.ctlPlay,
+.ctlPlay:hover:not(:disabled) {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(closest-side, transparent 74%, color-mix(in srgb, var(--mp-fg) 9%, transparent) 96%, transparent),
+    linear-gradient(180deg, color-mix(in srgb, white 22%, transparent), color-mix(in srgb, white 5%, transparent) 55%, color-mix(in srgb, white 10%, transparent));
+  backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
+  -webkit-backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
+  box-shadow:
+    inset 0 6px 8px -6px color-mix(in srgb, white 50%, transparent),
+    0 0 0 0.5px color-mix(in srgb, var(--mp-fg) 22%, transparent),
+    0 4px 10px -4px rgba(0, 0, 0, 0.3);
+}
+
+.ctlPlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from 225deg,
+    color-mix(in srgb, white 80%, transparent),
+    color-mix(in srgb, white 8%, transparent) 25%,
+    color-mix(in srgb, white 40%, transparent) 50%,
+    color-mix(in srgb, white 8%, transparent) 75%,
+    color-mix(in srgb, white 80%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+.playIconLayer { display: inline-flex; align-items: center; justify-content: center; }
+
+.playLens {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
 .ctlClose {
   width: 24px;
   height: 24px;
@@ -215,7 +262,7 @@
   .cover { width: 36px; height: 36px; }
   .controls { gap: 0; margin-right: 6px; }
   .ctl { width: 24px; }
-  .ctlPlay { width: 30px; }
+  .ctlPlay { width: 30px; height: 30px; }
   .ctlClose { width: 20px; }
 }
 

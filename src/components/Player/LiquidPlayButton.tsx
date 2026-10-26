@@ -13,14 +13,17 @@ const LENS_MAGNIFY = 1.08
  * 浮起期间图标改由 WebGL 透镜重绘，经玻璃放大、斜面弯折并带边缘镜面高光，沉回后换回 DOM 图标。
  * 归属「按压回弹」开关：关闭后没有浮起与缩放。拿不到 WebGL 时只保留浮起形变。
  */
-export function LiquidPlayButton({ 'aria-label': label, loading, iconKey, onClick, classes, children }: {
+export function LiquidPlayButton({ 'aria-label': label, loading, disabled, stopPointer, iconKey, onClick, classes, children }: {
   'aria-label': string
   /** 样式由调用方传入：本组件自己引入 PlayerBar 样式会改变打包顺序，让 .control 盖掉播放键的圆角与悬停色。 */
-  classes: { button: string; iconLayer: string; lens: string; star: string }
-  loading: boolean
+  classes: { button: string; iconLayer: string; lens: string; star?: string }
+  loading?: boolean
+  disabled?: boolean
+  /** 按下事件不再冒泡（迷你播放条里冒泡会触发拖动窗口）。 */
+  stopPointer?: boolean
   /** 图标内容变化（播放/暂停切换）时重画透镜贴图。 */
   iconKey: string
-  onClick(event: MouseEvent<HTMLButtonElement>): void
+  onClick?(event: MouseEvent<HTMLButtonElement>): void
   children: ReactNode
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -117,15 +120,19 @@ export function LiquidPlayButton({ 'aria-label': label, loading, iconKey, onClic
     title={label}
     aria-label={label}
     data-loading={loading}
+    disabled={disabled}
     style={enabled ? { scaleX, scaleY } : undefined}
     onPointerEnter={() => rasterize.current()}
-    onPointerDown={event => { if (event.button === 0) setLifted(true) }}
+    onPointerDown={event => {
+      if (stopPointer) event.stopPropagation()
+      if (event.button === 0) setLifted(true)
+    }}
     onPointerUp={() => setLifted(false)}
     onPointerLeave={() => setLifted(false)}
     onPointerCancel={() => setLifted(false)}
   >
     <motion.span className={classes.iconLayer} style={{ opacity: enabled && !glFailed ? iconOpacity : 1 }}>{children}</motion.span>
     {enabled && !glFailed && <motion.canvas ref={canvasRef} className={classes.lens} aria-hidden="true" style={{ opacity: lensOpacity }} />}
-    <span className={classes.star} aria-hidden="true" />
+    {classes.star && <span className={classes.star} aria-hidden="true" />}
   </motion.button>
 }
