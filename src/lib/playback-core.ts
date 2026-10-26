@@ -24,7 +24,7 @@ const SCROBBLE_MIN_SECONDS = 20
 export type PlaybackEngine = Pick<AudioEngine,
   'load' | 'play' | 'pause' | 'seek' | 'setVolume' | 'setPlaybackRate' | 'clearSource'
   | 'getFrequencyData' | 'hasSource' | 'position' | 'destroy'
-> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads'>>
+> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads' | 'setKaraoke'>>
 type ApplePlayback = Pick<AppleMusicPlayback, 'load' | 'command' | 'stop' | 'lyricPosition'>
 type PlaybackResolverPort = Pick<PlaybackResolver,
   'sourceOrder' | 'attempts' | 'failureMessage' | 'next' | 'abort' | 'complete'
@@ -87,6 +87,8 @@ export interface PlaybackPlayer {
   contextId: unknown
   /** 播放速度(保留音高),不持久化,重启回 1。 */
   rate: number
+  /** K 歌(中置消除人声),不持久化,重启回原唱;Apple Music 不支持。 */
+  karaoke: boolean
   play(opts?: { preservePlaybackIntent?: boolean }): void
   pause(): void
   stop(): void
@@ -95,6 +97,7 @@ export interface PlaybackPlayer {
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
   setRate(r: number): void
+  setKaraoke(on: boolean): void
   loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean }): Promise<void>
   /** 当前曲目仅本次重载时软优先指定平台，不改变全局播放顺序。 */
   preferSourceOnce(source: ProviderId): void
@@ -322,6 +325,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       finishListening()
       ensureEngine().clearSource()
       ensureEngine().setPlaybackRate(1)
+      ensureEngine().setKaraoke?.(false)
       const library = candidate.url.startsWith('apple-music:library:')
       const id = decodeURIComponent(candidate.url.slice(library ? 'apple-music:library:'.length : 'apple-music:'.length))
       let committed = false
@@ -339,7 +343,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         if (!committed && (state.status === 'playing' || state.status === 'paused')) {
           committed = true
           const resolution = active.resolver?.complete(candidate) ?? null
-          set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1 })
+          set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1, karaoke: false })
           deps.appleSpectrum.requestCapture()
         } else if (state.status === 'playing' && get().status !== 'playing') {
           deps.appleSpectrum.requestCapture()
@@ -361,7 +365,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         }
       })
       applePlayback = playback
-      set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1 })
+      set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1, karaoke: false })
       void playback.load(id, library, active.startAt, active.autoplay, get().volume, (candidate.track.duration ?? 0) / 1000).catch((error) => {
         if (applePlayback !== playback || activePlayback !== active) return
         deps.appleSpectrum.stop()
@@ -618,6 +622,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     playbackAttempts: [],
     contextId: null,
     rate: 1,
+    karaoke: false,
 
     play(opts) {
       if (disposed) return
@@ -717,6 +722,15 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       ensureEngine().setPlaybackRate(r)
       set({ rate: r })
       resumeListening()
+    },
+    setKaraoke(on) {
+      if (disposed) return
+      if (applePlayback) {
+        deps.notify('Apple Music 播放受版权保护，无法消除人声')
+        return
+      }
+      ensureEngine().setKaraoke?.(on)
+      set({ karaoke: on })
     },
 
     async loadTrack(track, opts) {

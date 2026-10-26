@@ -286,6 +286,30 @@ function RateSection() {
   )
 }
 
+/** K 歌分区:实时消除居中人声;Apple Music 受 DRM 保护拿不到音频数据,只说明原因。 */
+function KaraokeSection({ apple }: { apple: boolean }) {
+  const karaoke = usePlayerStore((s) => s.karaoke)
+  const setKaraoke = usePlayerStore((s) => s.setKaraoke)
+  return (
+    <section className={styles.section}>
+      <button
+        type="button"
+        className={`${styles.optionRow} ${styles.switchHead}`}
+        role="switch"
+        aria-checked={karaoke}
+        disabled={apple}
+        onClick={() => setKaraoke(!karaoke)}
+      >
+        <span className={styles.sectionTitle}>K 歌模式</span>
+        <SwitchIndicator checked={karaoke} />
+      </button>
+      <span className={styles.tip}>
+        {apple ? 'Apple Music 受版权保护，无法消除人声' : '消除居中的人声；和声、混响可能残留，部分歌曲效果有限'}
+      </span>
+    </section>
+  )
+}
+
 /** 定时关闭分区:预设时长倒计时到点停播,可选播完当前曲再停。 */
 function SleepSection() {
   const phase = useSleepTimerStore((s) => s.phase)
@@ -395,6 +419,7 @@ export function MoreMenu() {
   const [extrasOpen, setExtrasOpen] = useState(false)
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
+  const karaoke = usePlayerStore((s) => s.karaoke)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
   const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
@@ -407,7 +432,7 @@ export function MoreMenu() {
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
-  const hasActive = rate !== 1 || sleepPhase !== 'idle'
+  const hasActive = rate !== 1 || karaoke || sleepPhase !== 'idle'
 
   useEffect(() => { if (lyricsSourceOpen) setOpen(false) }, [lyricsSourceOpen])
 
@@ -474,6 +499,7 @@ export function MoreMenu() {
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
+              <KaraokeSection apple={apple} />
               {trackKey && <section className={styles.section}>
                 <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>

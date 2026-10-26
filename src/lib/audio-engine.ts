@@ -1,5 +1,6 @@
 import { api, isLocalApiUrl } from './api'
 import { AudioPreloadPool } from './audio-preload-pool'
+import { KaraokeFilter } from './karaoke-filter'
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
@@ -59,6 +60,9 @@ export class AudioEngine {
   private source: MediaElementAudioSourceNode | null = null
   private analyser: AnalyserNode | null = null
   private gain: GainNode | null = null
+  /** K 歌中置消除链;首次开启才建立,之后常驻在 source 与 analyser 之间只做淡变。 */
+  private karaoke: KaraokeFilter | null = null
+  private karaokeOn = false
   private freq: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(0))
   private cbs: AudioEngineCallbacks
   /** load 指定的起播位置;元数据就绪后再应用(过早设 currentTime 会被忽略)。 */
@@ -143,6 +147,18 @@ export class AudioEngine {
     this.source.connect(this.analyser)
     this.analyser.connect(this.gain)
     this.gain.connect(this.ctx.destination)
+    if (this.karaokeOn) this.mountKaraoke().setEnabled(true, 0)
+  }
+
+  /** 把中置消除链插到 source 与 analyser 之间;频谱随之反映消除后的声音。 */
+  private mountKaraoke(): KaraokeFilter {
+    if (this.karaoke) return this.karaoke
+    const filter = new KaraokeFilter(this.ctx!)
+    filter.output.connect(this.analyser!)
+    this.source?.disconnect()
+    this.source?.connect(filter.input)
+    this.karaoke = filter
+    return filter
   }
 
   /** gain 包络淡变;无 Web Audio(ctx 未建立)时静默跳过,播放走直连不做淡变。 */
@@ -241,7 +257,7 @@ export class AudioEngine {
     if (this.ctx && this.analyser) {
       this.source = this.sources.get(audio) ?? this.ctx.createMediaElementSource(audio)
       this.sources.set(audio, this.source)
-      this.source.connect(this.analyser)
+      this.source.connect(this.karaoke?.input ?? this.analyser)
     }
   }
 
@@ -304,6 +320,13 @@ export class AudioEngine {
     this.audio.playbackRate = rate
   }
 
+  /** K 歌开关:消除居中人声;上下文尚未建立时记下,首次播放建图时生效。 */
+  setKaraoke(on: boolean): void {
+    this.karaokeOn = on
+    if (!this.ctx || !this.analyser || (!on && !this.karaoke)) return
+    this.mountKaraoke().setEnabled(on, FADE_SEC)
+  }
+
   seek(seconds: number): void {
     const target = Math.max(0, seconds)
     if (this.audio.readyState === 0) {
@@ -342,6 +365,8 @@ export class AudioEngine {
     this.audio.pause()
     this.audio.src = ''
     this.source?.disconnect()
+    this.karaoke?.disconnect()
+    this.karaoke = null
     this.analyser?.disconnect()
     this.gain?.disconnect()
     void this.ctx?.close()

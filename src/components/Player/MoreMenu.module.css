@@ -198,6 +198,9 @@
 }
 
 .optionRow:hover { color: var(--sm-text-primary); }
+.optionRow:disabled { cursor: default; opacity: 0.5; }
+/* 分区标题即开关：去掉行内边距，与下方说明保持分区间距 */
+.switchHead { padding: 0; }
 
 /* 定时下的附属开关：次级文字，紧贴上方档位 */
 .subRow { padding: 2px 0 0; color: var(--sm-text-secondary); }

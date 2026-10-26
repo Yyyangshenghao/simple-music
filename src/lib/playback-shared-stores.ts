@@ -63,7 +63,7 @@ export const playbackStores = {
 
 // 显式命令白名单，不允许通过 IPC 调用引擎、存档恢复或任意对象属性。
 export const remoteActions: Record<string, readonly string[]> = {
-  player: ['play', 'pause', 'stop', 'toggle', 'seek', 'setVolume', 'setQuality', 'setRate', 'loadTrack', 'preferSourceOnce'],
+  player: ['play', 'pause', 'stop', 'toggle', 'seek', 'setVolume', 'setQuality', 'setRate', 'setKaraoke', 'loadTrack', 'preferSourceOnce'],
   playlist: ['loadUserPlaylists', 'setCurrentPlaylist', 'setQueue', 'clearQueue', 'addToQueue', 'addManyToQueue', 'moveQueueItem', 'playNextInQueue', 'removeQueueItem', 'ensureQueueDetails', 'playAt', 'next', 'prev', 'toggleShelf', 'setShelfMode'],
   shuange: ['enter', 'refresh', 'leave', 'next', 'prev', 'playFullCurrent', 'notInterestedCurrent', 'toggleLike', 'loadIndex'],
   sleep: ['start', 'setFinishTrack', 'cancel'],
