@@ -24,6 +24,7 @@ import { AmllLyricsSettings } from '../components/Settings/AmllLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { ThemeModePicker } from '../components/Settings/ThemeModePicker'
 import { WallpaperEnginePicker } from '../components/Settings/WallpaperEnginePicker'
+import { SettingsSearch } from '../components/Settings/SettingsSearch'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useAppleMusicConnection } from '../stores/apple-music-connection'
@@ -155,7 +156,7 @@ function WindowCloseSettings() {
     <section id="settings-detail-window-close" className={styles.group}>
       <h3 className={styles.groupTitle}>关闭窗口</h3>
       <p className={styles.groupHint}>选择点击关闭按钮时的行为。最小化到托盘会继续播放，退出应用会停止播放。</p>
-      <div className={styles.row}>
+      <div data-setting-row className={styles.row}>
         <span className={styles.rowLabel}>关闭时</span>
         <div className={styles.segControl} role="group" aria-label="关闭窗口方式">
           {(['ask', 'tray', 'quit'] as const).map((value) => (
@@ -167,7 +168,7 @@ function WindowCloseSettings() {
         </div>
       </div>
       {!initialized && !error && <p className={styles.groupHint} role="status">正在读取关闭方式…</p>}
-      {error && <div className={styles.row}>
+      {error && <div data-setting-row className={styles.row}>
         <span className={styles.rowLabel} role="alert">{error}</span>
         <button type="button" className={`${styles.action} no-drag`} disabled={pending} onClick={() => void refresh()}>重新读取</button>
       </div>}
@@ -305,7 +306,7 @@ function SliderRow({ label, min, max, step, value, defaultValue, format, scale, 
   disabled?: boolean
 }) {
   return (
-    <div className={styles.row}>
+    <div data-setting-row className={styles.row}>
       <span className={styles.rowLabel}>{label}</span>
       <SettingSlider value={value} min={min} max={max} step={step} defaultValue={defaultValue} format={format}
         scale={scale} unit={unit} ariaLabel={label} disabled={disabled} onChange={onChange} />
@@ -337,7 +338,7 @@ function FontPairSetting({
   onCjkChange(value: string): void
 }) {
   return (
-    <div className={`${styles.row} ${styles.fontPairRow}`}>
+    <div data-setting-row data-setting-label={`${label}字体`} className={`${styles.row} ${styles.fontPairRow}`}>
       <span className={styles.rowLabel}>{label}</span>
       <div className={styles.fontPair}>
         <div className={styles.fontSlot}>
@@ -413,7 +414,7 @@ function ControlMotionGroup() {
   const partial = enabled && enabledCount < CONTROL_MOTION_KEYS.length
   return (
     <div className={styles.controlGroup}>
-      <div className={styles.row}>
+      <div data-setting-row className={styles.row}>
         <span className={styles.rowLabel}>
           控件动效
           {partial && <small id="settings-control-motion-status" className={styles.effectReason}>已开启 {enabledCount}/{CONTROL_MOTION_KEYS.length} 项</small>}
@@ -459,7 +460,7 @@ function EffectSwitchRow({ effect: { key, label, hint } }: { effect: EffectItem 
       : eco && (background || key === 'audioGlowEffect') ? '已随节能档暂停'
         : key === 'bgPointerMotion' && !performance.bgFluidMotion ? '开启流体背景后生效' : ''
   return (
-    <div className={styles.row}>
+    <div data-setting-row className={styles.row}>
       <span className={styles.rowLabel}>
         {label}
         {reason && <small className={styles.effectReason}>{reason}</small>}
@@ -501,7 +502,7 @@ function BackgroundSwitchRow({ label, hint, checked, disabled, reason, onChange 
   onChange: (value: boolean) => void
 }) {
   return (
-    <div className={styles.row}>
+    <div data-setting-row className={styles.row}>
       <span className={styles.rowLabel}>
         {label}
         {reason && <small className={styles.effectReason}>{reason}</small>}
@@ -561,7 +562,7 @@ function BackgroundSettings() {
         应用背景
         <InfoButton label="应用背景" text="图片和视频会复制到应用数据目录，原文件移动或删除不影响；视频支持 mp4、webm、mov。壁纸直接从 Steam 的 Wallpaper Engine 订阅目录读取，不复制文件，视频、网页与场景型能作为背景播放（场景型在隔离页面渲染，可调帧率、画质与脚本），应用型只显示封面。画面过亮或过暗时会自动压暗或提亮，滑杆在此基础上再加强。打开立体歌词时背景会暂时隐藏。" />
       </h3>
-      <div className={styles.row}>
+      <div data-setting-row className={styles.row}>
         <span className={styles.rowLabel}>背景类型</span>
         <div className={styles.segControl} role="group" aria-label="背景类型">
           {BACKGROUND_KINDS.map(({ value, label }) => <button
@@ -582,7 +583,7 @@ function BackgroundSettings() {
       />}
 
       {view === 'fluid' && <>
-        <div className={styles.row}>
+        <div data-setting-row className={styles.row}>
           <span className={styles.rowLabel}>
             流体配色
             <InfoButton label="流体配色" text="跟随封面时切歌按封面主色变化；自定义配色只改变背景，界面强调色仍跟随封面。" />
@@ -597,7 +598,7 @@ function BackgroundSettings() {
             >{source === 'cover' ? '跟随封面' : '自定义'}</button>)}
           </div>
         </div>
-        {background.fluidPalette === 'custom' && <div className={styles.row}>
+        {background.fluidPalette === 'custom' && <div data-setting-row className={styles.row}>
           <span className={styles.rowLabel}>主色 / 副色 / 点缀</span>
           <div className={styles.backgroundColors}>
             {background.fluidColors.map((color, index) => <input
@@ -618,7 +619,7 @@ function BackgroundSettings() {
       </>}
 
       {(view === 'image' || view === 'video') && <>
-        <div className={styles.row}>
+        <div data-setting-row className={styles.row}>
           <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={media?.name ?? (view === 'image' ? '支持 jpg、png、webp、gif、avif' : '支持 mp4、webm、mov')}>
             {media ? media.name : view === 'image' ? '尚未选择图片' : '尚未选择视频'}
           </span>
@@ -637,7 +638,7 @@ function BackgroundSettings() {
       </>}
 
       {view === 'wallpaper' && <>
-        <div className={styles.row}>
+        <div data-setting-row className={styles.row}>
           <span className={`${styles.rowLabel} ${styles.backgroundFile}`} title={background.wallpaper?.title ?? '从 Steam 订阅的 Wallpaper Engine 壁纸中选择'}>
             {background.wallpaper ? background.wallpaper.title : '尚未选择壁纸'}
           </span>
@@ -656,7 +657,7 @@ function BackgroundSettings() {
           <SliderRow label={light ? '额外提亮' : '额外压暗'} min={0} max={MEDIA_DIM_MAX} step={0.05} value={background.mediaDim} defaultValue={DEFAULT_BACKGROUND.mediaDim}
             format={(v) => `${Math.round(v * 100)}%`} scale={100} unit="%" onChange={(v) => update({ mediaDim: v })} />
           {background.wallpaper.type === 'scene' && <>
-            <div className={styles.row}>
+            <div data-setting-row className={styles.row}>
               <span className={styles.rowLabel}>
                 帧率
                 <InfoButton label="场景壁纸帧率" text="限制场景壁纸的渲染帧率。24 帧更省电，30 帧足够顺滑，60 帧适合带视差或快速动画的壁纸；窗口隐藏或节能档时停帧，失焦是否停帧取决于「失焦时暂停」。" />
@@ -671,7 +672,7 @@ function BackgroundSettings() {
                 >{fps}</button>)}
               </div>
             </div>
-            <div className={styles.row}>
+            <div data-setting-row className={styles.row}>
               <span className={styles.rowLabel}>
                 画质
                 <InfoButton label="场景壁纸画质" text="流畅：降低内部渲染分辨率，并减少粒子与后处理；均衡：默认档，按实测帧率自动降级；精细：提高渲染分辨率并开抗锯齿，更吃显存。" />
@@ -709,7 +710,7 @@ function BackgroundSettings() {
         </>}
       </>}
 
-      {view === 'solid' && <><div className={styles.row}>
+      {view === 'solid' && <><div data-setting-row className={styles.row}>
         <span className={styles.rowLabel}>
           底色
           <InfoButton label="底色" text={`${light ? '浅色主题只列出浅色底' : '深色主题只列出深色底'}，切换主题后不匹配的底色回到主题底色。自定义颜色按所选显示。`} />
@@ -745,7 +746,7 @@ function AccentPicker() {
   const idPrefix = useId()
   const swatch = (color: string) => accentTokensFor(color, light)?.accent ?? color
   return <>
-    <div className={styles.row}>
+    <div data-setting-row className={styles.row}>
       <span className={styles.rowLabel}>
         主题色
         <InfoButton label="主题色" text={`作用于按钮、开关、选中状态，并给面板与弹窗染上一层淡色。${mode === 'cover' ? '随当前歌曲封面变化。' : ''}`} />
@@ -1143,6 +1144,7 @@ export function SettingsPage() {
         </header>
         <div className={styles.settingsLayout} data-reduced-motion={!indicatorMotion}>
           <aside className={styles.drawer}>
+          <SettingsSearch pageRef={pageRef} onNavigate={(section, detail) => scrollToSection(section as SettingsTab, detail)} />
           <nav id="settings-navigation" className={styles.navigation} aria-label="设置导航">
             <div className={styles.tabBar} ref={tabBarRef}>
               <span ref={navMarkerRef} className={styles.navMarker} aria-hidden="true" />
@@ -1198,7 +1200,7 @@ export function SettingsPage() {
                     音源与账户
                     <InfoButton label="音源与账户" text="登录并启用后，平台才会参与浏览和联网播放。停用或退出登录后不再向它获取歌曲，但已有本地缓存仍可播放。来源标识只控制角标显示，不改变播放平台。" />
                   </h3>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>来源标识</span>
                     <div className={styles.segControl}>
                       {(['always', 'dynamic', 'hidden'] as const).map((mode) => (
@@ -1231,11 +1233,11 @@ export function SettingsPage() {
                         : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
                     const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : AppleMusicIcon
                     return (
-                      <div className={styles.providerRow} key={source}>
+                      <div data-setting-row className={styles.providerRow} key={source}>
                         <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
                         <div className={styles.providerAccount}>
                           <div className={styles.providerName}>
-                            <strong><SourceName source={source} /></strong>
+                            <strong data-setting-label><SourceName source={source} /></strong>
                             {source === 'apple' && <AppleMusicAccountInfo />}
                           </div>
                           <small title={`${accountLabel}${connected ? active ? ' · 已启用' : ' · 未启用' : ''}`}>
@@ -1280,8 +1282,8 @@ export function SettingsPage() {
                   <div className={styles.playbackStrategyRow}>
                     <div className={styles.playbackStrategy}>
                       {visiblePlaybackOrder.length > 1 ? (
-                        <div className={styles.playbackModeBlock}>
-                          <span className={styles.playbackFieldLabel}>
+                        <div data-setting-row className={styles.playbackModeBlock}>
+                          <span data-setting-label className={styles.playbackFieldLabel}>
                             没有缓存时的起播方式
                             <InfoButton
                               label="起播方式"
@@ -1344,9 +1346,9 @@ export function SettingsPage() {
                         <div className={styles.playbackSingleProviderHint}>当前只有一个已启用平台，无需设置接力方式。</div>
                       ) : null}
 
-                      <div className={styles.playbackOrderBlock}>
+                      <div data-setting-row className={styles.playbackOrderBlock}>
                         <div className={styles.playbackOrderHeading}>
-                          <span>
+                          <span data-setting-label>
                             {visiblePlaybackOrder.length <= 1
                               ? '当前音源'
                               : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
@@ -1361,9 +1363,9 @@ export function SettingsPage() {
                         />
                       </div>
 
-                      {visiblePlaybackOrder.length > 1 && <div className={styles.playbackFallbackRow}>
+                      {visiblePlaybackOrder.length > 1 && <div data-setting-row className={styles.playbackFallbackRow}>
                         <div>
-                          <strong>播放失败后自动换源</strong>
+                          <strong data-setting-label>播放失败后自动换源</strong>
                           <small>
                             {multiSourceFallback
                               ? '当前平台失败后，按排序尝试其他平台。'
@@ -1380,7 +1382,7 @@ export function SettingsPage() {
                       <p className={styles.playbackSingleProviderHint}>已有缓存优先播放 · 新设置下次起播生效</p>
                     </div>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>音质偏好</span>
                     <div className={styles.segControl}>
                       {(['standard', 'higher', 'exhigh', 'lossless', 'max'] as AudioQuality[]).map((q) => (
@@ -1397,7 +1399,7 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>取消红心前确认</span>
                     <Switch checked={unlikeConfirmation} onChange={setUnlikeConfirmation} aria-label="取消红心前确认" />
                   </div>
@@ -1411,12 +1413,12 @@ export function SettingsPage() {
                   {isWindows && <WindowCloseSettings />}
                   <section id="settings-detail-appearance" className={styles.group}>
                     <h3 className={styles.groupTitle}>主题与布局</h3>
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>主题模式</span>
                       <ThemeModePicker value={themeMode} onChange={setThemeMode} />
                     </div>
                     <AccentPicker />
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>
                         页面布局
                         <InfoButton label="页面布局" text="内容延展会移除栏目外框，让音乐内容铺开。" />
@@ -1437,10 +1439,10 @@ export function SettingsPage() {
                       value={contentGutter} defaultValue={CONTENT_GUTTER_DEFAULT} format={(v) => `${v} px`} unit="px"
                       onChange={setContentGutter}
                     />}
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>减少透明度</span>
                       <div className={styles.rowControls}>
-                        <InfoButton label="减少透明度" text="使用更实的面板底色并关闭背景模糊，方便阅读。切换动效预设不会改变这一项。" />
+                        <InfoButton label="减少透明度" text="使用更实的面板底色，关闭毛玻璃的背景模糊和折射，方便阅读。切换动效预设不会改变这一项。" />
                         <Switch
                           checked={performance.reduceTransparency}
                           onChange={(v) => setPerformance({ reduceTransparency: v })}
@@ -1508,7 +1510,7 @@ export function SettingsPage() {
                       unit="px"
                       onChange={(v) => setMiniPlayerAppearance({ blur: v })}
                     />
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>色调</span>
                       <div className={styles.segControl}>
                         {MINI_PLAYER_TINTS.map((t) => (
@@ -1523,7 +1525,7 @@ export function SettingsPage() {
                         ))}
                       </div>
                     </div>
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>显示底边进度条</span>
                       <Switch
                         checked={miniPlayerAppearance.showProgress}
@@ -1531,7 +1533,7 @@ export function SettingsPage() {
                         aria-label="显示底边进度条"
                       />
                     </div>
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>加宽后显示歌词</span>
                       <Switch
                         checked={miniPlayerAppearance.showLyrics}
@@ -1645,7 +1647,7 @@ export function SettingsPage() {
                     歌曲下载
                     <InfoButton label="歌曲下载" text="更改目录只影响之后加入的任务，已有文件保留。" />
                   </h3>
-                  <div className={`${styles.row} ${styles.pathRow}`}>
+                  <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={downloadDir}>{downloadDir || '在下载队列中选择'}</span>
                     <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载</button>
@@ -1656,7 +1658,7 @@ export function SettingsPage() {
                     播放器缓存
                     <InfoButton label="播放器缓存" text="自动缓存在播放时保存，容量满后可自动清理；离线音频不占自动缓存额度，可在“我的库 → 离线音乐”中查看。清理缓存不会删除下载目录中的歌曲。" />
                   </h3>
-                  <div className={`${styles.row} ${styles.pathRow}`}>
+                  <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>
                       缓存文件夹
                       <InfoButton label="缓存文件夹" text="更改位置会删除原目录中的缓存、离线音频及未识别旧文件，下载目录中的歌曲不受影响。" />
@@ -1679,7 +1681,7 @@ export function SettingsPage() {
                       </button>
                     )}
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>自动缓存</span>
                     <span className={styles.rowValue}>
                       {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 个文件` : '—'}
@@ -1688,7 +1690,7 @@ export function SettingsPage() {
                       {clearingCache ? '处理中…' : '清理自动缓存'}
                     </button>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>自动缓存上限</span>
                     <div className={styles.segControl}>
                       {CACHE_LIMIT_PRESETS_GB.map((gb) => (
@@ -1704,7 +1706,7 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>离线音频</span>
                     <span className={styles.rowValue}>
                       {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 个文件` : '—'}
@@ -1714,7 +1716,7 @@ export function SettingsPage() {
                     </button>
                   </div>
                   {!!audioCache?.unmanagedFiles && (
-                    <div className={styles.row}>
+                    <div data-setting-row className={styles.row}>
                       <span className={styles.rowLabel}>未识别旧文件<InfoButton label="未识别旧文件" text="这些文件缺少可用记录，无法判断是否曾经保存下载；不会随自动缓存清理，手动删除需要确认。" /></span>
                       <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
                       <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
@@ -1734,11 +1736,11 @@ export function SettingsPage() {
               <div className={styles.settingsGrid}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>版本与更新</h3>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>Simple Music</span>
                     <span className={styles.rowValue}>v{currentVersion}</span>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>{updateStatusText}</span>
                     {ready ? (
                       <button className={`${styles.action} ${styles.actionPrimary} no-drag`} disabled={installing} onClick={() => void installUpdate()}>
@@ -1762,13 +1764,13 @@ export function SettingsPage() {
                       </button>
                     )}
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>更新日志</span>
                     <button type="button" className={`${styles.action} ${styles.actionQuiet} no-drag`} aria-label="查看更新日志" onClick={() => useNavigationStore.getState().navigateTo('release-history')}>
                       查看
                     </button>
                   </div>
-                  <div className={styles.row}>
+                  <div data-setting-row className={styles.row}>
                     <span className={styles.rowLabel}>开源项目</span>
                     <a
                       className={`${styles.aboutLink} no-drag`}

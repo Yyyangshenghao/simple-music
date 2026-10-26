@@ -126,12 +126,12 @@ export function ShortcutSettings() {
         </tbody>
       </table>
       <div className={styles.options}>
-        <div className={styles.option}>
-          <div><strong>启用全局快捷键</strong><p>应用在后台时也能响应；组合键被占用时会在上方提示。</p></div>
+        <div data-setting-row className={styles.option}>
+          <div><strong data-setting-label>启用全局快捷键</strong><p>应用在后台时也能响应；组合键被占用时会在上方提示。</p></div>
           <Switch checked={globalEnabled} onChange={(v) => useSettingsStore.getState().setGlobalHotkeysEnabled(v)} aria-label="启用全局快捷键" />
         </div>
-        <div className={styles.option}>
-          <div><strong>使用系统媒体快捷键</strong><p>控制网易云、QQ 与本地播放的播放、暂停、切歌与停止。Apple Music 的媒体键由官网会话独立管理。</p></div>
+        <div data-setting-row className={styles.option}>
+          <div><strong data-setting-label>使用系统媒体快捷键</strong><p>控制网易云、QQ 与本地播放的播放、暂停、切歌与停止。Apple Music 的媒体键由官网会话独立管理。</p></div>
           <Switch checked={mediaEnabled} onChange={(v) => useSettingsStore.getState().setMediaKeysEnabled(v)} aria-label="使用系统媒体快捷键" />
         </div>
         <div className={styles.footer}>
