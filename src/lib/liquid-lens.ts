@@ -15,6 +15,45 @@ export interface LensFrame {
   /** 边缘斜面宽度与最大折射偏移，CSS px。 */
   bezel: number
   depth: number
+  /** 握持牵拉方向，限制在 -1～1；只改变局部轮廓。 */
+  flowX?: number
+  flowY?: number
+}
+
+const FLOW_AMPLITUDE = 2.2
+const FLOW_INSET = 3
+const clampFlow = (value: number) => Math.max(-1, Math.min(1, value))
+
+/** 与着色器共用的非对称轮廓；scale 用于抵消外层 CSS 缩放。 */
+export function lensOutline(rect: Pick<LensFrame, 'left' | 'top' | 'width' | 'height'>, flowX = 0, flowY = 0, scaleX = 1, scaleY = 1) {
+  if (rect.width < 0.1 || rect.height < 0.1) return ''
+  const cx = rect.width / 2
+  const cy = rect.height / 2
+  const r = Math.min(cx, cy)
+  const fx = clampFlow(flowX)
+  const fy = clampFlow(flowY)
+  const inset = FLOW_INSET * Math.max(Math.abs(fx), Math.abs(fy))
+  const corners = [[cx - r, -cy + r], [cx - r, cy - r], [-cx + r, cy - r], [-cx + r, -cy + r]]
+  const points: string[] = []
+  function add(px: number, py: number) {
+    const u = px / cx
+    const v = py / cy
+    const dx = FLOW_AMPLITUDE * fx * 0.55 * Math.sin(v * 2.4 + u * 0.9)
+    const dy = FLOW_AMPLITUDE * (fy * Math.sin(u * 3.2 - v * 0.7) + fx * 0.35 * Math.sin(u * 1.7 + v * 2.1))
+    points.push(`${((rect.left + cx + px * (1 - inset / cx) + dx) / scaleX).toFixed(2)},${((rect.top + cy + py * (1 - inset / cy) + dy) / scaleY).toFixed(2)}`)
+  }
+  for (let side = 0; side < 4; side++) {
+    const [ox, oy] = corners[side]
+    const angle = -Math.PI / 2 + side * Math.PI / 2
+    for (let step = 0; step <= 16; step++) {
+      const a = angle + step / 16 * Math.PI / 2
+      add(ox + r * Math.cos(a), oy + r * Math.sin(a))
+    }
+    const end = angle + Math.PI / 2
+    const [nx, ny] = corners[(side + 1) % 4]
+    for (let step = 1; step < 8; step++) add(ox + (nx - ox) * step / 8 + r * Math.cos(end), oy + (ny - oy) * step / 8 + r * Math.sin(end))
+  }
+  return `M${points.join('L')}Z`
 }
 
 /** 由透镜的布局尺寸与缩放算出可见矩形；缩放以透镜中心为原点。 */
@@ -43,6 +82,15 @@ uniform float uMagnify;
 uniform float uBezel;
 uniform float uDepth;
 uniform vec3 uBackdrop;
+uniform vec2 uFlow;
+
+vec2 flowOffset(vec2 p, vec2 c) {
+  vec2 uv = p / c;
+  return ${FLOW_AMPLITUDE.toFixed(1)} * vec2(
+    uFlow.x * 0.55 * sin(uv.y * 2.4 + uv.x * 0.9),
+    uFlow.y * sin(uv.x * 3.2 - uv.y * 0.7) + uFlow.x * 0.35 * sin(uv.x * 1.7 + uv.y * 2.1)
+  );
+}
 
 vec4 tap(vec2 p) {
   vec2 uv = (uOrigin + p) / uStripSize;
@@ -53,8 +101,12 @@ vec4 tap(vec2 p) {
 void main() {
   vec2 c = uSize * 0.5;
   vec2 p = vUv * uSize - c;
+  vec2 shrink = vec2(1.0) - ${FLOW_INSET.toFixed(1)} * max(abs(uFlow.x), abs(uFlow.y)) / c;
+  vec2 shaped = p / shrink;
+  // 逆解局部牵拉，使玻璃轮廓、高光、标签挖空与折射使用同一形状。
+  for (int i = 0; i < 4; i++) shaped = (p - flowOffset(shaped, c)) / shrink;
   float r = min(c.x, c.y);
-  vec2 q = abs(p) - c + r;
+  vec2 q = abs(shaped) - c + r;
   float d;
   vec2 n;
   if (q.x > 0.0 && q.y > 0.0) {
@@ -66,7 +118,17 @@ void main() {
     n = q.x > q.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
   }
   if (d > 0.0) discard;
-  n *= vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
+  n *= vec2(shaped.x < 0.0 ? -1.0 : 1.0, shaped.y < 0.0 ? -1.0 : 1.0);
+  // 用牵拉映射的雅可比修正边缘法线，彩边随局部鼓起/收缩转向。
+  vec2 uv = shaped / c;
+  float a = ${FLOW_AMPLITUDE.toFixed(1)} * uFlow.x * 0.55 * cos(uv.y * 2.4 + uv.x * 0.9);
+  float b = ${FLOW_AMPLITUDE.toFixed(1)} * uFlow.y * cos(uv.x * 3.2 - uv.y * 0.7);
+  float e = ${FLOW_AMPLITUDE.toFixed(1)} * uFlow.x * 0.35 * cos(uv.x * 1.7 + uv.y * 2.1);
+  float jxx = shrink.x + a * 0.9 / c.x;
+  float jxy = a * 2.4 / c.y;
+  float jyx = (b * 3.2 + e * 1.7) / c.x;
+  float jyy = shrink.y + (-b * 0.7 + e * 2.1) / c.y;
+  n = normalize(vec2(jyy * n.x - jyx * n.y, -jxy * n.x + jxx * n.y));
   float t = clamp(-d / uBezel, 0.0, 1.0);
   float bend = uDepth * (1.0 - smoothstep(0.0, 1.0, t));
   vec2 base = c + p / uMagnify;
@@ -128,7 +190,7 @@ export class LiquidLensRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
-    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth', 'uBackdrop']
+    const names = ['uStripSize', 'uOrigin', 'uSize', 'uMagnify', 'uBezel', 'uDepth', 'uBackdrop', 'uFlow']
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]))
     return new LiquidLensRenderer(gl, program, texture, uniforms)
   }
@@ -163,6 +225,7 @@ export class LiquidLensRenderer {
     gl.uniform1f(u.uBezel, frame.bezel)
     gl.uniform1f(u.uDepth, frame.depth)
     gl.uniform3f(u.uBackdrop, this.backdrop[0], this.backdrop[1], this.backdrop[2])
+    gl.uniform2f(u.uFlow, clampFlow(frame.flowX ?? 0), clampFlow(frame.flowY ?? 0))
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
   }
 }

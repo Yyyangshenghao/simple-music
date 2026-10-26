@@ -49,6 +49,9 @@ export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
 /** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
 export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
 
+/** 透镜局部牵拉：握持时的轻微不对称，以及达到最大形变的指针偏移（px）。 */
+export const liquidLensGrip = { x: 0.35, y: 0.2, travel: 40 }
+
 /** 红心点亮心跳：先收缩成小点、再过冲回弹（参考 React Bits PulseHeart）；times 中段即收缩最低点。 */
 export const heartBeatTransition = { duration: 0.56, times: [0, 0.4, 1], ease: ['easeOut', 'backOut'] } satisfies Transition
 

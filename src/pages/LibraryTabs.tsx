@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { cancelFrame, frame, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
-import { liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { cancelFrame, frame, motion, type MotionStyle, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react'
+import { liquidLensGrip, liquidLiftSpring, liquidPillSpring } from '../lib/motion-presets'
 import { useMotion } from '../hooks/useMotion'
-import { LiquidLensRenderer, lensRect, rasterizeTabStrip } from '../lib/liquid-lens'
+import { LiquidLensRenderer, lensOutline, lensRect, rasterizeTabStrip } from '../lib/liquid-lens'
 import styles from './LibraryPage.module.css'
 
 interface TabItem<T extends string> { value: T; label: string; icon?: ReactNode }
@@ -13,11 +13,14 @@ const TRANSIT_LIFT_MS = 260
 const HOLD_LIFT_MS = 140
 /** 透镜放大倍数。 */
 const LENS_MAGNIFY = 1.08
+/** 静置与浮起时的斜面宽度、折射深度（占透镜高度）：静置斜面窄，只弯折边缘不碰文字；浮起后更厚。 */
+const REST_LENS = { bezel: 0.1, depth: 0.04 }
+const LIFT_LENS = { bezel: 0.22, depth: 0.09 }
 
 /**
  * 流体玻璃分段控件（参照 Apple Music）：指示器按速度横向拉伸、落位过冲回弹；
- * 按住或拖动时浮起成凸透镜：透镜内原标签挖空，由 WebGL 按玻璃折射重绘放大的标签，边缘斜面弯折；
- * 拿不到 WebGL 时退回清晰放大的 DOM 副本。
+ * 选中项静置时也是一片薄玻璃：原标签挖空，由 WebGL 按玻璃折射重绘，边缘斜面弯折并带彩边；
+ * 按住或拖动时浮起成更厚的凸透镜并放大；拿不到 WebGL 时退回清晰的 DOM 副本。
  */
 export function LibraryTabs<T extends string>({ items, value, onChange }: {
   items: TabItem<T>[]
@@ -25,12 +28,15 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   onChange(value: T): void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const gesture = useRef<{ pointer: number; start: number; index: number; moved: boolean } | null>(null)
+  const gesture = useRef<{ pointer: number; start: number; startY: number; index: number; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
   const holdTimer = useRef<number>()
   const transitTimer = useRef<number>()
   const measured = useRef(false)
   const rootHeight = useRef(0)
+  const rootWidth = useRef(0)
+  const rimId = useId()
+  const syncHole = useRef<() => void>()
   const lastValue = useRef(value)
   const [ready, setReady] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -48,15 +54,28 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const targetX = useMotionValue(0)
   const targetWidth = useMotionValue(0)
   const liftTarget = useMotionValue(0)
+  // 静置玻璃：标签贴图就绪后才接管选中项，避免挖空后贴图未到时选中文字消失一帧。
+  const rest = useMotionValue(0)
+  const flowXTarget = useMotionValue(0)
+  const flowYTarget = useMotionValue(0)
   const x = useSpring(targetX, liquidPillSpring)
   const width = useSpring(targetWidth, liquidPillSpring)
   const lift = useSpring(liftTarget, liquidLiftSpring)
+  const flowX = useSpring(flowXTarget, liquidLiftSpring)
+  const flowY = useSpring(flowYTarget, liquidLiftSpring)
   const velocity = useVelocity(x)
   // 横移越快越拉长变扁，减速撞停时速度反向，形成液滴碰撞回弹。
   const stretch = useTransform(velocity, v => reducedMotion ? 0 : Math.min(Math.abs(v) / 2600, 0.3))
   const scaleX = useTransform(() => 1 + stretch.get() + lift.get() * 0.3)
   const scaleY = useTransform(() => 1 - stretch.get() * 0.4 + lift.get() * 0.42)
-  const pillOpacity = useTransform(lift, l => 1 - l)
+  const outline = useTransform(() => lensOutline(
+    { left: 0, top: 0, width: width.get() * scaleX.get(), height: (rootHeight.current - 6) * scaleY.get() },
+    flowX.get(), flowY.get(), scaleX.get(), scaleY.get(),
+  ))
+  const lensClip = useTransform(outline, path => `path('${path}')`)
+  const glass = useTransform(() => Math.max(lift.get(), rest.get()))
+  // 玻璃接管后磨砂指示器退场，静置也是透明玻璃；玻璃不可用（减弱动效）时仍由指示器表示选中。
+  const pillOpacity = useTransform(glass, g => 1 - g)
   const lensCopyX = useTransform(x, v => -v)
   // 透镜外形会被拉伸，副本反向缩放抵消，保证透镜内文字始终等比放大。
   const magnify = useTransform(lift, l => 1 + l * (LENS_MAGNIFY - 1))
@@ -78,6 +97,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   }
   function setLifted(on: boolean, byPress = false) {
     setHolding(on && byPress)
+    flowXTarget.set(on && byPress && !reducedMotion ? liquidLensGrip.x : 0)
+    flowYTarget.set(on && byPress && !reducedMotion ? liquidLensGrip.y : 0)
     liftTarget.set(on && !reducedMotion ? 1 : 0)
     if (reducedMotion) lift.jump(0)
   }
@@ -122,7 +143,9 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       measure(items.findIndex(item => item.value === value))
       for (const button of buttons()) button.style.setProperty('--btn-left', `${button.offsetLeft}px`)
       const root = rootRef.current
-      if (root) { rootHeight.current = root.clientHeight; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
+      if (root) { rootHeight.current = root.clientHeight; rootWidth.current = root.scrollWidth; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
+      // 静置玻璃常驻挖空，轨道尺寸变了要按新尺寸重做遮罩，否则超出旧遮罩的标签会被裁掉。
+      if (syncHole.current) frame.render(syncHole.current)
     }
     update()
     const observer = new ResizeObserver(update)
@@ -133,10 +156,15 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
 
   useEffect(() => {
     if (!reducedMotion) return
+    rest.set(0)
     window.clearTimeout(holdTimer.current)
     window.clearTimeout(transitTimer.current)
     liftTarget.set(0)
     lift.jump(0)
+    flowXTarget.set(0)
+    flowYTarget.set(0)
+    flowX.jump(0)
+    flowY.jump(0)
   }, [reducedMotion])
 
   // 点击/键盘切换：横移途中短暂浮起成透镜，落位后再沉回。
@@ -151,29 +179,32 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
 
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
 
-  // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；透镜沉下时洞随之收拢。
+  // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
   // 多个弹簧值同帧变化只合并写一次；高度取缓存值，避免写样式后读布局逼出整页同步重排。
   useEffect(() => {
     let holeOpen = true
     const sync = () => {
       const root = rootRef.current
       if (!root) return
-      const l = lift.get()
-      const hole = l > 0.01 ? l : 0
+      const hole = glass.get() > 0.01 ? glass.get() : 0
       // 洞已收拢且仍收拢时不再改变量，普通横移不触发标签的 mask 重算。
       if (!hole && !holeOpen) return
       holeOpen = hole > 0
-      root.style.setProperty('--lens-cx', `${x.get() + width.get() / 2}px`)
-      root.style.setProperty('--lens-rx', `${width.get() * scaleX.get() / 2 * hole}px`)
-      root.style.setProperty('--lens-ry', `${(rootHeight.current - 6) * scaleY.get() / 2 * hole}px`)
+      if (!hole) { root.style.setProperty('--lens-mask', 'none'); return }
+      const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get() * hole, scaleY.get() * hole)
+      const path = lensOutline(rect, flowX.get(), flowY.get())
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rootWidth.current}" height="${rootHeight.current}"><path fill="white" fill-rule="evenodd" d="M0,0H${rootWidth.current}V${rootHeight.current}H0Z${path}"/></svg>`
+      root.style.setProperty('--lens-mask', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`)
+      root.style.setProperty('--lens-mask-size', `${rootWidth.current}px ${rootHeight.current}px`)
     }
+    syncHole.current = sync
     const schedule = () => frame.render(sync)
-    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', schedule))
+    const stops = [x, width, scaleX, scaleY, glass, flowX, flowY].map(value => value.on('change', schedule))
     sync()
     return () => { stops.forEach(stop => stop()); cancelFrame(sync) }
   }, [])
 
-  // WebGL 透镜：标签条预先画成贴图，布局、主题或字体变化时重画；弹簧值变化时同帧合并重绘一次，透镜沉下时不画。
+  // WebGL 透镜：标签条预先画成贴图，布局、主题或字体变化时重画；弹簧值变化时同帧合并重绘一次，透镜消失时不画。
   useEffect(() => {
     const root = rootRef.current
     const canvas = canvasRef.current
@@ -184,6 +215,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     }
     const renderer = rendererRef.current?.renderer
     if (!renderer) { setGlFailed(true); return }
+    rest.set(0)
     let version = 0
     let disposed = false
     let lastPalette = ''
@@ -192,9 +224,15 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       return `${lensRef.current ? getComputedStyle(lensRef.current).color : '#fff'}|${style.getPropertyValue('--sm-bg-base')}|${style.backgroundColor}`
     }
     const draw = () => {
-      if (disposed || lift.get() < 0.01) return
+      if (disposed || glass.get() < 0.01) return
       const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get(), scaleY.get())
-      renderer.render({ ...rect, magnify: LENS_MAGNIFY, bezel: rect.height * 0.22, depth: rect.height * 0.09 }, window.devicePixelRatio || 1)
+      const l = lift.get()
+      renderer.render({
+        ...rect, magnify: magnify.get(),
+        bezel: rect.height * (REST_LENS.bezel + (LIFT_LENS.bezel - REST_LENS.bezel) * l),
+        depth: rect.height * (REST_LENS.depth + (LIFT_LENS.depth - REST_LENS.depth) * l),
+        flowX: flowX.get(), flowY: flowY.get(),
+      }, window.devicePixelRatio || 1)
     }
     const rebuild = async () => {
       const current = ++version
@@ -203,10 +241,11 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       const strip = await rasterizeTabStrip(root, buttons(), color, (window.devicePixelRatio || 1) * LENS_MAGNIFY)
       if (disposed || current !== version || !strip) return
       renderer.setStrip(strip.canvas, strip.width, strip.height, strip.backdrop)
+      rest.set(1)
       draw()
     }
     const schedule = () => frame.render(draw)
-    const stops = [x, width, scaleX, scaleY, lift].map(value => value.on('change', schedule))
+    const stops = [x, width, scaleX, scaleY, glass, flowX, flowY].map(value => value.on('change', schedule))
     const resize = new ResizeObserver(() => void rebuild())
     resize.observe(root)
     // 文字色和底色共同决定色散合成；主题变化时同步更新，避免浅底黑字留下暗边。
@@ -220,6 +259,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     void document.fonts?.ready.then(() => void rebuild())
     return () => {
       disposed = true
+      rest.set(0)
       stops.forEach(stop => stop())
       cancelFrame(draw)
       resize.disconnect()
@@ -227,6 +267,9 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       canvas.removeEventListener('webglcontextlost', onLost)
     }
   }, [ready, reducedMotion, glFailed, itemsKey])
+
+  // WebGL 不可用时 DOM 副本同步渲染，可直接作为静置玻璃。
+  useEffect(() => { if (glFailed && !reducedMotion) rest.set(1) }, [glFailed, reducedMotion])
 
   const activeIndex = items.findIndex(item => item.value === value)
   const content = (item: TabItem<T>) => <>
@@ -248,7 +291,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       if (event.button !== 0) return
       suppressClick.current = false
       const index = nearest(event.clientX)
-      gesture.current = { pointer: event.pointerId, start: event.clientX, index, moved: false }
+      gesture.current = { pointer: event.pointerId, start: event.clientX, startY: event.clientY, index, moved: false }
       event.currentTarget.setPointerCapture(event.pointerId)
       window.clearTimeout(transitTimer.current)
       // 按在当前项上立即浮起，按在其他项上稍等片刻，避免普通点击闪一下透镜。
@@ -258,8 +301,17 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     onPointerMove={event => {
       const current = gesture.current
       if (!current || current.pointer !== event.pointerId) return
-      if (!current.moved && Math.abs(event.clientX - current.start) < 6) return
-      if (!current.moved) { current.moved = true; setDragging(true); setLifted(true, true) }
+      if (!current.moved && Math.abs(event.clientX - current.start) >= 6) {
+        window.clearTimeout(holdTimer.current)
+        current.moved = true; setDragging(true); setLifted(true, true)
+      }
+      if (!reducedMotion && liftTarget.get() > 0) {
+        const root = event.currentTarget
+        const lag = event.clientX - root.getBoundingClientRect().left + root.scrollLeft - x.get() - width.get() / 2
+        flowXTarget.set(Math.max(-1, Math.min(1, liquidLensGrip.x + lag / liquidLensGrip.travel)))
+        flowYTarget.set(Math.max(-1, Math.min(1, liquidLensGrip.y + (event.clientY - current.startY) / liquidLensGrip.travel)))
+      }
+      if (!current.moved) return
       current.index = follow(event.clientX)
       if (overflowing) buttons()[current.index]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     }}
@@ -303,14 +355,22 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       ref={lensRef}
       className={styles.tabLens}
       aria-hidden="true"
-      style={{ x, width, scaleX, scaleY, opacity: lift }}
+      style={{ x, width, scaleX, scaleY, opacity: glass, '--lift': lift } as MotionStyle}
     >
-      <span className={styles.tabLensClip}>
+      <motion.span className={styles.tabLensClip} style={{ clipPath: lensClip }}>
         {!glFailed && <canvas ref={canvasRef} className={styles.tabLensCanvas} />}
         {glFailed && <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
           {items.map(item => <span key={item.value} className={styles.subTab}>{content(item)}</span>)}
         </motion.span>}
-      </span>
+      </motion.span>
+      <svg className={styles.tabLensRim} width="100%" height="100%">
+        <defs><linearGradient id={rimId} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0" stopColor="white" stopOpacity="0.5" />
+          <stop offset="0.45" stopColor="white" stopOpacity="0.06" />
+          <stop offset="1" stopColor="white" stopOpacity="0.2" />
+        </linearGradient></defs>
+        <motion.path d={outline} fill="none" stroke={`url(#${rimId})`} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      </svg>
     </motion.span>}
   </div>
 }
