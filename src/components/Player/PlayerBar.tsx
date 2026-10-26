@@ -15,7 +15,6 @@ import { WakeSlider } from '../ui/WakeSlider'
 import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
-import { LiquidPlayButton } from './LiquidPlayButton'
 import { TrackInfo } from './TrackInfo'
 import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
@@ -505,8 +504,6 @@ function VolumeControl() {
   )
 }
 
-const PLAY_BUTTON_CLASSES = { button: `${styles.btn} ${styles.playBtn} no-drag`, iconLayer: styles.playIconLayer, lens: styles.playLens, star: styles.playStar }
-
 /** 重播播放键的点击流光：开始播放时从下往上、暂停时从上往下。直接改 DOM 属性而不走 state，
  *  先移除再强制回流后写回，连点也能从头重播。 */
 function replayPlayStar(button: Element | undefined, dir: 'up' | 'down') {
@@ -545,12 +542,15 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
             <PrevIcon />
           </motion.button>
-          <LiquidPlayButton
-            aria-label={isPlaying ? '暂停' : '播放'}
-            loading={isLoading}
-            iconKey={isPlaying ? 'pause' : 'play'}
-            classes={PLAY_BUTTON_CLASSES}
+          <motion.button
+            type="button"
+            className={`${styles.btn} ${styles.playBtn} no-drag`}
             onClick={(e) => { replayPlayStar(e?.currentTarget, isPlaying ? 'down' : 'up'); toggle() }}
+            title={isPlaying ? '暂停' : '播放'}
+            aria-label={isPlaying ? '暂停' : '播放'}
+            data-loading={isLoading}
+            whileTap={tapScale}
+            transition={springSnappy}
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
@@ -564,7 +564,8 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </motion.span>
             </AnimatePresence>
-          </LiquidPlayButton>
+            <span className={styles.playStar} aria-hidden="true" />
+          </motion.button>
           <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>

@@ -35,7 +35,6 @@
 }
 
 .playIconWrap,
-.playIconLayer,
 .volumeIconWrap {
   display: inline-flex;
   align-items: center;
@@ -166,16 +165,6 @@
   --play-glass-ink: rgb(var(--lyrics-ink-rgb));
   --play-glass-edge: rgba(var(--lyrics-ink-rgb), 0.22);
   --play-glass-icon-shadow: rgba(0, 0, 0, 0.28);
-}
-
-/* 播放键浮起时的 WebGL 透镜层：铺满按钮，重绘经玻璃放大与折射的图标。 */
-.playLens {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  pointer-events: none;
 }
 
 /* 点击流光（Star Border 式）：两颗光点沿玻璃细边左右对称绕行半圈后淡出。
