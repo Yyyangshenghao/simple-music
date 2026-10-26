@@ -9,9 +9,6 @@ import {
 import type { MiniPlayerAppearance } from '../../types/ipc'
 import { ScrubSlider } from '../ui/ScrubSlider'
 import styles from './MiniPlayerBar.module.css'
-import { LiquidPlayButton } from './LiquidPlayButton'
-
-const PLAY_BUTTON_CLASSES = { button: `${styles.ctl} ${styles.ctlPlay}`, iconLayer: styles.playIconLayer, lens: styles.playLens }
 
 interface MiniPlayerBarProps {
   trackTitle?: string
@@ -274,16 +271,17 @@ export function MiniPlayerBar({
           <button type="button" className={styles.ctl} disabled={!hasTrack} onPointerDown={stop} onClick={onPrev} title="上一首" aria-label="上一首">
             <PrevIcon />
           </button>
-          <LiquidPlayButton
-            classes={PLAY_BUTTON_CLASSES}
+          <button
+            type="button"
+            className={`${styles.ctl} ${styles.ctlPlay}`}
             disabled={!hasTrack}
-            stopPointer
-            iconKey={playing ? 'pause' : 'play'}
+            onPointerDown={stop}
             onClick={onTogglePlay}
+            title={playing ? '暂停' : '播放'}
             aria-label={playing ? '暂停' : '播放'}
           >
             {playing ? <PauseIcon /> : <PlayIcon />}
-          </LiquidPlayButton>
+          </button>
           <button type="button" className={styles.ctl} disabled={!hasTrack} onPointerDown={stop} onClick={onNext} title="下一首" aria-label="下一首">
             <NextIcon />
           </button>
