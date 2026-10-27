@@ -17,6 +17,33 @@ async function stem(root: string, model: 'hq3' | 'kara2' = 'hq3') {
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 
 describe('用户伴奏文件库', () => {
+  it('人声侧轨随伴奏存入隐藏目录，播放地址可取到，删除时一并移除', async () => {
+    const root = await temp()
+    const directory = join(root, 'chosen')
+    await setKaraokeDirectory(root, directory)
+    const wav = Buffer.alloc(48); wav.write('RIFF'); wav.write('WAVE', 8)
+    await writeKaraokeStem(root, 'hq3', 'netease:1', (async function* () { yield wav })(), undefined, 'vocals')
+    await stem(root)
+    const saved = await saveAccompaniment(root, { model: 'hq3', key: 'netease:1', track, directory })
+    expect(saved.vocals).toBe(true)
+    const sidecar = join(directory, '.simplemusic-vocals', `${saved.id}.wav`)
+    expect((await readFile(sidecar)).length).toBe(48)
+    expect((await readKaraokeLibrary(root)).items[0].vocals).toBe(true)
+    expect(await accompanimentFile(root, saved.id)).toMatchObject({ vocalsPath: sidecar })
+    await deleteAccompaniment(root, saved.id, saved.generatedAt)
+    await expect(readFile(sidecar)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('没有人声侧轨的旧伴奏照常保存与播放', async () => {
+    const root = await temp()
+    const directory = join(root, 'chosen')
+    await setKaraokeDirectory(root, directory)
+    await stem(root)
+    const saved = await saveAccompaniment(root, { model: 'hq3', key: 'netease:1', track, directory })
+    expect(saved.vocals).toBe(false)
+    expect(await accompanimentFile(root, saved.id)).not.toHaveProperty('vocalsPath')
+  })
+
   it('不同平台原曲共用实际音源时分别保存，重试仍复用各自成品', async () => {
     const root = await temp()
     const directory = join(root, 'chosen')

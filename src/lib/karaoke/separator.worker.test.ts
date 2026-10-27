@@ -13,11 +13,12 @@ vi.mock('onnxruntime-web/webgpu', () => ({
     dispose = mocks.inputDispose
   },
 }))
-vi.mock('./wav-file', () => ({ createTemporaryWav: mocks.createTemporaryWav, removeTemporaryWav: mocks.removeTemporaryWav }))
+vi.mock('./wav-file', () => ({ VOCALS_FILENAME: 'vocals.wav', createTemporaryWav: mocks.createTemporaryWav, removeTemporaryWav: mocks.removeTemporaryWav }))
 
 let worker: { onmessage: ((event: MessageEvent<SeparatorRequest>) => void) | null; postMessage: ReturnType<typeof vi.fn> }
 let writable: { write: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>; abort: ReturnType<typeof vi.fn> }
 let file: { getFile: ReturnType<typeof vi.fn> }
+let vocals: { file: { getFile: ReturnType<typeof vi.fn> }; writable: typeof writable }
 
 const send = (message: SeparatorRequest) => worker.onmessage!({ data: message } as MessageEvent<SeparatorRequest>)
 const completed = () => vi.waitFor(() => {
@@ -33,7 +34,11 @@ beforeEach(async () => {
   vi.stubGlobal('self', worker)
   writable = { write: vi.fn(async () => {}), close: vi.fn(async () => {}), abort: vi.fn(async () => {}) }
   file = { getFile: vi.fn(async () => new Blob([new Uint8Array(8)])) }
-  mocks.createTemporaryWav.mockResolvedValue({ file, writable })
+  vocals = {
+    file: { getFile: vi.fn(async () => new Blob([new Uint8Array(8)])) },
+    writable: { write: vi.fn(async () => {}), close: vi.fn(async () => {}), abort: vi.fn(async () => {}) },
+  }
+  mocks.createTemporaryWav.mockImplementation(async (name?: string) => name === 'vocals.wav' ? vocals : { file, writable })
   mocks.run.mockImplementation(async ({ input }: { input: { data: Float32Array } }) => ({ output: { getData: async () => input.data, dispose: mocks.outputDispose } }))
   await import('./separator.worker')
   send({ type: 'init', wasm: new ArrayBuffer(0), model: new ArrayBuffer(0), params: { nFft: 4096, dimF: 2048, dimT: 8 } })
@@ -79,8 +84,10 @@ describe('分离 Worker 文件生命周期', () => {
 
   it('关闭写入流后返回文件，并及时释放每块的推理张量', async () => {
     send({ type: 'separate', id: 1, left: new Float32Array(3100), right: new Float32Array(3100) })
-    expect(await completed()).toMatchObject({ type: 'done', id: 1, wav: expect.any(Blob) })
+    expect(await completed()).toMatchObject({ type: 'done', id: 1, wav: expect.any(Blob), vocals: expect.any(Blob) })
     expect(writable.write).toHaveBeenCalledTimes(3)
+    expect(vocals.writable.write).toHaveBeenCalledTimes(3)
+    expect(vocals.writable.close).toHaveBeenCalledTimes(1)
     expect(writable.close).toHaveBeenCalledTimes(1)
     expect(writable.close.mock.invocationCallOrder[0]).toBeLessThan(file.getFile.mock.invocationCallOrder[0])
     expect(mocks.inputDispose).toHaveBeenCalledTimes(2)

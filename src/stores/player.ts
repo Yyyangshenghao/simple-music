@@ -18,7 +18,7 @@ import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { isPlaybackSpectrumRequested } from '../lib/playback-host-observation'
-import { accompanimentTrack, accompanimentsForTrack, findAccompaniment } from '../lib/karaoke-library'
+import { accompanimentTrack, accompanimentsForTrack, findAccompaniment, localAudioUrl } from '../lib/karaoke-library'
 import { useKaraokeStore } from './karaoke'
 
 let core: ReturnType<typeof createPlaybackCore>
@@ -28,7 +28,16 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
   core = createPlaybackCore({
     getState: get,
     setState: set,
-    createEngine: (callbacks) => new AudioEngine(callbacks),
+    createEngine: (callbacks) => {
+      const engine = new AudioEngine(callbacks)
+      // 引擎随播放宿主常驻，比例变化直接推给混音节点，不重载音源。
+      const apply = ({ karaokeLead, karaokeBacking }: { karaokeLead: number; karaokeBacking: number }) => engine.setStemMix?.(karaokeLead, karaokeBacking)
+      apply(useSettingsStore.getState())
+      useSettingsStore.subscribe((state, previous) => {
+        if (state.karaokeLead !== previous.karaokeLead || state.karaokeBacking !== previous.karaokeBacking) apply(state)
+      })
+      return engine
+    },
     createApplePlayback: (onState) => new AppleMusicPlayback(onState),
     createResolver: (track, quality, preferences) => new PlaybackResolver(
       track, quality, preferences, { isParticipating: isProviderParticipating }
@@ -43,7 +52,7 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
       if (state.items !== previous.items) listener()
     }),
     resolvePending,
-    localAudioUrl: (track) => api.url('/api/local/audio', { id: String(track.id) }),
+    localAudioUrl: (track) => localAudioUrl(String(track.id)),
     findAccompaniment: (track, id) => {
       const { items, played } = useKaraokeStore.getState()
       const item = id === undefined ? findAccompaniment(track, items, useSettingsStore.getState().karaokeModel, played)

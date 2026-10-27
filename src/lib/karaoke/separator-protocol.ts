@@ -12,5 +12,5 @@ export type SeparatorResponse =
   | { type: 'ready' }
   | { type: 'progress'; id: number; done: number; total: number }
   | { type: 'native-infer'; id: number; sequence: number; spec: Float32Array }
-  | { type: 'done'; id: number; wav: Blob }
+  | { type: 'done'; id: number; wav: Blob; vocals?: Blob }
   | { type: 'error'; id: number; message: string }

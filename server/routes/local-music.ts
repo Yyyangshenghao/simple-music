@@ -3,6 +3,7 @@ import type { RouteHandler } from '../types'
 import { readBody, sendJson, sendError } from '../lib/http'
 import { serveFileWithRange } from '../lib/audio-cache'
 import { accompanimentFile, readKaraokeLibrary } from '../lib/karaoke-library'
+import { serveStemMix } from '../lib/karaoke-stem-mix'
 import {
   addLocalFolder,
   removeLocalFolder,
@@ -67,7 +68,10 @@ export const localMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
     if (id.startsWith('karaoke:')) {
       const file = await accompanimentFile(ctx.userDataDir, id.slice(8), ctx.defaultKaraokeDir, ctx.fallbackKaraokeDir)
       if (!file) return sendError(res, 404, 'FILE_MISSING'), true
-      serveFileWithRange(res, file.path, file.size, String(req.headers.range || ''), 'audio/wav')
+      const range = String(req.headers.range || '')
+      // stems=1 由播放器显式请求；其它读取方仍拿到普通立体声伴奏。
+      if (file.vocalsPath && url.searchParams.get('stems') === '1' && await serveStemMix(res, file.path, file.vocalsPath, range)) return true
+      serveFileWithRange(res, file.path, file.size, range, 'audio/wav')
       return true
     }
     const record = id ? await findLocalTrack(ctx.userDataDir, id) : null

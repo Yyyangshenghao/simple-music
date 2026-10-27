@@ -7,6 +7,9 @@ import type { Track } from '../../src/types/domain'
 import { findKaraokeStem } from './karaoke-store'
 
 const MANIFEST = '.simplemusic-accompaniments.json'
+/** 人声侧轨只供应用内混回和声，藏在保存目录的子文件夹里，用户看到的伴奏仍是普通立体声 WAV。 */
+const VOCALS_DIR = '.simplemusic-vocals'
+const vocalsPath = (directory: string, id: string) => join(directory, VOCALS_DIR, `${id}.wav`)
 interface Config { directory: string; directories: string[]; notice?: string; defaultDirectory?: string }
 type SavedAccompaniment = Omit<Accompaniment, 'directory' | 'available'>
 const locks = new Map<string, Promise<void>>()
@@ -99,7 +102,8 @@ export async function readKaraokeLibrary(root: string, defaultDir?: string, fall
   for (const directory of current.directories) {
     for (const item of await readManifest(directory)) {
       const stat = await fs.stat(join(directory, item.fileName)).catch(() => null)
-      items.push({ ...item, directory, available: !!stat?.isFile() })
+      const vocals = await fs.stat(vocalsPath(directory, item.id)).catch(() => null)
+      items.push({ ...item, directory, available: !!stat?.isFile(), vocals: !!vocals?.isFile() && vocals.size === stat?.size })
     }
   }
   // 便携目录被整体搬动后，优先使用本次目录中可以读取的记录。
@@ -129,8 +133,12 @@ export async function saveAccompaniment(root: string, input: { model: KaraokeMod
     // 实际音源可被多平台原曲共用；用户成品必须按原曲身份区分，并保留旧索引的 ID。
     const existing = items.find(item => item.model === input.model && item.key === input.key && sameKaraokeTrack(item.track, input.track))
     const id = existing?.id ?? createHash('sha1').update(JSON.stringify([input.model, input.track.source, String(input.track.mid ?? input.track.id), input.key])).digest('hex')
-    if (existing && await fs.stat(join(input.directory, existing.fileName)).catch(() => null)) return { ...existing, directory: input.directory, available: true }
+    if (existing && await fs.stat(join(input.directory, existing.fileName)).catch(() => null)) {
+      const vocals = await fs.stat(vocalsPath(input.directory, existing.id)).catch(() => null)
+      return { ...existing, directory: input.directory, available: true, vocals: !!vocals?.isFile() }
+    }
     const stem = await findKaraokeStem(root, input.model, input.key)
+    const vocalStem = await findKaraokeStem(root, input.model, input.key, 'vocals')
     if (!stem) throw new Error('伴奏文件不存在，请重新生成')
     const label = `${input.track.artist} - ${input.track.name} [${input.model}]`.replace(/[\x00-\x1f\x7f\\/:*?"<>|]/g, '-').replace(/[. ]+$/, '')
     const safe = Array.from(label).slice(0, 70).join('') || '伴奏'
@@ -139,6 +147,7 @@ export async function saveAccompaniment(root: string, input: { model: KaraokeMod
     const temporary = `${target}.part`
     let created = false
     let copied = false
+    let vocals = false
     const { url: _url, ...track } = input.track
     const saved: SavedAccompaniment = { id, key: input.key, model: input.model, track, fileName, generatedAt: Date.now(), bytes: stem.size }
     try {
@@ -150,19 +159,32 @@ export async function saveAccompaniment(root: string, input: { model: KaraokeMod
         await fs.copyFile(temporary, target, constants.COPYFILE_EXCL)
       })
       created = true
+      // 侧轨缺失或复制失败只影响和声调节，不影响伴奏本身。
+      if (vocalStem?.size === stem.size) {
+        const sidecar = vocalsPath(input.directory, id)
+        vocals = await fs.mkdir(join(input.directory, VOCALS_DIR), { recursive: true })
+          .then(() => fs.copyFile(vocalStem.path, `${sidecar}.part`))
+          .then(() => fs.rename(`${sidecar}.part`, sidecar))
+          .then(() => true, () => fs.rm(`${sidecar}.part`, { force: true }).then(() => false, () => false))
+      }
       await writeJson(join(input.directory, MANIFEST), { version: 1, items: [...items.filter(item => item.id !== id), saved] })
-    } catch (error) { if (created) await fs.rm(target, { force: true }).catch(() => {}); throw error }
+    } catch (error) {
+      if (created) await fs.rm(target, { force: true }).catch(() => {})
+      if (vocals) await fs.rm(vocalsPath(input.directory, id), { force: true }).catch(() => {})
+      throw error
+    }
     finally { if (copied) await fs.rm(temporary, { force: true }).catch(() => {}) }
     // 用户文件与索引都发布成功后才删除中间 WAV，避免长期保留两份音频。
     await fs.rm(stem.path, { force: true }).catch(() => {})
-    return { ...saved, directory: input.directory, available: true }
+    if (vocalStem) await fs.rm(vocalStem.path, { force: true }).catch(() => {})
+    return { ...saved, directory: input.directory, available: true, vocals }
   })
 }
 
-export async function accompanimentFile(root: string, id: string, defaultDir?: string, fallbackDir?: string): Promise<{ path: string; size: number } | null> {
+export async function accompanimentFile(root: string, id: string, defaultDir?: string, fallbackDir?: string): Promise<{ path: string; size: number; vocalsPath?: string } | null> {
   if (!/^[a-f0-9]{40}$/.test(id)) return null
   const item = (await readKaraokeLibrary(root, defaultDir, fallbackDir)).items.find(item => item.id === id && item.available)
-  return item ? { path: join(item.directory, item.fileName), size: item.bytes } : null
+  return item ? { path: join(item.directory, item.fileName), size: item.bytes, ...(item.vocals ? { vocalsPath: vocalsPath(item.directory, item.id) } : {}) } : null
 }
 
 export async function deleteAccompaniment(root: string, id: string, generatedAt: number, defaultDir?: string, fallbackDir?: string): Promise<void> {
@@ -173,6 +195,7 @@ export async function deleteAccompaniment(root: string, id: string, generatedAt:
     const found = items.find(entry => entry.id === id)
     if (!found || found.generatedAt !== generatedAt) throw new Error('伴奏已更新，请刷新后重试')
     await fs.rm(join(item.directory, found.fileName), { force: true })
+    await fs.rm(vocalsPath(item.directory, found.id), { force: true })
     await writeJson(join(item.directory, MANIFEST), { version: 1, items: items.filter(entry => entry.id !== id) })
   })
 }

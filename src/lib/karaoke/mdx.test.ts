@@ -100,6 +100,29 @@ describe('MDX 前后处理', () => {
     expect(chunks.every(chunk => chunk.byteLength <= Math.max(44, mdx.GEN * 4))).toBe(true)
   })
 
+  it('人声侧轨等于原曲减伴奏，与伴奏逐样本对齐', async () => {
+    const mdx = createMdx({ nFft: 4096, dimF: 2048, dimT: 8 })
+    const left = signal(7123, 5), right = signal(7123, 6)
+    const join = (chunks: Uint8Array[]) => {
+      const out = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0))
+      let offset = 0
+      for (const chunk of chunks) { out.set(chunk, offset); offset += chunk.byteLength }
+      return new DataView(out.buffer)
+    }
+    const accompaniment: Uint8Array[] = [], vocals: Uint8Array[] = []
+    // 模型输出全零：伴奏静音，人声侧轨应完整还原原曲
+    await separateToWavStream(mdx, left, right, async spec => new Float32Array(spec.length),
+      async chunk => { accompaniment.push(chunk) }, undefined, undefined, async chunk => { vocals.push(chunk) })
+    const acc = join(accompaniment), voc = join(vocals)
+    expect(voc.byteLength).toBe(acc.byteLength)
+    expect(voc.getUint32(40, true)).toBe(7123 * 4)
+    for (const i of [0, 1, 2047, 3000, 7122]) {
+      expect(acc.getInt16(44 + i * 4, true)).toBe(0)
+      expect(voc.getInt16(44 + i * 4, true)).toBe(Math.round(left[i] * 32767))
+      expect(voc.getInt16(46 + i * 4, true)).toBe(Math.round(right[i] * 32767))
+    }
+  })
+
   it('等待当前块写入后才继续推理，写入失败后立即结束', async () => {
     const mdx = createMdx({ nFft: 4096, dimF: 2048, dimT: 8 })
     const infer = vi.fn(async (spec: Float32Array) => spec.slice())

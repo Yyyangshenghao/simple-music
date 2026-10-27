@@ -100,10 +100,17 @@ function stemsDir(userDataDir: string, model?: KaraokeModelId): string {
   return model ? join(root, model) : root
 }
 
-/** 伴奏文件名只由 key 的摘要决定，key 不进入路径。 */
-export function karaokeStemPath(userDataDir: string, model: KaraokeModelId, key: string): string {
-  return join(stemsDir(userDataDir, model), `${createHash('sha1').update(key).digest('hex')}.wav`)
+/** 伴奏之外同时生成的部分：原曲减伴奏的人声侧轨。 */
+export type KaraokeStemPart = 'vocals'
+const VOCALS_SUFFIX = '.vocals.wav'
+
+/** 伴奏文件名只由 key 的摘要决定，key 不进入路径；人声侧轨与伴奏同名加后缀。 */
+export function karaokeStemPath(userDataDir: string, model: KaraokeModelId, key: string, part?: KaraokeStemPart): string {
+  const name = createHash('sha1').update(key).digest('hex')
+  return join(stemsDir(userDataDir, model), part === 'vocals' ? `${name}${VOCALS_SUFFIX}` : `${name}.wav`)
 }
+
+const vocalsOf = (stemPath: string) => stemPath.replace(/\.wav$/, VOCALS_SUFFIX)
 
 const migrations = new Map<string, Promise<void>>()
 
@@ -219,15 +226,19 @@ export async function karaokeModelFile(userDataDir: string, model: KaraokeModelI
   return size === model.bytes ? { path, size } : null
 }
 
+/** 每首一项，人声侧轨计入伴奏占用并随伴奏一起淘汰；没有伴奏的侧轨是中断残留，也按一项清理。 */
 async function listStems(userDataDir: string, model?: KaraokeModelId): Promise<Array<{ path: string; size: number; used: number; model: KaraokeModelId }>> {
   const models = model ? [model] : KARAOKE_MODELS.map(item => item.id)
   const lists = await Promise.all(models.map(async (id) => {
     const dir = stemsDir(userDataDir, id)
     const names = await fsp.readdir(dir).catch(() => [] as string[])
-    return Promise.all(names.filter(name => name.endsWith('.wav')).map(async (name) => {
+    const stems = new Set(names.filter(name => name.endsWith('.wav') && !name.endsWith(VOCALS_SUFFIX)))
+    const orphans = names.filter(name => name.endsWith(VOCALS_SUFFIX) && !stems.has(name.slice(0, -VOCALS_SUFFIX.length) + '.wav'))
+    return Promise.all([...stems, ...orphans].map(async (name) => {
       const path = join(dir, name)
       const stat = await fsp.stat(path).catch(() => null)
-      return stat ? { path, size: stat.size, used: stat.mtimeMs, model: id } : null
+      const vocals = name.endsWith(VOCALS_SUFFIX) ? null : await fsp.stat(vocalsOf(path)).catch(() => null)
+      return stat ? { path, size: stat.size + (vocals?.size ?? 0), used: stat.mtimeMs, model: id } : null
     }))
   }))
   return lists.flat().filter((file): file is { path: string; size: number; used: number; model: KaraokeModelId } => !!file)
@@ -235,7 +246,7 @@ async function listStems(userDataDir: string, model?: KaraokeModelId): Promise<A
 
 export async function clearKaraokeStems(userDataDir: string, model?: KaraokeModelId): Promise<void> {
   await migrateLegacy(userDataDir)
-  for (const file of await listStems(userDataDir, model)) await fsp.rm(file.path, { force: true }).catch(() => {})
+  for (const file of await listStems(userDataDir, model)) await removeStem(file.path)
 }
 
 /** 模型列表：目录表加上本机安装状态与各自的伴奏占用。 */
@@ -263,9 +274,14 @@ export async function karaokeModelViews(userDataDir: string): Promise<KaraokeMod
   }))
 }
 
-export async function findKaraokeStem(userDataDir: string, model: KaraokeModelId, key: string): Promise<{ path: string; size: number } | null> {
+async function removeStem(path: string): Promise<void> {
+  await fsp.rm(path, { force: true }).catch(() => {})
+  if (!path.endsWith(VOCALS_SUFFIX)) await fsp.rm(vocalsOf(path), { force: true }).catch(() => {})
+}
+
+export async function findKaraokeStem(userDataDir: string, model: KaraokeModelId, key: string, part?: KaraokeStemPart): Promise<{ path: string; size: number } | null> {
   await migrateLegacy(userDataDir)
-  const path = karaokeStemPath(userDataDir, model, key)
+  const path = karaokeStemPath(userDataDir, model, key, part)
   const size = await fileSize(path)
   if (!size) return null
   // 访问时间作为淘汰依据
@@ -285,10 +301,11 @@ export async function writeKaraokeStem(
   key: string,
   body: AsyncIterable<Buffer>,
   limitBytes = KARAOKE_STEM_LIMIT_BYTES,
+  stemPart?: KaraokeStemPart,
 ): Promise<number> {
   await migrateLegacy(userDataDir)
   await fsp.mkdir(stemsDir(userDataDir, model), { recursive: true })
-  const target = karaokeStemPath(userDataDir, model, key)
+  const target = karaokeStemPath(userDataDir, model, key, stemPart)
   const part = `${target}.${process.pid}.${Date.now()}.part`
   const out = createWriteStream(part)
   let size = 0
@@ -308,7 +325,8 @@ export async function writeKaraokeStem(
     await fsp.rm(part, { force: true }).catch(() => {})
     throw error
   }
-  await enforceKaraokeStemLimit(userDataDir, limitBytes, target)
+  // 侧轨先于伴奏上传，此时还不成对，等伴奏写入后再一起计入上限。
+  if (!stemPart) await enforceKaraokeStemLimit(userDataDir, limitBytes, target)
   return size
 }
 
@@ -319,7 +337,7 @@ export async function enforceKaraokeStemLimit(userDataDir: string, limitBytes: n
   for (const file of files.sort((a, b) => a.used - b.used)) {
     if (total <= limitBytes) break
     if (file.path === keep) continue
-    await fsp.rm(file.path, { force: true }).catch(() => {})
+    await removeStem(file.path)
     total -= file.size
   }
 }

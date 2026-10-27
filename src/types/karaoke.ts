@@ -31,6 +31,8 @@ export interface Accompaniment {
   bytes: number
   generatedAt: number
   available: boolean
+  /** 保存了人声侧轨，播放时可混回和声与导唱 */
+  vocals?: boolean
 }
 
 export interface KaraokeLibrary {

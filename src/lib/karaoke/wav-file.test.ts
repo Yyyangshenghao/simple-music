@@ -20,7 +20,8 @@ describe('伴奏临时文件', () => {
     expect(directory.getFileHandle).toHaveBeenCalledWith('accompaniment.wav', { create: true })
     expect(directory.removeEntry.mock.invocationCallOrder[0]).toBeLessThan(directory.getFileHandle.mock.invocationCallOrder[0])
     await removeTemporaryWav()
-    expect(directory.removeEntry).toHaveBeenCalledTimes(2)
+    expect(directory.removeEntry).toHaveBeenCalledTimes(3)
+    expect(directory.removeEntry).toHaveBeenLastCalledWith('vocals.wav')
   })
 
   it('没有历史文件时正常创建；清理不存在的目录也不报错', async () => {

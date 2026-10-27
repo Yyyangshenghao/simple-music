@@ -132,8 +132,13 @@ export const karaokeRoutes: RouteHandler = async (req, res, url, ctx) => {
       sendJson(res, { error: 'INVALID_KEY' }, 400)
       return true
     }
+    const part = url.searchParams.get('part')
+    if (part !== null && part !== 'vocals') {
+      sendJson(res, { error: 'INVALID_PART' }, 400)
+      return true
+    }
     try {
-      sendJson(res, { ok: true, bytes: await writeKaraokeStem(ctx.userDataDir, model.id, key, req) })
+      sendJson(res, { ok: true, bytes: await writeKaraokeStem(ctx.userDataDir, model.id, key, req, undefined, part ?? undefined) })
     } catch (error) {
       sendJson(res, { error: error instanceof Error ? error.message : '伴奏保存失败' }, 400)
     }

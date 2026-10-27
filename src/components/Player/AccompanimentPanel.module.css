@@ -63,6 +63,9 @@
 
 .section { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 0 8px 4px; }
 .label { font-size: 11px; color: var(--sm-text-secondary); }
+.mixRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mixName { flex: none; font-size: 13px; color: var(--sm-text-primary); }
+.mixRow > :last-child { width: auto; flex: 1; max-width: 240px; }
 /* 模型是参数而非动作：选中只用轻底，把实心强调留给生成按钮。 */
 .models {
   --jr-chip: transparent;

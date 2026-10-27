@@ -163,6 +163,10 @@ interface PersistedSettings {
   audioQuality: AudioQuality
   /** AI K 歌使用的分离模型 */
   karaokeModel: KaraokeModelId
+  /** 伴奏混回的导唱（中置人声）比例，0–1，1 为原曲音量 */
+  karaokeLead: number
+  /** 伴奏混回的和声（两侧人声）比例，0–1 */
+  karaokeBacking: number
   playMode: PlayMode
   /** 自定义字体名称,空字符串表示跟随默认系统字体栈。 */
   fontFamily: string
@@ -184,6 +188,14 @@ interface PersistedSettings {
   miniPlayerWidth: number
   /** 迷你播放条外观参数。 */
   miniPlayerAppearance: MiniPlayerAppearance
+}
+
+/** 伴奏默认留一半和声、不留导唱：保住说唱叠轨与和声的厚度，主唱仍让给演唱者。 */
+export const DEFAULT_KARAOKE_LEAD = 0
+export const DEFAULT_KARAOKE_BACKING = 0.5
+
+function normalizeVocalMix(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, Math.round(value * 100) / 100)) : fallback
 }
 
 interface SettingsStore extends PersistedSettings {
@@ -229,6 +241,7 @@ interface SettingsStore extends PersistedSettings {
   setContentGutter(value: number): void
   setAudioQuality(q: AudioQuality): void
   setKaraokeModel(model: KaraokeModelId): void
+  setKaraokeVocalMix(lead: number, backing: number): void
   setPlayMode(m: PlayMode): void
   setFontFamily(f: string): void
   setFontFamilyCjk(f: string): void
@@ -284,6 +297,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   contentGutter: CONTENT_GUTTER_DEFAULT,
   audioQuality: 'max',
   karaokeModel: DEFAULT_KARAOKE_MODEL,
+  karaokeLead: DEFAULT_KARAOKE_LEAD,
+  karaokeBacking: DEFAULT_KARAOKE_BACKING,
   playMode: 'order',
   fontFamily: '',
   fontFamilyCjk: '',
@@ -453,6 +468,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ karaokeModel: model })
     get().saveToLocal()
   },
+  setKaraokeVocalMix(lead, backing) {
+    set({ karaokeLead: normalizeVocalMix(lead, DEFAULT_KARAOKE_LEAD), karaokeBacking: normalizeVocalMix(backing, DEFAULT_KARAOKE_BACKING) })
+    get().saveToLocal()
+  },
   setAudioQuality(q) {
     set({ audioQuality: q })
     get().saveToLocal()
@@ -510,8 +529,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -591,6 +610,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         contentGutter: normalizeContentGutter(data.contentGutter),
         audioQuality: data.audioQuality ?? 'max',
         karaokeModel: isKaraokeModelId(data.karaokeModel) ? data.karaokeModel : DEFAULT_KARAOKE_MODEL,
+        karaokeLead: normalizeVocalMix(data.karaokeLead, DEFAULT_KARAOKE_LEAD),
+        karaokeBacking: normalizeVocalMix(data.karaokeBacking, DEFAULT_KARAOKE_BACKING),
         playMode: data.playMode ?? 'order',
         fontFamily: data.fontFamily ?? '',
         fontFamilyCjk: data.fontFamilyCjk ?? '',

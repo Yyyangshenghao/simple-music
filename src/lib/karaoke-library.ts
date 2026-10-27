@@ -31,6 +31,19 @@ export function accompanimentTrack(item: Accompaniment): Track {
   }
 }
 
+/** 本地音频地址；伴奏额外请求带人声侧轨的 4 声道流，没有侧轨时服务端返回普通立体声。 */
+export function localAudioUrl(id: string): string {
+  return api.url('/api/local/audio', /^karaoke:[a-f0-9]{40}$/.test(id) ? { id, stems: '1' } : { id })
+}
+
+/** 播放地址是否为带人声侧轨的伴奏流（播放器据此接入混音节点）。 */
+export function isStemMixUrl(src: string): boolean {
+  try {
+    const url = new URL(src)
+    return url.pathname === '/api/local/audio' && url.searchParams.get('stems') === '1'
+  } catch { return false }
+}
+
 export function accompanimentId(track: Pick<Track, 'source' | 'id'>): string | null {
   const id = String(track.id)
   return track.source === 'local' && /^karaoke:[a-f0-9]{40}$/.test(id) ? id.slice(8) : null

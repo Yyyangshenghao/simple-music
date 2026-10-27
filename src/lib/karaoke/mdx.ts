@@ -276,7 +276,11 @@ export async function separateToWav(
   return buf
 }
 
-/** 按块写出 WAV；等待上一块落盘后才继续推理，内存中不保留整首 WAV。 */
+/**
+ * 按块写出 WAV；等待上一块落盘后才继续推理，内存中不保留整首 WAV。
+ *
+ * @param writeVocals 同时写出人声侧轨（原曲减伴奏，与伴奏逐样本对齐），供播放时按比例混回和声与导唱
+ */
 export async function separateToWavStream(
   mdx: Mdx,
   left: Float32Array,
@@ -285,13 +289,25 @@ export async function separateToWavStream(
   write: (chunk: Uint8Array<ArrayBuffer>) => Promise<void>,
   onProgress?: (done: number, total: number) => void,
   cancelled?: () => boolean,
+  writeVocals?: (chunk: Uint8Array<ArrayBuffer>) => Promise<void>,
 ): Promise<void> {
   const header = new Uint8Array(WAV_HEADER)
   wavHeader(new DataView(header.buffer), left.length, SAMPLE_RATE)
   await write(header)
-  await separate(mdx, left, right, infer, async (_position, l, r) => {
+  if (writeVocals) await writeVocals(header.slice())
+  const vocalL = new Float32Array(mdx.GEN)
+  const vocalR = new Float32Array(mdx.GEN)
+  await separate(mdx, left, right, infer, async (position, l, r) => {
     const chunk = new Uint8Array(l.length * 4)
     writeWavSamples(new DataView(chunk.buffer), 0, l, r)
     await write(chunk)
+    if (!writeVocals) return
+    for (let i = 0; i < l.length; i++) {
+      vocalL[i] = left[position + i] - l[i]
+      vocalR[i] = right[position + i] - r[i]
+    }
+    const vocals = new Uint8Array(l.length * 4)
+    writeWavSamples(new DataView(vocals.buffer), 0, vocalL.subarray(0, l.length), vocalR.subarray(0, l.length))
+    await writeVocals(vocals)
   }, onProgress, cancelled)
 }

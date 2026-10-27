@@ -161,9 +161,9 @@ export function createKaraokeSeparator(): KaraokePort {
   }
 
   /** 取消时等 Worker 在块间确认后才结束，保证同一会话上不会有两次推理并发。 */
-  function infer(target: Worker, left: Float32Array, right: Float32Array, onProgress: (p: KaraokeProgress) => void, signal: AbortSignal): Promise<Blob> {
+  function infer(target: Worker, left: Float32Array, right: Float32Array, onProgress: (p: KaraokeProgress) => void, signal: AbortSignal): Promise<{ wav: Blob; vocals?: Blob }> {
     const id = ++nextId
-    return awaitWorker<Blob>((resolve, reject) => {
+    return awaitWorker<{ wav: Blob; vocals?: Blob }>((resolve, reject) => {
       const onAbort = () => target.postMessage({ type: 'cancel', id } satisfies SeparatorRequest)
       signal.addEventListener('abort', onAbort, { once: true })
       target.onerror = () => {
@@ -187,7 +187,7 @@ export function createKaraokeSeparator(): KaraokePort {
         if (message.type === 'progress') onProgress({ phase: 'separating', progress: message.done / message.total })
         else {
           signal.removeEventListener('abort', onAbort)
-          if (message.type === 'done') resolve(message.wav)
+          if (message.type === 'done') resolve({ wav: message.wav, vocals: message.vocals })
           else reject(message.message === 'ABORTED' ? abortError() : new Error(message.message))
         }
       }
@@ -214,10 +214,14 @@ export function createKaraokeSeparator(): KaraokePort {
     if (signal.aborted) throw abortError()
     onProgress({ phase: 'separating', progress: 0 })
     try {
-      const wav = await infer(target, left, right, onProgress, signal)
+      const { wav, vocals } = await infer(target, left, right, onProgress, signal)
       signal.throwIfAborted()
       onProgress({ phase: 'saving', progress: 0 })
-      // File 由磁盘按需读取，上传过程中也不把整首 WAV 读回内存。
+      // File 由磁盘按需读取，上传过程中也不把整首 WAV 读回内存。人声侧轨先传，伴奏落盘即视为完成。
+      if (vocals) {
+        const part = await fetch(api.url('/api/karaoke/stem', { model, key, part: 'vocals' }), { method: 'POST', body: vocals, headers: { 'Content-Type': 'audio/wav' }, signal })
+        if (!part.ok) throw new Error('伴奏保存失败')
+      }
       const saved = await fetch(url, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' }, signal })
       if (!saved.ok) throw new Error('伴奏保存失败')
     } finally {

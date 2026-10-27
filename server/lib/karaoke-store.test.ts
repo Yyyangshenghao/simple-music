@@ -54,6 +54,19 @@ describe('AI K 歌存储', () => {
     expect((await karaokeModelViews(dir)).find(view => view.id === 'hq3')).toMatchObject({ stemBytes: 64, stemCount: 1 })
   })
 
+  it('人声侧轨与伴奏成对计数、计入占用并一起淘汰', async () => {
+    const dir = await tmp()
+    await writeKaraokeStem(dir, 'hq3', 'netease:1', chunks(wavBytes(64)), undefined, 'vocals')
+    // 侧轨先到、伴奏未到时是残留，单独占一项，也会被清理
+    expect((await karaokeModelViews(dir)).find(view => view.id === 'hq3')).toMatchObject({ stemBytes: 64, stemCount: 1 })
+    await writeKaraokeStem(dir, 'hq3', 'netease:1', chunks(wavBytes(64)))
+    expect(await findKaraokeStem(dir, 'hq3', 'netease:1', 'vocals')).toMatchObject({ size: 64 })
+    expect((await karaokeModelViews(dir)).find(view => view.id === 'hq3')).toMatchObject({ stemBytes: 128, stemCount: 1 })
+    await enforceKaraokeStemLimit(dir, 0)
+    expect(await findKaraokeStem(dir, 'hq3', 'netease:1')).toBeNull()
+    expect(await findKaraokeStem(dir, 'hq3', 'netease:1', 'vocals')).toBeNull()
+  })
+
   it('非 WAV 内容拒收且不留临时文件', async () => {
     const dir = await tmp()
     await expect(writeKaraokeStem(dir, 'hq3', 'qq:1', chunks(Buffer.from('<html>not audio</html>')))).rejects.toThrow('WAV')

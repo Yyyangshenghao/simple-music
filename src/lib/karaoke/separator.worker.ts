@@ -1,6 +1,6 @@
 import * as ort from 'onnxruntime-web/webgpu'
 import { createMdx, separateToWavStream, type Mdx } from './mdx'
-import { createTemporaryWav, removeTemporaryWav } from './wav-file'
+import { VOCALS_FILENAME, createTemporaryWav, removeTemporaryWav } from './wav-file'
 import type { SeparatorRequest, SeparatorResponse } from './separator-protocol'
 
 /** 分离 Worker：频谱变换与逐块写盘；优先请求原生推理，不可用时使用 Worker WebGPU。 */
@@ -33,7 +33,9 @@ async function run(id: number, left: Float32Array, right: Float32Array): Promise
   const output = active?.outputNames[0]
   let nextInferenceAt = 0
   const { file, writable } = await createTemporaryWav()
+  let vocals: Awaited<ReturnType<typeof createTemporaryWav>> | null = null
   try {
+    vocals = await createTemporaryWav(VOCALS_FILENAME)
     await separateToWavStream(
       processing,
       left,
@@ -68,11 +70,14 @@ async function run(id: number, left: Float32Array, right: Float32Array): Promise
       chunk => writable.write(chunk),
       (done, total) => post({ type: 'progress', id, done, total }),
       () => cancelled.has(id),
+      chunk => vocals!.writable.write(chunk),
     )
     await writable.close()
-    post({ type: 'done', id, wav: await file.getFile() })
+    await vocals.writable.close()
+    post({ type: 'done', id, wav: await file.getFile(), vocals: await vocals.file.getFile() })
   } catch (error) {
     await writable.abort().catch(() => {})
+    await vocals?.writable.abort().catch(() => {})
     await removeTemporaryWav().catch(() => {})
     throw error
   }

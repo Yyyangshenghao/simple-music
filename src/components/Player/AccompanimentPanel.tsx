@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
-import { useSettingsStore } from '../../stores/settings'
+import { DEFAULT_KARAOKE_BACKING, DEFAULT_KARAOKE_LEAD, useSettingsStore } from '../../stores/settings'
 import { useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack } from '../../lib/karaoke-library'
@@ -11,6 +11,7 @@ import type { KaraokeJobPhase } from '../../lib/karaoke/queue'
 import { springGentle } from '../../lib/motion-presets'
 import { useMotion } from '../../hooks/useMotion'
 import { JellyRadio } from '../ui/JellyRadio'
+import { SettingSlider } from '../ui/SettingSlider'
 import { ACCOMPANIMENTS_PLAYLIST_ID, sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
 import type { Track } from '../../types/domain'
 import styles from './AccompanimentPanel.module.css'
@@ -28,6 +29,9 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const select = usePlayerStore(s => s.selectAccompaniment)
   const selected = useSettingsStore(s => s.karaokeModel)
   const setModel = useSettingsStore(s => s.setKaraokeModel)
+  const lead = useSettingsStore(s => s.karaokeLead)
+  const backing = useSettingsStore(s => s.karaokeBacking)
+  const setVocalMix = useSettingsStore(s => s.setKaraokeVocalMix)
   const animated = useMotion('pageTransitionMotion')
   const [adding, setAdding] = useState(false)
   useEffect(() => { void load().catch(() => {}); void loadModels() }, [load, loadModels])
@@ -58,6 +62,8 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const openLibrary = () => { onClose(); useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: ACCOMPANIMENTS_PLAYLIST_ID }) }
   const openSettings = () => { onClose(); const nav = useNavigationStore.getState(); nav.requestSettingsKaraoke(); nav.navigateTo('settings') }
   const measured = running && KARAOKE_MEASURED.includes(running.phase)
+  const playing = entries.find(item => item.id === activeId)
+  const percent = (value: number) => `${Math.round(value * 100)}%`
   return <motion.div className={styles.panel} role="dialog" aria-modal="true" aria-label="选择伴奏版本"
     initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
     transition={animated ? springGentle : { duration: 0 }}>
@@ -80,6 +86,17 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
         {!loaded && <p className={styles.hint} role="status">正在读取伴奏…</p>}
         {error && <p className={styles.hint} role="alert">{error} <button type="button" className={styles.link} onClick={() => void load().catch(() => {})}>重试</button></p>}
       </div>
+      {playing && <div className={styles.section}>
+        <span className={styles.label}>保留人声</span>
+        {playing.vocals ? <>
+          <div className={styles.mixRow}><span className={styles.mixName} title="左右声像上的叠轨、和声与 ad-lib">和声</span>
+            <SettingSlider value={backing} min={0} max={1} step={0.01} defaultValue={DEFAULT_KARAOKE_BACKING} scale={100} unit="%"
+              ariaLabel="和声保留" format={percent} onChange={value => setVocalMix(lead, value)} /></div>
+          <div className={styles.mixRow}><span className={styles.mixName} title="居中的主唱">导唱</span>
+            <SettingSlider value={lead} min={0} max={1} step={0.01} defaultValue={DEFAULT_KARAOKE_LEAD} scale={100} unit="%"
+              ariaLabel="导唱保留" format={percent} onChange={value => setVocalMix(value, backing)} /></div>
+        </> : <p className={styles.hint}>这个版本生成较早，没有保存人声轨。在“我的伴奏”删除后重新生成即可调节。</p>}
+      </div>}
       <div className={styles.section}>
         <span className={styles.label}>{hasPlayable ? '生成其他版本' : '去除人声，生成伴奏'}</span>
         {models.length > 1 && <JellyRadio size="sm" block className={styles.models} ariaLabel="伴奏生成模型" value={selected} disabled={!modelsLoaded} onChange={setModel}

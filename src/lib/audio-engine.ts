@@ -1,6 +1,8 @@
 import { api, isLocalApiUrl } from './api'
 import { AudioPreloadPool } from './audio-preload-pool'
 import { KaraokeFilter } from './karaoke-filter'
+import { isStemMixUrl } from './karaoke-library'
+import { StemMixer } from './stem-mixer'
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
@@ -54,6 +56,8 @@ export interface AudioEngineCallbacks {
 /** 淡入淡出时长(秒);gain 包络挂在 analyser 之后,不影响频谱/能量读数。 */
 const FADE_SEC = 0.25
 const SWITCH_SEC = 0.08
+/** 拖动保留比例时的平滑时长，避免增益阶跃产生爆音 */
+const STEM_RAMP_SEC = 0.05
 
 interface AlternateAudio {
   audio: HTMLAudioElement
@@ -75,6 +79,9 @@ export class AudioEngine {
   /** K 歌中置消除链;首次开启才建立,之后常驻在 source 与 analyser 之间只做淡变。 */
   private karaoke: KaraokeFilter | null = null
   private karaokeOn = false
+  /** 伴奏人声混回：每个带侧轨的媒体元素一份，比例全局共用。 */
+  private stemMixers = new WeakMap<HTMLAudioElement, StemMixer>()
+  private stemMix = { lead: 0, backing: 0 }
   private freq: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(0))
   private cbs: AudioEngineCallbacks
   /** load 指定的起播位置;元数据就绪后再应用(过早设 currentTime 会被忽略)。 */
@@ -160,10 +167,48 @@ export class AudioEngine {
     this.gain = this.ctx.createGain()
     this.trackGain = this.ctx.createGain()
     this.source.connect(this.trackGain)
+    this.routeStems(this.audio, this.source, this.trackGain)
     this.trackGain.connect(this.analyser)
     this.analyser.connect(this.gain)
     this.gain.connect(this.ctx.destination)
     if (this.karaokeOn) this.mountKaraoke().setEnabled(true, 0)
+  }
+
+  /**
+   * 按元素当前地址接入或撤下人声混回。伴奏流的轨道增益只取前两个声道：3、4 声道是人声侧轨，
+   * 经混音节点按比例加回，不能按环绕声下混进来；普通音源恢复默认下混，多声道本地文件不丢声道。
+   */
+  private routeStems(audio: HTMLAudioElement, source: MediaElementAudioSourceNode, gain: GainNode): void {
+    let mixer = this.stemMixers.get(audio)
+    if (mixer) {
+      try { source.disconnect(mixer.input) } catch { /* 尚未连接 */ }
+      mixer.output.disconnect()
+    }
+    const stems = !!this.ctx && isStemMixUrl(audio.src)
+    gain.channelCountMode = stems ? 'clamped-max' : 'max'
+    gain.channelInterpretation = stems ? 'discrete' : 'speakers'
+    if (!stems) return
+    gain.channelCount = 2
+    if (!mixer) {
+      mixer = new StemMixer(this.ctx!, this.stemMix.lead, this.stemMix.backing)
+      this.stemMixers.set(audio, mixer)
+    }
+    source.connect(mixer.input)
+    mixer.output.connect(gain)
+  }
+
+  /**
+   * 伴奏的导唱与和声保留比例，0–1；1 即原曲中的音量。未建立音频图时记下，接入时生效
+   *
+   * @param lead 中置人声（主唱）
+   * @param backing 两侧人声（叠轨、和声）
+   */
+  setStemMix(lead: number, backing: number): void {
+    const clamp = (value: number) => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
+    this.stemMix = { lead: clamp(lead), backing: clamp(backing) }
+    for (const audio of [this.audio, this.alternate?.audio]) {
+      if (audio) this.stemMixers.get(audio)?.set(this.stemMix.lead, this.stemMix.backing, STEM_RAMP_SEC)
+    }
   }
 
   /** 把中置消除链插到 source 与 analyser 之间;频谱随之反映消除后的声音。 */
@@ -229,6 +274,7 @@ export class AudioEngine {
       return loadId
     }
     this.audio.src = src
+    if (this.source && this.trackGain) this.routeStems(this.audio, this.source, this.trackGain)
     this.audio.load()
     return loadId
   }
@@ -282,6 +328,7 @@ export class AudioEngine {
       this.sources.set(audio, this.source)
       this.trackGain = this.ctx.createGain()
       this.source.connect(this.trackGain)
+      this.routeStems(audio, this.source, this.trackGain)
       this.trackGain.connect(this.karaoke?.input ?? this.analyser)
     }
   }
@@ -326,10 +373,11 @@ export class AudioEngine {
     source.connect(gain)
     gain.connect(this.karaoke?.input ?? this.analyser)
     this.alternate = { audio, source, gain }
+    audio.src = src
+    this.routeStems(audio, source, gain)
     audio.addEventListener('loadedmetadata', () => {
       if (this.alternate?.audio === audio && !this.switching) audio.currentTime = this.position
     }, { once: true })
-    audio.src = src
     audio.load()
   }
 
