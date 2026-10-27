@@ -86,6 +86,8 @@
 
 .section { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding: 0 8px 4px; }
 .label { font-size: 12px; font-weight: 600; color: var(--sm-text-secondary); }
+.labelRow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.labelNote { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--sm-text-muted); }
 .mixRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mixName { flex: none; font-size: 13px; color: var(--sm-text-secondary); }
 .mixRow > :last-child { width: auto; flex: 1; max-width: 240px; }
@@ -102,10 +104,10 @@
 .generate:hover:not(:disabled) { background: var(--sm-fill-hover); }
 .generate[data-primary='true'] { background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
 .generate[data-primary='true']:hover:not(:disabled) { background: var(--sm-accent); filter: brightness(1.08); }
-/* 不可用时是状态说明而非按钮：去底、缩小、降为辅助文字。 */
-.generate:disabled { min-height: 24px; background: none; color: var(--sm-text-muted); font-size: 12px; font-weight: 400; cursor: default; }
+/* 不可用时是状态说明而非按钮：去底、缩小字号、降为辅助文字；高度不变，切换模型时不跳动。 */
+.generate:disabled { background: none; color: var(--sm-text-muted); font-size: 12px; font-weight: 400; cursor: default; }
 
-.progress { display: flex; flex-direction: column; gap: 7px; padding: 6px 2px 2px; }
+.progress { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 7px; height: 32px; padding: 0 2px; }
 .progressText { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--sm-text-primary); }
 .percent { color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; }
 .progressEnd { display: inline-flex; align-items: center; gap: 10px; }
@@ -120,6 +122,8 @@
 }
 
 .hint { margin: 0 2px; font-size: 11px; line-height: 1.5; color: var(--sm-text-secondary); }
+/* 生成区的状态说明：始终一行高，空时也占位；过长省略，完整内容在悬停提示里。 */
+.status { min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link { padding: 0; border: 0; background: none; color: var(--sm-text-primary); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
 .foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--sm-border); }

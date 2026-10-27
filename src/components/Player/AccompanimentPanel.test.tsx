@@ -14,7 +14,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ accompaniment: h.accompaniment, selectAccompaniment: h.select }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: () => h.queue }))
 vi.mock('../../stores/karaoke-models', () => ({ useKaraokeModelsStore: () => h.models }))
-vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ karaokeModel: h.model, setKaraokeModel: h.setModel, performance: { pageTransitionMotion: false } }) }))
+vi.mock('../../stores/settings', () => ({ DEFAULT_KARAOKE_LEAD: 0, DEFAULT_KARAOKE_BACKING: 0.5, useSettingsStore: (select: (state: unknown) => unknown) => select({ karaokeModel: h.model, setKaraokeModel: h.setModel, karaokeLead: 0, karaokeBacking: 0.5, setKaraokeVocalMix: vi.fn(), performance: { pageTransitionMotion: false } }) }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
 
 type Element = ReactElement<{ children?: ReactNode; 'aria-label'?: string; 'aria-pressed'?: boolean; 'data-primary'?: boolean; disabled?: boolean; onClick?: () => void; onChange?: (event: unknown) => void }>
@@ -53,6 +53,28 @@ it('显示原曲、多个已生成版本与丢失版本，并标出当前选择'
   expect(button('生成伴奏').props).toMatchObject({ disabled: false, 'data-primary': true })
   h.queue.items = [item('a', 'hq3')]
   expect(button('生成伴奏').props['data-primary']).toBe(false)
+})
+
+it('有伴奏时一直保留人声调节，原曲或旧版本下禁用并说明原因，切换不改变布局', () => {
+  const sliders = () => nodes(render()).filter(node => (node.props as { ariaLabel?: string }).ariaLabel?.endsWith('保留'))
+  expect(sliders().map(node => (node.props as { disabled?: boolean }).disabled)).toEqual([true, true])
+  expect(content(render())).toContain('播放伴奏时可调')
+  h.queue.items = [{ ...item('a', 'hq3'), vocals: true }]
+  h.accompaniment = { ...original, source: 'local', id: `karaoke:${'a'.repeat(40)}` }
+  expect(sliders().map(node => (node.props as { disabled?: boolean }).disabled)).toEqual([false, false])
+  h.queue.items = [item('a', 'hq3')]
+  expect(content(render())).toContain('重新生成后可调')
+  h.queue.items = []
+  expect(sliders()).toHaveLength(0)
+})
+
+it('切换到未下载的模型时状态说明占同一行，不新增或移除元素', () => {
+  const statusLine = () => nodes(render()).filter(node => node.type === 'p')
+  h.models.models = h.models.models.map(model => ({ ...model, state: 'ready' }))
+  const before = statusLine().length
+  h.models.models = h.models.models.map(model => ({ ...model, state: 'missing', bytes: 64 * 1024 * 1024 }))
+  expect(statusLine()).toHaveLength(before)
+  expect(content(render())).toContain('首次使用需下载约 64 MB 模型')
 })
 
 it('选择精确版本和原曲时只发送版本 ID 与歌曲身份，不传入事件', async () => {
