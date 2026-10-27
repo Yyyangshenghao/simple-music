@@ -1,22 +1,19 @@
 .root { position: relative; display: inline-flex; flex-shrink: 0; }
 
 
-.overlay {
+/* 麦克风按钮的附属浮层：固定在按钮上方、右缘对齐，right/bottom 由按钮位置算出。 */
+.popover {
   position: fixed;
-  inset: 0;
   z-index: 200;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  /* 只轻压暗背景，不整屏模糊：保持界面仍在眼前，焦点交给中间的玻璃。 */
-  background: color-mix(in srgb, var(--sm-bg-base) 28%, transparent);
+  width: min(360px, calc(100vw - 24px));
 }
 
 /* 毛玻璃：半透明底 + 背景模糊保证文字可读；边缘沿用我的库透镜的上亮下弱细边，不加内部光带。 */
 .panel {
   position: relative;
   width: min(360px, 100%);
-  max-height: min(560px, calc(100dvh - 48px));
+  max-height: min(560px, var(--popover-max, calc(100dvh - 48px)));
+  transform-origin: 100% 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -43,10 +40,6 @@
 :global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
 
 .head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 8px 20px; }
-/* 标题区是拖动把手 */
-.head[data-draggable] { cursor: grab; touch-action: none; user-select: none; }
-.head[data-draggable]:active { cursor: grabbing; }
-.drag { width: min(360px, 100%); }
 .heading { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .eyebrow { font-size: 11px; color: var(--sm-text-secondary); }
 /* 字号层级：歌名 16 → 版本 14 → 字段与按钮 13 → 分区标题 12 → 辅助说明 11，用字号与字重而非颜色区分轻重。 */

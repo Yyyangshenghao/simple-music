@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useDragControls, useMotionValue } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useToastStore } from '../../stores/toast'
@@ -16,6 +16,8 @@ import { AccompanimentPanel, KARAOKE_MEASURED, KARAOKE_PHASE } from './Accompani
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
 const HOLD_RING_DELAY = 120
+/** 浮层与播放栏上缘的间距 */
+const POPOVER_GAP = 12
 
 export function AccompanimentButton() {
   const track = usePlayerStore(s => s.currentTrack)
@@ -32,12 +34,8 @@ export function AccompanimentButton() {
   const original = track ? accompanimentOriginal(track) ?? track : null
   // 在原曲与“我的伴奏”条目之间切换会换当前曲目，但仍是同一首歌，弹窗保持打开。
   const songKey = original ? `${original.source}:${String(original.id)}` : ''
-  const dragControls = useDragControls()
-  const overlay = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
-  // 拖动后的位置在本次运行内保留，下次长按打开仍在原处。
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
   const job = original ? jobs.find(job => job.phase !== 'failed' && sameKaraokeTrack(job.track, original)) : undefined
   const playable = track && track.source !== 'apple' ? accompanimentsForTrack(track, items).filter(item => item.available) : []
   const ready = playable.length
@@ -50,18 +48,33 @@ export function AccompanimentButton() {
   useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [songKey])
   useEffect(() => {
     if (!open) return
-    // 窗口缩小后，保留的位置可能把弹窗移出可视区，打开时收回到窗口内。
-    const frame = requestAnimationFrame(() => {
-      const box = panel.current?.getBoundingClientRect()
-      if (!box) return
-      const margin = 12
-      const dx = Math.max(margin - box.left, Math.min(0, window.innerWidth - margin - box.right))
-      const dy = Math.max(margin - box.top, Math.min(0, window.innerHeight - margin - box.bottom))
-      if (dx) dragX.set(dragX.get() + dx)
-      if (dy) dragY.set(dragY.get() + dy)
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [open, dragX, dragY])
+    // 浮层挂在 body 上以保留玻璃模糊（播放栏自身也是玻璃，嵌在里面的模糊取不到页面内容），位置跟随麦克风按钮。
+    const place = () => {
+      const anchor = root.current?.getBoundingClientRect()
+      // 竖直方向以整条播放栏的上缘为基准，按钮在栏内有内边距，直接贴按钮会压到播放栏。
+      const bar = root.current?.closest('[data-player-bar]')?.getBoundingClientRect() ?? anchor
+      const el = panel.current
+      if (!anchor || !bar || !el) return
+      el.style.right = `${Math.max(12, window.innerWidth - anchor.right)}px`
+      el.style.bottom = `${window.innerHeight - bar.top + POPOVER_GAP}px`
+      el.style.setProperty('--popover-max', `${Math.max(240, bar.top - POPOVER_GAP - 12)}px`)
+    }
+    place()
+    const outside = (event: globalThis.PointerEvent) => {
+      const target = event.target as Node
+      if (!root.current?.contains(target) && !panel.current?.contains(target)) setOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    window.addEventListener('resize', place)
+    window.addEventListener('pointerdown', outside)
+    // 全局按键守卫在捕获阶段拦截后续传播，Esc 也需在捕获阶段监听。
+    window.addEventListener('keydown', escape, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('pointerdown', outside)
+      window.removeEventListener('keydown', escape, true)
+    }
+  }, [open])
   useEffect(() => {
     if (job) { baseline.current = Math.min(baseline.current ?? ready, ready); return }
     if (baseline.current !== null && ready > baseline.current) { baseline.current = null; if (!open) setFresh(true) }
@@ -98,7 +111,7 @@ export function AccompanimentButton() {
     : preferred ? `${usingStem ? '切回原唱' : fresh ? '伴奏已生成，点按切换' : '切换到伴奏'} · 长按管理`
     : '选择或生成伴奏版本'
 
-  return <div className={panelStyles.root}>
+  return <div className={panelStyles.root} ref={root}>
     <motion.button
     type="button"
     className={`${styles.btn} ${styles.accompanimentBtn} no-drag`}
@@ -138,13 +151,9 @@ export function AccompanimentButton() {
     </svg>}
     {fresh && !job && <span className={styles.accompanimentDot} aria-hidden="true" />}
     </motion.button>
-    {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={overlay} className={`${panelStyles.overlay} no-drag`}
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={animated ? pageTransition : { duration: 0 }}
-      onPointerDown={event => { if (event.target === event.currentTarget) setOpen(false) }}>
-      <motion.div ref={panel} className={panelStyles.drag} drag dragControls={dragControls} dragListener={false} dragMomentum={false}
-        dragElastic={0} dragConstraints={overlay} style={{ x: dragX, y: dragY }}>
-        <AccompanimentPanel track={track} onClose={() => setOpen(false)} onDragHandle={event => dragControls.start(event)} />
-      </motion.div>
+    {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={panel} className={`${panelStyles.popover} no-drag`}
+      exit={{ opacity: 0 }} transition={animated ? pageTransition : { duration: 0 }}>
+      <AccompanimentPanel track={track} onClose={() => setOpen(false)} />
     </motion.div>}</AnimatePresence>, document.body)}
   </div>
 }

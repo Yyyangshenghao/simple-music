@@ -1,4 +1,4 @@
-import { useEffect, useState, type PointerEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
@@ -21,10 +21,7 @@ export const KARAOKE_PHASE: Record<KaraokeJobPhase, string> = { queued: '等待�
 /** 只有这两个阶段上报真实进度，其余阶段显示不定进度。 */
 export const KARAOKE_MEASURED: KaraokeJobPhase[] = ['model', 'separating']
 
-/**
- * @param onDragHandle 在标题区按下时调用，由外层开始拖动面板；按钮上按下不触发
- */
-export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Track; onClose(): void; onDragHandle?(event: PointerEvent): void }) {
+export function AccompanimentPanel({ track, onClose }: { track: Track; onClose(): void }) {
   const { items, jobs, loaded, error, paused, load, enqueue, retry, cancel } = useKaraokeStore()
   const { models, f16, loaded: modelsLoaded, error: modelError, load: loadModels } = useKaraokeModelsStore()
   const accompaniment = usePlayerStore(s => s.accompaniment)
@@ -67,11 +64,10 @@ export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Tr
   const measured = running && KARAOKE_MEASURED.includes(running.phase)
   const playing = entries.find(item => item.id === activeId)
   const percent = (value: number) => `${Math.round(value * 100)}%`
-  return <motion.div className={styles.panel} role="dialog" aria-modal="true" aria-label="选择伴奏版本"
+  return <motion.div className={styles.panel} role="dialog" aria-label="选择伴奏版本"
     initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
     transition={animated ? springGentle : { duration: 0 }}>
-    <div className={styles.head} data-draggable={!!onDragHandle || undefined}
-      onPointerDown={event => { if (onDragHandle && !(event.target as HTMLElement).closest('button')) onDragHandle(event) }}>
+    <div className={styles.head}>
       <div className={styles.heading}><span className={styles.eyebrow}>伴奏</span><strong className={styles.song} title={original.name}>{original.name}</strong></div>
       <button type="button" className={styles.close} aria-label="关闭伴奏版本" onClick={onClose}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
