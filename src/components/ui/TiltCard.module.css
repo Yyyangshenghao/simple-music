@@ -5,7 +5,7 @@
 }
 
 .tilt:hover {
-  box-shadow: var(--glow-soft);
+  box-shadow: var(--glow-hover);
 }
 
 .tilt[data-scrolling] {

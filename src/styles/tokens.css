@@ -84,6 +84,8 @@
   --ambient-2: #ff9ffc;
   --ambient-3: #b497cf;
   --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 28%, transparent);
+  /* 卡片悬停：下沉的柔光，负扩展收进卡片，横向轨道 24px 顶部留白内不被裁成直边 */
+  --glow-hover: 0 16px 44px -12px color-mix(in srgb, var(--ambient-1) 40%, transparent);
   --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
                0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
   --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
@@ -135,6 +137,7 @@
 
     /* 浅色模式：辉光减半，避免刺眼 */
     --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
+    --glow-hover: 0 16px 44px -12px color-mix(in srgb, var(--ambient-1) 20%, transparent);
     --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 18%, transparent),
                  0 0 24px color-mix(in srgb, var(--ambient-1) 15%, transparent);
   }
@@ -182,6 +185,7 @@
 
   /* 浅色模式：辉光减半，避免刺眼 */
   --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 14%, transparent);
+  --glow-hover: 0 16px 44px -12px color-mix(in srgb, var(--ambient-1) 20%, transparent);
   --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 18%, transparent),
                0 0 24px color-mix(in srgb, var(--ambient-1) 15%, transparent);
 }
@@ -227,6 +231,8 @@
   --ambient-2: #ff9ffc;
   --ambient-3: #b497cf;
   --glow-soft: 0 0 48px color-mix(in srgb, var(--ambient-1) 28%, transparent);
+  /* 卡片悬停：下沉的柔光，负扩展收进卡片，横向轨道 24px 顶部留白内不被裁成直边 */
+  --glow-hover: 0 16px 44px -12px color-mix(in srgb, var(--ambient-1) 40%, transparent);
   --glow-ring: 0 0 0 1px color-mix(in srgb, var(--ambient-2) 35%, transparent),
                0 0 24px color-mix(in srgb, var(--ambient-1) 30%, transparent);
   --ambient-gradient: linear-gradient(120deg, var(--ambient-1), var(--ambient-2), var(--ambient-3));
