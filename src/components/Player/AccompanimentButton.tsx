@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
@@ -7,7 +7,7 @@ import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack, findAccompaniment } from '../../lib/karaoke-library'
 import { useSettingsStore } from '../../stores/settings'
 import { sameKaraokeTrack } from '../../types/karaoke'
-import { tapScale, springSnappy, pageTransition } from '../../lib/motion-presets'
+import { tapScale, springSnappy, popoverSprout } from '../../lib/motion-presets'
 import { useMotion } from '../../hooks/useMotion'
 import styles from './PlayerBar.module.css'
 import panelStyles from './AccompanimentPanel.module.css'
@@ -16,12 +16,16 @@ import { AccompanimentPanel, KARAOKE_MEASURED, KARAOKE_PHASE } from './Accompani
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
 const HOLD_RING_DELAY = 120
-/** 浮层底边到按钮顶部的距离，留出指示角 */
-const POPOVER_GAP = 12
+/** 浮层底部包住按钮的外圈直径，与长按进度环一致 */
+const RING = 32
+/** 面板底边到外圈顶部的距离，留出指示角 */
+const POPOVER_GAP = 8
 /** 浮层与窗口边缘的最小距离 */
 const EDGE = 12
 /** 指示角离浮层左右边缘的最小距离，避开圆角 */
 const CARET_INSET = 28
+
+interface Sprout { ring: string; full: string; closing: boolean }
 
 export function AccompanimentButton() {
   const track = usePlayerStore(s => s.currentTrack)
@@ -40,6 +44,8 @@ export function AccompanimentButton() {
   const songKey = original ? `${original.source}:${String(original.id)}` : ''
   const root = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
+  /** 本次打开的裁切圆：外圈与铺满两档，收回时复用；closing 防止重复收回。 */
+  const sprout = useRef<Sprout | null>(null)
   const job = original ? jobs.find(job => job.phase !== 'failed' && sameKaraokeTrack(job.track, original)) : undefined
   const playable = track && track.source !== 'apple' ? accompanimentsForTrack(track, items).filter(item => item.available) : []
   const ready = playable.length
@@ -50,28 +56,41 @@ export function AccompanimentButton() {
   // 生成期间记下已有成品数；任务结束后成品变多即视为完成（任务移除与成品入库的先后不定）。
   const baseline = useRef<number | null>(null)
   useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [songKey])
-  useEffect(() => {
+  // 布局阶段定位并先裁成外圈，首帧就从按钮处开始，不会整块闪现。
+  useLayoutEffect(() => {
     if (!open) return
+    sprout.current = null
     // 浮层挂在 body 上以保留玻璃模糊（播放栏自身也是玻璃，嵌在里面的模糊取不到页面内容），位置跟随麦克风按钮。
     const place = () => {
-      // 以麦克风按钮为锚：水平居中于按钮并收在窗口内，指示角始终对准按钮（底部播放栏与歌词页内嵌播放栏通用）。
+      // 以麦克风按钮为锚：外圈套住按钮，面板水平居中于按钮并收在窗口内（底部播放栏与歌词页内嵌播放栏通用）。
       const anchor = root.current?.getBoundingClientRect()
       const el = panel.current
       if (!anchor || !el) return
       const width = el.offsetWidth
       const center = anchor.left + anchor.width / 2
+      const middle = anchor.top + anchor.height / 2
       const left = Math.min(Math.max(EDGE, center - width / 2), window.innerWidth - EDGE - width)
+      const ringX = center - left
       el.style.left = `${left}px`
-      el.style.bottom = `${window.innerHeight - anchor.top + POPOVER_GAP}px`
-      el.style.setProperty('--caret-x', `${Math.min(Math.max(CARET_INSET, center - left), width - CARET_INSET)}px`)
-      el.style.setProperty('--popover-max', `${Math.max(240, anchor.top - POPOVER_GAP - EDGE)}px`)
+      el.style.bottom = `${window.innerHeight - middle - RING / 2}px`
+      el.style.setProperty('--ring-x', `${ringX}px`)
+      el.style.setProperty('--caret-x', `${Math.min(Math.max(CARET_INSET, ringX), width - CARET_INSET)}px`)
+      el.style.setProperty('--popover-max', `${Math.max(240, middle - RING / 2 - POPOVER_GAP - EDGE)}px`)
+      const ringY = el.offsetHeight - RING / 2
+      const reach = Math.ceil(Math.hypot(Math.max(ringX, width - ringX), ringY))
+      sprout.current = { ring: `circle(${RING / 2}px at ${ringX}px ${ringY}px)`, full: `circle(${reach}px at ${ringX}px ${ringY}px)`, closing: sprout.current?.closing ?? false }
     }
     place()
+    const el = panel.current
+    // place 在闭包里写入 sprout，这里按声明类型读取，不沿用上面置空后的收窄。
+    const geometry = sprout.current as Sprout | null
+    // 外圈先接住长按进度环，再从圈里长出整块面板。原生动画不保留结束值，长完即无裁切，面板之后变高也不会被截掉。
+    if (el && geometry && animated) el.animate({ clipPath: [geometry.ring, geometry.full] }, popoverSprout.grow)
     const outside = (event: globalThis.PointerEvent) => {
       const target = event.target as Node
-      if (!root.current?.contains(target) && !panel.current?.contains(target)) setOpen(false)
+      if (!root.current?.contains(target) && !panel.current?.querySelector('[role="dialog"]')?.contains(target)) close()
     }
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
     window.addEventListener('resize', place)
     window.addEventListener('pointerdown', outside)
     // 全局按键守卫在捕获阶段拦截后续传播，Esc 也需在捕获阶段监听。
@@ -82,6 +101,18 @@ export function AccompanimentButton() {
       window.removeEventListener('keydown', escape, true)
     }
   }, [open])
+  /** 收回到按钮外圈后再卸载；无动效时直接关闭。 */
+  function close() {
+    const el = panel.current
+    const geometry = sprout.current
+    if (!animated || !el || !geometry) { setOpen(false); return }
+    if (geometry.closing) return
+    geometry.closing = true
+    // 收回后停在外圈直到卸载；窗口隐藏时动画可能不推进，定时兜底关闭。
+    const done = () => { clearTimeout(fallback); setOpen(false) }
+    const fallback = setTimeout(done, popoverSprout.retract.duration + 200)
+    el.animate({ clipPath: [geometry.full, geometry.ring] }, { ...popoverSprout.retract, fill: 'forwards' }).finished.then(done, done)
+  }
   useEffect(() => {
     if (job) { baseline.current = Math.min(baseline.current ?? ready, ready); return }
     if (baseline.current !== null && ready > baseline.current) { baseline.current = null; if (!open) setFresh(true) }
@@ -108,7 +139,8 @@ export function AccompanimentButton() {
     // 长按已打开弹窗时，松手产生的 click 不再切换。
     if (hold.current.fired) { hold.current.fired = false; return }
     if (preferred) void toggle()
-    else setOpen(value => !value)
+    else if (open) close()
+    else setOpen(true)
   }
   const active = !!accompaniment || !!(track && accompanimentOriginal(track))
   const measured = !!job && KARAOKE_MEASURED.includes(job.phase)
@@ -159,9 +191,11 @@ export function AccompanimentButton() {
     {fresh && !job && <span className={styles.accompanimentDot} aria-hidden="true" />}
     </motion.button>
     {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={panel} className={`${panelStyles.popover} no-drag`}
-      exit={{ opacity: 0 }} transition={animated ? pageTransition : { duration: 0 }}>
-      <AccompanimentPanel track={track} onClose={() => setOpen(false)} />
+      exit={{ opacity: 0 }} transition={animated ? { duration: 0.12 } : { duration: 0 }}>
+      <AccompanimentPanel track={track} onClose={close} />
       <span className={panelStyles.caret} aria-hidden="true" />
+      {/* 套住麦克风的外圈：面板从这里长出，收回时也回到这里。 */}
+      <span className={panelStyles.ring} aria-hidden="true" />
     </motion.div>}</AnimatePresence>, document.body)}
   </div>
 }

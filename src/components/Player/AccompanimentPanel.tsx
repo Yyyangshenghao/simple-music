@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
@@ -8,8 +7,6 @@ import { useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack } from '../../lib/karaoke-library'
 import type { KaraokeJobPhase } from '../../lib/karaoke/queue'
-import { springGentle } from '../../lib/motion-presets'
-import { useMotion } from '../../hooks/useMotion'
 import { SettingSlider } from '../ui/SettingSlider'
 import { ACCOMPANIMENTS_PLAYLIST_ID, sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
 import type { Track } from '../../types/domain'
@@ -31,7 +28,6 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const lead = useSettingsStore(s => s.karaokeLead)
   const backing = useSettingsStore(s => s.karaokeBacking)
   const setVocalMix = useSettingsStore(s => s.setKaraokeVocalMix)
-  const animated = useMotion('pageTransitionMotion')
   const [adding, setAdding] = useState(false)
   useEffect(() => { void load().catch(() => {}); void loadModels() }, [load, loadModels])
   const original = accompanimentOriginal(track) ?? track
@@ -64,9 +60,7 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const measured = running && KARAOKE_MEASURED.includes(running.phase)
   const playing = entries.find(item => item.id === activeId)
   const percent = (value: number) => `${Math.round(value * 100)}%`
-  return <motion.div className={styles.panel} role="dialog" aria-label="选择伴奏版本"
-    initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
-    transition={animated ? springGentle : { duration: 0 }}>
+  return <div className={styles.panel} role="dialog" aria-label="选择伴奏版本">
     <div className={styles.head}>
       <div className={styles.heading}><span className={styles.eyebrow}>伴奏</span><strong className={styles.song} title={original.name}>{original.name}</strong></div>
       <button type="button" className={styles.close} aria-label="关闭伴奏版本" onClick={onClose}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
@@ -123,7 +117,7 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
       <button type="button" className={styles.footLink} onClick={openLibrary}>我的伴奏</button>
       <button type="button" className={styles.footLink} onClick={openSettings}>模型与保存位置</button>
     </div>
-  </motion.div>
+  </div>
 }
 
 /** 模型是生成参数：用轻量分段控件，选中只抬起一层浅底，不鼓起、不加粗，把强调留给版本选择与生成按钮。 */

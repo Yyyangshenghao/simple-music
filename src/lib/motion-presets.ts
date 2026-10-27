@@ -91,6 +91,12 @@ export const tooltipSwap: Transition = { duration: 0.14, ease: [0.23, 1, 0.32, 1
 export const queueRowFlipTiming: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
 
 /** 队列移除：该行向左滑出并淡出，结束后其余行再补位。 */
+/** 浮层从按钮外圈长出与收回：圆形裁切从按钮外圈扩展到整块面板，收回时反向 */
+export const popoverSprout = {
+  grow: { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  retract: { duration: 240, easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+} satisfies Record<string, KeyframeAnimationOptions>
+
 export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
 
 /** 设为下一首：落位后整行氛围色闪一下。 */

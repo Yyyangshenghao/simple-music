@@ -14,7 +14,7 @@ const h = vi.hoisted(() => ({
 let stateCall = 0
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useState: () => { const i = stateCall++ % 3; return i === 0 ? [h.open, h.setOpen] : i === 1 ? [false, vi.fn()] : [false, h.setHolding] },
-  useRef: (value: unknown) => value && typeof value === 'object' && 'fired' in value ? h.hold : { current: value }, useEffect: () => {} }))
+  useRef: (value: unknown) => value && typeof value === 'object' && 'fired' in value ? h.hold : { current: value }, useEffect: () => {}, useLayoutEffect: () => {} }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: Object.assign((select: (state: typeof h.player) => unknown) => select(h.player), { getState: () => h.player }) }))
 vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: { karaokeModel: string }) => unknown) => select({ karaokeModel: 'kara2' }) }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: vi.fn() }) } }))

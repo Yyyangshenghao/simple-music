@@ -6,11 +6,28 @@
   position: fixed;
   z-index: 220;
   width: min(360px, calc(100vw - 24px));
+  /* 底部留出外圈与指示角的位置；浮层整体不拦截点击，按钮仍可点按。 */
+  padding-bottom: 40px;
+  pointer-events: none;
+}
+.popover .panel { pointer-events: auto; }
+/* 套住麦克风的外圈，与长按进度环同径同色，面板从这里长出。 */
+.ring {
+  position: absolute;
+  bottom: 0;
+  left: var(--ring-x, 50%);
+  box-sizing: border-box;
+  width: 31.5px;
+  height: 31.5px;
+  margin-bottom: 0.25px;
+  translate: -50% 0;
+  border: 1.5px solid var(--sm-accent);
+  border-radius: 50%;
 }
 /* 指示角：与面板同一玻璃底，只描下侧两条边，对准麦克风按钮。 */
 .caret {
   position: absolute;
-  bottom: -6px;
+  bottom: 34px;
   left: var(--caret-x, 50%);
   width: 12px;
   height: 12px;
