@@ -43,6 +43,10 @@
 :global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
 
 .head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 8px 20px; }
+/* 标题区是拖动把手 */
+.head[data-draggable] { cursor: grab; touch-action: none; user-select: none; }
+.head[data-draggable]:active { cursor: grabbing; }
+.drag { width: min(360px, 100%); }
 .heading { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .eyebrow { font-size: 11px; color: var(--sm-text-secondary); }
 .song { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }

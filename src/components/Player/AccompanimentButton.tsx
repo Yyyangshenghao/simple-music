@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useDragControls, useMotionValue } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useToastStore } from '../../stores/toast'
@@ -30,6 +30,14 @@ export function AccompanimentButton() {
   const animated = useMotion('pageTransitionMotion')
   const trackKey = track ? `${track.source}:${String(track.id)}` : ''
   const original = track ? accompanimentOriginal(track) ?? track : null
+  // 在原曲与“我的伴奏”条目之间切换会换当前曲目，但仍是同一首歌，弹窗保持打开。
+  const songKey = original ? `${original.source}:${String(original.id)}` : ''
+  const dragControls = useDragControls()
+  const overlay = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  // 拖动后的位置在本次运行内保留，下次长按打开仍在原处。
+  const dragX = useMotionValue(0)
+  const dragY = useMotionValue(0)
   const job = original ? jobs.find(job => job.phase !== 'failed' && sameKaraokeTrack(job.track, original)) : undefined
   const playable = track && track.source !== 'apple' ? accompanimentsForTrack(track, items).filter(item => item.available) : []
   const ready = playable.length
@@ -39,7 +47,21 @@ export function AccompanimentButton() {
   const hold = useRef<{ timer?: ReturnType<typeof setTimeout>; fired: boolean; busy: boolean }>({ fired: false, busy: false })
   // 生成期间记下已有成品数；任务结束后成品变多即视为完成（任务移除与成品入库的先后不定）。
   const baseline = useRef<number | null>(null)
-  useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [trackKey])
+  useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [songKey])
+  useEffect(() => {
+    if (!open) return
+    // 窗口缩小后，保留的位置可能把弹窗移出可视区，打开时收回到窗口内。
+    const frame = requestAnimationFrame(() => {
+      const box = panel.current?.getBoundingClientRect()
+      if (!box) return
+      const margin = 12
+      const dx = Math.max(margin - box.left, Math.min(0, window.innerWidth - margin - box.right))
+      const dy = Math.max(margin - box.top, Math.min(0, window.innerHeight - margin - box.bottom))
+      if (dx) dragX.set(dragX.get() + dx)
+      if (dy) dragY.set(dragY.get() + dy)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, dragX, dragY])
   useEffect(() => {
     if (job) { baseline.current = Math.min(baseline.current ?? ready, ready); return }
     if (baseline.current !== null && ready > baseline.current) { baseline.current = null; if (!open) setFresh(true) }
@@ -116,10 +138,13 @@ export function AccompanimentButton() {
     </svg>}
     {fresh && !job && <span className={styles.accompanimentDot} aria-hidden="true" />}
     </motion.button>
-    {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={trackKey} className={`${panelStyles.overlay} no-drag`}
+    {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={overlay} className={`${panelStyles.overlay} no-drag`}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={animated ? pageTransition : { duration: 0 }}
       onPointerDown={event => { if (event.target === event.currentTarget) setOpen(false) }}>
-      <AccompanimentPanel track={track} onClose={() => setOpen(false)} />
+      <motion.div ref={panel} className={panelStyles.drag} drag dragControls={dragControls} dragListener={false} dragMomentum={false}
+        dragElastic={0} dragConstraints={overlay} style={{ x: dragX, y: dragY }}>
+        <AccompanimentPanel track={track} onClose={() => setOpen(false)} onDragHandle={event => dragControls.start(event)} />
+      </motion.div>
     </motion.div>}</AnimatePresence>, document.body)}
   </div>
 }

@@ -20,6 +20,8 @@ vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: { k
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: vi.fn() }) } }))
 vi.mock('../../hooks/useMotion', () => ({ useMotion: () => false }))
 vi.mock('react-dom', () => ({ createPortal: (node: unknown) => node }))
+vi.mock('motion/react', async original => ({ ...await original<typeof import('motion/react')>(),
+  useDragControls: () => ({ start: vi.fn() }), useMotionValue: (value: number) => ({ get: () => value, set: vi.fn() }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: typeof h.karaoke) => unknown) => select(h.karaoke) }))
 
 const track: Track = { id: 1, source: 'netease', provider: 'netease', type: 'song', name: '歌曲', artist: '艺人', artists: [] }

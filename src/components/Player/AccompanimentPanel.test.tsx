@@ -60,14 +60,15 @@ it('选择精确版本和原曲时只发送版本 ID 与歌曲身份，不传入
   await flush()
 })
 
-it('选择立即关闭面板，旧在线请求晚到不会再关闭新打开的面板', async () => {
-  let resolve!: () => void
-  h.select.mockReturnValue(new Promise<void>(done => { resolve = done }))
+it('选择版本后面板保持打开，失败时提示', async () => {
   button('原曲').props.onClick!()
-  expect(h.close).toHaveBeenCalledOnce()
-  h.close.mockClear()
-  resolve(); await flush()
+  await flush()
   expect(h.close).not.toHaveBeenCalled()
+  h.select.mockRejectedValueOnce(new Error('切换失败'))
+  button('使用伴奏：hq3').props.onClick!()
+  await flush()
+  expect(h.close).not.toHaveBeenCalled()
+  expect(h.show).toHaveBeenCalledWith('切换失败')
 })
 
 it('从伴奏进入时用原曲生成所选新版本，不改变播放或关闭面板', async () => {

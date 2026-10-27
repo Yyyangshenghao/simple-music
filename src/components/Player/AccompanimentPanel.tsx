@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type PointerEvent } from 'react'
 import { motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
@@ -22,7 +22,10 @@ export const KARAOKE_PHASE: Record<KaraokeJobPhase, string> = { queued: '等待�
 /** 只有这两个阶段上报真实进度，其余阶段显示不定进度。 */
 export const KARAOKE_MEASURED: KaraokeJobPhase[] = ['model', 'separating']
 
-export function AccompanimentPanel({ track, onClose }: { track: Track; onClose(): void }) {
+/**
+ * @param onDragHandle 在标题区按下时调用，由外层开始拖动面板；按钮上按下不触发
+ */
+export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Track; onClose(): void; onDragHandle?(event: PointerEvent): void }) {
   const { items, jobs, loaded, error, paused, load, enqueue, retry, cancel } = useKaraokeStore()
   const { models, f16, loaded: modelsLoaded, error: modelError, load: loadModels } = useKaraokeModelsStore()
   const accompaniment = usePlayerStore(s => s.accompaniment)
@@ -48,8 +51,9 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const modelName = (id: KaraokeModelId) => models.find(model => model.id === id)?.name ?? MODEL_NAMES[id]
   const notify = (error: unknown) => useToastStore.getState().show(error instanceof Error ? error.message : '操作失败，请重试')
 
+  // 选择后保持面板打开，便于接着调节保留比例或对比其他版本。
   async function choose(id: string | null) {
-    try { const request = select(id, expectedKey); onClose(); await request } catch (error) { notify(error) }
+    try { await select(id, expectedKey) } catch (error) { notify(error) }
   }
   async function generate() {
     setAdding(true)
@@ -67,7 +71,8 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   return <motion.div className={styles.panel} role="dialog" aria-modal="true" aria-label="选择伴奏版本"
     initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
     transition={animated ? springGentle : { duration: 0 }}>
-    <div className={styles.head}>
+    <div className={styles.head} data-draggable={!!onDragHandle || undefined}
+      onPointerDown={event => { if (onDragHandle && !(event.target as HTMLElement).closest('button')) onDragHandle(event) }}>
       <div className={styles.heading}><span className={styles.eyebrow}>伴奏</span><strong className={styles.song} title={original.name}>{original.name}</strong></div>
       <button type="button" className={styles.close} aria-label="关闭伴奏版本" onClick={onClose}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
