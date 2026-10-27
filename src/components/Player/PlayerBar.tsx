@@ -531,7 +531,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
 
   const embedded = variant === 'lyrics'
   const controls = (
-    <div className={embedded ? styles.lyricsPlayer : styles.bar} data-player-bar role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
+    <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
       {!embedded && <div className={styles.left}>
         <TrackInfo
           onCoverClick={onOpenLyrics}

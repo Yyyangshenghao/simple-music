@@ -16,8 +16,12 @@ import { AccompanimentPanel, KARAOKE_MEASURED, KARAOKE_PHASE } from './Accompani
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
 const HOLD_RING_DELAY = 120
-/** 浮层与播放栏上缘的间距 */
+/** 浮层底边到按钮顶部的距离，留出指示角 */
 const POPOVER_GAP = 12
+/** 浮层与窗口边缘的最小距离 */
+const EDGE = 12
+/** 指示角离浮层左右边缘的最小距离，避开圆角 */
+const CARET_INSET = 28
 
 export function AccompanimentButton() {
   const track = usePlayerStore(s => s.currentTrack)
@@ -50,14 +54,17 @@ export function AccompanimentButton() {
     if (!open) return
     // 浮层挂在 body 上以保留玻璃模糊（播放栏自身也是玻璃，嵌在里面的模糊取不到页面内容），位置跟随麦克风按钮。
     const place = () => {
+      // 以麦克风按钮为锚：水平居中于按钮并收在窗口内，指示角始终对准按钮（底部播放栏与歌词页内嵌播放栏通用）。
       const anchor = root.current?.getBoundingClientRect()
-      // 竖直方向以整条播放栏的上缘为基准，按钮在栏内有内边距，直接贴按钮会压到播放栏。
-      const bar = root.current?.closest('[data-player-bar]')?.getBoundingClientRect() ?? anchor
       const el = panel.current
-      if (!anchor || !bar || !el) return
-      el.style.right = `${Math.max(12, window.innerWidth - anchor.right)}px`
-      el.style.bottom = `${window.innerHeight - bar.top + POPOVER_GAP}px`
-      el.style.setProperty('--popover-max', `${Math.max(240, bar.top - POPOVER_GAP - 12)}px`)
+      if (!anchor || !el) return
+      const width = el.offsetWidth
+      const center = anchor.left + anchor.width / 2
+      const left = Math.min(Math.max(EDGE, center - width / 2), window.innerWidth - EDGE - width)
+      el.style.left = `${left}px`
+      el.style.bottom = `${window.innerHeight - anchor.top + POPOVER_GAP}px`
+      el.style.setProperty('--caret-x', `${Math.min(Math.max(CARET_INSET, center - left), width - CARET_INSET)}px`)
+      el.style.setProperty('--popover-max', `${Math.max(240, anchor.top - POPOVER_GAP - EDGE)}px`)
     }
     place()
     const outside = (event: globalThis.PointerEvent) => {
@@ -154,6 +161,7 @@ export function AccompanimentButton() {
     {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={panel} className={`${panelStyles.popover} no-drag`}
       exit={{ opacity: 0 }} transition={animated ? pageTransition : { duration: 0 }}>
       <AccompanimentPanel track={track} onClose={() => setOpen(false)} />
+      <span className={panelStyles.caret} aria-hidden="true" />
     </motion.div>}</AnimatePresence>, document.body)}
   </div>
 }

@@ -1,19 +1,38 @@
 .root { position: relative; display: inline-flex; flex-shrink: 0; }
 
 
-/* 麦克风按钮的附属浮层：固定在按钮上方、右缘对齐，right/bottom 由按钮位置算出。 */
+/* 麦克风按钮的附属浮层：left/bottom 与指示角位置由按钮位置算出；层级高于播放栏玻璃（210）。 */
 .popover {
   position: fixed;
-  z-index: 200;
+  z-index: 220;
   width: min(360px, calc(100vw - 24px));
 }
+/* 指示角：与面板同一玻璃底，只描下侧两条边，对准麦克风按钮。 */
+.caret {
+  position: absolute;
+  bottom: -6px;
+  left: var(--caret-x, 50%);
+  width: 12px;
+  height: 12px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom-right-radius: 3px;
+  /* 只露出面板下沿以外的半个菱形，避免与面板底色叠出接缝。 */
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+:global([data-reduce-transparency='1']) .caret { background: var(--sm-bg-base); }
 
 /* 毛玻璃：半透明底 + 背景模糊保证文字可读；边缘沿用我的库透镜的上亮下弱细边，不加内部光带。 */
 .panel {
   position: relative;
   width: min(360px, 100%);
   max-height: min(560px, var(--popover-max, calc(100dvh - 48px)));
-  transform-origin: 100% 100%;
+  transform-origin: var(--caret-x, 50%) 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
