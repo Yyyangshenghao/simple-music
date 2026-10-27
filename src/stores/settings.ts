@@ -80,6 +80,7 @@ export const DEFAULT_PERFORMANCE: PerformanceFlags = {
   sliderMotion: true,
   dragMotion: true,
   iconMotion: true,
+  popoverSproutMotion: true,
   smoothScrollMotion: true,
   lyricsLineMotion: true,
   textRevealMotion: true,
@@ -100,8 +101,8 @@ function normalizeLyrics3dFpsCap(fps: number): number {
 
 export type PerformancePreset = 'standard' | 'simple' | 'minimal'
 
-/** 控件动效七项；设置页的「控件动效」批量开关与旧存档迁移共用这份清单。 */
-export const CONTROL_MOTION_KEYS = ['tapFeedbackMotion', 'hoverLiftMotion', 'toggleMotion', 'indicatorMotion', 'sliderMotion', 'dragMotion', 'iconMotion'] as const satisfies readonly (keyof PerformanceFlags)[]
+/** 控件动效八项；设置页的「控件动效」批量开关与旧存档迁移共用这份清单。 */
+export const CONTROL_MOTION_KEYS = ['tapFeedbackMotion', 'hoverLiftMotion', 'toggleMotion', 'indicatorMotion', 'sliderMotion', 'dragMotion', 'iconMotion', 'popoverSproutMotion'] as const satisfies readonly (keyof PerformanceFlags)[]
 
 export function controlMotionFlags(enabled: boolean): Record<(typeof CONTROL_MOTION_KEYS)[number], boolean> {
   return Object.fromEntries(CONTROL_MOTION_KEYS.map(key => [key, enabled])) as Record<(typeof CONTROL_MOTION_KEYS)[number], boolean>
@@ -638,6 +639,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
             ...stored,
             bgPointerMotion: stored.bgPointerMotion ?? stored.bgFluidMotion ?? DEFAULT_PERFORMANCE.bgPointerMotion,
             cardSpotlightEffect: stored.cardSpotlightEffect ?? stored.cardTiltEffect ?? DEFAULT_PERFORMANCE.cardSpotlightEffect,
+            // 伴奏浮层长出原本跟随页面转场，旧存档沿用那一项；更早的单一「控件动效」选择优先。
+            popoverSproutMotion: stored.popoverSproutMotion ?? (typeof controlMotion === 'boolean' ? controlMotion : undefined)
+              ?? stored.pageTransitionMotion ?? legacyMotion.pageTransitionMotion ?? DEFAULT_PERFORMANCE.popoverSproutMotion,
             audioGlowEffect: stored.audioGlowEffect ?? stored.gradientTextMotion ?? DEFAULT_PERFORMANCE.audioGlowEffect,
           }
         })(),

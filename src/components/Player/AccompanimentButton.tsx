@@ -8,6 +8,7 @@ import { accompanimentId, accompanimentOriginal, accompanimentsForTrack, findAcc
 import { useSettingsStore } from '../../stores/settings'
 import { sameKaraokeTrack } from '../../types/karaoke'
 import { tapScale, springSnappy, popoverSprout } from '../../lib/motion-presets'
+import { sproutPath } from './sprout-shape'
 import { useMotion } from '../../hooks/useMotion'
 import styles from './PlayerBar.module.css'
 import panelStyles from './AccompanimentPanel.module.css'
@@ -16,16 +17,19 @@ import { AccompanimentPanel, KARAOKE_MEASURED, KARAOKE_PHASE } from './Accompani
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
 const HOLD_RING_DELAY = 120
-/** 浮层底部包住按钮的外圈直径，与长按进度环一致 */
-const RING = 32
-/** 面板底边到外圈顶部的距离，留出指示角 */
-const POPOVER_GAP = 8
+/** 浮层底部包住麦克风的圆：半径、圆心低于面板底边的距离、与面板之间过渡段的宽度 */
+const BUBBLE = 22
+const SINK = 14
+const FILLET = 10
+/** 与面板样式的圆角一致 */
+const PANEL_RADIUS = 20
 /** 浮层与窗口边缘的最小距离 */
 const EDGE = 12
-/** 指示角离浮层左右边缘的最小距离，避开圆角 */
-const CARET_INSET = 28
 
-interface Sprout { ring: string; full: string; closing: boolean }
+/** 本次打开的三态外形（缩成麦克风中心的点、包住麦克风的圆、完整面板）与进行中的长出动画；closing 防止重复收回。 */
+interface Sprout { gone: string; closed: string; open: string; closing: boolean; growing?: Animation[] }
+/** 长出时圆先从麦克风中心鼓起，占全程的这一段；收回时最后这一段缩回中心 */
+const BUBBLE_PHASE = 0.25
 
 export function AccompanimentButton() {
   const track = usePlayerStore(s => s.currentTrack)
@@ -37,13 +41,15 @@ export function AccompanimentButton() {
   const [open, setOpen] = useState(false)
   // 后台生成完成且面板未打开时，按钮上留一个小圆点，打开面板后清除。
   const [fresh, setFresh] = useState(false)
-  const animated = useMotion('pageTransitionMotion')
+  const animated = useMotion('popoverSproutMotion')
   const trackKey = track ? `${track.source}:${String(track.id)}` : ''
   const original = track ? accompanimentOriginal(track) ?? track : null
   // 在原曲与“我的伴奏”条目之间切换会换当前曲目，但仍是同一首歌，弹窗保持打开。
   const songKey = original ? `${original.source}:${String(original.id)}` : ''
   const root = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
+  const surface = useRef<HTMLDivElement>(null)
+  const outline = useRef<SVGPathElement>(null)
   /** 本次打开的裁切圆：外圈与铺满两档，收回时复用；closing 防止重复收回。 */
   const sprout = useRef<Sprout | null>(null)
   const job = original ? jobs.find(job => job.phase !== 'failed' && sameKaraokeTrack(job.track, original)) : undefined
@@ -56,39 +62,54 @@ export function AccompanimentButton() {
   // 生成期间记下已有成品数；任务结束后成品变多即视为完成（任务移除与成品入库的先后不定）。
   const baseline = useRef<number | null>(null)
   useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [songKey])
-  // 布局阶段定位并先裁成外圈，首帧就从按钮处开始，不会整块闪现。
+  // 布局阶段定位并先按收起态裁切，首帧就只露出麦克风外的圆，不会整块闪现。
   useLayoutEffect(() => {
     if (!open) return
     sprout.current = null
     // 浮层挂在 body 上以保留玻璃模糊（播放栏自身也是玻璃，嵌在里面的模糊取不到页面内容），位置跟随麦克风按钮。
     const place = () => {
-      // 以麦克风按钮为锚：外圈套住按钮，面板水平居中于按钮并收在窗口内（底部播放栏与歌词页内嵌播放栏通用）。
+      // 面板水平居中于麦克风并收在窗口内，底部的圆套住麦克风（底部播放栏与歌词页内嵌播放栏通用）。
       const anchor = root.current?.getBoundingClientRect()
       const el = panel.current
-      if (!anchor || !el) return
+      const dialog = surface.current?.querySelector<HTMLElement>('[role="dialog"]')
+      if (!anchor || !el || !dialog || !surface.current) return
       const width = el.offsetWidth
       const center = anchor.left + anchor.width / 2
       const middle = anchor.top + anchor.height / 2
       const left = Math.min(Math.max(EDGE, center - width / 2), window.innerWidth - EDGE - width)
-      const ringX = center - left
       el.style.left = `${left}px`
-      el.style.bottom = `${window.innerHeight - middle - RING / 2}px`
-      el.style.setProperty('--ring-x', `${ringX}px`)
-      el.style.setProperty('--caret-x', `${Math.min(Math.max(CARET_INSET, ringX), width - CARET_INSET)}px`)
-      el.style.setProperty('--popover-max', `${Math.max(240, middle - RING / 2 - POPOVER_GAP - EDGE)}px`)
-      const ringY = el.offsetHeight - RING / 2
-      const reach = Math.ceil(Math.hypot(Math.max(ringX, width - ringX), ringY))
-      sprout.current = { ring: `circle(${RING / 2}px at ${ringX}px ${ringY}px)`, full: `circle(${reach}px at ${ringX}px ${ringY}px)`, closing: sprout.current?.closing ?? false }
+      el.style.bottom = `${window.innerHeight - middle - BUBBLE}px`
+      el.style.setProperty('--mic-x', `${center - left}px`)
+      el.style.setProperty('--popover-max', `${Math.max(240, middle - SINK - EDGE)}px`)
+      // 圆里画一份同色的麦克风：玻璃会模糊下面真正的按钮，点击仍穿透到按钮。
+      const button = root.current?.querySelector('button')
+      if (button) el.style.setProperty('--mic-color', getComputedStyle(button).color)
+      const geometry = { width, height: dialog.offsetHeight, radius: PANEL_RADIUS, cx: center - left, bubble: BUBBLE, sink: SINK, fillet: FILLET }
+      const shape = { gone: sproutPath({ ...geometry, bubble: 0 }, false), closed: sproutPath(geometry, false), open: sproutPath(geometry, true) }
+      surface.current.style.clipPath = `path('${shape.open}')`
+      outline.current?.setAttribute('d', shape.open)
+      // 长出途中面板变高（如模型列表晚到）时换成新外形的关键帧，并保留已走的进度，圆始终对准麦克风。
+      const growing = sprout.current?.growing?.filter(animation => animation.playState === 'running')
+      let next: Animation[] | undefined
+      if (growing?.length) {
+        const elapsed = growing[0].currentTime
+        for (const animation of growing) animation.cancel()
+        next = grow(shape)
+        for (const animation of next) animation.currentTime = elapsed
+      }
+      sprout.current = { ...shape, closing: sprout.current?.closing ?? false, growing: next }
     }
     place()
-    const el = panel.current
-    // place 在闭包里写入 sprout，这里按声明类型读取，不沿用上面置空后的收窄。
     const geometry = sprout.current as Sprout | null
-    // 外圈先接住长按进度环，再从圈里长出整块面板。原生动画不保留结束值，长完即无裁切，面板之后变高也不会被截掉。
-    if (el && geometry && animated) el.animate({ clipPath: [geometry.ring, geometry.full] }, popoverSprout.grow)
+    // 先只有麦克风外的圆，圆的上半部向上展开成整块面板；玻璃与描边同一组关键帧。
+    if (geometry && animated) geometry.growing = grow(geometry)
+    // 面板内容变化（如出现人声保留）时按新高度重算外形
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => { if (!sprout.current?.closing) place() })
+    const dialog = surface.current?.querySelector('[role="dialog"]')
+    if (dialog) resize?.observe(dialog)
     const outside = (event: globalThis.PointerEvent) => {
       const target = event.target as Node
-      if (!root.current?.contains(target) && !panel.current?.querySelector('[role="dialog"]')?.contains(target)) close()
+      if (!root.current?.contains(target) && !surface.current?.querySelector('[role="dialog"]')?.contains(target)) close()
     }
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
     window.addEventListener('resize', place)
@@ -96,22 +117,50 @@ export function AccompanimentButton() {
     // 全局按键守卫在捕获阶段拦截后续传播，Esc 也需在捕获阶段监听。
     window.addEventListener('keydown', escape, true)
     return () => {
+      resize?.disconnect()
       window.removeEventListener('resize', place)
       window.removeEventListener('pointerdown', outside)
       window.removeEventListener('keydown', escape, true)
     }
   }, [open])
-  /** 收回到按钮外圈后再卸载；无动效时直接关闭。 */
+  /**
+   * 玻璃外形与描边按同一组关键帧变形
+   *
+   * @param frames 每帧给玻璃与描边各一个 path() 值；offset 缺省时均分
+   */
+  function morph(frames: { surface: string; outline: string; offset?: number }[], timing: KeyframeAnimationOptions): Animation[] {
+    return [
+      surface.current?.animate(frames.map(({ surface: clipPath, offset }) => ({ clipPath, offset })), timing),
+      outline.current?.animate(frames.map(({ outline: d, offset }) => ({ d, offset })), timing),
+    ].filter((animation): animation is Animation => !!animation)
+  }
+  const frame = (path: string, offset?: number) => ({ surface: `path('${path}')`, outline: `path('${path}')`, offset })
+  /** 圆先从麦克风中心鼓起，圆的上部再向上展开成整块面板。 */
+  function grow(shape: Pick<Sprout, 'gone' | 'closed' | 'open'>): Animation[] {
+    return morph([frame(shape.gone), frame(shape.closed, BUBBLE_PHASE), frame(shape.open)], popoverSprout.grow)
+  }
+  /** 收回成包住麦克风的圆，再缩进麦克风中心后卸载，不留残圈；无动效时直接关闭。 */
   function close() {
-    const el = panel.current
     const geometry = sprout.current
-    if (!animated || !el || !geometry) { setOpen(false); return }
+    const el = surface.current
+    if (!animated || !geometry || !el) { setOpen(false); return }
     if (geometry.closing) return
     geometry.closing = true
-    // 收回后停在外圈直到卸载；窗口隐藏时动画可能不推进，定时兜底关闭。
-    const done = () => { clearTimeout(fallback); setOpen(false) }
+    // 停在缩没的状态直到卸载；窗口隐藏时动画可能不推进，定时兜底关闭。
+    const done = () => {
+      clearTimeout(fallback)
+      el.style.clipPath = `path('${geometry.gone}')`
+      outline.current?.setAttribute('d', geometry.gone)
+      setOpen(false)
+    }
     const fallback = setTimeout(done, popoverSprout.retract.duration + 200)
-    el.animate({ clipPath: [geometry.full, geometry.ring] }, { ...popoverSprout.retract, fill: 'forwards' }).finished.then(done, done)
+    // 从屏幕上的当前外形出发（长出途中关闭也不会先跳回完整面板）。
+    const shown = (value: string | null | undefined) => value?.startsWith('path(') ? value : `path('${geometry.open}')`
+    const current = { surface: shown(getComputedStyle(el).clipPath), outline: shown(outline.current && getComputedStyle(outline.current).getPropertyValue('d')) }
+    for (const animation of geometry.growing ?? []) animation.cancel()
+    const [retract] = morph([{ ...current }, frame(geometry.closed, 1 - BUBBLE_PHASE), frame(geometry.gone)], { ...popoverSprout.retract, fill: 'forwards' })
+    if (retract) retract.finished.then(done, done)
+    else done()
   }
   useEffect(() => {
     if (job) { baseline.current = Math.min(baseline.current ?? ready, ready); return }
@@ -172,12 +221,7 @@ export function AccompanimentButton() {
     whileTap={tapScale}
     transition={springSnappy}
   >
-    {/* 与右侧工具图标同一 24 网格、17px、1.8 描边；使用伴奏时话筒头实心。 */}
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="15" cy="9" r="5.6" fill={active ? 'currentColor' : 'none'} />
-      <path d="M11 13 4 19.1a1.2 1.2 0 0 0-.06 1.75l.21.21a1.2 1.2 0 0 0 1.75-.06L12 14" />
-      {!active && <path d="m11.1 5.1 7.8 7.8" />}
-    </svg>
+    <MicIcon active={active} />
     {job && <svg className={styles.accompanimentRing} data-indeterminate={!measured} viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="16" cy="16" r="15" pathLength="100" className={styles.accompanimentRingTrack} />
       <g className={styles.accompanimentRingArc}>
@@ -192,10 +236,25 @@ export function AccompanimentButton() {
     </motion.button>
     {typeof document !== 'undefined' && createPortal(<AnimatePresence>{open && track && <motion.div key={songKey} ref={panel} className={`${panelStyles.popover} no-drag`}
       exit={{ opacity: 0 }} transition={animated ? { duration: 0.12 } : { duration: 0 }}>
-      <AccompanimentPanel track={track} onClose={close} />
-      <span className={panelStyles.caret} aria-hidden="true" />
-      {/* 套住麦克风的外圈：面板从这里长出，收回时也回到这里。 */}
-      <span className={panelStyles.ring} aria-hidden="true" />
+      <div ref={surface} className={panelStyles.surface}>
+        <AccompanimentPanel track={track} onClose={close} />
+        <span className={panelStyles.micCopy} aria-hidden="true"><MicIcon active={active} /></span>
+      </div>
+      <svg className={panelStyles.outline} aria-hidden="true">
+        <defs><linearGradient id="accompaniment-edge" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="rgba(255, 255, 255, 0.5)" /><stop offset="0.45" stopColor="rgba(255, 255, 255, 0.06)" /><stop offset="1" stopColor="rgba(255, 255, 255, 0.2)" />
+        </linearGradient></defs>
+        <path ref={outline} stroke="url(#accompaniment-edge)" />
+      </svg>
     </motion.div>}</AnimatePresence>, document.body)}
   </div>
+}
+
+/** 麦克风图标：与右侧工具图标同一 24 网格、17px、1.8 描边；使用伴奏时话筒头实心。 */
+function MicIcon({ active }: { active: boolean }) {
+  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="15" cy="9" r="5.6" fill={active ? 'currentColor' : 'none'} />
+    <path d="M11 13 4 19.1a1.2 1.2 0 0 0-.06 1.75l.21.21a1.2 1.2 0 0 0 1.75-.06L12 14" />
+    {!active && <path d="m11.1 5.1 7.8 7.8" />}
+  </svg>
 }

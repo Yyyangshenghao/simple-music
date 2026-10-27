@@ -1,79 +1,63 @@
 .root { position: relative; display: inline-flex; flex-shrink: 0; }
 
-
-/* 麦克风按钮的附属浮层：left/bottom 与指示角位置由按钮位置算出；层级高于播放栏玻璃（210）。 */
+/* 麦克风按钮的附属浮层：left/bottom 由按钮位置算出；层级高于播放栏玻璃（210）。整体不拦截点击，只有面板可点。 */
 .popover {
   position: fixed;
   z-index: 220;
   width: min(360px, calc(100vw - 24px));
-  /* 底部留出外圈与指示角的位置；浮层整体不拦截点击，按钮仍可点按。 */
-  padding-bottom: 40px;
   pointer-events: none;
 }
-.popover .panel { pointer-events: auto; }
-/* 套住麦克风的外圈，与长按进度环同径同色，面板从这里长出。 */
-.ring {
-  position: absolute;
-  bottom: 0;
-  left: var(--ring-x, 50%);
-  box-sizing: border-box;
-  width: 31.5px;
-  height: 31.5px;
-  margin-bottom: 0.25px;
-  translate: -50% 0;
-  border: 1.5px solid var(--sm-accent);
-  border-radius: 50%;
-}
-/* 指示角：与面板同一玻璃底，只描下侧两条边，对准麦克风按钮。 */
-.caret {
-  position: absolute;
-  bottom: 34px;
-  left: var(--caret-x, 50%);
-  width: 12px;
-  height: 12px;
-  translate: -50% 0;
-  rotate: 45deg;
-  background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
-  backdrop-filter: blur(36px) saturate(160%);
-  -webkit-backdrop-filter: blur(36px) saturate(160%);
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  border-bottom-right-radius: 3px;
-  /* 只露出面板下沿以外的半个菱形，避免与面板底色叠出接缝。 */
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-}
-:global([data-reduce-transparency='1']) .caret { background: var(--sm-bg-base); }
 
-/* 毛玻璃：半透明底 + 背景模糊保证文字可读；边缘沿用我的库透镜的上亮下弱细边，不加内部光带。 */
-.panel {
+/*
+ * 一整块玻璃：面板向下经圆滑过渡连到包住麦克风的圆，外形由 clip-path: path() 给出（随面板高度重算）。
+ * 底部内边距 = 圆心低于面板底边的距离 + 圆半径；毛玻璃与描边沿用我的库透镜的通透做法，不加内部光带。
+ */
+.surface {
   position: relative;
-  width: min(360px, 100%);
-  max-height: min(560px, var(--popover-max, calc(100dvh - 48px)));
-  transform-origin: var(--caret-x, 50%) 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  padding-bottom: 36px;
   background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
   backdrop-filter: blur(36px) saturate(160%);
   -webkit-backdrop-filter: blur(36px) saturate(160%);
-  border-radius: 20px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
   color: var(--sm-text-primary);
 }
-.panel::before {
-  content: '';
+:global([data-reduce-transparency='1']) .surface { background: var(--sm-bg-base); }
+
+/* 外形描边：与玻璃同一路径，上亮下弱的细边。 */
+.outline {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.2));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke-width: 1;
+}
+
+/* 圆里的麦克风：与下方真实按钮同位同色，圆心在底部向上 22px 处。 */
+.micCopy {
+  position: absolute;
+  left: var(--mic-x, 50%);
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  translate: -50% 0;
+  color: var(--mic-color, var(--sm-text-primary));
   pointer-events: none;
 }
-:global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(560px, var(--popover-max, calc(100dvh - 48px)));
+  overflow: hidden;
+  pointer-events: auto;
+}
+
 
 .head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 8px 20px; }
 .heading { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }

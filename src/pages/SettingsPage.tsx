@@ -404,9 +404,10 @@ const CONTROL_EFFECTS: EffectItem[] = [
   { key: 'sliderMotion', label: '滑杆手感', hint: '进度、音量等滑杆拖动时的拉伸、倾斜和数值气泡过渡。' },
   { key: 'dragMotion', label: '拖拽手感', hint: '队列拖动时的倾斜、抬起与碎纸删除，探索卡片堆的甩动，歌词来源排序的位移。' },
   { key: 'iconMotion', label: '图标小动画', hint: '红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出和搜索框展开。' },
+  { key: 'popoverSproutMotion', label: '浮层长出', hint: '伴奏面板从麦克风按钮外的圆向上展开，关闭时收回到按钮；关闭后面板直接出现和消失。' },
 ]
 
-/** 控件动效：批量开关只一次性设置七项，不压制子项；细节里逐项调整。 */
+/** 控件动效：批量开关只一次性设置八项，不压制子项；细节里逐项调整。 */
 function ControlMotionGroup() {
   const performance = useSettingsStore((s) => s.performance)
   const setPerformance = useSettingsStore((s) => s.setPerformance)
@@ -426,7 +427,7 @@ function ControlMotionGroup() {
             细节
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
           </button>
-          <InfoButton label="控件动效" text="按压、悬停、开关、指示条、滑杆、拖拽与图标的手感动画。这里可一次性全开或全关，展开细节可逐项调整，各项互不影响。" />
+          <InfoButton label="控件动效" text="按压、悬停、开关、指示条、滑杆、拖拽、图标与浮层长出的手感动画。这里可一次性全开或全关，展开细节可逐项调整，各项互不影响。" />
           <Switch checked={enabled} onChange={(value) => setPerformance(controlMotionFlags(value))} aria-label="控件动效" aria-describedby={partial ? 'settings-control-motion-status' : undefined} />
         </div>
       </div>

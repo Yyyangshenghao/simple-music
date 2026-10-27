@@ -6,7 +6,7 @@ export type PreviewEffect = Extract<keyof PerformanceFlags,
   'textRevealMotion' | 'lyricsWordMotion' | 'cardTiltEffect' | 'cardSpotlightEffect'
   | 'gradientTextMotion' | 'audioGlowEffect' | 'bgFluidMotion' | 'bgPointerMotion'
   | 'pageTransitionMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'
-  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion'>
+  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion' | 'popoverSproutMotion'>
 
 const LYRIC_LINES = ['故事的小黄花', '从出生那年就飘着', '童年的荡秋千', '随记忆一直晃到现在']
 
@@ -71,6 +71,10 @@ export function EffectPreview({ effect }: { effect: PreviewEffect }) {
       {effect === 'iconMotion' && <span className={styles.heart}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /></svg>
         {Array.from({ length: 6 }, (_, index) => <i key={index} style={{ '--i': index } as CSSProperties} />)}
+      </span>}
+      {effect === 'popoverSproutMotion' && <span className={styles.sprout}>
+        <span className={styles.sproutShape}><i /><i /><i /></span>
+        <span className={styles.sproutMic} />
       </span>}
       {effect === 'smoothScrollMotion' && <span className={styles.scrollView}>
         <span className={styles.scrollList}>{Array.from({ length: 8 }, (_, index) => <i key={index} data-target={index === 5 || undefined} />)}</span>

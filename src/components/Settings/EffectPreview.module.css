@@ -321,3 +321,27 @@
   45% { opacity: 1; }
   75%, 100% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(-26px); }
 }
+
+/* 浮层长出：圆从按钮中心鼓起，上部展开成面板，再按原路收回缩没（路径取自 sprout-shape 的同一几何） */
+.sprout { position: relative; width: 120px; height: 80px; }
+.sproutShape {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 30px;
+  background: color-mix(in srgb, var(--sm-text-primary) 10%, transparent);
+  clip-path: path('M 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 H 60 Q 60 64 60 64 A 0 0 0 1 1 60 64 Q 60 64 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 Z');
+  animation: sproutGrow 3000ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.sproutShape i { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--sm-text-primary) 22%, transparent); }
+.sproutShape i:first-child { width: 60%; }
+.sproutMic { position: absolute; left: 50%; bottom: 12px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--sm-text-primary); }
+@keyframes sproutGrow {
+  0%, 6% { clip-path: path('M 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 H 60 Q 60 64 60 64 A 0 0 0 1 1 60 64 Q 60 64 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 Z'); }
+  16% { clip-path: path('M 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 H 60 Q 69.6 52 71.15 59.55 A 12 12 0 1 1 48.85 59.55 Q 50.4 52 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 Z'); }
+  42%, 70% { clip-path: path('M 10 0 H 110 A 10 10 0 0 1 120 10 V 46 A 10 10 0 0 1 110 56 H 72.94 Q 68.94 56 71.15 59.55 A 12 12 0 1 1 48.85 59.55 Q 51.06 56 47.06 56 H 10 A 10 10 0 0 1 0 46 V 10 A 10 10 0 0 1 10 0 Z'); }
+  86% { clip-path: path('M 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 H 60 Q 69.6 52 71.15 59.55 A 12 12 0 1 1 48.85 59.55 Q 50.4 52 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 Z'); }
+  94%, 100% { clip-path: path('M 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 H 60 Q 60 64 60 64 A 0 0 0 1 1 60 64 Q 60 64 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 Z'); }
+}

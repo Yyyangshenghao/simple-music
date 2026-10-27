@@ -165,13 +165,19 @@ describe('视觉设置解耦与升级', () => {
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().performance).toMatchObject({ pageTransitionMotion: true, dragMotion: false, tapFeedbackMotion: true, textRevealMotion: false, lyricsWordMotion: false, bgFluidMotion: false })
   })
-  it.each([true, false])('旧「控件动效」为 %s 时七项都继承这个选择，且不再保存旧字段', (controlMotion) => {
+  it.each([true, false])('旧「控件动效」为 %s 时八项都继承这个选择，且不再保存旧字段', (controlMotion) => {
     let saved = JSON.stringify({ performance: { controlMotion } })
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
     useSettingsStore.getState().loadFromLocal()
     const performance = useSettingsStore.getState().performance
     expect(performance).not.toHaveProperty('controlMotion')
     expect(performance).toMatchObject(controlMotionFlags(controlMotion))
+  })
+  it.each([true, false])('没有浮层长出开关的旧存档沿用页面转场的取值（%s）', (pageTransitionMotion) => {
+    let saved = JSON.stringify({ performance: { pageTransitionMotion } })
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().performance.popoverSproutMotion).toBe(pageTransitionMotion)
   })
   it.each([true, false])('旧「减少动态效果」为 %s 时拆成四项，其它开关保持原值且不再保存总开关', (reduceMotion) => {
     let saved = JSON.stringify({ performance: { reduceMotion, cardTiltEffect: true, lyricsWordMotion: true } })
