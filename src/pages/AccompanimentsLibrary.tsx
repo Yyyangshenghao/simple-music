@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ScrollArea } from '../components/ui/ScrollArea'
 import { useKaraokeStore } from '../stores/karaoke'
 import { useKaraokeModelsStore } from '../stores/karaoke-models'
 import { usePlaylistStore } from '../stores/playlist'
@@ -9,14 +8,15 @@ import { useToastStore } from '../stores/toast'
 import { accompanimentTrack } from '../lib/karaoke-library'
 import { karaokeTrackKey, type KaraokeJobPhase } from '../lib/karaoke/queue'
 import type { Accompaniment } from '../types/karaoke'
-import styles from './MyAccompanimentsPage.module.css'
+import styles from './AccompanimentsLibrary.module.css'
 
 const PHASE: Record<KaraokeJobPhase, string> = {
   queued: '等待生成', 'waiting-memory': '等待内存释放', resolving: '正在读取歌曲', model: '正在下载模型',
   preparing: '正在准备模型', decoding: '正在解码音频', separating: '正在生成伴奏', saving: '正在保存', failed: '生成失败',
 }
 
-export function MyAccompanimentsPage() {
+/** 我的伴奏：我的库「应用歌单 · 伴奏」的主体，含统计与操作、生成队列、已生成列表；各处伴奏入口都跳到这里。 */
+export function AccompanimentsLibrary() {
   const { items, jobs, paused, loaded, error, load, cancel, retry, setPaused, remove, directory } = useKaraokeStore()
   const { models, load: loadModels } = useKaraokeModelsStore()
   const [query, setQuery] = useState('')
@@ -44,17 +44,15 @@ export function MyAccompanimentsPage() {
     try { await remove(item.id) } catch (error) { notify(error) }
     finally { setDeleting(null) }
   }
-  return <ScrollArea className={styles.page}>
-    <div className={styles.inner}>
-      <button className={styles.back} onClick={() => useNavigationStore.getState().goBack()}>返回</button>
-      <header className={styles.header}>
-        <div><h1>我的伴奏</h1><p>已生成 {new Set(items.map(item => karaokeTrackKey(item.track))).size} 首 · {items.length} 个版本</p></div>
+  return <div className={styles.scope}>
+      <div className={styles.summary}>
+        <p>已生成 {new Set(items.map(item => karaokeTrackKey(item.track))).size} 首 · {items.length} 个版本</p>
         <div className={styles.actions}>
           <button className={styles.primary} disabled={!tracks.length} onClick={() => usePlaylistStore.getState().setQueue(tracks, 0)}>播放全部</button>
           <button onClick={manage}>保存位置与模型</button>
           <button disabled={!loaded} onClick={() => void load().catch(notify)}>刷新</button>
         </div>
-      </header>
+      </div>
       {error && <div className={styles.notice} role="alert">{error}</div>}
       {!!jobs.length && <section className={styles.queue} aria-label="伴奏生成队列">
         <div className={styles.sectionHead}><h2>生成队列 <span>{jobs.length}</span></h2>
@@ -101,5 +99,4 @@ export function MyAccompanimentsPage() {
         })}</ul>}
       {directory && <p className={styles.path} title={directory}>新伴奏保存到 {directory}</p>}
     </div>
-  </ScrollArea>
 }

@@ -3,12 +3,12 @@ import { usePlayerStore } from '../../stores/player'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { DEFAULT_KARAOKE_BACKING, DEFAULT_KARAOKE_LEAD, useSettingsStore } from '../../stores/settings'
-import { useNavigationStore } from '../../stores/navigation'
+import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack } from '../../lib/karaoke-library'
 import type { KaraokeJobPhase } from '../../lib/karaoke/queue'
 import { SettingSlider } from '../ui/SettingSlider'
-import { ACCOMPANIMENTS_PLAYLIST_ID, sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
+import { sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
 import type { Track } from '../../types/domain'
 import styles from './AccompanimentPanel.module.css'
 
@@ -55,7 +55,7 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
     } catch (error) { notify(error) }
     finally { setAdding(false) }
   }
-  const openLibrary = () => { onClose(); useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: ACCOMPANIMENTS_PLAYLIST_ID }) }
+  const openLibrary = () => { onClose(); openAccompanimentsLibrary() }
   const openSettings = () => { onClose(); const nav = useNavigationStore.getState(); nav.requestSettingsKaraoke(); nav.navigateTo('settings') }
   const measured = running && KARAOKE_MEASURED.includes(running.phase)
   const failed = !unsupported && job?.phase === 'failed'

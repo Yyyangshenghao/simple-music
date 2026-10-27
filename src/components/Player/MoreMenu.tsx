@@ -22,8 +22,8 @@ import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useMotion } from '../../hooks/useMotion'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useSettingsStore } from '../../stores/settings'
-import { useNavigationStore } from '../../stores/navigation'
-import { ACCOMPANIMENTS_PLAYLIST_ID, type KaraokeModelId } from '../../types/karaoke'
+import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
+import type { KaraokeModelId } from '../../types/karaoke'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { karaokeTrackKey } from '../../lib/karaoke/queue'
 import { accompanimentId, accompanimentOriginal } from '../../lib/karaoke-library'
@@ -535,7 +535,7 @@ export function MoreMenu() {
               <OfflineSection open={open} />
               <KaraokeSection apple={apple} onLibrary={() => {
                 setOpen(false)
-                useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: ACCOMPANIMENTS_PLAYLIST_ID })
+                openAccompanimentsLibrary()
               }} onManage={() => {
                 setOpen(false)
                 const navigation = useNavigationStore.getState()

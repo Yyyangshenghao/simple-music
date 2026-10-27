@@ -9,8 +9,7 @@ import page from '../../pages/SettingsPage.module.css'
 import styles from './KaraokeModelSettings.module.css'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useToastStore } from '../../stores/toast'
-import { useNavigationStore } from '../../stores/navigation'
-import { ACCOMPANIMENTS_PLAYLIST_ID } from '../../types/karaoke'
+import { openAccompanimentsLibrary } from '../../stores/navigation'
 
 const MB = 1024 * 1024
 
@@ -126,10 +125,10 @@ export function KaraokeModelSettings() {
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>
           已生成的伴奏
-          <InfoButton label="已生成的伴奏" text="在我的库的“我的伴奏”中播放或删除各模型版本。已生成的伴奏长期保留，不会自动淘汰。" />
+          <InfoButton label="已生成的伴奏" text="在“我的库 · 应用歌单 · 伴奏”中播放或删除各模型版本。已生成的伴奏长期保留，不会自动淘汰。" />
         </span>
         <span className={page.rowValue}>{stemCount ? `${formatSize(stemBytes)} · ${stemCount} 个版本` : '暂无'}</span>
-        <button className={`${page.storageAction} no-drag`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: ACCOMPANIMENTS_PLAYLIST_ID })}>
+        <button className={`${page.storageAction} no-drag`} onClick={openAccompanimentsLibrary}>
           我的伴奏
         </button>
       </div>

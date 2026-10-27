@@ -127,7 +127,9 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 
 export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
   const pageMotion = usePageTransition()
-  const [selectedTab, setSelectedTab] = useState<SubTab>(readStoredTab())
+  // 伴奏入口跳来时首帧就停在应用歌单，不先闪一下上次的页签。
+  const accompanimentsRequest = useNavigationStore(state => state.libraryAccompanimentsRequest)
+  const [selectedTab, setSelectedTab] = useState<SubTab>(accompanimentsRequest ? 'app-playlists' : readStoredTab())
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
   const accountSession = contentSource ? providerAccountSession(contentSource) : 0
@@ -137,6 +139,10 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
     setSelectedTab(next)
     storeTab(next)
   }
+  // 已在我的库时伴奏入口只发请求；请求由应用歌单页消费并切到伴奏。
+  useEffect(() => {
+    if (accompanimentsRequest && selectedTab !== 'app-playlists') selectTab('app-playlists')
+  }, [accompanimentsRequest]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (detail) {
     return <PlaylistDetailView

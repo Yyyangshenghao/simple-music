@@ -1,15 +1,12 @@
-.page { height: 100%; }
-.inner { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; color: var(--sm-text-primary); }
-.back { margin-bottom: 20px; }
-.header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
-.header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 650; }
-.header p, .hint, .path { margin: 0; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
+.scope { color: var(--sm-text-primary); }
+.summary { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.summary p, .hint, .path { margin: 0; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
 .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.inner button, .inner select { min-height: 32px; padding: 6px 12px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
-.inner button:hover:not(:disabled), .inner select:hover { background: var(--sm-fill-hover); }
-.inner button:disabled { opacity: 0.5; cursor: default; }
-.inner .primary { background: var(--sm-accent); border-color: var(--sm-accent); color: var(--sm-text-on-accent); }
-.inner .primary:hover:not(:disabled) { background: var(--sm-accent); filter: brightness(1.08); }
+.scope button, .scope select { min-height: 32px; padding: 6px 12px; border: 1px solid var(--sm-border); border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.scope button:hover:not(:disabled), .scope select:hover { background: var(--sm-fill-hover); }
+.scope button:disabled { opacity: 0.5; cursor: default; }
+.scope .primary { background: var(--sm-accent); border-color: var(--sm-accent); color: var(--sm-text-on-accent); }
+.scope .primary:hover:not(:disabled) { background: var(--sm-accent); filter: brightness(1.08); }
 .sectionHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .sectionHead h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .sectionHead h2 span { margin-left: 6px; color: var(--sm-text-secondary); font-size: 12px; font-weight: 400; }
@@ -25,12 +22,12 @@
 .jobInfo strong, .songInfo strong { font-size: 13px; font-weight: 550; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .jobInfo > span, .songInfo > span { font-size: 12px; line-height: 1.5; color: var(--sm-text-secondary); overflow: hidden; text-overflow: ellipsis; }
 .songInfo > span { white-space: nowrap; }
-.jobInfo .error, .inner .delete { color: var(--sm-color-danger); }
+.jobInfo .error, .scope .delete { color: var(--sm-color-danger); }
 .jobInfo progress { width: min(320px, 100%); height: 4px; border: 0; accent-color: var(--sm-accent); }
 .jobInfo progress::-webkit-progress-bar { background: var(--sm-fill-subtle); border-radius: 2px; }
 .jobInfo progress::-webkit-progress-value { background: var(--sm-accent); border-radius: 2px; }
-.inner .song { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; padding: 0; border: 0; background: none; text-align: left; }
-.inner .song:hover:not(:disabled) { background: none; color: var(--sm-accent); }
+.scope .song { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; padding: 0; border: 0; background: none; text-align: left; }
+.scope .song:hover:not(:disabled) { background: none; color: var(--sm-accent); }
 .library li[data-playing='true'] .songInfo strong { color: var(--sm-accent); }
 .artwork { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; overflow: hidden; border-radius: 6px; background: var(--sm-fill-subtle); color: var(--sm-text-secondary); }
 .artwork img { width: 100%; height: 100%; object-fit: cover; }
@@ -42,9 +39,8 @@
 .notice { margin: 0 0 20px; color: var(--sm-color-danger); font-size: 12px; line-height: 1.6; }
 .path { margin-top: 24px; overflow-wrap: anywhere; }
 @media (max-width: 900px) {
-  .inner { padding: 24px 20px 40px; }
-  .header { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .summary { align-items: flex-start; flex-direction: column; gap: 16px; }
   .library li { flex-wrap: wrap; gap: 12px; }
-  .inner .song { flex-basis: 65%; }
+  .scope .song { flex-basis: 65%; }
   .library li > .actions { flex-basis: 100%; margin-left: 56px; }
 }

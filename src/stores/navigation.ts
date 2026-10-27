@@ -39,6 +39,8 @@ interface NavigationStore {
   settingsMusicRequest: number
   settingsLyricsRequest: number
   settingsKaraokeRequest: number
+  /** 我的库定位到「应用歌单 · 伴奏」的待处理请求；0 为无。 */
+  libraryAccompanimentsRequest: number
   history: AppView[]
   /** 后退后可前进的视图栈；任何新导航都会清空。 */
   future: AppView[]
@@ -53,6 +55,8 @@ interface NavigationStore {
   consumeSettingsLyricsRequest(request: number): void
   requestSettingsKaraoke(): void
   consumeSettingsKaraokeRequest(request: number): void
+  requestLibraryAccompaniments(): void
+  consumeLibraryAccompanimentsRequest(request: number): void
   goBack(): void
   goForward(): void
 }
@@ -85,6 +89,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   settingsMusicRequest: 0,
   settingsLyricsRequest: 0,
   settingsKaraokeRequest: 0,
+  libraryAccompanimentsRequest: 0,
   history: [],
   future: [],
   lastAction: 'push',
@@ -140,6 +145,14 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     if (get().settingsKaraokeRequest === request) set({ settingsKaraokeRequest: 0 })
   },
 
+  requestLibraryAccompaniments() {
+    set((s) => ({ libraryAccompanimentsRequest: s.libraryAccompanimentsRequest + 1 }))
+  },
+
+  consumeLibraryAccompanimentsRequest(request) {
+    if (get().libraryAccompanimentsRequest === request) set({ libraryAccompanimentsRequest: 0 })
+  },
+
   goBack() {
     const { history, currentView, future, artistPageState, searchPageState } = get()
     if (history.length === 0) return
@@ -170,3 +183,10 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     })
   },
 }))
+
+/** 所有伴奏入口统一打开我的库「应用歌单 · 伴奏」；已在我的库时只切换页签，不重复压历史。 */
+export function openAccompanimentsLibrary(): void {
+  const navigation = useNavigationStore.getState()
+  navigation.requestLibraryAccompaniments()
+  if (navigation.currentView !== 'library') navigation.navigateTo('library')
+}

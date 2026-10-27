@@ -79,7 +79,7 @@ export const remoteActions: Record<string, readonly string[]> = {
   apple: ['refresh', 'connect', 'disconnect'],
   visual: ['setPreset', 'updateFx', 'setPerformanceMode', 'setBackgroundMode', 'loadArchive'],
   ambient: [], shortcuts: ['setRecording'],
-  navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'goBack', 'goForward'],
+  navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
   controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

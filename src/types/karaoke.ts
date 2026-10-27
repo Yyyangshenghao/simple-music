@@ -5,7 +5,6 @@ import type { Track } from './domain'
 export type KaraokeModelId = 'hq3' | 'hq3-fp16' | 'kara2'
 
 export const DEFAULT_KARAOKE_MODEL: KaraokeModelId = 'hq3'
-export const ACCOMPANIMENTS_PLAYLIST_ID = 'system:accompaniments'
 export const KARAOKE_MODEL_MEMORY_MB: Record<KaraokeModelId, number> = { hq3: 1640, 'hq3-fp16': 900, kara2: 1100 }
 
 export interface KaraokeProgress {
