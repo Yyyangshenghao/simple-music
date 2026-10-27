@@ -14,6 +14,7 @@
 | 2.3.1 开发中的全面检查、优化与待验事项 | [2.3.1 审查记录](reviews/2.3.1-code-review.md) |
 | 2.3.4 整体代码审查与按优先级修复 | [2.3.4 审查记录](reviews/2.3.4-code-review.md) |
 | 发行说明与发布准备 | [2.5.0](release-notes-2.5.0.md)、[2.4.0](release-notes-2.4.0.md)、[2.3.6](release-notes-2.3.6.md)、[2.3.5](release-notes-2.3.5.md)、[2.3.4](release-notes-2.3.4.md)、[2.3.3](release-notes-2.3.3.md)、[2.3.2](release-notes-2.3.2.md)、[2.3.1](release-notes-2.3.1.md)、[2.3.0](release-notes-2.3.0.md) |
+| 2.6.0 下载/伴奏生成队列入口与面板重设计（设计稿） | [任务队列重设计](specs/2026-10-28-task-queue-bubble-design.md) |
 | 2.5.0 本地验收、依赖审计与待发布事项 | [发布准备记录](reviews/2.5.0-release-preparation.md) |
 | 2.4.0 应用聚合与平台歌单管理的当前边界 | [歌单职责收敛](specs/2026-10-18-playlist-boundaries.md) |
 | 2.4.0 应用歌单四源展示、真实本地播放与页面截图 | [应用歌单验收](reviews/2.4.0-app-playlist-launch.md) |
