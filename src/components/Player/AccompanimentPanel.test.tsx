@@ -45,6 +45,9 @@ it('显示原曲、多个已生成版本与丢失版本，并标出当前选择'
   expect(button('使用伴奏：hq3').props.disabled).toBe(false)
   expect(button('使用伴奏：hq3-fp16').props['aria-pressed']).toBe(true)
   expect(button('使用伴奏：kara2').props.disabled).toBe(true)
+  // 版本以模型区分，不显示生成时间
+  expect(content(button('使用伴奏：hq3').props.children)).toContain('HQ3 标准')
+  expect(content(button('使用伴奏：hq3').props.children)).not.toMatch(/\d+\/\d+/)
   h.queue.items = []
   expect(content(render())).toContain('去除人声，生成伴奏')
   expect(button('生成伴奏').props).toMatchObject({ disabled: false, 'data-primary': true })

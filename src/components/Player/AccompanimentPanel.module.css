@@ -56,30 +56,33 @@
 
 .body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px 4px; }
 
-.versions { display: flex; flex-direction: column; gap: 2px; }
-.version { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: var(--sm-text-secondary); text-align: left; font: inherit; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
-.version:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
-.version[data-current='true'] { background: var(--sm-fill-subtle); color: var(--sm-text-primary); }
+.versions { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.versions > .label { padding: 0 8px; margin-bottom: 2px; }
+.version { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--sm-fill-subtle); box-shadow: inset 0 0 0 1px transparent; color: var(--sm-text-primary); text-align: left; font: inherit; cursor: pointer; transition: background 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out); }
+.version:hover:not(:disabled):not([data-current='true']) { background: var(--sm-fill-hover); }
+/* 当前播放的版本：加深底色并描一圈强调色细边，一眼能看出正在听哪个。 */
+.version[data-current='true'] { background: var(--sm-fill-active); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-accent) 55%, transparent); cursor: default; }
 .version:disabled { opacity: 0.45; cursor: default; }
-.versionInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.versionInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.versionTitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .versionInfo strong { font-size: 14px; font-weight: 500; }
 .version[data-current='true'] .versionInfo strong { font-weight: 600; }
-.versionInfo small { font-size: 11px; color: var(--sm-text-muted); font-variant-numeric: tabular-nums; }
-.check { width: 14px; height: 14px; flex: none; color: var(--sm-accent); }
+.versionInfo small { font-size: 11px; color: var(--sm-text-muted); }
+.modelTag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); box-shadow: inset 0 0 0 1px var(--sm-border); color: var(--sm-text-secondary); font-size: 11px; line-height: 1.4; }
+.check { width: 16px; height: 16px; flex: none; color: var(--sm-accent); }
 
 .section { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding: 0 8px 4px; }
 .label { font-size: 12px; font-weight: 600; color: var(--sm-text-secondary); }
 .mixRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mixName { flex: none; font-size: 13px; color: var(--sm-text-secondary); }
 .mixRow > :last-child { width: auto; flex: 1; max-width: 240px; }
-/* 模型是参数而非动作：选中只用轻底，把实心强调留给生成按钮。 */
-.models {
-  --jr-chip: transparent;
-  --jr-edge: var(--sm-border);
-  --jr-active: var(--sm-fill-active);
-  --jr-active-text: var(--sm-text-primary);
-  --jr-active-edge: transparent;
-}
+/* 模型是参数而非动作：浅槽分段控件，选中项只抬起一层浅底，字号字重不变，把强调留给版本与生成按钮。 */
+.models { display: flex; gap: 2px; padding: 2px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); }
+.model { flex: 1 1 0; min-width: 0; height: 26px; padding: 0 6px; border: 0; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
+.model:hover:not(:disabled):not([aria-checked='true']) { color: var(--sm-text-primary); }
+.model[aria-checked='true'] { background: var(--sm-fill-active); color: var(--sm-text-primary); cursor: default; }
+.model:disabled { opacity: 0.4; cursor: default; }
+.model:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
 
 /* 有可播放伴奏时生成是次要动作，用轻底；还没有伴奏时才用实心强调色。 */
 .generate { width: 100%; min-height: 32px; padding: 6px 12px; border: 0; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 160ms var(--sm-ease-out), filter 160ms var(--sm-ease-out); }

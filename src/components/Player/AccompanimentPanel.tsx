@@ -10,7 +10,6 @@ import { accompanimentId, accompanimentOriginal, accompanimentsForTrack } from '
 import type { KaraokeJobPhase } from '../../lib/karaoke/queue'
 import { springGentle } from '../../lib/motion-presets'
 import { useMotion } from '../../hooks/useMotion'
-import { JellyRadio } from '../ui/JellyRadio'
 import { SettingSlider } from '../ui/SettingSlider'
 import { ACCOMPANIMENTS_PLAYLIST_ID, sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
 import type { Track } from '../../types/domain'
@@ -77,15 +76,17 @@ export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Tr
       <button type="button" className={styles.close} aria-label="关闭伴奏版本" onClick={onClose}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
     <div className={styles.body}>
-      <div className={styles.versions}>
+      <div className={styles.versions} role="group" aria-labelledby="accompaniment-versions">
+        <span className={styles.label} id="accompaniment-versions">播放版本</span>
         <button type="button" className={styles.version} data-current={!activeId} aria-pressed={!activeId} onClick={() => void choose(null)}>
           <span className={styles.versionInfo}><strong>原曲</strong></span><Check visible={!activeId} />
         </button>
         {entries.map(item => <button type="button" key={item.id} className={styles.version} data-current={activeId === item.id} aria-pressed={activeId === item.id}
           disabled={!item.available} aria-label={`使用伴奏：${modelName(item.model)}`} title={modelName(item.model)}
           onClick={() => void choose(item.id)}>
-          <span className={styles.versionInfo}><strong>伴奏 · {MODEL_SHORT[item.model]}</strong>
-            <small>{item.available ? new Date(item.generatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '文件已丢失，可重新生成'}</small></span>
+          {/* 每个模型只保留一个版本，模型即可区分各版本，不再显示生成时间。 */}
+          <span className={styles.versionInfo}><span className={styles.versionTitle}><strong>伴奏</strong><span className={styles.modelTag}>{MODEL_NAMES[item.model]}</span></span>
+            {!item.available && <small>文件已丢失，可重新生成</small>}</span>
           <Check visible={activeId === item.id} />
         </button>)}
         {!loaded && <p className={styles.hint} role="status">正在读取伴奏…</p>}
@@ -104,7 +105,7 @@ export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Tr
       </div>}
       <div className={styles.section}>
         <span className={styles.label}>{hasPlayable ? '生成其他版本' : '去除人声，生成伴奏'}</span>
-        {models.length > 1 && <JellyRadio size="sm" block className={styles.models} ariaLabel="伴奏生成模型" value={selected} disabled={!modelsLoaded} onChange={setModel}
+        {models.length > 1 && <ModelPicker value={selected} disabled={!modelsLoaded} onChange={setModel}
           items={models.map(model => ({ value: model.id, label: MODEL_SHORT[model.id], title: model.name, disabled: model.requiresF16 && f16 === false }))} />}
         {running ? <div className={styles.progress} role="status" aria-label="伴奏生成进度">
           <div className={styles.progressText}><span>{KARAOKE_PHASE[running.phase]}</span>
@@ -127,6 +128,20 @@ export function AccompanimentPanel({ track, onClose, onDragHandle }: { track: Tr
       <button type="button" className={styles.footLink} onClick={openSettings}>模型与保存位置</button>
     </div>
   </motion.div>
+}
+
+/** 模型是生成参数：用轻量分段控件，选中只抬起一层浅底，不鼓起、不加粗，把强调留给版本选择与生成按钮。 */
+function ModelPicker({ items, value, disabled, onChange }: {
+  items: { value: KaraokeModelId; label: string; title: string; disabled: boolean }[]
+  value: KaraokeModelId
+  disabled: boolean
+  onChange(value: KaraokeModelId): void
+}) {
+  return <div className={styles.models} role="radiogroup" aria-label="伴奏生成模型" aria-disabled={disabled || undefined}>
+    {items.map(item => <button type="button" key={item.value} role="radio" className={styles.model}
+      aria-checked={item.value === value} title={item.title} disabled={disabled || item.disabled}
+      onClick={() => { if (item.value !== value) onChange(item.value) }}>{item.label}</button>)}
+  </div>
 }
 
 function Check({ visible }: { visible: boolean }) {
