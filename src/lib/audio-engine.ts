@@ -53,11 +53,23 @@ export interface AudioEngineCallbacks {
  */
 /** 淡入淡出时长(秒);gain 包络挂在 analyser 之后,不影响频谱/能量读数。 */
 const FADE_SEC = 0.25
+const SWITCH_SEC = 0.08
+
+interface AlternateAudio {
+  audio: HTMLAudioElement
+  source: MediaElementAudioSourceNode
+  gain: GainNode
+}
 
 export class AudioEngine {
   private audio: HTMLAudioElement
   private ctx: AudioContext | null = null
   private source: MediaElementAudioSourceNode | null = null
+  private trackGain: GainNode | null = null
+  private alternate: AlternateAudio | null = null
+  private switching: { cancel(): void } | null = null
+  private switchTimer: ReturnType<typeof setTimeout> | null = null
+  private wantsPlaying = false
   private analyser: AnalyserNode | null = null
   private gain: GainNode | null = null
   /** K 歌中置消除链;首次开启才建立,之后常驻在 source 与 analyser 之间只做淡变。 */
@@ -106,6 +118,8 @@ export class AudioEngine {
       if (Number.isFinite(a.duration)) this.cbs.onDuration?.(a.duration)
     })
     listen('ended', () => {
+      this.wantsPlaying = false
+      this.alternate?.audio.pause()
       this.cbs.onStatus?.('paused')
       this.cbs.onEnded?.()
     })
@@ -120,7 +134,7 @@ export class AudioEngine {
     listen('waiting', () => this.cbs.onStatus?.('loading'))
     listen('seeking', () => this.cbs.onSeeking?.())
     listen('seeked', () => this.cbs.onSeeked?.())
-    listen('canplay', () => this.cbs.onCanPlay?.(this.loadId))
+    listen('canplay', () => { if (!this.switching) this.cbs.onCanPlay?.(this.loadId) })
     listen('error', () => {
       const code = a.error?.code
       this.cbs.onError?.(code ? `MEDIA_ERR_${code}` : 'MEDIA_LOAD_ERROR', this.loadId)
@@ -144,7 +158,9 @@ export class AudioEngine {
     this.analyser.fftSize = 2048
     this.freq = new Uint8Array(new ArrayBuffer(this.analyser.frequencyBinCount))
     this.gain = this.ctx.createGain()
-    this.source.connect(this.analyser)
+    this.trackGain = this.ctx.createGain()
+    this.source.connect(this.trackGain)
+    this.trackGain.connect(this.analyser)
     this.analyser.connect(this.gain)
     this.gain.connect(this.ctx.destination)
     if (this.karaokeOn) this.mountKaraoke().setEnabled(true, 0)
@@ -155,8 +171,10 @@ export class AudioEngine {
     if (this.karaoke) return this.karaoke
     const filter = new KaraokeFilter(this.ctx!)
     filter.output.connect(this.analyser!)
-    this.source?.disconnect()
-    this.source?.connect(filter.input)
+    this.trackGain?.disconnect()
+    this.trackGain?.connect(filter.input)
+    this.alternate?.gain.disconnect()
+    this.alternate?.gain.connect(filter.input)
     this.karaoke = filter
     return filter
   }
@@ -180,7 +198,10 @@ export class AudioEngine {
 
   /** 加载已解析出的上游音频 URL（内部走 /api/audio 代理）；startAt 为断点续播起始秒数;
    * cacheKey 供 server 侧磁盘缓存定位(source:id:quality),不传则不缓存。 */
-  load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext, usePreloaded = false): number {
+  load(upstreamUrl: string, startAt?: number, cacheKey?: string, cacheContext?: AudioCacheRequestContext, usePreloaded = false, seamless = false): number {
+    const src = mediaUrl({ url: upstreamUrl, startAt: startAt ?? 0, cacheKey, cacheContext })
+    if (seamless && this.hasSource && this.ctx && this.trackGain) return this.switchSource(src)
+    this.clearAlternates()
     ++this.playRevision
     this.clearPauseTimer()
     const loadId = ++this.loadId
@@ -190,7 +211,6 @@ export class AudioEngine {
     this.pendingSeek = startAt && startAt > 0 ? startAt : null
     // 本地音乐的 url 已经是我们自己的 /api/local/audio(同样支持 Range),直接播;
     // 再套一层 /api/audio 既多一跳,也会被 server 的 SSRF 防护按回环地址拦掉。
-    const src = mediaUrl({ url: upstreamUrl, startAt: startAt ?? 0, cacheKey, cacheContext })
     const prepared = usePreloaded ? this.preloads.take({ src, startAt: startAt ?? 0 }) : undefined
     this.preloads.trim()
     this.startAt = startAt ?? 0
@@ -219,6 +239,8 @@ export class AudioEngine {
   }
 
   clearSource(retainForPreload = false): void {
+    this.clearAlternates()
+    this.wantsPlaying = false
     ++this.playRevision
     this.clearPauseTimer()
     this.loadId++
@@ -247,6 +269,7 @@ export class AudioEngine {
   private replaceAudio(audio: HTMLAudioElement): void {
     this.acceptingEvents = false
     this.source?.disconnect()
+    this.trackGain?.disconnect()
     const rate = this.audio.playbackRate
     this.audio.pause()
     this.audio = audio
@@ -257,7 +280,9 @@ export class AudioEngine {
     if (this.ctx && this.analyser) {
       this.source = this.sources.get(audio) ?? this.ctx.createMediaElementSource(audio)
       this.sources.set(audio, this.source)
-      this.source.connect(this.karaoke?.input ?? this.analyser)
+      this.trackGain = this.ctx.createGain()
+      this.source.connect(this.trackGain)
+      this.trackGain.connect(this.karaoke?.input ?? this.analyser)
     }
   }
 
@@ -282,8 +307,153 @@ export class AudioEngine {
   /** 退出刷歌或账号变化时释放准备实例 */
   releasePreloads(): void { this.preloads.clear() }
 
+  /** 只保留一条候选轨；提前获取本地伴奏，首次点按不再从零加载。 */
+  prepareAlternate(url: string): void {
+    if (!this.ctx || !this.analyser || this.switching || this.switchTimer) return
+    const src = mediaUrl({ url, startAt: this.position })
+    if (src === this.audio.src || src === this.alternate?.audio.src) return
+    this.releaseAlternate()
+    const audio = new Audio()
+    audio.crossOrigin = 'anonymous'
+    audio.preload = 'auto'
+    audio.volume = this.audio.volume
+    audio.defaultPlaybackRate = this.audio.playbackRate
+    audio.playbackRate = this.audio.playbackRate
+    const source = this.ctx.createMediaElementSource(audio)
+    this.sources.set(audio, source)
+    const gain = this.ctx.createGain()
+    gain.gain.setValueAtTime(0, this.ctx.currentTime)
+    source.connect(gain)
+    gain.connect(this.karaoke?.input ?? this.analyser)
+    this.alternate = { audio, source, gain }
+    audio.addEventListener('loadedmetadata', () => {
+      if (this.alternate?.audio === audio && !this.switching) audio.currentTime = this.position
+    }, { once: true })
+    audio.src = src
+    audio.load()
+  }
+
+  private releaseAlternate(): void {
+    const alternate = this.alternate
+    this.alternate = null
+    if (!alternate) return
+    alternate.audio.pause()
+    alternate.audio.removeAttribute('src')
+    alternate.audio.load()
+    alternate.source.disconnect()
+    alternate.gain.disconnect()
+  }
+
+  private clearAlternates(): void {
+    this.switching?.cancel()
+    if (this.switchTimer) clearTimeout(this.switchTimer)
+    this.switchTimer = null
+    this.releaseAlternate()
+    if (this.ctx && this.trackGain) {
+      this.trackGain.gain.cancelScheduledValues(this.ctx.currentTime)
+      this.trackGain.gain.setValueAtTime(1, this.ctx.currentTime)
+    }
+  }
+
+  /** 当前轨持续出声，目标轨定位并静音起播后才交接；两轨相关，使用线性互补增益。 */
+  private switchSource(src: string, id = ++this.loadId): number {
+    if (this.wantsPlaying) this.clearPauseTimer()
+    this.switching?.cancel()
+    if (this.switchTimer) {
+      // 上次淡变完成后再响应反向切换，避免截断尾音或突然把半音量拉满。
+      const timer = setTimeout(() => {
+        this.switching = null
+        this.switchSource(src, id)
+      }, SWITCH_SEC * 1000)
+      this.switching = { cancel: () => { clearTimeout(timer); this.switching = null } }
+      return id
+    }
+    this.alternate?.audio.pause()
+    this.trackGain!.gain.cancelScheduledValues(this.ctx!.currentTime)
+    this.trackGain!.gain.setValueAtTime(1, this.ctx!.currentTime)
+    if (src === this.audio.src) {
+      this.releaseAlternate()
+      queueMicrotask(() => {
+        if (this.loadId !== id) return
+        this.cbs.onCanPlay?.(id)
+        this.cbs.onStatus?.(this.wantsPlaying ? 'playing' : 'paused')
+      })
+      return id
+    }
+    this.prepareAlternate(src)
+    const next = this.alternate!
+    const old = this.audio
+    let busy = false
+    const events = ['loadedmetadata', 'canplay', 'seeked', 'playing']
+    const cleanup = () => {
+      clearTimeout(timeout)
+      for (const name of events) next.audio.removeEventListener(name, check)
+      next.audio.removeEventListener('error', fail)
+      this.switching = null
+    }
+    const fail = () => {
+      cleanup()
+      this.releaseAlternate()
+      this.cbs.onError?.('MEDIA_SWITCH_FAILED', id)
+    }
+    const commit = () => {
+      cleanup()
+      const t = this.ctx!.currentTime
+      const outgoing = { audio: old, source: this.source!, gain: this.trackGain! }
+      this.audio = next.audio
+      this.source = next.source
+      this.trackGain = next.gain
+      this.alternate = outgoing
+      this.bindEvents()
+      const duration = this.wantsPlaying ? SWITCH_SEC : 0
+      for (const [node, from, to] of [[outgoing.gain, 1, 0], [next.gain, 0, 1]] as const) {
+        node.gain.cancelScheduledValues(t)
+        node.gain.setValueAtTime(from, t)
+        node.gain.linearRampToValueAtTime(to, t + duration)
+      }
+      this.switchTimer = setTimeout(() => {
+        this.switchTimer = null
+        outgoing.audio.pause()
+      }, duration * 1000)
+      this.cbs.onPosition?.(this.position)
+      this.cbs.onDuration?.(this.duration)
+      this.cbs.onCanPlay?.(id)
+      this.cbs.onStatus?.(this.wantsPlaying ? 'playing' : 'paused')
+    }
+    const check = async () => {
+      if (busy || this.switching !== operation || next.audio.readyState < 3 || next.audio.seeking) return
+      busy = true
+      try {
+        if (this.wantsPlaying && next.audio.paused) {
+          // 先静音起播，再校正持续运行的两条时钟；暂停目标反复 seek 会永远追不上原轨。
+          next.audio.currentTime = old.currentTime
+          await next.audio.play()
+        }
+        if (this.switching !== operation) return
+        if (!this.wantsPlaying) next.audio.pause()
+        if (next.audio.seeking) return
+        // 使用连续媒体时钟，不能用 timeupdate 对应的界面秒数。
+        if (Math.abs(next.audio.currentTime - old.currentTime) > 0.002) {
+          busy = false
+          next.audio.currentTime = old.currentTime
+          return
+        }
+        commit()
+      } catch { if (this.switching === operation) fail() }
+      finally { busy = false }
+    }
+    const timeout = setTimeout(fail, 5000)
+    const operation = { cancel: () => { cleanup(); this.releaseAlternate() } }
+    this.switching = operation
+    for (const name of events) next.audio.addEventListener(name, check)
+    next.audio.addEventListener('error', fail)
+    queueMicrotask(() => { void check() })
+    return id
+  }
+
   async play(): Promise<void> {
     if (this.retained) return
+    this.wantsPlaying = true
     const revision = ++this.playRevision
     this.clearPauseTimer()
     this.ensureContext()
@@ -298,6 +468,8 @@ export class AudioEngine {
   }
 
   pause(): void {
+    this.wantsPlaying = false
+    this.alternate?.audio.pause()
     ++this.playRevision
     // 无 Web Audio 或本就暂停:直接暂停,不做包络
     if (!this.ctx || !this.gain || this.audio.paused) {
@@ -318,6 +490,10 @@ export class AudioEngine {
   setPlaybackRate(rate: number): void {
     this.audio.defaultPlaybackRate = rate
     this.audio.playbackRate = rate
+    if (this.alternate) {
+      this.alternate.audio.defaultPlaybackRate = rate
+      this.alternate.audio.playbackRate = rate
+    }
   }
 
   /** K 歌开关:消除居中人声;上下文尚未建立时记下,首次播放建图时生效。 */
@@ -334,10 +510,12 @@ export class AudioEngine {
       return
     }
     this.audio.currentTime = target
+    if (this.switchTimer && this.alternate) this.alternate.audio.currentTime = target
   }
 
   setVolume(v: number): void {
     this.audio.volume = Math.max(0, Math.min(1, v))
+    if (this.alternate) this.alternate.audio.volume = this.audio.volume
   }
 
   /** 返回当前频谱（0-255）。供可视化层每帧读取。 */
@@ -355,6 +533,7 @@ export class AudioEngine {
   }
 
   destroy(): void {
+    this.clearAlternates()
     ++this.playRevision
     this.acceptingEvents = false
     this.preloads.clear()
@@ -365,6 +544,7 @@ export class AudioEngine {
     this.audio.pause()
     this.audio.src = ''
     this.source?.disconnect()
+    this.trackGain?.disconnect()
     this.karaoke?.disconnect()
     this.karaoke = null
     this.analyser?.disconnect()

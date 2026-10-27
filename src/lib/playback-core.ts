@@ -12,6 +12,7 @@ import {
 } from './playback-load-policy'
 import { SOURCE_BRAND } from './source-brand'
 import { ListeningClock } from './listening-clock'
+import { accompanimentId, accompanimentOriginal } from './karaoke-library'
 import { isProviderId, type PlaybackCandidate, type ProviderId, type QualityOption } from '../providers/types'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
@@ -24,39 +25,12 @@ const SCROBBLE_MIN_SECONDS = 20
 export type PlaybackEngine = Pick<AudioEngine,
   'load' | 'play' | 'pause' | 'seek' | 'setVolume' | 'setPlaybackRate' | 'clearSource'
   | 'getFrequencyData' | 'hasSource' | 'position' | 'destroy'
-> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads' | 'setKaraoke'>>
+> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads' | 'setKaraoke' | 'prepareAlternate'>>
 type ApplePlayback = Pick<AppleMusicPlayback, 'load' | 'command' | 'stop' | 'lyricPosition'>
 type PlaybackResolverPort = Pick<PlaybackResolver,
   'sourceOrder' | 'attempts' | 'failureMessage' | 'next' | 'abort' | 'complete'
   | 'completeExternal' | 'ignoreUrl' | 'recordExternalMediaFailure'
 >
-
-export interface KaraokeProgress {
-  phase: 'model' | 'separating'
-  /** 0–1 */
-  progress: number
-}
-
-/** K 歌状态：model 下载模型，separating 分离中，ready 已切到伴奏，fallback 无 WebGPU 时用中置消除。 */
-export interface KaraokeStatus {
-  phase: 'off' | 'waiting' | 'model' | 'separating' | 'ready' | 'fallback' | 'unavailable' | 'error'
-  progress: number
-  message?: string
-}
-
-/** AI 人声分离能力；宿主注入，测试与无 Web Audio 环境可缺省。 */
-export interface KaraokePort {
-  supported(): Promise<boolean>
-  /** 本次运行已确认存在的伴奏地址，同步查询以便换歌时直接加载伴奏。 */
-  knownStem(key: string): string | null
-  forget(key: string): void
-  /** 分离并保存伴奏，返回本地伴奏地址；src 为原曲上游地址或本地 API 地址。 */
-  separate(key: string, src: string, onProgress: (progress: KaraokeProgress) => void, signal: AbortSignal): Promise<string>
-  /** 关闭 K 歌时释放推理引擎。 */
-  release(): void
-}
-
-const KARAOKE_OFF: KaraokeStatus = { phase: 'off', progress: 0 }
 
 export interface PlaybackCoreDependencies {
   getState(): PlaybackPlayer
@@ -70,8 +44,10 @@ export interface PlaybackCoreDependencies {
   getSourcePreferences(): PlaybackSourcePreferences
   isParticipating(source: ProviderId): boolean
   subscribeProviders(listener: () => void): () => void
+  subscribeAccompaniments?(listener: () => void): () => void
   resolvePending(track: Track): Promise<Track>
   localAudioUrl(track: Track): string | null
+  findAccompaniment(track: Track, id?: string): Track | null
   fetchOfflineStatus(track: Track): Promise<OfflineCacheStatus>
   offlineFileUrl(status: OfflineCacheStatus, track: Track): string | null
   getPreloadedResolution(track: Track, quality: AudioQuality): PreloadedResolution | undefined
@@ -82,7 +58,6 @@ export interface PlaybackCoreDependencies {
   now?(): number
   beginIntent(kind?: 'pause'): void
   notify(message: string): void
-  karaoke?: KaraokePort
   appleSpectrum: {
     requestCapture(): void
     stop(): void
@@ -93,6 +68,8 @@ export interface PlaybackCoreDependencies {
 export interface PlaybackPlayer {
   status: PlaybackStatus
   currentTrack: Track | null
+  /** 当前原曲使用的已生成伴奏；切歌清空，不改变队列和歌词身份。 */
+  accompaniment: Track | null
   position: number
   /** 显式定位序号，供各窗口区分 seek 与迟到的离散进度采样；不持久化。 */
   seekRevision: number
@@ -115,19 +92,17 @@ export interface PlaybackPlayer {
   contextId: unknown
   /** 播放速度(保留音高),不持久化,重启回 1。 */
   rate: number
-  /** K 歌(AI 分离出伴奏播放),不持久化,重启回原唱;Apple Music 不支持。 */
-  karaoke: boolean
-  karaokeStatus: KaraokeStatus
   play(opts?: { preservePlaybackIntent?: boolean }): void
   pause(): void
   stop(): void
   toggle(): void
+  toggleAccompaniment(): Promise<void>
+  selectAccompaniment(id: string | null, expectedTrackKey: string): Promise<void>
   seek(seconds: number): void
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
   setRate(r: number): void
-  setKaraoke(on: boolean): void
-  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean }): Promise<void>
+  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean; accompaniment?: Track | null; seamless?: boolean }): Promise<void>
   /** 当前曲目仅本次重载时软优先指定平台，不改变全局播放顺序。 */
   preferSourceOnce(source: ProviderId): void
   _lyricPosition(): number
@@ -237,12 +212,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     onPlayFromQueue = cb
   }
 
-  // 队列由 playlist store 管理；K 歌预分离下一首时经此查询，避免反向导入。
-  let peekNextTrack: (() => Track | null) | null = null
-  function registerNextTrackPeek(cb: () => Track | null): void {
-    peekNextTrack = cb
-  }
-
   // 特殊播放模式可在自然结束时优先接管走序；返回 true 表示已处理，不再落到普通队列。
   let onTrackEndedInterceptor: (() => boolean) | null = null
   function registerTrackEndedInterceptor(cb: () => boolean): () => void {
@@ -257,12 +226,16 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   interface ActivePlayback {
     session: number
     originTrack: Track
+    accompaniment: Track | null
     resolver: PlaybackResolverPort | null
     candidate: PlaybackCandidate | null
     candidateKind: 'external' | 'resolver' | 'offline' | 'local'
     offlineStatus?: OfflineCacheStatus
     offlineFallback?: { status: OfflineCacheStatus; url: string }
     engineLoadId: number
+    engineLoad?: EngineLoad
+    seamless?: boolean
+    restored?: PlaybackMetadata
     startAt: number
     /** 仅刷歌允许接管暂停预加载元素 */
     usePreparedAudio: boolean
@@ -273,12 +246,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     offlineFailed?: boolean
     /** 自然结束已处理上报；切歌不重复上报，单曲重播时重置。 */
     scrobbledOnEnd?: boolean
-    /** 原曲的加载参数；伴奏与原曲互切时用它恢复。 */
-    original?: EngineLoad
-    /** 当前加载的是伴奏时为其 key。 */
-    stemKey?: string | null
-    /** 同曲换源的 loadId；其 canplay 不再重新提交候选。 */
-    swapLoadId?: number
+
   }
 
   interface EngineLoad {
@@ -288,6 +256,21 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   }
 
   let activePlayback: ActivePlayback | null = null
+  type PlaybackMetadata = Pick<PlaybackPlayer, 'actualSource' | 'resolvedTrack' | 'resolution' | 'currentQuality' | 'playbackTransport' | 'playbackAttempts'>
+  let originalAudio: {
+    load: EngineLoad
+    metadata: PlaybackMetadata
+    quality: AudioQuality
+    candidate: PlaybackCandidate | null
+    kind: ActivePlayback['candidateKind']
+    offlineStatus?: OfflineCacheStatus
+  } | null = null
+  let switchFallback: { active: ActivePlayback; state: PlaybackPlayer } | null = null
+
+  function metadata(state: PlaybackPlayer): PlaybackMetadata {
+    const { actualSource, resolvedTrack, resolution, currentQuality, playbackTransport, playbackAttempts } = state
+    return { actualSource, resolvedTrack, resolution, currentQuality, playbackTransport, playbackAttempts }
+  }
   let outputRecoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   // 睡眠定时器「播完当前曲再停」:置位后自然播完不走 next,改调该回调(由 sleep-timer store 注册)
@@ -299,6 +282,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   let applePlayback: ApplePlayback | null = null
 
   function trackEnded(): void {
+    if (activePlayback) activePlayback.autoplay = false
     if (activePlayback && !activePlayback.scrobbledOnEnd) {
       activePlayback.scrobbledOnEnd = true
       finishListening()
@@ -372,8 +356,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       finishListening()
       ensureEngine().clearSource()
       ensureEngine().setPlaybackRate(1)
-      ensureEngine().setKaraoke?.(false)
-      cancelKaraokeJobs()
       const library = candidate.url.startsWith('apple-music:library:')
       const id = decodeURIComponent(candidate.url.slice(library ? 'apple-music:library:'.length : 'apple-music:'.length))
       let committed = false
@@ -391,7 +373,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         if (!committed && (state.status === 'playing' || state.status === 'paused')) {
           committed = true
           const resolution = active.resolver?.complete(candidate) ?? null
-          set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1, karaoke: false, karaokeStatus: KARAOKE_OFF })
+          set({ actualSource: 'apple', resolvedTrack: candidate.track, resolution, playbackAttempts: [...(resolution?.attempts ?? [])], playbackTransport: 'musickit', currentQuality: 'Apple Music', rate: 1 })
           deps.appleSpectrum.requestCapture()
         } else if (state.status === 'playing' && get().status !== 'playing') {
           deps.appleSpectrum.requestCapture()
@@ -413,7 +395,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         }
       })
       applePlayback = playback
-      set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1, karaoke: false, karaokeStatus: KARAOKE_OFF })
+      set({ status: active.autoplay ? 'loading' : 'paused', currentQuality: 'Apple Music', rate: 1 })
       void playback.load(id, library, active.startAt, active.autoplay, get().volume, (candidate.track.duration ?? 0) / 1000).catch((error) => {
         if (applePlayback !== playback || activePlayback !== active) return
         deps.appleSpectrum.stop()
@@ -490,6 +472,14 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   async function advancePlayback(reason?: string): Promise<void> {
     const active = activePlayback
     if (!active || active.advancing) return
+    if (active.accompaniment) {
+      const state = get()
+      deps.notify('伴奏文件无法播放，已切回原曲，可在“我的伴奏”中刷新或重新生成')
+      await state.loadTrack(active.originTrack, {
+        startAt: Math.max(active.startAt, state.position), contextId: state.contextId, autoplay: active.autoplay, preservePlaybackIntent: true,
+      })
+      return
+    }
     if (active.candidateKind === 'offline') {
       // 本次在线回退不得经代理重新读到同一个坏缓存，也不删除用户固定的文件。
       active.offlineFailed = true
@@ -526,173 +516,44 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     }
   }
 
-  // —— K 歌：AI 分离伴奏，同曲换源 ——
-  interface KaraokeJob {
-    controller: AbortController
-    promise: Promise<string>
-    /** 当前曲目的任务把进度写进状态；预分离下一首时为空。 */
-    listener: ((progress: KaraokeProgress) => void) | null
-  }
-  const karaokeJobs = new Map<string, KaraokeJob>()
-  const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
-
-  function cancelKaraokeJobs(keep?: string): void {
-    for (const [key, job] of karaokeJobs) {
-      if (key === keep) continue
-      job.controller.abort()
-      karaokeJobs.delete(key)
-    }
-  }
-
-  /** 按实际出声的平台与曲目区分伴奏；与音质无关。 */
-  function karaokeKey(active: ActivePlayback): string | null {
-    if (active.candidateKind === 'local') return `local:${String(active.originTrack.id)}`
-    if (active.candidateKind === 'offline') {
-      const resolved = active.offlineStatus?.resolved
-      const origin = active.originTrack
-      return resolved ? `${resolved.source}:${resolved.id}` : `${origin.source}:${String(origin.mid ?? origin.id)}`
-    }
-    const candidate = active.candidate
-    return candidate ? `${candidate.source}:${String(candidate.track.mid ?? candidate.track.id)}` : null
-  }
-
-  /** 加载原曲；K 歌开启且伴奏已就绪时直接加载伴奏，换歌时不先漏出原唱。 */
   function loadOriginal(active: ActivePlayback, load: EngineLoad): number {
-    active.original = load
-    active.swapLoadId = 0
-    const key = get().karaoke && !active.usePreparedAudio ? karaokeKey(active) : null
-    const stem = key ? deps.karaoke?.knownStem(key) ?? null : null
-    active.stemKey = stem ? key : null
-    const eng = ensureEngine()
-    if (stem) return eng.load(stem, active.startAt)
-    if (active.usePreparedAudio) return eng.load(load.url, active.startAt, load.cacheKey, load.cacheContext, true)
-    return engineLoad(load, active.startAt)
-  }
-
-  function engineLoad(load: EngineLoad, startAt: number): number {
+    active.engineLoad = load
+    if (active.seamless) return ensureEngine().load(load.url, ensureEngine().position, load.cacheKey, load.cacheContext, false, true)
+    if (active.usePreparedAudio) return ensureEngine().load(load.url, active.startAt, load.cacheKey, load.cacheContext, true)
     return load.cacheKey
-      ? ensureEngine().load(load.url, startAt, load.cacheKey, load.cacheContext)
-      : ensureEngine().load(load.url, startAt)
-  }
-
-  /**
-   * 同曲换源：保持进度与播放意图
-   *
-   * @param stem 伴奏，null 切回原曲
-   * @param committed 候选已提交过；换源后的 canplay 不再重复提交
-   */
-  function swapTo(active: ActivePlayback, stem: { key: string; url: string } | null, committed = true): void {
-    const original = active.original
-    if (!original || activePlayback !== active) return
-    const eng = ensureEngine()
-    const position = eng.position
-    suspendListening()
-    const loadId = stem ? eng.load(stem.url, position) : engineLoad(original, position)
-    active.stemKey = stem?.key ?? null
-    active.engineLoadId = loadId
-    active.swapLoadId = committed ? loadId : 0
-    eng.setVolume(get().volume)
-    if (active.autoplay) void eng.play().catch(() => {})
-  }
-
-  function stemFailed(active: ActivePlayback, message: string): void {
-    if (active.stemKey) deps.karaoke?.forget(active.stemKey)
-    set({ karaokeStatus: { phase: 'error', progress: 0, message } })
-    swapTo(active, null, get().actualSource !== null)
-  }
-
-  function createKaraokeJob(key: string, src: string): KaraokeJob {
-    const job: KaraokeJob = { controller: new AbortController(), promise: Promise.resolve(''), listener: null }
-    job.promise = deps.karaoke!.separate(key, src, (progress) => job.listener?.(progress), job.controller.signal)
-    job.promise.catch(() => {}).finally(() => { if (karaokeJobs.get(key) === job) karaokeJobs.delete(key) })
-    karaokeJobs.set(key, job)
-    return job
-  }
-
-  /** 当前曲已提交后开始分离；完成即按当前进度切到伴奏，并预分离下一首。 */
-  function startKaraoke(active: ActivePlayback): void {
-    const port = deps.karaoke
-    if (!get().karaoke || !port || activePlayback !== active) return
-    const unavailable = (message: string) => {
-      // 不分离的曲目也要停掉上一首的任务，免得继续占用 GPU
-      cancelKaraokeJobs()
-      set({ karaokeStatus: { phase: 'unavailable', progress: 0, message } })
-    }
-    if (active.usePreparedAudio) return unavailable('刷歌时不分离人声')
-    // 试听片段不分离：伴奏按曲目长期保存，开通会员后会被截短的伴奏顶替
-    if (active.candidate?.trial) return unavailable('试听片段不分离人声')
-    const key = karaokeKey(active)
-    const original = active.original
-    if (!key || !original) return unavailable('当前歌曲无法分离人声')
-    if (active.stemKey === key) {
-      set({ karaokeStatus: { phase: 'ready', progress: 1 } })
-      preseparateNext()
-      return
-    }
-    void port.supported().then((ok) => {
-      if (activePlayback !== active || !get().karaoke) return
-      if (!ok) {
-        cancelKaraokeJobs()
-        ensureEngine().setKaraoke?.(true)
-        set({ karaokeStatus: { phase: 'fallback', progress: 0, message: '当前设备不支持 AI 分离，已用快速模式' } })
-        return
-      }
-      cancelKaraokeJobs(key)
-      const job = karaokeJobs.get(key) ?? createKaraokeJob(key, original.url)
-      job.listener = (progress) => {
-        if (activePlayback === active && get().karaoke) set({ karaokeStatus: { ...progress } })
-      }
-      set({ karaokeStatus: { phase: 'separating', progress: 0 } })
-      job.promise.then((url) => {
-        if (activePlayback !== active || !get().karaoke || active.stemKey === key) return
-        set({ karaokeStatus: { phase: 'ready', progress: 1 } })
-        swapTo(active, { key, url })
-        preseparateNext()
-      }, (error: unknown) => {
-        if (activePlayback !== active || !get().karaoke || isAbort(error)) return
-        set({ karaokeStatus: { phase: 'error', progress: 0, message: error instanceof Error ? error.message : '人声分离失败' } })
-      })
-    })
-  }
-
-  /** 队列下一首若已有可用地址，后台先分离；自然切歌时直接加载伴奏。 */
-  function preseparateNext(): void {
-    const port = deps.karaoke
-    const next = peekNextTrack?.()
-    if (!port || !next || !get().karaoke) return
-    let key: string
-    let src: string | null | undefined
-    if (next.source === 'local') {
-      key = `local:${String(next.id)}`
-      src = deps.localAudioUrl(next)
-    } else if ((next.source === 'netease' || next.source === 'qq') && deps.isParticipating(next.source)) {
-      key = `${next.source}:${String(next.mid ?? next.id)}`
-      const preloaded = next.url ? undefined : deps.getPreloadedResolution(next, get().quality)
-      if (preloaded?.trial) return
-      src = next.url ?? preloaded?.url
-    } else return
-    if (!src || port.knownStem(key) || karaokeJobs.has(key)) return
-    createKaraokeJob(key, src)
+      ? ensureEngine().load(load.url, active.startAt, load.cacheKey, load.cacheContext)
+      : ensureEngine().load(load.url, active.startAt)
   }
 
   function commitPlayableCandidate(loadId: number): void {
     const active = activePlayback
     if (!active || active.session !== loadSession || active.engineLoadId !== loadId) return
-    if (active.swapLoadId === loadId) {
-      active.swapLoadId = 0
-      resumeListening()
-      return
-    }
     commitCandidate(active)
-    if (activePlayback === active && get().actualSource) startKaraoke(active)
+    switchFallback = null
+    prepareAccompaniment()
+  }
+
+  function prepareAccompaniment(): void {
+    const active = activePlayback
+    if (!active || !active.engineLoadId) return
+    if (!active.accompaniment && active.originTrack.source !== 'apple' && !accompanimentOriginal(active.originTrack)) {
+      const stem = deps.findAccompaniment(active.originTrack)
+      const url = stem && deps.localAudioUrl(stem)
+      if (url) ensureEngine().prepareAlternate?.(url)
+    }
   }
 
   function commitCandidate(active: ActivePlayback): void {
+    if (active.restored) {
+      set(active.restored)
+      resumeListening()
+      return
+    }
     if (active.candidateKind === 'local') {
       finishListening()
       set({
         actualSource: 'local',
-        resolvedTrack: active.originTrack,
+        resolvedTrack: active.accompaniment ?? active.originTrack,
         resolution: null,
         currentQuality: null,
         playbackTransport: 'local',
@@ -782,10 +643,24 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       onError: (reason, loadId) => {
         const active = activePlayback
         if (active?.engineLoadId !== loadId) return
-        if (active.stemKey) {
-          stemFailed(active, '伴奏文件读取失败，已切回原曲')
+        if (reason === 'MEDIA_SWITCH_FAILED' && switchFallback) {
+          const previous = switchFallback
+          switchFallback = null
+          activePlayback = previous.active
+          activePlayback.session = loadSession
+          activePlayback.engineLoadId = loadId
+          activePlayback.autoplay = active.autoplay
+          if (activePlayback.candidate && activePlayback.candidate.source !== 'apple') {
+            activePlayback.resolver = createResolver(activePlayback)
+            activePlayback.candidateKind = 'external'
+          }
+          set({ ...metadata(previous.state), currentTrack: previous.state.currentTrack, accompaniment: previous.state.accompaniment,
+            position: ensureEngine().position, status: active.autoplay ? 'playing' : 'paused' })
+          resumeListening()
+          deps.notify('目标音轨暂时无法切换，已继续播放当前音轨')
           return
         }
+        active.restored = undefined
         void advancePlayback(reason)
       },
       onOutputDeviceChange: (wasPlaying) => {
@@ -803,6 +678,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
             contextId: latest.contextId,
             autoplay: true,
             preservePlaybackIntent: true,
+            accompaniment: latest.accompaniment,
           })
         }, 200)
       },
@@ -816,6 +692,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   const player: PlaybackPlayer = {
     status: 'idle',
     currentTrack: null,
+    accompaniment: null,
     position: 0,
     seekRevision: 0,
     duration: 0,
@@ -830,8 +707,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     playbackAttempts: [],
     contextId: null,
     rate: 1,
-    karaoke: false,
-    karaokeStatus: KARAOKE_OFF,
 
     play(opts) {
       if (disposed) return
@@ -851,7 +726,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
       const { currentTrack, position, contextId } = get()
       if (!eng.hasSource && currentTrack) {
-        void get().loadTrack(currentTrack, { startAt: position, contextId, preservePlaybackIntent: opts?.preservePlaybackIntent })
+        void get().loadTrack(currentTrack, { startAt: position, contextId, preservePlaybackIntent: opts?.preservePlaybackIntent, accompaniment: get().accompaniment })
         return
       }
       void eng.play()
@@ -870,6 +745,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       finishListening()
       deps.beginIntent()
       ++loadSession
+      originalAudio = null
+      switchFallback = null
       activePlayback?.resolver?.abort()
       activePlayback = null
       if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
@@ -881,7 +758,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       engine?.clearSource()
       if (String(get().contextId).startsWith('shuange:')) engine?.releasePreloads?.()
       set({
-        currentTrack: null, status: 'idle', position: 0, duration: 0,
+        currentTrack: null, accompaniment: null, status: 'idle', position: 0, duration: 0,
         actualSource: null, resolvedTrack: null, resolution: null,
         playbackTransport: null, playbackAttempts: [], currentQuality: null, contextId: null,
       })
@@ -895,6 +772,37 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       const s = get().status
       if (s === 'playing' || s === 'loading') get().pause()
       else get().play()
+    },
+    async toggleAccompaniment() {
+      if (disposed) return
+      const state = get()
+      const track = state.currentTrack
+      if (!track || track.source === 'apple') return
+      const original = accompanimentOriginal(track)
+      const accompaniment = state.accompaniment || original ? null : deps.findAccompaniment(track)
+      if (!state.accompaniment && !original && !accompaniment) {
+        deps.notify('这首歌还没有可用伴奏，请先在“更多”中生成')
+        return
+      }
+      await state.selectAccompaniment(accompaniment ? accompanimentId(accompaniment) : null, `${track.source}:${String(track.id)}`)
+    },
+    async selectAccompaniment(id, expectedTrackKey) {
+      if (disposed) return
+      const state = get()
+      const track = state.currentTrack
+      if (!track || track.source === 'apple' || `${track.source}:${String(track.id)}` !== expectedTrackKey) return
+      if (id === accompanimentId(state.accompaniment ?? track)) return
+      const original = accompanimentOriginal(track)
+      const accompaniment = id === null ? null : deps.findAccompaniment(track, id)
+      if (id !== null && (!accompaniment || accompanimentId(accompaniment) !== id)) {
+        deps.notify('这个伴奏版本暂不可用，请刷新后重试')
+        return
+      }
+      await state.loadTrack(original ?? track, {
+        startAt: state.position, contextId: state.contextId,
+        autoplay: activePlayback?.autoplay ?? shouldAutoplayPlaybackReload(state.status), accompaniment,
+        seamless: !original && !!activePlayback?.engineLoadId && !!ensureEngine().prepareAlternate && state.status !== 'loading',
+      })
     },
     seek(seconds) {
       if (disposed) return
@@ -932,36 +840,25 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       set({ rate: r })
       resumeListening()
     },
-    setKaraoke(on) {
-      if (disposed) return
-      if (applePlayback) {
-        deps.notify('Apple Music 播放受版权保护，无法消除人声')
-        return
-      }
-      if (on === get().karaoke) return
-      set({ karaoke: on })
-      const active = activePlayback
-      if (on) {
-        if (active && get().actualSource) startKaraoke(active)
-        else set({ karaokeStatus: { phase: 'waiting', progress: 0 } })
-        return
-      }
-      cancelKaraokeJobs()
-      deps.karaoke?.release()
-      ensureEngine().setKaraoke?.(false)
-      set({ karaokeStatus: KARAOKE_OFF })
-      // 伴奏可能在提交前就被直接加载；未提交时切回原曲须走正常提交
-      if (active?.stemKey) swapTo(active, null, get().actualSource !== null)
-    },
-
     async loadTrack(track, opts) {
       if (disposed) return
+      const seamless = !!opts?.seamless && !!activePlayback && ensureEngine().hasSource
+      if (seamless && activePlayback) {
+        switchFallback ??= { active: activePlayback, state: get() }
+        if (!get().accompaniment && activePlayback.engineLoad && get().actualSource) {
+          originalAudio = { load: activePlayback.engineLoad, metadata: metadata(get()), quality: get().quality,
+            candidate: activePlayback.candidate, kind: activePlayback.candidateKind, offlineStatus: activePlayback.offlineStatus }
+        }
+      } else {
+        originalAudio = null
+        switchFallback = null
+      }
       reportingFlushed = false
       seeking = false
       suspendListening()
       const previous = get().currentTrack
       if (!previous || previous.source !== track.source || String(previous.id) !== String(track.id)
-        || opts?.startAt === undefined) finishListening()
+        || opts?.startAt === undefined || opts.accompaniment) finishListening()
       if (!opts?.preservePlaybackIntent) deps.beginIntent()
       if (track.source !== 'apple') deps.appleSpectrum.stop()
       applePlayback?.stop()
@@ -970,15 +867,19 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
       activePlayback = null
-      if (String(opts?.contextId ?? '').startsWith('shuange:') && String(get().contextId ?? '').startsWith('shuange:')) eng.clearSource(true)
-      else eng.clearSource()
+      if (!seamless) {
+        if (String(opts?.contextId ?? '').startsWith('shuange:') && String(get().contextId ?? '').startsWith('shuange:')) eng.clearSource(true)
+        else eng.clearSource()
+      }
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
       const nextContextId = opts?.contextId ?? null
+      const accompaniment = track.source === 'apple' ? null : opts?.accompaniment ?? null
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
       set({
         currentTrack: track,
+        accompaniment,
         source: track.source,
         actualSource: null,
         resolvedTrack: null,
@@ -986,28 +887,40 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         playbackTransport: null,
         playbackAttempts: [],
         contextId: nextContextId,
-        status: autoplay ? 'loading' : 'paused',
+        status: autoplay ? seamless ? get().status : 'loading' : 'paused',
         position: startAt,
         duration: (track.duration ?? 0) / 1000,
         currentQuality: null,
-        ...(get().karaoke ? { karaokeStatus: { phase: 'waiting', progress: 0 } as KaraokeStatus } : {}),
       })
 
       const active: ActivePlayback = {
         session,
         originTrack: track,
+        accompaniment,
         resolver: null,
         candidate: null,
-        candidateKind: track.source === 'local' ? 'local' : 'resolver',
+        candidateKind: accompaniment || track.source === 'local' ? 'local' : 'resolver',
         engineLoadId: 0,
+        seamless,
         startAt,
-        usePreparedAudio: String(nextContextId).startsWith('shuange:'),
+        usePreparedAudio: !accompaniment && String(nextContextId).startsWith('shuange:'),
         advancing: false,
         fallbackNotified: false,
         autoplay,
         preferredSource: opts?.preferredSource,
       }
       activePlayback = active
+
+      if (seamless && !accompaniment && originalAudio && originalAudio.quality === get().quality
+        && (!isProviderId(originalAudio.metadata.actualSource) || deps.isParticipating(originalAudio.metadata.actualSource))) {
+        active.restored = originalAudio.metadata
+        active.candidate = originalAudio.candidate
+        active.candidateKind = active.candidate ? 'external' : originalAudio.kind
+        active.offlineStatus = originalAudio.offlineStatus
+        if (active.candidate) active.resolver = createResolver(active)
+        active.engineLoadId = loadOriginal(active, originalAudio.load)
+        return
+      }
 
       // 补详情也属于当前播放会话；等待期间暂停、恢复和定位沿用同一份意图。
       if (track.pending) {
@@ -1017,13 +930,14 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         set({ currentTrack: track, duration: (track.duration ?? 0) / 1000 })
       }
 
-      if (track.source === 'local') {
+      if (accompaniment || track.source === 'local') {
         // 本地音乐不依赖 track.url:最近播放等场景落盘会剥掉 url、或存的 url 绑定的是
         // 上一会话端口(端口每次随机注入),直接用 track.id 经本地 api 重建当前可用地址。
         // 重建出的就是 127.0.0.1:<port>/api/local/audio,load 侧 isLocalApiUrl 判定成立,
         // 不会套 /api/audio 代理被 SSRF 防护拦掉。
-        const localUrl = deps.localAudioUrl(track)
+        const localUrl = deps.localAudioUrl(accompaniment ?? track)
         if (!localUrl) {
+          if (accompaniment) { await advancePlayback('LOCAL_AUDIO_MISSING'); return }
           eng.clearSource()
           set({ status: 'idle' })
           deps.notify(FALLBACK_UNPLAYABLE_MESSAGE)
@@ -1031,7 +945,10 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         }
         active.engineLoadId = loadOriginal(active, { url: localUrl })
         eng.setVolume(get().volume)
-        if (active.autoplay) void eng.play().catch(() => {})
+        if (active.autoplay) void eng.play().catch(error => {
+          const reason = mediaFailureReasonFromPlayError(error)
+          if (accompaniment && reason && activePlayback === active) void advancePlayback(reason)
+        })
         return
       }
 
@@ -1104,7 +1021,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     if (disposed || quality === get().quality) return
     set({ quality })
     const state = get()
-    if (state.currentTrack && state.currentTrack.source !== 'apple' && !state.currentTrack.url
+    if (state.currentTrack && !state.accompaniment && state.currentTrack.source !== 'apple' && !state.currentTrack.url
       && shouldAutoplayPlaybackReload(state.status)) {
       void state.loadTrack(state.currentTrack, {
         startAt: state.position,
@@ -1133,6 +1050,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   function start(): void {
     if (disposed || subscriptions) return
     subscriptions = [deps.subscribeQuality(syncQuality), deps.subscribeProviders(syncProviders)]
+    if (deps.subscribeAccompaniments) subscriptions.push(deps.subscribeAccompaniments(prepareAccompaniment))
     syncQuality(deps.getQuality())
     syncProviders()
   }
@@ -1147,8 +1065,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     subscriptions = null
     activePlayback?.resolver?.abort()
     activePlayback = null
-    cancelKaraokeJobs()
-    deps.karaoke?.release()
+    originalAudio = null
+    switchFallback = null
     if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
     outputRecoveryTimer = null
     const playback = applePlayback
@@ -1161,7 +1079,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     onTrackEnded = null
     onPlayFromQueue = null
     onTrackEndedInterceptor = null
-    peekNextTrack = null
     stopAfterCurrentCb = null
   }
 
@@ -1173,7 +1090,6 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     registerTrackEndedHandler,
     registerPlayFromQueueHandler,
     registerTrackEndedInterceptor,
-    registerNextTrackPeek,
     setStopAfterCurrent,
   }
 }

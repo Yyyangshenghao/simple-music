@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "before": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": null,
+    "status": "paused",
+    "position": 12,
+    "offset": 0.7,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ],
+    "jobs": []
+  },
+  "chosen": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": "karaoke:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "status": "paused",
+    "position": 12,
+    "offset": 0.7,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ],
+    "jobs": []
+  },
+  "generated": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": null,
+    "status": "paused",
+    "position": 12,
+    "offset": 0.7,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ],
+    "jobs": [
+      {
+        "model": "kara2",
+        "trackId": "136ba52919bc62117d891a6c8ec88940446ae65b",
+        "phase": "queued"
+      }
+    ]
+  },
+  "bounds": {
+    "x": 403,
+    "y": 76,
+    "width": 320,
+    "height": 479
+  },
+  "errors": [],
+  "checks": [
+    "点击只展开不改变播放",
+    "列出两个可用版本和丢失版本",
+    "精确选择与再次切换",
+    "返回原曲并保留暂停和歌词偏移",
+    "选择模型生成且不切换播放",
+    "排队去重反馈",
+    "切歌关闭与无成品入口",
+    "关闭按钮和点击外部关闭",
+    "深浅主题与小窗口"
+  ]
+}

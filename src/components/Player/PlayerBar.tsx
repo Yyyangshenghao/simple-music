@@ -20,6 +20,7 @@ import { TrackInfo } from './TrackInfo'
 import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
 import { MoreMenu } from './MoreMenu'
+import { AccompanimentButton } from './AccompanimentButton'
 import styles from './PlayerBar.module.css'
 
 /** 秒数格式化为 mm:ss；非有限值归零。 */
@@ -585,6 +586,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
       </div>
 
       <div className={styles.right}>
+        <AccompanimentButton />
         <VolumeControl />
         <div className={styles.tools}>
           <SourceFallbackBadge />

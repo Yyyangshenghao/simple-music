@@ -57,13 +57,20 @@ describe('我的库账号失效提示', () => {
     } })
   })
 
-  it('首次进入我的库优先展示应用歌单，无平台登录也能新建四源聚合收藏', () => {
+  it('首次进入应用歌单即可打开我的伴奏，无平台登录也能新建歌单', () => {
     content.tab = 'app-playlists'
     const html = renderToStaticMarkup(<LibraryPage />)
-    expect(html).toContain('建一份跨平台歌单')
-    expect(html).toContain('新建应用歌单')
-    for (const label of ['网易云', 'QQ音乐', 'Apple Music', '本地']) expect(html).toContain(label)
+    expect(html).toContain('打开我的伴奏')
+    expect(html).toContain('新建歌单')
     expect(html).not.toContain('前往设置重新登录')
+  })
+
+  it('普通应用歌单存档读取失败时，固定的我的伴奏入口仍然存在', () => {
+    content.tab = 'app-playlists'
+    useAppPlaylistsStore.setState({ error: '应用歌单读取失败' })
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('应用歌单读取失败')
+    expect(html).toContain('打开我的伴奏')
   })
 
   it('切回歌单时首帧复用已缓存内容，不显示加载空档', async () => {

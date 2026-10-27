@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
-import type { KaraokeStatus } from '../../lib/playback-core'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useProviderStore } from '../../stores/providers'
 import { isProviderId } from '../../providers/types'
@@ -21,6 +20,13 @@ import { useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsStore } from '../../stores/lyrics'
 import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useMotion } from '../../hooks/useMotion'
+import { useKaraokeModelsStore } from '../../stores/karaoke-models'
+import { useSettingsStore } from '../../stores/settings'
+import { useNavigationStore } from '../../stores/navigation'
+import { ACCOMPANIMENTS_PLAYLIST_ID, type KaraokeModelId } from '../../types/karaoke'
+import { useKaraokeStore } from '../../stores/karaoke'
+import { karaokeTrackKey } from '../../lib/karaoke/queue'
+import { accompanimentId, accompanimentOriginal } from '../../lib/karaoke-library'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -287,41 +293,55 @@ function RateSection() {
   )
 }
 
-/** K 歌状态说明:关闭时提示首次下载,进行中给出百分比,失败或降级时给出原因。 */
-function karaokeHint(status: KaraokeStatus, apple: boolean): string {
-  if (apple) return 'Apple Music 受版权保护，无法消除人声'
-  const percent = `${Math.round(status.progress * 100)}%`
-  switch (status.phase) {
-    case 'off': return 'AI 分离人声，播放伴奏；首次使用需下载约 67MB 模型'
-    case 'waiting': return '歌曲加载后开始分离'
-    case 'model': return `正在下载分离模型 ${percent}`
-    case 'separating': return `正在分离人声 ${percent}，完成后自动切到伴奏`
-    case 'ready': return '正在播放伴奏'
-    default: return status.message ?? '人声分离失败'
-  }
-}
+const KARAOKE_MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: '标准', 'hq3-fp16': '省显存', kara2: '保留和声' }
 
-/** K 歌分区:AI 分离出伴奏后同曲换源;Apple Music 受 DRM 保护拿不到音频数据,只说明原因。 */
-function KaraokeSection({ apple }: { apple: boolean }) {
-  const karaoke = usePlayerStore((s) => s.karaoke)
-  const status = usePlayerStore((s) => s.karaokeStatus)
-  const setKaraoke = usePlayerStore((s) => s.setKaraoke)
-  return (
-    <section className={styles.section}>
-      <button
-        type="button"
-        className={`${styles.optionRow} ${styles.switchHead}`}
-        role="switch"
-        aria-checked={karaoke}
-        disabled={apple}
-        onClick={() => setKaraoke(!karaoke)}
-      >
-        <span className={styles.sectionTitle}>K 歌模式</span>
-        <SwitchIndicator checked={karaoke} />
-      </button>
-      <span className={styles.tip} aria-live="polite">{karaokeHint(status, apple)}</span>
-    </section>
-  )
+function KaraokeSection({ apple, onManage, onLibrary }: { apple: boolean; onManage(): void; onLibrary(): void }) {
+  const track = usePlayerStore(s => s.currentTrack)
+  const accompaniment = usePlayerStore(s => s.accompaniment)
+  const { items, jobs, load, enqueue } = useKaraokeStore()
+  const { models, f16, load: loadModels } = useKaraokeModelsStore()
+  const selected = useSettingsStore(s => s.karaokeModel)
+  const setKaraokeModel = useSettingsStore(s => s.setKaraokeModel)
+  const [adding, setAdding] = useState(false)
+  useEffect(() => { void loadModels(); void load().catch(() => {}) }, [loadModels, load])
+  const playingStem = !!accompaniment || !!(track && accompanimentId(track))
+  const original = track ? accompanimentOriginal(track) ?? track : null
+  const key = original ? karaokeTrackKey(original) : ''
+  const saved = items.find(item => item.available && karaokeTrackKey(item.track) === key && item.model === selected)
+  const job = jobs.find(item => karaokeTrackKey(item.track) === key && item.model === selected)
+  const current = models.find(model => model.id === selected)
+  const options = models.filter(model => model.state === 'ready' || model.id === selected)
+  const unsupported = current?.requiresF16 && f16 === false
+  async function generate() {
+    if (!original) return
+    setAdding(true)
+    try { await enqueue(original, selected); useToastStore.getState().show('已加入伴奏生成队列') }
+    catch (error) { useToastStore.getState().show(error instanceof Error ? error.message : '添加任务失败') }
+    finally { setAdding(false) }
+  }
+  return <section className={styles.section}>
+    <div className={styles.sectionHead}>
+      <span className={styles.sectionTitle}>歌曲伴奏</span>
+      <button type="button" className={styles.textAction} onClick={onLibrary}>我的伴奏{jobs.length ? ` · ${jobs.length} 个任务` : ''}</button>
+    </div>
+    {playingStem ? <button type="button" className={styles.generateButton} disabled={!original} onClick={() => void usePlayerStore.getState().toggleAccompaniment()}>切回原曲</button>
+      : <>
+        {options.length > 1 && <JellyRadio size="sm" block ariaLabel="伴奏生成模型" value={selected} onChange={setKaraokeModel}
+          items={options.map(model => ({ value: model.id, label: KARAOKE_MODEL_SHORT[model.id], disabled: model.requiresF16 && f16 === false }))} />}
+        <button type="button" className={styles.generateButton} disabled={apple || !track || adding || !!job || !!unsupported}
+          onClick={() => saved ? void usePlayerStore.getState().toggleAccompaniment() : void generate()}>
+          {adding ? '正在加入…' : job ? job.phase === 'failed' ? '生成失败，查看队列' : '已加入生成队列' : saved ? '播放伴奏' : '为这首歌生成伴奏'}
+        </button>
+        <span className={styles.tip} aria-live="polite">{apple ? 'Apple Music 受版权保护，无法生成伴奏'
+          : unsupported ? '当前显卡不支持此模型，请更换模型'
+          : job ? job.error ?? (job.phase === 'queued' ? '等待生成，切歌不会中断任务' : `正在处理 ${Math.round(job.progress * 100)}%，切歌不会中断任务`)
+          : saved ? '已保存在我的伴奏，可直接播放'
+          : `生成时会临时占用较多内存${current && current.state !== 'ready' ? `；首次需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型` : ''}`}</span>
+      </>}
+    {!apple && <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={onManage}>
+      <span>生成模型与保存位置</span><span className={styles.sectionStatus}>{current?.name ?? ''}</span>
+    </button>}
+  </section>
 }
 
 /** 定时关闭分区:预设时长倒计时到点停播,可选播完当前曲再停。 */
@@ -433,7 +453,7 @@ export function MoreMenu() {
   const [extrasOpen, setExtrasOpen] = useState(false)
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
-  const karaoke = usePlayerStore((s) => s.karaoke)
+  const generating = useKaraokeStore(s => s.jobs.some(job => job.phase !== 'failed'))
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
   const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
@@ -446,7 +466,7 @@ export function MoreMenu() {
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
-  const hasActive = rate !== 1 || karaoke || sleepPhase !== 'idle'
+  const hasActive = rate !== 1 || generating || sleepPhase !== 'idle'
 
   useEffect(() => { if (lyricsSourceOpen) setOpen(false) }, [lyricsSourceOpen])
 
@@ -513,7 +533,15 @@ export function MoreMenu() {
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
-              <KaraokeSection apple={apple} />
+              <KaraokeSection apple={apple} onLibrary={() => {
+                setOpen(false)
+                useNavigationStore.getState().navigateTo({ type: 'app-playlist', id: ACCOMPANIMENTS_PLAYLIST_ID })
+              }} onManage={() => {
+                setOpen(false)
+                const navigation = useNavigationStore.getState()
+                navigation.requestSettingsKaraoke()
+                navigation.navigateTo('settings')
+              }} />
               {trackKey && <section className={styles.section}>
                 <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>

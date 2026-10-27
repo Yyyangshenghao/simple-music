@@ -182,6 +182,22 @@
   line-height: 1.5;
 }
 
+.generateButton {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: var(--sm-text-on-accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.generateButton:hover:not(:disabled) { filter: brightness(1.08); }
+.generateButton:disabled { background: var(--sm-fill-subtle); color: var(--sm-text-secondary); cursor: default; }
+.textAction { padding: 2px 0; border: 0; background: none; color: var(--sm-accent); font: inherit; font-size: 11px; cursor: pointer; }
+
 .optionRow {
   display: flex;
   align-items: center;

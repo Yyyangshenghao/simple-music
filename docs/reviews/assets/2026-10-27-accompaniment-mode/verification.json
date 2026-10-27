@@ -1,0 +1,79 @@
+{
+  "before": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": false,
+    "status": "paused",
+    "position": 12,
+    "actualTime": 12,
+    "audioId": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "offset": 0.7,
+    "lines": 3,
+    "queueIndex": 0,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ]
+  },
+  "paused": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": true,
+    "status": "paused",
+    "position": 12,
+    "actualTime": 12,
+    "audioId": "karaoke:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "offset": 0.7,
+    "lines": 3,
+    "queueIndex": 0,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ]
+  },
+  "playingStem": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": true,
+    "status": "playing",
+    "position": 12.728073,
+    "actualTime": 12.857852,
+    "audioId": "karaoke:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "offset": 0.7,
+    "lines": 3,
+    "queueIndex": 0,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ]
+  },
+  "returned": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": false,
+    "status": "playing",
+    "position": 12.728116,
+    "actualTime": 12.73382,
+    "audioId": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "offset": 0.7,
+    "lines": 3,
+    "queueIndex": 0,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ]
+  },
+  "final": {
+    "id": "136ba52919bc62117d891a6c8ec88940446ae65b",
+    "stem": true,
+    "status": "paused",
+    "position": 15,
+    "actualTime": 15,
+    "audioId": "karaoke:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "offset": 0,
+    "lines": 3,
+    "queueIndex": 0,
+    "queue": [
+      "136ba52919bc62117d891a6c8ec88940446ae65b",
+      "3b717416e08bbaf9391c871b585aa7ed8c158e37"
+    ]
+  },
+  "overflow": false,
+  "errors": []
+}

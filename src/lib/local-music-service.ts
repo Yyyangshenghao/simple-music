@@ -2,6 +2,8 @@ import { api } from './api'
 import { parseLrc } from './lyric-parser'
 import type { MusicService, PlaylistSkeleton } from './music-service'
 import type { Track, Playlist, LyricLine, ArtistInfo } from '../types/domain'
+import type { KaraokeLibrary } from '../types/karaoke'
+import { accompanimentTrack } from './karaoke-library'
 
 /**
  * 本地音乐:扫描用户选择的文件夹,不接入在线音源的推荐/艺人/专辑体系(见 LibraryPage 的「本地」tab,
@@ -19,6 +21,7 @@ interface LocalTrackRaw {
 }
 
 interface LocalLyricResponse {
+  original?: Track
   lyric?: string
   metadata?: { name: string; artist: string; artists?: string[]; album?: string; duration: number; isrc?: string } | null
 }
@@ -52,12 +55,22 @@ export class LocalMusicService implements MusicService {
   }
 
   async getAvailableTracks(ids: unknown[], signal: AbortSignal): Promise<Track[]> {
-    const all = await this.listAllTracks()
     const unique = [...new Set(ids.map(String))]
+    const stemIds = new Set(unique.filter(id => id.startsWith('karaoke:')))
+    const normal = unique.filter(id => !stemIds.has(id))
+    const all = normal.length ? await this.listAllTracks() : []
     const available = new Set<string>()
-    for (let offset = 0; offset < unique.length; offset += 100) {
+    if (stemIds.size) {
+      const library = await api.get<KaraokeLibrary>('/api/karaoke/library', undefined, { signal })
+      for (const item of library.items) if (item.available && stemIds.has(`karaoke:${item.id}`)) {
+        const track = accompanimentTrack(item)
+        all.push(track)
+        available.add(String(track.id))
+      }
+    }
+    for (let offset = 0; offset < normal.length; offset += 100) {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      const result = await api.post<{ availableIds: string[] }>('/api/local/availability', { ids: unique.slice(offset, offset + 100) }, undefined, { signal })
+      const result = await api.post<{ availableIds: string[] }>('/api/local/availability', { ids: normal.slice(offset, offset + 100) }, undefined, { signal })
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       for (const id of result.availableIds) available.add(id)
     }
@@ -83,6 +96,7 @@ export class LocalMusicService implements MusicService {
   }
 
   async getTracksByIds(ids: unknown[]): Promise<Track[]> {
+    if (ids.some(id => String(id).startsWith('karaoke:'))) return this.getAvailableTracks(ids, new AbortController().signal)
     const all = await this.listAllTracks()
     const set = new Set(ids.map(String))
     return all.filter((t) => set.has(String(t.id)))
@@ -129,6 +143,9 @@ export class LocalMusicService implements MusicService {
    */
   async getLyricSource(track: Track, signal?: AbortSignal): Promise<{ lines: LyricLine[]; identity: Track | null }> {
     const res = await api.get<LocalLyricResponse>('/api/local/lyric', { id: String(track.id) }, { signal })
+    if (String(track.id).startsWith('karaoke:') && res.original && ['netease', 'qq', 'local'].includes(res.original.source)) {
+      return { lines: res.lyric ? parseLrc(res.lyric) : [], identity: res.original }
+    }
     const meta = res.metadata
     const identity: Track | null = meta && typeof meta.name === 'string' && typeof meta.artist === 'string'
       && Number.isFinite(meta.duration) && meta.duration > 0

@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-27",
+  "environment": {
+    "cpu": "Apple M5",
+    "memoryGiB": 32,
+    "os": "macOS arm64"
+  },
+  "memoryProbeKiB": {
+    "total": 33554432,
+    "free": 957056,
+    "fileBacked": 4515584,
+    "purgeable": 177648
+  },
+  "oldRequiredBytes": 6506712156.16,
+  "newRequiredBytes": 4531027200,
+  "runtime": {
+    "realMemory": {
+      "total": 33554432,
+      "free": 4265424,
+      "fileBacked": 4605952,
+      "purgeable": 34448
+    },
+    "admission": {
+      "canStart": true,
+      "availableBytes": 5079187456,
+      "requiredBytes": 4531027200
+    },
+    "phases": [
+      "queued",
+      "resolving",
+      "decoding",
+      "preparing",
+      "separating"
+    ],
+    "totalMs": 67075,
+    "state": {
+      "jobs": [],
+      "items": [
+        {
+          "model": "hq3",
+          "bytes": 31752044
+        }
+      ]
+    }
+  },
+  "method": "actual Electron process.getSystemMemoryInfo; no total/free memory overrides; isolated profile and own save directory; preinstalled HQ3 standard; 180s stereo input",
+  "validation": {
+    "regressionBefore": "4 admission tests failed before cap",
+    "typecheck": "passed",
+    "vitestFiles": 371,
+    "vitestTests": 3471,
+    "sourceBuild": "not rerun; actual npm run dev generation completed",
+    "independentReview": "passed"
+  }
+}

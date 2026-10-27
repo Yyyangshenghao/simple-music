@@ -21,6 +21,7 @@ import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { hasWordTiming } from './word-highlight-timeline'
 import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate, type RememberedLyricSource } from '../types/lyrics-source'
 import type { Track } from '../types/domain'
+import { accompanimentOriginal } from './karaoke-library'
 
 function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
@@ -29,8 +30,9 @@ function lyricTrackKey(track: Track): string {
 /** 按歌词依赖字段去重：同曲补详情要重取，canplay 仅换对象或 URL 时不清空歌词。 */
 function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Track | null): string {
   const candidates = [currentTrack, resolvedTrack].filter((track): track is Track => !!track)
+    .map(track => accompanimentOriginal(track) ?? track)
     .filter((track, index, all) => all.findIndex(item => lyricTrackKey(item) === lyricTrackKey(track)) === index)
-  return JSON.stringify(candidates.map(track => [
+  return JSON.stringify([currentTrack ? lyricTrackKey(currentTrack) : null, candidates.map(track => [
     lyricTrackKey(track), !!track.pending,
     ...(track.source !== 'local' ? [
       String(track.catalogId ?? ''), track.appleLibrary === true,
@@ -38,7 +40,7 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
       track.album, track.duration, String(track.isrc ?? track.ISRC ?? ''),
     ] : []),
     ...(track.source === 'qq' ? [qqLyricIdentifiers(track)] : []),
-  ]))
+  ])])
 }
 
 /** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ；设置中关闭的平台除外。 */
@@ -66,6 +68,7 @@ function nextQueueTrack(): Track | undefined {
 }
 
 function sourceRows(track: Track): LyricOrigin[] {
+  track = accompanimentOriginal(track) ?? track
   return Array.from(new Set<LyricOrigin>([track.source, 'netease', 'qq', 'amll', 'kugou']))
 }
 
@@ -289,6 +292,7 @@ export function initLyricsLoader(): () => void {
     // 本地歌曲也带上可用平台：本地没有歌词时按文件标签在线匹配。
     const lyricSources = participatingSources()
     const candidates = [track, resolvedTrack]
+      .map(item => item ? accompanimentOriginal(item) ?? item : null)
       .filter((item): item is Track => !!item && (!isProviderId(item.source) || lyricSources.includes(item.source)))
       .filter((item, index, all) => all.findIndex(other => lyricTrackKey(other) === lyricTrackKey(item)) === index)
     const sources = new Set<ProviderId>()
@@ -438,9 +442,15 @@ export function initLyricsLoader(): () => void {
       return { saved, offsetReset }
     },
   })
+  const initialPlayer = usePlayerStore.getState()
+  let candidateSignature = lyricCandidateSignature(initialPlayer.currentTrack, initialPlayer.resolvedTrack)
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {
     if (state.currentTrack === previous.currentTrack && state.resolvedTrack === previous.resolvedTrack) return
-    if (lyricCandidateSignature(state.currentTrack, state.resolvedTrack) !== lyricCandidateSignature(previous.currentTrack, previous.resolvedTrack)) sync()
+    // 伴奏只换音频；保留已接受的候选签名，返回原来的跨源音频时也不重置歌词与偏移。
+    if ((state.accompaniment || previous.accompaniment)
+      && lyricCandidateSignature(state.currentTrack, null) === lyricCandidateSignature(previous.currentTrack, null)) return
+    const nextSignature = lyricCandidateSignature(state.currentTrack, state.resolvedTrack)
+    if (nextSignature !== candidateSignature) { candidateSignature = nextSignature; sync() }
   })
   const stopProviders = useProviderStore.subscribe((state, previous) => {
     if (state.playbackOrder.length !== previous.playbackOrder.length

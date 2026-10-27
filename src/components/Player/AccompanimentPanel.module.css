@@ -1,0 +1,101 @@
+.root { position: relative; display: inline-flex; flex-shrink: 0; }
+
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  /* 只轻压暗背景，不整屏模糊：保持界面仍在眼前，焦点交给中间的玻璃。 */
+  background: color-mix(in srgb, var(--sm-bg-base) 28%, transparent);
+}
+
+/* 毛玻璃：半透明底 + 背景模糊保证文字可读；边缘沿用我的库透镜的上亮下弱细边，不加内部光带。 */
+.panel {
+  position: relative;
+  width: min(360px, 100%);
+  max-height: min(560px, calc(100dvh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  border-radius: 20px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  color: var(--sm-text-primary);
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
+
+.head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 8px 20px; }
+.heading { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.eyebrow { font-size: 11px; color: var(--sm-text-secondary); }
+.song { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.close { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: none; color: var(--sm-text-secondary); cursor: pointer; opacity: 0.7; transition: opacity 160ms var(--sm-ease-out), background 160ms var(--sm-ease-out); }
+.close:hover { opacity: 1; background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px 4px; }
+
+.versions { display: flex; flex-direction: column; gap: 2px; }
+.version { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: var(--sm-text-secondary); text-align: left; font: inherit; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
+.version:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.version[data-current='true'] { background: var(--sm-fill-subtle); color: var(--sm-text-primary); }
+.version:disabled { opacity: 0.45; cursor: default; }
+.versionInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.versionInfo strong { font-size: 13px; font-weight: 500; }
+.versionInfo small { font-size: 11px; color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; }
+.check { width: 14px; height: 14px; flex: none; color: var(--sm-accent); }
+
+.section { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 0 8px 4px; }
+.label { font-size: 11px; color: var(--sm-text-secondary); }
+/* 模型是参数而非动作：选中只用轻底，把实心强调留给生成按钮。 */
+.models {
+  --jr-chip: transparent;
+  --jr-edge: var(--sm-border);
+  --jr-active: var(--sm-fill-active);
+  --jr-active-text: var(--sm-text-primary);
+  --jr-active-edge: transparent;
+}
+
+/* 有可播放伴奏时生成是次要动作，用轻底；还没有伴奏时才用实心强调色。 */
+.generate { width: 100%; min-height: 32px; padding: 6px 12px; border: 0; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 160ms var(--sm-ease-out), filter 160ms var(--sm-ease-out); }
+.generate:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.generate[data-primary='true'] { background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
+.generate[data-primary='true']:hover:not(:disabled) { background: var(--sm-accent); filter: brightness(1.08); }
+.generate:disabled { background: none; color: var(--sm-text-secondary); cursor: default; }
+
+.progress { display: flex; flex-direction: column; gap: 7px; padding: 6px 2px 2px; }
+.progressText { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--sm-text-primary); }
+.percent { color: var(--sm-text-secondary); font-variant-numeric: tabular-nums; }
+.progressEnd { display: inline-flex; align-items: center; gap: 10px; }
+.cancel { padding: 0; border: 0; background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: color 160ms var(--sm-ease-out); }
+.cancel:hover { color: var(--sm-text-primary); }
+.track { position: relative; height: 2px; overflow: hidden; border-radius: 1px; background: var(--sm-fill-active); }
+.fill { position: absolute; inset: 0; background: var(--sm-accent); transform-origin: left; transition: transform 400ms var(--sm-ease-out); }
+.track[data-indeterminate='true'] .fill { width: 30%; animation: indeterminate 1.6s var(--sm-ease-out) infinite; }
+@keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) {
+  .track[data-indeterminate='true'] .fill { width: 100%; opacity: 0.35; animation: none; }
+}
+
+.hint { margin: 0 2px; font-size: 11px; line-height: 1.5; color: var(--sm-text-secondary); }
+.link { padding: 0; border: 0; background: none; color: var(--sm-text-primary); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+.foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--sm-border); }
+.footLink { padding: 0; border: 0; background: none; color: var(--sm-text-secondary); font: inherit; font-size: 11px; cursor: pointer; transition: color 160ms var(--sm-ease-out); }
+.footLink:hover { color: var(--sm-text-primary); }

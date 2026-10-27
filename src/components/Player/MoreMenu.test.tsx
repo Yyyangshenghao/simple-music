@@ -17,6 +17,7 @@ vi.mock('react', async original => ({
   useEffect: () => {},
 }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ currentTrack: h.track, rate: 1 }) }))
+vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: unknown) => unknown) => select({ jobs: [] }) }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: (select: (state: typeof h.lyrics) => unknown) => select(h.lyrics) }))
 vi.mock('../../stores/lyrics-source', () => ({ useLyricsSourceStore: (select: (state: typeof h.sources) => unknown) => select(h.sources) }))
 vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: { netease: { enabled: false } } }) }))

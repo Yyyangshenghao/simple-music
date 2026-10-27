@@ -38,6 +38,7 @@ interface NavigationStore {
   navigationRevision: number
   settingsMusicRequest: number
   settingsLyricsRequest: number
+  settingsKaraokeRequest: number
   history: AppView[]
   /** 后退后可前进的视图栈；任何新导航都会清空。 */
   future: AppView[]
@@ -50,6 +51,8 @@ interface NavigationStore {
   consumeSettingsMusicRequest(request: number): void
   requestSettingsLyrics(): void
   consumeSettingsLyricsRequest(request: number): void
+  requestSettingsKaraoke(): void
+  consumeSettingsKaraokeRequest(request: number): void
   goBack(): void
   goForward(): void
 }
@@ -81,6 +84,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   navigationRevision: 0,
   settingsMusicRequest: 0,
   settingsLyricsRequest: 0,
+  settingsKaraokeRequest: 0,
   history: [],
   future: [],
   lastAction: 'push',
@@ -126,6 +130,14 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 
   consumeSettingsLyricsRequest(request) {
     if (get().settingsLyricsRequest === request) set({ settingsLyricsRequest: 0 })
+  },
+
+  requestSettingsKaraoke() {
+    set((s) => ({ settingsKaraokeRequest: s.settingsKaraokeRequest + 1 }))
+  },
+
+  consumeSettingsKaraokeRequest(request) {
+    if (get().settingsKaraokeRequest === request) set({ settingsKaraokeRequest: 0 })
   },
 
   goBack() {

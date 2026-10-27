@@ -63,6 +63,9 @@ export function startServer(
   const ctx: ServerContext = {
     userDataDir: partial.userDataDir ?? join(tmpdir(), 'simplemusic'),
     defaultSongDownloadDir: partial.defaultSongDownloadDir,
+    defaultKaraokeDir: partial.defaultKaraokeDir,
+    fallbackKaraokeDir: partial.fallbackKaraokeDir,
+    karaokeMemory: partial.karaokeMemory,
     port: partial.port ?? 0,
     // 独立跑(npm run server:dev)与 electron dev 默认放行 localhost;打包应用由主进程传 false
     allowLocalhostOrigins: partial.allowLocalhostOrigins ?? true,

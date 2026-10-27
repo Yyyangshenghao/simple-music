@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
-import { usePlayerStore, registerTrackEndedHandler, registerPlayFromQueueHandler, registerNextTrackPeek } from './player'
+import { usePlayerStore, registerTrackEndedHandler, registerPlayFromQueueHandler } from './player'
 import { useSettingsStore } from './settings'
 import { isProviderParticipating, useProviderStore } from './providers'
 import { serviceFor } from '../lib/service-registry'
@@ -261,9 +261,3 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 // 自然播完后的走序(列表循环/随机切下一首,单曲循环原地重播)
 registerTrackEndedHandler(() => usePlaylistStore.getState().handleTrackEnded())
 registerPlayFromQueueHandler(() => usePlaylistStore.getState().next())
-// K 歌预分离：自然播完将要接上的曲目；单曲循环与刷歌不预分离
-registerNextTrackPeek(() => {
-  const s = usePlaylistStore.getState()
-  if (useSettingsStore.getState().playMode === 'one' || s.queueIndex < 0) return null
-  return s.queue[getQueueStep(s, useSettingsStore.getState().playMode, 1).index] ?? null
-})

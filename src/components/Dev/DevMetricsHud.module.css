@@ -1,0 +1,155 @@
+/* 开发工具浮层：不用 backdrop-filter，避免监控本身抬高 GPU 占用 */
+.pill,
+.panel {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2000;
+  color: var(--sm-text-primary);
+  /* 深色主题的 overlay 只有 10% 不透明度，垫一层实底保证可读 */
+  background: linear-gradient(var(--sm-bg-overlay), var(--sm-bg-overlay)), var(--sm-bg-base);
+  border: 1px solid var(--sm-border);
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  -webkit-app-region: no-drag;
+}
+
+.pill {
+  display: flex;
+  gap: 10px;
+  padding: 4px 10px;
+  border-radius: var(--sm-radius-pill);
+  cursor: pointer;
+}
+
+.panel {
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.header strong {
+  flex: 1;
+  font-weight: 600;
+}
+
+.header button {
+  color: var(--sm-text-secondary);
+  background: none;
+  border: 1px solid var(--sm-border);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sm-text-secondary);
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  color: var(--sm-text-secondary);
+}
+
+.metric b {
+  color: var(--sm-text-primary);
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 30px;
+}
+
+.spark polyline {
+  fill: none;
+  stroke: var(--sm-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 12px;
+  margin: 0 0 6px;
+}
+
+.facts dt {
+  color: var(--sm-text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  text-align: right;
+}
+
+.gpu,
+.note {
+  margin: 0 0 6px;
+  color: var(--sm-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  margin: 6px 0 0;
+  white-space: normal;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table th {
+  color: var(--sm-text-muted);
+  font-weight: 500;
+  text-align: right;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.table td {
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table th:first-child,
+.table td:first-child {
+  width: 38%;
+  text-align: left;
+}
+
+.table th:nth-child(2) {
+  width: 16%;
+}
+
+.error {
+  color: var(--sm-accent-warm);
+  margin: 0;
+}

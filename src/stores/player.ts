@@ -6,7 +6,7 @@ import { AppleMusicPlayback } from '../lib/apple-music-playback'
 import { appleAudioSpectrum } from '../lib/apple-audio-spectrum'
 import { getPreloadedResolution, audioDiskCacheKey } from '../lib/track-preload'
 import { PlaybackResolver } from '../lib/playback-resolver'
-import { createPlaybackCore, type KaraokePort, type PlaybackPlayer } from '../lib/playback-core'
+import { createPlaybackCore, type PlaybackPlayer } from '../lib/playback-core'
 import { fetchOfflineStatus, offlineFileUrl } from '../lib/offline-cache'
 import { serviceFor } from '../lib/service-registry'
 import { resolvePending } from '../lib/queue-details'
@@ -18,22 +18,10 @@ import { isProviderParticipating, useProviderStore } from './providers'
 import { expireProviderAccount } from './provider-auth'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { isPlaybackSpectrumRequested } from '../lib/playback-host-observation'
+import { accompanimentTrack, accompanimentsForTrack, findAccompaniment } from '../lib/karaoke-library'
+import { useKaraokeStore } from './karaoke'
 
 let core: ReturnType<typeof createPlaybackCore>
-
-/** 分离器含内联 Worker 与推理库，首次开启 K 歌时才加载。 */
-function lazyKaraoke(): KaraokePort {
-  let impl: KaraokePort | null = null
-  let loading: Promise<KaraokePort> | null = null
-  const load = () => loading ??= import('../lib/karaoke/separator').then(module => impl = module.createKaraokeSeparator())
-  return {
-    supported: async () => (await load()).supported(),
-    knownStem: key => impl?.knownStem(key) ?? null,
-    forget: key => impl?.forget(key),
-    separate: async (key, src, onProgress, signal) => (await load()).separate(key, src, onProgress, signal),
-    release: () => impl?.release(),
-  }
-}
 
 // store 仍是当前唯一状态容器；宿主适配只提供能力，不维护第二份播放状态。
 export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
@@ -51,8 +39,17 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
     getSourcePreferences: () => useProviderStore.getState(),
     isParticipating: (source) => isProviderParticipating(source),
     subscribeProviders: (listener) => useProviderStore.subscribe(listener),
+    subscribeAccompaniments: (listener) => useKaraokeStore.subscribe((state, previous) => {
+      if (state.items !== previous.items) listener()
+    }),
     resolvePending,
     localAudioUrl: (track) => api.url('/api/local/audio', { id: String(track.id) }),
+    findAccompaniment: (track, id) => {
+      const { items, played } = useKaraokeStore.getState()
+      const item = id === undefined ? findAccompaniment(track, items, useSettingsStore.getState().karaokeModel, played)
+        : accompanimentsForTrack(track, items).find(item => item.id === id && item.available)
+      return item ? accompanimentTrack(item) : null
+    },
     fetchOfflineStatus,
     offlineFileUrl,
     getPreloadedResolution: (track, quality) => getPreloadedResolution(track, quality),
@@ -68,7 +65,6 @@ export const usePlayerStore = create<PlaybackPlayer>((set, get) => {
     },
     beginIntent: (kind) => { beginPlaybackIntent(kind) },
     notify: (message) => useToastStore.getState().show(message),
-    karaoke: lazyKaraoke(),
     appleSpectrum: {
       requestCapture: () => {
         if (window.desktop?.playbackRole === 'host' && !isPlaybackSpectrumRequested()) return
@@ -102,10 +98,6 @@ export function registerPlayFromQueueHandler(cb: () => void): void {
 
 export function registerTrackEndedInterceptor(cb: () => boolean): () => void {
   return core.registerTrackEndedInterceptor(cb)
-}
-
-export function registerNextTrackPeek(cb: () => Track | null): void {
-  core.registerNextTrackPeek(cb)
 }
 
 export function setStopAfterCurrent(cb: (() => void) | null): void {

@@ -1,0 +1,10 @@
+{
+  "sampleSeconds": 3,
+  "model": "hq3",
+  "sampleCount": 5,
+  "processMemoryPeakMiB": 1980,
+  "processMemoryAfterMiB": 811,
+  "playbackChangedDuringGeneration": true,
+  "queueFinished": true,
+  "helperExited": true
+}

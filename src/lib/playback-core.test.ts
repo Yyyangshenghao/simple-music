@@ -75,6 +75,7 @@ function createHost() {
     subscribeProviders: vi.fn((listener) => { providerListener = listener; return unsubscribeProviders }),
     resolvePending: vi.fn(async (pending) => ({ ...pending, pending: false })),
     localAudioUrl: (local) => `http://127.0.0.1/api/local/audio?id=${String(local.id)}`,
+    findAccompaniment: vi.fn(() => null),
     fetchOfflineStatus: vi.fn(async (): Promise<OfflineCacheStatus> => ({ source: 'netease', id: '1', state: 'missing' })),
     offlineFileUrl: (status) => status.state === 'missing' ? null : 'http://127.0.0.1/api/audio-cache/file?entryId=test',
     getPreloadedResolution: vi.fn(() => undefined),
@@ -109,6 +110,239 @@ function createHost() {
 }
 
 afterEach(() => { vi.useRealTimers() })
+
+describe('已生成伴奏模式', () => {
+  const stem: Track = { ...track, source: 'local', provider: 'local', id: `karaoke:${'a'.repeat(40)}`, accompanimentOriginal: track }
+
+  async function ready(status: 'playing' | 'paused' | 'loading' = 'playing') {
+    const h = createHost()
+    vi.mocked(h.deps.findAccompaniment).mockReturnValue(stem)
+    await h.state.loadTrack(track, { contextId: 'playlist', startAt: 42, autoplay: status !== 'paused' })
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.patch({ status })
+    return h
+  }
+
+  it('双轨切换不清空音源，使用引擎实时进度，切回原唱不再请求解析', async () => {
+    const h = await ready()
+    const prepareAlternate = vi.fn()
+    Object.assign(h.engine, { prepareAlternate })
+    Object.defineProperty(h.engine, 'position', { get: () => 42.738 })
+    const clears = h.engine.clearSource.mock.calls.length
+    const resolutions = vi.mocked(h.deps.createResolver).mock.calls.length
+    await h.state.toggleAccompaniment()
+    expect(h.engine.clearSource).toHaveBeenCalledTimes(clears)
+    expect(h.engine.load).toHaveBeenLastCalledWith(`http://127.0.0.1/api/local/audio?id=${String(stem.id)}`, 42.738, undefined, undefined, false, true)
+    expect(h.state.status).toBe('playing')
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state.accompaniment).toBe(stem)
+    await h.state.toggleAccompaniment()
+    expect(h.resolver.next).toHaveBeenCalledTimes(1)
+    expect(h.engine.clearSource).toHaveBeenCalledTimes(clears)
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 42.738, 'netease:1:lossless', expect.any(Object), false, true)
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state).toMatchObject({ actualSource: 'netease', resolvedTrack: track, playbackTransport: 'online', currentQuality: '无损' })
+    expect(h.deps.createResolver).toHaveBeenCalledTimes(resolutions + 1)
+    expect(prepareAlternate).toHaveBeenCalled()
+  })
+
+  it('目标轨准备失败恢复当前音轨状态，保留期间的暂停和实际进度', async () => {
+    const h = await ready()
+    Object.assign(h.engine, { prepareAlternate: vi.fn() })
+    await h.state.toggleAccompaniment()
+    h.state.pause()
+    h.patch({ position: 43.125 })
+    const calls = h.engine.load.mock.calls.length
+    h.callbacks.onError?.('MEDIA_SWITCH_FAILED', h.loadId)
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+    expect(h.state).toMatchObject({ accompaniment: null, actualSource: 'netease', playbackTransport: 'online', status: 'paused', position: 43.125 })
+    expect(h.deps.notify).toHaveBeenCalledWith(expect.stringContaining('继续播放当前音轨'))
+  })
+
+  it('切歌使在途切换失效，旧失败不能恢复上一首', async () => {
+    const h = await ready()
+    Object.assign(h.engine, { prepareAlternate: vi.fn() })
+    await h.state.toggleAccompaniment()
+    const old = h.loadId
+    await h.state.loadTrack({ ...track, id: 2 })
+    h.callbacks.onError?.('MEDIA_SWITCH_FAILED', old)
+    expect(h.state.currentTrack?.id).toBe(2)
+    expect(h.state.accompaniment).toBeNull()
+  })
+
+  it('切换失败后当前轨再报媒体错误，仍使用新的解析会话继续兜底', async () => {
+    const h = await ready()
+    const staleResolver = h.resolver
+    const replacement = { ...staleResolver, next: vi.fn().mockResolvedValue(h.candidate), recordExternalMediaFailure: vi.fn() }
+    Object.assign(h.engine, { prepareAlternate: vi.fn() })
+    vi.mocked(h.deps.createResolver).mockReturnValue(replacement)
+    await h.state.toggleAccompaniment()
+    h.callbacks.onError?.('MEDIA_SWITCH_FAILED', h.loadId)
+    expect(staleResolver.abort).toHaveBeenCalled()
+    h.callbacks.onError?.('MEDIA_ERR_2', h.loadId)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(replacement.recordExternalMediaFailure).toHaveBeenCalledWith(h.candidate, 'MEDIA_ERR_2')
+    expect(replacement.next).toHaveBeenCalledOnce()
+  })
+
+  it('宿主监听新生成的伴奏并提前准备，停止宿主时解除监听', async () => {
+    const h = await ready()
+    const prepareAlternate = vi.fn(), unsubscribe = vi.fn()
+    Object.assign(h.engine, { prepareAlternate })
+    let refresh = () => {}
+    h.deps.subscribeAccompaniments = listener => { refresh = listener; return unsubscribe }
+    h.core.start()
+    refresh()
+    expect(prepareAlternate).toHaveBeenCalledWith(`http://127.0.0.1/api/local/audio?id=${String(stem.id)}`)
+    h.core.dispose()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('按指定版本切换，不重复载入当前版本，选择原曲时明确退出伴奏', async () => {
+    const h = await ready('paused')
+    const second = { ...stem, id: `karaoke:${'b'.repeat(40)}` }
+    vi.mocked(h.deps.findAccompaniment).mockImplementation((_track, id) => id === 'b'.repeat(40) ? second : stem)
+    await h.state.selectAccompaniment('a'.repeat(40), 'netease:1')
+    expect(h.state.accompaniment).toBe(stem)
+    await h.state.selectAccompaniment('b'.repeat(40), 'netease:1')
+    expect(h.state).toMatchObject({ accompaniment: second, position: 42, status: 'paused', currentTrack: track })
+    const calls = h.engine.load.mock.calls.length
+    await h.state.selectAccompaniment('b'.repeat(40), 'netease:1')
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+    await h.state.selectAccompaniment(null, 'netease:1')
+    expect(h.state.accompaniment).toBeNull()
+  })
+
+  it('旧面板的选曲与返回原曲命令、不可用或不属于当前歌曲的版本都不打断播放', async () => {
+    const h = await ready()
+    await h.state.toggleAccompaniment()
+    const calls = h.engine.load.mock.calls.length
+    await h.state.selectAccompaniment(null, 'netease:old')
+    await h.state.selectAccompaniment('b'.repeat(40), 'netease:old')
+    expect(h.state.accompaniment).toBe(stem)
+    vi.mocked(h.deps.findAccompaniment).mockReturnValue(null)
+    await h.state.selectAccompaniment('b'.repeat(40), 'netease:1')
+    vi.mocked(h.deps.findAccompaniment).mockReturnValue(stem)
+    await h.state.selectAccompaniment('b'.repeat(40), 'netease:1')
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+    expect(h.state.accompaniment).toBe(stem)
+  })
+
+  it.each(['playing', 'paused', 'loading'] as const)('从%s切换和切回时保留进度、播放意图与原曲身份', async status => {
+    const h = await ready(status)
+    h.engine.play.mockClear()
+    const resolutions = vi.mocked(h.deps.createResolver).mock.calls.length
+    await h.state.toggleAccompaniment()
+    expect(h.engine.load).toHaveBeenLastCalledWith(`http://127.0.0.1/api/local/audio?id=${String(stem.id)}`, 42)
+    expect(h.state).toMatchObject({ currentTrack: track, accompaniment: stem, position: 42, contextId: 'playlist', status: status === 'paused' ? 'paused' : 'loading' })
+    expect(h.engine.play).toHaveBeenCalledTimes(status === 'paused' ? 0 : 1)
+    expect(h.deps.createResolver).toHaveBeenCalledTimes(resolutions)
+    h.callbacks.onCanPlay?.(h.loadId)
+    expect(h.state).toMatchObject({ resolvedTrack: stem, actualSource: 'local', playbackTransport: 'local' })
+    await h.state.toggleAccompaniment()
+    expect(h.state).toMatchObject({ currentTrack: track, accompaniment: null, position: 42, contextId: 'playlist' })
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 42, 'netease:1:lossless', expect.any(Object))
+  })
+
+  it('没有可用成品时保留当前音频，生成完成后可直接启用；切歌和停止复位', async () => {
+    const h = await ready()
+    vi.mocked(h.deps.findAccompaniment).mockReturnValue(null)
+    const calls = h.engine.load.mock.calls.length
+    await h.state.toggleAccompaniment()
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+    expect(h.state.accompaniment).toBeNull()
+    vi.mocked(h.deps.findAccompaniment).mockReturnValue(stem)
+    await h.state.toggleAccompaniment()
+    await h.state.loadTrack({ ...track, id: 2 })
+    expect(h.state.accompaniment).toBeNull()
+    await h.state.toggleAccompaniment()
+    h.state.stop()
+    expect(h.state.accompaniment).toBeNull()
+  })
+
+  it('暂停淡出期间迟到的 playing 事件不能让伴奏切换重新出声', async () => {
+    const h = await ready()
+    h.state.pause()
+    h.callbacks.onStatus?.('playing')
+    h.engine.play.mockClear()
+    await h.state.toggleAccompaniment()
+    expect(h.state.status).toBe('paused')
+    expect(h.engine.play).not.toHaveBeenCalled()
+  })
+
+  it('睡眠定时器播完当前曲停下后，切换伴奏仍保持暂停', async () => {
+    const h = await ready()
+    h.core.setStopAfterCurrent(vi.fn())
+    h.callbacks.onEnded?.()
+    h.engine.play.mockClear()
+    await h.state.toggleAccompaniment()
+    expect(h.state.status).toBe('paused')
+    expect(h.engine.play).not.toHaveBeenCalled()
+  })
+
+  it('伴奏期间不把收听时长上报给原曲平台', async () => {
+    const h = await ready()
+    await h.state.toggleAccompaniment()
+    h.callbacks.onCanPlay?.(h.loadId)
+    h.listen(30)
+    await h.core.flushListeningReports()
+    expect(h.deps.reportPlayback).not.toHaveBeenCalled()
+  })
+
+  it.each(['playing', 'paused'] as const)('伴奏文件损坏时回到原曲，保留%s状态与位置，丢弃旧文件回调', async status => {
+    const h = await ready(status)
+    await h.state.toggleAccompaniment()
+    const stemLoad = h.loadId
+    // 损坏媒体可能先发出初始零进度，再报告加载失败。
+    h.callbacks.onPosition?.(0)
+    h.callbacks.onError?.('MEDIA_ERR_4', stemLoad)
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(h.state).toMatchObject({ accompaniment: null, currentTrack: track, position: 42, status: status === 'paused' ? 'paused' : 'loading' })
+    expect(h.deps.notify).toHaveBeenCalledWith(expect.stringContaining('伴奏文件无法播放'))
+    const calls = h.engine.load.mock.calls.length
+    h.callbacks.onError?.('MEDIA_ERR_4', stemLoad)
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+  })
+
+  it('切回原曲的解析晚到时，不能覆盖随后开启的伴奏', async () => {
+    const h = await ready()
+    await h.state.toggleAccompaniment()
+    const pending = deferred<PlaybackCandidate | null>()
+    h.resolver.next.mockReturnValueOnce(pending.promise)
+    const back = h.state.toggleAccompaniment()
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    await h.state.toggleAccompaniment()
+    const calls = h.engine.load.mock.calls.length
+    pending.resolve(h.candidate)
+    await back
+    expect(h.state.accompaniment).toBe(stem)
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+  })
+
+  it('修改音质不替换伴奏，输出设备恢复仍使用同一伴奏文件', async () => {
+    vi.useFakeTimers()
+    const h = await ready()
+    h.core.start()
+    await h.state.toggleAccompaniment()
+    h.callbacks.onStatus?.('playing')
+    const calls = h.engine.load.mock.calls.length
+    h.emitQuality('standard')
+    expect(h.engine.load).toHaveBeenCalledTimes(calls)
+    h.callbacks.onOutputDeviceChange?.(true)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(h.state.accompaniment).toBe(stem)
+    expect(h.engine.load).toHaveBeenLastCalledWith(`http://127.0.0.1/api/local/audio?id=${String(stem.id)}`, 42)
+    h.core.dispose()
+  })
+
+  it('从我的伴奏播放的独立曲目，也可经麦克风回到原曲', async () => {
+    const h = createHost()
+    await h.state.loadTrack(stem, { startAt: 12, autoplay: false })
+    await h.state.toggleAccompaniment()
+    expect(h.state).toMatchObject({ currentTrack: track, accompaniment: null, position: 12, status: 'paused' })
+  })
+})
 
 describe('无界面播放核心', () => {
   it('只有刷歌允许接管预缓冲 普通点歌保持原有加载参数', async () => {
@@ -537,133 +771,14 @@ describe('无界面播放核心', () => {
   })
 })
 
-describe('K 歌 AI 分离', () => {
-  function withKaraoke(supported = true) {
+describe('伴奏生成与播放隔离', () => {
+  it('播放、切歌和改音质只加载音频，不启动伴奏生成', async () => {
     const h = createHost()
-    const job = deferred<string>()
-    const known = new Map<string, string>()
-    const port = {
-      supported: vi.fn(async () => supported),
-      knownStem: vi.fn((key: string) => known.get(key) ?? null),
-      forget: vi.fn((key: string) => { known.delete(key) }),
-      separate: vi.fn((_key: string, _src: string, onProgress: (p: { phase: 'model' | 'separating'; progress: number }) => void) => {
-        onProgress({ phase: 'separating', progress: 0.5 })
-        return job.promise
-      }),
-      release: vi.fn(),
-    }
-    h.deps.karaoke = port
-    const setKaraoke = vi.fn()
-    Object.assign(h.engine, { setKaraoke })
-    return { h, port, job, known, setKaraoke }
-  }
-  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve() }
-
-  it('提交后按实际曲目分离，完成即在当前进度换成伴奏且不重复提交候选', async () => {
-    const { h, port, job } = withKaraoke()
     await h.state.loadTrack(track)
     h.callbacks.onCanPlay?.(h.loadId)
-    h.state.setKaraoke(true)
-    await flush()
-    expect(port.separate).toHaveBeenCalledWith('netease:1', h.candidate.url, expect.any(Function), expect.any(AbortSignal))
-    expect(h.state.karaokeStatus).toEqual({ phase: 'separating', progress: 0 })
-    h.patch({ position: 42 })
-    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
-    await flush()
-    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/karaoke/stem?key=netease%3A1', 42)
-    expect(h.state.karaokeStatus.phase).toBe('ready')
+    await h.state.loadTrack({ ...track, id: 2 })
     h.callbacks.onCanPlay?.(h.loadId)
-    expect(h.resolver.complete).toHaveBeenCalledOnce()
-  })
-
-  it('关闭时取消分离、释放引擎并带原缓存参数切回原曲', async () => {
-    const { h, port, job } = withKaraoke()
-    await h.state.loadTrack(track)
-    h.callbacks.onCanPlay?.(h.loadId)
-    h.state.setKaraoke(true)
-    await flush()
-    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
-    await flush()
-    h.patch({ position: 50 })
-    h.state.setKaraoke(false)
-    expect(port.release).toHaveBeenCalled()
-    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 50, 'netease:1:lossless', expect.any(Object))
-    expect(h.state.karaokeStatus.phase).toBe('off')
-  })
-
-  it('伴奏已知时换歌直接加载伴奏，伴奏读取失败则忘记并回原曲', async () => {
-    const { h, port, known } = withKaraoke()
-    h.state.setKaraoke(true)
-    known.set('netease:1', 'http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
-    await h.state.loadTrack(track, { startAt: 10 })
-    expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/karaoke/stem?key=netease%3A1', 10)
-    h.callbacks.onError?.('MEDIA_ERR_4', h.loadId)
-    expect(port.forget).toHaveBeenCalledWith('netease:1')
-    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, expect.any(Number), 'netease:1:lossless', expect.any(Object))
-    expect(h.resolver.recordExternalMediaFailure).not.toHaveBeenCalled()
-    h.callbacks.onCanPlay?.(h.loadId)
-    expect(h.state.actualSource).toBe('netease')
-  })
-
-  it('不支持 WebGPU 时退回中置消除；刷歌不分离', async () => {
-    const { h, port, setKaraoke } = withKaraoke(false)
-    await h.state.loadTrack(track)
-    h.callbacks.onCanPlay?.(h.loadId)
-    h.state.setKaraoke(true)
-    await flush()
-    expect(setKaraoke).toHaveBeenCalledWith(true)
-    expect(h.state.karaokeStatus.phase).toBe('fallback')
-    await h.state.loadTrack({ ...track, id: 2 }, { contextId: 'shuange:1' })
-    h.callbacks.onCanPlay?.(h.loadId)
-    expect(h.state.karaokeStatus.phase).toBe('unavailable')
-    expect(port.separate).not.toHaveBeenCalled()
-  })
-
-  it('当前曲完成后预分离队列下一首', async () => {
-    const { h, port, job } = withKaraoke()
-    const next = { ...track, id: 9 }
-    h.core.registerNextTrackPeek(() => next)
-    vi.mocked(h.deps.getPreloadedResolution).mockReturnValue({ url: 'https://cdn.example.com/next.mp3' })
-    await h.state.loadTrack(track)
-    h.callbacks.onCanPlay?.(h.loadId)
-    h.state.setKaraoke(true)
-    await flush()
-    job.resolve('http://127.0.0.1/api/karaoke/stem?key=netease%3A1')
-    await flush()
-    expect(port.separate).toHaveBeenLastCalledWith('netease:9', 'https://cdn.example.com/next.mp3', expect.any(Function), expect.any(AbortSignal))
-  })
-})
-
-describe('K 歌复审回归', () => {
-  it('伴奏已直接加载但未提交时关闭 K 歌，原曲仍走正常提交', async () => {
-    const h = createHost()
-    const port = {
-      supported: vi.fn(async () => true),
-      knownStem: vi.fn(() => 'http://127.0.0.1/api/karaoke/stem?key=netease%3A1'),
-      forget: vi.fn(), separate: vi.fn(() => new Promise<string>(() => {})), release: vi.fn(),
-    }
-    h.deps.karaoke = port
-    h.state.setKaraoke(true)
-    await h.state.loadTrack(track)
-    h.state.setKaraoke(false)
-    h.callbacks.onCanPlay?.(h.loadId)
-    expect(h.state.actualSource).toBe('netease')
-    expect(h.state.playbackTransport).toBe('online')
-  })
-
-  it('试听片段不分离，并停掉上一首的任务', async () => {
-    const h = createHost()
-    const port = {
-      supported: vi.fn(async () => true), knownStem: vi.fn(() => null), forget: vi.fn(),
-      separate: vi.fn(() => new Promise<string>(() => {})), release: vi.fn(),
-    }
-    h.deps.karaoke = port
-    h.state.setKaraoke(true)
-    h.candidate.trial = true
-    await h.state.loadTrack(track)
-    h.callbacks.onCanPlay?.(h.loadId)
-    await Promise.resolve()
-    expect(port.separate).not.toHaveBeenCalled()
-    expect(h.state.karaokeStatus).toMatchObject({ phase: 'unavailable', message: '试听片段不分离人声' })
+    expect(h.engine.load).toHaveBeenLastCalledWith(h.candidate.url, 0, 'netease:1:lossless', expect.any(Object))
+    expect(h.state).not.toHaveProperty('setKaraoke')
   })
 })

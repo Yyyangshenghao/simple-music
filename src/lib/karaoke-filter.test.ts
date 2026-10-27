@@ -78,7 +78,9 @@ describe('K 歌中置消除', () => {
     engine.load('/api/local/audio?id=1')
     await engine.play()
     const sourceTargets = edges.filter(([from]) => from.kind === 'source').map(([, to]) => to)
-    const filterInput = sourceTargets.at(-1)!
+    const trackGain = sourceTargets.at(-1)!
+    expect(trackGain.kind).toBe('gain')
+    const filterInput = edges.filter(([from]) => from === trackGain).at(-1)![1]
     expect(filterInput.kind).toBe('gain')
     // 干声支路:input → dry → output → analyser
     const dry = edges.find(([from, to]) => from === filterInput && to.kind === 'gain')![1]

@@ -1,4 +1,4 @@
-import { startPlaybackCore, flushListeningReports } from '../stores/player'
+import { startPlaybackCore, flushListeningReports, usePlayerStore } from '../stores/player'
 import { useSettingsStore } from '../stores/settings'
 import { initProviderStore } from '../stores/providers'
 import { initProviderAuthFailureSync } from '../stores/provider-auth'
@@ -19,6 +19,8 @@ import { initAmbientPaletteSync } from './ambient-palette-sync'
 import { initWallpaperSync } from './wallpaper-sync'
 import { initShuangePlayback } from './shuange-playback'
 import { initDownloadQueueRuntime } from './download-queue-runtime'
+import { initKaraokeQueueRuntime, useKaraokeStore } from '../stores/karaoke'
+import { accompanimentId } from './karaoke-library'
 import { initLoginStatusSync } from './login-status-sync'
 import { useSleepTimerStore } from '../stores/sleep-timer'
 
@@ -36,6 +38,8 @@ export function startPlaybackRuntime(): () => void {
   const stopPersistence = initPlaybackPersistence()
   const stopShuange = initShuangePlayback()
   const stopDownloads = initDownloadQueueRuntime()
+  const stopKaraoke = initKaraokeQueueRuntime()
+  const stopKaraokePlayed = initKaraokePlayedTracking()
   const stopLyricsClock = initLyricsClock()
   const stopLyricsLoader = initLyricsLoader()
   const stopDesktopLyrics = initDesktopLyricsSync()
@@ -68,6 +72,8 @@ export function startPlaybackRuntime(): () => void {
     stopPersistence()
     useSleepTimerStore.getState().cancel()
     stopDownloads()
+    stopKaraoke()
+    stopKaraokePlayed()
     stopRecent()
     stopShuange()
     stopLyricsLoader()
@@ -87,4 +93,16 @@ export function startPlaybackRuntime(): () => void {
     stopProviders()
   }
   return stopRuntime
+}
+
+/** 记录每个伴奏最近一次开始播放的时间；直接切换和从“我的伴奏”播放都算。 */
+function initKaraokePlayedTracking(): () => void {
+  const playingId = (state: ReturnType<typeof usePlayerStore.getState>) => state.currentTrack ? accompanimentId(state.accompaniment ?? state.currentTrack) : null
+  let last = playingId(usePlayerStore.getState())
+  return usePlayerStore.subscribe(state => {
+    const id = playingId(state)
+    if (id === last) return
+    last = id
+    if (id) useKaraokeStore.getState().markPlayed(id)
+  })
 }

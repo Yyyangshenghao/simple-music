@@ -25,6 +25,7 @@ import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
 import { ThemeModePicker } from '../components/Settings/ThemeModePicker'
 import { WallpaperEnginePicker } from '../components/Settings/WallpaperEnginePicker'
 import { SettingsSearch } from '../components/Settings/SettingsSearch'
+import { KaraokeModelSettings } from '../components/Settings/KaraokeModelSettings'
 import { listProviders } from '../providers/registry'
 import { useProviderStore } from '../stores/providers'
 import { useAppleMusicConnection } from '../stores/apple-music-connection'
@@ -58,6 +59,7 @@ type AudioQuality = 'standard' | 'higher' | 'exhigh' | 'lossless' | 'max'
 const SETTINGS_TABS = [
   { id: 'music', label: '音源与播放', items: [
     { id: 'accounts', label: '音源与账户' }, { id: 'playback', label: '播放偏好' },
+    { id: 'karaoke-models', label: 'K 歌模型' },
   ] },
   { id: 'visual', label: '界面与窗口', items: [
     { id: 'window-close', label: '关闭窗口' },
@@ -827,6 +829,7 @@ export function SettingsPage() {
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({})
   const activeSectionRef = useRef<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
+  const settingsKaraokeRequest = useNavigationStore((s) => s.settingsKaraokeRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
 
   // 在首帧绘制前恢复；字体、缓存信息等异步内容撑开高度前不够滚时，等内容长高再补一次，用户先动则放弃。
@@ -973,6 +976,11 @@ export function SettingsPage() {
     scrollToSection('lyrics')
     useNavigationStore.getState().consumeSettingsLyricsRequest(settingsLyricsRequest)
   }, [settingsLyricsRequest, scrollToSection])
+  useEffect(() => {
+    if (settingsKaraokeRequest === 0) return
+    scrollToSection('music', 'karaoke-models')
+    useNavigationStore.getState().consumeSettingsKaraokeRequest(settingsKaraokeRequest)
+  }, [settingsKaraokeRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const contentGutter = useSettingsStore((s) => s.contentGutter)
@@ -1404,6 +1412,7 @@ export function SettingsPage() {
                     <Switch checked={unlikeConfirmation} onChange={setUnlikeConfirmation} aria-label="取消红心前确认" />
                   </div>
                 </section>
+                <KaraokeModelSettings />
               </div>
             </section>
             <section id="settings-section-visual" className={styles.settingsSection} aria-labelledby="settings-heading-visual">
