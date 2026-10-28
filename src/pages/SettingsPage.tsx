@@ -33,6 +33,7 @@ import { useNavigationStore } from '../stores/navigation'
 import { useVisualStore } from '../stores/visual'
 import { useGameModeStore } from '../stores/game-mode'
 import { useWindowCloseStore } from '../stores/window-close'
+import { useTaskCenterStore } from '../stores/task-center'
 import { useOfflineCacheStore } from '../stores/offline-cache'
 import {
   DEFAULT_BACKGROUND,
@@ -404,6 +405,7 @@ const CONTROL_EFFECTS: EffectItem[] = [
   { key: 'sliderMotion', label: '滑杆手感', hint: '进度、音量等滑杆拖动时的拉伸、倾斜和数值气泡过渡。' },
   { key: 'dragMotion', label: '拖拽手感', hint: '队列拖动时的倾斜、抬起与碎纸删除，探索卡片堆的甩动，歌词来源排序的位移。' },
   { key: 'iconMotion', label: '图标小动画', hint: '红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出和搜索框展开。' },
+  { key: 'queueSplitMotion', label: '队列动效', hint: '任务入口在头像旁轻移显现，完成时勾选确认；关闭后保留淡入淡出与搜索框的平滑让位。' },
   { key: 'popoverSproutMotion', label: '浮层长出', hint: '伴奏面板从麦克风按钮外的圆向上展开，关闭时收回到按钮；关闭后面板直接出现和消失。' },
 ]
 
@@ -1660,7 +1662,7 @@ export function SettingsPage() {
                   <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={downloadDir}>{downloadDir || '在下载队列中选择'}</span>
-                    <button className={`${styles.storageAction} no-drag`} onClick={() => useOfflineCacheStore.getState().setQueueOpen(true)}>管理下载</button>
+                    <button className={`${styles.storageAction} no-drag`} onClick={() => useTaskCenterStore.getState().show('download')}>管理下载</button>
                   </div>
                 </section>
                 <section id="settings-detail-player-cache" className={`${styles.group} ${styles.storageShared}`}>

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
+import { useTaskCenterStore } from '../../stores/task-center'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack, findAccompaniment } from '../../lib/karaoke-library'
@@ -12,7 +13,7 @@ import { sproutPath } from './sprout-shape'
 import { useMotion } from '../../hooks/useMotion'
 import styles from './PlayerBar.module.css'
 import panelStyles from './AccompanimentPanel.module.css'
-import { AccompanimentPanel, KARAOKE_MEASURED, KARAOKE_PHASE } from './AccompanimentPanel'
+import { AccompanimentPanel } from './AccompanimentPanel'
 
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
@@ -52,7 +53,10 @@ export function AccompanimentButton() {
   const outline = useRef<SVGPathElement>(null)
   /** 本次打开的裁切圆：外圈与铺满两档，收回时复用；closing 防止重复收回。 */
   const sprout = useRef<Sprout | null>(null)
-  const job = original ? jobs.find(job => job.phase !== 'failed' && sameKaraokeTrack(job.track, original)) : undefined
+  const tasks = original ? jobs.filter(job => sameKaraokeTrack(job.track, original)) : []
+  const task = tasks.find(job => !['queued', 'waiting-memory', 'failed'].includes(job.phase))
+    ?? tasks.find(job => job.phase !== 'failed') ?? tasks[0]
+  const job = task?.phase !== 'failed' ? task : undefined
   const playable = track && track.source !== 'apple' ? accompanimentsForTrack(track, items).filter(item => item.available) : []
   const ready = playable.length
   // 点按在原唱与最近播放过的伴奏之间切换（没播放过则按所选模型、最新生成）；长按或右键打开完整弹窗。
@@ -61,7 +65,14 @@ export function AccompanimentButton() {
   const hold = useRef<{ timer?: ReturnType<typeof setTimeout>; fired: boolean; busy: boolean }>({ fired: false, busy: false })
   // 生成期间记下已有成品数；任务结束后成品变多即视为完成（任务移除与成品入库的先后不定）。
   const baseline = useRef<number | null>(null)
-  useEffect(() => { setOpen(false); setFresh(false); baseline.current = null }, [songKey])
+  useEffect(() => {
+    clearTimeout(hold.current.timer)
+    hold.current.fired = false
+    setHolding(false)
+    setOpen(false)
+    setFresh(false)
+    baseline.current = null
+  }, [songKey])
   // 布局阶段定位并先按收起态裁切，首帧就只露出麦克风外的圆，不会整块闪现。
   useLayoutEffect(() => {
     if (!open) return
@@ -171,7 +182,8 @@ export function AccompanimentButton() {
   const usingStem = !!track && !!accompanimentId(accompaniment ?? track)
   const endHold = () => { clearTimeout(hold.current.timer); setHolding(false) }
   const startHold = (event: PointerEvent<HTMLButtonElement>) => {
-    if (!preferred || event.button !== 0) return
+    if (!track || track.source === 'apple' || event.button !== 0) return
+    clearTimeout(hold.current.timer)
     hold.current.fired = false
     setHolding(true)
     hold.current.timer = setTimeout(() => { hold.current.fired = true; setHolding(false); setOpen(true) }, HOLD_MS)
@@ -188,14 +200,14 @@ export function AccompanimentButton() {
     // 长按已打开弹窗时，松手产生的 click 不再切换。
     if (hold.current.fired) { hold.current.fired = false; return }
     if (preferred) void toggle()
+    else if (task) { if (open) close(); useTaskCenterStore.getState().show('karaoke', `k:${task.id}`) }
     else if (open) close()
     else setOpen(true)
   }
   const active = !!accompaniment || !!(track && accompanimentOriginal(track))
-  const measured = !!job && KARAOKE_MEASURED.includes(job.phase)
   const tip = !track ? '请先播放歌曲'
     : track.source === 'apple' ? 'Apple Music 暂不支持伴奏模式'
-    : job && !preferred ? `${KARAOKE_PHASE[job.phase]}${measured ? ` ${Math.round(job.progress * 100)}%` : ''}`
+    : task && !preferred ? `${task.phase === 'failed' ? '生成失败' : '正在生成伴奏'}，点按查看任务队列 · 长按管理`
     : preferred ? `${usingStem ? '切回原唱' : fresh ? '伴奏已生成，点按切换' : '切换到伴奏'} · 长按管理`
     : '选择或生成伴奏版本'
 
@@ -206,7 +218,6 @@ export function AccompanimentButton() {
     data-active={active}
     data-busy={!!job}
     data-tip={tip}
-    title={tip}
     aria-label="伴奏模式"
     aria-pressed={active}
     aria-haspopup="dialog"
@@ -222,13 +233,6 @@ export function AccompanimentButton() {
     transition={springSnappy}
   >
     <MicIcon active={active} />
-    {job && <svg className={styles.accompanimentRing} data-indeterminate={!measured} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="15" pathLength="100" className={styles.accompanimentRingTrack} />
-      <g className={styles.accompanimentRingArc}>
-        <circle cx="16" cy="16" r="15" pathLength="100" transform="rotate(-90 16 16)" className={styles.accompanimentRingFill}
-          strokeDasharray={measured ? `${Math.max(2, job.progress * 100)} 100` : '22 100'} />
-      </g>
-    </svg>}
     {holding && <svg className={styles.accompanimentHold} viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="16" cy="16" r="15" pathLength="100" transform="rotate(-90 16 16)" style={{ animationDuration: `${HOLD_MS - HOLD_RING_DELAY}ms`, animationDelay: `${HOLD_RING_DELAY}ms` }} />
     </svg>}

@@ -254,28 +254,6 @@
 .accompanimentBtn:disabled { opacity: 0.35; cursor: default; }
 .accompanimentBtn { position: relative; }
 
-/* 伴奏后台生成：按钮外缘一圈细进度环；无确切进度的阶段慢速旋转一段弧。 */
-.accompanimentRing {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  fill: none;
-  stroke-width: 1.5;
-}
-/* 进度环不随图标悬停放大。 */
-.accompanimentBtn .accompanimentRing,
-.accompanimentBtn:hover:not(:disabled) .accompanimentRing { transform: none; }
-.accompanimentRingTrack { stroke: var(--sm-fill-active); }
-.accompanimentRingFill { stroke: var(--sm-accent); stroke-linecap: round; transition: stroke-dasharray 400ms var(--sm-ease-out); }
-.accompanimentRingArc { transform-box: view-box; transform-origin: center; }
-.accompanimentRing[data-indeterminate='true'] .accompanimentRingArc { animation: accompanimentSpin 1.8s linear infinite; }
-@keyframes accompanimentSpin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .accompanimentRing[data-indeterminate='true'] .accompanimentRingArc { animation: none; }
-}
-
 /* 长按打开伴奏弹窗：按住后沿按钮外缘画满一圈，松手过早则消失。 */
 .accompanimentHold {
   position: absolute;

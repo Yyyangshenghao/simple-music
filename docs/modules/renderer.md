@@ -2,6 +2,8 @@
 
 React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)。入口 `src/main.tsx` → `App.tsx`。别名 `@renderer/*` → `src/*`。
 
+UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIGN.md) 和 [界面现状](../ui-ux.md)。本文负责技术职责与行为；界面地图、共用组件和视觉验收缺口集中在界面现状中维护。
+
 ## App.tsx 装配
 
 `src/playback-probe/` 是 2.4.0 的独立开发原型入口，不由 `App.tsx` 加载；隐藏宿主复用 `AudioEngine`，控制页只显示会话快照。协议经 `types/ipc.ts` 导出，启动与边界见[原型说明](../specs/2026-10-12-playback-host-probe.md)。
@@ -26,6 +28,7 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 
 | store | 职责 |
 |---|---|
+| `task-center.ts` | 主窗口的任务面板、本批完成结果、分区已读、任务定位与入口驻留状态，不持久化；下载与伴奏仍由后台分别调度 |
 | `player.ts` | 唯一播放状态容器与 `playback-core` 的宿主适配；网易/QQ/本地走 `AudioEngine`，Apple Music 走独立 `AppleMusicPlayback` 会话 |
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
 | `app-playlists.ts` | 应用自己的跨源歌单，独立版本存档 `simplemusic-app-playlists`；包含网易/QQ/Apple/本地曲目，保存成功后才更新快照；单曲移出可短时撤销，恢复时保留期间新增歌曲，不重建已删除歌单；旧同步关联仅兼容忽略，编辑不写回平台 |
@@ -51,7 +54,8 @@ React 18 + zustand + motion(framer-motion 后继)+ three.js(@react-three/fiber)�
 - `useShortcuts` — 仅处理主窗口应用内键盘分发及控件避让，读取宿主的全局注册结果避免同键重复执行；卸载只移除窗口按键监听。
 - `useAmbientPalette` — 只消费 ambient store，把 `--ambient-1/2/3` CSS 变量分 12 步补间到当前颜色；游戏/刷歌及卸载时停止补间，重挂直接消费最新颜色，不取图或改写 store。
 - `useAudioEnergy` — AnalyserNode 频谱 → rAF 写 `--audio-energy` 变量(驱动 PlayerGlass 等辉光)。
-- `useMotion(flag)` — 读取单项界面动效开关（页面转场 `pageTransitionMotion`、控件动效七项 `tapFeedbackMotion`/`hoverLiftMotion`/`toggleMotion`/`indicatorMotion`/`sliderMotion`/`dragMotion`/`iconMotion`、平滑滚动 `smoothScrollMotion`、歌词换句 `lyricsLineMotion`）。各开关只管自己的范围，互不压制，也不跟随系统「减弱动态效果」；动效预设只做一次性批量设置。
+- `useMotion(flag)` — 读取单项界面动效开关（页面转场 `pageTransitionMotion`、控件动效九项 `tapFeedbackMotion`/`hoverLiftMotion`/`toggleMotion`/`indicatorMotion`/`sliderMotion`/`dragMotion`/`iconMotion`/`popoverSproutMotion`/`queueSplitMotion`、平滑滚动 `smoothScrollMotion`、歌词换句 `lyricsLineMotion`）。各开关只管自己的范围，互不压制；动效预设只做一次性批量设置。
+- `useSystemReducedMotion()` — 当前供任务入口、任务面板与共用提示响应系统「减弱动态效果」；共用按钮、播放队列等局部 CSS 另有媒体查询分支。系统减少动态不是 `useMotion` 内的全局总开关，其他组件需逐处核对，不能据此推断全应用已覆盖。
 - `useContentProvider` — 解析探索与我的库共用的全局内容平台；`serviceFor(entity.source)` 按实体复合身份取对应 service，全源搜索等聚合场景经 `ContentHub` 隔离参与平台。
 - `useScrollReveal` — 滚动内容入场 stagger。
 
@@ -72,8 +76,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - `music-service.ts` / `service-registry.ts` — 兼容层接口与 service 单例；实体操作必须 `serviceFor(entity.source)`，不得从当前内容平台猜来源。
 - `api.ts` — HTTP 客户端,端口来自 `window.desktop.serverPort`,API token 来自 `window.desktop.serverToken`(统一带进 query,见 server.md 安全边界);非 Electron 环境回退同源(纯前端调试)。
 - `audio-engine.ts` — 单例 HTMLAudioElement 走 `/api/audio` 代理 + AnalyserNode 暴露频谱。
-- `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证，当前仍运行在主窗口渲染进程。
-- `playback-runtime.ts` — 主窗口宿主的播放启动/释放入口，统一持有核心及历史、存档、刷歌会话/续播、下载恢复、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、账号核实/轮询、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
+- `playback-core.ts` — 通过注入的状态、引擎、平台与通知能力编排播放会话；宿主显式启动/释放订阅与资源，核心可脱离 React 独立验证。正式桌面环境在独立播放宿主中运行，主窗口只连接命令与快照；缺少桌面播放桥的浏览器调试环境才由 `main.tsx` 直接启动运行时。
+- `playback-runtime.ts` — 播放运行时的启动/释放入口，正式环境由 `playback-host-runtime.ts` 装配，统一持有核心及历史、存档、刷歌会话/续播、下载恢复、伴奏队列、歌词获取/时钟、桌面歌词/壁纸同步、封面取色、桌面命令、全局快捷键、游戏模式状态、迷你条同步、账号核实/轮询、托盘状态、Media Session 和退出补报订阅；React 挂载/卸载不启停它。
 - `login-status-sync.ts` — 宿主持有网易/QQ 启动账号核实及 Apple 的 3 秒状态轮询，界面/设置页重挂不重新查询。账号会话序号及身份守卫共同过滤旧回复，偏好水合或平台启停不丢弃有效结果；游戏模式取消 Apple 在途刷新和计时，退出只启动新一轮，停止后所有请求/计时失效。Apple 登录/退出及手动重试继续由连接 store 管理。
 - `download-queue-runtime.ts` — 立即保存未完成任务的曲目和原目录，剥除旧 URL，终态/主动取消从恢复存档移除。冷启动按来源身份去重，恢复为暂停队列，不自动访问音源；宿主退出先存档再中止请求。终态清档失败会在退出重试；读取异常提示风险并保护未恢复的旧存档，新任务暂不覆盖，需重启重试。损坏或未知格式不恢复，未操作队列时保留原文。
 - `shuange-playback.ts` — 宿主持有真实导航进入/离开、片段末尾和媒体自然结束续播；界面卸载不退出会话，重挂不重载当前卡。睡眠定时进入等待整曲结束时暂停片段推进，取消等待后恢复；自动补货和片段定位完成前复核播放意图，停止后迟到结果不重新出声。宿主退出清理睡眠时钟与闸门。按当前原曲身份和加载状态过滤旧进度，片段变化使旧推进锁失效；`shuange.ts` 的画像/音源监听显式随宿主启停，退出先保存原队列快照，再使在途响应失效并补写画像，不调用会恢复音频的 leave。
@@ -137,6 +141,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 
 ## components / pages
 
+本地、离线与伴奏库复用 `ui/LibraryToolbar`，统一主操作、数量、搜索及辅助入口；业务数据和动作仍由各页面提供。`ui/ActionButton` / `ActionIcon` 提供普通与紧凑按钮、图标和主操作/危险/禁用/忙态，`ui/HoverTips` 通过容器委托显示一个 portal 提示，响应目标属性与内容变化，离开时释放观察器。当前只在已接入区域复用，并非全应用已迁移。现有详情内的 `TrackSearch` 保留可展开交互；完整组件入口见 [共用组件地图](../ui-ux.md#共用组件与实现入口)。
+
 主窗口滚动条由 `styles/global.css` 统一定制，尺寸与普通、悬停、拖动颜色复用 `--sm-scrollbar-*` token；页面、弹窗、队列和横向列表跟随深浅主题，歌词浮层按当前歌词模式局部覆盖颜色。外层、轨道与轨道片段均显式透明，滑块使用低透明度中性色，悬停和拖动逐级加深，避免滚动条底色与氛围背景断开。`ScrollArea` 复用同一滚动条，保留滚动引用、共享布局动画及吸顶回调；不再单独测量或绘制滑块。悬停或滚动时显示，停止滚动 800ms 且鼠标离开后收起；`useScrollbarActivity` 捕获内层滚动并按容器独立计时，卸载时清理。歌词正文和轮播等原本隐藏滚动条的区域保持隐藏。
 
 页面视口贯穿整窗，顶栏与播放栏悬浮于页面上方：顶栏玻璃层向下渐隐，播放栏保留圆角玻璃面板。`styles/page-scroll.module.css` 统一页面内容的上下渐隐、滚动留白与安全区；渐隐不叠加实色背景条，滚动引用与虚拟列表仍绑定原视口。吸顶工具栏和设置导航停在顶栏下方，框选按可见安全区裁剪与自动滚动；歌单预览弹窗通过 portal 挂到 body，避免被页面遮罩裁剪。预览面板按视口固定高度，加载时显示歌曲占位，列表独立滚动，加载完成后封面与顶部信息保持原位。刷歌隐藏播放栏时取消底部安全区，卡片仍避开顶栏。
@@ -163,7 +169,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 
 `SearchPage` 按歌曲、歌手、专辑和歌单独立搜索，支持来源及类别筛选；账号或参与平台变化后丢弃旧结果。歌曲、专辑与歌单结果标题右侧统一使用“更多”菜单，整批追加队列、批量下载和进入多选复用 `BatchTrackActions`；进入多选后才显示勾选框与吸顶操作栏，与歌单详情保持一致。`useMultiSelection` 统一处理鼠标框选、边缘自动滚动、Shift 连选；键盘全选与 Esc 由主窗口统一阻止；详情按完整虚拟行坐标选中未挂载曲目，搜索或账号变化清空旧选区。多选中隐藏单曲红心与下载按钮，卡片暂停倾斜以保持稳定选区。`BatchTrackActions` 按显示顺序展开专辑/歌单、按来源和 ID 去重，追加队列而不打断当前播放。批量操作提供加入应用歌单、追加播放队列和下载；收藏保留不可播曲目，队列/下载仍过滤不可播项目，不提供写入平台歌单的入口。应用歌单实现边界见 [聚合歌单概念记录](../specs/2026-10-06-aggregate-playlists-2.4.0.md)。网易/QQ 歌曲、专辑和歌单支持批量下载，歌单占位曲目在任务开始时补全详情，Apple Music 不进入普通下载。专辑/歌单详情将整批追加队列、批量下载与进入多选收进标题旁的“更多”菜单，进入多选后才显示吸顶操作栏；菜单通过鼠标操作，支持外部点击及焦点离开关闭，处理中可重新展开取消；专辑曲目行隐藏封面，详情封面最大 240px，窄窗口自适应。
 
-顶栏 `DownloadQueue` 常驻下载入口，显示进度、等待及终态记录，支持暂停开始新任务、取消、重试和目录管理；关闭面板、最小化或卸载 App 不停止下载。未完成任务通过 schema 1 的 `simplemusic-download-queue` 保存，重启后在面板等待手动继续；完成/失败历史仅在当前运行保留。首次下载目录沿用旧缓存配置，再独立保存；改下载目录只影响新任务，完整缓存可直接导出为可读文件名和真实音频扩展名。恢复是任务级重试，不是字节断点续传；文件已导出但成功响应丢失时，重试可能另存一个同名副本，原文件不覆盖。存储不可用时面板显示恢复风险，持续失败不能保证退出后的任务保留。设置将歌曲下载和播放器离线音频分别展示，清理缓存不删除导出文件。
+顶栏 `TaskBubble` 按需从头像旁浮现，`TaskPanel` 分下载与伴奏两区展示进度、等待及终态记录，支持暂停开始新任务、取消、重试和目录管理；`task-center` 的面板与已读状态只属于主窗口，入队与恢复不会自动弹面板。两队列收尾且无失败时，查看结果后关闭或 90 秒无人查看会收起入口。伴奏完成记录由后台内存保留至本次运行结束，上限 50 条；关闭面板、最小化或卸载 App 不停止下载。未完成任务通过 schema 1 的 `simplemusic-download-queue` 保存，重启后在面板等待手动继续；完成/失败历史仅在当前运行保留。首次下载目录沿用旧缓存配置，再独立保存；改下载目录只影响新任务，完整缓存可直接导出为可读文件名和真实音频扩展名。恢复是任务级重试，不是字节断点续传；文件已导出但成功响应丢失时，重试可能另存一个同名副本，原文件不覆盖。存储不可用时面板显示恢复风险，持续失败不能保证退出后的任务保留。设置将歌曲下载和播放器离线音频分别展示，清理缓存不删除导出文件。
 
 页面:`ExplorePage`(当前内容平台的原生推荐)、`LibraryPage`(应用歌单、在线歌单/收藏、最近播放、离线音乐、本地音乐)、`AppPlaylistPage`(独立歌单编辑与跨源播放)、`RoamPage`、`ShuangePage`、`ToplistPage`、`AppleChartPage`、`ArtistPage`、`ArtistSongsPage`、`SearchPage`、`SettingsPage` 与 `ReleaseHistoryPage`。`GlobalContentProviderDock` 在布局层统一控制探索与我的库。离线音乐独立于在线平台登录态，支持按标题、艺人或专辑搜索、按保存时间/标题/艺人排序、播放当前筛选列表与逐曲移除保存；移除只取消固定，文件保留为临时缓存。“更多”菜单提供追加队列和进入多选，复用框选、Shift 连选、鼠标全选/退出与吸顶操作栏；离线网易/QQ 追加队列无需登录，不改变当前播放。批量删除先确认，按所选保存快照逐项删除；共享音频保留其他离线歌曲，独立导出文件保留。取消、选区变化或退出多选停止后续请求，完成后回查列表，失败项保留供重试。组件按域分目录:`Layout/`(WindowChrome、TopBar、AppShell 转场与背景层)、`Player/`、`Lyrics/`(LyricsPanel、StageLyrics 3D 舞台、KtvLine 逐字、DesktopLyrics)、`Explore/`、`Playlist/`、`Roam/`、`Shuange/`、`Search/`、`Shelf/`、`Visualizer/`、`Update/`、`ui/`。
 

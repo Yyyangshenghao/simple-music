@@ -309,8 +309,7 @@ export function QueuePanel({ align = 'end' }: { align?: 'start' | 'end' }) {
                           <>
                             <button type="button" className={styles.rowAction} data-queue-no-drag
                               disabled={playMode === 'one'}
-                              data-tip="下一首播放"
-                              title={playMode === 'one' ? '单曲循环时不会自动切歌' : undefined}
+                              data-tip={playMode === 'one' ? '单曲循环时不会自动切歌' : '下一首播放'}
                               aria-label={`将 ${t.name} 设为下一首`}
                               onClick={() => playNextWithAnimation(originalIndex, trackKeyOf(t))}>
                               <PlayNextIcon />

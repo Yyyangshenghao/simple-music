@@ -6,18 +6,20 @@ import type { Accompaniment, KaraokeModelId, KaraokeModelView } from '../../type
 import type { KaraokeJob } from '../../lib/karaoke/queue'
 
 const h = vi.hoisted(() => ({
-  accompaniment: null as Track | null, select: vi.fn(), close: vi.fn(), show: vi.fn(), setModel: vi.fn(), model: 'kara2' as KaraokeModelId,
+  adding: false, pending: { current: false },
+  accompaniment: null as Track | null, select: vi.fn(), close: vi.fn(), queueShow: vi.fn(), show: vi.fn(), setModel: vi.fn(), model: 'kara2' as KaraokeModelId,
   queue: { items: [] as Accompaniment[], jobs: [] as KaraokeJob[], loaded: true, error: '', paused: false, load: vi.fn(), enqueue: vi.fn(), retry: vi.fn(), cancel: vi.fn() },
   models: { models: [] as KaraokeModelView[], f16: true as boolean | null, loaded: true, error: null as string | null, load: vi.fn() },
 }))
-vi.mock('react', async original => ({ ...await original<typeof import('react')>(), useState: () => [false, vi.fn()], useEffect: () => {} }))
+vi.mock('react', async original => ({ ...await original<typeof import('react')>(), useState: () => [h.adding, (value: boolean) => { h.adding = value }], useRef: () => h.pending, useEffect: () => {} }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ accompaniment: h.accompaniment, selectAccompaniment: h.select }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: () => h.queue }))
 vi.mock('../../stores/karaoke-models', () => ({ useKaraokeModelsStore: () => h.models }))
 vi.mock('../../stores/settings', () => ({ DEFAULT_KARAOKE_LEAD: 0, DEFAULT_KARAOKE_BACKING: 0.5, useSettingsStore: (select: (state: unknown) => unknown) => select({ karaokeModel: h.model, setKaraokeModel: h.setModel, karaokeLead: 0, karaokeBacking: 0.5, setKaraokeVocalMix: vi.fn(), performance: { pageTransitionMotion: false } }) }))
+vi.mock('../../stores/task-center', () => ({ useTaskCenterStore: { getState: () => ({ show: h.queueShow }) } }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.show }) } }))
 
-type Element = ReactElement<{ children?: ReactNode; 'aria-label'?: string; 'aria-pressed'?: boolean; 'data-primary'?: boolean; disabled?: boolean; onClick?: () => void; onChange?: (event: unknown) => void }>
+type Element = ReactElement<{ children?: ReactNode; 'aria-label'?: string; 'aria-pressed'?: boolean; 'data-primary'?: boolean; 'aria-busy'?: boolean; disabled?: boolean; onClick?: () => void; onChange?: (event: unknown) => void }>
 function nodes(node: ReactNode): Element[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode }>(child) ? [child as Element, ...nodes(child.props.children)] : [])
 }
@@ -31,6 +33,7 @@ const button = (name: string, track = original) => nodes(render(track)).find(nod
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve() }
 beforeEach(() => {
   vi.clearAllMocks()
+  h.adding = false; h.pending.current = false
   h.select.mockReset().mockResolvedValue(undefined)
   h.queue.enqueue.mockReset().mockResolvedValue(undefined)
   h.queue.items = [item('a', 'hq3'), item('b', 'hq3-fp16'), item('c', 'kara2', false)]
@@ -108,25 +111,30 @@ it('从伴奏进入时用原曲生成所选新版本，不改变播放或关闭�
 
 const progress = (track = original) => nodes(render(track)).find(node => node.props['aria-label'] === '伴奏生成进度')
 
-it('已有成品禁止重复生成，进行中显示进度而非按钮，失败任务允许重试', async () => {
+it('已有成品禁止重复生成；运行和失败任务都定位到专门队列，不在版本面板显示进度或重试', () => {
   h.model = 'hq3'
   expect(button('此版本已生成').props.disabled).toBe(true)
   h.model = 'kara2'
   h.queue.jobs = [{ id: 'job', model: 'kara2', track: original, phase: 'queued', progress: 0, directory: '/songs' }]
-  expect(content(progress()!.props.children)).toContain('等待生成')
-  expect(button('生成伴奏')).toBeUndefined()
-  h.queue.jobs[0].phase = 'separating'; h.queue.jobs[0].progress = 0.37
-  expect(content(progress()!.props.children)).toContain('37%')
-  h.queue.jobs[0].phase = 'failed'
-  button('重试生成').props.onClick!(); await flush()
-  expect(h.queue.retry).toHaveBeenCalledWith('job')
+  for (const phase of ['queued', 'separating', 'saving', 'failed'] as const) {
+    h.queue.jobs[0].phase = phase
+    expect(progress()).toBeUndefined()
+    expect(button('取消')).toBeUndefined()
+    const target = button(phase === 'failed' ? '生成失败，查看队列' : '查看生成任务')
+    expect(target.props.disabled).toBe(false)
+    target.props.onClick!()
+    expect(h.queueShow).toHaveBeenLastCalledWith('karaoke', 'k:job')
+  }
+  expect(h.close).toHaveBeenCalledTimes(4)
+  expect(h.queue.retry).not.toHaveBeenCalled()
   expect(h.queue.enqueue).not.toHaveBeenCalled()
 })
 
-it('QQ 补全 mid 后仍识别补全前已排队的任务', () => {
+it('QQ 补全 mid 后仍可查看补全前已排队的任务', () => {
   const track: Track = { ...original, source: 'qq', provider: 'qq' }
   h.queue.jobs = [{ id: 'job', model: 'kara2', track, phase: 'queued', progress: 0, directory: '/songs' }]
-  expect(progress({ ...track, mid: 'same-song' })).toBeDefined()
+  button('查看生成任务', { ...track, mid: 'same-song' }).props.onClick!()
+  expect(h.queueShow).toHaveBeenCalledWith('karaoke', 'k:job')
 })
 
 it('库读取失败和显卡不支持时禁止生成，生成请求失败给出错误', async () => {
@@ -139,10 +147,22 @@ it('库读取失败和显卡不支持时禁止生成，生成请求失败给出�
   expect(h.show).toHaveBeenCalledWith('目录不可写')
 })
 
-it('进行中的任务可取消，保存阶段不显示取消', () => {
-  h.queue.jobs = [{ id: 'job', model: 'kara2', track: original, phase: 'separating', progress: 0.5, directory: '/songs' }]
-  button('取消').props.onClick!()
-  expect(h.queue.cancel).toHaveBeenCalledWith('job')
-  h.queue.jobs[0].phase = 'saving'
-  expect(button('取消')).toBeUndefined()
+it('加入回执未返回时，已出现的任务不能让按钮提前可点或让模型继续切换', () => {
+  h.adding = true
+  h.queue.jobs = [{ id: 'job', model: 'kara2', track: original, phase: 'queued', progress: 0, directory: '/songs' }]
+  expect(button('正在加入…').props).toMatchObject({ disabled: true, 'aria-busy': true })
+  const picker = nodes(render()).find(node => typeof node.type === 'function' && Array.isArray((node.props as { items?: unknown }).items))!
+  expect(picker.props.disabled).toBe(true)
+})
+
+it('快速重复点击只发送一次加入请求，回执后恢复操作', async () => {
+  let resolve!: () => void
+  h.queue.enqueue.mockImplementation(() => new Promise<void>(done => { resolve = done }))
+  const generate = button('生成伴奏')
+  generate.props.onClick!()
+  generate.props.onClick!()
+  expect(h.queue.enqueue).toHaveBeenCalledOnce()
+  resolve()
+  await flush()
+  expect(h.adding).toBe(false)
 })

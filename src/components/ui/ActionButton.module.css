@@ -1,0 +1,44 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
+}
+.button:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.button:active:not(:disabled), .button[aria-expanded='true'] { background: var(--sm-fill-active); color: var(--sm-text-primary); }
+.button:disabled { opacity: .4; cursor: default; }
+.button[data-icon-action] { width: 32px; height: 32px; padding: 0; }
+.button[data-primary] { background: var(--sm-accent); color: var(--sm-text-on-accent); border-radius: var(--sm-radius-pill); }
+.button[data-primary]:hover:not(:disabled) { background: var(--sm-accent-hover); color: var(--sm-text-on-accent); }
+.button[data-primary]:active:not(:disabled) { background: var(--sm-accent-pressed); }
+.button[data-danger]:hover:not(:disabled) { color: var(--sm-color-danger); background: color-mix(in srgb, var(--sm-color-danger) 8%, transparent); }
+.button[data-compact] { min-height: 28px; padding-inline: 8px; font-size: 11px; }
+.button[data-compact][data-icon-action] { width: 28px; height: 28px; padding: 0; }
+.content { display: inline-flex; align-items: center; justify-content: center; gap: 6px; pointer-events: none; transition: transform 180ms var(--sm-ease-out); }
+.content svg { transition: transform 180ms var(--sm-ease-out); }
+/* 只移动内容，命中区域与列表排版始终不变。 */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-hover-lift-motion-off])) .button[data-primary]:hover:not(:disabled) .content { transform: translateY(-1px); }
+  :global(html:not([data-icon-motion-off])) .button:hover:not(:disabled) [data-action-icon='settings'] { transform: rotate(30deg); }
+  :global(html:not([data-icon-motion-off])) .button:hover:not(:disabled) [data-action-icon='refresh'] { transform: rotate(45deg); }
+  :global(html:not([data-icon-motion-off])) .button:hover:not(:disabled) [data-action-icon='play'] { transform: translateX(1px); }
+  :global(html:not([data-tap-feedback-motion-off])) .button:active:not(:disabled) .content,
+  :global(html:not([data-tap-feedback-motion-off])) .button[data-primary]:active:not(:disabled) .content { transform: scale(.94); transition-duration: 80ms; }
+}
+:global([data-icon-motion-off]) .content svg { transition: none; }
+.button[aria-busy='true'] .content { visibility: hidden; }
+.spinner { position: absolute; animation: action-spin .8s linear infinite; }
+@keyframes action-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .button, .content, .content svg { transition: none; } .spinner { animation-duration: 1.6s; } }

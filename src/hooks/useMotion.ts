@@ -3,7 +3,7 @@ import { useSettingsStore } from '../stores/settings'
 import type { PerformanceFlags } from '../types/domain'
 
 export type MotionFlag = 'pageTransitionMotion' | 'smoothScrollMotion' | 'lyricsLineMotion'
-  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion' | 'popoverSproutMotion'
+  | 'tapFeedbackMotion' | 'hoverLiftMotion' | 'toggleMotion' | 'indicatorMotion' | 'sliderMotion' | 'dragMotion' | 'iconMotion' | 'popoverSproutMotion' | 'queueSplitMotion'
 
 const INSTANT = { duration: 0 } as const
 

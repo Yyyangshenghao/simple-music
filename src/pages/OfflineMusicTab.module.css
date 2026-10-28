@@ -1,32 +1,3 @@
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 12px 8px;
-}
-
-.actions {
-  flex: 1;
-  justify-content: flex-end;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.actions input { width: min(220px, 100%); box-sizing: border-box; }
-
-.sort {
-  padding: 5px 10px;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-primary);
-  font-size: 13px;
-}
-
 .hint {
   display: flex;
   align-items: center;

@@ -73,7 +73,7 @@ describe('我的库账号失效提示', () => {
     vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'simplemusic-library-app-playlists-kind' ? 'accompaniments' : null, setItem: () => {} })
     try {
       const html = renderToStaticMarkup(<LibraryPage />)
-      expect(html).toContain('已生成的伴奏')
+      expect(html).toContain('aria-label="搜索伴奏"')
       expect(html).not.toContain('新建歌单')
     } finally { vi.unstubAllGlobals() }
   })

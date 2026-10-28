@@ -139,7 +139,7 @@ npm test              # 运行测试
 
 独立 API 调试使用 `npm run server:dev`。开发模式下，Apple Music 受保护播放使用本机 Chrome；正式安装包通过 CastLabs EVS 签名后使用应用内窗口。
 
-更多说明见 [文档导航](./docs/README.md)、[协作规范](./CONTRIBUTING.md) 和 [构建与发布](./docs/build-and-release.md)。
+产品与界面工作先读 [产品理念](./PRODUCT.md)、[设计准则](./DESIGN.md) 和 [界面现状](./docs/ui-ux.md)。更多说明见 [文档导航](./docs/README.md)、[协作规范](./CONTRIBUTING.md) 和 [构建与发布](./docs/build-and-release.md)。
 
 ## 问题反馈
 

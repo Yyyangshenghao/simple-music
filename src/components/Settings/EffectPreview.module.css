@@ -345,3 +345,14 @@
   86% { clip-path: path('M 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 H 60 Q 69.6 52 71.15 59.55 A 12 12 0 1 1 48.85 59.55 Q 50.4 52 60 52 H 60 A 0 0 0 0 1 60 52 V 52 A 0 0 0 0 1 60 52 Z'); }
   94%, 100% { clip-path: path('M 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 H 60 Q 60 64 60 64 A 0 0 0 1 1 60 64 Q 60 64 60 64 H 60 A 0 0 0 0 1 60 64 V 64 A 0 0 0 0 1 60 64 Z'); }
 }
+
+.queueSplit { position: relative; width: 88px; height: 36px; }
+.queueAccount, .queueTask { position: absolute; top: 2px; width: 32px; height: 32px; border: 1px solid var(--glass-border-card); border-radius: 50%; background: var(--sm-fill-active); }
+.queueAccount { right: 0; }
+.queueTask { right: 44px; display: grid; place-items: center; color: var(--sm-accent); animation: queue-reveal 3.5s ease-in-out infinite; }
+.queueTask svg { position: absolute; width: 17px; height: 17px; }
+.queueTask svg:first-child { animation: queue-transfer 3.5s ease-in-out infinite; }
+.queueTask svg:last-child { animation: queue-confirm 3.5s ease-in-out infinite; }
+@keyframes queue-reveal { 0%, 10%, 90%, 100% { opacity: 0; transform: translateX(12px); } 25%, 75% { opacity: 1; transform: translateX(0); } }
+@keyframes queue-transfer { 0%, 42% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes queue-confirm { 0%, 42%, 90%, 100% { opacity: 0; } 50%, 75% { opacity: 1; } }

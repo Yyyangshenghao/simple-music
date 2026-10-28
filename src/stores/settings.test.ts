@@ -178,6 +178,7 @@ describe('视觉设置解耦与升级', () => {
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
     useSettingsStore.getState().loadFromLocal()
     expect(useSettingsStore.getState().performance.popoverSproutMotion).toBe(pageTransitionMotion)
+    expect(useSettingsStore.getState().performance.queueSplitMotion).toBe(pageTransitionMotion)
   })
   it.each([true, false])('旧「减少动态效果」为 %s 时拆成四项，其它开关保持原值且不再保存总开关', (reduceMotion) => {
     let saved = JSON.stringify({ performance: { reduceMotion, cardTiltEffect: true, lyricsWordMotion: true } })

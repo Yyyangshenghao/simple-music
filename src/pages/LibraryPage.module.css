@@ -230,22 +230,6 @@
   color: var(--sm-text-primary);
 }
 
-.toolbarActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.searchInput {
-  padding: 5px 12px;
-  border-radius: var(--sm-radius-pill);
-  border: 1px solid var(--sm-border);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-primary);
-  font-size: 13px;
-  outline: none;
-}
-
 .folderList {
   display: flex;
   flex-wrap: wrap;
@@ -257,22 +241,34 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 4px 2px 10px;
   border-radius: var(--sm-radius-pill);
   background: var(--sm-bg-overlay);
   font-size: 12px;
   color: var(--sm-text-secondary);
 }
+.folderChip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .folderChipRemove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
   border: none;
   background: none;
   color: inherit;
   cursor: pointer;
   padding: 0;
+  border-radius: 50%;
   line-height: 1;
   font-size: 14px;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
 }
+.folderChipRemove:hover { background: var(--sm-fill-hover); color: var(--sm-color-danger); }
+.folderChipRemove:active { background: var(--sm-fill-active); }
 
 /* 本地音乐排序:自绘下拉 + 升降序按钮。 */
 .sortMenu {
@@ -283,13 +279,14 @@
 }
 
 .sortToggle {
+  height: 32px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -298,7 +295,6 @@
 
 .sortToggle:hover { color: var(--sm-text-primary); }
 
-.sortLabel { color: var(--sm-text-secondary); opacity: 0.8; }
 .sortValue { color: var(--sm-text-primary); }
 
 .sortCaret {
@@ -343,10 +339,14 @@
 .sortOption.sortOptionActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); font-weight: 600; }
 
 .sortDirBtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 4px 8px;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
   font-size: 13px;
   line-height: 1;

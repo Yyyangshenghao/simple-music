@@ -1,0 +1,20 @@
+.root { position: relative; display: flex; align-items: center; flex-shrink: 0; }
+.slot { position: relative; height: 36px; flex-shrink: 0; }
+.buttonPosition { position: absolute; right: 8px; top: 0; width: 36px; height: 36px; }
+.toggle { position: absolute; inset: 0; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--glass-border-base); border-radius: 50%; color: var(--sm-text-secondary); background: var(--glass-bg-base); cursor: pointer; }
+.toggle:hover, .toggle[data-active='true'] { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+.face { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; }
+.toggle[data-state='complete'] { color: var(--sm-accent); }
+.toggle[data-state='complete'] .glyph svg { width: 21px; height: 21px; }
+.glyph { position: absolute; inset: 0; display: grid; place-items: center; }
+.ring { position: absolute; inset: -3px; color: var(--sm-accent); transform: rotate(-90deg); pointer-events: none; }
+.ring[data-spinning='true'] { animation: ring-turn 2.8s linear infinite; }
+.badge { position: absolute; bottom: -5px; right: -5px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 10px; font-size: 10px; font-variant-numeric: tabular-nums; background: var(--sm-accent); color: var(--sm-text-on-accent); overflow: hidden; }
+.failureDot { position: absolute; top: 0; right: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--sm-color-danger); }
+
+.panelAnchor { position: fixed; z-index: 500; width: min(440px, calc(100vw - 32px)); border: 1px solid var(--glass-border-card); border-radius: 22px; background: var(--glass-bg-base); backdrop-filter: var(--glass-blur-card) saturate(150%); -webkit-backdrop-filter: var(--glass-blur-card) saturate(150%); box-shadow: 0 18px 48px color-mix(in srgb, var(--sm-bg-base) 32%, transparent); }
+@keyframes ring-turn { to { transform: rotate(270deg); } }
+@media (prefers-reduced-motion: reduce) { .ring[data-spinning='true'] { animation-duration: 5s; } }
+
+@media (prefers-reduced-transparency: reduce) { .panelAnchor { background: var(--sm-bg-base); backdrop-filter: none; } }
+:global(html[data-reduce-transparency='1']) .panelAnchor { background: var(--sm-bg-base); backdrop-filter: none; }

@@ -78,7 +78,7 @@ it('退出保留未完成任务和各自目录，取消请求并隔离迟到完�
 it('冷启动恢复为暂停队列，手动继续保留三首并发和原目录，缓存完整时不重新解析', async () => {
   data.set(key, JSON.stringify({ schema: 1, jobs: Array.from({ length: 5 }, (_, id) => ({ track: { ...track, id }, directory: '/old-downloads' })) }))
   const { store } = await start()
-  expect(store.getState()).toMatchObject({ paused: true, queueOpen: true })
+  expect(store.getState()).toMatchObject({ paused: true })
   expect(store.getState().jobs.map(job => job.status)).toEqual(Array(5).fill('queued'))
   expect(h.get).not.toHaveBeenCalled()
   expect(h.status).not.toHaveBeenCalled()
@@ -101,7 +101,6 @@ it('任务入队立即保存，进度和面板切换不重复写入，失败和�
   store.setState({ downloadDir: '/downloads', paused: true })
   await store.getState().saveMany([track, { ...track, id: '2' }])
   const writes = storage.setItem.mock.calls.length
-  store.getState().setQueueOpen(false)
   store.setState(state => ({ jobs: state.jobs.map(job => ({ ...job, receivedBytes: 42, status: 'saving' })) }))
   expect(storage.setItem).toHaveBeenCalledTimes(writes)
   store.setState(state => ({ jobs: state.jobs.map(job => job.track.id === '1' ? { ...job, status: 'failed', error: '不可下载' } : job) }))

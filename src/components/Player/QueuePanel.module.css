@@ -228,10 +228,12 @@
   transform-box: fill-box;
 }
 .playNextLead { transform-origin: right center; }
-.rowAction:hover:not(:disabled) .playNextTriangle { transform: translateX(2px); }
-.rowAction:hover:not(:disabled) .playNextLead { transform: scaleX(0.7); }
-.rowAction:hover:not(:disabled) .removeIcon { transform: rotate(90deg); }
-.rowAction:active:not(:disabled) svg { transform: scale(0.86); transition: transform 90ms var(--sm-ease-out); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+:global(html:not([data-icon-motion-off])) .rowAction:hover:not(:disabled) .playNextTriangle { transform: translateX(2px); }
+:global(html:not([data-icon-motion-off])) .rowAction:hover:not(:disabled) .playNextLead { transform: scaleX(0.7); }
+:global(html:not([data-icon-motion-off])) .rowAction:hover:not(:disabled) .removeIcon { transform: rotate(90deg); }
+:global(html:not([data-tap-feedback-motion-off])) .rowAction:active:not(:disabled) svg { transform: scale(0.86); transition: transform 90ms var(--sm-ease-out); }
+}
 
 :global([data-icon-motion-off]) .playNextTriangle,
 :global([data-icon-motion-off]) .playNextLead,

@@ -53,11 +53,12 @@ export default function App() {
     const root = document.documentElement
     root.toggleAttribute('data-page-motion-off', reducedMotion)
     root.toggleAttribute('data-lyrics-line-motion-off', !lyricsLineMotion)
+    root.toggleAttribute('data-tap-feedback-motion-off', !motionFlags.tapFeedbackMotion)
     root.toggleAttribute('data-hover-lift-motion-off', !motionFlags.hoverLiftMotion)
     root.toggleAttribute('data-toggle-motion-off', !motionFlags.toggleMotion)
     root.toggleAttribute('data-slider-motion-off', !motionFlags.sliderMotion)
     root.toggleAttribute('data-icon-motion-off', !motionFlags.iconMotion)
-  }, [reducedMotion, lyricsLineMotion, motionFlags.hoverLiftMotion, motionFlags.toggleMotion, motionFlags.sliderMotion, motionFlags.iconMotion])
+  }, [reducedMotion, lyricsLineMotion, motionFlags.tapFeedbackMotion, motionFlags.hoverLiftMotion, motionFlags.toggleMotion, motionFlags.sliderMotion, motionFlags.iconMotion])
   const gameEnabled = useGameModeStore((s) => s.enabled)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)

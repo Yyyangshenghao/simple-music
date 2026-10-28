@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accentTokensFor, lumaStatsFromPixels, mediaTone, scrimOpacity } from './theme-tone'
+import { ACCENT_PRESETS, accentTokensFor, lumaStatsFromPixels, mediaTone, scrimOpacity } from './theme-tone'
 
 const flat = (luma: number) => ({ mean: luma, high: luma, low: luma })
 
@@ -57,6 +57,28 @@ describe('背景自适应遮罩', () => {
 })
 
 describe('主题色按主题适配', () => {
+  it('预设及自定义颜色在悬停、按下时保持至少 4.5:1，且不比静止状态更难读', () => {
+    const luminance = (hex: string) => {
+      const channels = hex.slice(1).match(/../g)!.map(value => parseInt(value, 16) / 255)
+      const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+    }
+    const contrast = (background: string, foreground: string) => {
+      const values = [luminance(background), luminance(foreground)].sort((a, b) => b - a)
+      return (values[0] + 0.05) / (values[1] + 0.05)
+    }
+    for (const color of [...ACCENT_PRESETS.map(item => item.color), '#000000', '#ffffff', '#777777', '#ff00ff', '#00ffff']) {
+      for (const light of [false, true]) {
+        const tokens = accentTokensFor(color, light)!
+        const hover = contrast(tokens.hover, tokens.onAccent)
+        const pressed = contrast(tokens.pressed, tokens.onAccent)
+        expect(hover, `${color} hover, light=${light}`).toBeGreaterThanOrEqual(4.5)
+        expect(hover).toBeGreaterThanOrEqual(contrast(tokens.accent, tokens.onAccent))
+        expect(pressed).toBeGreaterThanOrEqual(hover)
+      }
+    }
+  })
+
   it('深色主题把暗色调亮、浅色主题把亮色调暗，按钮文字取对比高者', () => {
     const onDark = accentTokensFor('#1e1b4b', false)!
     const onLight = accentTokensFor('#fde047', true)!

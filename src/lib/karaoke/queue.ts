@@ -15,11 +15,21 @@ export interface KaraokeJob {
   directory: string
   phase: KaraokeJobPhase
   progress: number
+  addedAt?: number
+  startedAt?: number
   error?: string
+}
+export interface RecentKaraokeJob {
+  jobId: string
+  accompanimentId: string
+  track: Track
+  model: KaraokeModelId
+  at: number
 }
 export interface KaraokeQueueState {
   items: Accompaniment[]
   jobs: KaraokeJob[]
+  recent: RecentKaraokeJob[]
   directory: string
   directoryNotice: string
   error: string
@@ -29,10 +39,12 @@ export interface KaraokeQueueState {
   load(): Promise<void>
   enqueue(track: Track, model: KaraokeModelId): Promise<void>
   cancel(id: string): void
+  cancelWaiting(): void
   retry(id: string): void
   setPaused(value: boolean): void
   setDirectory(directory: string): Promise<void>
   remove(id: string): Promise<void>
+  clearRecent(): void
   markPlayed(id: string): void
 }
 export interface KaraokeQueueDependencies {
@@ -61,6 +73,14 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
   const store = create<KaraokeQueueState>((set, get) => {
     const update = (id: string, patch: Partial<KaraokeJob>) => set(state => ({ jobs: state.jobs.map(job => job.id === id ? { ...job, ...patch } : job) }))
 
+    function complete(job: KaraokeJob, item: Accompaniment): void {
+      set(state => ({
+        jobs: state.jobs.filter(entry => entry.id !== job.id),
+        recent: [{ jobId: job.id, accompanimentId: item.id, track: job.track, model: job.model, at: Date.now() },
+          ...state.recent.filter(entry => entry.accompanimentId !== item.id)].slice(0, 50),
+      }))
+    }
+
     function persist(): void {
       if (unreadable) return
       try {
@@ -84,8 +104,9 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
         // 上次退出或回执丢失时，文件可能已保存成功；先查成品，避免重复推理。
         await get().load()
         signal.throwIfAborted()
-        if (get().items.some(item => item.available && item.model === job.model && sameKaraokeTrack(item.track, job.track))) {
-          set(state => ({ jobs: state.jobs.filter(item => item.id !== job.id) }))
+        const existing = get().items.find(item => item.available && item.model === job.model && sameKaraokeTrack(item.track, job.track))
+        if (existing) {
+          complete(job, existing)
           persist()
           return
         }
@@ -98,7 +119,7 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
           return
         }
         if (get().paused) return
-        update(job.id, { phase: 'resolving', progress: 0, error: undefined })
+        update(job.id, { phase: 'resolving', progress: 0, error: undefined, startedAt: Date.now() })
         const source = await deps.resolve(job.track, signal)
         signal.throwIfAborted()
         if (!await deps.port.supported()) throw new Error('当前设备不支持伴奏生成，需要支持 WebGPU 的显卡')
@@ -111,7 +132,8 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
         const saved = await deps.save(job, source.key)
         if (!running) return
         ++loadVersion
-        set(state => ({ items: [saved, ...state.items.filter(item => item.id !== saved.id)], jobs: state.jobs.filter(item => item.id !== job.id) }))
+        set(state => ({ items: [saved, ...state.items.filter(item => item.id !== saved.id)] }))
+        complete(job, saved)
         persist()
       } catch (error) {
         if (!signal.aborted && running) {
@@ -127,7 +149,7 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
     }
 
     return {
-      items: [], jobs: [], directory: '', directoryNotice: '', error: '', paused: false, loaded: false, played: {},
+      items: [], jobs: [], recent: [], directory: '', directoryNotice: '', error: '', paused: false, loaded: false, played: {},
       load() {
         if (loadPromise) return loadPromise
         const version = loadVersion
@@ -144,7 +166,7 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
         if (get().items.some(item => item.available && sameKaraokeTrack(item.track, track) && item.model === model)
           || get().jobs.some(job => sameKaraokeTrack(job.track, track) && job.model === model)) return
         if (get().jobs.length >= MAX_JOBS) throw new Error('生成队列已满，请先处理已有任务')
-        const job: KaraokeJob = { id: crypto.randomUUID(), track: withoutUrl(track), model, directory: get().directory, phase: 'queued', progress: 0 }
+        const job: KaraokeJob = { id: crypto.randomUUID(), track: withoutUrl(track), model, directory: get().directory, phase: 'queued', progress: 0, addedAt: Date.now() }
         set(state => ({ jobs: [...state.jobs, job] }))
         persist()
         void pump()
@@ -158,9 +180,15 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
       },
       retry(id) {
         if (active?.id === id) return
-        update(id, { phase: 'queued', progress: 0, error: undefined })
+        update(id, { phase: 'queued', progress: 0, error: undefined, addedAt: Date.now(), startedAt: undefined })
         persist()
         void pump()
+      },
+      cancelWaiting() {
+        const waiting = get().jobs.filter(job => job.phase === 'queued' || job.phase === 'waiting-memory')
+        if (active && waiting.some(job => job.id === active?.id)) { active.controller.abort(); deps.port.release() }
+        set(state => ({ jobs: state.jobs.filter(job => !waiting.includes(job)) }))
+        persist()
       },
       setPaused(value) {
         set({ paused: value })
@@ -180,13 +208,14 @@ export function createKaraokeQueue(deps: KaraokeQueueDependencies) {
         if (get().jobs.some(job => job.model === item.model && sameKaraokeTrack(job.track, item.track))) throw new Error('这首伴奏正在生成，请完成或取消任务后再删除')
         await deps.remove(item)
         ++loadVersion
-        set(state => ({ items: state.items.filter(item => item.id !== id) }))
+        set(state => ({ items: state.items.filter(item => item.id !== id), recent: state.recent.filter(item => item.accompanimentId !== id) }))
         if (id in get().played) {
           const { [id]: _removed, ...played } = get().played
           set({ played })
           persistPlayed(played)
         }
       },
+      clearRecent() { set({ recent: [] }) },
       markPlayed(id) {
         const entries = Object.entries({ ...get().played, [id]: Date.now() })
           .sort((a, b) => b[1] - a[1]).slice(0, MAX_PLAYED)

@@ -21,6 +21,9 @@ import { SourceBadge } from '../components/ui/SourceBadge'
 import type { Playlist, Track } from '../types/domain'
 import type { MutableRefObject, RefObject } from 'react'
 import styles from './LibraryPage.module.css'
+import { LibraryToolbar } from '../components/ui/LibraryToolbar'
+import { ActionButton } from '../components/ui/ActionButton'
+import { CloseIcon } from '../components/ui/CloseIcon'
 import { OfflineMusicTab } from './OfflineMusicTab'
 import { AppPlaylistsTab } from './AppPlaylistsTab'
 import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
@@ -414,13 +417,14 @@ function LocalSortMenu({
       <button
         type="button"
         className={`${styles.sortToggle} no-drag`}
+        aria-label="本地音乐排序"
+        title="排序方式"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={styles.sortLabel}>排序</span>
         <span className={styles.sortValue}>{current.label}</span>
-        <span className={styles.sortCaret} data-open={open} aria-hidden="true">▾</span>
+        <svg className={styles.sortCaret} data-open={open} width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </button>
       {open && (
         <div className={styles.sortDropdown} role="listbox">
@@ -448,7 +452,7 @@ function LocalSortMenu({
         aria-label={dir === 'asc' ? '当前升序,点击改为降序' : '当前降序,点击改为升序'}
         title={dir === 'asc' ? '升序' : '降序'}
       >
-        {dir === 'asc' ? '↑' : '↓'}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={dir === 'asc' ? 'M12 20V4m-5 5 5-5 5 5' : 'M12 4v16m-5-5 5 5 5-5'} /></svg>
       </button>
     </div>
   )
@@ -521,31 +525,14 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
 
   return (
     <div className={styles.trackList} ref={selection.rootRef} {...selection.surfaceProps}>
-      <div className={styles.trackListToolbar}>
-        <span className={styles.trackListCount}>{tracks.length} 首</span>
-        <div className={styles.toolbarActions}>
-          <input
-            className={styles.searchInput}
-            placeholder="搜索本地音乐"
-            aria-label="搜索本地音乐"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-          <LocalSortMenu
-            field={sortField}
-            dir={sortDir}
-            onChange={(f, d) => {
-              setSortField(f)
-              setSortDir(d)
-            }}
-          />
-          <button className={`${styles.clearBtn} no-drag`} onClick={() => void handleAddFolder()} disabled={scanning}>
-            {scanning ? '导入中…' : '添加文件夹'}
-          </button>
-          {!selecting && <BatchTrackActions compact tracks={sorted} label="当前本地音乐列表" menuLabel="本地音乐更多操作"
-            onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
-        </div>
-      </div>
+      <LibraryToolbar summary={keyword ? `${sorted.length} / ${tracks.length} 首` : `${tracks.length} 首`}
+        primary={<ActionButton label="播放全部" icon="play" primary disabled={!sorted.length} onClick={() => usePlaylistStore.getState().setQueue(sorted, 0)} />}
+        value={keyword} onChange={setKeyword} searchLabel="搜索本地音乐">
+        <LocalSortMenu field={sortField} dir={sortDir} onChange={(f, d) => { setSortField(f); setSortDir(d) }} />
+        <ActionButton label={scanning ? '导入中…' : '添加文件夹'} icon="folder" busy={scanning} onClick={() => void handleAddFolder()} />
+        {!selecting && <BatchTrackActions compact tracks={sorted} label="当前本地音乐列表" menuLabel="本地音乐更多操作"
+          onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
+      </LibraryToolbar>
 
       {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
         selection={{ total: sorted.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
@@ -554,13 +541,14 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
         <div className={styles.folderList}>
           {folders.map((f) => (
             <span key={f} className={styles.folderChip}>
-              {f}
+              <span title={f}>{f}</span>
               <button
                 className={`${styles.folderChipRemove} no-drag`}
                 onClick={() => void handleRemoveFolder(f)}
-                aria-label="移除文件夹"
+                aria-label={`从音乐库移除文件夹：${f}`}
+                title="仅从音乐库移除，原文件保留"
               >
-                ×
+                <CloseIcon size={12} />
               </button>
             </span>
           ))}

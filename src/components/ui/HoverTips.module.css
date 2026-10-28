@@ -8,7 +8,7 @@
 .box {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--sm-text-primary);
   color: var(--sm-bg-base);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 8px 20px -8px rgba(0, 0, 0, 0.45);
@@ -21,14 +21,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .text {
+  flex: none;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 34px));
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
+.tip[data-below='true'] .box { transform-origin: center top; }
+.tip[data-below='true'] .arrow { top: -3px; bottom: auto; }
 
 /* 小三角指向按钮中心 */
 .arrow {

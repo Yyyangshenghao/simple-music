@@ -14,6 +14,8 @@
   --sm-bg-elevated:    color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.06));
   --sm-bg-overlay:     color-mix(in srgb, var(--sm-tint) var(--sm-tint-strength), rgba(255, 255, 255, 0.10));
   --sm-accent:         rgba(255, 255, 255, 0.92);
+  --sm-accent-hover:   color-mix(in srgb, var(--sm-accent) 88%, var(--sm-text-on-accent));
+  --sm-accent-pressed: color-mix(in srgb, var(--sm-accent) 78%, var(--sm-text-on-accent));
   --sm-accent-warm:    rgba(255, 255, 255, 0.70);
   --sm-text-primary:   rgba(255, 255, 255, 0.92);
   --sm-text-secondary: rgba(255, 255, 255, 0.45);

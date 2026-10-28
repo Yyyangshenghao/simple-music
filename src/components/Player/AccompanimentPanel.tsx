@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePlayerStore } from '../../stores/player'
+import { useTaskCenterStore } from '../../stores/task-center'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { DEFAULT_KARAOKE_BACKING, DEFAULT_KARAOKE_LEAD, useSettingsStore } from '../../stores/settings'
 import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
 import { accompanimentId, accompanimentOriginal, accompanimentsForTrack } from '../../lib/karaoke-library'
-import type { KaraokeJobPhase } from '../../lib/karaoke/queue'
+import { HoverTips } from '../ui/HoverTips'
+import { ActionButton } from '../ui/ActionButton'
 import { SettingSlider } from '../ui/SettingSlider'
 import { sameKaraokeTrack, type KaraokeModelId } from '../../types/karaoke'
 import type { Track } from '../../types/domain'
@@ -14,12 +16,8 @@ import styles from './AccompanimentPanel.module.css'
 
 const MODEL_NAMES: Record<KaraokeModelId, string> = { hq3: 'HQ3 标准', 'hq3-fp16': 'HQ3 省显存', kara2: 'Kara2 保留和声' }
 const MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: '标准', 'hq3-fp16': '省显存', kara2: '保留和声' }
-export const KARAOKE_PHASE: Record<KaraokeJobPhase, string> = { queued: '等待生成', 'waiting-memory': '等待内存释放', resolving: '正在读取歌曲', model: '正在下载模型', preparing: '正在准备模型', decoding: '正在解码音频', separating: '正在生成伴奏', saving: '正在保存', failed: '生成失败' }
-/** 只有这两个阶段上报真实进度，其余阶段显示不定进度。 */
-export const KARAOKE_MEASURED: KaraokeJobPhase[] = ['model', 'separating']
-
 export function AccompanimentPanel({ track, onClose }: { track: Track; onClose(): void }) {
-  const { items, jobs, loaded, error, paused, load, enqueue, retry, cancel } = useKaraokeStore()
+  const { items, jobs, loaded, error, load, enqueue } = useKaraokeStore()
   const { models, f16, loaded: modelsLoaded, error: modelError, load: loadModels } = useKaraokeModelsStore()
   const accompaniment = usePlayerStore(s => s.accompaniment)
   const select = usePlayerStore(s => s.selectAccompaniment)
@@ -29,6 +27,7 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const backing = useSettingsStore(s => s.karaokeBacking)
   const setVocalMix = useSettingsStore(s => s.setKaraokeVocalMix)
   const [adding, setAdding] = useState(false)
+  const pending = useRef(false)
   useEffect(() => { void load().catch(() => {}); void loadModels() }, [load, loadModels])
   const original = accompanimentOriginal(track) ?? track
   const entries = accompanimentsForTrack(track, items)
@@ -36,7 +35,6 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
   const expectedKey = `${track.source}:${String(track.id)}`
   const current = models.find(model => model.id === selected)
   const job = jobs.find(job => job.model === selected && sameKaraokeTrack(job.track, original))
-  const running = job && job.phase !== 'failed' ? job : null
   const saved = entries.some(item => item.model === selected && item.available)
   const hasPlayable = entries.some(item => item.available)
   const unsupported = current?.requiresF16 && f16 === false
@@ -48,28 +46,29 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
     try { await select(id, expectedKey) } catch (error) { notify(error) }
   }
   async function generate() {
+    if (pending.current) return
+    pending.current = true
     setAdding(true)
     try {
-      if (job?.phase === 'failed') retry(job.id)
-      else await enqueue(original, selected)
+      await enqueue(original, selected)
     } catch (error) { notify(error) }
-    finally { setAdding(false) }
+    finally { pending.current = false; setAdding(false) }
   }
+  const openQueue = () => { onClose(); useTaskCenterStore.getState().show('karaoke', job ? `k:${job.id}` : undefined) }
   const openLibrary = () => { onClose(); openAccompanimentsLibrary() }
   const openSettings = () => { onClose(); const nav = useNavigationStore.getState(); nav.requestSettingsKaraoke(); nav.navigateTo('settings') }
-  const measured = running && KARAOKE_MEASURED.includes(running.phase)
   const failed = !unsupported && job?.phase === 'failed'
   const status = unsupported ? '当前显卡不支持此模型，请选择其他版本。'
-    : failed ? job?.error ?? '生成失败'
-    : running ? paused && running.phase === 'queued' ? '队列已暂停，可到“我的伴奏”继续。' : '可以关闭面板或切歌，生成会在后台继续。'
+    : job ? '进度、暂停与重试可在任务队列中管理。'
     : current && current.state !== 'ready' && !saved ? `首次使用需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型。` : ''
   const playing = entries.find(item => item.id === activeId)
   const mixReason = !playing ? '播放伴奏时可调' : !playing.vocals ? '此版本较早，重新生成后可调' : ''
   const percent = (value: number) => `${Math.round(value * 100)}%`
   return <div className={styles.panel} role="dialog" aria-label="选择伴奏版本">
+    <HoverTips match="[data-icon-action]" />
     <div className={styles.head}>
       <div className={styles.heading}><span className={styles.eyebrow}>伴奏</span><strong className={styles.song} title={original.name}>{original.name}</strong></div>
-      <button type="button" className={styles.close} aria-label="关闭伴奏版本" onClick={onClose}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+      <ActionButton label="关闭伴奏版本" icon="close" iconOnly compact onClick={onClose} />
     </div>
     <div className={styles.body}>
       <div className={styles.versions} role="group" aria-labelledby="accompaniment-versions">
@@ -100,17 +99,11 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
       </div>}
       <div className={styles.section}>
         <span className={styles.label}>{hasPlayable ? '生成其他版本' : '去除人声，生成伴奏'}</span>
-        {models.length > 1 && <ModelPicker value={selected} disabled={!modelsLoaded} onChange={setModel}
+        {models.length > 1 && <ModelPicker value={selected} disabled={!modelsLoaded || adding} onChange={setModel}
           items={models.map(model => ({ value: model.id, label: MODEL_SHORT[model.id], title: model.name, disabled: model.requiresF16 && f16 === false }))} />}
-        {running ? <div className={styles.progress} role="status" aria-label="伴奏生成进度">
-          <div className={styles.progressText}><span>{KARAOKE_PHASE[running.phase]}</span>
-            <span className={styles.progressEnd}>{measured && <span className={styles.percent}>{Math.round(running.progress * 100)}%</span>}
-              {/* 保存阶段队列不接受取消（文件可能已写成），按钮随之隐藏。 */}
-              {running.phase !== 'saving' && <button type="button" className={styles.cancel} onClick={() => cancel(running.id)}>取消</button>}</span></div>
-          <div className={styles.track} data-indeterminate={!measured}><span className={styles.fill} style={measured ? { transform: `scaleX(${Math.max(0.02, running.progress)})` } : undefined} /></div>
-        </div>
-          : <button type="button" className={styles.generate} data-primary={!hasPlayable && !saved} disabled={adding || !loaded || !!error || !current || !!unsupported || saved}
-            onClick={() => void generate()}>{adding ? '正在加入…' : saved ? '此版本已生成' : job ? '重试生成' : '生成伴奏'}</button>}
+        <button type="button" className={styles.generate} data-primary={!hasPlayable && !saved}
+          aria-busy={adding || undefined} disabled={adding || (!job && (!loaded || !!error || !current || !!unsupported || saved))}
+          onClick={() => job ? openQueue() : void generate()}>{adding ? '正在加入…' : job ? failed ? '生成失败，查看队列' : '查看生成任务' : saved ? '此版本已生成' : '生成伴奏'}</button>
         {/* 状态说明固定占一行：切换模型时说明出现或消失，面板高度不变，浮层不跳动。 */}
         <p className={`${styles.hint} ${styles.status}`} role={failed ? 'alert' : undefined} title={status || undefined}>{status}</p>
         {modelError && <p className={styles.hint} role="alert">{modelError} <button type="button" className={styles.link} onClick={() => void loadModels()}>重试</button></p>}
@@ -118,7 +111,8 @@ export function AccompanimentPanel({ track, onClose }: { track: Track; onClose()
     </div>
     <div className={styles.foot}>
       <button type="button" className={styles.footLink} onClick={openLibrary}>我的伴奏</button>
-      <button type="button" className={styles.footLink} onClick={openSettings}>模型与保存位置</button>
+      <button type="button" className={styles.footLink} onClick={openQueue}>任务队列</button>
+      <ActionButton label="伴奏设置" title="伴奏设置 · 模型与保存位置" icon="settings" iconOnly compact onClick={openSettings} />
     </div>
   </div>
 }

@@ -1,0 +1,257 @@
+{
+  "errors": [],
+  "reveal": [
+    {
+      "ms": 3,
+      "width": 36,
+      "slot": 0,
+      "transform": "none"
+    },
+    {
+      "ms": 19,
+      "width": 36,
+      "slot": 1.921875,
+      "transform": "none"
+    },
+    {
+      "ms": 35,
+      "width": 36,
+      "slot": 5.90625,
+      "transform": "none"
+    },
+    {
+      "ms": 114,
+      "width": 36,
+      "slot": 27.65625,
+      "transform": "none"
+    },
+    {
+      "ms": 119,
+      "width": 36,
+      "slot": 28.671875,
+      "transform": "none"
+    },
+    {
+      "ms": 136,
+      "width": 36,
+      "slot": 31.71875,
+      "transform": "none"
+    },
+    {
+      "ms": 152,
+      "width": 36,
+      "slot": 34.09375,
+      "transform": "none"
+    },
+    {
+      "ms": 169,
+      "width": 36,
+      "slot": 36.15625,
+      "transform": "none"
+    },
+    {
+      "ms": 186,
+      "width": 36,
+      "slot": 37.828125,
+      "transform": "none"
+    },
+    {
+      "ms": 202,
+      "width": 36,
+      "slot": 39.078125,
+      "transform": "none"
+    },
+    {
+      "ms": 219,
+      "width": 36,
+      "slot": 40.09375,
+      "transform": "none"
+    },
+    {
+      "ms": 236,
+      "width": 36,
+      "slot": 40.984375,
+      "transform": "none"
+    },
+    {
+      "ms": 252,
+      "width": 36,
+      "slot": 41.609375,
+      "transform": "none"
+    },
+    {
+      "ms": 269,
+      "width": 36,
+      "slot": 42.140625,
+      "transform": "none"
+    },
+    {
+      "ms": 285,
+      "width": 36,
+      "slot": 42.53125,
+      "transform": "none"
+    },
+    {
+      "ms": 302,
+      "width": 36,
+      "slot": 42.859375,
+      "transform": "none"
+    },
+    {
+      "ms": 319,
+      "width": 36,
+      "slot": 43.109375,
+      "transform": "none"
+    },
+    {
+      "ms": 336,
+      "width": 36,
+      "slot": 43.3125,
+      "transform": "none"
+    },
+    {
+      "ms": 351,
+      "width": 36,
+      "slot": 43.453125,
+      "transform": "none"
+    },
+    {
+      "ms": 368,
+      "width": 36,
+      "slot": 43.578125,
+      "transform": "none"
+    },
+    {
+      "ms": 386,
+      "width": 36,
+      "slot": 43.671875,
+      "transform": "none"
+    },
+    {
+      "ms": 403,
+      "width": 36,
+      "slot": 43.734375,
+      "transform": "none"
+    },
+    {
+      "ms": 419,
+      "width": 36,
+      "slot": 43.796875,
+      "transform": "none"
+    },
+    {
+      "ms": 436,
+      "width": 36,
+      "slot": 43.84375,
+      "transform": "none"
+    },
+    {
+      "ms": 451,
+      "width": 36,
+      "slot": 43.875,
+      "transform": "none"
+    },
+    {
+      "ms": 469,
+      "width": 36,
+      "slot": 43.90625,
+      "transform": "none"
+    },
+    {
+      "ms": 486,
+      "width": 36,
+      "slot": 43.921875,
+      "transform": "none"
+    },
+    {
+      "ms": 502,
+      "width": 36,
+      "slot": 43.9375,
+      "transform": "none"
+    },
+    {
+      "ms": 517,
+      "width": 36,
+      "slot": 43.953125,
+      "transform": "none"
+    },
+    {
+      "ms": 535,
+      "width": 36,
+      "slot": 43.953125,
+      "transform": "none"
+    },
+    {
+      "ms": 552,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 569,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 584,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 603,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 617,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 636,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    },
+    {
+      "ms": 653,
+      "width": 36,
+      "slot": 44,
+      "transform": "none"
+    }
+  ],
+  "press": [
+    {
+      "before": 36,
+      "down": 33.9443359375,
+      "after": 36
+    },
+    {
+      "before": 36,
+      "down": 33.9892578125,
+      "after": 36
+    },
+    {
+      "before": 36,
+      "down": 33.965576171875,
+      "after": 36
+    }
+  ],
+  "complete": {
+    "complete": true,
+    "circles": 0,
+    "paths": [
+      "m5 12 4.5 4.5L19 7"
+    ],
+    "width": 36,
+    "title": "任务已完成，查看结果"
+  },
+  "hold": {
+    "management": 1,
+    "queueOpen": false
+  }
+}

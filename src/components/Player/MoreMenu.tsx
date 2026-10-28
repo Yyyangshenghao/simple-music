@@ -24,6 +24,7 @@ import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useSettingsStore } from '../../stores/settings'
 import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
 import type { KaraokeModelId } from '../../types/karaoke'
+import { useTaskCenterStore } from '../../stores/task-center'
 import { useKaraokeStore } from '../../stores/karaoke'
 import { karaokeTrackKey } from '../../lib/karaoke/queue'
 import { accompanimentId, accompanimentOriginal } from '../../lib/karaoke-library'
@@ -295,7 +296,7 @@ function RateSection() {
 
 const KARAOKE_MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: '标准', 'hq3-fp16': '省显存', kara2: '保留和声' }
 
-function KaraokeSection({ apple, onManage, onLibrary }: { apple: boolean; onManage(): void; onLibrary(): void }) {
+function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolean; onManage(): void; onLibrary(): void; onQueue(id: string): void }) {
   const track = usePlayerStore(s => s.currentTrack)
   const accompaniment = usePlayerStore(s => s.accompaniment)
   const { items, jobs, load, enqueue } = useKaraokeStore()
@@ -315,26 +316,26 @@ function KaraokeSection({ apple, onManage, onLibrary }: { apple: boolean; onMana
   async function generate() {
     if (!original) return
     setAdding(true)
-    try { await enqueue(original, selected); useToastStore.getState().show('已加入伴奏生成队列') }
+    try { await enqueue(original, selected) }
     catch (error) { useToastStore.getState().show(error instanceof Error ? error.message : '添加任务失败') }
     finally { setAdding(false) }
   }
   return <section className={styles.section}>
     <div className={styles.sectionHead}>
       <span className={styles.sectionTitle}>歌曲伴奏</span>
-      <button type="button" className={styles.textAction} onClick={onLibrary}>我的伴奏{jobs.length ? ` · ${jobs.length} 个任务` : ''}</button>
+      <button type="button" className={styles.textAction} onClick={onLibrary}>我的伴奏</button>
     </div>
     {playingStem ? <button type="button" className={styles.generateButton} disabled={!original} onClick={() => void usePlayerStore.getState().toggleAccompaniment()}>切回原曲</button>
       : <>
         {options.length > 1 && <JellyRadio size="sm" block ariaLabel="伴奏生成模型" value={selected} onChange={setKaraokeModel}
           items={options.map(model => ({ value: model.id, label: KARAOKE_MODEL_SHORT[model.id], disabled: model.requiresF16 && f16 === false }))} />}
-        <button type="button" className={styles.generateButton} disabled={apple || !track || adding || !!job || !!unsupported}
-          onClick={() => saved ? void usePlayerStore.getState().toggleAccompaniment() : void generate()}>
-          {adding ? '正在加入…' : job ? job.phase === 'failed' ? '生成失败，查看队列' : '已加入生成队列' : saved ? '播放伴奏' : '为这首歌生成伴奏'}
+        <button type="button" className={styles.generateButton} disabled={apple || !track || adding || (!job && !!unsupported)}
+          onClick={() => job ? onQueue(job.id) : saved ? void usePlayerStore.getState().toggleAccompaniment() : void generate()}>
+          {adding ? '正在加入…' : job ? job.phase === 'failed' ? '生成失败，查看队列' : '查看生成任务' : saved ? '播放伴奏' : '为这首歌生成伴奏'}
         </button>
         <span className={styles.tip} aria-live="polite">{apple ? 'Apple Music 受版权保护，无法生成伴奏'
           : unsupported ? '当前显卡不支持此模型，请更换模型'
-          : job ? job.error ?? (job.phase === 'queued' ? '等待生成，切歌不会中断任务' : `正在处理 ${Math.round(job.progress * 100)}%，切歌不会中断任务`)
+          : job ? '进度、暂停与重试可在任务队列中管理。'
           : saved ? '已保存在我的伴奏，可直接播放'
           : `生成时会临时占用较多内存${current && current.state !== 'ready' ? `；首次需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型` : ''}`}</span>
       </>}
@@ -533,7 +534,7 @@ export function MoreMenu() {
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
-              <KaraokeSection apple={apple} onLibrary={() => {
+              <KaraokeSection apple={apple} onQueue={id => { setOpen(false); useTaskCenterStore.getState().show('karaoke', `k:${id}`) }} onLibrary={() => {
                 setOpen(false)
                 openAccompanimentsLibrary()
               }} onManage={() => {

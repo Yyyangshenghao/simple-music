@@ -97,6 +97,16 @@ export const popoverSprout = {
   retract: { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)' },
 } satisfies Record<string, KeyframeAnimationOptions>
 
+/** 任务面板从入口展开；退场更快，快速重开时可从当前形态反向。 */
+export const taskPopoverMotion = {
+  enter: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+  exit: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+  row: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
+} satisfies Record<string, Transition>
+
+/** 队列入口只做短距离侧移；过阻尼让搜索框平稳让位，不回弹越界。 */
+export const taskEntrySpring = { stiffness: 340, damping: 36, mass: 0.9 }
+
 export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
 
 /** 设为下一首：落位后整行氛围色闪一下。 */
