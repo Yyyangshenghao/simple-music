@@ -411,7 +411,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
       confirmShared,
     })
     get().invalidate()
-    useToastStore.getState().show('本地文件已删除')
+    useToastStore.getState().show('播放器音频已删除，下载目录中的歌曲文件保留')
   },
 
   cancelSave(key) {

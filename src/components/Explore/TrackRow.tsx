@@ -135,8 +135,8 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
           type="button"
           className={styles.offlineBtn}
           data-state={visibleOffline?.state ?? 'missing'}
-          title={visibleOffline?.state === 'pinned' ? '已保存，点击取消固定' : visibleOffline?.state === 'cached' ? '已缓存，点击保存' : '保存到本地'}
-          aria-label={visibleOffline?.state === 'pinned' ? '取消固定' : '保存到本地'}
+          title={visibleOffline?.state === 'pinned' ? '已保存为离线音乐，点击取消离线保存' : visibleOffline?.state === 'cached' ? '已自动缓存，点击下载歌曲' : '下载歌曲'}
+          aria-label={visibleOffline?.state === 'pinned' ? '取消离线保存' : '下载歌曲'}
           onClick={(e) => {
             e.stopPropagation()
             if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)

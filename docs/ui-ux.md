@@ -14,7 +14,7 @@
 | 探索 | 浏览当前内容平台的推荐、榜单与个人栏目；保留封面堆叠与横排的内容表现 | [ExplorePage](../src/pages/ExplorePage.tsx) |
 | 我的库 | 应用歌单、平台歌单、收藏、最近播放、离线、本地；应用歌单栏目内切换歌单与伴奏成品 | [LibraryPage](../src/pages/LibraryPage.tsx)、[LibraryTabs](../src/pages/LibraryTabs.tsx)、[CollectionKindSwitch](../src/pages/CollectionKindSwitch.tsx) |
 | 本地音乐 | 文件夹索引、筛选与播放；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |
-| 离线音乐 | 浏览已保存音频，筛选、排序、播放与多选管理；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |
+| 离线音乐 | 浏览播放器内已保存的离线音乐，筛选、排序、播放与多选管理，工具栏直达下载队列；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |
 | 伴奏成品 | 搜索、播放、辨别模型版本、定位文件及删除；齿轮进入相关设置，生成任务交给任务面板 | [AccompanimentsLibrary](../src/pages/AccompanimentsLibrary.tsx) |
 | 搜索与音乐详情 | 跨来源搜索，按歌曲、歌手、专辑、歌单查看；详情播放、加入与批量管理 | [SearchPage](../src/pages/SearchPage.tsx)、[ArtistPage](../src/pages/ArtistPage.tsx)、[ArtistSongsPage](../src/pages/ArtistSongsPage.tsx)、[PlaylistDetailView](../src/components/Playlist/PlaylistDetailView.tsx)、[AppPlaylistPage](../src/pages/AppPlaylistPage.tsx)、[ToplistPage](../src/pages/ToplistPage.tsx)、[AppleChartPage](../src/pages/AppleChartPage.tsx) |
 | 漫游与刷歌 | 从歌手关系与持续选曲发现音乐；保持清晰的开始动作和会话状态 | [RoamPage](../src/pages/RoamPage.tsx)、[ShuangePage](../src/pages/ShuangePage.tsx) |
@@ -25,7 +25,7 @@
 | 设置与关于 | 音源与播放、界面与窗口、歌词与特效、缓存与下载、快捷键、关于；当前是单列分组的连续长页，目录定位，窄窗口改横向分类 | [SettingsPage](../src/pages/SettingsPage.tsx)、[ReleaseHistoryPage](../src/pages/ReleaseHistoryPage.tsx) |
 | 独立桌面界面 | 桌面歌词、迷你播放条与壁纸；受平台和窗口能力限制，不能仅凭主窗口截图验收 | [悬浮窗说明](modules/overlays.md) |
 
-“下载音乐页面”在讨论中可能指下载任务面板，也可能指离线音乐列表；动手前按实际入口区分，不另造一个同名页面。播放队列决定接下来听什么，后台任务队列管理下载和生成，两者不能混用。
+页面统一称“离线音乐”，任务统一称“下载队列”，播放中临时存储称“自动缓存”；主动下载会先保留离线副本，再导出下载文件。播放队列决定接下来听什么，后台任务队列管理下载和生成，两者不能混用。
 
 当前动态歌词目录为跃字、云阶、拼版、凝彩、商籁、镜台、粒光；默认跃字。镜台与粒光是重型 WebGL 场景，预览与背景需遵守互斥和资源释放规则。已撤下的旧样式与旧总开关不能从历史设计稿恢复为现行功能；名称、可选项与迁移以样式目录为准。
 

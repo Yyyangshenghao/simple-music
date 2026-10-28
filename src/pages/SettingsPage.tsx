@@ -74,7 +74,7 @@ const SETTINGS_TABS = [
     { id: 'lyrics-source', label: '歌词来源' },
   ] },
   { id: 'cache', label: '缓存与下载', items: [
-    { id: 'downloads', label: '歌曲下载' }, { id: 'player-cache', label: '播放器缓存' },
+    { id: 'downloads', label: '歌曲下载' }, { id: 'player-cache', label: '离线音乐与缓存' },
   ] },
   { id: 'shortcuts', label: '快捷键', items: [] },
   { id: 'about', label: '关于应用', items: [] },
@@ -1097,14 +1097,14 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   async function handleClearAudioCache(scope: 'temporary' | 'pinned' | 'unmanaged'): Promise<void> {
-    if (scope === 'pinned' && !window.confirm('这会删除播放器中的离线音频，需要时要重新保存。下载目录中的歌曲文件会保留。仍要删除吗？')) return
+    if (scope === 'pinned' && !window.confirm('这会删除播放器中的离线音乐，需要时要重新下载或保存。下载目录中的歌曲文件会保留。仍要删除吗？')) return
     if (scope === 'unmanaged' && !window.confirm('这些文件无法识别是否曾经下载保存，删除后无法恢复。仍要删除吗？')) return
     setClearingCache(true)
     try {
       await api.post('/api/audio-cache/clear', { scope }, undefined, { timeoutMs: 120_000 })
       useOfflineCacheStore.getState().invalidate()
       await refreshCacheInfo()
-      useToastStore.getState().show(scope === 'temporary' ? '自动缓存已清理，已下载歌曲已保留' : '本地文件已删除')
+      useToastStore.getState().show(scope === 'temporary' ? '自动缓存已清理，离线音乐和下载文件保留' : scope === 'pinned' ? '离线音乐已删除，下载文件保留' : '未识别旧文件已删除')
     } catch {
       useToastStore.getState().show('清理失败：缓存正在播放或保存中')
     } finally {
@@ -1126,7 +1126,7 @@ export function SettingsPage() {
     const r = await picker({ title: '选择音频存储文件夹', defaultPath: cacheConfig?.dir })
     if (!r.ok || !r.filePath) return
     const hasSaved = !!audioCache?.pinnedFiles
-    if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('更改缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
+    if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('更改缓存位置会清除当前目录中的自动缓存、离线音乐和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
     await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
   }
   const backgroundKind = useBackgroundStore((s) => s.kind)
@@ -1663,7 +1663,7 @@ export function SettingsPage() {
                 <section id="settings-detail-downloads" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>
                     歌曲下载
-                    <InfoButton label="歌曲下载" text="更改目录只影响之后加入的任务，已有文件保留。" />
+                    <InfoButton label="歌曲下载" text="下载会导出歌曲文件，并保留为离线音乐。更改目录只影响之后加入的任务，已有文件保留。" />
                   </h3>
                   <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
@@ -1673,13 +1673,13 @@ export function SettingsPage() {
                 </section>
                 <section id="settings-detail-player-cache" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>
-                    播放器缓存
-                    <InfoButton label="播放器缓存" text="自动缓存在播放时保存，容量满后可自动清理；离线音频不占自动缓存额度，可在“我的库 → 离线音乐”中查看。清理缓存不会删除下载目录中的歌曲。" />
+                    离线音乐与缓存
+                    <InfoButton label="离线音乐与缓存" text="自动缓存在播放时保存，容量满后可自动清理；离线音乐不占自动缓存额度，可在“我的库 → 离线音乐”中查看。清理缓存不会删除下载目录中的歌曲。" />
                   </h3>
                   <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>
-                      缓存文件夹
-                      <InfoButton label="缓存文件夹" text="更改位置会删除原目录中的缓存、离线音频及未识别旧文件，下载目录中的歌曲不受影响。" />
+                      存储文件夹
+                      <InfoButton label="存储文件夹" text="更改位置会删除原目录中的缓存、离线音乐及未识别旧文件，下载目录中的歌曲不受影响。" />
                     </span>
                     <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
                       {cacheConfig?.dir ?? '—'}
@@ -1692,7 +1692,7 @@ export function SettingsPage() {
                     {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
                       <button className={`${styles.storageAction} ${styles.actionQuiet} no-drag`} onClick={() => {
                         const hasSaved = !!audioCache?.pinnedFiles
-                        if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('恢复默认缓存位置会清除当前目录中的自动缓存、播放器离线音频和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
+                        if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('恢复默认缓存位置会清除当前目录中的自动缓存、离线音乐和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
                         void postCacheConfig({ dir: '', confirmPinned: hasSaved })
                       }}>
                         恢复默认
@@ -1725,12 +1725,12 @@ export function SettingsPage() {
                     </div>
                   </div>
                   <div data-setting-row className={styles.row}>
-                    <span className={styles.rowLabel}>离线音频</span>
+                    <span className={styles.rowLabel}>离线音乐</span>
                     <span className={styles.rowValue}>
                       {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 个文件` : '—'}
                     </span>
                     <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
-                      删除离线音频
+                      删除离线音乐
                     </button>
                   </div>
                   {!!audioCache?.unmanagedFiles && (

@@ -135,7 +135,7 @@ function OfflineSection({ open }: { open: boolean }) {
     if (open && track && track.source !== 'local') void useOfflineCacheStore.getState().ensure(track)
   }, [open, track, cacheStatus])
   if (!track || track.source === 'local' || track.source === 'apple') return null
-  const label = cacheStatus?.state === 'pinned' ? '已保存' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未保存'
+  const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未离线保存'
   const run = async (action: () => Promise<void>) => {
     try {
       await action()
@@ -146,7 +146,7 @@ function OfflineSection({ open }: { open: boolean }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
-        <span className={styles.sectionTitle}>离线播放</span>
+        <span className={styles.sectionTitle}>下载与离线</span>
         <span className={styles.sectionStatus}>{label}</span>
       </div>
       <div className={styles.chips}>
@@ -155,12 +155,12 @@ function OfflineSection({ open }: { open: boolean }) {
         </button>
         {cacheStatus?.state === 'cached' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
-            保留此缓存
+            保存为离线音乐
           </button>
         )}
         {cacheStatus?.state === 'pinned' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
-            改为自动缓存
+            取消离线保存
           </button>
         )}
         {cacheStatus?.entryId && (
@@ -169,11 +169,11 @@ function OfflineSection({ open }: { open: boolean }) {
             className={styles.chip}
             onClick={() => {
               const shared = Number(cacheStatus.savedAliasCount) > (cacheStatus.state === 'pinned' ? 1 : 0)
-              if (shared && !window.confirm('这个文件也被其他已保存歌曲共用，仍要删除吗？')) return
+              if (shared && !window.confirm('这个音频文件也被其他离线音乐共用；删除会影响这些歌曲的离线播放，下载目录中的歌曲文件保留。仍要删除吗？')) return
               void run(() => useOfflineCacheStore.getState().deleteLocal(track, shared))
             }}
           >
-            删除本地文件
+            {cacheStatus.state === 'pinned' ? '删除离线音乐' : '删除自动缓存'}
           </button>
         )}
       </div>

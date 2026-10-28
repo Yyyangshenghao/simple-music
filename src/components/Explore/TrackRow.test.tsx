@@ -25,7 +25,7 @@ describe('TrackRow 不可播放状态', () => {
     expect(html).toContain('aria-label="加入歌单"')
     expect(html).toMatch(/<div[^>]*><button[^>]*disabled=""/)
     expect(html).not.toMatch(/<button\b[^>]*>(?:(?!<\/button>)[\s\S])*<button\b/)
-    expect(html).not.toContain('保存到本地')
+    expect(html).not.toContain('下载歌曲')
     expect(html).not.toContain('红心')
   })
 
@@ -35,6 +35,8 @@ describe('TrackRow 不可播放状态', () => {
     expect(html).toMatch(/class="[^"]*playGlyph/)
     expect(html).toContain('4:29')
     expect(html).toContain('叶惠美')
+    expect(html).toContain('aria-label="下载歌曲"')
+    expect(html).not.toContain('保存到本地')
     expect(html).not.toContain('来源：')
   })
 })
