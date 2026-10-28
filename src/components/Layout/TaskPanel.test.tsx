@@ -82,3 +82,10 @@ it('队列的逐项操作和目录设置使用带名称的图标，批量操作�
   expect(html).not.toContain('>文件夹<')
   expect(html).not.toContain('>更改目录<')
 })
+
+it('下载和伴奏分区都提供明确的库导航入口', () => {
+  useTaskCenterStore.setState({ tab: 'download' })
+  expect(renderToStaticMarkup(<TaskPanel />)).toContain('aria-label="前往离线音乐"')
+  useTaskCenterStore.setState({ tab: 'karaoke' })
+  expect(renderToStaticMarkup(<TaskPanel />)).toContain('aria-label="前往伴奏库"')
+})

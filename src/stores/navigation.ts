@@ -41,6 +41,7 @@ interface NavigationStore {
   settingsCacheRequest: number
   settingsKaraokeRequest: number
   /** 我的库定位到「应用歌单 · 伴奏」的待处理请求；0 为无。 */
+  libraryOfflineRequest: number
   libraryAccompanimentsRequest: number
   history: AppView[]
   /** 后退后可前进的视图栈；任何新导航都会清空。 */
@@ -58,6 +59,8 @@ interface NavigationStore {
   consumeSettingsCacheRequest(request: number): void
   requestSettingsKaraoke(): void
   consumeSettingsKaraokeRequest(request: number): void
+  requestLibraryOffline(): void
+  consumeLibraryOfflineRequest(request: number): void
   requestLibraryAccompaniments(): void
   consumeLibraryAccompanimentsRequest(request: number): void
   goBack(): void
@@ -93,6 +96,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   settingsLyricsRequest: 0,
   settingsCacheRequest: 0,
   settingsKaraokeRequest: 0,
+  libraryOfflineRequest: 0,
   libraryAccompanimentsRequest: 0,
   history: [],
   future: [],
@@ -157,8 +161,16 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     if (get().settingsKaraokeRequest === request) set({ settingsKaraokeRequest: 0 })
   },
 
+  requestLibraryOffline() {
+    set((s) => ({ libraryOfflineRequest: s.libraryOfflineRequest + 1, libraryAccompanimentsRequest: 0 }))
+  },
+
+  consumeLibraryOfflineRequest(request) {
+    if (get().libraryOfflineRequest === request) set({ libraryOfflineRequest: 0 })
+  },
+
   requestLibraryAccompaniments() {
-    set((s) => ({ libraryAccompanimentsRequest: s.libraryAccompanimentsRequest + 1 }))
+    set((s) => ({ libraryAccompanimentsRequest: s.libraryAccompanimentsRequest + 1, libraryOfflineRequest: 0 }))
   },
 
   consumeLibraryAccompanimentsRequest(request) {
@@ -200,5 +212,12 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 export function openAccompanimentsLibrary(): void {
   const navigation = useNavigationStore.getState()
   navigation.requestLibraryAccompaniments()
+  if (navigation.currentView !== 'library') navigation.navigateTo('library')
+}
+
+/** 任务面板直达离线音乐，已在我的库时不重复压入导航历史。 */
+export function openOfflineLibrary(): void {
+  const navigation = useNavigationStore.getState()
+  navigation.requestLibraryOffline()
   if (navigation.currentView !== 'library') navigation.navigateTo('library')
 }

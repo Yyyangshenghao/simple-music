@@ -16,8 +16,12 @@
 .moreWrap { position: relative; }
 .menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--glass-border-card); border-radius: 11px; background: var(--sm-bg-base); box-shadow: var(--sm-shadow); }
 .menu button { justify-content: flex-start; min-height: 32px; }
-.queueStatus { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; min-height: 30px; padding: 0 16px 6px; border-bottom: 1px solid var(--sm-border); color: var(--sm-text-secondary); font-size: 11px; }
-.queueStatus button { padding: 2px 4px; min-height: 24px; font-size: 11px; }
+.queueStatus { gap: 12px; display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; min-height: 30px; padding: 0 16px 6px; border-bottom: 1px solid var(--sm-border); color: var(--sm-text-secondary); font-size: 11px; }
+.queueStatus > [role='status'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueStatus .libraryLink { gap: 6px; min-height: 28px; padding: 4px 8px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font-size: 12px; font-weight: 500; }
+.libraryLink > svg { flex: none; }
+.libraryArrow { color: var(--sm-text-secondary); transition: transform 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
+:global(html:not([data-icon-motion-off])) .libraryLink:hover .libraryArrow { transform: translateX(2px); color: var(--sm-text-primary); }
 .list { min-height: 110px; max-height: calc(100vh - 290px); transition: height .24s var(--sm-ease-out); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 0 12px 12px; }
 .listContent { position: relative; }
 .groupHead { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 16px 4px 0; color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -49,4 +53,4 @@
 .empty { padding: 26px 16px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.7; text-align: center; }
 .empty strong { color: var(--sm-text-primary); font-weight: 500; }
 .empty p { margin: 7px 0 0; }
-@media (prefers-reduced-motion: reduce) { .list, .task, .info progress::-webkit-progress-value { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .libraryArrow { transition: none; } .libraryLink:hover .libraryArrow { transform: none !important; } .list, .task, .info progress::-webkit-progress-value { transition: none; } }

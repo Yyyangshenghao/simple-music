@@ -133,8 +133,9 @@ const QueuedTrackRow = memo(function QueuedTrackRow({
 export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { type: 'playlist' }> | null } = {}) {
   const pageMotion = usePageTransition()
   // 伴奏入口跳来时首帧就停在应用歌单，不先闪一下上次的页签。
+  const offlineRequest = useNavigationStore(state => state.libraryOfflineRequest)
   const accompanimentsRequest = useNavigationStore(state => state.libraryAccompanimentsRequest)
-  const [selectedTab, setSelectedTab] = useState<SubTab>(accompanimentsRequest ? 'app-playlists' : readStoredTab())
+  const [selectedTab, setSelectedTab] = useState<SubTab>(offlineRequest ? 'offline' : accompanimentsRequest ? 'app-playlists' : readStoredTab())
   const scrollRef = useRef<HTMLDivElement>(null)
   const { current: contentSource } = useContentProvider()
   const accountSession = contentSource ? providerAccountSession(contentSource) : 0
@@ -148,6 +149,12 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
   useEffect(() => {
     if (accompanimentsRequest && selectedTab !== 'app-playlists') selectTab('app-playlists')
   }, [accompanimentsRequest]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!offlineRequest || detail) return
+    selectTab('offline')
+    useNavigationStore.getState().consumeLibraryOfflineRequest(offlineRequest)
+  }, [offlineRequest, detail]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (detail) {
     return <PlaylistDetailView

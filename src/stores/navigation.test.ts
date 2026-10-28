@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { openAccompanimentsLibrary, useNavigationStore } from './navigation'
+import { openAccompanimentsLibrary, openOfflineLibrary, useNavigationStore } from './navigation'
 
 describe('歌手页导航状态', () => {
   beforeEach(() => useNavigationStore.setState({ currentView: 'explore', history: [], future: [] }))
@@ -146,4 +146,21 @@ it('离线音乐设置定位请求按序消费，旧请求不能清掉新定位'
   expect(useNavigationStore.getState().settingsCacheRequest).toBe(second)
   navigation.consumeSettingsCacheRequest(second)
   expect(useNavigationStore.getState().settingsCacheRequest).toBe(0)
+})
+
+it('下载队列直达离线音乐，不重复压历史，旧请求不能覆盖新目标', () => {
+  useNavigationStore.setState({ currentView: 'settings', history: [], future: [], libraryOfflineRequest: 0 })
+  openOfflineLibrary()
+  expect(useNavigationStore.getState()).toMatchObject({ currentView: 'library', libraryOfflineRequest: 1 })
+  openOfflineLibrary()
+  expect(useNavigationStore.getState().history).toEqual(['settings'])
+  useNavigationStore.getState().consumeLibraryOfflineRequest(1)
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(2)
+  openAccompanimentsLibrary()
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(0)
+  openOfflineLibrary()
+  expect(useNavigationStore.getState().libraryAccompanimentsRequest).toBe(0)
+  const request = useNavigationStore.getState().libraryOfflineRequest
+  useNavigationStore.getState().consumeLibraryOfflineRequest(request)
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(0)
 })

@@ -5,7 +5,7 @@ import { useKaraokeStore } from '../../stores/karaoke'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useTaskCenterStore, type TaskTab } from '../../stores/task-center'
 import { usePlaylistStore } from '../../stores/playlist'
-import { openAccompanimentsLibrary } from '../../stores/navigation'
+import { openAccompanimentsLibrary, openOfflineLibrary } from '../../stores/navigation'
 import { offlineTrackKey } from '../../lib/offline-cache'
 import { accompanimentTrack } from '../../lib/karaoke-library'
 import { api } from '../../lib/api'
@@ -238,7 +238,18 @@ export function TaskPanel() {
       </div>
       <ActionButton compact iconOnly icon="close" label="关闭任务队列" onClick={() => useTaskCenterStore.getState().close()} />
     </header>
-    <div className={styles.queueStatus} role="status">{status || '暂无任务'}{tab === 'karaoke' && <button type="button" onClick={() => { useTaskCenterStore.getState().close(); openAccompanimentsLibrary() }}>伴奏库 <span aria-hidden="true">→</span></button>}</div>
+    <div className={styles.queueStatus}>
+      <span role="status">{status || '暂无任务'}</span>
+      <button type="button" className={styles.libraryLink} aria-label={tab === 'karaoke' ? '前往伴奏库' : '前往离线音乐'} onClick={() => {
+        useTaskCenterStore.getState().close()
+        if (tab === 'karaoke') openAccompanimentsLibrary()
+        else openOfflineLibrary()
+      }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4v16M8 4v16M12 6l5-2 4 14-5 2z" /></svg>
+        <span>{tab === 'karaoke' ? '伴奏库' : '离线音乐'}</span>
+        <svg className={styles.libraryArrow} width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+      </button>
+    </div>
     {error && <p className={styles.error} role="alert" title={error}>{error}</p>}
     <div className={styles.list} ref={list} style={{ height: height ?? estimatedHeight }} id="task-center-list" role="tabpanel" aria-labelledby={`task-tab-${tab}`} onScroll={event => { positions.current[tab] = event.currentTarget.scrollTop }}>
       <motion.div key={tab} ref={content} className={styles.listContent} initial={rowMotion ? { opacity: .4 } : false} animate={{ opacity: 1 }} transition={{ duration: .12 }}>
