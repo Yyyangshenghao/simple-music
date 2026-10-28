@@ -16,6 +16,7 @@ import { attachWindowClose } from './modules/window-close'
 import { createPlaybackHost, getPlaybackHost, closePlaybackHost, attachPlaybackUi, onPlaybackHostFailure } from './modules/playback-host'
 import { flushRendererListeningReports } from './modules/listening-flush'
 import { registerKaraokeHelperIpc, stopKaraokeHelper } from './modules/karaoke-helper'
+import { cleanupUpdatesOnStartup } from './modules/update-installer'
 
 const gotLock = app.requestSingleInstanceLock()
 let isQuitting = false
@@ -50,6 +51,7 @@ function createPlayerWindow(port: number, token: string): void {
 }
 
 async function boot(): Promise<void> {
+  cleanupUpdatesOnStartup()
   registerIpc()
   const { port, token } = await bootServer()
   if (isQuitting) {

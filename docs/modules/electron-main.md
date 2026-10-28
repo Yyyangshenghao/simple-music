@@ -21,7 +21,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `modules/tray-manager.ts` — 系统托盘菜单与主窗口恢复/隐藏、播放控制和退出。
 - `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
 - `modules/font-manager.ts` — 按平台枚举、归一化并缓存系统字体,供设置页三个字体域共用。
-- `modules/update-installer.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS 未签名做不了 Squirrel.Mac 式原地替换,改为 `shell.openPath` 打开下载好的 dmg,弹出系统标准的"拖到 Applications"安装器窗口,替换动作完全交给用户和 Finder,主进程不再插手(早期版本自己写 shell 脚本原地替换,失败时容易在 `/Applications` 留下 `.app.new` 孤儿目录,已弃用)。
+- `modules/update-installer.ts` + `update-installer-logic.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS(adhoc 签名,用不了 Squirrel.Mac)先把 dmg 里的 `.app` 解到 `userData/updates/staging/` 并核对 bundle id/版本/可执行文件,再由 detached 脚本等主进程退出后做两次同卷 rename 替换、重启新版;预检或核对不满足就回退为 `shell.openPath` 打开 dmg,脚本失败则回滚旧版并打开 dmg。后者是可单测的纯逻辑(预检、脚本生成)。启动时 `cleanupUpdatesOnStartup` 清旧安装包与替换残留,上次替换结果经 IPC `app:last-update-install` 交渲染层提示一次。详见 [build-and-release.md](../build-and-release.md) §5。
 - `modules/safe-open.ts` — 外部链接统一出口 `openExternalSafely()`。`shell.openExternal` 会把 URL 交给系统协议处理器,`file://`、自定义 scheme 能拉起本地程序;而窗口里的链接不都可信(登录窗加载的是音乐平台页面,主窗渲染的歌词/评论/歌手简介来自上游接口),因此只放行 http/https/mailto。主窗还挡了 `will-navigate`:导航离开应用入口就等于把 preload 的 `desktop` 桥交给外部页面。
 - `platform/` — 平台能力接口(`getPlatform()`):win32 完整实现(快捷方式等),darwin/其它降级。
 - `preload/index.ts` — 主窗口桥:`window.desktop`(isDesktop/platform/serverPort/serverToken + 各 IPC 封装)。serverPort 经启动参数 `--simplemusic-server-port=` 传入,API token 经 `--simplemusic-server-token=` 传入。
@@ -40,7 +40,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `miniplayer:*` — set-enabled / update
 - `overlay:miniplayer-*` — close / focus-main / move-by / resize-by / set-popover / control
 - `login:*` — netease-open / netease-clear / qq-open / qq-clear
-- `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update`;`file:export-json` / `file:import-json` / `file:select-directory`;`background:import`(系统对话框选图片/视频/WE project.json 并复制进 userData)/ `background:remove`
+- `hotkeys:configure`;`system:list-fonts`;`app:restart` / `app:install-update` / `app:last-update-install`;`file:export-json` / `file:import-json` / `file:select-directory`;`background:import`(系统对话框选图片/视频/WE project.json 并复制进 userData)/ `background:remove`
 - `apple:audio-capture-start` — 播放宿主对 Apple 后台音轨的定向频谱采集请求。
 
 主进程 → 渲染层推送:`window:state-changed`、`hotkey:triggered`、`miniplayer:{control,width-changed}`、`lyrics:{lock-state-changed,size-changed,enabled-state-changed}`,以及三个悬浮窗的 lyrics/wallpaper/miniplayer state 转发。歌词 preload 缓存并向新订阅者重放完整快照，迷你条首屏重放完整快照、后续转发增量。

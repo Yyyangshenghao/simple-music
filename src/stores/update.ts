@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
+import { useToastStore } from './toast'
+import type { LastUpdateInstall } from '../types/ipc'
 
 export interface UpdateAsset {
   name: string
@@ -151,10 +153,9 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     if (!filePath || get().installing) return
     set({ installing: true })
     try {
-      // win32：静默装完自动重启；darwin：弹出 dmg 安装器后应用自行退出，
-      // 剩下的拖拽替换由用户在 Finder 里手动完成。两种情况都会导致应用退出，
-      // 不需要复位 installing；只有失败才复位让用户能重试。
-      const result = await window.desktop?.installUpdate(filePath)
+      // win32：静默装完自动重启；darwin：后台原地替换后重启，条件不满足时改为打开 dmg 让用户拖入。
+      // 几种情况都会导致应用退出，不需要复位 installing；只有失败才复位让用户能重试。
+      const result = await window.desktop?.installUpdate(filePath, get().job?.version || undefined)
       if (result && !result.ok) set({ installing: false })
     } catch {
       set({ installing: false })
@@ -168,6 +169,14 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   }
 }))
 
+/** macOS 上次后台原地替换的结果，启动后提示一次；失败时替换脚本已经打开了安装包。 */
+export function lastUpdateInstallMessage(record: LastUpdateInstall | null | undefined): string | null {
+  if (!record) return null
+  if (record.ok) return `已更新到 v${record.to}`
+  if (record.code === 'ROLLBACK_FAILED') return '自动更新未完成，旧版本已备份在更新目录的 backup 中，请用已打开的安装包重新安装'
+  return '自动更新未完成，已打开安装包，请把 Simple Music 拖入"应用程序"完成更新'
+}
+
 /** 启动时检查一次，之后定时检查，并在窗口回到前台时补查；返回停止函数。 */
 export function startUpdateAutoCheck(): () => void {
   const checkIfDue = (gap: number) => {
@@ -177,6 +186,13 @@ export function startUpdateAutoCheck(): () => void {
     if (document.visibilityState === 'visible') checkIfDue(FOCUS_CHECK_MIN_GAP_MS)
   }
   void useUpdateStore.getState().checkForUpdate()
+  void window.desktop
+    ?.takeLastUpdateInstall?.()
+    .then((record) => {
+      const message = lastUpdateInstallMessage(record)
+      if (message) useToastStore.getState().show(message)
+    })
+    .catch(() => undefined)
   const tick = setInterval(() => checkIfDue(AUTO_CHECK_INTERVAL_MS), AUTO_CHECK_TICK_MS)
   window.addEventListener('focus', onForeground)
   document.addEventListener('visibilitychange', onForeground)

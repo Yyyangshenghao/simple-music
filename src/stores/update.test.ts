@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
-import { AUTO_CHECK_INTERVAL_MS, FOCUS_CHECK_MIN_GAP_MS, startUpdateAutoCheck, useUpdateStore, type DownloadJob, type UpdateInfo } from './update'
+import { AUTO_CHECK_INTERVAL_MS, FOCUS_CHECK_MIN_GAP_MS, lastUpdateInstallMessage, startUpdateAutoCheck, useUpdateStore, type DownloadJob, type UpdateInfo } from './update'
 
 vi.mock('../lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 
@@ -231,5 +231,14 @@ describe('开着时的自动检查', () => {
     win.dispatchEvent(new Event('focus'))
     await vi.advanceTimersByTimeAsync(AUTO_CHECK_INTERVAL_MS)
     expect(api.get).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('lastUpdateInstallMessage', () => {
+  it('成功提示新版本号，失败按是否保留备份给出处理办法，无记录不提示', () => {
+    expect(lastUpdateInstallMessage(null)).toBeNull()
+    expect(lastUpdateInstallMessage({ ok: true, code: 'OK', from: '2.6.0', to: '2.6.1', at: 1 })).toBe('已更新到 v2.6.1')
+    expect(lastUpdateInstallMessage({ ok: false, code: 'SWAP_FAILED', from: '2.6.0', to: '2.6.1', at: 1 })).toContain('已打开安装包')
+    expect(lastUpdateInstallMessage({ ok: false, code: 'ROLLBACK_FAILED', from: '2.6.0', to: '2.6.1', at: 1 })).toContain('backup')
   })
 })

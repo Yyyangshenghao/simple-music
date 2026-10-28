@@ -252,20 +252,26 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   → 轮询 GET /api/update/download/status?id=   # 800ms，进度/速度/ETA/当前线路/失败原因
       server: 候选线路 = 镜像×资源URL + GitHub 直连(preferMirrors 决定顺序)，逐线路重试;
               镜像线路必须有 sha256/sha512 digest 才允许(防镜像缓存投毒);
-              下载完成后 size + sha256 + sha512 三重校验，.download 临时文件 rename 落位 userData/updates/downloads/
+              下载完成后 size + sha256 + sha512 三重校验，.download 临时文件 rename 落位 userData/updates/downloads/，
+              同目录其他安装包随即删除（只留这一个）
   → job.status === 'ready' → 用户点「重启并安装」
-  → window.desktop.installUpdate(filePath) → IPC app:install-update
+  → window.desktop.installUpdate(filePath, version) → IPC app:install-update
       主进程校验 filePath 必须位于配置的更新目录内（默认 userData/updates/）→
       · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.quit()
-      · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.quit()
-                 用户手动把新版本拖到 Applications 并确认替换；主进程不再原地改写 .app
+      · macOS:   预检 → hdiutil 挂载 dmg，ditto 解到 userData/updates/staging/ → 核对 bundle id / 版本 / 可执行文件
+                 → 写 updates/mac-swap.sh 并 detached 启动 → app.quit()
+                 脚本等旧进程退出 → 旧版 mv 到 updates/backup/、新版 mv 到原位 → open 新版；
+                 任一步不满足（预检、挂载、核对）直接改为 shell.openPath(dmg) 让用户拖入；
+                 脚本失败则回滚旧版、重新拉起并打开 dmg。结果写 updates/install-result.json
+  → 下次启动：cleanupUpdatesOnStartup 清旧安装包与 staging/backup，取走替换结果，渲染层 toast 提示一次
 ```
 
 补充细节：
 
 - 更新安装成功与应用重启复用 `before-quit` 清理悬浮窗和 Apple 播放会话；清理卡住时保留 8 秒强制退出兜底。
 - **补丁热更新（/api/update/patch）在新架构不支持**：原项目"源码即运行文件"，补丁按文件名写回；本项目源码经打包后与产物不对应。端点与任务队列结构保留，但应用补丁一步显式抛 `PATCH_NOT_SUPPORTED`（不静默成功、不写文件、不换线路重试）。
-- **macOS 不做原地静默替换**：应用未签名，旧版 hdiutil + shell 脚本方案在权限或进程中断时可能留下孤儿目录，现只打开已校验 dmg，替换动作交给 Finder 和用户。
+- **macOS 原地替换只在 userData 里做重活**：应用只有 adhoc 签名，用不了 Squirrel.Mac。旧方案（f347fde 撤掉）把 `.app.new` 暂存在 `/Applications` 旁，中断即留孤儿目录；现在新版先在 `updates/staging/` 解出并核对，`/Applications` 里只发生两次同卷 rename。预检不满足时（未打包、从 `/Volumes` 或 AppTranslocation 运行、安装目录不可写、暂存与安装目录跨卷）回退为打开 dmg。发版包 `codesign --verify` 本身不通过（adhoc 未封存资源），不能作校验条件。adhoc 签名每次构建都变，系统授权（如麦克风）升级后可能要重新允许。
+- **更新目录清理**：下载完成后删同目录其他安装包（`.download` 进行中与 `.invalid-*` 待排查文件除外）；启动时删版本号不比当前新的安装包、`.download`、`.invalid-*`，以及 `staging/`、`backup/`、`mac-swap.sh`（替换结果为 `ROLLBACK_FAILED` 时保留 `backup/`，那是旧版唯一一份）。取不到版本号的文件不删。逻辑在 `server/lib/update-cleanup.ts`。
 - 下载错误分类（`classifyUpdateError`）：hash/size 不符、超时、DNS、网络中断、HTTP 403/404/5xx 均映射为中文原因给 UI；失败线路记录在 `failedAttempts`（最多 6 条）。
 - 任务表 `updateDownloadJobs` 是内存 Map，保留最近 8 个任务。
 - 下载与安装共用更新目录计算：显式 `SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR` 优先作为下载及安装允许目录；未设置时，下载位于更新工作目录的 `downloads/` 子目录，安装仍限定在工作目录内（`SIMPLEMUSIC_UPDATE_DIR` 或默认 `userData/updates/`）。目录外及路径越界的安装请求继续拒绝。

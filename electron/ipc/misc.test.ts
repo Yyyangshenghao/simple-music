@@ -11,8 +11,8 @@ const h = vi.hoisted(() => ({
   findLocalTrack: vi.fn(),
   stat: vi.fn(),
   showItemInFolder: vi.fn(),
-  installWindows: vi.fn(async () => ({ ok: true } as { ok: boolean; error?: string })),
-  installMac: vi.fn(async () => ({ ok: true } as { ok: boolean; error?: string }))
+  installWindows: vi.fn(async (..._args: unknown[]) => ({ ok: true } as { ok: boolean; error?: string })),
+  installMac: vi.fn(async (..._args: unknown[]) => ({ ok: true } as { ok: boolean; error?: string }))
 }))
 
 vi.mock('electron', () => ({
@@ -58,8 +58,9 @@ describe('应用重启和更新退出', () => {
 
   it.each(['win32', 'darwin'])('%s 安装成功走正常退出，不绕过 before-quit 清理', async platform => {
     vi.stubGlobal('process', { ...process, platform })
-    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer' })).resolves.toEqual({ ok: true })
-    expect(platform === 'win32' ? h.installWindows : h.installMac).toHaveBeenCalledWith(resolve('/user-data/updates/installer'))
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer', version: '2.6.1' })).resolves.toEqual({ ok: true })
+    if (platform === 'win32') expect(h.installWindows).toHaveBeenCalledWith(resolve('/user-data/updates/installer'))
+    else expect(h.installMac).toHaveBeenCalledWith(resolve('/user-data/updates/installer'), '2.6.1')
     expect(h.quit).toHaveBeenCalledOnce()
     expect((platform === 'win32' ? h.installWindows : h.installMac).mock.invocationCallOrder[0]).toBeLessThan(h.quit.mock.invocationCallOrder[0])
     expect(h.relaunch).not.toHaveBeenCalled()
@@ -95,7 +96,7 @@ describe('应用重启和更新退出', () => {
       vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', workDir)
       vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', downloadDir)
       await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
-      expect(installer).toHaveBeenLastCalledWith(resolve(filePath))
+      expect(installer.mock.lastCall?.[0]).toBe(resolve(filePath))
     }
   })
 
@@ -120,7 +121,7 @@ describe('应用重启和更新退出', () => {
     vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', root)
 
     await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
-    expect(platform === 'win32' ? h.installWindows : h.installMac).toHaveBeenCalledWith(filePath)
+    expect((platform === 'win32' ? h.installWindows : h.installMac).mock.lastCall?.[0]).toBe(filePath)
     expect(h.quit).toHaveBeenCalledOnce()
   })
 
