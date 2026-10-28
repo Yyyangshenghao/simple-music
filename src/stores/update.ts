@@ -52,6 +52,11 @@ export interface DownloadJob {
 
 const DISMISS_KEY = 'simplemusic-update-dismissed-version'
 const POLL_INTERVAL_MS = 800
+// 开着的应用也要能收到新版本：定时检查间隔、回到前台时的最短补查间隔，以及判断时机的心跳。
+// 心跳比较时间差而不是直接 setInterval(6h)，睡眠唤醒后也能按实际经过的时间补查。
+export const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+export const FOCUS_CHECK_MIN_GAP_MS = 60 * 60 * 1000
+const AUTO_CHECK_TICK_MS = 30 * 60 * 1000
 
 interface UpdateStore {
   checking: boolean
@@ -69,6 +74,7 @@ interface UpdateStore {
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let downloadSession = 0
+let lastAttemptAt = 0
 
 function stopPolling(): void {
   if (pollTimer) clearTimeout(pollTimer)
@@ -87,8 +93,13 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   async checkForUpdate() {
     if (get().checking) return
     set({ checking: true })
+    lastAttemptAt = Date.now()
     try {
       const info = await api.get<UpdateInfo>('/api/update/latest')
+      const { info: previous, downloading, installing } = get()
+      // 下载/安装中的版本信息不能被替换；检测失败的兜底结果不能冲掉已显示的新版本提示。
+      if (downloading || installing) return
+      if (previous?.updateAvailable && !info.updateAvailable && (info.error || info.reason)) return
       set({ info, checkedAt: Date.now() })
     } catch {
       // 检测更新失败静默忽略，不影响正常使用
@@ -156,3 +167,22 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     set({ dismissedVersion: version })
   }
 }))
+
+/** 启动时检查一次，之后定时检查，并在窗口回到前台时补查；返回停止函数。 */
+export function startUpdateAutoCheck(): () => void {
+  const checkIfDue = (gap: number) => {
+    if (Date.now() - lastAttemptAt >= gap) void useUpdateStore.getState().checkForUpdate()
+  }
+  const onForeground = () => {
+    if (document.visibilityState === 'visible') checkIfDue(FOCUS_CHECK_MIN_GAP_MS)
+  }
+  void useUpdateStore.getState().checkForUpdate()
+  const tick = setInterval(() => checkIfDue(AUTO_CHECK_INTERVAL_MS), AUTO_CHECK_TICK_MS)
+  window.addEventListener('focus', onForeground)
+  document.addEventListener('visibilitychange', onForeground)
+  return () => {
+    clearInterval(tick)
+    window.removeEventListener('focus', onForeground)
+    document.removeEventListener('visibilitychange', onForeground)
+  }
+}

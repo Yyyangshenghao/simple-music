@@ -13,7 +13,7 @@ import { useAmbientPalette } from './hooks/useAmbientPalette'
 import { useAccentTheme } from './hooks/useAccentTheme'
 import { useIdleHide } from './hooks/useIdleHide'
 import { useSettingsStore } from './stores/settings'
-import { useUpdateStore } from './stores/update'
+import { startUpdateAutoCheck } from './stores/update'
 import { useBackdropStore } from './stores/backdrop'
 import { useNavigationStore } from './stores/navigation'
 import { useWindowStore } from './stores/window'
@@ -146,9 +146,7 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => {
-    void useUpdateStore.getState().checkForUpdate()
-  }, [])
+  useEffect(() => startUpdateAutoCheck(), [])
 
   return (
     <>

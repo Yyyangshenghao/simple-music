@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
-import { useUpdateStore, type DownloadJob } from './update'
+import { AUTO_CHECK_INTERVAL_MS, FOCUS_CHECK_MIN_GAP_MS, startUpdateAutoCheck, useUpdateStore, type DownloadJob, type UpdateInfo } from './update'
 
 vi.mock('../lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 
@@ -143,5 +143,93 @@ describe('更新下载轮询', () => {
     vi.mocked(api.post).mockResolvedValueOnce(downloadJob('job-b', 'ready'))
     await update().startDownload()
     expect(update()).toMatchObject({ job: { id: 'job-b', status: 'ready' }, downloading: false })
+  })
+})
+
+function updateInfo(version: string, patch: Partial<UpdateInfo> = {}): UpdateInfo {
+  return {
+    configured: true, preview: false, updateAvailable: version !== '2.6.0', currentVersion: '2.6.0', latestVersion: version,
+    release: { tagName: `v${version}`, name: `Simple Music v${version}`, version, htmlUrl: '', downloadUrl: '', summary: '', notes: [] },
+    ...patch,
+  }
+}
+
+describe('开着时的自动检查', () => {
+  let clock = 0
+  let win: EventTarget
+  let doc: EventTarget & { visibilityState: string }
+  let stop: (() => void) | null = null
+
+  beforeEach(() => {
+    // 上次检查时间是模块级状态，每个用例把时钟推到足够远，互不影响。
+    clock += 10 * AUTO_CHECK_INTERVAL_MS
+    vi.setSystemTime(clock)
+    win = new EventTarget()
+    doc = Object.assign(new EventTarget(), { visibilityState: 'visible' })
+    vi.stubGlobal('window', win)
+    vi.stubGlobal('document', doc)
+    useUpdateStore.setState({ info: null, checking: false, checkedAt: 0 })
+    vi.mocked(api.get).mockResolvedValue(updateInfo('2.6.0'))
+  })
+
+  afterEach(() => {
+    stop?.()
+    stop = null
+    vi.unstubAllGlobals()
+  })
+
+  it('启动时检查一次，之后按间隔定时检查', async () => {
+    stop = startUpdateAutoCheck()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.get).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(AUTO_CHECK_INTERVAL_MS - 60_000)
+    expect(api.get).toHaveBeenCalledTimes(1)
+    vi.mocked(api.get).mockResolvedValue(updateInfo('2.6.1'))
+    await vi.advanceTimersByTimeAsync(30 * 60_000)
+    expect(api.get).toHaveBeenCalledTimes(2)
+    expect(update().info).toMatchObject({ updateAvailable: true, latestVersion: '2.6.1' })
+  })
+
+  it('回到前台时超过最短间隔才补查', async () => {
+    stop = startUpdateAutoCheck()
+    await vi.advanceTimersByTimeAsync(0)
+    vi.setSystemTime(Date.now() + FOCUS_CHECK_MIN_GAP_MS - 1000)
+    win.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.get).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(Date.now() + 2000)
+    doc.visibilityState = 'hidden'
+    doc.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.get).toHaveBeenCalledTimes(1)
+    doc.visibilityState = 'visible'
+    doc.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('检测失败的兜底结果不会冲掉已显示的新版本', async () => {
+    useUpdateStore.setState({ info: updateInfo('2.6.1') })
+    vi.mocked(api.get).mockResolvedValue(updateInfo('2.6.0', { updateAvailable: false, reason: 'GitHub Releases 403' }))
+    await update().checkForUpdate()
+    expect(update().info).toMatchObject({ updateAvailable: true, latestVersion: '2.6.1' })
+  })
+
+  it('下载进行中不替换版本信息', async () => {
+    useUpdateStore.setState({ info: updateInfo('2.6.1'), downloading: true })
+    vi.mocked(api.get).mockResolvedValue(updateInfo('2.6.2'))
+    await update().checkForUpdate()
+    expect(update().info).toMatchObject({ latestVersion: '2.6.1' })
+  })
+
+  it('停止后不再检查', async () => {
+    stop = startUpdateAutoCheck()
+    await vi.advanceTimersByTimeAsync(0)
+    stop()
+    stop = null
+    vi.setSystemTime(Date.now() + AUTO_CHECK_INTERVAL_MS * 2)
+    win.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(AUTO_CHECK_INTERVAL_MS)
+    expect(api.get).toHaveBeenCalledTimes(1)
   })
 })

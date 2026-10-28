@@ -243,7 +243,8 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 设计文档：`docs/superpowers/plans/2026-07-12-semi-auto-update.md`。"半自动" = 检查/下载全自动，安装需用户点一下。
 
 ```
-渲染层 update store（App 启动即 checkForUpdate）
+渲染层 update store（startUpdateAutoCheck：App 启动即检查；之后每 30 分钟判断一次，距上次满 6 小时再查；
+                     窗口回到前台时距上次满 1 小时补查。下载/安装中不替换版本信息，检测失败的兜底结果不冲掉已显示的新版本）
   → GET /api/update/latest
       server: manifest 覆盖(env) → GitHub API /releases/latest → 失败退对应平台的 latest.yml / latest-mac.yml → 再失败本地回退(不报可用更新)
   → UpdateBanner / 设置页显示「发现新版本」
