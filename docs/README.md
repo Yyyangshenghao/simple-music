@@ -28,7 +28,7 @@
 
 ## 最近开发与验证
 
-当前工作区包含未发布的队列与库控件改动；下表说明阶段证据，不代替发布状态或最终视觉验收。
+以下为 2.6.0 任务队列与库控件的阶段证据；发布范围与最终验证以 [2.6.0 发行说明](release-notes-2.6.0.md) 为准。
 
 | 需要了解 | 文档 |
 |---|---|
@@ -46,7 +46,7 @@
 | 2.3.0 整合范围、深审修复与验收边界 | [2.3.0 审查记录](reviews/2.3.0-code-review.md) |
 | 2.3.1 开发中的全面检查、优化与待验事项 | [2.3.1 审查记录](reviews/2.3.1-code-review.md) |
 | 2.3.4 整体代码审查与按优先级修复 | [2.3.4 审查记录](reviews/2.3.4-code-review.md) |
-| 发行说明与发布准备 | [2.5.1](release-notes-2.5.1.md)、[2.5.0](release-notes-2.5.0.md)、[2.4.0](release-notes-2.4.0.md)、[2.3.6](release-notes-2.3.6.md)、[2.3.5](release-notes-2.3.5.md)、[2.3.4](release-notes-2.3.4.md)、[2.3.3](release-notes-2.3.3.md)、[2.3.2](release-notes-2.3.2.md)、[2.3.1](release-notes-2.3.1.md)、[2.3.0](release-notes-2.3.0.md) |
+| 发行说明与发布准备 | [2.6.0](release-notes-2.6.0.md)、[2.5.1](release-notes-2.5.1.md)、[2.5.0](release-notes-2.5.0.md)、[2.4.0](release-notes-2.4.0.md)、[2.3.6](release-notes-2.3.6.md)、[2.3.5](release-notes-2.3.5.md)、[2.3.4](release-notes-2.3.4.md)、[2.3.3](release-notes-2.3.3.md)、[2.3.2](release-notes-2.3.2.md)、[2.3.1](release-notes-2.3.1.md)、[2.3.0](release-notes-2.3.0.md) |
 | 2.5.0 本地验收、依赖审计与待发布事项 | [发布准备记录](reviews/2.5.0-release-preparation.md) |
 | 2.4.0 应用歌单四源展示、真实本地播放与页面截图 | [应用歌单验收](reviews/2.4.0-app-playlist-launch.md) |
 | 2.4.0 网易云、QQ 收听上报与官方统计验证边界 | [听歌记录需求](specs/2026-10-12-listening-records-2.4.0.md) |
