@@ -134,7 +134,7 @@ void main() {
   vec2 base = c + p / uMagnify;
   vec2 samplePoint = base - n * bend;
   // 三个波段在倒角边缘略微分开；中心保持同一次取样位置，避免文字整体染色。
-  float dispersion = min(uDepth * 0.45, 2.5) * (1.0 - smoothstep(0.0, 1.0, t));
+  float dispersion = min(uDepth * 0.2, 1.0) * (1.0 - smoothstep(0.0, 1.0, t));
   vec4 red = tap(samplePoint + n * dispersion);
   vec4 green = tap(samplePoint);
   vec4 blue = tap(samplePoint - n * dispersion);

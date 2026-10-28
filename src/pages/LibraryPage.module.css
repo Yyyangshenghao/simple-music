@@ -91,8 +91,8 @@
   position: absolute;
   inset: 0;
   /* 透亮玻璃：内部不加任何填充或光带，只轻微提亮饱和，玻璃感交给折射与高光细边。 */
-  backdrop-filter: saturate(150%) brightness(1.06);
-  -webkit-backdrop-filter: saturate(150%) brightness(1.06);
+  backdrop-filter: saturate(115%) brightness(1.03);
+  -webkit-backdrop-filter: saturate(115%) brightness(1.03);
   -webkit-mask-image:
     linear-gradient(90deg, transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent),
     linear-gradient(transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent);
