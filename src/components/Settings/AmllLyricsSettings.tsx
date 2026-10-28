@@ -1,3 +1,4 @@
+import { Select } from '../ui/Select'
 import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
@@ -55,11 +56,10 @@ export function AmllLyricsSettings() {
 
   return <section className={styles.group}>
     <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，网易云、QQ 未登录或已停用播放时，以游客身份查询歌词，不使用账号，只发送歌名与歌手。不想用的来源直接关闭，关闭后不再向它查询歌词，也不影响播放音源。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
-    <div className={styles.sampleRow}>
+    <div data-setting-row className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
-      <select id="lyrics-test-song" className={`${styles.select} no-drag`} value={sample} onChange={event => setSample(event.target.value)}>
-        {LYRICS_TEST_SONGS.map(song => <option key={song.key} value={song.key}>{song.name} · {song.artist}</option>)}
-      </select>
+      <Select id="lyrics-test-song" className={styles.select} aria-label="测试歌曲" value={sample} onChange={setSample}
+        options={LYRICS_TEST_SONGS.map(song => ({ value: song.key, label: `${song.name} · ${song.artist}` }))} />
     </div>
     <ol className={styles.priorityList} aria-label="歌词来源优先级">
       {order.map((source, index) => {
@@ -74,9 +74,9 @@ export function AmllLyricsSettings() {
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'
           : probe?.status === 'error' ? '暂时连接失败，可重新测试'
           : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : '未登录，以游客身份查询')
-        return <motion.li key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined}>
+        return <motion.li data-setting-row key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined}>
           <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
-          <div className={styles.sourceName}><strong>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? styles.statusIssue : ''}>{status}</span></div>
+          <div className={styles.sourceName}><strong data-setting-label>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? styles.statusIssue : ''}>{status}</span></div>
           <button type="button" className={`${styles.probe} no-drag`} disabled={!on || probe?.status === 'loading'} onClick={() => test(source)}>
             {probe?.status === 'loading' ? '测试中…' : suspended ? '测试恢复' : '测试'}
           </button>
@@ -88,9 +88,9 @@ export function AmllLyricsSettings() {
         </motion.li>
       })}
     </ol>
-    <div className={styles.memoryRow}>
+    <div data-setting-row className={styles.memoryRow}>
       <div className={styles.sourceName}>
-        <strong>歌曲来源记忆</strong>
+        <strong data-setting-label>歌曲来源记忆</strong>
         <span>{entries.length ? `${entries.length} 首歌曲使用指定来源` : '在歌词页选择来源并记住后，可在这里管理'}</span>
       </div>
       <button type="button" className={`${styles.probe} no-drag`} disabled={!entries.length} onClick={() => setManaging(true)}>管理…</button>

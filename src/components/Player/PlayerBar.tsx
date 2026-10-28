@@ -8,17 +8,19 @@ import { useVisualStore } from '../../stores/visual'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { appPlaylistTrackKey } from '../../stores/app-playlists'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
-import { tapScale, springSnappy, iconSwap } from '../../lib/motion-presets'
+import { tapScale, springSnappy, iconSwap, liquidLiftSpring } from '../../lib/motion-presets'
 import type { PlayMode } from '../../types/domain'
 import { ScrubSlider } from '../ui/ScrubSlider'
 import { WakeSlider } from '../ui/WakeSlider'
 import { HoverTips } from '../ui/HoverTips'
 import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
+import { PlayButtonGlass } from './PlayButtonGlass'
 import { TrackInfo } from './TrackInfo'
 import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
 import { MoreMenu } from './MoreMenu'
+import { AccompanimentButton } from './AccompanimentButton'
 import styles from './PlayerBar.module.css'
 
 /** 秒数格式化为 mm:ss；非有限值归零。 */
@@ -272,7 +274,7 @@ function PlayModeButton() {
       className={`${styles.btn} ${styles.modeBtn} no-drag`}
       data-mode={playMode}
       onClick={() => useSettingsStore.getState().setPlayMode(MODE_CYCLE[playMode])}
-      title={label}
+      data-tip={label}
       aria-label={`播放模式:${label}`}
       whileTap={tapScale}
       transition={springSnappy}
@@ -302,7 +304,7 @@ function LikeButton() {
       className={`${styles.btn} ${styles.likeBtn} no-drag`}
       data-liked={liked}
       onClick={() => void useLikesStore.getState().toggleLike(track)}
-      title={liked ? '取消红心' : '红心'}
+      data-tip={liked ? '取消红心' : '红心'}
       aria-label={liked ? '取消红心' : '红心'}
       whileTap={tapScale}
       transition={springSnappy}
@@ -516,6 +518,8 @@ function replayPlayStar(button: Element | undefined, dir: 'up' | 'down') {
 
 /** 播放栏主组件：组合 TrackInfo + 播放控制 + 音量 + 音质徽标，置于底部毛玻璃容器内。 */
 export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, variant = 'dock', handoff }: PlayerBarProps) {
+  const glassHover = useMotion('hoverLiftMotion')
+  const glassPress = useMotion('tapFeedbackMotion')
   const status = usePlayerStore((s) => s.status)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const toggle = usePlayerStore((s) => s.toggle)
@@ -528,6 +532,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
   const embedded = variant === 'lyrics'
   const controls = (
     <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
+      <HoverTips exclude={`.${styles.volumeGroup}`} />
       {!embedded && <div className={styles.left}>
         <TrackInfo
           onCoverClick={onOpenLyrics}
@@ -539,19 +544,22 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
       <div className={styles.center}>
         <div className={styles.buttons}>
           {embedded ? <div className={styles.modeSlot}><PlayModeButton /></div> : <PlayModeButton />}
-          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} title="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} data-tip="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
             <PrevIcon />
           </motion.button>
           <motion.button
             type="button"
             className={`${styles.btn} ${styles.playBtn} no-drag`}
             onClick={(e) => { replayPlayStar(e?.currentTarget, isPlaying ? 'down' : 'up'); toggle() }}
-            title={isPlaying ? '暂停' : '播放'}
+            data-tip={isPlaying ? '暂停' : '播放'}
             aria-label={isPlaying ? '暂停' : '播放'}
             data-loading={isLoading}
-            whileTap={tapScale}
-            transition={springSnappy}
+            animate={{ scaleX: 1, scaleY: 1 }}
+            whileHover={glassHover ? { scaleX: 1.04, scaleY: 1.04 } : undefined}
+            whileTap={glassPress ? { scaleX: 1.1, scaleY: 1.06 } : undefined}
+            transition={{ type: 'spring', ...liquidLiftSpring }}
           >
+            <PlayButtonGlass />
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={isPlaying ? 'pause' : 'play'}
@@ -566,7 +574,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
             </AnimatePresence>
             <span className={styles.playStar} aria-hidden="true" />
           </motion.button>
-          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} title="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} data-tip="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
             <NextIcon />
           </motion.button>
           {/* 歌词页红心与加入歌单紧挨，顺序同主播放栏；两侧槽位等分剩余宽度，播放键始终居中，无红心时加入歌单顶到原位。 */}
@@ -579,6 +587,7 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
       </div>
 
       <div className={styles.right}>
+        <AccompanimentButton />
         <VolumeControl />
         <div className={styles.tools}>
           <SourceFallbackBadge />
@@ -587,7 +596,6 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
           <QueuePanel align={embedded ? 'start' : 'end'} />
           <MoreMenu />
         </div>
-        <HoverTips exclude={`.${styles.volumeGroup}`} />
       </div>
     </div>
   )

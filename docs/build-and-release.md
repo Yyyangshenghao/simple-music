@@ -138,6 +138,29 @@ tag 必须指向发布 PR 合并后的 master 提交，包含 dev 中的独立�
 
 最后报告目标版本、发布提交、tag、CI 状态、Release 链接和真实剩余风险。若 CI 只是临时基础设施故障，可重跑原工作流；如果是源码或打包问题，修复后发布下一个补丁版本，不移动或覆盖已经推送的 tag。
 
+### 0.5.1 K 歌自托管模型附件
+
+UVR 官方仓库没有的模型由我们自己转换，作为**首次带上它的版本** Release 的附件发布；应用按 `server/lib/karaoke-store.ts` 里固定的地址下载并校验 sha256。目前只有「HQ3 省显存」，挂在 **v2.6.0**：
+
+| 附件 | 生成方式 | sha256 |
+|---|---|---|
+| `UVR-MDX-NET-Inst_HQ_3-fp16.onnx`（33,398,584 字节） | `scripts/karaoke/convert-hq3-fp16.py` | `62d30044a9e0980efe2daeba0e0f2080fcb23bf8a46b98c0ba5183fe9bf80a9e` |
+
+发布 v2.6.0 时，在 0.5 的工作流完成、Release 已公开后补传附件（工作流的必需产物检查不包含它）：
+
+```bash
+uv run --no-project --python 3.11 --with onnx==1.23.2 --with onnxconverter-common==1.16.0 --with numpy==2.4.6 --with protobuf==7.36.2 \
+  python scripts/karaoke/convert-hq3-fp16.py /tmp/karaoke-models
+gh release upload v2.6.0 /tmp/karaoke-models/UVR-MDX-NET-Inst_HQ_3-fp16.onnx --repo Yyyangshenghao/simple-music
+curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0/UVR-MDX-NET-Inst_HQ_3-fp16.onnx | shasum -a 256
+```
+
+- 脚本会下载官方 HQ3、转换并比对登记的 sha256；不一致时停止，不上传。
+- 最后一条命令输出必须等于上表的 sha256，否则应用会报「模型校验失败」。
+- 之后的版本不再上传，也不要改地址；**不要删除 v2.6.0 的这个附件**，否则所有版本的省显存模型都无法下载。
+- 新增自托管模型时，同样挂在当次版本的 Release 上，在本表登记，并在 `karaoke-store.ts` 写入该版本的地址。
+- v2.6.0 发布前，开发版下载省显存模型会得到 404，属于预期。
+
 ### 0.6 失败与回滚原则
 
 - 发布前失败：保留改动，修复后重新验证，不创建 tag；
@@ -186,9 +209,9 @@ npm run build:win      # build + electron-builder --win（NSIS Setup + portable�
 
 `electron.vite.config.ts`：
 
-- **main**：入口 `electron/main.ts` → `out/main/index.js`（package.json `main` 指向它）。`externalizeDepsPlugin` 把 node_modules 依赖保持 external（打包时由 electron-builder 收进 asar）。
-- **preload**：两个入口 `index`（主窗口）+ `overlay`（悬浮窗）→ `out/preload/{index,overlay}.cjs`。全部 BrowserWindow 开启 `sandbox: true`，所以 preload 强制输出 CommonJS；主进程引用对应 `.cjs` 文件。
-- **renderer**：`root: '.'`，**多页构建**——`index.html`（主窗口）及 desktop-lyrics、wallpaper、mini-player 三个 overlay HTML，共四个入口共享 `src/` 代码；别名 `@renderer` → `src`。
+- **main**：入口 `electron/main.ts` → `out/main/index.js`（package.json `main` 指向它），普通实例动态加载 `electron/application.ts`，分离实例只加载计算入口。主进程 chunk 平铺在 `out/main/`，以保留 `import.meta.dirname` 的资源相对路径；不得改为嵌套 `chunks/` 而不调整资源定位。`externalizeDepsPlugin` 把 node_modules 依赖保持 external（打包时由 electron-builder 收进 asar）。
+- **preload**：三个入口 `index`（主窗口）+ `overlay`（悬浮窗）+ `karaoke-helper`（伴奏分离）→ `out/preload/{index,overlay,karaoke-helper}.cjs`。全部 BrowserWindow 开启 `sandbox: true`，所以 preload 强制输出 CommonJS；主进程引用对应 `.cjs` 文件。
+- **renderer**：`root: '.'`，**多页构建**——`index.html`（主窗口）、`playback-host.html`、`karaoke-helper.html` 及 desktop-lyrics、wallpaper、mini-player 三个 overlay HTML，共六个入口共享 `src/` 代码；别名 `@renderer` → `src`。
 
 dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环境变量 `ELECTRON_RENDERER_URL` 拼相对入口，prod 用 `file://out/renderer/<entry>`。**新增悬浮窗页面必须同时加 renderer.input**，否则 prod 下 404。
 
@@ -198,6 +221,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 - `appId: com.simplemusic.desktop`，产物输出 `dist/`，资源目录 `build/`（icon.ico/icon.icns）。
 - `files`: `out/**/*` + `build/icon.ico` + `package.json`（**package.json 必须进 asar**——server/lib/update.ts 运行时 `import pkgJson from '../../package.json'` 读版本与更新配置）。
+- **伴奏原生运行库**：`onnxruntime-node` 的 `bin/**/*` 整体加入 `asarUnpack`，保留 `.node` 与相邻动态库。各平台 `files` 按目标 `${arch}` 排除其他平台和架构；macOS 仅保留绑定使用的 `libonnxruntime.1.dylib`，排除内容重复的完整版本库。`.npmrc` 禁止额外下载未使用的 CUDA/TensorRT。当前 1.30.0 包未附 macOS x64 原生绑定，Intel Mac 走浏览器 WebGPU 回退；发布前仍需对应平台实机生成、取消及重试验收。
 - **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple-Music-<v>-arm64.dmg` / `Simple-Music-<v>-x64.dmg`。
 - **win**：NSIS（`Simple-Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple-Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
 - 安装包名称显式使用连字符，避免 GitHub 上传时替换空格，导致 `latest*.yml` 中的文件名与 Release 资源不一致。

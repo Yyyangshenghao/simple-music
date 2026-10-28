@@ -20,6 +20,14 @@ import { useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsStore } from '../../stores/lyrics'
 import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useMotion } from '../../hooks/useMotion'
+import { useKaraokeModelsStore } from '../../stores/karaoke-models'
+import { useSettingsStore } from '../../stores/settings'
+import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
+import type { KaraokeModelId } from '../../types/karaoke'
+import { useTaskCenterStore } from '../../stores/task-center'
+import { useKaraokeStore } from '../../stores/karaoke'
+import { karaokeTrackKey } from '../../lib/karaoke/queue'
+import { accompanimentId, accompanimentOriginal } from '../../lib/karaoke-library'
 import styles from './MoreMenu.module.css'
 
 const QUALITY_LABELS: Record<AudioQuality, string> = {
@@ -127,7 +135,7 @@ function OfflineSection({ open }: { open: boolean }) {
     if (open && track && track.source !== 'local') void useOfflineCacheStore.getState().ensure(track)
   }, [open, track, cacheStatus])
   if (!track || track.source === 'local' || track.source === 'apple') return null
-  const label = cacheStatus?.state === 'pinned' ? '已保存' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未保存'
+  const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未离线保存'
   const run = async (action: () => Promise<void>) => {
     try {
       await action()
@@ -138,7 +146,7 @@ function OfflineSection({ open }: { open: boolean }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
-        <span className={styles.sectionTitle}>离线播放</span>
+        <span className={styles.sectionTitle}>下载与离线</span>
         <span className={styles.sectionStatus}>{label}</span>
       </div>
       <div className={styles.chips}>
@@ -147,12 +155,12 @@ function OfflineSection({ open }: { open: boolean }) {
         </button>
         {cacheStatus?.state === 'cached' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
-            保留此缓存
+            保存为离线音乐
           </button>
         )}
         {cacheStatus?.state === 'pinned' && (
           <button type="button" className={styles.chip} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
-            改为自动缓存
+            取消离线保存
           </button>
         )}
         {cacheStatus?.entryId && (
@@ -161,11 +169,11 @@ function OfflineSection({ open }: { open: boolean }) {
             className={styles.chip}
             onClick={() => {
               const shared = Number(cacheStatus.savedAliasCount) > (cacheStatus.state === 'pinned' ? 1 : 0)
-              if (shared && !window.confirm('这个文件也被其他已保存歌曲共用，仍要删除吗？')) return
+              if (shared && !window.confirm('这个音频文件也被其他离线音乐共用；删除会影响这些歌曲的离线播放，下载目录中的歌曲文件保留。仍要删除吗？')) return
               void run(() => useOfflineCacheStore.getState().deleteLocal(track, shared))
             }}
           >
-            删除本地文件
+            {cacheStatus.state === 'pinned' ? '删除离线音乐' : '删除自动缓存'}
           </button>
         )}
       </div>
@@ -286,6 +294,57 @@ function RateSection() {
   )
 }
 
+const KARAOKE_MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: '标准', 'hq3-fp16': '省显存', kara2: '保留和声' }
+
+function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolean; onManage(): void; onLibrary(): void; onQueue(id: string): void }) {
+  const track = usePlayerStore(s => s.currentTrack)
+  const accompaniment = usePlayerStore(s => s.accompaniment)
+  const { items, jobs, load, enqueue } = useKaraokeStore()
+  const { models, f16, load: loadModels } = useKaraokeModelsStore()
+  const selected = useSettingsStore(s => s.karaokeModel)
+  const setKaraokeModel = useSettingsStore(s => s.setKaraokeModel)
+  const [adding, setAdding] = useState(false)
+  useEffect(() => { void loadModels(); void load().catch(() => {}) }, [loadModels, load])
+  const playingStem = !!accompaniment || !!(track && accompanimentId(track))
+  const original = track ? accompanimentOriginal(track) ?? track : null
+  const key = original ? karaokeTrackKey(original) : ''
+  const saved = items.find(item => item.available && karaokeTrackKey(item.track) === key && item.model === selected)
+  const job = jobs.find(item => karaokeTrackKey(item.track) === key && item.model === selected)
+  const current = models.find(model => model.id === selected)
+  const options = models.filter(model => model.state === 'ready' || model.id === selected)
+  const unsupported = current?.requiresF16 && f16 === false
+  async function generate() {
+    if (!original) return
+    setAdding(true)
+    try { await enqueue(original, selected) }
+    catch (error) { useToastStore.getState().show(error instanceof Error ? error.message : '添加任务失败') }
+    finally { setAdding(false) }
+  }
+  return <section className={styles.section}>
+    <div className={styles.sectionHead}>
+      <span className={styles.sectionTitle}>歌曲伴奏</span>
+      <button type="button" className={styles.textAction} onClick={onLibrary}>我的伴奏</button>
+    </div>
+    {playingStem ? <button type="button" className={styles.generateButton} disabled={!original} onClick={() => void usePlayerStore.getState().toggleAccompaniment()}>切回原曲</button>
+      : <>
+        {options.length > 1 && <JellyRadio size="sm" block ariaLabel="伴奏生成模型" value={selected} onChange={setKaraokeModel}
+          items={options.map(model => ({ value: model.id, label: KARAOKE_MODEL_SHORT[model.id], disabled: model.requiresF16 && f16 === false }))} />}
+        <button type="button" className={styles.generateButton} disabled={apple || !track || adding || (!job && !!unsupported)}
+          onClick={() => job ? onQueue(job.id) : saved ? void usePlayerStore.getState().toggleAccompaniment() : void generate()}>
+          {adding ? '正在加入…' : job ? job.phase === 'failed' ? '生成失败，查看队列' : '查看生成任务' : saved ? '播放伴奏' : '为这首歌生成伴奏'}
+        </button>
+        <span className={styles.tip} aria-live="polite">{apple ? 'Apple Music 受版权保护，无法生成伴奏'
+          : unsupported ? '当前显卡不支持此模型，请更换模型'
+          : job ? '进度、暂停与重试可在任务队列中管理。'
+          : saved ? '已保存在我的伴奏，可直接播放'
+          : `生成时会临时占用较多内存${current && current.state !== 'ready' ? `；首次需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型` : ''}`}</span>
+      </>}
+    {!apple && <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={onManage}>
+      <span>生成模型与保存位置</span><span className={styles.sectionStatus}>{current?.name ?? ''}</span>
+    </button>}
+  </section>
+}
+
 /** 定时关闭分区:预设时长倒计时到点停播,可选播完当前曲再停。 */
 function SleepSection() {
   const phase = useSleepTimerStore((s) => s.phase)
@@ -395,6 +454,7 @@ export function MoreMenu() {
   const [extrasOpen, setExtrasOpen] = useState(false)
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
+  const generating = useKaraokeStore(s => s.jobs.some(job => job.phase !== 'failed'))
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
   const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
@@ -407,7 +467,7 @@ export function MoreMenu() {
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
-  const hasActive = rate !== 1 || sleepPhase !== 'idle'
+  const hasActive = rate !== 1 || generating || sleepPhase !== 'idle'
 
   useEffect(() => { if (lyricsSourceOpen) setOpen(false) }, [lyricsSourceOpen])
 
@@ -474,6 +534,15 @@ export function MoreMenu() {
               <QualitySection open={open} />
               <PlaybackSourceSection />
               <OfflineSection open={open} />
+              <KaraokeSection apple={apple} onQueue={id => { setOpen(false); useTaskCenterStore.getState().show('karaoke', `k:${id}`) }} onLibrary={() => {
+                setOpen(false)
+                openAccompanimentsLibrary()
+              }} onManage={() => {
+                setOpen(false)
+                const navigation = useNavigationStore.getState()
+                navigation.requestSettingsKaraoke()
+                navigation.navigateTo('settings')
+              }} />
               {trackKey && <section className={styles.section}>
                 <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>

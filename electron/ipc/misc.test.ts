@@ -8,6 +8,9 @@ const h = vi.hoisted(() => ({
   exit: vi.fn(),
   relaunch: vi.fn(),
   exists: vi.fn(() => true),
+  findLocalTrack: vi.fn(),
+  stat: vi.fn(),
+  showItemInFolder: vi.fn(),
   installWindows: vi.fn(async () => ({ ok: true } as { ok: boolean; error?: string })),
   installMac: vi.fn(async () => ({ ok: true } as { ok: boolean; error?: string }))
 }))
@@ -16,9 +19,13 @@ vi.mock('electron', () => ({
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => Promise<unknown>) => h.handlers.set(channel, handler) },
   app: { quit: h.quit, exit: h.exit, relaunch: h.relaunch, getPath: () => '/user-data' },
   dialog: {},
-  shell: {}
+  shell: { showItemInFolder: h.showItemInFolder }
 }))
-vi.mock('node:fs', async importOriginal => ({ ...await importOriginal<typeof import('node:fs')>(), existsSync: h.exists }))
+vi.mock('node:fs', async importOriginal => {
+  const original = await importOriginal<typeof import('node:fs')>()
+  return { ...original, existsSync: h.exists, promises: { ...original.promises, stat: h.stat } }
+})
+vi.mock('../../server/lib/local-library', () => ({ findLocalTrack: h.findLocalTrack }))
 vi.mock('../modules/window-manager', () => ({ getMainWindow: vi.fn(), setShortcutRecording: vi.fn() }))
 vi.mock('../modules/hotkey-manager', () => ({ configureHotkeys: vi.fn() }))
 vi.mock('../modules/settings-menu', () => ({ configureSettingsMenu: vi.fn() }))
@@ -143,5 +150,49 @@ describe('应用重启和更新退出', () => {
     await expect(h.handlers.get('app:install-update')!({}, { filePath: '/custom-downloads/installer' })).resolves.toEqual({ ok: false, error: 'UPDATE_FILE_MISSING' })
     expect(h.installWindows).not.toHaveBeenCalled()
     expect(h.quit).not.toHaveBeenCalled()
+  })
+})
+
+describe('本地曲目文件定位', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    h.handlers.clear()
+    h.findLocalTrack.mockResolvedValue({ id: 'indexed-id', path: '/music/album/song.flac' })
+    h.stat.mockResolvedValue({ isFile: () => true })
+    registerMiscIpc()
+  })
+
+  it('只按索引 ID 找到原文件，再交给系统定位', async () => {
+    await expect(h.handlers.get('file:reveal-local-track')!({}, { id: 'indexed-id', path: '/untrusted/file' })).resolves.toEqual({ ok: true })
+    expect(h.findLocalTrack).toHaveBeenCalledWith('/user-data', 'indexed-id')
+    expect(h.stat).toHaveBeenCalledWith('/music/album/song.flac')
+    expect(h.showItemInFolder).toHaveBeenCalledWith('/music/album/song.flac')
+  })
+
+  it.each([undefined, {}, { id: '' }, { id: '  ' }, { id: 123 }, { path: '/music/song.flac' }])('拒绝无效 ID 或直传路径：%s', async payload => {
+    await expect(h.handlers.get('file:reveal-local-track')!({}, payload)).resolves.toEqual({ ok: false, error: 'INVALID_LOCAL_TRACK_ID' })
+    expect(h.findLocalTrack).not.toHaveBeenCalled()
+    expect(h.showItemInFolder).not.toHaveBeenCalled()
+  })
+
+  it('索引没有此曲目时不打开任意文件', async () => {
+    h.findLocalTrack.mockResolvedValueOnce(null)
+    await expect(h.handlers.get('file:reveal-local-track')!({}, { id: '/music/song.flac' })).resolves.toEqual({ ok: false, error: 'LOCAL_TRACK_NOT_FOUND' })
+    expect(h.stat).not.toHaveBeenCalled()
+    expect(h.showItemInFolder).not.toHaveBeenCalled()
+  })
+
+  it('索引目标不再是文件时返回错误', async () => {
+    h.stat.mockResolvedValueOnce({ isFile: () => false })
+    await expect(h.handlers.get('file:reveal-local-track')!({}, { id: 'indexed-id' })).resolves.toEqual({ ok: false, error: 'LOCAL_TRACK_FILE_MISSING' })
+    expect(h.showItemInFolder).not.toHaveBeenCalled()
+  })
+
+  it('文件丢失或系统定位失败时返回失败，不向渲染层抛异常', async () => {
+    h.stat.mockRejectedValueOnce(new Error('ENOENT'))
+    await expect(h.handlers.get('file:reveal-local-track')!({}, { id: 'indexed-id' })).resolves.toEqual({ ok: false, error: 'REVEAL_LOCAL_TRACK_FAILED' })
+    expect(h.showItemInFolder).not.toHaveBeenCalled()
+    h.showItemInFolder.mockImplementationOnce(() => { throw new Error('FAILED') })
+    await expect(h.handlers.get('file:reveal-local-track')!({}, { id: 'indexed-id' })).resolves.toEqual({ ok: false, error: 'REVEAL_LOCAL_TRACK_FAILED' })
   })
 })

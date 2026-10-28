@@ -47,6 +47,16 @@ it('取消展示消费者不影响同曲预热且解析结果被复用', async (
   expect((await fetchLyrics(song('netease'))).main).toHaveLength(1)
   expect(api.get).toHaveBeenCalledOnce()
 })
+
+it('伴奏播放沿用原曲歌词 ID，不按伴奏文件重新匹配', async () => {
+  const original = song('netease')
+  const accompaniment: Track = { ...original, source: 'local', provider: 'local', id: `karaoke:${'a'.repeat(40)}`, accompanimentOriginal: original }
+  const result = await fetchLyrics(accompaniment, ['netease'])
+  expect(result.main).toHaveLength(2)
+  expect(api.get).toHaveBeenCalledWith('/api/lyric', expect.objectContaining({ id: String(original.id) }), expect.any(Object))
+  expect(h.local).not.toHaveBeenCalled()
+  expect(h.netease).not.toHaveBeenCalled()
+})
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Apple Music 同曲歌词', () => {

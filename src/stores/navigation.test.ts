@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useNavigationStore } from './navigation'
+import { openAccompanimentsLibrary, openOfflineLibrary, useNavigationStore } from './navigation'
 
 describe('歌手页导航状态', () => {
   beforeEach(() => useNavigationStore.setState({ currentView: 'explore', history: [], future: [] }))
@@ -122,4 +122,45 @@ it('歌词设置定位独立于音源请求，迟到消费保留新请求', () =
   expect(useNavigationStore.getState().settingsMusicRequest).toBe(0)
   navigation.consumeSettingsLyricsRequest(2)
   expect(useNavigationStore.getState().settingsLyricsRequest).toBe(0)
+})
+
+it('伴奏入口统一打开我的库并请求伴奏页，已在我的库时不重复压历史', () => {
+  useNavigationStore.setState({ currentView: 'settings', history: [], future: [], libraryAccompanimentsRequest: 0 })
+  openAccompanimentsLibrary()
+  expect(useNavigationStore.getState()).toMatchObject({ currentView: 'library', libraryAccompanimentsRequest: 1 })
+  expect(useNavigationStore.getState().history).toEqual(['settings'])
+  openAccompanimentsLibrary()
+  expect(useNavigationStore.getState()).toMatchObject({ currentView: 'library', libraryAccompanimentsRequest: 2 })
+  expect(useNavigationStore.getState().history).toEqual(['settings'])
+  useNavigationStore.getState().consumeLibraryAccompanimentsRequest(2)
+  expect(useNavigationStore.getState().libraryAccompanimentsRequest).toBe(0)
+})
+
+it('离线音乐设置定位请求按序消费，旧请求不能清掉新定位', () => {
+  const navigation = useNavigationStore.getState()
+  navigation.requestSettingsCache()
+  const first = useNavigationStore.getState().settingsCacheRequest
+  navigation.requestSettingsCache()
+  const second = useNavigationStore.getState().settingsCacheRequest
+  navigation.consumeSettingsCacheRequest(first)
+  expect(useNavigationStore.getState().settingsCacheRequest).toBe(second)
+  navigation.consumeSettingsCacheRequest(second)
+  expect(useNavigationStore.getState().settingsCacheRequest).toBe(0)
+})
+
+it('下载队列直达离线音乐，不重复压历史，旧请求不能覆盖新目标', () => {
+  useNavigationStore.setState({ currentView: 'settings', history: [], future: [], libraryOfflineRequest: 0 })
+  openOfflineLibrary()
+  expect(useNavigationStore.getState()).toMatchObject({ currentView: 'library', libraryOfflineRequest: 1 })
+  openOfflineLibrary()
+  expect(useNavigationStore.getState().history).toEqual(['settings'])
+  useNavigationStore.getState().consumeLibraryOfflineRequest(1)
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(2)
+  openAccompanimentsLibrary()
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(0)
+  openOfflineLibrary()
+  expect(useNavigationStore.getState().libraryAccompanimentsRequest).toBe(0)
+  const request = useNavigationStore.getState().libraryOfflineRequest
+  useNavigationStore.getState().consumeLibraryOfflineRequest(request)
+  expect(useNavigationStore.getState().libraryOfflineRequest).toBe(0)
 })

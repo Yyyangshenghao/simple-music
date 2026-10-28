@@ -1,7 +1,7 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -28,6 +28,7 @@
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.16.1",
     "NeteaseCloudMusicApi": "^4.32.0",
+    "onnxruntime-node": "1.30.0",
     "qrc-decoder": "1.0.2",
     "webwallgl": "^3.0.0"
   },
@@ -45,6 +46,7 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
     "motion": "^12.42.1",
+    "onnxruntime-web": "^1.30.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "three": "^0.169.0",
@@ -88,7 +90,8 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "node_modules/koffi/build/koffi/**/*.node"
+      "node_modules/koffi/build/koffi/**/*.node",
+      "node_modules/onnxruntime-node/bin/**/*"
     ],
     "mac": {
       "target": [
@@ -102,7 +105,12 @@
       ],
       "category": "public.app-category.music",
       "icon": "build/icon.icns",
-      "identity": null
+      "identity": null,
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{linux,win32}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/!(${arch})/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**/libonnxruntime.*.*.dylib"
+      ]
     },
     "win": {
       "target": [
@@ -119,7 +127,11 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/!(${arch})/**"
+      ]
     },
     "dmg": {
       "artifactName": "Simple-Music-${version}-${arch}.${ext}"
@@ -135,6 +147,12 @@
     },
     "portable": {
       "artifactName": "Simple-Music-${version}-portable.${ext}"
+    },
+    "linux": {
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/linux/!(${arch})/**"
+      ]
     }
   }
 }

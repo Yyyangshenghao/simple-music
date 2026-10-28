@@ -49,6 +49,9 @@ export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
 /** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
 export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
 
+/** 透镜局部牵拉：握持时的轻微不对称，以及达到最大形变的指针偏移（px）。 */
+export const liquidLensGrip = { x: 0.35, y: 0.2, travel: 40 }
+
 /** 红心点亮心跳：先收缩成小点、再过冲回弹（参考 React Bits PulseHeart）；times 中段即收缩最低点。 */
 export const heartBeatTransition = { duration: 0.56, times: [0, 0.4, 1], ease: ['easeOut', 'backOut'] } satisfies Transition
 
@@ -88,6 +91,22 @@ export const tooltipSwap: Transition = { duration: 0.14, ease: [0.23, 1, 0.32, 1
 export const queueRowFlipTiming: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
 
 /** 队列移除：该行向左滑出并淡出，结束后其余行再补位。 */
+/** 浮层长出与收回：圆从按钮中心鼓起再展开成面板，收回时反向并缩回中心 */
+export const popoverSprout = {
+  grow: { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  retract: { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+} satisfies Record<string, KeyframeAnimationOptions>
+
+/** 任务面板从入口展开；退场更快，快速重开时可从当前形态反向。 */
+export const taskPopoverMotion = {
+  enter: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+  exit: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+  row: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
+} satisfies Record<string, Transition>
+
+/** 队列入口只做短距离侧移；过阻尼让搜索框平稳让位，不回弹越界。 */
+export const taskEntrySpring = { stiffness: 340, damping: 36, mass: 0.9 }
+
 export const queueRowRemoveTiming: KeyframeAnimationOptions = { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
 
 /** 设为下一首：落位后整行氛围色闪一下。 */

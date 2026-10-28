@@ -1,4 +1,10 @@
+import { useTaskCenterStore } from '../stores/task-center'
+import { useNavigationStore } from '../stores/navigation'
+import { Select } from '../components/ui/Select'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { LibraryToolbar } from '../components/ui/LibraryToolbar'
+import { ActionButton } from '../components/ui/ActionButton'
+import { HoverTips } from '../components/ui/HoverTips'
 import { InfoButton } from '../components/ui/InfoButton'
 import { TrackRow } from '../components/Explore/TrackRow'
 import { VirtualList } from '../components/ui/VirtualList'
@@ -15,6 +21,17 @@ import styles from './OfflineMusicTab.module.css'
 import libraryStyles from './LibraryPage.module.css'
 
 export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+  const [openingDirectory, setOpeningDirectory] = useState(false)
+  async function openDirectory() {
+    if (openingDirectory || !window.desktop?.openDirectory) return
+    setOpeningDirectory(true)
+    try {
+      const config = await api.get<{ dir: string }>('/api/audio-cache/config')
+      const result = await window.desktop.openDirectory(config.dir)
+      if (!result.ok) useToastStore.getState().show('打开离线音乐文件夹失败，请检查存储位置')
+    } catch { useToastStore.getState().show('读取离线音乐存储位置失败，请重试') }
+    finally { if (mounted.current) setOpeningDirectory(false) }
+  }
   const [items, setItems] = useState<OfflineLibraryItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [sort, setSort] = useState<OfflineLibrarySort>('savedAt')
@@ -54,9 +71,9 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
     try {
       await api.post('/api/audio-cache/pin', { entryId: item.entryId, origin: item.origin, pinned: false })
       useOfflineCacheStore.getState().invalidate()
-      useToastStore.getState().show('已移除离线保存，音频保留为临时缓存')
+      useToastStore.getState().show('已取消离线保存，音频保留为自动缓存')
     } catch {
-      useToastStore.getState().show('移除失败，请刷新后重试')
+      useToastStore.getState().show('取消离线保存失败，请刷新后重试')
     } finally {
       if (mounted.current) setRemoving(null)
     }
@@ -97,28 +114,31 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
 
   return (
     <div className={`${libraryStyles.trackList} ${styles.root}`} ref={selection.rootRef} {...selection.surfaceProps}>
-      <div className={styles.toolbar}>
-        <span className={libraryStyles.trackListCount}>{visible.length} / {items.length} 首</span>
-        <div className={styles.actions}>
-          <input className={libraryStyles.searchInput} aria-label="搜索离线音乐" placeholder="搜索歌曲、艺人或专辑" value={keyword} disabled={deleting} onChange={(event) => setKeyword(event.target.value)} />
-          <select className={styles.sort} aria-label="离线音乐排序" value={sort} disabled={deleting} onChange={(event) => setSort(event.target.value as OfflineLibrarySort)}>
-            <option value="savedAt">最近保存</option>
-            <option value="name">标题</option>
-            <option value="artist">艺人</option>
-          </select>
-          <button className={`${libraryStyles.clearBtn} no-drag`} disabled={loading || deleting} onClick={() => setRefresh((value) => value + 1)}>刷新</button>
-          <button className={`${libraryStyles.clearBtn} no-drag`} disabled={loading || error || !queue.length} onClick={() => usePlaylistStore.getState().setQueue(queue, 0)}>播放全部</button>
-          {!selecting && <BatchTrackActions compact offline tracks={loading || error ? [] : queue} menuLabel="离线音乐更多操作"
-            onSelect={() => { if (!removing) { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) } }} />}
-        </div>
-      </div>
-      <p className={styles.hint}>已保存歌曲无需登录即可播放。<InfoButton label="离线保存与删除" text="移除保存后转为临时缓存；批量删除会清理未共用的离线音频，下载目录中的歌曲文件保留。" align="left" /></p>
+      <HoverTips match="[data-icon-action], [data-tip-help]" exclude="[data-library-toolbar]" />
+      <LibraryToolbar summary={keyword ? `${visible.length} / ${items.length} 首` : `${items.length} 首`}
+        primary={<ActionButton label="播放全部" icon="play" primary disabled={loading || error || !queue.length} onClick={() => usePlaylistStore.getState().setQueue(queue, 0)} />}
+        value={keyword} onChange={setKeyword} searchLabel="搜索离线音乐" placeholder="搜索歌曲、艺人或专辑" disabled={deleting}>
+        <Select<OfflineLibrarySort> aria-label="离线音乐排序" value={sort} disabled={deleting} onChange={setSort}
+          options={[{ value: 'savedAt', label: '最近保存' }, { value: 'name', label: '标题' }, { value: 'artist', label: '艺人' }]} />
+        <ActionButton label="下载队列" icon="queue" iconOnly onClick={() => useTaskCenterStore.getState().show('download')} />
+        <ActionButton label="刷新离线音乐" icon="refresh" iconOnly busy={loading} disabled={deleting} onClick={() => setRefresh(value => value + 1)} />
+        {!selecting && <BatchTrackActions compact offline tracks={loading || error ? [] : queue} menuLabel="离线音乐更多操作"
+          onSelect={() => { if (!removing) { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) } }} />}
+        <ActionButton label="打开离线音乐文件夹" icon="folder" iconOnly busy={openingDirectory}
+          disabled={typeof window === 'undefined' || !window.desktop?.openDirectory} onClick={() => void openDirectory()} />
+        <ActionButton label="离线音乐设置" title="离线音乐设置 · 存储与缓存" icon="settings" iconOnly onClick={() => {
+          const navigation = useNavigationStore.getState()
+          navigation.requestSettingsCache()
+          navigation.navigateTo('settings')
+        }} />
+      </LibraryToolbar>
+      <p className={styles.hint}>离线音乐无需登录即可播放。<InfoButton label="离线保存与删除" text="取消离线保存后转为自动缓存；删除离线音乐会清理未共用的音频，下载目录中的歌曲文件保留。" align="left" /></p>
       {selecting && <BatchTrackActions offline tracks={selectedItems.map(offlineLibraryTrack)} onDone={selection.clear}
         onDelete={!loading && !error ? deleteSelected : undefined}
         selection={{ total: visible.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
       {loading ? <div className={libraryStyles.emptyHint} role="status">加载中…</div>
         : error ? <div className={libraryStyles.emptyHint} role="alert"><p>离线音乐加载失败</p><button onClick={() => setRefresh((value) => value + 1)}>重试</button></div>
-        : !visible.length ? <div className={libraryStyles.emptyHint}><p>{items.length ? '没有匹配的曲目' : '还没有离线音乐，在歌曲旁点击「保存到本地」开始'}</p></div>
+        : !visible.length ? <div className={libraryStyles.emptyHint}><p>{items.length ? '没有匹配的曲目' : '还没有离线音乐，在歌曲旁点击「下载歌曲」开始'}</p></div>
         : <div ref={listRef}><VirtualList total={visible.length} rowHeight={58} scrollRef={scrollRef} renderRow={(index) => {
           const item = visible[index]
           const key = offlineTrackKey(item.origin)
@@ -128,7 +148,7 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
           </div>
           return <div className={styles.row} key={key}>
             <TrackRow track={queue[index]} index={index} hideOfflineAction onPlay={() => usePlaylistStore.getState().setQueue(queue, index)} />
-            <button className={`${libraryStyles.clearBtn} no-drag`} disabled={removing !== null} title="移除离线保存，音频保留为临时缓存" aria-label={`移除离线保存：${queue[index].name}`} onClick={() => void remove(item)}>{removing === key ? '移除中…' : '移除保存'}</button>
+            <ActionButton label={`取消离线保存：${queue[index].name}`} icon="close" iconOnly disabled={removing !== null} busy={removing === key} title="取消离线保存，音频保留为自动缓存" onClick={() => void remove(item)} />
           </div>
         }} /></div>}
       <SelectionMarquee rect={selection.marquee} />

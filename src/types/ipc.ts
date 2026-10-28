@@ -1,3 +1,4 @@
+import type { KaraokeModelId } from './karaoke'
 import type { CustomBackgroundMedia, Track, WordLyricLine } from './domain'
 export type { ProbeCommand, ProbeHostCommand, ProbeSnapshot, ProbeReport, ProbeControlApi, ProbeHostApi } from './playback-probe'
 
@@ -19,6 +20,18 @@ export interface PlaybackHostReply {
   value?: unknown
   error?: string
 }
+
+/** 播放宿主发给 K 歌分离进程的指令；release 由主进程处理（结束分离进程）。 */
+export type KaraokeHelperRequest =
+  | { type: 'separate'; id: string; model: KaraokeModelId; key: string; src: string }
+  | { type: 'cancel'; id: string }
+  | { type: 'release' }
+
+/** 分离进程回报给播放宿主的任务事件。 */
+export type KaraokeHelperEvent =
+  | { type: 'progress'; id: string; phase: 'model' | 'preparing' | 'decoding' | 'separating' | 'saving'; progress: number }
+  | { type: 'done'; id: string; url: string }
+  | { type: 'error'; id: string; message: string; aborted?: boolean }
 
 export interface DisplayBounds {
   x: number
@@ -274,6 +287,7 @@ export interface IpcChannels {
   'file:import-json': { req: void; res: ImportResult }
   'file:select-directory': { req: { title?: string; defaultPath?: string }; res: FileResult }
   'file:open-directory': { req: { path: string }; res: OkResult }
+  'file:reveal-local-track': { req: { id: string }; res: OkResult }
   'background:import': { req: void; res: BackgroundImportResult }
   'background:remove': { req: { id: string }; res: OkResult }
 

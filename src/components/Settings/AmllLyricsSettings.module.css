@@ -43,7 +43,7 @@
   line-height: 1.6;
 }
 
-.select { max-width: 230px; min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.select { max-width: 230px; }
 
 .sampleRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; color: var(--sm-text-secondary); font-size: 12px; }
 .priorityList { margin: 0 20px 14px; padding: 0; list-style: none; }

@@ -11,7 +11,7 @@ vi.mock('../stores/player', async () => {
       set({ currentTrack: track, position: opts?.startAt ?? 0, contextId: opts?.contextId ?? null, status: opts?.autoplay === false ? 'paused' : 'playing' })
     },
   }))
-  return { usePlayerStore, registerTrackEndedHandler: vi.fn(), registerPlayFromQueueHandler: vi.fn() }
+  return { usePlayerStore, registerTrackEndedHandler: vi.fn(), registerPlayFromQueueHandler: vi.fn(), registerNextTrackPeek: vi.fn() }
 })
 vi.mock('./track-preload', () => ({
   preloadTracks: vi.fn(), preloadTrackUrl: vi.fn(async () => {}),

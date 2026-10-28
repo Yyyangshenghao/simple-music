@@ -1,3 +1,4 @@
+import { Select } from '../ui/Select'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMotion, usePageTransition } from '../../hooks/useMotion'
@@ -148,11 +149,8 @@ export function LyricsMemoryDialog({ onClose }: { onClose(): void }) {
         <input className={styles.search} type="search" aria-label="查找歌曲" placeholder="搜索歌名或歌手" value={search}
           onChange={event => { setSearch(event.target.value); reset() }} />
       </label>
-      <select className={styles.select} aria-label="排序" value={sort} onChange={event => { setSort(event.target.value as MemorySort); reset() }}>
-        <option value="recent">最近添加</option>
-        <option value="name">按歌名</option>
-        <option value="artist">按歌手</option>
-      </select>
+      <Select<MemorySort> className={styles.select} aria-label="排序" value={sort} onChange={value => { setSort(value); reset() }}
+        options={[{ value: 'recent', label: '最近添加' }, { value: 'name', label: '按歌名' }, { value: 'artist', label: '按歌手' }]} />
     </div>
     <div className={styles.filters}>
       <JellyRadio<LyricOrigin | 'all'> items={filters} value={activeOrigin} size="sm" ariaLabel="按来源筛选" className={styles.jelly}
@@ -192,10 +190,9 @@ export function LyricsMemoryDialog({ onClose }: { onClose(): void }) {
                 <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m3.5 8 3 3 6-6" /></svg>
               </motion.span>}
             </AnimatePresence>
-            <select className={styles.select} aria-label={`${song.name}的歌词来源`} value={song.origin}
-              onChange={event => change([key], event.target.value as LyricOrigin)}>
-              {rememberableOrigins(key).map(item => <option key={item} value={item}>{LYRIC_SOURCE_LABELS[item]}</option>)}
-            </select>
+            <Select<LyricOrigin> className={styles.select} aria-label={`${song.name}的歌词来源`} value={song.origin}
+              onChange={value => change([key], value)}
+              options={rememberableOrigins(key).map(item => ({ value: item, label: LYRIC_SOURCE_LABELS[item] }))} />
           </span>
           <button type="button" className={styles.forget} aria-label={`忘记${song.name}的歌词来源`} title="忘记选择，改回按来源顺序查找" onClick={() => forget([key])}>
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
@@ -214,10 +211,9 @@ export function LyricsMemoryDialog({ onClose }: { onClose(): void }) {
           </div>
         </motion.div> : footer === 'batch' ? <motion.div key="batch" className={styles.batch} {...swap} transition={page(swapTransition)}>
           <span aria-label={`已选 ${selected.length} 首`}>已选 <RollingNumber value={selected.length} /> 首</span>
-          <select className={styles.select} aria-label="将所选歌曲改为" value="" onChange={event => change(selected, event.target.value as LyricOrigin)}>
-            <option value="" disabled>改为…</option>
-            {LYRIC_PRIORITY_SOURCES.map(item => <option key={item} value={item}>{LYRIC_SOURCE_LABELS[item]}</option>)}
-          </select>
+          <Select<LyricOrigin | ''> className={styles.select} aria-label="将所选歌曲改为" value="" placeholder="改为…"
+            onChange={value => { if (value) change(selected, value) }}
+            options={LYRIC_PRIORITY_SOURCES.map(item => ({ value: item, label: LYRIC_SOURCE_LABELS[item] }))} />
           <button type="button" className={styles.action} onClick={() => selected.length > 1 ? setConfirm('selected') : forget(selected)}>忘记所选</button>
           <button type="button" className={styles.link} onClick={() => setPicked(new Set())}>取消选择</button>
         </motion.div> : <motion.div key="idle" className={styles.batch} {...swap} transition={page(swapTransition)}>

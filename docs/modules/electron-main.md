@@ -1,6 +1,6 @@
 # 主进程(`electron/`)
 
-入口 `electron/main.ts`:单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createPlaybackHost(port, token)` → `createMainWindow(port, token)` → `createTray()`。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，播放宿主与壁纸窗口按需单独设置 `backgroundThrottling: false`。
+入口 `electron/main.ts` 同步设置应用名称与 Chromium 开关，再按启动角色分流；普通实例动态加载 `electron/application.ts`：单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createPlaybackHost(port, token)` → `createMainWindow(port, token)` → `createTray()`。分离实例不加载完整应用入口。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，播放宿主与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
 Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘”或“退出应用”，点击“确定”后保留后台播放或执行完整退出清理；点击“取消”保留主窗口。勾选“记住选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
 
@@ -11,6 +11,7 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
 - `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。
 - `modules/playback-host.ts` — 独立隐藏播放窗口、受信命令转发、超时/断开清理与快照转发；游戏模式确认就绪后释放 UI，托盘/Dock/设置菜单按需重建。详见 [独立播放宿主](../playback-host.md)。
+- `modules/karaoke-helper.ts` + `karaoke-helper.ts` — K 歌 AI 分离进程：首个分离任务时以 `--simplemusic-karaoke-helper` 拉起同一可执行文件（独立 userData、不进单实例锁、macOS 不进 Dock、关闭渲染进程降级）。`modules/karaoke-native.ts` 按需加载原生 ONNX WebGPU；不可用时回退至分离 Worker 的浏览器 WebGPU。原生路径只经受信私有 IPC 串行传递单块频谱，Worker 负责音频前后处理及分块落盘。只接受播放宿主的 `karaoke:request`，任务完成、失败、取消、系统内存严重紧张、宿主失效或退出时结束；新任务等待旧进程实际退出后再启动，避免资源重叠。测量与平台边界见[架构优化验收](../reviews/2026-10-27-karaoke-architecture.md)。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/window-close.ts` — Windows 关闭确认、记住偏好与原生兜底；待确认请求带序号，重载后可恢复、过期结果丢弃。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。

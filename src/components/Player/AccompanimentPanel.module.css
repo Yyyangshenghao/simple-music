@@ -1,0 +1,127 @@
+.root { position: relative; display: inline-flex; flex-shrink: 0; }
+
+/* 麦克风按钮的附属浮层：left/bottom 由按钮位置算出；层级高于播放栏玻璃（210）。整体不拦截点击，只有面板可点。 */
+.popover {
+  position: fixed;
+  z-index: 220;
+  width: min(360px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+/*
+ * 一整块玻璃：面板向下经圆滑过渡连到包住麦克风的圆，外形由 clip-path: path() 给出（随面板高度重算）。
+ * 底部内边距 = 圆心低于面板底边的距离 + 圆半径；毛玻璃与描边沿用我的库透镜的通透做法，不加内部光带。
+ */
+.surface {
+  position: relative;
+  padding-bottom: 36px;
+  background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  color: var(--sm-text-primary);
+}
+:global([data-reduce-transparency='1']) .surface { background: var(--sm-bg-base); }
+
+/* 外形描边：与玻璃同一路径，上亮下弱的细边。 */
+.outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke-width: 1;
+}
+
+/* 圆里的麦克风：与下方真实按钮同位同色，圆心在底部向上 22px 处。 */
+.micCopy {
+  position: absolute;
+  left: var(--mic-x, 50%);
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  translate: -50% 0;
+  color: var(--mic-color, var(--sm-text-primary));
+  pointer-events: none;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(560px, var(--popover-max, calc(100dvh - 48px)));
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+
+.head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 8px 20px; }
+.heading { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.eyebrow { font-size: 11px; color: var(--sm-text-secondary); }
+/* 字号层级：歌名 16 → 版本 14 → 字段与按钮 13 → 分区标题 12 → 辅助说明 11，用字号与字重而非颜色区分轻重。 */
+.song { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; line-height: 1.3; }
+
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px 4px; }
+
+.versions { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.versions > .label { padding: 0 8px; margin-bottom: 2px; }
+.version { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--sm-fill-subtle); box-shadow: inset 0 0 0 1px transparent; color: var(--sm-text-primary); text-align: left; font: inherit; cursor: pointer; transition: background 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out); }
+.version:hover:not(:disabled):not([data-current='true']) { background: var(--sm-fill-hover); }
+.version:active:not(:disabled):not([data-current='true']) { background: var(--sm-fill-active); }
+.versionInfo { transition: transform 180ms var(--sm-ease-out); }
+/* 当前播放的版本：加深底色并描一圈强调色细边，一眼能看出正在听哪个。 */
+.version[data-current='true'] { background: var(--sm-fill-active); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sm-accent) 55%, transparent); cursor: default; }
+.version:disabled { opacity: 0.45; cursor: default; }
+.versionInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.versionTitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.versionInfo strong { font-size: 14px; font-weight: 500; }
+.version[data-current='true'] .versionInfo strong { font-weight: 600; }
+.versionInfo small { font-size: 11px; color: var(--sm-text-muted); }
+.modelTag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); box-shadow: inset 0 0 0 1px var(--sm-border); color: var(--sm-text-secondary); font-size: 11px; line-height: 1.4; }
+.check { width: 16px; height: 16px; flex: none; color: var(--sm-accent); }
+
+.section { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding: 0 8px 4px; }
+.label { font-size: 12px; font-weight: 600; color: var(--sm-text-secondary); }
+.labelRow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.labelNote { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--sm-text-muted); }
+.mixRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mixName { flex: none; font-size: 13px; color: var(--sm-text-secondary); }
+.mixRow > :last-child { width: auto; flex: 1; max-width: 240px; }
+/* 模型是参数而非动作：浅槽分段控件，选中项只抬起一层浅底，字号字重不变，把强调留给版本与生成按钮。 */
+.models { display: flex; gap: 2px; padding: 2px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); }
+.model { flex: 1 1 0; min-width: 0; height: 26px; padding: 0 6px; border: 0; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
+.model:hover:not(:disabled):not([aria-checked='true']) { color: var(--sm-text-primary); }
+.model:active:not(:disabled):not([aria-checked='true']) { background: var(--sm-fill-hover); }
+.model[aria-checked='true'] { background: var(--sm-fill-active); color: var(--sm-text-primary); cursor: default; }
+.model:disabled { opacity: 0.4; cursor: default; }
+.model:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+
+/* 有可播放伴奏时生成是次要动作，用轻底；还没有伴奏时才用实心强调色。 */
+.generate { width: 100%; min-height: 32px; padding: 6px 12px; border: 0; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 160ms var(--sm-ease-out), filter 160ms var(--sm-ease-out); }
+.generate:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.generate[data-primary='true'] { background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
+.generate[data-primary='true']:hover:not(:disabled) { background: var(--sm-accent-hover); }
+.generate:active:not(:disabled) { background: var(--sm-fill-active); }
+.generate[data-primary='true']:active:not(:disabled) { background: var(--sm-accent-pressed); }
+/* 不可用时是状态说明而非按钮：去底、缩小字号、降为辅助文字；高度不变，切换模型时不跳动。 */
+.generate:disabled { background: none; color: var(--sm-text-muted); font-size: 12px; font-weight: 400; cursor: default; }
+.generate[aria-busy='true'] { background: var(--sm-fill-subtle); color: var(--sm-text-secondary); font-size: 13px; font-weight: 500; }
+
+.hint { margin: 0 2px; font-size: 11px; line-height: 1.5; color: var(--sm-text-secondary); }
+/* 生成区的状态说明：始终一行高，空时也占位；过长省略，完整内容在悬停提示里。 */
+.status { min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link { padding: 0; border: 0; background: none; color: var(--sm-text-primary); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--sm-border); }
+.footLink { min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: color 140ms var(--sm-ease-out), background 140ms var(--sm-ease-out); }
+.footLink:hover { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+.footLink:active { background: var(--sm-fill-active); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-tap-feedback-motion-off])) .version:active:not(:disabled) .versionInfo { transform: scale(.98); transition-duration: 80ms; }
+}
+
+@media (prefers-reduced-motion: reduce) { .versionInfo { transition: none; } }

@@ -14,6 +14,11 @@ vi.mock('../../stores/playlist', async importOriginal => {
   const store = original.usePlaylistStore
   return { ...original, usePlaylistStore: Object.assign((select: (state: ReturnType<typeof store.getState>) => unknown) => select(store.getState()), store) }
 })
+vi.mock('../../stores/settings', async importOriginal => {
+  const original = await importOriginal<typeof import('../../stores/settings')>()
+  const store = original.useSettingsStore
+  return { ...original, useSettingsStore: Object.assign((select: (state: ReturnType<typeof store.getState>) => unknown) => select(store.getState()), store) }
+})
 
 const player = usePlayerStore.getState()
 const playlist = usePlaylistStore.getState()

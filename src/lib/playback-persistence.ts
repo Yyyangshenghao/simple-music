@@ -42,7 +42,8 @@ function toPlaceholder(track: Track): Track {
     duration: track.duration,
     cover: track.cover,
     mid: track.mid,
-    pending: true
+    pending: String(track.id).startsWith('karaoke:') ? false : true,
+    ...(String(track.id).startsWith('karaoke:') ? { accompanimentOriginal: track.accompanimentOriginal, accompanimentModel: track.accompanimentModel } : {}),
   }
 }
 

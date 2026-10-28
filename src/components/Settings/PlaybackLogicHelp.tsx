@@ -106,7 +106,7 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
                     <dt>为什么来源不同？</dt>
                     <dd><RevealText text="歌曲来源是你找到它的平台；音频可能来自换源后的缓存。“更多 → 播放来源”显示“本地离线”，表示正在用缓存。" /></dd>
                     <dt>缓存会一直保留吗？</dt>
-                    <dd><RevealText text="下载未完成时不一定有缓存；容量满后会清理较久未使用的自动缓存。主动“保存到本地”的歌曲不受自动清理影响，在“设置 → 缓存与下载”中单独管理。" /></dd>
+                    <dd><RevealText text="下载未完成时不一定有缓存；容量满后会清理较久未使用的自动缓存。已保留为离线音乐的歌曲不受自动清理影响，在“设置 → 缓存与下载”中单独管理。" /></dd>
                     <dt>本次优先还会影响什么？</dt>
                     <dd><RevealText text="重载时保留进度与暂停状态。失败后是否换源，仍取决于“自动换源”开关。" /></dd>
                   </dl>

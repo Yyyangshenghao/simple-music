@@ -57,13 +57,33 @@ describe('我的库账号失效提示', () => {
     } })
   })
 
-  it('首次进入我的库优先展示应用歌单，无平台登录也能新建四源聚合收藏', () => {
+  it('首次进入应用歌单默认展示歌单，伴奏单独作为二级切换，无平台登录也能新建歌单', () => {
     content.tab = 'app-playlists'
     const html = renderToStaticMarkup(<LibraryPage />)
-    expect(html).toContain('建一份跨平台歌单')
-    expect(html).toContain('新建应用歌单')
-    for (const label of ['网易云', 'QQ音乐', 'Apple Music', '本地']) expect(html).toContain(label)
+    expect(html).toContain('aria-label="应用歌单类型"')
+    expect(html).toContain('伴奏')
+    expect(html).toContain('还没有应用歌单')
+    expect(html).toContain('新建歌单')
+    expect(html).not.toContain('打开我的伴奏')
     expect(html).not.toContain('前往设置重新登录')
+  })
+
+  it('选过伴奏后再进入应用歌单直接展示伴奏库', () => {
+    content.tab = 'app-playlists'
+    vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'simplemusic-library-app-playlists-kind' ? 'accompaniments' : null, setItem: () => {} })
+    try {
+      const html = renderToStaticMarkup(<LibraryPage />)
+      expect(html).toContain('aria-label="搜索伴奏"')
+      expect(html).not.toContain('新建歌单')
+    } finally { vi.unstubAllGlobals() }
+  })
+
+  it('普通应用歌单存档读取失败时，伴奏切换仍然可用', () => {
+    content.tab = 'app-playlists'
+    useAppPlaylistsStore.setState({ error: '应用歌单读取失败' })
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('应用歌单读取失败')
+    expect(html).toContain('aria-label="应用歌单类型"')
   })
 
   it('切回歌单时首帧复用已缓存内容，不显示加载空档', async () => {

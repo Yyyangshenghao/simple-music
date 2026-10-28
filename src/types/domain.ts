@@ -233,7 +233,7 @@ export interface CustomBackgroundMedia {
 export interface PerformanceFlags {
   /** 页面切换、菜单弹出、列表滚动入场与封面飞行等转场；关闭后直接切换。 */
   pageTransitionMotion: boolean
-  /** 控件手感七项，各自独立；设置页「控件动效」只是一次性批量开关。 */
+  /** 控件手感九项，各自独立；设置页「控件动效」只是一次性批量开关。 */
   /** 按钮与卡片按下时的缩小回弹。 */
   tapFeedbackMotion: boolean
   /** 卡片悬停上浮、播放栏封面放大、播放控件图标位移。 */
@@ -248,6 +248,10 @@ export interface PerformanceFlags {
   dragMotion: boolean
   /** 红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出、搜索框展开。 */
   iconMotion: boolean
+  /** 伴奏面板从麦克风按钮外的圆向上展开、关闭时收回。 */
+  popoverSproutMotion: boolean
+  /** 任务入口轻移显现、收回与完成勾选；关闭仍保留平滑槽位过渡。 */
+  queueSplitMotion: boolean
   /** 设置目录、歌手页标签、卡片栏等页面跳转的平滑滚动；关闭后直接跳到目标位置。 */
   smoothScrollMotion: boolean
   /** 换句时的一切：歌词列表跟随滚动、换句淡入淡出、立体与桌面歌词换行、样式切换过渡；关闭后直接换句。 */

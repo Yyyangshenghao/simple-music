@@ -59,54 +59,54 @@
   box-shadow: inset 0 1px 0 var(--sm-border-strong), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
 }
 
-/* 浮起的透镜：比轨道更高，盖在标签之上。透镜范围内原标签被挖空（见 .subTabs > .subTab 的 mask），
-   内部是清晰放大、以选中态文字色显示的副本，像凸透镜；只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
+/* 玻璃透镜：盖在标签之上，透镜范围内原标签被挖空（见 .subTabs > .subTab 的 mask），
+   内部是以选中态文字色重绘的折射副本。静置时是贴在磨砂指示器上的薄玻璃，浮起时更高、放大并投影；
+   只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
 .tabLens {
   z-index: 2;
-  overflow: hidden;
-  background: radial-gradient(closest-side, transparent 78%, color-mix(in srgb, var(--sm-text-primary) 6%, transparent));
-  backdrop-filter: blur(1.5px) saturate(160%);
-  -webkit-backdrop-filter: blur(1.5px) saturate(160%);
-  box-shadow:
-    inset 0 1px 0.5px color-mix(in srgb, white 45%, transparent),
-    inset 0 -1px 0.5px color-mix(in srgb, white 16%, transparent),
-    inset 0 0 6px color-mix(in srgb, var(--sm-bg-base) 22%, transparent),
-    0 0 0 0.5px var(--sm-border-strong),
-    0 6px 18px color-mix(in srgb, var(--sm-bg-base) 26%, transparent);
+  /* 供 WebGL 透镜读取选中态文字色：跟随主题色，单色主题时即黑白主文字色。 */
+  color: var(--sm-accent);
   will-change: transform, opacity;
 }
-/* 玻璃边缘：中性高光细边，上沿亮、下沿弱。 */
-.tabLens::before {
+/* 浮起投影随 --lift（0～1）出现，静置时由下方指示器自带的浅投影承担。 */
+.tabLens::after {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: -1;
   border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(180deg,
-    color-mix(in srgb, white 50%, transparent),
-    color-mix(in srgb, white 6%, transparent) 45%,
-    color-mix(in srgb, white 20%, transparent));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--sm-bg-base) 26%, transparent);
+  opacity: var(--lift, 0);
+}
+/* 玻璃边缘：中性高光细边，上沿亮、下沿弱。 */
+.tabLensRim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: visible;
 }
 
 /* 透镜内裁切层：与透镜同框，只在边缘窄带羽化，让副本过渡到外圈模糊的原标签。 */
 .tabLensClip {
   position: absolute;
   inset: 0;
+  /* 透亮玻璃：内部不加任何填充或光带，只轻微提亮饱和，玻璃感交给折射与高光细边。 */
+  backdrop-filter: saturate(115%) brightness(1.03);
+  -webkit-backdrop-filter: saturate(115%) brightness(1.03);
   -webkit-mask-image:
-    linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent),
-    linear-gradient(transparent, #000 3px, #000 calc(100% - 3px), transparent);
+    linear-gradient(90deg, transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent),
+    linear-gradient(transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent);
   -webkit-mask-composite: source-in;
   mask-image:
-    linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent),
-    linear-gradient(transparent, #000 3px, #000 calc(100% - 3px), transparent);
+    linear-gradient(90deg, transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent),
+    linear-gradient(transparent, #000 1.5px, #000 calc(100% - 1.5px), transparent);
   mask-composite: intersect;
 }
 
-/* 透镜内的标签副本：与真实标签逐像素对齐后等比放大，统一用选中态文字色。 */
+/* WebGL 透镜画布：铺满透镜，着色器按透镜可见尺寸完成折射与放大。 */
+.tabLensCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 透镜内的标签副本（WebGL 不可用时的退路）：与真实标签逐像素对齐后等比放大，统一用选中态文字色。 */
 .tabLensCopy {
   position: absolute;
   top: -3px;
@@ -116,12 +116,15 @@
   padding: 3px;
 }
 .tabLensCopy .subTab,
-.tabLensCopy .subTab .subTabIcon { color: var(--sm-text-primary); opacity: 1; }
+.tabLensCopy .subTab .subTabIcon { color: var(--sm-accent); opacity: 1; }
 
-/* 透镜浮起时把真实标签在透镜范围内挖空，避免与放大副本叠成重影；椭圆内切于透镜，四角留给模糊边。 */
+/* 挖空轮廓与透镜共用，局部鼓起时也不会露出原标签造成重影。 */
 .subTabs > .subTab {
-  -webkit-mask-image: radial-gradient(var(--lens-rx, 0px) var(--lens-ry, 0px) at calc(var(--lens-cx, -9999px) - var(--btn-left, 0px)) 50%, transparent 97%, #000 100%);
-  mask-image: radial-gradient(var(--lens-rx, 0px) var(--lens-ry, 0px) at calc(var(--lens-cx, -9999px) - var(--btn-left, 0px)) 50%, transparent 97%, #000 100%);
+  -webkit-mask-image: var(--lens-mask, none);
+  mask-image: var(--lens-mask, none);
+  mask-size: var(--lens-mask-size, 100% 100%);
+  mask-position: calc(0px - var(--btn-left, 0px)) -3px;
+  mask-repeat: no-repeat;
 }
 
 .subTab {
@@ -150,7 +153,8 @@
 .subTabActive .subTabIcon { opacity: 1; }
 
 .subTab:hover { color: var(--sm-text-primary); }
-.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }
+/* 选中项文字与图标跟随主题色。 */
+.subTab.subTabActive { background: var(--sm-bg-overlay); color: var(--sm-accent); }
 /* 按住拖动时选中态交给透镜，原选中项退回普通色。 */
 .subTabs[data-holding='true'] > .subTabActive { color: var(--sm-text-secondary); }
 .subTabs[data-holding='true'] > .subTabActive .subTabIcon { opacity: 0.85; }
@@ -226,22 +230,6 @@
   color: var(--sm-text-primary);
 }
 
-.toolbarActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.searchInput {
-  padding: 5px 12px;
-  border-radius: var(--sm-radius-pill);
-  border: 1px solid var(--sm-border);
-  background: var(--sm-bg-elevated);
-  color: var(--sm-text-primary);
-  font-size: 13px;
-  outline: none;
-}
-
 .folderList {
   display: flex;
   flex-wrap: wrap;
@@ -253,22 +241,34 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 4px 2px 10px;
   border-radius: var(--sm-radius-pill);
   background: var(--sm-bg-overlay);
   font-size: 12px;
   color: var(--sm-text-secondary);
 }
+.folderChip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .folderChipRemove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
   border: none;
   background: none;
   color: inherit;
   cursor: pointer;
   padding: 0;
+  border-radius: 50%;
   line-height: 1;
   font-size: 14px;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
 }
+.folderChipRemove:hover { background: var(--sm-fill-hover); color: var(--sm-color-danger); }
+.folderChipRemove:active { background: var(--sm-fill-active); }
 
 /* 本地音乐排序:自绘下拉 + 升降序按钮。 */
 .sortMenu {
@@ -279,13 +279,14 @@
 }
 
 .sortToggle {
+  height: 32px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -294,7 +295,6 @@
 
 .sortToggle:hover { color: var(--sm-text-primary); }
 
-.sortLabel { color: var(--sm-text-secondary); opacity: 0.8; }
 .sortValue { color: var(--sm-text-primary); }
 
 .sortCaret {
@@ -339,10 +339,14 @@
 .sortOption.sortOptionActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); font-weight: 600; }
 
 .sortDirBtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 4px 8px;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
-  background: var(--sm-bg-elevated);
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
   color: var(--sm-text-secondary);
   font-size: 13px;
   line-height: 1;
@@ -352,3 +356,6 @@
 
 .sortDirBtn:hover { color: var(--sm-text-primary); }
 
+
+.localTrackRow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.localTrackRow > :first-child { flex: 1; min-width: 0; }

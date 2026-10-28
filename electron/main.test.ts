@@ -44,6 +44,7 @@ vi.mock('./modules/playback-host', () => ({
   createPlaybackHost: () => h.host, getPlaybackHost: () => h.host, closePlaybackHost: vi.fn(), attachPlaybackUi: vi.fn(), onPlaybackHostFailure: (listener: () => void) => { h.hostFailure = listener },
   sendPlaybackEvent: vi.fn(), isPlaybackHostReady: () => true
 }))
+vi.mock('./modules/karaoke-helper', () => ({ registerKaraokeHelperIpc: vi.fn(), stopKaraokeHelper: vi.fn() }))
 vi.mock('./modules/listening-flush', () => ({ flushRendererListeningReports: h.flushListening }))
 vi.mock('./ipc', () => ({ registerIpc: h.registerIpc }))
 vi.mock('./modules/window-manager', () => ({
@@ -67,7 +68,7 @@ async function bootWindows() {
   vi.stubGlobal('process', { ...process, platform: 'win32' })
   h.windowEvents.clear()
   h.registerIpc.mockImplementationOnce(() => {})
-  await import('./main')
+  await import('./application')
   await flush()
 }
 
@@ -97,7 +98,7 @@ describe('主窗口激活恢复', () => {
       h.windows = [h.main]
       return h.main
     })
-    await import('./main')
+    await import('./application')
     await flush()
   })
 
@@ -377,7 +378,7 @@ describe('主窗口激活恢复', () => {
     let finish!: (value: { port: number; token: string }) => void
     h.bootServer.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
     h.registerIpc.mockImplementationOnce(() => {})
-    await import('./main')
+    await import('./application')
     h.events.get('activate')!()
     h.events.get('second-instance')!()
     expect(h.createMainWindow).not.toHaveBeenCalled()
@@ -395,7 +396,7 @@ describe('主窗口激活恢复', () => {
     let finish!: (value: { port: number; token: string }) => void
     h.bootServer.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
     h.registerIpc.mockImplementationOnce(() => {})
-    await import('./main')
+    await import('./application')
     h.events.get('activate')!()
     h.events.get('before-quit')!()
     finish({ port: 35530, token: 'test-token' })

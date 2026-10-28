@@ -11,6 +11,7 @@ import {
 } from './lyrics-fetch'
 import { lyricPlatformEnabled, lyricServiceMode } from './lyric-service'
 import { TrackMatchMismatchError } from './track-match'
+import { accompanimentOriginal } from './karaoke-library'
 
 export interface LyricsSourceQueryResult {
   status: LyricCandidateStatus
@@ -40,6 +41,7 @@ function matchingSources(sources: ProviderId[], probe = false): Array<'netease' 
 }
 
 export function candidateAvailability(track: Track, origin: LyricOrigin, sources: ProviderId[], probe = false): Availability {
+  track = accompanimentOriginal(track) ?? track
   if (track.source === 'local' && origin === 'local') return { status: 'idle' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
   if (origin === 'apple' && track.source !== 'apple') return { status: 'unavailable', message: '仅 Apple Music 曲目可用' }
@@ -183,6 +185,7 @@ export async function queryLyricsSource(
   track: Track, origin: LyricOrigin, sources: ProviderId[], signal?: AbortSignal,
   rememberedMatch?: Track, options: { probe?: boolean } = {}
 ): Promise<LyricsSourceQueryResult> {
+  track = accompanimentOriginal(track) ?? track
   const available = candidateAvailability(track, origin, sources, options.probe)
   if (available.status !== 'idle') return available
   const controller = new AbortController()

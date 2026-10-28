@@ -1,0 +1,23 @@
+.toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; min-height: 60px; margin-bottom: 12px; padding: 12px 0; border-bottom: 1px solid var(--sm-border); }
+.context, .controls, .actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.context { gap: 12px; }
+.summary { color: var(--sm-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.controls { margin-left: auto; max-width: 100%; flex-wrap: wrap; }
+.actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+.search { display: flex; align-items: center; gap: 8px; width: 36px; max-width: 100%; height: 32px; padding: 0 9px; box-sizing: border-box; overflow: hidden; cursor: pointer; border: 1px solid transparent; border-radius: 9px; background: var(--sm-fill-subtle); color: var(--sm-text-secondary); transition: border-color 160ms var(--sm-ease-out), background 160ms var(--sm-ease-out); }
+.search[data-expanded='true'] { cursor: text; }
+.search[data-expanded='false'] input { opacity: 0; }
+.search > svg { flex: none; }
+.search:hover:not(:has(input:disabled)) { background: var(--sm-fill-hover); border-color: var(--sm-border); }
+.search:focus-within { border-color: var(--sm-accent); background: var(--sm-bg-elevated); color: var(--sm-accent); }
+.search[data-filtered] > svg { color: var(--sm-accent); }
+.search input { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--sm-text-primary); font: inherit; font-size: 12px; }
+.search input::placeholder { color: var(--sm-text-secondary); }
+.search input::-webkit-search-cancel-button { display: none; }
+.search input:disabled { opacity: .4; }
+.clear { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-secondary); cursor: pointer; transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out); }
+.clear:hover:not(:disabled) { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.clear:active:not(:disabled) { background: var(--sm-fill-active); }
+.clear:disabled { opacity: .4; cursor: default; }
+@media (max-width: 720px) { .controls { width: 100%; } .actions { margin-left: auto; } }
+@media (prefers-reduced-motion: reduce) { .search, .clear { transition: none; } }

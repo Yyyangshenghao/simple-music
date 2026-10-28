@@ -19,7 +19,7 @@ function restoreJobs(): OfflineSaveJob[] | null {
   try {
     raw = localStorage.getItem(DOWNLOAD_QUEUE_STORAGE_KEY)
   } catch {
-    useOfflineCacheStore.setState({ recoveryError: '无法读取未完成下载，本次新任务暂不保存；请重启后重试', queueOpen: true })
+    useOfflineCacheStore.setState({ recoveryError: '无法读取未完成下载，本次新任务暂不保存；请重启后重试' })
     return null
   }
   if (!raw) return []
@@ -39,7 +39,7 @@ function restoreJobs(): OfflineSaveJob[] | null {
       return [{ track: stripUrl(track), directory: job.directory, status: 'queued', controller: new AbortController() }]
     })
   } catch {
-    useOfflineCacheStore.setState({ recoveryError: '未完成下载记录格式无法恢复，之前的任务需重新添加', queueOpen: true })
+    useOfflineCacheStore.setState({ recoveryError: '未完成下载记录格式无法恢复，之前的任务需重新添加' })
     return []
   }
 }
@@ -52,7 +52,7 @@ export function initDownloadQueueRuntime(): () => void {
   const store = useOfflineCacheStore
   const jobs = store.getState().jobs.length ? [] : restoreJobs()
   let unreadable = jobs === null
-  if (jobs?.length) store.setState({ jobs, paused: true, queueOpen: true })
+  if (jobs?.length) store.setState({ jobs, paused: true })
   let serialized: string | undefined
   let dirty = false
   function save(): void {

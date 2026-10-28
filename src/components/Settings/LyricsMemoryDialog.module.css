@@ -43,9 +43,7 @@
 .searchBox:focus-within > svg { color: var(--sm-accent); transform: scale(1.08); }
 .search { flex: 1; min-width: 0; box-sizing: border-box; min-height: 34px; padding: 6px 12px 6px 32px; border: 1px solid var(--sm-border); border-radius: 9px; background: var(--sm-bg-base); color: var(--sm-text-primary); font-size: 12px !important; outline: none; transition: border-color 200ms var(--sm-ease-out), box-shadow 260ms var(--sm-ease-out); }
 .search:focus { border-color: color-mix(in srgb, var(--sm-accent) 60%, var(--sm-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sm-accent) 16%, transparent); }
-.select { min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-bg-base); color: var(--sm-text-primary); font-size: 12px !important; cursor: pointer; transition: border-color 160ms var(--sm-ease-out), box-shadow 220ms var(--sm-ease-out); }
-.select:hover { border-color: var(--sm-border-strong); }
-.select:focus-visible { outline: none; border-color: color-mix(in srgb, var(--sm-accent) 60%, var(--sm-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-accent) 16%, transparent); }
+.select { font-size: 12px !important; }
 
 /* 来源筛选：果冻单选，放不下时横向滚动 */
 .filters { flex-shrink: 0; padding: 8px 12px 10px; overflow-x: auto; scrollbar-width: none; }

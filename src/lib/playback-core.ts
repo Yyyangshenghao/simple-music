@@ -12,6 +12,7 @@ import {
 } from './playback-load-policy'
 import { SOURCE_BRAND } from './source-brand'
 import { ListeningClock } from './listening-clock'
+import { accompanimentId, accompanimentOriginal } from './karaoke-library'
 import { isProviderId, type PlaybackCandidate, type ProviderId, type QualityOption } from '../providers/types'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
@@ -24,7 +25,7 @@ const SCROBBLE_MIN_SECONDS = 20
 export type PlaybackEngine = Pick<AudioEngine,
   'load' | 'play' | 'pause' | 'seek' | 'setVolume' | 'setPlaybackRate' | 'clearSource'
   | 'getFrequencyData' | 'hasSource' | 'position' | 'destroy'
-> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads'>>
+> & Partial<Pick<AudioEngine, 'preloadAudio' | 'waitForPreload' | 'releasePreloads' | 'setKaraoke' | 'prepareAlternate'>>
 type ApplePlayback = Pick<AppleMusicPlayback, 'load' | 'command' | 'stop' | 'lyricPosition'>
 type PlaybackResolverPort = Pick<PlaybackResolver,
   'sourceOrder' | 'attempts' | 'failureMessage' | 'next' | 'abort' | 'complete'
@@ -43,8 +44,10 @@ export interface PlaybackCoreDependencies {
   getSourcePreferences(): PlaybackSourcePreferences
   isParticipating(source: ProviderId): boolean
   subscribeProviders(listener: () => void): () => void
+  subscribeAccompaniments?(listener: () => void): () => void
   resolvePending(track: Track): Promise<Track>
   localAudioUrl(track: Track): string | null
+  findAccompaniment(track: Track, id?: string): Track | null
   fetchOfflineStatus(track: Track): Promise<OfflineCacheStatus>
   offlineFileUrl(status: OfflineCacheStatus, track: Track): string | null
   getPreloadedResolution(track: Track, quality: AudioQuality): PreloadedResolution | undefined
@@ -65,6 +68,8 @@ export interface PlaybackCoreDependencies {
 export interface PlaybackPlayer {
   status: PlaybackStatus
   currentTrack: Track | null
+  /** 当前原曲使用的已生成伴奏；切歌清空，不改变队列和歌词身份。 */
+  accompaniment: Track | null
   position: number
   /** 显式定位序号，供各窗口区分 seek 与迟到的离散进度采样；不持久化。 */
   seekRevision: number
@@ -91,11 +96,13 @@ export interface PlaybackPlayer {
   pause(): void
   stop(): void
   toggle(): void
+  toggleAccompaniment(): Promise<void>
+  selectAccompaniment(id: string | null, expectedTrackKey: string): Promise<void>
   seek(seconds: number): void
   setVolume(v: number): void
   setQuality(q: AudioQuality): void
   setRate(r: number): void
-  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean }): Promise<void>
+  loadTrack(track: Track, opts?: { startAt?: number; contextId?: unknown; preferredSource?: ProviderId; autoplay?: boolean; preservePlaybackIntent?: boolean; accompaniment?: Track | null; seamless?: boolean }): Promise<void>
   /** 当前曲目仅本次重载时软优先指定平台，不改变全局播放顺序。 */
   preferSourceOnce(source: ProviderId): void
   _lyricPosition(): number
@@ -219,12 +226,16 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   interface ActivePlayback {
     session: number
     originTrack: Track
+    accompaniment: Track | null
     resolver: PlaybackResolverPort | null
     candidate: PlaybackCandidate | null
     candidateKind: 'external' | 'resolver' | 'offline' | 'local'
     offlineStatus?: OfflineCacheStatus
     offlineFallback?: { status: OfflineCacheStatus; url: string }
     engineLoadId: number
+    engineLoad?: EngineLoad
+    seamless?: boolean
+    restored?: PlaybackMetadata
     startAt: number
     /** 仅刷歌允许接管暂停预加载元素 */
     usePreparedAudio: boolean
@@ -235,9 +246,31 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     offlineFailed?: boolean
     /** 自然结束已处理上报；切歌不重复上报，单曲重播时重置。 */
     scrobbledOnEnd?: boolean
+
+  }
+
+  interface EngineLoad {
+    url: string
+    cacheKey?: string
+    cacheContext?: Parameters<PlaybackEngine['load']>[3]
   }
 
   let activePlayback: ActivePlayback | null = null
+  type PlaybackMetadata = Pick<PlaybackPlayer, 'actualSource' | 'resolvedTrack' | 'resolution' | 'currentQuality' | 'playbackTransport' | 'playbackAttempts'>
+  let originalAudio: {
+    load: EngineLoad
+    metadata: PlaybackMetadata
+    quality: AudioQuality
+    candidate: PlaybackCandidate | null
+    kind: ActivePlayback['candidateKind']
+    offlineStatus?: OfflineCacheStatus
+  } | null = null
+  let switchFallback: { active: ActivePlayback; state: PlaybackPlayer } | null = null
+
+  function metadata(state: PlaybackPlayer): PlaybackMetadata {
+    const { actualSource, resolvedTrack, resolution, currentQuality, playbackTransport, playbackAttempts } = state
+    return { actualSource, resolvedTrack, resolution, currentQuality, playbackTransport, playbackAttempts }
+  }
   let outputRecoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   // 睡眠定时器「播完当前曲再停」:置位后自然播完不走 next,改调该回调(由 sleep-timer store 注册)
@@ -249,6 +282,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   let applePlayback: ApplePlayback | null = null
 
   function trackEnded(): void {
+    if (activePlayback) activePlayback.autoplay = false
     if (activePlayback && !activePlayback.scrobbledOnEnd) {
       activePlayback.scrobbledOnEnd = true
       finishListening()
@@ -395,9 +429,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
           quality: String(candidate.quality.id),
         }
       : undefined
-    const loadId = active.usePreparedAudio
-      ? eng.load(candidate.url, active.startAt, cacheKey, cacheContext, true)
-      : eng.load(candidate.url, active.startAt, cacheKey, cacheContext)
+    const loadId = loadOriginal(active, { url: candidate.url, cacheKey, cacheContext })
     active.engineLoadId = loadId
     eng.setVolume(get().volume)
     if (active.autoplay) {
@@ -424,9 +456,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       playbackTransport: null, currentQuality: null,
     })
     const eng = ensureEngine()
-    const loadId = active.usePreparedAudio
-      ? eng.load(fallback.url, active.startAt, undefined, undefined, true)
-      : eng.load(fallback.url, active.startAt)
+    const loadId = loadOriginal(active, { url: fallback.url })
     active.engineLoadId = loadId
     eng.setVolume(get().volume)
     if (active.autoplay) {
@@ -442,6 +472,14 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   async function advancePlayback(reason?: string): Promise<void> {
     const active = activePlayback
     if (!active || active.advancing) return
+    if (active.accompaniment) {
+      const state = get()
+      deps.notify('伴奏文件无法播放，已切回原曲，可在“我的伴奏”中刷新或重新生成')
+      await state.loadTrack(active.originTrack, {
+        startAt: Math.max(active.startAt, state.position), contextId: state.contextId, autoplay: active.autoplay, preservePlaybackIntent: true,
+      })
+      return
+    }
     if (active.candidateKind === 'offline') {
       // 本次在线回退不得经代理重新读到同一个坏缓存，也不删除用户固定的文件。
       active.offlineFailed = true
@@ -478,14 +516,44 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     }
   }
 
+  function loadOriginal(active: ActivePlayback, load: EngineLoad): number {
+    active.engineLoad = load
+    if (active.seamless) return ensureEngine().load(load.url, ensureEngine().position, load.cacheKey, load.cacheContext, false, true)
+    if (active.usePreparedAudio) return ensureEngine().load(load.url, active.startAt, load.cacheKey, load.cacheContext, true)
+    return load.cacheKey
+      ? ensureEngine().load(load.url, active.startAt, load.cacheKey, load.cacheContext)
+      : ensureEngine().load(load.url, active.startAt)
+  }
+
   function commitPlayableCandidate(loadId: number): void {
     const active = activePlayback
     if (!active || active.session !== loadSession || active.engineLoadId !== loadId) return
+    commitCandidate(active)
+    switchFallback = null
+    prepareAccompaniment()
+  }
+
+  function prepareAccompaniment(): void {
+    const active = activePlayback
+    if (!active || !active.engineLoadId) return
+    if (!active.accompaniment && active.originTrack.source !== 'apple' && !accompanimentOriginal(active.originTrack)) {
+      const stem = deps.findAccompaniment(active.originTrack)
+      const url = stem && deps.localAudioUrl(stem)
+      if (url) ensureEngine().prepareAlternate?.(url)
+    }
+  }
+
+  function commitCandidate(active: ActivePlayback): void {
+    if (active.restored) {
+      set(active.restored)
+      resumeListening()
+      return
+    }
     if (active.candidateKind === 'local') {
       finishListening()
       set({
         actualSource: 'local',
-        resolvedTrack: active.originTrack,
+        resolvedTrack: active.accompaniment ?? active.originTrack,
         resolution: null,
         currentQuality: null,
         playbackTransport: 'local',
@@ -573,7 +641,26 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       },
       onCanPlay: commitPlayableCandidate,
       onError: (reason, loadId) => {
-        if (activePlayback?.engineLoadId !== loadId) return
+        const active = activePlayback
+        if (active?.engineLoadId !== loadId) return
+        if (reason === 'MEDIA_SWITCH_FAILED' && switchFallback) {
+          const previous = switchFallback
+          switchFallback = null
+          activePlayback = previous.active
+          activePlayback.session = loadSession
+          activePlayback.engineLoadId = loadId
+          activePlayback.autoplay = active.autoplay
+          if (activePlayback.candidate && activePlayback.candidate.source !== 'apple') {
+            activePlayback.resolver = createResolver(activePlayback)
+            activePlayback.candidateKind = 'external'
+          }
+          set({ ...metadata(previous.state), currentTrack: previous.state.currentTrack, accompaniment: previous.state.accompaniment,
+            position: ensureEngine().position, status: active.autoplay ? 'playing' : 'paused' })
+          resumeListening()
+          deps.notify('目标音轨暂时无法切换，已继续播放当前音轨')
+          return
+        }
+        active.restored = undefined
         void advancePlayback(reason)
       },
       onOutputDeviceChange: (wasPlaying) => {
@@ -591,6 +678,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
             contextId: latest.contextId,
             autoplay: true,
             preservePlaybackIntent: true,
+            accompaniment: latest.accompaniment,
           })
         }, 200)
       },
@@ -604,6 +692,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   const player: PlaybackPlayer = {
     status: 'idle',
     currentTrack: null,
+    accompaniment: null,
     position: 0,
     seekRevision: 0,
     duration: 0,
@@ -637,7 +726,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 重启恢复态:有曲目但引擎还没加载过源,先按断点位置重新解析加载
       const { currentTrack, position, contextId } = get()
       if (!eng.hasSource && currentTrack) {
-        void get().loadTrack(currentTrack, { startAt: position, contextId, preservePlaybackIntent: opts?.preservePlaybackIntent })
+        void get().loadTrack(currentTrack, { startAt: position, contextId, preservePlaybackIntent: opts?.preservePlaybackIntent, accompaniment: get().accompaniment })
         return
       }
       void eng.play()
@@ -656,6 +745,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       finishListening()
       deps.beginIntent()
       ++loadSession
+      originalAudio = null
+      switchFallback = null
       activePlayback?.resolver?.abort()
       activePlayback = null
       if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
@@ -667,7 +758,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       engine?.clearSource()
       if (String(get().contextId).startsWith('shuange:')) engine?.releasePreloads?.()
       set({
-        currentTrack: null, status: 'idle', position: 0, duration: 0,
+        currentTrack: null, accompaniment: null, status: 'idle', position: 0, duration: 0,
         actualSource: null, resolvedTrack: null, resolution: null,
         playbackTransport: null, playbackAttempts: [], currentQuality: null, contextId: null,
       })
@@ -681,6 +772,37 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       const s = get().status
       if (s === 'playing' || s === 'loading') get().pause()
       else get().play()
+    },
+    async toggleAccompaniment() {
+      if (disposed) return
+      const state = get()
+      const track = state.currentTrack
+      if (!track || track.source === 'apple') return
+      const original = accompanimentOriginal(track)
+      const accompaniment = state.accompaniment || original ? null : deps.findAccompaniment(track)
+      if (!state.accompaniment && !original && !accompaniment) {
+        deps.notify('这首歌还没有可用伴奏，请先在“更多”中生成')
+        return
+      }
+      await state.selectAccompaniment(accompaniment ? accompanimentId(accompaniment) : null, `${track.source}:${String(track.id)}`)
+    },
+    async selectAccompaniment(id, expectedTrackKey) {
+      if (disposed) return
+      const state = get()
+      const track = state.currentTrack
+      if (!track || track.source === 'apple' || `${track.source}:${String(track.id)}` !== expectedTrackKey) return
+      if (id === accompanimentId(state.accompaniment ?? track)) return
+      const original = accompanimentOriginal(track)
+      const accompaniment = id === null ? null : deps.findAccompaniment(track, id)
+      if (id !== null && (!accompaniment || accompanimentId(accompaniment) !== id)) {
+        deps.notify('这个伴奏版本暂不可用，请刷新后重试')
+        return
+      }
+      await state.loadTrack(original ?? track, {
+        startAt: state.position, contextId: state.contextId,
+        autoplay: activePlayback?.autoplay ?? shouldAutoplayPlaybackReload(state.status), accompaniment,
+        seamless: !original && !!activePlayback?.engineLoadId && !!ensureEngine().prepareAlternate && state.status !== 'loading',
+      })
     },
     seek(seconds) {
       if (disposed) return
@@ -718,15 +840,25 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       set({ rate: r })
       resumeListening()
     },
-
     async loadTrack(track, opts) {
       if (disposed) return
+      const seamless = !!opts?.seamless && !!activePlayback && ensureEngine().hasSource
+      if (seamless && activePlayback) {
+        switchFallback ??= { active: activePlayback, state: get() }
+        if (!get().accompaniment && activePlayback.engineLoad && get().actualSource) {
+          originalAudio = { load: activePlayback.engineLoad, metadata: metadata(get()), quality: get().quality,
+            candidate: activePlayback.candidate, kind: activePlayback.candidateKind, offlineStatus: activePlayback.offlineStatus }
+        }
+      } else {
+        originalAudio = null
+        switchFallback = null
+      }
       reportingFlushed = false
       seeking = false
       suspendListening()
       const previous = get().currentTrack
       if (!previous || previous.source !== track.source || String(previous.id) !== String(track.id)
-        || opts?.startAt === undefined) finishListening()
+        || opts?.startAt === undefined || opts.accompaniment) finishListening()
       if (!opts?.preservePlaybackIntent) deps.beginIntent()
       if (track.source !== 'apple') deps.appleSpectrum.stop()
       applePlayback?.stop()
@@ -735,15 +867,19 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 切歌/重载统一终止旧解析会话，晚到的搜索、URL 和媒体回调都不得写回。
       activePlayback?.resolver?.abort()
       activePlayback = null
-      if (String(opts?.contextId ?? '').startsWith('shuange:') && String(get().contextId ?? '').startsWith('shuange:')) eng.clearSource(true)
-      else eng.clearSource()
+      if (!seamless) {
+        if (String(opts?.contextId ?? '').startsWith('shuange:') && String(get().contextId ?? '').startsWith('shuange:')) eng.clearSource(true)
+        else eng.clearSource()
+      }
       const session = ++loadSession
       const startAt = opts?.startAt ?? 0
       const autoplay = opts?.autoplay ?? true
       const nextContextId = opts?.contextId ?? null
+      const accompaniment = track.source === 'apple' ? null : opts?.accompaniment ?? null
       // Track.duration 约定为毫秒,store.duration 是秒(引擎元数据就绪后会覆盖)
       set({
         currentTrack: track,
+        accompaniment,
         source: track.source,
         actualSource: null,
         resolvedTrack: null,
@@ -751,7 +887,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         playbackTransport: null,
         playbackAttempts: [],
         contextId: nextContextId,
-        status: autoplay ? 'loading' : 'paused',
+        status: autoplay ? seamless ? get().status : 'loading' : 'paused',
         position: startAt,
         duration: (track.duration ?? 0) / 1000,
         currentQuality: null,
@@ -760,18 +896,31 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       const active: ActivePlayback = {
         session,
         originTrack: track,
+        accompaniment,
         resolver: null,
         candidate: null,
-        candidateKind: track.source === 'local' ? 'local' : 'resolver',
+        candidateKind: accompaniment || track.source === 'local' ? 'local' : 'resolver',
         engineLoadId: 0,
+        seamless,
         startAt,
-        usePreparedAudio: String(nextContextId).startsWith('shuange:'),
+        usePreparedAudio: !accompaniment && String(nextContextId).startsWith('shuange:'),
         advancing: false,
         fallbackNotified: false,
         autoplay,
         preferredSource: opts?.preferredSource,
       }
       activePlayback = active
+
+      if (seamless && !accompaniment && originalAudio && originalAudio.quality === get().quality
+        && (!isProviderId(originalAudio.metadata.actualSource) || deps.isParticipating(originalAudio.metadata.actualSource))) {
+        active.restored = originalAudio.metadata
+        active.candidate = originalAudio.candidate
+        active.candidateKind = active.candidate ? 'external' : originalAudio.kind
+        active.offlineStatus = originalAudio.offlineStatus
+        if (active.candidate) active.resolver = createResolver(active)
+        active.engineLoadId = loadOriginal(active, originalAudio.load)
+        return
+      }
 
       // 补详情也属于当前播放会话；等待期间暂停、恢复和定位沿用同一份意图。
       if (track.pending) {
@@ -781,21 +930,25 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
         set({ currentTrack: track, duration: (track.duration ?? 0) / 1000 })
       }
 
-      if (track.source === 'local') {
+      if (accompaniment || track.source === 'local') {
         // 本地音乐不依赖 track.url:最近播放等场景落盘会剥掉 url、或存的 url 绑定的是
         // 上一会话端口(端口每次随机注入),直接用 track.id 经本地 api 重建当前可用地址。
         // 重建出的就是 127.0.0.1:<port>/api/local/audio,load 侧 isLocalApiUrl 判定成立,
         // 不会套 /api/audio 代理被 SSRF 防护拦掉。
-        const localUrl = deps.localAudioUrl(track)
+        const localUrl = deps.localAudioUrl(accompaniment ?? track)
         if (!localUrl) {
+          if (accompaniment) { await advancePlayback('LOCAL_AUDIO_MISSING'); return }
           eng.clearSource()
           set({ status: 'idle' })
           deps.notify(FALLBACK_UNPLAYABLE_MESSAGE)
           return
         }
-        active.engineLoadId = eng.load(localUrl, active.startAt)
+        active.engineLoadId = loadOriginal(active, { url: localUrl })
         eng.setVolume(get().volume)
-        if (active.autoplay) void eng.play().catch(() => {})
+        if (active.autoplay) void eng.play().catch(error => {
+          const reason = mediaFailureReasonFromPlayError(error)
+          if (accompaniment && reason && activePlayback === active) void advancePlayback(reason)
+        })
         return
       }
 
@@ -868,7 +1021,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     if (disposed || quality === get().quality) return
     set({ quality })
     const state = get()
-    if (state.currentTrack && state.currentTrack.source !== 'apple' && !state.currentTrack.url
+    if (state.currentTrack && !state.accompaniment && state.currentTrack.source !== 'apple' && !state.currentTrack.url
       && shouldAutoplayPlaybackReload(state.status)) {
       void state.loadTrack(state.currentTrack, {
         startAt: state.position,
@@ -897,6 +1050,7 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
   function start(): void {
     if (disposed || subscriptions) return
     subscriptions = [deps.subscribeQuality(syncQuality), deps.subscribeProviders(syncProviders)]
+    if (deps.subscribeAccompaniments) subscriptions.push(deps.subscribeAccompaniments(prepareAccompaniment))
     syncQuality(deps.getQuality())
     syncProviders()
   }
@@ -911,6 +1065,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     subscriptions = null
     activePlayback?.resolver?.abort()
     activePlayback = null
+    originalAudio = null
+    switchFallback = null
     if (outputRecoveryTimer) clearTimeout(outputRecoveryTimer)
     outputRecoveryTimer = null
     const playback = applePlayback

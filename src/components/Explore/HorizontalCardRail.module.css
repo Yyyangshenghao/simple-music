@@ -1,9 +1,10 @@
 .rail {
-  --rail-shadow-space: 48px;
+  --rail-shadow-space: 56px;
+  /* 滚动容器会裁掉溢出，上下留白要放得下悬停辉光与边缘光的完整外散；负边距抵消，排版不变。 */
+  --rail-glow-space: 64px;
   position: relative;
   min-width: 0;
-  /* 留出卡片悬停与底部阴影的空间。 */
-  margin: -23px -20px -24px;
+  margin: calc(1px - var(--rail-glow-space)) -20px -24px;
 }
 
 .viewport {
@@ -13,7 +14,7 @@
   gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 24px 21px var(--rail-shadow-space);
+  padding: var(--rail-glow-space) 21px var(--rail-shadow-space);
   margin-bottom: calc(24px - var(--rail-shadow-space));
   scrollbar-width: none;
   cursor: grab;
@@ -24,9 +25,9 @@
 .viewport:not(.fadeLeft):not(.fadeRight) { cursor: auto; }
 .viewport::-webkit-scrollbar { display: none; }
 .rail:has(.navigationRow) .viewport { margin-bottom: calc(14px - var(--rail-shadow-space)); }
-/* 无溢出时无需拖动，阴影留白穿透点击，卡片仍保留交互。 */
-.rail:not(:has(.navigationRow)) .viewport { pointer-events: none; }
-.rail:not(:has(.navigationRow)) .viewport > * { pointer-events: auto; }
+/* 留白叠在标题与上一分区之上，空白处穿透点击；拖动从卡片冒泡到轨道，指针捕获不受影响。 */
+.rail, .viewport { pointer-events: none; }
+.viewport > *, .navigation { pointer-events: auto; }
 .viewport[data-dragging='true'], .viewport[data-dragging='true'] * { cursor: grabbing !important; }
 .viewport, .viewport * { user-select: none; -webkit-user-drag: none; }
 .fadeLeft, .fadeRight {

@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import './styles/global.css'
 import './styles/scroll-gradients.css'
 import App from './App'
+import { initTaskCenterRuntime } from './lib/task-center-runtime'
 import { startPlaybackClient } from './lib/playback-client'
 
 const root = document.getElementById('root')!
@@ -16,6 +17,8 @@ async function start(): Promise<void> {
       ? await startPlaybackClient()
       : (await import('./lib/playback-runtime')).startPlaybackRuntime()
     window.addEventListener('unload', stop, { once: true })
+    const stopTasks = initTaskCenterRuntime()
+    window.addEventListener('unload', stopTasks, { once: true })
     createRoot(root).render(<App />)
   } catch (error) {
     const message = document.createElement('p')

@@ -71,101 +71,25 @@
 }
 
 .playBtn {
-  --player-control-hover-color: var(--sm-text-on-accent);
+  --play-glass-ink: var(--sm-text-primary);
+  --player-control-hover-color: var(--play-glass-ink);
   width: 46px;
   height: 46px;
-  border-radius: 50%;
-  background: var(--sm-accent);
-  color: var(--sm-text-on-accent);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
-  border: 1px solid color-mix(in srgb, var(--sm-accent) 20%, transparent);
-  transition: box-shadow 180ms var(--sm-ease-out);
-}
-
-.playBtn:hover {
-  background: var(--sm-accent);
-  color: var(--sm-text-on-accent);
-  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
-}
-
-.playBtn[data-loading='true'] {
-  opacity: 0.7;
-}
-
-/* 悬浮岛与歌词页播放键：流体玻璃，与音乐库分段控件透镜同一套语言——无色通透的玻璃体，
-   背景轻微模糊提亮；渐变细边上沿亮、下沿弱表现厚度，内缘上亮下暗像凸透镜。
-   --play-glass-ink / --play-glass-edge / --play-glass-icon-shadow 让歌词页换成歌词墨色。 */
-.bar .playBtn,
-.lyricsPlayer .playBtn {
-  --play-glass-ink: var(--sm-text-primary);
-  --play-glass-edge: var(--sm-border-strong);
-  --play-glass-icon-shadow: color-mix(in srgb, var(--sm-bg-base) 35%, transparent);
   border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--play-glass-ink);
   isolation: isolate;
-  /* 自上而下：底部焦散（光穿过玻璃聚在下沿，带一点封面色）、边缘折射暗环、通透的玻璃体 */
-  background:
-    radial-gradient(70% 38% at 50% 100%, color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 30%, white) 34%, transparent), transparent),
-    radial-gradient(closest-side, transparent 74%, color-mix(in srgb, var(--play-glass-ink) 9%, transparent) 96%, transparent),
-    linear-gradient(180deg, color-mix(in srgb, white 20%, transparent), color-mix(in srgb, white 5%, transparent) 55%, color-mix(in srgb, white 9%, transparent));
-  backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
-  -webkit-backdrop-filter: blur(4px) saturate(180%) brightness(1.08);
-  box-shadow:
-    inset 0 8px 10px -8px color-mix(in srgb, white 45%, transparent),
-    0 0 0 0.5px var(--play-glass-edge),
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    0 6px 16px -6px rgba(0, 0, 0, 0.32);
-  transition: box-shadow 180ms var(--sm-ease-out), backdrop-filter 180ms var(--sm-ease-out);
 }
 
-.bar .playBtn::before,
-.lyricsPlayer .playBtn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  padding: 1px;
-  /* 镜面细边：左上主高光、右下次高光，两侧收暗，像光沿玻璃厚度绕过去 */
-  background: conic-gradient(from 225deg,
-    color-mix(in srgb, white 85%, transparent),
-    color-mix(in srgb, white 10%, transparent) 22%,
-    color-mix(in srgb, white 4%, transparent) 30%,
-    color-mix(in srgb, white 45%, transparent) 50%,
-    color-mix(in srgb, white 4%, transparent) 70%,
-    color-mix(in srgb, white 10%, transparent) 78%,
-    color-mix(in srgb, white 85%, transparent));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  pointer-events: none;
-}
+.playBtn:hover { color: var(--play-glass-ink); }
+.playBtn[data-loading='true'] { opacity: 0.7; }
 
-.bar .playBtn .playIconWrap,
-.lyricsPlayer .playBtn .playIconWrap {
-  filter: drop-shadow(0 1px 1.5px var(--play-glass-icon-shadow));
-}
-
-.bar .playBtn:hover,
-.lyricsPlayer .playBtn:hover {
-  color: var(--play-glass-ink);
-  backdrop-filter: blur(4px) saturate(200%) brightness(1.16);
-  -webkit-backdrop-filter: blur(4px) saturate(200%) brightness(1.16);
-  box-shadow:
-    inset 0 8px 10px -8px color-mix(in srgb, white 60%, transparent),
-    0 0 0 0.5px var(--play-glass-edge),
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    0 10px 22px -8px rgba(0, 0, 0, 0.38);
-}
-
+/* 两种播放栏复用 PlayButtonGlass（通透玻璃 + 渐变细边）。 */
 .bar .playBtn { width: 44px; height: 44px; }
 
-/* 歌词页按歌词墨色走：深底白字、浅底深字都能看清。 */
-.lyricsPlayer .playBtn {
-  --play-glass-ink: rgb(var(--lyrics-ink-rgb));
-  --play-glass-edge: rgba(var(--lyrics-ink-rgb), 0.22);
-  --play-glass-icon-shadow: rgba(0, 0, 0, 0.28);
-}
+/* 歌词页仍按歌词墨色走：深底白字、浅底深字都能看清。 */
+.lyricsPlayer .playBtn { --play-glass-ink: rgb(var(--lyrics-ink-rgb)); }
 
 /* 点击流光（Star Border 式）：两颗光点沿玻璃细边左右对称绕行半圈后淡出。
    --play-star 是光点离顶端的角度，用 @property 注册才能逐帧插值。 */
@@ -314,15 +238,59 @@
 /* 常显；拖动/滚轮调节时提亮 */
 .volumeValue[data-active] { color: var(--sm-text-primary); }
 
-.miniPlayerBtn {
+.miniPlayerBtn,
+.accompanimentBtn {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
 }
 
-.miniPlayerBtn[data-active='true'] {
+.miniPlayerBtn[data-active='true'],
+.accompanimentBtn[data-active='true'] {
   color: var(--sm-accent);
   --player-control-hover-color: var(--sm-accent);
+}
+
+.accompanimentBtn:disabled { opacity: 0.35; cursor: default; }
+.accompanimentBtn { position: relative; }
+
+/* 长按打开伴奏弹窗：按住后沿按钮外缘画满一圈，松手过早则消失。 */
+.accompanimentHold {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+}
+/* 动画放在 circle 上：「关闭悬停浮起」会清掉按钮内 svg 自身的动画。 */
+.accompanimentHold circle {
+  stroke: var(--sm-accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+  opacity: 0;
+  animation-name: accompanimentHold;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.accompanimentBtn .accompanimentHold,
+.accompanimentBtn:hover:not(:disabled) .accompanimentHold { transform: none; }
+/* 等待期间整体隐藏，避免圆头端点先露出一个点。 */
+@keyframes accompanimentHold { from { opacity: 1; } to { opacity: 1; stroke-dashoffset: 0; } }
+
+/* 生成完成且面板未打开时的提示点。 */
+.accompanimentDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sm-accent);
+  box-shadow: 0 0 0 2px var(--sm-bg-base);
+  pointer-events: none;
 }
 
 /* 低频工具收成一枚胶囊，与音量、播放控制区分层级。 */

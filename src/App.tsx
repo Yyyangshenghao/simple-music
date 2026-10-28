@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { MotionConfig } from 'motion/react'
 import { useMotion } from './hooks/useMotion'
 import { lyricStyleInfo, resolveLyricsView } from './lib/lyric-style-catalog'
@@ -36,6 +36,9 @@ import { Toast } from './components/ui/Toast'
 import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
+// 资源监控浮层只在开发模式加载，生产构建会整段剔除
+const DevMetricsHud = import.meta.env.DEV ? lazy(() => import('./components/Dev/DevMetricsHud')) : null
+
 const APPEARANCE_KEYS = [
   'themeMode', 'contentLayout', 'contentGutter', 'fontFamily', 'fontFamilyCjk', 'lyricsFontFamily',
   'lyricsFontFamilyCjk', 'lyrics3dFontFamily', 'lyrics3dFontFamilyCjk'
@@ -50,11 +53,12 @@ export default function App() {
     const root = document.documentElement
     root.toggleAttribute('data-page-motion-off', reducedMotion)
     root.toggleAttribute('data-lyrics-line-motion-off', !lyricsLineMotion)
+    root.toggleAttribute('data-tap-feedback-motion-off', !motionFlags.tapFeedbackMotion)
     root.toggleAttribute('data-hover-lift-motion-off', !motionFlags.hoverLiftMotion)
     root.toggleAttribute('data-toggle-motion-off', !motionFlags.toggleMotion)
     root.toggleAttribute('data-slider-motion-off', !motionFlags.sliderMotion)
     root.toggleAttribute('data-icon-motion-off', !motionFlags.iconMotion)
-  }, [reducedMotion, lyricsLineMotion, motionFlags.hoverLiftMotion, motionFlags.toggleMotion, motionFlags.sliderMotion, motionFlags.iconMotion])
+  }, [reducedMotion, lyricsLineMotion, motionFlags.tapFeedbackMotion, motionFlags.hoverLiftMotion, motionFlags.toggleMotion, motionFlags.sliderMotion, motionFlags.iconMotion])
   const gameEnabled = useGameModeStore((s) => s.enabled)
   const [lyricsOpen, setLyricsOpen] = useState(false)
   const storedLyricsMode = useSettingsStore((s) => s.lyricsPanelMode)
@@ -171,6 +175,7 @@ export default function App() {
         </div>
       </WindowChrome>
       </MotionConfig>}
+      {DevMetricsHud && mainVisible && <Suspense fallback={null}><DevMetricsHud /></Suspense>}
     </>
   )
 }

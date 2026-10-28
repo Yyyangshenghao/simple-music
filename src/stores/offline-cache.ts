@@ -22,6 +22,8 @@ export interface OfflineSaveJob {
   status: 'queued' | 'resolving' | 'saving' | 'exporting' | 'failed' | 'done'
   controller: AbortController
   directory: string
+  addedAt?: number
+  startedAt?: number
   filePath?: string
   receivedBytes?: number
   totalBytes?: number
@@ -33,7 +35,6 @@ interface OfflineCacheStore {
   revision: number
   jobs: OfflineSaveJob[]
   paused: boolean
-  queueOpen: boolean
   downloadDir: string
   directoryError: string
   recoveryError: string
@@ -42,12 +43,12 @@ interface OfflineCacheStore {
   save(track: Track): Promise<void>
   saveMany(tracks: Track[], signal?: AbortSignal): Promise<number>
   setPaused(paused: boolean): void
-  setQueueOpen(open: boolean): void
   loadDownloadDir(): Promise<string>
   setDownloadDir(dir: string): Promise<void>
   setPinned(track: Track, pinned: boolean): Promise<void>
   deleteLocal(track: Track, confirmShared?: boolean): Promise<void>
   cancelSave(key?: string): void
+  cancelWaiting(): void
   dismissJob(key?: string): void
   invalidate(): void
 }
@@ -150,7 +151,7 @@ function pumpSaves(): void {
   const jobs = useOfflineCacheStore.getState().jobs
   const running = jobs.filter((job) => isActiveJob(job) && job.status !== 'queued').length
   for (const job of jobs.filter((job) => job.status === 'queued').slice(0, OFFLINE_SAVE_CONCURRENCY - running)) {
-    updateJob(job.controller, { status: 'resolving' })
+    updateJob(job.controller, { status: 'resolving', startedAt: Date.now() })
     void performSave(job).finally(() => {
       completions.get(job.controller)?.()
       completions.delete(job.controller)
@@ -296,7 +297,7 @@ function enqueueSave(track: Track, directory: string): Promise<void> {
   const completion = new Promise<void>((resolve) => completions.set(controller, resolve))
   useOfflineCacheStore.setState((current) => ({ jobs: [
     ...recentJobs(current.jobs.filter((job) => offlineTrackKey(job.track) !== key)),
-    { track, status: 'queued', controller, directory },
+    { track, status: 'queued', controller, directory, addedAt: Date.now() },
   ] }))
   pumpSaves()
   return completion
@@ -307,13 +308,11 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   revision: 0,
   jobs: [],
   paused: false,
-  queueOpen: false,
   downloadDir: '',
   directoryError: '',
   recoveryError: '',
 
   setPaused(paused) { set({ paused }); if (!paused) pumpSaves() },
-  setQueueOpen(queueOpen) { set({ queueOpen }) },
   loadDownloadDir() {
     if (get().downloadDir) {
       if (get().directoryError) set({ directoryError: '' })
@@ -364,7 +363,6 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
 
   async save(track) {
     if (track.source !== 'netease' && track.source !== 'qq') return Promise.resolve()
-    set({ queueOpen: true })
     const version = queueVersion
     try {
       const directory = get().downloadDir || await get().loadDownloadDir()
@@ -377,7 +375,6 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
 
   async saveMany(tracks, signal) {
     const version = queueVersion
-    set({ queueOpen: true })
     const directory = get().downloadDir || await get().loadDownloadDir()
     if (signal?.aborted || version !== queueVersion) throw new DOMException('下载已取消', 'AbortError')
     let added = 0
@@ -387,7 +384,6 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
       void enqueueSave(track, directory)
       added++
     }
-    set({ queueOpen: true })
     return added
   },
 
@@ -415,7 +411,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
       confirmShared,
     })
     get().invalidate()
-    useToastStore.getState().show('本地文件已删除')
+    useToastStore.getState().show('播放器音频已删除，下载目录中的歌曲文件保留')
   },
 
   cancelSave(key) {
@@ -432,6 +428,16 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
 
   dismissJob(key) {
     set((state) => ({ jobs: state.jobs.filter((job) => isActiveJob(job) || (key && offlineTrackKey(job.track) !== key)) }))
+  },
+
+  cancelWaiting() {
+    const waiting = get().jobs.filter(job => job.status === 'queued')
+    set(state => ({ jobs: state.jobs.filter(job => !waiting.includes(job)) }))
+    for (const job of waiting) {
+      job.controller.abort()
+      completions.get(job.controller)?.()
+      completions.delete(job.controller)
+    }
   },
 
   invalidate() {

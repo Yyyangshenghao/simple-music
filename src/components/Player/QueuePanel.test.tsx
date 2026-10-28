@@ -4,6 +4,7 @@ import type { Track } from '../../types/domain'
 import { QueuePanel } from './QueuePanel'
 
 const h = vi.hoisted(() => ({
+  playMode: 'order',
   effects: [] as (() => void)[], refs: [] as { current: unknown }[], stateIndex: 0,
   setOpen: vi.fn(), quickAdd: vi.fn(), playAt: vi.fn(),
 }))
@@ -18,7 +19,7 @@ vi.mock('react', async original => ({
   useLayoutEffect: () => {},
 }))
 vi.mock('../../stores/playlist', () => ({ usePlaylistStore: (select: (state: unknown) => unknown) => select({ queue: tracks, queueIndex: 0, shuffleOrder: [], playAt: h.playAt }) }))
-vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ playMode: 'list' }) }))
+vi.mock('../../stores/settings', () => ({ useSettingsStore: (select: (state: unknown) => unknown) => select({ playMode: h.playMode }) }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ status: 'paused', currentTrack: tracks[0] }) }))
 vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: { qq: { enabled: false, auth: 'anonymous' } } }) }))
 vi.mock('../../stores/track-actions', () => ({ useTrackActionsStore: { getState: () => ({ toggleQuickAdd: h.quickAdd }) }, anchorOf: () => ({ x: 10, y: 20, width: 26, height: 26 }) }))
@@ -26,12 +27,12 @@ vi.mock('./QueueDiscovery', () => ({ QueueDiscovery: () => null }))
 vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('./useQueueDrag', () => ({ useQueueDrag: () => ({ drag: null, onRowPointerDown: vi.fn(), rowShift: () => 0, ghost: null, strips: [] }) }))
 
-type NodeElement = ReactElement<{ children?: ReactNode; ariaLabel?: string; 'aria-label'?: string; onClick?: (event: unknown) => void; renderRow?: (index: number) => ReactNode }>
+type NodeElement = ReactElement<{ children?: ReactNode; ariaLabel?: string; 'aria-label'?: string; 'data-tip'?: string; disabled?: boolean; onClick?: (event: unknown) => void; renderRow?: (index: number) => ReactNode }>
 function nodes(node: ReactNode): NodeElement[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode }>(child) ? [child as NodeElement, ...nodes(child.props.children)] : [])
 }
 
-beforeEach(() => { vi.clearAllMocks(); h.effects = []; h.refs = []; h.stateIndex = 0 })
+beforeEach(() => { vi.clearAllMocks(); h.effects = []; h.refs = []; h.stateIndex = 0; h.playMode = 'order' })
 
 describe('队列歌曲收藏', () => {
   it('当前和非当前歌曲均可加入歌单，使用该行歌曲且不会切歌', () => {
@@ -62,4 +63,16 @@ describe('队列歌曲收藏', () => {
       expect(h.setOpen).toHaveBeenCalledWith(false)
     } finally { vi.unstubAllGlobals() }
   })
+})
+
+it('单曲循环展示下一首不可用的原因，恢复循环方式后不残留旧原因', () => {
+  const next = () => {
+    h.stateIndex = 0
+    const list = nodes(QueuePanel({})).find(node => node.props.renderRow)!
+    return nodes(list.props.renderRow!(1)).find(node => node.props['aria-label'] === '将 歌曲2 设为下一首')!
+  }
+  h.playMode = 'one'
+  expect(next().props).toMatchObject({ disabled: true, 'data-tip': '单曲循环时不会自动切歌' })
+  h.playMode = 'order'
+  expect(next().props).toMatchObject({ disabled: false, 'data-tip': '下一首播放' })
 })

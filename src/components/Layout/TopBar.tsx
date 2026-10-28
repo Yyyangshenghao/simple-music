@@ -5,7 +5,7 @@ import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
-import { DownloadQueue } from './DownloadQueue'
+import { TaskBubble } from './TaskBubble'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
 import { SearchHistory } from '../Search/SearchHistory'
 import { loadSearchHistory, saveSearchHistory, pushTerm, removeTerm } from '../../lib/search-history'
@@ -430,7 +430,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
           )}
         </div>
 
-        <DownloadQueue />
+        <TaskBubble>
         <div className={styles.avatarWrap}>
           <motion.button
             className={styles.avatarBtn}
@@ -450,6 +450,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
             <AvatarMenu onClose={() => setAvatarMenuOpen(false)} />
           )}
         </div>
+        </TaskBubble>
       </div>
     </div>
   )

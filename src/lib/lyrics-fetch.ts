@@ -1,5 +1,6 @@
 import { fetchNativeAppleLyrics } from './apple-lyrics'
 import { api } from './api'
+import { accompanimentOriginal } from './karaoke-library'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc } from './lyric-parser'
@@ -237,6 +238,7 @@ export function cachedLyrics(track: Track): LyricsResult | undefined {
  * @param signal 当前消费者的取消信号
  */
 export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false, refresh = false): Promise<LyricsResult> {
+  track = accompanimentOriginal(track) ?? track
   if (signal?.aborted) return emptyLyrics
   if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal, wordTiming, strict)
   const source = track.source
@@ -359,6 +361,7 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const { lines: main, identity } = await localLyricSource(track, signal)
       if (main.length) return { source: track.source, main, aligned: [], roma: [], wordLines: [] }
       if (!identity) return emptyLyrics
+      if ((identity.source === 'netease' || identity.source === 'qq') && sources.includes(identity.source)) return fetchLyrics(identity, [], signal, wordTiming, strict)
       for (const source of new Set(sources)) {
         if (signal?.aborted) return emptyLyrics
         if (source !== 'netease' && source !== 'qq') continue

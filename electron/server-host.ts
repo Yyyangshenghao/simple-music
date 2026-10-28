@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { startServer } from '../server/index'
 import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
 import { focusMainWindow } from './modules/window-manager'
@@ -54,6 +54,16 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
     appleMusicWeb,
     userDataDir,
     defaultSongDownloadDir,
+    defaultKaraokeDir: process.env.PORTABLE_EXECUTABLE_DIR
+      ? join(process.env.PORTABLE_EXECUTABLE_DIR, 'Accompaniments')
+      : app.isPackaged && process.platform === 'win32'
+        ? join(dirname(process.execPath), 'Accompaniments')
+        : join(defaultSongDownloadDir ?? userDataDir, 'Accompaniments'),
+    fallbackKaraokeDir: join(defaultSongDownloadDir ?? userDataDir, 'Accompaniments'),
+    karaokeMemory: () => {
+      const memory = process.getSystemMemoryInfo()
+      return { total: memory.total * 1024, free: Math.min(memory.total, memory.free + (memory.purgeable ?? 0) + (memory.fileBacked ?? 0)) * 1024 }
+    },
     token: apiToken,
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged

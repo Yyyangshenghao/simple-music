@@ -4,6 +4,8 @@ import type {
   PlaybackRequest,
   PlaybackHostCommand,
   PlaybackHostReply,
+  KaraokeHelperEvent,
+  KaraokeHelperRequest,
   WindowState,
   WindowCloseState,
   WindowCloseBehavior,
@@ -23,6 +25,7 @@ import type {
   ImportResult,
   SystemFontResult
 } from '../../src/types/ipc'
+import type { DevMetricsSnapshot } from '../../src/types/dev-metrics'
 
 function readServerPort(): number {
   const arg = process.argv.find((a) => a.startsWith('--simplemusic-server-port='))
@@ -47,6 +50,8 @@ const api = {
   onPlaybackCommand: (cb: (command: PlaybackHostCommand) => void) => on('playback:command', cb),
   playbackReply: (id: string, result: PlaybackHostReply): void => ipcRenderer.send('playback:reply', { id, result }),
   publishPlayback: (snapshot: unknown): void => ipcRenderer.send('playback:publish', snapshot),
+  karaokeRequest: (request: KaraokeHelperRequest): void => ipcRenderer.send('karaoke:request', request),
+  onKaraokeEvent: (cb: (event: KaraokeHelperEvent) => void) => on('karaoke:event', cb),
   onPlaybackSnapshot: (cb: (snapshot: unknown) => void) => on('playback:snapshot', cb),
   platform: process.platform,
   serverPort: readServerPort(),
@@ -115,11 +120,15 @@ const api = {
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
   openDirectory: (path: string): Promise<OkResult> => ipcRenderer.invoke('file:open-directory', { path }),
+  revealLocalTrack: (id: string): Promise<OkResult> => ipcRenderer.invoke('file:reveal-local-track', { id }),
   importBackground: (): Promise<BackgroundImportResult> => ipcRenderer.invoke('background:import'),
   removeBackground: (id: string): Promise<OkResult> => ipcRenderer.invoke('background:remove', { id }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
-  installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath })
+  installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath }),
+
+  // 开发模式资源监控（打包版未注册，调用会失败）
+  getDevMetrics: (): Promise<DevMetricsSnapshot> => ipcRenderer.invoke('dev:metrics')
 }
 
 contextBridge.exposeInMainWorld('desktop', api)

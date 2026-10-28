@@ -227,6 +227,42 @@ describe('宿主持有歌词获取与归属', () => {
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', loading: false, lines: result.main })
   })
 
+  it.each([false, true])('伴奏往返保留已加载歌词和偏移，跨源播放=%s', async crossSource => {
+    const original: Track = { ...apple, source: 'netease', provider: 'netease', id: 'n1' }
+    const resolved: Track = crossSource ? { ...original, source: 'qq', provider: 'qq', id: 'q1' } : original
+    const stem: Track = { ...original, source: 'local', provider: 'local', id: `karaoke:${'a'.repeat(40)}`, accompanimentOriginal: original }
+    h.fetch.mockImplementation(async (track: Track) => crossSource && track.source === 'netease' ? { ...result, main: [] } : result)
+    usePlayerStore.setState({ currentTrack: original, resolvedTrack: resolved })
+    stopLoader = initLyricsLoader()
+    await flush()
+    expect(useLyricsStore.getState().lines).toBe(result.main)
+    useLyricsStore.setState({ offsetSec: 0.7 })
+    const requests = h.fetch.mock.calls.length
+    usePlayerStore.setState({ accompaniment: stem, resolvedTrack: null })
+    usePlayerStore.setState({ resolvedTrack: stem })
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ loading: false, lines: result.main, offsetSec: 0.7 })
+    usePlayerStore.setState({ accompaniment: null, resolvedTrack: null })
+    usePlayerStore.setState({ resolvedTrack: { ...resolved } })
+    await flush()
+    expect(h.fetch).toHaveBeenCalledTimes(requests)
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'netease:n1', loading: false, lines: result.main, offsetSec: 0.7 })
+  })
+
+  it('在我的伴奏中直接点播同曲成品时，歌词归属仍跟随独立曲目身份', async () => {
+    const original: Track = { ...apple, source: 'netease', provider: 'netease', id: 'n1' }
+    const stem: Track = { ...original, source: 'local', provider: 'local', id: `karaoke:${'a'.repeat(40)}`, accompanimentOriginal: original }
+    usePlayerStore.setState({ currentTrack: original, resolvedTrack: original })
+    stopLoader = initLyricsLoader()
+    await flush()
+    usePlayerStore.setState({ currentTrack: stem, resolvedTrack: stem })
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: `local:${String(stem.id)}`, lines: result.main })
+    usePlayerStore.setState({ currentTrack: original, resolvedTrack: original })
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'netease:n1', lines: result.main })
+  })
+
   it('Apple 库占位曲目无词后，同 ID 补齐目录编号会重取歌词', async () => {
     const placeholder = { ...apple, id: 'i.library-1', pending: true }
     usePlayerStore.setState({ currentTrack: placeholder })

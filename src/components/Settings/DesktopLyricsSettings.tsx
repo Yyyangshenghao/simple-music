@@ -75,7 +75,7 @@ export function DesktopLyricsSettings() {
       <div className={styles.columns}>
         <div className={styles.settings}>
           <h4 className={styles.sectionTitle}>文字外观</h4>
-          <div className={styles.sizeSetting}>
+          <div data-setting-row className={styles.sizeSetting}>
             <div className={styles.labelLine}>
               <span className={styles.settingLabel}><span>字体大小</span><InfoButton label="桌面歌词字体大小" text="拖动歌词框调整高度，文字会跟着缩放；横向拉宽不会改变字号。" align="left" /></span>
             </div>
@@ -86,7 +86,7 @@ export function DesktopLyricsSettings() {
             </div>
           </div>
 
-          <div className={styles.colorSetting}>
+          <div data-setting-row className={styles.colorSetting}>
             <label htmlFor={`${id}-color`}>字体颜色</label>
             <div className={styles.colors}>
               {COLORS.map((preset) => (
@@ -113,7 +113,7 @@ export function DesktopLyricsSettings() {
               </label>
             </div>
           </div>
-          <div className={styles.opacitySetting}>
+          <div data-setting-row className={styles.opacitySetting}>
             <div className={styles.labelLine}>
               <span>文字不透明度</span>
             </div>
@@ -123,39 +123,39 @@ export function DesktopLyricsSettings() {
                   onChange={(value) => updateFx({ desktopLyricsOpacity: value })} />
             </div>
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span>文字发光</span>
             <Switch checked={fx.desktopLyricsHighlight} onChange={(value) => updateFx({ desktopLyricsHighlight: value })} aria-label="桌面歌词文字发光" />
           </div>
         </div>
         <div className={styles.settings}>
           <h4 className={styles.sectionTitle}>歌词内容</h4>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span className={styles.settingLabel}>显示行数<InfoButton label="桌面歌词显示行数" text="双行显示当前句与下一句歌词。" align="left" /></span>
             <div className={styles.choices} role="group" aria-label="桌面歌词显示行数">
               <button type="button" className="no-drag" aria-pressed={lineMode === 'single'} onClick={() => updateFx({ desktopLyricsLineMode: 'single' })}>单行</button>
               <button type="button" className="no-drag" aria-pressed={lineMode === 'double'} onClick={() => updateFx({ desktopLyricsLineMode: 'double' })}>双行</button>
             </div>
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span>逐字高亮</span>
             <div className={styles.rowControls}>
               <InfoButton label="桌面歌词逐字高亮" text="歌曲没有逐字时间数据时，仍按整句显示。" />
               <Switch checked={fx.desktopLyricsWordByWord ?? false} onChange={(value) => updateFx({ desktopLyricsWordByWord: value })} aria-label="桌面歌词逐字高亮" />
             </div>
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span>显示翻译</span>
             <Switch checked={fx.desktopLyricsShowTranslation} onChange={(value) => updateFx({ desktopLyricsShowTranslation: value })} aria-label="桌面歌词显示翻译" />
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span>显示音译</span>
             <Switch checked={fx.desktopLyricsShowRoma} onChange={(value) => updateFx({ desktopLyricsShowRoma: value })} aria-label="桌面歌词显示音译" />
           </div>
         </div>
         <div className={styles.settings}>
           <h4 className={styles.sectionTitle}>底框与位置</h4>
-          <div className={styles.opacitySetting}>
+          <div data-setting-row className={styles.opacitySetting}>
             <div className={styles.labelLine}>
               <span>底框不透明度</span>
             </div>
@@ -165,14 +165,14 @@ export function DesktopLyricsSettings() {
                   onChange={(value) => updateFx({ desktopLyricsBackgroundOpacity: value })} />
             </div>
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span className={styles.settingLabel}>底框效果<InfoButton label="桌面歌词底框效果" text={`${!supportsFrosted ? '此系统使用暗灰色底框。' : platform === 'win32' ? 'Windows 10 1803 及以上支持毛玻璃，系统效果不可用时回退暗灰色。' : ''}底框常态显示，锁定后也保留；设为 0% 可隐藏底框。`} align="left" /></span>
             <div className={styles.choices} role="group" aria-label="桌面歌词底框效果">
               <button type="button" className="no-drag" disabled={!supportsFrosted} title={!supportsFrosted ? '此系统使用暗灰色底框' : undefined} aria-pressed={backgroundStyle === 'frosted'} onClick={() => updateFx({ desktopLyricsBackgroundStyle: 'frosted' })}>毛玻璃</button>
               <button type="button" className="no-drag" aria-pressed={backgroundStyle === 'dark'} onClick={() => updateFx({ desktopLyricsBackgroundStyle: 'dark' })}>暗灰色</button>
             </div>
           </div>
-          <div className={styles.row}>
+          <div data-setting-row className={styles.row}>
             <span>宽度自适应</span>
             <div className={styles.rowControls}>
               <InfoButton label="桌面歌词宽度自适应" text="宽度跟随最长一行歌词，超出屏幕时显示省略号；关闭后恢复手动宽度。" />
@@ -180,7 +180,7 @@ export function DesktopLyricsSettings() {
             </div>
           </div>
           <div className={styles.lockSetting}>
-            <div className={styles.row}>
+            <div data-setting-row className={styles.row}>
               <span>锁定位置</span>
               <div className={styles.rowControls}>
                 <InfoButton label="锁定桌面歌词" text="移到歌词上可拖动，左上角可缩放；锁定后鼠标可穿透。悬停歌词 0.5 秒，点击出现的解锁图标即可调整。" />

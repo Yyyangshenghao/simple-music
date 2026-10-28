@@ -117,6 +117,9 @@ export interface AccentTokens {
   accent: string
   /** 强调色底上的文字色（黑或白，取对比更高者）。 */
   onAccent: string
+  /** 交互状态往文字色的反方向调整，避免悬停/按下时降低文字对比。 */
+  hover: string
+  pressed: string
 }
 
 /** 强调色作文字时与主题底色至少 4.5:1；不够就往白（深色主题）或黑（浅色主题）方向逐步混。 */
@@ -128,7 +131,8 @@ export function accentTokensFor(color: string, light: boolean): AccentTokens | n
   let accent = rgb
   for (let t = 0.1; contrast(accent, base) < 4.5 && t <= 1; t += 0.1) accent = mix(rgb, toward, t)
   const onAccent = contrast(accent, [255, 255, 255]) >= contrast(accent, [0, 0, 0]) ? '#ffffff' : '#0c0c0c'
-  return { accent: rgbToHex(accent), onAccent }
+  const away: [number, number, number] = onAccent === '#ffffff' ? [0, 0, 0] : [255, 255, 255]
+  return { accent: rgbToHex(accent), onAccent, hover: rgbToHex(mix(accent, away, 0.08)), pressed: rgbToHex(mix(accent, away, 0.16)) }
 }
 
 /** 主题色预设；mono 为原有黑白单色，cover 跟随封面主色，custom 用用户取色。 */
