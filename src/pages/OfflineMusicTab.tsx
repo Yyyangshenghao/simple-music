@@ -1,3 +1,4 @@
+import { Select } from '../components/ui/Select'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { LibraryToolbar } from '../components/ui/LibraryToolbar'
 import { ActionButton } from '../components/ui/ActionButton'
@@ -104,9 +105,8 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
       <LibraryToolbar summary={keyword ? `${visible.length} / ${items.length} 首` : `${items.length} 首`}
         primary={<ActionButton label="播放全部" icon="play" primary disabled={loading || error || !queue.length} onClick={() => usePlaylistStore.getState().setQueue(queue, 0)} />}
         value={keyword} onChange={setKeyword} searchLabel="搜索离线音乐" placeholder="搜索歌曲、艺人或专辑" disabled={deleting}>
-        <select aria-label="离线音乐排序" value={sort} disabled={deleting} onChange={event => setSort(event.target.value as OfflineLibrarySort)}>
-          <option value="savedAt">最近保存</option><option value="name">标题</option><option value="artist">艺人</option>
-        </select>
+        <Select<OfflineLibrarySort> aria-label="离线音乐排序" value={sort} disabled={deleting} onChange={setSort}
+          options={[{ value: 'savedAt', label: '最近保存' }, { value: 'name', label: '标题' }, { value: 'artist', label: '艺人' }]} />
         <ActionButton label="刷新离线音乐" icon="refresh" iconOnly busy={loading} disabled={deleting} onClick={() => setRefresh(value => value + 1)} />
         {!selecting && <BatchTrackActions compact offline tracks={loading || error ? [] : queue} menuLabel="离线音乐更多操作"
           onSelect={() => { if (!removing) { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) } }} />}

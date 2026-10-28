@@ -1,0 +1,17 @@
+.trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; max-width: 100%; min-height: 32px; padding: 5px 10px; border: 1px solid var(--sm-border); border-radius: 9px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 12px; line-height: 20px; text-align: left; cursor: pointer; transition: background 160ms var(--sm-ease-out), border-color 160ms var(--sm-ease-out); }
+.trigger:hover:not(:disabled), .trigger[aria-expanded='true'] { background: var(--sm-fill-hover); border-color: var(--sm-border-strong); }
+.trigger:active:not(:disabled) { background: var(--sm-fill-active); }
+.trigger:disabled { opacity: .4; cursor: default; }
+.trigger > svg { flex: none; color: var(--sm-text-secondary); }
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel { position: fixed; inset: auto; margin: 0; border: 0; z-index: 540; box-sizing: border-box; padding: 6px; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: 0 12px 36px rgba(0, 0, 0, .22); color: var(--sm-text-primary); scrollbar-width: thin; scrollbar-color: var(--sm-border-strong) transparent; }
+.panel .option { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 20px; text-align: left; cursor: pointer; transition: background 140ms var(--sm-ease-out); }
+.option > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.option > svg { flex: none; color: var(--sm-accent); }
+.option[aria-selected='true'] { background: var(--sm-fill-subtle); font-weight: 600; }
+.option:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.option:active:not(:disabled) { background: var(--sm-fill-active); }
+.option:disabled { opacity: .4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .trigger, .option { transition: none; } }
+
+:global([data-reduce-transparency]) .panel { background: var(--sm-bg-base); backdrop-filter: none; -webkit-backdrop-filter: none; }

@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Select } from '../ui/Select'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
@@ -41,7 +42,7 @@ function labelled(node: unknown, label: string): ReactElement<any> | undefined {
   return element.props?.['aria-label'] === label ? element : labelled(element.props?.children, label)
 }
 
-function elements(node: unknown, type: string): ReactElement<any>[] {
+function elements(node: unknown, type: ReactElement['type']): ReactElement<any>[] {
   if (!node || typeof node !== 'object') return []
   if (Array.isArray(node)) return node.flatMap((child) => elements(child, type))
   const element = node as ReactElement<any>
@@ -97,8 +98,8 @@ describe('歌词来源设置', () => {
   it('游客可测试固定歌曲，不引导登录或展示补全实现开关', () => {
     h.sample = 'ocean'
     const element = AmllLyricsSettings()
-    const select = elements(element, 'select')[0]
-    expect(elements(select, 'option').map(option => option.props.value)).toEqual(['sunny', 'ocean'])
+    const select = elements(element, Select)[0]
+    expect(select.props.options.map((option: { value: string }) => option.value)).toEqual(['sunny', 'ocean'])
     const rows = elements(elements(element, 'ol')[0], 'li')
     button(rows[1], '测试').props.onClick()
     expect(h.source.testSource).toHaveBeenCalledWith('qq', 'ocean')
@@ -167,7 +168,7 @@ describe('歌词来源设置', () => {
 
   it('只保留测试歌曲选择，线路交给应用自动判断', () => {
     const element = AmllLyricsSettings()
-    expect(elements(element, 'select')).toHaveLength(1)
+    expect(elements(element, Select)).toHaveLength(1)
     expect(text(element)).not.toContain('连接线路')
   })
 })

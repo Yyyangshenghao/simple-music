@@ -1,3 +1,4 @@
+import { Select } from '../components/ui/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { useKaraokeStore } from '../stores/karaoke'
 import { useKaraokeModelsStore } from '../stores/karaoke-models'
@@ -78,9 +79,9 @@ export function AccompanimentsLibrary() {
               <span className={styles.artwork}><span className={styles.playOverlay}><ActionIcon name="play" /></span>{item.track.cover ? <img src={accompanimentTrack(item).cover} alt="" loading="lazy" /> : <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M9 18V5l11-2v13M9 9l11-2" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="17" cy="16" rx="3" ry="2" /></svg>}</span>
               <span className={styles.songInfo}><strong title={item.track.name}>{item.track.name}</strong><span title={item.track.artist}>{item.track.artist}{!item.available ? ' · 文件已丢失' : ''}</span></span>
             </button>
-            {entries.length > 1 ? <select aria-label={`${item.track.name}的伴奏模型版本`} value={item.id} onChange={event => setVersions(current => ({ ...current, [key]: event.target.value }))}>
-              {entries.map(entry => <option key={entry.id} value={entry.id}>{modelName(entry.model)}{!entry.available ? '（文件丢失）' : ''}</option>)}
-            </select> : <span className={styles.model} title={modelName(item.model)}>{modelName(item.model)}</span>}
+            {entries.length > 1 ? <Select aria-label={`${item.track.name}的伴奏模型版本`} className={styles.version} value={item.id}
+              onChange={value => setVersions(current => ({ ...current, [key]: value }))}
+              options={entries.map(entry => ({ value: entry.id, label: `${modelName(entry.model)}${!entry.available ? '（文件丢失）' : ''}` }))} /> : <span className={styles.model} title={modelName(item.model)}>{modelName(item.model)}</span>}
             <div className={styles.actions}>
               <ActionButton label={`打开文件夹：${item.track.name}`} title={`打开文件夹：${item.directory}`} icon="folder" iconOnly
                 disabled={typeof window === 'undefined' || !window.desktop?.openDirectory} onClick={() => void window.desktop?.openDirectory(item.directory).then(result => { if (!result.ok) notify(new Error(result.error ?? '文件夹打开失败')) }).catch(notify)} />

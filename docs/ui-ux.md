@@ -34,6 +34,7 @@
 | 模式 | 优先使用 | 现行范围与边界 |
 |---|---|---|
 | 库列表工具栏 | [LibraryToolbar](../src/components/ui/LibraryToolbar.tsx) | 伴奏、本地、离线；左侧主操作与数量，右侧搜索与辅助操作，窄窗口按组换行。搜索默认放大镜，聚焦或有内容时展开，空内容失焦收起；支持清除、Esc 清空收起与输入法期间的 Esc 避让 |
+| 普通单选下拉 | [Select](../src/components/ui/Select.tsx) | 离线排序、伴奏版本、歌词测试曲与歌词来源管理；主题表面、选中勾选、禁用、开合动效、外部点击/Esc/父级滚动关闭；浮层使用 top layer 避让窗口及原生 dialog 裁剪。字体选择保留专用组件 |
 | 普通操作与图标 | [ActionButton](../src/components/ui/ActionButton.tsx)、[ActionIcon](../src/components/ui/ActionIcon.tsx) | 当前库与任务等已接入区域；普通按钮 32px、紧凑 28px，保留主操作、危险、忙态和禁用语义。全应用尚未逐项迁移 |
 | 悬停提示 | [HoverTips](../src/components/ui/HoverTips.tsx) | 单一提示层、窗口避让、长内容换行、快速重入及状态变化更新。新控件显式用 `data-tip`，避免同时触发原生 `title` |
 | 平台详情内搜索 | [TrackSearch](../src/components/ui/TrackSearch.tsx) | 保留原有可展开行为；同为搜索并不意味着必须换成库工具栏 |

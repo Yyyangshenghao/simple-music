@@ -1,3 +1,4 @@
+import { Select } from '../ui/Select'
 import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
@@ -57,9 +58,8 @@ export function AmllLyricsSettings() {
     <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 先读取曲目自带歌词，网易云、QQ 未登录或已停用播放时，以游客身份查询歌词，不使用账号，只发送歌名与歌手。不想用的来源直接关闭，关闭后不再向它查询歌词，也不影响播放音源。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
     <div data-setting-row className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
-      <select id="lyrics-test-song" className={`${styles.select} no-drag`} value={sample} onChange={event => setSample(event.target.value)}>
-        {LYRICS_TEST_SONGS.map(song => <option key={song.key} value={song.key}>{song.name} · {song.artist}</option>)}
-      </select>
+      <Select id="lyrics-test-song" className={styles.select} aria-label="测试歌曲" value={sample} onChange={setSample}
+        options={LYRICS_TEST_SONGS.map(song => ({ value: song.key, label: `${song.name} · ${song.artist}` }))} />
     </div>
     <ol className={styles.priorityList} aria-label="歌词来源优先级">
       {order.map((source, index) => {

@@ -26,7 +26,7 @@
   :global(html:not([data-tap-feedback-motion-off])) .song:active:not(:disabled) .playOverlay svg { transform: scale(.88); transition-duration: 80ms; }
 }
 .model { flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sm-text-secondary); font-size: 12px; }
-.library select { max-width: 180px; }
+.version { max-width: 180px; }
 .empty { padding: 48px 16px; text-align: center; color: var(--sm-text-secondary); font-size: 13px; }
 .empty h3 { margin: 0 0 10px; color: var(--sm-text-primary); font-size: 16px; font-weight: 550; }
 .empty p { line-height: 1.8; }
@@ -37,6 +37,6 @@
 .path span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) {
   .library li { gap: 10px; }
-  .model, .library select { max-width: 120px; }
+  .model, .version { max-width: 120px; }
 }
 @media (prefers-reduced-motion: reduce) { .library li, .playOverlay, .artwork img, .playOverlay svg { transition: none; } }
