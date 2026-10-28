@@ -38,6 +38,7 @@ interface NavigationStore {
   navigationRevision: number
   settingsMusicRequest: number
   settingsLyricsRequest: number
+  settingsCacheRequest: number
   settingsKaraokeRequest: number
   /** 我的库定位到「应用歌单 · 伴奏」的待处理请求；0 为无。 */
   libraryAccompanimentsRequest: number
@@ -53,6 +54,8 @@ interface NavigationStore {
   consumeSettingsMusicRequest(request: number): void
   requestSettingsLyrics(): void
   consumeSettingsLyricsRequest(request: number): void
+  requestSettingsCache(): void
+  consumeSettingsCacheRequest(request: number): void
   requestSettingsKaraoke(): void
   consumeSettingsKaraokeRequest(request: number): void
   requestLibraryAccompaniments(): void
@@ -88,6 +91,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   navigationRevision: 0,
   settingsMusicRequest: 0,
   settingsLyricsRequest: 0,
+  settingsCacheRequest: 0,
   settingsKaraokeRequest: 0,
   libraryAccompanimentsRequest: 0,
   history: [],
@@ -135,6 +139,14 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
 
   consumeSettingsLyricsRequest(request) {
     if (get().settingsLyricsRequest === request) set({ settingsLyricsRequest: 0 })
+  },
+
+  requestSettingsCache() {
+    set((s) => ({ settingsCacheRequest: s.settingsCacheRequest + 1 }))
+  },
+
+  consumeSettingsCacheRequest(request) {
+    if (get().settingsCacheRequest === request) set({ settingsCacheRequest: 0 })
   },
 
   requestSettingsKaraoke() {

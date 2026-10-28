@@ -832,6 +832,7 @@ export function SettingsPage() {
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({})
   const activeSectionRef = useRef<SettingsTab>('music')
   const settingsMusicRequest = useNavigationStore((s) => s.settingsMusicRequest)
+  const settingsCacheRequest = useNavigationStore((s) => s.settingsCacheRequest)
   const settingsKaraokeRequest = useNavigationStore((s) => s.settingsKaraokeRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
 
@@ -984,6 +985,11 @@ export function SettingsPage() {
     scrollToSection('music', 'karaoke-models')
     useNavigationStore.getState().consumeSettingsKaraokeRequest(settingsKaraokeRequest)
   }, [settingsKaraokeRequest, scrollToSection])
+  useEffect(() => {
+    if (!settingsCacheRequest) return
+    scrollToSection('cache', 'player-cache')
+    useNavigationStore.getState().consumeSettingsCacheRequest(settingsCacheRequest)
+  }, [settingsCacheRequest, scrollToSection])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const contentGutter = useSettingsStore((s) => s.contentGutter)

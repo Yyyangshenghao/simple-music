@@ -60,6 +60,8 @@ export function AccompanimentsLibrary() {
         value={query} onChange={setQuery} searchLabel="搜索伴奏">
         <ActionButton label="任务队列" icon="queue" iconOnly onClick={() => useTaskCenterStore.getState().show('karaoke')} />
         <ActionButton label="刷新伴奏" icon="refresh" iconOnly disabled={!loaded} busy={refreshing} onClick={() => void refresh()} />
+        <ActionButton label="打开伴奏文件夹" title={`打开文件夹：${directory}`} icon="folder" iconOnly
+          disabled={!directory || typeof window === 'undefined' || !window.desktop?.openDirectory} onClick={() => void window.desktop?.openDirectory(directory).then(result => { if (!result.ok) notify(new Error(result.error ?? '文件夹打开失败')) }).catch(notify)} />
         <ActionButton label="伴奏设置" title="伴奏设置 · 保存位置与模型" icon="settings" iconOnly onClick={manage} />
       </LibraryToolbar>
       {error && <div className={styles.notice} role="alert"><span>{error}</span>
@@ -83,8 +85,6 @@ export function AccompanimentsLibrary() {
               onChange={value => setVersions(current => ({ ...current, [key]: value }))}
               options={entries.map(entry => ({ value: entry.id, label: `${modelName(entry.model)}${!entry.available ? '（文件丢失）' : ''}` }))} /> : <span className={styles.model} title={modelName(item.model)}>{modelName(item.model)}</span>}
             <div className={styles.actions}>
-              <ActionButton label={`打开文件夹：${item.track.name}`} title={`打开文件夹：${item.directory}`} icon="folder" iconOnly
-                disabled={typeof window === 'undefined' || !window.desktop?.openDirectory} onClick={() => void window.desktop?.openDirectory(item.directory).then(result => { if (!result.ok) notify(new Error(result.error ?? '文件夹打开失败')) }).catch(notify)} />
               {!item.available && <ActionButton label="重新生成" icon="refresh" onClick={() => void useKaraokeStore.getState().enqueue(item.track, item.model).catch(notify)} />}
               <ActionButton label={`删除伴奏：${item.track.name}（${modelName(item.model)}）`} title="删除此版本的伴奏文件，原曲与其他版本保留" icon="delete" iconOnly danger
                 disabled={deleting !== null} busy={deleting === item.id} onClick={() => void deleteVersion(item)} />

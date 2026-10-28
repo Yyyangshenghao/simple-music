@@ -120,6 +120,7 @@ const api = {
   selectDirectory: (arg?: { title?: string; defaultPath?: string }): Promise<FileResult> =>
     ipcRenderer.invoke('file:select-directory', arg ?? {}),
   openDirectory: (path: string): Promise<OkResult> => ipcRenderer.invoke('file:open-directory', { path }),
+  revealLocalTrack: (id: string): Promise<OkResult> => ipcRenderer.invoke('file:reveal-local-track', { id }),
   importBackground: (): Promise<BackgroundImportResult> => ipcRenderer.invoke('background:import'),
   removeBackground: (id: string): Promise<OkResult> => ipcRenderer.invoke('background:remove', { id }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),

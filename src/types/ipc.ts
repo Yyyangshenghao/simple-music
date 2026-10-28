@@ -287,6 +287,7 @@ export interface IpcChannels {
   'file:import-json': { req: void; res: ImportResult }
   'file:select-directory': { req: { title?: string; defaultPath?: string }; res: FileResult }
   'file:open-directory': { req: { path: string }; res: OkResult }
+  'file:reveal-local-track': { req: { id: string }; res: OkResult }
   'background:import': { req: void; res: BackgroundImportResult }
   'background:remove': { req: { id: string }; res: OkResult }
 

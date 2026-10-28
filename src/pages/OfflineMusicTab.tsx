@@ -1,3 +1,4 @@
+import { useNavigationStore } from '../stores/navigation'
 import { Select } from '../components/ui/Select'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { LibraryToolbar } from '../components/ui/LibraryToolbar'
@@ -19,6 +20,17 @@ import styles from './OfflineMusicTab.module.css'
 import libraryStyles from './LibraryPage.module.css'
 
 export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+  const [openingDirectory, setOpeningDirectory] = useState(false)
+  async function openDirectory() {
+    if (openingDirectory || !window.desktop?.openDirectory) return
+    setOpeningDirectory(true)
+    try {
+      const config = await api.get<{ dir: string }>('/api/audio-cache/config')
+      const result = await window.desktop.openDirectory(config.dir)
+      if (!result.ok) useToastStore.getState().show('打开离线音乐文件夹失败，请检查存储位置')
+    } catch { useToastStore.getState().show('读取离线音乐存储位置失败，请重试') }
+    finally { if (mounted.current) setOpeningDirectory(false) }
+  }
   const [items, setItems] = useState<OfflineLibraryItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [sort, setSort] = useState<OfflineLibrarySort>('savedAt')
@@ -110,6 +122,13 @@ export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
         <ActionButton label="刷新离线音乐" icon="refresh" iconOnly busy={loading} disabled={deleting} onClick={() => setRefresh(value => value + 1)} />
         {!selecting && <BatchTrackActions compact offline tracks={loading || error ? [] : queue} menuLabel="离线音乐更多操作"
           onSelect={() => { if (!removing) { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) } }} />}
+        <ActionButton label="打开离线音乐文件夹" icon="folder" iconOnly busy={openingDirectory}
+          disabled={typeof window === 'undefined' || !window.desktop?.openDirectory} onClick={() => void openDirectory()} />
+        <ActionButton label="离线音乐设置" title="离线音乐设置 · 存储与缓存" icon="settings" iconOnly onClick={() => {
+          const navigation = useNavigationStore.getState()
+          navigation.requestSettingsCache()
+          navigation.navigateTo('settings')
+        }} />
       </LibraryToolbar>
       <p className={styles.hint}>已保存歌曲无需登录即可播放。<InfoButton label="离线保存与删除" text="移除保存后转为临时缓存；批量删除会清理未共用的离线音频，下载目录中的歌曲文件保留。" align="left" /></p>
       {selecting && <BatchTrackActions offline tracks={selectedItems.map(offlineLibraryTrack)} onDone={selection.clear}

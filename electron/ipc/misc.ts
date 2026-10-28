@@ -6,6 +6,7 @@ import { configureHotkeys } from '../modules/hotkey-manager'
 import { configureSettingsMenu } from '../modules/settings-menu'
 import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
 import { listSystemFontsCached } from '../modules/font-manager'
+import { findLocalTrack } from '../../server/lib/local-library'
 import { updateWorkDir } from '../../server/lib/update-download-dir'
 import type {
   HotkeyConfiguration,
@@ -93,6 +94,19 @@ export function registerMiscIpc(): void {
       return error ? { ok: false, error } : { ok: true }
     } catch {
       return { ok: false, error: 'OPEN_DIRECTORY_FAILED' }
+    }
+  })
+
+  ipcMain.handle('file:reveal-local-track', async (_e, arg: { id?: unknown }): Promise<OkResult> => {
+    if (typeof arg?.id !== 'string' || !arg.id.trim()) return { ok: false, error: 'INVALID_LOCAL_TRACK_ID' }
+    try {
+      const track = await findLocalTrack(app.getPath('userData'), arg.id)
+      if (!track) return { ok: false, error: 'LOCAL_TRACK_NOT_FOUND' }
+      if (!(await fs.stat(track.path)).isFile()) return { ok: false, error: 'LOCAL_TRACK_FILE_MISSING' }
+      shell.showItemInFolder(track.path)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'REVEAL_LOCAL_TRACK_FAILED' }
     }
   })
 

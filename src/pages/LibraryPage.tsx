@@ -1,3 +1,5 @@
+import { LocalTrackFolderButton } from '../components/ui/LocalTrackFolderButton'
+import { HoverTips } from '../components/ui/HoverTips'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore, type AppView } from '../stores/navigation'
@@ -525,6 +527,7 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
 
   return (
     <div className={styles.trackList} ref={selection.rootRef} {...selection.surfaceProps}>
+      <HoverTips match="[data-icon-action]" exclude="[data-library-toolbar]" />
       <LibraryToolbar summary={keyword ? `${sorted.length} / ${tracks.length} 首` : `${tracks.length} 首`}
         primary={<ActionButton label="播放全部" icon="play" primary disabled={!sorted.length} onClick={() => usePlaylistStore.getState().setQueue(sorted, 0)} />}
         value={keyword} onChange={setKeyword} searchLabel="搜索本地音乐">
@@ -570,7 +573,7 @@ function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) 
             return selecting ? <div className={styles.selectableRow} key={key} data-selection-key={key} data-selected={selection.selected.has(key)}>
               <SelectionCheck label={`选择歌曲：${track.name}`} checked={selection.selected.has(key)} />
               <TrackRow track={track} index={index} hideLikeAction hideOfflineAction onPlay={() => {}} />
-            </div> : <QueuedTrackRow track={track} index={index} queueRef={queueRef} />
+            </div> : <div className={styles.localTrackRow} key={key}><QueuedTrackRow track={track} index={index} queueRef={queueRef} /><LocalTrackFolderButton track={track} /></div>
           }}
         /></div>
       )}

@@ -356,3 +356,6 @@
 
 .sortDirBtn:hover { color: var(--sm-text-primary); }
 
+
+.localTrackRow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.localTrackRow > :first-child { flex: 1; min-width: 0; }

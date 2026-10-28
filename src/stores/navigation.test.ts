@@ -135,3 +135,15 @@ it('伴奏入口统一打开我的库并请求伴奏页，已在我的库时不�
   useNavigationStore.getState().consumeLibraryAccompanimentsRequest(2)
   expect(useNavigationStore.getState().libraryAccompanimentsRequest).toBe(0)
 })
+
+it('离线音乐设置定位请求按序消费，旧请求不能清掉新定位', () => {
+  const navigation = useNavigationStore.getState()
+  navigation.requestSettingsCache()
+  const first = useNavigationStore.getState().settingsCacheRequest
+  navigation.requestSettingsCache()
+  const second = useNavigationStore.getState().settingsCacheRequest
+  navigation.consumeSettingsCacheRequest(first)
+  expect(useNavigationStore.getState().settingsCacheRequest).toBe(second)
+  navigation.consumeSettingsCacheRequest(second)
+  expect(useNavigationStore.getState().settingsCacheRequest).toBe(0)
+})
