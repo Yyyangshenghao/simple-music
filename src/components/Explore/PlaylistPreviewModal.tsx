@@ -28,7 +28,8 @@ const overlayVariants: Variants = {
 
 interface PreviewData {
   tracks: (Track | null)[]
-  total: number
+  /** null:总数未知(上游不报且尚未翻完)。 */
+  total: number | null
   loading: boolean
   loadingMore: boolean
   error: boolean
@@ -157,7 +158,7 @@ function PreviewPanelView({ playlist, onClose, data }: { playlist: Playlist; onC
       <div className={styles.actions}>
         <button className={styles.playAll} onClick={data.playAll} disabled={total === 0 || starting}>▶ 播放全部</button>
         <button className={styles.openBtn} onClick={openDetail} disabled={total === 0}>{playlist.type === 'album' ? '进入专辑' : '进入歌单'}</button>
-        <span className={styles.count}>{loading ? '加载中…' : starting ? '正在准备播放…' : `${total} 首`}</span>
+        <span className={styles.count}>{loading ? '加载中…' : starting ? '正在准备播放…' : total === null ? `已加载 ${tracks.filter(Boolean).length} 首` : `${total} 首`}</span>
       </div>
       <div className={styles.list} aria-busy={loading} onScroll={onListScroll}>
         {loading && <div role="status" aria-label="正在加载歌曲">
