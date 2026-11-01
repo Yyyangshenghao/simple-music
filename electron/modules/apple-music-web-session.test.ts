@@ -562,6 +562,20 @@ describe('应用内 Apple Music 会话', () => {
     expect(callback).toHaveBeenLastCalledWith(false)
   })
 
+  it('授权后隐藏窗口时只切一次到轻量搜索页，Chrome 路径同样处理', async () => {
+    const leave = (script: string) => script.includes('a[href$="/search"]')
+    h.setState(signedIn)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.windows[0].webContents.executeJavaScript.mock.calls.filter(([script]) => leave(script))).toHaveLength(1)
+
+    await apple.close()
+    apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.chrome.evaluate.mock.calls.filter(([script]) => leave(script))).toHaveLength(1)
+  })
+
   it('授权完成后自动隐藏窗口，后续播放仍保持连接', async () => {
     h.setState(signedIn)
     await apple.open()

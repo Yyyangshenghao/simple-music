@@ -11,6 +11,15 @@ const PLAYBACK_PARTITION = 'persist:simplemusic-apple-music'
 const APPLE_MUSIC_URL = 'https://music.apple.com/'
 const OPEN_TIMEOUT_MS = 30000
 const RESTORE_CONFIRM_TIMEOUT_MS = 30000
+// 官网首页挂着十几个动态封面视频，隐藏后仍独占数百 MB；后台播放只需要 MusicKit，
+// 在页面内点到搜索页（单页路由，不重载）即可释放，MusicKit 实例与授权保持不变。
+const LIGHT_PAGE_SCRIPT = `(() => {
+  if (location.pathname.endsWith('/search')) return false
+  const link = document.querySelector('a[href$="/search"]')
+  if (!link) return false
+  link.click()
+  return true
+})()`
 const emptyState = () => ({ connected: false, loggedIn: false, subscription: 'unknown' as const, storefront: 'cn', playbackId: '', status: 'idle' as const, position: 0, duration: 0 })
 
 type ProtectedElectron = typeof electron & {
@@ -296,7 +305,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
             this.finishRestore()
             this.interactive = false
             this.saveRestore(true)
-            if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false }
+            if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false; this.leaveHeavyPage() }
           } else if (this.interactive && !this.loginPrompted) {
             this.backgrounded = false
             this.showAuthorization(win)
@@ -314,6 +323,10 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       }
     }
     if (this.window === win && !win.isDestroyed()) this.timer = setTimeout(() => void this.poll(win), nextPollMs ?? this.playbackPollInterval())
+  }
+
+  private leaveHeavyPage(): void {
+    void this.evaluateScript(LIGHT_PAGE_SCRIPT).catch(() => { /* 留在原页面只是多占内存 */ })
   }
 
   private playbackPollInterval(): number {
@@ -358,7 +371,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
         } else if (state.loggedIn) {
           this.interactive = false
           // macOS 最小化 Chrome 会使官网播放停滞；保留窗口，仅将焦点交回主应用。
-          if (!this.backgrounded) { this.backgrounded = true; this.returnToApp() }
+          if (!this.backgrounded) { this.backgrounded = true; this.returnToApp(); this.leaveHeavyPage() }
         } else if (this.interactive && !this.loginPrompted) this.loginPrompted = await this.promptLogin()
       }
     } catch {
