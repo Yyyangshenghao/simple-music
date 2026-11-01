@@ -97,6 +97,14 @@ export const appleMusicBridgeRoutes: RouteHandler = async (req, res, url, ctx) =
         sendJson(res, { ok: true })
         break
       }
+      case 'POST /api/apple-music/bridge/suspend':
+      case 'POST /api/apple-music/bridge/resume': {
+        if (ctx.appleMusicWeb && ctx.appleMusicLoginMode !== 'developer') {
+          await (url.pathname.endsWith('/suspend') ? ctx.appleMusicWeb.suspend() : ctx.appleMusicWeb.resume())
+        }
+        sendJson(res, { ok: true })
+        break
+      }
       case 'POST /api/apple-music/bridge/logout': {
         await ctx.appleMusicWeb?.logout()
         const state = appleMusicBridgeState(ctx)

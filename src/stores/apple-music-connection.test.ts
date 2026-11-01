@@ -186,6 +186,34 @@ describe('Apple Music 登录流程', () => {
     await old
     expect(connection().account).toEqual(connected)
   })
+  it('平台关闭时销毁后台页面，暂停期间保持已登录且可重新启用，启用后恢复连接', async () => {
+    useProviderStore.getState().setAccountState('apple', 'authenticated', { avatar: '', nickname: 'Apple Music' })
+    useProviderStore.getState().setPlaybackAvailability('apple', true)
+    useProviderStore.getState().setEnabled('apple', false)
+    vi.mocked(api.get).mockResolvedValue(connected)
+    await connection().refresh()
+    expect(api.post).toHaveBeenCalledWith('/api/apple-music/bridge/suspend')
+    await vi.advanceTimersByTimeAsync(0)
+
+    vi.mocked(api.post).mockClear()
+    vi.mocked(api.get).mockResolvedValue({ ...connected, connected: false, subscription: 'unknown', suspended: true })
+    await connection().refresh()
+    expect(api.post).not.toHaveBeenCalled()
+    expect(connection()).toMatchObject({ error: false, message: '' })
+    expect(useProviderStore.getState().byId.apple).toMatchObject({ auth: 'authenticated', playbackAvailable: true })
+
+    useProviderStore.getState().setEnabled('apple', true)
+    expect(useProviderStore.getState().byId.apple.enabled).toBe(true)
+    await connection().refresh()
+    expect(api.post).toHaveBeenCalledWith('/api/apple-music/bridge/resume')
+    expect(useProviderStore.getState().byId.apple.playbackAvailable).toBe(false)
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  it('登录后无订阅时不会因音源未启用而销毁后台页面', async () => {
+    vi.mocked(api.get).mockResolvedValue({ ...connected, subscription: 'inactive' })
+    await connection().refresh()
+    expect(api.post).not.toHaveBeenCalled()
+  })
   it('首次读取失败后成功重试会清除读取错误', async () => {
     vi.mocked(api.get).mockRejectedValueOnce(new Error('offline'))
     await connection().refresh()

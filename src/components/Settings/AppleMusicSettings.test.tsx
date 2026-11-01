@@ -57,6 +57,15 @@ describe('Apple Music 设置', () => {
     }
   })
 
+  it('平台关闭暂停时说明已释放后台页面，不提供重新连接', () => {
+    h.account = { ...connected, connected: false, subscription: 'unknown', suspended: true }
+    const html = renderSettings()
+    expect(html).toContain('已暂停')
+    expect(html).toContain('后台播放页面已释放')
+    expect(html).not.toContain('重新连接 Apple Music')
+    expect(html).not.toContain('确认订阅中')
+  })
+
   it('无订阅时直接显示原因并说明音源保持禁用', () => {
     h.account = { ...connected, subscription: 'inactive' }
     const html = renderSettings()

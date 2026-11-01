@@ -11,6 +11,8 @@ export interface ApplePlaybackState {
   duration: number
   error?: string
   controlSequence?: number
+  /** Apple 平台已关闭，后台播放页面已销毁。 */
+  suspended?: boolean
 }
 
 export interface ApplePlaybackCommand {
@@ -113,8 +115,11 @@ export class AppleMusicPlayback {
       if (generation !== this.generation) return
       if (revision !== this.controlRevision) return
       if (!state.connected) {
-        if (++this.pollFailures < 3) { delay = 750; return }
-        this.onState({ ...state, playbackId: this.playbackId, status: 'error', error: (state.playbackId === this.playbackId && state.error) || 'Apple Music 应用内播放器已断开，请在设置中重新连接' })
+        if (!state.suspended && ++this.pollFailures < 3) { delay = 750; return }
+        const error = state.suspended
+          ? 'Apple Music 音源已关闭，播放已停止'
+          : (state.playbackId === this.playbackId && state.error) || 'Apple Music 应用内播放器已断开，请在设置中重新连接'
+        this.onState({ ...state, playbackId: this.playbackId, status: 'error', error })
         ++this.generation
         return
       }

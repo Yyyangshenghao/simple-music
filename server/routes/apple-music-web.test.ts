@@ -14,6 +14,7 @@ beforeEach(() => {
   ctx = { userDataDir: mkdtempSync(join(tmpdir(), 'apple-web-route-')), port: 1234,
     appleMusicWeb: {
       open: vi.fn(async () => {}), close: vi.fn(async () => {}), logout: vi.fn(async () => {}),
+      suspend: vi.fn(async () => {}), resume: vi.fn(async () => {}),
       state: vi.fn(() => ({ connected: true, loggedIn: true, subscription: 'active' as const, storefront: 'us', playbackId: 'p1', status: 'playing' as const, position: 0, duration: 180 })),
       catalog: vi.fn(async () => ({ data: [{ id: '123' }] })), command: vi.fn(),
     } }
@@ -51,6 +52,15 @@ describe('官网模式服务端接线', () => {
     vi.mocked(ctx.appleMusicWeb!.catalog).mockRejectedValue(new Error('403'))
     expect(await request('lyrics?id=123')).toEqual({ status: 200, data: { ttml: '' } })
     expect(ctx.appleMusicWeb!.command).not.toHaveBeenCalled()
+  })
+
+  it('关闭平台暂停后台页面，重新启用时恢复，状态带出暂停标记', async () => {
+    expect(await request('bridge/suspend', {})).toEqual({ status: 200, data: { ok: true } })
+    expect(ctx.appleMusicWeb!.suspend).toHaveBeenCalledOnce()
+    vi.mocked(ctx.appleMusicWeb!.state).mockReturnValue({ connected: false, loggedIn: true, subscription: 'unknown', storefront: 'us', playbackId: '', status: 'idle', position: 0, duration: 0, suspended: true })
+    expect((await request('status')).data).toMatchObject({ loggedIn: true, connected: false, suspended: true })
+    await request('bridge/resume', {})
+    expect(ctx.appleMusicWeb!.resume).toHaveBeenCalledOnce()
   })
 
   it('登录状态将窗口失败原因交给界面', async () => {
