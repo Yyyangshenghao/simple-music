@@ -70,17 +70,24 @@ describe('cleanupUpdateArtifacts / pruneOtherInstallers', () => {
 
   afterEach(() => fs.rmSync(userData, { recursive: true, force: true }))
 
-  it('启动时清旧包与替换残留，并只报告一次替换结果', () => {
+  it('启动时清旧包与替换残留，并只报告一次替换结果', async () => {
     touch(path.join(work, 'install-result.json'), '{"ok":true,"code":"OK","from":"2.6.0","to":"2.6.1","at":1}')
-    expect(cleanupUpdateArtifacts(userData, '2.6.1')).toMatchObject({ ok: true, code: 'OK', to: '2.6.1' })
+    const first = cleanupUpdateArtifacts(userData, '2.6.1')
+    expect(first.record).toMatchObject({ ok: true, code: 'OK', to: '2.6.1' })
     expect(fs.readdirSync(downloads)).toEqual([])
+    await first.bundles
     expect(fs.readdirSync(work).sort()).toEqual(['downloads'])
-    expect(cleanupUpdateArtifacts(userData, '2.6.1')).toBeNull()
+    const second = cleanupUpdateArtifacts(userData, '2.6.1')
+    expect(second.record).toBeNull()
+    await second.bundles
   })
 
-  it('回滚失败时保留备份里的旧版', () => {
+  it('回滚失败时保留备份里的旧版', async () => {
     touch(path.join(work, 'install-result.json'), '{"ok":false,"code":"ROLLBACK_FAILED","from":"2.6.0","to":"2.6.1","at":1}')
-    expect(cleanupUpdateArtifacts(userData, '2.6.0')?.code).toBe('ROLLBACK_FAILED')
+    const result = cleanupUpdateArtifacts(userData, '2.6.0')
+    expect(result.record?.code).toBe('ROLLBACK_FAILED')
+    await result.bundles
+    expect(fs.existsSync(path.join(work, 'staging'))).toBe(false)
     expect(fs.existsSync(path.join(work, 'backup', 'Simple Music.app'))).toBe(true)
     expect(fs.readdirSync(downloads)).toEqual(['Simple-Music-2.6.1-arm64.dmg'])
   })

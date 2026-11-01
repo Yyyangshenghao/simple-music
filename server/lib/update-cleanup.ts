@@ -82,8 +82,20 @@ export function pruneOtherInstallers(downloadDir: string, keepFileName: string):
   removeStale(downloadDir, '', keepFileName)
 }
 
+function removeTreeQuietly(target: string): Promise<void> {
+  return fs.promises.rm(target, { recursive: true, force: true }).catch((e: Error) => {
+    console.warn('[UpdateCleanup] remove failed:', target, e.message)
+  })
+}
+
+export interface UpdateCleanupResult {
+  record: MacInstallResultRecord | null
+  /** 暂存与备份的整份 .app 有数千个文件，放到后台删，不挡启动；再次暂存前须等它完成。 */
+  bundles: Promise<void>
+}
+
 /** 启动时调用：清旧安装包与 mac 替换残留，并取走上次替换的结果（读后即删，只报告一次）。 */
-export function cleanupUpdateArtifacts(userDataDir: string, currentVersion: string): MacInstallResultRecord | null {
+export function cleanupUpdateArtifacts(userDataDir: string, currentVersion: string): UpdateCleanupResult {
   const workDir = updateWorkDir(userDataDir)
   removeStale(updateDownloadDir(userDataDir), currentVersion)
 
@@ -96,8 +108,10 @@ export function cleanupUpdateArtifacts(userDataDir: string, currentVersion: stri
   }
   removeQuietly(resultPath)
   removeQuietly(path.join(workDir, MAC_SWAP_SCRIPT))
-  removeQuietly(path.join(workDir, 'staging'))
-  // 回滚失败时备份里是旧版唯一的一份，留给用户手动找回。
-  if (record?.code !== 'ROLLBACK_FAILED') removeQuietly(path.join(workDir, 'backup'))
-  return record
+  const bundles = Promise.all([
+    removeTreeQuietly(path.join(workDir, 'staging')),
+    // 回滚失败时备份里是旧版唯一的一份，留给用户手动找回。
+    record?.code !== 'ROLLBACK_FAILED' ? removeTreeQuietly(path.join(workDir, 'backup')) : undefined,
+  ]).then(() => {})
+  return { record, bundles }
 }

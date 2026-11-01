@@ -52,10 +52,13 @@ export function installUpdateWindows(installerPath: string): Promise<InstallResu
 
 // ---------- 启动清理：旧安装包、mac 替换残留，并取走上次替换结果交给渲染层提示一次 ----------
 let lastMacInstall: MacInstallResultRecord | null = null
+let leftoverBundles: Promise<void> = Promise.resolve()
 
 export function cleanupUpdatesOnStartup(): void {
   try {
-    lastMacInstall = cleanupUpdateArtifacts(app.getPath('userData'), app.getVersion())
+    const result = cleanupUpdateArtifacts(app.getPath('userData'), app.getVersion())
+    lastMacInstall = result.record
+    leftoverBundles = result.bundles
   } catch (e) {
     console.warn('[UpdateCleanup] startup cleanup failed:', (e as Error).message)
   }
@@ -101,6 +104,8 @@ async function plistValue(plistPath: string, key: string): Promise<string> {
 }
 
 async function stageMacUpdate(dmgPath: string, expectedVersion?: string): Promise<InstallResult> {
+  // 启动时后台删除的上次暂存/备份还没删完时，不能往同一目录里暂存新版本。
+  await leftoverBundles
   const appPath = resolveMacAppBundlePath(app.getPath('exe'))
   const workDir = updateWorkDir(app.getPath('userData'))
   const stagingDir = path.join(workDir, 'staging')
