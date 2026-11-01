@@ -1,7 +1,7 @@
 import type { RouteHandler, ServerContext } from '../types'
 import { readJson, sendError, sendJson } from '../lib/http'
 import { ProxyConfigError, readProxySettings, validateProxySettings, writeProxySettings, type ProxySettings } from '../lib/proxy-config'
-import { applyUpstreamProxy, dispatcherForTarget } from '../lib/upstream-proxy'
+import { applyUpstreamProxy, withProbeDispatcher } from '../lib/upstream-proxy'
 
 /** 固定小文件往返：国内、海外都能连到，且不依赖任何平台 SDK。 */
 const PROXY_TEST_URL = 'https://www.apple.com/library/test/success.html'
@@ -34,10 +34,10 @@ function proxyFailure(error: unknown): string {
 async function testProxy(settings: ProxySettings, target: 'default' | 'apple'): Promise<ProxyTestResult> {
   const startedAt = Date.now()
   try {
-    const response = await fetch(PROXY_TEST_URL, {
-      dispatcher: dispatcherForTarget(settings, target),
+    const response = await withProbeDispatcher(settings, target, (dispatcher) => fetch(PROXY_TEST_URL, {
+      dispatcher,
       signal: AbortSignal.timeout(PROXY_TEST_TIMEOUT_MS),
-    } as unknown as RequestInit)
+    } as unknown as RequestInit))
     return { ok: response.ok, status: response.status, elapsedMs: Date.now() - startedAt }
   } catch (error) {
     return { ok: false, elapsedMs: Date.now() - startedAt, error: proxyFailure(error) }

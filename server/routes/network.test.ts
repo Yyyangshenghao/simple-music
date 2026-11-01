@@ -10,7 +10,7 @@ import { readProxySettings } from '../lib/proxy-config'
 const h = vi.hoisted(() => ({ applyUpstream: vi.fn(), dispatcher: { dispatch: vi.fn() }, fetch: vi.fn() }))
 vi.mock('../lib/upstream-proxy', () => ({
   applyUpstreamProxy: h.applyUpstream,
-  dispatcherForTarget: () => h.dispatcher,
+  withProbeDispatcher: (_settings: unknown, _target: unknown, run: (dispatcher: unknown) => Promise<unknown>) => run(h.dispatcher),
 }))
 
 let dir = ''

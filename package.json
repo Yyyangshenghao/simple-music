@@ -24,6 +24,7 @@
     "server:dev": "tsx server/index.ts"
   },
   "dependencies": {
+    "https-proxy-agent": "^7.0.6",
     "koffi": "2.16.3",
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.16.1",

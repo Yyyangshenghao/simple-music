@@ -1,6 +1,7 @@
 import * as NCM from 'NeteaseCloudMusicApi'
 import type { ServerContext } from '../types'
 import { getCookie, clearCookie } from './cookie'
+import { installNeteaseProxy } from './netease-proxy'
 
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -19,6 +20,8 @@ type NcmFn = (params: NcmParams) => Promise<NcmResponse>
 // 放在 `NCM.default` 上，命名空间本身只有 default/get。这里统一解包到接口表。
 const ncmNs = NCM as unknown as Record<string, unknown>
 const ncmTable = (ncmNs.default as Record<string, unknown> | undefined) ?? ncmNs
+// NCM 走 axios，不读 undici 全局 dispatcher；默认出口由 netease-proxy 的拦截器接管。
+installNeteaseProxy()
 
 /** 与原项目 `typeof fn === 'function'` 等价的可用性探测。 */
 export function has(name: string): boolean {

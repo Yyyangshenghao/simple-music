@@ -47,7 +47,7 @@
 - **`routes/beatmap.ts`** + `lib/beatmap.ts`:`/api/beatmap/cache{,/status}`,节拍图缓存
 - **`routes/weather.ts`** + `lib/weather.ts`:`/api/weather/{ip-location,radio}`(Open-Meteo + IP 定位 + 天气电台)
 - **`routes/update.ts`** + `lib/update.ts`:`/api/app/version`、`/api/update/{latest,download,download/status,patch,patch/status}`;更新源配置在 package.json 的 `simplemusic.update` 字段(GitHub Release + 国内镜像列表)
-- **`routes/network.ts`** + `lib/proxy-config.ts` + `lib/upstream-proxy.ts`：`GET/POST /api/network/proxy` 读写 `userDataDir/proxy.json`（0600），`POST /api/network/proxy/test` 用固定小文件验证出口。配置为「跟随系统 / 自定义 HTTP 代理 / 直连」，并可给 Apple Music 单独设出口。保存时同时切换 Node 侧上游 dispatcher 与 Electron 各会话（`ctx.applySessionProxy`），避免登录窗口走代理而数据请求仍直连。跟随系统在 Electron 交给 Chromium，在 Node 侧只认 `HTTPS_PROXY`/`HTTP_PROXY`；自定义代理显式绕过 `localhost/127.0.0.1/::1`。
+- **`routes/network.ts`** + `lib/proxy-config.ts` + `lib/upstream-proxy.ts`：`GET/POST /api/network/proxy` 读写 `userDataDir/proxy.json`（0600），`POST /api/network/proxy/test` 用固定小文件验证出口（一次性 dispatcher，测完即销毁，不进缓存）。配置为「跟随系统 / 自定义 HTTP 代理 / 直连」，并可给 Apple Music 单独设出口。保存时同时切换 Node 侧上游 dispatcher 与 Electron 各会话（`ctx.applySessionProxy`），避免登录窗口走代理而数据请求仍直连。跟随系统在 Electron 交给 Chromium，在 Node 侧只认 `HTTPS_PROXY`/`HTTP_PROXY`；自定义代理显式绕过 `localhost/127.0.0.1/::1`。网易 NCM 内部用 axios，不读 undici 全局 dispatcher；它自带的 `proxy` 参数也不能用（HTTP 分支经 `tunnel.httpOverHttp` 不做 TLS，请求降级成明文 :80），因此由 `lib/netease-proxy.ts` 在 NCM 解析到的 axios 上挂拦截器，只对网易域名换成 `HttpsProxyAgent`（CONNECT + TLS）并设 `proxy: false`，每次请求读取 `upstreamProxyAddress()`。新接入不走 `fetch` 的上游客户端同样要显式接代理。
 
 ### 平台收听上报
 
@@ -57,7 +57,7 @@
 
 ## lib 辅助
 
-`http.ts`(sendJson/sendError 等)、`cookie.ts`(cookie 落盘)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`)、`proxy-config.ts`(代理配置校验、落盘与 Electron/Node 两套规则派生)、`upstream-proxy.ts`(用 undici 的全局 dispatcher 让 server 内既有 `fetch` 调用统一走上游代理，Apple 出口可单独指定)、`local-library.ts`(本地音乐索引与 `music-metadata` 标签/封面解析；音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。Apple Music 的路径约束和播放会话逻辑位于 `apple-music.ts`、`apple-music-bridge.ts` 与主进程 `apple-music-web-session.ts`。这些关键逻辑均有同目录测试。
+`http.ts`(sendJson/sendError 等)、`cookie.ts`(cookie 落盘)、`audio-cache.ts`(音频磁盘缓存:Range 解析/整流判定/LRU)、`security.ts`(来源校验 `isAllowedOrigin` + token 校验 `isAllowedToken` + 代理上游校验 `isSafeUpstreamUrl`)、`proxy-config.ts`(代理配置校验、落盘与 Electron/Node 两套规则派生)、`netease-proxy.ts`(NCM 的 axios 代理拦截器，见 `routes/network.ts` 条目)、`upstream-proxy.ts`(用 undici 的全局 dispatcher 让 server 内既有 `fetch` 调用统一走上游代理，Apple 出口可单独指定；按地址缓存的 dispatcher 超限时只淘汰非当前全局出口的那个，关掉全局出口会让之后所有上游请求失败)、`local-library.ts`(本地音乐索引与 `music-metadata` 标签/封面解析；音频/封面/歌词一律按索引 id 反查路径,不接受调用方直传路径)。Apple Music 的路径约束和播放会话逻辑位于 `apple-music.ts`、`apple-music-bridge.ts` 与主进程 `apple-music-web-session.ts`。这些关键逻辑均有同目录测试。
 
 ## 约定
 
