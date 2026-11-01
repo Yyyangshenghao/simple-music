@@ -9,6 +9,9 @@ const h = vi.hoisted(() => {
   const clearStorageData = vi.fn(async () => {})
   const setPermissionRequestHandler = vi.fn()
   const setPermissionCheckHandler = vi.fn()
+  const setSessionUserAgent = vi.fn()
+  const preloadScripts: Array<{ id: string }> = []
+  const registerPreloadScript = vi.fn((script: { id: string }) => { preloadScripts.push(script) })
   const chrome = {
     isAlive: vi.fn(() => true),
     evaluate: vi.fn(async (script: string, _timeoutMs?: number) => script.includes('"type":"state"') ? { ...state } : true),
@@ -59,6 +62,7 @@ const h = vi.hoisted(() => {
   })
   return {
     readFile, writeFile, windows, BrowserWindow, componentReady, clearStorageData, setPermissionRequestHandler, setPermissionCheckHandler,
+    setSessionUserAgent, preloadScripts, registerPreloadScript,
     chrome, openChrome,
     setState(next: typeof state) { state = next },
     setLoadBehavior(next: typeof loadBehavior) { loadBehavior = next },
@@ -82,6 +86,9 @@ vi.mock('electron', () => ({
     clearStorageData: h.clearStorageData,
     setPermissionRequestHandler: h.setPermissionRequestHandler,
     setPermissionCheckHandler: h.setPermissionCheckHandler,
+    setUserAgent: h.setSessionUserAgent,
+    getPreloadScripts: () => h.preloadScripts,
+    registerPreloadScript: h.registerPreloadScript,
   })) },
 }))
 vi.mock('./apple-music-chrome-page', () => ({
@@ -611,6 +618,27 @@ describe('应用内 Apple Music 会话', () => {
     expect(callback).toHaveBeenLastCalledWith(true)
     request(null, 'media', callback, { requestingUrl: 'https://music.apple.com' })
     expect(callback).toHaveBeenLastCalledWith(false)
+    expect(h.setSessionUserAgent).toHaveBeenCalledWith(expect.stringMatching(/AppleWebKit\/537.36 .* Safari\/537.36$/))
+    expect(h.setSessionUserAgent.mock.calls[0][0]).not.toContain('Electron')
+  })
+
+  it('非 macOS 为登录窗口注册屏蔽通行密钥的 preload，且重开窗口不重复注册', async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    try {
+      h.preloadScripts.length = 0
+      h.registerPreloadScript.mockClear()
+      await apple.open()
+      expect(h.registerPreloadScript).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'simplemusic-apple-music-auth', type: 'frame', filePath: expect.stringMatching(/preload[\\/]apple-music-auth\.cjs$/),
+      }))
+      expect(h.windows[0].options.webPreferences).toEqual(expect.objectContaining({ nodeIntegrationInSubFrames: true, sandbox: true }))
+      await apple.close()
+      await apple.open()
+      expect(h.registerPreloadScript).toHaveBeenCalledOnce()
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+    }
   })
 
   it('授权后隐藏窗口时只切一次到轻量搜索页，Chrome 路径同样处理', async () => {

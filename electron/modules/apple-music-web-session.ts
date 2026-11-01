@@ -8,6 +8,7 @@ import { appleMusicWebPage, type WebPageTask } from '../../server/lib/apple-musi
 import { AppleMusicChromePage } from './apple-music-chrome-page'
 
 const PLAYBACK_PARTITION = 'persist:simplemusic-apple-music'
+const AUTH_PRELOAD_ID = 'simplemusic-apple-music-auth'
 const APPLE_MUSIC_URL = 'https://music.apple.com/'
 const OPEN_TIMEOUT_MS = 30000
 const RESTORE_CONFIRM_TIMEOUT_MS = 30000
@@ -187,6 +188,12 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     appleSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
       callback(isAllowedApplePermission(permission, details.requestingUrl))
     })
+    // 设在会话上，MusicKit 授权弹窗（window.open）也用 Chrome UA，不暴露 Electron 标识。
+    appleSession.setUserAgent(chromeUserAgent())
+    const disablePasskeys = process.platform !== 'darwin'
+    if (disablePasskeys && !appleSession.getPreloadScripts().some(script => script.id === AUTH_PRELOAD_ID)) {
+      appleSession.registerPreloadScript({ id: AUTH_PRELOAD_ID, type: 'frame', filePath: join(import.meta.dirname, '../preload/apple-music-auth.cjs') })
+    }
     const win = new BrowserWindow({
       title: '登录 Apple Music',
       width: 1120,
@@ -202,6 +209,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
         nodeIntegration: false,
         sandbox: true,
         backgroundThrottling: false,
+        // Apple ID 登录表单在跨域 iframe 内，屏蔽通行密钥的 preload 需要进子框架。
+        nodeIntegrationInSubFrames: disablePasskeys,
       },
     })
     if (lifecycle !== this.lifecycle) { win.destroy(); throw new Error('连接已取消') }
@@ -213,7 +222,6 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     this.loginPrompted = false
     this.redirectedStorefront = ''
     this.pollFailures = 0
-    win.webContents.setUserAgent(chromeUserAgent())
     win.webContents.setWindowOpenHandler(({ url }) => isAppleUrl(url) ? { action: 'allow' } : { action: 'deny' })
     win.webContents.on('render-process-gone', () => this.invalidateWindow(win))
     win.webContents.on('will-prevent-unload', event => event.preventDefault())
