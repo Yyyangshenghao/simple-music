@@ -121,6 +121,26 @@ describe('参与限制和取消', () => {
     expect(h.qq).not.toHaveBeenCalled()
   })
 
+  it('Apple 歌词缺翻译时按正文从原平台补齐翻译与音译，自带翻译不覆盖', async () => {
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }, { time: 3, text: 'World' }], aligned: [], roma: [], wordLines: [] })
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]Hello\n[00:03.10]World', tlyric: '[00:01.00]你好\n[00:03.10]世界' })
+    const filled = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
+    expect(filled.result).toMatchObject({ source: 'apple', translationOrigin: 'netease',
+      main: [{ time: 1.2, text: 'Hello' }, { time: 3, text: 'World' }], aligned: [{ time: 1.2, text: '你好' }, { time: 3, text: '世界' }] })
+    expect(filled.result?.romajiOrigin).toBeUndefined()
+
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [{ time: 1.2, text: '哈喽' }], roma: [], wordLines: [] })
+    expect((await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])).result?.aligned).toEqual([{ time: 1.2, text: '哈喽' }])
+
+    // 原平台在歌词设置中关闭时不再请求它补翻译。
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [], roma: [], wordLines: [] })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    vi.mocked(api.get).mockClear()
+    const plain = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
+    expect(plain).toMatchObject({ status: 'ready', result: { aligned: [] } })
+    expect(api.get).not.toHaveBeenCalledWith('/api/lyric', expect.anything(), expect.anything())
+  })
+
   it('Apple Music 可为其他平台歌曲匹配同一录音并取自带歌词；未连接或关闭时不查询', async () => {
     h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [], roma: [], wordLines: [] })
     expect(await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple']))

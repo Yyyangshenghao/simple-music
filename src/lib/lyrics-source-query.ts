@@ -12,6 +12,7 @@ import {
 import { lyricPlatformEnabled, lyricServiceMode } from './lyric-service'
 import { TrackMatchMismatchError } from './track-match'
 import { accompanimentOriginal } from './karaoke-library'
+import { realignCompanionLines } from './lyric-realign'
 
 export interface LyricsSourceQueryResult {
   status: LyricCandidateStatus
@@ -61,6 +62,34 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
     return { status: 'unavailable', message: '缺少歌曲时长，无法校验匹配版本' }
   }
   return { status: 'idle' }
+}
+
+/**
+ * Apple 歌词通常没有中文翻译：网易云、QQ 歌曲改用 Apple 歌词时，按正文从原平台歌词补齐缺少的翻译与音译。
+ * 原平台不可用、取词失败或对不上时保留 Apple 歌词原样。
+ */
+async function withOriginCompanions(track: Track, result: LyricsResult, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult> {
+  if (track.source !== 'netease' && track.source !== 'qq') return result
+  const needTranslation = !result.aligned.some(line => line.text)
+  const needRomaji = !result.roma.some(line => line.text)
+  if ((!needTranslation && !needRomaji) || providerAvailability(track.source, sources).status !== 'idle') return result
+  try {
+    // 与原平台候选查询参数一致，共享同一份请求与缓存。
+    const own = await fetchLyrics(track, [], signal, track.source === 'qq')
+    if (signal?.aborted || !own.main.length) return result
+    const aligned = needTranslation ? realignCompanionLines(own.main, result.main, own.aligned) : result.aligned
+    const roma = needRomaji ? realignCompanionLines(own.main, result.main, own.roma) : result.roma
+    const filled = (lines: typeof aligned) => lines.some(line => line.text)
+    return {
+      ...result,
+      aligned: filled(aligned) ? aligned : result.aligned,
+      roma: filled(roma) ? roma : result.roma,
+      ...(needTranslation && filled(aligned) ? { translationOrigin: track.source } : {}),
+      ...(needRomaji && filled(roma) ? { romajiOrigin: track.source } : {}),
+    }
+  } catch {
+    return result
+  }
 }
 
 function failureResult(error: unknown): LyricsSourceQueryResult {
@@ -172,7 +201,10 @@ async function queryLyricsSourceImpl(
     checkCurrent()
     const current = candidateAvailability(track, origin, sources, probe)
     if (current.status !== 'idle') return current
-    return ready(await fetchLyrics(target, [], signal, origin === 'qq', true, probe), target)
+    const result = await fetchLyrics(target, [], signal, origin === 'qq', true, probe)
+    checkCurrent()
+    // 测试只检验来源本身是否可用，不额外请求原平台。
+    return ready(origin === 'apple' && !probe && result.main.length ? await withOriginCompanions(track, result, sources, signal) : result, target)
   } catch (error) {
     checkCurrent()
     return failureResult(error)
