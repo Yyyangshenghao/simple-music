@@ -434,13 +434,25 @@ describe('设置分类导航', () => {
   it('全部分类连续展示，原分类按钮负责收放二级目录', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
     const sections = [...html.matchAll(/<section id="settings-section-([^"]+)"([^>]*)>/g)]
-    expect(sections).toHaveLength(6)
+    expect(sections).toHaveLength(7)
+    expect(sections.map(section => section[1])).toEqual(['music', 'visual', 'lyrics', 'cache', 'network', 'shortcuts', 'about'])
     expect(sections.find(section => section[1] === 'music')![2]).not.toContain('hidden=')
     expect(sections.some(section => section[2].includes('hidden='))).toBe(false)
     expect(html).not.toContain('收起设置目录')
     expect(html).not.toContain('展开设置目录')
     expect(html).toMatch(/aria-current="page"[^>]*aria-expanded="true"/)
     expect(html).toMatch(/aria-current="page"[^>]*aria-controls="settings-section-music settings-subnav-music"/)
+  })
+
+  it('网络与代理分组提供模式、地址与 Apple 出口入口', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toContain('id="settings-section-network"')
+    expect(html).toContain('aria-label="代理模式"')
+    expect(html).toContain('aria-label="Apple Music 代理"')
+    expect(html).toContain('跟随系统')
+    expect(html).toContain('跟随默认')
+    // 跟随系统时没有可测试的代理地址，测试按钮保持禁用
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>跟随系统/)
   })
 
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {

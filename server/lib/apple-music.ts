@@ -2,6 +2,8 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { join } from 'node:path'
 import type { ServerContext } from '../types'
 import { appleMusicBridgeState, getAppleMusicBridgeGeneration, revokeAppleMusicBridge } from './apple-music-bridge'
+import { readProxySettings } from './proxy-config'
+import { appleFetch } from './upstream-proxy'
 
 export class AppleMusicError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -123,7 +125,7 @@ export async function fetchAppleMusic(ctx: ServerContext, path: string): Promise
   const headers: Record<string, string> = { Authorization: `Bearer ${developerToken}` }
   if (personalized && user) headers['Music-User-Token'] = user.token
   try {
-    const response = await fetch(url, { headers, redirect: 'error', signal: AbortSignal.timeout(15000) })
+    const response = await appleFetch(url.href, { headers, redirect: 'error', signal: AbortSignal.timeout(15000) }, readProxySettings(ctx.userDataDir))
     if (!response.ok) {
       if ((response.status === 401 || response.status === 403) &&
         getAppleMusicConfig(ctx).developerToken === developerToken && users.get(ctx.userDataDir) === user) {

@@ -27,6 +27,7 @@ import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
 import { appleMusicBridgeRoutes, publicAppleMusicBridgeRoutes } from './routes/apple-music-bridge'
+import { networkRoutes } from './routes/network'
 import { sendError } from './lib/http'
 import { isAllowedOrigin, isAllowedToken } from './lib/security'
 
@@ -34,6 +35,7 @@ import { isAllowedOrigin, isAllowedToken } from './lib/security'
 const chain: RouteHandler[] = [
   appleMusicBridgeRoutes,
   appleMusicRoutes,
+  networkRoutes,
   audioCacheRoutes,
   karaokeRoutes,
   songDownloadRoutes,
@@ -72,6 +74,7 @@ export function startServer(
     appleMusicWeb: partial.appleMusicWeb,
     appleMusicLoginMode: partial.appleMusicLoginMode,
     token: partial.token,
+    applySessionProxy: partial.applySessionProxy,
     // 每次启动随机：壁纸页面只能读取壁纸目录，拿不到 API token。
     wallpaperWebToken: partial.wallpaperWebToken ?? randomBytes(32).toString('hex')
   }

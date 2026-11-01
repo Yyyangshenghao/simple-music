@@ -3,7 +3,10 @@ import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { startServer } from '../server/index'
+import { readProxySettings } from '../server/lib/proxy-config'
+import { applyUpstreamProxy } from '../server/lib/upstream-proxy'
 import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
+import { applySessionProxy } from './modules/session-proxy'
 import { focusMainWindow } from './modules/window-manager'
 
 let handle: { port: number; close(): void } | null = null
@@ -45,6 +48,10 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
     defaultSongDownloadDir = join(app.getPath('music'), 'Simple Music')
   } catch { /* 系统音乐目录不可用时，下载配置继续沿用原缓存位置。 */ }
   apiToken = loadOrCreateToken(userDataDir)
+  // 代理配置在启动时先落到 Electron 会话与 Node 上游请求上，窗口创建后立即生效。
+  const proxySettings = readProxySettings(userDataDir)
+  applyUpstreamProxy(proxySettings)
+  void applySessionProxy(proxySettings)
   // Apple 的生产许可证服务拒绝 CastLabs 开发 VMP 签名。开发态改用系统 Chrome
   // 的正式 Widevine 客户端；发布包经 EVS 生产签名后继续使用应用内隐藏窗口。
   appleMusicWeb = new OfficialAppleMusicSession(userDataDir, !app.isPackaged, () => {
@@ -65,6 +72,7 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
       return { total: memory.total * 1024, free: Math.min(memory.total, memory.free + (memory.purgeable ?? 0) + (memory.fileBacked ?? 0)) * 1024 }
     },
     token: apiToken,
+    applySessionProxy: (settings) => { void applySessionProxy(settings) },
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged
   })

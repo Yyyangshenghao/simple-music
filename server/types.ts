@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AppleMusicWebSession } from './lib/apple-music-web-types'
+import type { ProxySettings } from './lib/proxy-config'
 
 export interface ServerContext {
   appleMusicWeb?: AppleMusicWebSession
@@ -23,6 +24,8 @@ export interface ServerContext {
    * 第三方壁纸页面即使从地址里读到它，也无法调用 `/api/*`。
    */
   wallpaperWebToken?: string
+  /** 代理设置变更时通知宿主同步到 Electron 各会话；独立 server 无此回调。 */
+  applySessionProxy?(settings: ProxySettings): void
 }
 
 /**

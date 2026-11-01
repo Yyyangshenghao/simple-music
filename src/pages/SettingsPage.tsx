@@ -53,6 +53,7 @@ import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '..
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
 import { EffectPreview, type PreviewEffect } from '../components/Settings/EffectPreview'
+import { DEFAULT_PROXY_SETTINGS, loadProxySettings, proxyTestMessage, saveProxySettings, testProxySettings, type ProxySettings } from '../lib/network-settings'
 import styles from './SettingsPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
 
@@ -76,10 +77,29 @@ const SETTINGS_TABS = [
   { id: 'cache', label: '缓存与下载', items: [
     { id: 'downloads', label: '歌曲下载' }, { id: 'player-cache', label: '离线音乐与缓存' },
   ] },
+  { id: 'network', label: '网络与代理', items: [
+    { id: 'proxy', label: '代理' },
+  ] },
   { id: 'shortcuts', label: '快捷键', items: [] },
   { id: 'about', label: '关于应用', items: [] },
 ] as const
 type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
+
+const PROXY_MODE_OPTIONS: { value: ProxySettings['mode']; label: string }[] = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'custom', label: '自定义' },
+  { value: 'direct', label: '直连' },
+]
+const APPLE_PROXY_OPTIONS: { value: ProxySettings['apple']; label: string }[] = [
+  { value: 'inherit', label: '跟随默认' },
+  { value: 'custom', label: '单独代理' },
+  { value: 'direct', label: '直连' },
+]
+
+/** 只有选了实际代理出口才允许测试；跟随系统/直连没有可测试的代理地址。 */
+function proxyTestable(settings: ProxySettings): boolean {
+  return (settings.mode === 'custom' && !!settings.url) || (settings.apple === 'custom' && !!settings.appleUrl)
+}
 
 /** 分支导航几何（参考 React Bits BranchedMenu）：子项行高、分支区宽度、主干横坐标与圆角半径。 */
 const BRANCH_ROW = 32
@@ -91,8 +111,7 @@ const branchEnd = BRANCH_INDENT - 6
 const branchLength = (k: number) => branchY(k) - BRANCH_RADIUS + (Math.PI * BRANCH_RADIUS) / 2 + (branchEnd - BRANCH_TRUNK - BRANCH_RADIUS)
 const branchArc = `A ${BRANCH_RADIUS} ${BRANCH_RADIUS} 0 0 0 ${BRANCH_TRUNK + BRANCH_RADIUS}`
 
-/** 子项分支线：灰色主干与弧形分支常显，当前子项从主干顶端描出一条强调色通路。 */
-function BranchLines({ items, active }: { items: readonly { id: string }[]; active: string }) {
+/** 子项分支线：灰色主干与弧形分支常显，当前子项从主干顶端描出一条强调色通路。 */function BranchLines({ items, active }: { items: readonly { id: string }[]; active: string }) {
   const height = items.length * BRANCH_ROW
   return (
     <svg className={styles.branchLines} width={BRANCH_INDENT} height={height} aria-hidden="true">
@@ -835,6 +854,52 @@ export function SettingsPage() {
   const settingsCacheRequest = useNavigationStore((s) => s.settingsCacheRequest)
   const settingsKaraokeRequest = useNavigationStore((s) => s.settingsKaraokeRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
+  const [proxy, setProxy] = useState<ProxySettings>(DEFAULT_PROXY_SETTINGS)
+  const [proxySaved, setProxySaved] = useState<ProxySettings>(DEFAULT_PROXY_SETTINGS)
+  const [proxyBusy, setProxyBusy] = useState(false)
+  const [proxyStatus, setProxyStatus] = useState('')
+  const proxyDirty = proxy.mode !== proxySaved.mode || proxy.url !== proxySaved.url
+    || proxy.apple !== proxySaved.apple || proxy.appleUrl !== proxySaved.appleUrl
+
+  useEffect(() => {
+    let stopped = false
+    void loadProxySettings().then((settings) => {
+      if (stopped) return
+      setProxy(settings)
+      setProxySaved(settings)
+    }).catch(() => { if (!stopped) setProxyStatus('无法读取代理设置，请重试') })
+    return () => { stopped = true }
+  }, [])
+
+  function updateProxy(patch: Partial<ProxySettings>): void {
+    setProxy((current) => ({ ...current, ...patch }))
+    setProxyStatus('')
+  }
+
+  async function handleSaveProxy(): Promise<void> {
+    setProxyBusy(true)
+    try {
+      const saved = await saveProxySettings(proxy)
+      setProxy(saved)
+      setProxySaved(saved)
+      setProxyStatus('已保存，新的代理设置已生效')
+    } catch (error) {
+      setProxyStatus(error instanceof Error ? error.message : '保存代理设置失败')
+    } finally {
+      setProxyBusy(false)
+    }
+  }
+
+  async function handleTestProxy(target: 'default' | 'apple' = 'default'): Promise<void> {
+    setProxyBusy(true)
+    try {
+      setProxyStatus(proxyTestMessage(await testProxySettings(proxy, target)))
+    } catch (error) {
+      setProxyStatus(error instanceof Error ? error.message : '测试代理连接失败')
+    } finally {
+      setProxyBusy(false)
+    }
+  }
 
   // 在首帧绘制前恢复；字体、缓存信息等异步内容撑开高度前不够滚时，等内容长高再补一次，用户先动则放弃。
   useLayoutEffect(() => {
@@ -1744,12 +1809,77 @@ export function SettingsPage() {
                 </section>
               </div>
             </section>
-            <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
+            <section id="settings-section-network" className={styles.settingsSection} aria-labelledby="settings-heading-network">
               <SectionHeading section={SETTINGS_TABS[4]} />
+              <div className={`${styles.settingsGrid} ${styles.storageGrid}`}>
+                <section id="settings-detail-proxy" className={`${styles.group} ${styles.storageShared}`}>
+                  <h3 className={styles.groupTitle}>
+                    代理
+                    <InfoButton label="代理" text="跟随系统只影响登录窗口：主进程的平台请求不读系统代理。要让搜索、曲库、封面和播放也走代理，请选自定义并填入代理软件提供的 HTTP 端口，例如 http://127.0.0.1:7890。Apple Music 可以单独选出口，避免国内节点把海外账号带回国内地区。" />
+                  </h3>
+                  <div data-setting-row className={styles.row}>
+                    <span className={styles.rowLabel}>代理模式</span>
+                    <div className={styles.segControl} role="group" aria-label="代理模式">
+                      {PROXY_MODE_OPTIONS.map((option) => (
+                        <button key={option.value} type="button" aria-pressed={proxy.mode === option.value}
+                          className={`${styles.seg} no-drag${proxy.mode === option.value ? ` ${styles.segActive}` : ''}`}
+                          onClick={() => updateProxy({ mode: option.value })}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {proxy.mode === 'custom' && (
+                    <div data-setting-row className={styles.row}>
+                      <span className={styles.rowLabel}>代理地址</span>
+                      <input className={styles.proxyInput} value={proxy.url} spellCheck={false} aria-label="代理地址"
+                        placeholder="http://127.0.0.1:7890" onChange={(event) => updateProxy({ url: event.target.value })} />
+                    </div>
+                  )}
+                  <div data-setting-row className={styles.row}>
+                    <span className={styles.rowLabel}>Apple Music 出口</span>
+                    <div className={styles.segControl} role="group" aria-label="Apple Music 代理">
+                      {APPLE_PROXY_OPTIONS.map((option) => (
+                        <button key={option.value} type="button" aria-pressed={proxy.apple === option.value}
+                          className={`${styles.seg} no-drag${proxy.apple === option.value ? ` ${styles.segActive}` : ''}`}
+                          onClick={() => updateProxy({ apple: option.value })}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {proxy.apple === 'custom' && (
+                    <div data-setting-row className={styles.row}>
+                      <span className={styles.rowLabel}>Apple Music 代理地址</span>
+                      <input className={styles.proxyInput} value={proxy.appleUrl} spellCheck={false} aria-label="Apple Music 代理地址"
+                        placeholder="http://127.0.0.1:7891" onChange={(event) => updateProxy({ appleUrl: event.target.value })} />
+                    </div>
+                  )}
+                  <div data-setting-row className={styles.row}>
+                    <span className={styles.rowLabel} role="status" aria-live="polite">{proxyStatus || '保存后立即生效'}</span>
+                    <div className={styles.rowControls}>
+                      {proxy.apple === 'custom' && (
+                        <button className={`${styles.storageAction} no-drag`} disabled={proxyBusy} onClick={() => void handleTestProxy('apple')}>
+                          测试 Apple 出口
+                        </button>
+                      )}
+                      <button className={`${styles.storageAction} no-drag`} disabled={proxyBusy || !proxyTestable(proxy)} onClick={() => void handleTestProxy()}>
+                        测试连接
+                      </button>
+                      <button className={`${styles.storageAction} no-drag`} disabled={proxyBusy || !proxyDirty} onClick={() => void handleSaveProxy()}>
+                        {proxyBusy ? '处理中…' : '保存'}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+            <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
+              <SectionHeading section={SETTINGS_TABS[5]} />
               <ShortcutSettings />
             </section>
             <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
-              <SectionHeading section={SETTINGS_TABS[5]} />
+              <SectionHeading section={SETTINGS_TABS[6]} />
               <div className={styles.settingsGrid}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>版本与更新</h3>

@@ -3,9 +3,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-const h = vi.hoisted(() => ({ getPath: vi.fn(), start: vi.fn(), restore: vi.fn(), close: vi.fn() }))
+const h = vi.hoisted(() => ({ getPath: vi.fn(), start: vi.fn(), restore: vi.fn(), close: vi.fn(), applyProxy: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: h.getPath, isPackaged: true } }))
 vi.mock('../server/index', () => ({ startServer: h.start }))
+vi.mock('./modules/session-proxy', () => ({ applySessionProxy: h.applyProxy }))
 vi.mock('./modules/window-manager', () => ({ focusMainWindow: vi.fn() }))
 vi.mock('./modules/apple-music-web-session', () => ({
   OfficialAppleMusicSession: class {
