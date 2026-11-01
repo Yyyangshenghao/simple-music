@@ -202,6 +202,20 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0
 - Release 默认只读权限，仅发布 job 授予 `contents: write`；生产签名凭据只提供给受信任的正式打包步骤。同一版本发布避免并发执行，失败时保留固定 tag。
 - **截至 2026-10-11，`.github/workflows/verify.yml` 对目标为 master/dev 的 PR 及 master/dev 推送执行 Windows/macOS 类型检查、全量测试和源码构建，使用只读仓库权限且不接触生产签名凭据；`.github/workflows/release.yml` 实现 tag 触发、元数据校验、双平台测试/打包及产物检查。来源校验和分支/tag 门禁尚未配置，Release 仍使用工作流级写权限且没有并发限制。未落地的流程检查由人工执行，不能声称已由 GitHub 自动强制。配置落地时同步更新本段。**
 
+### 0.7.1 预发版（验收真实安装包）
+
+正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，在待发布的 `dev/X.Y.Z` 上打预发版 tag：
+
+```bash
+git tag -a v2.6.2-beta.1 -m "预发版 v2.6.2-beta.1"
+git push origin v2.6.2-beta.1
+```
+
+- tag 只能是 `vX.Y.Z-beta.N` 或 `vX.Y.Z-rc.N`，`X.Y.Z` 不低于分支 `package.json` 版本；不需要提交版本号或发行说明，CI 在构建机上把 tag 版本写入 `package.json`。
+- 走与正式版相同的双平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
+- 预发版与正式版共用 appId 和应用数据，装上即覆盖本机正式版；版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内直接升级回正式通道。
+- 修复后递增 `beta.N` 重打，不移动已推送的预发版 tag；预发版 tag 和 Release 可在正式版发布后清理。预发版通过不代替 0.3 的发布前检查。
+
 ### 0.8 紧急补丁与旧版本维护
 
 - 默认补丁仍遵循正常流程：从最新 master 创建目标补丁 dev，从 dev 创建修复 feature，通过 PR 验收并合入 dev；所有者本地维护例外沿用协作规范。验收后合入 master，验证 master 提交后打 tag，再将 master 的修复同步到仍在维护的新版本 dev。

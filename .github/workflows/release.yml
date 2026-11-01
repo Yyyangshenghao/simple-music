@@ -11,10 +11,38 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.kind.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
+      # vX.Y.Z-beta.N / -rc.N 是预发版：只给维护者验收真实安装包，不进 master、不写发行说明。
+      # GitHub 预发布不会出现在 releases/latest，应用内更新检查看不到它。
+      - name: Detect release kind
+        id: kind
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+$ ]] || { echo "预发版 tag 须为 vX.Y.Z-beta.N 或 vX.Y.Z-rc.N"; exit 1; }
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate prerelease version
+        if: steps.kind.outputs.prerelease == 'true'
+        shell: bash
+        run: |
+          BASE="${GITHUB_REF_NAME#v}"
+          BASE="${BASE%%-*}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          # 预发版的目标正式版号不能低于分支当前版本；构建时再把 tag 版本写入 package.json。
+          node -e 'const [a, b] = process.argv.slice(1).map(v => v.split(".").map(Number)); for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1) }' "$BASE" "$PACKAGE_VERSION" \
+            || { echo "预发版 $BASE 低于分支版本 $PACKAGE_VERSION"; exit 1; }
+
       - name: Validate release metadata
+        if: steps.kind.outputs.prerelease == 'false'
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -82,6 +110,12 @@ jobs:
 
       - run: npm ci
 
+      # 预发版不提交版本号；只在构建机上把 tag 版本写进 package.json，安装包与应用内显示随之带 -beta.N。
+      - name: Apply prerelease version
+        if: needs.validate.outputs.prerelease == 'true'
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
       - run: npm run typecheck
 
       - run: npm test
@@ -107,7 +141,7 @@ jobs:
             dist/*.dmg.blockmap
             dist/*.exe
             dist/*.exe.blockmap
-            dist/latest*.yml
+            dist/*.yml
           if-no-files-found: error
 
   # 两个平台各自只上传构建产物为 artifact，不在 matrix 里直接 --publish：
@@ -115,19 +149,32 @@ jobs:
   # 导致同一个 tag 拆成两个不完整的 draft。改为等两边都构建完，
   # 由这个单独 job 统一创建一个 release 并把所有产物传上去。
   publish:
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       # 发行说明是发布协议的必需输入；缺失时直接阻止发布不完整的 Release。
       - name: Prepare release notes
+        if: needs.validate.outputs.prerelease == 'false'
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           NOTES_FILE="docs/release-notes-${VERSION}.md"
           test -f "$NOTES_FILE"
           cp "$NOTES_FILE" release-notes.md
+
+      - name: Prepare prerelease notes
+        if: needs.validate.outputs.prerelease == 'true'
+        shell: bash
+        run: |
+          {
+            echo "## 预发版"
+            echo
+            echo "仅供维护者验收真实安装包，不会推送给自动更新。来源分支提交：\`${GITHUB_SHA::7}\`。"
+            echo
+            echo "装上后与正式版共用应用数据；正式版 ${GITHUB_REF_NAME%%-*} 发布后可在应用内直接更新。"
+          } > release-notes.md
 
       - uses: actions/download-artifact@v4
         with:
@@ -141,8 +188,11 @@ jobs:
           find release-assets -maxdepth 1 -type f -name '*.dmg' ! -name '*-arm64.dmg' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-Setup.exe' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-portable.exe' | grep -q .
-          test -f release-assets/latest-mac.yml
-          test -f release-assets/latest.yml
+          # 预发版的更新描述文件按通道命名（beta.yml），且不参与应用内更新，只校验正式版的 latest*.yml。
+          if [ "${{ needs.validate.outputs.prerelease }}" = "false" ]; then
+            test -f release-assets/latest-mac.yml
+            test -f release-assets/latest.yml
+          fi
           find release-assets -maxdepth 1 -type f -name '*-arm64.dmg.blockmap' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*.dmg.blockmap' ! -name '*-arm64.dmg.blockmap' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-Setup.exe.blockmap' | grep -q .
@@ -152,4 +202,6 @@ jobs:
           name: Simple Music ${{ github.ref_name }}
           body_path: release-notes.md
           draft: false
+          prerelease: ${{ needs.validate.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.validate.outputs.prerelease == 'true' && 'false' || 'true' }}
           files: release-assets/**
