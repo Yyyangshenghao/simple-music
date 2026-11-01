@@ -95,3 +95,13 @@ it('Chrome 正在启动时取消也会等待清理，不再重试创建进程', 
   expect(child.kill).toHaveBeenCalledOnce()
   expect(h.spawn).toHaveBeenCalledOnce()
 })
+
+it('按传入的账号地区启动专用 Chrome', async () => {
+  const { child } = setup()
+  h.spawn.mockClear()
+  const page = await AppleMusicChromePage.open('/tmp/apple-test', vi.fn(), undefined, 'https://music.apple.com/jp/')
+  const args = h.spawn.mock.calls[0][1] as string[]
+  expect(args).toContain('--app=https://music.apple.com/jp/')
+  expect(child.kill).not.toHaveBeenCalled()
+  await page.close()
+})

@@ -21,8 +21,9 @@ const h = vi.hoisted(() => {
     unauthorize: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
   }
-  const openChrome = vi.fn(async (_directory: string, _onClose: () => void, _signal?: AbortSignal) => chrome)
+  const openChrome = vi.fn(async (_directory: string, _onClose: () => void, _signal?: AbortSignal, _startUrl?: string) => chrome)
   let loadBehavior: undefined | (() => Promise<void>)
+  let authProbe: { authorized: boolean; sessionValid: boolean } | null = null
   let state = { connected: true, loggedIn: false, subscription: 'unknown' as 'unknown' | 'active' | 'inactive', storefront: 'cn', playbackId: '', status: 'idle', position: 0, duration: 0 }
 
   function makeWindow(options: Electron.BrowserWindowConstructorOptions) {
@@ -37,6 +38,7 @@ const h = vi.hoisted(() => {
       on: vi.fn((event: string, listener: (...args: any[]) => void) => webContentsEvents.set(event, listener)),
       executeJavaScript: vi.fn(async (script: string) => {
         if (script.includes('"type":"state"')) return { ...state }
+        if (script.includes('"type":"auth"')) return authProbe
         if (script.includes("document.querySelectorAll('button')")) return true
         return null
       }),
@@ -66,12 +68,14 @@ const h = vi.hoisted(() => {
     chrome, openChrome,
     setState(next: typeof state) { state = next },
     setLoadBehavior(next: typeof loadBehavior) { loadBehavior = next },
+    setAuthProbe(next: typeof authProbe) { authProbe = next },
     reset() {
       chrome.evaluate.mockReset().mockImplementation(async script => script.includes('"type":"state"') ? { ...state } : true)
       chrome.close.mockReset().mockResolvedValue()
       readFile.mockReturnValue('false')
       windows.length = 0
       loadBehavior = undefined
+      authProbe = null
       state = { connected: true, loggedIn: false, subscription: 'unknown', storefront: 'cn', playbackId: '', status: 'idle', position: 0, duration: 0 }
     },
   }
@@ -477,7 +481,8 @@ describe('应用内 Apple Music 会话', () => {
     await apple.open()
     expect(h.writeFile).toHaveBeenCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'true', expect.any(Object))
     await apple.logout()
-    expect(h.writeFile).toHaveBeenLastCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'false', expect.any(Object))
+    // 退出登录还会写地区提示（见「登录成功后记住账号地区」），因此按文件断言而不是最后一次调用。
+    expect(h.writeFile).toHaveBeenCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'false', expect.any(Object))
   })
 
   it('恢复期间退出登录后销毁隐藏窗口且不迟到导航或重新记录登录', async () => {
@@ -517,7 +522,7 @@ describe('应用内 Apple Music 会话', () => {
     await apple.open()
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(h.openChrome).toHaveBeenCalledWith('/tmp/simple-music-test', expect.any(Function), expect.any(AbortSignal))
+    expect(h.openChrome).toHaveBeenCalledWith('/tmp/simple-music-test', expect.any(Function), expect.any(AbortSignal), 'https://music.apple.com/')
     expect(h.BrowserWindow).not.toHaveBeenCalled()
     expect(apple.state()).toMatchObject({ loggedIn: true, subscription: 'active' })
     expect(h.chrome.minimize).not.toHaveBeenCalled()
@@ -655,6 +660,50 @@ describe('应用内 Apple Music 会话', () => {
     expect(h.chrome.evaluate.mock.calls.filter(([script]) => leave(script))).toHaveLength(1)
   })
 
+  it('登录完成在弹窗里而主窗口仍是未授权实例时重载官网一次并恢复登录', async () => {
+    h.setAuthProbe({ authorized: false, sessionValid: true })
+    await apple.open()
+    const win = h.windows[0]
+    expect(win.loadURL).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(win.loadURL).toHaveBeenCalledTimes(2)
+    expect(win.loadURL).toHaveBeenLastCalledWith('https://music.apple.com/')
+
+    h.setState(signedIn)
+    win.setUrl('https://music.apple.com/cn/new')
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(apple.state()).toMatchObject({ connected: true, loggedIn: true })
+    expect(win.hide).toHaveBeenCalled()
+
+    // 每次登录只重载一次，恢复后不再刷新页面
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(win.loadURL).toHaveBeenCalledTimes(2)
+  })
+
+  it('静默恢复不触发过期实例重载，避免无用户操作时刷新官网', async () => {
+    h.readFile.mockReturnValue('true')
+    h.setAuthProbe({ authorized: false, sessionValid: true })
+    await apple.restore()
+    const win = h.windows[0]
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(win.loadURL).toHaveBeenCalledTimes(1)
+    expect(apple.state().restoring).toBe(true)
+  })
+
+  it('Chrome 登录路径同样只重载一次已过期的授权页面', async () => {
+    apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
+    h.chrome.evaluate.mockImplementation((async (script: string) => {
+      if (script.includes('"type":"state"')) return { connected: true, loggedIn: false, subscription: 'unknown', storefront: 'cn', playbackId: '', status: 'idle', position: 0, duration: 0 }
+      if (script.includes('"type":"auth"')) return { authorized: false, sessionValid: true }
+      return true
+    }) as never)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(h.chrome.navigate).toHaveBeenCalledTimes(1)
+    expect(h.chrome.navigate).toHaveBeenCalledWith('https://music.apple.com/')
+  })
+
   it('授权完成后自动隐藏窗口，后续播放仍保持连接', async () => {
     h.setState(signedIn)
     await apple.open()
@@ -665,6 +714,30 @@ describe('应用内 Apple Music 会话', () => {
     expect(win.hide).toHaveBeenCalledOnce()
     expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
     expect(win.destroy).not.toHaveBeenCalled()
+  })
+
+  it('有账号地区记录时登录窗口直接打开同区页面', async () => {
+    h.readFile.mockReturnValueOnce('jp')
+    await apple.open()
+    expect(h.windows[0].loadURL).toHaveBeenCalledWith('https://music.apple.com/jp/')
+  })
+
+  it('开发态 Chrome 也用记录的地区启动', async () => {
+    h.readFile.mockReturnValueOnce('jp')
+    apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
+    await apple.open()
+    expect(h.openChrome).toHaveBeenCalledWith('/tmp/simple-music-test', expect.any(Function), expect.anything(), 'https://music.apple.com/jp/')
+  })
+
+  it('登录成功后记住账号地区，退出登录时清除', async () => {
+    h.setState({ ...signedIn, storefront: 'us' })
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.writeFile).toHaveBeenCalledWith(expect.stringContaining('apple-music-storefront'), 'us', expect.objectContaining({ mode: 0o600 }))
+
+    h.writeFile.mockClear()
+    await apple.logout()
+    expect(h.writeFile).toHaveBeenCalledWith(expect.stringContaining('apple-music-storefront'), '', expect.anything())
   })
 
   it('已授权会话再次打开时保持后台，不重复创建窗口', async () => {

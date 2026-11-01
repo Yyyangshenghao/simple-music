@@ -302,4 +302,14 @@ describe('官网内 MusicKit 会话适配', () => {
     expect(await h.call({ type: 'state' })).toMatchObject({ status: 'error', error: 'license error' })
     expect(h.music.playbackState).toBe(4)
   })
+  it('授权探针区分未授权的旧实例与会话其实已登录', async () => {
+    const h = harness()
+    h.music.isAuthorized = false
+    expect(await h.call({ type: 'auth' })).toMatchObject({ authorized: false, sessionValid: true })
+    h.music.api.music.mockRejectedValueOnce(new Error('401'))
+    expect(await h.call({ type: 'auth' })).toMatchObject({ authorized: false, sessionValid: false })
+    h.music.isAuthorized = true
+    expect(await h.call({ type: 'auth' })).toMatchObject({ authorized: true, sessionValid: true })
+    expect(h.music.api.music).toHaveBeenLastCalledWith('v1/me/storefront')
+  })
 })
