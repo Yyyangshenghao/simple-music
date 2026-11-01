@@ -141,7 +141,7 @@ jobs:
             dist/*.dmg.blockmap
             dist/*.exe
             dist/*.exe.blockmap
-            dist/*.yml
+            dist/latest*.yml
           if-no-files-found: error
 
   # 两个平台各自只上传构建产物为 artifact，不在 matrix 里直接 --publish：
@@ -188,11 +188,8 @@ jobs:
           find release-assets -maxdepth 1 -type f -name '*.dmg' ! -name '*-arm64.dmg' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-Setup.exe' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-portable.exe' | grep -q .
-          # 预发版的更新描述文件按通道命名（beta.yml），且不参与应用内更新，只校验正式版的 latest*.yml。
-          if [ "${{ needs.validate.outputs.prerelease }}" = "false" ]; then
-            test -f release-assets/latest-mac.yml
-            test -f release-assets/latest.yml
-          fi
+          test -f release-assets/latest-mac.yml
+          test -f release-assets/latest.yml
           find release-assets -maxdepth 1 -type f -name '*-arm64.dmg.blockmap' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*.dmg.blockmap' ! -name '*-arm64.dmg.blockmap' | grep -q .
           find release-assets -maxdepth 1 -type f -name '*-Setup.exe.blockmap' | grep -q .

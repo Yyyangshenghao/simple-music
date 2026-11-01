@@ -18,6 +18,8 @@
 
 所有者明确说“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时，只同步指定分支，不自动发布。创建 feature、合入 dev、写文档或讨论规范本身也不构成发布请求。
 
+所有者说“打预发版”“发 beta”“出个预发包”时，只按 [§0.7.1](#071-预发版验收真实安装包) 推送 dev 并打预发版 tag，不升级版本、不写发行说明、不合入 master。预发版同样是公开 Release，“推送”“提交并推送”不隐含打预发版 tag。
+
 开始执行前告知目标版本、发布范围，以及将合入 master 并创建公开 tag/Release。完整发布请求已授权本流程内的 PR、合并与标签操作，不重复确认；冲突、版本范围不明确或需要额外绕过门禁时应停止说明。
 
 正常贡献与发布路径为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release，默认通过 feature → dev PR 集成。所有者本地维护的例外与授权范围以 [协作规范](../CONTRIBUTING.md#仓库所有者的本地维护流程) 为准，不能仅凭本发布文档认定免 PR 权限。master 只接收已验收的版本；未纳入本次发布的工作留在尚未合入待发布 dev 的 feature，或明确属于其他版本的 dev，不能混入待发布 dev。
@@ -106,7 +108,7 @@ npx @electron/asar list "dist/mac-arm64/Simple Music.app/Contents/Resources/app.
 - 安装包体积与上一 Release 对比，明显变大时先查明原因；
 - asar 列表除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（上面最后一条命令应无输出）；`app.asar.unpacked` 只含目标平台和架构的原生库；
 - 用打出的 dmg/exe 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；
-- 本机无法验证的平台（如 Windows 安装、Intel Mac）在发行说明「验证情况」中写明未实机验证。
+- 本机无法验证的平台（如 Windows 安装、Intel Mac）优先用预发版（§0.7.1）在实机上验收；仍无法验证的，在发行说明「验证情况」中写明未实机验证。
 
 ### 0.4 提交、合并、标签和推送顺序
 
@@ -194,17 +196,18 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0
 | feature 合入所属 dev，或已获授权的 dev 本地维护 | 类型检查、全量测试、源码构建；受影响的 UI/播放/登录流程人工检查 | 否 |
 | dev 更新、dev PR → master | Windows/macOS 类型检查、全量测试、源码构建及版本范围复核；发布 PR 额外检查版本文件和发行说明 | 否 |
 | master 更新 | 对合并后的提交执行 Windows/macOS 类型检查、全量测试和源码构建 | 否；通过后才能为该发布提交打 tag |
+| 预发版 tag（`vX.Y.Z-beta.N` / `-rc.N`） | 校验 tag 格式与目标版本；双平台测试、正式签名、打包、产物齐全检查；发为 GitHub 预发布且不标记 latest | 否；只发预发布，不进入应用内更新 |
 | 正式版本 tag | 校验来源为已验收 master 提交、版本和说明一致；双平台测试、正式签名、打包、产物齐全检查，统一发布 | 是 |
 
-- PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时单独使用预发布版本和渠道，不能伪装成稳定版。
+- PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时按 §0.7.1 使用预发版 tag，不能伪装成稳定版。
 - master 应启用 PR 合并及必需状态检查，发布 PR 要求至少 1 人评审通过；活跃 dev 接收经过本地验收的阶段集成，并在推送后执行双平台 CI。不得以管理员绕过失败检查完成正常发布。
 - tag 需要限制创建、更新和删除权限；稳定发布校验必须检查提交来源，不能仅凭 `v*.*.*` 名称判断可发布。
 - Release 默认只读权限，仅发布 job 授予 `contents: write`；生产签名凭据只提供给受信任的正式打包步骤。同一版本发布避免并发执行，失败时保留固定 tag。
-- **截至 2026-10-11，`.github/workflows/verify.yml` 对目标为 master/dev 的 PR 及 master/dev 推送执行 Windows/macOS 类型检查、全量测试和源码构建，使用只读仓库权限且不接触生产签名凭据；`.github/workflows/release.yml` 实现 tag 触发、元数据校验、双平台测试/打包及产物检查。来源校验和分支/tag 门禁尚未配置，Release 仍使用工作流级写权限且没有并发限制。未落地的流程检查由人工执行，不能声称已由 GitHub 自动强制。配置落地时同步更新本段。**
+- **截至 2026-10-11，`.github/workflows/verify.yml` 对目标为 master/dev 的 PR 及 master/dev 推送执行 Windows/macOS 类型检查、全量测试和源码构建，使用只读仓库权限且不接触生产签名凭据；`.github/workflows/release.yml` 实现 tag 触发、元数据校验、双平台测试/打包及产物检查；2026-11-01 起同一工作流按 tag 是否带 `-beta.N` / `-rc.N` 区分预发版。来源校验和分支/tag 门禁尚未配置，Release 仍使用工作流级写权限且没有并发限制。未落地的流程检查由人工执行，不能声称已由 GitHub 自动强制。配置落地时同步更新本段。**
 
 ### 0.7.1 预发版（验收真实安装包）
 
-正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，在待发布的 `dev/X.Y.Z` 上打预发版 tag：
+预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，在待发布的 `dev/X.Y.Z` 上（先推送该 dev，tag 打在已推送的 dev 提交上）打预发版 tag：
 
 ```bash
 git tag -a v2.6.2-beta.1 -m "预发版 v2.6.2-beta.1"
@@ -214,7 +217,9 @@ git push origin v2.6.2-beta.1
 - tag 只能是 `vX.Y.Z-beta.N` 或 `vX.Y.Z-rc.N`，`X.Y.Z` 不低于分支 `package.json` 版本；不需要提交版本号或发行说明，CI 在构建机上把 tag 版本写入 `package.json`。
 - 走与正式版相同的双平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
 - 预发版与正式版共用 appId 和应用数据，装上即覆盖本机正式版；版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内直接升级回正式通道。
-- 修复后递增 `beta.N` 重打，不移动已推送的预发版 tag；预发版 tag 和 Release 可在正式版发布后清理。预发版通过不代替 0.3 的发布前检查。
+- 实机验收按对应版本的测试清单执行（如 `docs/reviews/<版本>-windows-test-checklist.md`），结果写入发行说明「验证情况」，注明验收所用的预发版号。
+- 修复后递增 `beta.N` 重打，不移动已推送的预发版 tag；功能冻结、只剩验收时可改用 `rc.N`。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → tag。
+- 预发版 tag 和 Release 可在正式版发布后由所有者决定是否清理，不自动删除。
 
 ### 0.8 紧急补丁与旧版本维护
 
@@ -260,7 +265,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 ## 4. 发布约定
 
-- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `v1.3.0`。
+- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `v1.3.0`；预发版 `v1.3.0-beta.1` 发为预发布，更新检查读取的 `releases/latest` 不包含它。github 发布目标下 electron-builder 不按版本号切换通道，预发版同样生成 `latest*.yml`，只随预发布 Release 上传。
 - Release 资源命名必须匹配更新器的挑选正则（`server/lib/update.ts#pickReleaseAsset`）：
   - mac：优先 `<arch>.*\.dmg`，回退任意 `.dmg`；
   - win：优先 `-Setup.exe`，其次非 portable 的 `.exe`、`.msi`；
