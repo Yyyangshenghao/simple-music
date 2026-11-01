@@ -13,6 +13,8 @@ export interface ProxyCheck {
   elapsedMs: number
   status?: number
   error?: string
+  /** 能访问但响应过慢（超过 SLOW_CHECK_MS）：实际使用会卡顿，单独提示。 */
+  slow?: boolean
   /** 出口检查才有：出口 IP 与两位国家/地区码（大写）。 */
   ip?: string
   country?: string
@@ -38,6 +40,11 @@ export interface ProxyDiagnosis {
 }
 
 const CHECK_TIMEOUT_MS = 8000
+// 一次 HEAD 含 DNS、TCP 与 TLS 握手；超过 3 秒时曲库加载与起播会明显卡顿。
+export const SLOW_CHECK_MS = 3000
+/** 中文句子里嵌入英文名时两侧补空格（Apple Music），中文名保持紧排。 */
+const spaced = (name: string) => `${/^[A-Za-z]/.test(name) ? ' ' : ''}${name}${/[A-Za-z]$/.test(name) ? ' ' : ''}`
+const PLATFORM_LABELS: Record<Exclude<ProxyCheckId, 'egress'>, string> = { netease: '网易云音乐', qq: 'QQ 音乐', apple: 'Apple Music' }
 const PROXY_CONNECT_TIMEOUT_MS = 3000
 const CHECK_URLS: Record<Exclude<ProxyCheckId, 'egress'>, string> = {
   netease: 'https://music.163.com/',
@@ -106,7 +113,7 @@ async function checkSite(id: Exclude<ProxyCheckId, 'egress'>, dispatcher: Dispat
     const elapsedMs = Date.now() - startedAt
     if (response.status === 407) return { id, ok: false, elapsedMs, status: 407, error: '代理需要认证或账号密码不正确' }
     if (response.status >= 500) return { id, ok: false, elapsedMs, status: response.status, error: `服务器返回 ${response.status}` }
-    return { id, ok: true, elapsedMs, status: response.status }
+    return { id, ok: true, elapsedMs, status: response.status, ...(elapsedMs > SLOW_CHECK_MS ? { slow: true } : {}) }
   } catch (error) {
     return { id, ok: false, elapsedMs: Date.now() - startedAt, error: describeNetworkError(error, viaProxy) }
   }
@@ -193,6 +200,21 @@ export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, setting
       const reason = reasons.size === 1 ? [...reasons][0] : ''
       if (route.address) hints.push(reason ? `经 ${route.address}：${reason}` : `经 ${route.address} 无法访问任何站点，节点可能失效`)
       else hints.push(reason ? `直连：${reason}` : '直连无法访问网络，请检查网络连接')
+    }
+  }
+  for (const route of diagnosis.routes) {
+    for (const check of route.checks) {
+      if (!check.slow || check.id === 'egress') continue
+      const seconds = (check.elapsedMs / 1000).toFixed(1)
+      const name = PLATFORM_LABELS[check.id]
+      if (!route.address) {
+        // 直连慢：Apple 可以单独走代理；国内平台直连慢多半是本机网络问题。
+        hints.push(check.id === 'apple'
+          ? `Apple Music 直连响应很慢（${seconds} 秒），曲库加载与起播可能卡顿，可以把 Apple Music 出口设为单独代理`
+          : `${name}直连响应很慢（${seconds} 秒），请检查本机网络`)
+      } else {
+        hints.push(`经 ${route.address} 访问${spaced(name)}很慢（${seconds} 秒），节点可能拥堵，可以换节点${check.id === 'apple' ? '' : '，或让默认出口直连'}`)
+      }
     }
   }
   const mainCountry = egressOf(main)

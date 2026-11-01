@@ -178,6 +178,21 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     return this.storedStorefront
   }
 
+  /** 登录页将使用的地区；空字符串表示由官网按出口 IP 决定。 */
+  loginStorefront(): string {
+    return this.readStorefront()
+  }
+
+  /**
+   * 未登录时由用户指定登录页地区，免得按出口 IP 落到别的地区再跳转。
+   * 已登录时地区以账号为准（登录后会写回账号地区），这里拒绝修改。
+   */
+  setLoginStorefront(value: string): boolean {
+    if (this.snapshot.loggedIn || this.suspended || (value && !STOREFRONT_PATTERN.test(value))) return false
+    this.writeStorefront(value)
+    return true
+  }
+
   private writeStorefront(value: string): void {
     if (value && !STOREFRONT_PATTERN.test(value)) return
     if (value === this.storedStorefront) return

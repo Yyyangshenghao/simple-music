@@ -59,4 +59,5 @@
 }
 
 .check[data-state='ok'] .checkResult { color: var(--sm-text-primary); }
+.check[data-state='slow'] .checkResult { color: var(--sm-color-gold); }
 .check[data-state='failed'] .checkResult { color: var(--sm-color-danger); }

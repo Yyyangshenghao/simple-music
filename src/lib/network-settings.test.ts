@@ -52,6 +52,7 @@ describe('代理设置客户端', () => {
 describe('检测结果文案', () => {
   it('单项：可达带耗时，出口给地区与 IP，失败给原因', () => {
     expect(proxyCheckMessage({ id: 'netease', ok: true, elapsedMs: 42, status: 200 })).toBe('可访问 · 42 ms')
+    expect(proxyCheckMessage({ id: 'apple', ok: true, elapsedMs: 7314, slow: true })).toBe('很慢 · 7314 ms')
     expect(proxyCheckMessage({ id: 'egress', ok: true, elapsedMs: 1, ip: '1.2.3.4', country: 'JP' })).toBe('日本 · 1.2.3.4')
     expect(proxyCheckMessage({ id: 'qq', ok: false, elapsedMs: 1, error: '连接超时' })).toBe('连接超时')
     expect(proxyCheckMessage({ id: 'qq', ok: false, elapsedMs: 1 })).toBe('无法访问')

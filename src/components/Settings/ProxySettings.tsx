@@ -255,7 +255,7 @@ export function ProxySettings() {
         {rows.map((row) => {
           const message = busy === 'diagnose' ? '检测中…' : row.check ? rowMessage(row) : '尚未检测'
           return (
-            <li key={row.id} className={styles.check} data-state={busy === 'diagnose' ? 'running' : row.check ? (row.check.ok ? 'ok' : 'failed') : 'idle'}>
+            <li key={row.id} className={styles.check} data-state={busy === 'diagnose' ? 'running' : !row.check ? 'idle' : !row.check.ok ? 'failed' : row.check.slow ? 'slow' : 'ok'}>
               <span className={styles.checkLabel}>{PROXY_CHECK_LABELS[row.id]}</span>
               <span className={styles.checkRoute} title={row.route || undefined}>{row.route}</span>
               <span className={styles.checkResult} title={message}>{message}</span>

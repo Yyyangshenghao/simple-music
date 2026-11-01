@@ -106,6 +106,35 @@ describe('代理诊断', () => {
   })
 })
 
+describe('响应过慢', () => {
+  it('超过阈值标记 slow，并按直连/代理给出不同建议', async () => {
+    // 只拦 Date，避免假计时器影响诊断里的 socket 与超时信号。
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+    h.fetch.mockImplementation(async (url: string) => {
+      if (url.includes('apple')) await new Promise((resolve) => setTimeout(resolve, 7314))
+      return { ok: true, status: 200, text: async () => 'ip=1.2.3.4\nloc=CN\n' }
+    })
+    const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '')
+    await vi.advanceTimersByTimeAsync(7314)
+    const result = await pending
+    vi.useRealTimers()
+    const apple = result.routes[0].checks.find((check) => check.id === 'apple')!
+    expect(apple).toMatchObject({ ok: true, slow: true })
+    expect(result.routes[0].checks.find((check) => check.id === 'netease')!.slow).toBeUndefined()
+    expect(result.hints).toEqual(['Apple Music 直连响应很慢（7.3 秒），曲库加载与起播可能卡顿，可以把 Apple Music 出口设为单独代理'])
+  })
+
+  it('经代理慢时建议换节点', () => {
+    const hints = diagnosisHints({
+      systemProxy: '',
+      routes: [{ target: 'default', address: 'http://127.0.0.1:7890', source: 'custom', checks: [
+        { id: 'netease', ok: true, elapsedMs: 4200, slow: true }, { id: 'egress', ok: true, elapsedMs: 1, country: 'CN' },
+      ] }],
+    }, { ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:7890' }, '')
+    expect(hints).toEqual(['经 http://127.0.0.1:7890 访问网易云音乐很慢（4.2 秒），节点可能拥堵，可以换节点，或让默认出口直连'])
+  })
+})
+
 describe('诊断结论', () => {
   const route = (overrides: object) => ({ target: 'default' as const, address: '', source: 'direct' as const, checks: [], ...overrides })
 

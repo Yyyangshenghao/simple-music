@@ -2,12 +2,12 @@ import { fetchAppleMusicLyrics } from '../lib/apple-music-lyrics'
 import type { RouteHandler } from '../types'
 import { revokeAppleMusicBridge } from '../lib/apple-music-bridge'
 import { readJson, sendError, sendJson } from '../lib/http'
-import { AppleMusicError, clearAppleMusicUserToken, fetchAppleMusic, getAppleMusicStatus, setAppleMusicConfig } from '../lib/apple-music'
+import { AppleMusicError, clearAppleMusicUserToken, fetchAppleMusic, getAppleMusicStatus, setAppleMusicConfig, setAppleMusicLoginStorefront } from '../lib/apple-music'
 
 export const appleMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (!url.pathname.startsWith('/api/apple-music/')) return false
   const route = url.pathname.slice('/api/apple-music/'.length)
-  if (!['status', 'config', 'catalog', 'logout', 'lyrics'].includes(route)) return false
+  if (!['status', 'config', 'catalog', 'logout', 'lyrics', 'region'].includes(route)) return false
   res.setHeader('Cache-Control', 'no-store')
   const method = route === 'status' || route === 'catalog' || route === 'lyrics' ? 'GET' : 'POST'
   if (req.method !== method) {
@@ -25,6 +25,7 @@ export const appleMusicRoutes: RouteHandler = async (req, res, url, ctx) => {
       setAppleMusicConfig(ctx, body)
       revokeAppleMusicBridge(ctx)
     }
+    if (route === 'region') setAppleMusicLoginStorefront(ctx, await readJson<unknown>(req))
     if (route === 'logout') {
       await ctx.appleMusicWeb?.logout()
       clearAppleMusicUserToken(ctx)

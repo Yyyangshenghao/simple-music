@@ -10,4 +10,8 @@ export interface AppleMusicWebSession {
   state(): AppleMusicBridgeState & { storefront: string; restoring?: boolean; suspended?: boolean }
   catalog(path: string): Promise<unknown>
   command(command: AppleMusicCommand): void
+  /** 登录页地区（两位小写地区码）；空字符串表示按出口 IP。登录后跟随账号地区。 */
+  loginStorefront?(): string
+  /** 未登录时指定登录页地区；已登录或地区码无效时返回 false。 */
+  setLoginStorefront?(value: string): boolean
 }

@@ -75,6 +75,15 @@ export function setAppleMusicUserToken(ctx: ServerContext, token: string, storef
   users.set(ctx.userDataDir, { token, storefront: storefrontValue(storefront ?? getAppleMusicConfig(ctx).storefront) })
 }
 
+/** 未登录时设定登录页地区；空字符串恢复按出口 IP。只有应用内官网登录方式支持。 */
+export function setAppleMusicLoginStorefront(ctx: ServerContext, input: unknown): void {
+  const value = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>).storefront : undefined
+  if (typeof value !== 'string' || (value !== '' && !/^[a-z]{2}$/.test(value))) throw new AppleMusicError(400, 'Apple Music 地区无效')
+  const web = ctx.appleMusicLoginMode !== 'developer' ? ctx.appleMusicWeb : undefined
+  if (!web?.setLoginStorefront) throw new AppleMusicError(400, '当前登录方式不支持选择地区')
+  if (!web.setLoginStorefront(value)) throw new AppleMusicError(409, '已登录时地区跟随 Apple 账号')
+}
+
 export function clearAppleMusicUserToken(ctx: ServerContext): void { users.delete(ctx.userDataDir) }
 
 export function getAppleMusicStatus(ctx: ServerContext) {
@@ -82,7 +91,8 @@ export function getAppleMusicStatus(ctx: ServerContext) {
     const state = ctx.appleMusicWeb.state()
     return { configured: false, ready: true, managed: false, loginMode: 'web' as const,
       connected: state.connected, loggedIn: state.loggedIn, restoring: state.restoring ?? false, suspended: state.suspended ?? false,
-      subscription: state.subscription, storefront: state.storefront, ...(state.error ? { error: state.error } : {}) }
+      subscription: state.subscription, storefront: state.storefront, loginStorefront: ctx.appleMusicWeb.loginStorefront?.() ?? '',
+      ...(state.error ? { error: state.error } : {}) }
   }
   const config = getAppleMusicConfig(ctx)
   let valid = false

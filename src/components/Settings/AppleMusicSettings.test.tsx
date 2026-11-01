@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppleMusicAccountStatus } from '../../stores/apple-music-connection'
-import { AppleMusicAccountInfo, AppleMusicSettings } from './AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from './AppleMusicSettings'
 
 const h = vi.hoisted(() => ({ account: null as AppleMusicAccountStatus | null, phase: 'idle' as 'idle' | 'opening' | 'waiting' | 'disconnecting' }))
 vi.mock('../../stores/apple-music-connection', () => ({
@@ -99,5 +99,29 @@ describe('Apple Music 设置', () => {
     expect(renderSettings()).toMatch(/<button(?![^>]*disabled)[^>]*aria-label="取消登录 Apple Music"/)
     h.phase = 'opening'
     expect(renderSettings()).toMatch(/<button[^>]*disabled=""[^>]*>/)
+  })
+
+  it('地区：未登录可选登录页地区，登录后显示账号地区并禁用', () => {
+    h.account = { ...connected, loggedIn: false, connected: false, loginStorefront: 'us' }
+    let html = renderToStaticMarkup(<AppleMusicRegionSelect />)
+    expect(html).toContain('aria-label="Apple Music 地区"')
+    expect(html).toContain('美国')
+    expect(html).not.toMatch(/<button[^>]*disabled/)
+    expect(html).toContain('选与 Apple 账号一致的地区')
+
+    h.account = { ...connected, loginStorefront: '' }
+    html = renderToStaticMarkup(<AppleMusicRegionSelect />)
+    expect(html).toContain('中国大陆')
+    expect(html).toMatch(/<button[^>]*disabled/)
+    expect(html).toContain('账号地区：中国大陆')
+
+    h.account = { ...connected, loggedIn: false, connected: false }
+    h.phase = 'waiting'
+    expect(renderToStaticMarkup(<AppleMusicRegionSelect />)).toMatch(/<button[^>]*disabled/)
+  })
+
+  it('地区：开发者令牌模式不显示', () => {
+    h.account = { ...connected, loginMode: 'developer' }
+    expect(renderToStaticMarkup(<AppleMusicRegionSelect />)).toBe('')
   })
 })

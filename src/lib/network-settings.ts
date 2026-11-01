@@ -18,6 +18,7 @@ export interface ProxyCheck {
   elapsedMs: number
   status?: number
   error?: string
+  slow?: boolean
   ip?: string
   country?: string
 }
@@ -90,7 +91,7 @@ export function regionLabel(code: string | undefined): string {
 export function proxyCheckMessage(check: ProxyCheck): string {
   if (!check.ok) return check.error || '无法访问'
   if (check.id === 'egress') return [regionLabel(check.country) || '未知地区', check.ip].filter(Boolean).join(' · ')
-  return `可访问 · ${check.elapsedMs} ms`
+  return `${check.slow ? '很慢' : '可访问'} · ${check.elapsedMs} ms`
 }
 
 /** 线路说明：经哪个代理或直连，跟随系统时注明来源。 */
@@ -104,6 +105,6 @@ export function proxyDiagnosisSummary(diagnosis: ProxyDiagnosis): string {
   if (diagnosis.hints.length) return diagnosis.hints.join('；')
   const checks = diagnosis.routes.flatMap((route) => route.checks)
   const failed = checks.filter((check) => !check.ok && check.id !== 'egress')
-  if (!failed.length) return '检测完成，各平台均可访问'
+  if (!failed.length) return checks.some((check) => check.slow) ? '检测完成，部分平台响应较慢' : '检测完成，各平台均可访问'
   return `无法访问：${failed.map((check) => PROXY_CHECK_LABELS[check.id]).join('、')}`
 }

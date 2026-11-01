@@ -15,7 +15,7 @@ import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
-import { AppleMusicAccountInfo, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { AccountButton } from '../components/Settings/AccountButton'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
@@ -1265,6 +1265,7 @@ export function SettingsPage() {
                           </small>
                         </div>
                         <div className={styles.providerActions}>
+                          {source === 'apple' && <AppleMusicRegionSelect />}
                           <Switch
                             checked={active}
                             disabled={!connected || runtime.playbackAvailable === false || busy}
