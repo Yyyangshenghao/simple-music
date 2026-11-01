@@ -1,7 +1,17 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { compareVersions } from './update-version'
 import { updateDownloadDir, updateWorkDir } from './update-download-dir'
+
+// Electron 的 fs 把 .asar 当目录读，递归删除整份 .app 会在 Contents/Resources/app.asar 处 ENOTEMPTY 失败；
+// 删 .app 一律走不认 asar 的 original-fs。单测与独立 server 跑在纯 Node 里，没有这个模块。
+const bundleFs: typeof fs = process.versions.electron ? createRequire(import.meta.url)('original-fs') : fs
+
+/** 同步删除一整份 .app（暂存新版前清掉上次的残留）。 */
+export function removeBundleSync(target: string): void {
+  bundleFs.rmSync(target, { recursive: true, force: true })
+}
 
 // 更新目录的清理：安装包每版 135–270MB，过去只覆盖同名文件、从不删旧包，攒到了 GB 级。
 // 下载完成后删掉其他安装包；启动时删掉不比当前版本新的安装包，以及 mac 原地替换留下的暂存/备份。
@@ -83,7 +93,7 @@ export function pruneOtherInstallers(downloadDir: string, keepFileName: string):
 }
 
 function removeTreeQuietly(target: string): Promise<void> {
-  return fs.promises.rm(target, { recursive: true, force: true }).catch((e: Error) => {
+  return bundleFs.promises.rm(target, { recursive: true, force: true }).catch((e: Error) => {
     console.warn('[UpdateCleanup] remove failed:', target, e.message)
   })
 }

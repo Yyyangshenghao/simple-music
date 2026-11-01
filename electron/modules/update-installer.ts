@@ -8,6 +8,7 @@ import {
   cleanupUpdateArtifacts,
   INSTALL_RESULT_FILE,
   MAC_SWAP_SCRIPT,
+  removeBundleSync,
   type MacInstallResultRecord,
 } from '../../server/lib/update-cleanup'
 import { compareVersions } from '../../server/lib/update-version'
@@ -124,7 +125,7 @@ async function stageMacUpdate(dmgPath: string, expectedVersion?: string): Promis
   const currentApp = appPath as string
 
   const stagedApp = path.join(stagingDir, path.basename(currentApp))
-  fs.rmSync(stagedApp, { recursive: true, force: true })
+  removeBundleSync(stagedApp)
   const mountDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'simplemusic-update-'))
   try {
     await execFileAsync('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-noverify', '-mountpoint', mountDir])
