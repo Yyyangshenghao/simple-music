@@ -2,7 +2,7 @@ import { motion } from 'motion/react'
 import type { MusicSource } from '../../types/domain'
 import { SOURCE_BRAND } from '../../lib/source-brand'
 import { springSnappy } from '../../lib/motion-presets'
-import { AppleMusicMark, NeteaseLogo, QQMusicLogo } from './brand-logos'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from './brand-logos'
 import styles from './SourceAvatar.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { usePageTransition } from '../../hooks/useMotion'
@@ -14,9 +14,9 @@ interface SourceAvatarProps {
 
 /** 头像角标：右下角叠加实体所属平台的官方品牌图标。 */
 function BrandBadge({ source }: { source: MusicSource }) {
-  const Logo = source === 'netease' ? NeteaseLogo : source === 'apple' ? AppleMusicMark : QQMusicLogo
+  const Logo = source === 'netease' ? NeteaseLogo : source === 'apple' ? AppleMusicIcon : QQMusicLogo
   return (
-    <span className={styles.badge} aria-hidden="true">
+    <span className={`${styles.badge}${source === 'apple' ? ` ${styles.squareBadge}` : ''}`} aria-hidden="true">
       <Logo className={styles.badgeLogo} />
     </span>
   )

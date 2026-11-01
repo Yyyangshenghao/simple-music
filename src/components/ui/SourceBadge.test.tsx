@@ -20,8 +20,8 @@ describe('SourceBadge', () => {
   it('Apple 来源以音符图标和苹果标志加 Music 展示', () => {
     const html = renderToStaticMarkup(<SourceBadge source="apple" showInactive />)
     expect(html).toContain('>Music</span>')
-    expect(html).not.toContain('apple-music-icon.svg')
-    expect(html).toContain('<circle')
+    expect(html).toContain('apple-music-icon.svg')
+    expect(html).toContain('<svg')
   })
 
   it('上游遗漏来源时显示未知而不是让页面崩溃', () => {
