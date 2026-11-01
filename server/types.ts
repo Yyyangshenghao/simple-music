@@ -26,6 +26,8 @@ export interface ServerContext {
   wallpaperWebToken?: string
   /** 代理设置变更时通知宿主同步到 Electron 各会话；独立 server 无此回调。 */
   applySessionProxy?(settings: ProxySettings): void
+  /** 解析当前系统代理（Chromium 的系统设置/PAC 结果），返回代理地址，空字符串表示直连；独立 server 无此回调。 */
+  resolveSystemProxy?(): Promise<string>
 }
 
 /**

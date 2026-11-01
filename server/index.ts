@@ -75,6 +75,7 @@ export function startServer(
     appleMusicLoginMode: partial.appleMusicLoginMode,
     token: partial.token,
     applySessionProxy: partial.applySessionProxy,
+    resolveSystemProxy: partial.resolveSystemProxy,
     // 每次启动随机：壁纸页面只能读取壁纸目录，拿不到 API token。
     wallpaperWebToken: partial.wallpaperWebToken ?? randomBytes(32).toString('hex')
   }

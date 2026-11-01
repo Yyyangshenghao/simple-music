@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { SocksProxyAgent } from 'socks-proxy-agent'
 
 const h = vi.hoisted(() => ({ address: '' }))
-vi.mock('./upstream-proxy', () => ({ upstreamProxyAddress: () => h.address }))
+vi.mock('./upstream-proxy', () => ({ upstreamProxyAddress: (target: string) => (target === 'default' ? h.address : '') }))
 
 import { applyNeteaseProxy, installNeteaseProxy, isNeteaseUpstream } from './netease-proxy'
 
@@ -29,6 +30,12 @@ describe('网易 NCM 请求的代理出口', () => {
     // 同一地址复用 agent，保留连接池。
     expect(applyNeteaseProxy({ url: 'https://music.163.com/x' }, 'http://127.0.0.1:7890').httpsAgent).toBe(config.httpsAgent)
     expect(applyNeteaseProxy({ url: 'https://music.163.com/x' }, 'http://127.0.0.1:7891').httpsAgent).not.toBe(config.httpsAgent)
+  })
+
+  it('socks5 地址改用 SocksProxyAgent，由代理解析域名', () => {
+    const config = applyNeteaseProxy({ url: 'https://music.163.com/x' }, 'socks5://127.0.0.1:7891')
+    expect(config.httpsAgent).toBeInstanceOf(SocksProxyAgent)
+    expect((config.httpsAgent as SocksProxyAgent).shouldLookup).toBe(false)
   })
 
   it('非网易请求不受影响', () => {

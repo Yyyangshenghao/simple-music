@@ -1,0 +1,223 @@
+import { readFileSync } from 'node:fs'
+import { connect } from 'node:net'
+import { join } from 'node:path'
+import type { Dispatcher } from 'undici'
+import { stripProxyCredentials, type ProxySettings, type ProxyTarget } from './proxy-config'
+import { draftProxyAddress, withProbeDispatcher } from './upstream-proxy'
+
+export type ProxyCheckId = 'netease' | 'qq' | 'apple' | 'egress'
+
+export interface ProxyCheck {
+  id: ProxyCheckId
+  ok: boolean
+  elapsedMs: number
+  status?: number
+  error?: string
+  /** 出口检查才有：出口 IP 与两位国家/地区码（大写）。 */
+  ip?: string
+  country?: string
+}
+
+export interface ProxyRouteReport {
+  /** default 覆盖网易/QQ/通用；Apple 出口与默认不同时单列 apple。 */
+  target: ProxyTarget
+  /** 实际使用的代理（已去掉账号密码）；空字符串表示直连。 */
+  address: string
+  source: 'custom' | 'system' | 'direct'
+  /** 代理端口能否连上；直连时省略。 */
+  proxyReachable?: boolean
+  proxyError?: string
+  checks: ProxyCheck[]
+}
+
+export interface ProxyDiagnosis {
+  routes: ProxyRouteReport[]
+  /** 主进程解析到的系统代理（跟随系统时的真实出口）；空字符串表示系统未设代理。 */
+  systemProxy: string
+  hints: string[]
+}
+
+const CHECK_TIMEOUT_MS = 8000
+const PROXY_CONNECT_TIMEOUT_MS = 3000
+const CHECK_URLS: Record<Exclude<ProxyCheckId, 'egress'>, string> = {
+  netease: 'https://music.163.com/',
+  qq: 'https://y.qq.com/',
+  apple: 'https://music.apple.com/',
+}
+// Cloudflare trace 是几百字节的纯文本，国内外都能访问，给出出口 IP 与国家码。
+const EGRESS_URLS = ['https://www.cloudflare.com/cdn-cgi/trace', 'https://1.1.1.1/cdn-cgi/trace']
+const STOREFRONT_FILE = 'apple-music-storefront'
+
+interface ErrorLike { name?: string; code?: string; message?: string; cause?: unknown }
+
+function errorChain(error: unknown): ErrorLike[] {
+  const chain: ErrorLike[] = []
+  let current = error
+  while (current && typeof current === 'object' && chain.length < 5) {
+    chain.push(current as ErrorLike)
+    current = (current as ErrorLike).cause
+  }
+  return chain
+}
+
+/** 把 undici / 代理 / TLS 的报错翻译成用户能处理的原因。 */
+export function describeNetworkError(error: unknown, viaProxy: boolean): string {
+  const chain = errorChain(error)
+  const codes = new Set(chain.map((item) => item.code).filter(Boolean))
+  const text = chain.map((item) => item.message ?? '').join(' ')
+  const proxyStatus = /Proxy response \((\d{3})\)/i.exec(text)?.[1]
+  if (proxyStatus === '407' || (/authentication/i.test(text) && /socks/i.test(text))) return '代理需要认证或账号密码不正确'
+  if (proxyStatus) return `代理拒绝了连接（${proxyStatus}）`
+  if (chain.some((item) => item.name === 'TimeoutError') || codes.has('UND_ERR_CONNECT_TIMEOUT') || codes.has('ETIMEDOUT')) {
+    return viaProxy ? '通过代理连接超时，节点可能不可用' : '连接超时'
+  }
+  if (codes.has('ECONNREFUSED')) return viaProxy ? '代理端口没有响应，请确认代理软件正在运行' : '连接被拒绝'
+  if (codes.has('ENOTFOUND') || codes.has('EAI_AGAIN')) return viaProxy ? '代理地址无法解析' : '域名解析失败，请检查网络或 DNS'
+  if (codes.has('ECONNRESET') || codes.has('UND_ERR_SOCKET')) return viaProxy ? '连接被代理或节点中断' : '连接被重置，可能被网络拦截'
+  if ([...codes].some((code) => /CERT|SSL|TLS/i.test(String(code)))) return '证书校验失败，网络或代理可能在篡改 HTTPS'
+  if (/socks/i.test(text)) return 'SOCKS5 代理握手失败，请确认端口协议'
+  if (chain.some((item) => item.name === 'AbortError')) return '检测已取消'
+  return viaProxy ? '通过代理连接失败' : '连接失败'
+}
+
+/** 先单独确认代理端口能连上，免得把「代理软件没开」误报成每个平台都不可用。 */
+function probeProxyPort(address: string): Promise<string | null> {
+  let url: URL
+  try { url = new URL(address) } catch { return Promise.resolve('代理地址格式无效') }
+  return new Promise((resolve) => {
+    const socket = connect({ host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port) })
+    const finish = (error: string | null) => { socket.destroy(); resolve(error) }
+    socket.setTimeout(PROXY_CONNECT_TIMEOUT_MS, () => finish('代理端口连接超时'))
+    socket.once('connect', () => finish(null))
+    socket.once('error', (error) => finish(describeNetworkError(error, true)))
+  })
+}
+
+async function checkSite(id: Exclude<ProxyCheckId, 'egress'>, dispatcher: Dispatcher, viaProxy: boolean): Promise<ProxyCheck> {
+  const startedAt = Date.now()
+  try {
+    // HEAD + 不跟随跳转：只关心能否握手拿到响应，不下载页面。
+    const response = await fetch(CHECK_URLS[id], {
+      method: 'HEAD',
+      redirect: 'manual',
+      dispatcher,
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    } as unknown as RequestInit)
+    const elapsedMs = Date.now() - startedAt
+    if (response.status === 407) return { id, ok: false, elapsedMs, status: 407, error: '代理需要认证或账号密码不正确' }
+    if (response.status >= 500) return { id, ok: false, elapsedMs, status: response.status, error: `服务器返回 ${response.status}` }
+    return { id, ok: true, elapsedMs, status: response.status }
+  } catch (error) {
+    return { id, ok: false, elapsedMs: Date.now() - startedAt, error: describeNetworkError(error, viaProxy) }
+  }
+}
+
+export function parseTrace(text: string): { ip?: string; country?: string } {
+  const fields = Object.fromEntries(text.split('\n').map((line) => line.split('=')).filter((pair) => pair.length === 2).map(([k, v]) => [k.trim(), v.trim()]))
+  const country = /^[A-Z]{2}$/.test(fields.loc ?? '') ? fields.loc : undefined
+  return { ip: fields.ip || undefined, country }
+}
+
+async function checkEgress(dispatcher: Dispatcher, viaProxy: boolean): Promise<ProxyCheck> {
+  const startedAt = Date.now()
+  let lastError: unknown
+  for (const url of EGRESS_URLS) {
+    try {
+      const response = await fetch(url, { dispatcher, signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) } as unknown as RequestInit)
+      const trace = parseTrace(await response.text())
+      if (response.ok && trace.ip) return { id: 'egress', ok: true, elapsedMs: Date.now() - startedAt, ...trace }
+    } catch (error) {
+      lastError = error
+    }
+  }
+  return { id: 'egress', ok: false, elapsedMs: Date.now() - startedAt, error: lastError ? describeNetworkError(lastError, viaProxy) : '无法识别出口地区' }
+}
+
+function routeSource(settings: ProxySettings, target: ProxyTarget, address: string): ProxyRouteReport['source'] {
+  if (!address) return 'direct'
+  if (target === 'apple' && settings.apple === 'custom') return 'custom'
+  return settings.mode === 'custom' ? 'custom' : 'system'
+}
+
+async function diagnoseRoute(settings: ProxySettings, target: ProxyTarget, address: string, ids: Exclude<ProxyCheckId, 'egress'>[]): Promise<ProxyRouteReport> {
+  const report: ProxyRouteReport = { target, address: stripProxyCredentials(address), source: routeSource(settings, target, address), checks: [] }
+  if (address) {
+    const portError = await probeProxyPort(address)
+    report.proxyReachable = !portError
+    if (portError) {
+      report.proxyError = portError
+      report.checks = [...ids, 'egress' as const].map((id) => ({ id, ok: false, elapsedMs: 0, error: '代理不可用，未检测' }))
+      return report
+    }
+  }
+  const viaProxy = !!address
+  report.checks = await withProbeDispatcher(address, (dispatcher) => Promise.all([
+    ...ids.map((id) => checkSite(id, dispatcher, viaProxy)),
+    checkEgress(dispatcher, viaProxy),
+  ]))
+  return report
+}
+
+function readStorefront(userDataDir: string): string {
+  try {
+    const value = readFileSync(join(userDataDir, STOREFRONT_FILE), 'utf8').trim().toLowerCase()
+    return /^[a-z]{2}$/.test(value) ? value : ''
+  } catch {
+    return ''
+  }
+}
+
+let regionNames: Intl.DisplayNames | null | undefined
+export function regionName(code: string): string {
+  if (regionNames === undefined) {
+    try { regionNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' }) } catch { regionNames = null }
+  }
+  try { return regionNames?.of(code.toUpperCase()) ?? code.toUpperCase() } catch { return code.toUpperCase() }
+}
+
+function egressOf(report: ProxyRouteReport | undefined): string {
+  return report?.checks.find((check) => check.id === 'egress' && check.ok)?.country ?? ''
+}
+
+/** 根据诊断结果给出需要用户知道的结论：地区限制、账号地区错位、系统未设代理、整体不通。 */
+export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, settings: ProxySettings, storefront: string): string[] {
+  const hints: string[] = []
+  const main = diagnosis.routes.find((route) => route.target === 'default')
+  const apple = diagnosis.routes.find((route) => route.target === 'apple') ?? main
+  if (settings.mode === 'system' && !diagnosis.systemProxy) hints.push('系统当前没有开启代理，跟随系统等同直连')
+  for (const route of diagnosis.routes) {
+    if (route.proxyReachable === false) hints.push(`${route.address} ${route.proxyError ?? '不可用'}`)
+    else if (route.checks.every((check) => !check.ok)) {
+      // 所有站点同一个原因（例如 407）就直接说原因，比笼统的「节点失效」更好处理。
+      const reasons = new Set(route.checks.map((check) => check.error))
+      const reason = reasons.size === 1 ? [...reasons][0] : ''
+      if (route.address) hints.push(reason ? `经 ${route.address}：${reason}` : `经 ${route.address} 无法访问任何站点，节点可能失效`)
+      else hints.push(reason ? `直连：${reason}` : '直连无法访问网络，请检查网络连接')
+    }
+  }
+  const mainCountry = egressOf(main)
+  if (mainCountry && mainCountry !== 'CN') {
+    hints.push(`默认出口在${regionName(mainCountry)}，网易云与 QQ 音乐的部分歌曲可能因版权地区限制无法播放`)
+  }
+  const appleCountry = egressOf(apple)
+  if (storefront && appleCountry && appleCountry.toLowerCase() !== storefront) {
+    hints.push(`Apple Music 账号地区为${regionName(storefront)}，当前出口在${regionName(appleCountry)}，登录页与曲库可能被带到出口所在地区`)
+  }
+  return hints
+}
+
+/**
+ * 按草稿设置（不必先保存）诊断每个出口：代理端口、网易/QQ/Apple 可达性与出口地区。
+ * Apple 出口与默认出口相同时合并成一条，避免重复请求。
+ */
+export async function diagnoseProxy(settings: ProxySettings, userDataDir: string, systemProxy: string): Promise<ProxyDiagnosis> {
+  const defaultAddress = draftProxyAddress(settings, 'default', systemProxy)
+  const appleAddress = draftProxyAddress(settings, 'apple', systemProxy)
+  const separateApple = appleAddress !== defaultAddress
+  const routes = await Promise.all([
+    diagnoseRoute(settings, 'default', defaultAddress, separateApple ? ['netease', 'qq'] : ['netease', 'qq', 'apple']),
+    ...(separateApple ? [diagnoseRoute(settings, 'apple', appleAddress, ['apple'])] : []),
+  ])
+  const partial = { routes, systemProxy: stripProxyCredentials(systemProxy) }
+  return { ...partial, hints: diagnosisHints(partial, settings, readStorefront(userDataDir)) }
+}

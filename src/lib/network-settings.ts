@@ -10,11 +10,37 @@ export interface ProxySettings {
   appleUrl: string
 }
 
-export interface ProxyTestResult {
+export type ProxyCheckId = 'netease' | 'qq' | 'apple' | 'egress'
+
+export interface ProxyCheck {
+  id: ProxyCheckId
   ok: boolean
-  status?: number
   elapsedMs: number
+  status?: number
   error?: string
+  ip?: string
+  country?: string
+}
+
+export interface ProxyRouteReport {
+  target: 'default' | 'apple'
+  address: string
+  source: 'custom' | 'system' | 'direct'
+  proxyReachable?: boolean
+  proxyError?: string
+  checks: ProxyCheck[]
+}
+
+export interface ProxyDiagnosis {
+  routes: ProxyRouteReport[]
+  systemProxy: string
+  hints: string[]
+}
+
+export interface ProxyCandidate {
+  address: string
+  source: 'system' | 'env' | 'scan'
+  label: string
 }
 
 export const DEFAULT_PROXY_SETTINGS: ProxySettings = { mode: 'system', url: '', apple: 'inherit', appleUrl: '' }
@@ -27,12 +53,57 @@ export function saveProxySettings(settings: ProxySettings): Promise<ProxySetting
   return api.post<ProxySettings>('/api/network/proxy', settings)
 }
 
-export function testProxySettings(settings: ProxySettings, target: 'default' | 'apple'): Promise<ProxyTestResult> {
-  return api.post<ProxyTestResult>('/api/network/proxy/test', { settings, target }, undefined, { timeoutMs: 15_000 })
+export async function loadSystemProxy(): Promise<string> {
+  return (await api.get<{ address: string }>('/api/network/proxy/system')).address
 }
 
-/** 测试结果的展示文案；成功时带上耗时，失败时透出服务端给出的可读原因。 */
-export function proxyTestMessage(result: ProxyTestResult): string {
-  if (result.ok) return `连接正常（${result.elapsedMs} ms）`
-  return result.error || '通过代理连接失败'
+/** 按草稿设置诊断各出口；服务端每项 8 秒超时，并发执行，整体留足余量。 */
+export function diagnoseProxySettings(settings: ProxySettings): Promise<ProxyDiagnosis> {
+  return api.post<ProxyDiagnosis>('/api/network/proxy/diagnose', { settings }, undefined, { timeoutMs: 30_000 })
+}
+
+export async function detectProxyCandidates(): Promise<ProxyCandidate[]> {
+  return (await api.post<{ candidates: ProxyCandidate[] }>('/api/network/proxy/detect', {}, undefined, { timeoutMs: 15_000 })).candidates
+}
+
+export function sameProxySettings(a: ProxySettings, b: ProxySettings): boolean {
+  return a.mode === b.mode && a.url === b.url && a.apple === b.apple && a.appleUrl === b.appleUrl
+}
+
+export const PROXY_CHECK_LABELS: Record<ProxyCheckId, string> = {
+  netease: '网易云音乐',
+  qq: 'QQ 音乐',
+  apple: 'Apple Music',
+  egress: '出口地区',
+}
+
+let regionNames: Intl.DisplayNames | null | undefined
+export function regionLabel(code: string | undefined): string {
+  if (!code) return ''
+  if (regionNames === undefined) {
+    try { regionNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' }) } catch { regionNames = null }
+  }
+  try { return regionNames?.of(code.toUpperCase()) ?? code.toUpperCase() } catch { return code.toUpperCase() }
+}
+
+/** 单项检测结果的展示文案：可达带耗时；出口给地区与 IP；失败透出服务端原因。 */
+export function proxyCheckMessage(check: ProxyCheck): string {
+  if (!check.ok) return check.error || '无法访问'
+  if (check.id === 'egress') return [regionLabel(check.country) || '未知地区', check.ip].filter(Boolean).join(' · ')
+  return `可访问 · ${check.elapsedMs} ms`
+}
+
+/** 线路说明：经哪个代理或直连，跟随系统时注明来源。 */
+export function proxyRouteLabel(route: Pick<ProxyRouteReport, 'address' | 'source'>): string {
+  if (!route.address) return '直连'
+  return route.source === 'system' ? `系统代理 ${route.address}` : route.address
+}
+
+/** 诊断总结：有结论就逐条给出，否则按整体通断概括。 */
+export function proxyDiagnosisSummary(diagnosis: ProxyDiagnosis): string {
+  if (diagnosis.hints.length) return diagnosis.hints.join('；')
+  const checks = diagnosis.routes.flatMap((route) => route.checks)
+  const failed = checks.filter((check) => !check.ok && check.id !== 'egress')
+  if (!failed.length) return '检测完成，各平台均可访问'
+  return `无法访问：${failed.map((check) => PROXY_CHECK_LABELS[check.id]).join('、')}`
 }

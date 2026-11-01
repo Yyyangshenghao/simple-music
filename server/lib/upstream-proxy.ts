@@ -1,5 +1,6 @@
-import { Agent, ProxyAgent, getGlobalDispatcher, setGlobalDispatcher, type Dispatcher } from 'undici'
-import { nodeProxyAddress, type ProxySettings } from './proxy-config'
+import { isIP } from 'node:net'
+import { Dispatcher, ProxyAgent, Socks5ProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+import { DEFAULT_PROXY_SETTINGS, environmentProxy, nodeProxyAddress, type ProxySettings, type ProxyTarget } from './proxy-config'
 
 // 上游请求统一由 undici 的全局 dispatcher 承载：server 内二十多处 fetch 无需逐个改造，
 // 测试里 stubGlobal('fetch') 的写法也继续有效。
@@ -7,16 +8,67 @@ const original: Dispatcher = getGlobalDispatcher()
 const agents = new Map<string, Dispatcher>()
 const MAX_AGENTS = 8
 let appliedAddress: string | null = null
+let currentSettings: ProxySettings = { ...DEFAULT_PROXY_SETTINGS }
+// 宿主（Electron）解析出的系统代理；独立 server 没有宿主，只能读环境变量。
+let systemAddress: string | null = null
+
+/** 本机与局域网地址一律直连：开发态 Chrome 调试端口、局域网 NAS 之类不能被代理绕走。 */
+export function isLocalNetworkHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true
+  const family = isIP(host)
+  if (family === 6) return host === '::1' || host.startsWith('fe80:') || /^f[cd][0-9a-f]{2}:/.test(host)
+  if (family !== 4) return false
+  const [a, b] = host.split('.').map(Number)
+  return a === 127 || a === 10 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+}
+
+/** 按请求目标分流：本地地址走进程原 dispatcher，其余走代理。 */
+class BypassLocalDispatcher extends Dispatcher {
+  constructor(private readonly proxy: Dispatcher) { super() }
+
+  dispatch(options: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandler): boolean {
+    let local = false
+    try { local = isLocalNetworkHost(new URL(String(options.origin)).hostname) } catch { /* 解析不了的交给代理处理并报错 */ }
+    return (local ? original : this.proxy).dispatch(options, handler)
+  }
+
+  close(): Promise<void>
+  close(callback: () => void): void
+  close(callback?: () => void): Promise<void> | void {
+    const done = this.proxy.close()
+    if (callback) { void done.then(callback, callback); return }
+    return done
+  }
+
+  destroy(): Promise<void>
+  destroy(err: Error | null): Promise<void>
+  destroy(callback: () => void): void
+  destroy(err: Error | null, callback: () => void): void
+  destroy(errOrCallback?: Error | null | (() => void), callback?: () => void): Promise<void> | void {
+    const cb = typeof errOrCallback === 'function' ? errOrCallback : callback
+    const done = this.proxy.destroy(typeof errOrCallback === 'function' ? null : errOrCallback ?? null)
+    if (cb) { void done.then(cb, cb); return }
+    return done
+  }
+}
+
+/** 按地址协议建 dispatcher：http/https 走 CONNECT 隧道，socks5 走 undici 的 SOCKS5 实现。 */
+export function createProxyDispatcher(address: string): Dispatcher {
+  const proxy = address.startsWith('socks5:') ? new Socks5ProxyAgent(address) : new ProxyAgent(address)
+  return new BypassLocalDispatcher(proxy)
+}
 
 function dispatcherForAddress(address: string): Dispatcher {
   if (!address) return original
   const cached = agents.get(address)
   if (cached) return cached
-  const agent = new ProxyAgent(address)
-  // 超出上限只淘汰最早且不是当前全局出口的那个：关掉全局 dispatcher 会让之后所有上游请求报 ClientClosedError。
+  const agent = createProxyDispatcher(address)
+  // 超出上限只淘汰最早且不是当前出口的那个：关掉全局 dispatcher 会让之后所有上游请求报 ClientClosedError。
   if (agents.size >= MAX_AGENTS) {
+    const inUse = new Set([appliedAddress, upstreamProxyAddress('apple')])
     for (const [key, value] of agents) {
-      if (key === appliedAddress) continue
+      if (inUse.has(key)) continue
       agents.delete(key)
       void value.close().catch(() => {})
       break
@@ -26,32 +78,60 @@ function dispatcherForAddress(address: string): Dispatcher {
   return agent
 }
 
-/** 当前默认出口的代理地址；空字符串表示直连。供不走 fetch 的上游客户端（网易 NCM 用 axios）显式传入。 */
-export function upstreamProxyAddress(): string {
-  return appliedAddress ?? ''
+function resolvedSystemAddress(): string {
+  return systemAddress ?? environmentProxy()
 }
 
-/** 把默认出口应用到 Node 侧的上游请求；地址为空时恢复进程原来的 dispatcher。 */
-export function applyUpstreamProxy(settings: ProxySettings): void {
-  const address = nodeProxyAddress(settings, 'default')
+/** 某个出口当前实际使用的代理地址；空字符串表示直连。 */
+export function upstreamProxyAddress(target: ProxyTarget = 'default'): string {
+  return nodeProxyAddress(currentSettings, target, resolvedSystemAddress())
+}
+
+/** 草稿设置（尚未保存）下某个出口会用的地址，供诊断使用；`system` 用调用方给的最新系统代理。 */
+export function draftProxyAddress(settings: ProxySettings, target: ProxyTarget, system = resolvedSystemAddress()): string {
+  return nodeProxyAddress(settings, target, system)
+}
+
+export function currentProxySettings(): ProxySettings {
+  return { ...currentSettings }
+}
+
+/** 当前已知的系统代理地址（宿主解析结果，缺省为环境变量）。 */
+export function systemProxyAddress(): string {
+  return resolvedSystemAddress()
+}
+
+function reapply(): void {
+  const address = upstreamProxyAddress('default')
   if (appliedAddress === address) return
   appliedAddress = address
   setGlobalDispatcher(dispatcherForAddress(address))
 }
 
-/** Apple 单独出口的 dispatcher，供需要覆盖默认出口的请求显式传入。 */
-export function dispatcherForTarget(settings: ProxySettings, target: 'default' | 'apple'): Dispatcher {
-  return dispatcherForAddress(nodeProxyAddress(settings, target))
+/** 把设置应用到 Node 侧的上游请求；地址为空时恢复进程原来的 dispatcher。 */
+export function applyUpstreamProxy(settings: ProxySettings): void {
+  currentSettings = { ...settings }
+  reapply()
+}
+
+/** 宿主解析到新的系统代理（用户在代理软件里开关了系统代理）时调用；只影响 system 模式。 */
+export function setSystemProxyAddress(address: string): void {
+  systemAddress = address
+  reapply()
+}
+
+/** 某个出口的 dispatcher：Apple 单独出口供需要覆盖默认出口的请求显式传入。 */
+export function dispatcherForTarget(target: ProxyTarget): Dispatcher {
+  return dispatcherForAddress(upstreamProxyAddress(target))
 }
 
 /**
  * 测试连接用一次性 dispatcher：不进缓存、测完即关。用户反复试不同地址时，
  * 不会挤掉正在使用的出口，也不会让缓存里堆满没保存的地址。
  */
-export async function withProbeDispatcher<T>(settings: ProxySettings, target: 'default' | 'apple', run: (dispatcher: Dispatcher) => Promise<T>): Promise<T> {
-  const address = nodeProxyAddress(settings, target)
+export async function withProbeDispatcher<T>(address: string, run: (dispatcher: Dispatcher) => Promise<T>): Promise<T> {
   if (!address) return run(original)
-  const agent = new ProxyAgent(address)
+  const agent = createProxyDispatcher(address)
   try {
     return await run(agent)
   } finally {
@@ -60,7 +140,6 @@ export async function withProbeDispatcher<T>(settings: ProxySettings, target: 'd
 }
 
 /** 直连 Apple API（开发者令牌模式）时按 Apple 出口发请求，其余调用继续走全局 dispatcher。 */
-export function appleFetch(url: string, init: RequestInit, settings: ProxySettings): Promise<Response> {
-  const dispatcher = dispatcherForTarget(settings, 'apple')
-  return fetch(url, { ...init, dispatcher } as unknown as RequestInit)
+export function appleFetch(url: string, init: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, dispatcher: dispatcherForTarget('apple') } as unknown as RequestInit)
 }

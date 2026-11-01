@@ -1,18 +1,9 @@
 import type { RouteHandler, ServerContext } from '../types'
 import { readJson, sendError, sendJson } from '../lib/http'
-import { ProxyConfigError, readProxySettings, validateProxySettings, writeProxySettings, type ProxySettings } from '../lib/proxy-config'
-import { applyUpstreamProxy, withProbeDispatcher } from '../lib/upstream-proxy'
-
-/** 固定小文件往返：国内、海外都能连到，且不依赖任何平台 SDK。 */
-const PROXY_TEST_URL = 'https://www.apple.com/library/test/success.html'
-const PROXY_TEST_TIMEOUT_MS = 8000
-
-export interface ProxyTestResult {
-  ok: boolean
-  status?: number
-  elapsedMs: number
-  error?: string
-}
+import { ProxyConfigError, readProxySettings, stripProxyCredentials, validateProxySettings, writeProxySettings, type ProxySettings } from '../lib/proxy-config'
+import { diagnoseProxy } from '../lib/proxy-diagnostics'
+import { detectProxyCandidates } from '../lib/proxy-detect'
+import { applyUpstreamProxy, setSystemProxyAddress, systemProxyAddress } from '../lib/upstream-proxy'
 
 /** 落盘 + 生效：Node 侧 dispatcher 与 Electron 各会话一起切，避免「登录能开、数据走直连」。 */
 export function applyProxySettings(ctx: ServerContext, settings: ProxySettings): ProxySettings {
@@ -22,25 +13,15 @@ export function applyProxySettings(ctx: ServerContext, settings: ProxySettings):
   return settings
 }
 
-function proxyFailure(error: unknown): string {
-  const code = (error as { cause?: { code?: string } })?.cause?.code
-  if (code === 'ECONNREFUSED') return '代理端口没有响应，请确认代理软件正在运行'
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return '代理地址无法解析'
-  if (code === 'ETIMEDOUT' || (error as Error)?.name === 'TimeoutError') return '通过代理连接超时'
-  if ((error as Error)?.name === 'AbortError') return '测试已取消'
-  return '通过代理连接失败'
-}
-
-async function testProxy(settings: ProxySettings, target: 'default' | 'apple'): Promise<ProxyTestResult> {
-  const startedAt = Date.now()
+/** 现取系统代理：用户可能刚在代理软件里开关了系统代理；没有宿主时沿用环境变量。 */
+async function freshSystemProxy(ctx: ServerContext): Promise<string> {
+  if (!ctx.resolveSystemProxy) return systemProxyAddress()
   try {
-    const response = await withProbeDispatcher(settings, target, (dispatcher) => fetch(PROXY_TEST_URL, {
-      dispatcher,
-      signal: AbortSignal.timeout(PROXY_TEST_TIMEOUT_MS),
-    } as unknown as RequestInit))
-    return { ok: response.ok, status: response.status, elapsedMs: Date.now() - startedAt }
-  } catch (error) {
-    return { ok: false, elapsedMs: Date.now() - startedAt, error: proxyFailure(error) }
+    const address = await ctx.resolveSystemProxy()
+    setSystemProxyAddress(address)
+    return address
+  } catch {
+    return systemProxyAddress()
   }
 }
 
@@ -58,10 +39,18 @@ export const networkRoutes: RouteHandler = async (req, res, url, ctx) => {
       }
       return false
     }
-    if (url.pathname === '/api/network/proxy/test' && req.method === 'POST') {
-      const body = await readJson<{ settings?: unknown; target?: unknown }>(req)
+    if (url.pathname === '/api/network/proxy/system' && req.method === 'GET') {
+      sendJson(res, { address: stripProxyCredentials(await freshSystemProxy(ctx)) })
+      return true
+    }
+    if (url.pathname === '/api/network/proxy/diagnose' && req.method === 'POST') {
+      const body = await readJson<{ settings?: unknown }>(req)
       const settings = validateProxySettings(body?.settings)
-      sendJson(res, await testProxy(settings, body?.target === 'apple' ? 'apple' : 'default'))
+      sendJson(res, await diagnoseProxy(settings, ctx.userDataDir, await freshSystemProxy(ctx)))
+      return true
+    }
+    if (url.pathname === '/api/network/proxy/detect' && req.method === 'POST') {
+      sendJson(res, { candidates: await detectProxyCandidates(await freshSystemProxy(ctx)) })
       return true
     }
     return false

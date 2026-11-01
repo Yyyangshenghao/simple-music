@@ -444,15 +444,22 @@ describe('设置分类导航', () => {
     expect(html).toMatch(/aria-current="page"[^>]*aria-controls="settings-section-music settings-subnav-music"/)
   })
 
-  it('网络与代理分组提供模式、地址与 Apple 出口入口', () => {
+  it('网络与代理分组提供模式、地址、Apple 出口与常驻检测结果', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
     expect(html).toContain('id="settings-section-network"')
     expect(html).toContain('aria-label="代理模式"')
     expect(html).toContain('aria-label="Apple Music 代理"')
     expect(html).toContain('跟随系统')
     expect(html).toContain('跟随默认')
-    // 跟随系统时没有可测试的代理地址，测试按钮保持禁用
-    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>跟随系统/)
+    // 地址行常驻：非自定义模式只禁用不消失，切换模式不改变布局高度
+    expect(html).toMatch(/<input[^>]*aria-label="代理地址"[^>]*disabled/)
+    expect(html).toMatch(/<input[^>]*aria-label="Apple Music 代理地址"[^>]*disabled/)
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>自动检测/)
+    // 跟随系统也能检测：按钮可用；未改动时保存禁用
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>检测连接/)
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>保存/)
+    expect(html).toContain('aria-label="连接检测结果"')
+    for (const label of ['网易云音乐', 'QQ 音乐', 'Apple Music', '出口地区']) expect(html).toContain(label)
   })
 
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
