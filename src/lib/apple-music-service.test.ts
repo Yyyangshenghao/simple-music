@@ -136,7 +136,7 @@ describe('Apple Music service', () => {
         { id: 'album.1', name: '专辑', source: 'apple', type: 'album' },
       ] },
     ])
-    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/recommendations' })
+    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: '/v1/me/recommendations?extend=trackCount' })
   })
 
   it('为你精选从每个分类稳定抽取一项，并避免跨分类重复', () => {
@@ -266,8 +266,9 @@ describe('Apple Music service', () => {
     const service = new AppleMusicService()
     expect(await service.getChartPlaylistsPage()).toMatchObject({ playlists: [{ id: 'pl.first' }], nextCursor: next })
     expect(await service.getChartPlaylistsPage(next)).toMatchObject({ playlists: [{ id: 'pl.second' }], nextCursor: undefined })
-    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/cn/charts?types=playlists&chart=most-played&limit=24' })
-    expect(get).toHaveBeenNthCalledWith(3, '/api/apple-music/catalog', { path: next })
+    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/cn/charts?types=playlists&chart=most-played&limit=24&extend=trackCount' })
+    // Apple 的 next 游标不带 extend，跟页时补回，后续卡片才有曲数
+    expect(get).toHaveBeenNthCalledWith(3, '/api/apple-music/catalog', { path: `${next}&extend=trackCount` })
   })
 
   it('多页榜单合并时跳过已有和同页重复卡片', () => {
@@ -293,7 +294,7 @@ describe('Apple Music service', () => {
     expect(playlists).toHaveLength(20)
     expect(playlists[0]).toMatchObject({ id: 'pl.us-1', source: 'apple' })
     expect(playlists.at(-1)).toMatchObject({ id: 'pl.us-20' })
-    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/us/playlists?filter[storefront-chart]=us' })
+    expect(get).toHaveBeenNthCalledWith(2, '/api/apple-music/catalog', { path: '/v1/catalog/us/playlists?filter[storefront-chart]=us&extend=trackCount' })
     expect(get).toHaveBeenCalledTimes(2)
   })
 
@@ -329,8 +330,52 @@ describe('Apple 专辑和歌单搜索', () => {
     expect(String(get.mock.calls.at(-1)?.[1]?.path)).toContain('types=playlists')
     expect(String(get.mock.calls.at(-1)?.[1]?.path)).toContain(encodeURIComponent('测试 & 😀'))
   })
+  it('搜索歌单带 extend 拿到的曲数视为已知', async () => {
+    get.mockResolvedValueOnce({ storefront: 'cn' }).mockResolvedValueOnce({ results: { playlists: { data: [{ id: 'pl.one', type: 'playlists', attributes: { name: '歌单', trackCount: 86 } }] } } })
+    const result = await new AppleMusicService().searchPlaylists('新歌')
+    expect(result[0]).toMatchObject({ trackCount: 86, trackCountKnown: true })
+    expect(String(get.mock.calls.at(-1)?.[1]?.path)).toContain('extend=trackCount')
+  })
+
   it('搜索专辑保留总数和来源，不把专辑当歌单', async () => {
     get.mockResolvedValueOnce({ storefront: 'cn' }).mockResolvedValueOnce({ results: { albums: { data: [{ id: '123', type: 'albums', attributes: { name: '专辑', trackCount: 12 } }] } } })
     expect((await new AppleMusicService().searchAlbums('关键词'))[0]).toMatchObject({ source: 'apple', type: 'album', trackCount: 12, trackCountKnown: true })
+  })
+})
+
+describe('Apple 歌单分页总数', () => {
+  function mockCatalog(handler: (path: string) => unknown) {
+    get.mockImplementation(async (endpoint, params) => {
+      if (endpoint === '/api/apple-music/status') return { storefront: 'cn' }
+      const path = String(params?.path)
+      expect(appleMusicApiUrl(path).origin).toBe('https://api.music.apple.com')
+      return handler(path)
+    })
+  }
+
+  it('目录歌单分页不报总数时，首页从歌单 trackCount 取全部曲数', async () => {
+    mockCatalog((path) => path.includes('/tracks')
+      ? { data: [song('1'), song('2')], next: '/v1/catalog/cn/playlists/pl.x/tracks?offset=2' }
+      : { data: [{ id: 'pl.x', type: 'playlists', attributes: { trackCount: 120 } }] })
+    expect(await new AppleMusicService().getPlaylistPage('pl.x', 0, 15)).toMatchObject({ total: 120, nextOffset: 2, hasMore: true })
+  })
+
+  it('取曲数失败不影响首页曲目，总数保持未知', async () => {
+    mockCatalog((path) => {
+      if (!path.includes('/tracks')) throw new Error('boom')
+      return { data: [song('1')], next: '/v1/catalog/cn/playlists/pl.x/tracks?offset=1' }
+    })
+    expect(await new AppleMusicService().getPlaylistPage('pl.x', 0, 15)).toMatchObject({ total: null, hasMore: true })
+  })
+
+  it('最后一页没有 next 时总数等于已翻过的条数', async () => {
+    mockCatalog(() => ({ data: [song('1'), song('2')] }))
+    expect(await new AppleMusicService().getPlaylistPage('pl.x', 50, 50)).toMatchObject({ total: 52, hasMore: false })
+  })
+
+  it('资料库歌单直接用分页 meta.total，不额外请求目录', async () => {
+    mockCatalog(() => ({ data: [song('i.1', 'library-songs')], meta: { total: 40 }, next: '/v1/me/library/playlists/p.x/tracks?offset=1' }))
+    expect(await new AppleMusicService().getPlaylistPage('p.x', 0, 15)).toMatchObject({ total: 40 })
+    expect(get.mock.calls.filter(([endpoint]) => endpoint === '/api/apple-music/catalog')).toHaveLength(1)
   })
 })

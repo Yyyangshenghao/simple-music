@@ -76,12 +76,11 @@ describe('歌单预览加载状态', () => {
     expect(html).toContain('加载失败，点击重试')
   })
 
-  it('Apple 歌单总数未知时显示已加载条数，播放与进入歌单不被禁用', () => {
+  it('Apple 歌单总数未知时不显示曲数，播放与进入歌单不被禁用', () => {
     const apple: Playlist = { ...playlist, provider: 'apple', source: 'apple', id: 'pl.123', trackCount: 0, trackCountKnown: false }
     Object.assign(state, { total: null, loading: false, tracks: [{ id: 1, provider: 'apple', source: 'apple', type: 'song', name: '首页歌曲', artist: '', artists: [] }] })
     const html = render(apple)
-    expect(html).toContain('已加载 1 首')
-    expect(html).not.toContain('0 首')
+    expect(html).not.toContain(' 首<')
     expect(html).not.toContain('disabled')
   })
 
