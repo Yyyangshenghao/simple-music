@@ -62,6 +62,7 @@ git diff --check
 - dev 包含当前 master 的必要更新，待发布 feature 均已集成，发布 PR 范围完整；未验收功能留在独立 feature，不能靠发版时临时删除功能来裁剪范围；
 - 新功能、修复和设置迁移形成完整调用链；
 - 受影响的 UI 已用 `npm run dev` 冒烟；
+- 已在本地打出安装包，并走过一遍安装流程（见下方「本地打包与安装验证」）；
 - `docs/release-notes-<目标版本>.md` 已创建，至少包含更新日志、兼容说明和验证情况；
 - 发行说明开头按下面模板放置四条要点，每行不超过 72 个字符，便于应用内更新弹窗提取；需要完整日志时，在四条摘要后用三级标题分组补充详情，各条仍标注新增、优化、修复或说明；
 - 目标版本高于上一稳定发布版本，且本地与远端均不存在同名 tag；dev 已预先更新版本号时，不重复递增；
@@ -91,6 +92,21 @@ git diff --check
 摘要使用「类别：具体变更」，类别可选「新增」（feat）、「优化」（perf）、「修复」（fix）和「说明」（note），不要求每个版本包含所有类别。客观描述新增、调整或修复的内容，不添加宣传性标题、主观评价或额外阐述；只保留既有行为、发布范围或维护事项的条目用「说明」，不要当作新增功能。应用内按类别分组、显示数量。旧的带标题或无标记摘要仍可读取：以新增/支持/补齐、优化/完善、修复开头的条目对应归类，其余保留为说明；也支持 `feat:` / `fix:` / `perf:` / `note:` 标记。四条摘要与每行 72 字符的发布要求不变。
 
 验证失败时可以保留或推送开发提交供修复，但不得合入 master、创建正式 tag 或公开 Release。文档、代码和工作流未同步完成时，不把目标门禁当作已经通过。
+
+#### 本地打包与安装验证
+
+`npm run build` 只验证源码构建，打包配置（`files`、`asarUnpack`、原生模块）出错只有打出安装包才看得到。2.6.0 曾因平台级 `files` 只写排除项、白名单失效，把 `docs/`、`src/` 整个打进 asar，安装包从约 115MB 涨到约 250MB。发布前在本机执行：
+
+```bash
+npm run build:mac   # Windows 机器上用 npm run build:win
+ls -lh dist/*.dmg dist/*.exe 2>/dev/null
+npx @electron/asar list "dist/mac-arm64/Simple Music.app/Contents/Resources/app.asar" | grep -vE '^/(out|node_modules|package\.json|build/icon)' | head
+```
+
+- 安装包体积与上一 Release 对比，明显变大时先查明原因；
+- asar 列表除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（上面最后一条命令应无输出）；`app.asar.unpacked` 只含目标平台和架构的原生库；
+- 用打出的 dmg/exe 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；
+- 本机无法验证的平台（如 Windows 安装、Intel Mac）在发行说明「验证情况」中写明未实机验证。
 
 ### 0.4 提交、合并、标签和推送顺序
 
