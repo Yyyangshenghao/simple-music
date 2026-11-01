@@ -11,7 +11,10 @@ vi.mock('./upstream-proxy', async (importOriginal) => ({
   withProbeDispatcher: async (address: string, run: (d: unknown) => Promise<unknown>) => { h.probes.push(address); return run({ address }) },
 }))
 
-import { describeNetworkError, diagnoseProxy, diagnosisHints, parseTrace } from './proxy-diagnostics'
+import { describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisHints, isFakeIp, parseTrace } from './proxy-diagnostics'
+
+// 默认不让本机真实网络（例如开着 TUN）影响断言。
+const clean = { lookup: async () => ['59.111.160.195'], interfaces: () => ['192.168.1.2'] }
 
 const coded = (code: string) => Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(code), { code }) })
 
@@ -61,7 +64,7 @@ describe('网络错误翻译', () => {
 describe('代理诊断', () => {
   it('直连：检查三个平台与出口，合并成一条线路', async () => {
     respondAll('ip=1.2.3.4\nloc=CN\n')
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '')
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     expect(result.routes).toHaveLength(1)
     expect(result.routes[0]).toMatchObject({ target: 'default', address: '', source: 'direct' })
     expect(result.routes[0].checks.map((check) => [check.id, check.ok])).toEqual([['netease', true], ['qq', true], ['apple', true], ['egress', true]])
@@ -74,7 +77,7 @@ describe('代理诊断', () => {
     const port = await listen()
     respondAll()
     writeFileSync(join(dir, 'apple-music-storefront'), 'jp')
-    const result = await diagnoseProxy({ mode: 'direct', url: '', apple: 'custom', appleUrl: `http://u:p@127.0.0.1:${port}` }, dir, '')
+    const result = await diagnoseProxy({ mode: 'direct', url: '', apple: 'custom', appleUrl: `http://u:p@127.0.0.1:${port}` }, dir, '', clean)
     expect(result.routes.map((route) => route.target)).toEqual(['default', 'apple'])
     expect(result.routes[1]).toMatchObject({ address: `http://127.0.0.1:${port}`, source: 'custom', proxyReachable: true })
     expect(result.routes[1].checks.map((check) => check.id)).toEqual(['apple', 'egress'])
@@ -83,7 +86,7 @@ describe('代理诊断', () => {
   })
 
   it('代理端口连不上时不再逐站请求', async () => {
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:1' }, dir, '')
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:1' }, dir, '', clean)
     expect(result.routes[0]).toMatchObject({ proxyReachable: false, proxyError: '代理端口没有响应，请确认代理软件正在运行' })
     expect(result.routes[0].checks.every((check) => !check.ok && check.error === '代理不可用，未检测')).toBe(true)
     expect(h.fetch).not.toHaveBeenCalled()
@@ -93,14 +96,14 @@ describe('代理诊断', () => {
   it('跟随系统使用传入的系统代理', async () => {
     const port = await listen()
     respondAll()
-    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, `http://127.0.0.1:${port}`)
+    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, `http://127.0.0.1:${port}`, clean)
     expect(result.routes[0]).toMatchObject({ source: 'system', address: `http://127.0.0.1:${port}` })
     expect(result.systemProxy).toBe(`http://127.0.0.1:${port}`)
   })
 
   it('站点返回 407/5xx 记为失败', async () => {
     h.fetch.mockImplementation(async (url: string) => ({ ok: false, status: url.includes('163') ? 407 : 503, text: async () => '' }))
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '')
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     expect(result.routes[0].checks[0]).toMatchObject({ ok: false, error: '代理需要认证或账号密码不正确' })
     expect(result.routes[0].checks[1]).toMatchObject({ ok: false, error: '服务器返回 503' })
   })
@@ -114,7 +117,7 @@ describe('响应过慢', () => {
       if (url.includes('apple')) await new Promise((resolve) => setTimeout(resolve, 7314))
       return { ok: true, status: 200, text: async () => 'ip=1.2.3.4\nloc=CN\n' }
     })
-    const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '')
+    const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     await vi.advanceTimersByTimeAsync(7314)
     const result = await pending
     vi.useRealTimers()
@@ -132,6 +135,39 @@ describe('响应过慢', () => {
       ] }],
     }, { ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:7890' }, '')
     expect(hints).toEqual(['经 http://127.0.0.1:7890 访问网易云音乐很慢（4.2 秒），节点可能拥堵，可以换节点，或让默认出口直连'])
+  })
+})
+
+describe('系统级接管（TUN）', () => {
+  it('fake-ip 网段识别', () => {
+    expect(isFakeIp('198.18.0.6')).toBe(true)
+    expect(isFakeIp('198.19.255.1')).toBe(true)
+    expect(isFakeIp('198.20.0.1')).toBe(false)
+    expect(isFakeIp('::1')).toBe(false)
+  })
+
+  it('虚拟网卡或域名解析到 fake-ip 即判定接管；查询失败不误报', async () => {
+    expect(await detectSystemTakeover({ lookup: async () => ['1.2.3.4'], interfaces: () => ['198.18.0.1'] })).toBe(true)
+    expect(await detectSystemTakeover({ lookup: async (host) => (host === 'music.163.com' ? ['198.18.0.6'] : ['1.2.3.4']), interfaces: () => [] })).toBe(true)
+    expect(await detectSystemTakeover(clean)).toBe(false)
+    expect(await detectSystemTakeover({ lookup: async () => { throw new Error('dns') }, interfaces: () => { throw new Error('os') } })).toBe(false)
+  })
+
+  it('直连线路被接管时说明实际出口，并替代“系统未开代理”的结论', async () => {
+    respondAll()
+    const tun = { lookup: async () => ['198.18.0.6'], interfaces: () => [] }
+    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, '', tun)
+    expect(result.systemTakeover).toBe(true)
+    expect(result.hints[0]).toBe('检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点（实际出口在美国）；要真正直连，请在代理软件里关闭 TUN，或为相关域名设置直连规则')
+    expect(result.hints.some((hint) => hint.includes('系统当前没有开启代理'))).toBe(false)
+  })
+
+  it('全部经代理时不提示接管', () => {
+    const hints = diagnosisHints({
+      systemProxy: '', systemTakeover: true,
+      routes: [{ target: 'default', address: 'http://127.0.0.1:7890', source: 'custom', checks: [{ id: 'egress', ok: true, elapsedMs: 1, country: 'CN' }] }],
+    }, { ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:7890' }, '')
+    expect(hints).toEqual([])
   })
 })
 

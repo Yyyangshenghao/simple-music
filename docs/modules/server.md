@@ -54,7 +54,7 @@
   - 生效：保存时同时切换 Node 侧全局 dispatcher 与 Electron 各会话（`ctx.applySessionProxy`）。跟随系统由主进程用独立探测分区 `resolveProxy` 解析系统代理/PAC，经 `ctx.resolveSystemProxy` 与 `setSystemProxyAddress` 同步给 Node 侧，并在定时、窗口获焦、唤醒时重读，用户在代理软件里开关系统代理后数据请求跟着切；独立 server 没有宿主，只认 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`。
   - 分流：Node 侧代理 dispatcher 对本机与局域网地址（loopback、私网、`.local`）走原 dispatcher（开发态 Chrome 调试端口等不能被代理绕走）；Electron 规则绕过 `localhost/127.0.0.1/::1/<local>`，并去掉地址里的账号密码，HTTP 代理认证由主进程 `login` 事件补上。
   - 网易：NCM 内部用 axios，不读 undici 全局 dispatcher；它自带的 `proxy` 参数也不能用（HTTP 分支经 `tunnel.httpOverHttp` 不做 TLS，请求降级成明文 :80），因此由 `lib/netease-proxy.ts` 在 NCM 解析到的 axios 上挂拦截器，只对网易域名换成 `HttpsProxyAgent`（CONNECT + TLS）或 `SocksProxyAgent`（`socks5h`，域名交给代理解析）并设 `proxy: false`。新接入不走 `fetch` 的上游客户端同样要显式接代理。
-  - 诊断：先 TCP 探测代理端口（连不上就不再逐站请求），再用一次性 dispatcher（测完即销毁、不进缓存）并发 HEAD 网易、QQ、Apple Music，并经 Cloudflare trace 取出口 IP 与国家；Apple 出口与默认不同时分两条线路。能访问但超过 3 秒记为“很慢”（`slow`），按直连/经代理给出不同建议（Apple 直连慢建议单独代理，经代理慢建议换节点）。结论还包括系统未开代理、整条线路同因失败（如 407）、默认出口不在中国大陆（网易/QQ 版权地区限制）、Apple 出口与账号地区（`apple-music-storefront`）不一致。
+  - 诊断：先 TCP 探测代理端口（连不上就不再逐站请求），再用一次性 dispatcher（测完即销毁、不进缓存）并发 HEAD 网易、QQ、Apple Music，并经 Cloudflare trace 取出口 IP 与国家；Apple 出口与默认不同时分两条线路。能访问但超过 3 秒记为“很慢”（`slow`），按直连/经代理给出不同建议（Apple 直连慢建议单独代理，经代理慢建议换节点）。同时识别代理软件的 TUN/增强模式接管（本机有 `198.18.0.0/15` 虚拟网卡，或探测域名被解析成该网段的 fake-ip）：此时“直连”同样经过代理节点，结论里说明实际出口，并替代“系统未开代理”。结论还包括系统未开代理、整条线路同因失败（如 407）、默认出口不在中国大陆（网易/QQ 版权地区限制）、Apple 出口与账号地区（`apple-music-storefront`）不一致。
   - 检测：系统代理、环境变量、本机常见代理端口（Clash/Mihomo 7890、Clash Verge 7897、v2rayN、Surge 等），对每个端口先发 HTTP CONNECT、再试 SOCKS5 握手判定协议，只连 127.0.0.1。
 
 ### 平台收听上报

@@ -60,6 +60,8 @@ describe('检测结果文案', () => {
 
   it('线路：直连、系统代理与自定义', () => {
     expect(proxyRouteLabel({ address: '', source: 'direct' })).toBe('直连')
+    expect(proxyRouteLabel({ address: '', source: 'direct' }, true)).toBe('直连 · TUN 接管')
+    expect(proxyRouteLabel({ address: 'http://127.0.0.1:7890', source: 'custom' }, true)).toBe('http://127.0.0.1:7890')
     expect(proxyRouteLabel({ address: 'http://127.0.0.1:7890', source: 'system' })).toBe('系统代理 http://127.0.0.1:7890')
     expect(proxyRouteLabel({ address: 'socks5://127.0.0.1:7891', source: 'custom' })).toBe('socks5://127.0.0.1:7891')
   })

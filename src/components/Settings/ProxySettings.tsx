@@ -33,7 +33,7 @@ const APPLE_PROXY_OPTIONS: { value: ProxySettings['apple']; label: string }[] = 
   { value: 'direct', label: '直连' },
 ]
 const CHECK_ORDER: ProxyCheckId[] = ['netease', 'qq', 'apple', 'egress']
-const INFO_TEXT = '跟随系统：使用系统设置里的代理，代理软件开启“系统代理”后，登录窗口与搜索、曲库、播放一起生效。自定义：填写代理软件的 HTTP 或 SOCKS5 端口，例如 127.0.0.1:7890，也可以自动检测本机代理。Apple Music 可以单独选出口，避免国内节点把海外账号带回国内地区。'
+const INFO_TEXT = '跟随系统：使用系统设置里的代理，代理软件开启“系统代理”后，登录窗口与搜索、曲库、播放一起生效。自定义：填写代理软件的 HTTP 或 SOCKS5 端口，例如 127.0.0.1:7890，也可以自动检测本机代理。Apple Music 可以单独选出口，避免国内节点把海外账号带回国内地区。代理软件开着 TUN/增强模式时，它在系统层接管全部流量，这里选直连也会经过代理节点，检测会标出来。'
 
 type Busy = 'save' | 'diagnose' | 'detect' | null
 
@@ -57,7 +57,7 @@ function checkRows(diagnosis: ProxyDiagnosis | null): CheckRow[] {
     if (!route || !check) return { id, route: '', check: null, region: '' }
     const egress = route.target === 'apple' && id === 'apple' ? route.checks.find((item) => item.id === 'egress') : undefined
     const region = egress?.ok ? regionLabel(egress.country) : ''
-    return { id, route: proxyRouteLabel(route), check, region }
+    return { id, route: proxyRouteLabel(route, diagnosis?.systemTakeover), check, region }
   })
 }
 

@@ -35,6 +35,8 @@ export interface ProxyRouteReport {
 export interface ProxyDiagnosis {
   routes: ProxyRouteReport[]
   systemProxy: string
+  /** 代理软件的 TUN/增强模式在系统层接管了网络，「直连」也会经过代理节点。 */
+  systemTakeover?: boolean
   hints: string[]
 }
 
@@ -94,9 +96,9 @@ export function proxyCheckMessage(check: ProxyCheck): string {
   return `${check.slow ? '很慢' : '可访问'} · ${check.elapsedMs} ms`
 }
 
-/** 线路说明：经哪个代理或直连，跟随系统时注明来源。 */
-export function proxyRouteLabel(route: Pick<ProxyRouteReport, 'address' | 'source'>): string {
-  if (!route.address) return '直连'
+/** 线路说明：经哪个代理或直连，跟随系统时注明来源；直连被 TUN 接管时标出来。 */
+export function proxyRouteLabel(route: Pick<ProxyRouteReport, 'address' | 'source'>, takeover = false): string {
+  if (!route.address) return takeover ? '直连 · TUN 接管' : '直连'
   return route.source === 'system' ? `系统代理 ${route.address}` : route.address
 }
 

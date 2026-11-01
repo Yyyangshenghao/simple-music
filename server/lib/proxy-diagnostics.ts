@@ -1,5 +1,7 @@
+import { lookup } from 'node:dns/promises'
 import { readFileSync } from 'node:fs'
-import { connect } from 'node:net'
+import { connect, isIPv4 } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import type { Dispatcher } from 'undici'
 import { stripProxyCredentials, type ProxySettings, type ProxyTarget } from './proxy-config'
@@ -36,6 +38,11 @@ export interface ProxyDiagnosis {
   routes: ProxyRouteReport[]
   /** 主进程解析到的系统代理（跟随系统时的真实出口）；空字符串表示系统未设代理。 */
   systemProxy: string
+  /**
+   * 代理软件以 TUN/增强模式在系统层接管了网络：应用选「直连」的流量同样会被导到代理节点。
+   * 依据是域名被解析成 fake-ip（198.18.0.0/15）或本机存在该网段的虚拟网卡。
+   */
+  systemTakeover?: boolean
   hints: string[]
 }
 
@@ -165,6 +172,38 @@ async function diagnoseRoute(settings: ProxySettings, target: ProxyTarget, addre
   return report
 }
 
+// Clash/Mihomo、sing-box、Surge 等 TUN 模式默认都用 198.18.0.0/15 做虚拟网卡与 fake-ip。
+const TAKEOVER_PROBE_HOSTS = ['music.163.com', 'music.apple.com']
+const TAKEOVER_LOOKUP_TIMEOUT_MS = 2000
+
+export function isFakeIp(address: string): boolean {
+  if (!isIPv4(address)) return false
+  const [a, b] = address.split('.').map(Number)
+  return a === 198 && (b === 18 || b === 19)
+}
+
+export interface TakeoverProbe {
+  lookup(host: string): Promise<string[]>
+  interfaces(): string[]
+}
+
+const systemProbe: TakeoverProbe = {
+  lookup: async (host) => (await lookup(host, { all: true })).map((entry) => entry.address),
+  interfaces: () => Object.values(networkInterfaces()).flatMap((list) => (list ?? []).map((item) => item.address)),
+}
+
+/** 识别代理软件的系统级接管：任一探测域名解析到 fake-ip，或本机有 fake-ip 网段的虚拟网卡。 */
+export async function detectSystemTakeover(probe: TakeoverProbe = systemProbe): Promise<boolean> {
+  try {
+    if (probe.interfaces().some(isFakeIp)) return true
+  } catch { /* 读不到网卡时只看 DNS */ }
+  const results = await Promise.all(TAKEOVER_PROBE_HOSTS.map((host) => Promise.race([
+    probe.lookup(host).catch(() => [] as string[]),
+    new Promise<string[]>((resolve) => setTimeout(() => resolve([]), TAKEOVER_LOOKUP_TIMEOUT_MS)),
+  ])))
+  return results.some((addresses) => addresses.some(isFakeIp))
+}
+
 function readStorefront(userDataDir: string): string {
   try {
     const value = readFileSync(join(userDataDir, STOREFRONT_FILE), 'utf8').trim().toLowerCase()
@@ -191,7 +230,14 @@ export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, setting
   const hints: string[] = []
   const main = diagnosis.routes.find((route) => route.target === 'default')
   const apple = diagnosis.routes.find((route) => route.target === 'apple') ?? main
-  if (settings.mode === 'system' && !diagnosis.systemProxy) hints.push('系统当前没有开启代理，跟随系统等同直连')
+  const directRoutes = diagnosis.routes.filter((route) => !route.address)
+  if (diagnosis.systemTakeover && directRoutes.length) {
+    // 「直连」并不真的直连：先说清楚，后面的出口地区结论才不会被误读。
+    const country = directRoutes.map(egressOf).find(Boolean)
+    hints.push(`检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点${country ? `（实际出口在${regionName(country)}）` : ''}；要真正直连，请在代理软件里关闭 TUN，或为相关域名设置直连规则`)
+  } else if (settings.mode === 'system' && !diagnosis.systemProxy) {
+    hints.push('系统当前没有开启代理，跟随系统等同直连')
+  }
   for (const route of diagnosis.routes) {
     if (route.proxyReachable === false) hints.push(`${route.address} ${route.proxyError ?? '不可用'}`)
     else if (route.checks.every((check) => !check.ok)) {
@@ -232,14 +278,15 @@ export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, setting
  * 按草稿设置（不必先保存）诊断每个出口：代理端口、网易/QQ/Apple 可达性与出口地区。
  * Apple 出口与默认出口相同时合并成一条，避免重复请求。
  */
-export async function diagnoseProxy(settings: ProxySettings, userDataDir: string, systemProxy: string): Promise<ProxyDiagnosis> {
+export async function diagnoseProxy(settings: ProxySettings, userDataDir: string, systemProxy: string, probe?: TakeoverProbe): Promise<ProxyDiagnosis> {
   const defaultAddress = draftProxyAddress(settings, 'default', systemProxy)
   const appleAddress = draftProxyAddress(settings, 'apple', systemProxy)
   const separateApple = appleAddress !== defaultAddress
-  const routes = await Promise.all([
+  const [systemTakeover, ...routes] = await Promise.all([
+    detectSystemTakeover(probe),
     diagnoseRoute(settings, 'default', defaultAddress, separateApple ? ['netease', 'qq'] : ['netease', 'qq', 'apple']),
     ...(separateApple ? [diagnoseRoute(settings, 'apple', appleAddress, ['apple'])] : []),
   ])
-  const partial = { routes, systemProxy: stripProxyCredentials(systemProxy) }
+  const partial = { routes, systemProxy: stripProxyCredentials(systemProxy), systemTakeover }
   return { ...partial, hints: diagnosisHints(partial, settings, readStorefront(userDataDir)) }
 }
