@@ -45,14 +45,24 @@ export interface ProxyDiagnosis {
    * 依据是域名被解析成 fake-ip（198.18.0.0/15）或本机存在该网段的虚拟网卡。
    */
   systemTakeover?: boolean
-  hints: string[]
+  findings: DiagnosisFinding[]
+}
+
+/**
+ * 检测结论分两级：problem 影响使用、需要处理，界面用醒目卡片并给出可点的解决动作；
+ * notice 只是告知，界面一行小字。标题要短，细节放 detail。
+ */
+export interface DiagnosisFinding {
+  level: 'problem' | 'notice'
+  title: string
+  detail?: string
+  /** proxy-rules：打开代理软件规则；apple-direct：把 Apple 出口改为直连；detect-proxy：自动检测本机代理。 */
+  action?: 'proxy-rules' | 'apple-direct' | 'detect-proxy'
 }
 
 const CHECK_TIMEOUT_MS = 8000
 // 一次 HEAD 含 DNS、TCP 与 TLS 握手；超过 3 秒时曲库加载与起播会明显卡顿。
 export const SLOW_CHECK_MS = 3000
-/** 中文句子里嵌入英文名时两侧补空格（Apple Music），中文名保持紧排。 */
-const spaced = (name: string) => `${/^[A-Za-z]/.test(name) ? ' ' : ''}${name}${/[A-Za-z]$/.test(name) ? ' ' : ''}`
 const PLATFORM_LABELS: Record<Exclude<ProxyCheckId, 'egress'>, string> = { netease: '网易云音乐', qq: 'QQ 音乐', apple: 'Apple Music' }
 const PROXY_CONNECT_TIMEOUT_MS = 3000
 const CHECK_URLS: Record<Exclude<ProxyCheckId, 'egress'>, string> = {
@@ -236,7 +246,11 @@ function readStorefront(userDataDir: string): string {
 }
 
 let regionNames: Intl.DisplayNames | null | undefined
+// 系统语言给的全称（如“中国香港特别行政区”）放在短结论里太长，常见地区用短名。
+const SHORT_REGION_NAMES: Record<string, string> = { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' }
 export function regionName(code: string): string {
+  const short = SHORT_REGION_NAMES[code.toUpperCase()]
+  if (short) return short
   if (regionNames === undefined) {
     try { regionNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' }) } catch { regionNames = null }
   }
@@ -247,57 +261,54 @@ function egressOf(report: ProxyRouteReport | undefined): string {
   return report?.checks.find((check) => check.id === 'egress' && check.ok)?.country ?? ''
 }
 
-/** 根据诊断结果给出需要用户知道的结论：地区限制、账号地区错位、系统未设代理、整体不通。 */
-export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, settings: ProxySettings, storefront: string): string[] {
-  const hints: string[] = []
+/** 根据诊断结果给出结论：先列影响使用的问题（带解决动作），再列提示；问题在前。 */
+export function diagnosisFindings(diagnosis: Omit<ProxyDiagnosis, 'findings'>, settings: ProxySettings, storefront: string): DiagnosisFinding[] {
+  const problems: DiagnosisFinding[] = []
+  const notices: DiagnosisFinding[] = []
   const main = diagnosis.routes.find((route) => route.target === 'default')
   const apple = diagnosis.routes.find((route) => route.target === 'apple') ?? main
-  const directRoutes = diagnosis.routes.filter((route) => !route.address)
-  if (diagnosis.systemTakeover && directRoutes.length) {
-    // 「直连」并不真的直连：先说清楚，后面的出口地区结论才不会被误读。
-    const country = directRoutes.map(egressOf).find(Boolean)
-    hints.push(`检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点${country ? `（实际出口在${regionName(country)}）` : ''}；要真正直连，请在代理软件里关闭 TUN，或按“代理软件规则”给 Apple Music 等域名设置直连`)
-  } else if (settings.mode === 'system' && !diagnosis.systemProxy) {
-    hints.push('系统当前没有开启代理，跟随系统等同直连')
-  }
+
   for (const route of diagnosis.routes) {
-    if (route.proxyReachable === false) hints.push(`${route.address} ${route.proxyError ?? '不可用'}`)
-    else if (route.checks.every((check) => !check.ok)) {
+    if (route.proxyReachable === false) {
+      problems.push({ level: 'problem', title: '代理连不上', detail: `${route.address}：${route.proxyError ?? '不可用'}`, ...(route.source === 'custom' ? { action: 'detect-proxy' as const } : {}) })
+    } else if (route.checks.every((check) => !check.ok)) {
       // 所有站点同一个原因（例如 407）就直接说原因，比笼统的「节点失效」更好处理。
       const reasons = new Set(route.checks.map((check) => check.error))
-      const reason = reasons.size === 1 ? [...reasons][0] : ''
-      if (route.address) hints.push(reason ? `经 ${route.address}：${reason}` : `经 ${route.address} 无法访问任何站点，节点可能失效`)
-      else hints.push(reason ? `直连：${reason}` : '直连无法访问网络，请检查网络连接')
+      const reason = reasons.size === 1 ? [...reasons][0] : undefined
+      problems.push({ level: 'problem', title: route.address ? '经代理无法访问任何平台' : '无法联网', detail: reason ?? (route.address ? '节点可能失效' : '请检查网络连接') })
     }
+  }
+
+  // 优先用 Apple 自己判定的地区；拿不到（请求失败）再退回通用出口地区。
+  const appleRegion = apple?.checks.find((check) => check.id === 'apple' && check.ok)?.appleRegion ?? ''
+  const appleSeen = appleRegion || egressOf(apple).toLowerCase()
+  if (apple && storefront && appleSeen && appleSeen !== storefront) {
+    const detail = `${appleRegion ? 'Apple 判定' : '出口'}在${regionName(appleSeen)}，账号在${regionName(storefront)}，登录与曲库会被带到${regionName(appleSeen)}`
+    if (apple.address) {
+      // 应用自己设的代理把 Apple 带偏了：直接在应用里改成直连即可。
+      problems.push({ level: 'problem', title: 'Apple Music 地区与账号不一致', detail, action: 'apple-direct' })
+    } else {
+      // 应用已是直连仍被带偏：只能在代理软件（TUN/VPN）里加规则。
+      problems.push({ level: 'problem', title: diagnosis.systemTakeover ? 'Apple Music 正经过代理软件' : 'Apple Music 地区与账号不一致', detail, action: 'proxy-rules' })
+    }
+  }
+
+  if (settings.mode === 'system' && !diagnosis.systemProxy && !diagnosis.systemTakeover) {
+    notices.push({ level: 'notice', title: '系统没有开代理，跟随系统等于直连' })
   }
   for (const route of diagnosis.routes) {
     for (const check of route.checks) {
       if (!check.slow || check.id === 'egress') continue
       const seconds = (check.elapsedMs / 1000).toFixed(1)
-      const name = PLATFORM_LABELS[check.id]
-      if (!route.address) {
-        // 直连慢：Apple 可以单独走代理；国内平台直连慢多半是本机网络问题。
-        hints.push(check.id === 'apple'
-          ? `Apple Music 直连响应很慢（${seconds} 秒），曲库加载与起播可能卡顿，可以把 Apple Music 出口设为单独代理`
-          : `${name}直连响应很慢（${seconds} 秒），请检查本机网络`)
-      } else {
-        hints.push(`经 ${route.address} 访问${spaced(name)}很慢（${seconds} 秒），节点可能拥堵，可以换节点${check.id === 'apple' ? '' : '，或让默认出口直连'}`)
-      }
+      const detail = route.address ? '节点可能拥堵，可以换节点' : check.id === 'apple' ? '可以给 Apple Music 单独设代理' : '请检查本机网络'
+      notices.push({ level: 'notice', title: `${PLATFORM_LABELS[check.id]}${check.id === 'apple' ? ' ' : ''}响应慢（${seconds} 秒）`, detail })
     }
   }
   const mainCountry = egressOf(main)
   if (mainCountry && mainCountry !== 'CN') {
-    hints.push(`默认出口在${regionName(mainCountry)}，网易云与 QQ 音乐的部分歌曲可能因版权地区限制无法播放`)
+    notices.push({ level: 'notice', title: `默认出口在${regionName(mainCountry)}`, detail: '网易云、QQ 音乐的部分歌曲可能受版权地区限制' })
   }
-  // 优先用 Apple 自己判定的地区；拿不到（请求失败）再退回通用出口地区。
-  const appleRegion = apple?.checks.find((check) => check.id === 'apple' && check.ok)?.appleRegion ?? ''
-  const appleSeen = appleRegion || egressOf(apple).toLowerCase()
-  if (storefront && appleSeen && appleSeen !== storefront) {
-    hints.push(appleRegion
-      ? `Apple 判定你在${regionName(appleRegion)}，与账号地区${regionName(storefront)}不一致，Apple Music 可能正经过代理，登录页与曲库会被带到${regionName(appleRegion)}；可按“代理软件规则”让 Apple 直连`
-      : `Apple Music 账号地区为${regionName(storefront)}，当前出口在${regionName(appleSeen)}，登录页与曲库可能被带到出口所在地区`)
-  }
-  return hints
+  return [...problems, ...notices]
 }
 
 /**
@@ -314,5 +325,5 @@ export async function diagnoseProxy(settings: ProxySettings, userDataDir: string
     ...(separateApple ? [diagnoseRoute(settings, 'apple', appleAddress, ['apple'])] : []),
   ])
   const partial = { routes, systemProxy: stripProxyCredentials(systemProxy), systemTakeover }
-  return { ...partial, hints: diagnosisHints(partial, settings, readStorefront(userDataDir)) }
+  return { ...partial, findings: diagnosisFindings(partial, settings, readStorefront(userDataDir)) }
 }

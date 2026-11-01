@@ -65,35 +65,42 @@
 .check[data-state='slow'] .checkResult { color: var(--sm-color-gold); }
 .check[data-state='failed'] .checkResult { color: var(--sm-color-danger); }
 
-/* 检测结论：逐条完整换行，不截断；前置小圆点区分条目。 */
-.hints {
-  margin: 0;
-  padding: 10px 20px 14px;
-  list-style: none;
-  border-top: 1px solid var(--sm-border);
+/* 问题卡片：需要用户处理的结论，标题醒目、原因次要、右侧给解决按钮。 */
+.problems {
   display: grid;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  padding: 12px 20px 4px;
+  border-top: 1px solid var(--sm-border);
+}
+
+.problem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--sm-color-gold) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sm-color-gold) 10%, transparent);
+}
+
+.problemText { display: grid; gap: 3px; min-width: 0; }
+.problemText strong { color: var(--sm-text-primary); font-size: 13px; font-weight: 650; }
+.problemText span { color: var(--sm-text-secondary); font-size: 12px; line-height: 1.5; }
+
+/* 提示：不影响使用的信息，一行小字，不和问题抢注意力。 */
+.notices {
+  margin: 0;
+  padding: 0 20px 14px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
   line-height: 1.6;
-  color: var(--sm-text-primary);
-}
-
-.hints li {
-  position: relative;
-  padding-left: 14px;
-}
-
-.hints li::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 0.62em;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--sm-color-gold);
 }
 
 /* 设置改动后旧结果变淡，提示需重新检测。 */
 .checks[data-stale],
-.hints[data-stale] { opacity: 0.5; }
+.problems[data-stale],
+.notices[data-stale] { opacity: 0.5; }

@@ -11,7 +11,7 @@ vi.mock('./upstream-proxy', async (importOriginal) => ({
   withProbeDispatcher: async (address: string, run: (d: unknown) => Promise<unknown>) => { h.probes.push(address); return run({ address }) },
 }))
 
-import { appleRegionFromLocation, describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisHints, isFakeIp, parseTrace } from './proxy-diagnostics'
+import { appleRegionFromLocation, describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisFindings, isFakeIp, parseTrace } from './proxy-diagnostics'
 
 // 默认不让本机真实网络（例如开着 TUN）影响断言。
 const clean = { lookup: async () => ['59.111.160.195'], interfaces: () => ['192.168.1.2'] }
@@ -70,7 +70,7 @@ describe('代理诊断', () => {
     expect(result.routes[0].checks.map((check) => [check.id, check.ok])).toEqual([['netease', true], ['qq', true], ['apple', true], ['egress', true]])
     expect(result.routes[0].checks[3]).toMatchObject({ ip: '1.2.3.4', country: 'CN' })
     expect(h.fetch.mock.calls[0][1]).toMatchObject({ method: 'HEAD', redirect: 'manual' })
-    expect(result.hints).toEqual([])
+    expect(result.findings).toEqual([])
   })
 
   it('Apple 单独出口时分成两条，并对比账号地区', async () => {
@@ -82,7 +82,8 @@ describe('代理诊断', () => {
     expect(result.routes[1]).toMatchObject({ address: `http://127.0.0.1:${port}`, source: 'custom', proxyReachable: true })
     expect(result.routes[1].checks.map((check) => check.id)).toEqual(['apple', 'egress'])
     expect(h.probes).toContain(`http://u:p@127.0.0.1:${port}`)
-    expect(result.hints.some((hint) => hint.includes('账号地区为日本') && hint.includes('美国'))).toBe(true)
+    // Apple 单独走应用里的代理时，问题可以直接在应用里改成直连解决。
+    expect(result.findings).toContainEqual({ level: 'problem', title: 'Apple Music 地区与账号不一致', detail: '出口在美国，账号在日本，登录与曲库会被带到美国', action: 'apple-direct' })
   })
 
   it('代理端口连不上时不再逐站请求', async () => {
@@ -90,7 +91,8 @@ describe('代理诊断', () => {
     expect(result.routes[0]).toMatchObject({ proxyReachable: false, proxyError: '代理端口没有响应，请确认代理软件正在运行' })
     expect(result.routes[0].checks.every((check) => !check.ok && check.error === '代理不可用，未检测')).toBe(true)
     expect(h.fetch).not.toHaveBeenCalled()
-    expect(result.hints[0]).toContain('代理端口没有响应')
+    expect(result.findings[0]).toMatchObject({ level: 'problem', title: '代理连不上', action: 'detect-proxy' })
+    expect(result.findings[0].detail).toContain('代理端口没有响应')
   })
 
   it('跟随系统使用传入的系统代理', async () => {
@@ -127,7 +129,7 @@ describe('Apple 判定地区', () => {
     }))
     const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     expect(result.routes[0].checks.find((check) => check.id === 'apple')).toMatchObject({ appleRegion: 'us' })
-    expect(result.hints).toEqual(['Apple 判定你在美国，与账号地区中国不一致，Apple Music 可能正经过代理，登录页与曲库会被带到美国；可按“代理软件规则”让 Apple 直连'])
+    expect(result.findings).toEqual([{ level: 'problem', title: 'Apple Music 地区与账号不一致', detail: 'Apple 判定在美国，账号在中国，登录与曲库会被带到美国', action: 'proxy-rules' }])
   })
 })
 
@@ -146,17 +148,17 @@ describe('响应过慢', () => {
     const apple = result.routes[0].checks.find((check) => check.id === 'apple')!
     expect(apple).toMatchObject({ ok: true, slow: true })
     expect(result.routes[0].checks.find((check) => check.id === 'netease')!.slow).toBeUndefined()
-    expect(result.hints).toEqual(['Apple Music 直连响应很慢（7.3 秒），曲库加载与起播可能卡顿，可以把 Apple Music 出口设为单独代理'])
+    expect(result.findings).toEqual([{ level: 'notice', title: 'Apple Music 响应慢（7.3 秒）', detail: '可以给 Apple Music 单独设代理' }])
   })
 
   it('经代理慢时建议换节点', () => {
-    const hints = diagnosisHints({
+    const findings = diagnosisFindings({
       systemProxy: '',
       routes: [{ target: 'default', address: 'http://127.0.0.1:7890', source: 'custom', checks: [
         { id: 'netease', ok: true, elapsedMs: 4200, slow: true }, { id: 'egress', ok: true, elapsedMs: 1, country: 'CN' },
       ] }],
     }, { ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:7890' }, '')
-    expect(hints).toEqual(['经 http://127.0.0.1:7890 访问网易云音乐很慢（4.2 秒），节点可能拥堵，可以换节点，或让默认出口直连'])
+    expect(findings).toEqual([{ level: 'notice', title: '网易云音乐响应慢（4.2 秒）', detail: '节点可能拥堵，可以换节点' }])
   })
 })
 
@@ -175,38 +177,42 @@ describe('系统级接管（TUN）', () => {
     expect(await detectSystemTakeover({ lookup: async () => { throw new Error('dns') }, interfaces: () => { throw new Error('os') } })).toBe(false)
   })
 
-  it('直连线路被接管时说明实际出口，并替代“系统未开代理”的结论', async () => {
+  it('直连被接管时 Apple 地区不符记为问题并指向代理软件规则，不再说“系统没开代理”', async () => {
+    writeFileSync(join(dir, 'apple-music-storefront'), 'cn')
     respondAll()
     const tun = { lookup: async () => ['198.18.0.6'], interfaces: () => [] }
     const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, '', tun)
     expect(result.systemTakeover).toBe(true)
-    expect(result.hints[0]).toBe('检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点（实际出口在美国）；要真正直连，请在代理软件里关闭 TUN，或按“代理软件规则”给 Apple Music 等域名设置直连')
-    expect(result.hints.some((hint) => hint.includes('系统当前没有开启代理'))).toBe(false)
+    expect(result.findings[0]).toMatchObject({ level: 'problem', title: 'Apple Music 正经过代理软件', action: 'proxy-rules' })
+    expect(result.findings.some((finding) => finding.title.includes('系统没有开代理'))).toBe(false)
   })
 
   it('全部经代理时不提示接管', () => {
-    const hints = diagnosisHints({
+    const findings = diagnosisFindings({
       systemProxy: '', systemTakeover: true,
       routes: [{ target: 'default', address: 'http://127.0.0.1:7890', source: 'custom', checks: [{ id: 'egress', ok: true, elapsedMs: 1, country: 'CN' }] }],
     }, { ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:7890' }, '')
-    expect(hints).toEqual([])
+    expect(findings).toEqual([])
   })
 })
 
 describe('诊断结论', () => {
   const route = (overrides: object) => ({ target: 'default' as const, address: '', source: 'direct' as const, checks: [], ...overrides })
 
-  it('系统未开代理、出口在海外、全部同因失败', () => {
-    const hints = diagnosisHints({
+  it('问题排在提示前：全部同因失败为问题，系统未开代理为提示', () => {
+    const hints = diagnosisFindings({
       systemProxy: '',
       routes: [route({ checks: [{ id: 'netease', ok: false, elapsedMs: 0, error: '连接超时' }, { id: 'egress', ok: false, elapsedMs: 0, error: '连接超时' }] })],
     }, DEFAULT_PROXY_SETTINGS, '')
-    expect(hints).toEqual(['系统当前没有开启代理，跟随系统等同直连', '直连：连接超时'])
+    expect(hints).toEqual([
+      { level: 'problem', title: '无法联网', detail: '连接超时' },
+      { level: 'notice', title: '系统没有开代理，跟随系统等于直连' },
+    ])
 
-    const overseas = diagnosisHints({
+    const overseas = diagnosisFindings({
       systemProxy: 'http://127.0.0.1:7890',
       routes: [route({ address: 'http://127.0.0.1:7890', source: 'system', checks: [{ id: 'netease', ok: true, elapsedMs: 1 }, { id: 'egress', ok: true, elapsedMs: 1, country: 'HK' }] })],
     }, DEFAULT_PROXY_SETTINGS, 'hk')
-    expect(overseas).toEqual(['默认出口在中国香港特别行政区，网易云与 QQ 音乐的部分歌曲可能因版权地区限制无法播放'])
+    expect(overseas).toEqual([{ level: 'notice', title: '默认出口在中国香港', detail: '网易云、QQ 音乐的部分歌曲可能受版权地区限制' }])
   })
 })

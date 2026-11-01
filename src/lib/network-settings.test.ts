@@ -31,7 +31,7 @@ describe('代理设置客户端', () => {
   })
 
   it('诊断带上草稿设置，系统代理与自动检测各有接口', async () => {
-    h.post.mockResolvedValueOnce({ routes: [], systemProxy: '', hints: [] })
+    h.post.mockResolvedValueOnce({ routes: [], systemProxy: '', findings: [] })
     await diagnoseProxySettings(DEFAULT_PROXY_SETTINGS)
     expect(h.post).toHaveBeenCalledWith('/api/network/proxy/diagnose', { settings: DEFAULT_PROXY_SETTINGS }, undefined, { timeoutMs: 30_000 })
 
@@ -66,13 +66,16 @@ describe('检测结果文案', () => {
     expect(proxyRouteLabel({ address: 'socks5://127.0.0.1:7891', source: 'custom' })).toBe('socks5://127.0.0.1:7891')
   })
 
-  it('总结：有结论直接列出，否则概括失败平台', () => {
+  it('总结：先说问题数，其次失败平台，再次提示数', () => {
     const route = { target: 'default' as const, address: '', source: 'direct' as const }
-    expect(proxyDiagnosisSummary({ routes: [], systemProxy: '', hints: ['a', 'b'] })).toBe('发现 2 个需要注意的问题，见下方')
-    expect(proxyDiagnosisSummary({ routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }] }], systemProxy: '', hints: [] })).toBe('检测完成，各平台均可访问')
+    const problem = { level: 'problem' as const, title: 'p' }
+    const notice = { level: 'notice' as const, title: 'n' }
+    expect(proxyDiagnosisSummary({ routes: [], systemProxy: '', findings: [problem, notice] })).toBe('发现 1 个问题')
+    expect(proxyDiagnosisSummary({ routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }] }], systemProxy: '', findings: [] })).toBe('各平台均可访问')
+    expect(proxyDiagnosisSummary({ routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }] }], systemProxy: '', findings: [notice] })).toBe('各平台均可访问，另有 1 条提示')
     expect(proxyDiagnosisSummary({
       routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }, { id: 'apple', ok: false, elapsedMs: 1 }, { id: 'egress', ok: false, elapsedMs: 1 }] }],
-      systemProxy: '', hints: [],
+      systemProxy: '', findings: [],
     })).toBe('无法访问：Apple Music')
   })
 })

@@ -459,7 +459,7 @@ describe('设置分类导航', () => {
     expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>检测连接/)
     expect(html).toMatch(/<button[^>]*disabled[^>]*>保存/)
     expect(html).toContain('aria-label="连接检测结果"')
-    for (const label of ['网易云音乐', 'QQ 音乐', 'Apple Music', '出口地区']) expect(html).toContain(label)
+    for (const label of ['线路', '网易云音乐', 'QQ 音乐', 'Apple Music']) expect(html).toContain(label)
     // TUN 下应用绕不开代理：标题栏提供代理软件规则引导
     expect(html).toContain('代理软件规则')
     expect(html).toContain('- DOMAIN-SUFFIX,apple.com,DIRECT')

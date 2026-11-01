@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useState, type RefObject } from 'react'
 import { PROXY_CLIENTS, desktopPlatform, proxyRuleSnippet, type ProxyClient, type RuleScope } from '../../lib/proxy-rules'
 import help from './PlaybackLogicHelp.module.css'
 import styles from './ProxyRulesGuide.module.css'
@@ -38,8 +38,7 @@ function RuleBlock({ client, scope, title, caption }: { client: ProxyClient; sco
 }
 
 /** 代理软件规则引导：TUN/增强模式下应用绕不开代理，只能请用户在代理软件里让 Apple Music 直连。 */
-export function ProxyRulesGuide() {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialogElement> }) {
   const dialogId = useId()
   const titleId = useId()
   const [client, setClient] = useState<ProxyClient>('clash')

@@ -39,7 +39,14 @@ export interface ProxyDiagnosis {
   systemProxy: string
   /** 代理软件的 TUN/增强模式在系统层接管了网络，「直连」也会经过代理节点。 */
   systemTakeover?: boolean
-  hints: string[]
+  findings: DiagnosisFinding[]
+}
+
+export interface DiagnosisFinding {
+  level: 'problem' | 'notice'
+  title: string
+  detail?: string
+  action?: 'proxy-rules' | 'apple-direct' | 'detect-proxy'
 }
 
 export interface ProxyCandidate {
@@ -104,12 +111,13 @@ export function proxyRouteLabel(route: Pick<ProxyRouteReport, 'address' | 'sourc
   return route.source === 'system' ? `系统代理 ${route.address}` : route.address
 }
 
-/** 诊断总结：一句话概括；具体结论另行逐条展示。 */
+/** 诊断总结：一句话；问题与提示另行分级展示。 */
 export function proxyDiagnosisSummary(diagnosis: ProxyDiagnosis): string {
-  // 结论在检测结果下方逐条完整显示，状态行只给一句概括，避免长句被截断。
-  if (diagnosis.hints.length) return `发现 ${diagnosis.hints.length} 个需要注意的问题，见下方`
+  const problems = diagnosis.findings.filter((finding) => finding.level === 'problem').length
+  if (problems) return `发现 ${problems} 个问题`
   const checks = diagnosis.routes.flatMap((route) => route.checks)
   const failed = checks.filter((check) => !check.ok && check.id !== 'egress')
-  if (!failed.length) return checks.some((check) => check.slow) ? '检测完成，部分平台响应较慢' : '检测完成，各平台均可访问'
-  return `无法访问：${failed.map((check) => PROXY_CHECK_LABELS[check.id]).join('、')}`
+  if (failed.length) return `无法访问：${failed.map((check) => PROXY_CHECK_LABELS[check.id]).join('、')}`
+  const notices = diagnosis.findings.length
+  return notices ? `各平台均可访问，另有 ${notices} 条提示` : '各平台均可访问'
 }

@@ -12,11 +12,10 @@ import {
   proxyCheckMessage,
   proxyDiagnosisSummary,
   proxyRouteLabel,
-  regionLabel,
   saveProxySettings,
   sameProxySettings,
   type ProxyCandidate,
-  type ProxyCheck,
+  type DiagnosisFinding,
   type ProxyCheckId,
   type ProxyDiagnosis,
   type ProxySettings,
@@ -34,39 +33,59 @@ const APPLE_PROXY_OPTIONS: { value: ProxySettings['apple']; label: string }[] = 
   { value: 'custom', label: '单独代理' },
   { value: 'direct', label: '直连' },
 ]
-const CHECK_ORDER: ProxyCheckId[] = ['netease', 'qq', 'apple', 'egress']
-const INFO_TEXT = '跟随系统：使用系统设置里的代理，代理软件开启“系统代理”后，登录窗口与搜索、曲库、播放一起生效。自定义：填写代理软件的 HTTP 或 SOCKS5 端口，例如 127.0.0.1:7890，也可以自动检测本机代理。Apple Music 可以单独选出口，避免国内节点把海外账号带回国内地区。代理软件开着 TUN/增强模式时，它在系统层接管全部流量，这里选直连也会经过代理节点，检测会标出来。'
+const PLATFORM_ORDER: Exclude<ProxyCheckId, 'egress'>[] = ['netease', 'qq', 'apple']
+const INFO_TEXT = '跟随系统：使用系统代理设置。自定义：填代理软件的 HTTP 或 SOCKS5 端口。Apple Music 可以单独选出口。代理软件开着 TUN 时，“直连”也会被它接管，可按“代理软件规则”让 Apple 直连。'
 
 type Busy = 'save' | 'diagnose' | 'detect' | null
 
-interface CheckRow {
-  id: ProxyCheckId
+interface ResultRow {
+  key: string
+  label: string
+  /** 只在与默认线路不同时显示（Apple 单独出口），避免每行重复同一条线路。 */
   route: string
-  /** 未检测时为 null。 */
-  check: ProxyCheck | null
-  /** Apple 行附带的地区说明：优先 Apple 自己判定的地区，单独出口时退回该线路的出口地区。 */
-  region: string
+  message: string
+  state: 'idle' | 'ok' | 'slow' | 'failed'
 }
 
 /**
- * 把诊断结果摊成固定四行。每行只对应一条线路：出口地区行显示默认出口，
- * Apple 单独出口时它的出口地区并入 Apple Music 行，避免一行塞两条线路被截断。
+ * 结果固定四行：首行是默认线路与出口（线路只写一次），其后三个平台只给可达性；
+ * Apple 行附带 Apple 判定的地区，单独出口时才显示自己的线路。
  */
-function checkRows(diagnosis: ProxyDiagnosis | null): CheckRow[] {
-  return CHECK_ORDER.map((id) => {
-    const route = diagnosis?.routes.find((item) => item.checks.some((check) => check.id === id) && (id !== 'egress' || item.target === 'default'))
-    const check = route?.checks.find((item) => item.id === id) ?? null
-    if (!route || !check) return { id, route: '', check: null, region: '' }
-    const egress = route.target === 'apple' && id === 'apple' ? route.checks.find((item) => item.id === 'egress') : undefined
-    const region = check.appleRegion ? `Apple 判定${appleRegionLabel(check.appleRegion)}` : egress?.ok ? `出口${regionLabel(egress.country)}` : ''
-    return { id, route: proxyRouteLabel(route, diagnosis?.systemTakeover), check, region }
-  })
+function resultRows(diagnosis: ProxyDiagnosis | null): ResultRow[] {
+  const main = diagnosis?.routes.find((route) => route.target === 'default')
+  const egress = main?.checks.find((check) => check.id === 'egress')
+  const rows: ResultRow[] = [{
+    key: 'route',
+    label: '线路',
+    route: main ? proxyRouteLabel(main, diagnosis?.systemTakeover) : '',
+    message: egress ? proxyCheckMessage(egress) : '尚未检测',
+    state: !egress ? 'idle' : egress.ok ? 'ok' : 'failed',
+  }]
+  for (const id of PLATFORM_ORDER) {
+    const route = diagnosis?.routes.find((item) => item.checks.some((check) => check.id === id))
+    const check = route?.checks.find((item) => item.id === id)
+    if (!route || !check) {
+      rows.push({ key: id, label: PROXY_CHECK_LABELS[id], route: '', message: '尚未检测', state: 'idle' })
+      continue
+    }
+    const separate = route.target === 'apple'
+    const region = check.appleRegion ? `Apple 判定${appleRegionLabel(check.appleRegion)}` : ''
+    const message = proxyCheckMessage(check)
+    rows.push({
+      key: id,
+      label: PROXY_CHECK_LABELS[id],
+      route: separate ? proxyRouteLabel(route) : '',
+      message: check.ok && region ? `${message} · ${region}` : message,
+      state: !check.ok ? 'failed' : check.slow ? 'slow' : 'ok',
+    })
+  }
+  return rows
 }
 
-function rowMessage(row: CheckRow): string {
-  if (!row.check) return ''
-  const message = proxyCheckMessage(row.check)
-  return row.check.ok && row.region ? `${message} · ${row.region}` : message
+const FINDING_ACTIONS: Record<NonNullable<DiagnosisFinding['action']>, string> = {
+  'proxy-rules': '让 Apple 直连',
+  'apple-direct': 'Apple 改为直连',
+  'detect-proxy': '自动检测代理',
 }
 
 function addressPlaceholder(mode: ProxySettings['mode'], systemProxy: string | null): string {
@@ -88,6 +107,7 @@ export function ProxySettings() {
   // 编辑或再次检测时递增；在途诊断返回时会话已变就丢弃，避免旧结果盖住新设置。
   const session = useRef(0)
   const mounted = useRef(true)
+  const rulesDialog = useRef<HTMLDialogElement>(null)
   const dirty = !sameProxySettings(proxy, saved)
   const missingAddress = (proxy.mode === 'custom' && !proxy.url.trim()) || (proxy.apple === 'custom' && !proxy.appleUrl.trim())
 
@@ -182,14 +202,25 @@ export function ProxySettings() {
       : diagnosis && stale ? `${dirty ? '有未保存的更改，' : '设置已更改，'}检测结果待重新检测`
       : dirty ? '有未保存的更改，保存后生效' : '可以检测当前设置下各平台能否访问')
   const faded = stale && busy !== 'diagnose'
-  const rows = checkRows(diagnosis)
+  const rows = resultRows(diagnosis)
+  const problems = diagnosis?.findings.filter((finding) => finding.level === 'problem') ?? []
+  const notices = diagnosis?.findings.filter((finding) => finding.level === 'notice') ?? []
+
+  function runAction(action: NonNullable<DiagnosisFinding['action']>): void {
+    if (action === 'proxy-rules') rulesDialog.current?.showModal()
+    else if (action === 'detect-proxy') void handleDetect()
+    else {
+      updateProxy({ apple: 'direct' })
+      setStatus('已改为 Apple Music 直连，保存后生效')
+    }
+  }
 
   return (
     <section id="settings-detail-proxy" className={`${page.group} ${page.storageShared}`}>
       <h3 className={page.groupTitle}>
         代理
         <span className={styles.titleActions}>
-          <ProxyRulesGuide />
+          <ProxyRulesGuide dialogRef={rulesDialog} />
           <InfoButton label="代理" text={INFO_TEXT} />
         </span>
       </h3>
@@ -261,22 +292,42 @@ export function ProxySettings() {
           </button>
         </div>
       </div>
+      {/* 主次：需要处理的问题放最前、带解决按钮；结果只列事实；提示一行小字垫底。 */}
+      {problems.length > 0 && (
+        <div className={styles.problems} data-stale={faded || undefined}>
+          {problems.map((finding) => (
+            <div key={finding.title} className={styles.problem} role="alert">
+              <div className={styles.problemText}>
+                <strong>{finding.title}</strong>
+                {finding.detail && <span>{finding.detail}</span>}
+              </div>
+              {finding.action && (
+                <button type="button" className={`${page.storageAction} ${page.actionPrimary} no-drag`} disabled={busy !== null}
+                  onClick={() => runAction(finding.action!)}>
+                  {FINDING_ACTIONS[finding.action]}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <ul className={styles.checks} aria-label="连接检测结果" aria-busy={busy === 'diagnose'} data-stale={faded || undefined}>
         {rows.map((row) => {
-          const message = busy === 'diagnose' ? '检测中…' : row.check ? rowMessage(row) : '尚未检测'
+          const message = busy === 'diagnose' ? '检测中…' : row.message
           return (
-            <li key={row.id} className={styles.check} data-state={busy === 'diagnose' ? 'running' : !row.check ? 'idle' : !row.check.ok ? 'failed' : row.check.slow ? 'slow' : 'ok'}>
-              <span className={styles.checkLabel}>{PROXY_CHECK_LABELS[row.id]}</span>
+            <li key={row.key} className={styles.check} data-state={busy === 'diagnose' ? 'running' : row.state}>
+              <span className={styles.checkLabel}>{row.label}</span>
               <span className={styles.checkRoute} title={row.route || undefined}>{row.route}</span>
               <span className={styles.checkResult} title={message}>{message}</span>
             </li>
           )
         })}
       </ul>
-      {/* 结论逐条完整显示；只在检测后出现，改设置时变淡保留，不随切换增减。 */}
-      {!!diagnosis?.hints.length && (
-        <ul className={styles.hints} aria-label="检测结论" data-stale={faded || undefined}>
-          {diagnosis.hints.map((hint) => <li key={hint}>{hint}</li>)}
+      {notices.length > 0 && (
+        <ul className={styles.notices} aria-label="检测提示" data-stale={faded || undefined}>
+          {notices.map((finding) => (
+            <li key={finding.title}>{finding.title}{finding.detail && <span>，{finding.detail}</span>}</li>
+          ))}
         </ul>
       )}
     </section>
