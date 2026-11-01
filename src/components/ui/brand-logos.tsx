@@ -4,10 +4,33 @@
 // - Apple：Simple Icons（CC0），https://simpleicons.org/icons/apple
 // - Apple Music：Wikimedia Commons，原始图标来自 Apple Inc.
 
+import { useId } from 'react'
+
 const appleMusicIconUrl = new URL('../../assets/apple-music-icon.svg', import.meta.url).href
 
 export function AppleMusicIcon({ className }: { className?: string }) {
   return <img className={className} src={appleMusicIconUrl} alt="" aria-hidden="true" />
+}
+
+/** 圆形容器用的 Apple Music 标识：官方配色与音符，外形改为圆形，避免圆框里套方形 App 图标。 */
+export function AppleMusicMark({ className }: { className?: string }) {
+  const gradientId = useId()
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FF6A7F" />
+          <stop offset="1" stopColor="#FA243C" />
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="12" fill={`url(#${gradientId})`} />
+      <g fill="#fff">
+        <path d="M9.35 8.05 16.85 6.35v8.4h-1.1V8.6l-5.3 1.2v6.55h-1.2Z" />
+        <ellipse cx="8.15" cy="16.45" rx="2.2" ry="1.7" transform="rotate(-18 8.15 16.45)" />
+        <ellipse cx="14.65" cy="14.85" rx="2.2" ry="1.7" transform="rotate(-18 14.65 14.85)" />
+      </g>
+    </svg>
+  )
 }
 
 export function AppleLogo({ className }: { className?: string }) {
