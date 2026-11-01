@@ -17,6 +17,8 @@ export interface ProxyCheck {
   error?: string
   /** 能访问但响应过慢（超过 SLOW_CHECK_MS）：实际使用会卡顿，单独提示。 */
   slow?: boolean
+  /** Apple 检查才有：Apple 按本次出口判定的地区（官网首页跳转地址里的两位地区码，小写）。 */
+  appleRegion?: string
   /** 出口检查才有：出口 IP 与两位国家/地区码（大写）。 */
   ip?: string
   country?: string
@@ -120,9 +122,29 @@ async function checkSite(id: Exclude<ProxyCheckId, 'egress'>, dispatcher: Dispat
     const elapsedMs = Date.now() - startedAt
     if (response.status === 407) return { id, ok: false, elapsedMs, status: 407, error: '代理需要认证或账号密码不正确' }
     if (response.status >= 500) return { id, ok: false, elapsedMs, status: response.status, error: `服务器返回 ${response.status}` }
-    return { id, ok: true, elapsedMs, status: response.status, ...(elapsedMs > SLOW_CHECK_MS ? { slow: true } : {}) }
+    const appleRegion = id === 'apple' ? appleRegionFromLocation(response.headers.get('location')) : ''
+    return {
+      id, ok: true, elapsedMs, status: response.status,
+      ...(elapsedMs > SLOW_CHECK_MS ? { slow: true } : {}),
+      ...(appleRegion ? { appleRegion } : {}),
+    }
   } catch (error) {
     return { id, ok: false, elapsedMs: Date.now() - startedAt, error: describeNetworkError(error, viaProxy) }
+  }
+}
+
+/**
+ * music.apple.com 首页会按访问者 IP 301 到 `/{地区}/new`；这个地区就是 Apple 实际看到的位置，
+ * 比通用出口检测更能说明 Apple Music 是否经过了代理。
+ */
+export function appleRegionFromLocation(location: string | null): string {
+  if (!location) return ''
+  try {
+    const url = new URL(location, CHECK_URLS.apple)
+    if (url.hostname !== 'music.apple.com') return ''
+    return /^\/([a-z]{2})(?:\/|$)/.exec(url.pathname)?.[1] ?? ''
+  } catch {
+    return ''
   }
 }
 
@@ -234,7 +256,7 @@ export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, setting
   if (diagnosis.systemTakeover && directRoutes.length) {
     // 「直连」并不真的直连：先说清楚，后面的出口地区结论才不会被误读。
     const country = directRoutes.map(egressOf).find(Boolean)
-    hints.push(`检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点${country ? `（实际出口在${regionName(country)}）` : ''}；要真正直连，请在代理软件里关闭 TUN，或为相关域名设置直连规则`)
+    hints.push(`检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点${country ? `（实际出口在${regionName(country)}）` : ''}；要真正直连，请在代理软件里关闭 TUN，或按“代理软件规则”给 Apple Music 等域名设置直连`)
   } else if (settings.mode === 'system' && !diagnosis.systemProxy) {
     hints.push('系统当前没有开启代理，跟随系统等同直连')
   }
@@ -267,9 +289,13 @@ export function diagnosisHints(diagnosis: Omit<ProxyDiagnosis, 'hints'>, setting
   if (mainCountry && mainCountry !== 'CN') {
     hints.push(`默认出口在${regionName(mainCountry)}，网易云与 QQ 音乐的部分歌曲可能因版权地区限制无法播放`)
   }
-  const appleCountry = egressOf(apple)
-  if (storefront && appleCountry && appleCountry.toLowerCase() !== storefront) {
-    hints.push(`Apple Music 账号地区为${regionName(storefront)}，当前出口在${regionName(appleCountry)}，登录页与曲库可能被带到出口所在地区`)
+  // 优先用 Apple 自己判定的地区；拿不到（请求失败）再退回通用出口地区。
+  const appleRegion = apple?.checks.find((check) => check.id === 'apple' && check.ok)?.appleRegion ?? ''
+  const appleSeen = appleRegion || egressOf(apple).toLowerCase()
+  if (storefront && appleSeen && appleSeen !== storefront) {
+    hints.push(appleRegion
+      ? `Apple 判定你在${regionName(appleRegion)}，与账号地区${regionName(storefront)}不一致，Apple Music 可能正经过代理，登录页与曲库会被带到${regionName(appleRegion)}；可按“代理软件规则”让 Apple 直连`
+      : `Apple Music 账号地区为${regionName(storefront)}，当前出口在${regionName(appleSeen)}，登录页与曲库可能被带到出口所在地区`)
   }
   return hints
 }

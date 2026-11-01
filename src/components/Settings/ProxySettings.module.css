@@ -1,3 +1,6 @@
+/* 标题栏右侧：规则引导入口与说明按钮。 */
+.titleActions { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 400; letter-spacing: 0; }
+
 /* 地址输入与行内按钮同一行；窄窗口时输入框收缩，按钮不换行。 */
 .addressControls {
   display: flex;

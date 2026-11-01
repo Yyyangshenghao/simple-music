@@ -19,6 +19,8 @@ export interface ProxyCheck {
   status?: number
   error?: string
   slow?: boolean
+  /** Apple 检查才有：Apple 按出口判定的地区（小写两位码）。 */
+  appleRegion?: string
   ip?: string
   country?: string
 }

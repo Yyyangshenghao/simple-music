@@ -11,7 +11,7 @@ vi.mock('./upstream-proxy', async (importOriginal) => ({
   withProbeDispatcher: async (address: string, run: (d: unknown) => Promise<unknown>) => { h.probes.push(address); return run({ address }) },
 }))
 
-import { describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisHints, isFakeIp, parseTrace } from './proxy-diagnostics'
+import { appleRegionFromLocation, describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisHints, isFakeIp, parseTrace } from './proxy-diagnostics'
 
 // 默认不让本机真实网络（例如开着 TUN）影响断言。
 const clean = { lookup: async () => ['59.111.160.195'], interfaces: () => ['192.168.1.2'] }
@@ -39,7 +39,7 @@ function listen(): Promise<number> {
 }
 
 function respondAll(trace = 'ip=1.2.3.4\nloc=US\n') {
-  h.fetch.mockImplementation(async (url: string) => ({ ok: true, status: url.includes('trace') ? 200 : 301, text: async () => trace }))
+  h.fetch.mockImplementation(async (url: string) => ({ ok: true, status: url.includes('trace') ? 200 : 301, text: async () => trace, headers: new Headers() }))
 }
 
 describe('网络错误翻译', () => {
@@ -102,10 +102,32 @@ describe('代理诊断', () => {
   })
 
   it('站点返回 407/5xx 记为失败', async () => {
-    h.fetch.mockImplementation(async (url: string) => ({ ok: false, status: url.includes('163') ? 407 : 503, text: async () => '' }))
+    h.fetch.mockImplementation(async (url: string) => ({ ok: false, status: url.includes('163') ? 407 : 503, text: async () => '', headers: new Headers() }))
     const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     expect(result.routes[0].checks[0]).toMatchObject({ ok: false, error: '代理需要认证或账号密码不正确' })
     expect(result.routes[0].checks[1]).toMatchObject({ ok: false, error: '服务器返回 503' })
+  })
+})
+
+describe('Apple 判定地区', () => {
+  it('从首页跳转地址解析地区，忽略非 Apple 跳转', () => {
+    expect(appleRegionFromLocation('https://music.apple.com/us/new')).toBe('us')
+    expect(appleRegionFromLocation('/jp/new')).toBe('jp')
+    expect(appleRegionFromLocation('https://music.apple.com/cn')).toBe('cn')
+    expect(appleRegionFromLocation('https://evil.example/us/new')).toBe('')
+    expect(appleRegionFromLocation('https://music.apple.com/browse')).toBe('')
+    expect(appleRegionFromLocation(null)).toBe('')
+  })
+
+  it('Apple 判定地区与账号不一致时引导到代理软件规则', async () => {
+    writeFileSync(join(dir, 'apple-music-storefront'), 'cn')
+    h.fetch.mockImplementation(async (url: string) => ({
+      ok: true, status: url.includes('trace') ? 200 : 301, text: async () => 'ip=1.2.3.4\nloc=CN\n',
+      headers: new Headers(url.includes('music.apple.com') ? { location: 'https://music.apple.com/us/new' } : {}),
+    }))
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
+    expect(result.routes[0].checks.find((check) => check.id === 'apple')).toMatchObject({ appleRegion: 'us' })
+    expect(result.hints).toEqual(['Apple 判定你在美国，与账号地区中国不一致，Apple Music 可能正经过代理，登录页与曲库会被带到美国；可按“代理软件规则”让 Apple 直连'])
   })
 })
 
@@ -115,7 +137,7 @@ describe('响应过慢', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
     h.fetch.mockImplementation(async (url: string) => {
       if (url.includes('apple')) await new Promise((resolve) => setTimeout(resolve, 7314))
-      return { ok: true, status: 200, text: async () => 'ip=1.2.3.4\nloc=CN\n' }
+      return { ok: true, status: 200, text: async () => 'ip=1.2.3.4\nloc=CN\n', headers: new Headers() }
     })
     const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
     await vi.advanceTimersByTimeAsync(7314)
@@ -158,7 +180,7 @@ describe('系统级接管（TUN）', () => {
     const tun = { lookup: async () => ['198.18.0.6'], interfaces: () => [] }
     const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, '', tun)
     expect(result.systemTakeover).toBe(true)
-    expect(result.hints[0]).toBe('检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点（实际出口在美国）；要真正直连，请在代理软件里关闭 TUN，或为相关域名设置直连规则')
+    expect(result.hints[0]).toBe('检测到代理软件的 TUN/增强模式接管了系统网络，选“直连”的流量也会经过代理节点（实际出口在美国）；要真正直连，请在代理软件里关闭 TUN，或按“代理软件规则”给 Apple Music 等域名设置直连')
     expect(result.hints.some((hint) => hint.includes('系统当前没有开启代理'))).toBe(false)
   })
 

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { InfoButton } from '../ui/InfoButton'
+import { appleRegionLabel } from '../../lib/apple-music-regions'
+import { ProxyRulesGuide } from './ProxyRulesGuide'
 import {
   DEFAULT_PROXY_SETTINGS,
   PROXY_CHECK_LABELS,
@@ -42,7 +44,7 @@ interface CheckRow {
   route: string
   /** 未检测时为 null。 */
   check: ProxyCheck | null
-  /** Apple 单独出口时，Apple 行附带该线路的出口地区。 */
+  /** Apple 行附带的地区说明：优先 Apple 自己判定的地区，单独出口时退回该线路的出口地区。 */
   region: string
 }
 
@@ -56,7 +58,7 @@ function checkRows(diagnosis: ProxyDiagnosis | null): CheckRow[] {
     const check = route?.checks.find((item) => item.id === id) ?? null
     if (!route || !check) return { id, route: '', check: null, region: '' }
     const egress = route.target === 'apple' && id === 'apple' ? route.checks.find((item) => item.id === 'egress') : undefined
-    const region = egress?.ok ? regionLabel(egress.country) : ''
+    const region = check.appleRegion ? `Apple 判定${appleRegionLabel(check.appleRegion)}` : egress?.ok ? `出口${regionLabel(egress.country)}` : ''
     return { id, route: proxyRouteLabel(route, diagnosis?.systemTakeover), check, region }
   })
 }
@@ -64,7 +66,7 @@ function checkRows(diagnosis: ProxyDiagnosis | null): CheckRow[] {
 function rowMessage(row: CheckRow): string {
   if (!row.check) return ''
   const message = proxyCheckMessage(row.check)
-  return row.check.ok && row.region ? `${message} · 出口${row.region}` : message
+  return row.check.ok && row.region ? `${message} · ${row.region}` : message
 }
 
 function addressPlaceholder(mode: ProxySettings['mode'], systemProxy: string | null): string {
@@ -186,7 +188,10 @@ export function ProxySettings() {
     <section id="settings-detail-proxy" className={`${page.group} ${page.storageShared}`}>
       <h3 className={page.groupTitle}>
         代理
-        <InfoButton label="代理" text={INFO_TEXT} />
+        <span className={styles.titleActions}>
+          <ProxyRulesGuide />
+          <InfoButton label="代理" text={INFO_TEXT} />
+        </span>
       </h3>
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>代理模式</span>

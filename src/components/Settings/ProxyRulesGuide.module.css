@@ -1,0 +1,58 @@
+.lead { margin: 0 0 14px; color: var(--sm-text-primary); font-size: 13px; line-height: 1.7; }
+
+.clients {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 2px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-bg-base);
+}
+.client {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+.client:hover { color: var(--sm-text-primary); }
+.clientActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+
+.block { margin-top: 16px; }
+.blockHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.blockHeading h3 { margin: 0; color: var(--sm-text-primary); font-size: 13px; font-weight: 600; }
+
+.copy {
+  flex-shrink: 0;
+  min-width: 64px;
+  padding: 5px 12px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.copy:hover { background: var(--sm-bg-overlay); }
+
+/* 规则原样显示，可手动选中复制；长行横向滚动而不是折行，避免改变规则文本。 */
+.code {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--sm-border);
+  border-radius: 10px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font-family: var(--sm-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  user-select: text;
+  white-space: pre;
+}

@@ -460,6 +460,9 @@ describe('设置分类导航', () => {
     expect(html).toMatch(/<button[^>]*disabled[^>]*>保存/)
     expect(html).toContain('aria-label="连接检测结果"')
     for (const label of ['网易云音乐', 'QQ 音乐', 'Apple Music', '出口地区']) expect(html).toContain(label)
+    // TUN 下应用绕不开代理：标题栏提供代理软件规则引导
+    expect(html).toContain('代理软件规则')
+    expect(html).toContain('- DOMAIN-SUFFIX,apple.com,DIRECT')
   })
 
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
