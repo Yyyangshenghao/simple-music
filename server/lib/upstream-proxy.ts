@@ -1,6 +1,6 @@
 import { isIP } from 'node:net'
 import { Dispatcher, ProxyAgent, Socks5ProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
-import { DEFAULT_PROXY_SETTINGS, environmentProxy, nodeProxyAddress, type ProxySettings, type ProxyTarget } from './proxy-config'
+import { DEFAULT_PROXY_SETTINGS, environmentSystemProxy, nodeProxyAddress, type ProxySettings, type ProxyTarget, type SystemProxyAddresses } from './proxy-config'
 
 // 上游请求统一由 undici 的全局 dispatcher 承载：server 内二十多处 fetch 无需逐个改造，
 // 测试里 stubGlobal('fetch') 的写法也继续有效。
@@ -10,7 +10,7 @@ const MAX_AGENTS = 8
 let appliedAddress: string | null = null
 let currentSettings: ProxySettings = { ...DEFAULT_PROXY_SETTINGS }
 // 宿主（Electron）解析出的系统代理；独立 server 没有宿主，只能读环境变量。
-let systemAddress: string | null = null
+let systemAddresses: SystemProxyAddresses | null = null
 
 /** 本机与局域网地址一律直连：开发态 Chrome 调试端口、局域网 NAS 之类不能被代理绕走。 */
 export function isLocalNetworkHost(hostname: string): boolean {
@@ -78,27 +78,23 @@ function dispatcherForAddress(address: string): Dispatcher {
   return agent
 }
 
-function resolvedSystemAddress(): string {
-  return systemAddress ?? environmentProxy()
+function resolvedSystemAddresses(): SystemProxyAddresses {
+  return systemAddresses ?? environmentSystemProxy()
 }
 
 /** 某个出口当前实际使用的代理地址；空字符串表示直连。 */
 export function upstreamProxyAddress(target: ProxyTarget = 'default'): string {
-  return nodeProxyAddress(currentSettings, target, resolvedSystemAddress())
+  return nodeProxyAddress(currentSettings, target, resolvedSystemAddresses())
 }
 
 /** 草稿设置（尚未保存）下某个出口会用的地址，供诊断使用；`system` 用调用方给的最新系统代理。 */
-export function draftProxyAddress(settings: ProxySettings, target: ProxyTarget, system = resolvedSystemAddress()): string {
+export function draftProxyAddress(settings: ProxySettings, target: ProxyTarget, system = resolvedSystemAddresses()): string {
   return nodeProxyAddress(settings, target, system)
 }
 
-export function currentProxySettings(): ProxySettings {
-  return { ...currentSettings }
-}
-
-/** 当前已知的系统代理地址（宿主解析结果，缺省为环境变量）。 */
-export function systemProxyAddress(): string {
-  return resolvedSystemAddress()
+/** 当前已知的系统代理（宿主按出口解析的结果，缺省为环境变量）。 */
+export function systemProxyAddresses(): SystemProxyAddresses {
+  return { ...resolvedSystemAddresses() }
 }
 
 function reapply(): void {
@@ -114,9 +110,9 @@ export function applyUpstreamProxy(settings: ProxySettings): void {
   reapply()
 }
 
-/** 宿主解析到新的系统代理（用户在代理软件里开关了系统代理）时调用；只影响 system 模式。 */
-export function setSystemProxyAddress(address: string): void {
-  systemAddress = address
+/** 宿主解析到新的系统代理（用户在代理软件里开关了系统代理）时调用；只影响跟随系统的出口。 */
+export function setSystemProxyAddresses(addresses: SystemProxyAddresses): void {
+  systemAddresses = { ...addresses }
   reapply()
 }
 

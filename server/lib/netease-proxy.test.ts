@@ -38,6 +38,17 @@ describe('网易 NCM 请求的代理出口', () => {
     expect((config.httpsAgent as SocksProxyAgent).shouldLookup).toBe(false)
   })
 
+  it('换地址后旧 agent 留出在途时间再销毁，不留长连接', () => {
+    vi.useFakeTimers()
+    const old = applyNeteaseProxy({ url: 'https://music.163.com/x' }, 'http://127.0.0.1:7001').httpsAgent as HttpsProxyAgent<string>
+    const destroy = vi.spyOn(old, 'destroy')
+    applyNeteaseProxy({ url: 'https://music.163.com/x' }, 'http://127.0.0.1:7002')
+    expect(destroy).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(60_000)
+    expect(destroy).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
   it('非网易请求不受影响', () => {
     const config = { url: 'https://example.com/x', httpsAgent: 'other' }
     expect(applyNeteaseProxy(config, 'http://127.0.0.1:7890')).toEqual({ url: 'https://example.com/x', httpsAgent: 'other' })

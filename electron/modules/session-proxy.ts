@@ -1,5 +1,5 @@
 import { app, powerMonitor, session, type AuthInfo } from 'electron'
-import { DEFAULT_PROXY_SETTINGS, electronProxyRules, parsePacResult, proxyCredentials, type ProxySettings } from '../../server/lib/proxy-config'
+import { DEFAULT_PROXY_SETTINGS, electronProxyRules, parsePacResult, proxyCredentials, type ProxySettings, type SystemProxyAddresses } from '../../server/lib/proxy-config'
 
 const APPLE_PARTITION = 'persist:simplemusic-apple-music'
 // setProxy 只在单个会话上生效，不会从 defaultSession 继承；登录窗口与播放宿主各有独立分区。
@@ -10,7 +10,8 @@ const SHARED_PARTITIONS = [
 ]
 // 只用来读系统代理的内存分区：始终保持 system 模式，不受用户选的自定义代理影响。
 const PROBE_PARTITION = 'simplemusic-proxy-probe'
-const PROBE_URL = 'https://music.163.com/'
+// 分别代表两个出口：PAC/分流规则常让国内域名直连、海外域名走代理。
+const PROBE_URLS: Record<keyof SystemProxyAddresses, string> = { default: 'https://music.163.com/', apple: 'https://music.apple.com/' }
 const WATCH_INTERVAL_MS = 30_000
 const FOCUS_THROTTLE_MS = 5_000
 const AUTH_RETRY_WINDOW_MS = 10_000
@@ -33,21 +34,22 @@ export function applySessionProxy(settings: ProxySettings): Promise<void> {
   return Promise.all(pending).then(() => {})
 }
 
-/** 解析系统代理（含 PAC/自动配置），返回代理地址；空字符串表示系统未设代理。 */
-export async function resolveSystemProxy(): Promise<string> {
+/** 按出口解析系统代理（含 PAC/自动配置）；空字符串表示该出口系统让它直连。 */
+export async function resolveSystemProxy(): Promise<SystemProxyAddresses> {
   const probe = session.fromPartition(PROBE_PARTITION)
   probeReady ??= probe.setProxy({ mode: 'system' })
   await probeReady
   // 用户可能刚在代理软件里开关系统代理；强制重读，避免拿到 Chromium 缓存的旧配置。
   await probe.forceReloadProxyConfig()
-  return parsePacResult(await probe.resolveProxy(PROBE_URL))
+  const [main, apple] = await Promise.all([probe.resolveProxy(PROBE_URLS.default), probe.resolveProxy(PROBE_URLS.apple)])
+  return { default: parsePacResult(main), apple: parsePacResult(apple) }
 }
 
 /**
  * 盯住系统代理变化：定时、窗口获焦与唤醒后各重读一次，变了才回调。
  * Chromium 会话自己跟随系统，这里是为了让 Node 侧的数据请求同步切换。
  */
-export function watchSystemProxy(onChange: (address: string) => void): () => void {
+export function watchSystemProxy(onChange: (addresses: SystemProxyAddresses) => void): () => void {
   let last: string | null = null
   let lastRun = 0
   let running = false
@@ -56,10 +58,11 @@ export function watchSystemProxy(onChange: (address: string) => void): () => voi
     running = true
     lastRun = Date.now()
     try {
-      const address = await resolveSystemProxy()
-      if (address !== last) {
-        last = address
-        onChange(address)
+      const addresses = await resolveSystemProxy()
+      const key = `${addresses.default}|${addresses.apple}`
+      if (key !== last) {
+        last = key
+        onChange(addresses)
       }
     } catch { /* 读取失败保留上次结果 */ } finally {
       running = false

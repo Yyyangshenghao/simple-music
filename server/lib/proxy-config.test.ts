@@ -111,14 +111,16 @@ describe('出口规则', () => {
     expect(nodeProxyAddress(DEFAULT_PROXY_SETTINGS)).toBe('')
     process.env.HTTPS_PROXY = '127.0.0.1:8888'
     expect(nodeProxyAddress(DEFAULT_PROXY_SETTINGS)).toBe('http://127.0.0.1:8888')
-    expect(nodeProxyAddress(DEFAULT_PROXY_SETTINGS, 'default', 'socks5://127.0.0.1:7891')).toBe('socks5://127.0.0.1:7891')
-    expect(nodeProxyAddress({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, 'default', 'http://x:1')).toBe('')
+    expect(nodeProxyAddress(DEFAULT_PROXY_SETTINGS, 'default', { default: 'socks5://127.0.0.1:7891', apple: '' })).toBe('socks5://127.0.0.1:7891')
+    // PAC 分流：跟随系统时两个出口各取各的系统代理。
+    expect(nodeProxyAddress(DEFAULT_PROXY_SETTINGS, 'apple', { default: '', apple: 'http://127.0.0.1:7890' })).toBe('http://127.0.0.1:7890')
+    expect(nodeProxyAddress({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, 'default', { default: 'http://x:1', apple: 'http://x:1' })).toBe('')
 
     const settings = { mode: 'custom' as const, url: 'http://127.0.0.1:7890', apple: 'direct' as const, appleUrl: '' }
     expect(nodeProxyAddress(settings)).toBe('http://127.0.0.1:7890')
     expect(nodeProxyAddress(settings, 'apple')).toBe('')
     expect(nodeProxyAddress({ ...settings, apple: 'custom', appleUrl: 'http://127.0.0.1:7891' }, 'apple')).toBe('http://127.0.0.1:7891')
-    expect(nodeProxyAddress({ ...settings, mode: 'system', apple: 'inherit' }, 'apple', 'http://127.0.0.1:1')).toBe('http://127.0.0.1:1')
+    expect(nodeProxyAddress({ ...settings, mode: 'system', apple: 'inherit' }, 'apple', { default: '', apple: 'http://127.0.0.1:1' })).toBe('http://127.0.0.1:1')
   })
 
   it('解析 Chromium 的 PAC 结果', () => {

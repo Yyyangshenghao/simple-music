@@ -4,7 +4,7 @@ import { connect, isIPv4 } from 'node:net'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import type { Dispatcher } from 'undici'
-import { stripProxyCredentials, type ProxySettings, type ProxyTarget } from './proxy-config'
+import { stripProxyCredentials, type ProxySettings, type ProxyTarget, type SystemProxyAddresses } from './proxy-config'
 import { draftProxyAddress, withProbeDispatcher } from './upstream-proxy'
 
 export type ProxyCheckId = 'netease' | 'qq' | 'apple' | 'egress'
@@ -38,8 +38,10 @@ export interface ProxyRouteReport {
 
 export interface ProxyDiagnosis {
   routes: ProxyRouteReport[]
-  /** 主进程解析到的系统代理（跟随系统时的真实出口）；空字符串表示系统未设代理。 */
+  /** 主进程解析到的系统代理（默认出口，网易域名）；空字符串表示系统让它直连。 */
   systemProxy: string
+  /** Apple 出口的系统代理（Apple 域名）；PAC/分流时可能与默认出口不同。 */
+  systemProxyApple?: string
   /**
    * 代理软件以 TUN/增强模式在系统层接管了网络：应用选「直连」的流量同样会被导到代理节点。
    * 依据是域名被解析成 fake-ip（198.18.0.0/15）或本机存在该网段的虚拟网卡。
@@ -247,7 +249,7 @@ function readStorefront(userDataDir: string): string {
 
 let regionNames: Intl.DisplayNames | null | undefined
 // 系统语言给的全称（如“中国香港特别行政区”）放在短结论里太长，常见地区用短名。
-const SHORT_REGION_NAMES: Record<string, string> = { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' }
+const SHORT_REGION_NAMES: Record<string, string> = { CN: '中国大陆', HK: '中国香港', MO: '中国澳门', TW: '中国台湾' }
 export function regionName(code: string): string {
   const short = SHORT_REGION_NAMES[code.toUpperCase()]
   if (short) return short
@@ -293,7 +295,7 @@ export function diagnosisFindings(diagnosis: Omit<ProxyDiagnosis, 'findings'>, s
     }
   }
 
-  if (settings.mode === 'system' && !diagnosis.systemProxy && !diagnosis.systemTakeover) {
+  if (settings.mode === 'system' && !diagnosis.systemProxy && !diagnosis.systemProxyApple && !diagnosis.systemTakeover) {
     notices.push({ level: 'notice', title: '系统没有开代理，跟随系统等于直连' })
   }
   for (const route of diagnosis.routes) {
@@ -315,7 +317,7 @@ export function diagnosisFindings(diagnosis: Omit<ProxyDiagnosis, 'findings'>, s
  * 按草稿设置（不必先保存）诊断每个出口：代理端口、网易/QQ/Apple 可达性与出口地区。
  * Apple 出口与默认出口相同时合并成一条，避免重复请求。
  */
-export async function diagnoseProxy(settings: ProxySettings, userDataDir: string, systemProxy: string, probe?: TakeoverProbe): Promise<ProxyDiagnosis> {
+export async function diagnoseProxy(settings: ProxySettings, userDataDir: string, systemProxy: SystemProxyAddresses, probe?: TakeoverProbe): Promise<ProxyDiagnosis> {
   const defaultAddress = draftProxyAddress(settings, 'default', systemProxy)
   const appleAddress = draftProxyAddress(settings, 'apple', systemProxy)
   const separateApple = appleAddress !== defaultAddress
@@ -324,6 +326,6 @@ export async function diagnoseProxy(settings: ProxySettings, userDataDir: string
     diagnoseRoute(settings, 'default', defaultAddress, separateApple ? ['netease', 'qq'] : ['netease', 'qq', 'apple']),
     ...(separateApple ? [diagnoseRoute(settings, 'apple', appleAddress, ['apple'])] : []),
   ])
-  const partial = { routes, systemProxy: stripProxyCredentials(systemProxy), systemTakeover }
+  const partial = { routes, systemProxy: stripProxyCredentials(systemProxy.default), systemProxyApple: stripProxyCredentials(systemProxy.apple), systemTakeover }
   return { ...partial, findings: diagnosisFindings(partial, settings, readStorefront(userDataDir)) }
 }

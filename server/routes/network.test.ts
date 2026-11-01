@@ -10,13 +10,13 @@ import { readProxySettings } from '../lib/proxy-config'
 const h = vi.hoisted(() => ({
   applyUpstream: vi.fn(),
   setSystem: vi.fn(),
-  diagnose: vi.fn(async () => ({ routes: [], systemProxy: '', hints: [] })),
+  diagnose: vi.fn(async () => ({ routes: [], systemProxy: '', findings: [] })),
   detect: vi.fn(async () => [{ address: 'http://127.0.0.1:7890', source: 'scan', label: 'Clash' }]),
 }))
 vi.mock('../lib/upstream-proxy', () => ({
   applyUpstreamProxy: h.applyUpstream,
-  setSystemProxyAddress: h.setSystem,
-  systemProxyAddress: () => 'http://127.0.0.1:1111',
+  setSystemProxyAddresses: h.setSystem,
+  systemProxyAddresses: () => ({ default: 'http://127.0.0.1:1111', apple: 'http://127.0.0.1:1111' }),
 }))
 vi.mock('../lib/proxy-diagnostics', () => ({ diagnoseProxy: h.diagnose }))
 vi.mock('../lib/proxy-detect', () => ({ detectProxyCandidates: h.detect }))
@@ -27,15 +27,17 @@ beforeEach(() => {
   vi.clearAllMocks()
   applied = 0
   resolveSystemProxy = undefined
+  sessionFails = false
   dir = mkdtempSync(join(tmpdir(), 'sm-network-'))
 })
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-let resolveSystemProxy: (() => Promise<string>) | undefined
+let resolveSystemProxy: (() => Promise<{ default: string; apple: string }>) | undefined
+let sessionFails = false
 function ctx() {
-  return { userDataDir: dir, port: 0, applySessionProxy: vi.fn(() => { applied++ }), resolveSystemProxy }
+  return { userDataDir: dir, port: 0, applySessionProxy: vi.fn(async () => { applied++; if (sessionFails) throw new Error('setProxy') }), resolveSystemProxy }
 }
 
 async function call(path: string, method = 'GET', body?: unknown) {
@@ -67,31 +69,39 @@ describe('代理设置接口', () => {
     expect(readProxySettings(dir)).toMatchObject({ mode: 'system' })
   })
 
+  it('窗口侧应用失败时说明已保存并提示重启', async () => {
+    sessionFails = true
+    const result = await call('/api/network/proxy', 'POST', { mode: 'direct' })
+    expect(result).toMatchObject({ status: 500, body: { error: '已保存，但登录窗口未能应用新代理，请重启应用后生效' } })
+    expect(readProxySettings(dir)).toMatchObject({ mode: 'direct' })
+    expect(h.applyUpstream).toHaveBeenCalled()
+  })
+
   it('自定义却没填地址时拒绝保存', async () => {
     expect((await call('/api/network/proxy', 'POST', { mode: 'custom', url: '' })).body).toMatchObject({ error: '请填写代理地址' })
     expect(h.applyUpstream).not.toHaveBeenCalled()
   })
 
   it('诊断用草稿设置与现取的系统代理，并同步给 Node 侧', async () => {
-    resolveSystemProxy = vi.fn(async () => 'http://u:p@127.0.0.1:7890')
+    resolveSystemProxy = vi.fn(async () => ({ default: 'http://u:p@127.0.0.1:7890', apple: 'http://u:p@127.0.0.1:7890' }))
     const settings = { mode: 'system', url: '', apple: 'inherit', appleUrl: '' }
     expect((await call('/api/network/proxy/diagnose', 'POST', { settings })).status).toBe(200)
-    expect(h.diagnose).toHaveBeenCalledWith(settings, dir, 'http://u:p@127.0.0.1:7890')
-    expect(h.setSystem).toHaveBeenCalledWith('http://u:p@127.0.0.1:7890')
+    expect(h.diagnose).toHaveBeenCalledWith(settings, dir, { default: 'http://u:p@127.0.0.1:7890', apple: 'http://u:p@127.0.0.1:7890' })
+    expect(h.setSystem).toHaveBeenCalledWith({ default: 'http://u:p@127.0.0.1:7890', apple: 'http://u:p@127.0.0.1:7890' })
     expect((await call('/api/network/proxy/diagnose', 'POST', { settings: { mode: 'bad' } })).status).toBe(400)
   })
 
   it('没有宿主或宿主读取失败时沿用已知系统代理', async () => {
     await call('/api/network/proxy/diagnose', 'POST', { settings: {} })
-    expect(h.diagnose).toHaveBeenLastCalledWith(expect.anything(), dir, 'http://127.0.0.1:1111')
+    expect(h.diagnose).toHaveBeenLastCalledWith(expect.anything(), dir, { default: 'http://127.0.0.1:1111', apple: 'http://127.0.0.1:1111' })
     resolveSystemProxy = vi.fn(async () => { throw new Error('boom') })
     await call('/api/network/proxy/diagnose', 'POST', { settings: {} })
-    expect(h.diagnose).toHaveBeenLastCalledWith(expect.anything(), dir, 'http://127.0.0.1:1111')
+    expect(h.diagnose).toHaveBeenLastCalledWith(expect.anything(), dir, { default: 'http://127.0.0.1:1111', apple: 'http://127.0.0.1:1111' })
   })
 
   it('读取系统代理时去掉账号密码', async () => {
-    resolveSystemProxy = vi.fn(async () => 'http://u:p@127.0.0.1:7890')
-    expect((await call('/api/network/proxy/system')).body).toEqual({ address: 'http://127.0.0.1:7890' })
+    resolveSystemProxy = vi.fn(async () => ({ default: 'http://u:p@127.0.0.1:7890', apple: 'http://u:p@127.0.0.1:7890' }))
+    expect((await call('/api/network/proxy/system')).body).toEqual({ address: 'http://127.0.0.1:7890', apple: 'http://127.0.0.1:7890' })
   })
 
   it('自动检测返回候选', async () => {

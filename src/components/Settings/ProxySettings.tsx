@@ -19,6 +19,7 @@ import {
   type ProxyCheckId,
   type ProxyDiagnosis,
   type ProxySettings,
+  type SystemProxyInfo,
 } from '../../lib/network-settings'
 import page from '../../pages/SettingsPage.module.css'
 import styles from './ProxySettings.module.css'
@@ -88,16 +89,20 @@ const FINDING_ACTIONS: Record<NonNullable<DiagnosisFinding['action']>, string> =
   'detect-proxy': '自动检测代理',
 }
 
-function addressPlaceholder(mode: ProxySettings['mode'], systemProxy: string | null): string {
+function addressPlaceholder(mode: ProxySettings['mode'], systemProxy: SystemProxyInfo | null): string {
   if (mode === 'direct') return '直连不经过代理'
-  if (mode === 'system') return systemProxy === null ? '正在读取系统代理…' : '系统未设置代理'
+  if (mode === 'system') {
+    if (!systemProxy) return '正在读取系统代理…'
+    // PAC/分流：国内直连、Apple 走代理，地址框里直接说清楚两边。
+    return systemProxy.apple ? `国内平台直连，Apple 走 ${systemProxy.apple}` : '系统未设置代理'
+  }
   return '127.0.0.1:7890'
 }
 
 export function ProxySettings() {
   const [proxy, setProxy] = useState<ProxySettings>(DEFAULT_PROXY_SETTINGS)
   const [saved, setSaved] = useState<ProxySettings>(DEFAULT_PROXY_SETTINGS)
-  const [systemProxy, setSystemProxy] = useState<string | null>(null)
+  const [systemProxy, setSystemProxy] = useState<SystemProxyInfo | null>(null)
   const [candidates, setCandidates] = useState<ProxyCandidate[]>([])
   const [diagnosis, setDiagnosis] = useState<ProxyDiagnosis | null>(null)
   // 改了设置后旧结果仍保留但变淡：清空会让结论区忽有忽无，面板跟着跳。
@@ -124,10 +129,10 @@ export function ProxySettings() {
 
   async function refreshSystemProxy(): Promise<void> {
     try {
-      const address = await loadSystemProxy()
-      if (mounted.current) setSystemProxy(address)
+      const info = await loadSystemProxy()
+      if (mounted.current) setSystemProxy(info)
     } catch {
-      if (mounted.current) setSystemProxy('')
+      if (mounted.current) setSystemProxy({ address: '', apple: '' })
     }
   }
 
@@ -148,7 +153,7 @@ export function ProxySettings() {
       if (!mounted.current || id !== session.current) return
       setDiagnosis(result)
       setStale(false)
-      setSystemProxy(result.systemProxy)
+      setSystemProxy({ address: result.systemProxy, apple: result.systemProxyApple ?? result.systemProxy })
       setStatus(`${prefix}${proxyDiagnosisSummary(result)}`)
     } catch (error) {
       if (mounted.current && id === session.current) setStatus(error instanceof Error ? error.message : '检测失败，请重试')
@@ -242,8 +247,8 @@ export function ProxySettings() {
           {/* 地址行常驻：切换模式时只切换可编辑状态，布局高度不变。跟随系统时显示系统当前代理。 */}
           <input className={page.proxyInput} spellCheck={false} aria-label="代理地址" list="proxy-candidates"
             disabled={proxy.mode !== 'custom'}
-            value={proxy.mode === 'custom' ? proxy.url : proxy.mode === 'system' ? systemProxy ?? '' : ''}
-            title={proxy.mode === 'system' && systemProxy ? `系统当前代理：${systemProxy}` : undefined}
+            value={proxy.mode === 'custom' ? proxy.url : proxy.mode === 'system' ? systemProxy?.address ?? '' : ''}
+            title={proxy.mode === 'system' && systemProxy?.address ? `系统当前代理：${systemProxy.address}` : undefined}
             placeholder={addressPlaceholder(proxy.mode, systemProxy)}
             onChange={(event) => updateProxy({ url: event.target.value })} />
           <button type="button" className={`${page.storageAction} no-drag`} disabled={busy !== null || proxy.mode !== 'custom'}
@@ -295,8 +300,9 @@ export function ProxySettings() {
       {/* 主次：需要处理的问题放最前、带解决按钮；结果只列事实；提示一行小字垫底。 */}
       {problems.length > 0 && (
         <div className={styles.problems} data-stale={faded || undefined}>
-          {problems.map((finding) => (
-            <div key={finding.title} className={styles.problem} role="alert">
+          {problems.map((finding, index) => (
+            // 两条线路可能给出同名问题（例如都连不上代理），key 带上序号与原因。
+            <div key={`${index}-${finding.title}-${finding.detail ?? ''}`} className={styles.problem} role="alert">
               <div className={styles.problemText}>
                 <strong>{finding.title}</strong>
                 {finding.detail && <span>{finding.detail}</span>}
@@ -325,8 +331,8 @@ export function ProxySettings() {
       </ul>
       {notices.length > 0 && (
         <ul className={styles.notices} aria-label="检测提示" data-stale={faded || undefined}>
-          {notices.map((finding) => (
-            <li key={finding.title}>{finding.title}{finding.detail && <span>，{finding.detail}</span>}</li>
+          {notices.map((finding, index) => (
+            <li key={`${index}-${finding.title}`}>{finding.title}{finding.detail && <span>，{finding.detail}</span>}</li>
           ))}
         </ul>
       )}

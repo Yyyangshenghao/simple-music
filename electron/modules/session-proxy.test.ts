@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => {
   const sessions = new Map<string, { setProxy: ReturnType<typeof vi.fn>; forceReloadProxyConfig: ReturnType<typeof vi.fn>; resolveProxy: ReturnType<typeof vi.fn> }>()
-  const make = () => ({ setProxy: vi.fn(async () => {}), forceReloadProxyConfig: vi.fn(async () => {}), resolveProxy: vi.fn(async () => 'DIRECT') })
+  const make = () => ({ setProxy: vi.fn(async () => {}), forceReloadProxyConfig: vi.fn(async () => {}), resolveProxy: vi.fn(async (_url: string) => 'DIRECT') })
   const defaultSession = make()
   const fromPartition = vi.fn((partition: string) => {
     const existing = sessions.get(partition)
@@ -59,27 +59,31 @@ describe('会话代理', () => {
 
 describe('系统代理', () => {
   it('在独立探测分区里按系统模式解析，并强制重读配置', async () => {
-    probe().resolveProxy.mockResolvedValueOnce('PROXY 127.0.0.1:7890; DIRECT')
-    expect(await resolveSystemProxy()).toBe('http://127.0.0.1:7890')
+    probe().resolveProxy.mockImplementation(async (url: string) => (url.includes('apple') ? 'PROXY 127.0.0.1:7890; DIRECT' : 'DIRECT'))
+    // PAC 分流：网易直连、Apple 走代理，两个出口分别解析。
+    expect(await resolveSystemProxy()).toEqual({ default: '', apple: 'http://127.0.0.1:7890' })
+    expect(probe().resolveProxy).toHaveBeenCalledWith('https://music.163.com/')
+    expect(probe().resolveProxy).toHaveBeenCalledWith('https://music.apple.com/')
     expect(probe().setProxy).toHaveBeenCalledWith({ mode: 'system' })
     expect(probe().forceReloadProxyConfig).toHaveBeenCalled()
     // 用户的自定义代理不影响探测分区。
     await applySessionProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:1' })
-    probe().resolveProxy.mockResolvedValueOnce('DIRECT')
-    expect(await resolveSystemProxy()).toBe('')
+    probe().resolveProxy.mockImplementation(async () => 'DIRECT')
+    expect(await resolveSystemProxy()).toEqual({ default: '', apple: '' })
   })
 
   it('定时、获焦与唤醒时重读，变化才回调，停止后解绑', async () => {
     vi.useFakeTimers()
+    probe().resolveProxy.mockReset()
     const onChange = vi.fn()
     probe().resolveProxy.mockResolvedValue('DIRECT')
     const stop = watchSystemProxy(onChange)
     await vi.advanceTimersByTimeAsync(0)
-    expect(onChange).toHaveBeenCalledWith('')
+    expect(onChange).toHaveBeenCalledWith({ default: '', apple: '' })
 
     probe().resolveProxy.mockResolvedValue('PROXY 127.0.0.1:7897')
     await vi.advanceTimersByTimeAsync(30_000)
-    expect(onChange).toHaveBeenLastCalledWith('http://127.0.0.1:7897')
+    expect(onChange).toHaveBeenLastCalledWith({ default: 'http://127.0.0.1:7897', apple: 'http://127.0.0.1:7897' })
     await vi.advanceTimersByTimeAsync(30_000)
     expect(onChange).toHaveBeenCalledTimes(2)
 
@@ -87,7 +91,7 @@ describe('系统代理', () => {
     await vi.advanceTimersByTimeAsync(6_000)
     h.app.emit('browser-window-focus')
     await vi.advanceTimersByTimeAsync(0)
-    expect(onChange).toHaveBeenLastCalledWith('')
+    expect(onChange).toHaveBeenLastCalledWith({ default: '', apple: '' })
 
     stop()
     expect(h.app.listenerCount('browser-window-focus')).toBe(0)

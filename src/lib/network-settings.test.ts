@@ -35,8 +35,11 @@ describe('代理设置客户端', () => {
     await diagnoseProxySettings(DEFAULT_PROXY_SETTINGS)
     expect(h.post).toHaveBeenCalledWith('/api/network/proxy/diagnose', { settings: DEFAULT_PROXY_SETTINGS }, undefined, { timeoutMs: 30_000 })
 
+    h.get.mockResolvedValueOnce({ address: '', apple: 'http://127.0.0.1:7890' })
+    expect(await loadSystemProxy()).toEqual({ address: '', apple: 'http://127.0.0.1:7890' })
+    // 旧接口只有 address 时 Apple 沿用同一地址。
     h.get.mockResolvedValueOnce({ address: 'http://127.0.0.1:7890' })
-    expect(await loadSystemProxy()).toBe('http://127.0.0.1:7890')
+    expect(await loadSystemProxy()).toEqual({ address: 'http://127.0.0.1:7890', apple: 'http://127.0.0.1:7890' })
     expect(h.get).toHaveBeenCalledWith('/api/network/proxy/system')
 
     h.post.mockResolvedValueOnce({ candidates: [{ address: 'http://127.0.0.1:7890', source: 'scan', label: 'Clash' }] })
@@ -54,6 +57,8 @@ describe('检测结果文案', () => {
     expect(proxyCheckMessage({ id: 'netease', ok: true, elapsedMs: 42, status: 200 })).toBe('可访问 · 42 ms')
     expect(proxyCheckMessage({ id: 'apple', ok: true, elapsedMs: 7314, slow: true })).toBe('很慢 · 7314 ms')
     expect(proxyCheckMessage({ id: 'egress', ok: true, elapsedMs: 1, ip: '1.2.3.4', country: 'JP' })).toBe('日本 · 1.2.3.4')
+    // 与 Apple 地区共用短名，不显示“中国香港特别行政区”这类全称。
+    expect(proxyCheckMessage({ id: 'egress', ok: true, elapsedMs: 1, ip: '1.2.3.4', country: 'HK' })).toBe('中国香港 · 1.2.3.4')
     expect(proxyCheckMessage({ id: 'qq', ok: false, elapsedMs: 1, error: '连接超时' })).toBe('连接超时')
     expect(proxyCheckMessage({ id: 'qq', ok: false, elapsedMs: 1 })).toBe('无法访问')
   })

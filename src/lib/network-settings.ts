@@ -1,4 +1,5 @@
 import { api } from './api'
+import { appleRegionLabel } from './apple-music-regions'
 
 export type ProxyMode = 'system' | 'custom' | 'direct'
 export type AppleProxyMode = 'inherit' | 'direct' | 'custom'
@@ -37,6 +38,7 @@ export interface ProxyRouteReport {
 export interface ProxyDiagnosis {
   routes: ProxyRouteReport[]
   systemProxy: string
+  systemProxyApple?: string
   /** 代理软件的 TUN/增强模式在系统层接管了网络，「直连」也会经过代理节点。 */
   systemTakeover?: boolean
   findings: DiagnosisFinding[]
@@ -65,8 +67,16 @@ export function saveProxySettings(settings: ProxySettings): Promise<ProxySetting
   return api.post<ProxySettings>('/api/network/proxy', settings)
 }
 
-export async function loadSystemProxy(): Promise<string> {
-  return (await api.get<{ address: string }>('/api/network/proxy/system')).address
+export interface SystemProxyInfo {
+  /** 默认出口（网易域名）的系统代理；空字符串表示系统让它直连。 */
+  address: string
+  /** Apple 出口（Apple 域名）的系统代理；PAC/分流时可能与默认不同。 */
+  apple: string
+}
+
+export async function loadSystemProxy(): Promise<SystemProxyInfo> {
+  const result = await api.get<Partial<SystemProxyInfo>>('/api/network/proxy/system')
+  return { address: result.address ?? '', apple: result.apple ?? result.address ?? '' }
 }
 
 /** 按草稿设置诊断各出口；服务端每项 8 秒超时，并发执行，整体留足余量。 */
@@ -89,13 +99,9 @@ export const PROXY_CHECK_LABELS: Record<ProxyCheckId, string> = {
   egress: '出口地区',
 }
 
-let regionNames: Intl.DisplayNames | null | undefined
+/** 出口国家码转短名；与 Apple 地区共用一份名称表（中国香港等用短名）。 */
 export function regionLabel(code: string | undefined): string {
-  if (!code) return ''
-  if (regionNames === undefined) {
-    try { regionNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' }) } catch { regionNames = null }
-  }
-  try { return regionNames?.of(code.toUpperCase()) ?? code.toUpperCase() } catch { return code.toUpperCase() }
+  return code ? appleRegionLabel(code.toLowerCase()) : ''
 }
 
 /** 单项检测结果的展示文案：可达带耗时；出口给地区与 IP；失败透出服务端原因。 */

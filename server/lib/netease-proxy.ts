@@ -37,10 +37,17 @@ export function isNeteaseUpstream(url: string | undefined, baseURL?: string): bo
 
 let cachedAddress = ''
 let cachedAgent: Agent | null = null
+// 换地址后旧 agent 的长连接不会自己断：留出在途请求完成的时间后销毁。
+const RETIRE_DELAY_MS = 60_000
+
+function retire(agent: Agent): void {
+  const timer = setTimeout(() => agent.destroy(), RETIRE_DELAY_MS)
+  timer.unref?.()
+}
 
 function agentFor(address: string): Agent {
   if (cachedAgent && cachedAddress === address) return cachedAgent
-  // 地址变更后旧 agent 只丢引用不 destroy：在途请求自然结束，连接池随 GC 回收。
+  if (cachedAgent) retire(cachedAgent)
   cachedAddress = address
   cachedAgent = (address.startsWith('socks5:')
     // socks5h：域名交给代理解析，避免本地 DNS 被污染或泄露。

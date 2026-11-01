@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../../lib/api'
 import { appleRegionLabel, appleRegionOptions } from '../../lib/apple-music-regions'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
+import { useToastStore } from '../../stores/toast'
 import { InfoButton } from '../ui/InfoButton'
 import { Select } from '../ui/Select'
 import { AccountButton } from './AccountButton'
@@ -81,7 +82,10 @@ export function AppleMusicRegionSelect() {
     try {
       await api.post('/api/apple-music/region', { storefront: next })
     } catch (error) {
-      setFailed(error instanceof Error ? error.message : '设置地区失败')
+      const message = error instanceof Error ? error.message : '设置地区失败'
+      setFailed(message)
+      // 下拉旁没有空位放错误，用全局提示告知，悬停仍可看到原因。
+      useToastStore.getState().show(`Apple Music 地区未更改：${message}`)
     } finally {
       await refresh().catch(() => {})
       setPending(null)

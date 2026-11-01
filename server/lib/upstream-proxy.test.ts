@@ -94,14 +94,18 @@ describe('上游代理 dispatcher', () => {
     const proxy = await load()
     proxy.applyUpstreamProxy(DEFAULT_PROXY_SETTINGS)
     expect(proxy.upstreamProxyAddress()).toBe('')
-    proxy.setSystemProxyAddress('http://127.0.0.1:7890')
+    proxy.setSystemProxyAddresses({ default: 'http://127.0.0.1:7890', apple: 'http://127.0.0.1:7890' })
     expect(proxy.upstreamProxyAddress()).toBe('http://127.0.0.1:7890')
     expect(h.agents[0].address).toBe('http://127.0.0.1:7890')
-    proxy.setSystemProxyAddress('')
+    // PAC 分流：国内直连、Apple 走代理，两个出口分别生效。
+    proxy.setSystemProxyAddresses({ default: '', apple: 'http://127.0.0.1:7890' })
+    expect(proxy.upstreamProxyAddress()).toBe('')
+    expect(proxy.upstreamProxyAddress('apple')).toBe('http://127.0.0.1:7890')
+    proxy.setSystemProxyAddresses({ default: '', apple: '' })
     expect(h.global).toBe(h.original)
     // 自定义模式不受系统代理影响。
     proxy.applyUpstreamProxy(custom(7000))
-    proxy.setSystemProxyAddress('http://127.0.0.1:7890')
+    proxy.setSystemProxyAddresses({ default: 'http://127.0.0.1:7890', apple: 'http://127.0.0.1:7890' })
     expect(proxy.upstreamProxyAddress()).toBe('http://127.0.0.1:7000')
   })
 

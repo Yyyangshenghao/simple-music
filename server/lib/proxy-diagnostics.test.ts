@@ -14,6 +14,7 @@ vi.mock('./upstream-proxy', async (importOriginal) => ({
 import { appleRegionFromLocation, describeNetworkError, detectSystemTakeover, diagnoseProxy, diagnosisFindings, isFakeIp, parseTrace } from './proxy-diagnostics'
 
 // 默认不让本机真实网络（例如开着 TUN）影响断言。
+const none = { default: '', apple: '' }
 const clean = { lookup: async () => ['59.111.160.195'], interfaces: () => ['192.168.1.2'] }
 
 const coded = (code: string) => Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(code), { code }) })
@@ -64,7 +65,7 @@ describe('网络错误翻译', () => {
 describe('代理诊断', () => {
   it('直连：检查三个平台与出口，合并成一条线路', async () => {
     respondAll('ip=1.2.3.4\nloc=CN\n')
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, none, clean)
     expect(result.routes).toHaveLength(1)
     expect(result.routes[0]).toMatchObject({ target: 'default', address: '', source: 'direct' })
     expect(result.routes[0].checks.map((check) => [check.id, check.ok])).toEqual([['netease', true], ['qq', true], ['apple', true], ['egress', true]])
@@ -77,7 +78,7 @@ describe('代理诊断', () => {
     const port = await listen()
     respondAll()
     writeFileSync(join(dir, 'apple-music-storefront'), 'jp')
-    const result = await diagnoseProxy({ mode: 'direct', url: '', apple: 'custom', appleUrl: `http://u:p@127.0.0.1:${port}` }, dir, '', clean)
+    const result = await diagnoseProxy({ mode: 'direct', url: '', apple: 'custom', appleUrl: `http://u:p@127.0.0.1:${port}` }, dir, none, clean)
     expect(result.routes.map((route) => route.target)).toEqual(['default', 'apple'])
     expect(result.routes[1]).toMatchObject({ address: `http://127.0.0.1:${port}`, source: 'custom', proxyReachable: true })
     expect(result.routes[1].checks.map((check) => check.id)).toEqual(['apple', 'egress'])
@@ -87,7 +88,7 @@ describe('代理诊断', () => {
   })
 
   it('代理端口连不上时不再逐站请求', async () => {
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:1' }, dir, '', clean)
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'custom', url: 'http://127.0.0.1:1' }, dir, none, clean)
     expect(result.routes[0]).toMatchObject({ proxyReachable: false, proxyError: '代理端口没有响应，请确认代理软件正在运行' })
     expect(result.routes[0].checks.every((check) => !check.ok && check.error === '代理不可用，未检测')).toBe(true)
     expect(h.fetch).not.toHaveBeenCalled()
@@ -95,17 +96,30 @@ describe('代理诊断', () => {
     expect(result.findings[0].detail).toContain('代理端口没有响应')
   })
 
+  it('PAC 分流：跟随系统时网易直连、Apple 走系统代理，分成两条线路', async () => {
+    const port = await listen()
+    respondAll()
+    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, { default: '', apple: `http://127.0.0.1:${port}` }, clean)
+    expect(result.routes.map((route) => [route.target, route.address, route.source])).toEqual([
+      ['default', '', 'direct'],
+      ['apple', `http://127.0.0.1:${port}`, 'system'],
+    ])
+    expect(result.systemProxyApple).toBe(`http://127.0.0.1:${port}`)
+    // 有一侧走了代理，就不能说“系统没开代理”。
+    expect(result.findings.some((finding) => finding.title.includes('系统没有开代理'))).toBe(false)
+  })
+
   it('跟随系统使用传入的系统代理', async () => {
     const port = await listen()
     respondAll()
-    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, `http://127.0.0.1:${port}`, clean)
+    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, { default: `http://127.0.0.1:${port}`, apple: `http://127.0.0.1:${port}` }, clean)
     expect(result.routes[0]).toMatchObject({ source: 'system', address: `http://127.0.0.1:${port}` })
     expect(result.systemProxy).toBe(`http://127.0.0.1:${port}`)
   })
 
   it('站点返回 407/5xx 记为失败', async () => {
     h.fetch.mockImplementation(async (url: string) => ({ ok: false, status: url.includes('163') ? 407 : 503, text: async () => '', headers: new Headers() }))
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, none, clean)
     expect(result.routes[0].checks[0]).toMatchObject({ ok: false, error: '代理需要认证或账号密码不正确' })
     expect(result.routes[0].checks[1]).toMatchObject({ ok: false, error: '服务器返回 503' })
   })
@@ -127,9 +141,9 @@ describe('Apple 判定地区', () => {
       ok: true, status: url.includes('trace') ? 200 : 301, text: async () => 'ip=1.2.3.4\nloc=CN\n',
       headers: new Headers(url.includes('music.apple.com') ? { location: 'https://music.apple.com/us/new' } : {}),
     }))
-    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
+    const result = await diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, none, clean)
     expect(result.routes[0].checks.find((check) => check.id === 'apple')).toMatchObject({ appleRegion: 'us' })
-    expect(result.findings).toEqual([{ level: 'problem', title: 'Apple Music 地区与账号不一致', detail: 'Apple 判定在美国，账号在中国，登录与曲库会被带到美国', action: 'proxy-rules' }])
+    expect(result.findings).toEqual([{ level: 'problem', title: 'Apple Music 地区与账号不一致', detail: 'Apple 判定在美国，账号在中国大陆，登录与曲库会被带到美国', action: 'proxy-rules' }])
   })
 })
 
@@ -141,7 +155,7 @@ describe('响应过慢', () => {
       if (url.includes('apple')) await new Promise((resolve) => setTimeout(resolve, 7314))
       return { ok: true, status: 200, text: async () => 'ip=1.2.3.4\nloc=CN\n', headers: new Headers() }
     })
-    const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, '', clean)
+    const pending = diagnoseProxy({ ...DEFAULT_PROXY_SETTINGS, mode: 'direct' }, dir, none, clean)
     await vi.advanceTimersByTimeAsync(7314)
     const result = await pending
     vi.useRealTimers()
@@ -181,7 +195,7 @@ describe('系统级接管（TUN）', () => {
     writeFileSync(join(dir, 'apple-music-storefront'), 'cn')
     respondAll()
     const tun = { lookup: async () => ['198.18.0.6'], interfaces: () => [] }
-    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, '', tun)
+    const result = await diagnoseProxy(DEFAULT_PROXY_SETTINGS, dir, none, tun)
     expect(result.systemTakeover).toBe(true)
     expect(result.findings[0]).toMatchObject({ level: 'problem', title: 'Apple Music 正经过代理软件', action: 'proxy-rules' })
     expect(result.findings.some((finding) => finding.title.includes('系统没有开代理'))).toBe(false)

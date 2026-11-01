@@ -24,6 +24,15 @@ export interface ElectronProxyRules {
   proxyBypassRules?: string
 }
 
+/**
+ * 系统代理按出口分别解析：PAC/分流配置常让国内域名直连、海外域名走代理，
+ * 只问一个域名会让另一侧走错出口。default 以网易域名为准，apple 以 Apple Music 域名为准。
+ */
+export interface SystemProxyAddresses {
+  default: string
+  apple: string
+}
+
 export const DEFAULT_PROXY_SETTINGS: ProxySettings = { mode: 'system', url: '', apple: 'inherit', appleUrl: '' }
 
 const PROXY_FILE = 'proxy.json'
@@ -112,6 +121,12 @@ export function environmentProxy(): string {
   return ''
 }
 
+/** 没有宿主时的系统代理：环境变量对两个出口一视同仁。 */
+export function environmentSystemProxy(): SystemProxyAddresses {
+  const address = environmentProxy()
+  return { default: address, apple: address }
+}
+
 /**
  * 把 Chromium `resolveProxy` 的 PAC 结果（如 `PROXY 127.0.0.1:7890; DIRECT`）转成代理地址。
  * 取第一个可用条目；DIRECT 或无法识别时返回空字符串（直连）。SOCKS（v4）按 socks5 处理，主流代理软件都是混合端口。
@@ -132,16 +147,16 @@ export function parsePacResult(raw: string): string {
 
 /**
  * 某个出口实际使用的代理地址；空字符串表示直连。
- * `systemAddress` 是宿主解析出的系统代理（缺省读环境变量），只在 system 模式下使用。
+ * `system` 是宿主按出口解析出的系统代理（缺省读环境变量），只在跟随系统时使用。
  */
-export function nodeProxyAddress(settings: ProxySettings, target: ProxyTarget = 'default', systemAddress = environmentProxy()): string {
+export function nodeProxyAddress(settings: ProxySettings, target: ProxyTarget = 'default', system: SystemProxyAddresses = environmentSystemProxy()): string {
   if (target === 'apple') {
     if (settings.apple === 'direct') return ''
     if (settings.apple === 'custom') return settings.appleUrl
   }
   if (settings.mode === 'custom') return settings.url
   if (settings.mode === 'direct') return ''
-  return systemAddress
+  return system[target]
 }
 
 /** 去掉账号密码：Chromium 的 proxyRules 不认 userinfo，认证由主进程 login 事件补上。 */
