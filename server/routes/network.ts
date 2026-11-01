@@ -5,15 +5,19 @@ import { diagnoseProxy } from '../lib/proxy-diagnostics'
 import { detectProxyCandidates } from '../lib/proxy-detect'
 import { applyUpstreamProxy, setSystemProxyAddresses, systemProxyAddresses } from '../lib/upstream-proxy'
 
-/** 落盘 + 生效：Node 侧 dispatcher 与 Electron 各会话一起切，避免「登录能开、数据走直连」。 */
-export async function applyProxySettings(ctx: ServerContext, settings: ProxySettings): Promise<ProxySettings> {
+export const SESSION_PROXY_WARNING = '登录窗口未能应用新代理，重启应用后生效'
+
+/**
+ * 落盘 + 生效：Node 侧 dispatcher 与 Electron 各会话一起切，避免「登录能开、数据走直连」。
+ * 窗口侧失败时设置已落盘、数据请求也已切换，仍算保存成功，只附带警告，免得界面以为没保存。
+ */
+export async function applyProxySettings(ctx: ServerContext, settings: ProxySettings): Promise<ProxySettings & { warning?: string }> {
   writeProxySettings(ctx.userDataDir, settings)
   applyUpstreamProxy(settings)
   try {
     await ctx.applySessionProxy?.(settings)
   } catch {
-    // 设置已落盘且数据请求已切换，只是窗口侧没跟上；说清楚影响和恢复办法。
-    throw new Error('已保存，但登录窗口未能应用新代理，请重启应用后生效')
+    return { ...settings, warning: SESSION_PROXY_WARNING }
   }
   return settings
 }

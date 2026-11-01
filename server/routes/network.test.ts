@@ -69,10 +69,10 @@ describe('代理设置接口', () => {
     expect(readProxySettings(dir)).toMatchObject({ mode: 'system' })
   })
 
-  it('窗口侧应用失败时说明已保存并提示重启', async () => {
+  it('窗口侧应用失败仍算保存成功，附带警告', async () => {
     sessionFails = true
     const result = await call('/api/network/proxy', 'POST', { mode: 'direct' })
-    expect(result).toMatchObject({ status: 500, body: { error: '已保存，但登录窗口未能应用新代理，请重启应用后生效' } })
+    expect(result).toMatchObject({ status: 200, body: { mode: 'direct', warning: '登录窗口未能应用新代理，重启应用后生效' } })
     expect(readProxySettings(dir)).toMatchObject({ mode: 'direct' })
     expect(h.applyUpstream).toHaveBeenCalled()
   })

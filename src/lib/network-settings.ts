@@ -63,8 +63,17 @@ export function loadProxySettings(): Promise<ProxySettings> {
   return api.get<ProxySettings>('/api/network/proxy')
 }
 
-export function saveProxySettings(settings: ProxySettings): Promise<ProxySettings> {
-  return api.post<ProxySettings>('/api/network/proxy', settings)
+export interface SaveProxyResult {
+  settings: ProxySettings
+  /** 已保存但有部分未生效（例如登录窗口没应用上），需要告知用户。 */
+  warning?: string
+}
+
+export async function saveProxySettings(settings: ProxySettings): Promise<SaveProxyResult> {
+  const result = await api.post<ProxySettings & { warning?: string }>('/api/network/proxy', settings)
+  // 只取设置字段，警告不混进设置状态，下次保存也不会带回去。
+  const saved: ProxySettings = { mode: result.mode, url: result.url, apple: result.apple, appleUrl: result.appleUrl }
+  return result.warning ? { settings: saved, warning: result.warning } : { settings: saved }
 }
 
 export interface SystemProxyInfo {

@@ -26,7 +26,10 @@ describe('代理设置客户端', () => {
 
     const settings = { mode: 'custom' as const, url: 'http://127.0.0.1:7890', apple: 'direct' as const, appleUrl: '' }
     h.post.mockResolvedValue(settings)
-    expect(await saveProxySettings(settings)).toEqual(settings)
+    expect(await saveProxySettings(settings)).toEqual({ settings })
+    // 警告单独返回，不混进设置字段。
+    h.post.mockResolvedValueOnce({ ...settings, warning: '登录窗口未能应用新代理，重启应用后生效' })
+    expect(await saveProxySettings(settings)).toEqual({ settings, warning: '登录窗口未能应用新代理，重启应用后生效' })
     expect(h.post).toHaveBeenCalledWith('/api/network/proxy', settings)
   })
 

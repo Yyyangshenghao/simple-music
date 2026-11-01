@@ -166,12 +166,12 @@ export function ProxySettings() {
   async function handleSave(): Promise<void> {
     setBusy('save')
     try {
-      const next = await saveProxySettings(proxy)
+      const { settings: next, warning } = await saveProxySettings(proxy)
       if (!mounted.current) return
       setProxy(next)
       setSaved(next)
-      // 保存后立刻按新设置检测，让用户直接看到是否真的生效。
-      await runDiagnosis(next, '已保存。')
+      // 保存后立刻按新设置检测，让用户直接看到是否真的生效；部分未生效时警告放在最前。
+      await runDiagnosis(next, warning ? `已保存，但${warning}。` : '已保存。')
     } catch (error) {
       if (!mounted.current) return
       setStatus(error instanceof Error ? error.message : '保存代理设置失败')
