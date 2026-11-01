@@ -69,7 +69,7 @@ function nextQueueTrack(): Track | undefined {
 
 function sourceRows(track: Track): LyricOrigin[] {
   track = accompanimentOriginal(track) ?? track
-  return Array.from(new Set<LyricOrigin>([track.source, 'netease', 'qq', 'amll', 'kugou']))
+  return Array.from(new Set<LyricOrigin>([track.source, 'apple', 'netease', 'qq', 'amll', 'kugou']))
 }
 
 interface SelectionSession {
@@ -101,7 +101,7 @@ export function initLyricsLoader(): () => void {
   let currentLanded = false
   let onceChoice: RememberedLyricSource | undefined
   let selection: SelectionSession | undefined
-  // 只缓存本曲的来源结果，最多原平台、网易、QQ、AMLL、酷狗五份；切歌或账号/参与状态变化即清空。
+  // 只缓存本曲的来源结果，最多原平台、Apple、网易、QQ、AMLL、酷狗六份；切歌或账号/参与状态变化即清空。
   const results = new Map<LyricOrigin, LyricsSourceQueryResult>()
 
   const lyricsEnabled = () => !useGameModeStore.getState().enabled || useVisualStore.getState().fx.desktopLyrics
@@ -468,6 +468,7 @@ export function initLyricsLoader(): () => void {
       || state.lyricsGuestSources.qq !== previous.lyricsGuestSources.qq
       || state.lyricsPlatformSources.netease !== previous.lyricsPlatformSources.netease
       || state.lyricsPlatformSources.qq !== previous.lyricsPlatformSources.qq
+      || state.lyricsPlatformSources.apple !== previous.lyricsPlatformSources.apple
     if (guestChanged || (!useLyricsSourceStore.getState().sourceOrder && (state.lyricsAmllFallback !== previous.lyricsAmllFallback
       || state.lyricsKugouFallback !== previous.lyricsKugouFallback))) sync()
   })

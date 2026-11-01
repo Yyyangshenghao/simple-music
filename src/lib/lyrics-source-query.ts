@@ -22,14 +22,14 @@ export interface LyricsSourceQueryResult {
 
 type Availability = Pick<LyricsSourceQueryResult, 'status' | 'message'>
 
-/** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要账号，固定歌曲测试可绕过其停用状态。 */
+/** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要已连接且启用的账号。 */
 function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false): Availability {
   if (!lyricPlatformEnabled(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   if (!lyricServiceMode(origin)) {
     if (useProviderStore.getState().byId[origin].auth !== 'authenticated') {
       return { status: 'login', message: '登录后可查找' }
     }
-    if (!(origin === 'apple' && probe)) return { status: 'disabled', message: '已在设置中关闭' }
+    return { status: 'disabled', message: origin === 'apple' ? 'Apple Music 未启用' : '已在设置中关闭' }
   }
   if (!sources.includes(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   return { status: 'idle' }
@@ -44,7 +44,6 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
   track = accompanimentOriginal(track) ?? track
   if (track.source === 'local' && origin === 'local') return { status: 'idle' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
-  if (origin === 'apple' && track.source !== 'apple') return { status: 'unavailable', message: '仅 Apple Music 曲目可用' }
   if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
   const settings = useSettingsStore.getState()
   if (origin === 'amll') {
@@ -103,7 +102,7 @@ async function queryLyricsSourceImpl(
       throw new DOMException('Lyrics source query cancelled', 'AbortError')
     }
   }
-  const findTarget = async (source: 'netease' | 'qq'): Promise<Track | undefined> => {
+  const findTarget = async (source: ProviderId): Promise<Track | undefined> => {
     checkCurrent()
     if (track.source === source) return track
     if (!probe && suspendedLyricsSource(source)) return undefined
@@ -168,7 +167,7 @@ async function queryLyricsSourceImpl(
     if (origin === 'kugou') {
       return ready(await upgradeLyricsWithKugou(track, { ...emptyLyrics, source: track.source }, signal, true, probe))
     }
-    const target = origin === 'netease' || origin === 'qq' ? await findTarget(origin) : track
+    const target = origin === 'netease' || origin === 'qq' || origin === 'apple' ? await findTarget(origin) : track
     if (!target) return ready(null)
     checkCurrent()
     const current = candidateAvailability(track, origin, sources, probe)

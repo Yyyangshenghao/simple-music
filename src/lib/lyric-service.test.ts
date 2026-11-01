@@ -15,7 +15,7 @@ const providers = (netease: string, qq: string, apple = 'anonymous', enabled = t
 
 beforeEach(() => {
   vi.resetAllMocks()
-  useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true } })
+  useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true } })
 })
 
 describe('歌词来源与播放平台分开', () => {
@@ -50,7 +50,7 @@ describe('歌词来源与播放平台分开', () => {
 
   it('设置中关闭的平台即使已登录也不参与歌词，Apple 不受影响', () => {
     providers('authenticated', 'anonymous', 'authenticated')
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
     expect(lyricServiceMode('netease')).toBeNull()
     expect(lyricServiceMode('qq')).toBe('guest')
     expect(lyricServiceSources()).toEqual(['apple', 'qq'])

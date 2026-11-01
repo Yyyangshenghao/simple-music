@@ -117,6 +117,7 @@ export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlag
 }
 
 export interface LyricsGuestSources { netease: boolean; qq: boolean }
+export interface LyricsPlatformSources extends LyricsGuestSources { apple: boolean }
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
@@ -153,7 +154,7 @@ interface PersistedSettings {
   /** 网易云、QQ 作为独立歌词来源：未登录或已停用该平台时，以游客身份（不带账号 Cookie）查询歌词，搜索只发送歌名与歌手。 */
   lyricsGuestSources: LyricsGuestSources
   /** 网易云、QQ 是否参与歌词查询；关闭后无论是否登录都不向该平台查歌词。 */
-  lyricsPlatformSources: LyricsGuestSources
+  lyricsPlatformSources: LyricsPlatformSources
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
   themeMode: 'auto' | 'light' | 'dark'
@@ -235,7 +236,7 @@ interface SettingsStore extends PersistedSettings {
   setLyricsAmllFallback(v: boolean): void
   setLyricsKugouFallback(v: boolean): void
   setLyricsGuestSource(source: keyof LyricsGuestSources, enabled: boolean): void
-  setLyricsPlatformSource(source: keyof LyricsGuestSources, enabled: boolean): void
+  setLyricsPlatformSource(source: keyof LyricsPlatformSources, enabled: boolean): void
   setLyricsPlayerStyle(v: 'stage' | 'dock'): void
   setThemeMode(m: 'auto' | 'light' | 'dark'): void
   setAccent(mode: AccentMode, custom?: string): void
@@ -290,7 +291,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsAmllFallback: true,
   lyricsKugouFallback: true,
   lyricsGuestSources: { netease: true, qq: true },
-  lyricsPlatformSources: { netease: true, qq: true },
+  lyricsPlatformSources: { netease: true, qq: true, apple: true },
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   accentMode: 'mono',
@@ -436,7 +437,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   setLyricsPlatformSource(source, enabled) {
-    if ((source !== 'netease' && source !== 'qq') || typeof enabled !== 'boolean') return
+    if ((source !== 'netease' && source !== 'qq' && source !== 'apple') || typeof enabled !== 'boolean') return
     if (get().lyricsPlatformSources[source] === enabled) return
     set({ lyricsPlatformSources: { ...get().lyricsPlatformSources, [source]: enabled } })
     get().saveToLocal()
@@ -603,6 +604,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsPlatformSources: {
           netease: typeof data.lyricsPlatformSources?.netease === 'boolean' ? data.lyricsPlatformSources.netease : true,
           qq: typeof data.lyricsPlatformSources?.qq === 'boolean' ? data.lyricsPlatformSources.qq : true,
+          apple: typeof data.lyricsPlatformSources?.apple === 'boolean' ? data.lyricsPlatformSources.apple : true,
         },
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',

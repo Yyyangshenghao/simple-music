@@ -12,8 +12,9 @@ describe('歌词来源查询顺序', () => {
       .toEqual(['qq', 'local', 'netease', 'amll', 'kugou'])
   })
 
-  it('Apple 曲目先查自带歌词，在线曲目按用户顺序', () => {
-    expect(lyricsOriginOrder(track('apple'), order)).toEqual(['apple', ...order])
-    expect(lyricsOriginOrder(track('qq'), order)).toEqual([...order])
+  it('Apple Music 与其他来源一样按用户顺序查询，不再强制排在 Apple 曲目最前', () => {
+    const withApple = ['netease', 'apple', 'qq', 'amll', 'kugou'] as const
+    expect(lyricsOriginOrder(track('apple'), withApple)).toEqual([...withApple])
+    expect(lyricsOriginOrder(track('qq'), withApple)).toEqual([...withApple])
   })
 })

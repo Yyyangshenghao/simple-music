@@ -306,8 +306,8 @@ describe('四来源完整顺序', () => {
     stop = initLyricsLoader()
     await flush()
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
-    await action('setSourceOrder', ['amll', 'kugou', 'netease', 'qq'])
-    expect(takePlaybackSnapshot(true).stores.lyricSources.sourceOrder).toEqual(['amll', 'kugou', 'netease', 'qq'])
+    await action('setSourceOrder', ['amll', 'kugou', 'netease', 'qq', 'apple'])
+    expect(takePlaybackSnapshot(true).stores.lyricSources.sourceOrder).toEqual(['amll', 'kugou', 'netease', 'qq', 'apple'])
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
     usePlayerStore.setState({ currentTrack: { ...onlineTrack, id: 'n2' } })
     await flush()
@@ -334,7 +334,7 @@ describe('四来源完整顺序', () => {
     await action('testSource', 'amll', 'sunny')
     expect(h.query).toHaveBeenCalledTimes(initial + 1)
     expect(h.query).toHaveBeenLastCalledWith(
-      expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq'],
+      expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq', 'apple'],
       expect.any(AbortSignal), undefined, { probe: true },
     )
     expect(takePlaybackSnapshot(true).stores.lyricSources.probes).toMatchObject({ amll: { status: 'loading', sample: '晴天' } })

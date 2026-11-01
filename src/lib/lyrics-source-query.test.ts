@@ -9,14 +9,14 @@ import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
 vi.mock('./local-music-service', () => ({ localMusicService: {
   getLyrics: h.local,
   getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
 } }))
-vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq') => ({
+vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple') => ({
   catalog: { searchTracks: h[source], getTracksByIds: vi.fn() },
 }) }))
 
@@ -43,6 +43,7 @@ beforeEach(() => {
   } })
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
+  h.apple.mockResolvedValue([song('apple', { id: 'a1' })])
   h.native.mockResolvedValue(null)
   h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
   vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙' })
@@ -118,11 +119,21 @@ describe('参与限制和取消', () => {
     expect(await queryLyricsSource(song('local'), 'local', ['qq'])).toMatchObject({ status: 'empty' })
     expect(api.get).not.toHaveBeenCalled()
     expect(h.qq).not.toHaveBeenCalled()
-    expect(await queryLyricsSource(song('local'), 'apple', ['qq', 'apple'])).toMatchObject({ status: 'unavailable' })
   })
 
-  it('Apple 原生不能作为其他平台的候选', () => {
-    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'unavailable' })
+  it('Apple Music 可为其他平台歌曲匹配同一录音并取自带歌词；未连接或关闭时不查询', async () => {
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [], roma: [], wordLines: [] })
+    expect(await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple']))
+      .toMatchObject({ status: 'ready', result: { source: 'apple' }, match: { source: 'apple', id: 'a1' } })
+    expect(h.native).toHaveBeenCalledWith(expect.objectContaining({ source: 'apple', id: 'a1' }), expect.anything(), true)
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false } })
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' } } }))
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'login' })
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'login' })
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' } } }))
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'disabled', message: 'Apple Music 未启用' })
   })
 
   it('真实游客初始化后仍可查询歌词，播放权限保持关闭', async () => {
@@ -343,8 +354,8 @@ describe('游客歌词来源', () => {
   })
 
   it('设置中关闭平台后，即使已登录也显示已关闭', () => {
-    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true } })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true } })
     expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
   })
 })

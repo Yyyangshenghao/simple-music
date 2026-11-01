@@ -11,10 +11,10 @@ const h = vi.hoisted(() => ({
     setSourceOrder: vi.fn(), clearRemembered: vi.fn(), forgetTrack: vi.fn(), testSource: vi.fn(),
   },
   settings: {
-    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true },
+    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true },
     setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(), setLyricsPlatformSource: vi.fn(),
   },
-  providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' } } },
+  providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' }, apple: { enabled: true, auth: 'anonymous' } } },
   confirm: false, setConfirm: vi.fn(), search: '', sample: 'sunny', setSample: vi.fn(),
 }))
 vi.mock('react', async (original) => ({
@@ -78,9 +78,10 @@ beforeEach(() => {
   h.settings.lyricsAmllFallback = true
   h.settings.lyricsKugouFallback = true
   h.settings.lyricsGuestSources = { netease: true, qq: true }
-  h.settings.lyricsPlatformSources = { netease: true, qq: true }
+  h.settings.lyricsPlatformSources = { netease: true, qq: true, apple: true }
   h.providers.byId.netease = { enabled: true, auth: 'anonymous' }
   h.providers.byId.qq = { enabled: true, auth: 'anonymous' }
+  h.providers.byId.apple = { enabled: true, auth: 'anonymous' }
 })
 
 describe('歌词来源设置', () => {
@@ -91,8 +92,38 @@ describe('歌词来源设置', () => {
     expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级'])
     expect(button(element, '提高网易云音乐优先级').props.disabled).toBe(true)
     button(element, '提高QQ 音乐优先级').props.onClick()
-    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['qq', 'netease', 'amll', 'kugou'])
+    // 未连接 Apple Music 时不显示这一项，但它仍保留在完整顺序里。
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['apple', 'qq', 'netease', 'amll', 'kugou'])
     expect(infoText(element)).toContain('从下一首歌曲生效')
+  })
+
+  it('Apple Music 连接后显示并可开关；连接断开时保留但锁定，退出后隐藏', () => {
+    h.providers.byId.apple = { enabled: true, auth: 'authenticated' }
+    let element = AmllLyricsSettings()
+    let rows = elements(elements(element, 'ol')[0], 'li')
+    expect(elements(rows[0], 'strong')[0].props.children).toBe('Apple Music')
+    expect(labelled(element, '使用Apple Music')!.props).toMatchObject({ checked: true, disabled: false })
+    labelled(element, '使用Apple Music')!.props.onChange(false)
+    expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('apple', false)
+    expect(h.settings.setLyricsGuestSource).not.toHaveBeenCalled()
+    button(element, '降低Apple Music优先级').props.onClick()
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['netease', 'apple', 'qq', 'amll', 'kugou'])
+
+    h.settings.setLyricsPlatformSource.mockClear()
+    h.providers.byId.apple = { enabled: true, auth: 'expired' }
+    element = AmllLyricsSettings()
+    rows = elements(elements(element, 'ol')[0], 'li')
+    expect(text(rows[0])).toContain('连接已断开')
+    expect(button(rows[0], '测试').props.disabled).toBe(true)
+    expect(labelled(element, '使用Apple Music')!.props).toMatchObject({ checked: false, disabled: true })
+    labelled(element, '使用Apple Music')!.props.onChange(true)
+    expect(h.settings.setLyricsPlatformSource).not.toHaveBeenCalled()
+
+    h.providers.byId.apple = { enabled: false, auth: 'authenticated' }
+    expect(text(elements(elements(AmllLyricsSettings(), 'ol')[0], 'li')[0])).toContain('未启用')
+
+    h.providers.byId.apple = { enabled: true, auth: 'anonymous' }
+    expect(labelled(AmllLyricsSettings(), '使用Apple Music')).toBeUndefined()
   })
 
   it('游客可测试固定歌曲，不引导登录或展示补全实现开关', () => {
@@ -119,7 +150,7 @@ describe('歌词来源设置', () => {
 
   it('每个来源一个开关，关闭后不可测试并显示已关闭', () => {
     h.settings.lyricsAmllFallback = false
-    h.settings.lyricsPlatformSources = { netease: false, qq: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
     expect(text(rows[0])).toContain('已关闭')
@@ -136,7 +167,7 @@ describe('歌词来源设置', () => {
 
   it('重新启用平台时一并恢复游客查询，未登录显示以游客身份查询', () => {
     h.settings.lyricsGuestSources = { netease: false, qq: true }
-    h.settings.lyricsPlatformSources = { netease: false, qq: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
     const element = AmllLyricsSettings()
     labelled(element, '使用网易云音乐')!.props.onChange(true)
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('netease', true)

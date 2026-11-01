@@ -1,7 +1,7 @@
 import type { MusicSource, Track } from './domain'
 
 export type LyricOrigin = MusicSource | 'amll' | 'kugou'
-export const LYRIC_PRIORITY_SOURCES = ['netease', 'qq', 'amll', 'kugou'] as const
+export const LYRIC_PRIORITY_SOURCES = ['apple', 'netease', 'qq', 'amll', 'kugou'] as const
 export type LyricPrioritySource = typeof LYRIC_PRIORITY_SOURCES[number]
 export interface LyricSourceHealth { failures: number; suspended: boolean; cooldownMs?: number; retryAt?: number }
 export interface LyricSourceProbe { status: 'loading' | LyricCandidateStatus; ms?: number; message?: string; sample: string }

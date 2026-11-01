@@ -67,7 +67,7 @@ export function isLyricMatch(track: Track, target: Track): boolean {
 }
 
 /** 按该平台当前的歌词模式找同曲：账号模式沿用播放匹配缓存，游客模式走游客搜索与独立缓存。 */
-export function findLyricMatch(track: Track, source: 'netease' | 'qq', signal?: AbortSignal, strict = false, refresh = false) {
+export function findLyricMatch(track: Track, source: ProviderId, signal?: AbortSignal, strict = false, refresh = false) {
   return findEquivalentTrack(track, source, signal, Date.now(), strict, refresh, lyricServiceMode(source) === 'guest' ? 'guest' : 'account')
 }
 
