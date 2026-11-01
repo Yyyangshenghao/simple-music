@@ -62,9 +62,11 @@ git diff --check
 - dev 包含当前 master 的必要更新，待发布 feature 均已集成，发布 PR 范围完整；未验收功能留在独立 feature，不能靠发版时临时删除功能来裁剪范围；
 - 新功能、修复和设置迁移形成完整调用链；
 - 受影响的 UI 已用 `npm run dev` 冒烟；
+- 已在本地打出安装包，并走过一遍安装流程（见下方「本地打包与安装验证」）；
 - `docs/release-notes-<目标版本>.md` 已创建，至少包含更新日志、兼容说明和验证情况；
 - 发行说明开头按下面模板放置四条要点，每行不超过 72 个字符，便于应用内更新弹窗提取；需要完整日志时，在四条摘要后用三级标题分组补充详情，各条仍标注新增、优化、修复或说明；
-- 目标版本高于上一稳定发布版本，且本地与远端均不存在同名 tag；dev 已预先更新版本号时，不重复递增。
+- 目标版本高于上一稳定发布版本，且本地与远端均不存在同名 tag；dev 已预先更新版本号时，不重复递增；
+- 对照本次发布范围判断根目录 `README.md` 是否需要同步，需要时随本版本 dev 一起修改，不需要时在发布 PR 中注明「README 无需修改」。README 只描述当前能力，不写版本号或「某版本新增」。以下情况需要同步：新增值得列入「功能」的用户可见能力，或移除、改名已有能力；安装方式、系统要求、下载产物或平台支持变化；使用说明中的入口、术语或行为已不符；截图明显过时；新引入需要在「鸣谢与来源」署名的第三方项目、模型或数据。
 
 ```markdown
 ## 更新日志
@@ -90,6 +92,21 @@ git diff --check
 摘要使用「类别：具体变更」，类别可选「新增」（feat）、「优化」（perf）、「修复」（fix）和「说明」（note），不要求每个版本包含所有类别。客观描述新增、调整或修复的内容，不添加宣传性标题、主观评价或额外阐述；只保留既有行为、发布范围或维护事项的条目用「说明」，不要当作新增功能。应用内按类别分组、显示数量。旧的带标题或无标记摘要仍可读取：以新增/支持/补齐、优化/完善、修复开头的条目对应归类，其余保留为说明；也支持 `feat:` / `fix:` / `perf:` / `note:` 标记。四条摘要与每行 72 字符的发布要求不变。
 
 验证失败时可以保留或推送开发提交供修复，但不得合入 master、创建正式 tag 或公开 Release。文档、代码和工作流未同步完成时，不把目标门禁当作已经通过。
+
+#### 本地打包与安装验证
+
+`npm run build` 只验证源码构建，打包配置（`files`、`asarUnpack`、原生模块）出错只有打出安装包才看得到。2.6.0 曾因平台级 `files` 只写排除项、白名单失效，把 `docs/`、`src/` 整个打进 asar，安装包从约 115MB 涨到约 250MB。发布前在本机执行：
+
+```bash
+npm run build:mac   # Windows 机器上用 npm run build:win
+ls -lh dist/*.dmg dist/*.exe 2>/dev/null
+npx @electron/asar list "dist/mac-arm64/Simple Music.app/Contents/Resources/app.asar" | grep -vE '^/(out|node_modules|package\.json|build/icon)' | head
+```
+
+- 安装包体积与上一 Release 对比，明显变大时先查明原因；
+- asar 列表除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（上面最后一条命令应无输出）；`app.asar.unpacked` 只含目标平台和架构的原生库；
+- 用打出的 dmg/exe 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；
+- 本机无法验证的平台（如 Windows 安装、Intel Mac）在发行说明「验证情况」中写明未实机验证。
 
 ### 0.4 提交、合并、标签和推送顺序
 
@@ -242,7 +259,8 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 设计文档：`docs/superpowers/plans/2026-07-12-semi-auto-update.md`。"半自动" = 检查/下载全自动，安装需用户点一下。
 
 ```
-渲染层 update store（App 启动即 checkForUpdate）
+渲染层 update store（startUpdateAutoCheck：App 启动即检查；之后每 30 分钟判断一次，距上次满 6 小时再查；
+                     窗口回到前台时距上次满 1 小时补查。下载/安装中不替换版本信息，检测失败的兜底结果不冲掉已显示的新版本）
   → GET /api/update/latest
       server: manifest 覆盖(env) → GitHub API /releases/latest → 失败退对应平台的 latest.yml / latest-mac.yml → 再失败本地回退(不报可用更新)
   → UpdateBanner / 设置页显示「发现新版本」
@@ -250,20 +268,26 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   → 轮询 GET /api/update/download/status?id=   # 800ms，进度/速度/ETA/当前线路/失败原因
       server: 候选线路 = 镜像×资源URL + GitHub 直连(preferMirrors 决定顺序)，逐线路重试;
               镜像线路必须有 sha256/sha512 digest 才允许(防镜像缓存投毒);
-              下载完成后 size + sha256 + sha512 三重校验，.download 临时文件 rename 落位 userData/updates/downloads/
+              下载完成后 size + sha256 + sha512 三重校验，.download 临时文件 rename 落位 userData/updates/downloads/，
+              同目录其他安装包随即删除（只留这一个）
   → job.status === 'ready' → 用户点「重启并安装」
-  → window.desktop.installUpdate(filePath) → IPC app:install-update
+  → window.desktop.installUpdate(filePath, version) → IPC app:install-update
       主进程校验 filePath 必须位于配置的更新目录内（默认 userData/updates/）→
       · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.quit()
-      · macOS:   shell.openPath(dmg) 交给 Finder 挂载并显示标准安装窗口 → app.quit()
-                 用户手动把新版本拖到 Applications 并确认替换；主进程不再原地改写 .app
+      · macOS:   预检 → hdiutil 挂载 dmg，ditto 解到 userData/updates/staging/ → 核对 bundle id / 版本 / 可执行文件
+                 → 写 updates/mac-swap.sh 并 detached 启动 → app.quit()
+                 脚本等旧进程退出 → 旧版 mv 到 updates/backup/、新版 mv 到原位 → open 新版；
+                 任一步不满足（预检、挂载、核对）直接改为 shell.openPath(dmg) 让用户拖入；
+                 脚本失败则回滚旧版、重新拉起并打开 dmg。结果写 updates/install-result.json
+  → 下次启动：cleanupUpdatesOnStartup 清旧安装包与 staging/backup，取走替换结果，渲染层 toast 提示一次
 ```
 
 补充细节：
 
 - 更新安装成功与应用重启复用 `before-quit` 清理悬浮窗和 Apple 播放会话；清理卡住时保留 8 秒强制退出兜底。
 - **补丁热更新（/api/update/patch）在新架构不支持**：原项目"源码即运行文件"，补丁按文件名写回；本项目源码经打包后与产物不对应。端点与任务队列结构保留，但应用补丁一步显式抛 `PATCH_NOT_SUPPORTED`（不静默成功、不写文件、不换线路重试）。
-- **macOS 不做原地静默替换**：应用未签名，旧版 hdiutil + shell 脚本方案在权限或进程中断时可能留下孤儿目录，现只打开已校验 dmg，替换动作交给 Finder 和用户。
+- **macOS 原地替换只在 userData 里做重活**：应用只有 adhoc 签名，用不了 Squirrel.Mac。旧方案（f347fde 撤掉）把 `.app.new` 暂存在 `/Applications` 旁，中断即留孤儿目录；现在新版先在 `updates/staging/` 解出并核对，`/Applications` 里只发生两次同卷 rename。预检不满足时（未打包、从 `/Volumes` 或 AppTranslocation 运行、安装目录不可写、暂存与安装目录跨卷）回退为打开 dmg。发版包 `codesign --verify` 本身不通过（adhoc 未封存资源），不能作校验条件。adhoc 签名每次构建都变，系统授权（如麦克风）升级后可能要重新允许。
+- **更新目录清理**：下载完成后删同目录其他安装包（`.download` 进行中与 `.invalid-*` 待排查文件除外）；启动时删版本号不比当前新的安装包、`.download`、`.invalid-*`，以及 `staging/`、`backup/`、`mac-swap.sh`（替换结果为 `ROLLBACK_FAILED` 时保留 `backup/`，那是旧版唯一一份）。取不到版本号的文件不删。逻辑在 `server/lib/update-cleanup.ts`。
 - 下载错误分类（`classifyUpdateError`）：hash/size 不符、超时、DNS、网络中断、HTTP 403/404/5xx 均映射为中文原因给 UI；失败线路记录在 `failedAttempts`（最多 6 条）。
 - 任务表 `updateDownloadJobs` 是内存 Map，保留最近 8 个任务。
 - 下载与安装共用更新目录计算：显式 `SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR` 优先作为下载及安装允许目录；未设置时，下载位于更新工作目录的 `downloads/` 子目录，安装仍限定在工作目录内（`SIMPLEMUSIC_UPDATE_DIR` 或默认 `userData/updates/`）。目录外及路径越界的安装请求继续拒绝。

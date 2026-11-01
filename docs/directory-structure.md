@@ -29,7 +29,7 @@ Mineradio-Next/
 │   │   ├── tray-manager.ts    #   系统托盘：显示/隐藏主窗口、播放控制与退出
 │   │   ├── font-manager.ts    #   枚举、归一化并缓存系统字体
 │   │   ├── safe-open.ts       #   外部链接协议白名单与安全打开
-│   │   └── update-installer.ts #  Windows NSIS 静默安装；macOS 打开 dmg 交由用户替换
+│   │   └── update-installer.ts #  Windows NSIS 静默安装；macOS 暂存核对后原地替换，失败回退打开 dmg
 │   ├── platform/              # 平台能力接口 getPlatform()
 │   │   ├── index.ts           #   PlatformAdapter 接口定义
 │   │   ├── win32.ts           #   完整实现：PowerShell 鼠标中键轮询、壁纸注入 WorkerW、桌面快捷方式

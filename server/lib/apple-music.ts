@@ -80,7 +80,7 @@ export function getAppleMusicStatus(ctx: ServerContext) {
   if (ctx.appleMusicWeb && ctx.appleMusicLoginMode !== 'developer') {
     const state = ctx.appleMusicWeb.state()
     return { configured: false, ready: true, managed: false, loginMode: 'web' as const,
-      connected: state.connected, loggedIn: state.loggedIn, restoring: state.restoring ?? false,
+      connected: state.connected, loggedIn: state.loggedIn, restoring: state.restoring ?? false, suspended: state.suspended ?? false,
       subscription: state.subscription, storefront: state.storefront, ...(state.error ? { error: state.error } : {}) }
   }
   const config = getAppleMusicConfig(ctx)

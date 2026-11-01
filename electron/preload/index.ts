@@ -14,6 +14,7 @@ import type {
   TrayPlaybackState,
   LoginResult,
   OkResult,
+  LastUpdateInstall,
   LyricsPayload,
   WallpaperPayload,
   MiniPlayerPayload,
@@ -125,7 +126,9 @@ const api = {
   removeBackground: (id: string): Promise<OkResult> => ipcRenderer.invoke('background:remove', { id }),
   listSystemFonts: (): Promise<SystemFontResult> => ipcRenderer.invoke('system:list-fonts'),
   restartApp: (): Promise<OkResult> => ipcRenderer.invoke('app:restart'),
-  installUpdate: (filePath: string): Promise<OkResult> => ipcRenderer.invoke('app:install-update', { filePath }),
+  installUpdate: (filePath: string, version?: string): Promise<OkResult> =>
+    ipcRenderer.invoke('app:install-update', { filePath, version }),
+  takeLastUpdateInstall: (): Promise<LastUpdateInstall | null> => ipcRenderer.invoke('app:last-update-install'),
 
   // 开发模式资源监控（打包版未注册，调用会失败）
   getDevMetrics: (): Promise<DevMetricsSnapshot> => ipcRenderer.invoke('dev:metrics')

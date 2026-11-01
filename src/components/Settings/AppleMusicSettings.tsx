@@ -10,6 +10,8 @@ export function AppleMusicAccountInfo() {
   const subscription = account?.subscription ?? 'unknown'
   const badge = account?.restoring
     ? '恢复登录中'
+    : account?.suspended
+    ? '已暂停'
     : waiting && !account?.loggedIn
     ? '等待授权'
     : account?.loggedIn && subscription === 'inactive'
@@ -18,7 +20,9 @@ export function AppleMusicAccountInfo() {
         ? '确认订阅中'
         : account?.connected && account.loggedIn ? '已登录' : account?.loggedIn ? '连接已中断' : '未登录'
 
-  const subscriptionHint = account?.loggedIn && subscription === 'inactive'
+  const subscriptionHint = account?.suspended
+    ? 'Apple 音源已关闭，后台播放页面已释放；重新启用后会自动连接。'
+    : account?.loggedIn && subscription === 'inactive'
     ? '无有效订阅：此账号没有有效的 Apple Music 订阅，Apple 音源已保持禁用。'
     : account?.loggedIn && subscription === 'active'
       ? '订阅有效，可播放完整歌曲。歌曲会直接在 Simple Music 内播放，可使用播放队列、快捷键和迷你播放器。'
@@ -29,7 +33,7 @@ export function AppleMusicAccountInfo() {
   return (
     <span className={styles.actions}>
       <InfoButton label="Apple Music 登录与订阅" align="left" text={`${badge}。${subscriptionHint}${message ? ` ${message}` : ''}`} />
-      {account?.loggedIn && !account.connected && !waiting && !account.restoring && <AccountButton label="重新连接 Apple Music" disabled={busy} onClick={() => void connect()} />}
+      {account?.loggedIn && !account.connected && !waiting && !account.restoring && !account.suspended && <AccountButton label="重新连接 Apple Music" disabled={busy} onClick={() => void connect()} />}
       {!account && error && <AccountButton label="重新检测 Apple Music" disabled={busy} onClick={() => void refresh()} />}
     </span>
   )

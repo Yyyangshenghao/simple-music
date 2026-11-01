@@ -22,16 +22,11 @@ export function UpdateBanner() {
 
   const ready = job?.status === 'ready'
   const errored = job?.status === 'error'
-  const isMac = window.desktop?.platform === 'darwin'
 
   const actionLabel = ready
     ? installing
-      ? isMac
-        ? '正在打开安装包…'
-        : '正在安装…'
-      : isMac
-        ? '打开安装包'
-        : '重启并安装'
+      ? '正在安装…'
+      : '重启并安装'
     : downloading
       ? `下载中 ${job?.progress ?? 0}%`
       : errored

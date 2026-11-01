@@ -414,6 +414,57 @@ describe('应用内 Apple Music 会话', () => {
     expect(win.show).toHaveBeenCalledOnce()
   })
 
+  it('关闭平台销毁后台窗口但保留登录，重新启用后静默重连', async () => {
+    h.setState(signedIn)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(0)
+    const first = h.windows[0]
+    await apple.suspend()
+    expect(first.destroy).toHaveBeenCalled()
+    expect(h.clearStorageData).not.toHaveBeenCalled()
+    expect(h.writeFile).toHaveBeenLastCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'suspended', expect.any(Object))
+    expect(apple.state()).toMatchObject({ loggedIn: true, connected: false, suspended: true, storefront: 'cn' })
+    expect(() => apple.command({ type: 'load', playbackId: 'p1', id: '123' })).toThrow()
+
+    await apple.resume()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.windows).toHaveLength(2)
+    expect(h.windows[1].show).not.toHaveBeenCalled()
+    expect(apple.state()).toMatchObject({ loggedIn: true, connected: true })
+    expect(apple.state().suspended).toBeUndefined()
+    expect(h.writeFile).toHaveBeenCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'true', expect.any(Object))
+  })
+
+  it('开发态 Chrome 重新启用后确认登录即结束连接中', async () => {
+    apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
+    h.setState(signedIn)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(0)
+    h.writeFile.mockClear()
+    await apple.suspend()
+    expect(h.chrome.close).toHaveBeenCalled()
+    expect(h.writeFile).not.toHaveBeenCalled()
+    await apple.resume()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(apple.state()).toMatchObject({ loggedIn: true, connected: true, restoring: false })
+  })
+
+  it('平台关着时启动不拉起后台窗口，退出登录清除暂停', async () => {
+    h.readFile.mockReturnValue('suspended')
+    await apple.restore()
+    expect(h.BrowserWindow).not.toHaveBeenCalled()
+    expect(apple.state()).toMatchObject({ loggedIn: true, suspended: true })
+    await apple.logout()
+    expect(apple.state()).toMatchObject({ loggedIn: false })
+    expect(h.writeFile).toHaveBeenLastCalledWith(join('/tmp/simple-music-test', 'apple-music-restore'), 'false', expect.any(Object))
+  })
+
+  it('未登录时关闭平台不做任何事', async () => {
+    await apple.suspend()
+    expect(apple.state().suspended).toBeUndefined()
+    expect(h.writeFile).not.toHaveBeenCalled()
+  })
+
   it('成功授权持久化布尔恢复标记，退出登录清除标记', async () => {
     h.setState(signedIn)
     await apple.open()
@@ -560,6 +611,20 @@ describe('应用内 Apple Music 会话', () => {
     expect(callback).toHaveBeenLastCalledWith(true)
     request(null, 'media', callback, { requestingUrl: 'https://music.apple.com' })
     expect(callback).toHaveBeenLastCalledWith(false)
+  })
+
+  it('授权后隐藏窗口时只切一次到轻量搜索页，Chrome 路径同样处理', async () => {
+    const leave = (script: string) => script.includes('a[href$="/search"]')
+    h.setState(signedIn)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.windows[0].webContents.executeJavaScript.mock.calls.filter(([script]) => leave(script))).toHaveLength(1)
+
+    await apple.close()
+    apple = new OfficialAppleMusicSession('/tmp/simple-music-test', true)
+    await apple.open()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.chrome.evaluate.mock.calls.filter(([script]) => leave(script))).toHaveLength(1)
   })
 
   it('授权完成后自动隐藏窗口，后续播放仍保持连接', async () => {

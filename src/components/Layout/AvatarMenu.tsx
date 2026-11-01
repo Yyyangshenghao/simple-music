@@ -106,9 +106,11 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
             const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn
             const state = runtime[source]
             const waiting = source === 'apple' && apple.phase === 'waiting'
-            const processing = busySource === source || (source === 'apple' && ['opening', 'disconnecting'].includes(apple.phase))
-            const accountLabel = waiting && !loggedIn ? '等待授权' : loggedIn
-              ? source === 'apple' ? '已连接' : state.profile?.nickname || '已连接'
+            // 重新启用 Apple 时后台页面需要几秒静默重连；平台关着时页面已销毁，只保留登录。
+            const reconnecting = source === 'apple' && !!apple.account?.restoring
+            const processing = busySource === source || reconnecting || (source === 'apple' && ['opening', 'disconnecting'].includes(apple.phase))
+            const accountLabel = reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
+              ? source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
               : '未登录'
             const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : '已登录，未启用'
             return (
@@ -125,7 +127,10 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                   <Switch
                     checked={loggedIn && state.enabled}
                     disabled={!loggedIn}
-                    onChange={(enabled) => setEnabled(source, enabled)}
+                    onChange={(enabled) => {
+                      setEnabled(source, enabled)
+                      if (source === 'apple') void useAppleMusicConnection.getState().refresh()
+                    }}
                     aria-label={`${loggedIn && state.enabled ? '停用' : '启用'}${provider.descriptor.label}`}
                   />
                   <button

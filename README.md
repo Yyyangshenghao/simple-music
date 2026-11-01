@@ -25,7 +25,8 @@
 - **播放控制**：播放队列、下一首播放、顺序调整、断点续播、睡眠定时，以及可配置的应用内和全局快捷键。
 - **桌面功能**：桌面歌词、迷你播放条和 Windows 动态桌面壁纸。
 - **游戏模式**：收起主界面，后台继续播放；保留托盘控制和已开启的桌面歌词。
-- **下载与离线**：网易云、QQ 的可下载歌曲支持单曲和批量下载，提供下载队列、播放缓存和离线保留。
+- **K 歌**：在本机用 AI 模型分离伴奏，可按比例保留和声与导唱，播放中与原唱无缝切换；不支持 WebGPU 的设备使用实时人声消除。
+- **下载与离线**：网易云、QQ 的可下载歌曲支持单曲和批量下载，下载与伴奏生成统一在任务队列中管理，并提供播放缓存和离线保留。
 - **界面设置**：深浅主题、封面取色、自定义主题色、字体和动效；支持流体、图片、视频和 Wallpaper Engine 应用背景。
 
 ## 截图
@@ -87,7 +88,7 @@
 | Windows · x64 安装版 | `-Setup.exe` | 按安装向导操作 |
 | Windows · x64 便携版 | `-portable.exe` | 双击运行，更新时重新下载 |
 
-Mac 芯片类型可在苹果菜单 →「关于本机」查看。应用内「设置 → 关于应用」提供检查更新和更新日志入口；macOS 下载后需手动替换安装，Windows 便携版需自行更新。
+Mac 芯片类型可在苹果菜单 →「关于本机」查看。应用内「设置 → 关于应用」提供检查更新和更新日志入口；下载完成后点「重启并安装」即可自动替换并重启；macOS 上条件不满足（如应用不在可写目录）时会改为打开安装包手动拖入，Windows 便携版需自行更新。
 
 ## 使用说明
 
@@ -116,7 +117,7 @@ Mac 芯片类型可在苹果菜单 →「关于本机」查看。应用内「设
 
 ### 下载与缓存
 
-下载歌曲会保存到指定的下载目录，支持在队列中查看进度、暂停、取消和重试。
+下载歌曲会保存到指定的下载目录。下载与伴奏生成统一在标题栏的任务队列中查看进度，支持暂停后续任务、取消等待和重试，并可直接前往离线音乐或伴奏库。
 
 播放器缓存分为自动缓存和固定保留的离线音频。自动缓存可能随容量清理；需要保留时可选择「保留此缓存」，随后在「我的库 → 离线音乐」中播放。清理播放器缓存不会删除下载目录中的歌曲文件。
 
@@ -156,6 +157,8 @@ npm test              # 运行测试
 - [Folia](https://github.com/chthollyphile/folia-major) —— 动态歌词样式与交互的参考，本项目按自身架构重新实现。
 - [React Bits](https://github.com/DavidHDev/react-bits) —— 部分界面组件、交互动效与流体背景的来源和参考。
 - [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) 及其贡献者 —— 提供社区制作的逐字歌词。
+- [Ultimate Vocal Remover](https://github.com/Anjok07/ultimatevocalremovergui) 的 MDX-Net 模型 —— K 歌伴奏分离使用的模型；「HQ3 省显存」为本项目由官方 HQ3 转换的半精度版本。
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime)（MIT，Microsoft）—— 通过 onnxruntime-web（WebGPU）与 onnxruntime-node 运行伴奏分离模型。
 - QQ 音乐接口部分在实现与文档整理时参考、交叉核对了以下开源逆向项目（均未直接引入代码，接口来源见 [QQ 音乐接口文档](./docs/qq-music-api.md)）：[l-1124/QQMusicApi](https://github.com/l-1124/QQMusicApi)（Python）、[copws/qq-music-api](https://github.com/copws/qq-music-api)（JS）、[jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)（Node.js）。
 
 上述网易云与 QQ 音乐接口项目均为非官方实现，QQ 音乐、网易云音乐无面向个人开发者的公开 OpenAPI，相关接口存在随上游改版失效的风险。

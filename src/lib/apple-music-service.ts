@@ -26,6 +26,11 @@ interface AppleSearch { results?: { songs?: ApplePage; artists?: ApplePage; play
 export interface AppleRecommendationGroup { id: string; title: string; items: Playlist[] }
 export interface AppleRecommendationFeature { item: Playlist; groupTitle: string; moduleId: string }
 export interface AppleChartPlaylistsPage { playlists: Playlist[]; nextCursor?: string }
+/** 目录/推荐歌单默认不带曲目数，需显式 extend；Apple 的 next 游标会丢掉它，跟页时要补回。 */
+const TRACK_COUNT_EXTEND = 'extend=trackCount'
+function withTrackCount(path: string): string {
+  return path.includes(TRACK_COUNT_EXTEND) ? path : `${path}${path.includes('?') ? '&' : '?'}${TRACK_COUNT_EXTEND}`
+}
 const FAVORITE_SONG_NAMES = new Set(['喜爱歌曲', '喜欢的歌曲', 'favorite songs', 'favourite songs'])
 
 export function appendUniqueAppleCharts(current: Playlist[], incoming: Playlist[]): Playlist[] {
@@ -118,13 +123,14 @@ export class AppleMusicService implements MusicService {
   private async all(path: string): Promise<AppleResource[]> {
     const result: AppleResource[] = []
     const seen = new Set<string>()
+    const keepTrackCount = path.includes(TRACK_COUNT_EXTEND)
     let next: string | undefined = path
     while (next) {
       if (!next.startsWith('/v1/') || seen.has(next)) throw new Error('Apple Music 分页地址无效')
       seen.add(next)
       const page: ApplePage = await this.request<ApplePage>(next)
       result.push(...page.data ?? [])
-      next = page.next
+      next = page.next && keepTrackCount ? withTrackCount(page.next) : page.next
     }
     return result
   }
@@ -143,14 +149,14 @@ export class AppleMusicService implements MusicService {
 
   async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
     if (page > 0) return []
-    const result = await this.request<AppleSearch>(await this.catalog('charts?types=playlists&limit=50'))
+    const result = await this.request<AppleSearch>(await this.catalog('charts?types=playlists&limit=50&extend=trackCount'))
     return (result.results?.playlists ?? []).flatMap((chart) => chart.data ?? []).map(mapPlaylist)
   }
 
   async getChartPlaylistsPage(cursor?: string): Promise<AppleChartPlaylistsPage> {
     if (cursor && !/^\/v1\/catalog\/[a-z]{2}\/charts\?/.test(cursor)) throw new Error('Apple Music 榜单分页地址无效')
     const path = cursor ?? await this.catalog('charts?types=playlists&chart=most-played&limit=24')
-    const result = await this.request<AppleSearch>(path)
+    const result = await this.request<AppleSearch>(withTrackCount(path))
     const chart = result.results?.playlists?.[0]
     return {
       playlists: (chart?.data ?? []).filter(item => item.type === 'playlists').map(mapPlaylist),
@@ -161,14 +167,14 @@ export class AppleMusicService implements MusicService {
   async getStorefrontChartPlaylists(): Promise<Playlist[]> {
     const base = await this.catalog('playlists')
     const storefront = base.split('/')[3]
-    const page = await this.request<ApplePage>(`${base}?filter[storefront-chart]=${storefront}`)
+    const page = await this.request<ApplePage>(`${base}?filter[storefront-chart]=${storefront}&extend=trackCount`)
     return (page.data ?? []).filter(item => item.type === 'playlists').slice(0, 20).map(mapPlaylist)
   }
 
   async getRecommendationGroups(): Promise<AppleRecommendationGroup[]> {
     const status = await api.get<{ loggedIn: boolean }>('/api/apple-music/status')
     if (!status.loggedIn) return []
-    const resources = await this.all('/v1/me/recommendations')
+    const resources = await this.all('/v1/me/recommendations?extend=trackCount')
     return resources.flatMap(resource => {
       if (resource.type !== 'personal-recommendation') return []
       const title = resource.attributes?.title?.stringForDisplay?.trim()
@@ -185,9 +191,20 @@ export class AppleMusicService implements MusicService {
   }
 
   async getPlaylistPage(id: unknown, offset: number, limit: number): Promise<PlaylistPage> {
+    // 目录歌单的曲目分页不带总数，首页并行取一次歌单本身的 trackCount
+    const catalogCount = offset === 0 && !String(id).startsWith('p.') ? this.catalogPlaylistTrackCount(id) : null
     const page = await this.request<ApplePage>(`${await this.playlistTracksPath(id)}?limit=${Math.min(100, limit)}&offset=${offset}`)
     const tracks = (page.data ?? []).filter((item) => item.type === 'songs' || item.type === 'library-songs').map(mapAppleTrack)
-    return { tracks, total: page.meta?.total ?? null, nextOffset: offset + (page.data?.length ?? 0), hasMore: !!page.next }
+    const total = page.meta?.total ?? (page.next ? await catalogCount : offset + (page.data?.length ?? 0)) ?? null
+    return { tracks, total, nextOffset: offset + (page.data?.length ?? 0), hasMore: !!page.next }
+  }
+
+  private async catalogPlaylistTrackCount(id: unknown): Promise<number | null> {
+    try {
+      const page = await this.request<ApplePage>(await this.catalog(`playlists/${encodeURIComponent(String(id))}?extend=trackCount&fields[playlists]=trackCount`))
+      const count = page.data?.[0]?.attributes?.trackCount
+      return typeof count === 'number' && Number.isSafeInteger(count) && count >= 0 ? count : null
+    } catch { return null }
   }
 
   private async playlistTracksPath(id: unknown): Promise<string> {
@@ -229,7 +246,7 @@ export class AppleMusicService implements MusicService {
   }
 
   async searchPlaylists(keyword: string): Promise<Playlist[]> {
-    const result = await this.request<{ results?: { playlists?: ApplePage } }>(await this.catalog(`search?types=playlists&limit=20&term=${encodeURIComponent(keyword)}`))
+    const result = await this.request<{ results?: { playlists?: ApplePage } }>(await this.catalog(`search?types=playlists&limit=20&extend=trackCount&term=${encodeURIComponent(keyword)}`))
     return (result.results?.playlists?.data ?? []).map(mapPlaylist)
   }
 

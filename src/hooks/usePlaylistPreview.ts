@@ -93,7 +93,8 @@ export function usePlaylistPreview(playlist: Playlist) {
 
   return {
     tracks: state.tracks,
-    total: state.total ?? (state.hasMore ? playlist.trackCount : state.tracks.length),
+    // 上游不报总数时(Apple 目录歌单):翻完前未知为 null,不能退回占位的 trackCount 0,否则按钮被禁用
+    total: state.total ?? (!state.hasMore ? state.tracks.length : playlist.trackCountKnown === false ? null : playlist.trackCount),
     loading: state.loading,
     loadingMore: state.loadingMore,
     hasMore: state.hasMore,

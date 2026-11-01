@@ -19,7 +19,7 @@ Simple Music（包名 `simplemusic`）是一个 Electron 桌面音乐播放器�
 │  ├─ modules/overlay-manager.ts ──► 桌面歌词/壁纸/迷你播放条窗（三个独立渲染进程）│
 │  ├─ modules/hotkey-manager.ts（globalShortcut）                       │
 │  ├─ modules/login-manager.ts（独立登录窗口，session 分区抓 cookie）      │
-│  ├─ modules/update-installer.ts（NSIS 静默安装 / mac 打开 dmg 交用户拖装）│
+│  ├─ modules/update-installer.ts（NSIS 静默安装 / mac 暂存核对后原地替换）│
 │  ├─ modules/tray-manager.ts（系统托盘与主窗口恢复）                       │
 │  └─ ipc/*（contextBridge 通道，类型契约在 src/types/ipc.ts）            │
 └──────────────────────────────────────────────────────────────────────┘

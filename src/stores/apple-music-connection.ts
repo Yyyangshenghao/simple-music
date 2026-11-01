@@ -11,6 +11,8 @@ export interface AppleMusicAccountStatus {
   loggedIn: boolean
   connected: boolean
   restoring?: boolean
+  /** 平台已关闭：后台页面已销毁，登录保留，重新启用时静默重连。 */
+  suspended?: boolean
   subscription: 'unknown' | 'active' | 'inactive'
   storefront: string
   error?: string
@@ -32,6 +34,21 @@ let requestSequence = 0
 let deadline = 0
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '连接失败，请重试'
 
+// 后台官网页面只为播放与曲库服务：平台关闭就销毁，重新启用时再静默连上。
+let transition: Promise<void> | null = null
+function syncBackgroundPage(account: AppleMusicAccountStatus, enabled: boolean): void {
+  if (transition || account.loginMode !== 'web') return
+  const action = account.suspended && enabled ? 'resume'
+    : !account.suspended && !enabled && account.connected && account.subscription === 'active' ? 'suspend'
+      : null
+  if (!action) return
+  if (action === 'resume') useProviderStore.getState().setPlaybackAvailability('apple', false, '正在重新连接 Apple Music…')
+  // 结果交给下一轮状态轮询（3 秒一次）同步，避免在这里再插一轮刷新。
+  transition = api.post(`/api/apple-music/bridge/${action}`)
+    .then(() => {}, () => {})
+    .finally(() => { transition = null })
+}
+
 // 登录状态独立于设置页，切换页面后仍可完成授权并启用音源。
 export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
   account: null, phase: 'idle', message: '', error: false, statusError: false,
@@ -44,11 +61,12 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
       set({ account, ...(get().statusError ? { error: false, statusError: false, message: '' } : {}) })
       if (account.restoring) return
       const store = useProviderStore.getState()
+      if (get().phase === 'idle') syncBackgroundPage(account, store.byId.apple.enabled)
       const auth = account.loggedIn ? 'authenticated' : 'anonymous'
       if (store.byId.apple.auth !== auth) store.setAccountState('apple', auth,
         account.loggedIn ? { avatar: '', nickname: 'Apple Music' } : undefined,
         { preserveEnabled: !account.loggedIn })
-      if (account.loggedIn) {
+      if (account.loggedIn && !account.suspended) {
         const unavailable = !account.connected
           ? account.error || 'Apple Music 播放连接已断开，请重新连接。'
           : account.subscription === 'inactive'
@@ -72,6 +90,8 @@ export const useAppleMusicConnection = create<ConnectionState>((set, get) => ({
         } else if (Date.now() >= deadline) {
           set({ phase: 'idle', error: true, message: '尚未收到授权结果，请重新登录，并在应用内授权窗口完成 Apple 授权。' })
         }
+      } else if (account.suspended) {
+        if (!get().statusError) set({ error: false, message: '' })
       } else if (!account.connected && (account.loggedIn || account.error)) {
         set({ error: true, message: account.error || 'Apple Music 播放连接已断开，请重新连接。' })
       } else if (account.loggedIn && account.subscription === 'inactive') {

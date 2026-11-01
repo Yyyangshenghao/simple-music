@@ -14,6 +14,8 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
 import { updateDownloadDir } from './update-download-dir'
+import { compareVersions, normalizeVersion } from './update-version'
+import { pruneOtherInstallers } from './update-cleanup'
 // 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
 import pkgJson from '../../package.json' with { type: 'json' }
 
@@ -318,29 +320,6 @@ function publicDownloadUrls(candidates: DownloadCandidate[]): string[] {
 }
 
 // ---------- 版本 / release notes ----------
-function normalizeVersion(value: unknown): string {
-  return String(value || '')
-    .trim()
-    .replace(/^v/i, '')
-    .replace(/[+].*$/, '')
-    .replace(/-.+$/, '')
-}
-function compareVersions(a: unknown, b: unknown): number {
-  const aa = normalizeVersion(a)
-    .split('.')
-    .map((n) => parseInt(n, 10) || 0)
-  const bb = normalizeVersion(b)
-    .split('.')
-    .map((n) => parseInt(n, 10) || 0)
-  const len = Math.max(aa.length, bb.length, 3)
-  for (let i = 0; i < len; i++) {
-    const left = aa[i] || 0
-    const right = bb[i] || 0
-    if (left > right) return 1
-    if (left < right) return -1
-  }
-  return 0
-}
 function cleanReleaseLine(line: unknown): string {
   return String(line || '')
     .replace(/^\s*#{1,6}\s*/, '')
@@ -1166,6 +1145,7 @@ async function downloadUpdateAssetWithMirrors(job: UpdateJob): Promise<void> {
       await verifyUpdateFile(tmpPath, job)
       if (fs.existsSync(job.filePath)) fs.unlinkSync(job.filePath)
       fs.renameSync(tmpPath, job.filePath)
+      pruneOtherInstallers(path.dirname(job.filePath), path.basename(job.filePath))
       job.status = 'ready'
       job.progress = 100
       job.etaSeconds = 0

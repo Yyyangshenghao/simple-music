@@ -190,6 +190,18 @@ describe('Apple Music 播放控制', () => {
     await vi.advanceTimersByTimeAsync(0)
   })
 
+  it('播放中关闭 Apple 平台立即说明音源已关闭，不提示去重连', async () => {
+    vi.mocked(api.get).mockResolvedValue(state('', { connected: false, suspended: true }))
+    const onState = vi.fn()
+    const player = new AppleMusicPlayback(onState)
+    await player.load('123', false, 0, true, 1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', error: 'Apple Music 音源已关闭，播放已停止' }))
+    expect(api.get).toHaveBeenCalledTimes(1)
+    player.stop()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
   it('短暂查询失败和断开快照恢复后继续播放，不报告错误', async () => {
     const onState = vi.fn()
     const player = new AppleMusicPlayback(onState)

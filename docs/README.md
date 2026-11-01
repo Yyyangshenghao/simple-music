@@ -23,7 +23,7 @@
 | 依赖、开发环境 | [技术栈](tech-stack.md) |
 | 启动、渲染、内存与性能验收 | [性能与界面维护](performance.md) |
 | 应用聚合与平台歌单管理的边界 | [渲染层](modules/renderer.md)、[职责收敛的决定记录](specs/2026-10-18-playlist-boundaries.md) |
-| 版本、打包、签名和发布 | [构建与发布](build-and-release.md) |
+| 版本、打包、签名和发布 | [构建与发布](build-and-release.md)、[2.6.1 Windows 实机测试清单](reviews/2.6.1-windows-test-checklist.md) |
 | 上游接口 | [网易云接口笔记](netease-music-api.md)、[QQ 接口笔记](qq-music-api.md) |
 
 ## 最近开发与验证

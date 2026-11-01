@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlaylistPreviewModal } from './PlaylistPreviewModal'
 import type { Playlist, Track } from '../../types/domain'
 
-const state = vi.hoisted(() => ({ total: 0, tracks: [] as (Track | null)[], loading: true, error: false, loadingMore: false, moreError: false }))
+const state = vi.hoisted(() => ({ total: 0 as number | null, tracks: [] as (Track | null)[], loading: true, error: false, loadingMore: false, moreError: false }))
 vi.mock('../../hooks/useLazyPlaylist', () => ({
   useLazyPlaylist: () => ({ ...state, makeQueue: () => [], ensureRange: () => {} }),
   loadPlaylistQueue: async () => [],
@@ -74,6 +74,14 @@ describe('歌单预览加载状态', () => {
     Object.assign(state, { loadingMore: false, moreError: true })
     html = render(qq)
     expect(html).toContain('加载失败，点击重试')
+  })
+
+  it('Apple 歌单总数未知时不显示曲数，播放与进入歌单不被禁用', () => {
+    const apple: Playlist = { ...playlist, provider: 'apple', source: 'apple', id: 'pl.123', trackCount: 0, trackCountKnown: false }
+    Object.assign(state, { total: null, loading: false, tracks: [{ id: 1, provider: 'apple', source: 'apple', type: 'song', name: '首页歌曲', artist: '', artists: [] }] })
+    const html = render(apple)
+    expect(html).not.toContain(' 首<')
+    expect(html).not.toContain('disabled')
   })
 
   it('预览只供浏览，不提供任何加入应用歌单入口', () => {

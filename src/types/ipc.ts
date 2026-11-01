@@ -63,6 +63,15 @@ export interface OkResult {
   message?: string
 }
 
+/** macOS 上次后台原地替换的结果，启动后取一次即清除；code 为 OK 或替换脚本的失败码 */
+export interface LastUpdateInstall {
+  ok: boolean
+  code: string
+  from: string
+  to: string
+  at: number
+}
+
 /** 游戏模式只在当前运行期间生效，不覆盖外观和快捷键偏好。 */
 export interface GameModeState {
   enabled: boolean
@@ -294,7 +303,8 @@ export interface IpcChannels {
   'system:list-fonts': { req: void; res: SystemFontResult }
 
   'app:restart': { req: void; res: OkResult }
-  'app:install-update': { req: { filePath: string }; res: OkResult }
+  'app:install-update': { req: { filePath: string; version?: string }; res: OkResult }
+  'app:last-update-install': { req: void; res: LastUpdateInstall | null }
 }
 
 export interface IpcEvents {

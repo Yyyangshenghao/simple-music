@@ -11,6 +11,15 @@ const PLAYBACK_PARTITION = 'persist:simplemusic-apple-music'
 const APPLE_MUSIC_URL = 'https://music.apple.com/'
 const OPEN_TIMEOUT_MS = 30000
 const RESTORE_CONFIRM_TIMEOUT_MS = 30000
+// 官网首页挂着十几个动态封面视频，隐藏后仍独占数百 MB；后台播放只需要 MusicKit，
+// 在页面内点到搜索页（单页路由，不重载）即可释放，MusicKit 实例与授权保持不变。
+const LIGHT_PAGE_SCRIPT = `(() => {
+  if (location.pathname.endsWith('/search')) return false
+  const link = document.querySelector('a[href$="/search"]')
+  if (!link) return false
+  link.click()
+  return true
+})()`
 const emptyState = () => ({ connected: false, loggedIn: false, subscription: 'unknown' as const, storefront: 'cn', playbackId: '', status: 'idle' as const, position: 0, duration: 0 })
 
 type ProtectedElectron = typeof electron & {
@@ -38,6 +47,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   private backgrounded = false
   private authorizationShown = false
   private restoreSaved = false
+  /** 平台被关闭：后台页面已销毁，登录 Cookie 保留，重新启用时静默重连。 */
+  private suspended = false
   private restoring = false
   private restoreTimer?: ReturnType<typeof setTimeout>
   private loggingOut = false
@@ -52,7 +63,10 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     private readonly useChromeForDrm = false,
     private readonly returnToApp: () => void = () => {},
   ) {}
-  state() { return { ...this.snapshot, restoring: this.restoring } }
+  state() {
+    if (this.suspended) return { ...emptyState(), loggedIn: true, storefront: this.snapshot.storefront, restoring: false, suspended: true }
+    return { ...this.snapshot, restoring: this.restoring }
+  }
 
   /** 仅应用内 MusicKit 窗口可供主渲染层捕获音频；开发态 Chrome 不属于本进程。 */
   captureFrame(): Electron.WebFrameMain | null {
@@ -64,6 +78,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
 
   async open(): Promise<void> {
     this.finishRestore()
+    this.suspended = false
     this.interactive = true
     if (this.window && !this.snapshot.loggedIn) {
       this.backgrounded = false
@@ -76,9 +91,33 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   async restore(): Promise<void> {
     // 开发用 Chrome 仍有独立窗口；只对发布版的应用内会话自动恢复。
     if (this.useChromeForDrm || this.opening || this.window) return
-    try {
-      if (readFileSync(join(this.userDataDir, 'apple-music-restore'), 'utf8') !== 'true') return
-    } catch { return }
+    let saved = ''
+    try { saved = readFileSync(join(this.userDataDir, 'apple-music-restore'), 'utf8') } catch { return }
+    if (saved === 'suspended') { this.suspended = true; return }
+    if (saved !== 'true') return
+    await this.silentOpen()
+  }
+
+  /** 关闭 Apple 平台时销毁后台页面（开发态即退出专用 Chrome），省下整套官网页面的内存。 */
+  async suspend(): Promise<void> {
+    if (this.suspended || this.loggingOut || (!this.snapshot.loggedIn && !this.restoring)) return
+    const storefront = this.snapshot.storefront
+    this.suspended = true
+    // 开发态 Chrome 不做静默恢复；与发布版共用 userData，不改写发布版的恢复标记。
+    if (!this.useChromeForDrm) this.writeRestore('suspended')
+    await this.close()
+    this.snapshot = { ...this.snapshot, storefront }
+  }
+
+  /** 重新启用平台：沿用保留的登录 Cookie 在后台重连，不弹授权窗口。 */
+  async resume(): Promise<void> {
+    if (!this.suspended) return
+    this.suspended = false
+    if (!this.useChromeForDrm) this.writeRestore('true')
+    await this.silentOpen()
+  }
+
+  private async silentOpen(): Promise<void> {
     this.interactive = false
     this.restoring = true
     try { await this.beginOpen() }
@@ -96,9 +135,13 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
 
   private saveRestore(enabled: boolean): void {
     if (enabled && (this.restoreSaved || this.loggingOut)) return
+    this.writeRestore(enabled ? 'true' : 'false')
+  }
+
+  private writeRestore(value: 'true' | 'false' | 'suspended'): void {
     try {
-      writeFileSync(join(this.userDataDir, 'apple-music-restore'), String(enabled), { mode: 0o600 })
-      this.restoreSaved = enabled
+      writeFileSync(join(this.userDataDir, 'apple-music-restore'), value, { mode: 0o600 })
+      this.restoreSaved = value === 'true'
     } catch { /* 恢复偏好写入失败不影响当前播放。 */ }
   }
 
@@ -296,7 +339,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
             this.finishRestore()
             this.interactive = false
             this.saveRestore(true)
-            if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false }
+            if (!this.backgrounded) { win.hide(); win.setSkipTaskbar(true); this.backgrounded = true; this.authorizationShown = false; this.leaveHeavyPage() }
           } else if (this.interactive && !this.loginPrompted) {
             this.backgrounded = false
             this.showAuthorization(win)
@@ -314,6 +357,10 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       }
     }
     if (this.window === win && !win.isDestroyed()) this.timer = setTimeout(() => void this.poll(win), nextPollMs ?? this.playbackPollInterval())
+  }
+
+  private leaveHeavyPage(): void {
+    void this.evaluateScript(LIGHT_PAGE_SCRIPT).catch(() => { /* 留在原页面只是多占内存 */ })
   }
 
   private playbackPollInterval(): number {
@@ -356,9 +403,10 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
           await chrome.navigate(redirectUrl)
           nextPollMs = 4000
         } else if (state.loggedIn) {
+          this.finishRestore()
           this.interactive = false
           // macOS 最小化 Chrome 会使官网播放停滞；保留窗口，仅将焦点交回主应用。
-          if (!this.backgrounded) { this.backgrounded = true; this.returnToApp() }
+          if (!this.backgrounded) { this.backgrounded = true; this.returnToApp(); this.leaveHeavyPage() }
         } else if (this.interactive && !this.loginPrompted) this.loginPrompted = await this.promptLogin()
       }
     } catch {
@@ -467,6 +515,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
 
   async logout() {
     this.loggingOut = true
+    this.suspended = false
     if (this.chrome?.isAlive()) {
       try { await this.chrome.unauthorize() } catch {}
     }

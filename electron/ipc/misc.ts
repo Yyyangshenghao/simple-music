@@ -4,7 +4,7 @@ import { resolve, sep, isAbsolute } from 'node:path'
 import { getMainWindow, setShortcutRecording } from '../modules/window-manager'
 import { configureHotkeys } from '../modules/hotkey-manager'
 import { configureSettingsMenu } from '../modules/settings-menu'
-import { installUpdateMac, installUpdateWindows } from '../modules/update-installer'
+import { installUpdateMac, installUpdateWindows, takeLastMacInstall } from '../modules/update-installer'
 import { listSystemFontsCached } from '../modules/font-manager'
 import { findLocalTrack } from '../../server/lib/local-library'
 import { updateWorkDir } from '../../server/lib/update-download-dir'
@@ -120,7 +120,9 @@ export function registerMiscIpc(): void {
     }
   })
 
-  ipcMain.handle('app:install-update', async (_e, arg: { filePath: string }): Promise<OkResult> => {
+  ipcMain.handle('app:last-update-install', () => takeLastMacInstall())
+
+  ipcMain.handle('app:install-update', async (_e, arg: { filePath: string; version?: string }): Promise<OkResult> => {
     try {
       const target = resolve(String(arg?.filePath ?? ''))
       const updateDir = resolve(getUpdateDownloadDir())
@@ -135,7 +137,8 @@ export function registerMiscIpc(): void {
         return { ok: true }
       }
       if (process.platform === 'darwin') {
-        const result = await installUpdateMac(target)
+        // 原地替换（swap）由脱离的脚本等本进程退出后完成；回退成打开 dmg 时同样退出，让用户直接拖入替换。
+        const result = await installUpdateMac(target, typeof arg?.version === 'string' ? arg.version : undefined)
         if (!result.ok) return result
         app.quit()
         return { ok: true }
