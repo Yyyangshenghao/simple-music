@@ -100,9 +100,10 @@ export function proxyRouteLabel(route: Pick<ProxyRouteReport, 'address' | 'sourc
   return route.source === 'system' ? `系统代理 ${route.address}` : route.address
 }
 
-/** 诊断总结：有结论就逐条给出，否则按整体通断概括。 */
+/** 诊断总结：一句话概括；具体结论另行逐条展示。 */
 export function proxyDiagnosisSummary(diagnosis: ProxyDiagnosis): string {
-  if (diagnosis.hints.length) return diagnosis.hints.join('；')
+  // 结论在检测结果下方逐条完整显示，状态行只给一句概括，避免长句被截断。
+  if (diagnosis.hints.length) return `发现 ${diagnosis.hints.length} 个需要注意的问题，见下方`
   const checks = diagnosis.routes.flatMap((route) => route.checks)
   const failed = checks.filter((check) => !check.ok && check.id !== 'egress')
   if (!failed.length) return checks.some((check) => check.slow) ? '检测完成，部分平台响应较慢' : '检测完成，各平台均可访问'

@@ -61,3 +61,36 @@
 .check[data-state='ok'] .checkResult { color: var(--sm-text-primary); }
 .check[data-state='slow'] .checkResult { color: var(--sm-color-gold); }
 .check[data-state='failed'] .checkResult { color: var(--sm-color-danger); }
+
+/* 检测结论：逐条完整换行，不截断；前置小圆点区分条目。 */
+.hints {
+  margin: 0;
+  padding: 10px 20px 14px;
+  list-style: none;
+  border-top: 1px solid var(--sm-border);
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sm-text-primary);
+}
+
+.hints li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.hints li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sm-color-gold);
+}
+
+/* 设置改动后旧结果变淡，提示需重新检测。 */
+.checks[data-stale],
+.hints[data-stale] { opacity: 0.5; }

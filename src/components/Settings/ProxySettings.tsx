@@ -79,6 +79,8 @@ export function ProxySettings() {
   const [systemProxy, setSystemProxy] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<ProxyCandidate[]>([])
   const [diagnosis, setDiagnosis] = useState<ProxyDiagnosis | null>(null)
+  // 改了设置后旧结果仍保留但变淡：清空会让结论区忽有忽无，面板跟着跳。
+  const [stale, setStale] = useState(false)
   const [busy, setBusy] = useState<Busy>(null)
   const [status, setStatus] = useState('')
   // 编辑或再次检测时递增；在途诊断返回时会话已变就丢弃，避免旧结果盖住新设置。
@@ -110,7 +112,7 @@ export function ProxySettings() {
   function updateProxy(patch: Partial<ProxySettings>): void {
     session.current++
     setProxy((current) => ({ ...current, ...patch }))
-    setDiagnosis(null)
+    setStale(true)
     setStatus('')
     if (patch.mode === 'system') void refreshSystemProxy()
   }
@@ -118,12 +120,12 @@ export function ProxySettings() {
   async function runDiagnosis(settings: ProxySettings, prefix = ''): Promise<void> {
     const id = ++session.current
     setBusy('diagnose')
-    setDiagnosis(null)
     setStatus(`${prefix}正在检测各平台连接…`)
     try {
       const result = await diagnoseProxySettings(settings)
       if (!mounted.current || id !== session.current) return
       setDiagnosis(result)
+      setStale(false)
       setSystemProxy(result.systemProxy)
       setStatus(`${prefix}${proxyDiagnosisSummary(result)}`)
     } catch (error) {
@@ -162,7 +164,7 @@ export function ProxySettings() {
         return
       }
       session.current++
-      setDiagnosis(null)
+      setStale(true)
       setProxy((current) => ({ ...current, mode: 'custom', url: found[0].address }))
       const others = found.length > 1 ? `，另有 ${found.length - 1} 个可在输入框下拉中选择` : ''
       setStatus(`已填入${found[0].label}的 ${found[0].address}${others}，保存后生效`)
@@ -174,7 +176,10 @@ export function ProxySettings() {
   }
 
   const statusText = status
-    || (missingAddress ? '请填写代理地址' : dirty ? '有未保存的更改，保存后生效' : '可以检测当前设置下各平台能否访问')
+    || (missingAddress ? '请填写代理地址'
+      : diagnosis && stale ? `${dirty ? '有未保存的更改，' : '设置已更改，'}检测结果待重新检测`
+      : dirty ? '有未保存的更改，保存后生效' : '可以检测当前设置下各平台能否访问')
+  const faded = stale && busy !== 'diagnose'
   const rows = checkRows(diagnosis)
 
   return (
@@ -251,7 +256,7 @@ export function ProxySettings() {
           </button>
         </div>
       </div>
-      <ul className={styles.checks} aria-label="连接检测结果" aria-busy={busy === 'diagnose'}>
+      <ul className={styles.checks} aria-label="连接检测结果" aria-busy={busy === 'diagnose'} data-stale={faded || undefined}>
         {rows.map((row) => {
           const message = busy === 'diagnose' ? '检测中…' : row.check ? rowMessage(row) : '尚未检测'
           return (
@@ -263,6 +268,12 @@ export function ProxySettings() {
           )
         })}
       </ul>
+      {/* 结论逐条完整显示；只在检测后出现，改设置时变淡保留，不随切换增减。 */}
+      {!!diagnosis?.hints.length && (
+        <ul className={styles.hints} aria-label="检测结论" data-stale={faded || undefined}>
+          {diagnosis.hints.map((hint) => <li key={hint}>{hint}</li>)}
+        </ul>
+      )}
     </section>
   )
 }

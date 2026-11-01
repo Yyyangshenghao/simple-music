@@ -66,7 +66,7 @@ describe('检测结果文案', () => {
 
   it('总结：有结论直接列出，否则概括失败平台', () => {
     const route = { target: 'default' as const, address: '', source: 'direct' as const }
-    expect(proxyDiagnosisSummary({ routes: [], systemProxy: '', hints: ['a', 'b'] })).toBe('a；b')
+    expect(proxyDiagnosisSummary({ routes: [], systemProxy: '', hints: ['a', 'b'] })).toBe('发现 2 个需要注意的问题，见下方')
     expect(proxyDiagnosisSummary({ routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }] }], systemProxy: '', hints: [] })).toBe('检测完成，各平台均可访问')
     expect(proxyDiagnosisSummary({
       routes: [{ ...route, checks: [{ id: 'netease', ok: true, elapsedMs: 1 }, { id: 'apple', ok: false, elapsedMs: 1 }, { id: 'egress', ok: false, elapsedMs: 1 }] }],
