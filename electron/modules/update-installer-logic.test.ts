@@ -45,7 +45,13 @@ describe('macInstallPreflight', () => {
 })
 
 describe('shellQuote', () => {
-  it('单引号转义后在 bash 里还原原文', () => {
+  it('单引号转义成 bash 可还原的字面量', () => {
+    // 期望值里 \\ 是一个反斜杠：'…'\''…' 是 POSIX 关闭-转义-重开单引号的写法。
+    expect(shellQuote("/tmp/it's a \"path\" $HOME")).toBe("'/tmp/it'\\''s a \"path\" $HOME'")
+  })
+
+  // 真实 bash 只在 mac/linux 上跑；Windows 没有 /bin/bash，前面这条纯字符串断言已覆盖转义结果。
+  it.skipIf(process.platform === 'win32')('在 bash 里还原原文', () => {
     const value = "/tmp/it's a \"path\" $HOME"
     const out = spawnSync('/bin/bash', ['-c', `printf %s ${shellQuote(value)}`], { encoding: 'utf8' })
     expect(out.stdout).toBe(value)
