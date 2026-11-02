@@ -1,0 +1,57 @@
+/* 自绘滚动条：轨道是右缘一条 12px 的感应带，滑块平时 4px 细线，悬停/拖动时加粗。
+   被接管的容器隐藏原生滚动条。 */
+:global([data-scroll-thumb-host]) {
+  scrollbar-width: none;
+}
+
+:global([data-scroll-thumb-host])::-webkit-scrollbar {
+  display: none;
+}
+
+.track {
+  position: absolute;
+  top: 10px;
+  right: 2px;
+  bottom: 10px;
+  z-index: 4;
+  width: 12px;
+  cursor: default;
+  pointer-events: none;
+}
+
+.track[data-overflowing='true'] { pointer-events: auto; }
+
+.thumb {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 4px;
+  min-height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 30%, transparent);
+  opacity: 0;
+  transition: opacity 0.35s ease, width 0.2s cubic-bezier(0.22, 1, 0.36, 1), right 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.16s ease;
+  will-change: transform;
+}
+
+.track[data-overflowing='false'] .thumb { display: none; }
+
+/* 滚动中或指针进入面板时浮现；悬停感应带时加粗并提亮，拖动时再亮一档。 */
+.track[data-active='true'] .thumb,
+:global([data-scroll-thumb-scope]:hover) .thumb {
+  opacity: 1;
+  transition-duration: 0.12s, 0.2s, 0.2s, 0.16s;
+}
+
+.track:hover .thumb,
+.track[data-dragging='true'] .thumb {
+  right: 2px;
+  width: 7px;
+  background: color-mix(in srgb, currentColor 46%, transparent);
+}
+
+.track[data-dragging='true'] .thumb {
+  background: color-mix(in srgb, currentColor 62%, transparent);
+}
+
+:global([data-hover-lift-motion-off]) .thumb { transition: opacity 0.2s ease; }
