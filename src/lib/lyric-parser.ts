@@ -90,12 +90,22 @@ function titleKey(value: string): string {
   return normalizeMatchText(value.replace(/[(（[【][^)）\]】]*[)）\]】]/gu, ' '))
 }
 
-const PLACEHOLDER_LINE = /纯音乐.{0,4}请.{0,2}欣赏|没有填词的纯音乐|暂无歌词|^\s*(?:no lyrics?|instrumental)\s*$/iu
+const INSTRUMENTAL_LINE = /纯音乐.{0,4}请.{0,2}欣赏|没有填词的纯音乐|^\s*instrumental\s*$/iu
+const PLACEHOLDER_LINE = new RegExp(`${INSTRUMENTAL_LINE.source}|暂无歌词|^\\s*no lyrics?\\s*$`, 'iu')
+
+function placeholderOnly(texts: string[], pattern: RegExp): boolean {
+  const lines = texts.filter(text => text.trim())
+  return lines.length > 0 && lines.length <= 3 && lines.some(text => pattern.test(text))
+}
 
 /** 平台用来占位的「纯音乐，请欣赏」「暂无歌词」：只有这类行时视为没有歌词。 */
 export function isPlaceholderLyrics(texts: string[]): boolean {
-  const lines = texts.filter(text => text.trim())
-  return lines.length > 0 && lines.length <= 3 && lines.some(text => PLACEHOLDER_LINE.test(text))
+  return placeholderOnly(texts, PLACEHOLDER_LINE)
+}
+
+/** 占位行明确声明纯音乐（不含「暂无歌词」）。 */
+export function isInstrumentalPlaceholder(texts: string[]): boolean {
+  return placeholderOnly(texts, INSTRUMENTAL_LINE)
 }
 
 const lineText = (line: LyricLine) => line.text

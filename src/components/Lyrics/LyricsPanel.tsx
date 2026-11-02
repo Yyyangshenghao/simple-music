@@ -135,6 +135,39 @@ function StageCoverArt({ src, alt }: { src: string; alt: string }) {
 }
 
 /** 排版预设按流式尺寸体系调校：封面大小与分栏比例联动，不再叠加位移。 */
+/**
+ * 没有歌词时的状态：加载中、纯音乐、暂无歌词。
+ * 选择入口在加载中也占位，状态切换时文字不跳动；纯音乐只留一个轻量入口。
+ */
+function LyricsEmptyState({ stage = false, onChoose }: { stage?: boolean; onChoose: () => void }) {
+  const track = usePlayerStore((s) => s.currentTrack)
+  const loading = useLyricsStore((s) => s.loading)
+  const instrumental = useLyricsStore((s) => s.instrumental)
+  const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
+  const message = loading ? '正在加载歌词…'
+    : instrumental ? '纯音乐，请欣赏'
+    : track?.source === 'apple'
+      ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
+      : '暂无歌词'
+  return (
+    <div className={stage ? styles.stageEmpty : styles.empty} data-state={loading ? 'loading' : instrumental ? 'instrumental' : 'none'}>
+      <span className={instrumental && !loading ? styles.emptyInstrumental : undefined}>{message}</span>
+      {track && (
+        <button
+          type="button"
+          className={`${instrumental ? styles.emptySourceLink : styles.emptySourceButton} no-drag`}
+          style={loading ? { visibility: 'hidden' } : undefined}
+          disabled={loading}
+          tabIndex={loading ? -1 : undefined}
+          onClick={onChoose}
+        >
+          {instrumental ? '仍要选择歌词' : '选择歌词'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 const LAYOUT_PRESETS = [
   { label: '平衡', fontScale: 1, layout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
   { label: '封面主导', fontScale: 0.9, layout: { coverScale: 1.18, coverX: 0, coverY: 0, lyricsWidth: 50, lyricsX: 0, lyricsY: 0 } },
@@ -188,8 +221,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
   const lines = useLyricsStore((s) => s.lines)
-  const lyricsLoading = useLyricsStore((s) => s.loading)
-  const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
   const offsetSec = useLyricsStore((s) => s.offsetSec)
@@ -518,6 +549,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             <div className={styles.flowStage} aria-hidden="true" />
           </>}
           {StyleStage && <div className={styles.styleStage}><StyleStage /></div>}
+          {lines.length === 0 && <LyricsEmptyState stage onChoose={openSourceDialog} />}
         </>
       )}
 
@@ -587,12 +619,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
             </div>
 
             {lines.length === 0 ? (
-              <div className={styles.empty}>
-                <span>{lyricsLoading ? '正在加载歌词…' : track?.source === 'apple'
-                  ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
-                  : '暂无歌词'}</span>
-                {!lyricsLoading && track && <button type="button" className={`${styles.emptySourceButton} no-drag`} onClick={openSourceDialog}>选择歌词</button>}
-              </div>
+              <LyricsEmptyState onChoose={openSourceDialog} />
             ) : (
               <div
                 className={`${styles.lyricsScroll}${browsing ? ` ${styles.browsing}` : ''}`}
@@ -780,6 +807,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
           <div className={styles.sceneTopFade} aria-hidden="true" />
           <div className={styles.sceneVignette} aria-hidden="true" />
+          {lines.length === 0 && <LyricsEmptyState stage onChoose={openSourceDialog} />}
 
           {/* 只在进入 3D 时遮住画布启动；切换效果由 LyricsScene 的柔焦过渡负责 */}
           <motion.div

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMParser as XmlDomParser } from '@xmldom/xmldom'
 import { api } from './api'
-import { emptyLyrics, fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
+import { emptyLyrics, fetchLyrics, isInstrumentalTrack, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
 import { advanceProviderAccountSession } from './provider-account-session'
 import { useProviderStore } from '../stores/providers'
 import type { Track } from '../types/domain'
@@ -156,6 +156,23 @@ describe('原生逐字时间轴', () => {
   it('只有「纯音乐，请欣赏」占位行时视为没有歌词', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:05.00]纯音乐，请欣赏' })
     expect((await fetchLyrics(song('netease'))).main).toEqual([])
+  })
+
+  it('本曲平台声明纯音乐时记下标记，「暂无歌词」占位不算纯音乐', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:00.00]纯音乐，请欣赏', pureMusic: true })
+    await fetchLyrics(song('netease', { id: 'pure-1' }))
+    expect(isInstrumentalTrack(song('netease', { id: 'pure-1' }))).toBe(true)
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '', pureMusic: true })
+    await fetchLyrics(song('netease', { id: 'pure-2' }))
+    expect(isInstrumentalTrack(song('netease', { id: 'pure-2' }))).toBe(true)
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:00.00]纯音乐，请欣赏' })
+    await fetchLyrics(song('qq', { id: 'pure-3' }))
+    expect(isInstrumentalTrack(song('qq', { id: 'pure-3' }))).toBe(true)
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:00.00]暂无歌词' })
+    await fetchLyrics(song('netease', { id: 'none-1' }))
+    expect(isInstrumentalTrack(song('netease', { id: 'none-1' }))).toBe(false)
+    // 跨平台匹配到的占位只标记那首匹配曲，不波及原曲。
+    expect(isInstrumentalTrack({ ...apple, id: 'pure-1' })).toBe(false)
   })
 
   it('末行时长误写成整首歌长时按最后一个字的结束校验时间轴', async () => {

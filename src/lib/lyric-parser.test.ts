@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits, isPlaceholderLyrics } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits, isPlaceholderLyrics, isInstrumentalPlaceholder } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -203,6 +203,14 @@ describe('stripLineCredits', () => {
     expect(isPlaceholderLyrics(['纯音乐，请欣赏'])).toBe(true)
     expect(isPlaceholderLyrics(['此歌曲为没有填词的纯音乐，请您欣赏'])).toBe(true)
     expect(isPlaceholderLyrics(['纯音乐，请欣赏', '第一句', '第二句', '第三句'])).toBe(false)
+  })
+
+  it('只有纯音乐声明算纯音乐，「暂无歌词」不算', () => {
+    expect(isInstrumentalPlaceholder(['纯音乐，请欣赏'])).toBe(true)
+    expect(isInstrumentalPlaceholder(['Instrumental'])).toBe(true)
+    expect(isInstrumentalPlaceholder(['暂无歌词'])).toBe(false)
+    expect(isPlaceholderLyrics(['暂无歌词'])).toBe(true)
+    expect(isPlaceholderLyrics(['No lyrics'])).toBe(true)
   })
 
   it('全部像署名时原样返回，不清空歌词', () => {

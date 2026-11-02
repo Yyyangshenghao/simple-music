@@ -36,7 +36,7 @@ export function initDesktopLyricsSync(): () => void {
   let clock: { key: string; index: number; line: WordLyricLine } | undefined
   const sync = () => {
     if (disposed) return
-    const { currentIndex, lines, translation, romaji, trackKey, wordLines, loading } = useLyricsStore.getState()
+    const { currentIndex, lines, translation, romaji, trackKey, wordLines, loading, instrumental } = useLyricsStore.getState()
     const currentTrack = usePlayerStore.getState().currentTrack
     const fx = useVisualStore.getState().fx
     const settings = useSettingsStore.getState()
@@ -60,7 +60,7 @@ export function initDesktopLyricsSync(): () => void {
     const currentKey = currentTrack ? `${currentTrack.source}:${String(currentTrack.id)}` : null
     const matching = !!currentKey && currentKey === trackKey
     const fallback = currentTrack
-      ? loading || !matching ? '正在获取歌词…' : lines.length ? currentTrack.name : '暂无歌词 · ' + currentTrack.name
+      ? loading || !matching ? '正在获取歌词…' : lines.length ? currentTrack.name : (instrumental ? '纯音乐 · ' : '暂无歌词 · ') + currentTrack.name
       : '播放音乐后显示歌词'
     const hasCurrentLyric = matching && currentIndex >= 0 && !!lines[currentIndex]?.text
     const candidate = enabled && matching && wordByWord && currentIndex >= 0 ? wordLines[currentIndex] : undefined
@@ -111,7 +111,8 @@ export function initDesktopLyricsSync(): () => void {
   const stopLyrics = useLyricsStore.subscribe((state, previous) => {
     if (state.currentIndex !== previous.currentIndex || state.lines !== previous.lines
       || state.translation !== previous.translation || state.romaji !== previous.romaji
-      || state.trackKey !== previous.trackKey || state.wordLines !== previous.wordLines || state.loading !== previous.loading) sync()
+      || state.trackKey !== previous.trackKey || state.wordLines !== previous.wordLines || state.loading !== previous.loading
+      || state.instrumental !== previous.instrumental) sync()
   })
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {
     if (state.currentTrack !== previous.currentTrack) sync()

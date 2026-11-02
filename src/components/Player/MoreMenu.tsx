@@ -460,8 +460,10 @@ export function MoreMenu() {
   const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
   const lyricsLoading = useLyricsStore((s) => s.loading)
   const appliedOrigin = useLyricsSourceStore((s) => s.appliedOrigin)
+  const lyricsInstrumental = useLyricsStore((s) => s.instrumental)
   const lyricsSourceLabel = lyricsLoading ? '正在加载…'
-    : lyricsTrackKey === trackKey && appliedOrigin ? LYRIC_SOURCE_LABELS[appliedOrigin] : '暂无歌词'
+    : lyricsTrackKey === trackKey && appliedOrigin ? LYRIC_SOURCE_LABELS[appliedOrigin]
+    : lyricsTrackKey === trackKey && lyricsInstrumental ? '纯音乐' : '暂无歌词'
   const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)

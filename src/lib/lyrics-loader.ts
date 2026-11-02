@@ -9,7 +9,7 @@ import { useGameModeStore } from '../stores/game-mode'
 import { useVisualStore } from '../stores/visual'
 import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 import { providerAccountSession } from './provider-account-session'
-import { fetchLyrics, emptyLyrics, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
+import { fetchLyrics, emptyLyrics, isInstrumentalTrack, upgradeLyrics, type LyricsResult } from './lyrics-fetch'
 import { candidateAvailability, queryLyricsSource, type LyricsSourceQueryResult } from './lyrics-source-query'
 import { createLyricsSourceProbe } from './lyrics-source-probe'
 import { suspendedLyricsSource } from './lyrics-source-health'
@@ -137,7 +137,7 @@ export function initLyricsLoader(): () => void {
     const offsetSec = keepOffset ? useLyricsStore.getState().offsetSec : 0
     // 正文、逐字与辅助行一并提交，避免任一视图短暂显示旧翻译或旧时间轴。
     useLyricsStore.setState({ lines: main, translation: aligned, romaji: roma, wordLines, source: main.length ? source : null,
-      loading: false, currentIndex: -1, currentCharProgress: 0, offsetSec })
+      instrumental: !main.length && result.instrumental === true, loading: false, currentIndex: -1, currentCharProgress: 0, offsetSec })
     const actual = originOf(result)
     useLyricsSourceStore.setState({ appliedOrigin: actual })
     if (actual) {
@@ -285,7 +285,7 @@ export function initLyricsLoader(): () => void {
     if (!onceChoice && remembered) onceChoice = remembered
     const chosen = onceChoice ?? remembered
     useLyricsSourceStore.setState({ appliedOrigin: null, requestedOrigin: chosen?.origin ?? 'auto', fallbackReason: null, appliedPreference: preferences.defaultSource })
-    useLyricsStore.setState({ trackKey: key, source: null, loading: !!key, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
+    useLyricsStore.setState({ trackKey: key, source: null, loading: !!key, instrumental: false, lines: [], translation: [], romaji: [], wordLines: [], currentIndex: -1, currentCharProgress: 0, offsetSec: 0 })
     if (!key || !track) { prefetcher.cancel(); return }
     controller = new AbortController()
     const signal = controller.signal
@@ -339,7 +339,9 @@ export function initLyricsLoader(): () => void {
       return { result: emptyLyrics, track: null, locked: false }
     })().catch(() => ({ result: emptyLyrics, track: null, locked: false })).then(({ result, track: fetchedTrack, locked }) => {
       if (!current() || useLyricsStore.getState().trackKey !== key) return
-      const shown = sameAccounts(accounts) ? result : emptyLyrics
+      const found = sameAccounts(accounts) ? result : emptyLyrics
+      // 各来源都没有歌词时，才采用本曲平台的纯音乐声明。
+      const shown = !found.main.length && isInstrumentalTrack(track) ? { ...emptyLyrics, instrumental: true } : found
       // 兜底先显示的就是最终来源时不重复提交，避免重置用户刚调的偏移。
       if (!provisional || shown !== provisional) apply(shown, false, fetchedTrack ?? undefined)
       currentLanded = true

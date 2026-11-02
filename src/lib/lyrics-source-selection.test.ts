@@ -13,7 +13,7 @@ import { advanceProviderAccountSession } from './provider-account-session'
 import { reportLyricsSource, suspendedLyricsSource } from './lyrics-source-health'
 
 const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), query: vi.fn(), available: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, isInstrumentalTrack: () => false, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 vi.mock('./lyrics-source-query', () => ({ queryLyricsSource: h.query, candidateAvailability: h.available }))
 import { initLyricsLoader } from './lyrics-loader'
 import { handlePlaybackRequest, takePlaybackSnapshot } from './playback-host-runtime'

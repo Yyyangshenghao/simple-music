@@ -4,7 +4,7 @@ import { api } from './api'
 import { accompanimentOriginal } from './karaoke-library'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, stripLineCredits, stripWordLineCredits } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, isInstrumentalPlaceholder, stripLineCredits, stripWordLineCredits } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
@@ -26,6 +26,8 @@ export interface LyricsResult {
   aligned: LyricLineType[]
   roma: LyricLineType[]
   wordLines: WordLyricLineType[]
+  /** 没有歌词且本曲平台声明为纯音乐。 */
+  instrumental?: boolean
 }
 
 interface NeteaseLyricResponse {
@@ -34,6 +36,7 @@ interface NeteaseLyricResponse {
   romalrc?: string
   yromalrc?: string
   yrc?: string
+  pureMusic?: boolean
   error?: string
 }
 
@@ -52,6 +55,23 @@ export class LyricMismatchError extends Error {
 }
 
 export const emptyLyrics: LyricsResult = { source: null, main: [], aligned: [], roma: [], wordLines: [] }
+
+// 只记本曲平台按自身 ID 声明的纯音乐；跨平台匹配到的占位可能来自粉丝上传，不可信。
+const instrumentalTracks = new Set<string>()
+const MAX_INSTRUMENTAL_TRACKS = 200
+const instrumentalKey = (track: Track) => `${track.source}:${String(track.id)}`
+
+function rememberInstrumental(track: Track): void {
+  const key = instrumentalKey(track)
+  instrumentalTracks.delete(key)
+  instrumentalTracks.add(key)
+  if (instrumentalTracks.size > MAX_INSTRUMENTAL_TRACKS) instrumentalTracks.delete(instrumentalTracks.values().next().value!)
+}
+
+/** 本曲平台是否已声明这首是纯音乐。 */
+export function isInstrumentalTrack(track: Track): boolean {
+  return instrumentalTracks.has(instrumentalKey(accompanimentOriginal(track) ?? track))
+}
 
 function hasTimedLyrics(result: LyricsResult): boolean {
   return result.wordLines.some(line => hasWordTiming(line.words))
@@ -339,7 +359,10 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
         : lrcLines
-      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) return emptyLyrics
+      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) {
+        if (rec.pureMusic === true || isInstrumentalPlaceholder(main.map(line => line.text))) rememberInstrumental(track)
+        return emptyLyrics
+      }
       const trans = transText ? parseLrc(transText) : []
       const roma = romaText ? parseLrc(romaText) : []
       // YRC 与旧 LRC 的行时间可能不同；优先匹配对应的音译，缺行再用旧音译补位。
@@ -369,7 +392,10 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
         : lrcLines
-      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) return emptyLyrics
+      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) {
+        if (isInstrumentalPlaceholder(main.map(line => line.text))) rememberInstrumental(track)
+        return emptyLyrics
+      }
       const companion = (text: string) => {
         const timed = parseQrc(text)
         return timed.length ? timed.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') })) : parseLrc(text)
