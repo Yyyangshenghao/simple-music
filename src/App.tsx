@@ -96,6 +96,8 @@ export default function App() {
   useEffect(() => initWindowCloseSync(), [])
   useEffect(() => useNavigationStore.subscribe((state, previous) => {
     if (state.currentView === 'settings' && state.navigationRevision !== previous.navigationRevision) setLyricsOpen(false)
+    // 从歌词页里的入口直达伴奏/离线音乐库：已在我的库时不会产生导航，按请求计数收起歌词页
+    if (state.libraryAccompanimentsRequest > previous.libraryAccompanimentsRequest || state.libraryOfflineRequest > previous.libraryOfflineRequest) setLyricsOpen(false)
   }), [])
 
   useEffect(() => {

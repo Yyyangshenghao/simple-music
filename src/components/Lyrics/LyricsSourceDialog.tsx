@@ -128,7 +128,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
             <span className={styles.sourceHint}>{defaultSource === 'auto' ? '按默认规则选择' : `优先${LYRIC_SOURCE_LABELS[defaultSource]}`}</span>
           </button>
           {candidates.map((candidate) => <div className={styles.sourceItem} key={candidate.origin}>
-            <button type="button" role="radio" aria-checked={selected === candidate.origin} className={styles.source} data-selected={selected === candidate.origin} disabled={busy} onClick={() => {
+            <button type="button" role="radio" aria-checked={selected === candidate.origin} className={styles.source} data-selected={selected === candidate.origin} data-available={candidate.status === 'ready' || candidate.status === 'loading' || candidate.status === 'idle'} disabled={busy} onClick={() => {
               setSelected(candidate.origin)
               setError('')
               if (candidate.status === 'ready' || candidate.status === 'idle') query(candidate.origin)
