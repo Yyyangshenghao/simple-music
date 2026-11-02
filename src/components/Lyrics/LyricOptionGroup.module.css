@@ -1,9 +1,9 @@
 .row {
   display: grid;
-  grid-template-columns: minmax(70px, 0.65fr) minmax(0, 1.35fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  min-height: 40px;
+  gap: 10px;
+  min-height: 38px;
   color: inherit;
   font-size: 12px;
 }
@@ -15,31 +15,54 @@
   opacity: 0.6;
 }
 
+/* 浅槽：选中项只抬一层底，与播放设置的分段控件同款。 */
 .options {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--count));
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 16%, transparent);
+  transform: translateX(calc(var(--index) * 100%));
+  pointer-events: none;
+}
+
+.options[data-animate='true'] .thumb {
+  transition: transform 0.42s cubic-bezier(0.34, 1.32, 0.5, 1);
 }
 
 .options button {
-  flex: 1;
-  min-width: 42px;
-  padding: 7px 6px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  color: inherit;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, currentColor 62%, transparent);
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.options button:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
-.options button[aria-pressed='true'] {
-  border-color: color-mix(in srgb, currentColor 35%, transparent);
-  background: color-mix(in srgb, currentColor 14%, transparent);
-  font-weight: 650;
-}
+.options button:hover { background: color-mix(in srgb, currentColor 6%, transparent); color: color-mix(in srgb, currentColor 90%, transparent); }
+.options button:active { transform: scale(0.94); transition-duration: 0.08s; }
+.options button[aria-pressed='true'] { background: transparent; color: inherit; font-weight: 600; }
+.options button[aria-pressed='true']:active { transform: none; }
+.options button:focus-visible { outline: 2px solid color-mix(in srgb, currentColor 45%, transparent); outline-offset: -2px; }
+
+:global([data-tap-feedback-motion-off]) .options button:active { transform: none; }
 
 @media (max-width: 540px) {
   .row { grid-template-columns: 1fr; gap: 6px; padding-block: 6px; }

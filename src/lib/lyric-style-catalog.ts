@@ -32,7 +32,7 @@ export interface LyricStyleInfo {
   tuning: readonly TuningField[]
   /** 选择器里直接显示的参数键（最多 3 个） */
   quick: readonly string[]
-  /** live：卡片里用当前歌曲实时渲染缩略预览；still：重型样式只显示示意图 */
+  /** live：选择器里用当前歌曲实时渲染缩略预览；still：只显示示意图 */
   preview: 'live' | 'still'
   /** 始终画暗场（深浅主题都一样）：页头控件改用深色舞台的浅色配色 */
   darkStage?: boolean
@@ -117,7 +117,7 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
       { key: 'font', type: 'select', label: '字体', options: [{ value: 'follow', label: '跟随歌词字体' }, { value: 'serif', label: '宋体' }], defaultValue: 'follow' },
     ],
     quick: ['ambience', 'font'],
-    preview: 'still',
+    preview: 'live',
     darkStage: true,
     opaque: true,
     webgl: true,
@@ -129,7 +129,8 @@ export const LYRIC_STYLES: readonly LyricStyleInfo[] = [
     order: 9,
     tuning: [],
     quick: [],
-    preview: 'still',
+    // 整屏粒子场景不缩小渲染，预览用 2D 点阵仿出同样的观感。
+    preview: 'live',
     webgl: true,
   },
 ]

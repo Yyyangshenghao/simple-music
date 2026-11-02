@@ -7,6 +7,7 @@ import { FumeLyrics } from './fume/FumeLyrics'
 import { TemperaLyrics } from './tempera/TemperaLyrics'
 import { SonnetLyrics } from './sonnet/SonnetLyrics'
 import { DioramaLyrics } from './diorama/DioramaLyrics'
+import { ParticlePreview } from './stage3d/ParticlePreview'
 
 /**
  * 动态歌词样式的渲染侧登记，与 lib/lyric-style-catalog 的纯数据按 id 对应。
@@ -57,10 +58,12 @@ export const LYRIC_STYLE_VIEWS: Record<LyricStyleId, LyricStyleView> = {
   },
   diorama: {
     Stage: () => <DioramaLyrics />,
+    Preview: () => <DioramaLyrics preview />,
     glyph: glyph(<><path d="M4 36 Q20 20 32 24 T60 8" opacity=".5" /><path d="M14 30l10-3M30 22l10-3M44 16l9-3" /><circle cx="50" cy="30" r="4" opacity=".6" /></>),
   },
   stage3d: {
     Settings: Stage3dSettings,
+    Preview: ParticlePreview,
     glyph: glyph(<>
       <rect x="18" y="5" width="28" height="30" rx="2" opacity=".25" />
       {Array.from({ length: 25 }, (_, i) => <circle key={i} cx={22 + i % 5 * 5} cy={10 + Math.floor(i / 5) * 5} r={i % 3 ? 0.65 : 1.1} fill="currentColor" stroke="none" opacity={0.35 + (i % 4) * 0.2} />)}

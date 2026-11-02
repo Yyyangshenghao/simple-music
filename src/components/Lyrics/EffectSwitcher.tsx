@@ -151,7 +151,9 @@ export function Stage3dSettings() {
   }, [fontAttempt])
   return (
     <div className={styles.embedded} aria-label="粒光设置">
-      <div className={styles.menuTabs} role="tablist" aria-label="粒光选项">
+      <div className={styles.menuTabs} role="tablist" aria-label="粒光选项"
+        style={{ '--tab-index': ['text', 'scene', 'quality'].indexOf(tab) } as React.CSSProperties}>
+        <span className={styles.menuTabThumb} aria-hidden="true" />
         {([['text', '文字'], ['scene', '氛围'], ['quality', '画质']] as const).map(([id, label]) =>
           <button key={id} type="button" role="tab" id={`${panelId}-${id}`} aria-selected={tab === id}
             aria-controls={`${panelId}-panel`} onClick={() => setTab(id)}>{label}</button>)}

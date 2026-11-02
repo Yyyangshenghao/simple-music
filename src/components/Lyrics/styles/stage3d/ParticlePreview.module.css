@@ -1,0 +1,7 @@
+/* 铺满预览画布（1280×800 排版空间），画布本身按小尺寸绘制后由浏览器放大。 */
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

@@ -25,12 +25,13 @@ import { LYRIC_STYLES } from '../../lib/lyric-style-catalog'
 const render = () => renderToStaticMarkup(<LyricStylePicker onClose={vi.fn()} />)
 
 describe('动态歌词样式选择器', () => {
-  it('列出内置样式，跃字卡片带实时预览画布，3D 卡片用示意图；显示通用与样式快捷参数', () => {
+  it('横条列出内置样式，只有一块大预览跑当前样式；显示通用与样式快捷参数', () => {
     const html = render()
     expect(html).toContain('跃字')
     expect(html).toContain('粒光')
-    // 预览量到卡片宽度后才挂载内容；每个实时预览样式一块画布，粒光只有示意图。
-    expect(html.match(/class="[^"]*previewCanvas/g)).toHaveLength(LYRIC_STYLES.filter(style => style.preview === 'live').length)
+    // 只为当前样式挂一块预览画布，横条里不再放缩略图。
+    expect(html.match(/class="[^"]*previewCanvas/g)).toHaveLength(1)
+    expect(LYRIC_STYLES.length).toBe(7)
     expect(html).toContain('云阶')
     expect(html).toContain('拼版')
     // 撤下的样式不再出现
@@ -44,6 +45,10 @@ describe('动态歌词样式选择器', () => {
     expect(html).toContain('轻柔')
     expect(html).toContain('标准')
     expect(html).toContain('强烈')
+    // 横条右端留「全部样式」入口，默认不展开预览墙，也不显示「试看」字样。
+    expect(html).toContain('aria-label="展开全部样式"')
+    expect(html).not.toContain('aria-label="全部样式"')
+    expect(html).not.toContain('试看')
     expect(html).not.toContain('社区模组')
     expect(html).not.toContain('实验')
   })
@@ -55,7 +60,9 @@ describe('动态歌词样式选择器', () => {
     expect(html).not.toContain('disabled=""')
     expect(html).not.toContain('立体歌词已关闭')
     expect(html).toMatch(/role="radio" aria-checked="true"[^>]*>(?:(?!<button).)*粒光/s)
-    expect(html).toContain('更多「粒光」设置')
+    expect(html).toContain('更多设置')
+    // 粒光用 2D 点阵仿真预览，同样挂在大预览画布里。
+    expect(html.match(/class="[^"]*previewCanvas/g)).toHaveLength(1)
     expect(html).toContain('镜台')
     h.style = 'pop'
     h.enabled = true
@@ -72,7 +79,7 @@ describe('动态歌词样式选择器', () => {
   it('粒光的完整设置放在「更多」里，不铺在首屏', () => {
     h.style = 'stage3d'
     const html = render()
-    expect(html).toContain('更多「粒光」设置')
+    expect(html).toContain('aria-expanded="false"')
     expect(html).not.toContain('粒子数量')
     h.style = 'pop'
   })
