@@ -1,9 +1,10 @@
 import { fetchNativeAppleLyrics } from './apple-lyrics'
+import { parseAppleLyrics } from './apple-lyric-parser'
 import { api } from './api'
 import { accompanimentOriginal } from './karaoke-library'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, stripLineCredits, stripWordLineCredits } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, stripLineCredits, stripWordLineCredits } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
 import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
@@ -91,11 +92,17 @@ export async function localLyricSource(track: Track, signal?: AbortSignal): Prom
   return localMusicService.getLyricSource(track, signal)
 }
 
+/** 逐字版本明显不全（不到逐行版本一半，常见于只剩标题行的 QRC）时放弃逐字，改用完整的逐行歌词。 */
+function timedLinesOrNone(wordLines: WordLyricLineType[], lrcLines: LyricLineType[]): WordLyricLineType[] {
+  return wordLines.length * 2 < lrcLines.length ? [] : wordLines
+}
+
 export function fitsLyricDuration(track: Track, result: LyricsResult): boolean {
   if (!track.duration) return true
   const end = track.duration / 1000 + 3
+  // 有逐字时间时按最后一个字的结束算：部分逐字歌词把末行时长误写成整首歌长。
   return result.main.every(line => line.time <= end) && result.wordLines.every(line =>
-    line.time + Math.max(line.durationMs, ...line.words.map(word => word.startMs + (word.durationMs ?? 0))) / 1000 <= end)
+    line.time + (line.words.length ? Math.max(...line.words.map(word => word.startMs + (word.durationMs ?? 0))) : line.durationMs) / 1000 <= end)
 }
 
 /**
@@ -123,7 +130,9 @@ export async function upgradeLyricsWithAmll(track: Track, result: LyricsResult, 
     if (signal?.aborted) return null
     try {
       const rec = await api.get<{ text?: string | null }>('/api/amll/lyric', { platform: target.platform, id, ...(refresh ? { refresh: '1' } : {}) }, { signal })
-      const wordLines = typeof rec.text === 'string' ? target.parse(rec.text) : []
+      // 部分线路只提供 TTML 原稿，按内容识别；没有逐字时间的行不参与升级。
+      const wordLines = typeof rec.text !== 'string' ? []
+        : /^\s*</.test(rec.text) ? parseAppleLyrics(rec.text).wordLines.filter(line => line.words.length) : target.parse(rec.text)
       if (signal?.aborted) return null
       if (!wordLines.length) continue
       const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
@@ -325,11 +334,12 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const romaText = typeof rec.romalrc === 'string' ? rec.romalrc : ''
       const yrcText = typeof rec.yrc === 'string' ? rec.yrc : ''
       // 开头的作词、作曲等署名与结尾的版权声明不是歌词，去掉后翻译、音译仍按时间对齐。
-      const wordLines = stripWordLineCredits(parseYrc(yrcText), track.name)
+      const lrcLines = stripLineCredits(parseLrc(mainText), track.name)
+      const wordLines = timedLinesOrNone(stripWordLineCredits(parseYrc(yrcText), track.name), lrcLines)
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
-        : stripLineCredits(parseLrc(mainText), track.name)
-      if (!main.length) return emptyLyrics
+        : lrcLines
+      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) return emptyLyrics
       const trans = transText ? parseLrc(transText) : []
       const roma = romaText ? parseLrc(romaText) : []
       // YRC 与旧 LRC 的行时间可能不同；优先匹配对应的音译，缺行再用旧音译补位。
@@ -354,11 +364,12 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       const mainText = typeof rec.lyric === 'string' ? rec.lyric : ''
       const transText = typeof rec.tlyric === 'string' ? rec.tlyric : ''
       const romaText = typeof rec.roma === 'string' ? rec.roma : ''
-      const wordLines = stripWordLineCredits(parseQrc(typeof rec.qrc === 'string' ? rec.qrc : ''), track.name)
+      const lrcLines = stripLineCredits(parseLrc(mainText), track.name)
+      const wordLines = timedLinesOrNone(stripWordLineCredits(parseQrc(typeof rec.qrc === 'string' ? rec.qrc : ''), track.name), lrcLines)
       const main = wordLines.length
         ? wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
-        : stripLineCredits(parseLrc(mainText), track.name)
-      if (!main.length) return emptyLyrics
+        : lrcLines
+      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) return emptyLyrics
       const companion = (text: string) => {
         const timed = parseQrc(text)
         return timed.length ? timed.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') })) : parseLrc(text)

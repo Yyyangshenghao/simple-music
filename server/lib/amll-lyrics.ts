@@ -16,12 +16,15 @@ export type AmllPlatform = 'ncm' | 'qq' | 'am'
 export interface AmllHost {
   id: string
   base: string
+  /** 该线路只提供 TTML 原稿（其余格式一律 404）；客户端按内容识别 TTML 并用对应解析器。 */
+  ttmlOnly?: boolean
 }
 
 /** 国内镜像在前：多数用户连 GitHub 要等超时才能切线，重启后线路记忆也会清空。 */
 export const AMLL_HOSTS: readonly AmllHost[] = [
   { id: 'gbclstudio', base: 'https://amll-ttml-db.gbclstudio.cn' },
-  { id: 'bikonoo', base: 'https://amlldb.bikonoo.com' },
+  // 2026-11 实测只剩 .ttml，请求 .yrc/.qrc 会 404 并被误记成「库里没有」。
+  { id: 'bikonoo', base: 'https://amlldb.bikonoo.com', ttmlOnly: true },
   { id: 'github', base: 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main' }
 ]
 
@@ -47,7 +50,7 @@ export function isValidAmllId(platform: AmllPlatform, id: string): boolean {
 
 export function amllLyricUrl(platform: AmllPlatform, id: string, host: AmllHost = AMLL_HOSTS[0]): string {
   const { dir, ext } = AMLL_FILES[platform]
-  return `${host.base}/${dir}/${id}.${ext}`
+  return `${host.base}/${dir}/${id}.${host.ttmlOnly ? 'ttml' : ext}`
 }
 
 /** 线路状态：最近可用的线路与各线路的熔断截止时刻。导出 reset 供测试隔离。 */

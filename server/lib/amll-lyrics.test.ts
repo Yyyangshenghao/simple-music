@@ -34,7 +34,9 @@ describe('AMLL 逐字歌词兜底', () => {
     // 默认先走国内镜像，GitHub 官方兜底
     expect(AMLL_HOSTS.map(host => host.id)).toEqual(['gbclstudio', 'bikonoo', 'github'])
     expect(amllLyricUrl('qq', 'abcdef12')).toBe('https://amll-ttml-db.gbclstudio.cn/qq-lyrics/abcdef12.qrc')
-    expect(amllLyricUrl('ncm', '42', AMLL_HOSTS[1])).toBe('https://amlldb.bikonoo.com/ncm-lyrics/42.yrc')
+    // bikonoo 只提供 TTML 原稿。
+    expect(amllLyricUrl('ncm', '42', AMLL_HOSTS[1])).toBe('https://amlldb.bikonoo.com/ncm-lyrics/42.ttml')
+    expect(amllLyricUrl('am', '42', AMLL_HOSTS[1])).toBe('https://amlldb.bikonoo.com/am-lyrics/42.ttml')
     expect(amllLyricUrl('ncm', '42', AMLL_HOSTS[2])).toBe('https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/ncm-lyrics/42.yrc')
   })
 

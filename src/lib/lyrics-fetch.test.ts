@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DOMParser as XmlDomParser } from '@xmldom/xmldom'
 import { api } from './api'
 import { emptyLyrics, fetchLyrics, upgradeLyricsWithAmll, upgradeLyrics, upgradeLyricsWithKugou, type LyricsResult } from './lyrics-fetch'
 import { advanceProviderAccountSession } from './provider-account-session'
@@ -142,6 +143,28 @@ describe('Apple Music 同曲歌词', () => {
 
 
 describe('原生逐字时间轴', () => {
+  it('逐字版本不到逐行一半（只剩标题行的 QRC）时改用完整逐行歌词', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      qrc: '[0,1756]Blinding Lights - The Weeknd(0,1756)',
+      lyric: '[00:00.00]Blinding Lights - The Weeknd\n[00:27.00]I have been tryna call\n[00:30.00]I have been on my own\n[00:33.00]Maybe you can show me',
+    })
+    const result = await fetchLyrics(song('qq', { name: 'Blinding Lights' }))
+    expect(result.wordLines).toEqual([])
+    expect(result.main.map(line => line.text)).toEqual(['I have been tryna call', 'I have been on my own', 'Maybe you can show me'])
+  })
+
+  it('只有「纯音乐，请欣赏」占位行时视为没有歌词', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ lyric: '[00:05.00]纯音乐，请欣赏' })
+    expect((await fetchLyrics(song('netease'))).main).toEqual([])
+  })
+
+  it('末行时长误写成整首歌长时按最后一个字的结束校验时间轴', async () => {
+    const { fitsLyricDuration } = await import('./lyrics-fetch')
+    const wordLines = [{ time: 171.5, durationMs: 185_584, words: [{ text: '舞', startMs: 3000, durationMs: 300 }] }]
+    expect(fitsLyricDuration(song('qq', { duration: 185_000 }), { ...emptyLyrics, main: [{ time: 171.5, text: '舞' }], wordLines })).toBe(true)
+    expect(fitsLyricDuration(song('qq', { duration: 170_000 }), { ...emptyLyrics, main: [{ time: 171.5, text: '舞' }], wordLines })).toBe(false)
+  })
+
   it('QQ 翻译与音译也是 QRC 时保留它们的文本和时间轴', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ qrc: '[1000,1000]甲(1000,500)乙(1500,500)', tlyric: '[1000,1000]译文(1000,1000)', roma: '[1000,1000]a b(1000,1000)' })
     const result = await fetchLyrics(song('qq'))
@@ -246,6 +269,14 @@ describe('AMLL 逐字歌词兜底（异步升级）', () => {
     expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'ncm', id: '34' }, { signal: undefined })
     expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
     expect(upgraded?.aligned[0]?.text).toBe('占位译文')
+  })
+
+  it('只提供 TTML 原稿的线路按内容识别，用 TTML 解析器取逐字', async () => {
+    vi.stubGlobal('DOMParser', XmlDomParser)
+    vi.mocked(api.get).mockResolvedValue({ text: '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="1" end="2"><span begin="1" end="1.5">甲</span><span begin="1.5" end="2">乙</span></p></div></body></tt>' } as never)
+    const upgraded = await upgradeLyricsWithAmll(song('netease'), base())
+    expect(upgraded?.wordLines[0].words.map((w) => w.text)).toEqual(['甲', '乙'])
+    expect(upgraded?.main).toEqual([{ time: 1, text: '甲乙' }])
   })
 
   it('逐字版本合并了两句且行时间偏移时，音译按文本拼接到合并行', async () => {

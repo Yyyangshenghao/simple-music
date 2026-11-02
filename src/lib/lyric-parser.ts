@@ -35,10 +35,10 @@ export function parseLrc(text: string): LyricLine[] {
 const CJK_CREDIT_ROLES = [
   '作?词', '作?曲', '编曲', '编配', '制作人?', '监制', '出品(?:人|方)?', '发行(?:方)?', '策划', '企划', '统筹',
   '混音(?:师|工程师)?', '缩混', '母带(?:处理|工程师)?', '录音(?:师|室|工程师)?', '和声(?:编写)?', '配唱', '人声(?:编辑)?',
-  '吉他', '贝斯', '鼓', '键盘', '钢琴', '弦乐', '合成器', '音乐总监',
+  '吉他', '贝斯', '鼓', '键盘', '钢琴', '弦乐', '合成器', '音乐总监', '演唱', '原唱', '歌手',
 ]
 const LATIN_CREDIT_ROLES = [
-  'OP', 'SP', 'ISRC', 'Lyrics?(?: by)?', 'Lyricist', 'Written by', 'Words by', 'Music by', 'Composer', 'Composed by',
+  'OP', 'SP', 'ISRC', 'Vocals? by', 'Performed by', 'Lyrics?(?: by)?', 'Lyricist', 'Written by', 'Words by', 'Music by', 'Composer', 'Composed by',
   'Arranger', 'Arranged by', 'Producer', 'Produced by', 'Mix(?:ed|ing)? by', 'Mix(?:ing)? engineer',
   'Master(?:ed|ing)? by', 'Mastering engineer', 'Record(?:ed|ing)? by', 'Recording engineer',
 ]
@@ -59,15 +59,20 @@ const NOTICE_LINE = /未经.{0,12}许可|不得.{0,8}(?:翻唱|翻录|使用)|�
  * 只认首尾连续的块（开头最多 12 行、结尾最多 4 行），正文中间的行一律保留；全部像署名时原样返回。
  */
 export function stripLyricCredits<T>(lines: T[], textOf: (line: T) => string, title = ''): T[] {
-  const name = normalizeMatchText(title)
-  const isTitleLine = (text: string) => {
+  const name = titleKey(title)
+  // 标题行：「歌名 - 歌手」，或只写歌名但紧跟署名行；歌名的括注（Explicit、Live 等）两边可能写得不同。
+  const isTitleLine = (text: string, next = '') => {
+    if (!name) return false
     const at = text.search(/\s[-–—]\s/)
-    return !!name && at > 0 && normalizeMatchText(text.slice(0, at)) === name
+    if (at > 0) return titleKey(text.slice(0, at)) === name
+    return titleKey(text) === name && CREDIT_LINE.test(next)
   }
   let head = 0
   while (head < Math.min(lines.length, 12)) {
     const text = textOf(lines[head])
-    if (!CREDIT_LINE.test(text) && !(head === 0 && isTitleLine(text))) break
+    // 开头的版权声明（「未经许可，不得翻唱」）只在已认出署名块之后才去掉。
+    if (!CREDIT_LINE.test(text) && !(head === 0 && isTitleLine(text, lines[1] ? textOf(lines[1]) : ''))
+      && !(head > 0 && NOTICE_LINE.test(text))) break
     head++
   }
   let tail = 0
@@ -78,6 +83,19 @@ export function stripLyricCredits<T>(lines: T[], textOf: (line: T) => string, ti
   }
   if (!head && !tail) return lines
   return head + tail >= lines.length ? lines : lines.slice(head, lines.length - tail)
+}
+
+/** 标题比对键：去掉括注后归一化。 */
+function titleKey(value: string): string {
+  return normalizeMatchText(value.replace(/[(（[【][^)）\]】]*[)）\]】]/gu, ' '))
+}
+
+const PLACEHOLDER_LINE = /纯音乐.{0,4}请.{0,2}欣赏|没有填词的纯音乐|暂无歌词|^\s*(?:no lyrics?|instrumental)\s*$/iu
+
+/** 平台用来占位的「纯音乐，请欣赏」「暂无歌词」：只有这类行时视为没有歌词。 */
+export function isPlaceholderLyrics(texts: string[]): boolean {
+  const lines = texts.filter(text => text.trim())
+  return lines.length > 0 && lines.length <= 3 && lines.some(text => PLACEHOLDER_LINE.test(text))
 }
 
 const lineText = (line: LyricLine) => line.text

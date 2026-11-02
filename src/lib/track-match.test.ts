@@ -142,6 +142,13 @@ describe('track match', () => {
     expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-duet', artist: '周杰伦/杨瑞代', artists: [{ id: 1, name: '周杰伦' }, { id: 3, name: '杨瑞代' }] }))).toBe(100)
   })
 
+  it('中外文连写的署名可与其中文或外文部分对上（按别名计）', () => {
+    const qq = track({ source: 'qq', provider: 'qq', id: 'q-gem', artist: 'G.E.M.邓紫棋', artists: [{ id: 5, name: 'G.E.M.邓紫棋' }], album: undefined })
+    expect(scoreTrackMatch(track({ artist: '邓紫棋', artists: [{ id: 4, name: '邓紫棋' }], album: undefined }), qq)).toBe(93)
+    expect(scoreTrackMatch(track({ artist: 'G.E.M.', artists: [{ id: 4, name: 'G.E.M.' }], album: undefined }), qq)).toBe(93)
+    expect(scoreTrackMatch(track({ artist: '紫棋', artists: [{ id: 4, name: '紫棋' }], album: undefined }), qq)).toBeNull()
+  })
+
   it('只靠别名对上的候选排在真名之后，且时长须相差 1.5 秒以内，挡住把知名歌手填作别名的翻唱账号', () => {
     const impostor = track({ source: 'netease', provider: 'netease', id: 'n-fake', artist: 'Jay', artists: [{ id: 9, name: 'Jay', aliases: ['周杰伦', '林俊杰'] }], album: undefined })
     const real = track({ source: 'netease', provider: 'netease', id: 'n-real', album: undefined })

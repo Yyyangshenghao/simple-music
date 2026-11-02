@@ -151,13 +151,23 @@ function artistNamesOf(track: Track): string[] {
   return [...new Set(raw.flatMap(splitArtistNames).map(normalizeArtistMatchText).filter(Boolean))]
 }
 
-/** 平台资料里的艺人别名（如网易云的外文名、QQ 的「周杰伦 (Jay Chou)」）；只用于跨语言署名，不参与拆分。 */
-function artistAliasesOf(track: Track): Set<string> {
-  return new Set((track.artists ?? [])
+/**
+ * 艺人别名：平台资料里的别名（如网易云的外文名、QQ 的「周杰伦 (Jay Chou)」），
+ * 以及中外文连写的署名拆出的两部分（「G.E.M.邓紫棋」→「邓紫棋」「gem」）。只用于跨语言署名，不参与拆分。
+ */
+function artistAliasesOf(track: Track, names: string[]): Set<string> {
+  const aliases = (track.artists ?? [])
     .flatMap((artist) => Array.isArray(artist.aliases) ? artist.aliases : [])
     .filter((alias): alias is string => typeof alias === 'string')
     .map(normalizeMatchText)
-    .filter(Boolean))
+  for (const name of names) {
+    const latin = name.replace(/[^a-z0-9]/g, '')
+    const other = name.replace(/[a-z0-9]/g, '')
+    if (!latin || !other) continue
+    if ([...other].length >= 2) aliases.push(other)
+    if (latin.length >= 3) aliases.push(latin)
+  }
+  return new Set(aliases.filter(Boolean))
 }
 
 /**
@@ -171,8 +181,8 @@ function artistMatch(origin: Track, candidate: Track): { value: number; viaAlias
   const direct = originNames.filter((name) => candidateSet.has(name)).length
   let overlap = direct
   if (!direct) {
-    const originAliases = artistAliasesOf(origin)
-    const candidateAliases = artistAliasesOf(candidate)
+    const originAliases = artistAliasesOf(origin, originNames)
+    const candidateAliases = artistAliasesOf(candidate, candidateNames)
     overlap = Math.max(
       originNames.filter((name) => candidateAliases.has(name)).length,
       candidateNames.filter((name) => originAliases.has(name)).length,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits, isPlaceholderLyrics } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -190,6 +190,19 @@ describe('stripLineCredits', () => {
     expect(stripLineCredits(lines('Mix it up: we go', 'second line'), 'Song')).toHaveLength(2)
     expect(stripLineCredits(lines(...texts), '晴天').map(line => line.text)).toEqual(texts)
     expect(stripLineCredits(lines('七里香 - 周杰伦', '窗外的麻雀'), '晴天').map(line => line.text)).toEqual(['七里香 - 周杰伦', '窗外的麻雀'])
+  })
+
+  it('歌名括注写法不同的标题行、只写歌名后接「演唱：」的标题行、署名后的版权声明都去掉', () => {
+    expect(stripLineCredits(lines('STAY (Explicit) - The Kid LAROI/Justin Bieber', 'Lyrics by：A', 'Vocals by：B', 'I do the same thing'), 'STAY').map(line => line.text)).toEqual(['I do the same thing'])
+    expect(stripLineCredits(lines('光年之外', '演唱：G.E.M. 邓紫棋', '作词：G.E.M. 邓紫棋', '感受停在我发端的指尖'), '光年之外').map(line => line.text)).toEqual(['感受停在我发端的指尖'])
+    expect(stripLineCredits(lines('Mojito - 周杰伦', '词：黄俊郎', '【未经许可，不得翻唱或使用】', '麻烦给我的爱人来一杯Mojito'), 'Mojito (Explicit)').map(line => line.text)).toEqual(['麻烦给我的爱人来一杯Mojito'])
+    expect(stripLineCredits(lines('Yellow', 'Look at the stars'), 'Yellow')).toHaveLength(2)
+  })
+
+  it('只有「纯音乐，请欣赏」之类的占位行时视为没有歌词', () => {
+    expect(isPlaceholderLyrics(['纯音乐，请欣赏'])).toBe(true)
+    expect(isPlaceholderLyrics(['此歌曲为没有填词的纯音乐，请您欣赏'])).toBe(true)
+    expect(isPlaceholderLyrics(['纯音乐，请欣赏', '第一句', '第二句', '第三句'])).toBe(false)
   })
 
   it('全部像署名时原样返回，不清空歌词', () => {
