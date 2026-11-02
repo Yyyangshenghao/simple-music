@@ -34,6 +34,8 @@
   touch-action: pan-y;
   user-select: none;
   scrollbar-width: none;
+  /* 指针统一由轨道按最近标签处理；透镜挖空的 clip-path 会让选中项中部的命中落到轨道上，手型在这里补齐。 */
+  cursor: pointer;
 }
 /* 放得下时不裁切，透镜浮起可略超出轨道；放不下才横向滚动。 */
 .subTabs[data-overflowing='true'] { overflow-x: auto; }
