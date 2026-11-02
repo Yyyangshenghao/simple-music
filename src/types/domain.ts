@@ -21,6 +21,8 @@ export type AudioQuality =
 export interface Artist {
   id: unknown
   name: string
+  /** 平台资料里的别名或外文名，用于跨平台同曲匹配。 */
+  aliases?: string[]
 }
 
 export interface ArtistInfo {

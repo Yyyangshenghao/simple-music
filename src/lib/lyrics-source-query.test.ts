@@ -166,16 +166,23 @@ describe('参与限制和取消', () => {
   })
 
   it('AMLL 需要已参与的网易或 QQ，Apple 记忆匹配不能绕过', async () => {
-    expect(await queryLyricsSource(song('apple'), 'amll', ['apple'], undefined, song('qq'))).toMatchObject({ status: 'unavailable' })
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['apple'], undefined, song('qq'))).toMatchObject({ status: 'unavailable' })
     useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false })
     expect(await queryLyricsSource(song('netease'), 'amll', ['netease'])).toMatchObject({ status: 'disabled' })
     expect(await queryLyricsSource(song('netease'), 'kugou', ['netease'])).toMatchObject({ status: 'disabled' })
     expect(api.get).not.toHaveBeenCalled()
   })
 
+  it('Apple 曲目按自身目录 ID 直接查 AMLL 的 Apple 分区，不依赖网易云、QQ', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string, params?: Record<string, unknown>) => (path === '/api/amll/lyric' && params?.platform === 'am' ? { text: yrc } : { text: null }) as never)
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib', catalogId: '1645308331' }), 'amll', ['apple'])).toMatchObject({ status: 'ready', match: { source: 'apple' }, result: { origin: 'amll', main: [{ time: 1, text: '甲乙' }] } })
+    expect(api.get).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'am', id: '1645308331' }, expect.anything())
+    expect(h.qq).not.toHaveBeenCalled()
+  })
+
   it('Apple 可通过已参与平台匹配 AMLL，仅使用该平台映射', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric' ? { text: qrc } : { lyric: '' }) as never)
-    expect(await queryLyricsSource(song('apple'), 'amll', ['qq'])).toMatchObject({ status: 'ready', match: { source: 'qq' }, result: { origin: 'amll' } })
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])).toMatchObject({ status: 'ready', match: { source: 'qq' }, result: { origin: 'amll' } })
     expect(h.qq).toHaveBeenCalledOnce()
     expect(h.netease).not.toHaveBeenCalled()
   })
@@ -218,7 +225,7 @@ describe('真实结果与错误分类', () => {
   it('跨平台搜索失败是 error，不等同于未收录', async () => {
     h.qq.mockRejectedValueOnce(new Error('offline'))
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'error' })
-    h.qq.mockResolvedValueOnce([])
+    h.qq.mockResolvedValue([])
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'empty' })
   })
 
@@ -253,10 +260,10 @@ describe('真实结果与错误分类', () => {
   })
 
   it('保存过的同曲必须重新校验，不复用错误录音', async () => {
-    h.qq.mockResolvedValueOnce([])
+    h.qq.mockResolvedValue([])
     const remembered = song('qq', { name: '晴天 (Live)' })
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, remembered)).toMatchObject({ status: 'empty' })
-    expect(h.qq).toHaveBeenCalledOnce()
+    expect(h.qq.mock.calls.map(([keyword]) => keyword)).toEqual(['晴天 周杰伦', '晴天'])
     expect(api.get).not.toHaveBeenCalled()
   })
 
@@ -308,7 +315,7 @@ describe('连接异常暂停与自动恢复', () => {
 
   it('映射平台搜索失败不会暂停从未访问的 AMLL', async () => {
     h.qq.mockRejectedValue(new Error('offline'))
-    for (let i = 0; i < 4; i++) expect(await queryLyricsSource(song('apple'), 'amll', ['qq'])).toMatchObject({ status: 'error' })
+    for (let i = 0; i < 4; i++) expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])).toMatchObject({ status: 'error' })
     expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()
     expect(api.get).not.toHaveBeenCalled()
   })
@@ -317,7 +324,7 @@ describe('连接异常暂停与自动恢复', () => {
     vi.useFakeTimers()
     try {
       h.qq.mockReturnValue(new Promise(() => {}))
-      const mapping = queryLyricsSource(song('apple'), 'amll', ['qq'])
+      const mapping = queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])
       await vi.advanceTimersByTimeAsync(8000)
       expect(await mapping).toMatchObject({ status: 'error', message: '连接超时' })
       expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()

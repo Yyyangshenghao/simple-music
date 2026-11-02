@@ -501,6 +501,7 @@ describe('游客歌词来源', () => {
     h.local.mockResolvedValue([])
     h.identity.mockReturnValue({ ...apple, source: 'local', provider: 'local', id: 'file3', localTagged: true, name: '晴天 (Live)' })
     expect((await fetchLyrics({ ...apple, source: 'local', provider: 'local', id: 'file3' }, ['netease', 'qq'])).main).toEqual([])
-    expect(vi.mocked(api.get).mock.calls.map(([path]) => path)).toEqual(['/api/search', '/api/qq/search'])
+    // 分级搜索可能多搜几次，但只有搜索请求，不会对错版本取词。
+    expect(new Set(vi.mocked(api.get).mock.calls.map(([path]) => path))).toEqual(new Set(['/api/search', '/api/qq/search']))
   })
 })

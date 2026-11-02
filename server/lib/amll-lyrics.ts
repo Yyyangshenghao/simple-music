@@ -4,14 +4,14 @@ import { isSafeUpstreamUrl } from './security'
 
 /**
  * AMLL TTML DB（https://github.com/amll-dev/amll-ttml-db，CC0）逐字歌词兜底：
- * 文件按平台歌曲 ID 命名，网易取 YRC、QQ 取 QRC，与现有解析器格式一致。
+ * 文件按平台歌曲 ID 命名，网易取 YRC、QQ 取 QRC、Apple Music 取 YRC，与现有解析器格式一致。
  * 只在用户播放时按需拉取单曲，不打包歌词；结果（包括"库里没有"）缓存到磁盘，
  * 大多数歌不在库里，负缓存避免每次切歌重复请求。
  *
  * 线路：两个与仓库目录结构一致的社区镜像（国内可直连）在前，GitHub 官方兜底。按顺序尝试，
  * 记住最近一次可用的线路下次优先；某条线路连不上就熔断一段时间，避免每首歌都等超时。
  */
-export type AmllPlatform = 'ncm' | 'qq'
+export type AmllPlatform = 'ncm' | 'qq' | 'am'
 
 export interface AmllHost {
   id: string
@@ -27,7 +27,8 @@ export const AMLL_HOSTS: readonly AmllHost[] = [
 
 const AMLL_FILES: Record<AmllPlatform, { dir: string; ext: string }> = {
   ncm: { dir: 'ncm-lyrics', ext: 'yrc' },
-  qq: { dir: 'qq-lyrics', ext: 'qrc' }
+  qq: { dir: 'qq-lyrics', ext: 'qrc' },
+  am: { dir: 'am-lyrics', ext: 'yrc' }
 }
 const HOST_TIMEOUT_MS = 2500
 const BREAKER_MS = 10 * 60 * 1000
@@ -36,12 +37,12 @@ const MISS_TTL_MS = 6 * 3600 * 1000
 const MAX_BYTES = 512 * 1024
 
 export function isAmllPlatform(value: unknown): value is AmllPlatform {
-  return value === 'ncm' || value === 'qq'
+  return value === 'ncm' || value === 'qq' || value === 'am'
 }
 
 /** ID 只允许平台自身的字符集，拼进固定域名的固定目录，不接受任何路径片段。 */
 export function isValidAmllId(platform: AmllPlatform, id: string): boolean {
-  return platform === 'ncm' ? /^\d{1,20}$/.test(id) : /^(?:\d{1,20}|[0-9A-Za-z]{6,24})$/.test(id)
+  return platform === 'qq' ? /^(?:\d{1,20}|[0-9A-Za-z]{6,24})$/.test(id) : /^\d{1,20}$/.test(id)
 }
 
 export function amllLyricUrl(platform: AmllPlatform, id: string, host: AmllHost = AMLL_HOSTS[0]): string {

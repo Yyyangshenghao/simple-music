@@ -28,6 +28,9 @@ describe('AMLL 逐字歌词兜底', () => {
     expect(isValidAmllId('qq', '0000Dso20pNy35')).toBe(true)
     expect(isValidAmllId('qq', '42')).toBe(true)
     expect(isValidAmllId('qq', 'abc/../x')).toBe(false)
+    expect(isValidAmllId('am', '1645308331')).toBe(true)
+    expect(isValidAmllId('am', 'i.abc123')).toBe(false)
+    expect(amllLyricUrl('am', '1645308331')).toBe(`${AMLL_HOSTS[0].base}/am-lyrics/1645308331.yrc`)
     // 默认先走国内镜像，GitHub 官方兜底
     expect(AMLL_HOSTS.map(host => host.id)).toEqual(['gbclstudio', 'bikonoo', 'github'])
     expect(amllLyricUrl('qq', 'abcdef12')).toBe('https://amll-ttml-db.gbclstudio.cn/qq-lyrics/abcdef12.qrc')

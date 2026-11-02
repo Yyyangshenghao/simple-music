@@ -42,14 +42,14 @@ describe('track match', () => {
     expect(normalizeMatchText('Ｍｏｊｉｔｏ （Live）！')).toBe('mojitolive')
   })
 
-  it('标题与主要艺人一致即达到自动匹配阈值', () => {
+  it('标题与主要艺人一致即达到自动匹配阈值；缺少时长分数封顶', () => {
     expect(scoreTrackMatch(track({ duration: undefined, album: undefined }), track({
       source: 'qq',
       provider: 'qq',
       id: 'q-1',
       duration: undefined,
       album: undefined,
-    }))).toBe(80)
+    }))).toBe(85)
   })
 
   it('艺人主名一致时兼容平台附加的括注别名', () => {
@@ -106,6 +106,14 @@ describe('track match', () => {
     ['版本标签冲突', track({ name: '晴天 (Live)' })],
     ['主要艺人无交集', track({ artist: '翻唱歌手', artists: [{ id: 2, name: '翻唱歌手' }] })],
     ['时长相差超过三秒', track({ duration: 272_001 })],
+    ['加速版', track({ name: '晴天 (加速版)' })],
+    ['语言版本不同', track({ name: '晴天 (日文版)' })],
+    ['Taylor’s Version 重录', track({ name: '晴天 (Taylor’s Version)' })],
+    ['短标题差一个字', track({ name: '晴天了' })],
+    ['非版本括注不同', track({ name: '晴天 (Reprise)' })],
+    ['完整版', track({ name: '晴天 (完整版)' })],
+    ['童声版', track({ name: '晴天 (童声版)' })],
+    ['混音版', track({ name: '晴天 (混音版)' })],
   ])('%s 时拒绝自动匹配', (_name, candidate) => {
     expect(scoreTrackMatch(track(), candidate)).toBeNull()
   })
@@ -113,7 +121,75 @@ describe('track match', () => {
   it('从候选中选择分数最高且达到阈值的曲目', () => {
     const basic = track({ source: 'qq', provider: 'qq', id: 'basic', duration: undefined, album: undefined })
     const exact = track({ source: 'qq', provider: 'qq', id: 'exact' })
-    expect(matchBestTrack(track(), [basic, exact])).toEqual({ track: exact, score: 100 })
+    expect(matchBestTrack(track(), [basic, exact])).toEqual({ track: exact, score: 100, alternates: [{ track: basic, score: 85 }] })
+  })
+
+  it('繁简、括注宣传语、「 - X」后缀与 feat 不影响同曲判定', () => {
+    expect(normalizeMatchText('周杰倫 說好的幸福呢')).toBe('周杰伦说好的幸福呢')
+    expect(scoreTrackMatch(track(), track({ source: 'apple', provider: 'apple', id: 'a-1', name: '晴天', artist: '周杰倫', artists: [{ id: 2, name: '周杰倫' }], album: '葉惠美' }))).toBe(100)
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-tv', name: '晴天（电影《不能说的秘密》插曲）', album: undefined }))).toBe(97)
+    expect(scoreTrackMatch(track({ name: '晴天 (Live)' }), track({ source: 'qq', provider: 'qq', id: 'q-live', name: '晴天 - Live', album: undefined }))).toBe(100)
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-feat', name: '晴天 (feat. 某人)', album: undefined }))).toBe(97)
+  })
+
+  it('外文署名靠平台资料里的别名对应，合唱版多署一位艺人仍视为一致', () => {
+    const apple = track({ source: 'apple', provider: 'apple', id: 'a-2', artist: 'Jay Chou', artists: [{ id: 2, name: 'Jay Chou' }], album: 'Ye Hui Mei' })
+    const qq = track({ source: 'qq', provider: 'qq', id: 'q-alias', artists: [{ id: 1, name: '周杰伦', aliases: ['Jay Chou'] }] })
+    expect(scoreTrackMatch(apple, track())).toBeNull()
+    expect(scoreTrackMatch(apple, qq)).toBe(93)
+    expect(scoreTrackMatch(qq, apple)).toBe(93)
+    expect(scoreTrackMatch(track({ artist: 'G.E.M.', artists: [{ id: 4, name: 'G.E.M.' }] }), track({ artist: 'G.E.M.邓紫棋', artists: [{ id: 5, name: 'G.E.M.邓紫棋', aliases: ['G.E.M.', 'Gloria Tang'] }] }))).toBe(98)
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-duet', artist: '周杰伦/杨瑞代', artists: [{ id: 1, name: '周杰伦' }, { id: 3, name: '杨瑞代' }] }))).toBe(100)
+  })
+
+  it('只靠别名对上的候选排在真名之后，且时长须相差 1.5 秒以内，挡住把知名歌手填作别名的翻唱账号', () => {
+    const impostor = track({ source: 'netease', provider: 'netease', id: 'n-fake', artist: 'Jay', artists: [{ id: 9, name: 'Jay', aliases: ['周杰伦', '林俊杰'] }], album: undefined })
+    const real = track({ source: 'netease', provider: 'netease', id: 'n-real', album: undefined })
+    const origin = track({ source: 'qq', provider: 'qq', id: 'q-origin', album: undefined })
+    expect(scoreTrackMatch(origin, { ...impostor, duration: 271_000 })).toBeNull()
+    expect(matchBestTrack(origin, [impostor, real])).toMatchObject({ track: { id: 'n-real' }, score: 100, alternates: [{ track: { id: 'n-fake' }, score: 93 }] })
+  })
+
+  it('时长差按档降分，较长标题的个别错字只在时长接近时接受', () => {
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-d', album: undefined, duration: 269_500 }))).toBe(97)
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-d', album: undefined, duration: 271_000 }))).toBe(83)
+    const long = track({ name: 'Everything I Wanted', album: undefined })
+    expect(scoreTrackMatch(long, track({ source: 'qq', provider: 'qq', id: 'q-typo', name: 'Everythin I Wanted', album: undefined }))).toBe(90)
+    expect(scoreTrackMatch(long, track({ source: 'qq', provider: 'qq', id: 'q-typo', name: 'Everythin I Wanted', album: undefined, duration: 271_000 }))).toBeNull()
+    expect(scoreTrackMatch(track({ ...long, duration: undefined }), track({ source: 'qq', provider: 'qq', id: 'q-typo', name: 'Everythin I Wanted', album: undefined, duration: undefined }))).toBeNull()
+    expect(scoreTrackMatch(track({ name: 'Etude Op.10 No.1', album: undefined }), track({ source: 'qq', provider: 'qq', id: 'q-no', name: 'Etude Op.10 No.2', album: undefined }))).toBeNull()
+  })
+
+  it('首级搜索无达标结果时依次降级到去括注标题 + 主歌手、只搜标题，合并候选并保留后备候选', async () => {
+    const origin = track({ name: '晴天 (电影《不能说的秘密》插曲)', artist: '周杰伦/某人', artists: [{ id: 1, name: '周杰伦' }, { id: 2, name: '某人' }] })
+    const best = track({ source: 'qq', provider: 'qq', id: 'q-best', name: '晴天' })
+    const backup = track({ source: 'qq', provider: 'qq', id: 'q-backup', name: '晴天', album: undefined, duration: 270_000 })
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([track({ source: 'qq', provider: 'qq', id: 'q-live', name: '晴天 (Live)' })])
+      .mockResolvedValueOnce([best, backup])
+    const result = await findEquivalentTrack(origin, 'qq', undefined, 1000)
+    expect(search.mock.calls).toEqual([['晴天 (电影《不能说的秘密》插曲) 周杰伦/某人'], ['晴天 周杰伦'], ['晴天']])
+    expect(result).toMatchObject({ track: { id: 'q-best' }, alternates: [{ track: { id: 'q-backup' } }] })
+    await expect(findEquivalentTrack(origin, 'qq', undefined, 1001)).resolves.toMatchObject({ alternates: [{ track: { id: 'q-backup' } }] })
+    expect(search).toHaveBeenCalledTimes(3)
+  })
+
+  it('出现达标候选即停止降级搜索；任何一级失败都抛出且不写负缓存', async () => {
+    const weak = track({ source: 'qq', provider: 'qq', id: 'q-weak', album: undefined, duration: 271_000 })
+    const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks').mockResolvedValueOnce([weak])
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000)).resolves.toMatchObject({ track: { id: 'q-weak' }, score: 83 })
+    expect(search).toHaveBeenCalledOnce()
+    clearTrackMatchCache()
+    search.mockReset().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('HTTP 500'))
+    await expect(findEquivalentTrack(track(), 'qq', undefined, 1000)).rejects.toThrow('HTTP 500')
+    expect(localStorage.getItem('simplemusic-track-match-cache')).toBeNull()
+  })
+
+  it('新增版本词只看标题：专辑名带「演唱会」「DJ」不误伤录音室版本，「少女版」不算翻唱', () => {
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-album', album: '演唱会精选 DJ Extended' }))).toBe(100)
+    expect(scoreTrackMatch(track({ name: '少女版的梦' }), track({ source: 'qq', provider: 'qq', id: 'q-girl', name: '少女版的梦' }))).toBe(100)
+    expect(scoreTrackMatch(track(), track({ source: 'qq', provider: 'qq', id: 'q-female', name: '晴天 (女声版)' }))).toBeNull()
   })
 
   it('命中缓存后复用去除临时 URL 的目标快照，不重复搜索', async () => {
@@ -142,7 +218,7 @@ describe('track match', () => {
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, false, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
     expect(guest).toHaveBeenCalledWith('qq', '晴天 周杰伦', undefined)
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
-    expect(account).toHaveBeenCalledOnce()
+    expect(account.mock.calls).toEqual([['晴天 周杰伦'], ['晴天']])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1002, false, false, 'guest')).resolves.toMatchObject({ track: { id: 'q-guest' } })
     expect(guest).toHaveBeenCalledOnce()
     expect(getByIds).not.toHaveBeenCalled()
@@ -152,10 +228,10 @@ describe('track match', () => {
     const guest = vi.spyOn(lyricService, 'searchGuestTracks').mockResolvedValue([])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true, false, 'guest')).resolves.toBeNull()
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true, false, 'guest')).resolves.toBeNull()
-    expect(guest).toHaveBeenCalledTimes(1)
+    expect(guest).toHaveBeenCalledTimes(2)
     expect(localStorage.getItem('simplemusic-track-match-cache')).toBeNull()
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000 + 5 * 60_000 + 1, true, false, 'guest')).resolves.toBeNull()
-    expect(guest).toHaveBeenCalledTimes(2)
+    expect(guest).toHaveBeenCalledTimes(4)
     guest.mockRejectedValueOnce(new Error('HTTP 500'))
     await expect(findEquivalentTrack(track({ id: 'n-2' }), 'qq', undefined, 1002, true, false, 'guest')).rejects.toThrow('HTTP 500')
   })
@@ -165,7 +241,7 @@ describe('track match', () => {
     const search = vi.spyOn(provider.catalog, 'searchTracks').mockResolvedValue([])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000)).resolves.toBeNull()
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001)).resolves.toBeNull()
-    expect(search).toHaveBeenCalledTimes(1)
+    expect(search).toHaveBeenCalledTimes(2)
   })
 
   it('严格查询区分未找到候选与仅有错版本，负缓存保留该区别', async () => {
@@ -174,7 +250,7 @@ describe('track match', () => {
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1000, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1002)).resolves.toBeNull()
-    expect(search).toHaveBeenCalledOnce()
+    expect(search).toHaveBeenCalledTimes(2)
     clearTrackMatchCache()
     search.mockResolvedValue([])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1003, true)).resolves.toBeNull()
@@ -182,13 +258,13 @@ describe('track match', () => {
 
   it('严格查询不把旧版缺少诊断信息的负缓存误报成未收录', async () => {
     localStorage.setItem('simplemusic-track-match-cache', JSON.stringify({
-      schema: 2,
+      schema: 3,
       entries: { 'netease:n-1->qq': { verifiedAt: 1000, expiresAt: 86_401_000 } },
     }))
     const search = vi.spyOn(providerFor('qq').catalog, 'searchTracks')
       .mockResolvedValue([track({ source: 'qq', provider: 'qq', name: '晴天 (Live)' })])
     await expect(findEquivalentTrack(track(), 'qq', undefined, 1001, true)).rejects.toBeInstanceOf(TrackMatchMismatchError)
-    expect(search).toHaveBeenCalledOnce()
+    expect(search).toHaveBeenCalledTimes(2)
   })
 
   it('匹配规则升级后忽略旧版负缓存并重新搜索', async () => {

@@ -1,4 +1,5 @@
 import type { LyricLine, WordToken, WordLyricLine } from '../types/domain'
+import { normalizeMatchText } from './match-text'
 
 const TIME_TAG = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/g
 
@@ -29,6 +30,67 @@ export function parseLrc(text: string): LyricLine[] {
   }
   lines.sort((a, b) => a.time - b.time)
   return lines
+}
+
+const CJK_CREDIT_ROLES = [
+  '作?词', '作?曲', '编曲', '编配', '制作人?', '监制', '出品(?:人|方)?', '发行(?:方)?', '策划', '企划', '统筹',
+  '混音(?:师|工程师)?', '缩混', '母带(?:处理|工程师)?', '录音(?:师|室|工程师)?', '和声(?:编写)?', '配唱', '人声(?:编辑)?',
+  '吉他', '贝斯', '鼓', '键盘', '钢琴', '弦乐', '合成器', '音乐总监',
+]
+const LATIN_CREDIT_ROLES = [
+  'OP', 'SP', 'ISRC', 'Lyrics?(?: by)?', 'Lyricist', 'Written by', 'Words by', 'Music by', 'Composer', 'Composed by',
+  'Arranger', 'Arranged by', 'Producer', 'Produced by', 'Mix(?:ed|ing)? by', 'Mix(?:ing)? engineer',
+  'Master(?:ed|ing)? by', 'Mastering engineer', 'Record(?:ed|ing)? by', 'Recording engineer',
+]
+const CJK_ROLE = `(?:${CJK_CREDIT_ROLES.join('|')})`
+const LATIN_ROLE = `(?:${LATIN_CREDIT_ROLES.join('|')})`
+/**
+ * 署名行：中文职务可连写或并列（「制作统筹」「作词/作曲」），其后只允许跟英文职务名（「编曲 Arrangement」）；
+ * 英文职务须是完整写法（「Mixed by」）。再接冒号。「鼓起勇气说：」「Mix it up: …」这类正文与对唱标记「男：」都不会命中。
+ */
+const CREDIT_LINE = new RegExp(
+  `^\\s*(?:${CJK_ROLE}(?:\\s*[/&、,，]?\\s*${CJK_ROLE})*(?:\\s+[a-z][a-z .&/-]{0,30})?|${LATIN_ROLE}(?:\\s*[/&,]\\s*${LATIN_ROLE})*)\\s*[:：]`,
+  'iu',
+)
+const NOTICE_LINE = /未经.{0,12}许可|不得.{0,8}(?:翻唱|翻录|使用)|享有本翻译作品的著作权|版权所有/u
+
+/**
+ * 去掉歌词开头的署名块（含「歌名 - 歌手」标题行）与结尾的署名、版权声明。
+ * 只认首尾连续的块（开头最多 12 行、结尾最多 4 行），正文中间的行一律保留；全部像署名时原样返回。
+ */
+export function stripLyricCredits<T>(lines: T[], textOf: (line: T) => string, title = ''): T[] {
+  const name = normalizeMatchText(title)
+  const isTitleLine = (text: string) => {
+    const at = text.search(/\s[-–—]\s/)
+    return !!name && at > 0 && normalizeMatchText(text.slice(0, at)) === name
+  }
+  let head = 0
+  while (head < Math.min(lines.length, 12)) {
+    const text = textOf(lines[head])
+    if (!CREDIT_LINE.test(text) && !(head === 0 && isTitleLine(text))) break
+    head++
+  }
+  let tail = 0
+  while (tail < Math.min(lines.length - head, 4)) {
+    const text = textOf(lines[lines.length - 1 - tail])
+    if (!CREDIT_LINE.test(text) && !NOTICE_LINE.test(text)) break
+    tail++
+  }
+  if (!head && !tail) return lines
+  return head + tail >= lines.length ? lines : lines.slice(head, lines.length - tail)
+}
+
+const lineText = (line: LyricLine) => line.text
+const wordLineText = (line: WordLyricLine) => line.words.map(word => word.text).join('')
+
+/** 逐行歌词去署名。 */
+export function stripLineCredits(lines: LyricLine[], title?: string): LyricLine[] {
+  return stripLyricCredits(lines, lineText, title)
+}
+
+/** 逐字歌词去署名。 */
+export function stripWordLineCredits(lines: WordLyricLine[], title?: string): WordLyricLine[] {
+  return stripLyricCredits(lines, wordLineText, title)
 }
 
 /**

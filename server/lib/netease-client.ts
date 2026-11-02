@@ -171,12 +171,16 @@ export function isUpstreamNotFoundError(err: unknown): boolean {
 export interface MappedArtist {
   id: unknown
   name: string
+  /** 歌手别名与译名（alias / tns），供跨平台同曲匹配；没有时省略。 */
+  aliases?: string[]
 }
 export function mapArtists(raw: unknown): MappedArtist[] {
   return asArr(raw)
     .map((a) => {
       const o = asObj(a)
-      return { id: o.id, name: asStr(o.name) }
+      const name = asStr(o.name)
+      const aliases = [...new Set([...asArr(o.alias ?? o.alia), ...asArr(o.tns)].map(asStr).filter((alias) => alias && alias !== name))]
+      return aliases.length ? { id: o.id, name, aliases } : { id: o.id, name }
     })
     .filter((a) => a.name)
 }

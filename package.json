@@ -30,6 +30,7 @@
     "music-metadata": "^11.16.1",
     "NeteaseCloudMusicApi": "^4.32.0",
     "onnxruntime-node": "1.30.0",
+    "opencc-js": "^1.4.2",
     "qrc-decoder": "1.0.2",
     "socks-proxy-agent": "^8.0.5",
     "undici": "^7.28.0",

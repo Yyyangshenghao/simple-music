@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -169,5 +169,30 @@ describe('parseKrc', () => {
 
   it.each(['[00:01.00]普通歌词', '[1000,1000]无逐字数据', '[language:不是base64]'])('非逐字数据安全降级：%s', text => {
     expect(parseKrc(text)).toEqual({ wordLines: [], translation: [], roma: [] })
+  })
+})
+
+describe('stripLineCredits', () => {
+  const lines = (...texts: string[]) => texts.map((text, index) => ({ time: index, text }))
+
+  it('去掉开头的标题行与署名块、结尾的版权声明，正文保持不变', () => {
+    const result = stripLineCredits(lines(
+      '晴天 - 周杰倫 (Jay Chou)', '词：方文山', '作曲 : 周杰伦', '作词/作曲：周杰伦', '混音工程师：杨瑞代', '制作统筹：某人', 'Mixed by：某人', '编曲 Arrangement：林迈可', 'Produced by：周杰伦',
+      '故事的小黄花', '从出生那年就飘着', '未经著作权人书面许可，不得以任何方式使用',
+    ), '晴天')
+    expect(result.map(line => line.text)).toEqual(['故事的小黄花', '从出生那年就飘着'])
+    expect(stripLineCredits(lines('說好的幸福呢 - 周杰倫', '你的回话凌乱着'), '说好的幸福呢').map(line => line.text)).toEqual(['你的回话凌乱着'])
+  })
+
+  it('对唱标记、正文中间的冒号行与非本曲标题行都保留', () => {
+    const texts = ['男：我们的爱', '女：过了就不再回来', '他说：作词也是一种告白', '作词：中间的署名不动', '最后一句']
+    expect(stripLineCredits(lines('鼓起勇气对你说：', '词不达意：我爱你', '第三句'), '晴天')).toHaveLength(3)
+    expect(stripLineCredits(lines('Mix it up: we go', 'second line'), 'Song')).toHaveLength(2)
+    expect(stripLineCredits(lines(...texts), '晴天').map(line => line.text)).toEqual(texts)
+    expect(stripLineCredits(lines('七里香 - 周杰伦', '窗外的麻雀'), '晴天').map(line => line.text)).toEqual(['七里香 - 周杰伦', '窗外的麻雀'])
+  })
+
+  it('全部像署名时原样返回，不清空歌词', () => {
+    expect(stripLineCredits(lines('作词：甲', '作曲：乙'), '晴天')).toHaveLength(2)
   })
 })
