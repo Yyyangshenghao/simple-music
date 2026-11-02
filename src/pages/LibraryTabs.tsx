@@ -38,7 +38,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
   const transitTimer = useRef<number>()
   const measured = useRef(false)
   const rootHeight = useRef(0)
-  const rootWidth = useRef(0)
+  // 各标签相对轨道的偏移，挖空路径按它平移到标签自身坐标系。
+  const tabOffsets = useRef<{ left: number; top: number }[]>([])
   const rimId = useId()
   const syncHole = useRef<() => void>()
   const lastValue = useRef(value)
@@ -145,10 +146,10 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
   useEffect(() => {
     const update = () => {
       measure(items.findIndex(item => item.value === value))
-      for (const button of buttons()) button.style.setProperty('--btn-left', `${button.offsetLeft}px`)
+      tabOffsets.current = buttons().map(button => ({ left: button.offsetLeft, top: button.offsetTop }))
       const root = rootRef.current
-      if (root) { rootHeight.current = root.clientHeight; rootWidth.current = root.scrollWidth; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
-      // 静置玻璃常驻挖空，轨道尺寸变了要按新尺寸重做遮罩，否则超出旧遮罩的标签会被裁掉。
+      if (root) { rootHeight.current = root.clientHeight; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
+      // 静置玻璃常驻挖空，标签位置变了要按新偏移重算挖空路径。
       if (syncHole.current) frame.render(syncHole.current)
     }
     update()
@@ -183,23 +184,26 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
 
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
 
-  // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
-  // 多个弹簧值同帧变化只合并写一次；高度取缓存值，避免写样式后读布局逼出整页同步重排。
+  // 按透镜位置给真实标签挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
+  // 多个弹簧值同帧变化只合并写一次；尺寸取缓存值，避免写样式后读布局逼出整页同步重排。
+  // 用 clip-path 的 evenodd 路径而不是 SVG data URI 遮罩：后者每帧都是新图片，Blink 逐张解码缓存，来回切换会持续涨内存。
   useEffect(() => {
     let holeOpen = true
     const sync = () => {
       const root = rootRef.current
       if (!root) return
       const hole = glass.get() > 0.01 ? glass.get() : 0
-      // 洞已收拢且仍收拢时不再改变量，普通横移不触发标签的 mask 重算。
+      // 洞已收拢且仍收拢时不再改样式，普通横移不触发标签重绘。
       if (!hole && !holeOpen) return
       holeOpen = hole > 0
-      if (!hole) { root.style.setProperty('--lens-mask', 'none'); return }
+      const list = buttons()
+      if (!hole) { for (const button of list) button.style.clipPath = ''; return }
       const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get() * hole, scaleY.get() * hole)
-      const path = lensOutline(rect, flowX.get(), flowY.get())
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rootWidth.current}" height="${rootHeight.current}"><path fill="white" fill-rule="evenodd" d="M0,0H${rootWidth.current}V${rootHeight.current}H0Z${path}"/></svg>`
-      root.style.setProperty('--lens-mask', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`)
-      root.style.setProperty('--lens-mask-size', `${rootWidth.current}px ${rootHeight.current}px`)
+      list.forEach((button, i) => {
+        const offset = tabOffsets.current[i] ?? { left: button.offsetLeft, top: button.offsetTop }
+        const path = lensOutline({ ...rect, left: rect.left - offset.left, top: rect.top - offset.top }, flowX.get(), flowY.get())
+        button.style.clipPath = `path(evenodd, 'M-9999,-9999H9999V9999H-9999Z${path}')`
+      })
     }
     syncHole.current = sync
     const schedule = () => frame.render(sync)

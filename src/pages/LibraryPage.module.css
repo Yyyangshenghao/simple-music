@@ -59,7 +59,7 @@
   box-shadow: inset 0 1px 0 var(--sm-border-strong), 0 3px 8px color-mix(in srgb, var(--sm-bg-base) 24%, transparent);
 }
 
-/* 玻璃透镜：盖在标签之上，透镜范围内原标签被挖空（见 .subTabs > .subTab 的 mask），
+/* 玻璃透镜：盖在标签之上，透镜范围内原标签被挖空（LibraryTabs 逐个标签写 clip-path），
    内部是以选中态文字色重绘的折射副本。静置时是贴在磨砂指示器上的薄玻璃，浮起时更高、放大并投影；
    只有边缘一圈轻微模糊，加细高光边表现玻璃厚度。 */
 .tabLens {
@@ -117,15 +117,6 @@
 }
 .tabLensCopy .subTab,
 .tabLensCopy .subTab .subTabIcon { color: var(--sm-accent); opacity: 1; }
-
-/* 挖空轮廓与透镜共用，局部鼓起时也不会露出原标签造成重影。 */
-.subTabs > .subTab {
-  -webkit-mask-image: var(--lens-mask, none);
-  mask-image: var(--lens-mask, none);
-  mask-size: var(--lens-mask-size, 100% 100%);
-  mask-position: calc(0px - var(--btn-left, 0px)) -3px;
-  mask-repeat: no-repeat;
-}
 
 .subTab {
   position: relative;
