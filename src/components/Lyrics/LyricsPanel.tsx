@@ -18,6 +18,7 @@ import { LyricStylePicker } from './LyricStylePicker'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
 import { lyricStyleInfo, resolveLyricsView } from '../../lib/lyric-style-catalog'
 import { useLyricStylesStore } from '../../stores/lyric-styles'
+import { LibraryTabs } from '../../pages/LibraryTabs'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
@@ -35,6 +36,57 @@ interface LyricsPanelProps {
   /** 沉浸模式:淡出 header 控件并隐藏鼠标指针 */
   controlsHidden?: boolean
   onClose: () => void
+}
+
+/** 进入歌词页后停留多久再躲起来，让用户先看到收起与切换在哪。 */
+const HEADER_INTRO_MS = 1400
+/** 指针离开后稍等再躲，避免擦边时来回闪。 */
+const HEADER_LEAVE_MS = 450
+
+/**
+ * 页头两端的自动躲藏（与歌手页返回按钮同一套节奏，独立于播放栏的空闲隐藏）：
+ * 打开歌词页先露面，随后各自滑出最近的窗口边；指针移到对应角落或键盘聚焦时滑回，pinned 时保持可见。
+ */
+function HeaderDock({ side, open, pinned, children }: { side: 'left' | 'right'; open: boolean; pinned: boolean; children: React.ReactNode }) {
+  const dockRef = useRef<HTMLDivElement>(null)
+  const [introDone, setIntroDone] = useState(false)
+  const [hovering, setHovering] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const hidden = open && introDone && !hovering && !focused && !pinned
+
+  // 每次打开重新走一遍「先露面再躲起」
+  useEffect(() => {
+    setIntroDone(false)
+    if (!open) return
+    const timer = setTimeout(() => setIntroDone(true), HEADER_INTRO_MS)
+    return () => clearTimeout(timer)
+  }, [open])
+  useEffect(() => () => clearTimeout(leaveTimer.current), [])
+
+  // 躲藏距离按当前位置量：整组控件移出最近的窗口边，而不是固定像素。
+  useEffect(() => {
+    const content = dockRef.current?.firstElementChild
+    if (!hidden || !content || !dockRef.current) return
+    const rect = content.getBoundingClientRect()
+    const distance = side === 'left' ? -Math.ceil(rect.right + 12) : Math.ceil(window.innerWidth - rect.left + 12)
+    dockRef.current.style.setProperty('--dock-hide-x', `${distance}px`)
+  }, [hidden, side])
+
+  return (
+    <div
+      ref={dockRef}
+      className={`${styles.headerDock} no-drag`}
+      data-side={side}
+      data-hidden={hidden}
+      onPointerEnter={() => { clearTimeout(leaveTimer.current); setHovering(true) }}
+      onPointerLeave={() => { leaveTimer.current = setTimeout(() => setHovering(false), HEADER_LEAVE_MS) }}
+      onFocus={(event) => setFocused(event.target.matches(':focus-visible'))}
+      onBlur={() => setFocused(false)}
+    >
+      <div className={styles.headerDockContent}>{children}</div>
+    </div>
+  )
 }
 
 function ChevronDown() {
@@ -489,12 +541,15 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     <div className={`${styles.panel}${lowPower ? ` ${styles.lowPower}` : ''}${mode === 'lyrics' ? ` ${styles.listeningRoom}` : ''}${mode === 'lyrics' && playerStyle === 'dock' ? ` ${styles.dockPlayer}` : ''}${mode === '3d' && lightTheme ? ` ${styles.lightScene}` : ''}${view !== 'lyrics' && lyricStyleInfo(view).darkStage ? ` ${styles.darkStage}` : ''}${open ? ` ${styles.open}` : ''}${immersive ? ` ${styles.immersive}` : ''}${backdropOccluded ? ` ${styles.noBackdrop}` : ''}`} aria-hidden={!open}>
       {/* Header：沉浸模式下淡出 */}
       <div className={styles.header}>
-        <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
-          <span className={styles.closeBtnIcon}><ChevronDown /></span>
-          <span className={styles.closeBtnLabel} aria-hidden="true"><span>收起</span></span>
-        </button>
+        <HeaderDock side="left" open={open} pinned={false}>
+          <button className={`${styles.closeBtn} no-drag`} onClick={onClose} aria-label="收起歌词" title="收起">
+            <span className={styles.closeBtnIcon}><ChevronDown /></span>
+            <span className={styles.closeBtnLabel} aria-hidden="true"><span>收起</span></span>
+          </button>
+        </HeaderDock>
 
         {/* 模式切换：逐行歌词 / 动态；动态样式收在样式按钮的选择器里，平时不铺开 */}
+        <HeaderDock side="right" open={open} pinned={stylePickerOpen}>
         <div className={`${styles.modeBar} no-drag`}>
           {mode !== 'lyrics' && (
             <div className={styles.modeBtnAnchor}>
@@ -515,25 +570,22 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
               )}
             </div>
           )}
-          <div className={styles.modeSwitch}>
-            <button
-              className={`${styles.modeBtn}${mode === 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
-              onClick={() => {
+          {/* 与我的库分类同一枚流体玻璃透镜；配色在 .modeTabs 里换成歌词页墨色 */}
+          <LibraryTabs
+            ariaLabel="歌词显示模式"
+            className={styles.modeTabs}
+            tabClassName={styles.modeTab}
+            value={mode === 'lyrics' ? 'lyrics' : 'dynamic'}
+            items={[{ value: 'lyrics', label: '歌词' }, { value: 'dynamic', label: '动态' }]}
+            onChange={(next) => {
+              if (next === 'lyrics') {
                 setMode('lyrics')
                 setStylePickerOpen(false)
-              }}
-            >
-              歌词
-            </button>
-            <button
-              className={`${styles.modeBtn}${mode !== 'lyrics' ? ` ${styles.modeBtnActive}` : ''}`}
-              title="动态歌词样式"
-              onClick={() => setMode('dynamic')}
-            >
-              动态
-            </button>
-          </div>
+              } else setMode('dynamic')
+            }}
+          />
         </div>
+        </HeaderDock>
 
       </div>
 

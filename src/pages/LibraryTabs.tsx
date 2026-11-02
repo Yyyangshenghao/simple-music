@@ -22,10 +22,14 @@ const LIFT_LENS = { bezel: 0.22, depth: 0.09 }
  * 选中项静置时也是一片薄玻璃：原标签挖空，由 WebGL 按玻璃折射重绘，边缘斜面弯折并带彩边；
  * 按住或拖动时浮起成更厚的凸透镜并放大；拿不到 WebGL 时退回清晰的 DOM 副本。
  */
-export function LibraryTabs<T extends string>({ items, value, onChange }: {
+export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabel = '我的库分类', className, tabClassName }: {
   items: TabItem<T>[]
   value: T
   onChange(value: T): void
+  ariaLabel?: string
+  /** 复用到其他页面时的外观覆盖：className 加在轨道上，tabClassName 加在每个标签（含透镜副本）上。 */
+  className?: string
+  tabClassName?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const gesture = useRef<{ pointer: number; start: number; startY: number; index: number; moved: boolean } | null>(null)
@@ -279,9 +283,9 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
 
   return <div
     ref={rootRef}
-    className={`${styles.subTabs} no-drag`}
+    className={`${styles.subTabs} no-drag${className ? ` ${className}` : ''}`}
     role="group"
-    aria-label="我的库分类"
+    aria-label={ariaLabel}
     data-arrow-navigation
     data-ready={ready}
     data-dragging={dragging}
@@ -337,7 +341,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     {items.map((item, index) => <button
       key={item.value}
       type="button"
-      className={`${styles.subTab} ${value === item.value ? styles.subTabActive : ''}`}
+      className={`${styles.subTab} ${value === item.value ? styles.subTabActive : ''}${tabClassName ? ` ${tabClassName}` : ''}`}
       aria-pressed={value === item.value}
       onClick={() => onChange(item.value)}
       onKeyDown={event => {
@@ -360,7 +364,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       <motion.span className={styles.tabLensClip} style={{ clipPath: lensClip }}>
         {!glFailed && <canvas ref={canvasRef} className={styles.tabLensCanvas} />}
         {glFailed && <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
-          {items.map(item => <span key={item.value} className={styles.subTab}>{content(item)}</span>)}
+          {items.map(item => <span key={item.value} className={`${styles.subTab}${tabClassName ? ` ${tabClassName}` : ''}`}>{content(item)}</span>)}
         </motion.span>}
       </motion.span>
       <svg className={styles.tabLensRim} width="100%" height="100%">
