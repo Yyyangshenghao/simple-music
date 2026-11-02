@@ -155,7 +155,8 @@
 
 .headerDockContent {
   display: flex;
-  transform: translateX(0);
+  /* 显示时不能留 transform：它会成为样式选择器全屏遮罩（position: fixed）的定位容器，点外部就关不掉 */
+  transform: none;
   transition: transform 0.46s var(--sm-ease-out), opacity 0.3s ease;
 }
 
@@ -171,9 +172,8 @@
 
 :global([data-icon-motion-off]) .headerDockContent { transition: none !important; }
 
-/* 页头控件统一的通透玻璃：浅墨色底 + 毛玻璃 + 上亮下弱的渐变细边 + 浅投影，内部不加高光带（与我的库透镜同一取向）。 */
-.closeBtn,
-.styleChip {
+/* 收起按钮的通透玻璃：浅墨色底 + 毛玻璃 + 上亮下弱的渐变细边 + 浅投影，内部不加高光带（与我的库透镜同一取向）。 */
+.closeBtn {
   position: relative;
   background: rgba(var(--lyrics-ink-rgb), 0.06);
   backdrop-filter: blur(20px) saturate(150%);
@@ -181,8 +181,7 @@
   box-shadow: 0 8px 22px -12px rgba(0, 0, 0, calc(0.5 * var(--lyrics-shadow-strength)));
 }
 
-.closeBtn::before,
-.styleChip::before {
+.closeBtn::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -195,7 +194,7 @@
   pointer-events: none;
 }
 
-:global([data-reduce-transparency='1']) :is(.closeBtn, .styleChip) { background: rgba(var(--lyrics-ink-rgb), 0.14); }
+:global([data-reduce-transparency='1']) .closeBtn { background: rgba(var(--lyrics-ink-rgb), 0.14); }
 
 /* Header: close button + mode switch row */
 .header {
@@ -728,65 +727,94 @@
   box-shadow: 0 8px 22px -12px rgba(0, 0, 0, calc(0.5 * var(--lyrics-shadow-strength)));
 }
 
-/* 纯文字标签：比我的库的图标+小字略大，单行居中 */
-.modeTab {
+/* 纯文字标签：比我的库的图标+小字略大，单行居中；样式名标签的小箭头在文字右侧。
+   带上 .modeTabs 提高优先级：开发模式下我的库样式表可能后加载，单类会被 .subTab 的纵向排列覆盖。 */
+.modeTabs .modeTab {
+  flex-direction: row-reverse;
+  gap: 0;
   min-width: 60px;
   padding: 7px 16px;
   font-size: 13px;
   line-height: 18px;
   letter-spacing: 0.3px;
+  /* 收回（切回歌词）：等箭头先收起，再慢慢缩回；展开的节奏写在下方选中规则里 */
+  transition: background 150ms, color 150ms, padding 0.5s cubic-bezier(0.45, 0, 0.25, 1) 0.26s;
 }
+
+/* 切到动态时右侧标签向右展开一小块（右内边距 16→28），给浮现的下箭头留位；歌词模式下两枚标签同宽。 */
+.modeTabs > button:nth-of-type(2)[aria-pressed='true'] {
+  padding-right: 28px;
+  transition: background 150ms, color 150ms, padding 0.32s var(--sm-ease-out);
+}
+
+/* 下箭头：盖在透镜上方，切到动态后稍等标签展开，再从上往下落入并轻轻回弹，描边同时画出。 */
+.modeChevron {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  z-index: 3;
+  margin-top: -6px;
+  fill: none;
+  stroke: rgb(var(--lyrics-ink-rgb));
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transform: translateY(-7px);
+  rotate: 0deg;
+  pointer-events: none;
+  /* 收起：先微微下沉蓄力再向上收回，描边同时擦掉，之后胶囊才缩回 */
+  transition: opacity 0.3s ease 0.08s, transform 0.42s cubic-bezier(0.55, -0.35, 0.7, 0.3), stroke-dashoffset 0.36s ease-in, rotate 0.3s ease;
+}
+
+/* 翻转用独立的 rotate 属性：transform 被浮现动画占着，两者互不覆盖。 */
+.modeChevron[data-show='true'] {
+  opacity: 0.75;
+  transform: none;
+  stroke-dashoffset: 0;
+  transition: rotate 0.5s cubic-bezier(0.34, 1.5, 0.5, 1);
+  animation: modeChevronDrop 0.9s 0.16s both;
+}
+
+/* 样式面板展开：下箭头逆时针翻成上箭头，示意再点可收回；收回时带一点回弹转回来。 */
+.modeChevron[data-show='true'][data-open='true'] {
+  rotate: -180deg;
+  transition: rotate 0.46s cubic-bezier(0.34, 1.56, 0.5, 1);
+}
+
+@keyframes modeChevronDrop {
+  0% { opacity: 0; transform: translateY(-8px); stroke-dashoffset: 1; animation-timing-function: cubic-bezier(0.3, 0, 0.4, 1); }
+  45% { opacity: 0.75; transform: translateY(2px); stroke-dashoffset: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  65% { transform: translateY(-1.2px); }
+  82% { transform: translateY(0.5px); }
+  100% { opacity: 0.75; transform: translateY(0); stroke-dashoffset: 0; }
+}
+
+:global([data-icon-motion-off]) :is(.modeChevron, .modeBtnAnchor, .modeTabs > button) { animation: none !important; transition: none !important; }
 
 /* 样式按钮的选择器定位锚点 */
 .modeBtnAnchor {
   position: relative;
   display: flex;
+  /* 胶囊向右延展：页头右对齐，标签展开（右内边距 16→28，+12px）时用等量负右外边距抵消，
+     与标签宽度同曲线同时长过渡，左缘不动，轨道和透镜一起向右长出去。 */
+  transition: margin-right 0.5s cubic-bezier(0.45, 0, 0.25, 1) 0.26s;
 }
+
+.modeBtnAnchor:has(.modeTabs > button:nth-of-type(2)[aria-pressed='true']) {
+  margin-right: -12px;
+  transition: margin-right 0.32s var(--sm-ease-out);
+}
+
+:global([data-icon-motion-off]) .modeBtnAnchor { transition: none; }
 
 /* 页头右侧：动态样式按钮 + 模式切换。样式按钮只在「动态」下出现。 */
 .modeBar {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-/* 当前动态样式：与模式切换同一套玻璃质感，弱一级呈现，点开才出现样式选择器。 */
-.styleChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 12px 0 14px;
-  border: 0;
-  border-radius: 999px;
-  color: rgba(var(--lyrics-ink-rgb), 0.82);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease;
-}
-
-.styleChip:hover,
-.styleChip[aria-expanded='true'] {
-  color: rgb(var(--lyrics-ink-rgb));
-  background: rgba(var(--lyrics-ink-rgb), 0.12);
-}
-
-.styleChip > span:first-child {
-  max-width: 10em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.styleChip svg {
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-
-.styleChip[aria-expanded='true'] svg {
-  transform: rotate(180deg);
 }
 
 /* 动态样式舞台：铺满面板的尺寸容器，样式内部用 cqw/cqh 排版。 */

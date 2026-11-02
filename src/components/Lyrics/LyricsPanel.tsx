@@ -16,7 +16,7 @@ import { ArtistLinks } from '../ui/ArtistLinks'
 import { PlayerBar } from '../Player/PlayerBar'
 import { LyricStylePicker } from './LyricStylePicker'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
-import { lyricStyleInfo, resolveLyricsView } from '../../lib/lyric-style-catalog'
+import { DEFAULT_LYRIC_STYLE, isLyricStyleId, lyricStyleInfo, resolveLyricsView } from '../../lib/lyric-style-catalog'
 import { useLyricStylesStore } from '../../stores/lyric-styles'
 import { LibraryTabs } from '../../pages/LibraryTabs'
 import styles from './LyricsPanel.module.css'
@@ -301,6 +301,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 下方逐行歌词、封面飞入与 3D 场景沿用这三种布局：除 3D 舞台外的动态样式都走跃字这套舞台底。
   const mode = view === 'stage3d' ? '3d' : view === 'lyrics' ? 'lyrics' : 'pop'
   const StyleStage = view !== 'lyrics' ? LYRIC_STYLE_VIEWS[view].Stage : undefined
+  // 模式切换右侧显示的样式名：歌词模式下也显示上次选的样式，切过去就是它
+  const dynamicLabel = lyricStyleInfo(isLyricStyleId(lyricStyle) ? lyricStyle : DEFAULT_LYRIC_STYLE).label
   const opaqueStyle = view !== 'lyrics' && !!lyricStyleInfo(view).opaque
   const lightTheme = useLightTheme()
   const playing = usePlayerStore((s) => s.status === 'playing' || (s.currentTrack?.source === 'apple' && s.status === 'loading'))
@@ -551,39 +553,38 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         {/* 模式切换：逐行歌词 / 动态；动态样式收在样式按钮的选择器里，平时不铺开 */}
         <HeaderDock side="right" open={open} pinned={stylePickerOpen}>
         <div className={`${styles.modeBar} no-drag`}>
-          {mode !== 'lyrics' && (
-            <div className={styles.modeBtnAnchor}>
-              <button
-                className={styles.styleChip}
-                aria-haspopup="dialog"
-                aria-expanded={stylePickerOpen}
-                title="选择动态歌词样式"
-                onClick={() => setStylePickerOpen(!stylePickerOpen)}
-              >
-                <span>{lyricStyleInfo(view === 'lyrics' ? lyricStyle : view).label}</span>
-                <ChevronDown />
-              </button>
+          {/* 与我的库分类同一枚流体玻璃透镜；配色在 .modeTabs 里换成歌词页墨色。
+              右侧标签直接显示所选的动态样式名（换样式时透镜随宽度流过去），已在动态下再点它打开样式选择器。 */}
+          <div className={styles.modeBtnAnchor}>
+            <LibraryTabs
+              ariaLabel="歌词显示模式"
+              className={styles.modeTabs}
+              tabClassName={styles.modeTab}
+              value={storedMode}
+              items={[
+                { value: 'lyrics', label: '歌词' },
+                { value: 'dynamic', label: dynamicLabel },
+              ]}
+              onChange={(next) => {
+                if (next === 'lyrics') {
+                  setMode('lyrics')
+                  setStylePickerOpen(false)
+                } else if (storedMode === 'dynamic') setStylePickerOpen(!stylePickerOpen)
+                else setMode('dynamic')
+              }}
+            />
+            {/* 动态下才浮现的下箭头：盖在透镜之上单独做动效（透镜里是静态贴图，放在标签内会被挡住）；面板展开时翻成上箭头 */}
+            <svg className={styles.modeChevron} data-show={storedMode === 'dynamic'} data-open={stylePickerOpen} viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+              <path d="M2.5 4.5 6 8l3.5-3.5" pathLength={1} />
+            </svg>
+            <AnimatePresence>
               {stylePickerOpen && (
                 <LyricStylePicker
                   onClose={() => setStylePickerOpen(false)}
                 />
               )}
-            </div>
-          )}
-          {/* 与我的库分类同一枚流体玻璃透镜；配色在 .modeTabs 里换成歌词页墨色 */}
-          <LibraryTabs
-            ariaLabel="歌词显示模式"
-            className={styles.modeTabs}
-            tabClassName={styles.modeTab}
-            value={mode === 'lyrics' ? 'lyrics' : 'dynamic'}
-            items={[{ value: 'lyrics', label: '歌词' }, { value: 'dynamic', label: '动态' }]}
-            onChange={(next) => {
-              if (next === 'lyrics') {
-                setMode('lyrics')
-                setStylePickerOpen(false)
-              } else setMode('dynamic')
-            }}
-          />
+            </AnimatePresence>
+          </div>
         </div>
         </HeaderDock>
 

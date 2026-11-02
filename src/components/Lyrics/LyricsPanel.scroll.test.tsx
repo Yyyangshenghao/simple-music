@@ -159,10 +159,13 @@ describe('普通歌词定位', () => {
     h.settings.lyricsPanelMode = mode === '3d' ? 'dynamic' : 'lyrics'
     h.styles.style = mode === '3d' ? 'stage3d' : 'pop'
     render()
+    // 动态下再点模式切换里的样式名标签打开样式选择器
     const trigger = find(tree, element => mode === '3d'
-      ? element.props.title === '选择动态歌词样式'
+      ? element.props.ariaLabel === '歌词显示模式'
       : element.props['aria-label'] === '歌词设置')!
-    const toggle = trigger.props.onClick as () => void
+    const toggle = mode === '3d'
+      ? () => (trigger.props.onChange as (value: string) => void)('dynamic')
+      : trigger.props.onClick as () => void
     toggle()
     render(true, true)
     expect(tree.props.className).not.toContain(styles.immersive)

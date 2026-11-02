@@ -182,6 +182,18 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
     transitTimer.current = window.setTimeout(() => { if (!gesture.current) setLifted(false) }, TRANSIT_LIFT_MS)
   }, [value])
 
+  // 选中项的文字变了（如歌词页「动态」换成所选样式名）：同样浮起一下，透镜随宽度变化流过去再沉回。
+  const activeLabel = items.find(item => item.value === value)?.label
+  const lastLabel = useRef(activeLabel)
+  useEffect(() => {
+    if (lastLabel.current === activeLabel) return
+    lastLabel.current = activeLabel
+    if (gesture.current || reducedMotion) return
+    setLifted(true)
+    window.clearTimeout(transitTimer.current)
+    transitTimer.current = window.setTimeout(() => { if (!gesture.current) setLifted(false) }, TRANSIT_LIFT_MS)
+  }, [activeLabel])
+
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
 
   // 按透镜位置给真实标签挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
@@ -254,7 +266,12 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
     }
     const schedule = () => frame.render(draw)
     const stops = [x, width, scaleX, scaleY, glass, flowX, flowY].map(value => value.on('change', schedule))
-    const resize = new ResizeObserver(() => void rebuild())
+    // 尺寸连续变化（如标签展开）时等它停下再重画贴图，不逐帧栅格化
+    let resizeTimer: number | undefined
+    const resize = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => void rebuild(), 90)
+    })
     resize.observe(root)
     // 文字色和底色共同决定色散合成；主题变化时同步更新，避免浅底黑字留下暗边。
     const theme = new MutationObserver(() => {
@@ -270,6 +287,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
       rest.set(0)
       stops.forEach(stop => stop())
       cancelFrame(draw)
+      window.clearTimeout(resizeTimer)
       resize.disconnect()
       theme.disconnect()
       canvas.removeEventListener('webglcontextlost', onLost)
@@ -326,7 +344,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabe
     onPointerUp={event => {
       const current = gesture.current
       if (!current || current.pointer !== event.pointerId) return
-      suppressClick.current = current.moved
+      // 指针已在这里提交选择，随后的 click 不再重复触发 onChange（键盘激活只有 click，不受影响）
+      suppressClick.current = true
       const index = current.moved ? current.index : nearest(event.clientX)
       endGesture()
       if (items[index]) { measure(index); onChange(items[index].value); buttons()[index]?.focus({ preventScroll: true }) }

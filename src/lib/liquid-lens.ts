@@ -274,7 +274,8 @@ export async function rasterizeTabStrip(root: HTMLElement, buttons: HTMLElement[
   const icons: Promise<void>[] = []
   for (const button of buttons) {
     const svg = button.querySelector('svg')
-    if (svg) {
+    // 隐藏的图标（如未选中时收起的箭头）不画进贴图
+    if (svg && getComputedStyle(svg).visibility !== 'hidden') {
       const rect = svg.getBoundingClientRect()
       icons.push(loadSvg(svg, rect.width * scale, rect.height * scale, color).then(image => {
         if (image) ctx.drawImage(image, rect.left - ox, rect.top - oy, rect.width, rect.height)
