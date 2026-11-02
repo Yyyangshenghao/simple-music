@@ -147,6 +147,8 @@ interface PersistedSettings {
   lyricsShowTranslation: boolean
   /** 纯歌词模式是否显示罗马音行(日语等有 romalrc 数据时)。 */
   lyricsShowRoma: boolean
+  /** 纯音乐（各来源都没有歌词且原平台声明纯音乐）时是否在歌词页显示「纯音乐，请欣赏」。 */
+  lyricsInstrumentalHint: boolean
   /** 平台没有逐字时序时，按歌曲 ID 去 AMLL TTML DB（社区逐字歌词库）补全；会向 GitHub 或社区镜像发送歌曲 ID。 */
   lyricsAmllFallback: boolean
   /** 以上来源都没有逐字时序时，按歌名、歌手与时长去酷狗歌词库补全；会向酷狗发送这三项。 */
@@ -233,6 +235,7 @@ interface SettingsStore extends PersistedSettings {
   resetLyricsLayout(): void
   setLyricsShowTranslation(v: boolean): void
   setLyricsShowRoma(v: boolean): void
+  setLyricsInstrumentalHint(v: boolean): void
   setLyricsAmllFallback(v: boolean): void
   setLyricsKugouFallback(v: boolean): void
   setLyricsGuestSource(source: keyof LyricsGuestSources, enabled: boolean): void
@@ -288,6 +291,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT },
   lyricsShowTranslation: true,
   lyricsShowRoma: true,
+  lyricsInstrumentalHint: true,
   lyricsAmllFallback: true,
   lyricsKugouFallback: true,
   lyricsGuestSources: { netease: true, qq: true },
@@ -446,6 +450,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ lyricsShowRoma: v })
     get().saveToLocal()
   },
+  setLyricsInstrumentalHint(v) {
+    set({ lyricsInstrumentalHint: v })
+    get().saveToLocal()
+  },
   setLyricsPlayerStyle(v) {
     set({ lyricsPlayerStyle: v })
     get().saveToLocal()
@@ -532,8 +540,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -595,6 +603,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         lyricsLayout: { ...DEFAULT_LYRICS_LAYOUT, ...data.lyricsLayout },
         lyricsShowTranslation: data.lyricsShowTranslation ?? true,
         lyricsShowRoma: data.lyricsShowRoma ?? true,
+        lyricsInstrumentalHint: data.lyricsInstrumentalHint ?? true,
         lyricsAmllFallback: data.lyricsAmllFallback ?? true,
         lyricsKugouFallback: data.lyricsKugouFallback ?? true,
         lyricsGuestSources: {

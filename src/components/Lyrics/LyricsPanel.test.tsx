@@ -30,6 +30,18 @@ vi.mock('../../stores/settings', async (importOriginal) => {
   }
 })
 
+// 服务端渲染读 store 的初始快照；改读当前状态，用例才能设置歌词与曲目。
+vi.mock('../../stores/lyrics', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../stores/lyrics')>()
+  const store = original.useLyricsStore
+  return { ...original, useLyricsStore: Object.assign((selector: (value: unknown) => unknown) => selector(store.getState()), store) }
+})
+vi.mock('../../stores/player', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../stores/player')>()
+  const store = original.usePlayerStore
+  return { ...original, usePlayerStore: Object.assign((selector: (value: unknown) => unknown) => selector(store.getState()), store) }
+})
+
 describe('歌词场景按需加载', () => {
   it('关闭、纯歌词和其他样式均不加载粒光，打开粒光才加载场景', async () => {
     const render = (open: boolean) => renderToStaticMarkup(<LyricsPanel open={open} onClose={vi.fn()} />)
@@ -63,5 +75,32 @@ describe('歌词场景按需加载', () => {
     expect(render(false)).not.toContain('data-testid="lyrics-scene"')
     settings.mode = 'lyrics'
     expect(render(true)).not.toContain('data-testid="lyrics-scene"')
+  })
+})
+
+describe('纯音乐提示', () => {
+  it('纯音乐显示提示，关闭提示后歌词区与舞台都留空', async () => {
+    const { useLyricsStore } = await import('../../stores/lyrics')
+    const { useSettingsStore } = await import('../../stores/settings')
+    const { usePlayerStore } = await import('../../stores/player')
+    usePlayerStore.setState({ currentTrack: { source: 'netease', provider: 'netease', type: 'song', id: 1, name: 'Summer', artist: '久石譲', artists: [], duration: 153_906 } })
+    useLyricsStore.setState({ loading: false, lines: [], instrumental: true })
+    const render = () => renderToStaticMarkup(<LyricsPanel open onClose={vi.fn()} />)
+    try {
+      for (const [mode, style] of [['lyrics', 'pop'], ['dynamic', 'pop']] as const) {
+        settings.mode = mode
+        settings.style = style
+        useSettingsStore.setState({ lyricsInstrumentalHint: true })
+        expect(render()).toContain('纯音乐，请欣赏')
+        useSettingsStore.setState({ lyricsInstrumentalHint: false })
+        const hidden = render()
+        expect(hidden).not.toContain('纯音乐，请欣赏')
+        expect(hidden).not.toContain('选择歌词')
+      }
+    } finally {
+      useSettingsStore.setState({ lyricsInstrumentalHint: true })
+      useLyricsStore.setState({ instrumental: false })
+      usePlayerStore.setState({ currentTrack: null })
+    }
   })
 })

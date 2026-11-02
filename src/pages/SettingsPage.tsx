@@ -1005,6 +1005,8 @@ export function SettingsPage() {
   const setFontFamilyCjk = useSettingsStore((s) => s.setFontFamilyCjk)
   const lyricsFontFamily = useSettingsStore((s) => s.lyricsFontFamily)
   const setLyricsFontFamily = useSettingsStore((s) => s.setLyricsFontFamily)
+  const lyricsInstrumentalHint = useSettingsStore((s) => s.lyricsInstrumentalHint)
+  const setLyricsInstrumentalHint = useSettingsStore((s) => s.setLyricsInstrumentalHint)
   const lyricsFontFamilyCjk = useSettingsStore((s) => s.lyricsFontFamilyCjk)
   const setLyricsFontFamilyCjk = useSettingsStore((s) => s.setLyricsFontFamilyCjk)
   const fx = useVisualStore((s) => s.fx)
@@ -1620,6 +1622,12 @@ export function SettingsPage() {
                     <InfoButton label="歌词显示" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
                   </h3>
                   {LYRICS_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
+                  <BackgroundSwitchRow
+                    label="纯音乐提示"
+                    hint="没有歌词的纯音乐在歌词页显示「纯音乐，请欣赏」；关闭后歌词区留空，仍可从播放栏「更多」里选择歌词。"
+                    checked={lyricsInstrumentalHint}
+                    onChange={setLyricsInstrumentalHint}
+                  />
                   <div className={styles.fontGuide} hidden={!fontsLoading && !fontsError}>
                     <span role="status" aria-live="polite">
                       {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : ''}

@@ -137,18 +137,21 @@ function StageCoverArt({ src, alt }: { src: string; alt: string }) {
 /** 排版预设按流式尺寸体系调校：封面大小与分栏比例联动，不再叠加位移。 */
 /**
  * 没有歌词时的状态：加载中、纯音乐、暂无歌词。
- * 选择入口在加载中也占位，状态切换时文字不跳动；纯音乐只留一个轻量入口。
+ * 选择入口在加载中也占位，状态切换时文字不跳动；纯音乐只留一个轻量入口，并可在设置里整个隐藏。
  */
 function LyricsEmptyState({ stage = false, onChoose }: { stage?: boolean; onChoose: () => void }) {
   const track = usePlayerStore((s) => s.currentTrack)
   const loading = useLyricsStore((s) => s.loading)
   const instrumental = useLyricsStore((s) => s.instrumental)
+  const instrumentalHint = useSettingsStore((s) => s.lyricsInstrumentalHint)
   const hasMatchingSource = useProviderStore((s) => [s.byId.netease, s.byId.qq].some(source => source.enabled && source.auth === 'authenticated'))
   const message = loading ? '正在加载歌词…'
     : instrumental ? '纯音乐，请欣赏'
     : track?.source === 'apple'
       ? hasMatchingSource ? '暂无可用歌词' : '暂无 Apple Music 原生歌词，可启用网易云或 QQ 音乐补充匹配'
       : '暂无歌词'
+  // 用户关掉纯音乐提示时只留舞台本身；仍可从更多菜单选择歌词。
+  if (instrumental && !loading && !instrumentalHint) return stage ? null : <div className={styles.empty} />
   return (
     <div className={stage ? styles.stageEmpty : styles.empty} data-state={loading ? 'loading' : instrumental ? 'instrumental' : 'none'}>
       <span className={instrumental && !loading ? styles.emptyInstrumental : undefined}>{message}</span>
