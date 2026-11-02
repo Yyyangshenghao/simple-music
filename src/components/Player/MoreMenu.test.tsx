@@ -15,7 +15,11 @@ vi.mock('react', async original => ({
   useState: () => [true, h.setOpen],
   useRef: () => ({ current: null }),
   useEffect: () => {},
+  useLayoutEffect: () => {},
 }))
+vi.mock('react-dom', async original => ({ ...await original<typeof import('react-dom')>(), createPortal: (node: ReactNode) => node }))
+vi.stubGlobal('document', {})
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ currentTrack: h.track, rate: 1 }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: unknown) => unknown) => select({ jobs: [] }) }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: (select: (state: typeof h.lyrics) => unknown) => select(h.lyrics) }))
