@@ -152,12 +152,15 @@ beforeEach(() => {
 afterEach(() => {
   h.effects.forEach(effect => effect.cleanup?.())
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('普通歌词定位', () => {
   it.each(['lyrics', '3d'])('%s 设置展开期间不随空闲隐藏，关闭后恢复沉浸', (mode) => {
     h.settings.lyricsPanelMode = mode === '3d' ? 'dynamic' : 'lyrics'
     h.styles.style = mode === '3d' ? 'stage3d' : 'pop'
+    // 设置浮层展开时挂点外关闭与 Esc 监听
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
     render()
     // 动态下再点模式切换里的样式名标签打开样式选择器
     const trigger = find(tree, element => mode === '3d'

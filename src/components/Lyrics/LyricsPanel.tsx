@@ -393,6 +393,23 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
     setSettingsPopOpen(false)
     setStylePickerOpen(false)
   }, [sourceDialogOpen])
+  // 点浮层与齿轮以外的地方或按 Esc 收起设置浮层；Esc 走捕获阶段，全局快捷键层会拦下冒泡的按键。
+  const settingsAnchorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!settingsPopOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!settingsAnchorRef.current?.contains(event.target as Node)) setSettingsPopOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSettingsPopOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true)
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [settingsPopOpen])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const coverFlipRef = useRef<HTMLDivElement>(null)
@@ -811,7 +828,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   <RomaIcon />
                 </button>
               )}
-              <div className={styles.railPopAnchor}>
+              <div ref={settingsAnchorRef} className={styles.railPopAnchor}>
                 <button
                   className={`${styles.railBtn}${settingsPopOpen ? ` ${styles.railBtnActive}` : ''}`}
                   onClick={() => setSettingsPopOpen((v) => !v)}
