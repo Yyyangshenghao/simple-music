@@ -53,6 +53,18 @@ export function QishuiLogo({ className }: { className?: string }) {
   )
 }
 
+/** 哔哩哔哩：简化的小电视标记，非官方图形。 */
+export function BilibiliLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="12" cy="12" r="12" fill="#FB7299" />
+      <path fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" d="M9.2 5.6l1.6 2M14.8 5.6l-1.6 2" />
+      <rect x="5.6" y="7.8" width="12.8" height="9.6" rx="2.6" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <path fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" d="M9.4 11.6v1.2M14.6 11.6v1.2" />
+    </svg>
+  )
+}
+
 export function QQMusicLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 169.03343 177.05359" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
