@@ -37,12 +37,12 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
             </button>
           </header>
           <div className={styles.body}>
-            <p className={styles.intro}>有缓存，先用缓存。<br /><span>没有，再按设置联网。</span></p>
+            <p className={styles.intro}>有下载或缓存，先用本地。<br /><span>没有，再按设置联网。</span></p>
             <ol className={styles.flow} aria-label="歌曲播放流程">
               <li>
                 <span className={styles.stepNumber} aria-hidden="true">01</span>
                 <strong>先找本地音频</strong>
-                <p>本地歌曲直接播放<br />在线歌曲优先用完整缓存</p>
+                <p>本地歌曲、已下载直接播放<br />其余优先用完整缓存</p>
               </li>
               <li>
                 <span className={styles.stepNumber} aria-hidden="true">02</span>
@@ -84,7 +84,7 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
             </section>
             <div className={styles.notes}>
               <section>
-                <h3>没保存过，也可能有缓存</h3>
+                <h3>没下载过，也可能有缓存</h3>
                 <p>在线播放时，完整下载成功的音频通常会自动缓存。<strong>不必听到结尾。</strong></p>
               </section>
               <section>
@@ -104,9 +104,9 @@ export function PlaybackLogicHelp({ providerLabels, preferOriginSource, multiSou
                     <dt>哪些平台参与联网播放？</dt>
                     <dd><RevealText text="只使用已登录、已启用且可播放的平台；原平台不可用时按排序选择。" /></dd>
                     <dt>为什么来源不同？</dt>
-                    <dd><RevealText text="歌曲来源是你找到它的平台；音频可能来自换源后的缓存。“更多 → 播放来源”显示“本地离线”，表示正在用缓存。" /></dd>
+                    <dd><RevealText text="歌曲来源是你找到它的平台；音频可能来自换源后的缓存。“更多 → 播放来源”显示“本地离线”，表示正在用下载文件或缓存。" /></dd>
                     <dt>缓存会一直保留吗？</dt>
-                    <dd><RevealText text="下载未完成时不一定有缓存；容量满后会清理较久未使用的自动缓存。已保留为离线音乐的歌曲不受自动清理影响，在“设置 → 缓存与下载”中单独管理。" /></dd>
+                    <dd><RevealText text="不会。缓存满了会清理较久未用的部分，想长期保留请下载；已下载的歌曲文件不受缓存清理影响。" /></dd>
                     <dt>本次优先还会影响什么？</dt>
                     <dd><RevealText text="重载时保留进度与暂停状态。失败后是否换源，仍取决于“自动换源”开关。" /></dd>
                   </dl>
