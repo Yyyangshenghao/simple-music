@@ -23,7 +23,7 @@
 - **`lib/karaoke-library.ts`**：用户伴奏文件库。`GET /api/karaoke/library` 读目录和各模型版本，`POST /api/karaoke/library/directory` 设置之后入队任务的保存位置，`POST /api/karaoke/library/save` 将中间 WAV 原子发布到所选目录并记录原曲身份，`POST /api/karaoke/library/delete` 按索引删除指定版本。每个目录的 `.simplemusic-accompaniments.json` 仅保存相对文件名，配置记录历史目录；伴奏长期保留，不参与缓存淘汰，卸载模型不删除成品。`/api/local/audio?id=karaoke:<索引ID>` 按索引读取，歌词沿用原曲；不接受任意文件路径。`GET /api/karaoke/resources` 给出系统内存余量与启动预算。
 - **`routes/song-downloads.ts`** + `lib/song-downloads.ts`：`/api/downloads/{config,export,library,file,delete}`，下载目录独立保存在 `song-downloads.json`，桌面应用首次配置默认使用系统音乐目录下的 `Simple Music` 文件夹，系统目录不可用或不可写时沿用缓存位置；已有下载配置（包括与缓存同目录的配置）保留，损坏或不可读的配置不自动改写；按索引校验歌曲归属后导出真实扩展名文件，同名不覆盖。导出不改缓存配置，播放器缓存清理不处理这些歌曲文件；`GET /api/audio-cache/progress` 提供保存中的字节进度，任务结束后移除记录。
   - 「已下载」= 下载目录里的歌曲文件 + `userData/song-downloads-index.json` 的记录（`lib/download-library.ts`），与播放缓存互不依赖：导出成功后登记并解除缓存固定，同一首已下载且文件仍在时复用原文件；`file` 只放行记录里登记的路径；文件被用户在系统中删掉的记录自动剔除；`delete` 经宿主注入的 `trashItem` 移到废纸篓（独立 server 无此能力返回 501）。
-  - 旧版「离线音乐」（缓存目录里 pinned 的条目）由主进程启动时 `reconcileDownloads` 迁移：下载目录已有同名同大小文件直接认领，否则导出；登记后解除固定。单首失败保持固定、下次启动重试，全部成功才写 `migratedPinned`；之后残留的固定条目视为中断的下载，回归缓存。下载记录损坏时不覆盖、不迁移。
+  - 旧版「离线音乐」（缓存目录里 pinned 的条目）由主进程启动时 `reconcileDownloads` 迁移：下载目录已有同名同大小文件直接认领，否则导出；登记后解除固定。单首失败保持固定、下次启动重试；没有下载记录的固定条目每次都按待迁移处理（中断的下载也在其中）。下载记录损坏时不覆盖、不迁移。
 - **`routes/catalog-search.ts`**：网易云 `/api/search/{albums,playlists}` 和 QQ `/api/qq/search/{albums,playlists}`，仅映射各自上游目录结果；网易云搜索类型为 10/1000，QQ SearchCgiService 类型为 2/3。沿用公共 API 的 Origin/token 边界，失败不混入另一平台结果。
 - **`routes/netease.ts`**(网易云,依赖 `NeteaseCloudMusicApi` 包,`lib/netease-client.ts` 封装 + cookie 管理):
   - 登录:`/api/login/qr/{key,create,check}`、`/api/login/cookie`、`/api/login/status`、`/api/logout`
