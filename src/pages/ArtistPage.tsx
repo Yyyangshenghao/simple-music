@@ -1,4 +1,3 @@
-import type { ProviderId } from '../providers/types'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMotion } from '../hooks/useMotion'
 import { TrackSearch } from '../components/ui/TrackSearch'
@@ -6,6 +5,7 @@ import { matchingTrackIndices } from '../lib/track-search'
 import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
+import { isProviderId, type ProviderId } from '../providers/types'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
@@ -230,7 +230,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
   // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
   function openArtist(nextId: unknown, nextSource: MusicSource) {
-    if (nextSource !== 'netease' && nextSource !== 'qq' && nextSource !== 'apple') return
+    if (!isProviderId(nextSource)) return
     navigateTo({ type: 'artist', id: nextId, source: nextSource })
   }
 

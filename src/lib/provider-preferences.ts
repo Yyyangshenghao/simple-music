@@ -47,6 +47,8 @@ export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = {
     // 酷狗只有游客能力（付费曲仅试听），默认不参与，用户在设置里开启后排在播放顺序末尾。
     kugou: { enabled: false },
     bilibili: { enabled: false },
+    // 游客音源会员曲只有试听，默认关闭，由用户在设置里开启。
+    qishui: { enabled: false },
   },
   playbackOrder: ['netease', 'qq'],
   preferOriginSource: true,
@@ -84,7 +86,7 @@ export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): P
       netease: { enabled: first === 'netease' },
       qq: { enabled: first === 'qq' },
       apple: { enabled: first === 'apple' },
-      kugou: { enabled: first === 'kugou' }, bilibili: { enabled: false },
+      kugou: { enabled: first === 'kugou' }, bilibili: { enabled: false }, qishui: { enabled: false },
     },
     playbackOrder: [first],
     preferOriginSource: true,

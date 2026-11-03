@@ -1,6 +1,7 @@
 import { playbackStores, remoteActions } from './playback-shared-stores'
 import { startPlaybackRuntime } from './playback-runtime'
 import { providerAccountSession } from './provider-account-session'
+import { PROVIDER_IDS } from '../providers/types'
 import { usePlayerStore } from '../stores/player'
 import { useGameModeStore } from '../stores/game-mode'
 import { appleAudioSpectrum } from './apple-audio-spectrum'
@@ -28,7 +29,7 @@ function snapshotValue(store: string, key: string, value: unknown): unknown {
 
 export function takePlaybackSnapshot(full = false) {
   const stores: Record<string, Record<string, unknown>> = {}
-  const accountSessions = { netease: providerAccountSession('netease'), qq: providerAccountSession('qq'), apple: providerAccountSession('apple'), kugou: providerAccountSession('kugou') }
+  const accountSessions = Object.fromEntries(PROVIDER_IDS.map(source => [source, providerAccountSession(source)]))
   const accountsChanged = Object.entries(accountSessions).some(([source, epoch]) => sentAccounts[source] !== epoch)
   for (const [name, store] of Object.entries(playbackStores)) {
     const state = store.getState()

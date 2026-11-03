@@ -70,7 +70,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 系统媒体键开关控制网易云、QQ 和本地播放的 Media Session；关闭时保留空处理器，防止浏览器默认媒体动作继续控制音频。Apple Music 官网会话独立管理媒体键，本开关不控制它；应用内与全局快捷键仍复用 player/playlist store 控制 Apple 播放。全局注册失败逐行显示原因，不猜测占用它的软件。
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
-- `providers/registry.ts` — 网易/QQ/Apple Music/酷狗 Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。酷狗是游客平台（`isGuestOnlyProvider`）：provider store 里会话固定为 `authenticated`、忽略账号状态变化，默认不启用，启用后排在播放顺序末尾；没有红心、用户歌单、上报与歌单写入能力，可进播放缓存与下载（`isCacheableSource`）。
+- `providers/registry.ts` — 网易/QQ/Apple Music/酷狗/哔哩哔哩/汽水 Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。酷狗、汽水是游客平台（`isGuestOnlyProvider`）：provider store 里会话固定为 `authenticated`、忽略账号状态变化，默认不启用，启用后排在播放顺序末尾；没有红心、用户歌单、上报与歌单写入能力，酷狗可进播放缓存与下载（`isCacheableSource`），汽水暂不落盘。
 - `providers/*-provider.ts` — 平台能力实现；`legacy-provider-adapter.ts` 连接仍使用 `MusicService` 的旧页面。
 
 - `music-service.ts` / `service-registry.ts` — 兼容层接口与 service 单例；实体操作必须 `serviceFor(entity.source)`，不得从当前内容平台猜来源。
@@ -187,7 +187,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。
-- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`/`bilibili`)，本地音乐是 `MusicSource` 另加的一种值；新增分支不能把 `local` 落进网易兜底。`bilibili` 是只作跨源兜底的平台（`FALLBACK_ONLY_PROVIDER_IDS`）：无账号、默认关闭，在设置的播放偏好里开关，固定排在播放顺序最后；不进内容平台、搜索、我的库与歌词来源，界面列平台时用 `CONTENT_PROVIDER_IDS`。顺序里有兜底平台时解析器把试听片段推到最后，先找完整音频；B 站音频不写播放缓存。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
+- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`/`kugou`/`bilibili`/`qishui`)，本地音乐是 `MusicSource` 另加的一种值；新增分支不能把 `local` 落进网易兜底。`bilibili` 是只作跨源兜底的平台（`FALLBACK_ONLY_PROVIDER_IDS`）：无账号、默认关闭，在设置的播放偏好里开关，固定排在播放顺序最后；不进内容平台、搜索、我的库与歌词来源，界面列平台时用 `CONTENT_PROVIDER_IDS`。顺序里有兜底平台时解析器把试听片段推到最后，先找完整音频；B 站音频不写播放缓存。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
 
 应用歌单由 `app-playlists` store 独立管理。详情经 `app-playlist` 路由打开，保留我的库原分类与滚动位置。播放时按当前平台参与状态、本地文件存在性和完整离线状态快照筛选并复制曲目；编辑、删除不改当前队列。新增与重命名复用主题原生 `<dialog>`，对话框中暂停应用快捷键并避让祖先多选捕获，取消或卸载后迟到集合解析不得保存。
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { providerFor } from '../../providers/registry'
 import type { ProviderId } from '../../providers/types'
-import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../ui/brand-logos'
 import { SourceName } from '../ui/SourceName'
 import styles from './ProviderSwitchDock.module.css'
 
@@ -19,6 +19,7 @@ function ProviderLogo({ source }: { source: ProviderId }) {
   if (descriptor.iconKey === 'qq') return <QQMusicLogo />
   if (descriptor.iconKey === 'apple') return <AppleMusicIcon />
   if (descriptor.iconKey === 'kugou') return <KugouLogo />
+  if (descriptor.iconKey === 'qishui') return <QishuiLogo />
   return <span className={styles.fallbackLogo}>{descriptor.label.slice(0, 1)}</span>
 }
 

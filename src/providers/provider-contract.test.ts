@@ -128,8 +128,8 @@ describe.each(listProviders())('$descriptor.id provider contract', (provider) =>
     })
   })
 
-  it('推荐歌单栏目统一分页结果', async () => {
-    if (provider.descriptor.id === 'bilibili') return // 兜底平台不提供推荐
+  // 游客音源没有推荐歌单栏目。
+  it.skipIf(!provider.recommendations?.listSurfaces().some(surface => surface.kind === 'playlist-feed'))('推荐歌单栏目统一分页结果', async () => {
     const playlistFeed = provider.recommendations!
       .listSurfaces()
       .find((surface) => surface.kind === 'playlist-feed')!

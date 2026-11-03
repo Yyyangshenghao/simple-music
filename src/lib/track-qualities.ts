@@ -33,7 +33,7 @@ export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]>
           { timeoutMs: 60_000 }
         )
       : api.get<{ qualities?: TrackQualityOption[] }>(
-          '/api/song/qualities',
+          track.source === 'qishui' ? '/api/qishui/song/qualities' : '/api/song/qualities',
           { id: String(track.id ?? '') },
           { timeoutMs: 60_000 }
         )
@@ -49,7 +49,7 @@ const inflight = new Map<string, Promise<TrackQualityOption[]>>()
 
 /** 档位随账号（VIP）不同，键里带上账号会话，切换账号后自然失效。 */
 function cacheKey(track: Track): string | null {
-  if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'kugou' && track.source !== 'bilibili') return null
+  if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'kugou' && track.source !== 'bilibili' && track.source !== 'qishui') return null
   const id = track.source === 'qq' ? `${String(track.mid ?? track.id ?? '')}:${String(track.mediaMid ?? '')}` : String(track.id ?? '')
   return `${track.source}:${providerAccountSession(track.source)}:${id}`
 }

@@ -21,7 +21,7 @@ function resetStores(): void {
     byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     },
     playbackOrder: ['netease', 'qq'],
     preferOriginSource: true,
@@ -189,7 +189,7 @@ describe('provider store', () => {
         netease: { ...state.byId.netease, auth: 'unknown' },
         qq: { ...state.byId.qq, auth: 'unknown' },
         apple: { ...state.byId.apple, auth: 'unknown' },
-        kugou: state.byId.kugou, bilibili: state.byId.bilibili,
+        qishui: state.byId.qishui, kugou: state.byId.kugou, bilibili: state.byId.bilibili,
       },
     }))
 

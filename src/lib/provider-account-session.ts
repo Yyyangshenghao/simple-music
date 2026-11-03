@@ -1,7 +1,7 @@
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 
 // 账号会话与平台启停、播放能力、偏好水合分开，避免旧请求影响重新登录的账号。
-const sessions: Record<ProviderId, number> = { netease: 0, qq: 0, apple: 0, kugou: 0, bilibili: 0 }
+const sessions: Record<ProviderId, number> = { netease: 0, qq: 0, apple: 0, kugou: 0, bilibili: 0, qishui: 0 }
 
 export function providerAccountSession(source: ProviderId): number {
   return sessions[source]

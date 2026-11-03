@@ -39,7 +39,7 @@ it('外部上下首切换真实刷歌会话，保持原队列及退出恢复的�
   __resetShuangeRecommendationProfile()
   useProviderStore.setState({
     playbackOrder: ['netease'],
-    byId: { netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' } },
+    byId: { netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' } },
   })
   const queue: Track[] = [1, 2].map(id => ({ provider: 'netease', source: 'netease', type: 'song', id, name: String(id), artist: '歌手', artists: [], duration: 180_000 }))
   usePlaylistStore.getState().setQueue(queue, 1, 'original-playlist')

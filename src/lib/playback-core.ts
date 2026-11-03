@@ -407,8 +407,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       })
       return
     }
-    // 兜底平台（B 站用户上传视频）的音频只在线播放，不写播放缓存。
-    const cacheKey = candidate.trial || !cacheable || active.offlineFailed || isFallbackOnlyProvider(candidate.source)
+    // 兜底平台（B 站用户上传视频）的音频只在线播放，不写播放缓存；汽水音乐的缓存与下载未接入（server 端不认 qishui）。
+    const cacheKey = candidate.trial || !cacheable || active.offlineFailed || isFallbackOnlyProvider(candidate.source) || candidate.source === 'qishui'
       ? undefined
       : deps.audioDiskCacheKey(candidate.track, candidate.quality.id)
     set({

@@ -225,6 +225,24 @@ describe('PlaybackResolver', () => {
     expect(resolver.failureMessage).toBe('需要网易云会员')
     expect(resolver.attempts[0]).toEqual(expect.objectContaining({ result: 'restricted' }))
   })
+
+  it('试听片段让位给后续平台的完整版本，后续都不可用时才播试听', async () => {
+    const preferences = { playbackOrder: ['qishui', 'netease'] as ProviderId[], preferOriginSource: true, multiSourceFallback: true }
+    const trial = { ...candidate('qishui', 'https://trial'), trial: true }
+    const full = dependencies({
+      active: ['qishui', 'netease'],
+      resolve: { qishui: async () => [trial], netease: async () => [candidate('netease', 'https://full')] },
+      matches: { netease: track('netease') },
+    })
+    await expect(new PlaybackResolver(track('qishui'), 'exhigh', preferences, full).next()).resolves.toMatchObject({ url: 'https://full' })
+
+    const none = dependencies({
+      active: ['qishui', 'netease'],
+      resolve: { qishui: async () => [trial], netease: async () => [] },
+      matches: { netease: null },
+    })
+    await expect(new PlaybackResolver(track('qishui'), 'exhigh', preferences, none).next()).resolves.toMatchObject({ url: 'https://trial', trial: true })
+  })
 })
 
 describe('哔哩哔哩兜底', () => {

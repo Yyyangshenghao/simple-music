@@ -34,7 +34,7 @@ beforeEach(async () => {
   clearProviderRequestCache()
   __resetShuangeRecommendationProfile()
   useProviderStore.setState({ playbackOrder: ['netease'], byId: {
-    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }
   } })
   useSleepTimerStore.getState().cancel()
   useSleepTimerStore.getState().setFinishTrack(true)

@@ -22,7 +22,7 @@ const h = vi.hoisted(() => {
       },
     }
   }
-  const providers = { netease: provider(), qq: provider(), apple: provider(), kugou: provider, bilibili: provider() }
+  const providers = { netease: provider(), qq: provider(), apple: provider(), qishui: provider(), kugou: provider(), bilibili: provider() }
   return { providers, providerFor: vi.fn((source: ProviderId) => providers[source]) }
 })
 
@@ -58,7 +58,7 @@ describe('应用歌单跨平台聚合旅程', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderStore.setState({ byId: {
-      netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated', playbackAvailable: true }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+      netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated', playbackAvailable: true }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     for (const source of sources) {
       h.providers[source].catalog.getAlbumTracks.mockReset().mockResolvedValue([])

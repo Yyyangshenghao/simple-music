@@ -74,7 +74,9 @@ it('无React时核实留存账号并更新真实Provider，重复启动不重查
   expect(useProviderStore.getState().byId).toMatchObject({
     netease: { auth: 'authenticated', profile: { nickname: '留存网易' } },
     qq: { auth: 'authenticated', profile: { nickname: '留存QQ' } },
-    apple: { auth: 'anonymous' }
+    apple: { auth: 'anonymous' },
+    // 游客音源不随账号核实变化
+    qishui: { auth: 'authenticated' },
   })
   expect(h.useSettingsStore.getState()).toMatchObject({ neteaseLoggedIn: true, qqLoggedIn: true })
   const { startPlaybackRuntime } = await import('./playback-runtime')
@@ -347,7 +349,7 @@ it('无React时真实刷歌会话按片段续播、接收外部上下首，导�
   usePlaylistStore.setState({ queue, queueIndex: 0, shuffleOrder: [0], queueContextId: 'original-list' })
   usePlayerStore.setState({ currentTrack: original, position: 17, status: 'paused', volume: 0.4 })
   useProviderStore.setState({ playbackOrder: ['netease'], byId: {
-    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }
   } })
   h.resolve({ enabled: false })
   const flush = async () => { for (let i = 0; i < 40; i++) await Promise.resolve() }

@@ -25,6 +25,7 @@ import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
 import { kugouRoutes } from './routes/kugou-music'
 import { bilibiliRoutes } from './routes/bilibili'
+import { qishuiRoutes } from './routes/qishui-music'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
@@ -52,6 +53,7 @@ const chain: RouteHandler[] = [
   kugouLyricRoutes,
   kugouRoutes,
   bilibiliRoutes,
+  qishuiRoutes,
   podcastRoutes,
   beatmapRoutes,
   qqRoutes,

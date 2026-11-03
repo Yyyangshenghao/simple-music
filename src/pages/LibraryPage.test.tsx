@@ -53,7 +53,7 @@ describe('我的库账号失效提示', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'anonymous' },
       qq: { enabled: false, auth: 'expired' },
-      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
   })
 
@@ -161,7 +161,7 @@ describe('我的库账号失效提示', () => {
     content.current = 'apple'
     useProviderStore.setState(state => ({ byId: {
       ...state.byId,
-      apple: { enabled: true, auth: 'authenticated', playbackAvailable: false }, kugou: { enabled: false, auth: 'authenticated' },
+      apple: { enabled: true, auth: 'authenticated', playbackAvailable: false }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' },
     } }))
     const html = renderToStaticMarkup(<LibraryPage />)
     expect(html).toContain('Apple Music 暂时不可用')

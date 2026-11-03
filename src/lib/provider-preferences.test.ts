@@ -30,7 +30,7 @@ describe('provider preferences', () => {
     expect(result.providers).toEqual({
       netease: { enabled: activeSource === 'netease' },
       qq: { enabled: activeSource === 'qq' },
-      apple: { enabled: false }, kugou: { enabled: false },
+      apple: { enabled: false }, qishui: { enabled: false }, kugou: { enabled: false },
       bilibili: { enabled: false },
     })
     expect(result.playbackOrder).toEqual([order[0]])
@@ -40,20 +40,20 @@ describe('provider preferences', () => {
   })
 
   it('顺序归一化会删除禁用项和重复项，并补齐已启用音源', () => {
-    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } }
+    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false }, qishui: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } }
     expect(normalizePlaybackOrder(['qq', 'qq', 'unknown'], providers)).toEqual(['qq', 'netease'])
     expect(normalizePlaybackOrder(['qq'], { ...providers, qq: { enabled: false } })).toEqual(['netease'])
   })
 
   it('兜底平台不论存档顺序都排在最后', () => {
-    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false }, kugou: { enabled: true }, bilibili: { enabled: true } }
+    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false }, kugou: { enabled: true }, bilibili: { enabled: true }, qishui: { enabled: false } }
     expect(normalizePlaybackOrder(['bilibili', 'kugou', 'qq'], providers)).toEqual(['kugou', 'qq', 'netease', 'bilibili'])
   })
 
   it('已存在的新 schema 优先于旧设置，并归一化损坏字段', () => {
     const raw = JSON.stringify({
       schema: PROVIDER_SETTINGS_SCHEMA,
-      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } },
+      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, qishui: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } },
       playbackOrder: ['qq', 'netease', 'netease'],
       preferOriginSource: false,
       multiSourceFallback: false,
@@ -61,7 +61,7 @@ describe('provider preferences', () => {
     })
     const result = readProviderSettings(raw, { activeSource: 'qq', crossSourceFallback: true })
     expect(result).toEqual({
-      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } },
+      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, qishui: { enabled: false }, kugou: { enabled: false }, bilibili: { enabled: false } },
       playbackOrder: ['netease'],
       preferOriginSource: false,
       multiSourceFallback: false,

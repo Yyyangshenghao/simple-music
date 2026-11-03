@@ -11,7 +11,7 @@ import { isGuestOnlyProvider, type ProviderId } from '../../providers/types'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { SourceName } from '../ui/SourceName'
-import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../ui/brand-logos'
 import { Switch } from '../ui/Switch'
 import styles from './AvatarMenu.module.css'
 import { useFeedback } from '../../hooks/useMotion'
@@ -24,6 +24,7 @@ function ProviderMark({ source }: { source: ProviderId }) {
   if (source === 'netease') return <NeteaseLogo />
   if (source === 'qq') return <QQMusicLogo />
   if (source === 'kugou') return <KugouLogo />
+  if (source === 'qishui') return <QishuiLogo />
   return <AppleMusicIcon />
 }
 
@@ -119,7 +120,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
             const accountLabel = reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
               ? guest ? '游客' : source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
               : '未登录'
-            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : '已登录，未启用'
+            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : guest ? '未启用' : '已登录，未启用'
             return (
               <section className={styles.providerRow} key={source} aria-label={provider.descriptor.label}>
                 <span className={styles.providerMark} aria-hidden="true"><ProviderMark source={source} /></span>
@@ -155,6 +156,8 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                       </svg>
                     )}
                   </button>}
+                  {/* 游客音源没有账号，占位保持开关与其他平台同一位置。 */}
+                  {guest && <span className={styles.accountButton} aria-hidden="true" style={{ visibility: 'hidden' }} />}
                 </div>
               </section>
             )

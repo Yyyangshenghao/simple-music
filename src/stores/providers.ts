@@ -55,6 +55,7 @@ function runtimeMap(
   const map = {} as Record<ProviderId, ProviderRuntimeState>
   for (const id of PROVIDER_IDS) {
     map[id] = {
+      ...(isGuestOnlyProvider(id) ? GUEST_SESSION : undefined),
       ...previous?.[id],
       enabled: preferences.providers[id].enabled,
       // 游客平台没有登录流程，会话始终可用；兜底平台没有账号，只用游客接口。
@@ -63,6 +64,9 @@ function runtimeMap(
   }
   return map
 }
+
+// 游客平台没有账号，按“已就绪的游客会话”参与，复用各处已登录判断。
+const GUEST_SESSION = { profile: { avatar: '', nickname: '游客' } }
 
 function enabledMap(byId: Record<ProviderId, ProviderRuntimeState>): Record<ProviderId, { enabled: boolean }> {
   const map = {} as Record<ProviderId, { enabled: boolean }>

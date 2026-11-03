@@ -22,7 +22,7 @@ export function lyricPlatformEnabled(source: ProviderId): boolean {
   if (source === 'kugou') return useSettingsStore.getState().lyricsKugouFallback
   // 兜底平台没有歌词，播放时沿用原曲目的歌词。
   if (source === 'bilibili') return false
-  return useSettingsStore.getState().lyricsPlatformSources[source] !== false
+  return (useSettingsStore.getState().lyricsPlatformSources as Partial<Record<ProviderId, boolean>>)[source] !== false
 }
 
 export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
