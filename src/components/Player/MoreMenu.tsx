@@ -43,6 +43,8 @@ const QUALITY_LABELS: Record<AudioQuality, string> = {
 
 const PANEL_GAP = 14
 const PANEL_EDGE = 12
+/** 为滚动条向右伸展时，面板右缘离窗口边至少留这么多。 */
+const PANEL_SCROLL_EDGE = 4
 const RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 2]
 const SLEEP_PRESETS = [15, 30, 60, 90]
 
@@ -173,58 +175,39 @@ function OfflineSection({ open }: { open: boolean }) {
     if (open && track && track.source !== 'local') void useOfflineCacheStore.getState().ensure(track)
   }, [open, track, cacheStatus])
   if (!track || track.source === 'local' || track.source === 'apple') return null
-  const saved = cacheStatus?.state === 'pinned' || cacheStatus?.state === 'cached'
-  const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : '已自动缓存'
-  const download = (
-    <button type="button" className={styles.iconAction} onClick={() => void useOfflineCacheStore.getState().save(track)} title="下载歌曲" aria-label="下载歌曲">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />
-      </svg>
-    </button>
-  )
-  const run = async (action: () => Promise<void>) => {
-    try {
-      await action()
-    } catch {
-      useToastStore.getState().show('本地操作失败，请稍后重试')
-    }
-  }
+  // 只说「已下载」与否；自动缓存由播放器自己管理，不在这里出现。
+  const downloaded = cacheStatus?.state === 'downloaded'
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
-        <span className={styles.sectionTitle}>下载与离线</span>
-        {/* 下载是图标按钮常驻标题行；已缓存/已离线时旁边写状态，离线保存与删除排在下方 */}
+        <span className={styles.sectionTitle}>下载</span>
+        {/* 下载与删除都是标题行图标按钮，同一位置切换，不另起一行 */}
         <span className={styles.headActions}>
-          {saved && <span className={styles.sectionStatus}>{label}</span>}
-          {download}
+          {downloaded && <span className={styles.sectionStatus} title="歌曲文件在下载目录中，可在我的库「已下载」找到">已下载</span>}
+          {downloaded ? (
+            <button
+              type="button"
+              className={styles.iconAction}
+              data-danger
+              title="删除下载，歌曲文件移到废纸篓"
+              aria-label="删除下载"
+              onClick={() => {
+                if (window.confirm(`删除「${track.name}」的下载？歌曲文件会移到废纸篓。`)) void useOfflineCacheStore.getState().removeDownload(track)
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />
+              </svg>
+            </button>
+          ) : (
+            <button type="button" className={styles.iconAction} onClick={() => void useOfflineCacheStore.getState().save(track)} title="下载歌曲文件到下载目录" aria-label="下载歌曲">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />
+              </svg>
+            </button>
+          )}
         </span>
       </div>
-      {saved && <div className={styles.pills}>
-        {cacheStatus?.state === 'cached' && (
-          <button type="button" className={styles.pill} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
-            保存为离线音乐
-          </button>
-        )}
-        {cacheStatus?.state === 'pinned' && (
-          <button type="button" className={styles.pill} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
-            取消离线保存
-          </button>
-        )}
-        {cacheStatus?.entryId && (
-          <button
-            type="button"
-            className={styles.pill}
-            data-danger
-            onClick={() => {
-              const shared = Number(cacheStatus.savedAliasCount) > (cacheStatus.state === 'pinned' ? 1 : 0)
-              if (shared && !window.confirm('这个音频文件也被其他离线音乐共用；删除会影响这些歌曲的离线播放，下载目录中的歌曲文件保留。仍要删除吗？')) return
-              void run(() => useOfflineCacheStore.getState().deleteLocal(track, shared))
-            }}
-          >
-            {cacheStatus.state === 'pinned' ? '删除离线音乐' : '删除自动缓存'}
-          </button>
-        )}
-      </div>}
     </section>
   )
 }
@@ -327,7 +310,7 @@ function RateSection() {
   )
 }
 
-const KARAOKE_MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: '标准', 'hq3-fp16': '省显存', kara2: '保留和声' }
+const KARAOKE_MODEL_SHORT: Record<KaraokeModelId, string> = { hq3: 'HQ3', 'hq3-fp16': 'HQ3 FP16', kara2: 'Karaoke 2' }
 
 function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolean; onManage(): void; onLibrary(): void; onQueue(id: string): void }) {
   const track = usePlayerStore(s => s.currentTrack)
@@ -357,9 +340,8 @@ function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolea
     <div className={styles.sectionHead}>
       <span className={styles.sectionTitle}>歌曲伴奏</span>
       <span className={styles.headActions}>
-        <button type="button" className={styles.textAction} onClick={onLibrary}>
-          我的伴奏
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <button type="button" className={styles.iconAction} onClick={onLibrary} title="伴奏库" aria-label="前往伴奏库">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4v16M8 4v16M12 6l5-2 4 14-5 2z" /></svg>
         </button>
         {!apple && <button type="button" className={styles.iconAction} onClick={onManage} title={`生成模型与保存位置${current ? `（${current.name}）` : ''}`} aria-label="生成模型与保存位置">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -380,7 +362,7 @@ function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolea
         <span className={`${styles.note} ${styles.status}`} aria-live="polite">{apple ? 'Apple Music 受版权保护，无法生成伴奏'
           : unsupported ? '当前显卡不支持此模型，请更换模型'
           : job ? '进度、暂停与重试可在任务队列中管理。'
-          : saved ? '已保存在我的伴奏，可直接播放'
+          : saved ? '已保存在伴奏库，可直接播放'
           : `生成时会临时占用较多内存${current && current.state !== 'ready' ? `；首次需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型` : ''}`}</span>
       </>}
   </section>
@@ -457,11 +439,32 @@ function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; on
     phase === 'counting' ? `${formatCountdown(remainingSec)} 后停止` : phase === 'finishing-track' ? '播完当前曲后停止' : null,
   ].filter(Boolean).join(' · ')
   const reducedMotion = !useMotion('pageTransitionMotion')
-  // 展开后面板可能已到最大高度，把新露出的内容滚进视野
+  // 展开时面板可能已到最大高度：高度每长一帧就同步把滚动区推到底，新内容边长边露出，不等动画结束再补滑
   const bodyRef = useRef<HTMLDivElement>(null)
+  const expandedRef = useRef(expanded)
+  expandedRef.current = expanded
+  // 收起时浏览器会在第一帧把滚动位置直接夹回 0，列表跳一下再停顿；改为按已收起的高度逐帧回退滚动，连续地收回去
+  const collapseFrom = useRef<{ scrollTop: number; height: number } | null>(null)
+  const followGrowth = () => {
+    const body = bodyRef.current
+    const scroller = body?.closest<HTMLElement>('[data-more-scroll]')
+    if (!body || !scroller) return
+    if (expandedRef.current) {
+      scroller.scrollTop = scroller.scrollHeight
+      return
+    }
+    const from = collapseFrom.current
+    if (from) scroller.scrollTop = Math.max(0, from.scrollTop - (from.height - body.offsetHeight))
+  }
+  const toggle = () => {
+    const body = bodyRef.current
+    const scroller = body?.closest<HTMLElement>('[data-more-scroll]')
+    collapseFrom.current = expanded && body && scroller ? { scrollTop: scroller.scrollTop, height: body.offsetHeight } : null
+    onToggle()
+  }
   return (
     <section className={`${styles.section} ${styles.rowSection}`}>
-      <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} aria-expanded={expanded} onClick={onToggle}>
+      <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} aria-expanded={expanded} onClick={toggle}>
         <span className={styles.rowTitle}>{showRate ? '倍速与定时关闭' : '定时关闭'}</span>
         <span className={styles.extrasSummary}>
           {!expanded && summary && <span className={styles.sectionStatus}>{summary}</span>}
@@ -478,7 +481,8 @@ function ExtrasSection({ expanded, onToggle, showRate }: { expanded: boolean; on
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={reducedMotion ? { duration: 0 } : springGentle}
-            onAnimationComplete={(def) => { if (typeof def === 'object' && 'height' in def && def.height === 'auto') bodyRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }}
+            onUpdate={followGrowth}
+            onAnimationComplete={followGrowth}
             ref={bodyRef}
           >
             {showRate && <RateSection />}
@@ -506,6 +510,10 @@ export function MoreMenu() {
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const contentInnerRef = useRef<HTMLDivElement>(null)
+  // 内容超出出现滚动条时，面板加宽滚动条的宽度，内容区保持原宽不被挤窄
+  const [scrollExtra, setScrollExtra] = useState(0)
 
   const panelMotion = useMotion('popoverSproutMotion')
   const hasActive = rate !== 1 || generating || sleepPhase !== 'idle'
@@ -543,13 +551,34 @@ export function MoreMenu() {
       const anchor = toggleRef.current?.getBoundingClientRect()
       const el = panelRef.current
       if (!anchor || !el) return
-      el.style.right = `${Math.max(PANEL_EDGE, window.innerWidth - anchor.right)}px`
+      const right = Math.max(PANEL_EDGE, window.innerWidth - anchor.right)
+      // 左缘不动，右缘向外让出滚动条；贴近窗口边放不下时，剩余部分才向左
+      el.style.right = `${Math.max(PANEL_SCROLL_EDGE, right - scrollExtra)}px`
       el.style.bottom = `${window.innerHeight - anchor.top + PANEL_GAP}px`
       el.style.setProperty('--panel-max', `${Math.max(240, anchor.top - PANEL_GAP - PANEL_EDGE)}px`)
+      el.style.setProperty('--panel-scroll-extra', `${scrollExtra}px`)
     }
     place()
     window.addEventListener('resize', place)
     return () => window.removeEventListener('resize', place)
+  }, [open, scrollExtra])
+
+  // 展开倍速与定时关闭等让内容变高时检测是否出现滚动条；滚动条宽度取实测值（系统浮动滚动条为 0）。
+  useLayoutEffect(() => {
+    if (!open) { setScrollExtra(0); return }
+    const content = contentRef.current
+    const inner = contentInnerRef.current
+    if (!content || !inner) return
+    const measure = () => {
+      const overflowing = content.scrollHeight > content.clientHeight + 1
+      const bar = content.offsetWidth - content.clientWidth
+      setScrollExtra(current => overflowing ? (bar > 0 ? bar : current) : 0)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(content)
+    observer.observe(inner)
+    return () => observer.disconnect()
   }, [open])
 
   return (
@@ -590,7 +619,8 @@ export function MoreMenu() {
                 </svg>
               </button>
             </div>
-            <div className={styles.content}>
+            <div className={styles.content} ref={contentRef} data-more-scroll>
+              <div className={styles.contentInner} ref={contentInnerRef}>
               <QualitySection open={open} />
               <PlaybackSourceSection />
               {trackKey && <section className={styles.section}>
@@ -610,6 +640,7 @@ export function MoreMenu() {
                 navigation.navigateTo('settings')
               }} />
               <ExtrasSection expanded={extrasOpen} onToggle={() => setExtrasOpen((v) => !v)} showRate={!apple} />
+              </div>
             </div>
           </motion.div>
         )}

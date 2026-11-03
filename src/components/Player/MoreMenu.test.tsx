@@ -49,7 +49,7 @@ beforeEach(() => {
 describe('更多菜单的当前歌词来源', () => {
   it.each([
     ['netease', '网易云音乐'], ['qq', 'QQ 音乐'], ['apple', 'Apple Music'],
-    ['local', '本地歌词'], ['amll', 'AMLL 逐字歌词库'], ['kugou', '酷狗歌词库'],
+    ['local', '本地歌词'], ['amll', 'AMLL 逐字歌词库'], ['kugou', '酷狗音乐'],
   ] as const)('显示实际应用的 %s 来源，忽略偏好与匹配平台', (origin, label) => {
     h.sources.appliedOrigin = origin
     const row = sourceRow()!

@@ -26,7 +26,7 @@
 }
 
 /*
- * 挂在 body 上的一整块玻璃，与伴奏浮层同一套表面：通透毛玻璃 + 上亮下弱的渐变细边 + 浅投影，内部不加光带。
+ * 挂在 body 上的一整块玻璃，与伴奏浮层同一套表面：通透毛玻璃 + 浅投影，不描边，内部不加光带。
  * right/bottom 与 --panel-max 由按钮位置算出；层级高于播放栏玻璃（210）。
  */
 .panel {
@@ -34,9 +34,11 @@
   z-index: 220;
   display: flex;
   flex-direction: column;
-  width: min(340px, calc(100vw - 24px));
+  /* 出现滚动条时加宽 --panel-scroll-extra，右缘同步外移，内容区宽度不变 */
+  width: calc(min(340px, calc(100vw - 24px)) + var(--panel-scroll-extra, 0px));
   max-height: min(600px, var(--panel-max, calc(100dvh - 160px)));
   overflow: hidden;
+  transition: width 260ms var(--sm-ease-out), right 260ms var(--sm-ease-out);
   border-radius: 20px;
   background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
   backdrop-filter: blur(36px) saturate(160%);
@@ -44,20 +46,6 @@
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
   color: var(--sm-text-primary);
   transform-origin: 100% 100%;
-}
-
-.panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.2));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  pointer-events: none;
 }
 
 :global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
@@ -92,10 +80,16 @@
 
 .content {
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 20px 10px;
 }
+
+/* 内容固定为面板基础宽度：面板伸展动画进行中滚动条先出现，也只占右侧留白，不挤窄内容 */
+.contentInner { width: calc(min(340px, calc(100vw - 24px)) - 40px); }
+
+@media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
 
 /* 分区之间只靠留白分组；底部的跳转/折叠行另起一组，用一道细线隔开 */
 .section {
@@ -163,6 +157,7 @@
   transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
 }
 .iconAction:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.iconAction[data-danger]:hover { color: var(--sm-color-danger); }
 
 .sectionStatus {
   font-size: 11px;
