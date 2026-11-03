@@ -1,5 +1,68 @@
 # 构建、打包与发布/更新流程
 
+## 发版速查
+
+只看这一节就能发版；规则细节与原因见 §0。命令里的版本号替换成实际目标。
+
+### 流水线一览
+
+| 什么时候 | 工作流 | 做什么 | 失败意味着 |
+|---|---|---|---|
+| 推送或 PR 到 `dev/**`、`master` | Source checks（`verify.yml`） | 双平台类型检查、测试、构建 | 代码有问题，修完再推 |
+| 推送 `dev/**`、`master`（上一步通过后） | Source checks → `package.yml` | 用发版同款步骤双平台试打包（不签名），检查 asar 与产物 | 打包配置有问题，发版也会失败，先修 |
+| PR 到 `master` | Source checks → `release-metadata` | 版本文件与发行说明格式 | 发布元数据不完整，补齐再合 |
+| 手动触发 | Release（`release.yml`） | 校验 → 双平台正式签名打包 → 草稿 Release 传完文件 → 公开并创建 tag | 不留 tag，修复后**同号重跑** |
+
+tag 只由 Release 工作流在最后一步创建，**不要手动推 `v*` tag**：不会触发发布，还会占住版本号。
+
+### 发 beta（实机验收安装包）
+
+```bash
+git push origin dev/2.6.2                       # 先推送，等 Source checks（含试打包）变绿
+gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/2.6.2 -f channel=beta
+gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1
+gh run watch <run id> --repo Yyyangshenghao/simple-music --exit-status
+```
+
+beta 号自动递增，不用改版本文件、不用写发行说明；发为 GitHub 预发布，应用内更新看不到。
+
+### 发正式版
+
+1. 在 `dev/X.Y.Z`：写 `docs/release-notes-X.Y.Z.md`，`npm version X.Y.Z --no-git-tag-version`，跑：
+   ```bash
+   npm run release:check && npm run typecheck && npm test
+   npm run build:mac && node scripts/release/check-package.mjs mac   # 本地装一遍 dmg 冒烟
+   ```
+2. 提交 `chore(release): 发布 vX.Y.Z` 并推送，等 Source checks 变绿。
+3. 开 `dev/X.Y.Z` → `master` 的 PR，检查全绿后用 **Merge commit** 合并。
+4. 等 master 的 Source checks 变绿，触发：
+   ```bash
+   gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref master -f channel=stable
+   ```
+5. 跟到工作流结束，核对 Release 页面：两个 dmg、Setup.exe、portable.exe、`latest*.yml`、blockmap；`releases/latest` 指向新版本。
+
+不确定能否打包成功时，任一步都可以先加 `-f dry_run=true` 只打包不发布，安装包在该次运行的 Artifacts 里。
+
+### 出错了怎么办
+
+| 现象 | 处理 |
+|---|---|
+| Release 的 `prepare` 报「只能从 master/dev 发布」 | 触发时 `--ref` 写错分支 |
+| `prepare` 报「vX.Y.Z 已存在」 | 版本号已被占用（可能有人手动推了 tag）；正式版升级 `package.json` 版本，beta 会自动跳号无需处理 |
+| `prepare` 报发行说明或版本文件错误 | 本地 `npm run release:check` 复现，修好推送（正式版需再走 PR 合入 master） |
+| `package` 的测试只在 Windows 失败 | 常见于路径分隔符、文件权限位、路径长度等平台差异，修代码后重新触发 |
+| `package` 报 Widevine VMP 签名失败 | 检查仓库 Secrets 的 `EVS_ACCOUNT_NAME`、`EVS_PASSWD`，或 castlabs 服务临时故障，重跑失败的 job |
+| `check-package` 报 asar 含非运行时文件 | `package.json` 的 `build.files`（含平台级 `mac.files`/`win.files`）白名单失效 |
+| `publish` 失败（网络、权限） | 直接重跑失败的 job，会先清掉遗留的同名草稿 |
+| Release 已公开后才发现问题 | 发下一个补丁版本；不移动、不覆盖已公开的 tag |
+
+### 已知事项与待办
+
+- 新 Release 工作流从 2.6.2 起生效：GitHub 只能手动触发默认分支 master 上已有的工作流，2.6.2 合入 master 之前无法用它发 beta；2.6.2 正式发版是它的首次运行，建议先 `dry_run`。
+- 尚未在 GitHub 设置中配置：master 分支保护（必需检查 Source checks、PR 评审）与限制 `v*` tag 创建的规则集。配置后更新 §0.7 末段。
+- `actions/setup-node@v4` 运行时有 Node 20 弃用提示，暂不影响，可择机升级到 v5 并观察一次 CI。
+- 历史缺号：v2.2.0、v2.2.1、v2.3.1、v2.3.5 与 v2.6.2-beta.1 因旧流程「先推 tag 再构建」失败占号，其中 v2.6.2-beta.1 只有 tag 没有 Release。这些号不再使用。
+
 ## 0. 版本升级规范（默认发布协议）
 
 ### 0.1 发布维护任务中“推送”的含义
@@ -102,7 +165,7 @@ git diff --check
 
 ```bash
 npm run build:mac   # Windows 机器上用 npm run build:win
-node scripts/release/check-package.mjs mac   # Windows 上传 win；检查 asar 内容与必需产物，并列出安装包体积
+node scripts/release/check-package.mjs mac   # Windows 上把 mac 换成 win；检查 asar 内容与必需产物，并列出安装包体积
 ```
 
 - 安装包体积与上一 Release 对比，明显变大时先查明原因；
@@ -236,6 +299,8 @@ npx vitest run src/lib/stack-pool.test.ts   # 单测单文件
 npm run server:dev     # 只跑 API server（tsx server/index.ts），默认端口 35530，可 PORT= 覆盖
 npm run build:mac      # build + electron-builder --mac（dmg，x64 + arm64）
 npm run build:win      # build + electron-builder --win（NSIS Setup + portable，均 x64）
+npm run release:check  # 发版元数据校验（版本文件、发行说明），可带版本号：npm run release:check -- 2.6.2
+node scripts/release/check-package.mjs mac   # 打包后检查 asar 内容与必需产物（Windows 上把 mac 换成 win）
 ```
 
 ## 2. electron-vite 三段构建
