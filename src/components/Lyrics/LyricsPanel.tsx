@@ -4,12 +4,11 @@ import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useProviderStore } from '../../stores/providers'
 import { useSettingsStore } from '../../stores/settings'
-import { useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
-import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
 import { useVisualStore } from '../../stores/visual'
 import { useLightTheme } from '../../hooks/useLightTheme'
 import { useMotion } from '../../hooks/useMotion'
+import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -382,7 +381,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   // 右缘侧栏的歌词设置浮层(自由排版/字号/同步)
   const [settingsPopOpen, setSettingsPopOpen] = useState(false)
   const sourceDialogOpen = useLyricsSourceDialogStore((s) => s.open)
-  const lyricSource = useLyricsSourceStore((s) => s.requestedOrigin)
+  const lyricSourceLabel = useLyricsSourceLabel()
   const openSourceDialog = () => {
     setSettingsPopOpen(false)
     setStylePickerOpen(false)
@@ -839,6 +838,13 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 </button>
                 {settingsPopOpen && (
                   <div className={styles.lyricsSettingsPop}>
+                    {/* 歌词对不上时最先要改的是来源，放在最上方做成整块入口 */}
+                    {track && (
+                      <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
+                        <span className={styles.sourceTitle}>歌词来源</span>
+                        <span className={styles.sourceValue} title={lyricSourceLabel}>{lyricSourceLabel}<ChevronRight /></span>
+                      </button>
+                    )}
                     <section className={styles.popSection}>
                       <span className={styles.popLabel}>排版</span>
                       <div className={styles.layoutPresets}>
@@ -899,12 +905,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                         </div>
                       </div>
                     </section>
-                    {track && (
-                      <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
-                        <span>歌词来源</span>
-                        <span className={styles.sourceValue}>{LYRIC_SOURCE_LABELS[lyricSource]}<ChevronRight /></span>
-                      </button>
-                    )}
                   </div>
                 )}
               </div>

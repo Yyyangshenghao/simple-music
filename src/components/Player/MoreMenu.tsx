@@ -16,9 +16,7 @@ import { offlineTrackKey } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { useToastStore } from '../../stores/toast'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
-import { useLyricsSourceStore } from '../../stores/lyrics-source'
-import { useLyricsStore } from '../../stores/lyrics'
-import { LYRIC_SOURCE_LABELS } from '../../types/lyrics-source'
+import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { useMotion } from '../../hooks/useMotion'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useSettingsStore } from '../../stores/settings'
@@ -479,13 +477,7 @@ export function MoreMenu() {
   const generating = useKaraokeStore(s => s.jobs.some(job => job.phase !== 'failed'))
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
-  const lyricsTrackKey = useLyricsStore((s) => s.trackKey)
-  const lyricsLoading = useLyricsStore((s) => s.loading)
-  const appliedOrigin = useLyricsSourceStore((s) => s.appliedOrigin)
-  const lyricsInstrumental = useLyricsStore((s) => s.instrumental)
-  const lyricsSourceLabel = lyricsLoading ? '正在加载…'
-    : lyricsTrackKey === trackKey && appliedOrigin ? LYRIC_SOURCE_LABELS[appliedOrigin]
-    : lyricsTrackKey === trackKey && lyricsInstrumental ? '纯音乐' : '暂无歌词'
+  const lyricsSourceLabel = useLyricsSourceLabel()
   const lyricsSourceOpen = useLyricsSourceDialogStore((s) => s.open)
   const sleepPhase = useSleepTimerStore((s) => s.phase)
   const rootRef = useRef<HTMLDivElement>(null)
