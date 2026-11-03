@@ -292,3 +292,20 @@ describe('track match', () => {
     expect(search).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('哔哩哔哩视频候选', () => {
+  const origin: Track = { provider: 'netease', source: 'netease', type: 'song', id: 1, name: '晴天', artist: '周杰伦', artists: [{ id: 1, name: '周杰伦' }], duration: 269_000 }
+  const video = (name: string, artists: string[], duration = 269_000, id = 'BV1BZbSzZEGT'): Track => ({
+    provider: 'bilibili', source: 'bilibili', type: 'song', id, name, artist: artists.join(' / '), artists: artists.map((item) => ({ id: null, name: item })), duration,
+  })
+
+  it('同一视频的多种读法都参与评分，正确读法胜出', () => {
+    const result = matchBestTrack(origin, [video('周杰伦', ['晴天', 'UP']), video('晴天', ['周杰伦', 'UP'])])
+    expect(result?.track.name).toBe('晴天')
+  })
+
+  it('时长差超过 3 秒或版本不同不算同一首', () => {
+    expect(matchBestTrack(origin, [video('晴天', ['周杰伦', 'UP'], 317_000)])).toBeNull()
+    expect(matchBestTrack(origin, [video('晴天_纯伴奏', ['UP'], 269_000)])).toBeNull()
+  })
+})

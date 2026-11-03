@@ -9,7 +9,7 @@ import {
   type ProviderPreferences,
   type SourceBadgeMode,
 } from '../lib/provider-preferences'
-import { PROVIDER_IDS, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, isFallbackOnlyProvider, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
 import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
@@ -68,6 +68,12 @@ function runtimeMap(
       enabled: preferences.providers.qq.enabled,
       auth: previous?.qq.auth ?? 'unknown',
     },
+    // 兜底平台没有账号，只用游客接口。
+    bilibili: {
+      ...previous?.bilibili,
+      enabled: preferences.providers.bilibili.enabled,
+      auth: 'anonymous',
+    },
   }
 }
 
@@ -77,6 +83,7 @@ function preferencesOf(state: ProviderStore): ProviderPreferences {
       netease: { enabled: state.byId.netease.enabled },
       qq: { enabled: state.byId.qq.enabled },
       apple: { enabled: state.byId.apple.enabled },
+      bilibili: { enabled: state.byId.bilibili.enabled },
     },
     playbackOrder: state.playbackOrder,
     preferOriginSource: state.preferOriginSource,
@@ -110,7 +117,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   contentSource: null,
 
   setEnabled(id, enabled) {
-    if (enabled && (get().byId[id].auth !== 'authenticated' || get().byId[id].playbackAvailable === false)) return
+    if (enabled && ((!isFallbackOnlyProvider(id) && get().byId[id].auth !== 'authenticated') || get().byId[id].playbackAvailable === false)) return
     clearProviderRequestCache(id)
     set((state) => {
       const byId = {
@@ -121,6 +128,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         netease: { enabled: byId.netease.enabled },
         qq: { enabled: byId.qq.enabled },
         apple: { enabled: byId.apple.enabled },
+        bilibili: { enabled: byId.bilibili.enabled },
       }
       return {
         byId,
@@ -136,6 +144,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         netease: { enabled: state.byId.netease.enabled },
         qq: { enabled: state.byId.qq.enabled },
         apple: { enabled: state.byId.apple.enabled },
+        bilibili: { enabled: state.byId.bilibili.enabled },
       }),
     }))
     persist(get())
@@ -178,6 +187,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
           netease: { enabled: byId.netease.enabled },
           qq: { enabled: byId.qq.enabled },
           apple: { enabled: byId.apple.enabled },
+          bilibili: { enabled: byId.bilibili.enabled },
         }),
       }
     })
@@ -242,7 +252,7 @@ export function enabledProviderIds(): ProviderId[] {
 
 export function isProviderParticipating(id: ProviderId): boolean {
   const state = useProviderStore.getState().byId[id]
-  return state.enabled && state.auth === 'authenticated' && state.playbackAvailable !== false
+  return state.enabled && (state.auth === 'authenticated' || isFallbackOnlyProvider(id)) && state.playbackAvailable !== false
 }
 
 export function participatingProviderIds(): ProviderId[] {

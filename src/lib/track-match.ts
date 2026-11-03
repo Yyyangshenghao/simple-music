@@ -284,7 +284,9 @@ function rankMatches(origin: Track, candidates: Track[]): ScoredTrack[] {
   const seen = new Set<string>()
   const ranked: ScoredTrack[] = []
   for (const candidate of candidates) {
-    const key = `${candidate.source}:${String(candidate.mid ?? candidate.id ?? '')}`
+    // 同一个 B 站视频会按标题拆出几种「歌名/歌手」读法，id 相同、歌名不同，都要参与评分。
+    const id = `${candidate.source}:${String(candidate.mid ?? candidate.id ?? '')}`
+    const key = candidate.source === 'bilibili' ? `${id}:${candidate.name ?? ''}` : id
     if (seen.has(key)) continue
     seen.add(key)
     const score = scoreTrackMatch(origin, candidate)

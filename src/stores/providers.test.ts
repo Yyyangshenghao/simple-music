@@ -21,7 +21,7 @@ function resetStores(): void {
     byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
     },
     playbackOrder: ['netease', 'qq'],
     preferOriginSource: true,
@@ -179,6 +179,7 @@ describe('provider store', () => {
         netease: { ...state.byId.netease, auth: 'unknown' },
         qq: { ...state.byId.qq, auth: 'unknown' },
         apple: { ...state.byId.apple, auth: 'unknown' },
+        bilibili: state.byId.bilibili,
       },
     }))
 

@@ -271,7 +271,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
                 }}>
                   {artistPreview.items.map((artist) => (
                     <button key={`${artist.source}:${String(artist.id)}`} className={styles.artist} type="button" onClick={() => {
-                      if (artist.source !== 'local') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
+                      if (artist.source !== 'local' && artist.source !== 'bilibili') navigateTo({ type: 'artist', id: artist.id, source: artist.source })
                     }}>
                       {artist.avatar
                         ? <img src={sizedImage(artist.avatar, 160)} alt="" loading="lazy" />

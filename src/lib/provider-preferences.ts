@@ -1,4 +1,4 @@
-import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, isFallbackOnlyProvider, isProviderId, type ProviderId } from '../providers/types'
 
 export const PROVIDER_SETTINGS_STORAGE_KEY = 'simplemusic-provider-settings'
 export const PROVIDER_SETTINGS_SCHEMA = 2
@@ -44,6 +44,7 @@ export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = {
     netease: { enabled: true },
     qq: { enabled: true },
     apple: { enabled: false },
+    bilibili: { enabled: false },
   },
   playbackOrder: ['netease', 'qq'],
   preferOriginSource: true,
@@ -70,7 +71,8 @@ export function normalizePlaybackOrder(
   for (const id of PROVIDER_IDS) {
     if (enabled.has(id) && !seen.has(id)) normalized.push(id)
   }
-  return normalized
+  // 兜底平台只在有账号的平台都放不了时才用，固定排在最后。
+  return [...normalized.filter((id) => !isFallbackOnlyProvider(id)), ...normalized.filter(isFallbackOnlyProvider)]
 }
 
 export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): ProviderPreferences {
@@ -80,6 +82,7 @@ export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): P
       netease: { enabled: first === 'netease' },
       qq: { enabled: first === 'qq' },
       apple: { enabled: first === 'apple' },
+      bilibili: { enabled: false },
     },
     playbackOrder: [first],
     preferOriginSource: true,

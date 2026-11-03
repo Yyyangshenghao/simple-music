@@ -2,6 +2,7 @@ import * as NCM from 'NeteaseCloudMusicApi'
 import type { ServerContext } from '../types'
 import { getCookie, clearCookie } from './cookie'
 import { installNeteaseProxy } from './netease-proxy'
+import { BILIBILI_REFERER, isBilibiliMediaHost } from './bilibili-client'
 
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -308,6 +309,7 @@ export function audioProxyHeadersFor(audioUrl: string, range: string): Record<st
   try {
     const host = new URL(audioUrl).hostname.toLowerCase()
     if (host.includes('qq.com') || host.includes('qpic.cn')) headers.Referer = 'https://y.qq.com/'
+    else if (isBilibiliMediaHost(host)) headers.Referer = BILIBILI_REFERER
   } catch {
     /* ignore */
   }
@@ -323,7 +325,7 @@ export function audioContentTypeForUrl(audioUrl: string, upstreamType: string | 
   }
   if (/\.flac$/.test(pathname)) return 'audio/flac'
   if (/\.mp3$/.test(pathname)) return 'audio/mpeg'
-  if (/\.(m4a|mp4)$/.test(pathname)) return 'audio/mp4'
+  if (/\.(m4a|mp4|m4s)$/.test(pathname)) return 'audio/mp4'
   if (/\.ogg$/.test(pathname)) return 'audio/ogg'
   if (/\.wav$/.test(pathname)) return 'audio/wav'
   return upstreamType || 'audio/mpeg'

@@ -18,6 +18,8 @@ function participating(source: ProviderId): boolean {
 
 /** 设置中关闭的平台不参与歌词查询，账号与游客都不用。 */
 export function lyricPlatformEnabled(source: ProviderId): boolean {
+  // 兜底平台没有歌词，播放时沿用原曲目的歌词。
+  if (source === 'bilibili') return false
   return useSettingsStore.getState().lyricsPlatformSources[source] !== false
 }
 

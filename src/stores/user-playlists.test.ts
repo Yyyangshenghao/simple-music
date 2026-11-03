@@ -24,6 +24,7 @@ describe('loadUserPlaylists 按显式平台取歌单', () => {
         netease: { ...state.byId.netease, enabled: true, auth: 'authenticated' },
         qq: { ...state.byId.qq, enabled: true, auth: 'authenticated' },
         apple: { enabled: false, auth: 'anonymous' },
+        bilibili: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease', 'qq'],
     }))

@@ -45,7 +45,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         await useAppleMusicConnection.getState().connect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else {
+      } else if (source !== 'bilibili') {
         await loginMusicProvider(source)
       }
     } catch {
@@ -62,7 +62,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         await useAppleMusicConnection.getState().disconnect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else {
+      } else if (source !== 'bilibili') {
         await logoutMusicProvider(source)
       }
     } catch {
@@ -104,6 +104,8 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.providerList}>
           {providers.map((provider) => {
             const source = provider.descriptor.id
+            // 兜底平台没有账号，只在设置的播放偏好里开关。
+            if (source === 'bilibili') return null
             const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn
             const state = runtime[source]
             const waiting = source === 'apple' && apple.phase === 'waiting'

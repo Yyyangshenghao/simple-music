@@ -37,6 +37,8 @@ export function resolveSongUrl(
 ): Promise<SongUrlResponse> {
   if (track.source === 'apple') return Promise.resolve({ message: 'Apple Music 使用官方播放器' })
   if (track.source === 'local') return Promise.resolve({ url: track.url })
+  // 哔哩哔哩的地址由其 provider 直接解析（多节点候选），不走这里的网易/QQ 接口。
+  if (track.source === 'bilibili') return Promise.resolve({ message: '哔哩哔哩只作跨源兜底' })
   if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
   // 已完成缓存由播放器和预热入口读取 进入普通解析也可能是坏地址重试
   const key = trackKey(track, quality)

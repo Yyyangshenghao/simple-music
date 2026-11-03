@@ -33,7 +33,7 @@ export function ToplistSection({ source, embedded = false, onOpen }: ToplistSect
   }, [source])
 
   const entries = groups.flatMap((g) => g.entries).slice(0, PREVIEW_COUNT)
-  if (entries.length === 0) return null
+  if (entries.length === 0 || source === 'bilibili') return null
 
   return (
     <section className={`${styles.section}${embedded ? ` ${styles.embedded}` : ''}`}>

@@ -188,7 +188,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   function pickArtist(artist: ArtistInfo) {
-    if (artist.source === 'local') return
+    if (artist.source === 'local' || artist.source === 'bilibili') return
     rememberSearch(keyword)
     navigateTo({ type: 'artist', id: artist.id, source: artist.source })
     closeSearch()
