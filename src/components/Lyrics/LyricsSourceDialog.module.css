@@ -1,9 +1,8 @@
 /*
- * 与播放设置、伴奏浮层同一套玻璃表面：通透毛玻璃 + 上亮下弱的渐变细边 + 浅投影；分区靠留白与预览内嵌底区分，不画分隔线。
+ * 与播放设置、伴奏浮层同一套玻璃表面：通透毛玻璃 + 浅投影，不描边；分区靠留白与预览内嵌底区分，不画分隔线。
  * 字号层级：标题 17 → 预览歌词 15 → 来源名 13 → 辅助说明 11。
  */
 .dialog { width: min(660px, calc(100vw - 40px)); max-height: calc(100vh - 48px); box-sizing: border-box; margin: auto; padding: 0; overflow: hidden; border: 0; border-radius: 22px; background: color-mix(in srgb, var(--sm-bg-base) 58%, transparent); -webkit-backdrop-filter: blur(36px) saturate(160%); backdrop-filter: blur(36px) saturate(160%); color: var(--sm-text-primary); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32); }
-.dialog::before { content: ''; position: absolute; inset: 0; z-index: 1; padding: 1px; border-radius: inherit; background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.2)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); pointer-events: none; }
 :global([data-reduce-transparency='1']) .dialog { background: var(--sm-bg-base); }
 .dialog[open] { display: flex; flex-direction: column; }
 .dialog::backdrop { background: rgba(0, 0, 0, 0.32); }
@@ -19,7 +18,17 @@
 .notice { margin: 0 26px 12px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
 .body { display: grid; grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1fr); gap: 10px; min-height: 0; padding: 0 14px; }
 .sources { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; max-height: min(360px, calc(100vh - 230px)); overflow: auto; overscroll-behavior: contain; }
-.sourceItem { display: flex; flex-direction: column; }
+.sourceItem { position: relative; display: flex; flex-direction: column; }
+/* 未找到的来源在行右侧放重新查找图标；行本身留出右侧空间，避免与标签重叠。 */
+.sourceItem:has(> .retry) > .source { padding-right: 44px; }
+.retry { position: absolute; top: 50%; right: 8px; display: grid; place-items: center; width: 28px; height: 28px; margin-top: -14px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--sm-text-secondary); cursor: pointer; transition: color 140ms var(--sm-ease-out), background 140ms var(--sm-ease-out); }
+.retry:hover:not(:disabled) { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
+.retry:active:not(:disabled) { background: var(--sm-fill-active); }
+.retry:disabled { cursor: default; }
+.retry[data-busy] svg { animation: lyricsRetrySpin 900ms linear infinite; }
+.retry:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+@keyframes lyricsRetrySpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .retry[data-busy] svg { animation: none; } }
 .source { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; box-shadow: inset 0 0 0 1px transparent; color: var(--sm-text-primary); text-align: left; transition: background 160ms var(--sm-ease-out), box-shadow 160ms var(--sm-ease-out); }
 .source:hover:not(:disabled):not([data-selected='true']) { background: var(--sm-fill-subtle); }
 .source:active:not(:disabled):not([data-selected='true']) { background: var(--sm-fill-hover); }
@@ -42,6 +51,9 @@
 .line + .line { margin-top: 16px; }
 .line time { color: var(--sm-text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .line p { margin: 4px 0; font-size: 15px; font-weight: 500; line-height: 1.55; overflow-wrap: anywhere; }
+/* 点亮进度 = clamp((--t - --s) / --w, 0, 1)：逐字按每个字的时长扫过，逐行 --w 为 1ms 即整行瞬间亮起；不支持动效时 --t 取极大值，全部点亮。 */
+.previewLines { --t: 1e9; }
+.fill { color: transparent; background-color: var(--sm-text-muted); background-image: linear-gradient(var(--sm-text-primary), var(--sm-text-primary)); background-repeat: no-repeat; background-size: calc(clamp(0, (var(--t) - var(--s)) / var(--w), 1) * 100%) 100%; -webkit-background-clip: text; background-clip: text; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .line > span { display: block; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .details { color: var(--sm-text-secondary); font-size: 11px; line-height: 1.6; }
 .details summary { cursor: pointer; }

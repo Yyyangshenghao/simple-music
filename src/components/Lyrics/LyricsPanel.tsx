@@ -20,6 +20,7 @@ import { useLyricStylesStore } from '../../stores/lyric-styles'
 import { LibraryTabs } from '../../pages/LibraryTabs'
 import styles from './LyricsPanel.module.css'
 import { LYRICS_COVER_PX, sizedImage } from '../../lib/image-size'
+import { gearPopoverTwist } from '../../lib/motion-presets'
 import { LYRIC_FOLLOW_DURATION_MS, LYRIC_FOLLOW_EASING, lyricDistance, lyricFollowDelay } from '../../lib/lyric-follow'
 import { fitLyricTransition, lyricLineDwellSec, lyricLineInstantFill } from '../../lib/lyric-tempo'
 
@@ -394,6 +395,18 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   }, [sourceDialogOpen])
   // 点浮层与齿轮以外的地方或按 Esc 收起设置浮层；Esc 走捕获阶段，全局快捷键层会拦下冒泡的按键。
   const settingsAnchorRef = useRef<HTMLDivElement>(null)
+  const settingsGearRef = useRef<HTMLButtonElement>(null)
+  const settingsPopRef = useRef<HTMLDivElement>(null)
+  const popTwist = useMotion('popoverSproutMotion')
+  // 浮层以齿轮中心为旋转轴：用未变换的布局位置换算，浮层自身的 translateY(-50%) 也要补回。
+  useLayoutEffect(() => {
+    const gear = settingsGearRef.current
+    const pop = settingsPopRef.current
+    if (!settingsPopOpen || !gear || !pop) return
+    const x = gear.offsetLeft + gear.offsetWidth / 2 - pop.offsetLeft
+    const y = gear.offsetTop + gear.offsetHeight / 2 - pop.offsetTop + pop.offsetHeight / 2
+    pop.style.transformOrigin = `${x}px ${y}px`
+  }, [settingsPopOpen])
   useEffect(() => {
     if (!settingsPopOpen) return
     const onPointerDown = (event: PointerEvent) => {
@@ -829,6 +842,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
               )}
               <div ref={settingsAnchorRef} className={styles.railPopAnchor}>
                 <button
+                  ref={settingsGearRef}
                   className={`${styles.railBtn}${settingsPopOpen ? ` ${styles.railBtnActive}` : ''}`}
                   onClick={() => setSettingsPopOpen((v) => !v)}
                   title="歌词设置"
@@ -836,8 +850,16 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 >
                   <GearIcon />
                 </button>
+                <AnimatePresence>
                 {settingsPopOpen && (
-                  <div className={styles.lyricsSettingsPop}>
+                  <motion.div
+                    ref={settingsPopRef}
+                    className={styles.lyricsSettingsPop}
+                    style={{ y: '-50%' }}
+                    initial={{ opacity: 0, rotate: gearPopoverTwist.turn, scale: gearPopoverTwist.scale }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1, transition: popTwist ? gearPopoverTwist.open : { duration: 0 } }}
+                    exit={{ opacity: 0, rotate: gearPopoverTwist.turn, scale: gearPopoverTwist.scale, transition: popTwist ? gearPopoverTwist.close : { duration: 0 } }}
+                  >
                     {/* 歌词对不上时最先要改的是来源，放在最上方做成整块入口 */}
                     {track && (
                       <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
@@ -905,8 +927,9 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                         </div>
                       </div>
                     </section>
-                  </div>
+                  </motion.div>
                 )}
+                </AnimatePresence>
               </div>
             </div>
           </div>

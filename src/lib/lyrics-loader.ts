@@ -117,9 +117,13 @@ export function initLyricsLoader(): () => void {
     const index = result ? Math.max(0, indexForPosition(result.main, position)) : 0
     return {
       origin, status: response.status, message: response.message,
-      preview: result?.main.slice(index, index + 3).map((line, offset) => ({
-        ...line, translation: result.aligned[index + offset]?.text || undefined, romaji: result.roma[index + offset]?.text || undefined,
-      })) ?? [],
+      preview: result?.main.slice(index, index + 3).map((line, offset) => {
+        const timed = result.wordLines.find(word => Math.abs(word.time - line.time) < 0.05 && hasWordTiming(word.words))
+        return {
+          ...line, translation: result.aligned[index + offset]?.text || undefined, romaji: result.roma[index + offset]?.text || undefined,
+          ...timed && { words: timed.words.map(word => ({ text: word.text, startMs: word.startMs, durationMs: word.durationMs ?? 0 })), durationMs: timed.durationMs },
+        }
+      }) ?? [],
       wordTimed: result?.wordLines.some(line => hasWordTiming(line.words)) ?? false,
       hasTranslation: result?.aligned.some(line => !!line.text) ?? false,
       hasRomaji: result?.roma.some(line => !!line.text) ?? false,

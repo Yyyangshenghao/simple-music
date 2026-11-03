@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   state: {
     candidateTrackKey: 'netease:1', candidateToken: 'selection-token', candidates: [] as LyricSourceCandidate[],
     appliedOrigin: 'netease', requestedOrigin: 'auto', remembered: {} as Record<string, { origin: string }>,
-    defaultSource: 'auto', appliedPreference: 'auto', fallbackReason: null,
+    defaultSource: 'auto', appliedPreference: 'auto', fallbackReason: null, sourceOrder: null as string[] | null,
     queryCandidates: vi.fn(), chooseSource: vi.fn(), cancelSelection: vi.fn(),
   },
   close: vi.fn(), toast: vi.fn(), requestLyrics: vi.fn(), requestMusic: vi.fn(), navigateTo: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('react', async (original) => ({
   },
   useEffect: (effect: typeof h.effects[number]) => h.effects.push(effect),
 }))
-vi.mock('../../stores/lyrics-source', () => ({ useLyricsSourceStore: Object.assign((selector: (state: typeof h.state) => unknown) => selector(h.state), { getState: () => h.state }) }))
+vi.mock('../../stores/lyrics-source', () => ({ normalizeLyricsSourceOrder: (value: unknown) => Array.isArray(value) ? value : ['apple', 'netease', 'qq', 'amll', 'kugou'], useLyricsSourceStore: Object.assign((selector: (state: typeof h.state) => unknown) => selector(h.state), { getState: () => h.state }) }))
 vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore: { getState: () => ({ close: h.close }) } }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: vi.fn() }))
 vi.mock('../../stores/navigation', () => ({ useNavigationStore: { getState: () => ({ requestSettingsLyrics: h.requestLyrics, requestSettingsMusic: h.requestMusic, navigateTo: h.navigateTo }) } }))
@@ -60,12 +60,26 @@ beforeEach(() => {
   vi.stubGlobal('crypto', { randomUUID: () => 'selection-token' })
   h.values = []
   h.refs = []
-  Object.assign(h.state, { requestedOrigin: 'auto', appliedOrigin: 'netease', remembered: {}, defaultSource: 'auto', appliedPreference: 'auto', fallbackReason: null, candidates: [candidate('netease'), candidate('qq')] })
+  Object.assign(h.state, { sourceOrder: null, requestedOrigin: 'auto', appliedOrigin: 'netease', remembered: {}, defaultSource: 'auto', appliedPreference: 'auto', fallbackReason: null, candidates: [candidate('netease'), candidate('qq')] })
   h.state.queryCandidates.mockResolvedValue(undefined)
   h.state.chooseSource.mockResolvedValue({ saved: true, offsetReset: false })
 })
 
 describe('歌词来源选择交互', () => {
+  it('可用来源在前、失效来源在后，组内按设置顺序；未找到的行右侧给重新查找图标，重新查找中不改变排位', () => {
+    h.state.sourceOrder = ['apple', 'qq', 'kugou', 'netease', 'amll']
+    h.state.candidates = [candidate('netease'), { ...candidate('qq'), origin: 'kugou', status: 'empty' }, { ...candidate('qq'), origin: 'apple', status: 'login' }, candidate('qq')]
+    const origins = () => elements(render(), 'button').filter((button) => button.props.role === 'radio' && button.props.children.props.origin !== 'auto').map((button) => button.props.children.props.origin)
+    expect(origins()).toEqual(['qq', 'netease', 'apple', 'kugou'])
+    const retry = elements(render(), 'button').find((button) => button.props['aria-label'] === '重新查找酷狗音乐')!
+    retry.props.onClick()
+    expect(h.state.queryCandidates).toHaveBeenCalledWith('netease:1', 'selection-token', 'kugou')
+    h.state.candidates[1] = { ...h.state.candidates[1], status: 'loading' }
+    expect(elements(render(), 'button').some((button) => button.props['aria-label'] === '重新查找Apple Music')).toBe(false)
+    expect(origins()).toEqual(['qq', 'netease', 'apple', 'kugou'])
+    expect(elements(render(), 'button').find((button) => button.props['aria-label'] === '重新查找酷狗音乐')!.props.disabled).toBe(true)
+  })
+
   it('预览只查询候选，按确认后才应用，并默认记住本首选择', async () => {
     let element = render()
     elements(element, 'button').find((button) => button.props.role === 'radio' && button.props.children.props.origin === 'qq')!.props.onClick()

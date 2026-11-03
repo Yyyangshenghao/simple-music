@@ -76,7 +76,7 @@ describe('歌曲歌词来源管理', () => {
 
   it('筛选项只列出已使用的来源并带数量', () => {
     const filters = elements(render(), element => element.props?.ariaLabel === '按来源筛选')[0]
-    expect(filters.props.items.map((item: { ariaLabel: string }) => item.ariaLabel)).toEqual(['全部 3 首', 'QQ 音乐 1 首', '本地歌词 1 首', '酷狗歌词库 1 首'])
+    expect(filters.props.items.map((item: { ariaLabel: string }) => item.ariaLabel)).toEqual(['全部 3 首', 'QQ 音乐 1 首', '本地歌词 1 首', '酷狗音乐 1 首'])
     expect(filters.props.value).toBe('all')
   })
 

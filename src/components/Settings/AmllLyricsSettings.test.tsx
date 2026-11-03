@@ -90,7 +90,7 @@ describe('歌词来源设置', () => {
   it('展示五个编号优先级，通过宿主动作交换完整顺序', () => {
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
-    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗歌词库'])
+    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗音乐'])
     expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级', '第 5 优先级'])
     expect(button(element, '提高网易云音乐优先级').props.disabled).toBe(false)
     button(element, '提高QQ 音乐优先级').props.onClick()
@@ -166,7 +166,7 @@ describe('歌词来源设置', () => {
     expect(text(rows[3])).toContain('已关闭')
     labelled(element, '使用AMLL 逐字歌词库')!.props.onChange(true)
     expect(h.settings.setLyricsAmllFallback).toHaveBeenCalledWith(true)
-    labelled(element, '使用酷狗歌词库')!.props.onChange(false)
+    labelled(element, '使用酷狗音乐')!.props.onChange(false)
     expect(h.settings.setLyricsKugouFallback).toHaveBeenCalledWith(false)
     labelled(element, '使用QQ 音乐')!.props.onChange(false)
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('qq', false)

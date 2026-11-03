@@ -909,14 +909,15 @@
 
 .railBtn:active { transform: scale(0.94); }
 
-/* 开着的开关与展开中的齿轮抬一层底；齿轮展开时转半格，表示浮层由它打开 */
+/* 开着的开关与展开中的齿轮抬一层底 */
 .railBtnActive {
   background: rgba(var(--lyrics-ink-rgb), 0.18);
   color: rgb(var(--lyrics-ink-rgb));
 }
 
-.railPopAnchor > .railBtn:hover svg { transform: rotate(30deg); }
-.railPopAnchor > .railBtnActive svg { transform: rotate(60deg); }
+/* 齿轮只随点击转：打开逆时针拧开两齿，收起顺时针拧紧；时长与 motion-presets 的 gearPopoverTwist 一致 */
+.railPopAnchor > .railBtn svg { transition: transform 0.2s cubic-bezier(0.4, 0, 1, 1); }
+.railPopAnchor > .railBtnActive svg { transform: rotate(-90deg); transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
 
 :global([data-reduce-transparency='1']) .railBtn { background: rgba(var(--lyrics-ink-rgb), 0.14); }
 :global([data-reduce-transparency='1']) .railBtnActive { background: rgba(var(--lyrics-ink-rgb), 0.24); }
@@ -940,7 +941,6 @@
   position: absolute;
   right: calc(100% + 14px);
   top: 50%;
-  transform: translateY(-50%);
   width: min(320px, calc(100vw - 118px));
   max-height: min(680px, calc(100vh - 170px));
   overflow-y: auto;
@@ -1162,8 +1162,6 @@
   transition: background 140ms ease;
 }
 
-.sourceSetting:hover { background: rgba(var(--lyrics-ink-rgb), 0.13); }
-.sourceSetting:active { background: rgba(var(--lyrics-ink-rgb), 0.17); }
 
 .sourceTitle {
   flex-shrink: 0;
@@ -1171,16 +1169,35 @@
   font-weight: 600;
 }
 
+/* 右侧当前来源做成与「伴奏库」入口同款的小胶囊：整行可点，悬停/按下时只有胶囊变亮、箭头前推 */
 .sourceValue {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
+  min-height: 28px;
+  padding: 4px 6px 4px 8px;
   overflow: hidden;
-  color: rgba(var(--lyrics-ink-rgb), 0.62);
+  border-radius: 8px;
+  background: rgba(var(--lyrics-ink-rgb), 0.1);
+  color: rgba(var(--lyrics-ink-rgb), 0.78);
   font-size: 12px;
+  font-weight: 500;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
 }
+
+.sourceValue svg {
+  flex: none;
+  color: rgba(var(--lyrics-ink-rgb), 0.55);
+  transition: transform 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out);
+}
+
+.sourceSetting:hover .sourceValue { background: rgba(var(--lyrics-ink-rgb), 0.17); color: rgb(var(--lyrics-ink-rgb)); }
+.sourceSetting:active .sourceValue { background: rgba(var(--lyrics-ink-rgb), 0.23); }
+:global(html:not([data-icon-motion-off])) .sourceSetting:hover .sourceValue svg { transform: translateX(2px); color: rgb(var(--lyrics-ink-rgb)); }
+@media (prefers-reduced-motion: reduce) { .sourceValue svg { transition: none; } .sourceSetting:hover .sourceValue svg { transform: none !important; } }
 
 /* KTV 行包裹（纯歌词模式的所有行）：字号统一，激活态靠 scale/亮度区分 */
 .ktvLineWrap {

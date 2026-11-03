@@ -10,6 +10,7 @@ import { LYRIC_SOURCE_LABELS, LYRICS_TEST_SONGS, type LyricPrioritySource } from
 import { InfoButton } from '../ui/InfoButton'
 import { Switch } from '../ui/Switch'
 import { LyricsMemoryDialog } from './LyricsMemoryDialog'
+import { LyricOriginIcon } from '../Lyrics/LyricOriginIcon'
 import styles from './AmllLyricsSettings.module.css'
 
 export function AmllLyricsSettings() {
@@ -89,6 +90,7 @@ export function AmllLyricsSettings() {
           : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : '未登录，以游客身份查询')
         return <motion.li data-setting-row key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined} data-locked={locked(source) || undefined}>
           <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
+          <LyricOriginIcon origin={source} dim={!on} />
           <div className={styles.sourceName}><strong data-setting-label>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? styles.statusIssue : ''}>{status}</span></div>
           {locked(source)
             ? <button type="button" className={`${styles.probe} no-drag`} onClick={openAccounts}>{appleAction}</button>

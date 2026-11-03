@@ -5,7 +5,7 @@
   z-index: 300;
 }
 
-/* 与播放设置、伴奏浮层同一套玻璃：通透毛玻璃 + 上亮下弱的渐变细边 + 浅投影；滚动放在内层，细边不随内容滚走。 */
+/* 与播放设置、伴奏浮层同一套玻璃：通透毛玻璃 + 浅投影，不描边；滚动放在内层。 */
 .menu {
   position: absolute;
   top: calc(100% + 10px);
@@ -24,20 +24,6 @@
   transform-origin: 100% 0;
   --ink: var(--lyrics-ink-rgb, 255, 255, 255);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.menu::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.2));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  pointer-events: none;
 }
 
 :global([data-reduce-transparency="1"]) .menu {

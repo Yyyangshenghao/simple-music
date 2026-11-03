@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { LyricPreviewLine } from '../../types/lyrics-source'
 import { usePlayerStore } from '../../stores/player'
-import { useLyricsSourceStore } from '../../stores/lyrics-source'
+import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import { useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
@@ -13,6 +14,9 @@ const STATUS_LABELS = {
   idle: '尚未查询', loading: '查找中…', ready: '逐行', empty: '未收录', mismatch: '未找到同曲同版本',
   error: '连接失败', disabled: '已停用', login: '需登录', unavailable: '当前不可用',
 }
+
+/** 查过但没找到（含连接失败）的来源：在行右侧给重新查找图标。 */
+const NOT_FOUND = new Set<LyricSourceCandidate['status']>(['empty', 'mismatch', 'error'])
 
 function candidateDescription(candidate: LyricSourceCandidate): string {
   if (candidate.status !== 'ready') return candidate.message || STATUS_LABELS[candidate.status]
@@ -48,6 +52,9 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
   const defaultSource = useLyricsSourceStore((s) => s.defaultSource)
   const appliedPreference = useLyricsSourceStore((s) => s.appliedPreference)
   const fallbackReason = useLyricsSourceStore((s) => s.fallbackReason)
+  const sourceOrder = useLyricsSourceStore((s) => s.sourceOrder)
+  // 记下每个来源最近一次查完的状态：重新查找时状态短暂变为查找中，仍按上次结果排位，列表不跳动。
+  const settled = useRef(new Map<LyricOrigin, LyricSourceCandidate['status']>()).current
   const autoActive = requestedOrigin === 'auto'
   const [selected, setSelected] = useState<LyricOrigin | 'auto'>(requestedOrigin)
   const [remember, setRemember] = useState(true)
@@ -60,6 +67,16 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
   const canApply = !busy && (selected === 'auto'
     ? requestedOrigin !== 'auto' || !!remembered || defaultChanged
     : selectedCandidate?.status === 'ready' && (!sameSelection || (remember && !savedSelection)))
+  for (const candidate of candidates) {
+    if (candidate.status !== 'loading' && candidate.status !== 'idle') settled.set(candidate.origin, candidate.status)
+  }
+  const invalid = (origin: LyricOrigin) => { const status = settled.get(origin); return !!status && status !== 'ready' }
+  // 可用的在前、失效的（未找到、需登录、已停用等）在后，两组内各按设置里的歌词来源顺序；本地歌词不在顺序里，组内最前。
+  const order: readonly LyricOrigin[] = normalizeLyricsSourceOrder(sourceOrder)
+  const sortedCandidates = candidates.map((candidate, index) => ({ candidate, index }))
+    .sort((a, b) => Number(invalid(a.candidate.origin)) - Number(invalid(b.candidate.origin))
+      || order.indexOf(a.candidate.origin) - order.indexOf(b.candidate.origin) || a.index - b.index)
+    .map(({ candidate }) => candidate)
   const close = () => {
     active.current = false
     useLyricsSourceStore.getState().cancelSelection(token)
@@ -134,7 +151,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
                 : defaultSource === 'auto' ? '按默认规则选择' : `优先${LYRIC_SOURCE_LABELS[defaultSource]}`}</span>
             </LyricOriginRow>
           </button>
-          {candidates.map((candidate) => <div className={styles.sourceItem} key={candidate.origin}>
+          {sortedCandidates.map((candidate) => <div className={styles.sourceItem} key={candidate.origin}>
             <button type="button" role="radio" aria-checked={selected === candidate.origin} className={styles.source} data-selected={selected === candidate.origin} data-available={candidate.status === 'ready' || candidate.status === 'loading' || candidate.status === 'idle'} disabled={busy} onClick={() => {
               setSelected(candidate.origin)
               setError('')
@@ -147,7 +164,11 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
                 <span className={styles.sourceHint}>{candidateDescription(candidate)}</span>
               </LyricOriginRow>
             </button>
-            {selected === candidate.origin && ['error', 'empty', 'mismatch'].includes(candidate.status) && <button className={styles.sourceAction} disabled={busy} onClick={() => query(candidate.origin)}>重试</button>}
+            {NOT_FOUND.has(settled.get(candidate.origin)!) && (NOT_FOUND.has(candidate.status) || candidate.status === 'loading') && <button type="button" className={styles.retry}
+              aria-label={`重新查找${LYRIC_SOURCE_LABELS[candidate.origin]}`} title="重新查找" data-busy={candidate.status === 'loading' || undefined}
+              disabled={busy || candidate.status === 'loading'} onClick={() => { setSelected(candidate.origin); setError(''); query(candidate.origin) }}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+            </button>}
             {selected === candidate.origin && (candidate.status === 'login' || (candidate.status === 'unavailable' && candidate.message === '需启用可匹配的平台')) && <button className={styles.sourceAction} onClick={() => openSettings('music')}>音源设置…</button>}
             {selected === candidate.origin && candidate.status === 'disabled' && <button className={styles.sourceAction} onClick={() => openSettings(candidate.origin === 'apple' && candidate.message !== '已在设置中关闭' ? 'music' : 'lyrics')}>前往启用…</button>}
           </div>)}
@@ -160,10 +181,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
           <h3>预览</h3>
           {selectedCandidate?.status === 'ready' ? <>
             <p className={styles.capabilities}>{candidateDescription(selectedCandidate)}</p>
-            <div className={styles.previewLines}>{selectedCandidate.preview.map((line, index) => <div key={`${line.time}:${index}`} className={styles.line}>
-              <time>{`${Math.floor(line.time / 60)}:${String(Math.floor(line.time % 60)).padStart(2, '0')}`}</time><p>{line.text}</p>
-              {line.translation && <span>{line.translation}</span>}{line.romaji && <span>{line.romaji}</span>}
-            </div>)}</div>
+            <PreviewLines key={selectedCandidate.origin} lines={selectedCandidate.preview} />
             <details className={styles.details}><summary>歌曲与来源详情</summary>
               <p>{selectedCandidate.matchedName || track.name} · {selectedCandidate.matchedArtist || track.artist}</p>
               <p>正文：{LYRIC_SOURCE_LABELS[selectedCandidate.origin]}</p>
@@ -184,4 +202,36 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
       </footer>
     </dialog>
   )
+}
+
+/**
+ * 预览按真实时间轴循环演示：逐字来源一个字一个字点亮，逐行来源整行同时亮起，一眼区分两者。
+ * 时钟只写容器上的 --t（毫秒），点亮进度由 CSS 计算，不触发 React 重渲染。
+ */
+function PreviewLines({ lines }: { lines: LyricPreviewLine[] }) {
+  const root = useRef<HTMLDivElement>(null)
+  const start = lines[0]?.time ?? 0
+  const last = lines[lines.length - 1]
+  const cycle = last ? (last.time - start) * 1000 + (last.durationMs ?? 3000) + 1200 : 0
+  useEffect(() => {
+    const element = root.current
+    if (!element || !cycle || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const origin = performance.now()
+    let frame = requestAnimationFrame(function tick(now) {
+      element.style.setProperty('--t', String((now - origin) % cycle))
+      frame = requestAnimationFrame(tick)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [cycle])
+  return <div ref={root} className={styles.previewLines}>{lines.map((line, index) => {
+    const offset = (line.time - start) * 1000
+    return <div key={`${line.time}:${index}`} className={styles.line}>
+      <time>{`${Math.floor(line.time / 60)}:${String(Math.floor(line.time % 60)).padStart(2, '0')}`}</time>
+      <p>{line.words?.length
+        ? line.words.map((word, wordIndex) => <span key={wordIndex} className={styles.fill}
+          style={{ '--s': offset + word.startMs, '--w': Math.max(word.durationMs, 1) } as React.CSSProperties}>{word.text}</span>)
+        : <span className={styles.fill} style={{ '--s': offset, '--w': 1 } as React.CSSProperties}>{line.text}</span>}</p>
+      {line.translation && <span>{line.translation}</span>}{line.romaji && <span>{line.romaji}</span>}
+    </div>
+  })}</div>
 }
