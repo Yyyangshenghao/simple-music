@@ -52,4 +52,4 @@ npm run release:check  # 发版元数据校验;发版用 gh workflow run release
 - **跨音源实体按自身来源取能力**:新代码优先 `providerFor(数据.source)` 的对应 capability,仍走兼容层的调用使用 `serviceFor(数据.source)`;不要从当前内容平台或播放优先级猜来源。导航历史/缓存里的数据可能属于另一音源,错绑会把错误结果写进按 source 分键的缓存。
 - 网易私人雷达是固定歌单 id `3136952023` + 登录 cookie(`/api/netease/radar`);每日推荐/雷达为网易专属,`MusicService` 中是可选方法,未实现的音源不渲染对应卡片。
 - **已指向本地 API 的 URL 不要再套代理端点**:本地音乐的 `url`/`cover` 是 `http://127.0.0.1:<port>/api/local/*`,长得像 http 上游但其实是我们自己。往 `/api/audio`、`/proxy/cover` 里塞会被 server 的 SSRF 防护(`server/lib/security.ts`)按回环地址 400 掉 —— 本地音乐直接放不出声/没封面。判定用 `isLocalApiUrl()`,取封面统一走 `api.coverImage()`(见 `src/lib/api.ts`)。
-- **新增音源分支时别漏 `local`**:`MusicSource` 是四值(`netease`/`qq`/`apple`/`local`),而 `ProviderId` 只有前三个。按 `track.source`/`track.provider` 分支的地方(歌词管线、音质、红心、预加载)必须显式处理 local；Apple Music 的 DRM 播放也不能落入普通直链兜底。
+- **新增音源分支时别漏 `local`**:`MusicSource` = `ProviderId`(`netease`/`qq`/`apple`/`bilibili`) + `local`。`bilibili` 只作跨源兜底(无账号,`isFallbackOnlyProvider`),列平台的界面用 `CONTENT_PROVIDER_IDS`。按 `track.source`/`track.provider` 分支的地方(歌词管线、音质、红心、预加载)必须显式处理 local；Apple Music 的 DRM 播放也不能落入普通直链兜底。

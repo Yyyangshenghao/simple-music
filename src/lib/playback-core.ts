@@ -13,7 +13,7 @@ import {
 import { SOURCE_BRAND } from './source-brand'
 import { ListeningClock } from './listening-clock'
 import { accompanimentId, accompanimentOriginal } from './karaoke-library'
-import { isProviderId, type PlaybackCandidate, type ProviderId, type QualityOption } from '../providers/types'
+import { isFallbackOnlyProvider, isProviderId, type PlaybackCandidate, type ProviderId, type QualityOption } from '../providers/types'
 import type { Track, AudioQuality, MusicSource } from '../types/domain'
 
 const FALLBACK_UNPLAYABLE_MESSAGE = '这首歌暂时无法播放，可以换一首试试'
@@ -30,7 +30,7 @@ type ApplePlayback = Pick<AppleMusicPlayback, 'load' | 'command' | 'stop' | 'lyr
 type PlaybackResolverPort = Pick<PlaybackResolver,
   'sourceOrder' | 'attempts' | 'failureMessage' | 'next' | 'abort' | 'complete'
   | 'completeExternal' | 'ignoreUrl' | 'recordExternalMediaFailure'
->
+> & Partial<Pick<PlaybackResolver, 'defersTrial'>>
 
 export interface PlaybackCoreDependencies {
   getState(): PlaybackPlayer
@@ -407,7 +407,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       })
       return
     }
-    const cacheKey = candidate.trial || !cacheable || active.offlineFailed
+    // 兜底平台（B 站用户上传视频）的音频只在线播放，不写播放缓存。
+    const cacheKey = candidate.trial || !cacheable || active.offlineFailed || isFallbackOnlyProvider(candidate.source)
       ? undefined
       : deps.audioDiskCacheKey(candidate.track, candidate.quality.id)
     set({
@@ -420,11 +421,13 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     })
     const eng = ensureEngine()
     const originSource = active.originTrack.source
+    const resolvedSource = candidate.source
     const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq')
+      && (resolvedSource === 'netease' || resolvedSource === 'qq')
       ? {
           originSource,
           originId: String(active.originTrack.id),
-          resolvedSource: candidate.source,
+          resolvedSource,
           resolvedId: String(candidate.track.mid ?? candidate.track.id),
           quality: String(candidate.quality.id),
         }
@@ -974,9 +977,11 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       // 自带直链或相邻曲目预解析命中时先起播；媒体失败仍会回到同一 resolver 会话继续降级。
       const originAvailable = deps.isParticipating(track.source)
       const canUseOriginShortcut = canUseOriginPlaybackShortcut(track.source, resolver.sourceOrder[0])
-      const preloaded = track.source !== 'apple' && originAvailable && canUseOriginShortcut && !track.url
+      const preloadedResolution = track.source !== 'apple' && originAvailable && canUseOriginShortcut && !track.url
         ? deps.getPreloadedResolution(track, get().quality)
         : undefined
+      // 有兜底平台时预解析到的试听片段不抢先起播，交给解析器先找完整音频。
+      const preloaded = preloadedResolution?.trial && resolver.defersTrial ? undefined : preloadedResolution
       const externalUrl = track.source !== 'apple' && originAvailable && canUseOriginShortcut ? track.url ?? preloaded?.url : undefined
       if (externalUrl) {
         resolver.ignoreUrl(track.source, externalUrl)

@@ -3,7 +3,7 @@ import { SOURCE_BRAND } from '../../lib/source-brand'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from './brand-logos'
 import { useProviderStore } from '../../stores/providers'
 import type { SourceBadgeMode } from '../../lib/provider-preferences'
-import { isProviderId } from '../../providers/types'
+import { isFallbackOnlyProvider, isProviderId } from '../../providers/types'
 import { SourceName } from './SourceName'
 import styles from './SourceBadge.module.css'
 
@@ -27,7 +27,7 @@ export function SourceBadge({
   const preference = useProviderStore((state) => state.sourceBadgeMode)
   const participating = useProviderStore((state) =>
     !source || !isProviderId(source)
-      || (state.byId[source].enabled && state.byId[source].auth === 'authenticated')
+      || (state.byId[source].enabled && (state.byId[source].auth === 'authenticated' || isFallbackOnlyProvider(source)))
   )
   const mode = displayMode ?? preference
   if (mode === 'hidden' || (!showInactive && !participating)) return null
@@ -50,7 +50,7 @@ export function SourceBadge({
             ? <QQMusicLogo />
             : source === 'apple'
               ? <AppleMusicIcon />
-              : <span className={styles.localIcon}>{source === 'local' ? '♪' : '?'}</span>}
+              : <span className={styles.localIcon}>{source === 'local' ? '♪' : source === 'bilibili' ? 'B' : '?'}</span>}
       </span>
       {!compact && <span className={styles.label}>{source ? <SourceName source={source} /> : label}</span>}
     </span>

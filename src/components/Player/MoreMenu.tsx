@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useProviderStore } from '../../stores/providers'
-import { isProviderId } from '../../providers/types'
+import { isFallbackOnlyProvider, isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
 import { loadTrackQualities, peekTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
@@ -223,7 +223,7 @@ function QualitySection({ open }: { open: boolean }) {
   const currentSourceParticipating = useProviderStore((state) => {
     if (!qualityTrack || !isProviderId(qualityTrack.source)) return true
     const source = state.byId[qualityTrack.source]
-    return source.enabled && source.auth === 'authenticated'
+    return source.enabled && (source.auth === 'authenticated' || isFallbackOnlyProvider(qualityTrack.source))
   })
   // null = 检测中;[] = 无可选档(本地音乐/探测失败)。换曲时已预取过的直接用缓存
   const [options, setOptions] = useState<TrackQualityOption[] | null>(() => qualityTrack ? peekTrackQualities(qualityTrack) ?? null : null)

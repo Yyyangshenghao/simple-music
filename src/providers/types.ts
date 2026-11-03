@@ -25,6 +25,19 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+/**
+ * 只作跨源兜底的平台：不需要账号，不进内容平台切换、搜索、我的库与歌词来源，
+ * 只出现在设置的播放顺序里，原平台放不了时按同曲匹配补上音频。
+ */
+export const FALLBACK_ONLY_PROVIDER_IDS: readonly ProviderId[] = ['bilibili']
+
+export function isFallbackOnlyProvider(id: ProviderId): boolean {
+  return FALLBACK_ONLY_PROVIDER_IDS.includes(id)
+}
+
+/** 有账号、可浏览内容的平台；界面里列平台（内容切换、头像、搜索、我的库）时用它。 */
+export const CONTENT_PROVIDER_IDS: readonly ProviderId[] = PROVIDER_IDS.filter((id) => !isFallbackOnlyProvider(id))
+
 export function providerIdOf(source: MusicSource): ProviderId | null {
   return isProviderId(source) ? source : null
 }

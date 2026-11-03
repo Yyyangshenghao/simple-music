@@ -1,6 +1,6 @@
 import { providerFor } from '../providers/registry'
 import type { PlaybackCandidate, ProviderId, QualityOption } from '../providers/types'
-import { isProviderId, PlaybackUnavailableError } from '../providers/types'
+import { isFallbackOnlyProvider, isProviderId, PlaybackUnavailableError } from '../providers/types'
 import type { AudioQuality, Track } from '../types/domain'
 import { findEquivalentTrack, type TrackMatchResult } from './track-match'
 
@@ -112,6 +112,8 @@ export class PlaybackResolver {
   readonly originTrack: Track
   readonly sourceOrder: ProviderId[]
   readonly attempts: PlaybackAttempt[] = []
+  /** 顺序里有兜底平台时，试听片段放到最后：先找完整音频，所有平台都没有才播试听。 */
+  readonly defersTrial: boolean
   failureMessage: string | null = null
 
   private readonly requestedQuality: AudioQuality
@@ -122,6 +124,7 @@ export class PlaybackResolver {
   private sourceIndex = 0
   private candidateAttempts = 0
   private currentCandidate: PlaybackCandidate | null = null
+  private readonly deferredTrials: PlaybackCandidate[] = []
 
   constructor(
     originTrack: Track,
@@ -139,6 +142,7 @@ export class PlaybackResolver {
     }
     this.maxAttempts = Math.max(1, maxAttempts)
     this.sourceOrder = buildPlaybackSourceOrder(originTrack, preferences, this.deps.isParticipating)
+    this.defersTrial = this.sourceOrder.some(isFallbackOnlyProvider)
     this.sourceStates = this.sourceOrder.map((source) => ({
       source,
       qualities: [requestedQuality],
@@ -226,7 +230,13 @@ export class PlaybackResolver {
 
     while (!this.controller.signal.aborted && this.candidateAttempts < this.maxAttempts) {
       const state = this.sourceStates[this.sourceIndex]
-      if (!state) return null
+      if (!state) {
+        const trial = this.deferredTrials.shift()
+        if (!trial) return null
+        this.candidateAttempts++
+        this.currentCandidate = trial
+        return trial
+      }
       if (!this.deps.isParticipating(state.source)) {
         this.sourceIndex++
         continue
@@ -301,7 +311,10 @@ export class PlaybackResolver {
             stage: 'resolve',
             result: fresh.length > 0 ? 'success' : 'unavailable',
           })
-          state.candidateQueue.push(...fresh)
+          for (const candidate of fresh) {
+            if (this.defersTrial && candidate.trial) this.deferredTrials.push(candidate)
+            else state.candidateQueue.push(candidate)
+          }
           continue
         } catch (error) {
           if (isAbort(error) || this.controller.signal.aborted) return null

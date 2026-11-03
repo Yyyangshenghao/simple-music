@@ -1285,6 +1285,8 @@ export function SettingsPage() {
                   </div>
                   {listProviders().map((provider) => {
                     const source = provider.descriptor.id
+                    // 兜底平台没有账号，开关放在播放偏好里。
+                    if (source === 'bilibili') return null
                     const runtime = providerState[source]
                     const connected = runtime.auth === 'authenticated'
                     const busy = loginBusy === source
@@ -1443,6 +1445,23 @@ export function SettingsPage() {
                           aria-label="播放失败后自动换源"
                         />
                       </div>}
+
+                      <div data-setting-row className={styles.playbackFallbackRow}>
+                        <div>
+                          <strong data-setting-label>用哔哩哔哩补位</strong>
+                          <small>
+                            {multiSourceFallback
+                              ? '其他平台都放不了时，播放 B 站音乐区同一首歌的用户上传视频音频，最高 192K，不缓存。'
+                              : '需先开启「播放失败后自动换源」。'}
+                          </small>
+                        </div>
+                        <Switch
+                          checked={providerState.bilibili.enabled}
+                          disabled={!multiSourceFallback}
+                          onChange={(enabled) => setProviderEnabled('bilibili', enabled)}
+                          aria-label="用哔哩哔哩补位"
+                        />
+                      </div>
 
                       <p className={styles.playbackSingleProviderHint}>已有缓存优先播放 · 新设置下次起播生效</p>
                     </div>

@@ -17,7 +17,9 @@ export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]>
   if (track.source === 'apple') return Promise.resolve([])
   if (track.source === 'local') return Promise.resolve([])
   const req =
-    track.source === 'qq'
+    track.source === 'bilibili'
+      ? api.get<{ qualities?: TrackQualityOption[] }>('/api/bilibili/song/qualities', { bvid: String(track.bvid ?? track.id ?? '') })
+      : track.source === 'qq'
       ? api.get<{ qualities?: TrackQualityOption[] }>(
           '/api/qq/song/qualities',
           {
@@ -43,7 +45,7 @@ const inflight = new Map<string, Promise<TrackQualityOption[]>>()
 
 /** 档位随账号（VIP）不同，键里带上账号会话，切换账号后自然失效。 */
 function cacheKey(track: Track): string | null {
-  if (track.source !== 'netease' && track.source !== 'qq') return null
+  if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'bilibili') return null
   const id = track.source === 'qq' ? `${String(track.mid ?? track.id ?? '')}:${String(track.mediaMid ?? '')}` : String(track.id ?? '')
   return `${track.source}:${providerAccountSession(track.source)}:${id}`
 }
