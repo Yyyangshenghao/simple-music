@@ -5,6 +5,7 @@ import {
   fetchOfflineStatus,
   fetchOfflineStatuses,
   offlineOrigin,
+  isCacheableSource,
   offlineTrackKey,
   type OfflineCacheStatus,
 } from '../lib/offline-cache'
@@ -165,7 +166,7 @@ async function performSave(job: OfflineSaveJob): Promise<void> {
   let pinnedEntry: string | undefined
   let exported = false
   try {
-    if (job.track.pending && (job.track.source === 'netease' || job.track.source === 'qq')) {
+    if (job.track.pending && isCacheableSource(job.track.source)) {
       const source = job.track.source
       const session = providerAccountSession(source)
       if (!isProviderParticipating(source)) throw new Error('请先登录并启用歌曲来源平台')
@@ -347,7 +348,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   },
 
   async ensure(track) {
-    if (track.source !== 'netease' && track.source !== 'qq') return null
+    if (!isCacheableSource(track.source)) return null
     const key = offlineTrackKey(track)
     const known = get().byKey[key]
     if (known) return known
@@ -356,7 +357,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
 
   async ensureMany(tracks) {
     const pending = tracks.filter((track) => (
-      (track.source === 'netease' || track.source === 'qq') && !get().byKey[offlineTrackKey(track)]
+      isCacheableSource(track.source) && !get().byKey[offlineTrackKey(track)]
     ))
     if (!pending.length) return
     const revision = statusRevision
@@ -372,7 +373,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   },
 
   async save(track) {
-    if (track.source !== 'netease' && track.source !== 'qq') return Promise.resolve()
+    if (!isCacheableSource(track.source)) return Promise.resolve()
     const version = queueVersion
     try {
       const directory = get().downloadDir || await get().loadDownloadDir()
@@ -389,7 +390,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
     if (signal?.aborted || version !== queueVersion) throw new DOMException('下载已取消', 'AbortError')
     let added = 0
     for (const track of tracks) {
-      if ((track.source !== 'netease' && track.source !== 'qq') || isCatalogUnavailable(track)) continue
+      if (!isCacheableSource(track.source) || isCatalogUnavailable(track)) continue
       if (get().jobs.some((job) => offlineTrackKey(job.track) === offlineTrackKey(track) && isActiveJob(job))) continue
       void enqueueSave(track, directory)
       added++
@@ -398,7 +399,7 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
   },
 
   async removeDownload(track) {
-    if (track.source !== 'netease' && track.source !== 'qq') return
+    if (!isCacheableSource(track.source)) return
     try {
       await api.post('/api/downloads/delete', { origin: offlineOrigin(track) })
       useToastStore.getState().show('已删除下载，歌曲文件已移到废纸篓')

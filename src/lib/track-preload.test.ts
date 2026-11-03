@@ -240,6 +240,13 @@ describe('getPreloadedResolution', () => {
 })
 
 describe('resolveSongUrl', () => {
+  it('酷狗曲目按 hash 走酷狗端点，不落入网易兜底', async () => {
+    apiGet.mockResolvedValueOnce({ url: 'http://fs.kugou.com/a.mp3', trial: true })
+    const track = makeTrack('936bfc076ea0e42e62ea66b8377110d4', { provider: 'kugou', source: 'kugou' })
+    expect(await resolveSongUrl(track, 'lossless')).toMatchObject({ url: 'http://fs.kugou.com/a.mp3', trial: true })
+    expect(apiGet).toHaveBeenCalledWith('/api/kugou/song/url', { hash: '936bfc076ea0e42e62ea66b8377110d4', quality: 'lossless' }, expect.anything())
+  })
+
   it('播放器从预热坏地址回退到普通解析时允许重新查询', async () => {
     apiGet.mockResolvedValueOnce({ url: 'http://cdn/broken.mp3' }).mockResolvedValueOnce({ url: 'http://cdn/recovered.mp3' })
     const track = makeTrack('recovery')

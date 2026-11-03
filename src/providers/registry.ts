@@ -1,9 +1,10 @@
 import { appleMusicProvider } from './apple-music-provider'
+import { kugouProvider } from './kugou-provider'
 import { neteaseProvider } from './netease-provider'
 import { qqProvider } from './qq-provider'
 import { PROVIDER_IDS, type MusicProvider, type ProviderId } from './types'
 
-const providers = [neteaseProvider, qqProvider, appleMusicProvider] as const
+const providers = [neteaseProvider, qqProvider, appleMusicProvider, kugouProvider] as const
 const byId = new Map<ProviderId, MusicProvider>(providers.map((provider) => [provider.descriptor.id, provider]))
 
 export function listProviders(): readonly MusicProvider[] {

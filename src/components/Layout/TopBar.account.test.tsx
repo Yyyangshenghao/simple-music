@@ -70,7 +70,7 @@ beforeEach(() => {
   h.slots = []; h.effects = []; h.search.mockReset()
   vi.stubGlobal('window', new EventTarget())
   useProviderStore.setState({ byId: {
-    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' },
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' },
   } })
 })
 afterEach(() => {

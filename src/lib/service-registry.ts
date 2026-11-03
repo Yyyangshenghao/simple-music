@@ -11,10 +11,12 @@ export const neteaseService = providerFor('netease').legacyService as NeteaseMus
 export const qqService = providerFor('qq').legacyService as QQMusicService
 
 export const appleMusicService = providerFor('apple').legacyService
+export const kugouService = providerFor('kugou').legacyService
 
 export function serviceFor(source: MusicSource): MusicService {
   if (source === 'apple') return appleMusicService
   if (source === 'qq') return qqService
+  if (source === 'kugou') return kugouService
   if (source === 'local') return localMusicService
   return neteaseService
 }

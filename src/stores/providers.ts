@@ -9,7 +9,7 @@ import {
   type ProviderPreferences,
   type SourceBadgeMode,
 } from '../lib/provider-preferences'
-import { PROVIDER_IDS, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, isGuestOnlyProvider, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
 import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
@@ -52,32 +52,27 @@ function runtimeMap(
   preferences: ProviderPreferences,
   previous?: Record<ProviderId, ProviderRuntimeState>
 ): Record<ProviderId, ProviderRuntimeState> {
-  return {
-    netease: {
-      ...previous?.netease,
-      enabled: preferences.providers.netease.enabled,
-      auth: previous?.netease.auth ?? 'unknown',
-    },
-    apple: {
-      ...previous?.apple,
-      enabled: preferences.providers.apple.enabled,
-      auth: previous?.apple.auth ?? 'unknown',
-    },
-    qq: {
-      ...previous?.qq,
-      enabled: preferences.providers.qq.enabled,
-      auth: previous?.qq.auth ?? 'unknown',
-    },
+  const map = {} as Record<ProviderId, ProviderRuntimeState>
+  for (const id of PROVIDER_IDS) {
+    map[id] = {
+      ...previous?.[id],
+      enabled: preferences.providers[id].enabled,
+      // 游客平台没有登录流程，会话始终可用。
+      auth: isGuestOnlyProvider(id) ? 'authenticated' : previous?.[id].auth ?? 'unknown',
+    }
   }
+  return map
+}
+
+function enabledMap(byId: Record<ProviderId, ProviderRuntimeState>): Record<ProviderId, { enabled: boolean }> {
+  const map = {} as Record<ProviderId, { enabled: boolean }>
+  for (const id of PROVIDER_IDS) map[id] = { enabled: byId[id].enabled }
+  return map
 }
 
 function preferencesOf(state: ProviderStore): ProviderPreferences {
   return {
-    providers: {
-      netease: { enabled: state.byId.netease.enabled },
-      qq: { enabled: state.byId.qq.enabled },
-      apple: { enabled: state.byId.apple.enabled },
-    },
+    providers: enabledMap(state.byId),
     playbackOrder: state.playbackOrder,
     preferOriginSource: state.preferOriginSource,
     multiSourceFallback: state.multiSourceFallback,
@@ -117,14 +112,9 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         ...state.byId,
         [id]: { ...state.byId[id], enabled },
       }
-      const providers = {
-        netease: { enabled: byId.netease.enabled },
-        qq: { enabled: byId.qq.enabled },
-        apple: { enabled: byId.apple.enabled },
-      }
       return {
         byId,
-        playbackOrder: normalizePlaybackOrder(state.playbackOrder, providers),
+        playbackOrder: normalizePlaybackOrder(state.playbackOrder, enabledMap(byId)),
       }
     })
     persist(get())
@@ -132,11 +122,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   setPlaybackOrder(order) {
     set((state) => ({
-      playbackOrder: normalizePlaybackOrder(order, {
-        netease: { enabled: state.byId.netease.enabled },
-        qq: { enabled: state.byId.qq.enabled },
-        apple: { enabled: state.byId.apple.enabled },
-      }),
+      playbackOrder: normalizePlaybackOrder(order, enabledMap(state.byId)),
     }))
     persist(get())
   },
@@ -162,6 +148,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   },
 
   setAccountState(id, auth, profile, options) {
+    if (isGuestOnlyProvider(id)) return
     advanceProviderAccountSession(id)
     // 同步通知页面前先失效缓存，避免新账号首帧读取上个会话的数据。
     clearProviderRequestCache(id)
@@ -174,11 +161,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       }
       return {
         byId,
-        playbackOrder: normalizePlaybackOrder(state.playbackOrder, {
-          netease: { enabled: byId.netease.enabled },
-          qq: { enabled: byId.qq.enabled },
-          apple: { enabled: byId.apple.enabled },
-        }),
+        playbackOrder: normalizePlaybackOrder(state.playbackOrder, enabledMap(byId)),
       }
     })
     if (auth !== 'authenticated') persist(get())

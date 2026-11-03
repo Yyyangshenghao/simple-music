@@ -36,7 +36,7 @@ beforeEach(() => {
   h.instrumental.mockReset().mockReturnValue(false)
   usePlayerStore.setState({ ...initialPlayer, currentTrack: apple, resolvedTrack: null, position: 15, status: 'paused' })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
-    apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
+    apple: { enabled: true, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
   } })
   useGameModeStore.setState({ enabled: false })
   useVisualStore.getState().updateFx({ desktopLyrics: false })
@@ -324,7 +324,7 @@ describe('宿主持有歌词获取与归属', () => {
     const local: Track = { ...apple, provider: 'local', source: 'local', id: 'file1' }
     usePlayerStore.setState({ currentTrack: local })
     useProviderStore.setState({ playbackOrder: [], byId: {
-      apple: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, netease: { enabled: false, auth: 'anonymous' }
+      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, netease: { enabled: false, auth: 'anonymous' }
     } })
     h.fetch.mockResolvedValueOnce({ ...result, source: 'local' })
     stopLoader = initLyricsLoader()

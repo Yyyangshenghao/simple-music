@@ -1490,8 +1490,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const resolvedId = url.searchParams.get('resolvedId') || ''
       const quality = url.searchParams.get('quality') || ''
       const cacheContext: AudioCacheContext | undefined =
-        (originSource === 'netease' || originSource === 'qq')
-        && (resolvedSource === 'netease' || resolvedSource === 'qq')
+        (originSource === 'netease' || originSource === 'qq' || originSource === 'kugou')
+        && (resolvedSource === 'netease' || resolvedSource === 'qq' || resolvedSource === 'kugou')
         && originId && resolvedId && quality
           ? {
               origin: { source: originSource, id: originId },

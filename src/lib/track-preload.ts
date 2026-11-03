@@ -42,9 +42,11 @@ export function resolveSongUrl(
   const key = trackKey(track, quality)
   const pending = songUrlRequests.get(key)
   if (pending && !pending.controller.signal.aborted) return joinUrlRequest(pending, signal)
-  const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
+  const path = track.source === 'qq' ? '/api/qq/song/url' : track.source === 'kugou' ? '/api/kugou/song/url' : '/api/song/url'
   const params =
-    track.source === 'qq'
+    track.source === 'kugou'
+      ? { hash: String(track.id ?? ''), quality }
+      : track.source === 'qq'
       ? {
           mid: String(track.mid ?? track.id ?? ''),
           mediaMid: String(track.mediaMid ?? ''),

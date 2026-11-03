@@ -190,9 +190,11 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   if (!title || !Number.isFinite(duration) || duration <= 0) return null
   const names = (track.artists ?? []).map(artist => artist.name).filter(Boolean)
   const artist = (names.length ? names.join('、') : String(track.artist ?? '')).trim()
+  // 酷狗自己的歌曲按文件 hash 精确查找，候选就是本曲的歌词，不再按文字做同曲校验。
+  const ownHash = track.source === 'kugou' ? String(track.id ?? '') : ''
   let rec: KugouLyricResponse
   try {
-    rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)), ...(refresh ? { refresh: '1' } : {}) }, { signal })
+    rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)), ...(ownHash ? { hash: ownHash } : {}), ...(refresh ? { refresh: '1' } : {}) }, { signal })
   } catch (error) {
     if (strict) throw error
     return null
@@ -206,7 +208,7 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
       ...track, id: 'kugou', name: candidate.title, artist: String(candidate.artist ?? ''), artists: [],
       album: undefined, duration: Number(candidate.duration), isrc: undefined, ISRC: undefined,
     }
-    if (!isLyricMatch(track, target)) { mismatch = true; continue }
+    if (!ownHash && !isLyricMatch(track, target)) { mismatch = true; continue }
     const krc = parseKrc(candidate.text)
     krc.wordLines = stripWordLineCredits(krc.wordLines, track.name)
     if (!krc.wordLines.length) continue
@@ -409,6 +411,10 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
         roma: roma.length ? alignTranslation(main, roma) : [],
         wordLines,
       }
+    }
+
+    if (track.source === 'kugou') {
+      return await upgradeLyricsWithKugou(track, { ...emptyLyrics, source: 'kugou' }, signal, strict) ?? emptyLyrics
     }
 
     // 本地音乐:曲目同目录的同名 .lrc。server 端点与 localMusicService.getLyrics 一直都在,

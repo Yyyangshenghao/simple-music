@@ -17,7 +17,7 @@ import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { AccountButton } from '../components/Settings/AccountButton'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { ProxySettings } from '../components/Settings/ProxySettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
@@ -49,7 +49,7 @@ import {
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
-import type { ProviderId } from '../providers/types'
+import { isGuestOnlyProvider, type ProviderId } from '../providers/types'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
@@ -1293,9 +1293,9 @@ export function SettingsPage() {
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
                         ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
-                          : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
+                          : isGuestOnlyProvider(source) ? '游客可用，付费歌曲仅试听' : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
                         : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
-                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : AppleMusicIcon
+                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : source === 'kugou' ? KugouLogo : AppleMusicIcon
                     return (
                       <div data-setting-row className={styles.providerRow} key={source}>
                         <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
@@ -1317,7 +1317,7 @@ export function SettingsPage() {
                             onChange={(enabled) => setProviderEnabled(source, enabled)}
                             aria-label={`${enabledLabel(active)}${provider.descriptor.label}`}
                           />
-                          {source === 'apple' ? <AppleMusicSettings /> : <AccountButton
+                          {source === 'apple' ? <AppleMusicSettings /> : isGuestOnlyProvider(source) ? null : <AccountButton
                             label={`${busy ? connected ? '退出中' : '登录中' : connected ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
                             exit={connected}
                             busy={busy}

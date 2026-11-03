@@ -1,3 +1,4 @@
+import type { ProviderId } from '../providers/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TrackSearch } from '../components/ui/TrackSearch'
 import { matchingTrackIndices } from '../lib/track-search'
@@ -22,7 +23,7 @@ const TRACK_ROW_HEIGHT = 56
 
 interface ArtistSongsPageProps {
   id: unknown
-  source: 'netease' | 'qq' | 'apple'
+  source: ProviderId
 }
 
 export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {

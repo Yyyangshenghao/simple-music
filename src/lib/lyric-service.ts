@@ -18,6 +18,8 @@ function participating(source: ProviderId): boolean {
 
 /** 设置中关闭的平台不参与歌词查询，账号与游客都不用。 */
 export function lyricPlatformEnabled(source: ProviderId): boolean {
+  // 酷狗的歌词就是酷狗歌词库，沿用「酷狗歌词」开关。
+  if (source === 'kugou') return useSettingsStore.getState().lyricsKugouFallback
   return useSettingsStore.getState().lyricsPlatformSources[source] !== false
 }
 

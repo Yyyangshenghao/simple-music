@@ -1,7 +1,7 @@
 // 领域类型。Track/Playlist 对齐 server 返回（netease-client.ts 的 mapSongRecord/mapDiscoverPlaylist），
 // FxParams/FxSnapshot 对齐 public/default-user-fx-archive.json 以保证存档互通。
 
-export const ONLINE_MUSIC_SOURCES = ['netease', 'qq', 'apple'] as const
+export const ONLINE_MUSIC_SOURCES = ['netease', 'qq', 'apple', 'kugou'] as const
 export type OnlineMusicSource = (typeof ONLINE_MUSIC_SOURCES)[number]
 export type MusicSource = OnlineMusicSource | 'local'
 // max = 不锁档位,服务端按每首歌实际可得的最高档(母带/Hi-Res/无损…)逐级回退;

@@ -5,9 +5,9 @@ import { downloadContentType, downloadFromCache, findDownload, listDownloads, re
 import { getSongDownloadConfig, setSongDownloadDir } from '../lib/song-downloads'
 import { promises as fs } from 'node:fs'
 
-function refFrom(source: unknown, id: unknown): { source: 'netease' | 'qq'; id: string } | null {
+function refFrom(source: unknown, id: unknown): { source: 'netease' | 'qq' | 'kugou'; id: string } | null {
   const text = String(id ?? '').trim()
-  return (source === 'netease' || source === 'qq') && text ? { source, id: text } : null
+  return (source === 'netease' || source === 'qq' || source === 'kugou') && text ? { source, id: text } : null
 }
 
 export const songDownloadRoutes: RouteHandler = async (req, res, url, ctx) => {
@@ -76,7 +76,7 @@ export const songDownloadRoutes: RouteHandler = async (req, res, url, ctx) => {
     const body = await readJson<{ entryId?: unknown; dir?: unknown; origin?: Record<string, unknown> }>(req)
     const origin = body?.origin
     if (typeof body?.entryId !== 'string' || typeof body.dir !== 'string'
-      || !origin || (origin.source !== 'netease' && origin.source !== 'qq') || typeof origin.id !== 'string' || !origin.id) {
+      || !origin || (origin.source !== 'netease' && origin.source !== 'qq' && origin.source !== 'kugou') || typeof origin.id !== 'string' || !origin.id) {
       throw new Error('无效的歌曲下载请求')
     }
     const text = (value: unknown) => typeof value === 'string' ? value : undefined

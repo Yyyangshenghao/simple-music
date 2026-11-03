@@ -39,7 +39,7 @@ describe('content provider preference', () => {
     const pending = {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'unknown' },
-      apple: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' },
     }
     expect(resolveContentProvider('qq', pending)).toBeNull()
     const temporaryFallback = resolveContentProvider('qq', pending, false)
@@ -49,7 +49,7 @@ describe('content provider preference', () => {
     const invalid = {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: false, auth: 'anonymous' },
-      apple: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' },
     }
     const stableFallback = resolveContentProvider('qq', invalid)
     expect(stableFallback).toBe('netease')

@@ -40,6 +40,10 @@
   - `lyric` 默认只取普通歌词；后台升级使用 `words=1` 请求手机接口的加密 QRC，由固定版本 `qrc-decoder` 解码正文、翻译与音译。缺数字 ID 时按 MID 补详情；手机接口不携带用户 Cookie，失败仍返回普通歌词，不阻塞首次显示。
   - 歌单浏览按原始返回位置翻页，有 MID 但缺名称的歌曲以身份占位标题保留，版权/会员字段和合法重复位置不作过滤。摘要偏大时允许明确终页及无标记空终页展示实际可读列表；空页仍显式声明有下一页、分页间总数变化或达到上限仍有更多时报告错误。缺 MID 的隐藏条目无法还原；该浏览规则与同步写入前的严格快照校验独立。
 - **`routes/kugou-lyrics.ts`**(`lib/kugou-lyrics.ts`):`GET /api/kugou/lyric?title&artist&duration` 在酷狗歌词库按“歌手 - 歌名 + 时长”搜索，时长 ±3 秒粗筛后最多下载 2 个候选并解密 KRC，返回 `{ candidates: [{ title, artist, duration, text }] }`；歌名取 KRC `[ti:]` 以保留版本标记。不需要登录或设备注册，签名与解密参考 LDDC。固定上游域名，2.5 秒超时，失败熔断 10 分钟；结果缓存在 userDataDir/kugou-lyrics（命中 7 天、未收录 6 小时），上游失败不写缓存。
+- **`routes/kugou-music.ts`**(`lib/kugou-client.ts`，酷狗游客接口，不读写 Cookie):`/api/kugou/{search,search/artists,search/albums,search/playlists,search/hotkeys,song/detail,song/url,song/qualities,album/detail,album/songs,artist/detail,artist/songs,artist/albums,playlist/tracks,recommend/playlists,toplist,toplist/preview}`。
+  - 只请求固定域名（mobilecdn/songsearch/m/trackercdn.kugou.com）且过 `isSafeUpstreamUrl`；Track.id 为小写 128 档 hash，duration 毫秒；缺歌手 ID 的列表歌曲 `artists[].id` 为 null。
+  - `song/url` 先查单曲详情取各档 hash，从请求档向下经 trackercdn 取完整文件；全都取不到（付费/会员曲）时取 `clip_hash` 的 60 秒试听并标 `trial`。`song/qualities` 并发探测，只列游客能取到完整文件的档。榜单 id 以 `rank:` 前缀并入 `playlist/tracks`。
+  - 歌词沿用 `/api/kugou/lyric`，酷狗自己的歌带 `hash` 精确查找。登录、VIP 与网关签名接口（需设备注册）暂未接入。
 - **`routes/podcast.ts`**:`/api/podcast/{hot,search,detail,programs,my,my/items,dj-beatmap}`;DJ 节目锁拍分析在 `lib/dj-analyzer.ts`(离线分析,自参考项目移植)
 - **`routes/local-music.ts`** + `lib/local-library.ts`:`/api/local/{tracks,availability,scan,remove-folder,audio,cover,lyric}`;扫描用户选定文件夹、`music-metadata` 解析内嵌标签与封面,索引持久化在 userDataDir/local-library.json。`GET lyric` 返回 `{ lyric, lyricOrigin, metadata }`：优先同名 .lrc，其次毫秒同步的内嵌歌词（SYLT 等）或自带 LRC 时间标记的内嵌文本；`metadata` 只在标题、艺人与时长都来自文件标签时给出（含合法 ISRC），供在线匹配，不回传路径。`POST availability` 每批最多接收 100 个索引 ID，核实音频文件仍存在，只返回可用 ID，不修改索引或接受客户端文件路径。
 - **`routes/custom-background.ts`** + `lib/custom-background.ts`:`/api/background/file?id=` 只按随机 id 读取主进程复制进 userDataDir/backgrounds 的自定义背景图片/视频(视频支持 Range);导入与删除只走主进程 IPC,不接受客户端文件路径。Wallpaper Engine 壁纸不走这里。

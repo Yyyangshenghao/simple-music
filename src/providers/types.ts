@@ -25,6 +25,14 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+/** 只有游客能力、没有登录流程的平台（酷狗第一阶段）：会话视为始终可用，不显示登录入口。 */
+export const GUEST_ONLY_PROVIDER_IDS = ['kugou'] as const satisfies readonly ProviderId[]
+export type GuestOnlyProviderId = (typeof GUEST_ONLY_PROVIDER_IDS)[number]
+
+export function isGuestOnlyProvider(id: ProviderId): id is GuestOnlyProviderId {
+  return (GUEST_ONLY_PROVIDER_IDS as readonly ProviderId[]).includes(id)
+}
+
 export function providerIdOf(source: MusicSource): ProviderId | null {
   return isProviderId(source) ? source : null
 }

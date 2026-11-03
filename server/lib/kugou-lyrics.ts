@@ -7,7 +7,7 @@ import { isSafeUpstreamUrl } from './security'
 /**
  * 酷狗逐字歌词（KRC）兜底：按"歌手 - 歌名 + 时长"在酷狗歌词库搜索，再下载并解密 KRC。
  * 接口与签名、解密方式参考 LDDC（https://github.com/chenmozhijin/LDDC，GPL-3.0）。
- * 只用歌词搜索与下载两个接口，不需要登录、设备注册或酷狗歌曲 hash。
+ * 只用歌词搜索与下载两个接口，不需要登录或设备注册；酷狗自己的歌曲另带文件 hash 精确查找。
  * 匹配是否可靠由渲染层用同曲规则判定；这里只按时长粗筛并返回候选原文。
  * 结果（包括"没找到"）缓存到磁盘；上游连不上时熔断一段时间，避免每首歌都等超时。
  */
@@ -29,6 +29,8 @@ export interface KugouLyricQuery {
   artist: string
   /** 毫秒 */
   duration: number
+  /** 酷狗自己的歌曲：按文件 hash 精确查歌词，不靠歌名猜。 */
+  hash?: string
 }
 
 export interface KugouLyricCandidate {
@@ -47,7 +49,9 @@ export function parseKugouLyricQuery(params: URLSearchParams): KugouLyricQuery |
   const duration = Number(params.get('duration'))
   if (!title || title.length > MAX_TEXT_LENGTH || artist.length > MAX_TEXT_LENGTH) return null
   if (!Number.isSafeInteger(duration) || duration < 1000 || duration > 3_600_000) return null
-  return { title, artist, duration }
+  const hash = String(params.get('hash') ?? '').trim().toLowerCase()
+  if (hash && !/^[0-9a-f]{32}$/.test(hash)) return null
+  return hash ? { title, artist, duration, hash } : { title, artist, duration }
 }
 
 /** 酷狗客户端签名：盐值 + 按键排序的 k=v 串 + 盐值，取 md5。 */
@@ -99,6 +103,7 @@ async function searchAndDownload(query: KugouLyricQuery, fetchImpl: typeof fetch
     duration: String(query.duration),
     lrctxt: '1',
     man: 'no',
+    ...(query.hash ? { hash: query.hash } : {}),
   }, fetchImpl)
   // 没收录时上游返回 status 404 与空候选，按"没找到"处理。
   const list = Array.isArray(search.candidates) ? search.candidates as Record<string, unknown>[] : []
@@ -168,7 +173,7 @@ export async function fetchKugouLyric(
   refresh = false
 ): Promise<KugouLyricCandidate[]> {
   // 时长取整到秒，同一首歌不同平台的毫秒差不会各占一份缓存。
-  const key = createHash('sha1').update(JSON.stringify([query.title, query.artist, Math.round(query.duration / 1000)])).digest('hex')
+  const key = createHash('sha1').update(JSON.stringify(query.hash ? ['hash', query.hash] : [query.title, query.artist, Math.round(query.duration / 1000)])).digest('hex')
   const requestKey = refresh ? `${key}:probe` : key
   const pending = inflight.get(requestKey)
   if (pending) return pending

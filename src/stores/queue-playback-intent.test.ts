@@ -60,7 +60,7 @@ describe('队列详情等待期间的播放意图', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: true, auth: 'authenticated' },
+      apple: { enabled: true, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' },
     } })
     useSettingsStore.setState({ playMode: 'order', audioQuality: 'lossless' })
     usePlaylistStore.setState({ queue: [], queueIndex: -1, shuffleOrder: [], queueContextId: null })

@@ -43,6 +43,22 @@ describe('酷狗逐字歌词兜底', () => {
     expect(parseKugouLyricQuery(new URLSearchParams('title=&duration=269000'))).toBeNull()
     expect(parseKugouLyricQuery(new URLSearchParams('title=a&duration=12.5'))).toBeNull()
     expect(parseKugouLyricQuery(new URLSearchParams(`title=${'a'.repeat(201)}&duration=269000`))).toBeNull()
+    expect(parseKugouLyricQuery(new URLSearchParams('title=晴天&duration=269000&hash=B3A52A7A958BF0AED0EBFBA2E9A818B7')))
+      .toEqual({ title: '晴天', artist: '', duration: 269000, hash: 'b3a52a7a958bf0aed0ebfba2e9a818b7' })
+    expect(parseKugouLyricQuery(new URLSearchParams('title=晴天&duration=269000&hash=../etc'))).toBeNull()
+  })
+
+  it('酷狗自己的歌曲按 hash 搜索，缓存按 hash 分键', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(search([candidate('1')]))
+      .mockResolvedValueOnce(json({ contenttype: 0, content: encryptKrc(KRC) }))
+      .mockResolvedValueOnce(search([]))
+    const hash = 'b3a52a7a958bf0aed0ebfba2e9a818b7'
+    expect(await fetchKugouLyric(dir, { ...query, hash }, fetchMock as typeof fetch)).toHaveLength(1)
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('hash')).toBe(hash)
+    // 同名同长但不带 hash 的查询不复用 hash 结果。
+    expect(await fetchKugouLyric(dir, query, fetchMock as typeof fetch)).toEqual([])
+    expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get('hash')).toBeNull()
   })
 
   it('搜索后按时长粗筛，下载解密并以 KRC 标签作为候选歌名', async () => {
