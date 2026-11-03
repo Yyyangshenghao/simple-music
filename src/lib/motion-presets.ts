@@ -46,6 +46,9 @@ export const coverReturnTransition: Transition = { type: 'tween', duration: 0.24
 /** 流体玻璃分段指示器：低阻尼带少量过冲，落位时像液滴撞停后回弹。 */
 export const liquidPillSpring = { stiffness: 380, damping: 22, mass: 0.8 }
 
+/** 流体拖拽指示器的两条边：前沿紧跟指针、后沿用 liquidPillSpring 追上，移动中先拉长再收拢。 */
+export const liquidDragLead = { stiffness: 620, damping: 38, mass: 0.6 }
+
 /** 流体玻璃指示器浮起成透镜 / 落回的弹簧。 */
 export const liquidLiftSpring = { stiffness: 520, damping: 30, mass: 0.6 }
 
@@ -96,6 +99,17 @@ export const popoverSprout = {
   grow: { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   retract: { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)' },
 } satisfies Record<string, KeyframeAnimationOptions>
+
+/**
+ * 歌词设置齿轮：点开时齿轮逆时针拧开、浮层绕齿轮旋入；收起时反向拧紧。
+ * 齿轮转角与时长须与 LyricsPanel.module.css 的 .railPopAnchor 齿轮规则一致（8 齿，90° 为两齿）。
+ */
+export const gearPopoverTwist = {
+  open: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+  close: { duration: 0.2, ease: [0.4, 0, 1, 1] },
+  turn: 18,
+  scale: 0.35,
+} as const
 
 /** 任务面板从入口展开；退场更快，快速重开时可从当前形态反向。 */
 export const taskPopoverMotion = {
