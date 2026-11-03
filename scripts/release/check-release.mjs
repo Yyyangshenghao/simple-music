@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // 发版前的元数据校验：CI 发布工作流、发布 PR 检查与本地 `npm run release:check` 共用同一套规则。
 //   node scripts/release/check-release.mjs              按 package.json 版本校验正式版
 //   node scripts/release/check-release.mjs 2.6.2        校验指定正式版

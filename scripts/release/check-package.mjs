@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // 打包产物检查：asar 里只能有运行时文件，安装包与更新清单齐全。CI 打包后自动执行，本地打包后也可手动跑。
 //   node scripts/release/check-package.mjs mac|win
 // 2.6.0 曾因 files 白名单失效把 docs/、src/ 整个打进 asar，安装包从约 115MB 涨到约 250MB。
