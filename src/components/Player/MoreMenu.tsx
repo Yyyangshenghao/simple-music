@@ -175,7 +175,13 @@ function OfflineSection({ open }: { open: boolean }) {
   if (!track || track.source === 'local' || track.source === 'apple') return null
   const saved = cacheStatus?.state === 'pinned' || cacheStatus?.state === 'cached'
   const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : '已自动缓存'
-  const download = <button type="button" className={styles.pill} onClick={() => void useOfflineCacheStore.getState().save(track)}>下载</button>
+  const download = (
+    <button type="button" className={styles.iconAction} onClick={() => void useOfflineCacheStore.getState().save(track)} title="下载歌曲" aria-label="下载歌曲">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />
+      </svg>
+    </button>
+  )
   const run = async (action: () => Promise<void>) => {
     try {
       await action()
@@ -187,11 +193,13 @@ function OfflineSection({ open }: { open: boolean }) {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>下载与离线</span>
-        {/* 未保存时只有「下载」一个动作，直接放在标题行；已缓存/已离线时标题行写状态，动作排在下方 */}
-        {saved ? <span className={styles.sectionStatus}>{label}</span> : download}
+        {/* 下载是图标按钮常驻标题行；已缓存/已离线时旁边写状态，离线保存与删除排在下方 */}
+        <span className={styles.headActions}>
+          {saved && <span className={styles.sectionStatus}>{label}</span>}
+          {download}
+        </span>
       </div>
       {saved && <div className={styles.pills}>
-        {download}
         {cacheStatus?.state === 'cached' && (
           <button type="button" className={styles.pill} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
             保存为离线音乐
