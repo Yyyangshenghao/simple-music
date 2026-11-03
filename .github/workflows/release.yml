@@ -110,15 +110,16 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run typecheck
+
+      - run: npm test
+
       # 预发版不提交版本号；只在构建机上把 tag 版本写进 package.json，安装包与应用内显示随之带 -beta.N。
+      # 放在测试之后：测试按源码版本校验发行说明等，预发版号没有对应的说明文件。
       - name: Apply prerelease version
         if: needs.validate.outputs.prerelease == 'true'
         shell: bash
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
-
-      - run: npm run typecheck
-
-      - run: npm test
 
       # package.json 里的 repository 字段会让 electron-builder 在 CI(CI=true)下自动推断
       # GitHub publish 目标并尝试联网发布，没传 --publish 也一样，缺 GH_TOKEN 就直接报错退出。
