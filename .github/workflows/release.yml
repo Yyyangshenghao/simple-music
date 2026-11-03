@@ -1,205 +1,145 @@
 name: Release
 
+# 手动触发发版：先校验、双平台测试与正式打包，全部成功后最后一步才创建 tag 与 Release。
+# 任何一步失败都不会留下 tag，修复后用同一个版本号重跑即可，版本号不会被失败的构建占掉。
+#   正式版：gh workflow run release.yml --ref master -f channel=stable
+#   预发版：gh workflow run release.yml --ref dev/X.Y.Z -f channel=beta（beta 号自动递增）
+#   只打包不发布：再加 -f dry_run=true
+# 不再监听 tag 推送：手动推送的 v* tag 不会触发任何发布。
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 发布通道
+        type: choice
+        options: [stable, beta]
+        default: stable
+      dry_run:
+        description: 只打包和检查，不创建 tag 与 Release
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+# 同一时间只跑一个发版，排队等待而不是取消，避免两次发版抢同一个版本号。
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  validate:
+  prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
-      prerelease: ${{ steps.kind.outputs.prerelease }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
-
-      # vX.Y.Z-beta.N / -rc.N 是预发版：只给维护者验收真实安装包，不进 master、不写发行说明。
-      # GitHub 预发布不会出现在 releases/latest，应用内更新检查看不到它。
-      - name: Detect release kind
-        id: kind
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$VERSION" == *-* ]]; then
-            [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+$ ]] || { echo "预发版 tag 须为 vX.Y.Z-beta.N 或 vX.Y.Z-rc.N"; exit 1; }
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Validate prerelease version
-        if: steps.kind.outputs.prerelease == 'true'
-        shell: bash
-        run: |
-          BASE="${GITHUB_REF_NAME#v}"
-          BASE="${BASE%%-*}"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          # 预发版的目标正式版号不能低于分支当前版本；构建时再把 tag 版本写入 package.json。
-          node -e 'const [a, b] = process.argv.slice(1).map(v => v.split(".").map(Number)); for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1) }' "$BASE" "$PACKAGE_VERSION" \
-            || { echo "预发版 $BASE 低于分支版本 $PACKAGE_VERSION"; exit 1; }
-
-      - name: Validate release metadata
-        if: steps.kind.outputs.prerelease == 'false'
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
-          LOCK_ROOT_VERSION="$(node -p "require('./package-lock.json').packages[''].version")"
-          NOTES_FILE="docs/release-notes-${VERSION}.md"
-          test "$GITHUB_REF_NAME" = "v${PACKAGE_VERSION}"
-          test "$LOCK_VERSION" = "$PACKAGE_VERSION"
-          test "$LOCK_ROOT_VERSION" = "$PACKAGE_VERSION"
-          test -f "$NOTES_FILE"
-          node - "$NOTES_FILE" <<'NODE'
-          const fs = require('fs')
-
-          const file = process.argv[2]
-          const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/)
-          const firstContent = lines.find((line) => line.trim())?.trim()
-          const updates = lines.findIndex((line) => line.trim() === '## 更新日志')
-          const compatibility = lines.findIndex((line) => line.trim() === '## 兼容说明')
-          const verification = lines.findIndex((line) => line.trim() === '## 验证情况')
-
-          if (firstContent !== '## 更新日志' || updates < 0 || compatibility <= updates || verification <= compatibility) {
-            throw new Error('发行说明必须依次包含更新日志、兼容说明和验证情况')
-          }
-
-          const details = lines.findIndex((line, index) => index > updates && index < compatibility && /^###\s+\S/.test(line.trim()))
-          const summaries = lines.slice(updates + 1, details < 0 ? compatibility : details).filter((line) => line.trim())
-          const compatibilityBody = lines.slice(compatibility + 1, verification).some((line) => line.trim())
-          const verificationBody = lines.slice(verification + 1).some((line) => line.trim())
-          if (summaries.length !== 4 || summaries.some((line) => !/^-\s+\S/.test(line.trim()) || line.length > 72)) {
-            throw new Error('更新日志必须恰好包含四条不超过 72 字符的摘要')
-          }
-          if (!compatibilityBody || !verificationBody) {
-            throw new Error('兼容说明和验证情况不能为空')
-          }
-          NODE
-
-  build:
-    needs: validate
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: mac
-            artifact: dist-mac
-          - os: windows-latest
-            target: win
-            artifact: dist-win
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22.12
-          cache: npm
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install production VMP signer
-        run: python -m pip install --upgrade castlabs-evs
-
-      - run: npm ci
-
-      - run: npm run typecheck
-
-      - run: npm test
-
-      # 预发版不提交版本号；只在构建机上把 tag 版本写进 package.json，安装包与应用内显示随之带 -beta.N。
-      # 放在测试之后：测试按源码版本校验发行说明等，预发版号没有对应的说明文件。
-      - name: Apply prerelease version
-        if: needs.validate.outputs.prerelease == 'true'
+      - name: Resolve version
+        id: version
         shell: bash
-        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
-
-      # package.json 里的 repository 字段会让 electron-builder 在 CI(CI=true)下自动推断
-      # GitHub publish 目标并尝试联网发布，没传 --publish 也一样，缺 GH_TOKEN 就直接报错退出。
-      # 这里显式关掉自动发布：只在本 job 里产出本地安装包，真正发布交给下面单独的 publish job，
-      # 避免两个 matrix job 各自抢着建 release 造成竞态。
-      - name: Build production package with Widevine VMP signature
-        run: |
-          npm run build
-          npx electron-builder --${{ matrix.target }} --publish never
         env:
-          EVS_ACCOUNT_NAME: ${{ secrets.EVS_ACCOUNT_NAME }}
-          EVS_PASSWD: ${{ secrets.EVS_PASSWD }}
-          EVS_NO_ASK: '1'
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$CHANNEL" == stable ]]; then
+            # 正式版只能从 master 发，版本取 package.json。
+            [[ "$GITHUB_REF" == refs/heads/master ]] || { echo "::error::正式版只能从 master 发布，当前为 $GITHUB_REF_NAME"; exit 1; }
+            VERSION="$PACKAGE_VERSION"
+            PRERELEASE=false
+          else
+            # 预发版从 dev/X.Y.Z 发，目标版本取分支名，beta 号在远端已有的基础上加一。
+            [[ "$GITHUB_REF_NAME" =~ ^dev/([0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "::error::预发版只能从 dev/X.Y.Z 发布，当前为 $GITHUB_REF_NAME"; exit 1; }
+            BASE="${BASH_REMATCH[1]}"
+            LAST="$(git ls-remote --tags origin | sed -nE "s#.*refs/tags/v${BASE//./\\.}-beta\.([0-9]+)\$#\1#p" | sort -n | tail -1)"
+            VERSION="${BASE}-beta.$(( ${LAST:-0} + 1 ))"
+            PRERELEASE=true
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
+            echo "::error::v${VERSION} 已存在，不能覆盖已发布的版本；正式版请先升级 package.json 版本"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "### 本次发布 v${VERSION}（${CHANNEL}，提交 ${GITHUB_SHA::7}）" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: |
-            dist/*.dmg
-            dist/*.dmg.blockmap
-            dist/*.exe
-            dist/*.exe.blockmap
-            dist/latest*.yml
-          if-no-files-found: error
+      - name: Validate release metadata
+        run: node scripts/release/check-release.mjs "${{ steps.version.outputs.version }}"
 
-  # 两个平台各自只上传构建产物为 artifact，不在 matrix 里直接 --publish：
-  # 并行的两个 job 同时 publish 会各自建一个 draft release（找不到彼此刚建的那个），
-  # 导致同一个 tag 拆成两个不完整的 draft。改为等两边都构建完，
-  # 由这个单独 job 统一创建一个 release 并把所有产物传上去。
+  package:
+    needs: prepare
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      sign: true
+      retention-days: 7
+    secrets: inherit
+
   publish:
-    needs: [validate, build]
+    needs: [prepare, package]
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      # 发行说明是发布协议的必需输入；缺失时直接阻止发布不完整的 Release。
       - name: Prepare release notes
-        if: needs.validate.outputs.prerelease == 'false'
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          NOTES_FILE="docs/release-notes-${VERSION}.md"
-          test -f "$NOTES_FILE"
-          cp "$NOTES_FILE" release-notes.md
-
-      - name: Prepare prerelease notes
-        if: needs.validate.outputs.prerelease == 'true'
-        shell: bash
-        run: |
-          {
-            echo "## 预发版"
-            echo
-            echo "仅供维护者验收真实安装包，不会推送给自动更新。来源分支提交：\`${GITHUB_SHA::7}\`。"
-            echo
-            echo "装上后与正式版共用应用数据；正式版 ${GITHUB_REF_NAME%%-*} 发布后可在应用内直接更新。"
-          } > release-notes.md
+          if [[ "${{ needs.prepare.outputs.prerelease }}" == true ]]; then
+            {
+              echo "## 预发版"
+              echo
+              echo "仅供维护者验收真实安装包，不会推送给自动更新。来源分支 \`${GITHUB_REF_NAME}\`，提交 \`${GITHUB_SHA::7}\`。"
+              echo
+              echo "装上后与正式版共用应用数据；正式版 v${VERSION%%-*} 发布后可在应用内直接更新。"
+            } > release-notes.md
+          else
+            cp "docs/release-notes-${VERSION}.md" release-notes.md
+          fi
 
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
 
-      - name: Validate release assets
+      # 先建草稿并传完所有文件，再一次性公开：草稿不会创建 tag，中途失败也不会留下 tag 或缺文件的公开 Release。
+      - name: Create draft release
         shell: bash
         run: |
-          find release-assets -maxdepth 1 -type f -name '*-arm64.dmg' | grep -q .
-          find release-assets -maxdepth 1 -type f -name '*.dmg' ! -name '*-arm64.dmg' | grep -q .
-          find release-assets -maxdepth 1 -type f -name '*-Setup.exe' | grep -q .
-          find release-assets -maxdepth 1 -type f -name '*-portable.exe' | grep -q .
-          test -f release-assets/latest-mac.yml
-          test -f release-assets/latest.yml
-          find release-assets -maxdepth 1 -type f -name '*-arm64.dmg.blockmap' | grep -q .
-          find release-assets -maxdepth 1 -type f -name '*.dmg.blockmap' ! -name '*-arm64.dmg.blockmap' | grep -q .
-          find release-assets -maxdepth 1 -type f -name '*-Setup.exe.blockmap' | grep -q .
+          # 重跑时清掉上次失败遗留的同名草稿（只删草稿，已公开的 Release 不会被动到）。
+          if [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" == true ]]; then
+            gh release delete "$TAG" --yes
+          fi
+          FLAGS=()
+          [[ "${{ needs.prepare.outputs.prerelease }}" == true ]] && FLAGS+=(--prerelease)
+          gh release create "$TAG" release-assets/* \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "Simple Music $TAG" \
+            --notes-file release-notes.md \
+            "${FLAGS[@]}"
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          name: Simple Music ${{ github.ref_name }}
-          body_path: release-notes.md
-          draft: false
-          prerelease: ${{ needs.validate.outputs.prerelease == 'true' }}
-          make_latest: ${{ needs.validate.outputs.prerelease == 'true' && 'false' || 'true' }}
-          files: release-assets/**
+      - name: Publish release
+        shell: bash
+        run: |
+          if [[ "${{ needs.prepare.outputs.prerelease }}" == true ]]; then
+            gh release edit "$TAG" --draft=false --latest=false
+          else
+            gh release edit "$TAG" --draft=false --latest
+          fi
+          echo "已发布 $(gh release view "$TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

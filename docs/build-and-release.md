@@ -13,16 +13,16 @@
 3. 在 dev 更新版本文件、发行说明，创建独立发布元数据提交；
 4. 完成逻辑复核、自动化验证和必要的 UI 冒烟；
 5. 创建 dev → master 的发布 PR，经评审和检查后使用 Merge commit 合并；
-6. 核对合并后的 master 提交，对该提交创建并推送 annotated tag；
+6. 核对合并后的 master 提交，从 master 手动触发 Release 工作流（tag 由工作流在全部构建成功后创建）；
 7. 等待 GitHub Actions 完成，核对 Release 与安装包，并同步仍在维护的 dev。
 
 所有者明确说“只推代码”“只推分支”“推送 feature/dev 分支”“不要升级版本”或“不要打 tag”时，只同步指定分支，不自动发布。创建 feature、合入 dev、写文档或讨论规范本身也不构成发布请求。
 
-所有者说“打预发版”“发 beta”“出个预发包”时，只按 [§0.7.1](#071-预发版验收真实安装包) 推送 dev 并打预发版 tag，不升级版本、不写发行说明、不合入 master。预发版同样是公开 Release，“推送”“提交并推送”不隐含打预发版 tag。
+所有者说“打预发版”“发 beta”“出个预发包”时，只按 [§0.7.1](#071-预发版验收真实安装包) 推送 dev 并从该 dev 触发预发版，不升级版本、不写发行说明、不合入 master。预发版同样是公开 Release，“推送”“提交并推送”不隐含发预发版。
 
 开始执行前告知目标版本、发布范围，以及将合入 master 并创建公开 tag/Release。完整发布请求已授权本流程内的 PR、合并与标签操作，不重复确认；冲突、版本范围不明确或需要额外绕过门禁时应停止说明。
 
-正常贡献与发布路径为 `feature/*` → `dev/X.Y.Z` → `master` → `vX.Y.Z` → Release，默认通过 feature → dev PR 集成。所有者本地维护的例外与授权范围以 [协作规范](../CONTRIBUTING.md#仓库所有者的本地维护流程) 为准，不能仅凭本发布文档认定免 PR 权限。master 只接收已验收的版本；未纳入本次发布的工作留在尚未合入待发布 dev 的 feature，或明确属于其他版本的 dev，不能混入待发布 dev。
+正常贡献与发布路径为 `feature/*` → `dev/X.Y.Z` → `master` → Release 工作流（创建 `vX.Y.Z` 与 Release），默认通过 feature → dev PR 集成。所有者本地维护的例外与授权范围以 [协作规范](../CONTRIBUTING.md#仓库所有者的本地维护流程) 为准，不能仅凭本发布文档认定免 PR 权限。master 只接收已验收的版本；未纳入本次发布的工作留在尚未合入待发布 dev 的 feature，或明确属于其他版本的 dev，不能混入待发布 dev。
 
 ### 0.2 版本号规则
 
@@ -52,6 +52,7 @@ git log <上一个版本标签>..HEAD --oneline
 git tag --list "v<目标版本>"
 git ls-remote --tags origin "refs/tags/v<目标版本>"
 npm version <目标版本> --no-git-tag-version
+npm run release:check   # 版本文件与发行说明，与发布工作流同一套规则
 npm run typecheck
 npm test
 npm run build
@@ -87,7 +88,7 @@ git diff --check
 - 类型检查、自动化测试和本次 UI 冒烟结果。
 ```
 
-发布工作流会把该文件原样作为 GitHub Release body；四条摘要从「更新日志」标题读取至首个三级详情标题（没有详情时读取至「兼容说明」）。文件缺失、三个标题及四条摘要格式不正确、`package.json` 与 `package-lock.json` 版本不一致，或 tag 与应用版本不一致时，`validate` job 必须失败，不能发布元数据不完整的版本。
+发布工作流会把该文件原样作为 GitHub Release body；四条摘要从「更新日志」标题读取至首个三级详情标题（没有详情时读取至「兼容说明」）。校验规则在 `scripts/release/check-release.mjs`，本地 `npm run release:check`、发布 PR 的 `release-metadata` 检查和发布工作流的 `prepare` job 共用。文件缺失、三个标题及四条摘要格式不正确，或 `package.json` 与 `package-lock.json` 版本不一致时校验失败，不能发布元数据不完整的版本。
 
 应用内「设置 → 关于应用 → 更新日志」按钮打开独立日志页，复用 `docs/release-notes-*.md`，随渲染层打包，离线可读。每次发布只需按上述模板新增对应版本的发行说明，不另维护一份应用内日志；保留历史文件，按版本倒序展示当前及更早版本的更新日志、分组详情中的各条变化和兼容说明，开发验收记录不展示。2.0.0 的旧标题「主要变化」继续兼容。发行说明必须在构建前写好；应用版本尚未升级时，不会展示更高版本的草稿。
 
@@ -101,12 +102,11 @@ git diff --check
 
 ```bash
 npm run build:mac   # Windows 机器上用 npm run build:win
-ls -lh dist/*.dmg dist/*.exe 2>/dev/null
-npx @electron/asar list "dist/mac-arm64/Simple Music.app/Contents/Resources/app.asar" | grep -vE '^/(out|node_modules|package\.json|build/icon)' | head
+node scripts/release/check-package.mjs mac   # Windows 上传 win；检查 asar 内容与必需产物，并列出安装包体积
 ```
 
 - 安装包体积与上一 Release 对比，明显变大时先查明原因；
-- asar 列表除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（上面最后一条命令应无输出）；`app.asar.unpacked` 只含目标平台和架构的原生库；
+- asar 除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（`check-package.mjs` 会检查并列出多余项；推送 dev 时 CI 也会用同样步骤试打包并检查）；`app.asar.unpacked` 只含目标平台和架构的原生库；
 - 用打出的 dmg/exe 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；
 - 本机无法验证的平台（如 Windows 安装、Intel Mac）优先用预发版（§0.7.1）在实机上验收；仍无法验证的，在发行说明「验证情况」中写明未实机验证。
 
@@ -125,37 +125,33 @@ git push -u origin dev/2.3.0
 
 随后创建 `dev/2.3.0` → `master` 的发布 PR，标题为 `chore(release): 发布 v2.3.0`。审核版本范围、验证结果和发行说明后，使用 **Merge commit** 合并；不得先在 dev 打正式标签，也不对整条 dev 使用 Squash/rebase merge。
 
-从 PR 返回结果取得合并后的 master 提交 SHA，核对该 SHA 上的版本、lockfile、发行说明和检查结果。不要假定本地 dev 的 HEAD、PR 合并前的 SHA 或此刻最新 master 恰好等于该发布提交。
+合并后确认 master 的 Source checks 通过，再从 master 触发发布工作流：
 
 ```bash
 git fetch origin master --tags
-# 将下值替换为该发布 PR 合并后的 master 提交 SHA
-release_commit='填写已核对的发布合并提交SHA'
-git show "${release_commit}:package.json"
-git show "${release_commit}:package-lock.json"
-git show "${release_commit}:docs/release-notes-2.3.0.md"
-# 再次确认本地、远端无 v2.3.0，并核对上述三个文件
-git tag --list v2.3.0
-git ls-remote --tags origin refs/tags/v2.3.0
-# 来源检查失败时不创建标签；创建失败时不推送，任一步失败都应停止
-git merge-base --is-ancestor "$release_commit" origin/master &&
-  git tag -a v2.3.0 "$release_commit" -m "Simple Music v2.3.0" &&
-  git push origin v2.3.0
+git show origin/master:package.json | grep '"version"'   # 应为目标版本
+git ls-remote --tags origin refs/tags/v2.3.0              # 应无输出
+gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref master -f channel=stable
+gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1   # 取 run id 后 gh run watch <id> --exit-status
 ```
 
-tag 必须指向发布 PR 合并后的 master 提交，包含 dev 中的独立发布元数据提交。发布工作流构建该 tag 的固定源码；**不能将 checkout 改成随时间移动的 master**。master 后续变化不得改变已经发布的同名版本。
+工作流按 `prepare`（校验分支、版本未被占用、发行说明）→ `package`（双平台测试、正式签名、打包、产物检查）→ `publish`（建草稿 Release 并上传全部文件，最后一次性公开）执行。**tag 由 `publish` 在公开 Release 时创建，指向触发时的 master 提交**；之前任何一步失败都不会留下 tag，修复后用同一版本号重新触发即可。
 
-### 0.5 推送后的发布验收
+- 不再手动创建或推送 `v*` tag：工作流不监听 tag 推送，手动推送的 tag 不会发布，反而会占住版本号让工作流拒绝发布。
+- 想先确认能打包而不发布时加 `-f dry_run=true`，安装包可在该次运行的 Artifacts 里下载。
+- 工作流用触发时的固定提交构建；同一时间只运行一个发布，后触发的排队等待。
 
-推送标签后不能立即结束任务，必须跟踪 GitHub Actions 到最终状态，并确认 GitHub Release 至少包含：
+### 0.5 发布后的验收
+
+触发发布后不能立即结束任务，必须跟踪 GitHub Actions 到最终状态，并确认 GitHub Release 至少包含：
 
 - macOS Intel 与 Apple Silicon 的 `.dmg`；
 - Windows 安装版 `-Setup.exe` 与便携版 `-portable.exe`；
 - `latest*.yml` 和对应 blockmap（供应用内更新与完整性校验使用）。
 
-工作流会在公开 Release 前自动检查这些必需产物；自动检查通过后仍需人工核对 Release 页面和文件名。
+`package` job 打包后由 `scripts/release/check-package.mjs` 自动检查这些必需产物和 asar 内容，草稿传完才公开；自动检查通过后仍需人工核对 Release 页面和文件名。
 
-最后报告目标版本、发布提交、tag、CI 状态、Release 链接和真实剩余风险。若 CI 只是临时基础设施故障，可重跑原工作流；如果是源码或打包问题，修复后发布下一个补丁版本，不移动或覆盖已经推送的 tag。
+最后报告目标版本、发布提交、tag、CI 状态、Release 链接和真实剩余风险。Release 公开前失败（无论是基础设施故障还是源码、打包问题）都没有 tag 产生：临时故障直接重跑失败的 job，源码问题修复并合入 master 后用同一版本号重新触发。Release 公开后才发现的问题，发布下一个补丁版本，不移动或覆盖已有 tag。
 
 ### 0.5.1 K 歌自托管模型附件
 
@@ -183,7 +179,8 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0
 ### 0.6 失败与回滚原则
 
 - 发布前失败：保留改动，修复后重新验证，不创建 tag；
-- 标签已推送但构建失败：先判断能否安全重跑；禁止静默强推或重写 tag；
+- 构建或发布失败：tag 只在 Release 公开时创建，失败时不存在 tag，修复后用同一版本号重新触发；`publish` 重跑会先清掉同名草稿；
+- 已公开的 tag 与 Release：禁止静默强推或重写 tag；
 - Release 已发布但应用存在严重问题：优先发布更高补丁版本；若需要撤下当前版本，必须由用户明确授权后再调整 GitHub Release 状态；
 - 任何时候都不自动删除远端分支、tag、Release 或安装包。
 
@@ -194,36 +191,36 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0
 | 入口 | 必须完成的检查 | 是否允许发布稳定版 |
 |---|---|---|
 | feature 合入所属 dev，或已获授权的 dev 本地维护 | 类型检查、全量测试、源码构建；受影响的 UI/播放/登录流程人工检查 | 否 |
-| dev 更新、dev PR → master | Windows/macOS 类型检查、全量测试、源码构建及版本范围复核；发布 PR 额外检查版本文件和发行说明 | 否 |
-| master 更新 | 对合并后的提交执行 Windows/macOS 类型检查、全量测试和源码构建 | 否；通过后才能为该发布提交打 tag |
-| 预发版 tag（`vX.Y.Z-beta.N` / `-rc.N`） | 校验 tag 格式与目标版本；双平台测试、正式签名、打包、产物齐全检查；发为 GitHub 预发布且不标记 latest | 否；只发预发布，不进入应用内更新 |
-| 正式版本 tag | 校验来源为已验收 master 提交、版本和说明一致；双平台测试、正式签名、打包、产物齐全检查，统一发布 | 是 |
+| dev 更新、dev PR → master | Windows/macOS 类型检查、全量测试、源码构建；推送后用发版同款步骤双平台试打包（不签名）并检查产物；发布 PR 额外运行 `release-metadata` 检查版本文件和发行说明 | 否 |
+| master 更新 | 对合并后的提交执行同上检查与试打包 | 否；通过后才能从 master 触发正式发布 |
+| 预发版（从 `dev/X.Y.Z` 触发 `channel=beta`） | 校验分支与目标版本，自动取下一个 `beta.N`；双平台测试、正式签名、打包、产物检查；发为 GitHub 预发布且不标记 latest | 否；只发预发布，不进入应用内更新 |
+| 正式版（从 master 触发 `channel=stable`） | 校验来源为 master、版本未占用、版本和说明一致；双平台测试、正式签名、打包、产物检查；全部成功后才创建 tag 并公开 Release | 是 |
 
-- PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时按 §0.7.1 使用预发版 tag，不能伪装成稳定版。
+- PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时按 §0.7.1 触发预发版，不能伪装成稳定版。
 - master 应启用 PR 合并及必需状态检查，发布 PR 要求至少 1 人评审通过；活跃 dev 接收经过本地验收的阶段集成，并在推送后执行双平台 CI。不得以管理员绕过失败检查完成正常发布。
-- tag 需要限制创建、更新和删除权限；稳定发布校验必须检查提交来源，不能仅凭 `v*.*.*` 名称判断可发布。
-- Release 默认只读权限，仅发布 job 授予 `contents: write`；生产签名凭据只提供给受信任的正式打包步骤。同一版本发布避免并发执行，失败时保留固定 tag。
-- **截至 2026-10-11，`.github/workflows/verify.yml` 对目标为 master/dev 的 PR 及 master/dev 推送执行 Windows/macOS 类型检查、全量测试和源码构建，使用只读仓库权限且不接触生产签名凭据；`.github/workflows/release.yml` 实现 tag 触发、元数据校验、双平台测试/打包及产物检查；2026-11-01 起同一工作流按 tag 是否带 `-beta.N` / `-rc.N` 区分预发版。来源校验和分支/tag 门禁尚未配置，Release 仍使用工作流级写权限且没有并发限制。未落地的流程检查由人工执行，不能声称已由 GitHub 自动强制。配置落地时同步更新本段。**
+- tag 只由发布工作流创建；建议在 GitHub 规则集中限制他人创建、更新和删除 `v*` tag。稳定发布只接受从 master 触发。
+- 工作流默认只读权限，仅 `publish` job 授予 `contents: write`；生产签名凭据只在 `sign: true` 的正式打包中使用，试打包显式跳过签名（`VMP_SIGN=skip`）。发布通过 `concurrency: release` 串行执行。
+- **截至 2026-11-03：`verify.yml`（Source checks）对 master/dev 的 PR 与推送执行双平台类型检查、全量测试和源码构建，推送时再调用 `package.yml` 试打包并检查产物，发布 PR 额外校验发版元数据；`release.yml` 改为手动触发，复用同一个 `package.yml` 正式签名打包，成功后才创建 tag 与 Release。master 分支保护（必需检查、PR 评审）与 tag 规则集需在 GitHub 仓库设置中配置，尚未配置前由人工保证，不能声称已由 GitHub 强制。配置落地时同步更新本段。**
 
 ### 0.7.1 预发版（验收真实安装包）
 
-预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，在待发布的 `dev/X.Y.Z` 上（先推送该 dev，tag 打在已推送的 dev 提交上）打预发版 tag：
+预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，先推送待发布的 `dev/X.Y.Z`，再从该分支触发：
 
 ```bash
-git tag -a v2.6.2-beta.1 -m "预发版 v2.6.2-beta.1"
-git push origin v2.6.2-beta.1
+gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/2.6.2 -f channel=beta
 ```
 
-- tag 只能是 `vX.Y.Z-beta.N` 或 `vX.Y.Z-rc.N`，`X.Y.Z` 不低于分支 `package.json` 版本；不需要提交版本号或发行说明，CI 在构建机上把 tag 版本写入 `package.json`。
+- 目标版本取分支名 `X.Y.Z`，不低于分支 `package.json` 版本；`beta.N` 由工作流在远端已有预发版号上自动加一，不用手动编号，也不需要提交版本号或发行说明，CI 在构建机上把版本写入 `package.json`（测试之后）。
 - 走与正式版相同的双平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
 - 预发版与正式版共用 appId 和应用数据，装上即覆盖本机正式版；版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内直接升级回正式通道。
 - 实机验收按对应版本的测试清单执行（如 `docs/reviews/<版本>-windows-test-checklist.md`），结果写入发行说明「验证情况」，注明验收所用的预发版号。
-- 修复后递增 `beta.N` 重打，不移动已推送的预发版 tag；功能冻结、只剩验收时可改用 `rc.N`。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → tag。
+- 修复后重新触发即得到下一个 `beta.N`；失败的运行不会占号。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → 发布工作流。
 - 预发版 tag 和 Release 可在正式版发布后由所有者决定是否清理，不自动删除。
+- GitHub 只允许手动触发默认分支 master 上已有的工作流：新流程随首个合入 master 的版本（2.6.2）生效，在此之前无法从 dev 触发预发版。
 
 ### 0.8 紧急补丁与旧版本维护
 
-- 默认补丁仍遵循正常流程：从最新 master 创建目标补丁 dev，从 dev 创建修复 feature，通过 PR 验收并合入 dev；所有者本地维护例外沿用协作规范。验收后合入 master，验证 master 提交后打 tag，再将 master 的修复同步到仍在维护的新版本 dev。
+- 默认补丁仍遵循正常流程：从最新 master 创建目标补丁 dev，从 dev 创建修复 feature，通过 PR 验收并合入 dev；所有者本地维护例外沿用协作规范。验收后合入 master，验证 master 提交后触发发布工作流，再将 master 的修复同步到仍在维护的新版本 dev。
 - master 原则上不提前集成下一版本的未验收功能。已有历史分支和已发布版本不因本规范回退、重命名或重打标签。
 - 若用户明确要求基于旧稳定版修复并排除 master 中已有功能，先说明基准 tag、维护版本、排除范围及绕过常规主干来源规则的原因；只有得到明确的旧版本维护授权后才能采用独立维护分支。不能把普通 feature/dev 发布解释为此例外。
 - 维护发布仍须完成测试、签名、发行说明与产物验收，记录真实源码提交，并将修复单独回灌 master 及相关 dev。不得为证明“已合主干”而移动旧 tag，也不能把现有 master 额外功能混入旧版补丁。自动来源门禁落地后，此例外也需显式配置授权路径，不能临时关闭门禁。
@@ -265,7 +262,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 ## 4. 发布约定
 
-- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `v1.3.0`；预发版 `v1.3.0-beta.1` 发为预发布，更新检查读取的 `releases/latest` 不包含它。github 发布目标下 electron-builder 不按版本号切换通道，预发版同样生成 `latest*.yml`，只随预发布 Release 上传。
+- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `v1.3.0`，由发布工作流在 Release 公开时创建；预发版 `v1.3.0-beta.1` 发为预发布，更新检查读取的 `releases/latest` 不包含它。github 发布目标下 electron-builder 不按版本号切换通道，预发版同样生成 `latest*.yml`，只随预发布 Release 上传。
 - Release 资源命名必须匹配更新器的挑选正则（`server/lib/update.ts#pickReleaseAsset`）：
   - mac：优先 `<arch>.*\.dmg`，回退任意 `.dmg`；
   - win：优先 `-Setup.exe`，其次非 portable 的 `.exe`、`.msi`；

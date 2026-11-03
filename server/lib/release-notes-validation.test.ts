@@ -1,14 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
+import { releaseNotesErrors } from '../../scripts/release/check-release.mjs'
 
-// 执行发布工作流里的真实校验，避免本地检查与 CI 使用不同规则。
-const workflow = readFileSync(new URL('../../.github/workflows/release.yml', import.meta.url), 'utf8')
-const validator = workflow.match(/node - "\$NOTES_FILE" <<'NODE'\r?\n([\s\S]*?)\r?\n\s+NODE/)?.[1]
-if (!validator) throw new Error('未找到发布说明校验脚本')
-
+// 直接执行发版脚本里的真实校验，CI、发布 PR 检查与本地 release:check 用的是同一套规则。
 const summaries = [
   '- 新增：动态歌词样式。',
   '- 新增：歌词来源选择。',
@@ -17,17 +10,11 @@ const summaries = [
 ]
 
 function validate(updates: string, compatibility = '- 保留现有设置。', verification = '- 已完成本地检查。') {
-  const dir = mkdtempSync(join(tmpdir(), 'simplemusic-release-notes-'))
-  try {
-    const file = join(dir, 'notes.md')
-    writeFileSync(file, `## 更新日志\n\n${updates}\n\n## 兼容说明\n\n${compatibility}\n\n## 验证情况\n\n${verification}\n`)
-    return spawnSync(process.execPath, ['-', file], { input: validator, encoding: 'utf8' })
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  const errors = releaseNotesErrors(`## 更新日志\n\n${updates}\n\n## 兼容说明\n\n${compatibility}\n\n## 验证情况\n\n${verification}\n`)
+  return { status: errors.length ? 1 : 0, stderr: errors.join('\n') }
 }
 
-describe('发布说明工作流校验', () => {
+describe('发布说明校验', () => {
   it('兼容只有四条摘要的既有发行说明', () => {
     expect(validate(summaries.join('\n')).status).toBe(0)
   })

@@ -22,7 +22,8 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "server:dev": "tsx server/index.ts",
-    "eval:lyrics": "tsx scripts/lyrics-eval/run.mts"
+    "eval:lyrics": "tsx scripts/lyrics-eval/run.mts",
+    "release:check": "node scripts/release/check-release.mjs"
   },
   "dependencies": {
     "https-proxy-agent": "^7.0.6",
