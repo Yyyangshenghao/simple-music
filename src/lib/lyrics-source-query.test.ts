@@ -39,7 +39,7 @@ beforeEach(() => {
   useProviderStore.setState({ byId: {
     netease: { enabled: true, auth: 'authenticated' },
     qq: { enabled: true, auth: 'authenticated' },
-    apple: { enabled: true, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+    apple: { enabled: true, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
   } })
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
@@ -149,10 +149,10 @@ describe('参与限制和取消', () => {
     useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false } })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
     useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
-    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' } } }))
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' }, kugou: { enabled: false, auth: 'authenticated' } } }))
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'login' })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'login' })
-    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' } } }))
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' } } }))
     expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'disabled', message: 'Apple Music 未启用' })
   })
 
@@ -356,7 +356,7 @@ describe('游客歌词来源', () => {
   beforeEach(() => {
     useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
     useProviderStore.setState({ byId: {
-      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
   })
 

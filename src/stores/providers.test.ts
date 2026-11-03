@@ -21,7 +21,7 @@ function resetStores(): void {
     byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     },
     playbackOrder: ['netease', 'qq'],
     preferOriginSource: true,
@@ -123,6 +123,16 @@ describe('provider store', () => {
     expect(useProviderStore.getState().playbackOrder).toEqual(['qq'])
   })
 
+  it('酷狗是游客平台：会话始终可用，账号状态变化不影响它，启用后排在播放顺序末尾', () => {
+    expect(useProviderStore.getState().byId.kugou).toMatchObject({ enabled: false, auth: 'authenticated' })
+    useProviderStore.getState().setAccountState('kugou', 'anonymous')
+    expect(useProviderStore.getState().byId.kugou.auth).toBe('authenticated')
+    useProviderStore.getState().setEnabled('kugou', true)
+    expect(participatingProviderIds()).toContain('kugou')
+    expect(useProviderStore.getState().playbackOrder.at(-1)).toBe('kugou')
+    expect(JSON.parse(storage['simplemusic-provider-settings']).providers.kugou).toEqual({ enabled: true })
+  })
+
   it('未登录平台不能启用，退出登录会自动停用', () => {
     useProviderStore.getState().setAccountState('qq', 'anonymous')
     useProviderStore.getState().setEnabled('qq', true)
@@ -179,7 +189,7 @@ describe('provider store', () => {
         netease: { ...state.byId.netease, auth: 'unknown' },
         qq: { ...state.byId.qq, auth: 'unknown' },
         apple: { ...state.byId.apple, auth: 'unknown' },
-        bilibili: state.byId.bilibili,
+        kugou: state.byId.kugou, bilibili: state.byId.bilibili,
       },
     }))
 

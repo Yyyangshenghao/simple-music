@@ -422,8 +422,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     const eng = ensureEngine()
     const originSource = active.originTrack.source
     const resolvedSource = candidate.source
-    const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq')
-      && (resolvedSource === 'netease' || resolvedSource === 'qq')
+    const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq' || originSource === 'kugou')
+      && (resolvedSource === 'netease' || resolvedSource === 'qq' || resolvedSource === 'kugou')
       ? {
           originSource,
           originId: String(active.originTrack.id),

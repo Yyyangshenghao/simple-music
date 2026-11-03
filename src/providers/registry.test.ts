@@ -5,7 +5,7 @@ import { listProviders, providerFor } from './registry'
 describe('music provider registry', () => {
   it('注册网易云和 QQ，id 唯一且声明基础能力', () => {
     const providers = listProviders()
-    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq', 'apple', 'bilibili'])
+    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq', 'apple', 'kugou', 'bilibili'])
     expect(new Set(providers.map((provider) => provider.descriptor.id)).size).toBe(providers.length)
     for (const provider of providers) {
       // 兜底平台只解析播放，没有推荐栏目。

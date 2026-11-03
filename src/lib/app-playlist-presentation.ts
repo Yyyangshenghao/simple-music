@@ -2,7 +2,7 @@ import type { MusicSource, Track } from '../types/domain'
 import { normalizeImageUrl } from './image-size'
 import { restoreLocalTrackUrls } from './local-track-urls'
 
-const SOURCES: MusicSource[] = ['netease', 'qq', 'apple', 'local']
+const SOURCES: MusicSource[] = ['netease', 'qq', 'apple', 'kugou', 'local']
 
 export function appPlaylistSources(tracks: Track[]): { source: MusicSource; count: number }[] {
   const counts = new Map<MusicSource, number>()

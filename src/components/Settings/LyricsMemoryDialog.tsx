@@ -20,7 +20,7 @@ const CASCADE = { step: 0.024, rows: 12 }
 const rowEase = [0.22, 1, 0.36, 1] as const
 const swapTransition = { duration: 0.2, ease: rowEase }
 const swap = { initial: { opacity: 0, y: 10, filter: 'blur(6px)' }, animate: { opacity: 1, y: 0, filter: 'blur(0px)' }, exit: { opacity: 0, y: -8, filter: 'blur(6px)' } }
-const TRACK_PLATFORM: Record<string, string> = { netease: '网易云', qq: 'QQ', apple: 'Apple Music', local: '本地' }
+const TRACK_PLATFORM: Record<string, string> = { netease: '网易云', qq: 'QQ', apple: 'Apple Music', kugou: '酷狗', local: '本地' }
 const collator = new Intl.Collator('zh-CN', { sensitivity: 'base', numeric: true })
 
 /** 筛选与排序只看本地存档，不触发任何歌词查询。最近添加按存档插入顺序倒序。 */

@@ -97,7 +97,7 @@ describe('音源账户入口', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: true, auth: 'authenticated', profile: { nickname: '云音乐用户', avatar: '' } },
       qq: { enabled: false, auth: 'authenticated', profile: { nickname: 'QQ用户', avatar: '' } },
-      apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     const html = renderToStaticMarkup(<SettingsPage />)
     expect(html).toMatch(/<button(?![^>]*disabled)[^>]*aria-label="退出登录网易云"/)
@@ -121,7 +121,7 @@ describe('播放顺序中的参与平台', () => {
       byId: {
         netease: { enabled: true, auth: 'authenticated', playbackAvailable: false },
         qq: { enabled: true, auth: 'authenticated', playbackAvailable: true },
-        apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
+        apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
       },
     })
     const html = renderToStaticMarkup(<SettingsPage />)

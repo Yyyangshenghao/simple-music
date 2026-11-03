@@ -7,9 +7,9 @@ import { StemMixer } from './stem-mixer'
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused'
 
 export interface AudioCacheRequestContext {
-  originSource: 'netease' | 'qq'
+  originSource: 'netease' | 'qq' | 'kugou'
   originId: string
-  resolvedSource: 'netease' | 'qq'
+  resolvedSource: 'netease' | 'qq' | 'kugou'
   resolvedId: string
   quality: string
 }

@@ -28,7 +28,7 @@ function snapshotValue(store: string, key: string, value: unknown): unknown {
 
 export function takePlaybackSnapshot(full = false) {
   const stores: Record<string, Record<string, unknown>> = {}
-  const accountSessions = { netease: providerAccountSession('netease'), qq: providerAccountSession('qq'), apple: providerAccountSession('apple') }
+  const accountSessions = { netease: providerAccountSession('netease'), qq: providerAccountSession('qq'), apple: providerAccountSession('apple'), kugou: providerAccountSession('kugou') }
   const accountsChanged = Object.entries(accountSessions).some(([source, epoch]) => sentAccounts[source] !== epoch)
   for (const [name, store] of Object.entries(playbackStores)) {
     const state = store.getState()

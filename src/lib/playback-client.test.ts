@@ -34,7 +34,7 @@ async function setup() {
   const initial = {
     session: 'host-1', revision: 1, full: true,
     stores: { player: { status: 'playing', position: 12, playbackTransport: null, currentTrack: null, seekRevision: 0 }, navigation: { currentView: 'shuange' } },
-    accountSessions: { netease: 3, qq: 1, apple: 0, bilibili: 0 }
+    accountSessions: { netease: 3, qq: 1, apple: 0, kugou: 0, bilibili: 0 }
   }
   const request = vi.fn(async (value: Record<string, unknown>): Promise<unknown> => {
     if (value.type === 'connect') return initial

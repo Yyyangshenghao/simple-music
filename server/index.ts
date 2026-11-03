@@ -23,6 +23,7 @@ import { wallpaperEngineWebRoutes } from './routes/wallpaper-engine-web'
 import { weatherRoutes } from './routes/weather'
 import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
+import { kugouRoutes } from './routes/kugou-music'
 import { bilibiliRoutes } from './routes/bilibili'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
@@ -49,6 +50,7 @@ const chain: RouteHandler[] = [
   neteaseRoutes,
   amllLyricRoutes,
   kugouLyricRoutes,
+  kugouRoutes,
   bilibiliRoutes,
   podcastRoutes,
   beatmapRoutes,

@@ -16,6 +16,10 @@ export interface TrackQualityOption {
 export function fetchTrackQualities(track: Track): Promise<TrackQualityOption[]> {
   if (track.source === 'apple') return Promise.resolve([])
   if (track.source === 'local') return Promise.resolve([])
+  if (track.source === 'kugou') {
+    return api.get<{ qualities?: TrackQualityOption[] }>('/api/kugou/song/qualities', { hash: String(track.id ?? '') }, { timeoutMs: 60_000 })
+      .then((r) => r.qualities ?? [])
+  }
   const req =
     track.source === 'bilibili'
       ? api.get<{ qualities?: TrackQualityOption[] }>('/api/bilibili/song/qualities', { bvid: String(track.bvid ?? track.id ?? '') })
@@ -45,7 +49,7 @@ const inflight = new Map<string, Promise<TrackQualityOption[]>>()
 
 /** 档位随账号（VIP）不同，键里带上账号会话，切换账号后自然失效。 */
 function cacheKey(track: Track): string | null {
-  if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'bilibili') return null
+  if (track.source !== 'netease' && track.source !== 'qq' && track.source !== 'kugou' && track.source !== 'bilibili') return null
   const id = track.source === 'qq' ? `${String(track.mid ?? track.id ?? '')}:${String(track.mediaMid ?? '')}` : String(track.id ?? '')
   return `${track.source}:${providerAccountSession(track.source)}:${id}`
 }

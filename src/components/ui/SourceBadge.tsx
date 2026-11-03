@@ -1,6 +1,6 @@
 import type { MusicSource } from '../../types/domain'
 import { SOURCE_BRAND } from '../../lib/source-brand'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from './brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo } from './brand-logos'
 import { useProviderStore } from '../../stores/providers'
 import type { SourceBadgeMode } from '../../lib/provider-preferences'
 import { isFallbackOnlyProvider, isProviderId } from '../../providers/types'
@@ -50,7 +50,9 @@ export function SourceBadge({
             ? <QQMusicLogo />
             : source === 'apple'
               ? <AppleMusicIcon />
-              : <span className={styles.localIcon}>{source === 'local' ? '♪' : source === 'bilibili' ? 'B' : '?'}</span>}
+              : source === 'kugou'
+                ? <KugouLogo />
+                : <span className={styles.localIcon}>{source === 'local' ? '♪' : source === 'bilibili' ? 'B' : '?'}</span>}
       </span>
       {!compact && <span className={styles.label}>{source ? <SourceName source={source} /> : label}</span>}
     </span>

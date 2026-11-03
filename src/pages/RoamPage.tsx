@@ -18,6 +18,7 @@ import { TrackRow } from '../components/Explore/TrackRow'
 import { Toggle } from '../components/ui/Toggle'
 import { GradientText } from '../components/ui/GradientText'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { SOURCE_BRAND } from '../lib/source-brand'
 import { fadeRise, springGentle, springSnappy, tapScale } from '../lib/motion-presets'
 import styles from './RoamPage.module.css'
 import pageScroll from '../styles/page-scroll.module.css'
@@ -265,7 +266,7 @@ export function RoamPage() {
                   onClick={() => setScope(source)}
                 >
                   <SourceBadge source={source} compact displayMode="always" />
-                  <span>{source === 'netease' ? '网易云' : 'QQ音乐'}</span>
+                  <span>{SOURCE_BRAND[source].label}</span>
                 </button>
               ))}
             </div>

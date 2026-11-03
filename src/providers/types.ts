@@ -25,6 +25,14 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+/** 只有游客能力、没有登录流程的平台（酷狗第一阶段）：会话视为始终可用，不显示登录入口。 */
+export const GUEST_ONLY_PROVIDER_IDS = ['kugou'] as const satisfies readonly ProviderId[]
+export type GuestOnlyProviderId = (typeof GUEST_ONLY_PROVIDER_IDS)[number]
+
+export function isGuestOnlyProvider(id: ProviderId): id is GuestOnlyProviderId {
+  return (GUEST_ONLY_PROVIDER_IDS as readonly ProviderId[]).includes(id)
+}
+
 /**
  * 只作跨源兜底的平台：不需要账号，不进内容平台切换、搜索、我的库与歌词来源，
  * 只出现在设置的播放顺序里，原平台放不了时按同曲匹配补上音频。

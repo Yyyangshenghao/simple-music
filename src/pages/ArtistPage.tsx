@@ -1,3 +1,4 @@
+import type { ProviderId } from '../providers/types'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useMotion } from '../hooks/useMotion'
 import { TrackSearch } from '../components/ui/TrackSearch'
@@ -31,7 +32,7 @@ interface SongPreview { songs: Track[]; hasMore: boolean }
 
 interface ArtistPageProps {
   id: unknown
-  source: 'netease' | 'qq' | 'apple'
+  source: ProviderId
   initialState?: ArtistPageState
 }
 

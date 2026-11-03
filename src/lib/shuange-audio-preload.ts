@@ -1,7 +1,7 @@
 import type { AudioPreloadRequest } from './audio-engine'
 import type { PlaybackEngine } from './playback-core'
 import type { AudioQuality, Track } from '../types/domain'
-import { fetchOfflineStatuses, offlineFileUrl, offlineTrackKey } from './offline-cache'
+import { fetchOfflineStatuses, isCacheableSource, offlineFileUrl, offlineTrackKey, type CacheableSource } from './offline-cache'
 import { audioDiskCacheKey, getPreloadedResolution } from './track-preload'
 import { buildPlaybackSourceOrder } from './playback-resolver'
 import { providerAccountSession } from './provider-account-session'
@@ -73,7 +73,7 @@ export function prepareShuangeAudio(nextEngine: PlaybackEngine, targets: Shuange
   for (const target of targets) {
     if (next.size >= 4) break
     const { track } = target
-    if (track.source !== 'netease' && track.source !== 'qq') continue
+    if (!isCacheableSource(track.source)) continue
     const key = keyOf(target, quality)
     const cached = getPreloadedResolution(track, quality)
     const url = track.url ?? cached?.url
@@ -115,8 +115,8 @@ export function prepareShuangeAudio(nextEngine: PlaybackEngine, targets: Shuange
       const level = cached?.level ?? track.quality ?? quality
       const cacheKey = track.url || cached?.trial ? undefined : audioDiskCacheKey(track, level)
       entry.request = { url, startAt, cacheKey, cacheContext: cacheKey ? {
-        originSource: track.source as 'netease' | 'qq', originId: String(track.id),
-        resolvedSource: track.source as 'netease' | 'qq', resolvedId: String(track.mid ?? track.id), quality: String(level),
+        originSource: track.source as CacheableSource, originId: String(track.id),
+        resolvedSource: track.source as CacheableSource, resolvedId: String(track.mid ?? track.id), quality: String(level),
       } : undefined }
     }
   }).catch(() => {}).finally(() => {

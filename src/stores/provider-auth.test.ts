@@ -18,7 +18,7 @@ describe('provider auth expiry', () => {
       byId: {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: true, auth: 'authenticated' },
-        apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
+        apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease', 'qq'],
     })

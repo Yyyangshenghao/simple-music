@@ -10,7 +10,7 @@ import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
 import { EqIndicator } from '../ui/EqIndicator'
 import { SourceBadge } from '../ui/SourceBadge'
-import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
+import { isCacheableSource, offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 
@@ -75,7 +75,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
   }
   const visibleOffline = offline ?? lastOffline.current.status
   const downloaded = visibleOffline?.state === 'downloaded'
-  const offlineVisible = track.source === 'netease' || track.source === 'qq'
+  const offlineVisible = isCacheableSource(track.source)
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {

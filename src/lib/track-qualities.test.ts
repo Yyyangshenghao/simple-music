@@ -42,6 +42,16 @@ describe('fetchTrackQualities', () => {
   })
 })
 
+describe('fetchTrackQualities 酷狗', () => {
+  it('酷狗曲目按 hash 探测，并按酷狗账号会话缓存', async () => {
+    apiGet.mockResolvedValue({ qualities: [{ level: 'standard', label: '标准', br: 128000 }] })
+    const track = { provider: 'kugou', source: 'kugou', type: 'song', id: 'abc', name: '歌', artist: '人', artists: [] } as Track
+    await loadTrackQualities(track)
+    expect(apiGet).toHaveBeenCalledWith('/api/kugou/song/qualities', { hash: 'abc' }, { timeoutMs: 60_000 })
+    expect(peekTrackQualities(track)).toEqual([{ level: 'standard', label: '标准', br: 128000 }])
+  })
+})
+
 describe('loadTrackQualities', () => {
   const track = { provider: 'netease', source: 'netease', type: 'song', id: 42, name: '歌', artist: '人', artists: [] } as unknown as Track
 

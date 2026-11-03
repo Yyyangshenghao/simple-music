@@ -26,7 +26,7 @@ describe('likes store', () => {
       byId: {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: false, auth: 'anonymous' },
-        apple: { enabled: false, auth: 'anonymous' }, bilibili: { enabled: false, auth: 'anonymous' },
+        apple: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease'],
     })
