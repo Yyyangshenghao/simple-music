@@ -15,11 +15,11 @@ export const DOMESTIC_DNS = ['https://doh.pub/dns-query', 'https://dns.alidns.co
 export const PROXY_CLIENTS: readonly { id: ProxyClient; label: string; where: string; dnsWhere: string }[] = [
   {
     id: 'clash', label: 'Clash / Mihomo',
-    where: '放在 rules 最前面。Clash Verge 在订阅的“编辑规则”里添加为前置规则，订阅更新不会被覆盖。',
-    dnsWhere: '合并进配置的 dns 段。Clash Verge 写在订阅的“扩展覆写配置”里，订阅更新不会被覆盖。',
+    where: '放在 rules 最前面。Clash Verge：订阅 → 编辑规则 → 前置规则。',
+    dnsWhere: '合并进 dns 段。Clash Verge：订阅 → 扩展覆写配置。',
   },
-  { id: 'surge', label: 'Surge', where: '放在 [Rule] 段最前面。', dnsWhere: '放进 [Host] 段。' },
-  { id: 'singbox', label: 'sing-box', where: '放进 route.rules 数组最前面；outbound 填你配置里直连出站的 tag。', dnsWhere: '放进 dns.rules 数组最前面；server 填你配置里国内 DNS 的 tag。' },
+  { id: 'surge', label: 'Surge', where: '放在 [Rule] 段最前面。', dnsWhere: '放在 [Host] 段。' },
+  { id: 'singbox', label: 'sing-box', where: '放在 route.rules 最前面，outbound 改成你的直连出站 tag。', dnsWhere: '放在 dns.rules 最前面，server 改成你的国内 DNS tag。' },
 ]
 
 /**

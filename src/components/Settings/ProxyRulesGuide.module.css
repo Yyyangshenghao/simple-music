@@ -23,28 +23,61 @@
 .client:hover { color: var(--sm-text-primary); }
 .clientActive { background: var(--sm-bg-overlay); color: var(--sm-text-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 
-.block { margin-top: 16px; }
-.blockHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.blockHeading h3 { margin: 0; color: var(--sm-text-primary); font-size: 13px; font-weight: 600; }
+/* 整个弹窗内容可自由选中复制（应用其余地方默认不可选）。 */
+.body { user-select: text; -webkit-user-select: text; cursor: auto; }
 
-.copy {
-  flex-shrink: 0;
-  min-width: 64px;
-  padding: 5px 12px;
-  border: 1px solid var(--sm-border-strong);
-  border-radius: var(--sm-radius-pill);
+.step { margin-top: 18px; }
+.step h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--sm-text-primary); font-size: 14px; font-weight: 600; }
+.stepNo {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   background: var(--sm-fill-subtle);
-  color: var(--sm-text-primary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
-.copy:hover { background: var(--sm-bg-overlay); }
+.body .where { margin: 4px 0 0 26px; color: var(--sm-text-secondary); font-size: 11px; }
+
+.option { margin: 12px 0 0 26px; }
+.option h4 { display: flex; align-items: baseline; gap: 8px; margin: 0; color: var(--sm-text-primary); font-size: 12px; font-weight: 500; }
+.recommended {
+  padding: 1px 6px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: var(--sm-bg-base);
+  font-size: 9px;
+  font-weight: 600;
+}
+.note { color: var(--sm-text-muted); font-size: 11px; font-weight: 400; }
+.step > .codeWrap { margin-left: 26px; }
+
+/* 复制按钮浮在代码框右上角；代码右侧留出按钮宽度，长行不被盖住。 */
+.codeWrap { position: relative; margin-top: 6px; }
+.copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--sm-border);
+  border-radius: 7px;
+  background: var(--sm-bg-overlay);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: color 150ms, background 150ms;
+}
+.copy:hover { color: var(--sm-text-primary); background: var(--sm-fill-subtle); }
 
 /* 规则原样显示，可手动选中复制；长行横向滚动而不是折行，避免改变规则文本。 */
 .code {
-  margin: 8px 0 0;
-  padding: 10px 12px;
+  margin: 0;
+  padding: 10px 40px 10px 12px;
   overflow-x: auto;
   border: 1px solid var(--sm-border);
   border-radius: 10px;
@@ -53,6 +86,5 @@
   font-family: var(--sm-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
   line-height: 1.6;
-  user-select: text;
   white-space: pre;
 }

@@ -3,12 +3,12 @@ import { PROXY_CLIENTS, desktopPlatform, proxyDnsSnippet, proxyRuleSnippet, type
 import help from './PlaybackLogicHelp.module.css'
 import styles from './ProxyRulesGuide.module.css'
 
-const SCOPES: { scope: RuleScope; title: string; caption: string }[] = [
-  { scope: 'apple', title: '推荐：只让 Apple Music 直连', caption: '只影响 Apple 的域名，其他流量仍按你原来的规则走。' },
-  { scope: 'app', title: '或者：整个应用直连', caption: '按进程名匹配，网易云与 QQ 音乐也会直连；需要代理软件支持进程规则。' },
+const SCOPES: { scope: RuleScope; title: string; note?: string; recommended?: boolean }[] = [
+  { scope: 'apple', title: '只让 Apple Music 直连', recommended: true },
+  { scope: 'app', title: '整个应用直连', note: '网易云、QQ 音乐也会直连，需支持进程规则' },
 ]
 
-function RuleBlock({ text, title, caption }: { text: string; title: string; caption: string }) {
+function CodeBlock({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false)
 
   async function copy(): Promise<void> {
@@ -20,19 +20,15 @@ function RuleBlock({ text, title, caption }: { text: string; title: string; capt
   }
 
   return (
-    <section className={styles.block}>
-      <div className={styles.blockHeading}>
-        <div>
-          <h3>{title}</h3>
-          <p className={help.caption}>{caption}</p>
-        </div>
-        {/* 「已复制」与「复制」同宽，切换时按钮不挤动。 */}
-        <button type="button" className={`${styles.copy} no-drag`} onClick={() => void copy()} aria-label={`复制${title}`}>
-          {copied ? '已复制' : '复制'}
-        </button>
-      </div>
+    <div className={styles.codeWrap}>
       <pre className={styles.code}>{text}</pre>
-    </section>
+      <button type="button" className={`${styles.copy} no-drag`} onClick={() => void copy()}
+        aria-label={copied ? `已复制${label}` : `复制${label}`} title={copied ? '已复制' : '复制'}>
+        {copied
+          ? <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+          : <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" /><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" /></svg>}
+      </button>
+    </div>
   )
 }
 
@@ -61,8 +57,8 @@ export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialog
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
             </button>
           </header>
-          <div className={help.body}>
-            <p className={styles.lead}>TUN 在系统层接管全部流量，应用里选“直连”也绕不开。把下面的规则加进代理软件，改好后回到这里点“检测连接”，Apple 判定地区回到账号地区即生效。</p>
+          <div className={`${help.body} ${styles.body}`}>
+            <p className={styles.lead}>TUN 接管全部流量，应用里的“直连”不起作用。把规则加进代理软件，再点“检测连接”确认。</p>
             <div className={styles.clients} role="group" aria-label="代理软件">
               {PROXY_CLIENTS.map((item) => (
                 <button key={item.id} type="button" aria-pressed={client === item.id}
@@ -72,11 +68,26 @@ export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialog
                 </button>
               ))}
             </div>
-            <p className={help.caption}>{current.where}</p>
-            {SCOPES.map((item) => <RuleBlock key={item.scope} text={proxyRuleSnippet(client, item.scope, desktopPlatform())} title={item.title} caption={item.caption} />)}
+            <section className={styles.step}>
+              <h3><span className={styles.stepNo}>1</span>直连规则</h3>
+              <p className={styles.where}>{current.where}</p>
+              {SCOPES.map((item) => (
+                <div key={item.scope} className={styles.option}>
+                  <h4>
+                    {item.title}
+                    {item.recommended && <span className={styles.recommended}>推荐</span>}
+                    {item.note && <span className={styles.note}>{item.note}</span>}
+                  </h4>
+                  <CodeBlock text={proxyRuleSnippet(client, item.scope, desktopPlatform())} label={item.title} />
+                </div>
+              ))}
+            </section>
             {/* 直连规则只管出口；DNS 仍走海外时会解析到海外节点，直连过去登录慢、播放超时。 */}
-            <RuleBlock text={proxyDnsSnippet(client)} title="同时：Apple 域名用国内 DNS"
-              caption={`直连后登录很慢或播放超时，多半是 DNS 解析到了海外节点。${current.dnsWhere}`} />
+            <section className={styles.step}>
+              <h3><span className={styles.stepNo}>2</span>Apple 域名用国内 DNS</h3>
+              <p className={styles.where}>{current.dnsWhere}不加可能登录慢、播放超时。</p>
+              <CodeBlock text={proxyDnsSnippet(client)} label="DNS 配置" />
+            </section>
           </div>
         </div>
       </dialog>
