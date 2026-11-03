@@ -68,7 +68,7 @@ beforeEach(() => {
 describe('歌词来源选择交互', () => {
   it('预览只查询候选，按确认后才应用，并默认记住本首选择', async () => {
     let element = render()
-    elements(element, 'button').find((button) => button.props.role === 'radio' && button.props.children[0].props.children[0].props?.children === 'QQ 音乐')!.props.onClick()
+    elements(element, 'button').find((button) => button.props.role === 'radio' && button.props.children.props.origin === 'qq')!.props.onClick()
     expect(h.state.queryCandidates).toHaveBeenCalledWith('netease:1', 'selection-token', 'qq')
     expect(h.state.chooseSource).not.toHaveBeenCalled()
     element = render()

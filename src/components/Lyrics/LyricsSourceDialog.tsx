@@ -6,6 +6,7 @@ import { useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
 import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate } from '../../types/lyrics-source'
 import type { Track } from '../../types/domain'
+import { LyricOriginInline, LyricOriginRow } from './LyricOriginIcon'
 import styles from './LyricsSourceDialog.module.css'
 
 const STATUS_LABELS = {
@@ -47,6 +48,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
   const defaultSource = useLyricsSourceStore((s) => s.defaultSource)
   const appliedPreference = useLyricsSourceStore((s) => s.appliedPreference)
   const fallbackReason = useLyricsSourceStore((s) => s.fallbackReason)
+  const autoActive = requestedOrigin === 'auto'
   const [selected, setSelected] = useState<LyricOrigin | 'auto'>(requestedOrigin)
   const [remember, setRemember] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -124,8 +126,13 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
       <div className={styles.body}>
         <div className={styles.sources} role="radiogroup" aria-label="歌词来源">
           <button type="button" role="radio" aria-checked={selected === 'auto'} className={styles.source} data-selected={selected === 'auto'} disabled={busy} onClick={() => { setSelected('auto'); setError('') }}>
-            <span className={styles.sourceHead}><span>自动选择</span>{requestedOrigin === 'auto' && <small>当前规则</small>}</span>
-            <span className={styles.sourceHint}>{defaultSource === 'auto' ? '按默认规则选择' : `优先${LYRIC_SOURCE_LABELS[defaultSource]}`}</span>
+            <LyricOriginRow origin="auto">
+              <span className={styles.sourceHead}><span>自动选择</span>{autoActive && <small>使用中</small>}</span>
+              {/* 自动选择生效时直接写出它为本曲选中的来源，「使用中」只挂在自动选择上 */}
+              <span className={styles.sourceHint}>{autoActive
+                ? appliedOrigin ? <>已选用 <LyricOriginInline origin={appliedOrigin}>{LYRIC_SOURCE_LABELS[appliedOrigin]}</LyricOriginInline></> : '本曲未找到可用歌词'
+                : defaultSource === 'auto' ? '按默认规则选择' : `优先${LYRIC_SOURCE_LABELS[defaultSource]}`}</span>
+            </LyricOriginRow>
           </button>
           {candidates.map((candidate) => <div className={styles.sourceItem} key={candidate.origin}>
             <button type="button" role="radio" aria-checked={selected === candidate.origin} className={styles.source} data-selected={selected === candidate.origin} data-available={candidate.status === 'ready' || candidate.status === 'loading' || candidate.status === 'idle'} disabled={busy} onClick={() => {
@@ -133,10 +140,12 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
               setError('')
               if (candidate.status === 'ready' || candidate.status === 'idle') query(candidate.origin)
             }}>
-              <span className={styles.sourceHead}><span>{LYRIC_SOURCE_LABELS[candidate.origin]}</span><span className={styles.badges}>
-                {appliedOrigin === candidate.origin && <small>使用中</small>}{remembered?.origin === candidate.origin && <small>已记住</small>}
-              </span></span>
-              <span className={styles.sourceHint}>{candidateDescription(candidate)}</span>
+              <LyricOriginRow origin={candidate.origin} dim={!(candidate.status === 'ready' || candidate.status === 'loading' || candidate.status === 'idle')}>
+                <span className={styles.sourceHead}><span>{LYRIC_SOURCE_LABELS[candidate.origin]}</span><span className={styles.badges}>
+                  {!autoActive && appliedOrigin === candidate.origin && <small>使用中</small>}{remembered?.origin === candidate.origin && <small>已记住</small>}
+                </span></span>
+                <span className={styles.sourceHint}>{candidateDescription(candidate)}</span>
+              </LyricOriginRow>
             </button>
             {selected === candidate.origin && ['error', 'empty', 'mismatch'].includes(candidate.status) && <button className={styles.sourceAction} disabled={busy} onClick={() => query(candidate.origin)}>重试</button>}
             {selected === candidate.origin && (candidate.status === 'login' || (candidate.status === 'unavailable' && candidate.message === '需启用可匹配的平台')) && <button className={styles.sourceAction} onClick={() => openSettings('music')}>音源设置…</button>}
