@@ -198,7 +198,12 @@ export function PlaylistPreviewModal({ playlist, onClose }: PlaylistPreviewModal
     if (!playlist) return
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // 打开歌词页时收起预览,否则同层级的 portal 会压在歌词页上
+    window.addEventListener('simplemusic:lyrics-open', onClose)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('simplemusic:lyrics-open', onClose)
+    }
   }, [playlist, onClose])
 
   return createPortal(

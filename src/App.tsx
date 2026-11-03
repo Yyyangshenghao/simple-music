@@ -99,6 +99,10 @@ export default function App() {
     // 从歌词页里的入口直达伴奏/离线音乐库：已在我的库时不会产生导航，按请求计数收起歌词页
     if (state.libraryAccompanimentsRequest > previous.libraryAccompanimentsRequest || state.libraryOfflineRequest > previous.libraryOfflineRequest) setLyricsOpen(false)
   }), [])
+  // 歌词页打开时通知页面内的临时浮窗(如歌单预览)让位,避免压在歌词页之上
+  useEffect(() => {
+    if (lyricsOpen) window.dispatchEvent(new Event('simplemusic:lyrics-open'))
+  }, [lyricsOpen])
 
   useEffect(() => {
     const sync = () => {
