@@ -95,7 +95,7 @@ export function createKaraokeSeparator(): KaraokePort {
       modelListener?.({ phase: 'preparing', progress: 0 })
       const useNative = !!nativeBridge?.initNative && await nativeBridge.initNative(id)
       if (signal.aborted) throw abortError()
-      if (!useNative && status.precision === 'fp16' && !(await supportsF16())) throw new Error('显卡不支持半精度模型，请在设置中换用 HQ3 标准')
+      if (!useNative && status.precision === 'fp16' && !(await supportsF16())) throw new Error('显卡不支持半精度模型，请在设置中换用 MDX-Net HQ3')
       const binary = async (url: string) => {
         const response = await fetch(url, { signal })
         if (!response.ok) throw new Error('分离引擎文件读取失败，请检查模型是否已安装')
@@ -204,7 +204,7 @@ export function createKaraokeSeparator(): KaraokePort {
       remember(knownId(model, key), url)
       return url
     }
-    if (model === 'hq3-fp16' && !nativeBridge?.initNative && !(await supportsF16())) throw new Error('显卡不支持半精度模型，请在设置中换用 HQ3 标准')
+    if (model === 'hq3-fp16' && !nativeBridge?.initNative && !(await supportsF16())) throw new Error('显卡不支持半精度模型，请在设置中换用 MDX-Net HQ3')
     modelListener = onProgress
     onProgress({ phase: 'decoding', progress: 0 })
     const [left, right] = await decode(src, signal)

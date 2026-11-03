@@ -20,11 +20,12 @@ import type { ActionIconName } from '../ui/ActionIcon'
 import { HoverTips } from '../ui/HoverTips'
 import { SourceName } from '../ui/SourceName'
 import styles from './TaskPanel.module.css'
+import { LibraryLink } from '../ui/LibraryLink'
 
 const sizeText = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`
 const downloadLabels = { queued: '等待下载', resolving: '寻找音源…', saving: '下载中…', exporting: '写入歌曲文件…', done: '下载完成', failed: '下载失败' }
 const karaokeLabels: Record<KaraokeJobPhase, string> = { queued: '等待生成', 'waiting-memory': '等待内存释放', resolving: '正在读取歌曲', model: '正在下载模型', preparing: '正在准备模型', decoding: '正在解码音频', separating: '正在生成伴奏', saving: '正在保存', failed: '生成失败' }
-const modelNames = { hq3: 'HQ3 标准', 'hq3-fp16': 'HQ3 省显存', kara2: 'Kara2 保留和声' }
+const modelNames = { hq3: 'MDX-Net HQ3', 'hq3-fp16': 'MDX-Net HQ3 FP16', kara2: 'MDX-Net Karaoke 2' }
 const groups = ['running', 'waiting', 'failed', 'done'] as const
 const groupName = { running: '进行中', waiting: '等待', failed: '失败', done: '已完成' }
 type Group = typeof groups[number]
@@ -240,15 +241,11 @@ export function TaskPanel() {
     </header>
     <div className={styles.queueStatus}>
       <span role="status">{status || '暂无任务'}</span>
-      <button type="button" className={styles.libraryLink} aria-label={tab === 'karaoke' ? '前往伴奏库' : '前往离线音乐'} onClick={() => {
+      <LibraryLink className={styles.libraryLink} label={tab === 'karaoke' ? '伴奏库' : '已下载'} onClick={() => {
         useTaskCenterStore.getState().close()
         if (tab === 'karaoke') openAccompanimentsLibrary()
         else openOfflineLibrary()
-      }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4v16M8 4v16M12 6l5-2 4 14-5 2z" /></svg>
-        <span>{tab === 'karaoke' ? '伴奏库' : '离线音乐'}</span>
-        <svg className={styles.libraryArrow} width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
-      </button>
+      }} />
     </div>
     {error && <p className={styles.error} role="alert" title={error}>{error}</p>}
     <div className={styles.list} ref={list} style={{ height: height ?? estimatedHeight }} id="task-center-list" role="tabpanel" aria-labelledby={`task-tab-${tab}`} onScroll={event => { positions.current[tab] = event.currentTarget.scrollTop }}>

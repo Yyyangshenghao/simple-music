@@ -8,6 +8,7 @@ import { taskEntrySpring, springSnappy, tapScale, taskPopoverMotion } from '../.
 import { TaskPanel } from './TaskPanel'
 import { HoverTips } from '../ui/HoverTips'
 import styles from './TaskBubble.module.css'
+import { KaraokeMicShapes } from '../ui/KaraokeMic'
 
 /** 位移与按压分别拥有一层，手势结束不能改写入口的位置或尺寸。 */
 export function TaskBubble({ children }: { children: ReactNode }) {
@@ -92,7 +93,7 @@ export function TaskBubble({ children }: { children: ReactNode }) {
           <AnimatePresence initial={false}><motion.span className={styles.glyph} key={complete ? 'complete' : summary.current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .12 }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               {complete ? <motion.path d="m5 12 4.5 4.5L19 7" initial={animated ? { pathLength: 0 } : false} animate={{ pathLength: 1 }} transition={{ duration: animated ? .24 : 0, ease: 'easeOut' }} />
-                : summary.current === 'download' ? <path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /> : <><rect x="8" y="2" width="8" height="13" rx="4" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></>}
+                : summary.current === 'download' ? <path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" /> : <KaraokeMicShapes />}
             </svg>
           </motion.span></AnimatePresence>
         </span>
