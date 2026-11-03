@@ -276,8 +276,8 @@ export function RoamPage() {
                 onClick={() => {
                   if (!scopeSources.length) {
                     const navigation = useNavigationStore.getState()
-                    navigation.navigateTo('settings')
                     navigation.requestSettingsMusic()
+                    navigation.navigateTo('settings')
                     return
                   }
                   setDrafting(true)

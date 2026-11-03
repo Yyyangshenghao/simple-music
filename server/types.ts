@@ -28,6 +28,8 @@ export interface ServerContext {
   applySessionProxy?(settings: ProxySettings): Promise<void>
   /** 按出口解析当前系统代理（Chromium 的系统设置/PAC 结果），空字符串表示直连；独立 server 无此回调。 */
   resolveSystemProxy?(): Promise<SystemProxyAddresses>
+  /** 把文件移到系统废纸篓（删除已下载歌曲用）；独立 server 无此回调时不删除文件。 */
+  trashItem?(path: string): Promise<void>
 }
 
 /**

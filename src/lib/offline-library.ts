@@ -11,7 +11,7 @@ export interface OfflineLibraryItem {
     cover?: string
     duration?: number
   }
-  entryId: string
+  filePath: string
   savedAt: number
   size: number
   quality: string
@@ -20,11 +20,11 @@ export interface OfflineLibraryItem {
 export type OfflineLibrarySort = 'savedAt' | 'name' | 'artist'
 
 export async function fetchOfflineLibrary(signal?: AbortSignal): Promise<OfflineLibraryItem[]> {
-  const result = await api.get<{ items: OfflineLibraryItem[] }>('/api/audio-cache/library', undefined, { signal })
+  const result = await api.get<{ items: OfflineLibraryItem[] }>('/api/downloads/library', undefined, { signal })
   return result.items
 }
 
-/** 顺序删除已确认的离线列表快照；取消后不再开始后续请求，部分失败不阻断其他歌曲。 */
+/** 顺序把已确认的下载列表快照移到废纸篓；取消后不再开始后续请求，部分失败不阻断其他歌曲。 */
 export async function deleteOfflineLibraryItems(items: OfflineLibraryItem[], signal: AbortSignal): Promise<{
   removed: OfflineLibraryItem[]; failed: OfflineLibraryItem[]; cancelled: boolean
 }> {
@@ -34,7 +34,7 @@ export async function deleteOfflineLibraryItems(items: OfflineLibraryItem[], sig
   for (const item of unique.values()) {
     if (signal.aborted) break
     try {
-      await api.post('/api/audio-cache/delete', { entryId: item.entryId, origin: item.origin, savedAt: item.savedAt }, undefined, { signal })
+      await api.post('/api/downloads/delete', { origin: item.origin, savedAt: item.savedAt }, undefined, { signal })
       removed.push(item)
     } catch {
       if (signal.aborted) break

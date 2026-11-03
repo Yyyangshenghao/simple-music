@@ -107,12 +107,12 @@ describe('应用歌单完整离线状态快照', () => {
     render()
     h.effects.splice(0).forEach(effect => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) })
     await Promise.resolve()
-    h.offline.byKey['qq:1'] = { source: 'qq', id: '1', state: 'pinned', entryId: 'old-file' }
+    h.offline.byKey['qq:1'] = { source: 'qq', id: '1', state: 'cached', entryId: 'old-file' }
     expect(render()).toContain('当前可播放 0 首')
     expect(h.fetch).toHaveBeenCalledWith(h.tracks, expect.any(AbortSignal))
   })
   it('全局徽标缓存已淘汰时仍使用完整查询结果，变更 revision 后立即失效', async () => {
-    h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'pinned', entryId: 'file' }])
+    h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'cached', entryId: 'file' }])
     render()
     h.effects.splice(0).forEach(effect => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) })
     await Promise.resolve()
@@ -127,7 +127,7 @@ describe('应用歌单完整离线状态快照', () => {
       { source: 'local', provider: 'local', type: 'song', id: '2', name: '本地歌曲', artist: '', artists: [] },
       { source: 'apple', provider: 'apple', type: 'song', id: '3', name: '未登录歌曲', artist: '', artists: [] },
     )
-    h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'pinned', entryId: 'file' }])
+    h.fetch.mockResolvedValue([{ source: 'qq', id: '1', state: 'cached', entryId: 'file' }])
     render()
     h.effects.splice(0).forEach(effect => { const cleanup = effect(); if (cleanup) h.cleanups.push(cleanup) })
     await Promise.resolve()

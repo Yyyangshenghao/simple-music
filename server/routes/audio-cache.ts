@@ -7,10 +7,8 @@ import {
   audioCacheDir,
   audioCacheStats,
   clearAudioCacheScope,
-  deleteAudioCacheEntry,
   getAudioCacheConfig,
   getAudioCacheStatuses,
-  listSavedAudioCache,
   openAudioCacheEntry,
   openAudioCacheWriter,
   pinAudioCacheEntry,
@@ -20,6 +18,7 @@ import {
   type AudioCacheOriginInput,
 } from '../lib/audio-cache'
 import { audioContentTypeForUrl, audioProxyHeadersFor } from '../lib/netease-client'
+import { findDownloads, waitForDownloadReconcile } from '../lib/download-library'
 
 type OnlineSource = 'netease' | 'qq'
 
@@ -72,6 +71,11 @@ async function bodyOf(req: IncomingMessage): Promise<Record<string, unknown>> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
+/** 固定保留只在下载导出前防止被清理，对外一律算普通缓存。 */
+function publicStatus<T extends { state: string }>(status: T): T {
+  return status.state === 'pinned' ? { ...status, state: 'cached' } : status
+}
+
 function mutationStatus(error: string): number {
   if (error === 'NOT_FOUND') return 404
   if (error === 'CACHE_SHARED' || error === 'CACHE_BUSY' || error === 'PINNED_CONTENT') return 409
@@ -87,11 +91,6 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  if (pn === '/api/audio-cache/library' && req.method === 'GET') {
-    sendJson(res, { items: await listSavedAudioCache(ctx.userDataDir) })
-    return true
-  }
-
   if (pn === '/api/audio-cache/status' && req.method === 'POST') {
     const body = await bodyOf(req)
     const raw = Array.isArray(body.tracks) ? body.tracks.slice(0, 100) : []
@@ -99,7 +98,16 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
       const origin = originFrom(item)
       return origin ? [{ source: origin.source, id: origin.id }] : []
     })
-    sendJson(res, { statuses: await getAudioCacheStatuses(ctx.userDataDir, tracks) })
+    const [statuses, downloads] = await Promise.all([
+      getAudioCacheStatuses(ctx.userDataDir, tracks),
+      findDownloads(ctx.userDataDir, tracks),
+    ])
+    // 已下载优先于缓存：对外只有「已下载 / 有缓存 / 没有」三种，固定保留只是下载过程中的内部状态。
+    sendJson(res, { statuses: statuses.map((status) => {
+      const download = downloads.get(`${status.source}:${status.id}`)
+      if (download) return { source: status.source, id: status.id, state: 'downloaded', quality: download.quality || undefined, resolved: download.resolved, size: download.size, savedAt: download.savedAt }
+      return publicStatus(status)
+    }) })
     return true
   }
 
@@ -188,7 +196,7 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
       writer = null
       if (!committed) throw new Error('CACHE_SAVE_INCOMPLETE')
       const [status] = await getAudioCacheStatuses(ctx.userDataDir, [{ source: origin.source, id: origin.id }])
-      sendJson(res, { ok: true, status })
+      sendJson(res, { ok: true, status: publicStatus(status) })
     } catch (error) {
       writer?.abort()
       if (!res.destroyed && !res.headersSent) {
@@ -210,27 +218,23 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
       sendJson(res, { ok: false, error: 'INVALID_CACHE_ENTRY' }, 400)
       return true
     }
+    // 解除固定前等迁移结束：迁移中的旧离线歌此时已有下载记录，解除不会让它丢失。
+    if (body.pinned === false) await waitForDownloadReconcile(ctx.userDataDir)
     const result = await pinAudioCacheEntry(ctx.userDataDir, entryId, origin, body.pinned !== false)
-    sendJson(res, result, result.ok ? 200 : mutationStatus(result.error))
-    return true
-  }
-
-  if (pn === '/api/audio-cache/delete' && req.method === 'POST') {
-    const body = await bodyOf(req)
-    const origin = originFrom(body.origin)
-    const entryId = typeof body.entryId === 'string' ? body.entryId : ''
-    if (!origin || !entryId || (body.savedAt !== undefined && (typeof body.savedAt !== 'number' || !Number.isFinite(body.savedAt) || body.savedAt < 0))) {
-      sendJson(res, { ok: false, error: 'INVALID_CACHE_ENTRY' }, 400)
-      return true
-    }
-    const result = await deleteAudioCacheEntry(ctx.userDataDir, entryId, origin, body.confirmShared === true, body.savedAt as number | undefined)
     sendJson(res, result, result.ok ? 200 : mutationStatus(result.error))
     return true
   }
 
   if (pn === '/api/audio-cache/clear' && req.method === 'POST') {
     const body = await bodyOf(req)
-    const scope = body.scope === 'pinned' || body.scope === 'unmanaged' || body.scope === 'all' ? body.scope : 'temporary'
+    // 「cache」= 所有可再生的缓存（自动缓存 + 未识别旧文件）；下载中的固定条目不动。
+    const scope = body.scope === 'cache' || body.scope === 'unmanaged' ? body.scope : 'temporary'
+    if (scope === 'cache') {
+      const first = await clearAudioCacheScope(ctx.userDataDir, 'temporary')
+      const result = first.ok ? await clearAudioCacheScope(ctx.userDataDir, 'unmanaged') : first
+      sendJson(res, result, result.ok ? 200 : mutationStatus(result.error))
+      return true
+    }
     const result = await clearAudioCacheScope(ctx.userDataDir, scope)
     sendJson(res, result, result.ok ? 200 : mutationStatus(result.error))
     return true
@@ -244,10 +248,11 @@ export const audioCacheRoutes: RouteHandler = async (req, res, url, ctx) => {
   if (pn === '/api/audio-cache/config') {
     if (req.method === 'POST') {
       const body = await bodyOf(req)
+      // 旧「离线音乐」迁移完成前不能换目录，否则还没转成下载的歌会随旧目录被清掉。
+      if (typeof body.dir === 'string') await waitForDownloadReconcile(ctx.userDataDir)
       const result = await updateAudioCacheConfig(ctx.userDataDir, {
         dir: typeof body.dir === 'string' ? body.dir : undefined,
         limitBytes: body.limitBytes == null ? undefined : Number(body.limitBytes),
-        confirmPinned: body.confirmPinned === true,
       })
       if (!result.ok) {
         sendJson(res, result, mutationStatus(result.error))

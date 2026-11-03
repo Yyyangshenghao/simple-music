@@ -6,11 +6,11 @@ vi.mock('./api', () => ({ api: { post: h.post } }))
 beforeEach(() => { h.post.mockReset(); h.post.mockResolvedValue({ ok: true }) })
 
 const items: OfflineLibraryItem[] = [
-  { origin: { source: 'netease', id: '1', name: 'B song', artist: 'Amy', album: 'Summer', duration: 120000 }, entryId: 'one', savedAt: 10, size: 4, quality: 'standard' },
-  { origin: { source: 'qq', id: '1', name: 'A song', artist: 'Bob' }, entryId: 'two', savedAt: 20, size: 4, quality: 'lossless' },
+  { origin: { source: 'netease', id: '1', name: 'B song', artist: 'Amy', album: 'Summer', duration: 120000 }, filePath: '/music/one.mp3', savedAt: 10, size: 4, quality: 'standard' },
+  { origin: { source: 'qq', id: '1', name: 'A song', artist: 'Bob' }, filePath: '/music/two.flac', savedAt: 20, size: 4, quality: 'lossless' },
 ]
 
-describe('离线音乐列表和播放队列', () => {
+describe('已下载列表和播放队列', () => {
   it('搜索标题、艺人、专辑，忽略空白与大小写', () => {
     expect(filterOfflineLibrary(items, ' SONG ', 'savedAt')).toEqual([items[1], items[0]])
     expect(filterOfflineLibrary(items, 'amy', 'name')).toEqual([items[0]])
@@ -20,7 +20,7 @@ describe('离线音乐列表和播放队列', () => {
   it('按标题、艺人或保存时间排序，不改变原始列表', () => {
     expect(filterOfflineLibrary(items, '', 'name')).toEqual([items[1], items[0]])
     expect(filterOfflineLibrary(items, '', 'artist')).toEqual(items)
-    expect(items[0].entryId).toBe('one')
+    expect(items[0].filePath).toBe('/music/one.mp3')
   })
   it('播放队列遵循当前筛选顺序，保留跨平台同 ID 和毫秒时长', () => {
     const queue = filterOfflineLibrary(items, '', 'savedAt').map(offlineLibraryTrack)
@@ -32,13 +32,13 @@ describe('离线音乐列表和播放队列', () => {
     expect(offlineLibraryTrack({ ...items[0], origin: { source: 'qq', id: 'old' } })).toMatchObject({ source: 'qq', id: 'old', name: '未知歌曲', artist: '未知艺人' })
   })
 
-  it('批量删除按来源和 ID 去重，传递已确认的保存时间与文件归属', async () => {
+  it('批量删除按来源和 ID 去重，传递已确认的下载时间', async () => {
     const signal = new AbortController().signal
     const result = await deleteOfflineLibraryItems([items[0], items[0], items[1]], signal)
     expect(result).toEqual({ removed: items, failed: [], cancelled: false })
     expect(h.post).toHaveBeenCalledTimes(2)
-    expect(h.post).toHaveBeenNthCalledWith(1, '/api/audio-cache/delete', {
-      entryId: items[0].entryId, origin: items[0].origin, savedAt: items[0].savedAt,
+    expect(h.post).toHaveBeenNthCalledWith(1, '/api/downloads/delete', {
+      origin: items[0].origin, savedAt: items[0].savedAt,
     }, undefined, { signal })
   })
 

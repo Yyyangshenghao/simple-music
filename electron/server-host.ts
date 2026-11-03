@@ -1,8 +1,9 @@
-import { app } from 'electron'
+import { app, shell } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { startServer } from '../server/index'
+import { reconcileDownloads } from '../server/lib/download-library'
 import { readProxySettings, type SystemProxyAddresses } from '../server/lib/proxy-config'
 import { applyUpstreamProxy, setSystemProxyAddresses } from '../server/lib/upstream-proxy'
 import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
@@ -95,10 +96,13 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
     token: apiToken,
     applySessionProxy: syncSessionProxy,
     resolveSystemProxy: syncSystemProxy,
+    trashItem: (path) => shell.trashItem(path),
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged
   })
   void appleMusicWeb.restore()
+  // 旧版「离线音乐」迁移为下载记录；后台进行，下载列表与改缓存目录会等它完成。
+  void reconcileDownloads(userDataDir, defaultSongDownloadDir)
   return { port: handle.port, token: apiToken }
 }
 

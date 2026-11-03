@@ -7,7 +7,7 @@ import { HoverTips } from './HoverTips'
 import { CloseIcon } from './CloseIcon'
 import styles from './LibraryToolbar.module.css'
 
-/** 伴奏、本地与离线音乐统一的列表工具栏；业务操作由页面提供。 */
+/** 伴奏、本地与已下载统一的列表工具栏；业务操作由页面提供。 */
 export function LibraryToolbar({ summary, primary, value, onChange, searchLabel, placeholder = '搜索歌曲或艺人', disabled, children }: {
   summary: ReactNode
   primary: ReactNode

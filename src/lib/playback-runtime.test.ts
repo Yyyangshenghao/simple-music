@@ -121,17 +121,18 @@ it('播放宿主无React时恢复下载队列，重复启动不覆盖，退出�
   const { useOfflineCacheStore } = await import('../stores/offline-cache')
   const { api } = await import('./api')
   const post = vi.spyOn(api, 'post').mockImplementation(async path => {
-    if (path === '/api/audio-cache/status') return { statuses: [{ source: 'qq', id: 'download', state: 'pinned', entryId: 'cached' }] }
+    if (path === '/api/audio-cache/status') return { statuses: [{ source: 'qq', id: 'download', state: 'cached', entryId: 'cached' }] }
+    if (path === '/api/audio-cache/pin') return { ok: true }
     return new Promise(() => {})
   })
   expect(useOfflineCacheStore.getState()).toMatchObject({ paused: true, jobs: [{ status: 'queued', directory: '/old-downloads' }] })
   expect(post).not.toHaveBeenCalled()
   useOfflineCacheStore.getState().setPaused(false)
-  for (let i = 0; i < 8; i++) await Promise.resolve()
-  expect(useOfflineCacheStore.getState().jobs[0].status).toBe('exporting')
+  await vi.waitFor(() => expect(useOfflineCacheStore.getState().jobs[0].status).toBe('exporting'))
   const { startPlaybackRuntime } = await import('./playback-runtime')
   expect(startPlaybackRuntime()).toBe(stopRuntime)
-  expect(post).toHaveBeenCalledTimes(2)
+  // 查状态、固定缓存、导出各一次
+  expect(post).toHaveBeenCalledTimes(3)
   stopRuntime!()
   expect(post.mock.lastCall?.[3]?.signal?.aborted).toBe(true)
   expect(useOfflineCacheStore.getState().jobs).toEqual([])

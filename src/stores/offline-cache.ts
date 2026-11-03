@@ -45,8 +45,8 @@ interface OfflineCacheStore {
   setPaused(paused: boolean): void
   loadDownloadDir(): Promise<string>
   setDownloadDir(dir: string): Promise<void>
-  setPinned(track: Track, pinned: boolean): Promise<void>
-  deleteLocal(track: Track, confirmShared?: boolean): Promise<void>
+  /** 从「已下载」移除并把歌曲文件移到废纸篓。 */
+  removeDownload(track: Track): Promise<void>
   cancelSave(key?: string): void
   cancelWaiting(): void
   dismissJob(key?: string): void
@@ -161,6 +161,9 @@ function pumpSaves(): void {
 }
 
 async function performSave(job: OfflineSaveJob): Promise<void> {
+  // 保存或固定后到导出完成之间缓存是固定的；取消或失败时解除，空间按缓存上限正常回收。
+  let pinnedEntry: string | undefined
+  let exported = false
   try {
     if (job.track.pending && (job.track.source === 'netease' || job.track.source === 'qq')) {
       const source = job.track.source
@@ -175,15 +178,27 @@ async function performSave(job: OfflineSaveJob): Promise<void> {
       updateJob(job.controller, { track })
     }
     const status = await saveAudio(job)
-    if (!status?.entryId || job.controller.signal.aborted) return
+    if (job.controller.signal.aborted) return
+    if (status?.state === 'downloaded') {
+      // 已下载且文件仍在：不再导出「(1)」副本，直接算完成。
+      updateJob(job.controller, { status: 'done', receivedBytes: status.size, totalBytes: status.size })
+      return
+    }
+    if (!status?.entryId) return
+    pinnedEntry = status.entryId
     updateJob(job.controller, { status: 'exporting' })
     const result = await api.post<{ filePath: string; size: number }>('/api/downloads/export', {
       entryId: status.entryId, origin: offlineOrigin(job.track), dir: job.directory,
     }, undefined, { signal: job.controller.signal, timeoutMs: 30 * 60 * 1000 })
+    exported = true
     if (job.controller.signal.aborted) return
     updateJob(job.controller, { status: 'done', filePath: result.filePath, receivedBytes: result.size, totalBytes: result.size })
   } catch (error) {
     if (!job.controller.signal.aborted) updateJob(job.controller, { status: 'failed', error: errorMessage(error) })
+  } finally {
+    if (pinnedEntry && !exported) {
+      void api.post('/api/audio-cache/pin', { entryId: pinnedEntry, origin: offlineOrigin(job.track), pinned: false }).catch(() => {})
+    }
   }
 }
 
@@ -195,22 +210,17 @@ async function saveAudio({ track, controller }: OfflineSaveJob): Promise<Offline
     const existing = await fetchOfflineStatus(track, controller.signal)
     if (!isCurrent()) return null
     set((state) => ({ byKey: mergeStatuses(state.byKey, [existing]) }))
-    if (existing.state === 'pinned') {
+    if (existing.state === 'downloaded') {
       return existing
     }
+    // 已有缓存时先固定住，防止导出前被缓存上限清掉；导出完成后服务端会解除固定。
     if (existing.state === 'cached' && existing.entryId) {
       await api.post('/api/audio-cache/pin', {
         entryId: existing.entryId,
         origin: offlineOrigin(track),
         pinned: true,
       }, undefined, { signal: controller.signal })
-      const pinned = await fetchOfflineStatus(track, controller.signal)
-      if (!isCurrent()) return null
-      get().invalidate()
-      set((state) => ({
-        byKey: mergeStatuses(state.byKey, [pinned]),
-      }))
-      return pinned
+      return isCurrent() ? existing : null
     }
   } catch {
     if (!isCurrent()) return null
@@ -387,31 +397,16 @@ export const useOfflineCacheStore = create<OfflineCacheStore>((set, get) => ({
     return added
   },
 
-  async setPinned(track, pinned) {
-    const key = offlineTrackKey(track)
-    const status = get().byKey[key] ?? await get().ensure(track)
-    if (!status?.entryId) return
-    await api.post('/api/audio-cache/pin', {
-      entryId: status.entryId,
-      origin: offlineOrigin(track),
-      pinned,
-    })
-    const next = await fetchOfflineStatus(track)
-    get().invalidate()
-    set((state) => ({ byKey: mergeStatuses(state.byKey, [next]) }))
-  },
-
-  async deleteLocal(track, confirmShared = false) {
-    const key = offlineTrackKey(track)
-    const status = get().byKey[key] ?? await get().ensure(track)
-    if (!status?.entryId) return
-    await api.post('/api/audio-cache/delete', {
-      entryId: status.entryId,
-      origin: offlineOrigin(track),
-      confirmShared,
-    })
-    get().invalidate()
-    useToastStore.getState().show('播放器音频已删除，下载目录中的歌曲文件保留')
+  async removeDownload(track) {
+    if (track.source !== 'netease' && track.source !== 'qq') return
+    try {
+      await api.post('/api/downloads/delete', { origin: offlineOrigin(track) })
+      useToastStore.getState().show('已删除下载，歌曲文件已移到废纸篓')
+    } catch {
+      useToastStore.getState().show('删除下载失败，请稍后重试')
+    } finally {
+      get().invalidate()
+    }
   },
 
   cancelSave(key) {

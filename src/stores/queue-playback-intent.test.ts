@@ -25,7 +25,7 @@ vi.mock('../lib/service-registry', () => ({ serviceFor: () => ({ getTracksByIds:
 vi.mock('../lib/track-preload', () => ({ preloadTracks: vi.fn(), getPreloadedResolution: vi.fn() }))
 vi.mock('../lib/offline-cache', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/offline-cache')>(),
-  fetchOfflineStatus: vi.fn(async (track: Track) => ({ source: track.source, id: String(track.id), state: 'pinned', entryId: String(track.id) })),
+  fetchOfflineStatus: vi.fn(async (track: Track) => ({ source: track.source, id: String(track.id), state: 'cached', entryId: String(track.id) })),
 }))
 
 import { usePlaylistStore } from './playlist'

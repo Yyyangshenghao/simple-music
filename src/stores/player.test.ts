@@ -80,7 +80,7 @@ const track: Track = {
   name: '歌曲', artist: '歌手', artists: [], duration: 180_000,
 }
 const offline: OfflineCacheStatus = {
-  source: 'qq', id: 'origin', state: 'pinned', entryId: 'entry', quality: 'lossless',
+  source: 'qq', id: 'origin', state: 'cached', entryId: 'entry', quality: 'lossless',
   resolved: { source: 'netease', id: 'resolved', name: '音频歌曲', artist: '音频歌手' },
 }
 const online: PlaybackCandidate = {

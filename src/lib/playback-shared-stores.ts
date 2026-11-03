@@ -74,7 +74,7 @@ export const remoteActions: Record<string, readonly string[]> = {
   providers: ['setEnabled', 'setPlaybackOrder', 'setPreferOriginSource', 'setMultiSourceFallback', 'setSourceBadgeMode', 'setContentSource', 'setAccountState', 'setPlaybackAvailability'],
   lyrics: ['setOffsetSec', 'updateLayout', 'setDesktopLyricsEnabled'],
   lyricSources: ['queryCandidates', 'cancelSelection', 'chooseSource', 'setDefaultSource', 'clearRemembered', 'setSourceOrder', 'forgetTrack', 'updateRemembered', 'testSource'],
-  downloads: ['ensure', 'ensureMany', 'save', 'saveMany', 'setPaused', 'loadDownloadDir', 'setDownloadDir', 'setPinned', 'deleteLocal', 'cancelSave', 'cancelWaiting', 'dismissJob', 'invalidate'],
+  downloads: ['ensure', 'ensureMany', 'save', 'saveMany', 'setPaused', 'loadDownloadDir', 'setDownloadDir', 'removeDownload', 'cancelSave', 'cancelWaiting', 'dismissJob', 'invalidate'],
   recent: ['clear'], likes: ['ensureChecked', 'toggleLike', 'resolveUnlike'],
   apple: ['refresh', 'connect', 'disconnect'],
   visual: ['setPreset', 'updateFx', 'setPerformanceMode', 'setBackgroundMode', 'loadArchive'],
