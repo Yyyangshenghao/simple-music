@@ -1,7 +1,7 @@
 // 发版前的元数据校验：CI 发布工作流、发布 PR 检查与本地 `npm run release:check` 共用同一套规则。
 //   node scripts/release/check-release.mjs              按 package.json 版本校验正式版
-//   node scripts/release/check-release.mjs 2.6.2        校验指定正式版
-//   node scripts/release/check-release.mjs 2.6.2-beta.3 校验预发版（只校验版本号，不要求发行说明）
+//   node scripts/release/check-release.mjs X.Y.Z        校验指定正式版
+//   node scripts/release/check-release.mjs X.Y.Z-beta.N 校验预发版（只校验版本号，不要求发行说明）
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'

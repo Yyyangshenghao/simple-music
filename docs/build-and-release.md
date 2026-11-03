@@ -18,8 +18,8 @@ tag 只由 Release 工作流在最后一步创建，**不要手动推 `v*` tag**
 ### 发 beta（实机验收安装包）
 
 ```bash
-git push origin dev/2.6.2                       # 先推送，等 Source checks（含试打包）变绿
-gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/2.6.2 -f channel=beta
+git push origin dev/X.Y.Z                       # 先推送，等 Source checks（含试打包）变绿
+gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -f channel=beta
 gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1
 gh run watch <run id> --repo Yyyangshenghao/simple-music --exit-status
 ```
@@ -56,12 +56,10 @@ beta 号自动递增，不用改版本文件、不用写发行说明；发为 Gi
 | `publish` 失败（网络、权限） | 直接重跑失败的 job，会先清掉遗留的同名草稿 |
 | Release 已公开后才发现问题 | 发下一个补丁版本；不移动、不覆盖已公开的 tag |
 
-### 已知事项与待办
+### 使用要点
 
-- 新 Release 工作流从 2.6.2 起生效：GitHub 只能手动触发默认分支 master 上已有的工作流，2.6.2 合入 master 之前无法用它发 beta；2.6.2 正式发版是它的首次运行，建议先 `dry_run`。
-- 尚未在 GitHub 设置中配置：master 分支保护（必需检查 Source checks、PR 评审）与限制 `v*` tag 创建的规则集。配置后更新 §0.7 末段。
-- `actions/setup-node@v4` 运行时有 Node 20 弃用提示，暂不影响，可择机升级到 v5 并观察一次 CI。
-- 历史缺号：v2.2.0、v2.2.1、v2.3.1、v2.3.5 与 v2.6.2-beta.1 因旧流程「先推 tag 再构建」失败占号，其中 v2.6.2-beta.1 只有 tag 没有 Release。这些号不再使用。
+- Release 工作流只能手动触发默认分支 master 上已有的定义：`release.yml` 或 `package.yml` 的改动要随版本合入 master 后才对发版生效，改动后的首次发版先用 `dry_run` 跑一遍。
+- master 分支保护与 `v*` tag 规则集属于 GitHub 仓库设置，现状以 §0.7 末段为准；未配置的门禁由人工保证。
 
 ## 0. 版本升级规范（默认发布协议）
 
@@ -98,7 +96,7 @@ beta 号自动递增，不用改版本文件、不用写发行说明；发为 Gi
 目标版本按以下优先级确定：
 
 1. 用户明确指定的版本；
-2. 所属 dev 分支的版本，例如 `dev/2.3.0` 对应 `2.3.0`，feature 必须先确认所属 dev；
+2. 所属 dev 分支的版本，例如 `dev/X.Y.Z` 对应 `X.Y.Z`，feature 必须先确认所属 dev；
 3. 两者都没有时，默认将 `package.json` 当前版本递增一个补丁版本。
 
 用户指定版本必须与版本 dev 一致；冲突时先明确正确 dev，不能在现有 dev 上随意改成另一个版本。版本号和正式标签在开发期不能作为“已经发布”的证明。发布准备前 `package.json` 可以仍是上一稳定版版本，版本 dev 名称表示目标；准备发布时统一更新两个版本文件，不因普通 feature 提交反复升级版本。
@@ -161,7 +159,7 @@ git diff --check
 
 #### 本地打包与安装验证
 
-`npm run build` 只验证源码构建，打包配置（`files`、`asarUnpack`、原生模块）出错只有打出安装包才看得到。2.6.0 曾因平台级 `files` 只写排除项、白名单失效，把 `docs/`、`src/` 整个打进 asar，安装包从约 115MB 涨到约 250MB。发布前在本机执行：
+`npm run build` 只验证源码构建，打包配置（`files`、`asarUnpack`、原生模块）出错只有打出安装包才看得到，例如平台级 `files` 只写排除项会让白名单失效，把 `docs/`、`src/` 整个打进 asar，安装包体积成倍增加。发布前在本机执行：
 
 ```bash
 npm run build:mac   # Windows 机器上用 npm run build:win
@@ -175,25 +173,25 @@ node scripts/release/check-package.mjs mac   # Windows 上把 mac 换成 win；�
 
 ### 0.4 提交、合并、标签和推送顺序
 
-功能改动与发布元数据分成两个边界：直接在 dev 开发的提交或 feature → dev 的 Squash 提交保持原有 Conventional Commit；版本号和发行说明在 dev 上使用单独发布提交。以下以 2.3.0 为例；版本号必须替换为实际目标。
+功能改动与发布元数据分成两个边界：直接在 dev 开发的提交或 feature → dev 的 Squash 提交保持原有 Conventional Commit；版本号和发行说明在 dev 上使用单独发布提交。以下 `X.Y.Z` 替换为实际目标版本。
 
 ```bash
-# 在 dev/2.3.0 上检查暂存范围后提交发布元数据
-git add package.json package-lock.json docs/release-notes-2.3.0.md
+# 在 dev/X.Y.Z 上检查暂存范围后提交发布元数据
+git add package.json package-lock.json docs/release-notes-X.Y.Z.md
 git diff --cached --check
 git diff --cached --stat
-git commit -m "chore(release): 发布 v2.3.0"
-git push -u origin dev/2.3.0
+git commit -m "chore(release): 发布 vX.Y.Z"
+git push -u origin dev/X.Y.Z
 ```
 
-随后创建 `dev/2.3.0` → `master` 的发布 PR，标题为 `chore(release): 发布 v2.3.0`。审核版本范围、验证结果和发行说明后，使用 **Merge commit** 合并；不得先在 dev 打正式标签，也不对整条 dev 使用 Squash/rebase merge。
+随后创建 `dev/X.Y.Z` → `master` 的发布 PR，标题为 `chore(release): 发布 vX.Y.Z`。审核版本范围、验证结果和发行说明后，使用 **Merge commit** 合并；不得先在 dev 打正式标签，也不对整条 dev 使用 Squash/rebase merge。
 
 合并后确认 master 的 Source checks 通过，再从 master 触发发布工作流：
 
 ```bash
 git fetch origin master --tags
 git show origin/master:package.json | grep '"version"'   # 应为目标版本
-git ls-remote --tags origin refs/tags/v2.3.0              # 应无输出
+git ls-remote --tags origin refs/tags/vX.Y.Z              # 应无输出
 gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref master -f channel=stable
 gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1   # 取 run id 后 gh run watch <id> --exit-status
 ```
@@ -218,26 +216,25 @@ gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1   # 
 
 ### 0.5.1 K 歌自托管模型附件
 
-UVR 官方仓库没有的模型由我们自己转换，作为**首次带上它的版本** Release 的附件发布；应用按 `server/lib/karaoke-store.ts` 里固定的地址下载并校验 sha256。目前只有「HQ3 省显存」，挂在 **v2.6.0**：
+UVR 官方仓库没有的模型由我们自己转换，作为**首次带上它的版本** Release 的附件发布；应用按 `server/lib/karaoke-store.ts` 里固定的地址下载并校验 sha256。下表登记每个模型挂在哪个版本的 Release 上：
 
-| 附件 | 生成方式 | sha256 |
-|---|---|---|
-| `UVR-MDX-NET-Inst_HQ_3-fp16.onnx`（33,398,584 字节） | `scripts/karaoke/convert-hq3-fp16.py` | `62d30044a9e0980efe2daeba0e0f2080fcb23bf8a46b98c0ba5183fe9bf80a9e` |
+| 附件 | 所在 Release | 生成方式 | sha256 |
+|---|---|---|---|
+| `UVR-MDX-NET-Inst_HQ_3-fp16.onnx`（33,398,584 字节） | v2.6.0 | `scripts/karaoke/convert-hq3-fp16.py` | `62d30044a9e0980efe2daeba0e0f2080fcb23bf8a46b98c0ba5183fe9bf80a9e` |
 
-发布 v2.6.0 时，在 0.5 的工作流完成、Release 已公开后补传附件（工作流的必需产物检查不包含它）：
+新增模型时，在该版本 Release 公开后补传附件（工作流的必需产物检查不包含它），`vX.Y.Z` 为所在 Release：
 
 ```bash
 uv run --no-project --python 3.11 --with onnx==1.23.2 --with onnxconverter-common==1.16.0 --with numpy==2.4.6 --with protobuf==7.36.2 \
   python scripts/karaoke/convert-hq3-fp16.py /tmp/karaoke-models
-gh release upload v2.6.0 /tmp/karaoke-models/UVR-MDX-NET-Inst_HQ_3-fp16.onnx --repo Yyyangshenghao/simple-music
-curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0/UVR-MDX-NET-Inst_HQ_3-fp16.onnx | shasum -a 256
+gh release upload vX.Y.Z /tmp/karaoke-models/UVR-MDX-NET-Inst_HQ_3-fp16.onnx --repo Yyyangshenghao/simple-music
+curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/vX.Y.Z/UVR-MDX-NET-Inst_HQ_3-fp16.onnx | shasum -a 256
 ```
 
 - 脚本会下载官方 HQ3、转换并比对登记的 sha256；不一致时停止，不上传。
 - 最后一条命令输出必须等于上表的 sha256，否则应用会报「模型校验失败」。
-- 之后的版本不再上传，也不要改地址；**不要删除 v2.6.0 的这个附件**，否则所有版本的省显存模型都无法下载。
-- 新增自托管模型时，同样挂在当次版本的 Release 上，在本表登记，并在 `karaoke-store.ts` 写入该版本的地址。
-- v2.6.0 发布前，开发版下载省显存模型会得到 404，属于预期。
+- 已登记的附件之后的版本不再上传，也不要改地址；**不要删除表中登记的附件**，否则所有版本都无法下载对应模型。
+- 新增自托管模型时，挂在当次版本的 Release 上，在本表登记，并在 `karaoke-store.ts` 写入该版本的地址；该版本公开前，开发版下载会得到 404，属于预期。
 
 ### 0.6 失败与回滚原则
 
@@ -263,14 +260,14 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/v2.6.0
 - master 应启用 PR 合并及必需状态检查，发布 PR 要求至少 1 人评审通过；活跃 dev 接收经过本地验收的阶段集成，并在推送后执行双平台 CI。不得以管理员绕过失败检查完成正常发布。
 - tag 只由发布工作流创建；建议在 GitHub 规则集中限制他人创建、更新和删除 `v*` tag。稳定发布只接受从 master 触发。
 - 工作流默认只读权限，仅 `publish` job 授予 `contents: write`；生产签名凭据只在 `sign: true` 的正式打包中使用，试打包显式跳过签名（`VMP_SIGN=skip`）。发布通过 `concurrency: release` 串行执行。
-- **截至 2026-11-03：`verify.yml`（Source checks）对 master/dev 的 PR 与推送执行双平台类型检查、全量测试和源码构建，推送时再调用 `package.yml` 试打包并检查产物，发布 PR 额外校验发版元数据；`release.yml` 改为手动触发，复用同一个 `package.yml` 正式签名打包，成功后才创建 tag 与 Release。master 分支保护（必需检查、PR 评审）与 tag 规则集需在 GitHub 仓库设置中配置，尚未配置前由人工保证，不能声称已由 GitHub 强制。配置落地时同步更新本段。**
+- **当前落地状态：`verify.yml`（Source checks）对 master/dev 的 PR 与推送执行双平台类型检查、全量测试和源码构建，推送时再调用 `package.yml` 试打包并检查产物，发布 PR 额外校验发版元数据；`release.yml` 手动触发，复用同一个 `package.yml` 正式签名打包，成功后才创建 tag 与 Release。master 分支保护（必需检查、PR 评审）与 tag 规则集需在 GitHub 仓库设置中配置，尚未配置前由人工保证，不能声称已由 GitHub 强制。配置落地时同步更新本段。**
 
 ### 0.7.1 预发版（验收真实安装包）
 
 预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，先推送待发布的 `dev/X.Y.Z`，再从该分支触发：
 
 ```bash
-gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/2.6.2 -f channel=beta
+gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -f channel=beta
 ```
 
 - 目标版本取分支名 `X.Y.Z`，不低于分支 `package.json` 版本；`beta.N` 由工作流在远端已有预发版号上自动加一，不用手动编号，也不需要提交版本号或发行说明，CI 在构建机上把版本写入 `package.json`（测试之后）。
@@ -279,7 +276,7 @@ gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/2.6.2 -
 - 实机验收按对应版本的测试清单执行（如 `docs/reviews/<版本>-windows-test-checklist.md`），结果写入发行说明「验证情况」，注明验收所用的预发版号。
 - 修复后重新触发即得到下一个 `beta.N`；失败的运行不会占号。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → 发布工作流。
 - 预发版 tag 和 Release 可在正式版发布后由所有者决定是否清理，不自动删除。
-- GitHub 只允许手动触发默认分支 master 上已有的工作流：新流程随首个合入 master 的版本（2.6.2）生效，在此之前无法从 dev 触发预发版。
+- GitHub 只允许手动触发默认分支 master 上已有的工作流定义，工作流改动合入 master 前不会对预发版生效。
 
 ### 0.8 紧急补丁与旧版本维护
 
@@ -299,7 +296,7 @@ npx vitest run src/lib/stack-pool.test.ts   # 单测单文件
 npm run server:dev     # 只跑 API server（tsx server/index.ts），默认端口 35530，可 PORT= 覆盖
 npm run build:mac      # build + electron-builder --mac（dmg，x64 + arm64）
 npm run build:win      # build + electron-builder --win（NSIS Setup + portable，均 x64）
-npm run release:check  # 发版元数据校验（版本文件、发行说明），可带版本号：npm run release:check -- 2.6.2
+npm run release:check  # 发版元数据校验（版本文件、发行说明），可带版本号：npm run release:check -- X.Y.Z
 node scripts/release/check-package.mjs mac   # 打包后检查 asar 内容与必需产物（Windows 上把 mac 换成 win）
 ```
 
@@ -327,7 +324,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 
 ## 4. 发布约定
 
-- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `v1.3.0`，由发布工作流在 Release 公开时创建；预发版 `v1.3.0-beta.1` 发为预发布，更新检查读取的 `releases/latest` 不包含它。github 发布目标下 electron-builder 不按版本号切换通道，预发版同样生成 `latest*.yml`，只随预发布 Release 上传。
+- GitHub Releases（仓库 `Yyyangshenghao/simple-music`），tag 形如 `vX.Y.Z`，由发布工作流在 Release 公开时创建；预发版 `vX.Y.Z-beta.N` 发为预发布，更新检查读取的 `releases/latest` 不包含它。github 发布目标下 electron-builder 不按版本号切换通道，预发版同样生成 `latest*.yml`，只随预发布 Release 上传。
 - Release 资源命名必须匹配更新器的挑选正则（`server/lib/update.ts#pickReleaseAsset`）：
   - mac：优先 `<arch>.*\.dmg`，回退任意 `.dmg`；
   - win：优先 `-Setup.exe`，其次非 portable 的 `.exe`、`.msi`；
