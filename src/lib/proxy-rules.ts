@@ -9,10 +9,17 @@ export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 /** Apple Music 网页、授权、曲库与音频 CDN 用到的域名后缀。 */
 export const APPLE_DIRECT_DOMAINS = ['apple.com', 'mzstatic.com', 'cdn-apple.com', 'aaplimg.com', 'apple-cloudkit.com'] as const
 
-export const PROXY_CLIENTS: readonly { id: ProxyClient; label: string; where: string }[] = [
-  { id: 'clash', label: 'Clash / Mihomo', where: '放在 rules 最前面。Clash Verge 在订阅的“编辑规则”里添加为前置规则，订阅更新不会被覆盖。' },
-  { id: 'surge', label: 'Surge', where: '放在 [Rule] 段最前面。' },
-  { id: 'singbox', label: 'sing-box', where: '放进 route.rules 数组最前面；outbound 填你配置里直连出站的 tag。' },
+/** 直连时用于解析 Apple 域名的国内 DoH；海外 DNS 会给出海外节点 IP，直连过去登录慢、播放超时。 */
+export const DOMESTIC_DNS = ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'] as const
+
+export const PROXY_CLIENTS: readonly { id: ProxyClient; label: string; where: string; dnsWhere: string }[] = [
+  {
+    id: 'clash', label: 'Clash / Mihomo',
+    where: '放在 rules 最前面。Clash Verge 在订阅的“编辑规则”里添加为前置规则，订阅更新不会被覆盖。',
+    dnsWhere: '合并进配置的 dns 段。Clash Verge 写在订阅的“扩展覆写配置”里，订阅更新不会被覆盖。',
+  },
+  { id: 'surge', label: 'Surge', where: '放在 [Rule] 段最前面。', dnsWhere: '放进 [Host] 段。' },
+  { id: 'singbox', label: 'sing-box', where: '放进 route.rules 数组最前面；outbound 填你配置里直连出站的 tag。', dnsWhere: '放进 dns.rules 数组最前面；server 填你配置里国内 DNS 的 tag。' },
 ]
 
 /**
@@ -36,6 +43,19 @@ export function proxyRuleSnippet(client: ProxyClient, scope: RuleScope, platform
     ? domains.map((domain) => `DOMAIN-SUFFIX,${domain},DIRECT`)
     : processes.map((name) => `PROCESS-NAME,${name},DIRECT`)
   return client === 'clash' ? lines.map((line) => `- ${line}`).join('\n') : lines.join('\n')
+}
+
+/** 让 Apple 域名走国内 DNS 的配置片段；只配直连规则而 DNS 仍走海外时，Apple Music 照样连不上。 */
+export function proxyDnsSnippet(client: ProxyClient): string {
+  const domains = [...APPLE_DIRECT_DOMAINS]
+  if (client === 'singbox') return JSON.stringify({ domain_suffix: domains, server: 'local' }, null, 2)
+  if (client === 'surge') return domains.map((domain) => `*.${domain} = server:223.5.5.5`).join('\n')
+  return [
+    'dns:',
+    '  nameserver-policy:',
+    `    '${domains.map((domain) => `+.${domain}`).join(',')}':`,
+    ...DOMESTIC_DNS.map((server) => `      - ${server}`),
+  ].join('\n')
 }
 
 export function desktopPlatform(): DesktopPlatform {

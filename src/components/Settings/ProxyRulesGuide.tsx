@@ -1,5 +1,5 @@
 import { useId, useState, type RefObject } from 'react'
-import { PROXY_CLIENTS, desktopPlatform, proxyRuleSnippet, type ProxyClient, type RuleScope } from '../../lib/proxy-rules'
+import { PROXY_CLIENTS, desktopPlatform, proxyDnsSnippet, proxyRuleSnippet, type ProxyClient, type RuleScope } from '../../lib/proxy-rules'
 import help from './PlaybackLogicHelp.module.css'
 import styles from './ProxyRulesGuide.module.css'
 
@@ -8,9 +8,8 @@ const SCOPES: { scope: RuleScope; title: string; caption: string }[] = [
   { scope: 'app', title: '或者：整个应用直连', caption: '按进程名匹配，网易云与 QQ 音乐也会直连；需要代理软件支持进程规则。' },
 ]
 
-function RuleBlock({ client, scope, title, caption }: { client: ProxyClient; scope: RuleScope; title: string; caption: string }) {
+function RuleBlock({ text, title, caption }: { text: string; title: string; caption: string }) {
   const [copied, setCopied] = useState(false)
-  const text = proxyRuleSnippet(client, scope, desktopPlatform())
 
   async function copy(): Promise<void> {
     try {
@@ -74,7 +73,10 @@ export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialog
               ))}
             </div>
             <p className={help.caption}>{current.where}</p>
-            {SCOPES.map((item) => <RuleBlock key={item.scope} client={client} {...item} />)}
+            {SCOPES.map((item) => <RuleBlock key={item.scope} text={proxyRuleSnippet(client, item.scope, desktopPlatform())} title={item.title} caption={item.caption} />)}
+            {/* 直连规则只管出口；DNS 仍走海外时会解析到海外节点，直连过去登录慢、播放超时。 */}
+            <RuleBlock text={proxyDnsSnippet(client)} title="同时：Apple 域名用国内 DNS"
+              caption={`直连后登录很慢或播放超时，多半是 DNS 解析到了海外节点。${current.dnsWhere}`} />
           </div>
         </div>
       </dialog>
