@@ -108,6 +108,60 @@ function GearIcon() {
   )
 }
 
+function TranslateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 5h9M8.5 3v2M11 5c-.8 3.6-3.2 6.6-6.5 8.2M6.6 8.6c1.2 2 3 3.6 5 4.4" />
+      <path d="m12.5 21 4-9 4 9M14 17.6h5" />
+    </svg>
+  )
+}
+
+/** 罗马音：上方小注音、下方正文 */
+function RomaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 4.5h8" strokeWidth="1.5" opacity="0.6" />
+      <path d="m6 20 6-12 6 12M8.2 15.6h7.6" />
+    </svg>
+  )
+}
+
+function ChevronRight() {
+  return (
+    <svg viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="8 5 13 10 8 15" />
+    </svg>
+  )
+}
+
+/** 歌词同步步进：单箭头 0.1 秒，双箭头 0.5 秒；方向与时间轴一致（左 = 延后） */
+function StepIcon({ dir, double }: { dir: -1 | 1; double?: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor"
+      strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={dir < 0 ? { transform: 'scaleX(-1)' } : undefined}>
+      {double ? <><polyline points="5 5 10 10 5 15" /><polyline points="11 5 16 10 11 15" /></> : <polyline points="8 5 13 10 8 15" />}
+    </svg>
+  )
+}
+
+/** 排版预设缩略：左封面方块、右三行歌词，按预设比例画 */
+function LayoutGlyph({ cover, lines }: { cover: number; lines: number }) {
+  const y = 12 - cover / 2
+  return (
+    <svg viewBox="0 0 36 24" width="36" height="24" fill="none" aria-hidden="true">
+      <rect x={11 - cover / 2} y={y} width={cover} height={cover} rx="2.5" fill="currentColor" opacity="0.55" />
+      {[8, 12, 16].map((ly, i) => (
+        <rect key={ly} x={20} y={ly - 1} width={i === 1 ? lines : lines * 0.72} height="2" rx="1" fill="currentColor" opacity={i === 1 ? 0.95 : 0.45} />
+      ))}
+    </svg>
+  )
+}
+
 /** 歌名溢出时左右往返滚动展示完整内容,未溢出时保持静态 */
 function MarqueeTrackName({ text }: { text: string }) {
   const outerRef = useRef<HTMLDivElement>(null)
@@ -224,14 +278,14 @@ function LyricsEmptyState({ stage = false, onChoose }: { stage?: boolean; onChoo
 }
 
 const LAYOUT_PRESETS = [
-  { label: '平衡', fontScale: 1, layout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
-  { label: '封面主导', fontScale: 0.9, layout: { coverScale: 1.18, coverX: 0, coverY: 0, lyricsWidth: 50, lyricsX: 0, lyricsY: 0 } },
-  { label: '歌词主导', fontScale: 1.12, layout: { coverScale: 0.8, coverX: 0, coverY: 0, lyricsWidth: 62, lyricsX: 0, lyricsY: 0 } },
+  { label: '平衡', glyph: { cover: 12, lines: 11 }, fontScale: 1, layout: { coverScale: 1, coverX: 0, coverY: 0, lyricsWidth: 56, lyricsX: 0, lyricsY: 0 } },
+  { label: '封面主导', glyph: { cover: 16, lines: 8 }, fontScale: 0.9, layout: { coverScale: 1.18, coverX: 0, coverY: 0, lyricsWidth: 50, lyricsX: 0, lyricsY: 0 } },
+  { label: '歌词主导', glyph: { cover: 8, lines: 14 }, fontScale: 1.12, layout: { coverScale: 0.8, coverX: 0, coverY: 0, lyricsWidth: 62, lyricsX: 0, lyricsY: 0 } },
 ]
 
 const PLAYER_STYLES = [
   { id: 'stage', label: '舞台控件' },
-  { id: 'dock', label: '底部播放栏' },
+  { id: 'dock', label: '底部栏' },
 ] as const
 
 /** 用户手动滚动歌词后,这么久没再滚动才恢复自动居中 */
@@ -250,11 +304,12 @@ interface LayoutSliderProps {
 function LayoutSlider({ label, value, min, max, step, format, onChange }: LayoutSliderProps) {
   const progress = ((value - min) / (max - min)) * 100
   return (
-    <label className={styles.layoutSliderRow}>
-      <span className={styles.popLabel}>{label}</span>
+    <label className={styles.layoutSliderRow} title={label}>
+      <span className={styles.fontGlyph} data-size="s" aria-hidden="true">A</span>
       <input
         className={styles.layoutSlider}
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}
@@ -262,6 +317,7 @@ function LayoutSlider({ label, value, min, max, step, format, onChange }: Layout
         style={{ '--range-progress': `${progress}%` } as React.CSSProperties}
         onChange={(event) => onChange(Number(event.currentTarget.value))}
       />
+      <span className={styles.fontGlyph} data-size="l" aria-hidden="true">A</span>
       <span className={styles.layoutValue}>{format(value)}</span>
     </label>
   )
@@ -288,7 +344,6 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const setLyricsFontScale = useSettingsStore((s) => s.setLyricsFontScale)
   const lyricsLayout = useSettingsStore((s) => s.lyricsLayout)
   const setLyricsLayout = useSettingsStore((s) => s.setLyricsLayout)
-  const resetLyricsLayout = useSettingsStore((s) => s.resetLyricsLayout)
   const showTranslation = useSettingsStore((s) => s.lyricsShowTranslation)
   const setShowTranslation = useSettingsStore((s) => s.setLyricsShowTranslation)
   const showRoma = useSettingsStore((s) => s.lyricsShowRoma)
@@ -739,8 +794,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   className={`${styles.railBtn}${showTranslation ? ` ${styles.railBtnActive}` : ''}`}
                   onClick={() => setShowTranslation(!showTranslation)}
                   title="显示/隐藏中文翻译"
+                  aria-label="中文翻译"
+                  aria-pressed={showTranslation}
                 >
-                  译
+                  <TranslateIcon />
                 </button>
               )}
               {romaji.length > 0 && (
@@ -748,8 +805,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   className={`${styles.railBtn}${showRoma ? ` ${styles.railBtnActive}` : ''}`}
                   onClick={() => setShowRoma(!showRoma)}
                   title="显示/隐藏罗马音"
+                  aria-label="罗马音"
+                  aria-pressed={showRoma}
                 >
-                  音
+                  <RomaIcon />
                 </button>
               )}
               <div className={styles.railPopAnchor}>
@@ -763,86 +822,72 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 </button>
                 {settingsPopOpen && (
                   <div className={styles.lyricsSettingsPop}>
-                    {track && <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
-                      <span>歌词来源…</span><span>{LYRIC_SOURCE_LABELS[lyricSource]}</span>
-                    </button>}
-                    <div className={styles.popHeader}>
-                      <div>
-                        <strong>舞台排版</strong>
-                        <span>选择排版，再按阅读习惯调整字号</span>
-                      </div>
-                      <button className={styles.resetLayoutBtn} onClick={() => resetLyricsLayout()}>重置</button>
-                    </div>
-                    <div className={styles.layoutPresets}>
-                      {LAYOUT_PRESETS.map((preset) => (
-                        <button key={preset.label} aria-pressed={Object.entries(preset.layout).every(([key, value]) => lyricsLayout[key as keyof typeof lyricsLayout] === value)} onClick={() => {
-                          setLyricsLayout(preset.layout)
-                          setLyricsFontScale(preset.fontScale)
-                        }}>{preset.label}</button>
-                      ))}
-                    </div>
-                    <div className={styles.playerStyleRow}>
-                      <span className={styles.popLabel}>播放控制</span>
-                      <div className={styles.playerStyleSwitch} role="radiogroup" aria-label="播放控制">
-                        {PLAYER_STYLES.map(({ id, label }) => (
-                          <button
-                            key={id}
-                            role="radio"
-                            aria-checked={playerStyle === id}
-                            className={playerStyle === id ? styles.playerStyleActive : undefined}
-                            onClick={() => setPlayerStyle(id)}
-                          >
-                            {label}
+                    <section className={styles.popSection}>
+                      <span className={styles.popLabel}>排版</span>
+                      <div className={styles.layoutPresets}>
+                        {LAYOUT_PRESETS.map((preset) => (
+                          <button key={preset.label} type="button" aria-pressed={Object.entries(preset.layout).every(([key, value]) => lyricsLayout[key as keyof typeof lyricsLayout] === value)} onClick={() => {
+                            setLyricsLayout(preset.layout)
+                            setLyricsFontScale(preset.fontScale)
+                          }}>
+                            <LayoutGlyph {...preset.glyph} />
+                            <span>{preset.label}</span>
                           </button>
                         ))}
                       </div>
-                    </div>
-                    <div className={styles.layoutGroup}>
                       <LayoutSlider label="字号" value={lyricsFontScale} min={0.7} max={1.5} step={0.05} format={(v) => `${v.toFixed(2)}×`} onChange={setLyricsFontScale} />
-                    </div>
-                    <div className={`${styles.popRow} ${styles.syncRow}`}>
-                      <span className={styles.popLabel}>歌词同步</span>
-                      <span className={styles.popValue}>{offsetSec > 0 ? '+' : ''}{offsetSec.toFixed(1)}s</span>
-                    </div>
-                    <div className={styles.popRow}>
-                      <div className={styles.popBtns}>
-                        <button
-                          className={styles.textCtrlBtn}
-                          onClick={() => setOffsetSec(offsetSec - 0.5)}
-                          title="歌词延后 0.5 秒"
-                        >
-                          -0.5
-                        </button>
-                        <button
-                          className={styles.textCtrlBtn}
-                          onClick={() => setOffsetSec(offsetSec - 0.1)}
-                          title="歌词延后 0.1 秒"
-                        >
-                          -0.1
-                        </button>
-                        <button
-                          className={`${styles.textCtrlBtn}${offsetSec !== 0 ? ` ${styles.textCtrlBtnActive}` : ''}`}
-                          onClick={() => setOffsetSec(0)}
-                          title="当前歌词偏移,点击归零"
-                        >
-                          {offsetSec > 0 ? '+' : ''}{offsetSec.toFixed(1)}s
-                        </button>
-                        <button
-                          className={styles.textCtrlBtn}
-                          onClick={() => setOffsetSec(offsetSec + 0.1)}
-                          title="歌词提前 0.1 秒"
-                        >
-                          +0.1
-                        </button>
-                        <button
-                          className={styles.textCtrlBtn}
-                          onClick={() => setOffsetSec(offsetSec + 0.5)}
-                          title="歌词提前 0.5 秒"
-                        >
-                          +0.5
-                        </button>
+                    </section>
+                    <section className={styles.popSection}>
+                      <div className={styles.popRow}>
+                        <span className={styles.popLabel}>播放控制</span>
+                        <div className={styles.playerStyleSwitch} role="radiogroup" aria-label="播放控制">
+                          {PLAYER_STYLES.map(({ id, label }) => (
+                            <button
+                              key={id}
+                              type="button"
+                              role="radio"
+                              aria-checked={playerStyle === id}
+                              onClick={() => setPlayerStyle(id)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                      <div className={styles.popRow}>
+                        <span className={styles.popLabel}>歌词同步</span>
+                        <div className={styles.syncStepper}>
+                        <button type="button" className={styles.syncStep} onClick={() => setOffsetSec(offsetSec - 0.5)} title="歌词延后 0.5 秒" aria-label="歌词延后 0.5 秒">
+                          <StepIcon dir={-1} double />
+                        </button>
+                        <button type="button" className={styles.syncStep} onClick={() => setOffsetSec(offsetSec - 0.1)} title="歌词延后 0.1 秒" aria-label="歌词延后 0.1 秒">
+                          <StepIcon dir={-1} />
+                        </button>
+                          <button
+                            type="button"
+                            className={styles.syncValue}
+                            data-active={offsetSec !== 0 || undefined}
+                            disabled={offsetSec === 0}
+                            onClick={() => setOffsetSec(0)}
+                            title={offsetSec !== 0 ? '点击归零' : '当前未偏移'}
+                          >
+                            {offsetSec > 0 ? '+' : ''}{offsetSec.toFixed(1)}s
+                          </button>
+                        <button type="button" className={styles.syncStep} onClick={() => setOffsetSec(offsetSec + 0.1)} title="歌词提前 0.1 秒" aria-label="歌词提前 0.1 秒">
+                          <StepIcon dir={1} />
+                        </button>
+                        <button type="button" className={styles.syncStep} onClick={() => setOffsetSec(offsetSec + 0.5)} title="歌词提前 0.5 秒" aria-label="歌词提前 0.5 秒">
+                          <StepIcon dir={1} double />
+                        </button>
+                        </div>
+                      </div>
+                    </section>
+                    {track && (
+                      <button type="button" className={styles.sourceSetting} onClick={openSourceDialog}>
+                        <span>歌词来源</span>
+                        <span className={styles.sourceValue}>{LYRIC_SOURCE_LABELS[lyricSource]}<ChevronRight /></span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
