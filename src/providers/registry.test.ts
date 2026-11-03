@@ -5,12 +5,13 @@ import { listProviders, providerFor } from './registry'
 describe('music provider registry', () => {
   it('注册网易云和 QQ，id 唯一且声明基础能力', () => {
     const providers = listProviders()
-    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq', 'apple'])
+    expect(providers.map((provider) => provider.descriptor.id)).toEqual(['netease', 'qq', 'apple', 'qishui'])
     expect(new Set(providers.map((provider) => provider.descriptor.id)).size).toBe(providers.length)
     for (const provider of providers) {
       expect(provider.catalog.searchTracks).toBeTypeOf('function')
       expect(provider.playback.resolve).toBeTypeOf('function')
-      expect(provider.recommendations?.listSurfaces().length).toBeGreaterThan(0)
+      // 游客音源没有推荐栏目，不作为内容平台。
+      if (provider.descriptor.id !== 'qishui') expect(provider.recommendations?.listSurfaces().length).toBeGreaterThan(0)
     }
   })
 

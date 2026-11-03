@@ -18,6 +18,7 @@ describe('聚合搜索页面', () => {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
       apple: { enabled: false, auth: 'anonymous' },
+      qishui: { enabled: false, auth: 'anonymous' },
     } })
     useNavigationStore.setState({ currentView: 'explore', history: [], future: [] })
   })
@@ -49,6 +50,7 @@ describe('聚合搜索页面', () => {
       netease: { enabled: false, auth: 'authenticated' },
       qq: { enabled: true, auth: 'expired' },
       apple: { enabled: true, auth: 'anonymous' },
+      qishui: { enabled: false, auth: 'anonymous' },
     } })
     const html = renderToStaticMarkup(<SearchPage keyword="晴天" />)
     expect(html).toContain('请先登录并启用至少一个音乐平台')

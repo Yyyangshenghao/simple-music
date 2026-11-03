@@ -71,6 +71,7 @@ beforeEach(() => {
   vi.stubGlobal('window', new EventTarget())
   useProviderStore.setState({ byId: {
     netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'anonymous' }, apple: { enabled: false, auth: 'anonymous' },
+  qishui: { enabled: false, auth: 'anonymous' },
   } })
 })
 afterEach(() => {

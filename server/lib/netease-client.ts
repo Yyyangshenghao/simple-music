@@ -308,6 +308,8 @@ export function audioProxyHeadersFor(audioUrl: string, range: string): Record<st
   try {
     const host = new URL(audioUrl).hostname.toLowerCase()
     if (host.includes('qq.com') || host.includes('qpic.cn')) headers.Referer = 'https://y.qq.com/'
+    // 汽水音乐的抖音点播 CDN 拒绝外站 Referer。
+    else if (host.endsWith('.douyinvod.com') || host.endsWith('.douyinpic.com')) headers.Referer = 'https://www.qishui.com/'
   } catch {
     /* ignore */
   }

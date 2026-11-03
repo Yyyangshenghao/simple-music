@@ -17,7 +17,7 @@ import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { AccountButton } from '../components/Settings/AccountButton'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { ProxySettings } from '../components/Settings/ProxySettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
@@ -1289,13 +1289,14 @@ export function SettingsPage() {
                     const connected = runtime.auth === 'authenticated'
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
-                    const accountLabel = source === 'apple' && appleRestoring ? '恢复登录中'
+                    const accountLabel = source === 'qishui' ? '游客模式，会员歌曲仅试听'
+                      : source === 'apple' && appleRestoring ? '恢复登录中'
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
                         ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
                           : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
                         : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
-                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : AppleMusicIcon
+                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : source === 'qishui' ? QishuiLogo : AppleMusicIcon
                     return (
                       <div data-setting-row className={styles.providerRow} key={source}>
                         <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
@@ -1317,7 +1318,12 @@ export function SettingsPage() {
                             onChange={(enabled) => setProviderEnabled(source, enabled)}
                             aria-label={`${enabledLabel(active)}${provider.descriptor.label}`}
                           />
-                          {source === 'apple' ? <AppleMusicSettings /> : <AccountButton
+                          {source === 'apple' ? <AppleMusicSettings /> : source === 'qishui' ? (
+                            // 游客音源没有账号，占位保持开关与其他平台同一位置。
+                            <span aria-hidden="true" style={{ visibility: 'hidden', display: 'inline-flex' }}>
+                              <AccountButton label="" disabled onClick={() => {}} />
+                            </span>
+                          ) : <AccountButton
                             label={`${busy ? connected ? '退出中' : '登录中' : connected ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
                             exit={connected}
                             busy={busy}

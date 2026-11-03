@@ -122,6 +122,8 @@ export class PlaybackResolver {
   private sourceIndex = 0
   private candidateAttempts = 0
   private currentCandidate: PlaybackCandidate | null = null
+  /** 试听片段先放一边：后面还有平台时优先找完整版本，都找不到再播试听。 */
+  private deferredTrials: PlaybackCandidate[] = []
 
   constructor(
     originTrack: Track,
@@ -226,7 +228,7 @@ export class PlaybackResolver {
 
     while (!this.controller.signal.aborted && this.candidateAttempts < this.maxAttempts) {
       const state = this.sourceStates[this.sourceIndex]
-      if (!state) return null
+      if (!state) return this.takeDeferredTrial()
       if (!this.deps.isParticipating(state.source)) {
         this.sourceIndex++
         continue
@@ -269,6 +271,10 @@ export class PlaybackResolver {
       }
 
       const queued = state.candidateQueue.shift()
+      if (queued?.trial && this.sourceIndex < this.sourceStates.length - 1) {
+        this.deferredTrials.push(queued)
+        continue
+      }
       if (queued) {
         this.candidateAttempts++
         this.currentCandidate = queued
@@ -338,7 +344,15 @@ export class PlaybackResolver {
       }
       this.sourceIndex++
     }
-    return null
+    return this.controller.signal.aborted ? null : this.takeDeferredTrial()
+  }
+
+  private takeDeferredTrial(): PlaybackCandidate | null {
+    const trial = this.deferredTrials.shift()
+    if (!trial) return null
+    this.candidateAttempts++
+    this.currentCandidate = trial
+    return trial
   }
 
   complete(candidate: PlaybackCandidate): PlaybackResolution | null {

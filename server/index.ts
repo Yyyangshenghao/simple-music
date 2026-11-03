@@ -23,6 +23,7 @@ import { wallpaperEngineWebRoutes } from './routes/wallpaper-engine-web'
 import { weatherRoutes } from './routes/weather'
 import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
+import { qishuiRoutes } from './routes/qishui-music'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
@@ -48,6 +49,7 @@ const chain: RouteHandler[] = [
   neteaseRoutes,
   amllLyricRoutes,
   kugouLyricRoutes,
+  qishuiRoutes,
   podcastRoutes,
   beatmapRoutes,
   qqRoutes,

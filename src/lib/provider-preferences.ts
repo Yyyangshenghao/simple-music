@@ -44,6 +44,8 @@ export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = {
     netease: { enabled: true },
     qq: { enabled: true },
     apple: { enabled: false },
+    // 游客音源会员曲只有试听，默认关闭，由用户在设置里开启。
+    qishui: { enabled: false },
   },
   playbackOrder: ['netease', 'qq'],
   preferOriginSource: true,
@@ -80,6 +82,7 @@ export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): P
       netease: { enabled: first === 'netease' },
       qq: { enabled: first === 'qq' },
       apple: { enabled: first === 'apple' },
+      qishui: { enabled: false },
     },
     playbackOrder: [first],
     preferOriginSource: true,

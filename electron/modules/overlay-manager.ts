@@ -647,7 +647,7 @@ export function addToPlaylistFromMiniPlayer(event: IpcMainInvokeEvent, track: Tr
     || event.sender !== miniPlayerWindow.webContents || event.senderFrame !== miniPlayerWindow.webContents.mainFrame) {
     return { ok: false, error: 'INVALID_MINI_PLAYER_SENDER' }
   }
-  if (!track || !['netease', 'qq', 'apple', 'local'].includes(track.source)
+  if (!track || !['netease', 'qq', 'apple', 'qishui', 'local'].includes(track.source)
     || (typeof track.id !== 'string' && typeof track.id !== 'number')
     || !String(track.id).trim() || typeof track.name !== 'string' || !track.name.trim()) {
     return { ok: false, error: 'NO_TRACK' }

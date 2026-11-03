@@ -407,7 +407,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       })
       return
     }
-    const cacheKey = candidate.trial || !cacheable || active.offlineFailed
+    // 汽水音乐的播放缓存与下载未接入（server 端缓存只认网易/QQ），不落盘。
+    const cacheKey = candidate.trial || !cacheable || active.offlineFailed || candidate.source === 'qishui'
       ? undefined
       : deps.audioDiskCacheKey(candidate.track, candidate.quality.id)
     set({
@@ -420,11 +421,12 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
     })
     const eng = ensureEngine()
     const originSource = active.originTrack.source
-    const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq')
+    const resolvedSource = candidate.source
+    const cacheContext = cacheKey && (originSource === 'netease' || originSource === 'qq') && (resolvedSource === 'netease' || resolvedSource === 'qq')
       ? {
           originSource,
           originId: String(active.originTrack.id),
-          resolvedSource: candidate.source,
+          resolvedSource,
           resolvedId: String(candidate.track.mid ?? candidate.track.id),
           quality: String(candidate.quality.id),
         }

@@ -40,6 +40,7 @@ describe('content provider preference', () => {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'unknown' },
       apple: { enabled: false, auth: 'anonymous' },
+      qishui: { enabled: false, auth: 'anonymous' },
     }
     expect(resolveContentProvider('qq', pending)).toBeNull()
     const temporaryFallback = resolveContentProvider('qq', pending, false)
@@ -50,6 +51,7 @@ describe('content provider preference', () => {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: false, auth: 'anonymous' },
       apple: { enabled: false, auth: 'anonymous' },
+      qishui: { enabled: false, auth: 'anonymous' },
     }
     const stableFallback = resolveContentProvider('qq', invalid)
     expect(stableFallback).toBe('netease')

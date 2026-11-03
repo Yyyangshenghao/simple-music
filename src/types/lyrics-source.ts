@@ -6,7 +6,7 @@ export type LyricPrioritySource = typeof LYRIC_PRIORITY_SOURCES[number]
 export interface LyricSourceHealth { failures: number; suspended: boolean; cooldownMs?: number; retryAt?: number }
 export interface LyricSourceProbe { status: 'loading' | LyricCandidateStatus; ms?: number; message?: string; sample: string }
 
-export type LyricSourcePreference = 'auto' | 'origin' | Exclude<LyricOrigin, 'local' | 'apple'>
+export type LyricSourcePreference = 'auto' | 'origin' | Exclude<LyricOrigin, 'local' | 'apple' | 'qishui'>
 export type LyricCandidateStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'mismatch' | 'error' | 'disabled' | 'login' | 'unavailable'
 
 export interface LyricPreviewLine {
@@ -41,10 +41,10 @@ export interface RememberedLyricSource {
   match?: Track
 }
 
-export const LYRIC_ORIGINS: readonly LyricOrigin[] = ['netease', 'qq', 'apple', 'local', 'amll', 'kugou']
+export const LYRIC_ORIGINS: readonly LyricOrigin[] = ['netease', 'qq', 'apple', 'qishui', 'local', 'amll', 'kugou']
 export const LYRIC_SOURCE_LABELS: Record<LyricOrigin | 'auto' | 'origin', string> = {
   auto: '自动选择', origin: '歌曲原平台', netease: '网易云音乐', qq: 'QQ 音乐',
-  apple: 'Apple Music', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗音乐',
+  apple: 'Apple Music', qishui: '汽水音乐', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗音乐',
 }
 
 export interface LyricSourceActions {

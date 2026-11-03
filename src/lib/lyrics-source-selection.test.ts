@@ -51,7 +51,7 @@ beforeEach(() => {
   h.query.mockReset().mockImplementation(async (_track: Track, origin: LyricOrigin) => ({ status: 'ready', result: result(origin), match: { ...track, source: 'qq', provider: 'qq', id: 'q1', url: 'secret-url', cookie: 'secret-cookie' } }))
   usePlayerStore.setState({ ...initialPlayer, currentTrack: track, resolvedTrack: null, status: 'paused', position: 16 })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
-    apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: true, auth: 'authenticated' },
+    apple: { enabled: true, auth: 'authenticated' }, qishui: { enabled: false, auth: 'anonymous' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: true, auth: 'authenticated' },
   } })
   useSettingsStore.setState({ ...initialSettings, lyricsAmllFallback: true, lyricsKugouFallback: true })
   useGameModeStore.setState({ enabled: false })

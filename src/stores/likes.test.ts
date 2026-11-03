@@ -27,6 +27,7 @@ describe('likes store', () => {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: false, auth: 'anonymous' },
         apple: { enabled: false, auth: 'anonymous' },
+        qishui: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease'],
     })

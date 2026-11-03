@@ -411,6 +411,26 @@ async function loadLyrics(track: Track, sources: ProviderId[], signal?: AbortSig
       }
     }
 
+    // 汽水音乐：seo_track 直接给明文逐字 KRC（与酷狗解密后的格式相同），没有单独的翻译与音译。
+    if (track.source === 'qishui') {
+      const rec = await api.get<{ krc?: string; error?: string }>('/api/qishui/lyric', { id: String(track.id) }, { signal })
+      if (strict && rec.error) throw new Error(rec.error)
+      const krc = parseKrc(typeof rec.krc === 'string' ? rec.krc : '')
+      const wordLines = stripWordLineCredits(krc.wordLines, track.name)
+      const main = wordLines.map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
+      if (!main.length || isPlaceholderLyrics(main.map(line => line.text))) {
+        if (isInstrumentalPlaceholder(main.map(line => line.text))) rememberInstrumental(track)
+        return emptyLyrics
+      }
+      return {
+        source: track.source,
+        main,
+        aligned: krc.translation.length ? alignTranslation(main, krc.translation) : [],
+        roma: krc.roma.length ? alignTranslation(main, krc.roma) : [],
+        wordLines,
+      }
+    }
+
     // 本地音乐:曲目同目录的同名 .lrc。server 端点与 localMusicService.getLyrics 一直都在,
     // 但这条管线此前只有网易/QQ 两个分支,本地曲目直接落到下面的
     // return emptyLyrics —— 表现为本地音乐永远没有歌词。

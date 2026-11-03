@@ -31,6 +31,7 @@ describe('provider preferences', () => {
       netease: { enabled: activeSource === 'netease' },
       qq: { enabled: activeSource === 'qq' },
       apple: { enabled: false },
+      qishui: { enabled: false },
     })
     expect(result.playbackOrder).toEqual([order[0]])
     expect(result.preferOriginSource).toBe(true)
@@ -39,7 +40,7 @@ describe('provider preferences', () => {
   })
 
   it('顺序归一化会删除禁用项和重复项，并补齐已启用音源', () => {
-    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false } }
+    const providers = { netease: { enabled: true }, qq: { enabled: true }, apple: { enabled: false }, qishui: { enabled: false } }
     expect(normalizePlaybackOrder(['qq', 'qq', 'unknown'], providers)).toEqual(['qq', 'netease'])
     expect(normalizePlaybackOrder(['qq'], { ...providers, qq: { enabled: false } })).toEqual(['netease'])
   })
@@ -47,7 +48,7 @@ describe('provider preferences', () => {
   it('已存在的新 schema 优先于旧设置，并归一化损坏字段', () => {
     const raw = JSON.stringify({
       schema: PROVIDER_SETTINGS_SCHEMA,
-      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false } },
+      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, qishui: { enabled: false } },
       playbackOrder: ['qq', 'netease', 'netease'],
       preferOriginSource: false,
       multiSourceFallback: false,
@@ -55,7 +56,7 @@ describe('provider preferences', () => {
     })
     const result = readProviderSettings(raw, { activeSource: 'qq', crossSourceFallback: true })
     expect(result).toEqual({
-      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false } },
+      providers: { netease: { enabled: true }, qq: { enabled: false }, apple: { enabled: false }, qishui: { enabled: false } },
       playbackOrder: ['netease'],
       preferOriginSource: false,
       multiSourceFallback: false,

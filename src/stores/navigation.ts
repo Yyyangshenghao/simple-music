@@ -23,10 +23,10 @@ export type AppView =
   | 'settings'
   | 'release-history'
   | { type: 'search'; keyword: string; pageState?: SearchPageState }
-  | { type: 'artist'; id: unknown; source: 'netease' | 'qq' | 'apple'; pageState?: ArtistPageState }
-  | { type: 'artistSongs'; id: unknown; source: 'netease' | 'qq' | 'apple' }
+  | { type: 'artist'; id: unknown; source: ProviderId; pageState?: ArtistPageState }
+  | { type: 'artistSongs'; id: unknown; source: ProviderId }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */
-  | { type: 'toplist'; source: 'netease' | 'qq' | 'apple' }
+  | { type: 'toplist'; source: ProviderId }
   /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
   | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks?: Track[] }
   | { type: 'app-playlist'; id: string }
@@ -49,7 +49,7 @@ interface NavigationStore {
   /** 最近一次导航方向：navigateTo/goForward 为 push，goBack 为 pop（供转场方向使用）。 */
   lastAction: 'push' | 'pop'
   navigateTo(view: AppView): void
-  updateArtistPageState(id: unknown, source: 'netease' | 'qq' | 'apple', patch: Partial<ArtistPageState>): void
+  updateArtistPageState(id: unknown, source: ProviderId, patch: Partial<ArtistPageState>): void
   updateSearchPageState(keyword: string, patch: Partial<SearchPageState>): void
   requestSettingsMusic(): void
   consumeSettingsMusicRequest(request: number): void

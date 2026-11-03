@@ -19,6 +19,7 @@ describe('provider auth expiry', () => {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: true, auth: 'authenticated' },
         apple: { enabled: false, auth: 'anonymous' },
+        qishui: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease', 'qq'],
     })

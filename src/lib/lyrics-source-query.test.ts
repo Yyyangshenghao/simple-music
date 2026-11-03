@@ -40,6 +40,7 @@ beforeEach(() => {
     netease: { enabled: true, auth: 'authenticated' },
     qq: { enabled: true, auth: 'authenticated' },
     apple: { enabled: true, auth: 'authenticated' },
+    qishui: { enabled: false, auth: 'anonymous' },
   } })
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
@@ -357,6 +358,7 @@ describe('游客歌词来源', () => {
     useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
     useProviderStore.setState({ byId: {
       netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+      qishui: { enabled: false, auth: 'anonymous' },
     } })
   })
 

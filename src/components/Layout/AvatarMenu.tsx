@@ -7,11 +7,11 @@ import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
 import { loginMusicProvider } from '../../lib/provider-login'
 import { logoutMusicProvider } from '../../lib/provider-logout'
-import type { ProviderId } from '../../providers/types'
+import { isGuestProvider, type ProviderId } from '../../providers/types'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { SourceName } from '../ui/SourceName'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../ui/brand-logos'
 import { Switch } from '../ui/Switch'
 import styles from './AvatarMenu.module.css'
 import { useFeedback } from '../../hooks/useMotion'
@@ -23,6 +23,7 @@ interface AvatarMenuProps {
 function ProviderMark({ source }: { source: ProviderId }) {
   if (source === 'netease') return <NeteaseLogo />
   if (source === 'qq') return <QQMusicLogo />
+  if (source === 'qishui') return <QishuiLogo />
   return <AppleMusicIcon />
 }
 
@@ -38,7 +39,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const apple = useAppleMusicConnection()
   const [busySource, setBusySource] = useState<ProviderId | null>(null)
 
-  async function login(source: ProviderId): Promise<void> {
+  async function login(source: Exclude<ProviderId, 'qishui'>): Promise<void> {
     setBusySource(source)
     try {
       if (source === 'apple') {
@@ -55,7 +56,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
     }
   }
 
-  async function logout(source: ProviderId): Promise<void> {
+  async function logout(source: Exclude<ProviderId, 'qishui'>): Promise<void> {
     setBusySource(source)
     try {
       if (source === 'apple') {
@@ -104,16 +105,17 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.providerList}>
           {providers.map((provider) => {
             const source = provider.descriptor.id
-            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn
+            const guest = isGuestProvider(source)
+            const loggedIn = guest || (source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn)
             const state = runtime[source]
             const waiting = source === 'apple' && apple.phase === 'waiting'
             // 重新启用 Apple 时后台页面需要几秒静默重连；平台关着时页面已销毁，只保留登录。
             const reconnecting = source === 'apple' && !!apple.account?.restoring
             const processing = busySource === source || reconnecting || (source === 'apple' && ['opening', 'disconnecting'].includes(apple.phase))
-            const accountLabel = reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
+            const accountLabel = guest ? '游客模式' : reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
               ? source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
               : '未登录'
-            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : '已登录，未启用'
+            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : guest ? '未启用' : '已登录，未启用'
             return (
               <section className={styles.providerRow} key={source} aria-label={provider.descriptor.label}>
                 <span className={styles.providerMark} aria-hidden="true"><ProviderMark source={source} /></span>
@@ -134,7 +136,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                     }}
                     aria-label={`${loggedIn && state.enabled ? '停用' : '启用'}${provider.descriptor.label}`}
                   />
-                  <button
+                  {source !== 'qishui' && <button
                     type="button"
                     className={styles.accountButton}
                     disabled={busySource !== null || processing}
@@ -148,7 +150,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                         {loggedIn || waiting ? <path d="m8 8-4 4 4 4M4 12h12" /> : <path d="m12 8 4 4-4 4M16 12H4" />}
                       </svg>
                     )}
-                  </button>
+                  </button>}
+                  {/* 游客音源没有账号，占位保持开关与其他平台同一位置。 */}
+                  {source === 'qishui' && <span className={styles.accountButton} aria-hidden="true" style={{ visibility: 'hidden' }} />}
                 </div>
               </section>
             )

@@ -41,6 +41,18 @@ export function KugouLogo({ className }: { className?: string }) {
   )
 }
 
+/** 汽水音乐：简化的气泡标记，非官方图形。 */
+export function QishuiLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="12" cy="12" r="12" fill="#2FC7B4" />
+      <circle cx="10" cy="14.6" r="3.6" fill="none" stroke="#fff" strokeWidth="2.2" />
+      <circle cx="15.6" cy="8.4" r="2" fill="#fff" />
+      <circle cx="9.6" cy="7.2" r="1.2" fill="#fff" />
+    </svg>
+  )
+}
+
 export function QQMusicLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 169.03343 177.05359" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

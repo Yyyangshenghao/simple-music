@@ -170,6 +170,7 @@ describe('shuange store', () => {
         netease: { enabled: true, auth: 'authenticated' },
         qq: { enabled: true, auth: 'authenticated' },
         apple: { enabled: false, auth: 'anonymous' },
+        qishui: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: ['netease', 'qq'],
     })
@@ -427,6 +428,7 @@ describe('shuange store', () => {
         netease: { enabled: false, auth: 'anonymous' },
         qq: { enabled: false, auth: 'anonymous' },
         apple: { enabled: false, auth: 'anonymous' },
+        qishui: { enabled: false, auth: 'anonymous' },
       },
       playbackOrder: [],
     })

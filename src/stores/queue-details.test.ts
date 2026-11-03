@@ -6,6 +6,7 @@ const services = vi.hoisted(() => ({
   netease: { getTracksByIds: vi.fn() },
   qq: { getTracksByIds: vi.fn() },
   apple: { getTracksByIds: vi.fn() },
+  qishui: { getTracksByIds: vi.fn() },
   local: { getTracksByIds: vi.fn() },
 }))
 vi.mock('../lib/service-registry', () => ({ serviceFor: (source: MusicSource) => services[source] }))
@@ -39,6 +40,7 @@ describe('播放队列可见曲目补详情', () => {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
       apple: { enabled: true, auth: 'authenticated' },
+      qishui: { enabled: false, auth: 'anonymous' },
     } })
     useSettingsStore.setState({ playMode: 'order' })
     usePlaylistStore.setState({ queue: [], queueIndex: -1, shuffleOrder: [], queueContextId: null })

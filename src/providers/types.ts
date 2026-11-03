@@ -25,6 +25,13 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+/** 免登录音源：只用公开游客接口，没有账号概念，启动即视为可用会话。 */
+export const GUEST_PROVIDER_IDS: readonly ProviderId[] = ['qishui']
+
+export function isGuestProvider(id: ProviderId): boolean {
+  return GUEST_PROVIDER_IDS.includes(id)
+}
+
 export function providerIdOf(source: MusicSource): ProviderId | null {
   return isProviderId(source) ? source : null
 }

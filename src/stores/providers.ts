@@ -9,7 +9,7 @@ import {
   type ProviderPreferences,
   type SourceBadgeMode,
 } from '../lib/provider-preferences'
-import { PROVIDER_IDS, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, isGuestProvider, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
 import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
@@ -52,32 +52,30 @@ function runtimeMap(
   preferences: ProviderPreferences,
   previous?: Record<ProviderId, ProviderRuntimeState>
 ): Record<ProviderId, ProviderRuntimeState> {
-  return {
-    netease: {
-      ...previous?.netease,
-      enabled: preferences.providers.netease.enabled,
-      auth: previous?.netease.auth ?? 'unknown',
-    },
-    apple: {
-      ...previous?.apple,
-      enabled: preferences.providers.apple.enabled,
-      auth: previous?.apple.auth ?? 'unknown',
-    },
-    qq: {
-      ...previous?.qq,
-      enabled: preferences.providers.qq.enabled,
-      auth: previous?.qq.auth ?? 'unknown',
-    },
+  const map = {} as Record<ProviderId, ProviderRuntimeState>
+  for (const id of PROVIDER_IDS) {
+    map[id] = {
+      ...(isGuestProvider(id) ? GUEST_SESSION : undefined),
+      ...previous?.[id],
+      enabled: preferences.providers[id].enabled,
+      auth: previous?.[id].auth ?? (isGuestProvider(id) ? 'authenticated' : 'unknown'),
+    }
   }
+  return map
+}
+
+// 免登录音源没有账号，按“已就绪的游客会话”参与，复用各处已登录判断。
+const GUEST_SESSION = { profile: { avatar: '', nickname: '游客' } }
+
+function enabledMap(byId: Record<ProviderId, ProviderRuntimeState>): ProviderPreferences['providers'] {
+  const providers = {} as ProviderPreferences['providers']
+  for (const id of PROVIDER_IDS) providers[id] = { enabled: byId[id].enabled }
+  return providers
 }
 
 function preferencesOf(state: ProviderStore): ProviderPreferences {
   return {
-    providers: {
-      netease: { enabled: state.byId.netease.enabled },
-      qq: { enabled: state.byId.qq.enabled },
-      apple: { enabled: state.byId.apple.enabled },
-    },
+    providers: enabledMap(state.byId),
     playbackOrder: state.playbackOrder,
     preferOriginSource: state.preferOriginSource,
     multiSourceFallback: state.multiSourceFallback,
@@ -117,14 +115,9 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         ...state.byId,
         [id]: { ...state.byId[id], enabled },
       }
-      const providers = {
-        netease: { enabled: byId.netease.enabled },
-        qq: { enabled: byId.qq.enabled },
-        apple: { enabled: byId.apple.enabled },
-      }
       return {
         byId,
-        playbackOrder: normalizePlaybackOrder(state.playbackOrder, providers),
+        playbackOrder: normalizePlaybackOrder(state.playbackOrder, enabledMap(byId)),
       }
     })
     persist(get())
@@ -132,11 +125,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   setPlaybackOrder(order) {
     set((state) => ({
-      playbackOrder: normalizePlaybackOrder(order, {
-        netease: { enabled: state.byId.netease.enabled },
-        qq: { enabled: state.byId.qq.enabled },
-        apple: { enabled: state.byId.apple.enabled },
-      }),
+      playbackOrder: normalizePlaybackOrder(order, enabledMap(state.byId)),
     }))
     persist(get())
   },
@@ -174,11 +163,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       }
       return {
         byId,
-        playbackOrder: normalizePlaybackOrder(state.playbackOrder, {
-          netease: { enabled: byId.netease.enabled },
-          qq: { enabled: byId.qq.enabled },
-          apple: { enabled: byId.apple.enabled },
-        }),
+        playbackOrder: normalizePlaybackOrder(state.playbackOrder, enabledMap(byId)),
       }
     })
     if (auth !== 'authenticated') persist(get())

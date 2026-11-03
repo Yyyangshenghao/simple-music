@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
-import { parseLrc, alignTranslation } from '../../lib/lyric-parser'
+import { parseLrc, parseKrc, alignTranslation } from '../../lib/lyric-parser'
 import { api } from '../../lib/api'
 import type { Track, LyricLine as LyricLineType } from '../../types/domain'
 import { LyricLine } from './LyricLine'
@@ -44,6 +44,12 @@ async function fetchLyrics(track: Track): Promise<LyricsResult> {
   if (track.source === 'apple') return empty
   try {
     let res: unknown
+    if (track.source === 'qishui') {
+      const rec = asRecord(await api.get('/api/qishui/lyric', { id: String(track.id) }))
+      const main = parseKrc(typeof rec.krc === 'string' ? rec.krc : '').wordLines
+        .map(line => ({ time: line.time, text: line.words.map(word => word.text).join('') }))
+      return { main, aligned: [] }
+    }
     if (track.source === 'qq') {
       const mid = pickId(track, 'mid') || pickId(track, 'songmid') || pickId(track, 'id')
       if (!mid) return empty

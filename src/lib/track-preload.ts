@@ -42,7 +42,7 @@ export function resolveSongUrl(
   const key = trackKey(track, quality)
   const pending = songUrlRequests.get(key)
   if (pending && !pending.controller.signal.aborted) return joinUrlRequest(pending, signal)
-  const path = track.source === 'qq' ? '/api/qq/song/url' : '/api/song/url'
+  const path = track.source === 'qq' ? '/api/qq/song/url' : track.source === 'qishui' ? '/api/qishui/song/url' : '/api/song/url'
   const params =
     track.source === 'qq'
       ? {

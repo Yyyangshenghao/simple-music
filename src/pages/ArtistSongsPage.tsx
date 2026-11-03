@@ -13,6 +13,7 @@ import { VirtualList } from '../components/ui/VirtualList'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { sizedImage } from '../lib/image-size'
 import { isCatalogUnavailable } from '../lib/track-availability'
+import type { ProviderId } from '../providers/types'
 import type { ArtistInfo, Track } from '../types/domain'
 import styles from './ArtistSongsPage.module.css'
 import { BackButton } from '../components/ui/BackButton'
@@ -22,7 +23,7 @@ const TRACK_ROW_HEIGHT = 56
 
 interface ArtistSongsPageProps {
   id: unknown
-  source: 'netease' | 'qq' | 'apple'
+  source: ProviderId
 }
 
 export function ArtistSongsPage({ id, source }: ArtistSongsPageProps) {

@@ -8,6 +8,7 @@ const song = (source: Track['source'], id = '1'): Track => ({ provider: source, 
 function context(): AppPlaylistPlaybackContext {
   return { providers: {
     netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'expired' }, apple: { enabled: false, auth: 'anonymous' },
+  qishui: { enabled: false, auth: 'anonymous' },
   }, localTracks: new Map([['1', { ...song('local'), name: '当前文件', cover: 'local-cover' }]]), offline: {} }
 }
 
