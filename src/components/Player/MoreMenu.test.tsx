@@ -30,8 +30,7 @@ vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore
 
 type NodeElement = ReactElement<{ children?: ReactNode; title?: string; onClick?: () => void }>
 function nodes(node: ReactNode): NodeElement[] {
-  // 歌词来源行作为 footer 交给播放来源分区，浅渲染时一并展开
-  return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; footer?: ReactNode }>(child) ? [child as NodeElement, ...nodes(child.props.children), ...nodes(child.props.footer)] : [])
+  return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode }>(child) ? [child as NodeElement, ...nodes(child.props.children)] : [])
 }
 function text(node: ReactNode): string {
   return Children.toArray(node).map(child => isValidElement<{ children?: ReactNode }>(child) ? text(child.props.children) : String(child)).join('')

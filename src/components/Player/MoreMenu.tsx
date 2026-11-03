@@ -94,11 +94,10 @@ function Segmented<T extends string>({ items, value, onChange, ariaLabel, column
 }
 
 /** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
-/** footer：紧跟在来源信息下的附属行（歌词来源），与播放来源同组 */
-function PlaybackSourceSection({ footer }: { footer?: ReactNode }) {
+function PlaybackSourceSection() {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const actualSource = usePlayerStore((s) => s.actualSource)
-  const status = usePlayerStore((s) => s.status)
+  const loading = usePlayerStore((s) => s.status === 'loading')
   const transport = usePlayerStore((s) => s.playbackTransport)
   const preferSourceOnce = usePlayerStore((s) => s.preferSourceOnce)
   const byId = useProviderStore((s) => s.byId)
@@ -110,14 +109,23 @@ function PlaybackSourceSection({ footer }: { footer?: ReactNode }) {
   const originVisible = !isProviderId(currentTrack?.source)
     || participants.includes(currentTrack.source)
   if (!currentTrack) return null
+  // 内容来源与实际出声一致时只在标题右侧写一次；跨平台兜底或尚未确定时才分两行说明
+  const same = originVisible && actualSource === currentTrack.source
+  const status = loading ? '正在加载…' : transport === 'offline' ? '离线播放' : null
 
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>播放来源</span>
-        <span className={styles.sectionStatus}>{status === 'loading' ? '正在加载…' : transport === 'offline' ? '本地离线' : '本次播放'}</span>
+        {same ? (
+          <span className={styles.headValue}>
+            <SourceBadge source={currentTrack.source} compact reveal />
+            <SourceName source={currentTrack.source} />
+            {status && <span className={styles.sectionStatus}>· {status}</span>}
+          </span>
+        ) : status && <span className={styles.sectionStatus}>{status}</span>}
       </div>
-      <div className={styles.sourceFacts}>
+      {!same && <div className={styles.sourceFacts}>
         <span className={styles.factName}>内容来自</span>
         <span className={styles.sourceFactValue}>
           {originVisible ? (
@@ -136,7 +144,7 @@ function PlaybackSourceSection({ footer }: { footer?: ReactNode }) {
             </>
           ) : '尚未确定'}
         </span>
-      </div>
+      </div>}
       {/* 只有一个可用平台时没有可选项，不摆单选 */}
       {isProviderId(currentTrack.source) && currentTrack.source !== 'apple' && participants.length > 1 && (
         <div className={styles.sourcePreference}>
@@ -154,7 +162,6 @@ function PlaybackSourceSection({ footer }: { footer?: ReactNode }) {
           />
         </div>
       )}
-      {footer}
     </section>
   )
 }
@@ -166,7 +173,9 @@ function OfflineSection({ open }: { open: boolean }) {
     if (open && track && track.source !== 'local') void useOfflineCacheStore.getState().ensure(track)
   }, [open, track, cacheStatus])
   if (!track || track.source === 'local' || track.source === 'apple') return null
-  const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : cacheStatus?.state === 'cached' ? '已自动缓存' : '未离线保存'
+  const saved = cacheStatus?.state === 'pinned' || cacheStatus?.state === 'cached'
+  const label = cacheStatus?.state === 'pinned' ? '已保存为离线音乐' : '已自动缓存'
+  const download = <button type="button" className={styles.pill} onClick={() => void useOfflineCacheStore.getState().save(track)}>下载</button>
   const run = async (action: () => Promise<void>) => {
     try {
       await action()
@@ -178,26 +187,25 @@ function OfflineSection({ open }: { open: boolean }) {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>下载与离线</span>
-        <span className={styles.sectionStatus}>{label}</span>
+        {/* 未保存时只有「下载」一个动作，直接放在标题行；已缓存/已离线时标题行写状态，动作排在下方 */}
+        {saved ? <span className={styles.sectionStatus}>{label}</span> : download}
       </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.action} onClick={() => void useOfflineCacheStore.getState().save(track)}>
-          下载歌曲
-        </button>
+      {saved && <div className={styles.pills}>
+        {download}
         {cacheStatus?.state === 'cached' && (
-          <button type="button" className={styles.action} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
+          <button type="button" className={styles.pill} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, true))}>
             保存为离线音乐
           </button>
         )}
         {cacheStatus?.state === 'pinned' && (
-          <button type="button" className={styles.action} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
+          <button type="button" className={styles.pill} onClick={() => void run(() => useOfflineCacheStore.getState().setPinned(track, false))}>
             取消离线保存
           </button>
         )}
         {cacheStatus?.entryId && (
           <button
             type="button"
-            className={styles.action}
+            className={styles.pill}
             data-danger
             onClick={() => {
               const shared = Number(cacheStatus.savedAliasCount) > (cacheStatus.state === 'pinned' ? 1 : 0)
@@ -208,7 +216,7 @@ function OfflineSection({ open }: { open: boolean }) {
             {cacheStatus.state === 'pinned' ? '删除离线音乐' : '删除自动缓存'}
           </button>
         )}
-      </div>
+      </div>}
     </section>
   )
 }
@@ -256,7 +264,6 @@ function QualitySection({ open }: { open: boolean }) {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>音质</span>
-        <span className={styles.sectionStatus}>默认</span>
       </div>
       <span className={styles.note}>当前音源暂无可选音质</span>
     </section>
@@ -266,9 +273,10 @@ function QualitySection({ open }: { open: boolean }) {
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={styles.sectionTitle}>音质</span>
-        <span className={styles.sectionStatus} title={currentQuality ?? QUALITY_LABELS[quality]}>
-          {currentQuality ? `当前 · ${QUALITY_LABELS[currentQuality as AudioQuality] ?? currentQuality}` : QUALITY_LABELS[quality]}
-        </span>
+        {/* 选中档已在分段里高亮；只有实际拿到的档位不同（如「最高」落到具体档、或降级）才写出来 */}
+        {currentQuality && currentQuality !== quality && <span className={styles.sectionStatus}>
+          实际 · {QUALITY_LABELS[currentQuality as AudioQuality] ?? currentQuality}
+        </span>}
       </div>
       {options && options.length > 0 ? (
         <Segmented
@@ -340,10 +348,18 @@ function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolea
   return <section className={styles.section}>
     <div className={styles.sectionHead}>
       <span className={styles.sectionTitle}>歌曲伴奏</span>
-      <button type="button" className={styles.textAction} onClick={onLibrary}>
-        我的伴奏
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-      </button>
+      <span className={styles.headActions}>
+        <button type="button" className={styles.textAction} onClick={onLibrary}>
+          我的伴奏
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        </button>
+        {!apple && <button type="button" className={styles.iconAction} onClick={onManage} title={`生成模型与保存位置${current ? `（${current.name}）` : ''}`} aria-label="生成模型与保存位置">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>}
+      </span>
     </div>
     {playingStem ? <button type="button" className={styles.generateButton} disabled={!original} onClick={() => void usePlayerStore.getState().toggleAccompaniment()}>切回原曲</button>
       : <>
@@ -359,9 +375,6 @@ function KaraokeSection({ apple, onManage, onLibrary, onQueue }: { apple: boolea
           : saved ? '已保存在我的伴奏，可直接播放'
           : `生成时会临时占用较多内存${current && current.state !== 'ready' ? `；首次需下载约 ${Math.round(current.bytes / 1024 / 1024)} MB 模型` : ''}`}</span>
       </>}
-    {!apple && <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={onManage}>
-      <span>生成模型与保存位置</span><span className={styles.sectionStatus}>{current?.name ?? ''}</span>
-    </button>}
   </section>
 }
 
@@ -506,10 +519,11 @@ export function MoreMenu() {
       const target = e.target as Node
       if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false)
     }
-    window.addEventListener('keydown', onKey)
+    // Esc 走捕获阶段：全局快捷键层会拦下冒泡的按键
+    window.addEventListener('keydown', onKey, true)
     window.addEventListener('pointerdown', onPointerDown)
     return () => {
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('pointerdown', onPointerDown)
     }
   }, [open])
@@ -570,17 +584,13 @@ export function MoreMenu() {
             </div>
             <div className={styles.content}>
               <QualitySection open={open} />
-              <PlaybackSourceSection footer={trackKey && (
-                <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
-                  <span className={styles.rowTitle}>歌词来源</span>
-                  <span className={styles.extrasSummary}>
-                    <span className={styles.sectionStatus} title={lyricsSourceLabel}>{lyricsSourceLabel}</span>
-                    <svg className={styles.chevron} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="m9 6 6 6-6 6" />
-                    </svg>
-                  </span>
+              <PlaybackSourceSection />
+              {trackKey && <section className={styles.section}>
+                <button type="button" className={`${styles.sectionHead} ${styles.headLink}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
+                  <span className={styles.sectionTitle}>歌词来源</span>
+                  <span className={styles.textAction} title={lyricsSourceLabel}>{lyricsSourceLabel}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></span>
                 </button>
-              )} />
+              </section>}
               <OfflineSection open={open} />
               <KaraokeSection apple={apple} onQueue={id => { setOpen(false); useTaskCenterStore.getState().show('karaoke', `k:${id}`) }} onLibrary={() => {
                 setOpen(false)

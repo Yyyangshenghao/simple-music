@@ -70,7 +70,7 @@
   padding: 16px 12px 4px 20px;
 }
 
-/* 字号层级：标题 15 → 控件 13/12 → 字段名 12 → 说明 11，靠字号与字重而非分隔线区分轻重。 */
+/* 字号层级：面板标题 15 → 分区标题 13（主色）→ 控件 12 → 状态与说明 11（弱色），靠字号与字重而非分隔线区分轻重。 */
 .panelTitle { font-size: 15px; font-weight: 600; color: var(--sm-text-primary); }
 
 .closeBtn {
@@ -110,20 +110,59 @@
 
 .sectionHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 18px;
+  /* 与标题行里的小胶囊/图标按钮同高，有无动作行高都不变 */
+  min-height: 26px;
 }
 
 .sectionTitle {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--sm-text-secondary);
+  color: var(--sm-text-primary);
 }
 
 .rowTitle { font-size: 13px; font-weight: 500; color: var(--sm-text-primary); }
+
+/* 标题行右侧：单一事实值（图标 + 名称）、并排的小动作 */
+.headValue { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--sm-text-primary); }
+.headActions { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 整个标题行就是入口（歌词来源）：悬停铺浅底，右侧值随之提亮 */
+.headLink {
+  align-items: center;
+  width: calc(100% + 20px);
+  min-height: 36px;
+  margin: -8px -10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms var(--sm-ease-out);
+}
+.headLink:hover { background: var(--sm-fill-hover); }
+.headLink:active { background: var(--sm-fill-active); }
+.headLink:hover .textAction { color: var(--sm-text-primary); }
+
+.iconAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
+}
+.iconAction:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 
 .sectionStatus {
   font-size: 11px;
@@ -210,13 +249,12 @@
 .sourcePreference { display: flex; flex-direction: column; gap: 6px; }
 .fieldName { font-size: 11px; color: var(--sm-text-secondary); }
 
-/* 普通动作：轻底胶囊，并排等分 */
-.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 次要动作：小号轻底胶囊，按内容宽度排列，不与主操作抢分量 */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
 
-.action {
-  flex: 1 1 0;
-  min-width: max-content;
-  height: 32px;
+.pill {
+  flex-shrink: 0;
+  height: 26px;
   padding: 0 12px;
   border: 0;
   border-radius: var(--sm-radius-pill);
@@ -230,9 +268,9 @@
   transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out);
 }
 
-.action:hover { background: var(--sm-fill-hover); }
-.action:active { background: var(--sm-fill-active); }
-.action[data-danger] { color: var(--sm-color-danger); }
+.pill:hover { background: var(--sm-fill-hover); }
+.pill:active { background: var(--sm-fill-active); }
+.pill[data-danger] { color: var(--sm-color-danger); }
 
 .note {
   font-size: 11px;
@@ -316,7 +354,9 @@
 
 .closeBtn:focus-visible,
 .segment:focus-visible,
-.action:focus-visible,
+.pill:focus-visible,
+.iconAction:focus-visible,
+.headLink:focus-visible,
 .optionRow:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
 
 /* 倍速与定时关闭：收起在最底部，展开后两组内容留白分隔 */
