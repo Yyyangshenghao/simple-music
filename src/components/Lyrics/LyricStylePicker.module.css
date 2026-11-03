@@ -340,6 +340,13 @@
 
 .card:hover .thumbInner { transform: scale(1.05); }
 
+/* 卡片预览在面板拉宽后才逐张挂上，淡入接替占位底色，不突然冒出。 */
+.thumbInner > .previewHost { animation: thumbPreviewIn 0.36s var(--ease) both; }
+
+@keyframes thumbPreviewIn {
+  from { opacity: 0; }
+}
+
 .cardLabel {
   padding: 0 3px;
   color: rgba(var(--ink), 0.72);

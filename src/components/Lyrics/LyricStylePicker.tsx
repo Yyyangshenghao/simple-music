@@ -272,10 +272,23 @@ function GridIcon() {
   )
 }
 
+/** 卡片实时预览延后挂载：面板拉宽途中一次挂上全部舞台会卡住一帧（实测 100ms+），等宽度落定后再逐张挂上。 */
+const GALLERY_PREVIEW_DELAY = 420
+const GALLERY_PREVIEW_STEP = 60
+
 /** 全部样式：每个样式一张带实时预览的卡片，看着画面挑；选中后收回到设置视图。 */
 function StyleGallery({ current, onPick, onCollapse }: { current: LyricStyleId; onPick(id: LyricStyleId): void; onCollapse(): void }) {
   const pageTransition = usePageTransition()
   const ordered = [...LYRIC_STYLES].sort((a, b) => a.order - b.order)
+  const [liveCount, setLiveCount] = useState(0)
+  useEffect(() => {
+    let count = 0
+    let timer = window.setTimeout(function next() {
+      setLiveCount(++count)
+      if (count < ordered.length) timer = window.setTimeout(next, GALLERY_PREVIEW_STEP)
+    }, GALLERY_PREVIEW_DELAY)
+    return () => window.clearTimeout(timer)
+  }, [])
   return (
     <>
       <div className={styles.galleryHead}>
@@ -296,7 +309,7 @@ function StyleGallery({ current, onPick, onCollapse }: { current: LyricStyleId; 
               onClick={() => onPick(style.id)}>
               <span className={styles.thumb} aria-hidden="true">
                 <span className={styles.thumbInner}>
-                  {Preview ? <PreviewFrame><Preview /></PreviewFrame> : entry.glyph}
+                  {Preview ? index < liveCount && <PreviewFrame><Preview /></PreviewFrame> : entry.glyph}
                 </span>
               </span>
               <span className={styles.cardLabel}>{style.label}</span>
