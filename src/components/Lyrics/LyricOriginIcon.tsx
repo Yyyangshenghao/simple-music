@@ -1,14 +1,15 @@
 import type { LyricOrigin } from '../../types/lyrics-source'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
 import styles from './LyricOriginIcon.module.css'
 
-/** 歌词来源图标：音乐平台用官方图标；歌词库与本地没有可用的品牌图形，用中性底的字母/音符标。 */
+/** 歌词来源图标：音乐平台与酷狗用官方图标；AMLL 歌词库与本地没有品牌图形，用中性底的字母/音符标。 */
 export function LyricOriginIcon({ origin, dim, small }: { origin: LyricOrigin | 'auto'; dim?: boolean; small?: boolean }) {
   return (
     <span className={styles.icon} data-dim={dim || undefined} data-small={small || undefined} aria-hidden="true">
       {origin === 'netease' ? <NeteaseLogo className={styles.logo} />
         : origin === 'qq' ? <QQMusicLogo className={styles.logo} />
         : origin === 'apple' ? <AppleMusicIcon className={styles.logo} />
+        : origin === 'kugou' ? <KugouLogo className={styles.logo} />
         : origin === 'auto' ? (
           <span className={styles.tile}>
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -17,7 +18,7 @@ export function LyricOriginIcon({ origin, dim, small }: { origin: LyricOrigin | 
             </svg>
           </span>
         )
-        : <span className={styles.tile}>{origin === 'local' ? '♪' : origin === 'amll' ? 'A' : 'K'}</span>}
+        : <span className={styles.tile}>{origin === 'local' ? '♪' : 'A'}</span>}
     </span>
   )
 }

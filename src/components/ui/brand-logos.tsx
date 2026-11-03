@@ -2,7 +2,8 @@
 // - 网易云音乐：simple-icons（CC0），官方品牌色 #D43C33
 // - QQ音乐：Wikipedia File:QQ_Music2023.svg（2023 版官方双色图标）
 // - Apple：Simple Icons（CC0），https://simpleicons.org/icons/apple
-// - Apple Music：Wikimedia Commons，原始图标来自 Apple Inc.
+// - Apple Music：按 Apple Inc. 官方图标比例重绘的纯矢量版（原内嵌 JPEG 圆角边缘有白边）
+// - 酷狗音乐：按官方「蓝底白 K」圆形图标的比例重绘的纯矢量版
 
 const appleMusicIconUrl = new URL('../../assets/apple-music-icon.svg', import.meta.url).href
 
@@ -21,10 +22,21 @@ export function AppleLogo({ className }: { className?: string }) {
 export function NeteaseLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* simple-icons 的音符是镂空的，会透出底色；垫一层略小的白圆，让音符始终是官方的白色。 */}
+      <circle cx="12" cy="12" r="11.5" fill="#fff" />
       <path
         fill="#D43C33"
         d="M13.046 9.388a3.919 3.919 0 0 0-.66.19c-.809.312-1.447.991-1.666 1.775a2.269 2.269 0 0 0-.074.81c.048.546.333 1.05.764 1.35a1.483 1.483 0 0 0 2.01-.286c.406-.531.355-1.183.24-1.636-.098-.387-.22-.816-.345-1.249a64.76 64.76 0 0 1-.269-.954zm-.82 10.07c-3.984 0-7.224-3.24-7.224-7.223 0-.98.226-3.02 1.884-4.822A7.188 7.188 0 0 1 9.502 5.6a.792.792 0 1 1 .587 1.472 5.619 5.619 0 0 0-2.795 2.462 5.538 5.538 0 0 0-.707 2.7 5.645 5.645 0 0 0 5.638 5.638c1.844 0 3.627-.953 4.542-2.428 1.042-1.68.772-3.931-.627-5.238a3.299 3.299 0 0 0-1.437-.777c.172.589.334 1.18.494 1.772.284 1.12.1 2.181-.519 2.989-.39.51-.956.888-1.592 1.064a3.038 3.038 0 0 1-2.58-.44 3.45 3.45 0 0 1-1.44-2.514c-.04-.467.002-.93.128-1.376.35-1.256 1.356-2.339 2.622-2.826a5.5 5.5 0 0 1 .823-.246l-.134-.505c-.37-1.371.25-2.579 1.547-3.007.329-.109.68-.145 1.025-.105.792.09 1.476.592 1.709 1.023.258.507-.096 1.153-.706 1.153a.788.788 0 0 1-.54-.213c-.088-.08-.163-.174-.259-.247a.825.825 0 0 0-.632-.166.807.807 0 0 0-.634.551c-.056.191-.031.406.02.595.07.256.159.597.217.82 1.11.098 2.162.54 2.97 1.296 1.974 1.844 2.35 4.886.892 7.233-1.197 1.93-3.509 3.177-5.889 3.177zM0 12c0 6.627 5.373 12 12 12s12-5.373 12-12S18.627 0 12 0 0 5.373 0 12Z"
       />
+    </svg>
+  )
+}
+
+export function KugouLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="12" cy="12" r="12" fill="#1E8CF5" />
+      <path fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" d="M8.6 6.6v10.8M16 6.8l-5.6 5.4 5.9 5.2" />
     </svg>
   )
 }

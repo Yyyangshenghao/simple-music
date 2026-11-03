@@ -8,4 +8,6 @@
 .tile { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--sm-fill-subtle); box-shadow: inset 0 0 0 1px var(--sm-border); color: var(--sm-text-secondary); font-size: 12px; font-weight: 700; line-height: 1; }
 .icon[data-small] { width: 14px; height: 14px; }
 .icon[data-small] .logo, .icon[data-small] .tile { width: 14px; height: 14px; border-radius: 4px; font-size: 9px; }
-.inline { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--sm-text-primary); }
+/* 按文字基线对齐：居中时整块基线取自没有文字的图标底边，会比前面的「已选用」高出一截；图标单独居中。 */
+.inline { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; color: var(--sm-text-primary); }
+.inline > .icon { align-self: center; }
