@@ -10,8 +10,8 @@ import { useVisualStore } from '../stores/visual'
 import { advanceProviderAccountSession } from './provider-account-session'
 import { useLyricsSourceStore } from '../stores/lyrics-source'
 
-const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), localSource: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, localLyricSource: h.localSource, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), localSource: vi.fn(), instrumental: vi.fn() }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, localLyricSource: h.localSource, isInstrumentalTrack: h.instrumental, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 import { initLyricsLoader } from './lyrics-loader'
 
 const apple: Track = { source: 'apple', provider: 'apple', type: 'song', id: 'a1', name: '歌曲', artist: '歌手', artists: [], duration: 180_000 }
@@ -33,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.fetch.mockReset().mockResolvedValue(result)
   h.upgrade.mockReset().mockResolvedValue(null)
+  h.instrumental.mockReset().mockReturnValue(false)
   usePlayerStore.setState({ ...initialPlayer, currentTrack: apple, resolvedTrack: null, position: 15, status: 'paused' })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
     apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
@@ -79,6 +80,19 @@ describe('宿主持有歌词获取与归属', () => {
       await flush()
       expect(log).not.toHaveBeenCalled()
     } finally { log.mockRestore() }
+  })
+
+  it('各来源都没有歌词且本曲平台声明纯音乐时标记纯音乐，有歌词时不标记', async () => {
+    h.fetch.mockResolvedValue({ ...result, source: null, main: [] })
+    h.instrumental.mockReturnValue(true)
+    stopLoader = initLyricsLoader()
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ loading: false, lines: [], instrumental: true })
+    h.fetch.mockResolvedValue(result)
+    usePlayerStore.setState({ currentTrack: { ...apple, id: 'a2' } })
+    expect(useLyricsStore.getState().instrumental).toBe(false)
+    await flush()
+    expect(useLyricsStore.getState()).toMatchObject({ lines: result.main, instrumental: false })
   })
 
   it('先显示逐行歌词，后台升级时保留偏移，并按当前进度定位', async () => {

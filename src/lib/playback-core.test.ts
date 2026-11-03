@@ -384,7 +384,7 @@ describe('无界面播放核心', () => {
 
   it('登录态有效但在线解析耗尽时，仍回退到不符所选音质的已保存歌曲', async () => {
     const h = createHost()
-    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'pinned', entryId: 'saved', quality: 'standard' })
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'saved', quality: 'standard' })
     h.resolver.next.mockResolvedValue(null)
     await h.state.loadTrack(track, { startAt: 30 })
     expect(h.engine.load).toHaveBeenLastCalledWith('http://127.0.0.1/api/audio-cache/file?entryId=test', 30)
@@ -432,7 +432,7 @@ describe('无界面播放核心', () => {
 
   it('指定本次优先平台时，不用其他平台的缓存兜底', async () => {
     const h = createHost()
-    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'pinned', entryId: 'saved', quality: 'standard', resolved: { source: 'netease', id: '1' } })
+    vi.mocked(h.deps.fetchOfflineStatus).mockResolvedValue({ source: 'netease', id: '1', state: 'cached', entryId: 'saved', quality: 'standard', resolved: { source: 'netease', id: '1' } })
     h.resolver.next.mockResolvedValue(null)
     await h.state.loadTrack(track, { preferredSource: 'qq' })
     expect(h.engine.load).not.toHaveBeenCalled()
@@ -684,7 +684,7 @@ describe('无界面播放核心', () => {
     h.core.dispose()
     const snapshot = h.state
     details.resolve(track)
-    offline.resolve({ source: 'netease', id: '1', state: 'pinned', entryId: 'test' })
+    offline.resolve({ source: 'netease', id: '1', state: 'cached', entryId: 'test' })
     candidate.resolve(h.candidate)
     await loading
     expect(h.state).toBe(snapshot)

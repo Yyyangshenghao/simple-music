@@ -71,6 +71,8 @@ function write(defaultSource: LyricSourcePreference, remembered: Record<string, 
 export function normalizeLyricsSourceOrder(value: unknown, preferred?: LyricSourcePreference): LyricPrioritySource[] {
   const stored = Array.isArray(value) ? value.filter((item): item is LyricPrioritySource => LYRIC_PRIORITY_SOURCES.includes(item as LyricPrioritySource)) : []
   if (!stored.length && LYRIC_PRIORITY_SOURCES.includes(preferred as LyricPrioritySource)) stored.push(preferred as LyricPrioritySource)
+  // 旧存档没有 Apple Music：放在最前，Apple 曲目仍先用自带歌词。
+  if (stored.length && !stored.includes('apple')) stored.unshift('apple')
   return Array.from(new Set([...stored, ...LYRIC_PRIORITY_SOURCES]))
 }
 
@@ -107,10 +109,10 @@ export function rememberLyricsSource(key: string, entry: RememberedLyricSource |
   return true
 }
 
-/** 这首歌可被记住的来源：通用歌词来源，加上歌曲自身平台（Apple Music 自带歌词、本地歌词）。 */
+/** 这首歌可被记住的来源：通用歌词来源，本地歌曲另加本地歌词。 */
 export function rememberableOrigins(key: string): LyricOrigin[] {
   const own = key.slice(0, key.indexOf(':'))
-  return own === 'apple' || own === 'local' ? [own, ...LYRIC_PRIORITY_SOURCES] : [...LYRIC_PRIORITY_SOURCES]
+  return own === 'local' ? [own, ...LYRIC_PRIORITY_SOURCES] : [...LYRIC_PRIORITY_SOURCES]
 }
 
 export function bindLyricsSourceActions(actions: LyricSourceActions): () => void {

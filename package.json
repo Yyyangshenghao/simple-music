@@ -1,7 +1,7 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -21,15 +21,21 @@
     "test": "vitest run",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "server:dev": "tsx server/index.ts"
+    "server:dev": "tsx server/index.ts",
+    "eval:lyrics": "tsx scripts/lyrics-eval/run.mts",
+    "release:check": "node scripts/release/check-release.mjs"
   },
   "dependencies": {
+    "https-proxy-agent": "^7.0.6",
     "koffi": "2.16.3",
     "mpg123-decoder": "^1.0.3",
     "music-metadata": "^11.16.1",
     "NeteaseCloudMusicApi": "^4.32.0",
     "onnxruntime-node": "1.30.0",
+    "opencc-js": "^1.4.2",
     "qrc-decoder": "1.0.2",
+    "socks-proxy-agent": "^8.0.5",
+    "undici": "^7.28.0",
     "webwallgl": "^3.0.0"
   },
   "devDependencies": {

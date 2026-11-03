@@ -14,7 +14,7 @@ function context(): AppPlaylistPlaybackContext {
 describe('应用歌单播放边界', () => {
   it('超过全局缓存上限的完整离线歌单仍全部可播', () => {
     const tracks = Array.from({ length: 2050 }, (_, index) => song('qq', String(index)))
-    const snapshot = Object.fromEntries(tracks.map(track => [`qq:${track.id}`, { source: 'qq', id: String(track.id), state: 'pinned', entryId: `cache-${track.id}` } as OfflineCacheStatus]))
+    const snapshot = Object.fromEntries(tracks.map(track => [`qq:${track.id}`, { source: 'qq', id: String(track.id), state: 'cached', entryId: `cache-${track.id}` } as OfflineCacheStatus]))
     const ctx = { ...context(), offline: snapshot }
     expect(appPlaylistPlaybackTracks(tracks, ctx)).toHaveLength(2050)
   })
@@ -49,7 +49,7 @@ describe('应用歌单播放边界', () => {
   })
   it('网易/QQ 的已确认离线音频可在平台停用后播放，Apple 仍走独立受保护会话', () => {
     const ctx = context()
-    ctx.offline['qq:1'] = { source: 'qq', id: '1', state: 'pinned', entryId: 'cache' }
+    ctx.offline['qq:1'] = { source: 'qq', id: '1', state: 'cached', entryId: 'cache' }
     expect(appPlaylistTrackState(song('qq'), ctx)).toMatchObject({ available: true, status: '可离线播放' })
     expect(appPlaylistPlaybackTracks([song('qq'), song('apple')], ctx).map(track => track.source)).toEqual(['qq'])
     ctx.providers.apple = { enabled: true, auth: 'authenticated' }

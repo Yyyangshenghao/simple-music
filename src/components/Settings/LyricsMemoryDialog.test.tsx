@@ -76,15 +76,15 @@ describe('歌曲歌词来源管理', () => {
 
   it('筛选项只列出已使用的来源并带数量', () => {
     const filters = elements(render(), element => element.props?.ariaLabel === '按来源筛选')[0]
-    expect(filters.props.items.map((item: { ariaLabel: string }) => item.ariaLabel)).toEqual(['全部 3 首', 'QQ 音乐 1 首', '本地歌词 1 首', '酷狗歌词库 1 首'])
+    expect(filters.props.items.map((item: { ariaLabel: string }) => item.ariaLabel)).toEqual(['全部 3 首', 'QQ 音乐 1 首', '本地歌词 1 首', '酷狗音乐 1 首'])
     expect(filters.props.value).toBe('all')
   })
 
   it('单曲可改来源或忘记；本地歌曲额外可选本地歌词', () => {
     const element = render()
     const local = labelled(element, 'Blue的歌词来源')
-    expect(local.props.options.map((item: { value: string }) => item.value)).toEqual(['local', 'netease', 'qq', 'amll', 'kugou'])
-    expect(labelled(element, '晴天的歌词来源').props.options.map((item: { value: string }) => item.value)).toEqual(['netease', 'qq', 'amll', 'kugou'])
+    expect(local.props.options.map((item: { value: string }) => item.value)).toEqual(['local', 'apple', 'netease', 'qq', 'amll', 'kugou'])
+    expect(labelled(element, '晴天的歌词来源').props.options.map((item: { value: string }) => item.value)).toEqual(['apple', 'netease', 'qq', 'amll', 'kugou'])
     labelled(element, '晴天的歌词来源').props.onChange('amll')
     expect(h.state.updateRemembered).toHaveBeenCalledWith(['netease:1'], 'amll')
     labelled(element, '忘记安静的歌词来源').props.onClick()

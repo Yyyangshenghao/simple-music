@@ -15,6 +15,8 @@ export interface AppleMusicAccountStatus {
   suspended?: boolean
   subscription: 'unknown' | 'active' | 'inactive'
   storefront: string
+  /** 登录页地区；空字符串表示按出口 IP。仅应用内官网登录方式返回。 */
+  loginStorefront?: string
   error?: string
 }
 

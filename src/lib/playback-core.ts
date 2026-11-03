@@ -115,7 +115,7 @@ export interface PlaybackPlayer {
 const MAX_QUALITY_CACHE_LEVELS = new Set(['lossless', 'hires', 'jymaster'])
 
 /**
- * 离线 / 自动缓存的文件是否符合当前所选音质。缓存只记得写入时的档位，
+ * 缓存的文件是否符合当前所选音质。缓存只记得写入时的档位，
  * 不一致时（包括切换音质后的热重载）改走在线解析，否则切换音质永远听到旧缓存；
  * 平台未登录或已停用时仍用缓存，保证离线可播。
  */
@@ -962,7 +962,8 @@ export function createPlaybackCore(deps: PlaybackCoreDependencies) {
       if (offlineStatus && offlineUrl && canUseOfflineCache) {
         // 音质不符时先尝试在线升级；账号有效不代表网络可用，保留文件供候选耗尽后兜底。
         active.offlineFallback = { status: offlineStatus, url: offlineUrl }
-        if (offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source))) {
+        // 已下载的文件是用户自己的那一份，不因音质设置改走在线。
+        if (offlineStatus.state === 'downloaded' || offlineQualityUsable(offlineStatus.quality, get().quality, () => isProviderId(track.source) && deps.isParticipating(track.source))) {
           loadOfflineCandidate(active)
           return
         }

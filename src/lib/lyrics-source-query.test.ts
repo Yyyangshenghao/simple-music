@@ -9,14 +9,14 @@ import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
 vi.mock('./local-music-service', () => ({ localMusicService: {
   getLyrics: h.local,
   getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
 } }))
-vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq') => ({
+vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple') => ({
   catalog: { searchTracks: h[source], getTracksByIds: vi.fn() },
 }) }))
 
@@ -43,6 +43,7 @@ beforeEach(() => {
   } })
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
+  h.apple.mockResolvedValue([song('apple', { id: 'a1' })])
   h.native.mockResolvedValue(null)
   h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
   vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙' })
@@ -118,11 +119,41 @@ describe('参与限制和取消', () => {
     expect(await queryLyricsSource(song('local'), 'local', ['qq'])).toMatchObject({ status: 'empty' })
     expect(api.get).not.toHaveBeenCalled()
     expect(h.qq).not.toHaveBeenCalled()
-    expect(await queryLyricsSource(song('local'), 'apple', ['qq', 'apple'])).toMatchObject({ status: 'unavailable' })
   })
 
-  it('Apple 原生不能作为其他平台的候选', () => {
-    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'unavailable' })
+  it('Apple 歌词缺翻译时按正文从原平台补齐翻译与音译，自带翻译不覆盖', async () => {
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }, { time: 3, text: 'World' }], aligned: [], roma: [], wordLines: [] })
+    vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]Hello\n[00:03.10]World', tlyric: '[00:01.00]你好\n[00:03.10]世界' })
+    const filled = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
+    expect(filled.result).toMatchObject({ source: 'apple', translationOrigin: 'netease',
+      main: [{ time: 1.2, text: 'Hello' }, { time: 3, text: 'World' }], aligned: [{ time: 1.2, text: '你好' }, { time: 3, text: '世界' }] })
+    expect(filled.result?.romajiOrigin).toBeUndefined()
+
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [{ time: 1.2, text: '哈喽' }], roma: [], wordLines: [] })
+    expect((await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])).result?.aligned).toEqual([{ time: 1.2, text: '哈喽' }])
+
+    // 原平台在歌词设置中关闭时不再请求它补翻译。
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [], roma: [], wordLines: [] })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    vi.mocked(api.get).mockClear()
+    const plain = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
+    expect(plain).toMatchObject({ status: 'ready', result: { aligned: [] } })
+    expect(api.get).not.toHaveBeenCalledWith('/api/lyric', expect.anything(), expect.anything())
+  })
+
+  it('Apple Music 可为其他平台歌曲匹配同一录音并取自带歌词；未连接或关闭时不查询', async () => {
+    h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1, text: '甲乙' }], aligned: [], roma: [], wordLines: [] })
+    expect(await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple']))
+      .toMatchObject({ status: 'ready', result: { source: 'apple' }, match: { source: 'apple', id: 'a1' } })
+    expect(h.native).toHaveBeenCalledWith(expect.objectContaining({ source: 'apple', id: 'a1' }), expect.anything(), true)
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false } })
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' } } }))
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'login' })
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'login' })
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' } } }))
+    expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'disabled', message: 'Apple Music 未启用' })
   })
 
   it('真实游客初始化后仍可查询歌词，播放权限保持关闭', async () => {
@@ -135,16 +166,23 @@ describe('参与限制和取消', () => {
   })
 
   it('AMLL 需要已参与的网易或 QQ，Apple 记忆匹配不能绕过', async () => {
-    expect(await queryLyricsSource(song('apple'), 'amll', ['apple'], undefined, song('qq'))).toMatchObject({ status: 'unavailable' })
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['apple'], undefined, song('qq'))).toMatchObject({ status: 'unavailable' })
     useSettingsStore.setState({ lyricsAmllFallback: false, lyricsKugouFallback: false })
     expect(await queryLyricsSource(song('netease'), 'amll', ['netease'])).toMatchObject({ status: 'disabled' })
     expect(await queryLyricsSource(song('netease'), 'kugou', ['netease'])).toMatchObject({ status: 'disabled' })
     expect(api.get).not.toHaveBeenCalled()
   })
 
+  it('Apple 曲目按自身目录 ID 直接查 AMLL 的 Apple 分区，不依赖网易云、QQ', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string, params?: Record<string, unknown>) => (path === '/api/amll/lyric' && params?.platform === 'am' ? { text: yrc } : { text: null }) as never)
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib', catalogId: '1645308331' }), 'amll', ['apple'])).toMatchObject({ status: 'ready', match: { source: 'apple' }, result: { origin: 'amll', main: [{ time: 1, text: '甲乙' }] } })
+    expect(api.get).toHaveBeenCalledWith('/api/amll/lyric', { platform: 'am', id: '1645308331' }, expect.anything())
+    expect(h.qq).not.toHaveBeenCalled()
+  })
+
   it('Apple 可通过已参与平台匹配 AMLL，仅使用该平台映射', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/amll/lyric' ? { text: qrc } : { lyric: '' }) as never)
-    expect(await queryLyricsSource(song('apple'), 'amll', ['qq'])).toMatchObject({ status: 'ready', match: { source: 'qq' }, result: { origin: 'amll' } })
+    expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])).toMatchObject({ status: 'ready', match: { source: 'qq' }, result: { origin: 'amll' } })
     expect(h.qq).toHaveBeenCalledOnce()
     expect(h.netease).not.toHaveBeenCalled()
   })
@@ -187,7 +225,7 @@ describe('真实结果与错误分类', () => {
   it('跨平台搜索失败是 error，不等同于未收录', async () => {
     h.qq.mockRejectedValueOnce(new Error('offline'))
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'error' })
-    h.qq.mockResolvedValueOnce([])
+    h.qq.mockResolvedValue([])
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'])).toMatchObject({ status: 'empty' })
   })
 
@@ -222,10 +260,10 @@ describe('真实结果与错误分类', () => {
   })
 
   it('保存过的同曲必须重新校验，不复用错误录音', async () => {
-    h.qq.mockResolvedValueOnce([])
+    h.qq.mockResolvedValue([])
     const remembered = song('qq', { name: '晴天 (Live)' })
     expect(await queryLyricsSource(song('apple'), 'qq', ['qq'], undefined, remembered)).toMatchObject({ status: 'empty' })
-    expect(h.qq).toHaveBeenCalledOnce()
+    expect(h.qq.mock.calls.map(([keyword]) => keyword)).toEqual(['晴天 周杰伦', '晴天'])
     expect(api.get).not.toHaveBeenCalled()
   })
 
@@ -277,7 +315,7 @@ describe('连接异常暂停与自动恢复', () => {
 
   it('映射平台搜索失败不会暂停从未访问的 AMLL', async () => {
     h.qq.mockRejectedValue(new Error('offline'))
-    for (let i = 0; i < 4; i++) expect(await queryLyricsSource(song('apple'), 'amll', ['qq'])).toMatchObject({ status: 'error' })
+    for (let i = 0; i < 4; i++) expect(await queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])).toMatchObject({ status: 'error' })
     expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()
     expect(api.get).not.toHaveBeenCalled()
   })
@@ -286,7 +324,7 @@ describe('连接异常暂停与自动恢复', () => {
     vi.useFakeTimers()
     try {
       h.qq.mockReturnValue(new Promise(() => {}))
-      const mapping = queryLyricsSource(song('apple'), 'amll', ['qq'])
+      const mapping = queryLyricsSource(song('apple', { id: 'i.lib' }), 'amll', ['qq'])
       await vi.advanceTimersByTimeAsync(8000)
       expect(await mapping).toMatchObject({ status: 'error', message: '连接超时' })
       expect(useLyricsSourceStore.getState().health.amll).toBeUndefined()
@@ -343,8 +381,8 @@ describe('游客歌词来源', () => {
   })
 
   it('设置中关闭平台后，即使已登录也显示已关闭', () => {
-    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true } })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true } })
     expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
   })
 })

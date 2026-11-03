@@ -25,32 +25,41 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--sm-accent) 60%, transparent);
 }
 
+/*
+ * 挂在 body 上的一整块玻璃，与伴奏浮层同一套表面：通透毛玻璃 + 浅投影，不描边，内部不加光带。
+ * right/bottom 与 --panel-max 由按钮位置算出；层级高于播放栏玻璃（210）。
+ */
 .panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 16px);
+  position: fixed;
+  z-index: 220;
   display: flex;
   flex-direction: column;
-  width: min(320px, calc(100vw - 40px));
-  max-height: min(580px, calc(100dvh - 180px));
+  /* 出现滚动条时加宽 --panel-scroll-extra，右缘同步外移，内容区宽度不变 */
+  width: calc(min(340px, calc(100vw - 24px)) + var(--panel-scroll-extra, 0px));
+  max-height: min(600px, var(--panel-max, calc(100dvh - 160px)));
   overflow: hidden;
-  /* 实色打底，避免下层歌曲列表透入面板。 */
-  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-card);
-  box-shadow: var(--sm-shadow);
+  transition: width 260ms var(--sm-ease-out), right 260ms var(--sm-ease-out);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--sm-bg-base) 52%, transparent);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  color: var(--sm-text-primary);
+  transform-origin: 100% 100%;
 }
+
+:global([data-reduce-transparency='1']) .panel { background: var(--sm-bg-base); }
 
 .panelHead {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--sm-border);
+  padding: 16px 12px 4px 20px;
 }
 
-.panelTitle { font-size: 14px; font-weight: 600; color: var(--sm-text-primary); }
+/* 字号层级：面板标题 15 → 分区标题 13（主色）→ 控件 12 → 状态与说明 11（弱色），靠字号与字重而非分隔线区分轻重。 */
+.panelTitle { font-size: 15px; font-weight: 600; color: var(--sm-text-primary); }
 
 .closeBtn {
   display: grid;
@@ -59,47 +68,100 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--sm-radius-pill);
   background: transparent;
   color: var(--sm-text-secondary);
   cursor: pointer;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
 }
 
 .closeBtn:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.closeBtn:active { background: var(--sm-fill-active); }
 
 .content {
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 16px 4px;
+  padding: 0 20px 10px;
 }
 
+/* 内容固定为面板基础宽度：面板伸展动画进行中滚动条先出现，也只占右侧留白，不挤窄内容 */
+.contentInner { width: calc(min(340px, calc(100vw - 24px)) - 40px); }
+
+@media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+
+/* 分区之间只靠留白分组；底部的跳转/折叠行另起一组，用一道细线隔开 */
 .section {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 0;
+  padding-top: 18px;
 }
 
-.section + .section { border-top: 1px solid var(--sm-border); }
+.rowSection { gap: 0; padding-top: 0; }
+.section:not(.rowSection) + .rowSection { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--sm-border); }
 
 .sectionHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+  /* 与标题行里的小胶囊/图标按钮同高，有无动作行高都不变 */
+  min-height: 26px;
 }
 
 .sectionTitle {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--sm-text-primary);
 }
 
+.rowTitle { font-size: 13px; font-weight: 500; color: var(--sm-text-primary); }
+
+/* 标题行右侧：单一事实值（图标 + 名称）、并排的小动作 */
+.headValue { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--sm-text-primary); }
+.headActions { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 整个标题行就是入口（歌词来源）：悬停铺浅底，右侧值随之提亮 */
+.headLink {
+  align-items: center;
+  width: calc(100% + 20px);
+  min-height: 36px;
+  margin: -8px -10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms var(--sm-ease-out);
+}
+.headLink:hover { background: var(--sm-fill-hover); }
+.headLink:active { background: var(--sm-fill-active); }
+.headLink:hover .textAction { color: var(--sm-text-primary); }
+
+.iconAction {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
+}
+.iconAction:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.iconAction[data-danger]:hover { color: var(--sm-color-danger); }
+
 .sectionStatus {
   font-size: 11px;
-  color: var(--sm-text-secondary);
+  color: var(--sm-text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 0;
   overflow: hidden;
@@ -107,96 +169,148 @@
   white-space: nowrap;
 }
 
-.chips {
+/* 浅槽分段：参数而非动作，选中项只抬起一层浅底，把实心强调留给真正的动作按钮。 */
+.segmented {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-fill-subtle);
 }
 
-.chips .chip { flex: 1; }
+.segmented[data-grid] { display: grid; border-radius: 14px; }
+.segmented[data-grid] .segment { border-radius: 12px; }
 
-.sourcePreference { display: flex; flex-direction: column; gap: 6px; }
-.qualityChips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.qualityChips .tip { grid-column: span 2; }
+.segment {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: none;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out);
+}
 
+.segment:hover:not(:disabled):not([aria-checked='true']) { color: var(--sm-text-primary); }
+.segment:active:not(:disabled):not([aria-checked='true']) { background: var(--sm-fill-hover); }
+.segment[aria-checked='true'] { background: var(--sm-fill-active); color: var(--sm-text-primary); font-weight: 600; cursor: default; }
+.segment:disabled { opacity: 0.4; cursor: default; }
+
+.segmentNote {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--sm-text-muted);
+}
+
+/* 播放来源：两行事实，左名右值 */
 .sourceFacts {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 10px;
+  row-gap: 8px;
+  column-gap: 12px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--sm-fill-subtle);
-  color: var(--sm-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
+
+.factName { color: var(--sm-text-secondary); }
 
 .sourceFactValue {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 0;
   color: var(--sm-text-primary);
   font-weight: 500;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--sm-border);
+.sourcePreference { display: flex; flex-direction: column; gap: 6px; }
+.fieldName { font-size: 11px; color: var(--sm-text-secondary); }
+
+/* 次要动作：小号轻底胶囊，按内容宽度排列，不与主操作抢分量 */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.pill {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
   border-radius: var(--sm-radius-pill);
   background: var(--sm-fill-subtle);
-  color: var(--sm-text-secondary);
+  color: var(--sm-text-primary);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out);
 }
 
-.chip:hover {
-  background: var(--sm-fill-hover);
-  border-color: var(--sm-border-strong);
-  color: var(--sm-text-primary);
-}
+.pill:hover { background: var(--sm-fill-hover); }
+.pill:active { background: var(--sm-fill-active); }
+.pill[data-danger] { color: var(--sm-color-danger); }
 
-.chip[data-on='true'] {
-  color: var(--sm-text-on-accent);
-  border-color: var(--sm-accent);
-  background: var(--sm-accent);
-}
-
-.closeBtn:focus-visible,
-.chip:focus-visible,
-.optionRow:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
-
-.tip {
+.note {
   font-size: 11px;
   color: var(--sm-text-secondary);
   line-height: 1.5;
 }
 
+/* 生成区的状态说明：始终一行高，空时也占位；过长省略 */
+.status { min-height: 1.5em; margin-top: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 没有伴奏任务时生成/播放是本区主操作，用实心强调色；其余状态用轻底。 */
 .generateButton {
-  min-height: 34px;
-  padding: 7px 12px;
+  min-height: 32px;
+  padding: 6px 12px;
   border: 0;
   border-radius: var(--sm-radius-pill);
-  background: var(--sm-accent);
-  color: var(--sm-text-on-accent);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 160ms var(--sm-ease-out);
 }
-.generateButton:hover:not(:disabled) { filter: brightness(1.08); }
-.generateButton:disabled { background: var(--sm-fill-subtle); color: var(--sm-text-secondary); cursor: default; }
-.textAction { padding: 2px 0; border: 0; background: none; color: var(--sm-accent); font: inherit; font-size: 11px; cursor: pointer; }
+.generateButton:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.generateButton:active:not(:disabled) { background: var(--sm-fill-active); }
+.generateButton[data-primary='true'] { background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
+.generateButton[data-primary='true']:hover:not(:disabled) { background: var(--sm-accent-hover); }
+.generateButton[data-primary='true']:active:not(:disabled) { background: var(--sm-accent-pressed); }
+.generateButton:disabled { background: var(--sm-fill-subtle); color: var(--sm-text-muted); font-weight: 500; cursor: default; }
+
+.textAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sm-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 140ms var(--sm-ease-out);
+}
+.textAction:hover { color: var(--sm-text-primary); }
 
 .optionRow {
   display: flex;
@@ -213,31 +327,36 @@
   cursor: pointer;
 }
 
-.optionRow:hover { color: var(--sm-text-primary); }
 .optionRow:disabled { cursor: default; opacity: 0.5; }
-/* 分区标题即开关：去掉行内边距，与下方说明保持分区间距 */
-.switchHead { padding: 0; }
 
 /* 定时下的附属开关：次级文字，紧贴上方档位 */
 .subRow { padding: 2px 0 0; color: var(--sm-text-secondary); }
 
-/* 跳转到其他面板的行：整行可点，右侧箭头 */
+/* 跳转/折叠行：整行可点，右侧当前值与箭头 */
 .linkRow {
-  margin: -6px -8px;
-  padding: 8px;
-  color: var(--sm-text-secondary);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  margin: 0 -10px;
+  padding: 10px;
+  min-height: 40px;
+  transition: background-color 140ms var(--sm-ease-out);
 }
 
 .linkRow:hover { background: var(--sm-fill-hover); }
+.linkRow:active { background: var(--sm-fill-active); }
+.linkRow .chevron { color: var(--sm-text-muted); }
 
+/* 生成模型入口是伴奏区的附属行：更轻、更紧 */
+.section:not(.rowSection) > .linkRow { min-height: 32px; margin-top: -2px; padding: 6px 10px; color: var(--sm-text-secondary); }
 
+.closeBtn:focus-visible,
+.segment:focus-visible,
+.pill:focus-visible,
+.iconAction:focus-visible,
+.headLink:focus-visible,
+.optionRow:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
 
-/* 倍速与定时关闭：收起在最底部，展开后两组内容以细线分隔 */
+/* 倍速与定时关闭：收起在最底部，展开后两组内容留白分隔 */
 .extrasSummary { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .chevron { flex-shrink: 0; transition: transform 200ms var(--sm-ease-out); }
 .chevron[data-open='true'] { transform: rotate(180deg); }
-.extrasBody { overflow: hidden; margin: -10px -16px 0; padding: 0 16px; }
-.subSection { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; }
-.subSection:first-child { padding-top: 16px; }
-.subSection + .subSection { border-top: 1px solid var(--sm-border); }
+.extrasBody { overflow: hidden; }
+.subSection { display: flex; flex-direction: column; gap: 10px; padding: 8px 0 10px; }

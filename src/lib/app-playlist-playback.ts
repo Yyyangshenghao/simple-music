@@ -24,7 +24,7 @@ export function appPlaylistTrackState(track: Track, context: AppPlaylistPlayback
   }
   if (isCatalogUnavailable(track)) return { track, available: false, status: '曲目暂不可用', invalid: true }
   const offline = context.offline[appPlaylistTrackKey(track)]
-  if (track.source !== 'apple' && offline?.entryId && offline.state !== 'missing') return { track, available: true, status: '可离线播放' }
+  if (track.source !== 'apple' && offline && (offline.state === 'downloaded' || (offline.state === 'cached' && offline.entryId))) return { track, available: true, status: '可离线播放' }
   const provider = context.providers[track.source]
   const status = !provider.enabled ? '平台已停用'
     : provider.auth !== 'authenticated' ? provider.auth === 'expired' ? '登录已失效' : '请先登录'

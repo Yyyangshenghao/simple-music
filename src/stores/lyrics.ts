@@ -16,6 +16,8 @@ interface LyricsStore {
   trackKey: string | null
   source: MusicSource | null
   loading: boolean
+  /** 加载完成、没有歌词且本曲平台声明为纯音乐。 */
+  instrumental: boolean
   lines: LyricLine[]
   currentIndex: number
   translation: LyricLine[]
@@ -56,6 +58,7 @@ export const useLyricsStore = create<LyricsStore>((set, get) => ({
   trackKey: null,
   source: null,
   loading: false,
+  instrumental: false,
   lines: [],
   currentIndex: -1,
   translation: [],

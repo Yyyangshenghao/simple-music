@@ -13,7 +13,7 @@ import { advanceProviderAccountSession } from './provider-account-session'
 import { reportLyricsSource, suspendedLyricsSource } from './lyrics-source-health'
 
 const h = vi.hoisted(() => ({ fetch: vi.fn(), upgrade: vi.fn(), query: vi.fn(), available: vi.fn() }))
-vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
+vi.mock('./lyrics-fetch', () => ({ fetchLyrics: h.fetch, upgradeLyrics: h.upgrade, isInstrumentalTrack: () => false, emptyLyrics: { source: null, main: [], aligned: [], roma: [], wordLines: [] } }))
 vi.mock('./lyrics-source-query', () => ({ queryLyricsSource: h.query, candidateAvailability: h.available }))
 import { initLyricsLoader } from './lyrics-loader'
 import { handlePlaybackRequest, takePlaybackSnapshot } from './playback-host-runtime'
@@ -306,8 +306,8 @@ describe('四来源完整顺序', () => {
     stop = initLyricsLoader()
     await flush()
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
-    await action('setSourceOrder', ['amll', 'kugou', 'netease', 'qq'])
-    expect(takePlaybackSnapshot(true).stores.lyricSources.sourceOrder).toEqual(['amll', 'kugou', 'netease', 'qq'])
+    await action('setSourceOrder', ['amll', 'kugou', 'netease', 'qq', 'apple'])
+    expect(takePlaybackSnapshot(true).stores.lyricSources.sourceOrder).toEqual(['amll', 'kugou', 'netease', 'qq', 'apple'])
     expect(useLyricsSourceStore.getState().appliedOrigin).toBe('qq')
     usePlayerStore.setState({ currentTrack: { ...onlineTrack, id: 'n2' } })
     await flush()
@@ -334,7 +334,7 @@ describe('四来源完整顺序', () => {
     await action('testSource', 'amll', 'sunny')
     expect(h.query).toHaveBeenCalledTimes(initial + 1)
     expect(h.query).toHaveBeenLastCalledWith(
-      expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq'],
+      expect.objectContaining({ source: 'netease', name: '晴天' }), 'amll', ['netease', 'qq', 'apple'],
       expect.any(AbortSignal), undefined, { probe: true },
     )
     expect(takePlaybackSnapshot(true).stores.lyricSources.probes).toMatchObject({ amll: { status: 'loading', sample: '晴天' } })

@@ -175,7 +175,7 @@ export function LibraryPage({ detail = null }: { detail?: Extract<AppView, { typ
           items={SUB_TABS.map(value => ({
             value,
             icon: LIBRARY_TAB_ICONS[value],
-            label: { 'app-playlists': '应用歌单', playlists: '歌单', favorites: '收藏', recent: '最近播放', offline: '离线音乐', local: '本地音乐' }[value],
+            label: { 'app-playlists': '应用歌单', playlists: '歌单', favorites: '收藏', recent: '最近播放', offline: '已下载', local: '本地音乐' }[value],
           }))}
         />
       </div>

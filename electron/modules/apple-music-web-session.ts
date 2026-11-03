@@ -8,9 +8,19 @@ import { appleMusicWebPage, type WebPageTask } from '../../server/lib/apple-musi
 import { AppleMusicChromePage } from './apple-music-chrome-page'
 
 const PLAYBACK_PARTITION = 'persist:simplemusic-apple-music'
+const AUTH_PRELOAD_ID = 'simplemusic-apple-music-auth'
 const APPLE_MUSIC_URL = 'https://music.apple.com/'
 const OPEN_TIMEOUT_MS = 30000
 const RESTORE_CONFIRM_TIMEOUT_MS = 30000
+/** 授权后探测页面 MusicKit 是否过期的间隔；轮询本身是 1 秒，探针不跟着每次轮询打。 */
+const AUTH_PROBE_INTERVAL_MS = 3000
+/**
+ * 上次登录确认过的账号地区。登录页打开不带地区前缀的根路径时，官网按出口 IP 决定地区，
+ * 代理节点和账号地区不一致就会在登录后整页跳到账号地区（Apple 风控最敏感的时刻）。
+ * 记住账号地区后直接打开对应地区页，代理只影响能否连通，不再影响登录页地区。
+ */
+const STOREFRONT_FILE = 'apple-music-storefront'
+const STOREFRONT_PATTERN = /^[a-z]{2}$/
 // 官网首页挂着十几个动态封面视频，隐藏后仍独占数百 MB；后台播放只需要 MusicKit，
 // 在页面内点到搜索页（单页路由，不重载）即可释放，MusicKit 实例与授权保持不变。
 const LIGHT_PAGE_SCRIPT = `(() => {
@@ -47,6 +57,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   private backgrounded = false
   private authorizationShown = false
   private restoreSaved = false
+  /** 上次登录确认过的账号地区，只用于让登录页直接落在同区。 */
+  private storedStorefront = ''
   /** 平台被关闭：后台页面已销毁，登录 Cookie 保留，重新启用时静默重连。 */
   private suspended = false
   private restoring = false
@@ -54,6 +66,9 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
   private loggingOut = false
   private pollFailures = 0
   private pageReadyDeadline = 0
+  /** 授权后页面里的 MusicKit 可能仍是未授权的旧实例，见 recoverStaleAuthorization。 */
+  private authProbeAt = 0
+  private authReloaded = false
   private queue: Promise<unknown> = Promise.resolve()
   private queuedControls = new Map<string, symbol>()
   private snapshot: ReturnType<AppleMusicWebSession['state']> = emptyState()
@@ -80,6 +95,9 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     this.finishRestore()
     this.suspended = false
     this.interactive = true
+    // 每次显式登录都是一次新的授权尝试，允许再做一次过期实例恢复。
+    this.authProbeAt = 0
+    this.authReloaded = false
     if (this.window && !this.snapshot.loggedIn) {
       this.backgrounded = false
       this.authorizationShown = false
@@ -145,6 +163,43 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     } catch { /* 恢复偏好写入失败不影响当前播放。 */ }
   }
 
+  /** 登录页地址：有账号地区记录就直接开对应地区，否则交给官网按出口 IP 决定。 */
+  private loginUrl(): string {
+    const storefront = this.readStorefront()
+    return storefront ? `https://music.apple.com/${storefront}/` : APPLE_MUSIC_URL
+  }
+
+  private readStorefront(): string {
+    if (this.storedStorefront) return this.storedStorefront
+    try {
+      const value = readFileSync(join(this.userDataDir, STOREFRONT_FILE), 'utf8').trim()
+      if (STOREFRONT_PATTERN.test(value)) this.storedStorefront = value
+    } catch { /* 没有历史地区时退回官网默认地区 */ }
+    return this.storedStorefront
+  }
+
+  /** 登录页将使用的地区；空字符串表示由官网按出口 IP 决定。 */
+  loginStorefront(): string {
+    return this.readStorefront()
+  }
+
+  /**
+   * 未登录时由用户指定登录页地区，免得按出口 IP 落到别的地区再跳转。
+   * 已登录时地区以账号为准（登录后会写回账号地区），这里拒绝修改。
+   */
+  setLoginStorefront(value: string): boolean {
+    if (this.snapshot.loggedIn || this.suspended || (value && !STOREFRONT_PATTERN.test(value))) return false
+    this.writeStorefront(value)
+    return true
+  }
+
+  private writeStorefront(value: string): void {
+    if (value && !STOREFRONT_PATTERN.test(value)) return
+    if (value === this.storedStorefront) return
+    this.storedStorefront = value
+    try { writeFileSync(join(this.userDataDir, STOREFRONT_FILE), value, { mode: 0o600 }) } catch { /* 写入失败只影响下次登录的地区猜测 */ }
+  }
+
   private async beginOpen(): Promise<void> {
     if (this.opening) return this.opening
     const controller = new AbortController()
@@ -176,7 +231,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
         this.showAuthorization(existing)
       }
       if (!existing.webContents.getURL().startsWith(APPLE_MUSIC_URL)) {
-        await withTimeout(Promise.race([existing.loadURL(APPLE_MUSIC_URL), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
+        await withTimeout(Promise.race([existing.loadURL(this.loginUrl()), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
       }
       return
     }
@@ -187,6 +242,12 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     appleSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
       callback(isAllowedApplePermission(permission, details.requestingUrl))
     })
+    // 设在会话上，MusicKit 授权弹窗（window.open）也用 Chrome UA，不暴露 Electron 标识。
+    appleSession.setUserAgent(chromeUserAgent())
+    const disablePasskeys = process.platform !== 'darwin'
+    if (disablePasskeys && !appleSession.getPreloadScripts().some(script => script.id === AUTH_PRELOAD_ID)) {
+      appleSession.registerPreloadScript({ id: AUTH_PRELOAD_ID, type: 'frame', filePath: join(import.meta.dirname, '../preload/apple-music-auth.cjs') })
+    }
     const win = new BrowserWindow({
       title: '登录 Apple Music',
       width: 1120,
@@ -202,6 +263,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
         nodeIntegration: false,
         sandbox: true,
         backgroundThrottling: false,
+        // Apple ID 登录表单在跨域 iframe 内，屏蔽通行密钥的 preload 需要进子框架。
+        nodeIntegrationInSubFrames: disablePasskeys,
       },
     })
     if (lifecycle !== this.lifecycle) { win.destroy(); throw new Error('连接已取消') }
@@ -213,7 +276,6 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     this.loginPrompted = false
     this.redirectedStorefront = ''
     this.pollFailures = 0
-    win.webContents.setUserAgent(chromeUserAgent())
     win.webContents.setWindowOpenHandler(({ url }) => isAppleUrl(url) ? { action: 'allow' } : { action: 'deny' })
     win.webContents.on('render-process-gone', () => this.invalidateWindow(win))
     win.webContents.on('will-prevent-unload', event => event.preventDefault())
@@ -240,7 +302,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       }
       if (lifecycle !== this.lifecycle || win.isDestroyed()) throw new Error('连接已取消')
       this.pageReadyDeadline = Date.now() + OPEN_TIMEOUT_MS
-      await withTimeout(Promise.race([win.loadURL(APPLE_MUSIC_URL), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
+      await withTimeout(Promise.race([win.loadURL(this.loginUrl()), cancellation]), OPEN_TIMEOUT_MS, 'Apple Music 官网加载超时，请检查网络后重试')
       if (lifecycle !== this.lifecycle) { win.destroy(); throw new Error('连接已取消') }
       await Promise.race([this.poll(win), cancellation])
     } catch (error) {
@@ -262,7 +324,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     let created: AppleMusicChromePage | undefined
     const opening = AppleMusicChromePage.open(this.userDataDir, () => {
       if (created && this.chrome === created) this.invalidateChrome(created)
-    }, signal)
+    }, signal, this.loginUrl())
     this.openingChrome = opening
     let chrome: AppleMusicChromePage
     try {
@@ -318,6 +380,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       const value = await this.evaluate({ type: 'state' }) as ReturnType<AppleMusicWebSession['state']> & { redirectUrl?: string }
       const { redirectUrl, ...state } = value
       if (this.window === win && generation === this.generation) {
+        // 账号地区是登录后才知道的权威值，记下来供下次登录页直接落在同区。
+        if (state.loggedIn && STOREFRONT_PATTERN.test(state.storefront)) this.writeStorefront(state.storefront)
         const currentRegion = new URL(win.webContents.getURL()).pathname.split('/')[1]
         if (state.loggedIn && redirectUrl && /^[a-z]{2}$/.test(state.storefront)) {
           this.snapshot = { ...emptyState(), connected: state.connected, storefront: state.storefront }
@@ -344,6 +408,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
             this.backgrounded = false
             this.showAuthorization(win)
             this.loginPrompted = await this.promptLogin()
+          } else if (!state.loggedIn) {
+            await this.recoverStaleAuthorization(() => withTimeout(win.loadURL(this.loginUrl()), OPEN_TIMEOUT_MS, 'Apple Music 官网重新加载超时'))
           }
         }
       }
@@ -386,6 +452,28 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     } catch { return false }
   }
 
+  /**
+   * 登录可能完成在 window.open 弹窗里，或官网在当前页内登录后没有整页重载；这时后台页面里的
+   * MusicKit 仍是未授权的旧实例，全靠 isAuthorized 的状态轮询会一直报告未登录，资料库查询也
+   * 全部失败，只有重启应用（冷加载官网）才会恢复。这里用一次账号接口探针区分「真的没登录」和
+   * 「实例已过期」，后者重新加载官网一次，让 MusicKit 带着会话重新初始化。
+   */
+  private async recoverStaleAuthorization(reload: () => Promise<void>): Promise<void> {
+    if (!this.interactive || this.authReloaded || Date.now() < this.authProbeAt) return
+    this.authProbeAt = Date.now() + AUTH_PROBE_INTERVAL_MS
+    let sessionValid = false
+    try {
+      const probe = await this.evaluate({ type: 'auth' }) as { authorized?: boolean; sessionValid?: boolean } | undefined
+      sessionValid = !!probe?.sessionValid && !probe.authorized
+    } catch { return }
+    if (!sessionValid || this.authReloaded || !this.interactive) return
+    this.authReloaded = true
+    // 重载期间页面还没就绪，先放宽轮询失败上限，避免被当成死页面销毁。
+    this.pageReadyDeadline = Date.now() + OPEN_TIMEOUT_MS
+    this.loginPrompted = false
+    try { await reload() } catch { /* 下一轮轮询继续观察，失败时仍会按原超时规则回收页面 */ }
+  }
+
   private async pollChrome(chrome: AppleMusicChromePage): Promise<void> {
     const generation = this.generation
     let nextPollMs: number | undefined
@@ -395,6 +483,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
       if (this.chrome === chrome && generation === this.generation) {
         this.pageReadyDeadline = 0
         this.pollFailures = 0
+        // 账号地区是登录后才知道的权威值，记下来供下次启动直接落在同区。
+        if (state.loggedIn && STOREFRONT_PATTERN.test(state.storefront)) this.writeStorefront(state.storefront)
         if (this.snapshot.status === 'loading' && state.playbackId !== this.snapshot.playbackId) {
           this.snapshot = { ...this.snapshot, connected: state.connected, loggedIn: state.loggedIn, subscription: state.subscription, storefront: state.storefront }
         } else this.snapshot = state
@@ -408,6 +498,7 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
           // macOS 最小化 Chrome 会使官网播放停滞；保留窗口，仅将焦点交回主应用。
           if (!this.backgrounded) { this.backgrounded = true; this.returnToApp(); this.leaveHeavyPage() }
         } else if (this.interactive && !this.loginPrompted) this.loginPrompted = await this.promptLogin()
+        else await this.recoverStaleAuthorization(() => chrome.navigate(this.loginUrl()))
       }
     } catch {
       if (this.chrome === chrome) {
@@ -523,6 +614,8 @@ export class OfficialAppleMusicSession implements AppleMusicWebSession {
     this.saveRestore(false)
     this.loggingOut = false
     if (!this.useChromeForDrm) await session.fromPartition(PLAYBACK_PARTITION).clearStorageData()
+    // 退出登录可能换账号，地区提示跟着作废，下次登录仍由官网按出口 IP 决定。
+    this.writeStorefront('')
   }
 }
 

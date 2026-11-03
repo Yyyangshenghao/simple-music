@@ -62,7 +62,7 @@ vi.mock('../stores/providers', async (importOriginal) => {
   ) }
 })
 vi.mock('../components/Settings/DesktopLyricsSettings', () => ({ DesktopLyricsSettings: () => <section>桌面歌词显示设置</section> }))
-vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null, AppleMusicAccountInfo: () => null }))
+vi.mock('../components/Settings/AppleMusicSettings', () => ({ AppleMusicSettings: () => null, AppleMusicAccountInfo: () => null, AppleMusicRegionSelect: () => null }))
 vi.mock('../components/Settings/ShortcutSettings', () => ({ ShortcutSettings: () => null }))
 // 说明里的示意只在悬停时挂载，静态渲染时直接展开，校验每个开关接对了示意。
 vi.mock('../components/ui/InfoButton', () => ({
@@ -138,13 +138,14 @@ describe('缓存与下载的清理边界', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
     const storage = html.slice(html.indexOf('<section id="settings-section-cache"'), html.indexOf('<section id="settings-section-shortcuts"'))
     expect(storage).not.toContain('清空全部')
-    expect(storage).toContain('清理自动缓存')
-    expect(storage).toContain('删除离线音乐')
+    expect(storage).toContain('清理缓存')
+    // 只有「下载」与「缓存」两个概念，不再出现离线音乐、自动缓存或按类型删除
+    expect(storage).not.toContain('离线音乐')
+    expect(storage).not.toContain('自动缓存')
+    expect(storage).not.toContain('删除未识别文件')
     expect(storage).toContain('管理下载')
-    expect(storage).toContain('更改目录只影响之后加入的任务，已有文件保留')
-    expect(storage).toContain('清理缓存不会删除下载目录中的歌曲')
-    expect(storage).toContain('更改位置会删除原目录中的缓存、离线音乐及未识别旧文件')
-    expect(storage).toContain('下载目录中的歌曲不受影响')
+    expect(storage).toContain('更改目录只影响之后的下载，已有文件保留')
+    expect(storage).toContain('清理或更改位置不影响已下载的歌曲')
   })
 })
 
@@ -434,13 +435,35 @@ describe('设置分类导航', () => {
   it('全部分类连续展示，原分类按钮负责收放二级目录', () => {
     const html = renderToStaticMarkup(<SettingsPage />)
     const sections = [...html.matchAll(/<section id="settings-section-([^"]+)"([^>]*)>/g)]
-    expect(sections).toHaveLength(6)
+    expect(sections).toHaveLength(7)
+    expect(sections.map(section => section[1])).toEqual(['music', 'visual', 'lyrics', 'cache', 'network', 'shortcuts', 'about'])
     expect(sections.find(section => section[1] === 'music')![2]).not.toContain('hidden=')
     expect(sections.some(section => section[2].includes('hidden='))).toBe(false)
     expect(html).not.toContain('收起设置目录')
     expect(html).not.toContain('展开设置目录')
     expect(html).toMatch(/aria-current="page"[^>]*aria-expanded="true"/)
     expect(html).toMatch(/aria-current="page"[^>]*aria-controls="settings-section-music settings-subnav-music"/)
+  })
+
+  it('网络与代理分组提供模式、地址、Apple 出口与常驻检测结果', () => {
+    const html = renderToStaticMarkup(<SettingsPage />)
+    expect(html).toContain('id="settings-section-network"')
+    expect(html).toContain('aria-label="代理模式"')
+    expect(html).toContain('aria-label="Apple Music 代理"')
+    expect(html).toContain('跟随系统')
+    expect(html).toContain('跟随默认')
+    // 地址行常驻：非自定义模式只禁用不消失，切换模式不改变布局高度
+    expect(html).toMatch(/<input[^>]*aria-label="代理地址"[^>]*disabled/)
+    expect(html).toMatch(/<input[^>]*aria-label="Apple Music 代理地址"[^>]*disabled/)
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>自动检测/)
+    // 跟随系统也能检测：按钮可用；未改动时保存禁用
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>检测连接/)
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>保存/)
+    expect(html).toContain('aria-label="连接检测结果"')
+    for (const label of ['线路', '网易云音乐', 'QQ 音乐', 'Apple Music']) expect(html).toContain(label)
+    // TUN 下应用绕不开代理：标题栏提供代理软件规则引导
+    expect(html).toContain('代理软件规则')
+    expect(html).toContain('- DOMAIN-SUFFIX,apple.com,DIRECT')
   })
 
   it('二级入口都指向唯一分组，原有账户和缓存边界保留', () => {
@@ -450,7 +473,7 @@ describe('设置分类导航', () => {
       expect(html.match(new RegExp(`id="settings-detail-${id}"`, 'g'))).toHaveLength(1)
     }
     expect(html).toContain('aria-controls="settings-detail-accounts"')
-    expect(html).toContain('清理缓存不会删除下载目录中的歌曲')
+    expect(html).toContain('清理或更改位置不影响已下载的歌曲')
     expect(html).not.toContain('粒光设置')
     expect(html).not.toContain('社区模组')
   })

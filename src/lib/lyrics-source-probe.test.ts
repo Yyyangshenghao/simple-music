@@ -19,7 +19,7 @@ it('测试绕过缓存且不改变播放、歌词与按歌记忆，快照只包�
   vi.mocked(queryLyricsSource).mockResolvedValue({ status: 'ready', result: { source: 'netease', main: [{ time: 0, text: '测试歌词' }], aligned: [], roma: [], wordLines: [] } })
   const probe = createLyricsSourceProbe()
   await probe.test('netease', 'sunny')
-  expect(queryLyricsSource).toHaveBeenCalledWith(expect.objectContaining({ id: '186016', duration: 269000 }), 'netease', ['netease', 'qq'], expect.any(AbortSignal), undefined, { probe: true })
+  expect(queryLyricsSource).toHaveBeenCalledWith(expect.objectContaining({ id: '186016', duration: 269000 }), 'netease', ['netease', 'qq', 'apple'], expect.any(AbortSignal), undefined, { probe: true })
   expect(usePlayerStore.getState()).toBe(player)
   expect(useLyricsStore.getState()).toBe(lyrics)
   expect(useLyricsSourceStore.getState().remembered).toBe(remembered)

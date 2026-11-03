@@ -15,10 +15,11 @@ import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
-import { AppleMusicAccountInfo, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
 import { AccountButton } from '../components/Settings/AccountButton'
 import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
+import { ProxySettings } from '../components/Settings/ProxySettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
 import { AmllLyricsSettings } from '../components/Settings/AmllLyricsSettings'
 import { PlaybackLogicHelp } from '../components/Settings/PlaybackLogicHelp'
@@ -74,7 +75,10 @@ const SETTINGS_TABS = [
     { id: 'lyrics-source', label: '歌词来源' },
   ] },
   { id: 'cache', label: '缓存与下载', items: [
-    { id: 'downloads', label: '歌曲下载' }, { id: 'player-cache', label: '离线音乐与缓存' },
+    { id: 'downloads', label: '歌曲下载' }, { id: 'player-cache', label: '播放缓存' },
+  ] },
+  { id: 'network', label: '网络与代理', items: [
+    { id: 'proxy', label: '代理' },
   ] },
   { id: 'shortcuts', label: '快捷键', items: [] },
   { id: 'about', label: '关于应用', items: [] },
@@ -137,8 +141,6 @@ interface AudioCacheStatsInfo {
   files: number
   temporaryBytes: number
   temporaryFiles: number
-  pinnedBytes: number
-  pinnedFiles: number
   unmanagedBytes: number
   unmanagedFiles: number
 }
@@ -404,7 +406,7 @@ const CONTROL_EFFECTS: EffectItem[] = [
   { key: 'indicatorMotion', label: '标签指示条', hint: '顶栏、我的库标签和设置目录的指示条滑到新位置；关闭后直接跳到位。' },
   { key: 'sliderMotion', label: '滑杆手感', hint: '进度、音量等滑杆拖动时的拉伸、倾斜和数值气泡过渡。' },
   { key: 'dragMotion', label: '拖拽手感', hint: '队列拖动时的倾斜、抬起与碎纸删除，探索卡片堆的甩动，歌词来源排序的位移。' },
-  { key: 'iconMotion', label: '图标小动画', hint: '红心爆开、播放模式图标变形、返回按钮、均衡器跳动、提示气泡弹出和搜索框展开。' },
+  { key: 'iconMotion', label: '图标小动画', hint: '红心爆开、播放模式图标变形、切歌三角推进、返回按钮、均衡器跳动、提示气泡弹出和搜索框展开。' },
   { key: 'queueSplitMotion', label: '队列动效', hint: '任务入口在头像旁轻移显现，完成时勾选确认；关闭后保留淡入淡出与搜索框的平滑让位。' },
   { key: 'popoverSproutMotion', label: '浮层长出', hint: '伴奏面板从麦克风按钮外的圆向上展开，关闭时收回到按钮；关闭后面板直接出现和消失。' },
 ]
@@ -835,11 +837,16 @@ export function SettingsPage() {
   const settingsCacheRequest = useNavigationStore((s) => s.settingsCacheRequest)
   const settingsKaraokeRequest = useNavigationStore((s) => s.settingsKaraokeRequest)
   const settingsLyricsRequest = useNavigationStore((s) => s.settingsLyricsRequest)
-
+  /** 刚挂载的这一轮为 true：带着跳转请求进入时直接落位，不从顶部或旧位置滚过去。 */
+  const enteringRef = useRef(true)
+  const stopFollowRef = useRef<(() => void) | null>(null)
   // 在首帧绘制前恢复；字体、缓存信息等异步内容撑开高度前不够滚时，等内容长高再补一次，用户先动则放弃。
+  // 带着跳转请求进入时不恢复，免得与跳转抢滚动位置。
   useLayoutEffect(() => {
     const page = pageRef.current
     const target = savedSettingsScrollTop
+    const nav = useNavigationStore.getState()
+    if (nav.settingsMusicRequest || nav.settingsLyricsRequest || nav.settingsCacheRequest || nav.settingsKaraokeRequest) return
     if (!page || target <= 0) return
     page.scrollTop = target
     if (page.scrollTop >= target - 1) return
@@ -961,11 +968,49 @@ export function SettingsPage() {
     setActiveSection(section)
     setExpandedSection(settingsTabs.find(item => item.id === section)!.items.length ? section : null)
     setActiveDetail(detail ?? settingsTabs.find(item => item.id === section)!.items[0]?.id ?? '')
-    const margin = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
-    const top = node.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - margin
-    page.scrollTo({ top, behavior: smoothScroll ? 'smooth' : 'instant' })
-    if (detail) markLanded(page, node, Math.abs(page.scrollTop - top) > 1 && smoothScroll)
+    // 按布局偏移量算落点：分区入场动画的 translateY 会让 getBoundingClientRect 偏下几像素。
+    const targetTop = () => {
+      const margin = parseFloat(getComputedStyle(node).scrollMarginTop) || 0
+      let offset = 0
+      let el: HTMLElement | null = node
+      while (el && el !== page) {
+        offset += el.offsetTop
+        el = el.offsetParent as HTMLElement | null
+      }
+      if (el !== page) offset = node.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop
+      return offset - margin
+    }
+    const behavior = smoothScroll && !enteringRef.current ? 'smooth' : 'instant'
+    const top = targetTop()
+    page.scrollTo({ top, behavior })
+    if (detail) markLanded(page, node, Math.abs(page.scrollTop - top) > 1 && behavior === 'smooth')
+    // 字体列表、缓存信息等异步内容会在目标上方撑开或收起，落点随之校正；用户先动或超时则放弃。
+    stopFollowRef.current?.()
+    const content = page.firstElementChild
+    if (!content) return
+    let lastTop = top
+    const observer = new ResizeObserver(() => {
+      const next = targetTop()
+      if (Math.abs(next - lastTop) < 1) return
+      lastTop = next
+      page.scrollTo({ top: next, behavior })
+    })
+    const stop = () => {
+      observer.disconnect()
+      clearTimeout(timeout)
+      page.removeEventListener('wheel', stop)
+      page.removeEventListener('pointerdown', stop)
+      page.removeEventListener('keydown', stop)
+      if (stopFollowRef.current === stop) stopFollowRef.current = null
+    }
+    observer.observe(content)
+    const timeout = setTimeout(stop, 1500)
+    page.addEventListener('wheel', stop, { passive: true })
+    page.addEventListener('pointerdown', stop)
+    page.addEventListener('keydown', stop)
+    stopFollowRef.current = stop
   }, [smoothScroll, settingsTabs])
+  useEffect(() => () => stopFollowRef.current?.(), [])
   useEffect(() => {
     const navigation = useNavigationStore.getState()
     if (navigation.lastAction === 'pop' && navigation.future[0] === 'release-history') scrollToSection('about')
@@ -977,7 +1022,7 @@ export function SettingsPage() {
   }, [settingsMusicRequest, scrollToSection])
   useEffect(() => {
     if (settingsLyricsRequest === 0) return
-    scrollToSection('lyrics')
+    scrollToSection('lyrics', 'lyrics-source')
     useNavigationStore.getState().consumeSettingsLyricsRequest(settingsLyricsRequest)
   }, [settingsLyricsRequest, scrollToSection])
   useEffect(() => {
@@ -990,6 +1035,8 @@ export function SettingsPage() {
     scrollToSection('cache', 'player-cache')
     useNavigationStore.getState().consumeSettingsCacheRequest(settingsCacheRequest)
   }, [settingsCacheRequest, scrollToSection])
+  // 须排在各跳转请求之后：挂载这一轮的跳转直接落位，之后的跳转按动效设置平滑滚动。
+  useEffect(() => { enteringRef.current = false }, [])
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const contentGutter = useSettingsStore((s) => s.contentGutter)
@@ -1002,6 +1049,8 @@ export function SettingsPage() {
   const setFontFamilyCjk = useSettingsStore((s) => s.setFontFamilyCjk)
   const lyricsFontFamily = useSettingsStore((s) => s.lyricsFontFamily)
   const setLyricsFontFamily = useSettingsStore((s) => s.setLyricsFontFamily)
+  const lyricsInstrumentalHint = useSettingsStore((s) => s.lyricsInstrumentalHint)
+  const setLyricsInstrumentalHint = useSettingsStore((s) => s.setLyricsInstrumentalHint)
   const lyricsFontFamilyCjk = useSettingsStore((s) => s.lyricsFontFamilyCjk)
   const setLyricsFontFamilyCjk = useSettingsStore((s) => s.setLyricsFontFamilyCjk)
   const fx = useVisualStore((s) => s.fx)
@@ -1096,38 +1145,37 @@ export function SettingsPage() {
     void refreshCacheInfo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  async function handleClearAudioCache(scope: 'temporary' | 'pinned' | 'unmanaged'): Promise<void> {
-    if (scope === 'pinned' && !window.confirm('这会删除播放器中的离线音乐，需要时要重新下载或保存。下载目录中的歌曲文件会保留。仍要删除吗？')) return
-    if (scope === 'unmanaged' && !window.confirm('这些文件无法识别是否曾经下载保存，删除后无法恢复。仍要删除吗？')) return
+  async function handleClearAudioCache(): Promise<void> {
     setClearingCache(true)
     try {
-      await api.post('/api/audio-cache/clear', { scope }, undefined, { timeoutMs: 120_000 })
+      await api.post('/api/audio-cache/clear', { scope: 'cache' }, undefined, { timeoutMs: 120_000 })
       useOfflineCacheStore.getState().invalidate()
       await refreshCacheInfo()
-      useToastStore.getState().show(scope === 'temporary' ? '自动缓存已清理，离线音乐和下载文件保留' : scope === 'pinned' ? '离线音乐已删除，下载文件保留' : '未识别旧文件已删除')
+      useToastStore.getState().show('缓存已清理，已下载的歌曲不受影响')
     } catch {
-      useToastStore.getState().show('清理失败：缓存正在播放或保存中')
+      useToastStore.getState().show('清理失败：缓存正在播放或下载中')
     } finally {
       setClearingCache(false)
     }
   }
-  async function postCacheConfig(patch: { dir?: string; limitBytes?: number; confirmPinned?: boolean }): Promise<void> {
+  async function postCacheConfig(patch: { dir?: string; limitBytes?: number }): Promise<void> {
     try {
-      await api.post('/api/audio-cache/config', patch)
+      // 旧版离线音乐迁移完成前，服务端会等迁移结束再换目录。
+      await api.post('/api/audio-cache/config', patch, undefined, { timeoutMs: 10 * 60 * 1000 })
       useOfflineCacheStore.getState().invalidate()
-    } catch {
-      useToastStore.getState().show('缓存设置失败：目录无效、不可写或正在使用')
+    } catch (error) {
+      useToastStore.getState().show(error instanceof Error && error.message === 'HTTP 409'
+        ? '有歌曲正在下载或还没转存到下载目录，请稍后再更改缓存位置'
+        : '缓存设置失败：目录无效、不可写或正在使用')
     }
     await refreshCacheInfo()
   }
   async function handlePickCacheDir(): Promise<void> {
     const picker = window.desktop?.selectDirectory
     if (!picker) return
-    const r = await picker({ title: '选择音频存储文件夹', defaultPath: cacheConfig?.dir })
+    const r = await picker({ title: '选择缓存文件夹', defaultPath: cacheConfig?.dir })
     if (!r.ok || !r.filePath) return
-    const hasSaved = !!audioCache?.pinnedFiles
-    if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('更改缓存位置会清除当前目录中的自动缓存、离线音乐和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
-    await postCacheConfig({ dir: r.filePath, confirmPinned: hasSaved })
+    await postCacheConfig({ dir: r.filePath })
   }
   const backgroundKind = useBackgroundStore((s) => s.kind)
   const miniPlayerAppearance = useSettingsStore((s) => s.miniPlayerAppearance)
@@ -1262,6 +1310,7 @@ export function SettingsPage() {
                           </small>
                         </div>
                         <div className={styles.providerActions}>
+                          {source === 'apple' && <AppleMusicRegionSelect />}
                           <Switch
                             checked={active}
                             disabled={!connected || runtime.playbackAvailable === false || busy}
@@ -1616,6 +1665,12 @@ export function SettingsPage() {
                     <InfoButton label="歌词显示" text="桌面和普通歌词可分别选中文与西文字体；留空时跟随对应的界面字体。" />
                   </h3>
                   {LYRICS_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
+                  <BackgroundSwitchRow
+                    label="纯音乐提示"
+                    hint="没有歌词的纯音乐在歌词页显示「纯音乐，请欣赏」；关闭后歌词区留空，仍可从播放栏「更多」里选择歌词。"
+                    checked={lyricsInstrumentalHint}
+                    onChange={setLyricsInstrumentalHint}
+                  />
                   <div className={styles.fontGuide} hidden={!fontsLoading && !fontsError}>
                     <span role="status" aria-live="polite">
                       {fontsLoading ? '正在读取系统字体…' : fontsError ? '读取失败' : ''}
@@ -1662,7 +1717,7 @@ export function SettingsPage() {
                 <section id="settings-detail-downloads" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>
                     歌曲下载
-                    <InfoButton label="歌曲下载" text="下载会导出歌曲文件，并保留为离线音乐。更改目录只影响之后加入的任务，已有文件保留。" />
+                    <InfoButton label="歌曲下载" text="下载的歌曲保存为下载目录中的文件，列在“我的库 → 已下载”。更改目录只影响之后的下载，已有文件保留。" />
                   </h3>
                   <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
                     <span className={styles.rowLabel}>下载目录</span>
@@ -1672,43 +1727,18 @@ export function SettingsPage() {
                 </section>
                 <section id="settings-detail-player-cache" className={`${styles.group} ${styles.storageShared}`}>
                   <h3 className={styles.groupTitle}>
-                    离线音乐与缓存
-                    <InfoButton label="离线音乐与缓存" text="自动缓存在播放时保存，容量满后可自动清理；离线音乐不占自动缓存额度，可在“我的库 → 离线音乐”中查看。清理缓存不会删除下载目录中的歌曲。" />
+                    播放缓存
+                    <InfoButton label="播放缓存" text="播放时自动保存音频，下次起播更快、断网也可能直接播放；满了会自动清理较久未用的部分。清理或更改位置不影响已下载的歌曲。" />
                   </h3>
-                  <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
-                    <span className={styles.rowLabel}>
-                      存储文件夹
-                      <InfoButton label="存储文件夹" text="更改位置会删除原目录中的缓存、离线音乐及未识别旧文件，下载目录中的歌曲不受影响。" />
-                    </span>
-                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
-                      {cacheConfig?.dir ?? '—'}
-                    </span>
-                    {!!window.desktop?.selectDirectory && (
-                      <button className={`${styles.storageAction} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
-                        更改
-                      </button>
-                    )}
-                    {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
-                      <button className={`${styles.storageAction} ${styles.actionQuiet} no-drag`} onClick={() => {
-                        const hasSaved = !!audioCache?.pinnedFiles
-                        if ((hasSaved || audioCache?.unmanagedFiles) && !window.confirm('恢复默认缓存位置会清除当前目录中的自动缓存、离线音乐和未识别旧文件，独立下载目录中的歌曲文件会保留。仍要继续吗？')) return
-                        void postCacheConfig({ dir: '', confirmPinned: hasSaved })
-                      }}>
-                        恢复默认
-                      </button>
-                    )}
-                  </div>
                   <div data-setting-row className={styles.row}>
-                    <span className={styles.rowLabel}>自动缓存</span>
-                    <span className={styles.rowValue}>
-                      {audioCache ? `${formatCacheSize(audioCache.temporaryBytes)} · ${audioCache.temporaryFiles} 个文件` : '—'}
-                    </span>
-                    <button className={`${styles.storageAction} no-drag`} disabled={clearingCache || !audioCache?.temporaryFiles} title={audioCache?.temporaryFiles === 0 ? '暂无自动缓存可清理' : undefined} onClick={() => void handleClearAudioCache('temporary')}>
-                      {clearingCache ? '处理中…' : '清理自动缓存'}
+                    <span className={styles.rowLabel}>已用空间</span>
+                    <span className={styles.rowValue}>{audioCache ? formatCacheSize(audioCache.bytes) : '—'}</span>
+                    <button className={`${styles.storageAction} no-drag`} disabled={clearingCache || !(audioCache?.temporaryFiles || audioCache?.unmanagedFiles)} onClick={() => void handleClearAudioCache()}>
+                      {clearingCache ? '处理中…' : '清理缓存'}
                     </button>
                   </div>
                   <div data-setting-row className={styles.row}>
-                    <span className={styles.rowLabel}>自动缓存上限</span>
+                    <span className={styles.rowLabel}>空间上限</span>
                     <div className={styles.segControl}>
                       {CACHE_LIMIT_PRESETS_GB.map((gb) => (
                         <motion.button
@@ -1723,33 +1753,37 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </div>
-                  <div data-setting-row className={styles.row}>
-                    <span className={styles.rowLabel}>离线音乐</span>
-                    <span className={styles.rowValue}>
-                      {audioCache ? `${formatCacheSize(audioCache.pinnedBytes)} · ${audioCache.pinnedFiles} 个文件` : '—'}
+                  <div data-setting-row className={`${styles.row} ${styles.pathRow}`}>
+                    <span className={styles.rowLabel}>缓存位置</span>
+                    <span className={`${styles.rowValue} ${styles.pathValue}`} title={cacheConfig?.dir}>
+                      {cacheConfig?.dir ?? '—'}
                     </span>
-                    <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache || !audioCache?.pinnedFiles} onClick={() => void handleClearAudioCache('pinned')}>
-                      删除离线音乐
-                    </button>
-                  </div>
-                  {!!audioCache?.unmanagedFiles && (
-                    <div data-setting-row className={styles.row}>
-                      <span className={styles.rowLabel}>未识别旧文件<InfoButton label="未识别旧文件" text="这些文件缺少可用记录，无法判断是否曾经保存下载；不会随自动缓存清理，手动删除需要确认。" /></span>
-                      <span className={styles.rowValue}>{formatCacheSize(audioCache.unmanagedBytes)} · {audioCache.unmanagedFiles} 个</span>
-                      <button className={`${styles.storageAction} ${styles.actionDanger} no-drag`} disabled={clearingCache} onClick={() => void handleClearAudioCache('unmanaged')}>
-                        删除未识别文件
+                    {!!window.desktop?.selectDirectory && (
+                      <button className={`${styles.storageAction} no-drag`} disabled={!cacheConfig} onClick={() => void handlePickCacheDir()}>
+                        更改
                       </button>
-                    </div>
-                  )}
+                    )}
+                    {cacheConfig && cacheConfig.dir !== cacheConfig.defaultDir && (
+                      <button className={`${styles.storageAction} ${styles.actionQuiet} no-drag`} onClick={() => void postCacheConfig({ dir: '' })}>
+                        恢复默认
+                      </button>
+                    )}
+                  </div>
                 </section>
               </div>
             </section>
-            <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
+            <section id="settings-section-network" className={styles.settingsSection} aria-labelledby="settings-heading-network">
               <SectionHeading section={SETTINGS_TABS[4]} />
+              <div className={`${styles.settingsGrid} ${styles.storageGrid}`}>
+                <ProxySettings />
+              </div>
+            </section>
+            <section id="settings-section-shortcuts" className={styles.settingsSection} aria-labelledby="settings-heading-shortcuts">
+              <SectionHeading section={SETTINGS_TABS[5]} />
               <ShortcutSettings />
             </section>
             <section id="settings-section-about" className={styles.settingsSection} aria-labelledby="settings-heading-about">
-              <SectionHeading section={SETTINGS_TABS[5]} />
+              <SectionHeading section={SETTINGS_TABS[6]} />
               <div className={styles.settingsGrid}>
                 <section className={styles.group}>
                   <h3 className={styles.groupTitle}>版本与更新</h3>

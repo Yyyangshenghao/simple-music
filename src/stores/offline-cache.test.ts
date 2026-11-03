@@ -42,7 +42,7 @@ const track: Track = {
   provider: 'qq', source: 'qq', type: 'song', id: 'origin', name: '歌曲', artist: '歌手', artists: [],
 }
 const missing: OfflineCacheStatus = { source: 'qq', id: 'origin', state: 'missing' }
-const pinned: OfflineCacheStatus = { ...missing, state: 'pinned', entryId: 'entry' }
+const pinned: OfflineCacheStatus = { ...missing, state: 'cached', entryId: 'entry' }
 function candidate(url: string, trial = false): PlaybackCandidate {
   return {
     source: 'netease', track: { ...track, provider: 'netease', source: 'netease', id: 'resolved' },
@@ -91,8 +91,8 @@ describe('单曲离线保存会话', () => {
     expect(useOfflineCacheStore.getState().jobs.at(-1)?.status).toBe('failed')
   })
 
-  it('完整自动缓存只固定，不重复下载或解析', async () => {
-    h.status.mockResolvedValueOnce({ ...pinned, state: 'cached' }).mockResolvedValueOnce(pinned)
+  it('完整缓存只固定后导出，不重复下载或解析', async () => {
+    h.status.mockResolvedValueOnce(pinned)
     await useOfflineCacheStore.getState().save(track)
     expect(h.next).not.toHaveBeenCalled()
     expect(h.post).toHaveBeenCalledTimes(2)
@@ -137,6 +137,14 @@ describe('单曲离线保存会话', () => {
     await Promise.all(saves)
   })
 
+  it('已下载且文件仍在时直接完成，不再导出副本或重新下载', async () => {
+    h.status.mockResolvedValueOnce({ ...missing, state: 'downloaded', size: 100 })
+    await useOfflineCacheStore.getState().save(track)
+    expect(h.next).not.toHaveBeenCalled()
+    expect(h.post).not.toHaveBeenCalled()
+    expect(useOfflineCacheStore.getState().jobs.at(-1)?.status).toBe('done')
+  })
+
   it('取消解析立即释放任务，旧候选迟到不能阻塞或覆盖新保存', async () => {
     const old = deferred<PlaybackCandidate | null>()
     h.next.mockReturnValueOnce(old.promise)
@@ -149,8 +157,8 @@ describe('单曲离线保存会话', () => {
     await useOfflineCacheStore.getState().save(track)
     old.resolve(candidate('late'))
     await saving
-    expect(h.post).toHaveBeenCalledOnce()
-    expect(h.post.mock.calls[0][0]).toBe('/api/downloads/export')
+    // 已有缓存：先固定防止被清理，再导出；迟到的旧候选不再触发下载
+    expect(h.post.mock.calls.map((call) => call[0])).toEqual(['/api/audio-cache/pin', '/api/downloads/export'])
     expect(useOfflineCacheStore.getState().jobs.at(-1)?.status).toBe('done')
   })
 
@@ -248,15 +256,15 @@ describe('单曲离线保存会话', () => {
     useOfflineCacheStore.getState().cancelSave()
   })
 
-  it('缓存固定完成后还要写出歌曲文件，导出失败重试不重复下载', async () => {
+  it('已有缓存时还要写出歌曲文件，导出失败重试不重复下载', async () => {
     h.status.mockResolvedValue(pinned)
-    h.post.mockRejectedValueOnce(new Error('磁盘不可写'))
+    h.post.mockResolvedValueOnce({ ok: true }).mockRejectedValueOnce(new Error('磁盘不可写'))
     await useOfflineCacheStore.getState().save(track)
     expect(useOfflineCacheStore.getState().jobs.at(-1)).toMatchObject({ status: 'failed', error: '磁盘不可写' })
     expect(h.next).not.toHaveBeenCalled()
     await useOfflineCacheStore.getState().save(track)
     expect(useOfflineCacheStore.getState().jobs.at(-1)).toMatchObject({ status: 'done', filePath: '/downloads/歌手 - 歌曲.mp3' })
-    expect(h.post.mock.calls.every((call) => call[0] === '/api/downloads/export')).toBe(true)
+    expect(h.post.mock.calls.every((call) => call[0] === '/api/downloads/export' || call[0] === '/api/audio-cache/pin')).toBe(true)
   })
 
   it('歌单占位曲目在下载前补全详情，再用真实名称导出', async () => {
@@ -270,7 +278,7 @@ describe('单曲离线保存会话', () => {
   it('取消导出时不接受迟到的文件完成结果', async () => {
     h.status.mockResolvedValue(pinned)
     const exporting = deferred<{ filePath: string; size: number }>()
-    h.post.mockReturnValueOnce(exporting.promise)
+    h.post.mockResolvedValueOnce({ ok: true }).mockReturnValueOnce(exporting.promise)
     const saving = useOfflineCacheStore.getState().save(track)
     await vi.waitFor(() => expect(useOfflineCacheStore.getState().jobs[0].status).toBe('exporting'))
     useOfflineCacheStore.getState().cancelSave()

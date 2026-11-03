@@ -14,6 +14,7 @@ import { useMotion } from '../../hooks/useMotion'
 import styles from './PlayerBar.module.css'
 import panelStyles from './AccompanimentPanel.module.css'
 import { AccompanimentPanel } from './AccompanimentPanel'
+import { KaraokeMicShapes } from '../ui/KaraokeMic'
 
 /** 长按多久打开弹窗；进度环晚一点出现，普通点按不会闪出圆环。 */
 const HOLD_MS = 450
@@ -254,11 +255,9 @@ export function AccompanimentButton() {
   </div>
 }
 
-/** 麦克风图标：与右侧工具图标同一 24 网格、17px、1.8 描边；使用伴奏时话筒头实心。 */
+/** 麦克风图标：与右侧工具图标同一 24 网格、17px、1.8 描边；使用伴奏时话筒实心。 */
 function MicIcon({ active }: { active: boolean }) {
   return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="15" cy="9" r="5.6" fill={active ? 'currentColor' : 'none'} />
-    <path d="M11 13 4 19.1a1.2 1.2 0 0 0-.06 1.75l.21.21a1.2 1.2 0 0 0 1.75-.06L12 14" />
-    {!active && <path d="m11.1 5.1 7.8 7.8" />}
+    <KaraokeMicShapes active={active} />
   </svg>
 }

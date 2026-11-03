@@ -1,17 +1,17 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { animate, motion, useMotionTemplate, useMotionValue, useMotionValueEvent, useTransform } from 'motion/react'
 import { useMotion } from '../../hooks/useMotion'
 import { scrubFieldReturn } from '../../lib/motion-presets'
 import styles from './ScrubField.module.css'
 
-/** 拖动多少像素走一个步长。 */
-const PX_PER_STEP = 2
 /** 拖出范围后橡皮筋最多延伸的量（占整个范围的比例）。 */
 const RUBBER_REACH = 0.08
 /** 拖出范围时整块最多侧倾的像素。 */
 const LEAN = 4
-const COARSE = 10
+/** Alt 细调：指针走一段，值只走十分之一。 */
 const FINE = 0.1
+/** 按下后移动超过这个距离才算拖动，否则按点击处理。 */
+const DRAG_SLOP = 3
 
 interface ScrubFieldProps {
   label: string
@@ -38,22 +38,21 @@ const decimalsOf = (n: number) => {
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
 /**
- * 拖拽数值框（参考 React Bits ScrubField）：按住左右拖改值（Shift 粗调、Alt 细调），底色随值填充，
- * 拖出范围时橡皮筋延伸并侧倾、松手回弹，拖动中显示相对起点的增减；点击数值可直接输入，双击标签恢复默认。
+ * 拖拽数值条（参考 React Bits ScrubField）：整条就是滑轨，底色按值填充。
+ * 左右拖动时填充边缘与指针 1:1 跟手（Alt 细调），点一下直接跳到该位置；
+ * 拖出范围时橡皮筋延伸并侧倾、松手回弹，拖动中显示相对起点的增减；双击标签恢复默认。
  */
 export function ScrubField({ label, value, min, max, step, defaultValue, onChange, scale = 1, suffix = '', note, disabled }: ScrubFieldProps) {
-  const id = useId()
   const reducedMotion = !useMotion('sliderMotion')
   const [dragging, setDragging] = useState(false)
-  const [typing, setTyping] = useState(false)
   const display = useMotionValue(value)
   const rootRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const ghostRef = useRef<HTMLSpanElement>(null)
-  const drag = useRef<{ id: number; x: number; raw: number; mult: number; moved: boolean; before: number; left: number } | null>(null)
   const valueRef = useRef(value)
-  const draft = useRef('')
+  const outputRef = useRef<HTMLSpanElement>(null)
+  const ghostRef = useRef<HTMLSpanElement>(null)
+  const drag = useRef<{ id: number; x: number; raw: number; fine: boolean; moved: boolean; before: number; left: number; width: number; onLabel: boolean } | null>(null)
 
+  const span = Math.max(max - min, Number.EPSILON)
   const baseDecimals = decimalsOf(step * scale)
   const fineDecimals = Math.min(6, baseDecimals + 1)
   const fmt = (v: number) => {
@@ -61,18 +60,20 @@ export function ScrubField({ label, value, min, max, step, defaultValue, onChang
     const scaled = shown * 10 ** baseDecimals
     return shown.toFixed(Math.abs(scaled - Math.round(scaled)) < 1e-6 ? baseDecimals : fineDecimals)
   }
-  const reach = RUBBER_REACH * Math.max(max - min, Number.EPSILON)
+  const reach = RUBBER_REACH * span
   const bend = (over: number) => Math.sign(over) * reach * Math.log1p(Math.abs(over) / reach)
   const unbend = (over: number) => Math.sign(over) * reach * Math.expm1(Math.abs(over) / reach)
   const toShown = (raw: number) => { const c = clamp(raw, min, max); return c + bend(raw - c) }
   const toRaw = (shown: number) => { const c = clamp(shown, min, max); return c + unbend(shown - c) }
-  const multiplierOf = (e: { shiftKey: boolean; altKey: boolean }) => (e.shiftKey ? COARSE : e.altKey ? FINE : 1)
 
+  const snap = (next: number, fine: boolean) => {
+    const unit = fine ? step * FINE : step
+    return clamp(Number((min + Math.round((next - min) / unit) * unit).toFixed(8)), min, max)
+  }
   const commit = (next: number) => {
-    const rounded = clamp(Number((min + Math.round((next - min) / (step * FINE)) * step * FINE).toFixed(8)), min, max)
-    if (rounded === valueRef.current) return
-    valueRef.current = rounded
-    onChange(rounded)
+    if (next === valueRef.current) return
+    valueRef.current = next
+    onChange(next)
   }
 
   // 外部值变化（双击复位、恢复默认、其他入口修改）时同步显示。
@@ -84,43 +85,53 @@ export function ScrubField({ label, value, min, max, step, defaultValue, onChang
 
   useMotionValueEvent(display, 'change', (d) => {
     // 橡皮筋拉出范围时只让整块侧倾、数字变灰，显示的仍是实际生效的边界值
-    if (!typing && inputRef.current) inputRef.current.value = fmt(clamp(d, min, max))
+    if (outputRef.current) outputRef.current.textContent = fmt(snap(clamp(d, min, max), true))
     if (rootRef.current) rootRef.current.dataset.over = d < min || d > max ? 'true' : 'false'
   })
-  const fill = useTransform(display, (d) => (clamp(d, min, max) - min) / Math.max(max - min, Number.EPSILON))
+  const fill = useTransform(display, (d) => (clamp(d, min, max) - min) / span)
   const fillTransform = useMotionTemplate`scaleX(${fill})`
   const lean = useTransform(display, (d) => (reducedMotion ? 0 : clamp((d - clamp(d, min, max)) / reach, -1, 1) * LEAN))
 
+  const labelHit = (x: number) => {
+    const rect = rootRef.current?.querySelector(`.${styles.label}`)?.getBoundingClientRect()
+    return rect && x >= rect.left && x <= rect.right
+  }
+
   const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (disabled || drag.current || e.button !== 0 || typing) return
+    if (disabled || drag.current || e.button !== 0) return
     if (e.pointerType !== 'touch') e.preventDefault()
     display.stop()
+    const rect = rootRef.current?.getBoundingClientRect()
     drag.current = {
-      id: e.pointerId, x: e.clientX, raw: toRaw(display.get()), mult: multiplierOf(e), moved: false,
-      before: valueRef.current, left: rootRef.current?.getBoundingClientRect().left ?? 0,
+      id: e.pointerId, x: e.clientX, raw: toRaw(display.get()), fine: e.altKey, moved: false,
+      before: valueRef.current, left: rect?.left ?? 0, width: Math.max(1, rect?.width ?? 1),
+      // 标签留给双击复位：点标签不跳值，但从标签上按住拖动照常生效。
+      onLabel: !!labelHit(e.clientX),
     }
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* 指针已失效 */ }
   }
   const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const g = drag.current
     if (!g || e.pointerId !== g.id) return
+    // 在窗口外松开可能收不到 pointerup：键已抬起就按松手处理。
+    if ((e.buttons & 1) === 0) { end(false); return }
     if (!g.moved) {
-      if (Math.abs(e.clientX - g.x) < 3) return
+      if (Math.abs(e.clientX - g.x) < DRAG_SLOP) return
       g.moved = true
       g.x = e.clientX
       setDragging(true)
       document.documentElement.style.cursor = 'ew-resize'
     }
-    const m = multiplierOf(e)
-    if (m !== g.mult) { g.mult = m; g.raw = toRaw(display.get()); g.x = e.clientX }
-    const raw = g.raw + Math.round((e.clientX - g.x) / PX_PER_STEP) * step * m
+    // 切换细调时以当前位置为新起点，避免跳变。
+    if (e.altKey !== g.fine) { g.fine = e.altKey; g.raw = toRaw(display.get()); g.x = e.clientX }
+    const raw = g.raw + (e.clientX - g.x) / g.width * span * (g.fine ? FINE : 1)
     const shown = toShown(raw)
     display.set(shown)
-    commit(clamp(raw, min, max))
+    commit(snap(raw, g.fine))
     if (ghostRef.current) {
-      const delta = (clamp(shown, min, max) - g.before) * scale
+      const delta = (snap(clamp(shown, min, max), g.fine) - g.before) * scale
       ghostRef.current.style.translate = `calc(${e.clientX - g.left}px - 50%) -100%`
-      ghostRef.current.textContent = `${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(g.mult === FINE ? fineDecimals : baseDecimals)}${suffix}`
+      ghostRef.current.textContent = `${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(g.fine ? fineDecimals : baseDecimals)}${suffix}`
     }
   }
   const end = (cancel: boolean) => {
@@ -130,30 +141,54 @@ export function ScrubField({ label, value, min, max, step, defaultValue, onChang
     setDragging(false)
     document.documentElement.style.cursor = ''
     if (cancel) { commit(g.before); display.jump(g.before); return }
-    // 没拖动：当作点击数值，进入输入
-    if (!g.moved) { inputRef.current?.focus(); return }
-    const bound = clamp(display.get(), min, max)
-    if (display.get() !== bound) {
-      if (reducedMotion) display.jump(bound)
-      else animate(display, bound, scrubFieldReturn)
+    // 没拖动：当作点击，值滑到点下的位置。
+    if (!g.moved) {
+      if (g.onLabel) return
+      const target = snap(min + clamp((g.x - g.left) / g.width, 0, 1) * span, false)
+      commit(target)
+      if (reducedMotion) display.jump(target)
+      else animate(display, target, scrubFieldReturn)
+      return
+    }
+    // 拖动中 display 是未取整的连续值：松手后回到实际生效的取整值（拖出范围时即回弹到边界）。
+    const settled = valueRef.current
+    if (display.get() !== settled) {
+      if (reducedMotion) display.jump(settled)
+      else animate(display, settled, scrubFieldReturn)
     }
   }
 
   useEffect(() => () => { document.documentElement.style.cursor = '' }, [])
 
-  const leaveTyping = () => {
-    setTyping(false)
-    if (inputRef.current) inputRef.current.value = fmt(valueRef.current)
-  }
   const dirty = Math.abs(value - defaultValue) > step / 2
 
   return (
     <motion.div
       ref={rootRef}
       className={styles.field}
+      role="slider"
+      aria-label={label}
+      aria-valuenow={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuetext={`${fmt(value)}${suffix}`}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : 0}
+      // 去掉输入框后键盘仍可调：方向键走一个步长（Alt 细调），Home/End 到两端。
+      onKeyDown={(e) => {
+        if (disabled || drag.current) return
+        const unit = e.altKey ? step * FINE : step
+        const next = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? valueRef.current + unit
+          : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? valueRef.current - unit
+            : e.key === 'Home' ? min : e.key === 'End' ? max : null
+        if (next === null) return
+        e.preventDefault()
+        const target = snap(next, e.altKey)
+        commit(target)
+        display.jump(target)
+      }}
       data-dirty={dirty || undefined}
       data-dragging={dragging || undefined}
-      data-typing={typing || undefined}
       data-disabled={disabled || undefined}
       style={{ x: lean }}
       onPointerDown={handlePointerDown}
@@ -161,47 +196,22 @@ export function ScrubField({ label, value, min, max, step, defaultValue, onChang
       onPointerUp={() => end(false)}
       onPointerCancel={() => end(true)}
       onLostPointerCapture={() => end(false)}
+      // 按下时整条抓住了指针，双击事件落在整条上：按坐标判断是否双击在标签上。
+      onDoubleClick={(e) => {
+        if (disabled || !labelHit(e.clientX)) return
+        commit(defaultValue)
+        if (reducedMotion) display.jump(defaultValue)
+        else animate(display, defaultValue, scrubFieldReturn)
+      }}
     >
       <span className={styles.track} aria-hidden="true">
         <motion.span className={styles.fill} style={{ transform: fillTransform }} />
       </span>
-      <label
-        htmlFor={id}
-        className={styles.label}
-        title="双击恢复默认"
-        onClick={(e) => e.preventDefault()}
-        onDoubleClick={() => { if (!disabled) { commit(defaultValue); display.jump(defaultValue) } }}
-      >
+      <span className={styles.label} title="双击恢复默认">
         {label}
-      </label>
+      </span>
       {note && <span className={styles.note}>{note(value)}</span>}
-      <input
-        ref={inputRef}
-        id={id}
-        className={styles.input}
-        type="text"
-        inputMode="decimal"
-        role="spinbutton"
-        aria-valuenow={value}
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuetext={`${fmt(value)}${suffix}`}
-        defaultValue={fmt(value)}
-        disabled={disabled}
-        onFocus={(e) => { setTyping(true); draft.current = e.target.value; e.target.select() }}
-        onChange={(e) => { draft.current = e.target.value }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
-          else if (e.key === 'Escape') { e.preventDefault(); draft.current = ''; e.currentTarget.blur() }
-        }}
-        onBlur={() => {
-          const typed = parseFloat(draft.current.replace(/[^\d.-]/g, ''))
-          if (!Number.isNaN(typed)) commit(min + Math.round((typed / scale - min) / step) * step)
-          draft.current = ''
-          leaveTyping()
-          display.jump(valueRef.current)
-        }}
-      />
+      <span ref={outputRef} className={styles.value} aria-hidden="true">{fmt(value)}</span>
       {suffix && <span className={styles.suffix} aria-hidden="true">{suffix}</span>}
       <span ref={ghostRef} className={styles.ghost} aria-hidden="true" />
     </motion.div>

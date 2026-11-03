@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming } from './lyric-parser'
+import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, tokenizeForTiming, estimateWordTiming, stripLineCredits, isPlaceholderLyrics, isInstrumentalPlaceholder } from './lyric-parser'
 
 describe('parseLrc', () => {
   it('parses timestamped lines', () => {
@@ -169,5 +169,51 @@ describe('parseKrc', () => {
 
   it.each(['[00:01.00]普通歌词', '[1000,1000]无逐字数据', '[language:不是base64]'])('非逐字数据安全降级：%s', text => {
     expect(parseKrc(text)).toEqual({ wordLines: [], translation: [], roma: [] })
+  })
+})
+
+describe('stripLineCredits', () => {
+  const lines = (...texts: string[]) => texts.map((text, index) => ({ time: index, text }))
+
+  it('去掉开头的标题行与署名块、结尾的版权声明，正文保持不变', () => {
+    const result = stripLineCredits(lines(
+      '晴天 - 周杰倫 (Jay Chou)', '词：方文山', '作曲 : 周杰伦', '作词/作曲：周杰伦', '混音工程师：杨瑞代', '制作统筹：某人', 'Mixed by：某人', '编曲 Arrangement：林迈可', 'Produced by：周杰伦',
+      '故事的小黄花', '从出生那年就飘着', '未经著作权人书面许可，不得以任何方式使用',
+    ), '晴天')
+    expect(result.map(line => line.text)).toEqual(['故事的小黄花', '从出生那年就飘着'])
+    expect(stripLineCredits(lines('說好的幸福呢 - 周杰倫', '你的回话凌乱着'), '说好的幸福呢').map(line => line.text)).toEqual(['你的回话凌乱着'])
+  })
+
+  it('对唱标记、正文中间的冒号行与非本曲标题行都保留', () => {
+    const texts = ['男：我们的爱', '女：过了就不再回来', '他说：作词也是一种告白', '作词：中间的署名不动', '最后一句']
+    expect(stripLineCredits(lines('鼓起勇气对你说：', '词不达意：我爱你', '第三句'), '晴天')).toHaveLength(3)
+    expect(stripLineCredits(lines('Mix it up: we go', 'second line'), 'Song')).toHaveLength(2)
+    expect(stripLineCredits(lines(...texts), '晴天').map(line => line.text)).toEqual(texts)
+    expect(stripLineCredits(lines('七里香 - 周杰伦', '窗外的麻雀'), '晴天').map(line => line.text)).toEqual(['七里香 - 周杰伦', '窗外的麻雀'])
+  })
+
+  it('歌名括注写法不同的标题行、只写歌名后接「演唱：」的标题行、署名后的版权声明都去掉', () => {
+    expect(stripLineCredits(lines('STAY (Explicit) - The Kid LAROI/Justin Bieber', 'Lyrics by：A', 'Vocals by：B', 'I do the same thing'), 'STAY').map(line => line.text)).toEqual(['I do the same thing'])
+    expect(stripLineCredits(lines('光年之外', '演唱：G.E.M. 邓紫棋', '作词：G.E.M. 邓紫棋', '感受停在我发端的指尖'), '光年之外').map(line => line.text)).toEqual(['感受停在我发端的指尖'])
+    expect(stripLineCredits(lines('Mojito - 周杰伦', '词：黄俊郎', '【未经许可，不得翻唱或使用】', '麻烦给我的爱人来一杯Mojito'), 'Mojito (Explicit)').map(line => line.text)).toEqual(['麻烦给我的爱人来一杯Mojito'])
+    expect(stripLineCredits(lines('Yellow', 'Look at the stars'), 'Yellow')).toHaveLength(2)
+  })
+
+  it('只有「纯音乐，请欣赏」之类的占位行时视为没有歌词', () => {
+    expect(isPlaceholderLyrics(['纯音乐，请欣赏'])).toBe(true)
+    expect(isPlaceholderLyrics(['此歌曲为没有填词的纯音乐，请您欣赏'])).toBe(true)
+    expect(isPlaceholderLyrics(['纯音乐，请欣赏', '第一句', '第二句', '第三句'])).toBe(false)
+  })
+
+  it('只有纯音乐声明算纯音乐，「暂无歌词」不算', () => {
+    expect(isInstrumentalPlaceholder(['纯音乐，请欣赏'])).toBe(true)
+    expect(isInstrumentalPlaceholder(['Instrumental'])).toBe(true)
+    expect(isInstrumentalPlaceholder(['暂无歌词'])).toBe(false)
+    expect(isPlaceholderLyrics(['暂无歌词'])).toBe(true)
+    expect(isPlaceholderLyrics(['No lyrics'])).toBe(true)
+  })
+
+  it('全部像署名时原样返回，不清空歌词', () => {
+    expect(stripLineCredits(lines('作词：甲', '作曲：乙'), '晴天')).toHaveLength(2)
   })
 })

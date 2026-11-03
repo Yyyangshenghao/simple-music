@@ -6,6 +6,12 @@ export function normalizeVersion(value: unknown): string {
     .replace(/[+].*$/, '')
     .replace(/-.+$/, '')
 }
+
+function prereleaseOf(value: unknown): string[] {
+  const match = String(value || '').trim().replace(/[+].*$/, '').match(/-(.+)$/)
+  return match ? match[1].split('.') : []
+}
+
 export function compareVersions(a: unknown, b: unknown): number {
   const aa = normalizeVersion(a)
     .split('.')
@@ -19,6 +25,21 @@ export function compareVersions(a: unknown, b: unknown): number {
     const right = bb[i] || 0
     if (left > right) return 1
     if (left < right) return -1
+  }
+  // 预发版（2.6.2-beta.1）低于同号正式版，装了预发版的机器才能收到正式版更新。
+  const pa = prereleaseOf(a)
+  const pb = prereleaseOf(b)
+  if (!pa.length || !pb.length) return pa.length === pb.length ? 0 : pa.length ? -1 : 1
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if (pa[i] === undefined) return -1
+    if (pb[i] === undefined) return 1
+    const na = /^\d+$/.test(pa[i]) ? Number(pa[i]) : NaN
+    const nb = /^\d+$/.test(pb[i]) ? Number(pb[i]) : NaN
+    if (na === nb || pa[i] === pb[i]) continue
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na > nb ? 1 : -1
+    if (!Number.isNaN(na)) return -1
+    if (!Number.isNaN(nb)) return 1
+    return pa[i] > pb[i] ? 1 : -1
   }
   return 0
 }

@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+# 同一分支或 PR 的新推送取消还在跑的旧检查。
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     strategy:
@@ -22,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22.12
@@ -31,3 +36,23 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # 发布 PR（→ master）额外检查版本文件与发行说明，问题在合并前暴露，而不是发版时。
+  release-metadata:
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+      - run: node scripts/release/check-release.mjs
+
+  # 推送 dev/master 时用与发版完全相同的步骤试打包（不签名），打包配置出错在发版前就会暴露。
+  package:
+    if: github.event_name == 'push'
+    needs: verify
+    uses: ./.github/workflows/package.yml
+    with:
+      sign: false

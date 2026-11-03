@@ -37,7 +37,7 @@ export function SourceBadge({
   const accessibleLabel = source === 'apple' ? 'Apple Music' : label
   return (
     <span
-      className={`${styles.badge}${dynamic ? ` ${styles.dynamic}` : ''}${compact ? ` ${styles.compact}` : ''}${className ? ` ${className}` : ''}`}
+      className={`${styles.badge}${dynamic ? ` ${styles.dynamic}` : ''}${compact ? ` ${styles.compact}` : ''}${source === 'apple' ? ` ${styles.apple}` : ''}${className ? ` ${className}` : ''}`}
       style={{ '--source-color': brand?.color ?? '#8B8B8B' } as React.CSSProperties}
       role="img"
       aria-label={`来源：${accessibleLabel}`}

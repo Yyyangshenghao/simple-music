@@ -1137,6 +1137,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         romalrc: asStr(asObj(body.romalrc).lyric),
         yromalrc: asStr(asObj(body.yromalrc).lyric),
         yrc: asStr(asObj(body.yrc).lyric),
+        // 平台对纯音乐的标记；歌词正文通常只剩「纯音乐，请欣赏」占位。
+        pureMusic: body.pureMusic === true,
         source,
       })
     } catch (err) {

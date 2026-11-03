@@ -5,80 +5,78 @@
   z-index: 300;
 }
 
+/* 与播放设置、伴奏浮层同一套玻璃：通透毛玻璃 + 浅投影，不描边；滚动放在内层。 */
 .menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
   z-index: 301;
-  width: 312px;
+  width: 316px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  /* 留出歌词页头与播放栏，长内容在可用区域内滚动。 */
-  max-height: min(720px, calc(100vh - var(--sm-player-clearance, 124px) - 100px));
-  overflow-y: auto;
-  padding: 10px;
-  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), var(--lyrics-pop-opacity, 0.82));
-  --sm-scrollbar-thumb: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
-  --sm-scrollbar-thumb-hover: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.24);
-  --sm-scrollbar-thumb-active: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.32);
-  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--lyrics-shadow-strength, 1)));
-  backdrop-filter: var(--glass-blur-card);
-  -webkit-backdrop-filter: var(--glass-blur-card);
+  overflow: hidden;
+  border-radius: 20px;
+  background: rgba(var(--lyrics-menu-rgb, 24, 26, 32), 0.5);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, calc(0.4 * var(--lyrics-shadow-strength, 1)));
   color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
   pointer-events: auto;
+  transform-origin: 100% 0;
+  --ink: var(--lyrics-ink-rgb, 255, 255, 255);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :global([data-reduce-transparency="1"]) .menu {
   background: rgb(var(--lyrics-menu-rgb, 24, 26, 32));
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.card {
+.menuBody {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  gap: 10px;
   min-width: 0;
-  padding: 5px 5px 7px;
-  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
-  border-radius: 12px;
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.04);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  /* 留出歌词页头与播放栏，长内容在可用区域内滚动。 */
+  max-height: min(720px, calc(100vh - var(--sm-player-clearance, 124px) - 124px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  scroll-padding-top: 6px;
+  /* 原生滚动条由 ScrollThumb 接管隐藏，改为自绘的叠加滑块。 */
 }
 
-.card:hover {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
-}
-
-.cardActive {
-  border-color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.55);
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.1);
-}
-
-.thumb {
+/* ── 大预览 ── */
+.hero {
   position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 16 / 10;
-  margin-bottom: 3px;
+  flex: none;
+  /* 宽 292 时 16:10 约 182px；窗口矮（最小 540）时让出高度给参数，预览按铺满裁切。 */
+  height: clamp(96px, calc(100vh - 430px), 182px);
   overflow: hidden;
-  border-radius: 8px;
-  /* 底色跟随主题的文字色取一层很淡的底：深色主题是暗底、浅色主题是浅底，缩略图里的字都清楚。 */
+  border-radius: 14px;
+  /* 底色跟随主题的文字色取一层很淡的底：深色主题是暗底、浅色主题是浅底，预览里的字都清楚。 */
   background:
     radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--ambient-1, #6d5bd0) 22%, transparent), transparent 70%),
-    rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.05);
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.7);
+    rgba(var(--ink), 0.05);
+  color: rgba(var(--ink), 0.7);
+  isolation: isolate;
+}
+
+.heroLayer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: opacity, transform, filter;
+}
+
+/* 悬停时镜头轻推，只是氛围，不暗示可点；缩放放在内层，不和切换动画抢 transform。 */
+.heroLayer > * { transition: transform 0.6s var(--ease); }
+.hero:hover .heroLayer > * { transform: scale(1.025); }
+
+.heroGlyph svg {
+  width: 112px;
+  height: 70px;
+  opacity: 0.8;
 }
 
 .previewHost {
@@ -88,7 +86,7 @@
   pointer-events: none;
 }
 
-/* 按 1280×800 的舞台尺寸排版（与卡片同为 16:10），再整体缩放到卡片宽度。 */
+/* 按 1280×800 的舞台尺寸排版（与预览同为 16:10），再整体缩放到预览宽度。 */
 .previewCanvas {
   position: absolute;
   top: 0;
@@ -99,26 +97,305 @@
   transform-origin: 0 0;
 }
 
-.cardLabel {
-  padding: 0 4px;
-  font-size: 13px;
-  font-weight: 650;
+/* 底部压一层渐暗，名字与说明不和预览里的字打架。 */
+.heroShade {
+  position: absolute;
+  inset: 45% 0 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent, rgba(var(--lyrics-menu-rgb, 24, 26, 32), 0.72));
+  pointer-events: none;
 }
 
-.section {
+.hero { container-type: size; }
+
+.heroCaption {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  left: 12px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 4px 0;
+  min-width: 0;
 }
+
+.heroCaption strong {
+  color: rgb(var(--ink));
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* 窗口矮、预览被压扁时只留名字，说明不压在预览里的歌词上。 */
+@container (max-height: 130px) {
+  .heroCaption small { display: none; }
+}
+
+.heroCaption small {
+  overflow: hidden;
+  color: rgba(var(--ink), 0.62);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── 样式横条 ── */
+@property --fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.railRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.railWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  margin-left: -4px;
+}
+
+.rail {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 4px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 28px;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  mask: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  transition: --fade-start 0.24s var(--ease), --fade-end 0.24s var(--ease);
+  cursor: grab;
+  user-select: none;
+}
+
+.rail::-webkit-scrollbar { display: none; }
+.rail[data-dragging='true'] { cursor: grabbing; }
+.rail[data-dragging='true'] .chip { pointer-events: none; }
+.railWrap[data-start='true'] .rail { --fade-start: 30px; }
+.railWrap[data-end='true'] .rail { --fade-end: 30px; }
+
+.chip {
+  position: relative;
+  flex: none;
+  min-width: 52px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(var(--ink), 0.6);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease), transform 0.22s var(--ease);
+}
+
+.chip:hover { background: rgba(var(--ink), 0.07); color: rgba(var(--ink), 0.88); }
+.chip:active { transform: scale(0.94); transition-duration: 0.08s; }
+.chip[aria-checked='true'] { background: transparent; color: rgb(var(--ink)); cursor: default; }
+.chip[aria-checked='true']:active { transform: none; }
+.chip:focus-visible { outline: 2px solid rgba(var(--ink), 0.5); outline-offset: -2px; }
+
+.chipPill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(var(--ink), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink), 0.3);
+}
+
+.chipLabel {
+  position: relative;
+  font-weight: 500;
+}
+
+.chip[aria-checked='true'] .chipLabel { font-weight: 600; }
+
+/* 方形图标按钮：横条右端的「全部样式」与全部样式里的「收起」在同一位置。 */
+.iconButton {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(var(--ink), 0.66);
+  cursor: pointer;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease), transform 0.2s var(--ease);
+}
+
+.iconButton:hover { background: rgba(var(--ink), 0.08); color: rgb(var(--ink)); }
+.iconButton:active { transform: scale(0.9); transition-duration: 0.08s; }
+.iconButton:focus-visible { outline: 2px solid rgba(var(--ink), 0.5); outline-offset: -2px; }
+.iconButton svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.iconButton:hover svg path { transform: translateY(-1px); }
+.iconButton svg path { transition: transform 0.3s cubic-bezier(0.34, 1.5, 0.5, 1); }
+
+/* 悬停时四块向外散开一点，像要铺开。 */
+.gridIcon rect { transition: transform 0.32s cubic-bezier(0.34, 1.6, 0.5, 1); }
+.iconButton:hover .gridIcon rect:nth-child(1) { transform: translate(-1px, -1px); }
+.iconButton:hover .gridIcon rect:nth-child(2) { transform: translate(1px, -1px); }
+.iconButton:hover .gridIcon rect:nth-child(3) { transform: translate(-1px, 1px); }
+.iconButton:hover .gridIcon rect:nth-child(4) { transform: translate(1px, 1px); }
+
+/* ── 全部样式 ── */
+.galleryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 4px;
+  color: rgb(var(--ink));
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.galleryHead small {
+  margin-left: 6px;
+  color: rgba(var(--ink), 0.45);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 5px 7px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+
+.card:hover { background: rgba(var(--ink), 0.07); }
+.card:active .thumb { transform: scale(0.97); }
+.card[aria-checked='true'] {
+  background: rgba(var(--ink), 0.1);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink), 0.42);
+}
+.card:focus-visible { outline: 2px solid rgba(var(--ink), 0.5); outline-offset: 1px; }
+
+.thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--ambient-1, #6d5bd0) 22%, transparent), transparent 70%),
+    rgba(var(--ink), 0.05);
+  color: rgba(var(--ink), 0.7);
+  transition: transform 0.2s var(--ease);
+}
+
+.thumbInner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: transform 0.5s var(--ease);
+}
+
+.card:hover .thumbInner { transform: scale(1.05); }
+
+/* 卡片预览在面板拉宽后才逐张挂上，淡入接替占位底色，不突然冒出。 */
+.thumbInner > .previewHost { animation: thumbPreviewIn 0.36s var(--ease) both; }
+
+@keyframes thumbPreviewIn {
+  from { opacity: 0; }
+}
+
+.cardLabel {
+  padding: 0 3px;
+  color: rgba(var(--ink), 0.72);
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.16s;
+}
+
+.card:hover .cardLabel,
+.card[aria-checked='true'] .cardLabel { color: rgb(var(--ink)); }
+.card[aria-checked='true'] .cardLabel { font-weight: 600; }
+
+/* ── 参数组 ── */
+.autoHeight {
+  /* 不参与弹性压缩：内容多高它就多高，超出的部分交给外层 menuBody 滚动。
+     用 clip 而不是 hidden：hidden 会成为可被程序滚动的容器，scrollIntoView 会把内容在里面滚走。 */
+  flex: none;
+  overflow: clip;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  color: rgba(var(--ink), 0.45);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.reset {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(var(--ink), 0.07);
+  color: rgba(var(--ink), 0.78);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease), scale 0.2s var(--ease);
+}
+
+.reset:hover { background: rgba(var(--ink), 0.13); color: rgb(var(--ink)); }
+.reset:active { scale: 0.94; }
 
 .row {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 34px;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.78);
+  min-height: 36px;
+  color: rgba(var(--ink), 0.78);
   font-size: 12px;
 }
 
@@ -126,78 +403,91 @@
   grid-column: 3;
 }
 
-.row input[type='range'] {
-  width: 100%;
-  accent-color: rgb(var(--lyrics-ink-rgb, 255, 255, 255));
-}
-
 .row output {
   min-width: 40px;
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.52);
+  color: rgba(var(--ink), 0.52);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  transition: color 0.16s;
 }
 
-.row select {
-  grid-column: 2 / 4;
-  padding: 4px 6px;
-  border: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.16);
-  border-radius: 7px;
+.row:hover output,
+.row:focus-within output { color: rgba(var(--ink), 0.85); }
+
+/* 细轨滑块：悬停时轨道加粗、拇指放大，拖动时再大一圈。 */
+.slider {
+  width: 100%;
+  height: 18px;
+  margin: 0;
   background: transparent;
-  color: inherit;
-  font: inherit;
-}
-
-.reset,
-.moreToggle {
-  align-self: flex-start;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.07);
-  color: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.82);
-  font-size: 12px;
+  appearance: none;
   cursor: pointer;
+  --track: 3px;
+  --thumb: 12px;
 }
 
-.reset:hover,
-.moreToggle:hover {
-  background: rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.12);
+.slider::-webkit-slider-runnable-track {
+  height: var(--track);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--ink), 0.8) var(--range-progress), rgba(var(--ink), 0.14) var(--range-progress));
+  transition: height 0.18s var(--ease);
 }
 
-.reset {
-  margin-top: 4px;
+.slider::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((var(--track) - var(--thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  appearance: none;
+  background: rgb(var(--ink));
+  box-shadow: 0 1px 6px rgba(0, 0, 0, calc(0.35 * var(--lyrics-shadow-strength, 1)));
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.settingsHeader {
+.row:hover .slider,
+.slider:focus-visible { --track: 4px; }
+.row:hover .slider::-webkit-slider-thumb { transform: scale(1.15); }
+.slider:active::-webkit-slider-thumb { transform: scale(1.35); box-shadow: 0 0 0 5px rgba(var(--ink), 0.12), 0 1px 6px rgba(0, 0, 0, 0.3); }
+.slider:focus-visible { outline: none; }
+.slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(var(--ink), 0.3); }
+
+:global([data-slider-motion-off]) .slider,
+:global([data-slider-motion-off]) .slider::-webkit-slider-runnable-track,
+:global([data-slider-motion-off]) .slider::-webkit-slider-thumb { transition: none; }
+
+.disclosure {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 3px 2px 8px;
-  font-size: 14px;
-}
-
-.settingsHeader button {
+  min-height: 34px;
+  margin: 2px -6px 0;
+  padding: 0 8px 0 6px;
   border: 0;
-  padding: 6px;
+  border-radius: 10px;
   background: transparent;
-  color: inherit;
+  color: rgba(var(--ink), 0.66);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
-  opacity: 0.72;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
 }
+
+.disclosure:hover { background: rgba(var(--ink), 0.06); color: rgb(var(--ink)); }
+.disclosure:active { background: rgba(var(--ink), 0.1); }
+.disclosure svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.36s cubic-bezier(0.34, 1.4, 0.5, 1); }
+.disclosure:hover svg { transform: translateY(1px); }
+.disclosure[aria-expanded='true'] svg { transform: rotate(180deg); }
+.disclosure[aria-expanded='true']:hover svg { transform: rotate(180deg) translateY(1px); }
 
 .more {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(var(--lyrics-ink-rgb, 255, 255, 255), 0.08);
+  gap: 2px;
+  padding: 4px 0 6px;
 }
 
-.moreToggle {
-  align-self: stretch;
-  text-align: left;
-}
-
+:global([data-icon-motion-off]) :is(.disclosure svg, .gridIcon rect, .iconButton svg path) { transition: none; }
+:global([data-hover-lift-motion-off]) :is(.hero:hover .heroLayer > *, .card:hover .thumbInner) { transform: none; }
+:global([data-tap-feedback-motion-off]) :is(.chip, .reset, .iconButton):active,
+:global([data-tap-feedback-motion-off]) .card:active .thumb { transform: none; scale: none; }

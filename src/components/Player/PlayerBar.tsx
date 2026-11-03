@@ -32,20 +32,26 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function PrevIcon() {
+/** 切歌图标：双三角。点击时前一个三角缩小退场、后一个补到前面、末尾长出新三角；上一首整体镜像。 */
+function SkipIcon({ dir }: { dir: 'prev' | 'next' }) {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M7 6h2v12H7zM20 6v12l-9-6z" />
+    <svg className={styles.skipIcon} viewBox="0 0 24 24" width="22" height="22" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true">
+      <g transform={dir === 'prev' ? 'matrix(-1 0 0 1 24 0)' : undefined}>
+        <path className={styles.skipLead} d="M0 6.5 9.5 12 0 17.5z" />
+        <path className={styles.skipTrail} d="M0 6.5 9.5 12 0 17.5z" />
+        <path className={styles.skipNew} d="M0 6.5 9.5 12 0 17.5z" />
+      </g>
     </svg>
   )
 }
 
-function NextIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M15 6h2v12h-2zM4 6l9 6-9 6z" />
-    </svg>
-  )
+/** 重播切歌推进动画：同 replayPlayStar，先移除再强制回流后写回，连点也能从头播。 */
+function replaySkip(button: Element | undefined) {
+  const icon = button?.querySelector<SVGElement>(`.${styles.skipIcon}`)
+  if (!icon) return
+  delete icon.dataset.skip
+  void icon.getBoundingClientRect()
+  icon.dataset.skip = ''
 }
 
 function PlayIcon() {
@@ -273,8 +279,8 @@ function PlayModeButton() {
       type="button"
       className={`${styles.btn} ${styles.modeBtn} no-drag`}
       data-mode={playMode}
+      data-no-tip
       onClick={() => useSettingsStore.getState().setPlayMode(MODE_CYCLE[playMode])}
-      data-tip={label}
       aria-label={`播放模式:${label}`}
       whileTap={tapScale}
       transition={springSnappy}
@@ -532,7 +538,8 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
   const embedded = variant === 'lyrics'
   const controls = (
     <div className={embedded ? styles.lyricsPlayer : styles.bar} role={embedded ? 'group' : undefined} aria-label={embedded ? '歌词播放控制' : undefined}>
-      <HoverTips exclude={`.${styles.volumeGroup}`} />
+      {/* 播放模式、切歌与播放键一眼可懂，不弹提示。 */}
+      <HoverTips exclude={`.${styles.volumeGroup}, [data-no-tip]`} />
       {!embedded && <div className={styles.left}>
         <TrackInfo
           onCoverClick={onOpenLyrics}
@@ -544,15 +551,15 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
       <div className={styles.center}>
         <div className={styles.buttons}>
           {embedded ? <div className={styles.modeSlot}><PlayModeButton /></div> : <PlayModeButton />}
-          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => prev()} data-tip="上一首" aria-label="上一首" whileTap={tapScale} transition={springSnappy}>
-            <PrevIcon />
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={(e) => { replaySkip(e?.currentTarget); prev() }} aria-label="上一首" data-no-tip whileTap={tapScale} transition={springSnappy}>
+            <SkipIcon dir="prev" />
           </motion.button>
           <motion.button
             type="button"
             className={`${styles.btn} ${styles.playBtn} no-drag`}
             onClick={(e) => { replayPlayStar(e?.currentTarget, isPlaying ? 'down' : 'up'); toggle() }}
-            data-tip={isPlaying ? '暂停' : '播放'}
             aria-label={isPlaying ? '暂停' : '播放'}
+            data-no-tip
             data-loading={isLoading}
             animate={{ scaleX: 1, scaleY: 1 }}
             whileHover={glassHover ? { scaleX: 1.04, scaleY: 1.04 } : undefined}
@@ -574,8 +581,8 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
             </AnimatePresence>
             <span className={styles.playStar} aria-hidden="true" />
           </motion.button>
-          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={() => next()} data-tip="下一首" aria-label="下一首" whileTap={tapScale} transition={springSnappy}>
-            <NextIcon />
+          <motion.button type="button" className={`${styles.btn} no-drag`} onClick={(e) => { replaySkip(e?.currentTarget); next() }} aria-label="下一首" data-no-tip whileTap={tapScale} transition={springSnappy}>
+            <SkipIcon dir="next" />
           </motion.button>
           {/* 歌词页红心与加入歌单紧挨，顺序同主播放栏；两侧槽位等分剩余宽度，播放键始终居中，无红心时加入歌单顶到原位。 */}
           {embedded

@@ -142,8 +142,8 @@ describe('应用歌单跨平台聚合旅程', () => {
     const ctx = playback()
     ctx.offline = {
       'netease:1': { source: 'netease', id: '1', state: 'cached', entryId: 'netease-audio' },
-      'qq:1': { source: 'qq', id: '1', state: 'pinned', entryId: 'qq-audio' },
-      'apple:1': { source: 'qq', id: '1', state: 'pinned', entryId: 'ordinary-audio' },
+      'qq:1': { source: 'qq', id: '1', state: 'cached', entryId: 'qq-audio' },
+      'apple:1': { source: 'qq', id: '1', state: 'cached', entryId: 'ordinary-audio' },
       'qq:2': { source: 'qq', id: '2', state: 'missing', entryId: 'removed-audio' },
       'netease:2': { source: 'netease', id: '2', state: 'cached' },
     }

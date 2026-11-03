@@ -15,7 +15,11 @@ vi.mock('react', async original => ({
   useState: () => [true, h.setOpen],
   useRef: () => ({ current: null }),
   useEffect: () => {},
+  useLayoutEffect: () => {},
 }))
+vi.mock('react-dom', async original => ({ ...await original<typeof import('react-dom')>(), createPortal: (node: ReactNode) => node }))
+vi.stubGlobal('document', {})
+vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ currentTrack: h.track, rate: 1 }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: unknown) => unknown) => select({ jobs: [] }) }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: (select: (state: typeof h.lyrics) => unknown) => select(h.lyrics) }))
@@ -45,7 +49,7 @@ beforeEach(() => {
 describe('更多菜单的当前歌词来源', () => {
   it.each([
     ['netease', '网易云音乐'], ['qq', 'QQ 音乐'], ['apple', 'Apple Music'],
-    ['local', '本地歌词'], ['amll', 'AMLL 逐字歌词库'], ['kugou', '酷狗歌词库'],
+    ['local', '本地歌词'], ['amll', 'AMLL 逐字歌词库'], ['kugou', '酷狗音乐'],
   ] as const)('显示实际应用的 %s 来源，忽略偏好与匹配平台', (origin, label) => {
     h.sources.appliedOrigin = origin
     const row = sourceRow()!

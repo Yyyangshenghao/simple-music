@@ -1,0 +1,106 @@
+/* 标题栏右侧：规则引导入口与说明按钮。 */
+.titleActions { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 400; letter-spacing: 0; }
+
+/* 地址输入与行内按钮同一行；窄窗口时输入框收缩，按钮不换行。 */
+.addressControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 380px;
+  min-width: 0;
+}
+
+.addressControls input:disabled {
+  color: var(--sm-text-secondary);
+  cursor: default;
+}
+
+/* 状态行固定一行：长结论省略，完整内容在 title 里，避免检测前后行高跳动。 */
+.status {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 检测结果固定四行常驻；未检测、检测中、结果只改文字与颜色，不改高度。 */
+.checks {
+  margin: 0;
+  padding: 6px 20px 12px;
+  list-style: none;
+  border-top: 1px solid var(--sm-border);
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.checkLabel { color: color-mix(in srgb, var(--sm-text-primary) 74%, transparent); }
+
+.checkRoute,
+.checkResult {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.checkRoute {
+  color: var(--sm-text-secondary);
+  font-family: var(--sm-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+}
+
+.checkResult {
+  max-width: 320px;
+  text-align: right;
+  color: var(--sm-text-secondary);
+}
+
+.check[data-state='ok'] .checkResult { color: var(--sm-text-primary); }
+.check[data-state='slow'] .checkResult { color: var(--sm-color-gold); }
+.check[data-state='failed'] .checkResult { color: var(--sm-color-danger); }
+
+/* 问题卡片：需要用户处理的结论，标题醒目、原因次要、右侧给解决按钮。 */
+.problems {
+  display: grid;
+  gap: 8px;
+  padding: 12px 20px 4px;
+  border-top: 1px solid var(--sm-border);
+}
+
+.problem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--sm-color-gold) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sm-color-gold) 10%, transparent);
+}
+
+.problemText { display: grid; gap: 3px; min-width: 0; }
+.problemText strong { color: var(--sm-text-primary); font-size: 13px; font-weight: 650; }
+.problemText span { color: var(--sm-text-secondary); font-size: 12px; line-height: 1.5; }
+
+/* 提示：不影响使用的信息，一行小字，不和问题抢注意力。 */
+.notices {
+  margin: 0;
+  padding: 0 20px 14px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 设置改动后旧结果变淡，提示需重新检测。 */
+.checks[data-stale],
+.problems[data-stale],
+.notices[data-stale] { opacity: 0.5; }

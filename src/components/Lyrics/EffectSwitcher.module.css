@@ -7,27 +7,52 @@
 }
 
 .menuTabs {
+  position: relative;
   display: flex;
-  gap: 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--particle-ink) 12%, transparent);
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--particle-ink) 7%, transparent);
+}
+
+/* 浅槽三段：滑块平移到当前分组，与样式选择器里的分段控件同款。 */
+.menuTabThumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--particle-ink) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--particle-ink) 16%, transparent);
+  transform: translateX(calc(var(--tab-index) * 100%));
+  transition: transform 0.42s cubic-bezier(0.34, 1.32, 0.5, 1);
+  pointer-events: none;
 }
 
 .menuTabs button {
-  padding: 9px 2px;
+  position: relative;
+  flex: 1 1 0;
+  padding: 6px 4px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-radius: 999px;
   background: transparent;
-  color: color-mix(in srgb, var(--particle-ink) 65%, transparent);
+  color: color-mix(in srgb, var(--particle-ink) 62%, transparent);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.menuTabs button:hover { background: color-mix(in srgb, var(--particle-ink) 6%, transparent); color: var(--particle-ink); }
+.menuTabs button:active { transform: scale(0.94); transition-duration: 0.08s; }
 .menuTabs button[aria-selected='true'] {
-  border-bottom-color: var(--particle-ink);
+  background: transparent;
   color: var(--particle-ink);
-  font-weight: 650;
+  font-weight: 600;
 }
+
+:global([data-page-motion-off]) .menuTabThumb { transition: none; }
+:global([data-tap-feedback-motion-off]) .menuTabs button:active { transform: none; }
 
 .panel { display: flex; flex-direction: column; gap: 6px; }
 .styleGrid {
@@ -51,8 +76,10 @@
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.styleGrid button:active { transform: scale(0.97); }
 .styleGrid button:hover { background: color-mix(in srgb, var(--particle-ink) 10%, transparent); }
 .styleGrid button[aria-pressed='true'] {
   border-color: color-mix(in srgb, var(--particle-ink) 35%, transparent);
@@ -72,7 +99,10 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
 }
+
+.reset:hover { background: color-mix(in srgb, var(--particle-ink) 8%, transparent); }
 
 .field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .field:disabled { opacity: 0.55; }

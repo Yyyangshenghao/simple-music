@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hasAppleMusicSession, openAppleMusicBridge } from './apple-music-bridge'
-import { appleMusicApiUrl, clearAppleMusicUserToken, fetchAppleMusic, getAppleMusicConfig, getAppleMusicStatus, setAppleMusicConfig, setAppleMusicUserToken } from './apple-music'
+import { appleMusicApiUrl, clearAppleMusicUserToken, fetchAppleMusic, getAppleMusicConfig, getAppleMusicStatus, setAppleMusicConfig, setAppleMusicLoginStorefront, setAppleMusicUserToken } from './apple-music'
 
 const jwt = (exp = Math.floor(Date.now() / 1000) + 3600) => `${Buffer.from(JSON.stringify({ alg: 'ES256' })).toString('base64url')}.${Buffer.from(JSON.stringify({ exp })).toString('base64url')}.signature`
 let ctx: { userDataDir: string; port: number }
@@ -130,4 +130,34 @@ it('无用户授权的旧曲库请求不能撤销新打开的窗口', async () =
   finish(new Response('', { status: 403 }))
   await expect(pending).rejects.toThrow()
   expect(hasAppleMusicSession(ctx, secret)).toBe(true)
+})
+
+describe('Apple Music 登录地区', () => {
+  function webCtx(loggedIn = false) {
+    let stored = ''
+    const web = {
+      state: () => ({ connected: false, loggedIn, subscription: 'unknown', storefront: 'cn', playbackId: '', status: 'idle', position: 0, duration: 0 }),
+      loginStorefront: () => stored,
+      setLoginStorefront: vi.fn((value: string) => { if (loggedIn) return false; stored = value; return true }),
+    }
+    return { ctx: { userDataDir: '/tmp/unused', port: 0, appleMusicWeb: web as never }, web }
+  }
+
+  it('未登录时可指定或清空登录页地区，并在状态里返回', () => {
+    const { ctx } = webCtx()
+    setAppleMusicLoginStorefront(ctx, { storefront: 'us' })
+    expect(getAppleMusicStatus(ctx)).toMatchObject({ loginMode: 'web', storefront: 'cn', loginStorefront: 'us' })
+    setAppleMusicLoginStorefront(ctx, { storefront: '' })
+    expect(getAppleMusicStatus(ctx)).toMatchObject({ loginStorefront: '' })
+  })
+
+  it('拒绝非法地区、已登录与开发者令牌模式', () => {
+    const { ctx, web } = webCtx()
+    for (const body of [{ storefront: 'USA' }, { storefront: 1 }, null, []]) {
+      expect(() => setAppleMusicLoginStorefront(ctx, body)).toThrow(expect.objectContaining({ status: 400 }))
+    }
+    expect(web.setLoginStorefront).not.toHaveBeenCalled()
+    expect(() => setAppleMusicLoginStorefront(webCtx(true).ctx, { storefront: 'us' })).toThrow(expect.objectContaining({ status: 409 }))
+    expect(() => setAppleMusicLoginStorefront({ ...ctx, appleMusicLoginMode: 'developer' as const }, { storefront: 'us' })).toThrow(expect.objectContaining({ status: 400 }))
+  })
 })

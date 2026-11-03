@@ -140,9 +140,10 @@
   display: none;
 }
 
-/* 内容经过静止光标时不重复启动渐变蒙版和大范围辉光，保留原生点击命中。 */
+/* 内容经过静止光标时不重复启动渐变蒙版和大范围辉光，保留原生点击命中。
+   用 visibility 而非 display：外扩的边缘光计入横向轨道的可滚动宽度，增删会让拖到末端时来回跳动。 */
 [data-scrolling] .border-glow-card::before,
 [data-scrolling] .border-glow-card::after,
 [data-scrolling] .border-glow-card > .edge-light {
-  display: none;
+  visibility: hidden;
 }

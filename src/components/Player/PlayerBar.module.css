@@ -41,6 +41,35 @@
   justify-content: center;
 }
 
+/* 切歌双三角：静止时前三角在 12、后三角在 2.5，新三角缩成 0 藏在后位。
+   点击后前三角向前缩小退场，后三角补位，新三角从后位长出；结束态与静止态一致，可随时重播。 */
+.skipIcon path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.skipLead { transform: translateX(12px); }
+.skipTrail { transform: translateX(2.5px); }
+.skipNew { transform: translateX(2.5px) scale(0); opacity: 0; }
+
+.skipIcon[data-skip] .skipLead { animation: skipLead 420ms var(--sm-ease-out); }
+.skipIcon[data-skip] .skipTrail { animation: skipTrail 420ms var(--sm-ease-out); }
+.skipIcon[data-skip] .skipNew { animation: skipNew 420ms var(--sm-ease-out); }
+
+@keyframes skipLead {
+  from { transform: translateX(12px) scale(1); opacity: 1; }
+  to { transform: translateX(15px) scale(0); opacity: 0; }
+}
+@keyframes skipTrail {
+  from { transform: translateX(2.5px); }
+  to { transform: translateX(12px); }
+}
+@keyframes skipNew {
+  from { transform: translateX(2.5px) scale(0); opacity: 0; }
+  to { transform: translateX(2.5px) scale(1); opacity: 1; }
+}
+
+:global([data-icon-motion-off]) .skipIcon path { animation: none !important; }
+
 /* 播放模式按钮:默认(列表循环)弱化,随机/单曲循环时点亮 */
 .modeBtn {
   width: 32px;

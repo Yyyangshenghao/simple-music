@@ -103,6 +103,12 @@
   }
 }
 
+/* Apple Music 的方形 App 图标是其品牌特征：圆形容器随之改为圆角方形，避免圆框套方块。 */
+.apple .icon > img { border-radius: 3.5px; }
+/* 苹果标 + Music 是行内 flex：沿用文字标签的 0.5px 下移与基线对齐会整体偏低约 1px，改为与图标居中。 */
+.apple .label { display: inline-flex; align-items: center; transform: none; }
+.compact.apple { border-radius: 6px; }
+
 .localIcon {
   color: var(--source-color);
   font-size: 13px;

@@ -35,8 +35,8 @@ const APP_RELEASE = 'https://github.com/Yyyangshenghao/simple-music/releases/dow
 export const KARAOKE_MODELS: readonly KaraokeModelInfo[] = [
   {
     id: 'hq3',
-    name: 'HQ3 标准',
-    description: '去人声最干净，适合大多数歌曲',
+    name: 'MDX-Net HQ3',
+    description: '完整去除人声，适用于大多数歌曲',
     precision: 'fp32',
     url: `${UVR_RELEASE}/UVR-MDX-NET-Inst_HQ_3.onnx`,
     sha256: '317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc',
@@ -47,8 +47,8 @@ export const KARAOKE_MODELS: readonly KaraokeModelInfo[] = [
   },
   {
     id: 'hq3-fp16',
-    name: 'HQ3 省显存',
-    description: '同 HQ3 的半精度版本，显存约减半、速度快约四分之一，音质几乎无差别',
+    name: 'MDX-Net HQ3 FP16',
+    description: 'HQ3 的半精度权重，显存占用约减半，音质基本一致',
     precision: 'fp16',
     url: `${APP_RELEASE}/UVR-MDX-NET-Inst_HQ_3-fp16.onnx`,
     sha256: '62d30044a9e0980efe2daeba0e0f2080fcb23bf8a46b98c0ba5183fe9bf80a9e',
@@ -59,8 +59,8 @@ export const KARAOKE_MODELS: readonly KaraokeModelInfo[] = [
   },
   {
     id: 'kara2',
-    name: 'Karaoke 2 保留和声',
-    description: '只去掉主唱，保留和声与伴唱',
+    name: 'MDX-Net Karaoke 2',
+    description: '仅分离主唱，保留和声与伴唱',
     precision: 'fp32',
     url: `${UVR_RELEASE}/UVR_MDXNET_KARA_2.onnx`,
     sha256: 'bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4',

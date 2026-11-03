@@ -7,11 +7,12 @@ import { reportLyricsSource, suspendedLyricsSource } from './lyrics-source-healt
 import { ProviderAuthError, providerAccountSession } from './provider-account-session'
 import {
   emptyLyrics, cachedLyrics, fetchLyrics, findLyricMatch, fitsLyricDuration, isLyricMatch, localLyricSource, LyricMismatchError,
-  upgradeLyricsWithAmll, upgradeLyricsWithKugou, type LyricsResult,
+  appleCatalogId, lyricMatchTargets, upgradeLyricsWithAmll, upgradeLyricsWithKugou, type LyricsResult,
 } from './lyrics-fetch'
 import { lyricPlatformEnabled, lyricServiceMode } from './lyric-service'
 import { TrackMatchMismatchError } from './track-match'
 import { accompanimentOriginal } from './karaoke-library'
+import { realignCompanionLines } from './lyric-realign'
 
 export interface LyricsSourceQueryResult {
   status: LyricCandidateStatus
@@ -22,14 +23,14 @@ export interface LyricsSourceQueryResult {
 
 type Availability = Pick<LyricsSourceQueryResult, 'status' | 'message'>
 
-/** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要账号，固定歌曲测试可绕过其停用状态。 */
+/** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要已连接且启用的账号。 */
 function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false): Availability {
   if (!lyricPlatformEnabled(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   if (!lyricServiceMode(origin)) {
     if (useProviderStore.getState().byId[origin].auth !== 'authenticated') {
       return { status: 'login', message: '登录后可查找' }
     }
-    if (!(origin === 'apple' && probe)) return { status: 'disabled', message: '已在设置中关闭' }
+    return { status: 'disabled', message: origin === 'apple' ? 'Apple Music 未启用' : '已在设置中关闭' }
   }
   if (!sources.includes(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   return { status: 'idle' }
@@ -44,12 +45,12 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
   track = accompanimentOriginal(track) ?? track
   if (track.source === 'local' && origin === 'local') return { status: 'idle' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
-  if (origin === 'apple' && track.source !== 'apple') return { status: 'unavailable', message: '仅 Apple Music 曲目可用' }
   if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
   const settings = useSettingsStore.getState()
   if (origin === 'amll') {
     if (!settings.lyricsAmllFallback) return { status: 'disabled', message: '已在设置中关闭' }
-    if (!matchingSources(sources, probe).length) return { status: 'unavailable', message: '需启用可匹配的平台' }
+    // Apple 曲目可直接按自身 ID 查 AMLL 的 Apple 分区，不依赖网易云、QQ。
+    if (!appleCatalogId(track) && !matchingSources(sources, probe).length) return { status: 'unavailable', message: '需启用可匹配的平台' }
   } else if (origin === 'kugou') {
     if (!settings.lyricsKugouFallback) return { status: 'disabled', message: '已在设置中关闭' }
   } else {
@@ -57,11 +58,39 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
     if (availability.status !== 'idle') return availability
   }
   const needsMatch = origin === 'kugou' || (origin === 'amll'
-    ? !matchingSources(sources, probe).includes(track.source as 'netease' | 'qq') : origin !== track.source)
+    ? !appleCatalogId(track) && !matchingSources(sources, probe).includes(track.source as 'netease' | 'qq') : origin !== track.source)
   if (needsMatch && (!Number.isFinite(track.duration) || !(track.duration! > 0))) {
     return { status: 'unavailable', message: '缺少歌曲时长，无法校验匹配版本' }
   }
   return { status: 'idle' }
+}
+
+/**
+ * Apple 歌词通常没有中文翻译：网易云、QQ 歌曲改用 Apple 歌词时，按正文从原平台歌词补齐缺少的翻译与音译。
+ * 原平台不可用、取词失败或对不上时保留 Apple 歌词原样。
+ */
+async function withOriginCompanions(track: Track, result: LyricsResult, sources: ProviderId[], signal?: AbortSignal): Promise<LyricsResult> {
+  if (track.source !== 'netease' && track.source !== 'qq') return result
+  const needTranslation = !result.aligned.some(line => line.text)
+  const needRomaji = !result.roma.some(line => line.text)
+  if ((!needTranslation && !needRomaji) || providerAvailability(track.source, sources).status !== 'idle') return result
+  try {
+    // 与原平台候选查询参数一致，共享同一份请求与缓存。
+    const own = await fetchLyrics(track, [], signal, track.source === 'qq')
+    if (signal?.aborted || !own.main.length) return result
+    const aligned = needTranslation ? realignCompanionLines(own.main, result.main, own.aligned) : result.aligned
+    const roma = needRomaji ? realignCompanionLines(own.main, result.main, own.roma) : result.roma
+    const filled = (lines: typeof aligned) => lines.some(line => line.text)
+    return {
+      ...result,
+      aligned: filled(aligned) ? aligned : result.aligned,
+      roma: filled(roma) ? roma : result.roma,
+      ...(needTranslation && filled(aligned) ? { translationOrigin: track.source } : {}),
+      ...(needRomaji && filled(roma) ? { romajiOrigin: track.source } : {}),
+    }
+  } catch {
+    return result
+  }
 }
 
 function failureResult(error: unknown): LyricsSourceQueryResult {
@@ -103,16 +132,19 @@ async function queryLyricsSourceImpl(
       throw new DOMException('Lyrics source query cancelled', 'AbortError')
     }
   }
-  const findTarget = async (source: 'netease' | 'qq'): Promise<Track | undefined> => {
+  /** 目标平台上可取词的同曲：本曲或记忆匹配只有一个；搜索匹配时最佳候选在前，其后是后备候选。 */
+  const findTargets = async (source: ProviderId): Promise<Track[]> => {
     checkCurrent()
-    if (track.source === source) return track
-    if (!probe && suspendedLyricsSource(source)) return undefined
-    if (rememberedMatch?.source === source && isLyricMatch(track, rememberedMatch)) return rememberedMatch
+    if (track.source === source) return [track]
+    if (!probe && suspendedLyricsSource(source)) return []
+    if (rememberedMatch?.source === source && isLyricMatch(track, rememberedMatch)) return [rememberedMatch]
     const match = await findLyricMatch(track, source, signal, true, probe)
     checkCurrent()
-    if (!match) return undefined
-    if (match.track.source !== source || !isLyricMatch(track, match.track)) throw new LyricMismatchError()
-    return match.track
+    if (!match) return []
+    const targets = lyricMatchTargets(track, match, source)
+    if (!targets.length) throw new LyricMismatchError()
+    // 测试只检验来源本身，不逐个尝试后备候选。
+    return probe ? targets.slice(0, 1) : targets
   }
   const ready = (result: LyricsResult | null, match?: Track): LyricsSourceQueryResult => {
     checkCurrent()
@@ -130,33 +162,34 @@ async function queryLyricsSourceImpl(
   try {
     checkCurrent()
     if (origin === 'amll') {
-      const targets = matchingSources(sources, probe)
+      const targets: ProviderId[] = [...(appleCatalogId(track) ? ['apple' as const] : []), ...matchingSources(sources, probe)]
       // 本曲平台与已核验的记忆匹配优先；不同映射 ID 不产生重复候选。
       targets.sort((a, b) => Number(b === track.source) - Number(a === track.source)
         || Number(b === rememberedMatch?.source) - Number(a === rememberedMatch?.source))
       let failure: LyricsSourceQueryResult | undefined
       for (const source of targets) {
         try {
-          const target = await findTarget(source)
-          if (!target) continue
-          checkCurrent()
-          if (providerAvailability(source, sources, probe).status !== 'idle') continue
-          // 可选翻译只读取现有缓存，不能阻塞目标库或把依赖故障归给 AMLL。
-          const native = !probe ? cachedLyrics(target) : undefined
-          const base = { ...(native ?? emptyLyrics), source, wordLines: [] }
-          targetAccess('loading')
-          let result: LyricsResult | null
-          try {
-            result = await upgradeLyricsWithAmll(target, base, signal, true, probe)
-          } catch (error) {
+          for (const target of await findTargets(source)) {
             checkCurrent()
-            targetAccess(failureResult(error).status)
-            throw error
+            // 按 Apple 自身 ID 查 AMLL 不需要 Apple 账号参与歌词来源。
+            if (source !== 'apple' && providerAvailability(source, sources, probe).status !== 'idle') break
+            // 可选翻译只读取现有缓存，不能阻塞目标库或把依赖故障归给 AMLL。
+            const native = !probe ? cachedLyrics(target) : undefined
+            const base = { ...(native ?? emptyLyrics), source, wordLines: [] }
+            targetAccess('loading')
+            let result: LyricsResult | null
+            try {
+              result = await upgradeLyricsWithAmll(target, base, signal, true, probe)
+            } catch (error) {
+              checkCurrent()
+              targetAccess(failureResult(error).status)
+              throw error
+            }
+            const candidate = ready(result, target)
+            targetAccess(candidate.status)
+            if (candidate.status === 'ready') return candidate
+            if (candidate.status !== 'empty') failure = candidate
           }
-          const candidate = ready(result, target)
-          targetAccess(candidate.status)
-          if (candidate.status === 'ready') return candidate
-          if (candidate.status !== 'empty') failure = candidate
         } catch (error) {
           checkCurrent()
           const candidate = failureResult(error)
@@ -168,12 +201,26 @@ async function queryLyricsSourceImpl(
     if (origin === 'kugou') {
       return ready(await upgradeLyricsWithKugou(track, { ...emptyLyrics, source: track.source }, signal, true, probe))
     }
-    const target = origin === 'netease' || origin === 'qq' ? await findTarget(origin) : track
-    if (!target) return ready(null)
-    checkCurrent()
-    const current = candidateAvailability(track, origin, sources, probe)
-    if (current.status !== 'idle') return current
-    return ready(await fetchLyrics(target, [], signal, origin === 'qq', true, probe), target)
+    const targets = origin === 'netease' || origin === 'qq' || origin === 'apple' ? await findTargets(origin) : [track]
+    let outcome = ready(null)
+    // 最佳候选没有歌词或时间轴对不上时，依次尝试后备候选。
+    for (const target of targets) {
+      checkCurrent()
+      const current = candidateAvailability(track, origin, sources, probe)
+      if (current.status !== 'idle') return current
+      const result = await fetchLyrics(target, [], signal, origin === 'qq', true, probe)
+      const candidate = ready(result, target)
+      if (candidate.status !== 'ready') {
+        if (outcome.status === 'empty') outcome = candidate
+        continue
+      }
+      // 测试只检验来源本身是否可用，不额外请求原平台。
+      if (origin !== 'apple' || probe) return candidate
+      const filled = await withOriginCompanions(track, candidate.result!, sources, signal)
+      checkCurrent()
+      return { ...candidate, result: filled }
+    }
+    return outcome
   } catch (error) {
     checkCurrent()
     return failureResult(error)

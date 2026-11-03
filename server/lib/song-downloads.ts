@@ -85,6 +85,11 @@ function safeName(text: string): string {
   return value || '歌曲'
 }
 
+/** 下载文件名（不含扩展名与序号），旧版导出与迁移认领共用。 */
+export function downloadFileBaseName(origin: Pick<AudioCacheOriginInput, 'artist' | 'name' | 'id'>): string {
+  return safeName([origin.artist, origin.name || origin.id].filter(Boolean).join(' - '))
+}
+
 export function songExtension(header: Buffer, mime: string): string {
   const magic = header.toString('ascii')
   if (magic.startsWith('fLaC')) return '.flac'
@@ -120,7 +125,7 @@ export async function exportDownloadedSong(
     const header = Buffer.alloc(16)
     try { await handle.read(header, 0, header.length, 0) } finally { await handle.close() }
     const extension = songExtension(header, hit.contentType)
-    const name = safeName([origin.artist, origin.name || origin.id].filter(Boolean).join(' - '))
+    const name = downloadFileBaseName(origin)
     await fs.copyFile(hit.path, temporary, constants.COPYFILE_EXCL)
     signal?.throwIfAborted()
     for (let index = 0; index < 1000; index++) {

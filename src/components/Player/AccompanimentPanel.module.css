@@ -91,35 +91,42 @@
 .mixRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mixName { flex: none; font-size: 13px; color: var(--sm-text-secondary); }
 .mixRow > :last-child { width: auto; flex: 1; max-width: 240px; }
-/* 模型是参数而非动作：浅槽分段控件，选中项只抬起一层浅底，字号字重不变，把强调留给版本与生成按钮。 */
-.models { display: flex; gap: 2px; padding: 2px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); }
-.model { flex: 1 1 0; min-width: 0; height: 26px; padding: 0 6px; border: 0; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background 160ms var(--sm-ease-out), color 160ms var(--sm-ease-out); }
-.model:hover:not(:disabled):not([aria-checked='true']) { color: var(--sm-text-primary); }
-.model:active:not(:disabled):not([aria-checked='true']) { background: var(--sm-fill-hover); }
-.model[aria-checked='true'] { background: var(--sm-fill-active); color: var(--sm-text-primary); cursor: default; }
-.model:disabled { opacity: 0.4; cursor: default; }
+/* 模型选择即生成：标题位显示所选模型的特点，新旧文字叠在同一格交叉淡入，高度不变。 */
+.chooserText { display: grid; }
+.chooserText > * { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 浅槽里只有一块流体指示条，点击后滑到所选模型；按钮本身不再各自抬底。 */
+.models { position: relative; display: flex; gap: 2px; padding: 3px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); }
+.modelPill { position: absolute; top: 3px; bottom: 3px; border-radius: var(--sm-radius-pill); background: var(--sm-fill-active); box-shadow: inset 0 0 0 1px var(--sm-border); pointer-events: none; }
+.model { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 30px; padding: 0 6px; border: 0; border-radius: var(--sm-radius-pill); background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: color 160ms var(--sm-ease-out), transform 120ms var(--sm-ease-out); }
+.model:hover:not([aria-disabled='true']),
+.model[data-shown='true'] { color: var(--sm-text-primary); }
+/* 待确认生成：指示条染上强调色，提示再按一次 */
+.modelPill { transition: background 160ms var(--sm-ease-out); }
+.modelPill[data-armed] { background: var(--sm-accent); box-shadow: none; }
+.model[data-shown='true'][data-armed] { color: var(--sm-text-on-accent); font-weight: 600; }
+.model[aria-disabled='true'] { cursor: default; }
+.model[aria-disabled='true']:not([data-shown='true']) { opacity: 0.45; }
+:global(html:not([data-tap-feedback-motion-off])) .model:active:not([aria-disabled='true']) { transform: scale(0.96); }
 .model:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+.modelMark { flex: none; width: 11px; height: 11px; color: var(--sm-text-secondary); }
+.modelDot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--sm-accent); }
+.modelDot[data-state='running'] { animation: modelDotPulse 1.2s var(--sm-ease-in-out) infinite; }
+.modelDot[data-state='failed'] { background: var(--sm-color-danger); }
+@keyframes modelDotPulse { 50% { opacity: 0.35; } }
+:global([data-icon-motion-off]) .modelDot { animation: none; }
 
-/* 有可播放伴奏时生成是次要动作，用轻底；还没有伴奏时才用实心强调色。 */
-.generate { width: 100%; min-height: 32px; padding: 6px 12px; border: 0; border-radius: var(--sm-radius-pill); background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 160ms var(--sm-ease-out), filter 160ms var(--sm-ease-out); }
-.generate:hover:not(:disabled) { background: var(--sm-fill-hover); }
-.generate[data-primary='true'] { background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
-.generate[data-primary='true']:hover:not(:disabled) { background: var(--sm-accent-hover); }
-.generate:active:not(:disabled) { background: var(--sm-fill-active); }
-.generate[data-primary='true']:active:not(:disabled) { background: var(--sm-accent-pressed); }
-/* 不可用时是状态说明而非按钮：去底、缩小字号、降为辅助文字；高度不变，切换模型时不跳动。 */
-.generate:disabled { background: none; color: var(--sm-text-muted); font-size: 12px; font-weight: 400; cursor: default; }
-.generate[aria-busy='true'] { background: var(--sm-fill-subtle); color: var(--sm-text-secondary); font-size: 13px; font-weight: 500; }
 
 .hint { margin: 0 2px; font-size: 11px; line-height: 1.5; color: var(--sm-text-secondary); }
 /* 生成区的状态说明：始终一行高，空时也占位；过长省略，完整内容在悬停提示里。 */
 .status { min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 模型选择下的提示行多数时候是空的：整组下移，与上方播放版本拉开，提示行贴近分段控件，空行不显得悬空。 */
+.section:has(> .models) { margin-top: 28px; }
+.models + .status { margin-top: -4px; }
 .link { padding: 0; border: 0; background: none; color: var(--sm-text-primary); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
-.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--sm-border); }
-.footLink { min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--sm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: color 140ms var(--sm-ease-out), background 140ms var(--sm-ease-out); }
-.footLink:hover { color: var(--sm-text-primary); background: var(--sm-fill-hover); }
-.footLink:active { background: var(--sm-fill-active); }
+/* 左侧伴奏库入口，右侧任务队列与设置两个图标挨在一起 */
+.foot { display: flex; align-items: center; gap: 4px; margin-top: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--sm-border); }
+.foot > :first-child { margin-right: auto; }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   :global(html:not([data-tap-feedback-motion-off])) .version:active:not(:disabled) .versionInfo { transform: scale(.98); transition-duration: 80ms; }
 }

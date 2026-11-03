@@ -53,8 +53,12 @@
 .sourceName strong { color: var(--sm-text-primary); font-size: 13px; font-weight: 550; }
 .sourceName > span { color: var(--sm-text-secondary); font-size: 11px; line-height: 1.4; }
 .sourceName > .statusIssue { color: var(--sm-text-primary); }
+/* 没有状态说明时不占行：否则网格间距把名称顶到图标中线以上。 */
+.sourceName > span:empty { display: none; }
 .sourceName strong, .rank { transition: opacity 200ms var(--sm-ease-out); }
 .sourceRow[data-off] .sourceName strong, .sourceRow[data-off] .rank { opacity: 0.45; }
+/* 被锁定（Apple Music 未连接）的来源整行冻结：说明文字也变淡，开关与排序禁用，只留去连接的按钮。 */
+.sourceRow[data-locked] .sourceName > span { opacity: 0.7; }
 .reorder { display: flex; gap: 2px; }
 .reorder button { display: grid; place-items: center; width: 26px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-secondary); cursor: pointer; }
 .reorder button:hover:not(:disabled) { background: var(--sm-bg-overlay); color: var(--sm-text-primary); }

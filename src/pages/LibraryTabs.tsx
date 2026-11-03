@@ -22,10 +22,14 @@ const LIFT_LENS = { bezel: 0.22, depth: 0.09 }
  * 选中项静置时也是一片薄玻璃：原标签挖空，由 WebGL 按玻璃折射重绘，边缘斜面弯折并带彩边；
  * 按住或拖动时浮起成更厚的凸透镜并放大；拿不到 WebGL 时退回清晰的 DOM 副本。
  */
-export function LibraryTabs<T extends string>({ items, value, onChange }: {
+export function LibraryTabs<T extends string>({ items, value, onChange, ariaLabel = '我的库分类', className, tabClassName }: {
   items: TabItem<T>[]
   value: T
   onChange(value: T): void
+  ariaLabel?: string
+  /** 复用到其他页面时的外观覆盖：className 加在轨道上，tabClassName 加在每个标签（含透镜副本）上。 */
+  className?: string
+  tabClassName?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const gesture = useRef<{ pointer: number; start: number; startY: number; index: number; moved: boolean } | null>(null)
@@ -34,7 +38,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   const transitTimer = useRef<number>()
   const measured = useRef(false)
   const rootHeight = useRef(0)
-  const rootWidth = useRef(0)
+  // 各标签相对轨道的偏移，挖空路径按它平移到标签自身坐标系。
+  const tabOffsets = useRef<{ left: number; top: number }[]>([])
   const rimId = useId()
   const syncHole = useRef<() => void>()
   const lastValue = useRef(value)
@@ -141,10 +146,10 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
   useEffect(() => {
     const update = () => {
       measure(items.findIndex(item => item.value === value))
-      for (const button of buttons()) button.style.setProperty('--btn-left', `${button.offsetLeft}px`)
+      tabOffsets.current = buttons().map(button => ({ left: button.offsetLeft, top: button.offsetTop }))
       const root = rootRef.current
-      if (root) { rootHeight.current = root.clientHeight; rootWidth.current = root.scrollWidth; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
-      // 静置玻璃常驻挖空，轨道尺寸变了要按新尺寸重做遮罩，否则超出旧遮罩的标签会被裁掉。
+      if (root) { rootHeight.current = root.clientHeight; setOverflowing(root.scrollWidth > root.clientWidth + 1) }
+      // 静置玻璃常驻挖空，标签位置变了要按新偏移重算挖空路径。
       if (syncHole.current) frame.render(syncHole.current)
     }
     update()
@@ -177,25 +182,40 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     transitTimer.current = window.setTimeout(() => { if (!gesture.current) setLifted(false) }, TRANSIT_LIFT_MS)
   }, [value])
 
+  // 选中项的文字变了（如歌词页「动态」换成所选样式名）：同样浮起一下，透镜随宽度变化流过去再沉回。
+  const activeLabel = items.find(item => item.value === value)?.label
+  const lastLabel = useRef(activeLabel)
+  useEffect(() => {
+    if (lastLabel.current === activeLabel) return
+    lastLabel.current = activeLabel
+    if (gesture.current || reducedMotion) return
+    setLifted(true)
+    window.clearTimeout(transitTimer.current)
+    transitTimer.current = window.setTimeout(() => { if (!gesture.current) setLifted(false) }, TRANSIT_LIFT_MS)
+  }, [activeLabel])
+
   useEffect(() => () => { window.clearTimeout(holdTimer.current); window.clearTimeout(transitTimer.current) }, [])
 
-  // 把透镜位置同步成 CSS 变量，供真实标签按透镜范围挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
-  // 多个弹簧值同帧变化只合并写一次；高度取缓存值，避免写样式后读布局逼出整页同步重排。
+  // 按透镜位置给真实标签挖空；静置玻璃也挖空，透镜消失时洞随之收拢。
+  // 多个弹簧值同帧变化只合并写一次；尺寸取缓存值，避免写样式后读布局逼出整页同步重排。
+  // 用 clip-path 的 evenodd 路径而不是 SVG data URI 遮罩：后者每帧都是新图片，Blink 逐张解码缓存，来回切换会持续涨内存。
   useEffect(() => {
     let holeOpen = true
     const sync = () => {
       const root = rootRef.current
       if (!root) return
       const hole = glass.get() > 0.01 ? glass.get() : 0
-      // 洞已收拢且仍收拢时不再改变量，普通横移不触发标签的 mask 重算。
+      // 洞已收拢且仍收拢时不再改样式，普通横移不触发标签重绘。
       if (!hole && !holeOpen) return
       holeOpen = hole > 0
-      if (!hole) { root.style.setProperty('--lens-mask', 'none'); return }
+      const list = buttons()
+      if (!hole) { for (const button of list) button.style.clipPath = ''; return }
       const rect = lensRect(x.get(), width.get(), 3, rootHeight.current - 6, scaleX.get() * hole, scaleY.get() * hole)
-      const path = lensOutline(rect, flowX.get(), flowY.get())
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rootWidth.current}" height="${rootHeight.current}"><path fill="white" fill-rule="evenodd" d="M0,0H${rootWidth.current}V${rootHeight.current}H0Z${path}"/></svg>`
-      root.style.setProperty('--lens-mask', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`)
-      root.style.setProperty('--lens-mask-size', `${rootWidth.current}px ${rootHeight.current}px`)
+      list.forEach((button, i) => {
+        const offset = tabOffsets.current[i] ?? { left: button.offsetLeft, top: button.offsetTop }
+        const path = lensOutline({ ...rect, left: rect.left - offset.left, top: rect.top - offset.top }, flowX.get(), flowY.get())
+        button.style.clipPath = `path(evenodd, 'M-9999,-9999H9999V9999H-9999Z${path}')`
+      })
     }
     syncHole.current = sync
     const schedule = () => frame.render(sync)
@@ -246,7 +266,12 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     }
     const schedule = () => frame.render(draw)
     const stops = [x, width, scaleX, scaleY, glass, flowX, flowY].map(value => value.on('change', schedule))
-    const resize = new ResizeObserver(() => void rebuild())
+    // 尺寸连续变化（如标签展开）时等它停下再重画贴图，不逐帧栅格化
+    let resizeTimer: number | undefined
+    const resize = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => void rebuild(), 90)
+    })
     resize.observe(root)
     // 文字色和底色共同决定色散合成；主题变化时同步更新，避免浅底黑字留下暗边。
     const theme = new MutationObserver(() => {
@@ -262,6 +287,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       rest.set(0)
       stops.forEach(stop => stop())
       cancelFrame(draw)
+      window.clearTimeout(resizeTimer)
       resize.disconnect()
       theme.disconnect()
       canvas.removeEventListener('webglcontextlost', onLost)
@@ -279,9 +305,9 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
 
   return <div
     ref={rootRef}
-    className={`${styles.subTabs} no-drag`}
+    className={`${styles.subTabs} no-drag${className ? ` ${className}` : ''}`}
     role="group"
-    aria-label="我的库分类"
+    aria-label={ariaLabel}
     data-arrow-navigation
     data-ready={ready}
     data-dragging={dragging}
@@ -318,7 +344,8 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     onPointerUp={event => {
       const current = gesture.current
       if (!current || current.pointer !== event.pointerId) return
-      suppressClick.current = current.moved
+      // 指针已在这里提交选择，随后的 click 不再重复触发 onChange（键盘激活只有 click，不受影响）
+      suppressClick.current = true
       const index = current.moved ? current.index : nearest(event.clientX)
       endGesture()
       if (items[index]) { measure(index); onChange(items[index].value); buttons()[index]?.focus({ preventScroll: true }) }
@@ -337,7 +364,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
     {items.map((item, index) => <button
       key={item.value}
       type="button"
-      className={`${styles.subTab} ${value === item.value ? styles.subTabActive : ''}`}
+      className={`${styles.subTab} ${value === item.value ? styles.subTabActive : ''}${tabClassName ? ` ${tabClassName}` : ''}`}
       aria-pressed={value === item.value}
       onClick={() => onChange(item.value)}
       onKeyDown={event => {
@@ -360,7 +387,7 @@ export function LibraryTabs<T extends string>({ items, value, onChange }: {
       <motion.span className={styles.tabLensClip} style={{ clipPath: lensClip }}>
         {!glFailed && <canvas ref={canvasRef} className={styles.tabLensCanvas} />}
         {glFailed && <motion.span className={styles.tabLensCopy} style={{ x: lensCopyX, scaleX: lensCopyScaleX, scaleY: lensCopyScaleY, transformOrigin: lensCopyOrigin }}>
-          {items.map(item => <span key={item.value} className={styles.subTab}>{content(item)}</span>)}
+          {items.map(item => <span key={item.value} className={`${styles.subTab}${tabClassName ? ` ${tabClassName}` : ''}`}>{content(item)}</span>)}
         </motion.span>}
       </motion.span>
       <svg className={styles.tabLensRim} width="100%" height="100%">

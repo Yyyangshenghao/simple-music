@@ -1,7 +1,7 @@
 import type { MusicSource, Track } from './domain'
 
 export type LyricOrigin = MusicSource | 'amll' | 'kugou'
-export const LYRIC_PRIORITY_SOURCES = ['netease', 'qq', 'amll', 'kugou'] as const
+export const LYRIC_PRIORITY_SOURCES = ['apple', 'netease', 'qq', 'amll', 'kugou'] as const
 export type LyricPrioritySource = typeof LYRIC_PRIORITY_SOURCES[number]
 export interface LyricSourceHealth { failures: number; suspended: boolean; cooldownMs?: number; retryAt?: number }
 export interface LyricSourceProbe { status: 'loading' | LyricCandidateStatus; ms?: number; message?: string; sample: string }
@@ -14,6 +14,9 @@ export interface LyricPreviewLine {
   text: string
   translation?: string
   romaji?: string
+  /** 逐字来源才有：startMs 相对本行起点；预览用它按真实节奏逐字点亮。 */
+  words?: { text: string; startMs: number; durationMs: number }[]
+  durationMs?: number
 }
 
 export interface LyricSourceCandidate {
@@ -41,7 +44,7 @@ export interface RememberedLyricSource {
 export const LYRIC_ORIGINS: readonly LyricOrigin[] = ['netease', 'qq', 'apple', 'local', 'amll', 'kugou']
 export const LYRIC_SOURCE_LABELS: Record<LyricOrigin | 'auto' | 'origin', string> = {
   auto: '自动选择', origin: '歌曲原平台', netease: '网易云音乐', qq: 'QQ 音乐',
-  apple: 'Apple Music', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗歌词库',
+  apple: 'Apple Music', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗音乐',
 }
 
 export interface LyricSourceActions {

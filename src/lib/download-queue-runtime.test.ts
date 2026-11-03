@@ -41,17 +41,24 @@ beforeEach(() => {
   }
   vi.stubGlobal('localStorage', storage)
   h.get.mockReset().mockResolvedValue({ dir: '/new-downloads' })
-  h.post.mockReset().mockResolvedValue({ filePath: '/old-downloads/song.mp3', size: 100 })
-  h.status.mockReset().mockImplementation(async (item: Track) => ({ source: item.source, id: String(item.id), state: 'pinned', entryId: `entry-${item.id}` }))
+  exportResults.length = 0
+  // 已有缓存的下载先固定再导出；固定立即成功，导出结果按顺序取自 exportResults
+  h.post.mockReset().mockImplementation(async (path: string) => path === '/api/audio-cache/pin'
+    ? { ok: true }
+    : exportResults.shift() ?? { filePath: '/old-downloads/song.mp3', size: 100 })
+  h.status.mockReset().mockImplementation(async (item: Track) => ({ source: item.source, id: String(item.id), state: 'cached', entryId: `entry-${item.id}` }))
   h.next.mockReset().mockResolvedValue(null)
 })
 afterEach(() => { stop?.(); stop = undefined; vi.unstubAllGlobals() })
+
+const exportResults: Array<Promise<{ filePath: string; size: number }>> = []
+const exportCalls = () => h.post.mock.calls.filter(call => call[0] === '/api/downloads/export')
 
 it('退出保留未完成任务和各自目录，取消请求并隔离迟到完成结果', async () => {
   const { store, initDownloadQueueRuntime } = await start()
   store.setState({ downloadDir: '/old-downloads' })
   const old = deferred<{ filePath: string; size: number }>()
-  h.post.mockReturnValueOnce(old.promise)
+  exportResults.push(old.promise)
   const saving = store.getState().save(track)
   await vi.waitFor(() => expect(store.getState().jobs[0].status).toBe('exporting'))
   store.getState().setPaused(true)
@@ -64,7 +71,7 @@ it('退出保留未完成任务和各自目录，取消请求并隔离迟到完�
   expect(saved.jobs.map((job: { directory: string }) => job.directory)).toEqual(['/old-downloads', '/other-downloads'])
   expect(saved.jobs[0].track).toMatchObject({ id: '1', mid: 'mid1' })
   expect(saved.jobs[0].track).not.toHaveProperty('url')
-  expect(h.post.mock.calls[0][3].signal.aborted).toBe(true)
+  expect(exportCalls()[0][3].signal.aborted).toBe(true)
   expect(store.getState().jobs).toEqual([])
   const writes = storage.setItem.mock.calls.length
   old.resolve({ filePath: '/old-downloads/late.mp3', size: 1 })
@@ -83,13 +90,13 @@ it('冷启动恢复为暂停队列，手动继续保留三首并发和原目录�
   expect(h.get).not.toHaveBeenCalled()
   expect(h.status).not.toHaveBeenCalled()
   const exports = Array.from({ length: 5 }, () => deferred<{ filePath: string; size: number }>())
-  exports.forEach(item => h.post.mockReturnValueOnce(item.promise))
+  exports.forEach(item => exportResults.push(item.promise))
   store.getState().setPaused(false)
-  await vi.waitFor(() => expect(h.post).toHaveBeenCalledTimes(3))
-  expect(h.post.mock.calls.every(call => call[1].dir === '/old-downloads')).toBe(true)
+  await vi.waitFor(() => expect(exportCalls()).toHaveLength(3))
+  expect(exportCalls().every(call => call[1].dir === '/old-downloads')).toBe(true)
   expect(h.next).not.toHaveBeenCalled()
   exports[0].resolve({ filePath: '/old-downloads/0.mp3', size: 100 })
-  await vi.waitFor(() => expect(h.post).toHaveBeenCalledTimes(4))
+  await vi.waitFor(() => expect(exportCalls()).toHaveLength(4))
   expect(JSON.parse(data.get(key)!).jobs).toHaveLength(4)
   store.getState().cancelSave()
   expect(JSON.parse(data.get(key)!).jobs).toEqual([])

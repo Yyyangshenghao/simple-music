@@ -215,7 +215,7 @@ export function openAccompanimentsLibrary(): void {
   if (navigation.currentView !== 'library') navigation.navigateTo('library')
 }
 
-/** 任务面板直达离线音乐，已在我的库时不重复压入导航历史。 */
+/** 任务面板直达已下载，已在我的库时不重复压入导航历史。 */
 export function openOfflineLibrary(): void {
   const navigation = useNavigationStore.getState()
   navigation.requestLibraryOffline()

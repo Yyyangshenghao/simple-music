@@ -145,7 +145,7 @@ describe('我的库账号失效提示', () => {
     const html = renderToStaticMarkup(<LibraryPage />)
     expect(html).toContain('没有已启用的在线音乐平台')
     expect(html).not.toContain('登录已失效')
-    expect(html).toContain('<span>离线音乐</span></button>')
+    expect(html).toContain('<span>已下载</span></button>')
   })
 
   it('收藏的歌单与专辑统一放在「收藏」页签，不再单列专辑页签', () => {

@@ -4,7 +4,7 @@ import { fetchAmllLyric, isAmllHostId, isAmllPlatform, isValidAmllId, probeAmllH
 
 /**
  * AMLL TTML DB 逐字歌词兜底：
- * - GET /api/amll/lyric?platform=ncm|qq&id=…[&host=…]：返回 { text }，库里没有时 text 为 null；
+ * - GET /api/amll/lyric?platform=ncm|qq|am&id=…[&host=…]：返回 { text }，库里没有时 text 为 null；
  *   host 为用户在设置里指定的优先线路（可选，未知值忽略）。
  * - GET /api/amll/probe：各线路测速，返回 { hosts: [{ id, ms }] }，不可用时 ms 为 null。
  */

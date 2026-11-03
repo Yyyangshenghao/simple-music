@@ -16,9 +16,9 @@ function participating(source: ProviderId): boolean {
   return !!state?.enabled && state.auth === 'authenticated'
 }
 
-/** 设置中关闭的网易云、QQ 不参与歌词查询，账号与游客都不用。 */
+/** 设置中关闭的平台不参与歌词查询，账号与游客都不用。 */
 export function lyricPlatformEnabled(source: ProviderId): boolean {
-  return (source !== 'netease' && source !== 'qq') || useSettingsStore.getState().lyricsPlatformSources[source]
+  return useSettingsStore.getState().lyricsPlatformSources[source] !== false
 }
 
 export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {

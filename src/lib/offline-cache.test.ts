@@ -30,7 +30,7 @@ describe('offline-cache', () => {
     const url = offlineFileUrl({
       source: 'netease',
       id: '123',
-      state: 'pinned',
+      state: 'cached',
       entryId: 'entry',
       resolved: { source: 'qq', id: 'mid' },
     }, track)

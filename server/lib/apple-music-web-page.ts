@@ -35,7 +35,9 @@ interface PageState {
   accountStorefront: string
   wasAuthorized: boolean
 }
-export type WebPageTask = { type: 'state' } | { type: 'catalog'; path: string }
+/** 官网页面里的 MusicKit 实例是否已授权，以及当前会话是否其实已经登录。 */
+export interface PageAuthProbe { authorized: boolean; sessionValid: boolean }
+export type WebPageTask = { type: 'state' } | { type: 'auth' } | { type: 'catalog'; path: string }
   | { type: 'invalidate'; generation: number } | { type: 'suspend'; playbackId: string; controlSequence?: number } | { type: 'command'; command: AppleMusicCommand; generation: number }
 
 // 由应用内隔离的官网窗口执行；此函数必须自包含，不能引用主进程变量或凭据。
@@ -111,6 +113,18 @@ export async function appleMusicWebPage(task: WebPageTask) {
   if (task.type === 'catalog') {
     // api.music 在官网自身来源下运行，凭据不离开浏览器，也不伪造 Origin。
     return (await music.api.music(task.path.replace(/^\//, ''))).data
+  }
+  if (task.type === 'auth') {
+    // 登录可能完成在 window.open 弹窗里，或当前页内登录后没有整页重载；这时页面里的
+    // MusicKit 仍是未授权的旧实例，只用 isAuthorized 会一直报告未登录。用一次账号接口
+    // 区分「真的没登录」和「实例已过期」，让主进程决定是否重新加载官网。
+    if (music.isAuthorized) return { authorized: true, sessionValid: true } as PageAuthProbe
+    try {
+      const value = (await music.api.music('v1/me/storefront')).data as { data?: unknown[] }
+      return { authorized: false, sessionValid: (value.data?.length ?? 0) > 0 } as PageAuthProbe
+    } catch {
+      return { authorized: false, sessionValid: false } as PageAuthProbe
+    }
   }
   if (task.type === 'state') {
     const storefront = await refreshStorefront()

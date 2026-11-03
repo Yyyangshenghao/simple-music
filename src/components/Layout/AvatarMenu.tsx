@@ -84,8 +84,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
             aria-label="前往音源与播放设置"
             title="音源与播放设置"
             onClick={() => {
-              if (useNavigationStore.getState().currentView !== 'settings') navigateTo('settings')
+              // 先记下跳转请求再进入设置页，挂载时直接落位。
               requestSettingsMusic()
+              if (useNavigationStore.getState().currentView !== 'settings') navigateTo('settings')
               onClose()
             }}
             whileTap={tap(tapScale)}

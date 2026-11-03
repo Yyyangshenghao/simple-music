@@ -9,8 +9,9 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 ## 目录
 
 - `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
-- `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。
+- `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。登录页优先打开上次确认的账号地区（`userData/apple-music-storefront`），避免代理节点把登录页带到与账号不同的地区；没有记录或退出登录后仍由官网按出口 IP 决定；未登录时用户可在“音源与账户”的 Apple Music 行选择登录地区（`setLoginStorefront`），登录后下拉只读显示账号地区。登录后页面实例未跟上授权时（例如登录在弹窗内完成）会用一次账号接口探针识别并重载官网一次。
 - `modules/playback-host.ts` — 独立隐藏播放窗口、受信命令转发、超时/断开清理与快照转发；游戏模式确认就绪后释放 UI，托盘/Dock/设置菜单按需重建。详见 [独立播放宿主](../playback-host.md)。
+- `modules/session-proxy.ts` — 把代理设置同步到主窗口、网易/QQ 登录分区、播放宿主与 Apple Music 分区（`setProxy` 不跨会话继承）；Apple 可用独立出口，其余会话共用默认出口，规则里不带账号密码。另负责：在内存探测分区 `simplemusic-proxy-probe`（始终 system 模式）里按默认/Apple 两个出口分别 `resolveProxy` 解析系统代理，`server-host.ts` 启动时最多等 1.5 秒同步给 Node 侧，之后每 30 秒、窗口获焦与唤醒时重读，变化才通知；以及 `app` 的 `login` 事件里给用户自己填写的 HTTP 代理补认证，同一代理 10 秒内失败 3 次后不再重试。
 - `modules/karaoke-helper.ts` + `karaoke-helper.ts` — K 歌 AI 分离进程：首个分离任务时以 `--simplemusic-karaoke-helper` 拉起同一可执行文件（独立 userData、不进单实例锁、macOS 不进 Dock、关闭渲染进程降级）。`modules/karaoke-native.ts` 按需加载原生 ONNX WebGPU；不可用时回退至分离 Worker 的浏览器 WebGPU。原生路径只经受信私有 IPC 串行传递单块频谱，Worker 负责音频前后处理及分块落盘。只接受播放宿主的 `karaoke:request`，任务完成、失败、取消、系统内存严重紧张、宿主失效或退出时结束；新任务等待旧进程实际退出后再启动，避免资源重叠。测量与平台边界见[架构优化验收](../reviews/2026-10-27-karaoke-architecture.md)。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
 - `modules/window-close.ts` — Windows 关闭确认、记住偏好与原生兜底；待确认请求带序号，重载后可恢复、过期结果丢弃。

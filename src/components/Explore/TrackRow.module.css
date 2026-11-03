@@ -134,8 +134,14 @@
 .row:hover .offlineBtn,
 .row:focus-within .offlineBtn { opacity: 0.85; }
 .offlineBtn:hover { opacity: 1; background: var(--sm-fill-hover); }
-.offlineBtn[data-state='cached'],
-.offlineBtn[data-state='pinned'] { opacity: 1; color: var(--sm-accent); }
+.offlineBtn[data-state='downloaded'] { opacity: 1; color: var(--sm-accent); }
+.offlineBtn [data-offline-trash] { display: none; }
+.offlineBtn[data-state='downloaded']:hover,
+.offlineBtn[data-state='downloaded']:focus-visible { color: var(--sm-color-danger); }
+.offlineBtn[data-state='downloaded']:hover [data-offline-mark],
+.offlineBtn[data-state='downloaded']:focus-visible [data-offline-mark] { display: none; }
+.offlineBtn[data-state='downloaded']:hover [data-offline-trash],
+.offlineBtn[data-state='downloaded']:focus-visible [data-offline-trash] { display: inline; }
 
 /* 逐行红心：整行 hover 显形，已红心常驻点亮。 */
 .likeBtn {

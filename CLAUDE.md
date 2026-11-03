@@ -13,7 +13,9 @@ npm run typecheck      # 两套 tsconfig 全量类型检查(node 侧 + 渲染侧
 npm test               # vitest run(测试与源码同目录,*.test.ts)
 npx vitest run src/lib/stack-pool.test.ts   # 跑单个测试文件
 npm run server:dev     # 单独跑 API server(tsx server/index.ts,端口 35530)
+npm run eval:lyrics    # 歌词匹配真实数据评测(走网络,不属于 npm test;--only 分类/id、--verbose)
 npm run build:mac      # 打包 mac(build:win 同理)
+npm run release:check  # 发版元数据校验;发版用 gh workflow run release.yml(勿手动推 v* tag),见 docs/build-and-release.md「发版速查」
 ```
 
 无 lint 配置;验证以 `typecheck` + `test` 为准。

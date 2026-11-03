@@ -23,7 +23,7 @@ export function createLyricsSourceProbe() {
       publish('loading')
       try {
         const track: Track = { ...sample, source: 'netease', provider: 'netease', type: 'song', artists: [{ id: '', name: sample.artist }] }
-        const response = await queryLyricsSource(track, origin, ['netease', 'qq'], controller.signal, undefined, { probe: true })
+        const response = await queryLyricsSource(track, origin, ['netease', 'qq', 'apple'], controller.signal, undefined, { probe: true })
         if (!controller.signal.aborted) publish(response.status === 'loading' ? 'idle' : response.status, response.message)
       } catch (error) {
         if (!controller.signal.aborted) publish(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'error', '测试已中断，请重试')

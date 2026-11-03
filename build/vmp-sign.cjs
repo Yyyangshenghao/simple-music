@@ -3,6 +3,11 @@ const { spawnSync } = require('node:child_process')
 function signVmpPackage(context, expectedPlatform) {
   if (context.electronPlatformName !== expectedPlatform) return
 
+  // 只有 Source checks 的试打包会显式跳过；正式打包（Release 工作流）不设置它，缺凭据仍会失败。
+  if (process.env.VMP_SIGN === 'skip') {
+    console.warn('[VMP] 试打包，跳过生产签名')
+    return
+  }
   const hasCredentials = Boolean(process.env.EVS_ACCOUNT_NAME && process.env.EVS_PASSWD)
   if (!hasCredentials && process.env.CI) {
     throw new Error('生产安装包必须配置 EVS_ACCOUNT_NAME 和 EVS_PASSWD，才能完成 Widevine VMP 签名')

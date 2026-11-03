@@ -41,7 +41,7 @@ export class AppleMusicChromePage {
 
   private constructor(private readonly onClose: () => void) {}
 
-  static async open(userDataDir: string, onClose: () => void, signal?: AbortSignal): Promise<AppleMusicChromePage> {
+  static async open(userDataDir: string, onClose: () => void, signal?: AbortSignal, startUrl = APPLE_MUSIC_URL): Promise<AppleMusicChromePage> {
     const executable = resolveChromeExecutable()
     if (!executable) throw new Error('本地 Apple Music DRM 验证需要安装 Google Chrome')
     let lastError: unknown
@@ -51,7 +51,7 @@ export class AppleMusicChromePage {
       const cancel = () => { void page.close() }
       signal?.addEventListener('abort', cancel, { once: true })
       try {
-        await page.launch(executable, join(userDataDir, 'apple-music-browser'), signal)
+        await page.launch(executable, join(userDataDir, 'apple-music-browser'), startUrl, signal)
         if (signal?.aborted) throw new Error('连接已取消')
         return page
       } catch (error) {
@@ -117,7 +117,7 @@ export class AppleMusicChromePage {
     this.child = undefined
   }
 
-  private async launch(executable: string, profileDir: string, signal?: AbortSignal): Promise<void> {
+  private async launch(executable: string, profileDir: string, startUrl: string, signal?: AbortSignal): Promise<void> {
     const port = await reservePort()
     if (this.closed || signal?.aborted) throw new Error('连接已取消')
     const child = spawn(executable, [
@@ -131,7 +131,7 @@ export class AppleMusicChromePage {
       '--disable-renderer-backgrounding',
       '--no-first-run',
       '--no-default-browser-check',
-      `--app=${APPLE_MUSIC_URL}`,
+      `--app=${startUrl}`,
     ], { stdio: 'ignore' })
     this.child = child
     child.once('exit', () => this.handleClosed())

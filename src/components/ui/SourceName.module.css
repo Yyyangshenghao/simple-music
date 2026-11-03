@@ -1,13 +1,15 @@
 .apple {
   display: inline-flex;
-  align-items: center;
+  /* 苹果按基线对齐，再像圆形字母那样略压过基线（见下方 translateY）：居中会下沉，正好落在基线上又显得偏高。 */
+  align-items: baseline;
   gap: 0.18em;
   white-space: nowrap;
   vertical-align: middle;
 }
 
 .apple svg {
-  width: 0.95em;
-  height: 0.95em;
+  width: 0.82em;
+  height: 0.82em;
+  transform: translateY(0.04em);
   flex: 0 0 auto;
 }

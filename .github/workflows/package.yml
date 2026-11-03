@@ -1,0 +1,91 @@
+name: Package
+
+# 双平台测试与打包，供 Source checks（推送 dev/master 时试打包）和 Release（正式打包）共用同一套步骤，
+# 打包配置出错在推送 dev 时就会暴露，而不是等到发版时才失败。
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 写入安装包的版本号；留空沿用 package.json
+        type: string
+        default: ''
+      sign:
+        description: 是否做 Widevine VMP 生产签名（需要 EVS 凭据）
+        type: boolean
+        default: false
+      retention-days:
+        type: number
+        default: 3
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac
+          - os: windows-latest
+            target: win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        if: inputs.sign
+        with:
+          python-version: '3.12'
+
+      - name: Install production VMP signer
+        if: inputs.sign
+        run: python -m pip install --upgrade castlabs-evs
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # 测试按源码版本校验发行说明等，所以版本号在测试之后再写入；只改构建机上的 package.json，不提交。
+      - name: Apply package version
+        if: inputs.version != ''
+        shell: bash
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      # package.json 的 repository 字段会让 electron-builder 在 CI 下自动推断 GitHub 发布目标，
+      # 这里显式 --publish never：只产出本地安装包，发布统一交给 Release 工作流的 publish job。
+      - name: Build package
+        shell: bash
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.target }} --publish never
+        env:
+          EVS_ACCOUNT_NAME: ${{ inputs.sign && secrets.EVS_ACCOUNT_NAME || '' }}
+          EVS_PASSWD: ${{ inputs.sign && secrets.EVS_PASSWD || '' }}
+          EVS_NO_ASK: '1'
+          # 试打包不签名；正式打包缺凭据时 build/vmp-sign.cjs 会直接失败，不会跳过。
+          VMP_SIGN: ${{ inputs.sign && '1' || 'skip' }}
+
+      - name: Check package contents
+        run: node scripts/release/check-package.mjs ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: |
+            dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest*.yml
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

@@ -1,5 +1,10 @@
+import { useState } from 'react'
+import { api } from '../../lib/api'
+import { appleRegionLabel, appleRegionOptions } from '../../lib/apple-music-regions'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
+import { useToastStore } from '../../stores/toast'
 import { InfoButton } from '../ui/InfoButton'
+import { Select } from '../ui/Select'
 import { AccountButton } from './AccountButton'
 import styles from './AppleMusicSettings.module.css'
 
@@ -51,6 +56,46 @@ export function AppleMusicSettings() {
         busy={!!account?.restoring || phase === 'opening' || phase === 'disconnecting'}
         onClick={() => void (account?.loggedIn || waiting ? disconnect() : connect())}
       />
+    </span>
+  )
+}
+
+/**
+ * Apple Music 地区：登录前可选登录页地区（默认按网络出口），避免先落到出口所在地区再跳转；
+ * 登录后显示账号地区并禁用，地区以 Apple ID 为准，选别的地区搜到的歌可能放不了。
+ */
+export function AppleMusicRegionSelect() {
+  const { account, phase, refresh } = useAppleMusicConnection()
+  const [pending, setPending] = useState<string | null>(null)
+  const [failed, setFailed] = useState('')
+  if (account?.loginMode !== 'web') return null
+  const locked = account.loggedIn || !!account.suspended
+  const value = locked ? account.storefront : pending ?? account.loginStorefront ?? ''
+  const busy = phase !== 'idle' || !!account.restoring || pending !== null
+  const title = failed || (locked
+    ? `账号地区：${appleRegionLabel(account.storefront)}。登录后地区跟随 Apple 账号`
+    : '登录页打开的地区。选与 Apple 账号一致的地区，登录更快')
+
+  async function change(next: string): Promise<void> {
+    setPending(next)
+    setFailed('')
+    try {
+      await api.post('/api/apple-music/region', { storefront: next })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '设置地区失败'
+      setFailed(message)
+      // 下拉旁没有空位放错误，用全局提示告知，悬停仍可看到原因。
+      useToastStore.getState().show(`Apple Music 地区未更改：${message}`)
+    } finally {
+      await refresh().catch(() => {})
+      setPending(null)
+    }
+  }
+
+  return (
+    <span className={styles.region} title={title}>
+      <Select value={value} options={appleRegionOptions(value)} aria-label="Apple Music 地区" disabled={locked || busy}
+        onChange={(next) => void change(next)} />
     </span>
   )
 }

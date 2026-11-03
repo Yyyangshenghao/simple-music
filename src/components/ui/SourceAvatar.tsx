@@ -16,7 +16,7 @@ interface SourceAvatarProps {
 function BrandBadge({ source }: { source: MusicSource }) {
   const Logo = source === 'netease' ? NeteaseLogo : source === 'apple' ? AppleMusicIcon : QQMusicLogo
   return (
-    <span className={styles.badge} aria-hidden="true">
+    <span className={`${styles.badge}${source === 'apple' ? ` ${styles.squareBadge}` : ''}`} aria-hidden="true">
       <Logo className={styles.badgeLogo} />
     </span>
   )

@@ -1,7 +1,8 @@
 import type { Track } from '../types/domain'
 import { api } from './api'
 
-export type OfflineCacheState = 'missing' | 'cached' | 'pinned'
+/** downloaded：下载目录里有这首歌的文件；cached：播放器有自动缓存（界面不单独展示）。 */
+export type OfflineCacheState = 'missing' | 'cached' | 'downloaded'
 
 export interface OfflineCacheStatus {
   source: 'netease' | 'qq'
@@ -11,7 +12,7 @@ export interface OfflineCacheStatus {
   resolved?: { source: 'netease' | 'qq'; id: string; name?: string; artist?: string }
   quality?: string
   size?: number
-  savedAliasCount?: number
+  savedAt?: number
 }
 
 export function offlineTrackKey(track: Pick<Track, 'source' | 'id'>): string {
@@ -31,6 +32,7 @@ export function offlineOrigin(track: Track): Record<string, unknown> {
 }
 
 export function offlineFileUrl(status: OfflineCacheStatus, track: Track): string | null {
+  if (status.state === 'downloaded') return api.url('/api/downloads/file', { source: track.source, id: String(track.id) })
   if (!status.entryId || status.state === 'missing') return null
   return api.url('/api/audio-cache/file', {
     entryId: status.entryId,

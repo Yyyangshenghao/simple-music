@@ -31,6 +31,9 @@
   border: 1.5px solid var(--sm-bg-base);
 }
 
+/* Apple Music 保持方形 App 图标的品牌外形。 */
+.squareBadge { border-radius: 4px; }
+
 .badgeLogo {
   width: 100%;
   height: 100%;

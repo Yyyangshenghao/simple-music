@@ -30,12 +30,16 @@ interface TrackRowProps {
   statusColumn?: boolean
 }
 
-function OfflineIcon({ state }: { state: 'missing' | 'cached' | 'pinned' }) {
+function OfflineIcon({ downloaded }: { downloaded: boolean }) {
+  // 已下载平时显示带勾的下载标记，悬停或聚焦按钮时换成垃圾桶，表示点击会删除下载。
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M12 3v11m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 18.5h14" strokeLinecap="round" />
-      {state === 'pinned' && <path d="m17 5 1.5 1.5L21 4" strokeLinecap="round" strokeLinejoin="round" />}
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <g data-offline-mark>
+        <path d="M12 3v11m0 0 4-4m-4 4-4-4" />
+        <path d="M5 18.5h14" />
+        {downloaded && <path d="m17 5 1.5 1.5L21 4" />}
+      </g>
+      {downloaded && <path data-offline-trash d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />}
     </svg>
   )
 }
@@ -70,6 +74,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
     lastOffline.current.status = offline
   }
   const visibleOffline = offline ?? lastOffline.current.status
+  const downloaded = visibleOffline?.state === 'downloaded'
   const offlineVisible = track.source === 'netease' || track.source === 'qq'
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
@@ -129,21 +134,21 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
       </button>
-      {/* 离线、红心按需出现；不适用的行保留同宽空位，专辑列不随按钮数量左右漂移。 */}
+      {/* 下载、红心按需出现；只区分已下载与否，自动缓存不在歌曲上展示。不适用的行保留同宽空位，专辑列不随按钮数量左右漂移。 */}
       {!hideOfflineAction && (offlineVisible && !disabled ? (
         <button
           type="button"
           className={styles.offlineBtn}
-          data-state={visibleOffline?.state ?? 'missing'}
-          title={visibleOffline?.state === 'pinned' ? '已保存为离线音乐，点击取消离线保存' : visibleOffline?.state === 'cached' ? '已自动缓存，点击下载歌曲' : '下载歌曲'}
-          aria-label={visibleOffline?.state === 'pinned' ? '取消离线保存' : '下载歌曲'}
+          data-state={downloaded ? 'downloaded' : 'missing'}
+          title={downloaded ? '已下载，点击删除下载' : '下载歌曲'}
+          aria-label={downloaded ? '删除下载' : '下载歌曲'}
           onClick={(e) => {
             e.stopPropagation()
-            if (visibleOffline?.state === 'pinned') void useOfflineCacheStore.getState().setPinned(track, false)
-            else void useOfflineCacheStore.getState().save(track)
+            if (!downloaded) void useOfflineCacheStore.getState().save(track)
+            else if (window.confirm(`删除「${track.name}」的下载？歌曲文件会移到废纸篓。`)) void useOfflineCacheStore.getState().removeDownload(track)
           }}
         >
-          <OfflineIcon state={visibleOffline?.state ?? 'missing'} />
+          <OfflineIcon downloaded={downloaded} />
         </button>
       ) : <span className={styles.actionSlot} aria-hidden="true" />)}
       {!hideLikeAction && (visible && !disabled ? (

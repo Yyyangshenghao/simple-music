@@ -9,7 +9,7 @@ vi.mock('../lib/track-preload', () => ({ preloadTracks: vi.fn() }))
 
 const tracks = (['netease', 'qq'] as const).map((source) => offlineLibraryTrack({
   origin: { source, id: '1', name: `${source} 离线歌曲` },
-  entryId: source, savedAt: 1, size: 4, quality: 'standard',
+  filePath: `/music/${source}.mp3`, savedAt: 1, size: 4, quality: 'standard',
 }))
 
 describe('离线库播放队列', () => {

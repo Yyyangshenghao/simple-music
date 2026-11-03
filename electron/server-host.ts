@@ -1,14 +1,35 @@
-import { app } from 'electron'
+import { app, shell } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { startServer } from '../server/index'
+import { reconcileDownloads } from '../server/lib/download-library'
+import { readProxySettings, type SystemProxyAddresses } from '../server/lib/proxy-config'
+import { applyUpstreamProxy, setSystemProxyAddresses } from '../server/lib/upstream-proxy'
 import { OfficialAppleMusicSession } from './modules/apple-music-web-session'
+import { applySessionProxy, registerProxyAuth, resolveSystemProxy, watchSystemProxy } from './modules/session-proxy'
 import { focusMainWindow } from './modules/window-manager'
 
 let handle: { port: number; close(): void } | null = null
 let apiToken = ''
 let appleMusicWeb: OfficialAppleMusicSession | undefined
+let stopProxyWatch: (() => void) | null = null
+const SYSTEM_PROXY_BOOT_TIMEOUT_MS = 1500
+
+/** 系统代理解析结果同步给 Node 侧；启动时最多等一小会，读不到就先按环境变量走，随后由监听补上。 */
+async function syncSystemProxy(): Promise<SystemProxyAddresses> {
+  const addresses = await resolveSystemProxy()
+  setSystemProxyAddresses(addresses)
+  return addresses
+}
+
+/** 同步代理到 Electron 会话；失败只记日志并向调用方抛出，由设置接口转成可读提示。 */
+function syncSessionProxy(settings: Parameters<typeof applySessionProxy>[0]): Promise<void> {
+  return applySessionProxy(settings).catch((error: unknown) => {
+    console.warn('[proxy] 应用到 Electron 会话失败', error)
+    throw error
+  })
+}
 
 /**
  * 读取或生成本机 API 访问 token,持久化在 userData 下。
@@ -45,6 +66,14 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
     defaultSongDownloadDir = join(app.getPath('music'), 'Simple Music')
   } catch { /* 系统音乐目录不可用时，下载配置继续沿用原缓存位置。 */ }
   apiToken = loadOrCreateToken(userDataDir)
+  // 代理配置在启动时先落到 Electron 会话与 Node 上游请求上，窗口创建后立即生效。
+  const proxySettings = readProxySettings(userDataDir)
+  registerProxyAuth()
+  void syncSessionProxy(proxySettings).catch(() => {})
+  await Promise.race([syncSystemProxy().catch(() => null), new Promise((resolve) => setTimeout(resolve, SYSTEM_PROXY_BOOT_TIMEOUT_MS))])
+  applyUpstreamProxy(proxySettings)
+  stopProxyWatch?.()
+  stopProxyWatch = watchSystemProxy(setSystemProxyAddresses)
   // Apple 的生产许可证服务拒绝 CastLabs 开发 VMP 签名。开发态改用系统 Chrome
   // 的正式 Widevine 客户端；发布包经 EVS 生产签名后继续使用应用内隐藏窗口。
   appleMusicWeb = new OfficialAppleMusicSession(userDataDir, !app.isPackaged, () => {
@@ -65,10 +94,15 @@ export async function bootServer(): Promise<{ port: number; token: string }> {
       return { total: memory.total * 1024, free: Math.min(memory.total, memory.free + (memory.purgeable ?? 0) + (memory.fileBacked ?? 0)) * 1024 }
     },
     token: apiToken,
+    applySessionProxy: syncSessionProxy,
+    resolveSystemProxy: syncSystemProxy,
+    trashItem: (path) => shell.trashItem(path),
     // 打包后的渲染层是 file://,不需要放行 localhost 来源(见 server/lib/security.ts)
     allowLocalhostOrigins: !app.isPackaged
   })
   void appleMusicWeb.restore()
+  // 旧版「离线音乐」迁移为下载记录；后台进行，下载列表与改缓存目录会等它完成。
+  void reconcileDownloads(userDataDir, defaultSongDownloadDir)
   return { port: handle.port, token: apiToken }
 }
 
@@ -87,6 +121,8 @@ export function stopAppleMusicPlayback(): Promise<void> {
 }
 
 export function shutdownServer(): Promise<void> {
+  stopProxyWatch?.()
+  stopProxyWatch = null
   const closing = appleMusicWeb?.close().catch(() => {})
   appleMusicWeb = undefined
   handle?.close()

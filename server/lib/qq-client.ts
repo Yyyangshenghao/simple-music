@@ -529,6 +529,13 @@ interface QQArtist {
   mid: string
   qqArtistId: unknown
   name: string
+  /** 歌手外文名：取自 title「周杰伦 (Jay Chou)」的括注，供跨平台同曲匹配；没有时省略。 */
+  aliases?: string[]
+}
+
+function qqArtistAliases(name: string, title: string): { aliases?: string[] } {
+  const alias = title.match(/^(.+?)\s*\(([^()]+)\)\s*$/)
+  return alias && name && alias[1].trim() === name && alias[2].trim() !== name ? { aliases: [alias[2].trim()] } : {}
 }
 
 function mapQQArtists(raw: unknown): QQArtist[] {
@@ -541,6 +548,7 @@ function mapQQArtists(raw: unknown): QQArtist[] {
         mid,
         qqArtistId: o.id || o.singerId || o.singerID || '',
         name: str(o.name || o.title || o.singerName),
+        ...qqArtistAliases(str(o.name), str(o.title)),
       }
     })
     .filter((a) => a.name)
