@@ -94,7 +94,8 @@ function Segmented<T extends string>({ items, value, onChange, ariaLabel, column
 }
 
 /** 内容归属与实际出声平台分开呈现，并提供仅对当前曲目生效的软优先入口。 */
-function PlaybackSourceSection() {
+/** footer：紧跟在来源信息下的附属行（歌词来源），与播放来源同组 */
+function PlaybackSourceSection({ footer }: { footer?: ReactNode }) {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const actualSource = usePlayerStore((s) => s.actualSource)
   const status = usePlayerStore((s) => s.status)
@@ -153,6 +154,7 @@ function PlaybackSourceSection() {
           />
         </div>
       )}
+      {footer}
     </section>
   )
 }
@@ -568,7 +570,17 @@ export function MoreMenu() {
             </div>
             <div className={styles.content}>
               <QualitySection open={open} />
-              <PlaybackSourceSection />
+              <PlaybackSourceSection footer={trackKey && (
+                <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
+                  <span className={styles.rowTitle}>歌词来源</span>
+                  <span className={styles.extrasSummary}>
+                    <span className={styles.sectionStatus} title={lyricsSourceLabel}>{lyricsSourceLabel}</span>
+                    <svg className={styles.chevron} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
+                  </span>
+                </button>
+              )} />
               <OfflineSection open={open} />
               <KaraokeSection apple={apple} onQueue={id => { setOpen(false); useTaskCenterStore.getState().show('karaoke', `k:${id}`) }} onLibrary={() => {
                 setOpen(false)
@@ -579,17 +591,6 @@ export function MoreMenu() {
                 navigation.requestSettingsKaraoke()
                 navigation.navigateTo('settings')
               }} />
-              {trackKey && <section className={`${styles.section} ${styles.rowSection}`}>
-                <button type="button" className={`${styles.optionRow} ${styles.linkRow}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
-                  <span className={styles.rowTitle}>歌词来源</span>
-                  <span className={styles.extrasSummary}>
-                    <span className={styles.sectionStatus} title={lyricsSourceLabel}>{lyricsSourceLabel}</span>
-                    <svg className={styles.chevron} viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="m9 6 6 6-6 6" />
-                    </svg>
-                  </span>
-                </button>
-              </section>}
               <ExtrasSection expanded={extrasOpen} onToggle={() => setExtrasOpen((v) => !v)} showRate={!apple} />
             </div>
           </motion.div>
