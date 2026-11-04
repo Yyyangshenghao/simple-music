@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useWindowStore } from '../../stores/window'
+import { drawsCaptionButtons } from './caption-buttons'
 import styles from './WindowChrome.module.css'
 
 interface WindowChromeProps {
@@ -84,7 +85,7 @@ function CaptionButtons({ isWindows }: { isWindows: boolean }) {
 export function WindowChrome({ children, lyricsOpen = false }: WindowChromeProps) {
   const isFullScreen = useWindowStore((s) => s.isFullScreen)
   const platform = window.desktop?.platform
-  const showCaptionButtons = !!platform && platform !== 'darwin' && !isFullScreen && !(platform === 'win32' && lyricsOpen)
+  const showCaptionButtons = drawsCaptionButtons(platform) && !isFullScreen && !(platform === 'win32' && lyricsOpen)
 
   return (
     <div className={`${styles.chrome}${isFullScreen ? ` ${styles.fullScreen}` : ''}`}>

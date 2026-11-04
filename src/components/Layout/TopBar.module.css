@@ -34,9 +34,11 @@
   padding-left: 88px;
 }
 
-/* Windows/Linux 无边框窗口，右上角自绘最小化/最大化/关闭按钮占位 */
-.barWin {
-  padding-right: 140px;
+/* Windows/Linux 都是 frame: false 的无边框窗口，右上角由 WindowChrome 自绘
+   最小化/最大化/关闭。顶栏必须留出同宽占位，否则最右边的关闭按钮会压在头像上，
+   点头像会直接关闭窗口。 */
+.barCaption {
+  padding-right: var(--sm-caption-reserve);
 }
 
 /* 歌词面板打开时整条隐藏,交互一并禁用 */

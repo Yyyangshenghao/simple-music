@@ -18,6 +18,7 @@ import { useContentProvider } from '../../hooks/useContentProvider'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
+import { drawsCaptionButtons } from './caption-buttons'
 import styles from './TopBar.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { TrackCoverImage } from '../ui/TrackCoverImage'
@@ -216,10 +217,13 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const platform = window.desktop?.platform
   const isMac = platform === 'darwin'
   const isWindows = platform === 'win32'
+  // Windows 与 Linux 的窗口按钮都由 WindowChrome 自绘，两者都要在顶栏右侧留出占位，
+  // 否则最右边的关闭按钮会压在头像上。
+  const hasCaptionButtons = drawsCaptionButtons(platform)
 
   return (
     <div
-      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${isWindows ? ` ${styles.barWin}` : ''}`}
+      className={`${styles.bar}${hidden ? ` ${styles.barHidden}` : ''}${isMac ? ` ${styles.barMac}` : ''}${hasCaptionButtons ? ` ${styles.barCaption}` : ''}`}
       onDoubleClick={(e) => {
         if (isWindows && e.target === e.currentTarget) void window.desktop.maximize()
       }}
