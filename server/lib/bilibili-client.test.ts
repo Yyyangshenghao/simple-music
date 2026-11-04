@@ -49,6 +49,8 @@ describe('视频标题拆成歌名/歌手读法', () => {
     expect(mapSearchVideo({ ...base, typename: '音乐综合', title: '【AI Ado】米津玄师-Lemon' })).toEqual([])
     expect(mapSearchVideo({ ...base, typename: '音乐综合', title: '【AI-MV】起风了-买辣椒也用券' })).toHaveLength(2)
     expect(mapSearchVideo({ ...base, bvid: 'bad', typename: 'MV', title: '《晴天》' })).toEqual([])
+    expect(mapSearchVideo({ ...base, typename: '翻唱', title: '《<em>晴天</em>》现场翻唱' }, 'browse'))
+      .toMatchObject([{ id: base.bvid, name: '《晴天》现场翻唱', artist: 'UP', duration: 270000 }])
     expect(parseDuration('1:04:30')).toBe(3870000)
     expect(parseDuration('x')).toBe(0)
   })

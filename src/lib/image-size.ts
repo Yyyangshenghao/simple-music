@@ -1,8 +1,11 @@
+import { api } from './api'
+
 /**
  * 按目标显示尺寸向图床请求缩小版图片,替代原图直出:
  * - 网易系图床(*.music.126.net / *.music.127.net)支持 `?param={w}y{h}` 服务端缩图,原图常有 1800×1800,
  *   小头像场景(选歌手画布几十上百个 76px 节点)原图直出会把下载/解码/显存全部拖垮;
  * - QQ photo_new 图床尺寸编码在路径里(`T001R300x300M000{mid}.jpg`),只认固定档位,就近向上取档改写;
+ * - B 站图床走已有的封面代理，避免桌面页面的 Referer 触发防盗链。
  * - 其他来源(本地文件、未知图床)原样返回。
  *
  * `px` 传显示尺寸的 2 倍(Retina),例如 76px 头像传 152。
@@ -47,6 +50,7 @@ export function sizedImage(url: string, px: number): string {
     return url
   }
   const host = u.hostname
+  if (host.endsWith('.hdslb.com')) return api.coverImage(url)
   if (host.endsWith('.music.126.net') || host.endsWith('.music.127.net')) {
     // 用户歌单封面可能已经带 imageView/thumbnail/watermark 处理链。
     // 这类地址再混入 param 会被网易图床判为非法请求并返回 400，必须保留原链路。

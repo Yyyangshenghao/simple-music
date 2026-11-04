@@ -4,7 +4,7 @@ import { PlaybackUnavailableError, type QualityOption } from './types'
 
 export const bilibiliService = new BilibiliMusicService()
 
-/** 只作跨源兜底：不进内容平台、搜索与我的库，不需要账号；音频走 /api/audio 代理补 Referer。 */
+/** 游客可搜索和点播音频，也可跨源兜底；音频走 /api/audio 代理补 Referer。 */
 export const bilibiliProvider = createLegacyProvider({
   descriptor: {
     id: 'bilibili', label: '哔哩哔哩', color: '#FB7299',
@@ -22,12 +22,19 @@ bilibiliProvider.playback = {
       .filter((item) => !seen.has(item.level) && seen.add(item.level))
       .map((item, rank): QualityOption => ({ id: item.level, label: item.quality, rank, bitrate: item.br }))
   },
-  async resolve(track, _quality, signal) {
-    // 游客只有三档 AAC，一次给出全部节点（高档在前），媒体出错时解析器按序换下一个。
-    const info = await bilibiliService.getPlayInfo(track, signal)
+  async resolve(track, quality, signal) {
+    const info = await bilibiliService.getPlayInfo(track, signal).catch((error: unknown) => {
+      if (error instanceof Error && error.message === 'BILIBILI_RATE_LIMITED') {
+        throw new PlaybackUnavailableError('哔哩哔哩请求受限，请稍后再试')
+      }
+      throw error
+    })
     if (!info.candidates.length) throw new PlaybackUnavailableError('哔哩哔哩没有返回可播放的音频')
+    // 已知的游客档位从该档起向下尝试；无对应档位时沿用最高可用档。
+    const requestedIndex = info.candidates.findIndex((item) => item.level === quality)
+    const candidates = info.candidates.slice(Math.max(requestedIndex, 0))
     const ranks = new Map<string, number>()
-    return info.candidates.map((item) => {
+    return candidates.map((item) => {
       if (!ranks.has(item.level)) ranks.set(item.level, ranks.size)
       return {
         source: 'bilibili' as const,

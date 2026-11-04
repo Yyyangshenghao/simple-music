@@ -1,10 +1,10 @@
 import { api } from './api'
+import { normalizeImageUrl } from './image-size'
 import type { MusicService, PlaylistSkeleton } from './music-service'
 import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
 
 /**
- * 哔哩哔哩只作跨源兜底：搜索结果只供同曲匹配（server 已把视频标题拆成歌名/歌手读法），
- * 不提供歌单、歌手、专辑、推荐与歌词；播放沿用原曲目的歌词与元数据。
+ * 哔哩哔哩游客音频能力。searchTracks 用于同曲匹配，searchVideos 保留视频原题和 UP 主。
  */
 export interface BilibiliAudioCandidate {
   url: string
@@ -29,6 +29,10 @@ export class BilibiliMusicService implements MusicService {
   async searchTracks(keyword: string): Promise<Track[]> {
     const res = await api.get<{ songs?: Track[] }>('/api/bilibili/search', { keywords: keyword })
     return res.songs ?? []
+  }
+  async searchVideos(keyword: string, signal: AbortSignal): Promise<Track[]> {
+    const res = await api.get<{ songs: Track[] }>('/api/bilibili/search', { keywords: keyword, mode: 'browse' }, { signal })
+    return res.songs.map((track) => ({ ...track, cover: normalizeImageUrl(track.cover) || undefined }))
   }
   async searchArtists(): Promise<ArtistInfo[]> { return [] }
   async getArtistDetail(id: unknown): Promise<ArtistInfo> { return { id, name: '', avatar: '', source: 'bilibili' } }

@@ -187,7 +187,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。
-- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`/`kugou`/`bilibili`/`qishui`)，本地音乐是 `MusicSource` 另加的一种值；新增分支不能把 `local` 落进网易兜底。`bilibili` 是只作跨源兜底的平台（`FALLBACK_ONLY_PROVIDER_IDS`）：无账号、默认关闭，在设置的播放偏好里开关，固定排在播放顺序最后；不进内容平台、搜索、我的库与歌词来源，界面列平台时用 `CONTENT_PROVIDER_IDS`。顺序里有兜底平台时解析器把试听片段推到最后，先找完整音频；B 站音频不写播放缓存。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
+- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`/`kugou`/`bilibili`/`qishui`)，本地音乐是 `MusicSource` 另加的一种值；新增分支不能把 `local` 落进网易兜底。`bilibili` 是默认关闭的实验性音频渠道。在播放偏好开启后，聚合搜索可按哔哩哔哩筛选音乐区视频并点播原视频音频。跨源兜底时固定排在最后，内容平台切换、我的库和歌词来源不包含哔哩哔哩。顺序里有兜底平台时解析器把试听片段推到最后，先找完整音频；B 站音频不写播放缓存。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
 
 应用歌单由 `app-playlists` store 独立管理。详情经 `app-playlist` 路由打开，保留我的库原分类与滚动位置。播放时按当前平台参与状态、本地文件存在性和完整离线状态快照筛选并复制曲目；编辑、删除不改当前队列。新增与重命名复用主题原生 `<dialog>`，对话框中暂停应用快捷键并避让祖先多选捕获，取消或卸载后迟到集合解析不得保存。
 

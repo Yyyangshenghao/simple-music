@@ -1431,7 +1431,8 @@ export function SettingsPage() {
                         <PlaybackOrderEditor
                           order={visiblePlaybackOrder}
                           followOrigin={preferOriginSource}
-                          emptyMessage={playbackAuthPending ? '正在核实平台账号状态…' : '先在“音源与账户”中启用一个平台'}
+                          emptyMessage={playbackAuthPending ? '正在核实平台账号状态…'
+                            : providerState.bilibili.enabled ? '已启用哔哩哔哩，可通过搜索点播' : '先在“音源与账户”中启用一个平台'}
                           onChange={setPlaybackOrder}
                         />
                       </div>
@@ -1454,18 +1455,13 @@ export function SettingsPage() {
 
                       <div data-setting-row className={styles.playbackFallbackRow}>
                         <div>
-                          <strong data-setting-label>用哔哩哔哩补位</strong>
-                          <small>
-                            {multiSourceFallback
-                              ? '其他平台都放不了时，播放 B 站音乐区同一首歌的用户上传视频音频，最高 192K，不缓存。'
-                              : '需先开启「播放失败后自动换源」。'}
-                          </small>
+                          <strong data-setting-label>哔哩哔哩（实验性）</strong>
+                          <small>在应用内搜索和播放音乐视频的音频。开启自动换源后也可用于补位。B 站限流时可能暂时不可用。</small>
                         </div>
                         <Switch
                           checked={providerState.bilibili.enabled}
-                          disabled={!multiSourceFallback}
                           onChange={(enabled) => setProviderEnabled('bilibili', enabled)}
-                          aria-label="用哔哩哔哩补位"
+                          aria-label="哔哩哔哩（实验性）"
                         />
                       </div>
 

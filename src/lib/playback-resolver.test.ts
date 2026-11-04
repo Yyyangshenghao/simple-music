@@ -64,6 +64,14 @@ describe('buildPlaybackSourceOrder', () => {
     expect(buildPlaybackSourceOrder(track('qq'), preferences, participating)).toEqual(['qq', 'netease'])
   })
 
+  it('点播哔哩哔哩时优先播放原视频音频，即使使用固定顺序且关闭自动换源', () => {
+    expect(buildPlaybackSourceOrder(track('bilibili'), {
+      playbackOrder: ['qq', 'netease', 'bilibili'],
+      preferOriginSource: false,
+      multiSourceFallback: false,
+    }, participating)).toEqual(['bilibili'])
+  })
+
   it('手动软优先在最前，其后是原源和全局顺序', () => {
     expect(buildPlaybackSourceOrder(track('netease'), {
       playbackOrder: ['netease', 'qq'],

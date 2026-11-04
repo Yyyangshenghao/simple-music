@@ -1,7 +1,7 @@
 import { isSafeUpstreamUrl } from './security'
 
 /**
- * 哔哩哔哩视频音频流，只作跨源兜底：网易云/QQ 放不了时按「歌名 歌手」在音乐区搜同一首歌。
+ * 哔哩哔哩视频音频流，支持主动搜索音乐区和跨源同曲兜底。
  * 只用网页端公开的游客接口：finger/spi 取 buvid3 作 Cookie，search/type 搜音乐区视频，
  * 旧版 x/player/playurl（fnval=16）取 DASH 音频。不签名、不登录，不请求大会员档位（Hi-Res/杜比）。
  * 搜索与 cid 查询、playurl 参考 MusicFreePlugins 的 bilibili 插件（GPL-3.0，仅参考接口形态）。
@@ -219,18 +219,22 @@ function coverUrl(value: unknown): string {
   return text.startsWith('//') ? `https:${text}` : text.replace(/^http:/, 'https:')
 }
 
-export function mapSearchVideo(item: unknown): BilibiliTrack[] {
+export function mapSearchVideo(item: unknown, mode: 'match' | 'browse' = 'match'): BilibiliTrack[] {
   const video = asObj(item)
   const bvid = String(video.bvid ?? '')
   if (!/^BV[0-9A-Za-z]{10}$/.test(bvid)) return []
-  if (EXCLUDED_ZONES.has(String(video.typename ?? ''))) return []
   const duration = parseDuration(video.duration)
   const uploader = String(video.author ?? '')
   const videoTitle = decodeEntities(String(video.title ?? '').replace(/<[^>]+>/g, ''))
+  if (!videoTitle.trim()) return []
+  if (mode === 'match' && EXCLUDED_ZONES.has(String(video.typename ?? ''))) return []
   // 歌词摘句里的字（如「现场」）不算版本标记。
   const versionText = videoTitle.normalize('NFKC').replace(/「[^」]*」|『[^』]*』|[“"‘'][^”"’']{6,}[”"’']/gu, ' ')
-  if (NOT_ORIGINAL.test(versionText)) return []
-  return readingsFromTitle(String(video.title ?? ''), uploader).map((reading) => ({
+  if (mode === 'match' && NOT_ORIGINAL.test(versionText)) return []
+  const readings = mode === 'browse'
+    ? [{ name: videoTitle, artists: uploader ? [uploader] : [] }]
+    : readingsFromTitle(String(video.title ?? ''), uploader)
+  return readings.map((reading) => ({
     provider: 'bilibili',
     source: 'bilibili',
     type: 'song',
@@ -256,9 +260,10 @@ export function isBvid(value: string | null): value is string {
   return !!value && /^BV[0-9A-Za-z]{10}$/.test(value)
 }
 
-/** 在音乐区按综合排序搜视频，第一页 20 条已够同曲匹配用。 */
-export async function searchBilibiliTracks(keyword: string, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<BilibiliTrack[]> {
-  const hit = searchCache.get(keyword)
+/** 在音乐区按综合排序搜视频，取第一页。 */
+export async function searchBilibiliTracks(keyword: string, fetchImpl: typeof fetch = fetch, now = Date.now(), mode: 'match' | 'browse' = 'match'): Promise<BilibiliTrack[]> {
+  const cacheKey = `${mode}:${keyword}`
+  const hit = searchCache.get(cacheKey)
   if (hit && hit.expiresAt > now) return hit.tracks
   const cookie = await guestCookie(fetchImpl)
   const data = await requestJson('/x/web-interface/search/type', {
@@ -267,9 +272,11 @@ export async function searchBilibiliTracks(keyword: string, fetchImpl: typeof fe
     tids: '3',
     page: '1',
   }, fetchImpl, cookie)
-  const tracks = (Array.isArray(data.result) ? data.result : []).flatMap(mapSearchVideo)
-  remember(searchCache, keyword, { tracks, expiresAt: now + SEARCH_TTL_MS })
-  return tracks
+  const results = Array.isArray(data.result) ? data.result : []
+  const tracks = results.flatMap((item) => mapSearchVideo(item, mode))
+  const uniqueTracks = mode === 'browse' ? [...new Map(tracks.map((track) => [track.bvid, track])).values()] : tracks
+  remember(searchCache, cacheKey, { tracks: uniqueTracks, expiresAt: now + SEARCH_TTL_MS })
+  return uniqueTracks
 }
 
 async function cidOf(bvid: string, fetchImpl: typeof fetch, cookie: string): Promise<number> {

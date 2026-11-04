@@ -39,6 +39,7 @@ describe('聚合搜索页面', () => {
     expect(html).toContain('网易云')
     expect(html).toContain('QQ音乐')
     expect(html).not.toContain('Apple Music')
+    expect(html).not.toContain('哔哩哔哩')
     expect(html).toContain('正在寻找相关歌手')
     expect(html).toContain('正在搜索各平台的歌曲')
     expect(html).not.toContain('没有找到相关歌曲')
@@ -54,6 +55,16 @@ describe('聚合搜索页面', () => {
     expect(html).toContain('请先登录并启用至少一个音乐平台')
     expect(html).toContain('前往设置')
     expect(html).not.toContain('搜索中')
+  })
+
+  it('已启用的哔哩哔哩游客音源只展示歌曲搜索', () => {
+    const { byId } = useProviderStore.getState()
+    useProviderStore.setState({ byId: { ...byId, bilibili: { enabled: true, auth: 'anonymous' } } })
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category: 'artists', sourceFilter: 'bilibili', scrollTop: 0 }} />)
+    expect(html).toContain('哔哩哔哩')
+    expect(html).toContain('实验性')
+    expect(html).toContain('aria-label="歌曲搜索结果"')
+    expect(html).not.toContain('aria-label="歌手搜索结果"')
   })
 
   it('搜索词作为文本显示', () => {

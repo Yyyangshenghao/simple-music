@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, useIsPresent } from 'motion/react'
+import { bilibiliService } from '../providers/bilibili-provider'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
@@ -26,6 +27,9 @@ const categories: Record<Category, string> = { all: '全部', songs: '歌曲', a
 const trackKey = (track: Track) => `track:${track.source}:${String(track.id)}`
 const collectionKey = (item: Playlist) => `${item.type}:${item.source}:${String(item.id)}`
 
+const canSearch = (source: ProviderId, state: { enabled: boolean; auth: string }) =>
+  state.enabled && (source === 'bilibili' || state.auth === 'authenticated')
+
 type Results<T> = Partial<Record<ProviderId, ProviderResult<T[]>>>
 
 export function SearchPage({ keyword, initialState }: { keyword: string; initialState?: SearchPageState }) {
@@ -33,7 +37,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
   const [artists, setArtists] = useState<Results<ArtistInfo>>({})
   const [albums, setAlbums] = useState<Results<Playlist>>({})
   const [playlists, setPlaylists] = useState<Results<Playlist>>({})
-  const [category, setCategory] = useState<Category>(initialState?.category ?? 'all')
+  const [selectedCategory, setCategory] = useState<Category>(initialState?.category ?? 'all')
   const [selecting, setSelecting] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(initialState?.sourceFilter ?? null)
   const [retry, setRetry] = useState(0)
@@ -50,11 +54,14 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
   const navigateTo = useNavigationStore((state) => state.navigateTo)
   const updatePageState = useNavigationStore((state) => state.updateSearchPageState)
   const enabledSignature = useProviderStore((state) => PROVIDER_IDS.map((source) =>
-    `${state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0'}:${providerAccountSession(source)}`
+    `${canSearch(source, state.byId[source]) ? '1' : '0'}:${providerAccountSession(source)}`
   ).join('|'))
   const sources = useMemo(() => PROVIDER_IDS.filter((_, index) => enabledSignature.split('|')[index].startsWith('1:')), [enabledSignature])
   const activeFilter = sourceFilter && sources.includes(sourceFilter) ? sourceFilter : null
   const visibleSources = activeFilter ? [activeFilter] : sources
+  const visibleCatalogSources = visibleSources.filter((source) => source !== 'bilibili')
+  const songsOnly = visibleSources.length > 0 && visibleCatalogSources.length === 0
+  const category = songsOnly ? 'songs' : selectedCategory
 
   useEffect(() => {
     const controller = new AbortController()
@@ -70,24 +77,27 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
       signal: controller.signal,
       isEnabled: (source: ProviderId) => {
         const state = useProviderStore.getState().byId[source]
-        return state.enabled && state.auth === 'authenticated' && sessions.get(source) === providerAccountSession(source)
+        return canSearch(source, state) && sessions.get(source) === providerAccountSession(source)
       },
       isEmpty: (items: unknown[]) => items.length === 0,
     }
     // 歌曲与歌手分别落地，某一类请求失败不会吞掉另一类的结果。
-    void runProviderTasks(sources, (source) => providerFor(source).catalog.searchTracks(keyword.trim()), {
+    void runProviderTasks(sources, (source) => source === 'bilibili'
+      ? bilibiliService.searchVideos(keyword.trim(), controller.signal)
+      : providerFor(source).catalog.searchTracks(keyword.trim()), {
       ...options,
       onUpdate: (result) => setSongs((current) => ({ ...current, [result.source]: result })),
     })
-    void runProviderTasks(sources, (source) => providerFor(source).catalog.searchArtists(keyword.trim()), {
+    const catalogSources = sources.filter((source) => source !== 'bilibili')
+    void runProviderTasks(catalogSources, (source) => providerFor(source).catalog.searchArtists(keyword.trim()), {
       ...options,
       onUpdate: (result) => setArtists((current) => ({ ...current, [result.source]: result })),
     })
-    void runProviderTasks(sources, (source) => providerFor(source).catalog.searchAlbums?.(keyword.trim()) ?? Promise.resolve([]), {
+    void runProviderTasks(catalogSources, (source) => providerFor(source).catalog.searchAlbums?.(keyword.trim()) ?? Promise.resolve([]), {
       ...options,
       onUpdate: (result) => setAlbums((current) => ({ ...current, [result.source]: result })),
     })
-    void runProviderTasks(sources, (source) => providerFor(source).catalog.searchPlaylists?.(keyword.trim()) ?? Promise.resolve([]), {
+    void runProviderTasks(catalogSources, (source) => providerFor(source).catalog.searchPlaylists?.(keyword.trim()) ?? Promise.resolve([]), {
       ...options,
       onUpdate: (result) => setPlaylists((current) => ({ ...current, [result.source]: result })),
     })
@@ -98,10 +108,10 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
   const visibleArtists = visibleSources.flatMap((source) => artists[source]?.data ?? [])
   const visibleAlbums = visibleSources.flatMap((source) => albums[source]?.data ?? [])
   const visiblePlaylists = visibleSources.flatMap((source) => playlists[source]?.data ?? [])
-  const albumsLoading = visibleSources.some((source) => !albums[source] || albums[source]?.status === 'loading')
-  const playlistsLoading = visibleSources.some((source) => !playlists[source] || playlists[source]?.status === 'loading')
+  const albumsLoading = visibleCatalogSources.some((source) => !albums[source] || albums[source]?.status === 'loading')
+  const playlistsLoading = visibleCatalogSources.some((source) => !playlists[source] || playlists[source]?.status === 'loading')
   const songsLoading = visibleSources.some((source) => !songs[source] || songs[source]?.status === 'loading')
-  const artistsLoading = visibleSources.some((source) => !artists[source] || artists[source]?.status === 'loading')
+  const artistsLoading = visibleCatalogSources.some((source) => !artists[source] || artists[source]?.status === 'loading')
   const resultsLoading = category === 'all' ? songsLoading || artistsLoading || albumsLoading || playlistsLoading
     : category === 'songs' ? songsLoading : category === 'artists' ? artistsLoading : category === 'albums' ? albumsLoading : playlistsLoading
 
@@ -221,7 +231,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
 
         {/* 类型与来源同处一行：类型是主筛选，来源靠右作为范围。 */}
         <div className={styles.toolbar}>
-          {sources.length > 0 && <div className={styles.categories} role="group" aria-label="筛选搜索类型">
+          {sources.length > 0 && !songsOnly && <div className={styles.categories} role="group" aria-label="筛选搜索类型">
             {(Object.keys(categories) as Category[]).map((item) => <button type="button" key={item} aria-pressed={category === item} onClick={() => changeFilters({ category: item })}>{categories[item]}</button>)}
           </div>}
           <div className={styles.filters} role="group" aria-label="筛选搜索来源">
@@ -229,7 +239,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
             {sources.map((source) => (
               <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => changeFilters({ sourceFilter: source })}>
                 <SourceBadge source={source} compact reveal />
-                <span><SourceName source={source} /></span>
+                <span><SourceName source={source} />{source === 'bilibili' && ' · 实验性'}</span>
               </button>
             ))}
           </div>

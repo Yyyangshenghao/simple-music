@@ -39,6 +39,13 @@ describe('应用歌单播放边界', () => {
     expect(appPlaylistTrackState(song('apple'), ctx).available).toBe(false)
     expect(appPlaylistTrackState({ ...song('netease'), playable: false }, ctx)).toMatchObject({ status: '曲目暂不可用', invalid: true })
   })
+  it('已启用的哔哩哔哩条目无需登录即可从应用歌单起播', () => {
+    const ctx = context()
+    const track = song('bilibili', 'BV1BZbSzZEGT')
+    expect(appPlaylistTrackState(track, ctx).status).toBe('平台已停用')
+    ctx.providers.bilibili.enabled = true
+    expect(appPlaylistPlaybackTracks([track], ctx)).toEqual([track])
+  })
   it('QQ 的 playable=false 只表示尚未解析地址，登录可用时照常播放且不算失效', () => {
     const ctx = context()
     ctx.providers.qq = { enabled: true, auth: 'authenticated' }

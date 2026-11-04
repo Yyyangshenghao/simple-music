@@ -80,6 +80,7 @@ export function buildPlaybackSourceOrder(
   const originSource = isProviderId(origin.source) ? origin.source : undefined
   const ordered = uniqueSources([
     preferences.preferredSource,
+    originSource === 'bilibili' ? originSource : undefined,
     preferences.preferOriginSource ? originSource : undefined,
     ...preferences.playbackOrder,
     !preferences.preferOriginSource ? originSource : undefined,

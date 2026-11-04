@@ -49,7 +49,7 @@ function savedTrack(track: Track): Track {
 function validTrack(value: unknown): value is Track {
   if (!value || typeof value !== 'object') return false
   const track = value as Track
-  return ['netease', 'qq', 'apple', 'kugou', 'qishui', 'local'].includes(track.source)
+  return ['netease', 'qq', 'apple', 'kugou', 'bilibili', 'qishui', 'local'].includes(track.source)
     && (typeof track.id === 'string' || typeof track.id === 'number') && String(track.id).length > 0
     && typeof track.type === 'string' && typeof track.name === 'string' && typeof track.artist === 'string'
     && Array.isArray(track.artists) && track.artists.every(artist => artist && typeof artist.name === 'string')

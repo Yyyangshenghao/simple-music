@@ -3,8 +3,8 @@ import { sendJson } from '../lib/http'
 import { BilibiliRiskError, getBilibiliPlayInfo, isBvid, parseBilibiliKeyword, searchBilibiliTracks } from '../lib/bilibili-client'
 
 /**
- * 哔哩哔哩跨源兜底（只读游客接口，见 lib/bilibili-client.ts）：
- * - GET /api/bilibili/search?keywords=…：音乐区视频按标题拆出的候选 { songs }，同曲判定在渲染层
+ * 哔哩哔哩搜索与音频播放（只读游客接口，见 lib/bilibili-client.ts）：
+ * - GET /api/bilibili/search?keywords=…：默认返回同曲匹配候选，mode=browse 保留视频原题和 UP 主
  * - GET /api/bilibili/song/url?bvid=…：DASH 音频候选 { candidates: [{ url, level, quality, br }], expiresAt }
  * - GET /api/bilibili/song/qualities?bvid=…：该视频实际可得的游客档位 { qualities: [{ level, label, br }] }
  * 音频地址交给 /api/audio 代理播放（补 Referer、经 SSRF 校验）。风控熔断时返回 503。
@@ -23,7 +23,8 @@ export const bilibiliRoutes: RouteHandler = async (req, res, url) => {
         sendJson(res, { error: 'INVALID_PARAMS', songs: [] }, 400)
         return true
       }
-      sendJson(res, { songs: await searchBilibiliTracks(keyword) })
+      const mode = url.searchParams.get('mode') === 'browse' ? 'browse' : 'match'
+      sendJson(res, { songs: await searchBilibiliTracks(keyword, fetch, Date.now(), mode) })
       return true
     }
     if (pn === '/api/bilibili/song/url' || pn === '/api/bilibili/song/qualities') {

@@ -62,6 +62,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
+  const bilibiliEnabled = useProviderStore((state) => state.byId.bilibili.enabled)
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
@@ -391,7 +392,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
               )}
               {loading && <p className={styles.searchHint}>搜索中…</p>}
               {showNoResults && keyword.length > 0 && (
-                <p className={styles.searchHint}>{enabledSources.length === 0 ? '请先启用音乐平台' : '无结果'}</p>
+                <p className={styles.searchHint}>{bilibiliEnabled ? '按回车查看完整搜索结果' : enabledSources.length === 0 ? '请先启用音乐平台' : '无结果'}</p>
               )}
               {activeSearchSource && activeSearchResult?.status === 'error' && (
                 <p className={styles.providerError}>{activeSearchResult.error?.message}</p>
