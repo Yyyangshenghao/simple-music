@@ -5,6 +5,7 @@ import { useNavigationStore, type AppView } from '../../stores/navigation'
 import { usePlaylistStore } from '../../stores/playlist'
 import type { Track, ArtistInfo } from '../../types/domain'
 import { AvatarMenu } from './AvatarMenu'
+import { SourceAvatar } from '../ui/SourceAvatar'
 import { TaskBubble } from './TaskBubble'
 import { SearchHotkeys } from '../Search/SearchHotkeys'
 import { SearchHistory } from '../Search/SearchHistory'
@@ -64,6 +65,8 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const searchSeq = useRef(0)
   const bilibiliEnabled = useProviderStore((state) => state.byId.bilibili.enabled)
+  // 顶栏头像跟随当前内容平台；未登录或游客平台没有头像时显示通用图标 + 平台角标。
+  const contentAvatar = useProviderStore((state) => contentSource ? state.byId[contentSource].profile?.avatar ?? '' : '')
   const enabledSignature = useProviderStore((state) =>
     PROVIDER_IDS.map((source) => state.byId[source].enabled && state.byId[source].auth === 'authenticated' ? '1' : '0').join('')
   )
@@ -442,10 +445,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
             transition={springSnappy}
           >
             <span className={styles.avatarInner}>
-              <svg className={styles.accountGlyph} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              {contentSource ? <SourceAvatar source={contentSource} avatarUrl={contentAvatar} /> : <svg className={styles.accountGlyph} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4.5 20.5c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5" />
-              </svg>
+              </svg>}
             </span>
           </motion.button>
           {avatarMenuOpen && (
