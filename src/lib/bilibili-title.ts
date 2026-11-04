@@ -31,6 +31,24 @@ export interface TitleReading {
 }
 
 /**
+ * 只读取简介里明确标注的歌曲和演唱者。同一字段有多种值时，不把合集简介当作单曲信息。
+ */
+export function readingFromDescription(description: unknown): TitleReading | undefined {
+  if (typeof description !== 'string') return undefined
+  const fields = /(?:^|[\n;；])[^\S\r\n]*(歌曲|歌名|曲名|演唱|歌手)[^\S\r\n]*[:：][^\S\r\n]*([^\r\n;；]+)/gu
+  const titles = new Set<string>()
+  const singers = new Set<string>()
+  for (const [, label, raw] of bilibiliTitleText(description.slice(0, 2000)).matchAll(fields)) {
+    const value = raw.trim().replace(/^《([^》]+)》$/u, '$1')
+    if (!value || [...value].length > 80) continue
+    const values = label === '演唱' || label === '歌手' ? singers : titles
+    values.add(value)
+  }
+  const [name] = titles
+  return titles.size === 1 && singers.size === 1 ? { name, artists: [...singers] } : undefined
+}
+
+/**
  * 视频标题 → 若干种「歌名 + 歌手」读法。B 站标题没有固定格式，常见写法：
  * 「【Hi-Res】《晴天》- 周杰伦」「周杰伦 - 晴天MV」「米津玄師「Lemon」」。
  * 有书名号/直角引号时只取其中的歌名；否则按分隔符拆段，每段都试作歌名，其余段与 UP 主作歌手。

@@ -61,6 +61,7 @@ export interface Track {
   playable?: boolean
   quality?: AudioQuality
   /** 不同来源透传的额外字段（mid/songmid 等）。 */
+  bilibiliLyricHint?: { name: string; artists: string[] }
   [key: string]: unknown
 }
 

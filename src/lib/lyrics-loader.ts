@@ -40,7 +40,7 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
       track.album, track.duration, String(track.isrc ?? track.ISRC ?? ''),
     ] : []),
     ...(track.source === 'qq' ? [qqLyricIdentifiers(track)] : []),
-    ...(track.source === 'bilibili' ? [track.videoTitle] : []),
+    ...(track.source === 'bilibili' ? [track.videoTitle, track.bilibiliLyricHint] : []),
   ])])
 }
 

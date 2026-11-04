@@ -7,7 +7,7 @@ import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, isInstrumentalPlaceholder, stripLineCredits, stripWordLineCredits } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
-import { findEquivalentTrack, scoreTrackMatch, TrackMatchMismatchError, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
+import { findEquivalentTrack, normalizeMatchText, scoreTrackMatch, TrackMatchMismatchError, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
@@ -82,25 +82,17 @@ function hasTimedLyrics(result: LyricsResult): boolean {
 function lyricIdentities(track: Track): Track[] {
   if (track.source !== 'bilibili' || typeof track.bilibiliLyricVersionTitle === 'string') return [track]
   const videoTitle = typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
-  return readingsFromTitle(videoTitle, '').map(({ name, artists }) => ({
+  const hint = track.bilibiliLyricHint
+  const titleReadings = readingsFromTitle(videoTitle, '')
+  const hasHint = typeof hint?.name === 'string' && hint.name.trim() && Array.isArray(hint.artists)
+    && hint.artists.length === 1 && typeof hint.artists[0] === 'string' && hint.artists[0].trim()
+  if (hasHint && /《[^》]+》|「[^」]+」|『[^』]+』/u.test(videoTitle) && titleReadings.length
+    && normalizeMatchText(hint.name) !== normalizeMatchText(titleReadings[0].name)) return []
+  const readings = hasHint ? [hint] : titleReadings
+  return readings.map(({ name, artists }) => ({
     ...track, name, artist: artists.join(' / '), artists: artists.map(name => ({ id: null, name })),
     bilibiliLyricVersionTitle: videoTitle,
   }))
-}
-
-async function queryLyricIdentities<T>(track: Track, query: (identity: Track) => Promise<T | null>): Promise<T | null> {
-  let mismatch: Error | undefined
-  for (const identity of lyricIdentities(track)) {
-    try {
-      const result = await query(identity)
-      if (result) return result
-    } catch (error) {
-      if (!(error instanceof TrackMatchMismatchError || error instanceof LyricMismatchError)) throw error
-      mismatch = error
-    }
-  }
-  if (mismatch) throw mismatch
-  return null
 }
 
 /** 歌词要求同一录音与可靠时长，不能把现场、翻唱或不同 ISRC 的时间轴套进来。 */
@@ -113,10 +105,30 @@ export function isLyricMatch(track: Track, target: Track): boolean {
   return lyricIdentities(track).some(identity => (scoreTrackMatch(identity, target) ?? 0) >= TRACK_MATCH_THRESHOLD)
 }
 
-/** 按该平台当前的歌词模式找同曲：账号模式沿用播放匹配缓存，游客模式走游客搜索与独立缓存。 */
-export function findLyricMatch(track: Track, source: ProviderId, signal?: AbortSignal, strict = false, refresh = false) {
+/** 按该平台当前的歌词模式找同曲。B 站标题有多种读法时，比较各自通过校验的最佳结果。 */
+export async function findLyricMatch(track: Track, source: ProviderId, signal?: AbortSignal, strict = false, refresh = false) {
   const mode = lyricServiceMode(source) === 'guest' ? 'guest' : 'account'
-  return queryLyricIdentities(track, identity => findEquivalentTrack(identity, source, signal, Date.now(), strict, refresh, mode))
+  const query = (identity: Track) => findEquivalentTrack(identity, source, signal, Date.now(), strict, refresh, mode)
+  if (track.source !== 'bilibili') return query(track)
+
+  const matches = new Map<string, TrackMatchResult>()
+  let mismatch: TrackMatchMismatchError | undefined
+  for (const identity of lyricIdentities(track)) {
+    try {
+      const match = await query(identity)
+      if (!match || !isLyricMatch(identity, match.track)) continue
+      const id = String(match.track.mid ?? match.track.id)
+      const previous = matches.get(id)
+      if (!previous || match.score > previous.score) matches.set(id, match)
+    } catch (error) {
+      if (!(error instanceof TrackMatchMismatchError)) throw error
+      mismatch = error
+    }
+  }
+  const [best, next] = [...matches.values()].sort((a, b) => b.score - a.score)
+  if (best && (!next || best.score - next.score >= 5)) return best
+  if (strict && (best || mismatch)) throw mismatch ?? new TrackMatchMismatchError()
+  return null
 }
 
 /** Apple 曲目在 AMLL 中的 ID：资料库歌曲取对应的目录 ID；没有目录 ID 时不查询。 */
@@ -212,7 +224,26 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   // 本地曲目只接受已由标签确认的身份（localLyricSource 的 identity），不按文件名回退的歌名查询。
   if ((track.source === 'local' && track.localTagged !== true) || hasTimedLyrics(result) || signal?.aborted) return null
   if (!useSettingsStore.getState().lyricsKugouFallback) return null
-  return queryLyricIdentities(track, identity => fetchKugouLyrics(identity, result, signal, strict, refresh))
+  let matched: LyricsResult | null = null
+  let mismatch: LyricMismatchError | undefined
+  for (const identity of lyricIdentities(track)) {
+    let candidate: LyricsResult | null
+    try {
+      candidate = await fetchKugouLyrics(identity, result, signal, strict, refresh)
+    } catch (error) {
+      if (!(error instanceof LyricMismatchError)) throw error
+      mismatch = error
+      continue
+    }
+    if (!candidate) continue
+    if (matched) {
+      if (strict) throw new LyricMismatchError()
+      return null
+    }
+    matched = candidate
+  }
+  if (!matched && mismatch) throw mismatch
+  return signal?.aborted ? null : matched
 }
 
 async function fetchKugouLyrics(track: Track, result: LyricsResult, signal: AbortSignal | undefined, strict: boolean, refresh: boolean): Promise<LyricsResult | null> {

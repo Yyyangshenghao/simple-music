@@ -1,4 +1,4 @@
-import { bilibiliTitleText, readingsFromTitle } from '../../src/lib/bilibili-title'
+import { bilibiliTitleText, readingFromDescription, readingsFromTitle, type TitleReading } from '../../src/lib/bilibili-title'
 import { isSafeUpstreamUrl } from './security'
 
 /**
@@ -48,6 +48,7 @@ export interface BilibiliTrack {
   uploader: string
   /** 原视频标题，供界面说明来源。 */
   videoTitle: string
+  bilibiliLyricHint?: TitleReading
 }
 
 export interface BilibiliAudioCandidate {
@@ -163,6 +164,7 @@ export function mapSearchVideo(item: unknown, mode: 'match' | 'browse' = 'match'
   // 歌词摘句里的字（如「现场」）不算版本标记。
   const versionText = videoTitle.normalize('NFKC').replace(/「[^」]*」|『[^』]*』|[“"‘'][^”"’']{6,}[”"’']/gu, ' ')
   if (mode === 'match' && NOT_ORIGINAL.test(versionText)) return []
+  const lyricHint = mode === 'browse' ? readingFromDescription(video.description) : undefined
   const readings = mode === 'browse'
     ? [{ name: videoTitle, artists: uploader ? [uploader] : [] }]
     : readingsFromTitle(String(video.title ?? ''), uploader)
@@ -180,6 +182,7 @@ export function mapSearchVideo(item: unknown, mode: 'match' | 'browse' = 'match'
     bvid,
     uploader,
     videoTitle,
+    ...(lyricHint ? { bilibiliLyricHint: lyricHint } : {}),
   }))
 }
 

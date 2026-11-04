@@ -51,6 +51,11 @@ describe('视频标题拆成歌名/歌手读法', () => {
     expect(mapSearchVideo({ ...base, bvid: 'bad', typename: 'MV', title: '《晴天》' })).toEqual([])
     expect(mapSearchVideo({ ...base, typename: '翻唱', title: '《<em>晴天</em>》现场翻唱' }, 'browse'))
       .toMatchObject([{ id: base.bvid, name: '《晴天》现场翻唱', artist: 'UP', duration: 270000 }])
+    const described = { ...base, title: '一个音乐视频', description: '歌名：《晴天》\n演唱：周杰伦\n原唱：另一人' }
+    expect(mapSearchVideo(described, 'browse')[0]?.bilibiliLyricHint).toEqual({ name: '晴天', artists: ['周杰伦'] })
+    expect(mapSearchVideo({ ...described, description: described.description + '\n歌曲：夜曲' }, 'browse')[0]?.bilibiliLyricHint).toBeUndefined()
+    expect(mapSearchVideo({ ...described, description: '歌曲：晴天\n原唱：周杰伦' }, 'browse')[0]?.bilibiliLyricHint).toBeUndefined()
+    expect(mapSearchVideo({ ...described, description: '歌曲：\n演唱：周杰伦' }, 'browse')[0]?.bilibiliLyricHint).toBeUndefined()
     expect(parseDuration('1:04:30')).toBe(3870000)
     expect(parseDuration('x')).toBe(0)
   })

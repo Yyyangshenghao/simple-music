@@ -62,6 +62,43 @@ describe('来源锁定', () => {
     expect(track.name).toBe(name)
   })
 
+  it('B 站简介明确标注歌名和演唱者时优先使用这组信息', async () => {
+    const track = song('bilibili', { name: '晴天现场之外的随手记录', bilibiliLyricHint: { name: '晴天', artists: ['周杰伦'] } })
+    // 保留原视频标题的版本校验，即使简介给了明确的歌名和歌手。
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    h.netease.mockClear()
+    expect(await queryLyricsSource({ ...track, name: '一个音乐视频' }, 'netease', ['netease'])).toMatchObject({ status: 'ready' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+  })
+
+  it('简介和标题的明确歌名冲突时不自动套歌词', async () => {
+    const track = song('bilibili', { name: '周杰伦《夜曲》', bilibiliLyricHint: { name: '晴天', artists: ['周杰伦'] } })
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'empty' })
+    expect(h.netease).not.toHaveBeenCalled()
+  })
+
+  it('两种 B 站标题读法都能查到酷狗歌词时不任取其一', async () => {
+    const track = song('bilibili', { name: '周杰伦 - 晴天' })
+    vi.mocked(api.get).mockImplementation(async (_path, params) => ({
+      candidates: [{ title: params?.title, artist: params?.artist, duration: 180_000, text: krc }],
+    }) as never)
+    expect(await queryLyricsSource(track, 'kugou', [])).toMatchObject({ status: 'mismatch' })
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([182_900, 180_000])('比较 B 站横线两侧的读法（第一种候选时长 %i）', async (duration) => {
+    const track = song('bilibili', { name: '周杰伦 - 晴天' })
+    h.netease.mockImplementation(async (keyword: string) => {
+      if (keyword === '周杰伦 晴天') return [song('netease', { id: 'reversed', name: '周杰伦', artist: '晴天', duration })]
+      if (keyword === '晴天 周杰伦') return [song('netease', { id: 'correct' })]
+      return []
+    })
+    const result = await queryLyricsSource(track, 'netease', ['netease'])
+    expect(h.netease).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject(duration === 180_000 ? { status: 'mismatch' } : { status: 'ready', match: { id: 'correct' } })
+  })
+
   it('酷狗用 B 站视频中解析出的歌名和歌手查询', async () => {
     const track = song('bilibili', { name: '上传时的显示标题', videoTitle: '晴天 - 周杰伦', artist: '上传账号' })
     vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
