@@ -106,6 +106,8 @@
 }
 
 .artistLine .artist { min-width: 0; }
+.artistLine[data-caption] .artist { flex-shrink: 0; max-width: 60%; }
+.artistLine .caption { min-width: 0; color: var(--sm-text-muted); }
 
 /* 宽行按比例分配标题与专辑列：专辑起点稳定落在行宽中段，宽屏不必横跨整行寻找。 */
 .album {

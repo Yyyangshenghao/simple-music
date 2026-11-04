@@ -3,6 +3,7 @@ import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
+import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
@@ -17,7 +18,8 @@ import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 interface TrackRowProps {
   track: Track
   index?: number
-  display?: { name: string; artist: string; caption?: string }
+  /** 搜索页用独立第三行，固定高度的虚拟列表用行内原题。 */
+  expandedCaption?: boolean
   onPlay(): void
   disabled?: boolean
   statusLabel?: string
@@ -45,7 +47,8 @@ function OfflineIcon({ downloaded }: { downloaded: boolean }) {
   )
 }
 
-export function TrackRow({ track, index, display, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
+export function TrackRow({ track, index, expandedCaption = false, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
+  const display = bilibiliTrackDisplay(track)
   const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
@@ -88,7 +91,7 @@ export function TrackRow({ track, index, display, onPlay, disabled = false, stat
 
   return (
     <div
-      className={`${styles.row}${display?.caption ? ` ${styles.rowWithCaption}` : ''}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
+      className={`${styles.row}${expandedCaption && display?.caption ? ` ${styles.rowWithCaption}` : ''}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
       onContextMenu={(e) => {
         e.preventDefault()
         useTrackActionsStore.getState().openMenu(track, { x: e.clientX, y: e.clientY, width: 0, height: 0 })
@@ -109,11 +112,12 @@ export function TrackRow({ track, index, display, onPlay, disabled = false, stat
           : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
         <div className={styles.info}>
           <span className={styles.name}>{display?.name ?? track.name}</span>
-          <span className={styles.artistLine}>
+          <span className={styles.artistLine} data-caption={!!display?.caption && !expandedCaption || undefined}>
             <span className={styles.artist}>{display?.artist ?? track.artist}</span>
             {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
+            {!expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
           </span>
-          {display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
+          {expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
         </div>
         {/* 专辑列只在宽行显示（容器查询）；专辑页本身隐藏封面时不重复。 */}
         {!hideCover && track.album && <span className={styles.album}>{track.album}</span>}

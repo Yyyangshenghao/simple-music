@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useRef: (initial: unknown) => h.refs[h.refCursor++] ??= { current: initial },
+  useMemo: (compute: () => unknown) => compute(),
   useState: (initial: unknown) => {
     const index = h.stateCursor++
     if (index >= h.states.length) h.states[index] = initial

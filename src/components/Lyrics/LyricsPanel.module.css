@@ -513,6 +513,16 @@
   letter-spacing: 0.5px;
 }
 
+.trackCaption {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(11px, 0.9vw, 14px);
+  color: rgba(var(--lyrics-ink-rgb), 0.55);
+}
+
 /* Scrollable lyrics area(右栏) */
 .lyricsScroll {
   /* 固定默认分栏，仅让歌词区域以自身中心扩缩，不挤压或移动封面。 */

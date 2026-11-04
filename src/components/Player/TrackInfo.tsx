@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
+import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import styles from './TrackInfo.module.css'
@@ -14,6 +15,7 @@ interface TrackInfoProps {
 /** 播放栏左侧：封面 + 曲名 + 歌手。无当前曲目时显示占位。封面可点击打开歌词面板。 */
 export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: TrackInfoProps) {
   const track = usePlayerStore((s) => s.currentTrack)
+  const display = useMemo(() => bilibiliTrackDisplay(track), [track])
 
   return (
     <div className={styles.info}>
@@ -34,7 +36,7 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
         style={onCoverClick ? { cursor: 'pointer' } : undefined}
       >
         {track?.cover ? (
-          <img className={styles.coverImg} src={sizedImage(track.cover, DOCK_COVER_PX)} alt={track.name} draggable={false} />
+          <img className={styles.coverImg} src={sizedImage(track.cover, DOCK_COVER_PX)} alt={display?.name ?? track.name} draggable={false} />
         ) : (
           <span className={styles.coverPlaceholder} aria-hidden="true">
             ♪
@@ -50,15 +52,15 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
       </div>
       <div className={styles.meta}>
         <div className={styles.titleRow}>
-          <span className={styles.name} title={track?.name}>
-            {track?.name ?? '未在播放'}
+          <span className={styles.name} title={display?.caption ?? track?.name}>
+            {display?.name ?? track?.name ?? '未在播放'}
           </span>
           {titleAccessory}
         </div>
         <ArtistLinks
           className={styles.artist}
-          artists={track?.artists}
-          fallback={track?.artist ?? '—'}
+          artists={display ? undefined : track?.artists}
+          fallback={display?.artist ?? track?.artist ?? '—'}
           source={track?.source ?? 'netease'}
           onBeforeNavigate={onArtistNavigate}
         />

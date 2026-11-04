@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
 import type { LyricPreviewLine } from '../../types/lyrics-source'
 import { usePlayerStore } from '../../stores/player'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
@@ -43,6 +44,9 @@ export function LyricsSourceDialog() {
 }
 
 export function LyricsSourceSelection({ track }: { track: Track }) {
+  const display = bilibiliTrackDisplay(track)
+  const name = display?.name ?? track.name
+  const artist = display?.artist ?? track.artist
   const trackKey = `${track.source}:${String(track.id)}`
   const token = useRef(crypto.randomUUID()).current
   const dialog = useRef<HTMLDialogElement>(null)
@@ -155,7 +159,11 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
         if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close()
       }}>
       <header className={styles.header}>
-        <div className={styles.heading}><h2 id="lyrics-source-title">选择歌词</h2><p title={`${track.name} · ${track.artist}`}>{track.name} · {track.artist || '未知歌手'}</p></div>
+        <div className={styles.heading}>
+          <h2 id="lyrics-source-title">选择歌词</h2>
+          <p title={`${name} · ${artist}`}>{name} · {artist || '未知歌手'}</p>
+          {display?.caption && <p className={styles.originalTitle} title={display.caption}>{display.caption}</p>}
+        </div>
         <button type="button" className={styles.close} aria-label="关闭歌词选择" onClick={close}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
@@ -219,7 +227,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
             {activeSearch && <p className={styles.matchLabel}>{selectedCandidate.matchedName ?? activeSearch.name} · {selectedCandidate.matchedArtist ?? activeSearch.artist}</p>}
             <PreviewLines key={selectedCandidate.origin} lines={selectedCandidate.preview} />
             <details className={styles.details}><summary>歌曲与来源详情</summary>
-              <p>{selectedCandidate.matchedName || track.name} · {selectedCandidate.matchedArtist || track.artist}</p>
+              <p>{selectedCandidate.matchedName || name} · {selectedCandidate.matchedArtist || artist}</p>
               <p>正文：{LYRIC_SOURCE_LABELS[selectedCandidate.origin]}</p>
               {selectedCandidate.hasTranslation && <p>翻译：{LYRIC_SOURCE_LABELS[selectedCandidate.translationOrigin ?? selectedCandidate.origin]}</p>}
               {selectedCandidate.hasRomaji && <p>音译：{LYRIC_SOURCE_LABELS[selectedCandidate.romajiOrigin ?? selectedCandidate.origin]}</p>}

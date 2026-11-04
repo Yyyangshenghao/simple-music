@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { bilibiliSearchDisplay, SearchPage } from './SearchPage'
+import { SearchPage } from './SearchPage'
+import { bilibiliTrackDisplay, withBilibiliDisplayReading } from '../lib/bilibili-track-display'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import type { Track } from '../types/domain'
@@ -21,7 +22,7 @@ describe('哔哩哔哩搜索结果展示', () => {
 
   it('主展示歌名和歌手，视频原题作为辅助文字', () => {
     const original = '【4K修复】周杰伦《晴天》'
-    expect(bilibiliSearchDisplay(video(original), [])).toEqual({
+    expect(bilibiliTrackDisplay(video(original))).toEqual({
       name: '晴天', artist: '周杰伦', caption: original,
     })
   })
@@ -29,19 +30,24 @@ describe('哔哩哔哩搜索结果展示', () => {
   it('使用已加载的曲库结果区分横线两侧的歌名和歌手', () => {
     const reference: Track = { ...video('晴天'), source: 'netease', provider: 'netease', artist: '周杰伦', duration: 269000 }
     for (const original of ['周杰伦 - 晴天', '晴天 - 周杰伦']) {
-      expect(bilibiliSearchDisplay({ ...video(original), duration: 269000 }, [reference]))
+      expect(bilibiliTrackDisplay(withBilibiliDisplayReading({ ...video(original), duration: 269000 }, [reference])))
         .toMatchObject({ name: '晴天', artist: '周杰伦' })
     }
   })
 
+  it('播放伴奏时识别歌名与歌手，伴奏说明保留在原题', () => {
+    const original = '【高质量伴奏】《茉茉》 - Nzwin 黄跃成（和声伴奏）'
+    expect(bilibiliTrackDisplay(video(original))).toEqual({ name: '茉茉', artist: 'Nzwin 黄跃成', caption: original })
+  })
+
   it('翻唱标题里的原歌手和循环标签不显示为演唱者', () => {
     for (const title of ['周杰伦《晴天》女声完整版', '循环歌曲《晴天》']) {
-      expect(bilibiliSearchDisplay(video(title), [])).toMatchObject({ name: '晴天', artist: 'UP 主 · 上传者' })
+      expect(bilibiliTrackDisplay(video(title))).toMatchObject({ name: '晴天', artist: 'UP 主 · 上传者' })
     }
   })
 
   it('无法确认时显示原题，上传者明确标为 UP 主', () => {
-    expect(bilibiliSearchDisplay(video('周杰伦 - 晴天'), [])).toEqual({
+    expect(bilibiliTrackDisplay(video('周杰伦 - 晴天'))).toEqual({
       name: '周杰伦 - 晴天', artist: 'UP 主 · 上传者', caption: undefined,
     })
   })

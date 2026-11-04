@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useProviderStore } from '../../stores/providers'
@@ -331,6 +332,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
+  const trackDisplay = useMemo(() => bilibiliTrackDisplay(track), [track])
   const lines = useLyricsStore((s) => s.lines)
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
@@ -728,7 +730,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   <div className={styles.coverFlip} ref={coverFlipRef}>
                     <div className={styles.coverBreath} data-playing={playing}>
                       {track?.cover ? (
-                        <StageCoverArt src={sizedImage(track.cover, LYRICS_COVER_PX)} alt={track.name} />
+                        <StageCoverArt src={sizedImage(track.cover, LYRICS_COVER_PX)} alt={trackDisplay?.name ?? track.name} />
                       ) : (
                         <div className={styles.coverPlaceholder} aria-hidden="true">
                           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -740,14 +742,15 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     </div>
                   </div>
                   <div className={styles.trackMeta}>
-                    <MarqueeTrackName text={track?.name ?? '未在播放'} />
+                    <MarqueeTrackName text={trackDisplay?.name ?? track?.name ?? '未在播放'} />
                     <ArtistLinks
                       className={styles.artistName}
-                      artists={track?.artists}
-                      fallback={track?.artist ?? '—'}
+                      artists={trackDisplay ? undefined : track?.artists}
+                      fallback={trackDisplay?.artist ?? track?.artist ?? '—'}
                       source={track?.source ?? 'netease'}
                       onBeforeNavigate={onClose}
                     />
+                    {trackDisplay?.caption && <p className={styles.trackCaption} title={trackDisplay.caption}>{trackDisplay.caption}</p>}
                   </div>
                 </div>
                 {playerStyle === 'stage' && (

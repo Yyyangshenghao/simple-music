@@ -62,6 +62,8 @@ export interface Track {
   quality?: AudioQuality
   /** 不同来源透传的额外字段（mid/songmid 等）。 */
   bilibiliLyricHint?: { name: string; artists: string[] }
+  /** 聚合搜索从曲库确认的展示信息。 */
+  bilibiliDisplayReading?: { name: string; artists: string[] }
   [key: string]: unknown
 }
 

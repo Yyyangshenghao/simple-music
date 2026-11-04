@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, useIsPresent } from 'motion/react'
-import { bilibiliSongReadings } from '../lib/bilibili-title'
-import { matchBestTrack } from '../lib/track-match'
+import { withBilibiliDisplayReading } from '../lib/bilibili-track-display'
 import { bilibiliService } from '../providers/bilibili-provider'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
@@ -31,30 +30,6 @@ const collectionKey = (item: Playlist) => `${item.type}:${item.source}:${String(
 
 const canSearch = (source: ProviderId, state: { enabled: boolean; auth: string }) =>
   state.enabled && (source === 'bilibili' || state.auth === 'authenticated')
-
-export function bilibiliSearchDisplay(track: Track, catalogTracks: Track[]) {
-  if (track.source !== 'bilibili') return undefined
-  const original = typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
-  const readings = bilibiliSongReadings(original, track.bilibiliLyricHint)
-  const ranked = readings.length > 1 ? readings.flatMap((reading) => {
-    const match = matchBestTrack({
-      ...track, name: reading.name, artist: reading.artists.join(' / '),
-      artists: reading.artists.map(name => ({ id: null, name })), bilibiliLyricVersionTitle: original,
-    }, catalogTracks)
-    return match ? [{ reading, score: match.score }] : []
-  }).sort((a, b) => b.score - a.score) : []
-  const [best, next] = ranked
-  const reading = readings.length === 1 ? readings[0]
-    : best && (!next || best.score - next.score >= 5) ? best.reading : undefined
-  const inferredCover = reading !== track.bilibiliLyricHint && /翻唱|翻自|[男女]声(?:完整)?版|\bcover\b/iu.test(original)
-  const artists = inferredCover ? [] : reading?.artists.filter(artist => !/^(?:循环(?:歌曲|播放)?|纯享|现场|完整版|原版|[男女]声)$/u.test(artist))
-  const uploader = typeof track.uploader === 'string' ? track.uploader : track.artist
-  return {
-    name: reading?.name ?? original,
-    artist: artists?.join(' / ') || (uploader ? `UP 主 · ${uploader}` : '歌手未识别'),
-    caption: reading?.name && reading.name !== original ? original : undefined,
-  }
-}
 
 type Results<T> = Partial<Record<ProviderId, ProviderResult<T[]>>>
 
@@ -130,11 +105,11 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
     return () => controller.abort()
   }, [keyword, sources, enabledSignature, retry])
 
-  const bilibiliDisplays = useMemo(() => {
+  const bilibiliTracks = useMemo(() => {
     const catalogTracks = sources.filter(source => source !== 'bilibili').flatMap(source => songs[source]?.data ?? [])
-    return new Map((songs.bilibili?.data ?? []).map(track => [trackKey(track), bilibiliSearchDisplay(track, catalogTracks)]))
+    return (songs.bilibili?.data ?? []).map(track => withBilibiliDisplayReading(track, catalogTracks))
   }, [songs, sources])
-  const visibleSongs = visibleSources.flatMap((source) => songs[source]?.data ?? [])
+  const visibleSongs = visibleSources.flatMap(source => source === 'bilibili' ? bilibiliTracks : songs[source]?.data ?? [])
   const visibleArtists = visibleSources.flatMap((source) => artists[source]?.data ?? [])
   const visibleAlbums = visibleSources.flatMap((source) => albums[source]?.data ?? [])
   const visiblePlaylists = visibleSources.flatMap((source) => playlists[source]?.data ?? [])
@@ -336,7 +311,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
               {visibleSongs.length > 0 ? songPreview.items.map((song, index) => (
                 <div className={styles.selectableRow} key={`${song.source}:${String(song.id)}`} data-selected={selected.has(trackKey(song))} data-selection-key={trackKey(song)} data-unavailable={isCatalogUnavailable(song)}>
                   {selecting && <SelectionCheck label={`选择歌曲：${song.name}`} checked={selected.has(trackKey(song))} />}
-                  <TrackRow track={song} index={index} display={bilibiliDisplays.get(trackKey(song))} hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} statusColumn />
+                  <TrackRow track={song} index={index} expandedCaption hideOfflineAction={selecting} hideLikeAction={selecting} onPlay={() => { if (!selecting) playSong(song) }} disabled={isCatalogUnavailable(song)} statusLabel={isCatalogUnavailable(song) ? '暂无版权' : undefined} statusColumn />
                 </div>
               )) : <p className={styles.hint}>{songsLoading ? '正在搜索各平台的歌曲…' : failures.some((item) => item.label === '歌曲') ? '部分平台未能完成歌曲搜索，请重试。' : '没有找到相关歌曲，试试歌曲名或歌手名。'}</p>}
             </section>}

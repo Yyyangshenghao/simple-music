@@ -14,6 +14,7 @@
 .heading p { margin: 5px 0 0; color: var(--sm-text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .heading p, .preview { user-select: text; }
 .heading p { cursor: text; }
+.heading .originalTitle { color: var(--sm-text-muted); font-size: 11px; }
 .close { display: grid; flex-shrink: 0; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--sm-radius-pill); background: transparent; color: var(--sm-text-secondary); transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out); }
 .close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .close:active { background: var(--sm-fill-active); }

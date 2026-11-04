@@ -4,6 +4,17 @@ import type { Track } from '../../types/domain'
 import { TrackRow } from './TrackRow'
 
 describe('TrackRow 不可播放状态', () => {
+  it('B 站曲目在库列表中显示歌名歌手和原题，并保持固定行高', () => {
+    const original = '【高质量伴奏】《茉茉》 - Nzwin 黄跃成（和声伴奏）'
+    const track: Track = { provider: 'bilibili', source: 'bilibili', type: 'song', id: 'BV1BZbSzZEGT',
+      name: original, artist: '上传者', artists: [] }
+    const html = renderToStaticMarkup(<TrackRow track={track} index={0} onPlay={vi.fn()} />)
+    expect(html).toContain('>茉茉</span>')
+    expect(html).toContain('>Nzwin 黄跃成</span>')
+    expect(html).toContain(`title="${original}"`)
+    expect(html).not.toContain('rowWithCaption')
+  })
+
   it('禁止播放但仍可收藏，继续隐藏离线保存与红心操作', () => {
     const track: Track = {
       provider: 'netease',

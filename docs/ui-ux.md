@@ -18,7 +18,7 @@
 | 伴奏成品 | 搜索、播放、辨别模型版本、定位文件及删除；齿轮进入相关设置，生成任务交给任务面板 | [AccompanimentsLibrary](../src/pages/AccompanimentsLibrary.tsx) |
 | 搜索与音乐详情 | 跨来源搜索，按歌曲、歌手、专辑、歌单查看；启用实验性哔哩哔哩后可筛选该来源并点播音乐视频音频，结果优先显示识别出的歌名和歌手，视频原题作为辅助信息；详情播放、加入与批量管理 | [SearchPage](../src/pages/SearchPage.tsx)、[ArtistPage](../src/pages/ArtistPage.tsx)、[ArtistSongsPage](../src/pages/ArtistSongsPage.tsx)、[PlaylistDetailView](../src/components/Playlist/PlaylistDetailView.tsx)、[AppPlaylistPage](../src/pages/AppPlaylistPage.tsx)、[ToplistPage](../src/pages/ToplistPage.tsx)、[AppleChartPage](../src/pages/AppleChartPage.tsx) |
 | 漫游与刷歌 | 从歌手关系与持续选曲发现音乐；保持清晰的开始动作和会话状态 | [RoamPage](../src/pages/RoamPage.tsx)、[ShuangePage](../src/pages/ShuangePage.tsx) |
-| 播放栏与播放队列 | 播放、进度、音量、伴奏、歌词和接下来播放的歌曲；更多菜单承载相关播放设置 | [PlayerBar](../src/components/Player/PlayerBar.tsx)、[QueuePanel](../src/components/Player/QueuePanel.tsx)、[MoreMenu](../src/components/Player/MoreMenu.tsx) |
+| 播放栏与播放队列 | 播放、进度、音量、伴奏、歌词和接下来播放的歌曲；哔哩哔哩在播放页、应用歌单与最近播放优先显示歌名和歌手；更多菜单承载相关播放设置 | [PlayerBar](../src/components/Player/PlayerBar.tsx)、[QueuePanel](../src/components/Player/QueuePanel.tsx)、[MoreMenu](../src/components/Player/MoreMenu.tsx) |
 | 伴奏版本面板 | 选择模型与成品版本、发起生成；等待入队回执期间保持忙态，运行与失败任务转交专门队列 | [AccompanimentPanel](../src/components/Player/AccompanimentPanel.tsx) |
 | 后台任务队列 | 头像旁按需出现入口，面板分下载与伴奏生成两区；入队不自动弹面板，两套后台调度保持独立 | [TaskBubble](../src/components/Layout/TaskBubble.tsx)、[TaskPanel](../src/components/Layout/TaskPanel.tsx)、[task-center](../src/stores/task-center.ts) |
 | 歌词与音乐舞台 | 普通歌词和动态样式，封面、字体、氛围与演出按场景组织 | [LyricsPanel](../src/components/Lyrics/LyricsPanel.tsx)、[歌词样式目录](../src/lib/lyric-style-catalog.ts) |
