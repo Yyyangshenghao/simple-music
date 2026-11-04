@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, useIsPresent } from 'motion/react'
 import { withBilibiliDisplayReading } from '../lib/bilibili-track-display'
+import { seedBilibiliCovers } from '../stores/bilibili-covers'
+import { useSettingsStore } from '../stores/settings'
 import { bilibiliService } from '../providers/bilibili-provider'
 import { providerFor } from '../providers/registry'
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
@@ -107,9 +109,15 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
 
   const bilibiliTracks = useMemo(() => {
     const catalogTracks = sources.filter(source => source !== 'bilibili').flatMap(source => songs[source]?.data ?? [])
-    return (songs.bilibili?.data ?? []).map(track => withBilibiliDisplayReading(track, catalogTracks))
+    const tracks = (songs.bilibili?.data ?? []).map(track => withBilibiliDisplayReading(track, catalogTracks))
+    return { tracks, catalogTracks }
   }, [songs, sources])
-  const visibleSongs = visibleSources.flatMap(source => source === 'bilibili' ? bilibiliTracks : songs[source]?.data ?? [])
+  // 聚合搜索已拿到各平台结果，先从中补哔哩哔哩的专辑封面，少发额外搜索。
+  const bilibiliAlbumCover = useSettingsStore(s => s.bilibiliAlbumCover)
+  useEffect(() => {
+    if (bilibiliAlbumCover) void seedBilibiliCovers(bilibiliTracks.tracks, bilibiliTracks.catalogTracks).catch(() => {})
+  }, [bilibiliAlbumCover, bilibiliTracks])
+  const visibleSongs = visibleSources.flatMap(source => source === 'bilibili' ? bilibiliTracks.tracks : songs[source]?.data ?? [])
   const visibleArtists = visibleSources.flatMap((source) => artists[source]?.data ?? [])
   const visibleAlbums = visibleSources.flatMap((source) => albums[source]?.data ?? [])
   const visiblePlaylists = visibleSources.flatMap((source) => playlists[source]?.data ?? [])

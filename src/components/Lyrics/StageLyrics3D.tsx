@@ -6,6 +6,7 @@ import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useCoverLyricPalette } from '../../hooks/useCoverLyricPalette'
+import { useCurrentTrackCover } from '../../hooks/useTrackCover'
 import { StageGlassBackdrop } from './stage-glass-backdrop'
 import { frameBlend } from '../../lib/frame-blend'
 import { bandEnergiesFrom } from '../../lib/audio-energy'
@@ -765,7 +766,7 @@ export function StageLyrics3D({ lightBackground = false, style: shownStyle }: { 
   const fontFamilyCjk = useSettingsStore((s) => s.fontFamilyCjk)
   const lyrics3dFontFamily = useSettingsStore((s) => s.lyrics3dFontFamily)
   const lyrics3dFontFamilyCjk = useSettingsStore((s) => s.lyrics3dFontFamilyCjk)
-  const coverUrl = usePlayerStore((s) => s.currentTrack?.cover)
+  const coverUrl = useCurrentTrackCover()
   const coverPalette = useCoverLyricPalette(coverUrl)
   // 分镜：整首歌一次性分配构图，帧循环只按行号查表。
   const shots = useMemo(() => planStoryboardShots(lines), [lines])

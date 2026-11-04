@@ -19,6 +19,7 @@ import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import styles from './TopBar.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { TrackCoverImage } from '../ui/TrackCoverImage'
 import { useFeedback, useMotion } from '../../hooks/useMotion'
 
 const NAV_ITEMS: { label: string; view: AppView }[] = [
@@ -415,7 +416,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                         <div className={styles.searchSection}>歌曲</div>
                         {activeSearchData.songs.slice(0, 6).map((song) => (
                           <button key={`${song.source}:${String(song.id)}`} className={styles.songRow} onClick={() => pickSong(song)}>
-                            {song.cover && <img className={styles.rowCover} src={sizedImage(song.cover, 88)} alt="" loading="lazy" />}
+                            <TrackCoverImage track={song} px={88} className={styles.rowCover} />
                             <div className={styles.songInfo}>
                               <span className={styles.songName}>{song.name}</span>
                               <span className={styles.songArtist}>{song.artist}</span>

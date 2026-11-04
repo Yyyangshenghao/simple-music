@@ -18,6 +18,7 @@ import { useShortcutStore } from '../stores/shortcuts'
 import { useNavigationStore } from '../stores/navigation'
 import { useToastStore } from '../stores/toast'
 import { useKaraokeStore } from '../stores/karaoke'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { runShortcutAction } from './shortcut-actions'
 import { isShortcutAction } from './shortcuts'
 import { completeMusicProviderLogin } from './provider-login'
@@ -38,6 +39,7 @@ export const playbackStores = {
   ambient: useAmbientStore, shortcuts: useShortcutStore, navigation: useNavigationStore,
   toast: useToastStore,
   karaoke: useKaraokeStore,
+  bilibiliCovers: useBilibiliCoverStore,
   controls: createStore(() => ({
     cancelLyricsSelection() {
       const state = useLyricsSourceStore.getState()
@@ -70,7 +72,7 @@ export const remoteActions: Record<string, readonly string[]> = {
   playlist: ['loadUserPlaylists', 'setCurrentPlaylist', 'setQueue', 'clearQueue', 'addToQueue', 'addManyToQueue', 'moveQueueItem', 'playNextInQueue', 'removeQueueItem', 'ensureQueueDetails', 'playAt', 'next', 'prev', 'toggleShelf', 'setShelfMode'],
   shuange: ['enter', 'refresh', 'leave', 'next', 'prev', 'playFullCurrent', 'notInterestedCurrent', 'toggleLike', 'loadIndex'],
   sleep: ['start', 'setFinishTrack', 'cancel'],
-  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setUnlikeConfirmation', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsInstrumentalHint', 'setLyricsAmllFallback', 'setLyricsKugouFallback', 'setLyricsGuestSource', 'setLyricsPlatformSource', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setAudioQuality', 'setKaraokeModel', 'setKaraokeVocalMix', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
+  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setUnlikeConfirmation', 'setBilibiliAlbumCover', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsInstrumentalHint', 'setLyricsAmllFallback', 'setLyricsKugouFallback', 'setLyricsGuestSource', 'setLyricsPlatformSource', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setAudioQuality', 'setKaraokeModel', 'setKaraokeVocalMix', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
   providers: ['setEnabled', 'setPlaybackOrder', 'setPreferOriginSource', 'setMultiSourceFallback', 'setSourceBadgeMode', 'setContentSource', 'setAccountState', 'setPlaybackAvailability'],
   lyrics: ['setOffsetSec', 'updateLayout', 'setDesktopLyricsEnabled'],
   lyricSources: ['queryCandidates', 'cancelSelection', 'chooseSource', 'setDefaultSource', 'clearRemembered', 'setSourceOrder', 'forgetTrack', 'updateRemembered', 'testSource'],
@@ -81,5 +83,6 @@ export const remoteActions: Record<string, readonly string[]> = {
   ambient: [], shortcuts: ['setRecording'],
   navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
+  bilibiliCovers: ['request', 'remember'],
   controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

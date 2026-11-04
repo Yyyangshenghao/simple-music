@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../stores/player'
+import { trackCoverOf, useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { stepPlayback } from './playback-controls'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
@@ -12,11 +13,12 @@ function updateMetadata(track: Track | null): void {
     navigator.mediaSession.metadata = null
     return
   }
+  const cover = trackCoverOf(track)
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.name,
     artist: track.artist,
     album: typeof track.album === 'string' ? track.album : undefined,
-    artwork: track.cover ? [{ src: track.cover }] : []
+    artwork: cover ? [{ src: cover }] : []
   })
 }
 
@@ -84,12 +86,16 @@ export function initMediaSession(): () => void {
   applyEnabled()
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.mediaKeysEnabled !== previous.mediaKeysEnabled) applyEnabled()
+    else if (state.bilibiliAlbumCover !== previous.bilibiliAlbumCover) refreshCover()
   })
 
   let lastPositionSync = 0
   const stopPlayer = usePlayerStore.subscribe((s, prev) => {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
-    if (s.currentTrack !== prev.currentTrack) updateMetadata(s.currentTrack)
+    if (s.currentTrack !== prev.currentTrack) {
+      coverShown = trackCoverOf(s.currentTrack)
+      updateMetadata(s.currentTrack)
+    }
     if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration
       || s.rate !== prev.rate || (s.status !== 'playing' && s.position !== prev.position)) {
       syncPositionState()
@@ -101,11 +107,22 @@ export function initMediaSession(): () => void {
       lastPositionSync = Date.now()
     }
   })
+  // 哔哩哔哩专辑封面匹配完成后补上系统媒体信息的封面；开关切换由设置订阅处理。
+  let coverShown = trackCoverOf(usePlayerStore.getState().currentTrack)
+  const refreshCover = () => {
+    const track = usePlayerStore.getState().currentTrack
+    const cover = trackCoverOf(track)
+    if (cover === coverShown) return
+    coverShown = cover
+    if (useSettingsStore.getState().mediaKeysEnabled) updateMetadata(track)
+  }
+  const stopCover = useBilibiliCoverStore.subscribe(refreshCover)
   stopMediaSession = () => {
     if (stopped) return
     stopped = true
     stopSettings()
     stopPlayer()
+    stopCover()
     for (const action of Object.keys(handlers) as MediaSessionAction[]) {
       try { ms.setActionHandler(action, null) } catch { /* unsupported action */ }
     }

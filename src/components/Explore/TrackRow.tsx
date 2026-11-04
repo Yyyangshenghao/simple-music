@@ -4,6 +4,7 @@ import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
 import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import { useTrackCover } from '../../hooks/useTrackCover'
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
@@ -49,6 +50,7 @@ function OfflineIcon({ downloaded }: { downloaded: boolean }) {
 
 export function TrackRow({ track, index, expandedCaption = false, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
   const display = bilibiliTrackDisplay(track)
+  const cover = useTrackCover(hideCover ? null : track)
   const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
@@ -107,8 +109,8 @@ export function TrackRow({ track, index, expandedCaption = false, onPlay, disabl
             </span>
         )}
         {/* 无封面时留同尺寸占位，混排（本地歌曲等）时标题列仍对齐。 */}
-        {!hideCover && (track.cover
-          ? <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />
+        {!hideCover && (cover
+          ? <img className={styles.cover} src={sizedImage(cover, 96)} alt="" loading="lazy" />
           : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
         <div className={styles.info}>
           <span className={styles.name}>{display?.name ?? track.name}</span>

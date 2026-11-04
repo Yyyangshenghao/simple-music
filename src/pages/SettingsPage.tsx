@@ -1087,6 +1087,8 @@ export function SettingsPage() {
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const unlikeConfirmation = useSettingsStore((s) => s.unlikeConfirmation)
   const setUnlikeConfirmation = useSettingsStore((s) => s.setUnlikeConfirmation)
+  const bilibiliAlbumCover = useSettingsStore((s) => s.bilibiliAlbumCover)
+  const setBilibiliAlbumCover = useSettingsStore((s) => s.setBilibiliAlbumCover)
   const providerState = useProviderStore((s) => s.byId)
   const playbackOrder = useProviderStore((s) => s.playbackOrder)
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
@@ -1462,6 +1464,19 @@ export function SettingsPage() {
                           checked={providerState.bilibili.enabled}
                           onChange={(enabled) => setProviderEnabled('bilibili', enabled)}
                           aria-label="哔哩哔哩（实验性）"
+                        />
+                      </div>
+
+                      <div data-setting-row className={styles.playbackFallbackRow}>
+                        <div>
+                          <strong data-setting-label>哔哩哔哩显示专辑封面</strong>
+                          <small>用网易云或 QQ 音乐里的同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。</small>
+                        </div>
+                        <Switch
+                          checked={bilibiliAlbumCover}
+                          onChange={setBilibiliAlbumCover}
+                          disabled={!providerState.bilibili.enabled}
+                          aria-label="哔哩哔哩显示专辑封面"
                         />
                       </div>
 

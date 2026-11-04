@@ -53,6 +53,7 @@ vi.mock('../../hooks/useMotion', () => ({
   useMotion: (flag: string) => flag === 'lyricsLineMotion' ? !h.reducedMotion : true,
 }))
 vi.mock('../Player/PlayerBar', () => ({ PlayerBar: () => null }))
+vi.mock('../../hooks/useTrackCover', () => ({ useTrackCover: (track?: { cover?: string } | null) => track?.cover }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: Object.assign(
   (selector: (state: typeof h.lyrics) => unknown) => selector(h.lyrics), { getState: () => h.lyrics }
 ) }))

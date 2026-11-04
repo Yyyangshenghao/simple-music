@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../stores/player'
+import { subscribeCurrentTrackCover, trackCoverOf } from '../stores/bilibili-covers'
 import { useLyricsStore } from '../stores/lyrics'
 import { useAmbientStore } from '../stores/ambient'
 import { useSettingsStore } from '../stores/settings'
@@ -50,13 +51,14 @@ export function initMiniPlayerSync(): () => void {
       : shortcuts.results.some(item => item.ok && normalizeAccelerator(item.accelerator, platform) === localReturn))
     const returnShortcut = localReturn && !shortcuts.recording && !registered && !isSystemReservedAccelerator(localReturn, platform) ? localReturn : ''
     const lyrics = useLyricsStore.getState()
+    const cover = trackCoverOf(player.currentTrack)
     const trackKey = player.currentTrack ? `${player.currentTrack.source}:${String(player.currentTrack.id)}` : null
     const showLyrics = settings.miniPlayerAppearance.showLyrics && settings.miniPlayerWidth >= MINI_PLAYER_LYRICS_WIDTH
     const payload: MiniPlayerPayload = {
       track: player.currentTrack,
       trackTitle: player.currentTrack?.name ?? '',
       artistName: player.currentTrack?.artist ?? '',
-      coverUrl: player.currentTrack?.cover ? sizedImage(player.currentTrack.cover, 88) : '',
+      coverUrl: cover ? sizedImage(cover, 88) : '',
       playing: player.status === 'playing' || (player.currentTrack?.source === 'apple' && player.status === 'loading'),
       volume: player.volume,
       duration: player.duration,
@@ -91,6 +93,7 @@ export function initMiniPlayerSync(): () => void {
       || state.miniPlayerAppearance !== previous.miniPlayerAppearance || state.localHotkeys !== previous.localHotkeys
       || state.hotkeys !== previous.hotkeys || state.globalHotkeysEnabled !== previous.globalHotkeysEnabled) sync()
   })
+  const stopCover = subscribeCurrentTrackCover(sync)
   const stopShortcuts = useShortcutStore.subscribe((state, previous) => {
     if (state.recording !== previous.recording || state.pending !== previous.pending || state.results !== previous.results) sync()
   })
@@ -116,6 +119,7 @@ export function initMiniPlayerSync(): () => void {
     clearTimer()
     stopPlayer()
     stopSettings()
+    stopCover()
     stopShortcuts()
     stopLyrics()
     stopAmbient()

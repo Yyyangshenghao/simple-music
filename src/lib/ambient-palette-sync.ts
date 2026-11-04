@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../stores/player'
+import { subscribeCurrentTrackCover, trackCoverOf } from '../stores/bilibili-covers'
 import { useAmbientStore } from '../stores/ambient'
 import { useNavigationStore } from '../stores/navigation'
 import { useGameModeStore } from '../stores/game-mode'
@@ -29,7 +30,7 @@ export function initAmbientPaletteSync(): () => void {
   }
   const sync = () => {
     if (stopped) return
-    const cover = usePlayerStore.getState().currentTrack?.cover
+    const cover = trackCoverOf(usePlayerStore.getState().currentTrack)
     // 刷歌卡片自身营造背景，沿用暂停取色的规则；普通切页不重新取图。
     const suspended = useGameModeStore.getState().enabled || useNavigationStore.getState().currentView === 'shuange'
     if (cover === previousCover && suspended === previousSuspended) return
@@ -54,9 +55,8 @@ export function initAmbientPaletteSync(): () => void {
     }
     currentImage.src = api.coverImage(sizedImage(cover, CANVAS_COVER_PX))
   }
-  const stopPlayer = usePlayerStore.subscribe((state, previous) => {
-    if (state.currentTrack?.cover !== previous.currentTrack?.cover) sync()
-  })
+  // 换曲、哔哩哔哩专辑封面开关或匹配结果变化时重新取色。
+  const stopPlayer = subscribeCurrentTrackCover(sync)
   const stopNavigation = useNavigationStore.subscribe((state, previous) => {
     if ((state.currentView === 'shuange') !== (previous.currentView === 'shuange')) sync()
   })

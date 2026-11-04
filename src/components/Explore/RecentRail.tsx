@@ -6,6 +6,7 @@ import type { Playlist, Track } from '../../types/domain'
 import { usePlaylistStore } from '../../stores/playlist'
 import styles from './RecentRail.module.css'
 import { sizedImage } from '../../lib/image-size'
+import { TrackCoverImage } from '../ui/TrackCoverImage'
 import { SourceBadge } from '../ui/SourceBadge'
 import { HorizontalCardRail } from './HorizontalCardRail'
 
@@ -52,9 +53,7 @@ export function RecentRail({ source, embedded = false, onOpen }: RecentRailProps
         {tracks.slice(0, 20).map((track, index) => (
           <button key={`${track.source}:${String(track.id)}`} className={`${styles.card} no-drag`}
             onClick={() => usePlaylistStore.getState().setQueue(tracks.slice(0, 20), index)} title={`${track.name} · ${track.artist}`} aria-label={`播放 ${track.name}`}>
-            {track.cover
-              ? <img className={styles.cover} src={sizedImage(track.cover, 200)} alt="" loading="lazy" />
-              : <div className={styles.cover} />}
+            <TrackCoverImage track={track} px={200} className={styles.cover} fallback={<div className={styles.cover} />} />
             <SourceBadge source={track.source} compact className={styles.sourceBadge} />
             <span className={styles.name}>{track.name}</span>
             <span className={styles.name}>{track.artist}</span>

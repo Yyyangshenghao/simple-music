@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import { useTrackCover } from '../../hooks/useTrackCover'
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
 import styles from './TrackInfo.module.css'
@@ -16,6 +17,7 @@ interface TrackInfoProps {
 export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: TrackInfoProps) {
   const track = usePlayerStore((s) => s.currentTrack)
   const display = useMemo(() => bilibiliTrackDisplay(track), [track])
+  const cover = useTrackCover(track)
 
   return (
     <div className={styles.info}>
@@ -35,8 +37,8 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
         aria-label={onCoverClick ? '查看歌词' : undefined}
         style={onCoverClick ? { cursor: 'pointer' } : undefined}
       >
-        {track?.cover ? (
-          <img className={styles.coverImg} src={sizedImage(track.cover, DOCK_COVER_PX)} alt={display?.name ?? track.name} draggable={false} />
+        {cover ? (
+          <img className={styles.coverImg} src={sizedImage(cover, DOCK_COVER_PX)} alt={display?.name ?? track?.name} draggable={false} />
         ) : (
           <span className={styles.coverPlaceholder} aria-hidden="true">
             ♪
