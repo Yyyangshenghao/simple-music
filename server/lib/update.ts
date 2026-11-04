@@ -357,6 +357,11 @@ interface GithubAsset {
 function asGithubAssets(value: unknown): GithubAsset[] {
   return Array.isArray(value) ? (value as GithubAsset[]) : []
 }
+/** electron-builder 的 Linux 产物名按格式写架构：AppImage 用 x86_64/aarch64，deb 用 amd64/arm64。 */
+function linuxArchName(arch: NodeJS.Architecture, format: 'appimage' | 'deb' = 'appimage'): string {
+  if (format === 'deb') return arch === 'x64' ? 'amd64' : arch
+  return arch === 'x64' ? 'x86_64' : arch === 'arm64' ? 'aarch64' : arch
+}
 /**
  * 按当前机器的平台/架构挑选 release 资源。这个 server 是内嵌在用户自己的 Electron 主进程里跑的，
  * process.platform/arch 就是用户的真实平台——如果不按平台过滤，遇到 release 里 exe 排在前面
@@ -374,7 +379,13 @@ export function pickReleaseAsset(assets: unknown): UpdateAsset | null {
           list.find((a) => /\.exe$/i.test((a && a.name) || '') && !/portable/i.test((a && a.name) || '')) ||
           find(/\.msi$/i) ||
           find(/\.exe$/i)
-        : find(/\.(zip|7z|AppImage|deb|rpm)$/i)
+        : process.platform === 'linux'
+          // Linux 只发布 AppImage（自动更新清单）与 deb；优先当前架构的 AppImage。
+          ? find(new RegExp(`${linuxArchName(process.arch)}.*\\.AppImage$`, 'i')) ||
+            find(/\.AppImage$/i) ||
+            find(new RegExp(`${linuxArchName(process.arch, 'deb')}.*\\.deb$`, 'i')) ||
+            find(/\.deb$/i)
+          : find(/\.(zip|7z|AppImage|deb|rpm)$/i)
   if (!preferred) return null
   const digest = assetDigestInfo(preferred as unknown as Record<string, unknown>)
   const candidates = uniqueDownloadCandidates(preferred.browser_download_url || '')
@@ -700,14 +711,21 @@ function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
   const path = yamlScalar(text, 'path') || yamlScalar(text, 'url')
   const pathFile = files.find((file) => file.url === path)
   const primary = {
-    url: path || `Simple Music-${latestVersion}-Setup.exe`,
+    url: path || (process.platform === 'linux'
+      ? `Simple-Music-${latestVersion}-${linuxArchName(process.arch)}.AppImage`
+      : `Simple Music-${latestVersion}-Setup.exe`),
     sha512: yamlScalar(text, 'sha512') || pathFile?.sha512 || '',
     size: Number(yamlScalar(text, 'size')) || pathFile?.size || 0,
   }
   const macFile = (file: { url: string }) => new RegExp(`-${process.arch}\\.dmg$`, 'i').test(file.url)
+  const linuxFile = (file: { url: string }) => new RegExp(`${linuxArchName(process.arch)}.*\\.AppImage$`, 'i').test(file.url)
   const selected = process.platform === 'darwin'
     ? files.find(macFile) || (macFile(primary) ? primary : null)
-    : primary
+    : process.platform === 'linux'
+      // latest-linux.yml 只描述 AppImage；缺本机架构时退回清单里的任意 AppImage，仍不碰其他平台的包。
+      ? files.find(linuxFile) || files.find((file) => /\.AppImage$/i.test(file.url))
+        || (linuxFile(primary) ? primary : /\.AppImage$/i.test(primary.url) ? primary : null)
+      : primary
   const releaseDate = yamlScalar(text, 'releaseDate')
   const downloadUrl = selected ? githubReleaseDownloadUrl(latestVersion, selected.url) : ''
   const asset: UpdateAsset | null = selected ? {
@@ -745,7 +763,10 @@ function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
 async function fetchLatestYmlUpdateInfo(reason?: string): Promise<UpdateInfo> {
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github')
     throw updateError('UPDATE_REPOSITORY_NOT_CONFIGURED')
-  const manifestName = process.platform === 'darwin' ? 'latest-mac.yml' : 'latest.yml'
+  // 每个平台的 electron-builder 清单不同名：AppImage 只写 latest-linux.yml，deb 不带清单。
+  const manifestName = process.platform === 'darwin'
+    ? 'latest-mac.yml'
+    : process.platform === 'linux' ? 'latest-linux.yml' : 'latest.yml'
   const latestYmlUrl = `https://github.com/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(
     UPDATE_CONFIG.repo
   )}/releases/latest/download/${manifestName}`

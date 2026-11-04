@@ -176,6 +176,23 @@ describe('关于应用的更新日志', () => {
     expect(about).toMatch(/<button[^>]*aria-label="查看更新日志"[^>]*>查看<\/button>/)
     expect(about).not.toContain('<details')
   })
+
+  it('Linux 不提供应用内安装，改为打开 Release 页手动下载', () => {
+    window.desktop.platform = 'linux'
+    useUpdateStore.setState({ checking: false, info: {
+      configured: true, preview: false, updateAvailable: true,
+      currentVersion: version, latestVersion: '2.7.0',
+      release: {
+        tagName: 'v2.7.0', version: '2.7.0', name: 'Simple Music', summary: '', notes: [],
+        htmlUrl: 'https://github.com/Yyyangshenghao/simple-music/releases/tag/v2.7.0', downloadUrl: '',
+      },
+    } })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    const about = html.slice(html.indexOf('<section id="settings-section-about"'))
+    expect(about).toContain('发现新版本 v2.7.0')
+    expect(about).not.toContain('下载更新')
+    expect(about).toMatch(/<a[^>]*href="https:\/\/github\.com\/Yyyangshenghao\/simple-music\/releases\/tag\/v2\.7\.0"[^>]*>前往下载<\/a>/)
+  })
 })
 
 function lyricsMarkup(): string {
@@ -188,13 +205,13 @@ function visualMarkup(): string {
   return html.slice(html.indexOf('<section id="settings-section-visual"'), html.indexOf('<section id="settings-section-lyrics"'))
 }
 
-describe('Windows 关闭方式设置', () => {
-  it.each(['win32', 'darwin', 'linux'])('%s 的关闭窗口目录与实际分组一致', (platform) => {
+describe('Windows/Linux 关闭方式设置', () => {
+  it.each(['win32', 'linux', 'darwin'])('%s 的关闭窗口目录与实际分组一致', (platform) => {
     window.desktop.platform = platform as typeof window.desktop.platform
     const html = renderToStaticMarkup(<SettingsPage />)
     const navigation = html.slice(html.indexOf('<nav id="settings-navigation"'), html.indexOf('</nav>'))
     const target = 'settings-detail-window-close'
-    if (platform === 'win32') {
+    if (platform === 'win32' || platform === 'linux') {
       expect(navigation).toMatch(new RegExp(`<button[^>]*aria-controls="${target}"[^>]*>关闭窗口</button>`))
       expect(html.match(new RegExp(`id="${target}"`, 'g'))).toHaveLength(1)
       expect(navigation.indexOf(`aria-controls="${target}"`)).toBeLessThan(navigation.indexOf('aria-controls="settings-detail-appearance"'))
@@ -204,15 +221,17 @@ describe('Windows 关闭方式设置', () => {
     }
   })
 
-  it('macOS 不展示关闭方式，Windows 加载完成后展示当前选择', () => {
+  it('macOS 不展示关闭方式，Windows/Linux 加载完成后展示当前选择', () => {
     expect(visualMarkup()).not.toContain('关闭窗口方式')
-    window.desktop.platform = 'win32'
-    useWindowCloseStore.setState({ behavior: 'tray', initialized: true })
-    const html = visualMarkup()
-    expect(html).toContain('关闭窗口方式')
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>最小化到托盘<\/button>/)
-    expect(html).toContain('每次询问')
-    expect(html).toContain('退出应用')
+    for (const platform of ['win32', 'linux'] as const) {
+      window.desktop.platform = platform
+      useWindowCloseStore.setState({ behavior: 'tray', initialized: true })
+      const html = visualMarkup()
+      expect(html).toContain('关闭窗口方式')
+      expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>最小化到托盘<\/button>/)
+      expect(html).toContain('每次询问')
+      expect(html).toContain('退出应用')
+    }
   })
 
   it('读取未完成和保存期间禁用选项，读取失败提供重试', () => {

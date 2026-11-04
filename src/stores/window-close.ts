@@ -63,7 +63,9 @@ export const useWindowCloseStore = create<WindowCloseStore>((set, get) => ({
 
 export function initWindowCloseSync(): () => void {
   const desktop = window.desktop
-  if (desktop?.platform !== 'win32' || !desktop.onWindowCloseState || !desktop.getWindowCloseState) return () => {}
+  // macOS 的关闭由系统习惯处理；Windows 与 Linux 都是无边框自绘窗口，共用同一套关闭方式。
+  if ((desktop?.platform !== 'win32' && desktop?.platform !== 'linux')
+    || !desktop.onWindowCloseState || !desktop.getWindowCloseState) return () => {}
   let disposed = false
   const off = desktop.onWindowCloseState((state) => {
     if (disposed) return

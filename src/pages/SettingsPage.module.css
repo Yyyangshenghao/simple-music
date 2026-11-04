@@ -186,6 +186,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition: background 150ms, color 150ms;
+  /* Linux 的「前往下载」是 <a>，与按钮共用这一套样式 */
+  text-decoration: none;
 }
 .action:hover:not(:disabled),
 .storageAction:hover:not(:disabled) { background: var(--sm-bg-overlay); }

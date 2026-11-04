@@ -83,6 +83,24 @@ describe('pickReleaseAsset（更新检测按平台选资源 —— 回归 mac �
     const picked = withPlatform('win32', 'x64', () => pickReleaseAsset(assets))
     expect(picked?.name).toBe('Simple Music-1.0.1-portable.exe')
   })
+
+  it('linux：应选中当前架构的 AppImage，而不是 exe/dmg/deb', () => {
+    const assets = releaseAssets().concat([
+      { name: 'Simple-Music-1.0.1-x86_64.AppImage', browser_download_url: 'https://example.com/Simple-Music-1.0.1-x86_64.AppImage' },
+      { name: 'Simple-Music-1.0.1-amd64.deb', browser_download_url: 'https://example.com/Simple-Music-1.0.1-amd64.deb' },
+      { name: 'latest-linux.yml', browser_download_url: 'https://example.com/latest-linux.yml' },
+    ])
+    const picked = withPlatform('linux', 'x64', () => pickReleaseAsset(assets))
+    expect(picked?.name).toBe('Simple-Music-1.0.1-x86_64.AppImage')
+  })
+
+  it('linux：没有 AppImage 时退回 deb，两者都没有则返回 null（不错发 exe）', () => {
+    const debOnly = releaseAssets().concat([
+      { name: 'Simple-Music-1.0.1-amd64.deb', browser_download_url: 'https://example.com/Simple-Music-1.0.1-amd64.deb' },
+    ])
+    expect(withPlatform('linux', 'x64', () => pickReleaseAsset(debOnly))?.name).toBe('Simple-Music-1.0.1-amd64.deb')
+    expect(withPlatform('linux', 'x64', () => pickReleaseAsset(releaseAssets()))).toBeNull()
+  })
 })
 
 describe('更新备用清单按平台与架构选择安装包', () => {
@@ -131,6 +149,28 @@ releaseDate: '2026-10-08T00:00:00.000Z'
     expect(info.release.asset).toMatchObject({
       name: `Simple-Music-9.0.0-${arch}.dmg`, sha512: `${arch}-digest`, size: arch === 'arm64' ? 202 : 101,
     })
+  })
+
+  it('Linux 读取 latest-linux.yml 并选中 AppImage，不用 windows 的 latest.yml', async () => {
+    usePlatform('linux', 'x64')
+    const mock = mockFallback(`version: 9.0.0
+files:
+  - url: Simple-Music-9.0.0-x86_64.AppImage
+    sha512: linux-digest
+    size: 303
+  - url: Simple-Music-9.0.0-amd64.deb
+    sha512: deb-digest
+    size: 404
+path: Simple-Music-9.0.0-x86_64.AppImage
+sha512: linux-digest
+size: 303
+`)
+    const info = await fetchLatestUpdateInfo()
+    expect(mock.mock.calls[1][0]).toMatch(/\/latest-linux\.yml$/)
+    expect(info.release.asset).toMatchObject({
+      name: 'Simple-Music-9.0.0-x86_64.AppImage', sha512: 'linux-digest', size: 303,
+    })
+    expect(info.release.downloadUrl).toMatch(/\/Simple-Music-9\.0\.0-x86_64\.AppImage$/)
   })
 
   it('Mac 缺少本机架构资源时不退回其他架构或 exe', async () => {

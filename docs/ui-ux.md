@@ -10,7 +10,7 @@
 
 | 界面 | 用户任务与现有结构 | 实现入口 |
 |---|---|---|
-| 顶栏 | 导航、全局搜索、平台与账号、按需任务入口；窄窗口仍需保留搜索和窗口操作空间 | [TopBar](../src/components/Layout/TopBar.tsx) |
+| 顶栏 | 导航、全局搜索、平台与账号、按需任务入口；窄窗口仍需保留搜索和窗口操作空间。Windows/Linux 是无边框窗口，右侧必须让出 `--sm-caption-reserve`（三个自绘窗口按钮），否则关闭按钮会压住头像 | [TopBar](../src/components/Layout/TopBar.tsx) |
 | 探索 | 浏览当前内容平台的推荐、榜单与个人栏目；保留封面堆叠与横排的内容表现 | [ExplorePage](../src/pages/ExplorePage.tsx) |
 | 我的库 | 应用歌单、平台歌单、收藏、最近播放、离线、本地；应用歌单栏目内切换歌单与伴奏成品 | [LibraryPage](../src/pages/LibraryPage.tsx)、[LibraryTabs](../src/pages/LibraryTabs.tsx)、[CollectionKindSwitch](../src/pages/CollectionKindSwitch.tsx) |
 | 本地音乐 | 文件夹索引、筛选与播放；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |

@@ -8,10 +8,10 @@
 
 | 什么时候 | 工作流 | 做什么 | 失败意味着 |
 |---|---|---|---|
-| 推送或 PR 到 `dev/**`、`master` | Source checks（`verify.yml`） | 双平台类型检查、测试、构建 | 代码有问题，修完再推 |
-| 推送 `dev/**`、`master`（上一步通过后） | Source checks → `package.yml` | 用发版同款步骤双平台试打包（不签名），检查 asar 与产物 | 打包配置有问题，发版也会失败，先修 |
+| 推送或 PR 到 `dev/**`、`master` | Source checks（`verify.yml`） | 三平台（macOS/Windows/Linux）类型检查、测试、构建 | 代码有问题，修完再推 |
+| 推送 `dev/**`、`master`（上一步通过后） | Source checks → `package.yml` | 用发版同款步骤三平台试打包（不签名），检查 asar 与产物 | 打包配置有问题，发版也会失败，先修 |
 | PR 到 `master` | Source checks → `release-metadata` | 版本文件与发行说明格式 | 发布元数据不完整，补齐再合 |
-| 手动触发 | Release（`release.yml`） | 校验 → 双平台正式签名打包 → 草稿 Release 传完文件 → 公开并创建 tag | 不留 tag，修复后**同号重跑** |
+| 手动触发 | Release（`release.yml`） | 校验 → 三平台正式签名打包 → 草稿 Release 传完文件 → 公开并创建 tag | 不留 tag，修复后**同号重跑** |
 
 tag 只由 Release 工作流在最后一步创建，**不要手动推 `v*` tag**：不会触发发布，还会占住版本号。
 
@@ -39,7 +39,7 @@ beta 号自动递增，不用改版本文件、不用写发行说明；发为 Gi
    ```bash
    gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref master -f channel=stable
    ```
-5. 跟到工作流结束，核对 Release 页面：两个 dmg、Setup.exe、portable.exe、`latest*.yml`、blockmap；`releases/latest` 指向新版本。
+5. 跟到工作流结束，核对 Release 页面：两个 dmg、Setup.exe、portable.exe、`.AppImage`、`.deb`、`latest*.yml`、blockmap；`releases/latest` 指向新版本。
 
 不确定能否打包成功时，任一步都可以先加 `-f dry_run=true` 只打包不发布，安装包在该次运行的 Artifacts 里。
 
@@ -162,13 +162,13 @@ git diff --check
 `npm run build` 只验证源码构建，打包配置（`files`、`asarUnpack`、原生模块）出错只有打出安装包才看得到，例如平台级 `files` 只写排除项会让白名单失效，把 `docs/`、`src/` 整个打进 asar，安装包体积成倍增加。发布前在本机执行：
 
 ```bash
-npm run build:mac   # Windows 机器上用 npm run build:win
-node scripts/release/check-package.mjs mac   # Windows 上把 mac 换成 win；检查 asar 内容与必需产物，并列出安装包体积
+npm run build:mac     # Windows 机器上用 npm run build:win，Linux 上用 npm run build:linux
+node scripts/release/check-package.mjs mac   # 把 mac 换成目标平台 win|linux；检查 asar 内容与必需产物，并列出安装包体积
 ```
 
 - 安装包体积与上一 Release 对比，明显变大时先查明原因；
 - asar 除 `out/`、`node_modules/`、`package.json` 和图标外不应有其他内容（`check-package.mjs` 会检查并列出多余项；推送 dev 时 CI 也会用同样步骤试打包并检查）；`app.asar.unpacked` 只含目标平台和架构的原生库；
-- 用打出的 dmg/exe 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；
+- 用打出的 dmg/exe/AppImage/deb 实际安装（覆盖安装上一版），启动后检查播放、歌词、登录状态保留，以及依赖原生模块的功能（koffi、AI K 歌的 onnxruntime）能正常加载；Linux 还要确认窗口按钮不与顶栏重叠、关闭时按设置缩回托盘或退出；
 - 本机无法验证的平台（如 Windows 安装、Intel Mac）优先用预发版（§0.7.1）在实机上验收；仍无法验证的，在发行说明「验证情况」中写明未实机验证。
 
 ### 0.4 提交、合并、标签和推送顺序
@@ -196,7 +196,7 @@ gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref master -f c
 gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1   # 取 run id 后 gh run watch <id> --exit-status
 ```
 
-工作流按 `prepare`（校验分支、版本未被占用、发行说明）→ `package`（双平台测试、正式签名、打包、产物检查）→ `publish`（建草稿 Release 并上传全部文件，最后一次性公开）执行。**tag 由 `publish` 在公开 Release 时创建，指向触发时的 master 提交**；之前任何一步失败都不会留下 tag，修复后用同一版本号重新触发即可。
+工作流按 `prepare`（校验分支、版本未被占用、发行说明）→ `package`（三平台测试、正式签名、打包、产物检查）→ `publish`（建草稿 Release 并上传全部文件，最后一次性公开）执行。**tag 由 `publish` 在公开 Release 时创建，指向触发时的 master 提交**；之前任何一步失败都不会留下 tag，修复后用同一版本号重新触发即可。
 
 - 不再手动创建或推送 `v*` tag：工作流不监听 tag 推送，手动推送的 tag 不会发布，反而会占住版本号让工作流拒绝发布。
 - 想先确认能打包而不发布时加 `-f dry_run=true`，安装包可在该次运行的 Artifacts 里下载。
@@ -208,7 +208,8 @@ gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1   # 
 
 - macOS Intel 与 Apple Silicon 的 `.dmg`；
 - Windows 安装版 `-Setup.exe` 与便携版 `-portable.exe`；
-- `latest*.yml` 和对应 blockmap（供应用内更新与完整性校验使用）。
+- Linux 的 `-x86_64.AppImage` 与 `-amd64.deb`；
+- `latest*.yml` 和对应 blockmap（供应用内更新与完整性校验使用；Linux 只产出 `latest-linux.yml`，deb 不带清单）。
 
 `package` job 打包后由 `scripts/release/check-package.mjs` 自动检查这些必需产物和 asar 内容，草稿传完才公开；自动检查通过后仍需人工核对 Release 页面和文件名。
 
@@ -251,27 +252,27 @@ curl -sL https://github.com/Yyyangshenghao/simple-music/releases/download/vX.Y.Z
 | 入口 | 必须完成的检查 | 是否允许发布稳定版 |
 |---|---|---|
 | feature 合入所属 dev，或已获授权的 dev 本地维护 | 类型检查、全量测试、源码构建；受影响的 UI/播放/登录流程人工检查 | 否 |
-| dev 更新、dev PR → master | Windows/macOS 类型检查、全量测试、源码构建；推送后用发版同款步骤双平台试打包（不签名）并检查产物；发布 PR 额外运行 `release-metadata` 检查版本文件和发行说明 | 否 |
+| dev 更新、dev PR → master | macOS/Windows/Linux 类型检查、全量测试、源码构建；推送后用发版同款步骤三平台试打包（不签名）并检查产物；发布 PR 额外运行 `release-metadata` 检查版本文件和发行说明 | 否 |
 | master 更新 | 对合并后的提交执行同上检查与试打包 | 否；通过后才能从 master 触发正式发布 |
-| 预发版（从 `dev/X.Y.Z` 触发 `channel=beta`） | 校验分支与目标版本，自动取下一个 `beta.N`；双平台测试、正式签名、打包、产物检查；发为 GitHub 预发布且不标记 latest | 否；只发预发布，不进入应用内更新 |
-| 正式版（从 master 触发 `channel=stable`） | 校验来源为 master、版本未占用、版本和说明一致；双平台测试、正式签名、打包、产物检查；全部成功后才创建 tag 并公开 Release | 是 |
+| 预发版（从 `dev/X.Y.Z` 触发 `channel=beta`） | 校验分支与目标版本，自动取下一个 `beta.N`；三平台测试、正式签名、打包、产物检查；发为 GitHub 预发布且不标记 latest | 否；只发预发布，不进入应用内更新 |
+| 正式版（从 master 触发 `channel=stable`） | 校验来源为 master、版本未占用、版本和说明一致；三平台测试、正式签名、打包、产物检查；全部成功后才创建 tag 并公开 Release | 是 |
 
 - PR 和普通分支 CI 使用只读仓库权限，不使用生产签名凭据、不创建 Release。明确需要预发布时按 §0.7.1 触发预发版，不能伪装成稳定版。
-- master 应启用 PR 合并及必需状态检查，发布 PR 要求至少 1 人评审通过；活跃 dev 接收经过本地验收的阶段集成，并在推送后执行双平台 CI。不得以管理员绕过失败检查完成正常发布。
+- master 应启用 PR 合并及必需状态检查，发布 PR 要求至少 1 人评审通过；活跃 dev 接收经过本地验收的阶段集成，并在推送后执行三平台 CI。不得以管理员绕过失败检查完成正常发布。
 - tag 只由发布工作流创建；建议在 GitHub 规则集中限制他人创建、更新和删除 `v*` tag。稳定发布只接受从 master 触发。
 - 工作流默认只读权限，仅 `publish` job 授予 `contents: write`；生产签名凭据只在 `sign: true` 的正式打包中使用，试打包显式跳过签名（`VMP_SIGN=skip`）。发布通过 `concurrency: release` 串行执行。
-- **当前落地状态：`verify.yml`（Source checks）对 master/dev 的 PR 与推送执行双平台类型检查、全量测试和源码构建，推送时再调用 `package.yml` 试打包并检查产物，发布 PR 额外校验发版元数据；`release.yml` 手动触发，复用同一个 `package.yml` 正式签名打包，成功后才创建 tag 与 Release。master 分支保护（必需检查、PR 评审）与 tag 规则集需在 GitHub 仓库设置中配置，尚未配置前由人工保证，不能声称已由 GitHub 强制。配置落地时同步更新本段。**
+- **当前落地状态：`verify.yml`（Source checks）对 master/dev 的 PR 与推送执行三平台类型检查、全量测试和源码构建，推送时再调用 `package.yml` 试打包并检查产物，发布 PR 额外校验发版元数据；`release.yml` 手动触发，复用同一个 `package.yml` 正式签名打包，成功后才创建 tag 与 Release。master 分支保护（必需检查、PR 评审）与 tag 规则集需在 GitHub 仓库设置中配置，尚未配置前由人工保证，不能声称已由 GitHub 强制。配置落地时同步更新本段。**
 
 ### 0.7.1 预发版（验收真实安装包）
 
-预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS 实机验收与用户一致的安装包时，先推送待发布的 `dev/X.Y.Z`，再从该分支触发：
+预发版相当于发布前的 UAT：正式发布前需要在 Windows/macOS/Linux 实机验收与用户一致的安装包时，先推送待发布的 `dev/X.Y.Z`，再从该分支触发：
 
 ```bash
 gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -f channel=beta
 ```
 
 - 目标版本取分支名 `X.Y.Z`，不低于分支 `package.json` 版本；`beta.N` 由工作流在远端已有预发版号上自动加一，不用手动编号，也不需要提交版本号或发行说明，CI 在构建机上把版本写入 `package.json`（测试之后）。
-- 走与正式版相同的双平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
+- 走与正式版相同的三平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
 - 预发版与正式版共用 appId 和应用数据，装上即覆盖本机正式版；版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内直接升级回正式通道。
 - 实机验收按对应版本的测试清单执行（如 `docs/reviews/<版本>-windows-test-checklist.md`），结果写入发行说明「验证情况」，注明验收所用的预发版号。
 - 修复后重新触发即得到下一个 `beta.N`；失败的运行不会占号。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → 发布工作流。
@@ -285,6 +286,19 @@ gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -
 - 若用户明确要求基于旧稳定版修复并排除 master 中已有功能，先说明基准 tag、维护版本、排除范围及绕过常规主干来源规则的原因；只有得到明确的旧版本维护授权后才能采用独立维护分支。不能把普通 feature/dev 发布解释为此例外。
 - 维护发布仍须完成测试、签名、发行说明与产物验收，记录真实源码提交，并将修复单独回灌 master 及相关 dev。不得为证明“已合主干”而移动旧 tag，也不能把现有 master 额外功能混入旧版补丁。自动来源门禁落地后，此例外也需显式配置授权路径，不能临时关闭门禁。
 
+### 0.9 Linux 兼容范围（2.7.0 起发版）
+
+2.7.0 起 Linux 与 macOS/Windows 一起发布，打包与更新链路上的固定约定：
+
+- **显示后端**：Electron 在 Wayland 会话下自动使用原生 Wayland（`--ozone-platform=wayland`），不加额外启动参数；X11 会话照常回退 x11。启动日志里可能出现 `'--ozone-platform=wayland' is not compatible with Vulkan`，这是 Chromium 的 GPU 初始化告警，界面仍走 GL/软件路径正常渲染，暂不因此加 `--disable-features=Vulkan`（会同时影响其他平台的 GPU 行为）。
+- **窗口与关闭**：`frame: false` 自绘窗口按钮，顶栏必须预留 `--sm-caption-reserve`；关闭行为（每次询问 / 缩回托盘 / 退出应用）在 Linux 与 Windows 一致，靠 `window-close` IPC 与系统托盘生效。
+- **已知不可用能力**（写进发行说明「兼容说明」，不要向用户承诺）：`globalShortcut` 全局热键在 Wayland 会话下不生效；桌面歌词的点击穿透（`setIgnoreMouseEvents`）与 `setVisibleOnAllWorkspaces` 在 Linux 上不受支持，悬浮窗只保证在当前工作区可用。
+- **Wallpaper Engine 背景**：库探测走 Windows 注册表/PowerShell，Linux 上检测不到 Steam 库，属于已知功能差异；手动选择目录的回退照旧可用。
+- **字体列表**：Linux 通过 `fc-list` 读取，需要目标机安装 fontconfig（绝大多数桌面发行版默认有）。
+- **托盘**：Wayland 下依赖 StatusNotifier 宿主（KDE、niri+quickshell 等多数桌面自带）；没有托盘宿主时"缩回托盘"会隐藏窗口但缺少恢复入口，这类环境建议把关闭方式设为「退出应用」。
+- **Apple Music 的 DRM 未解决**：castlabs EVS 的 `sign-pkg` 只识别 macOS `.app` 与 Windows `.exe`（`_detect_pkgs` 里没有 Linux 分支），Linux 发布包拿不到生产 VMP 签名；而`modules/apple-music-chrome-page.ts` 已注明开发 VMP 签名会被 Apple 生产许可证服务拒绝。2.7.0 发 Linux 前必须二选一：Linux 打包版也走系统 Chrome 后端（依赖用户装 Google Chrome），或在 Linux 上隐藏 Apple Music 入口。
+- **签名**：Linux 产物不做 Widevine VMP 签名（`build/vmp-sign.cjs` 按平台跳过），也没有代码签名；deb 的 `Maintainer` 字段当前用 `linux.maintainer`（`yshAM`，无邮箱），补邮箱后要重新打包。
+
 ## 1. 常用命令
 
 ```bash
@@ -296,6 +310,7 @@ npx vitest run src/lib/stack-pool.test.ts   # 单测单文件
 npm run server:dev     # 只跑 API server（tsx server/index.ts），默认端口 35530，可 PORT= 覆盖
 npm run build:mac      # build + electron-builder --mac（dmg，x64 + arm64）
 npm run build:win      # build + electron-builder --win（NSIS Setup + portable，均 x64）
+npm run build:linux    # build + electron-builder --linux（AppImage + deb，均 x64）
 npm run release:check  # 发版元数据校验（版本文件、发行说明），可带版本号：npm run release:check -- X.Y.Z
 node scripts/release/check-package.mjs mac   # 打包后检查 asar 内容与必需产物（Windows 上把 mac 换成 win）
 ```
@@ -318,6 +333,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - `files`: `out/**/*` + `build/icon.ico` + `package.json`（**package.json 必须进 asar**——server/lib/update.ts 运行时 `import pkgJson from '../../package.json'` 读版本与更新配置）。
 - **伴奏原生运行库**：`onnxruntime-node` 的 `bin/**/*` 整体加入 `asarUnpack`，保留 `.node` 与相邻动态库。各平台 `files` 按目标 `${arch}` 排除其他平台和架构；macOS 仅保留绑定使用的 `libonnxruntime.1.dylib`，排除内容重复的完整版本库。`.npmrc` 禁止额外下载未使用的 CUDA/TensorRT。当前 1.30.0 包未附 macOS x64 原生绑定，Intel Mac 走浏览器 WebGPU 回退；发布前仍需对应平台实机生成、取消及重试验收。
 - **mac**：dmg，x64 + arm64 双架构分别出包；`identity: null` 即**不签名**——这决定了更新安装方案（见 §5）。分发文件名 `Simple-Music-<v>-arm64.dmg` / `Simple-Music-<v>-x64.dmg`。
+- **linux**：AppImage（`Simple-Music-<v>-x86_64.AppImage`，自带 `latest-linux.yml`）+ deb（`Simple-Music-<v>-amd64.deb`），均 x64。`executableName`/`desktopName`/`StartupWMClass` 统一为 `simple-music`，否则 Wayland 下窗口 app_id 是 `electron`，任务栏无法把窗口归到桌面入口；AppImage 的 `.desktop` 由 electron-builder 自动带 `--no-sandbox`（squashfs 里 chrome-sandbox 的 SUID 位不保留），deb 的 `postinst` 会按内核 userns 支持情况决定 chrome-sandbox 用 4755 还是 0755，并给 Ubuntu 24+ 装 AppArmor profile。
 - **win**：NSIS（`Simple-Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple-Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
 - 安装包名称显式使用连字符，避免 GitHub 上传时替换空格，导致 `latest*.yml` 中的文件名与 Release 资源不一致。
 - **Apple Music DRM**：桌面运行时使用 CastLabs ECS。发布流水线固定 Node 22.12，并在 macOS 的 `afterPack`（系统代码签名前）和 Windows 的 `afterSign`（系统代码签名后）调用 EVS，生成 streaming VMP 生产签名。CI 缺少 `EVS_ACCOUNT_NAME` 或 `EVS_PASSWD` 时必须中止，禁止发布只能使用开发 DRM 签名的安装包；本地普通打包默认跳过，设置 `VMP_SIGN=1` 可强制执行。
@@ -328,9 +344,11 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - Release 资源命名必须匹配更新器的挑选正则（`server/lib/update.ts#pickReleaseAsset`）：
   - mac：优先 `<arch>.*\.dmg`，回退任意 `.dmg`；
   - win：优先 `-Setup.exe`，其次非 portable 的 `.exe`、`.msi`；
+  - linux：优先当前架构的 `.AppImage`（产物名写 `x86_64`/`aarch64`），其次 `.deb`（写 `amd64`/`arm64`）；
   - **找不到匹配当前平台的资源返回 null → 前端收到 `UPDATE_ASSET_MISSING`**，不会错发别的平台安装包（曾有给 mac 用户发 portable.exe 的教训，pickReleaseAsset 的平台过滤即为此而生）。
 - Release body 前几行会被 `extractReleaseNotes` 提取为更新弹窗要点（每行 ≤72 字符、最多 4 条、跳过链接和 "What's Changed" 标题）。
-- electron-builder 生成的 `latest.yml` 与 `latest-mac.yml` 必须一并上传：GitHub API 被限流/失败时按平台读取对应备用清单；macOS 从清单中选择当前架构的 dmg，并使用该文件自身的摘要和大小，没有匹配资源时不返回其他平台安装包。
+- electron-builder 生成的 `latest.yml`、`latest-mac.yml` 与 `latest-linux.yml` 必须一并上传：GitHub API 被限流/失败时按平台读取对应备用清单；macOS 从清单中选择当前架构的 dmg，Linux 从 `latest-linux.yml` 里选 AppImage，并使用该文件自身的摘要和大小，没有匹配资源时不返回其他平台安装包。
+- Linux 不自动下载安装：`supportsInAppUpdate()` 对 Linux 返回 false，更新提示与设置页只给「前往下载」跳到 Release 页，由用户自行替换 AppImage 或安装 deb。
 
 ## 5. 半自动更新全链路
 
@@ -352,6 +370,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
   → window.desktop.installUpdate(filePath, version) → IPC app:install-update
       主进程校验 filePath 必须位于配置的更新目录内（默认 userData/updates/）→
       · Windows: spawn NSIS 安装包 /S --force-run（与 electron-updater 参数一致，按注册表原地升级）→ app.quit()
+      · Linux:   不进入这条链路（前端只打开 Release 页），保留 shell.openPath 兜底
       · macOS:   预检 → hdiutil 挂载 dmg，ditto 解到 userData/updates/staging/ → 核对 bundle id / 版本 / 可执行文件
                  → 写 updates/mac-swap.sh 并 detached 启动 → app.quit()
                  脚本等旧进程退出 → 旧版 mv 到 updates/backup/、新版 mv 到原位 → open 新版；

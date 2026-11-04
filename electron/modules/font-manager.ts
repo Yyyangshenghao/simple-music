@@ -109,6 +109,22 @@ export function parseFontFamiliesJson(output: string): SystemFontFamily[] {
   return normalizeFontFamilies(Array.isArray(parsed) ? parsed : [parsed])
 }
 
+/**
+ * Linux 走 fontconfig：`fc-list --format '%{family}\n'` 每行是一款字体的族名列表，
+ * 逗号分隔，首个是规范族名，其余是本地化名与样式缩写。样式缩写不含中文，正好被
+ * 下面的 hasChinese 过滤掉，只把中文名当本地化显示名。
+ */
+export function parseFontconfigFamilies(output: string): SystemFontFamily[] {
+  const values: Array<{ family: string; localizedName?: string }> = []
+  for (const line of output.split(/\r?\n/)) {
+    const names = line.split(',').map((name) => name.trim()).filter(Boolean)
+    if (names.length === 0) continue
+    const localizedName = names.slice(1).find(hasChinese)
+    values.push(localizedName ? { family: names[0], localizedName } : { family: names[0] })
+  }
+  return normalizeFontFamilies(values)
+}
+
 export async function listSystemFonts(platform = process.platform): Promise<SystemFontFamily[]> {
   if (platform === 'darwin') {
     const { stdout } = await execFileAsync('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_FONT_SCRIPT], {
@@ -135,6 +151,15 @@ export async function listSystemFonts(platform = process.platform): Promise<Syst
     return parseFontFamiliesJson(stdout)
   }
 
+  if (platform === 'linux') {
+    const { stdout } = await execFileAsync('fc-list', ['--format', '%{family}\n'], {
+      encoding: 'utf8',
+      timeout: 15_000,
+      maxBuffer: 8 * 1024 * 1024
+    })
+    return parseFontconfigFamilies(stdout)
+  }
+
   throw new Error('UNSUPPORTED_PLATFORM')
 }
 
@@ -150,5 +175,5 @@ export function createFontListCache(read: () => Promise<SystemFontFamily[]>): ()
   }
 }
 
-/** 读字体要起 osascript / PowerShell 子进程，本次运行内只读一次；新装的字体重启应用后出现。 */
+/** 读字体要起 osascript / PowerShell / fc-list 子进程，本次运行内只读一次；新装的字体重启应用后出现。 */
 export const listSystemFontsCached = createFontListCache(() => listSystemFonts())

@@ -26,7 +26,7 @@ describe('窗口 IPC 边界', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('只接受 Windows 主窗口主 frame，转发明确选择', () => {
+  it('只接受 Windows/Linux 主窗口主 frame，转发明确选择', () => {
     const event = { sender: h.main.webContents, senderFrame: h.main.webContents.mainFrame }
     const choice = { promptId: 1, action: 'quit', remember: true }
     h.handlers.get('window:get-close-state')!(event)
@@ -37,7 +37,14 @@ describe('窗口 IPC 边界', () => {
     expect(h.resolve).toHaveBeenCalledWith(choice)
   })
 
-  it.each(['window:get-close-state', 'window:set-close-behavior', 'window:resolve-close'])('%s 拒绝外部窗口、子 frame 和其他平台', (channel) => {
+  it('Linux 主窗口同样可以配置关闭方式', () => {
+    vi.stubGlobal('process', { ...process, platform: 'linux' })
+    const event = { sender: h.main.webContents, senderFrame: h.main.webContents.mainFrame }
+    expect(() => h.handlers.get('window:set-close-behavior')!(event, 'tray')).not.toThrow()
+    expect(h.set).toHaveBeenCalledWith('tray')
+  })
+
+  it.each(['window:get-close-state', 'window:set-close-behavior', 'window:resolve-close'])('%s 拒绝外部窗口、子 frame 和 macOS', (channel) => {
     const handle = h.handlers.get(channel)!
     expect(() => handle({ sender: {}, senderFrame: h.main.webContents.mainFrame }, 'quit')).toThrow()
     expect(() => handle({ sender: h.main.webContents, senderFrame: {} }, 'quit')).toThrow()
