@@ -33,7 +33,12 @@ export function has(name: string): boolean {
 export function call(name: string, params: NcmParams): Promise<NcmResponse> {
   const fn = ncmTable[name]
   if (typeof fn !== 'function') throw new Error(`${name} not available`)
-  return (fn as NcmFn)(params)
+  return (fn as NcmFn)(params).catch((err: unknown) => {
+    // NCM 自己的 [ERR] 日志不带接口名，这里补一行便于定位风控(-460)等失败来源。
+    const body = asObj(asObj(err).body)
+    console.warn('[NCM]', name, 'failed:', body.code ?? asObj(err).status, 'logged-in:', /MUSIC_U=/.test(String(params.cookie ?? '')))
+    throw err
+  })
 }
 
 // ---------- 通用取值收窄 ----------
@@ -778,20 +783,27 @@ export interface SongQualityOption {
   br: number
 }
 
+const QUALITY_PROBE_RETRY_DELAY_MS = 600
+
 /**
  * 探测单曲实际可得的音质档:从最高候选档起顺序走阶——上游对不存在的档位会降级返回,
  * "请求档 ≠ 返回档"即请求档不存在,且返回档就是其下一个真实档,可直接跳到再下一档继续。
  * 必须顺序发请求:上游对同曲并发取链会去重/降级,并行探测会漏掉母带档(实测)。
  * 试听片段不算可得。
+ * 单档请求出错(多为连续取链触发的 -460 风控)时稍等重试一次；仍失败则标记 incomplete，
+ * 调用方不应缓存这份可能缺档的结果。
  */
 export async function handleSongQualities(
   id: string,
   loginInfo: LoginInfo,
-  cookie: string
-): Promise<{ qualities: SongQualityOption[] }> {
+  cookie: string,
+  retryDelayMs = QUALITY_PROBE_RETRY_DELAY_MS
+): Promise<{ qualities: SongQualityOption[]; incomplete?: boolean }> {
   const svipReady = hasNeteaseSvip(loginInfo)
   const candidates = NETEASE_QUALITY_CANDIDATES.filter((q) => !q.svip || svipReady)
   const qualities: SongQualityOption[] = []
+  let incomplete = false
+  let retried = -1
   let i = 0
   while (i < candidates.length) {
     const q = candidates[i]
@@ -812,11 +824,17 @@ export async function handleSongQualities(
         // 未知档(如 dolby 等设备鉴权变体)不列入选单,继续探测下一档
       }
     } catch {
-      /* 单档探测失败按不可得处理,继续走下一档 */
+      if (retried !== i) {
+        retried = i
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+        continue
+      }
+      // 重试仍失败按不可得处理，继续走下一档，但结果不完整
+      incomplete = true
     }
     i += 1
   }
-  return { qualities }
+  return incomplete ? { qualities, incomplete } : { qualities }
 }
 
 export interface MappedArtistDetail {

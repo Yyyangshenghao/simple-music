@@ -107,3 +107,12 @@ describe('loadTrackQualities', () => {
     expect(apiGet).not.toHaveBeenCalled()
   })
 })
+
+describe('loadTrackQualities 缺档结果', () => {
+  it('服务端标记 incomplete 时不缓存，下次重新探测', async () => {
+    const track = { provider: 'netease', source: 'netease', type: 'netease', id: 1, name: 'a', artist: 'b', artists: [] } as unknown as Track
+    apiGet.mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }], incomplete: true })
+    expect(await loadTrackQualities(track)).toEqual([{ level: 'lossless', label: '无损' }])
+    expect(peekTrackQualities(track)).toBeUndefined()
+  })
+})
