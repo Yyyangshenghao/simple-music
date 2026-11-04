@@ -16,7 +16,7 @@
 | 本地音乐 | 文件夹索引、筛选与播放；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |
 | 离线音乐 | 浏览播放器内已保存的离线音乐，筛选、排序、播放与多选管理，工具栏直达下载队列；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |
 | 伴奏成品 | 搜索、播放、辨别模型版本、定位文件及删除；齿轮进入相关设置，生成任务交给任务面板 | [AccompanimentsLibrary](../src/pages/AccompanimentsLibrary.tsx) |
-| 搜索与音乐详情 | 跨来源搜索，按歌曲、歌手、专辑、歌单查看；启用实验性哔哩哔哩后可筛选该来源并点播音乐视频音频，结果优先显示识别出的歌名和歌手，视频原题作为辅助信息；详情播放、加入与批量管理 | [SearchPage](../src/pages/SearchPage.tsx)、[ArtistPage](../src/pages/ArtistPage.tsx)、[ArtistSongsPage](../src/pages/ArtistSongsPage.tsx)、[PlaylistDetailView](../src/components/Playlist/PlaylistDetailView.tsx)、[AppPlaylistPage](../src/pages/AppPlaylistPage.tsx)、[ToplistPage](../src/pages/ToplistPage.tsx)、[AppleChartPage](../src/pages/AppleChartPage.tsx) |
+| 搜索与音乐详情 | 跨来源搜索，按歌曲、歌手、专辑、歌单查看；启用哔哩哔哩后可筛选该来源并点播音乐视频音频，结果优先显示识别出的歌名和歌手，视频原题作为辅助信息；详情播放、加入与批量管理 | [SearchPage](../src/pages/SearchPage.tsx)、[ArtistPage](../src/pages/ArtistPage.tsx)、[ArtistSongsPage](../src/pages/ArtistSongsPage.tsx)、[PlaylistDetailView](../src/components/Playlist/PlaylistDetailView.tsx)、[AppPlaylistPage](../src/pages/AppPlaylistPage.tsx)、[ToplistPage](../src/pages/ToplistPage.tsx)、[AppleChartPage](../src/pages/AppleChartPage.tsx) |
 | 漫游与刷歌 | 从歌手关系与持续选曲发现音乐；保持清晰的开始动作和会话状态 | [RoamPage](../src/pages/RoamPage.tsx)、[ShuangePage](../src/pages/ShuangePage.tsx) |
 | 播放栏与播放队列 | 播放、进度、音量、伴奏、歌词和接下来播放的歌曲；哔哩哔哩在播放页、应用歌单与最近播放优先显示歌名和歌手；更多菜单承载相关播放设置 | [PlayerBar](../src/components/Player/PlayerBar.tsx)、[QueuePanel](../src/components/Player/QueuePanel.tsx)、[MoreMenu](../src/components/Player/MoreMenu.tsx) |
 | 伴奏版本面板 | 选择模型与成品版本、发起生成；等待入队回执期间保持忙态，运行与失败任务转交专门队列 | [AccompanimentPanel](../src/components/Player/AccompanimentPanel.tsx) |

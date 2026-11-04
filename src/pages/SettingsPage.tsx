@@ -15,9 +15,10 @@ import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
-import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicRegionSetting, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { ProviderSettingItem, ProviderSettingsButton, ProviderSettingsPlaceholder } from '../components/Settings/ProviderSettingsButton'
 import { AccountButton } from '../components/Settings/AccountButton'
-import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../components/ui/brand-logos'
+import { AppleMusicIcon, BilibiliLogo, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { ProxySettings } from '../components/Settings/ProxySettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
@@ -49,7 +50,7 @@ import {
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
-import { isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { isFallbackOnlyProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
@@ -1096,6 +1097,7 @@ export function SettingsPage() {
   const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
   const appleRestoring = useAppleMusicConnection((s) => !!s.account?.restoring)
   const appleWaiting = useAppleMusicConnection((s) => s.phase === 'waiting')
+  const appleRegionSelectable = useAppleMusicConnection((s) => s.account?.loginMode === 'web')
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
   const changeProviderAccount = async (source: 'netease' | 'qq', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
@@ -1287,20 +1289,22 @@ export function SettingsPage() {
                   </div>
                   {listProviders().map((provider) => {
                     const source = provider.descriptor.id
-                    // 兜底平台没有账号，开关放在播放偏好里。
-                    if (source === 'bilibili') return null
                     const runtime = providerState[source]
-                    const connected = runtime.auth === 'authenticated'
+                    // 无账号平台（游客、哔哩哔哩）会话始终可用，只有启用开关。
+                    const accountless = isGuestOnlyProvider(source) || source === 'bilibili'
+                    const connected = runtime.auth === 'authenticated' || isFallbackOnlyProvider(source)
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
-                    const accountLabel = isGuestOnlyProvider(source) ? '游客模式，会员歌曲仅试听'
+                    const accountLabel = isFallbackOnlyProvider(source)
+                      ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放' : '游客模式，搜索并播放音乐视频的音频'
+                      : isGuestOnlyProvider(source) ? '游客模式，会员歌曲仅试听'
                       : source === 'apple' && appleRestoring ? '恢复登录中'
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
                         ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
                           : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
                         : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
-                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : source === 'kugou' ? KugouLogo : source === 'qishui' ? QishuiLogo : AppleMusicIcon
+                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : source === 'kugou' ? KugouLogo : source === 'qishui' ? QishuiLogo : source === 'bilibili' ? BilibiliLogo : AppleMusicIcon
                     return (
                       <div data-setting-row className={styles.providerRow} key={source}>
                         <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
@@ -1315,15 +1319,23 @@ export function SettingsPage() {
                           </small>
                         </div>
                         <div className={styles.providerActions}>
-                          {source === 'apple' && <AppleMusicRegionSelect />}
+                          {source === 'bilibili' ? (
+                            <ProviderSettingsButton label="哔哩哔哩设置">
+                              <ProviderSettingItem label="显示专辑封面" hint="用网易云或 QQ 音乐里同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。">
+                                <Switch checked={bilibiliAlbumCover} onChange={setBilibiliAlbumCover} aria-label="哔哩哔哩显示专辑封面" />
+                              </ProviderSettingItem>
+                            </ProviderSettingsButton>
+                          ) : source === 'apple' && appleRegionSelectable ? (
+                            <ProviderSettingsButton label="Apple Music 设置"><AppleMusicRegionSetting /></ProviderSettingsButton>
+                          ) : <ProviderSettingsPlaceholder />}
                           <Switch
                             checked={active}
                             disabled={!connected || runtime.playbackAvailable === false || busy}
                             onChange={(enabled) => setProviderEnabled(source, enabled)}
                             aria-label={`${enabledLabel(active)}${provider.descriptor.label}`}
                           />
-                          {source === 'apple' ? <AppleMusicSettings /> : isGuestOnlyProvider(source) ? (
-                            // 游客音源没有账号，占位保持开关与其他平台同一位置。
+                          {source === 'apple' ? <AppleMusicSettings /> : accountless ? (
+                            // 无账号平台占位，保持开关与其他平台同一位置。
                             <span aria-hidden="true" style={{ visibility: 'hidden', display: 'inline-flex' }}>
                               <AccountButton label="" disabled onClick={() => {}} />
                             </span>
@@ -1454,31 +1466,6 @@ export function SettingsPage() {
                           aria-label="播放失败后自动换源"
                         />
                       </div>}
-
-                      <div data-setting-row className={styles.playbackFallbackRow}>
-                        <div>
-                          <strong data-setting-label>哔哩哔哩（实验性）</strong>
-                          <small>在应用内搜索和播放音乐视频的音频。开启自动换源后也可用于补位。B 站限流时可能暂时不可用。</small>
-                        </div>
-                        <Switch
-                          checked={providerState.bilibili.enabled}
-                          onChange={(enabled) => setProviderEnabled('bilibili', enabled)}
-                          aria-label="哔哩哔哩（实验性）"
-                        />
-                      </div>
-
-                      <div data-setting-row className={styles.playbackFallbackRow}>
-                        <div>
-                          <strong data-setting-label>哔哩哔哩显示专辑封面</strong>
-                          <small>用网易云或 QQ 音乐里的同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。</small>
-                        </div>
-                        <Switch
-                          checked={bilibiliAlbumCover}
-                          onChange={setBilibiliAlbumCover}
-                          disabled={!providerState.bilibili.enabled}
-                          aria-label="哔哩哔哩显示专辑封面"
-                        />
-                      </div>
 
                       <p className={styles.playbackSingleProviderHint}>已有缓存优先播放 · 新设置下次起播生效</p>
                     </div>

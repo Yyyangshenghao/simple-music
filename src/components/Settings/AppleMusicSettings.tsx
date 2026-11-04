@@ -6,6 +6,7 @@ import { useToastStore } from '../../stores/toast'
 import { InfoButton } from '../ui/InfoButton'
 import { Select } from '../ui/Select'
 import { AccountButton } from './AccountButton'
+import { ProviderSettingItem } from './ProviderSettingsButton'
 import styles from './AppleMusicSettings.module.css'
 
 export function AppleMusicAccountInfo() {
@@ -97,5 +98,15 @@ export function AppleMusicRegionSelect() {
       <Select value={value} options={appleRegionOptions(value)} aria-label="Apple Music 地区" disabled={locked || busy}
         onChange={(next) => void change(next)} />
     </span>
+  )
+}
+
+/** 齿轮面板里的地区一项；开发者令牌模式没有地区可选。 */
+export function AppleMusicRegionSetting() {
+  const locked = useAppleMusicConnection((s) => !!s.account?.loggedIn || !!s.account?.suspended)
+  return (
+    <ProviderSettingItem label="地区" hint={locked ? '登录后跟随 Apple 账号地区' : '选与 Apple 账号一致的地区，登录更快'}>
+      <AppleMusicRegionSelect />
+    </ProviderSettingItem>
   )
 }

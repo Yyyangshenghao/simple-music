@@ -103,7 +103,7 @@ describe('聚合搜索页面', () => {
     useProviderStore.setState({ byId: { ...byId, bilibili: { enabled: true, auth: 'anonymous' } } })
     const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category: 'artists', sourceFilter: 'bilibili', scrollTop: 0 }} />)
     expect(html).toContain('哔哩哔哩')
-    expect(html).toContain('实验性')
+    expect(html).not.toContain('实验性')
     expect(html).toContain('aria-label="歌曲搜索结果"')
     expect(html).not.toContain('aria-label="歌手搜索结果"')
   })

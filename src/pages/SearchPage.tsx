@@ -252,7 +252,7 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
             {sources.map((source) => (
               <button key={source} type="button" aria-pressed={activeFilter === source} onClick={() => changeFilters({ sourceFilter: source })}>
                 <SourceBadge source={source} compact reveal />
-                <span><SourceName source={source} />{source === 'bilibili' && ' · 实验性'}</span>
+                <span><SourceName source={source} /></span>
               </button>
             ))}
           </div>
