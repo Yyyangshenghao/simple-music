@@ -101,6 +101,14 @@ export interface TrayPlaybackState {
 }
 
 /** 登录窗口返回的 cookie 头（由渲染层转发给 server 的 /api/login/cookie）。 */
+/** 应用内扫码登录的一次轮询结果；confirmed 时附带与网页登录窗同格式的 Cookie。 */
+export interface QrLoginPoll {
+  status: 'waiting' | 'scanned' | 'expired' | 'confirmed' | 'failed'
+  image?: string
+  cookie?: string
+  message?: string
+}
+
 export interface LoginResult {
   ok: boolean
   cookie?: string
@@ -278,6 +286,9 @@ export interface IpcChannels {
   'login:netease-clear': { req: void; res: OkResult }
   'login:qq-open': { req: void; res: LoginResult }
   'login:qq-clear': { req: void; res: OkResult }
+  'login:netease-qr-start': { req: void; res: QrLoginPoll }
+  'login:netease-qr-poll': { req: void; res: QrLoginPoll }
+  'login:netease-qr-cancel': { req: void; res: OkResult }
 
   'lyrics:set-enabled': { req: { enabled: boolean; payload?: LyricsPayload }; res: OkResult }
   'lyrics:update': { req: LyricsPayload; res: OkResult }

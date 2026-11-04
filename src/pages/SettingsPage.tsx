@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
-import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
 import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, CONTROL_MOTION_KEYS, PERFORMANCE_PRESETS, controlMotionFlags, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { DEFAULT_MINI_PLAYER_APPEARANCE, MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
@@ -51,7 +50,7 @@ import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
 import { isFallbackOnlyProvider, isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
-import { useKugouLoginDialog } from '../components/Settings/KugouLoginDialog'
+import { useQrLoginDialog } from '../components/Settings/QrLoginDialog'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
@@ -1102,16 +1101,16 @@ export function SettingsPage() {
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
   const changeProviderAccount = async (source: 'netease' | 'qq' | 'kugou', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
-    if (source === 'kugou' && !connected) {
-      useKugouLoginDialog.getState().show()
+    if (!connected) {
+      // 登录统一走应用内扫码；网页登录窗作为浮层里的备用入口。
+      useQrLoginDialog.getState().show(source)
       return
     }
     setLoginBusy(source)
     try {
-      if (connected) await logoutMusicProvider(source)
-      else if (source !== 'kugou') await loginMusicProvider(source)
+      await logoutMusicProvider(source)
     } catch {
-      useToastStore.getState().show(connected ? '退出登录失败，请重试' : '登录失败，请重试')
+      useToastStore.getState().show('退出登录失败，请重试')
     } finally {
       setLoginBusy(null)
     }

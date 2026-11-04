@@ -12,11 +12,16 @@ export async function loginMusicProvider(source: 'netease' | 'qq'): Promise<void
   if (result?.cancelled) return
   if (result?.error) throw new Error(result.error)
   if (!result?.ok || !result.cookie) return
+  await applyLoginCookie(source, result.cookie)
+}
+
+/** 网页登录窗与应用内扫码共用：拿到 Cookie 后交播放宿主完成账号切换。 */
+export async function applyLoginCookie(source: 'netease' | 'qq', cookie: string): Promise<void> {
   if (window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
-    await window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'loginCookie', args: [source, result.cookie] })
+    await window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'loginCookie', args: [source, cookie] })
     return
   }
-  await completeMusicProviderLogin(source, result.cookie)
+  await completeMusicProviderLogin(source, cookie)
 }
 
 interface KugouAccountStatus { loggedIn?: boolean; nickname?: string; avatar?: string }

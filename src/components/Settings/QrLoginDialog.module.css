@@ -112,3 +112,40 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1400ms; } .qrFrame img, .close { transition: none; } }
+
+/* 扫码方式切换：分段控件，位置固定在二维码上方。 */
+.methods {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
+}
+
+.method {
+  min-width: 64px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.method[data-active] { background: var(--sm-fill-active); color: var(--sm-text-primary); font-weight: 600; }
+
+/* 备用入口压成小字，不和扫码争主次。 */
+.fallback {
+  margin-top: 10px;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.fallback:hover { color: var(--sm-text-primary); text-decoration: underline; }

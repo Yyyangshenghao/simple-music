@@ -20,7 +20,8 @@ Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘
 - `modules/settings-menu.ts` — 原生设置菜单与可配置快捷键（macOS 应用菜单，其他平台首个菜单）；输入框中保留正常文本编辑，同键已注册全局入口时避免重复触发。
 - `modules/macos-lyrics-window.ts` / `lyrics-native-backdrop.ts` — macOS 歌词窗的非激活交互与局部原生毛玻璃；关闭窗口时释放底框视图，不可用时回退，详见 [悬浮窗](overlays.md)。
 - `modules/tray-manager.ts` — 系统托盘菜单与主窗口恢复/隐藏、播放控制和退出。
-- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
+- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server;现作为扫码浮层里「用网页登录」的备用入口。
+- `modules/netease-qr-login.ts` — 网易应用内扫码(`login:netease-qr-{start,poll,cancel}`):在网易登录分区开隐藏的官方首页并点开登录弹窗,取二维码 canvas 交渲染层显示,分区出现 MUSIC_U 即返回 Cookie。直接调 NCM 扫码接口会被 App 判「设备环境异常」(缺网页反爬指纹),所以不走 server;隐藏页 30 秒无轮询或 6 分钟后自动销毁。
 - `modules/font-manager.ts` — 按平台枚举、归一化并缓存系统字体,供设置页三个字体域共用。
 - `modules/update-installer.ts` + `update-installer-logic.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS(adhoc 签名,用不了 Squirrel.Mac)先把 dmg 里的 `.app` 解到 `userData/updates/staging/` 并核对 bundle id/版本/可执行文件,再由 detached 脚本等主进程退出后做两次同卷 rename 替换、重启新版;预检或核对不满足就回退为 `shell.openPath` 打开 dmg,脚本失败则回滚旧版并打开 dmg。后者是可单测的纯逻辑(预检、脚本生成)。启动时 `cleanupUpdatesOnStartup` 清旧安装包与替换残留,上次替换结果经 IPC `app:last-update-install` 交渲染层提示一次。详见 [build-and-release.md](../build-and-release.md) §5。
 - `modules/safe-open.ts` — 外部链接统一出口 `openExternalSafely()`。`shell.openExternal` 会把 URL 交给系统协议处理器,`file://`、自定义 scheme 能拉起本地程序;而窗口里的链接不都可信(登录窗加载的是音乐平台页面,主窗渲染的歌词/评论/歌手简介来自上游接口),因此只放行 http/https/mailto。主窗还挡了 `will-navigate`:导航离开应用入口就等于把 preload 的 `desktop` 桥交给外部页面。

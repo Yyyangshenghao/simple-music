@@ -70,7 +70,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 系统媒体键开关控制网易云、QQ 和本地播放的 Media Session；关闭时保留空处理器，防止浏览器默认媒体动作继续控制音频。Apple Music 官网会话独立管理媒体键，本开关不控制它；应用内与全局快捷键仍复用 player/playlist store 控制 Apple 播放。全局注册失败逐行显示原因，不猜测占用它的软件。
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
-- `providers/registry.ts` — 网易/QQ/Apple Music/酷狗/哔哩哔哩/汽水 Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。酷狗、汽水不登录即可用（`hasGuestSession`）：provider store 里会话固定为 `authenticated`，默认不启用，启用后排在播放顺序末尾。汽水是纯游客（`isGuestOnlyProvider`），忽略账号状态；酷狗可扫码登录（`isGuestLoginProvider`，`components/Settings/KugouLoginDialog.tsx`），登录只更新 `accountLinked` 与资料并开放我的歌单/我喜欢，登出或失效退回游客、不改启用状态。二者都没有红心、上报与歌单写入能力，酷狗可进播放缓存与下载（`isCacheableSource`），汽水暂不落盘。
+- `components/Settings/QrLoginDialog.tsx` + `lib/qr-login.ts` — 网易/QQ（QQ、微信）/酷狗共用的应用内扫码浮层，`useQrLoginDialog.show(source)` 打开；各平台差异在 adapter 里。网易、QQ 成功后拿 Cookie 走 `applyLoginCookie`（与网页登录窗同一条宿主链路），酷狗走 `refreshKugouAccount`；网易、QQ 底部保留「用网页登录」备用入口。Apple Music 仍是 Apple ID 网页授权。
+- `providers/registry.ts` — 网易/QQ/Apple Music/酷狗/哔哩哔哩/汽水 Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。酷狗、汽水不登录即可用（`hasGuestSession`）：provider store 里会话固定为 `authenticated`，默认不启用，启用后排在播放顺序末尾。汽水是纯游客（`isGuestOnlyProvider`），忽略账号状态；酷狗可扫码登录（`isGuestLoginProvider`），登录只更新 `accountLinked` 与资料并开放我的歌单/我喜欢，登出或失效退回游客、不改启用状态。二者都没有红心、上报与歌单写入能力，酷狗可进播放缓存与下载（`isCacheableSource`），汽水暂不落盘。
 - `providers/*-provider.ts` — 平台能力实现；`legacy-provider-adapter.ts` 连接仍使用 `MusicService` 的旧页面。
 
 - `music-service.ts` / `service-registry.ts` — 兼容层接口与 service 单例；实体操作必须 `serviceFor(entity.source)`，不得从当前内容平台猜来源。

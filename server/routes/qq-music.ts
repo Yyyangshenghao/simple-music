@@ -3,6 +3,7 @@ import { readBody, sendJson } from '../lib/http'
 import { getCookie, setCookie, clearCookie } from '../lib/cookie'
 import { playbackAccountToken, validListeningSeconds } from '../lib/playback-account'
 import { reportQQPlayback } from '../lib/qq-playback-report'
+import { checkQQQr, createQQQr, type QQQrType } from '../lib/qq-qr-login'
 import {
   isQQNumericPlaylistId,
   handleQQSearch,
@@ -205,6 +206,34 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     } catch (err) {
       console.error('[QQLyric]', err)
       sendJson(res, { provider: 'qq', error: (err as Error).message, lyric: '' }, 500)
+    }
+    return true
+  }
+
+  // ---------- 应用内扫码登录（QQ / 微信） ----------
+  // 成功时把与网页登录窗同格式的 Cookie 交还渲染层，由宿主走 /api/qq/login/cookie 完成账号切换。
+  if (pn === '/api/qq/login/qr' || pn === '/api/qq/login/qr/check') {
+    const type: QQQrType = url.searchParams.get('type') === 'wx' ? 'wx' : 'qq'
+    try {
+      if (pn === '/api/qq/login/qr') {
+        if (req.method !== 'POST') {
+          sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
+          return true
+        }
+        sendJson(res, await createQQQr(type))
+        return true
+      }
+      const key = String(url.searchParams.get('key') ?? '')
+      const last = String(url.searchParams.get('last') ?? '')
+      // key 会进上游 Cookie/查询串：只收 qrsig / uuid 的字符集。
+      if (!/^[A-Za-z0-9_*-]{8,128}$/.test(key) || !/^\d{0,3}$/.test(last)) {
+        sendJson(res, { error: 'INVALID_PARAMS' }, 400)
+        return true
+      }
+      sendJson(res, await checkQQQr(type, key, last))
+    } catch (err) {
+      console.warn('[QQQrLogin]', type, (err as Error).message)
+      sendJson(res, { status: 'failed', error: (err as Error).message }, 502)
     }
     return true
   }

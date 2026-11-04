@@ -5,10 +5,9 @@ import { useProviderStore } from '../../stores/providers'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
 import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
-import { loginMusicProvider } from '../../lib/provider-login'
 import { logoutMusicProvider } from '../../lib/provider-logout'
 import { isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../../providers/types'
-import { useKugouLoginDialog } from '../Settings/KugouLoginDialog'
+import { useQrLoginDialog } from '../Settings/QrLoginDialog'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { SourceName } from '../ui/SourceName'
@@ -43,9 +42,9 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
 
   async function login(source: ProviderId): Promise<void> {
     if (isGuestOnlyProvider(source)) return
-    if (source === 'kugou') {
-      // 扫码浮层自己管理进度，菜单先收起让出视线。
-      useKugouLoginDialog.getState().show()
+    if (source === 'kugou' || source === 'netease' || source === 'qq') {
+      // 应用内扫码：浮层自己管理进度，菜单先收起让出视线。
+      useQrLoginDialog.getState().show(source)
       onClose()
       return
     }
@@ -55,8 +54,6 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         await useAppleMusicConnection.getState().connect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else if (source !== 'bilibili') {
-        await loginMusicProvider(source)
       }
     } catch {
       useToastStore.getState().show('登录失败，请重试')

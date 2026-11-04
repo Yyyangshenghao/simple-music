@@ -7,6 +7,7 @@ import { useAppleMusicConnection, type AppleMusicAccountStatus } from '../../sto
 import { useNavigationStore } from '../../stores/navigation'
 import { useProviderStore } from '../../stores/providers'
 import { AvatarMenu } from './AvatarMenu'
+import { useQrLoginDialog } from '../Settings/QrLoginDialog'
 
 const h = vi.hoisted(() => ({ toast: vi.fn() }))
 vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true, usePageTransition: () => <T,>(t: T) => t, useFeedback: () => <T,>(t: T) => t }))
@@ -16,7 +17,7 @@ vi.mock('react', async importOriginal => ({
 }))
 vi.mock('../../lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../../lib/apple-music-playback', () => ({ openAppleMusicPlayer: vi.fn() }))
-vi.mock('../../lib/provider-login', () => ({ loginMusicProvider: vi.fn() }))
+vi.mock('../../lib/provider-login', () => ({ loginMusicProvider: vi.fn(), applyLoginCookie: vi.fn(), refreshKugouAccount: vi.fn() }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
 vi.mock('../../stores/apple-music-connection', async importOriginal => {
   const original = await importOriginal<typeof import('../../stores/apple-music-connection')>()
@@ -134,11 +135,14 @@ describe('头像菜单 Apple Music 直接登录', () => {
     expect(mount().button('登录Apple Music').disabled).toBe(false)
   })
 
-  it('网易和 QQ 仍使用原有原生登录流程', async () => {
+  it('网易、QQ、酷狗打开应用内扫码浮层，不直接弹网页登录窗', async () => {
     mount().button('登录网易云').onClick()
-    expect(loginMusicProvider).toHaveBeenCalledWith('netease')
+    expect(useQrLoginDialog.getState().source).toBe('netease')
     mount().button('登录QQ音乐').onClick()
-    expect(loginMusicProvider).toHaveBeenCalledWith('qq')
+    expect(useQrLoginDialog.getState().source).toBe('qq')
+    mount().button('登录酷狗音乐').onClick()
+    expect(useQrLoginDialog.getState().source).toBe('kugou')
+    expect(loginMusicProvider).not.toHaveBeenCalled()
     expect(openAppleMusicPlayer).not.toHaveBeenCalled()
   })
 })
