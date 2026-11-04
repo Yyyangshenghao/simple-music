@@ -6,10 +6,10 @@ import {
   mapPlayUrl,
   mapSearchVideo,
   parseDuration,
-  readingsFromTitle,
   resetBilibiliState,
   searchBilibiliTracks,
 } from './bilibili-client'
+import { readingsFromTitle } from '../../src/lib/bilibili-title'
 import { audioContentTypeForUrl, audioProxyHeadersFor } from './netease-client'
 
 function json(body: unknown, status = 200): Response {

@@ -92,9 +92,13 @@ function tagsIn(patterns: Array<[string, RegExp]>, value: string): string[] {
 }
 
 function versionTagsOf(track: Track): Set<string> {
-  const title = normalizeBrackets(track.name ?? '').toLocaleLowerCase()
+  const videoTitle = track.source === 'bilibili' && typeof track.bilibiliLyricVersionTitle === 'string'
+    ? track.bilibiliLyricVersionTitle : undefined
+  const title = normalizeBrackets(videoTitle ?? track.name ?? '').toLocaleLowerCase()
   const album = normalizeBrackets(track.album ?? '').toLocaleLowerCase()
-  return new Set([...tagsIn(TITLE_VERSION_PATTERNS, title), ...tagsIn(VERSION_PATTERNS, album)])
+  const tags = new Set([...tagsIn(TITLE_VERSION_PATTERNS, title), ...tagsIn(VERSION_PATTERNS, album)])
+  if (videoTitle && /[男女]声(?:完整)?版/u.test(title)) tags.add('cover')
+  return tags
 }
 
 function sameSet<T>(a: Set<T>, b: Set<T>): boolean {
@@ -342,7 +346,9 @@ function writeArchive(archive: MatchCacheArchive): void {
 
 function originKey(track: Track, targetSource: ProviderId, guest: boolean): string {
   // 游客匹配单独成键：只供歌词使用，不会被播放跨源兜底读到。
-  return `${track.source}:${String(track.mid ?? track.id ?? '')}->${targetSource}${guest ? '#guest' : ''}`
+  const identity = typeof track.bilibiliLyricVersionTitle === 'string'
+    ? `#lyrics:${JSON.stringify([track.name, track.artist, track.bilibiliLyricVersionTitle])}` : ''
+  return `${track.source}:${String(track.mid ?? track.id ?? '')}->${targetSource}${guest ? '#guest' : ''}${identity}`
 }
 
 /** 游客搜索为空的短期内存记录：不落盘（可能是上游限流），只避免同一首歌在几分钟内反复搜索。 */

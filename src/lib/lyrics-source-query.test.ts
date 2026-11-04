@@ -51,6 +51,31 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('来源锁定', () => {
+  it.each([
+    ['【4K修复】周杰伦 - 晴天MV 2160P修复版', '周杰伦'],
+    ['【Hi-Res】《晴天》周杰伦', '周杰伦'],
+  ])('按 B 站视频标题 %s 提取歌名查词', async (name, artist) => {
+    const track = song('bilibili', { name, artist: '上传账号', id: 'BV1BZbSzZEGT' })
+    const result = await queryLyricsSource(track, 'netease', ['netease'])
+    expect(h.netease).toHaveBeenCalledWith(`晴天 ${artist}`)
+    expect(result).toMatchObject({ status: 'ready', match: { name: '晴天' } })
+    expect(track.name).toBe(name)
+  })
+
+  it('酷狗用 B 站视频中解析出的歌名和歌手查询', async () => {
+    const track = song('bilibili', { name: '上传时的显示标题', videoTitle: '晴天 - 周杰伦', artist: '上传账号' })
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', [])).toMatchObject({ status: 'ready', result: { origin: 'kugou' } })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, expect.anything())
+  })
+
+  it.each(['【现场】周杰伦《晴天》', '周杰伦《晴天》女声完整版'])('提取 B 站歌名后仍拒绝给 %s 套用录音室歌词', async (name) => {
+    const track = song('bilibili', { name, artist: '上传账号' })
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天')
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
   it('选 QQ 可取原生逐字，但绝不升级成 AMLL 或酷狗', async () => {
     vi.mocked(api.get).mockResolvedValue({ qrc })
     const result = await queryLyricsSource(song('netease'), 'qq', ['netease', 'qq'])
