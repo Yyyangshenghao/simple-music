@@ -12,6 +12,8 @@
 .heading { min-width: 0; }
 .heading h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .heading p { margin: 5px 0 0; color: var(--sm-text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heading p, .preview { user-select: text; }
+.heading p { cursor: text; }
 .close { display: grid; flex-shrink: 0; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--sm-radius-pill); background: transparent; color: var(--sm-text-secondary); transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out); }
 .close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .close:active { background: var(--sm-fill-active); }

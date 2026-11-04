@@ -147,7 +147,7 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
     : sameSelection && !activeSearch ? '保存选择' : '使用此歌词'
 
   return (
-    <dialog ref={dialog} className={`${styles.dialog} no-drag`} aria-labelledby="lyrics-source-title" aria-busy={busy}
+    <dialog ref={dialog} data-copyable-text className={`${styles.dialog} no-drag`} aria-labelledby="lyrics-source-title" aria-busy={busy}
       onCancel={(event) => { event.preventDefault(); close() }}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { blockKeyboardControl } from './keyboard-controls'
 
 function key(extra: Record<string, unknown> = {}): KeyboardEvent {
@@ -8,6 +8,30 @@ function key(extra: Record<string, unknown> = {}): KeyboardEvent {
     preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra
   } as unknown as KeyboardEvent
 }
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('歌词弹窗中的选中文字', () => {
+  it.each([
+    ['darwin', { metaKey: true }],
+    ['win32', { ctrlKey: true }],
+  ] as const)('%s 保留系统复制快捷键', (platform, modifiers) => {
+    const dialog = {}
+    const node = { parentElement: { closest: (selector: string) => selector === 'dialog[data-copyable-text][open]' ? dialog : null } }
+    vi.stubGlobal('document', { getSelection: () => ({ isCollapsed: false, anchorNode: node, focusNode: node }) })
+    const event = key({ key: 'c', code: 'KeyC', ...modifiers })
+    blockKeyboardControl(event, platform)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(event.stopPropagation).not.toHaveBeenCalled()
+  })
+
+  it('普通控件和没有选中文字时仍按原规则处理', () => {
+    vi.stubGlobal('document', { getSelection: () => ({ isCollapsed: true }) })
+    const event = key({ key: 'c', code: 'KeyC', ctrlKey: true })
+    blockKeyboardControl(event, 'win32')
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+})
 
 describe('普通控件的键盘隔离', () => {
   it.each(['Enter', 'Tab', ' ', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Escape', 'f'])('%s 不交给普通控件或页面', (pressed) => {
