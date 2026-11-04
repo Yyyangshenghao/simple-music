@@ -102,7 +102,8 @@ it.each(['netease', 'qq'] as const)('%s 账号退出后状态回到初值，仍�
 it('无界面轮询且重复启动不重查，进入游戏取消在途请求，退出后仅保留新一轮', async () => {
   await flush()
   expect(initLoginStatusSync()).toBe(cleanup)
-  expect(h.get).toHaveBeenCalledTimes(2)
+  // 网易、QQ、酷狗各查一次。
+  expect(h.get).toHaveBeenCalledTimes(3)
   expect(h.refresh).toHaveBeenCalledOnce()
   let finish!: () => void
   h.refresh.mockImplementationOnce(() => new Promise<void>(done => { finish = done }))
@@ -120,4 +121,17 @@ it('无界面轮询且重复启动不重查，进入游戏取消在途请求，�
   expect(h.refresh).toHaveBeenCalledTimes(4)
   cleanup?.()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('酷狗按 server 状态同步账号；账号切换后丢弃迟到结果', async () => {
+  replies.get('/api/kugou/login/status')?.({ loggedIn: true, nickname: 'kg', avatar: 'a' })
+  await flush()
+  expect(h.providers.setAccountState).toHaveBeenCalledWith('kugou', 'authenticated', { avatar: 'a', nickname: 'kg' })
+  cleanup?.()
+  vi.clearAllMocks()
+  cleanup = initLoginStatusSync()
+  advanceProviderAccountSession('kugou')
+  replies.get('/api/kugou/login/status')?.({ loggedIn: false })
+  await flush()
+  expect(h.providers.setAccountState).not.toHaveBeenCalledWith('kugou', expect.anything(), undefined)
 })

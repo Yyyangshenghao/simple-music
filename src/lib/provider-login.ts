@@ -19,6 +19,25 @@ export async function loginMusicProvider(source: 'netease' | 'qq'): Promise<void
   await completeMusicProviderLogin(source, result.cookie)
 }
 
+interface KugouAccountStatus { loggedIn?: boolean; nickname?: string; avatar?: string }
+
+/**
+ * 酷狗扫码确认后，server 已写好会话；宿主按 server 的权威状态更新账号，
+ * 不信任界面层传来的资料。非宿主窗口转发给播放宿主执行。
+ */
+export async function refreshKugouAccount(): Promise<void> {
+  if (window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
+    await window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'refreshKugouAccount', args: [] })
+    return
+  }
+  const status = await api.get<KugouAccountStatus>('/api/kugou/login/status')
+  useProviderStore.getState().setAccountState(
+    'kugou',
+    status.loggedIn ? 'authenticated' : 'anonymous',
+    status.loggedIn ? { avatar: status.avatar || '', nickname: status.nickname || '' } : undefined,
+  )
+}
+
 /** 账号切换在唯一播放宿主内完成，先截断会话再交换服务端 Cookie。 */
 export async function completeMusicProviderLogin(source: 'netease' | 'qq', cookie: string): Promise<void> {
   // 服务端保存新 Cookie 前即截断旧播放的账号身份。

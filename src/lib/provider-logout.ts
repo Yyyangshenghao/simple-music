@@ -4,9 +4,15 @@ import { useProviderStore } from '../stores/providers'
 import { providerAccountSession } from './provider-account-session'
 
 /** 清除原生登录窗口和 API 会话后，再更新对应平台的账户状态。 */
-export async function logoutMusicProvider(source: 'netease' | 'qq'): Promise<void> {
+export async function logoutMusicProvider(source: 'netease' | 'qq' | 'kugou'): Promise<void> {
   if (window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
     await window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'logout', args: [source] })
+    return
+  }
+  if (source === 'kugou') {
+    // 酷狗会话只在 server，没有原生登录窗口；退出后回到游客会话。
+    await api.post('/api/kugou/logout')
+    useProviderStore.getState().setAccountState('kugou', 'anonymous')
     return
   }
   const accountSession = providerAccountSession(source)

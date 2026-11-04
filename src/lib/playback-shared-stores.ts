@@ -21,7 +21,7 @@ import { useKaraokeStore } from '../stores/karaoke'
 import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { runShortcutAction } from './shortcut-actions'
 import { isShortcutAction } from './shortcuts'
-import { completeMusicProviderLogin } from './provider-login'
+import { completeMusicProviderLogin, refreshKugouAccount } from './provider-login'
 import { logoutMusicProvider } from './provider-logout'
 import { expireProviderAccount } from '../stores/provider-auth'
 import { providerAccountSession } from './provider-account-session'
@@ -54,8 +54,9 @@ export const playbackStores = {
       if ((source !== 'netease' && source !== 'qq') || typeof cookie !== 'string') throw new Error('无效的登录参数')
       return completeMusicProviderLogin(source, cookie)
     },
+    refreshKugouAccount() { return refreshKugouAccount() },
     logout(source: unknown) {
-      if (source !== 'netease' && source !== 'qq') throw new Error('无效的音源')
+      if (source !== 'netease' && source !== 'qq' && source !== 'kugou') throw new Error('无效的音源')
       return logoutMusicProvider(source)
     },
     expireAccount(source: unknown, message: unknown, epoch: unknown) {
@@ -84,5 +85,5 @@ export const remoteActions: Record<string, readonly string[]> = {
   navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
   bilibiliCovers: ['request', 'remember'],
-  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount', 'cancelLyricsSelection'],
+  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'refreshKugouAccount', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

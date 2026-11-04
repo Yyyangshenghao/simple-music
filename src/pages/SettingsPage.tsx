@@ -50,7 +50,8 @@ import {
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
-import { isFallbackOnlyProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { isFallbackOnlyProvider, isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { useKugouLoginDialog } from '../components/Settings/KugouLoginDialog'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
@@ -1099,12 +1100,16 @@ export function SettingsPage() {
   const appleWaiting = useAppleMusicConnection((s) => s.phase === 'waiting')
   const appleRegionSelectable = useAppleMusicConnection((s) => s.account?.loginMode === 'web')
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
-  const changeProviderAccount = async (source: 'netease' | 'qq', connected: boolean): Promise<void> => {
+  const changeProviderAccount = async (source: 'netease' | 'qq' | 'kugou', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
+    if (source === 'kugou' && !connected) {
+      useKugouLoginDialog.getState().show()
+      return
+    }
     setLoginBusy(source)
     try {
       if (connected) await logoutMusicProvider(source)
-      else await loginMusicProvider(source)
+      else if (source !== 'kugou') await loginMusicProvider(source)
     } catch {
       useToastStore.getState().show(connected ? '退出登录失败，请重试' : '登录失败，请重试')
     } finally {
@@ -1295,9 +1300,12 @@ export function SettingsPage() {
                     const connected = runtime.auth === 'authenticated' || isFallbackOnlyProvider(source)
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
+                    // 酷狗游客会话始终可用；账号按钮只看是否登录了账号。
+                    const guestLogin = isGuestLoginProvider(source)
+                    const accountIn = guestLogin ? !!runtime.accountLinked : connected
                     const accountLabel = isFallbackOnlyProvider(source)
                       ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放' : '游客模式，搜索并播放音乐视频的音频'
-                      : isGuestOnlyProvider(source) ? '游客模式，会员歌曲仅试听'
+                      : isGuestOnlyProvider(source) || (guestLogin && !accountIn) ? '游客模式，会员歌曲仅试听'
                       : source === 'apple' && appleRestoring ? '恢复登录中'
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
@@ -1340,11 +1348,11 @@ export function SettingsPage() {
                               <AccountButton label="" disabled onClick={() => {}} />
                             </span>
                           ) : <AccountButton
-                            label={`${busy ? connected ? '退出中' : '登录中' : connected ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
-                            exit={connected}
+                            label={`${busy ? accountIn ? '退出中' : '登录中' : accountIn ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
+                            exit={accountIn}
                             busy={busy}
                             disabled={loginBusy !== null}
-                            onClick={() => void changeProviderAccount(source, connected)}
+                            onClick={() => void changeProviderAccount(source, accountIn)}
                           />}
                         </div>
                       </div>

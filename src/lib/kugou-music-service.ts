@@ -8,12 +8,29 @@ import type {
   ToplistPreviewTrack,
 } from './music-service'
 import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
+import { useProviderStore } from '../stores/providers'
+
+/** 未登录账号时不请求账号端点，避免 401 被当成登录失效。 */
+function accountLinked(): boolean {
+  return !!useProviderStore.getState().byId.kugou.accountLinked
+}
 
 /**
- * 酷狗音乐（游客）：只读目录、搜索与免费/试听播放，不涉及账号，
- * 因此没有红心、用户歌单、收听上报和歌单写入。Track.id 是 128 档文件 hash。
+ * 酷狗音乐：目录、搜索与播放默认走游客接口；扫码登录后 server 改用账号取整曲，
+ * 并开放我的歌单（含「我喜欢」）。暂无红心写入、收听上报和歌单写入。Track.id 是 128 档文件 hash。
  */
 export class KugouMusicService implements MusicService {
+  async getUserPlaylists(): Promise<Playlist[]> {
+    if (!accountLinked()) return []
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/kugou/user/playlists')
+    return res.playlists ?? []
+  }
+
+  async getLikedPlaylist(): Promise<Playlist | null> {
+    if (!accountLinked()) return null
+    return (await this.getUserPlaylists()).find((playlist) => playlist.specialType === 5) ?? null
+  }
+
   async getRecommendPlaylists(page = 0): Promise<Playlist[]> {
     const res = await api.get<{ playlists?: Playlist[] }>('/api/kugou/recommend/playlists', { page })
     return res.playlists ?? []

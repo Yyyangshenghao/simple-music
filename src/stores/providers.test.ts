@@ -133,6 +133,15 @@ describe('provider store', () => {
     expect(JSON.parse(storage['simplemusic-provider-settings']).providers.kugou).toEqual({ enabled: true })
   })
 
+  it('酷狗可选登录：登录只换资料，退出或失效回到游客会话且保持启用', () => {
+    useProviderStore.getState().setEnabled('kugou', true)
+    useProviderStore.getState().setAccountState('kugou', 'authenticated', { avatar: 'a', nickname: 'A.M' })
+    expect(useProviderStore.getState().byId.kugou).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: true, profile: { nickname: 'A.M' } })
+    useProviderStore.getState().setAccountState('kugou', 'expired')
+    expect(useProviderStore.getState().byId.kugou).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: false, profile: { nickname: '游客' } })
+    expect(participatingProviderIds()).toContain('kugou')
+  })
+
   it('未登录平台不能启用，退出登录会自动停用', () => {
     useProviderStore.getState().setAccountState('qq', 'anonymous')
     useProviderStore.getState().setEnabled('qq', true)

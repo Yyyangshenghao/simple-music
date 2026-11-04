@@ -9,7 +9,7 @@ import {
   type ProviderPreferences,
   type SourceBadgeMode,
 } from '../lib/provider-preferences'
-import { PROVIDER_IDS, isFallbackOnlyProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, hasGuestSession, isFallbackOnlyProvider, isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
 import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
@@ -33,6 +33,8 @@ export interface ProviderRuntimeState {
   profile?: ProviderProfile
   playbackAvailable?: boolean
   lastError?: string
+  /** 可选登录平台（酷狗）是否已登录账号；未登录时仍以游客会话参与。 */
+  accountLinked?: boolean
 }
 
 interface ProviderStore extends Omit<ProviderPreferences, 'providers'> {
@@ -55,11 +57,11 @@ function runtimeMap(
   const map = {} as Record<ProviderId, ProviderRuntimeState>
   for (const id of PROVIDER_IDS) {
     map[id] = {
-      ...(isGuestOnlyProvider(id) ? GUEST_SESSION : undefined),
+      ...(hasGuestSession(id) ? GUEST_SESSION : undefined),
       ...previous?.[id],
       enabled: preferences.providers[id].enabled,
-      // 游客平台没有登录流程，会话始终可用；兜底平台没有账号，只用游客接口。
-      auth: isGuestOnlyProvider(id) ? 'authenticated' : isFallbackOnlyProvider(id) ? 'anonymous' : previous?.[id].auth ?? 'unknown',
+      // 游客平台（含可选登录的酷狗）会话始终可用；兜底平台没有账号，只用游客接口。
+      auth: hasGuestSession(id) ? 'authenticated' : isFallbackOnlyProvider(id) ? 'anonymous' : previous?.[id].auth ?? 'unknown',
     }
   }
   return map
@@ -153,6 +155,19 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   setAccountState(id, auth, profile, options) {
     if (isGuestOnlyProvider(id)) return
+    if (isGuestLoginProvider(id)) {
+      // 账号登出或失效只退回游客会话，平台参与与播放顺序保持不变。
+      const linked = auth === 'authenticated'
+      const current = get().byId[id]
+      const nextProfile = linked && profile ? profile : GUEST_SESSION.profile
+      if (current.accountLinked === linked && current.profile?.nickname === nextProfile.nickname && current.profile?.avatar === nextProfile.avatar) return
+      advanceProviderAccountSession(id)
+      clearProviderRequestCache(id)
+      set((state) => ({
+        byId: { ...state.byId, [id]: { ...state.byId[id], auth: 'authenticated', accountLinked: linked, profile: nextProfile } },
+      }))
+      return
+    }
     advanceProviderAccountSession(id)
     // 同步通知页面前先失效缓存，避免新账号首帧读取上个会话的数据。
     clearProviderRequestCache(id)

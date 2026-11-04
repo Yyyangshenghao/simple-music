@@ -1,0 +1,114 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .32);
+}
+
+/* 与平台设置浮层同一块表面：毛玻璃 + 浅投影，不描边。 */
+.dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 300px;
+  padding: 14px 20px 20px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, .28);
+  color: var(--sm-text-primary);
+}
+
+:global([data-reduce-transparency]) .dialog { background: var(--sm-bg-base); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  align-self: stretch;
+  margin-bottom: 14px;
+}
+
+.header strong { font-size: 14px; font-weight: 600; }
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sm-text-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+
+/* 二维码固定尺寸：加载、过期、刷新都在同一个框里切换，不跳动。 */
+.qrFrame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 188px;
+  height: 188px;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.qrFrame img {
+  width: 172px;
+  height: 172px;
+  image-rendering: pixelated;
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.qrFrame[data-stale] img { opacity: .12; filter: blur(2px); }
+.qrFrame[data-scanned] img { opacity: .35; }
+
+.refresh {
+  position: absolute;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(0, 0, 0, .55);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.status {
+  min-height: 20px;
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.hint {
+  margin: 0;
+  color: var(--sm-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1400ms; } .qrFrame img, .close { transition: none; } }

@@ -40,6 +40,16 @@ export function initLoginStatusSync(): () => void {
       }).catch(() => {})
   }
 
+  {
+    const session = providerAccountSession('kugou')
+    void api.get<LoginStatusResponse>('/api/kugou/login/status', undefined, { signal: controller.signal })
+      .then(result => {
+        if (stopped || session !== providerAccountSession('kugou')) return
+        useProviderStore.getState().setAccountState('kugou', result.loggedIn ? 'authenticated' : 'anonymous',
+          result.loggedIn ? { avatar: result.avatar || '', nickname: result.nickname || '' } : undefined)
+      }).catch(() => {})
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined
   let appleRequest: AbortController | undefined
   function pauseApple(): void {
