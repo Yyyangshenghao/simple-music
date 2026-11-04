@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SearchPage } from './SearchPage'
+import { bilibiliSearchDisplay, SearchPage } from './SearchPage'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
+import type { Track } from '../types/domain'
 
 vi.mock('../stores/providers', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/providers')>()
@@ -10,6 +11,40 @@ vi.mock('../stores/providers', async (importOriginal) => {
   return { ...original, useProviderStore: Object.assign(
     (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()), store
   ) }
+})
+
+describe('哔哩哔哩搜索结果展示', () => {
+  const video = (name: string): Track => ({
+    source: 'bilibili', provider: 'bilibili', type: 'song', id: 'BV1BZbSzZEGT',
+    name, artist: '上传者', artists: [], videoTitle: name,
+  })
+
+  it('主展示歌名和歌手，视频原题作为辅助文字', () => {
+    const original = '【4K修复】周杰伦《晴天》'
+    expect(bilibiliSearchDisplay(video(original), [])).toEqual({
+      name: '晴天', artist: '周杰伦', caption: original,
+    })
+  })
+
+  it('使用已加载的曲库结果区分横线两侧的歌名和歌手', () => {
+    const reference: Track = { ...video('晴天'), source: 'netease', provider: 'netease', artist: '周杰伦', duration: 269000 }
+    for (const original of ['周杰伦 - 晴天', '晴天 - 周杰伦']) {
+      expect(bilibiliSearchDisplay({ ...video(original), duration: 269000 }, [reference]))
+        .toMatchObject({ name: '晴天', artist: '周杰伦' })
+    }
+  })
+
+  it('翻唱标题里的原歌手和循环标签不显示为演唱者', () => {
+    for (const title of ['周杰伦《晴天》女声完整版', '循环歌曲《晴天》']) {
+      expect(bilibiliSearchDisplay(video(title), [])).toMatchObject({ name: '晴天', artist: 'UP 主 · 上传者' })
+    }
+  })
+
+  it('无法确认时显示原题，上传者明确标为 UP 主', () => {
+    expect(bilibiliSearchDisplay(video('周杰伦 - 晴天'), [])).toEqual({
+      name: '周杰伦 - 晴天', artist: 'UP 主 · 上传者', caption: undefined,
+    })
+  })
 })
 
 describe('聚合搜索页面', () => {

@@ -1,3 +1,5 @@
+import { normalizeMatchText } from './match-text'
+
 function decodeEntities(text: string): string {
   return text
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
@@ -75,6 +77,16 @@ export function readingsFromTitle(rawTitle: string, uploader: string): TitleRead
     name,
     artists: unique([...segments.filter((_, other) => other !== index), owner]),
   }))
+}
+
+export function bilibiliSongReadings(videoTitle: string, hint?: TitleReading): TitleReading[] {
+  const titleReadings = readingsFromTitle(videoTitle, '')
+  const hasHint = typeof hint?.name === 'string' && hint.name.trim() && Array.isArray(hint.artists)
+    && hint.artists.length === 1 && typeof hint.artists[0] === 'string' && hint.artists[0].trim()
+  if (!hasHint) return titleReadings
+  if (/《[^》]+》|「[^」]+」|『[^』]+』/u.test(videoTitle) && titleReadings.length
+    && normalizeMatchText(hint.name) !== normalizeMatchText(titleReadings[0].name)) return []
+  return [hint]
 }
 
 function splitSegments(text: string): string[] {

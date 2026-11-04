@@ -1,13 +1,13 @@
 import { fetchNativeAppleLyrics } from './apple-lyrics'
 import { parseAppleLyrics } from './apple-lyric-parser'
 import { api } from './api'
-import { readingsFromTitle } from './bilibili-title'
+import { bilibiliSongReadings } from './bilibili-title'
 import { accompanimentOriginal } from './karaoke-library'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, isInstrumentalPlaceholder, stripLineCredits, stripWordLineCredits } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
-import { findEquivalentTrack, normalizeMatchText, scoreTrackMatch, TrackMatchMismatchError, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
+import { findEquivalentTrack, scoreTrackMatch, TrackMatchMismatchError, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
@@ -82,13 +82,7 @@ function hasTimedLyrics(result: LyricsResult): boolean {
 function lyricIdentities(track: Track): Track[] {
   if (track.source !== 'bilibili' || typeof track.bilibiliLyricVersionTitle === 'string') return [track]
   const videoTitle = typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
-  const hint = track.bilibiliLyricHint
-  const titleReadings = readingsFromTitle(videoTitle, '')
-  const hasHint = typeof hint?.name === 'string' && hint.name.trim() && Array.isArray(hint.artists)
-    && hint.artists.length === 1 && typeof hint.artists[0] === 'string' && hint.artists[0].trim()
-  if (hasHint && /《[^》]+》|「[^」]+」|『[^』]+』/u.test(videoTitle) && titleReadings.length
-    && normalizeMatchText(hint.name) !== normalizeMatchText(titleReadings[0].name)) return []
-  const readings = hasHint ? [hint] : titleReadings
+  const readings = bilibiliSongReadings(videoTitle, track.bilibiliLyricHint)
   return readings.map(({ name, artists }) => ({
     ...track, name, artist: artists.join(' / '), artists: artists.map(name => ({ id: null, name })),
     bilibiliLyricVersionTitle: videoTitle,
