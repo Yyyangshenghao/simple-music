@@ -45,15 +45,15 @@ describe('歌词来源完整顺序存档', () => {
   it('旧版首选迁移到第一位，其余来源补齐且去掉重复未知项；缺少的 Apple Music 排最前', () => {
     archive.set(LYRICS_SOURCE_STORAGE_KEY, JSON.stringify({ schema: 1, defaultSource: 'kugou', remembered: {} }))
     loadLyricsSourcePreferences()
-    expect(useLyricsSourceStore.getState().sourceOrder).toEqual(['apple', 'kugou', 'netease', 'qq', 'amll'])
-    expect(normalizeLyricsSourceOrder(['qq', 'qq', 'unknown', 'amll'])).toEqual(['apple', 'qq', 'amll', 'netease', 'kugou'])
-    expect(normalizeLyricsSourceOrder(['qq', 'apple', 'amll'])).toEqual(['qq', 'apple', 'amll', 'netease', 'kugou'])
-    expect(normalizeLyricsSourceOrder(null)).toEqual(['apple', 'netease', 'qq', 'amll', 'kugou'])
+    expect(useLyricsSourceStore.getState().sourceOrder).toEqual(['apple', 'kugou', 'netease', 'qq', 'amll', 'qishui'])
+    expect(normalizeLyricsSourceOrder(['qq', 'qq', 'unknown', 'amll'])).toEqual(['apple', 'qq', 'amll', 'netease', 'qishui', 'kugou'])
+    expect(normalizeLyricsSourceOrder(['qq', 'apple', 'amll'])).toEqual(['qq', 'apple', 'amll', 'netease', 'qishui', 'kugou'])
+    expect(normalizeLyricsSourceOrder(null)).toEqual(['apple', 'netease', 'qq', 'amll', 'qishui', 'kugou'])
   })
 
   it('以新版顺序存档，不持久化本次运行故障与测试结果', () => {
     useLyricsSourceStore.setState({ health: { qq: { failures: 3, suspended: true } }, probes: { qq: { status: 'error', sample: '晴天', message: '连接失败' } } })
-    const order = ['kugou', 'amll', 'qq', 'netease', 'apple'] as const
+    const order = ['kugou', 'qishui', 'amll', 'qq', 'netease', 'apple'] as const
     useLyricsSourceStore.getState().setSourceOrder([...order])
     expect(JSON.parse(archive.get(LYRICS_SOURCE_STORAGE_KEY)!)).toEqual({ schema: 2, defaultSource: 'auto', sourceOrder: order, remembered: {} })
     useLyricsSourceStore.setState({ sourceOrder: null, health: {}, probes: {} })
@@ -66,7 +66,7 @@ describe('歌词来源完整顺序存档', () => {
     expect(() => store.setSourceOrder(['qq', 'qq', 'amll', 'kugou'])).toThrow('无效')
     expect(() => store.setSourceOrder(['qq'])).toThrow('无效')
     vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota') })
-    store.setSourceOrder(['qq', 'netease', 'amll', 'kugou', 'apple'])
+    store.setSourceOrder(['qq', 'netease', 'amll', 'qishui', 'kugou', 'apple'])
     expect(useLyricsSourceStore.getState().sourceOrder).toBeNull()
     expect(useToastStore.getState().message).toContain('无法保存')
   })
@@ -103,7 +103,7 @@ describe('批量管理歌曲来源记忆', () => {
   })
 
   it('平台自带来源只能用于本平台歌曲', () => {
-    expect(rememberableOrigins('netease:1')).toEqual(['apple', 'netease', 'qq', 'amll', 'kugou'])
+    expect(rememberableOrigins('netease:1')).toEqual(['apple', 'netease', 'qq', 'amll', 'qishui', 'kugou'])
     expect(rememberableOrigins('local:2')[0]).toBe('local')
     useLyricsSourceStore.getState().updateRemembered(['netease:1', 'apple:3'], 'local')
     expect(useLyricsSourceStore.getState().remembered['netease:1'].origin).toBe('qq')

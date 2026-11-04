@@ -299,16 +299,16 @@ describe('游客歌词来源设置', () => {
   it('平台参与开关独立保存，重载保留；旧存档默认开启', () => {
     let saved = '{}'
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
     useSettingsStore.getState().setLyricsPlatformSource('netease', false)
     useSettingsStore.getState().setLyricsPlatformSource('apple', false)
     useSettingsStore.getState().setLyricsPlatformSource('local' as 'qq', false)
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: false, qq: true, apple: false })
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: false, qq: true, apple: false, qishui: true })
     saved = '{}'
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: true, qq: true, apple: true })
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: true, qq: true, apple: true, qishui: true })
   })
 
   it('拒绝未知平台与非布尔值', () => {

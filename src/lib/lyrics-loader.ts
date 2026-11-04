@@ -70,7 +70,7 @@ function nextQueueTrack(): Track | undefined {
 
 function sourceRows(track: Track): LyricOrigin[] {
   track = accompanimentOriginal(track) ?? track
-  return Array.from(new Set<LyricOrigin>([track.source, 'apple', 'netease', 'qq', 'amll', 'kugou']))
+  return Array.from(new Set<LyricOrigin>([track.source, 'apple', 'netease', 'qq', 'amll', 'qishui', 'kugou']))
 }
 
 interface SelectionSession {

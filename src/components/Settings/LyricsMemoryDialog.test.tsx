@@ -83,8 +83,8 @@ describe('歌曲歌词来源管理', () => {
   it('单曲可改来源或忘记；本地歌曲额外可选本地歌词', () => {
     const element = render()
     const local = labelled(element, 'Blue的歌词来源')
-    expect(local.props.options.map((item: { value: string }) => item.value)).toEqual(['local', 'apple', 'netease', 'qq', 'amll', 'kugou'])
-    expect(labelled(element, '晴天的歌词来源').props.options.map((item: { value: string }) => item.value)).toEqual(['apple', 'netease', 'qq', 'amll', 'kugou'])
+    expect(local.props.options.map((item: { value: string }) => item.value)).toEqual(['local', 'apple', 'netease', 'qq', 'amll', 'qishui', 'kugou'])
+    expect(labelled(element, '晴天的歌词来源').props.options.map((item: { value: string }) => item.value)).toEqual(['apple', 'netease', 'qq', 'amll', 'qishui', 'kugou'])
     labelled(element, '晴天的歌词来源').props.onChange('amll')
     expect(h.state.updateRemembered).toHaveBeenCalledWith(['netease:1'], 'amll')
     labelled(element, '忘记安静的歌词来源').props.onClick()

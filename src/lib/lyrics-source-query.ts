@@ -210,7 +210,7 @@ async function queryLyricsSourceImpl(
     if (origin === 'kugou') {
       return ready(await upgradeLyricsWithKugou(track, { ...emptyLyrics, source: track.source }, signal, true, probe, !!search))
     }
-    const targets = origin === 'netease' || origin === 'qq' || origin === 'apple' ? await findTargets(origin) : [track]
+    const targets = origin === 'netease' || origin === 'qq' || origin === 'apple' || origin === 'qishui' ? await findTargets(origin) : [track]
     let outcome = ready(null)
     // 最佳候选没有歌词或时间轴对不上时，依次尝试后备候选。
     for (const target of targets) {

@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
     setSourceOrder: vi.fn(), clearRemembered: vi.fn(), forgetTrack: vi.fn(), testSource: vi.fn(),
   },
   settings: {
-    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true },
+    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true },
     setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(), setLyricsPlatformSource: vi.fn(),
   },
   providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' }, apple: { enabled: true, auth: 'anonymous' } } },
@@ -80,21 +80,21 @@ beforeEach(() => {
   h.settings.lyricsAmllFallback = true
   h.settings.lyricsKugouFallback = true
   h.settings.lyricsGuestSources = { netease: true, qq: true }
-  h.settings.lyricsPlatformSources = { netease: true, qq: true, apple: true }
+  h.settings.lyricsPlatformSources = { netease: true, qq: true, apple: true, qishui: true }
   h.providers.byId.netease = { enabled: true, auth: 'anonymous' }
   h.providers.byId.qq = { enabled: true, auth: 'anonymous' }
   h.providers.byId.apple = { enabled: true, auth: 'anonymous' }
 })
 
 describe('歌词来源设置', () => {
-  it('展示五个编号优先级，通过宿主动作交换完整顺序', () => {
+  it('展示六个编号优先级，通过宿主动作交换完整顺序', () => {
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
-    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗音乐'])
-    expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级', '第 5 优先级'])
+    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗音乐', '汽水音乐'])
+    expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级', '第 5 优先级', '第 6 优先级'])
     expect(button(element, '提高网易云音乐优先级').props.disabled).toBe(false)
     button(element, '提高QQ 音乐优先级').props.onClick()
-    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['apple', 'qq', 'netease', 'amll', 'kugou'])
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['apple', 'qq', 'netease', 'amll', 'kugou', 'qishui'])
     expect(infoText(element)).toContain('从下一首歌曲生效')
   })
 
@@ -108,7 +108,7 @@ describe('歌词来源设置', () => {
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('apple', false)
     expect(h.settings.setLyricsGuestSource).not.toHaveBeenCalled()
     button(element, '降低Apple Music优先级').props.onClick()
-    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['netease', 'apple', 'qq', 'amll', 'kugou'])
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['netease', 'apple', 'qq', 'amll', 'kugou', 'qishui'])
 
     h.settings.setLyricsPlatformSource.mockClear()
     h.providers.byId.apple = { enabled: true, auth: 'expired' }
@@ -158,7 +158,7 @@ describe('歌词来源设置', () => {
 
   it('每个来源一个开关，关闭后不可测试并显示已关闭', () => {
     h.settings.lyricsAmllFallback = false
-    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true, qishui: true }
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
     expect(text(rows[1])).toContain('已关闭')
@@ -175,7 +175,7 @@ describe('歌词来源设置', () => {
 
   it('重新启用平台时一并恢复游客查询，未登录显示以游客身份查询', () => {
     h.settings.lyricsGuestSources = { netease: false, qq: true }
-    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true, qishui: true }
     const element = AmllLyricsSettings()
     labelled(element, '使用网易云音乐')!.props.onChange(true)
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('netease', true)

@@ -57,6 +57,7 @@ export function AmllLyricsSettings() {
     if (source === 'amll') setEnabled(value)
     else if (source === 'kugou') setKugouEnabled(value)
     else if (source === 'apple') { if (!locked(source)) setPlatformSource(source, value) }
+    else if (source === 'qishui') setPlatformSource(source, value)
     else {
       setPlatformSource(source, value)
       // 游客查询不再单独设开关：重新启用平台时一并恢复，未登录也能直接用。
@@ -68,7 +69,7 @@ export function AmllLyricsSettings() {
   }
 
   return <section className={styles.group}>
-    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 需已连接并启用：Apple 曲目读取自带歌词，其他歌曲按歌名、歌手与时长匹配 Apple 目录中的同一录音；未连接、连接断开或未启用时这一项置灰，不参与查找。网易云、QQ 未登录或已停用播放时，以游客身份查询歌词，不使用账号，只发送歌名与歌手。不想用的来源直接关闭，关闭后不再向它查询歌词，也不影响播放音源。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
+    <h3 className={styles.title}>歌词来源<InfoButton label="歌词来源" text="已记住的歌曲选择优先，其余按下方顺序查找，不可用时继续下一项。Apple Music 需已连接并启用：Apple 曲目读取自带歌词，其他歌曲按歌名、歌手与时长匹配 Apple 目录中的同一录音；未连接、连接断开或未启用时这一项置灰，不参与查找。网易云、QQ 未登录或已停用播放时，以及汽水音乐，以游客身份查询歌词，不使用账号，只发送歌名与歌手。不想用的来源直接关闭，关闭后不再向它查询歌词，也不影响播放音源。本地歌曲优先使用同目录同名 .lrc 或文件内嵌的同步歌词；都没有时，只有标题、艺人和时长标签齐全才在线匹配同一录音，不上传文件或路径。在线匹配会向对应歌词服务发送歌曲标识或歌名、歌手与时长。调整顺序从下一首歌曲生效。连续连接失败会暂停本次运行的自动访问，测试成功后恢复；测试不会切歌或替换正在显示的歌词。" /></h3>
     <div data-setting-row className={styles.sampleRow}>
       <label htmlFor="lyrics-test-song">测试歌曲</label>
       <Select id="lyrics-test-song" className={styles.select} aria-label="测试歌曲" value={sample} onChange={setSample}
@@ -79,7 +80,7 @@ export function AmllLyricsSettings() {
         const probe = probes[source]
         const suspended = health[source]?.suspended
         const on = isOn(source)
-        const account = source !== 'amll' && source !== 'kugou' && providers[source]?.enabled && providers[source]?.auth === 'authenticated'
+        const account = source !== 'amll' && source !== 'kugou' && source !== 'qishui' && providers[source]?.enabled && providers[source]?.auth === 'authenticated'
         const status = locked(source) ? appleStatus
           : !on ? '已关闭'
           : probe?.status === 'loading' ? '正在获取测试歌词…'
@@ -87,7 +88,7 @@ export function AmllLyricsSettings() {
           : probe?.status === 'ready' ? `已获取歌词 · ${probe.ms} ms`
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'
           : probe?.status === 'error' ? '暂时连接失败，可重新测试'
-          : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : '未登录，以游客身份查询')
+          : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : source === 'qishui' ? '以游客身份查询' : '未登录，以游客身份查询')
         return <motion.li data-setting-row key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined} data-locked={locked(source) || undefined}>
           <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
           <LyricOriginIcon origin={source} dim={!on} />

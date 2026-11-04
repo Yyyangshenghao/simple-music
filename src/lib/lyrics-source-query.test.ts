@@ -232,7 +232,7 @@ describe('参与限制和取消', () => {
 
     // 原平台在歌词设置中关闭时不再请求它补翻译。
     h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [], roma: [], wordLines: [] })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true, qishui: true } })
     vi.mocked(api.get).mockClear()
     const plain = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
     expect(plain).toMatchObject({ status: 'ready', result: { aligned: [] } })
@@ -244,9 +244,9 @@ describe('参与限制和取消', () => {
     expect(await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple']))
       .toMatchObject({ status: 'ready', result: { source: 'apple' }, match: { source: 'apple', id: 'a1' } })
     expect(h.native).toHaveBeenCalledWith(expect.objectContaining({ source: 'apple', id: 'a1' }), expect.anything(), true)
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false, qishui: true } })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
     useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' }, kugou: { enabled: false, auth: 'authenticated' } } }))
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'login' })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'login' })
@@ -479,8 +479,8 @@ describe('游客歌词来源', () => {
   })
 
   it('设置中关闭平台后，即使已登录也显示已关闭', () => {
-    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true, qishui: true } })
     expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
   })
 })
