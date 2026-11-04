@@ -1,6 +1,6 @@
 import type { Track } from '../../types/domain'
 import { sizedImage } from '../../lib/image-size'
-import { appPlaylistCovers } from '../../lib/app-playlist-presentation'
+import { useAppPlaylistCovers } from '../../hooks/useTrackCover'
 import styles from './AppPlaylistCover.module.css'
 
 function CoverFallback() {
@@ -12,7 +12,7 @@ function CoverFallback() {
 }
 
 export function AppPlaylistCover({ tracks, className = '' }: { tracks: Track[]; className?: string }) {
-  const covers = appPlaylistCovers(tracks)
+  const covers = useAppPlaylistCovers(tracks)
   return <span className={`${styles.cover} ${className}`} data-cover-count={covers.length} role="img" aria-label="应用歌单封面">
     {covers.length ? covers.map(cover => <span className={styles.tile} key={cover.url} aria-hidden="true">
       <CoverFallback />

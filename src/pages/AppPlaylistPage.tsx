@@ -29,7 +29,8 @@ import pageScroll from '../styles/page-scroll.module.css'
 import { GradientText } from '../components/ui/GradientText'
 import detailStyles from './AppPlaylistPage.module.css'
 import { fadeRise, springGentle } from '../lib/motion-presets'
-import { appPlaylistCoverLayoutId, appPlaylistCovers } from '../lib/app-playlist-presentation'
+import { appPlaylistCoverLayoutId } from '../lib/app-playlist-presentation'
+import { useAppPlaylistCovers } from '../hooks/useTrackCover'
 import { rememberTarget } from '../stores/track-actions'
 import { BackButton } from '../components/ui/BackButton'
 import { usePageTransition } from '../hooks/useMotion'
@@ -46,6 +47,8 @@ const ICON_PATHS: Record<IconKind, string> = {
 function DetailIcon({ kind }: { kind: IconKind }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_PATHS[kind]} /></svg>
 }
+
+const EMPTY_TRACKS: Track[] = []
 
 export function AppPlaylistPage({ id }: { id: string }) {
   const pageTransition = usePageTransition()
@@ -119,7 +122,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
     virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
   })
   const selectedRows = mode === 'select' ? visible.map(index => rows[index]).filter(row => selection.selected.has(appPlaylistTrackKey(row.track))) : []
-  const backdropCover = useMemo(() => appPlaylistCovers(item?.tracks ?? [])[0]?.url ?? '', [item?.tracks])
+  const backdropCover = useAppPlaylistCovers(item?.tracks ?? EMPTY_TRACKS)[0]?.url ?? ''
 
   // 歌单封面模糊后作为全局背景，与平台歌单详情一致；离开详情页时清空。
   useEffect(() => useBackdropStore.getState().setCover(backdropCover), [backdropCover])

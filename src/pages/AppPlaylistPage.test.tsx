@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppPlaylistPage } from './AppPlaylistPage'
 import type { Track } from '../types/domain'
 import type { OfflineCacheStatus } from '../lib/offline-cache'
+vi.mock('../hooks/useTrackCover', async () => {
+  const { appPlaylistCovers } = await vi.importActual<typeof import('../lib/app-playlist-presentation')>('../lib/app-playlist-presentation')
+  return { useAppPlaylistCovers: appPlaylistCovers }
+})
 
 const h = vi.hoisted(() => ({
   index: 0, states: [] as unknown[], effects: [] as Array<() => (() => void) | void>, cleanups: [] as Array<() => void>,
