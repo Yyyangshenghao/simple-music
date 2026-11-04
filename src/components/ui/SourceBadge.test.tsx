@@ -20,7 +20,7 @@ describe('SourceBadge', () => {
   it('Apple 来源以音符图标和苹果标志加 Music 展示', () => {
     const html = renderToStaticMarkup(<SourceBadge source="apple" showInactive />)
     expect(html).toContain('>Music</span>')
-    expect(html).toContain('apple-music-icon.svg')
+    expect(html).toContain('brand/apple-music.png')
     expect(html).toContain('<svg')
   })
 

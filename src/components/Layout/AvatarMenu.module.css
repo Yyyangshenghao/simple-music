@@ -68,12 +68,10 @@
   flex: 0 0 30px;
   width: 30px;
   height: 30px;
-  overflow: hidden;
-  border-radius: 9px;
 }
 
 .providerMark svg,
-.providerMark img { display: block; width: 27px; height: 27px; }
+.providerMark img { display: block; width: 30px; height: 30px; }
 
 .providerIdentity { display: flex; flex: 1 1 auto; flex-direction: column; gap: 3px; min-width: 0; }
 .providerIdentity strong { overflow: hidden; color: var(--sm-text-primary); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }

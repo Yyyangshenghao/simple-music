@@ -27,7 +27,7 @@ describe('ProviderSwitchDock', () => {
     )
     expect(html).toContain('aria-label="切换到Apple Music"')
     expect(html).toContain('>Music</span>')
-    expect(html).toContain('apple-music-icon.svg')
+    expect(html).toContain('brand/apple-music.png')
     expect(html).toContain('viewBox="0 0 24 24"')
   })
 })

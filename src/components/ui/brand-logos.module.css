@@ -1,0 +1,9 @@
+/* 所有平台图标同一外形：iOS App 图标比例的圆角方形；细描边让白底图标（QQ、Apple Music）在浅色表面上有边界。 */
+.logo {
+  display: block;
+  object-fit: cover;
+  border-radius: 22.37%;
+  outline: 1px solid var(--sm-border);
+  outline-offset: -1px;
+  user-select: none;
+}
