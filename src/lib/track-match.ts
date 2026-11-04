@@ -96,7 +96,11 @@ function versionTagsOf(track: Track): Set<string> {
     ? track.bilibiliLyricVersionTitle : undefined
   const title = normalizeBrackets(videoTitle ?? track.name ?? '').toLocaleLowerCase()
   const album = normalizeBrackets(track.album ?? '').toLocaleLowerCase()
-  const tags = new Set([...tagsIn(TITLE_VERSION_PATTERNS, title), ...tagsIn(VERSION_PATTERNS, album)])
+  const searchVersionTitle = typeof track.lyricSearchVersionTitle === 'string' ? normalizeBrackets(track.lyricSearchVersionTitle).toLocaleLowerCase() : ''
+  const tags = new Set([
+    ...tagsIn(TITLE_VERSION_PATTERNS, title), ...tagsIn(VERSION_PATTERNS, album),
+    ...(searchVersionTitle ? tagsIn(TITLE_VERSION_PATTERNS, searchVersionTitle) : []),
+  ])
   if (videoTitle && /[男女]声(?:完整)?版/u.test(title)) tags.add('cover')
   return tags
 }
@@ -387,7 +391,8 @@ export async function findEquivalentTrack(
 ): Promise<TrackMatchResult | null> {
   if (signal?.aborted) throw abortError()
   const guest = scope === 'guest' && (targetSource === 'netease' || targetSource === 'qq')
-  const archive = readArchive()
+  const manualLyrics = typeof origin.lyricSearchVersionTitle === 'string'
+  const archive = manualLyrics ? emptyArchive() : readArchive()
   const key = originKey(origin, targetSource, guest)
   const cached = archive.entries[key]
   const provider = providerFor(targetSource)
@@ -415,7 +420,7 @@ export async function findEquivalentTrack(
 
   const queries = matchSearchQueries(origin)
   if (!queries.length) return null
-  if (guest && !forceRefresh && (guestEmpty.get(key) ?? 0) > now) return null
+  if (!manualLyrics && guest && !forceRefresh && (guestEmpty.get(key) ?? 0) > now) return null
   const candidates: Track[] = []
   let result: TrackMatchResult | null = null
   // 任何一级搜索失败都如实抛出且不写负缓存；能走到下一级说明前面还没有达标候选。
@@ -428,6 +433,10 @@ export async function findEquivalentTrack(
     // 出现达标候选就停，未收录的歌才会用满各级搜索；同级的其他达标候选留作后备。
     result = matchBestTrack(origin, candidates)
     if (result) break
+  }
+  if (manualLyrics) {
+    if (strictMatch && !result && candidates.length) throw new TrackMatchMismatchError()
+    return result
   }
   if (guest && !result && !candidates.length) {
     guestEmpty.delete(key)

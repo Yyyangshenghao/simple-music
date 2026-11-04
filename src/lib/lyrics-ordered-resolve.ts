@@ -45,7 +45,7 @@ function cancelled(): DOMException {
 function startQuery(options: OrderedLyricsOptions, origin: LyricOrigin): LyricsSourceQuery {
   const controller = new AbortController()
   const { track, sources, chosen } = options
-  const promise = queryLyricsSource(track, origin, sources, controller.signal, chosen?.origin === origin ? chosen.match : undefined)
+  const promise = queryLyricsSource(track, origin, sources, controller.signal, chosen?.origin === origin ? chosen.match : undefined, { search: chosen?.origin === origin ? chosen.search : undefined })
   // 被取消的查询由发起方丢弃；这里只防止未处理拒绝。
   promise.catch(() => {})
   return { promise, controller }

@@ -51,6 +51,42 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('来源锁定', () => {
+  it('手动歌词搜索使用输入的歌名歌手，即使查询原平台也不直接使用原曲 ID', async () => {
+    const track = song('netease', { id: 'old-id', name: '错误歌名', artist: '错误歌手' })
+    const search = { name: '晴天', artist: '周杰伦' }
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+    const response = await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, { search })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(setItem).not.toHaveBeenCalled()
+    expect(response).toMatchObject({ status: 'ready', match: { id: '1' } })
+    expect(track).toMatchObject({ id: 'old-id', name: '错误歌名', artist: '错误歌手' })
+  })
+
+  it('手动查询 B 站时使用输入身份，并继续校验时长', async () => {
+    const track = song('bilibili', { name: '难以识别的视频', videoTitle: '难以识别的视频', duration: 200_000 })
+    const options = { search: { name: '晴天', artist: '周杰伦' } }
+    expect(await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, options)).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('用户输入无版本标注的歌名时仍保留原录音的现场标记', async () => {
+    const track = song('qq', { name: '晴天（现场）' })
+    const search = { name: '晴天', artist: '周杰伦' }
+    expect(await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, { search })).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('手动查询酷狗自己的歌曲也按输入关键词搜索', async () => {
+    const track = song('kugou', { id: 'original-hash' })
+    const options = { search: { name: '晴天', artist: '周杰伦' } }
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', [], undefined, undefined, options)).toMatchObject({ status: 'ready' })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, expect.anything())
+  })
+
   it.each([
     ['【4K修复】周杰伦 - 晴天MV 2160P修复版', '周杰伦'],
     ['【Hi-Res】《晴天》周杰伦', '周杰伦'],

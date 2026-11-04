@@ -66,6 +66,17 @@ beforeEach(() => {
 })
 
 describe('歌词来源选择交互', () => {
+  it('手动输入歌名和歌手后只提交搜索，不应用候选', () => {
+    button(render(), '手动搜索').props.onClick()
+    const form = elements(render(), 'form')[0]
+    const [name, artist] = elements(form, 'input')
+    name.props.onChange({ target: { value: ' 晴天 ' } })
+    artist.props.onChange({ target: { value: '周杰伦' } })
+    elements(render(), 'form')[0].props.onSubmit({ preventDefault() {} })
+    expect(h.state.queryCandidates).toHaveBeenCalledWith('netease:1', 'selection-token', undefined, { name: '晴天', artist: '周杰伦' })
+    expect(h.state.chooseSource).not.toHaveBeenCalled()
+  })
+
   it('可用来源在前、失效来源在后，组内按设置顺序；未找到的行右侧给重新查找图标，重新查找中不改变排位', () => {
     h.state.sourceOrder = ['apple', 'qq', 'kugou', 'netease', 'amll']
     h.state.candidates = [candidate('netease'), { ...candidate('qq'), origin: 'kugou', status: 'empty' }, { ...candidate('qq'), origin: 'apple', status: 'login' }, candidate('qq')]

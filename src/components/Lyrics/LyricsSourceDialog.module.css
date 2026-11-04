@@ -16,6 +16,17 @@
 .close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .close:active { background: var(--sm-fill-active); }
 .notice { margin: 0 26px 12px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
+.searchPanel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex-shrink: 0; padding: 0 26px 12px; }
+.searchPanel > .settingsLink { font-size: 12px !important; text-decoration: underline; text-underline-offset: 3px; }
+.searchForm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; flex-basis: 100%; }
+.searchForm label { flex: 1 1 105px; min-width: 0; display: grid; gap: 4px; color: var(--sm-text-secondary); font-size: 11px; }
+.searchForm input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 9px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; }
+.searchForm input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+.searchButton { min-height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font-size: 12px !important; }
+.searchButton:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.searchButton:active:not(:disabled) { background: var(--sm-fill-active); }
+.searchForm > .settingsLink { min-height: 32px; }
+.matchLabel { margin: 8px 0 0; font-size: 12px; overflow-wrap: anywhere; }
 .body { display: grid; grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1fr); gap: 10px; min-height: 0; padding: 0 14px; }
 .sources { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; max-height: min(360px, calc(100vh - 230px)); overflow: auto; overscroll-behavior: contain; }
 .sourceItem { position: relative; display: flex; flex-direction: column; }
@@ -75,4 +86,4 @@
 .dialog .apply:disabled { opacity: 1; background: var(--sm-fill-subtle); color: var(--sm-text-muted); font-weight: 500; }
 .error { max-width: 230px; margin: 0; color: var(--sm-text-primary); font-size: 12px; line-height: 1.5; }
 @media (max-height: 600px) { .header { padding-top: 17px; padding-bottom: 10px; } .footer { padding-top: 12px; padding-bottom: 13px; } .previewLines { margin-top: 12px; margin-bottom: 12px; } }
-@media (max-width: 580px) { .body { grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1fr); padding: 0 10px; } .header, .footer { padding-left: 16px; padding-right: 16px; } .preview { padding: 14px 12px; } .source { padding: 10px 8px; } }
+@media (max-width: 580px) { .body { grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1fr); padding: 0 10px; } .header, .footer, .searchPanel { padding-left: 16px; padding-right: 16px; } .preview { padding: 14px 12px; } .source { padding: 10px 8px; } }

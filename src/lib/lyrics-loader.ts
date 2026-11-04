@@ -19,7 +19,7 @@ import { getQueueStep } from './queue-state'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { hasWordTiming } from './word-highlight-timeline'
-import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate, type RememberedLyricSource } from '../types/lyrics-source'
+import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate, type RememberedLyricSource, type LyricSearchInput } from '../types/lyrics-source'
 import type { Track } from '../types/domain'
 import { accompanimentOriginal } from './karaoke-library'
 
@@ -52,7 +52,7 @@ function participatingSources(): ProviderId[] {
 /** 影响来源落定结果的全部条件；任一变化时跨曲缓存与预取都不能复用。 */
 function lyricsContext(track: Track, origins: LyricOrigin[], sources: ProviderId[], chosen?: RememberedLyricSource): string {
   const settings = useSettingsStore.getState()
-  return JSON.stringify([lyricCandidateSignature(track, chosen?.match ?? null), origins, sources,
+  return JSON.stringify([lyricCandidateSignature(track, chosen?.match ?? null), origins, sources, chosen?.search,
     settings.lyricsAmllFallback, settings.lyricsKugouFallback,
     PROVIDER_IDS.map(source => providerAccountSession(source)), origins.map(origin => suspendedLyricsSource(origin))])
 }
@@ -81,6 +81,8 @@ interface SelectionSession {
   pending: Set<LyricOrigin>
   active: number
   application?: AbortController
+  search?: LyricSearchInput
+  manualResults: Map<LyricOrigin, { response: LyricsSourceQueryResult; accounts: Array<{ source: ProviderId; version: number }> }>
 }
 
 let stopLyricsLoader: (() => void) | undefined
@@ -148,7 +150,7 @@ export function initLyricsLoader(): () => void {
     if (actual) {
       const response: LyricsSourceQueryResult = { status: 'ready', result, match }
       results.set(actual, response)
-      if (selection) updateCandidate(selection, actual, response)
+      if (selection && !selection.search) updateCandidate(selection, actual, response)
       console.info('[lyrics] 歌词来源', {
         trackKey: currentKey, name: currentTrack()?.name, source: actual, matchedSource: source, upgraded,
       })
@@ -160,7 +162,7 @@ export function initLyricsLoader(): () => void {
     selection?.controller.abort()
     selection?.application?.abort()
     selection = undefined
-    useLyricsSourceStore.setState({ candidateTrackKey: null, candidateToken: null, candidates: [] })
+    useLyricsSourceStore.setState({ candidateTrackKey: null, candidateToken: null, candidateSearch: null, candidates: [] })
   }
   const requireDialog = (key: string, token: string) => {
     const track = currentTrack()
@@ -175,23 +177,25 @@ export function initLyricsLoader(): () => void {
       void job().finally(() => { dialog.active--; pump(dialog) })
     }
   }
-  const queryCandidates = async (key: string, token: string, requested?: LyricOrigin) => {
+  const queryCandidates = async (key: string, token: string, requested?: LyricOrigin, search?: LyricSearchInput | null) => {
     const track = currentTrack()
     if (disposed || !lyricsEnabled() || !track || lyricTrackKey(track) !== key) throw new Error('当前歌曲已改变')
-    if (!selection || selection.token !== token || selection.key !== key) {
+    if (!selection || selection.token !== token || selection.key !== key || search !== undefined) {
       cancelDialog()
-      selection = { key, token, controller: new AbortController(), jobs: [], pending: new Set(), active: 0 }
-      useLyricsSourceStore.setState({ candidateTrackKey: key, candidateToken: token, candidates: sourceRows(track).map(origin => preview(origin, {
-        ...candidateAvailability(track, origin, participatingSources()),
+      selection = { key, token, controller: new AbortController(), jobs: [], pending: new Set(), active: 0, search: search ?? undefined, manualResults: new Map() }
+      useLyricsSourceStore.setState({ candidateTrackKey: key, candidateToken: token, candidateSearch: search ?? null, candidates: sourceRows(track).map(origin => preview(origin, {
+        ...candidateAvailability(track, origin, participatingSources(), false, search ?? undefined),
       })) })
     }
     const dialog = selection
     const origins = sourceRows(track)
     if (requested && !origins.includes(requested)) throw new Error('此歌曲不支持该歌词来源')
     for (const origin of requested ? [requested] : origins) {
-      const available = candidateAvailability(track, origin, participatingSources())
+      const available = candidateAvailability(track, origin, participatingSources(), false, dialog.search)
       if (available.status !== 'idle' && available.status !== 'ready') { updateCandidate(dialog, origin, available); continue }
-      const cached = results.get(origin)
+      const manual = dialog.manualResults.get(origin)
+      const cached = dialog.search ? (manual && sameAccounts(manual.accounts) ? manual.response : undefined)
+        : onceChoice?.search && onceChoice.origin === origin ? undefined : results.get(origin)
       if (cached?.status === 'ready') { updateCandidate(dialog, origin, cached); continue }
       if (dialog.pending.has(origin)) continue
       dialog.pending.add(origin)
@@ -199,9 +203,14 @@ export function initLyricsLoader(): () => void {
       const accounts = captureAccounts()
       dialog.jobs.push(async () => {
         try {
-          const response = await queryLyricsSource(track, origin, participatingSources(), dialog.controller.signal, useLyricsSourceStore.getState().remembered[key]?.match)
+          const remembered = useLyricsSourceStore.getState().remembered[key]
+          const response = await queryLyricsSource(track, origin, participatingSources(), dialog.controller.signal,
+            dialog.search || remembered?.search ? undefined : remembered?.match, { search: dialog.search })
           if (selection !== dialog || dialog.controller.signal.aborted || !sameAccounts(accounts)) return
-          if (response.status === 'ready') results.set(origin, response)
+          if (response.status === 'ready') {
+            if (dialog.search) dialog.manualResults.set(origin, { response, accounts })
+            else results.set(origin, response)
+          }
           updateCandidate(dialog, origin, response)
         } catch {
           if (!dialog.controller.signal.aborted) updateCandidate(dialog, origin, { status: 'error', message: '暂时连接失败，请重试' })
@@ -268,7 +277,7 @@ export function initLyricsLoader(): () => void {
 
   const sync = () => {
     controller?.abort()
-    const previousDialog = selection && { key: selection.key, token: selection.token }
+    const previousDialog = selection && { key: selection.key, token: selection.token, search: selection.search }
     cancelDialog()
     results.clear()
     currentLanded = false
@@ -311,7 +320,7 @@ export function initLyricsLoader(): () => void {
     const accounts = Array.from(sources, source => ({ source, version: providerAccountSession(source) }))
     activeAccounts = accounts
     const current = () => !disposed && request === session && decision === choiceVersion && !signal.aborted
-    if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token).catch(() => {})
+    if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token, undefined, previousDialog.search).catch(() => {})
     let provisional: LyricsResult | undefined
     void (async () => {
       if (preferences.sourceOrder) {
@@ -328,7 +337,7 @@ export function initLyricsLoader(): () => void {
         : preferences.defaultSource === 'origin' ? track.source : preferences.defaultSource
       const preferred = Array.from(new Set([chosen?.origin, globalOrigin].filter((origin): origin is LyricOrigin => !!origin)))
       for (const origin of preferred) {
-        const response = await queryLyricsSource(track, origin, lyricSources, signal, chosen?.origin === origin ? chosen.match : undefined)
+        const response = await queryLyricsSource(track, origin, lyricSources, signal, chosen?.origin === origin ? chosen.match : undefined, { search: chosen?.origin === origin ? chosen.search : undefined })
         if (!current() || !sameAccounts(accounts)) return { result: emptyLyrics, track: null, locked: false }
         if (response.status === 'ready' && response.result?.main.length) {
           results.set(origin, response)
@@ -391,7 +400,7 @@ export function initLyricsLoader(): () => void {
           if (response?.match) upgradeTrack = response.match
           allowUpgrade = false
         } else if (preferred) {
-          response = results.get(preferred) ?? await queryLyricsSource(track, preferred, sources, application.signal)
+          response = (onceChoice?.search && onceChoice.origin === preferred ? undefined : results.get(preferred)) ?? await queryLyricsSource(track, preferred, sources, application.signal)
           if (!current()) throw new Error('歌词选择已取消')
           if (response.status === 'ready') allowUpgrade = false
         }
@@ -431,13 +440,17 @@ export function initLyricsLoader(): () => void {
         }).catch(() => {})
         return { saved: true, offsetReset }
       }
-      const available = candidateAvailability(track, origin, participatingSources())
+      const available = candidateAvailability(track, origin, participatingSources(), false, dialog.search)
       if (!sourceRows(track).includes(origin) || (available.status !== 'idle' && available.status !== 'ready')) throw new Error(available.message ?? '此歌词来源暂不可用')
-      const response = results.get(origin) ?? await queryLyricsSource(track, origin, participatingSources(), application.signal, useLyricsSourceStore.getState().remembered[key]?.match)
+      const remembered = useLyricsSourceStore.getState().remembered[key]
+      const manual = dialog.manualResults.get(origin)
+      const response = dialog.search ? (manual && sameAccounts(manual.accounts) ? manual.response : undefined)
+        : (onceChoice?.search && onceChoice.origin === origin ? undefined : results.get(origin))
+          ?? await queryLyricsSource(track, origin, participatingSources(), application.signal, remembered?.search ? undefined : remembered?.match)
       await Promise.resolve()
       if (!current()) throw new Error('歌词选择已取消')
-      if (response.status !== 'ready' || !response.result?.main.length) throw new Error(response.message ?? '切换失败，仍使用原歌词')
-      const entry: RememberedLyricSource = { origin, name: track.name, artist: track.artist, match: response.match }
+      if (response?.status !== 'ready' || !response.result?.main.length) throw new Error(response?.message ?? '切换失败，仍使用原歌词')
+      const entry: RememberedLyricSource = { origin, name: track.name, artist: track.artist, match: response.match, ...(dialog.search ? { search: dialog.search } : {}) }
       const saved = remember ? rememberLyricsSource(key, entry) : true
       const keepOffset = useLyricsSourceStore.getState().appliedOrigin === origin && useLyricsStore.getState().lines === response.result.main
       const offsetReset = !keepOffset && useLyricsStore.getState().offsetSec !== 0

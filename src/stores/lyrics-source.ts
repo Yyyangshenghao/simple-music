@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Track } from '../types/domain'
-import { LYRIC_ORIGINS, LYRIC_PRIORITY_SOURCES, type LyricPrioritySource, type LyricSourceHealth, type LyricSourceProbe, type LyricOrigin, type LyricSourcePreference, type LyricSourceCandidate, type RememberedLyricSource, type LyricSourceActions } from '../types/lyrics-source'
+import { LYRIC_ORIGINS, LYRIC_PRIORITY_SOURCES, normalizeLyricSearch, type LyricPrioritySource, type LyricSourceHealth, type LyricSourceProbe, type LyricOrigin, type LyricSourcePreference, type LyricSourceCandidate, type RememberedLyricSource, type LyricSourceActions, type LyricSearchInput } from '../types/lyrics-source'
 import { useToastStore } from './toast'
 
 export const LYRICS_SOURCE_STORAGE_KEY = 'simplemusic-lyrics-source-v1'
@@ -21,6 +21,7 @@ interface LyricsSourceStore extends LyricSourceActions {
   candidates: LyricSourceCandidate[]
   candidateTrackKey: string | null
   candidateToken: string | null
+  candidateSearch: LyricSearchInput | null
   appliedOrigin: LyricOrigin | null
   requestedOrigin: LyricOrigin | 'auto'
   fallbackReason: string | null
@@ -30,7 +31,7 @@ interface LyricsSourceStore extends LyricSourceActions {
 }
 
 function trackKey(value: unknown): value is string {
-  return typeof value === 'string' && value.length <= 1024 && /^(netease|qq|apple|local):.+/u.test(value)
+  return typeof value === 'string' && value.length <= 1024 && /^(netease|qq|apple|qishui|kugou|bilibili|local):.+/u.test(value)
 }
 function origin(value: unknown): value is LyricOrigin {
   return LYRIC_ORIGINS.includes(value as LyricOrigin)
@@ -56,6 +57,11 @@ export function lyricMatchReference(value: unknown): Track | undefined {
     if (typeof track[key] === 'string' || typeof track[key] === 'number') result[key] = String(track[key]).slice(0, 512)
   }
   return result
+}
+
+function lyricSearchReference(value: unknown): { search?: LyricSearchInput } {
+  const search = normalizeLyricSearch(value)
+  return search ? { search } : {}
 }
 
 function write(defaultSource: LyricSourcePreference, remembered: Record<string, RememberedLyricSource>, sourceOrder = useLyricsSourceStore.getState().sourceOrder): boolean {
@@ -89,7 +95,7 @@ export function loadLyricsSourcePreferences(): void {
         remembered = Object.fromEntries(Object.entries(archive.remembered).slice(0, MAX_REMEMBERED).flatMap(([key, value]) => {
           const entry = value as RememberedLyricSource | null
           if (!trackKey(key) || !entry || !origin(entry.origin) || typeof entry.name !== 'string' || typeof entry.artist !== 'string') return []
-          return [[key, { origin: entry.origin, name: entry.name.slice(0, 512), artist: entry.artist.slice(0, 512), match: lyricMatchReference(entry.match) }]]
+          return [[key, { origin: entry.origin, name: entry.name.slice(0, 512), artist: entry.artist.slice(0, 512), match: lyricMatchReference(entry.match), ...lyricSearchReference(entry.search) }]]
         }))
       }
     }
@@ -102,7 +108,7 @@ export function rememberLyricsSource(key: string, entry: RememberedLyricSource |
   const current = useLyricsSourceStore.getState()
   if (entry && !Object.hasOwn(current.remembered, key) && Object.keys(current.remembered).length >= MAX_REMEMBERED) return false
   const remembered = { ...current.remembered }
-  if (entry) remembered[key] = { origin: entry.origin, name: entry.name.slice(0, 512), artist: entry.artist.slice(0, 512), match: lyricMatchReference(entry.match) }
+  if (entry) remembered[key] = { origin: entry.origin, name: entry.name.slice(0, 512), artist: entry.artist.slice(0, 512), match: lyricMatchReference(entry.match), ...lyricSearchReference(entry.search) }
   else delete remembered[key]
   if (!write(current.defaultSource, remembered)) return false
   useLyricsSourceStore.setState({ remembered })
@@ -125,7 +131,7 @@ function runtime(): LyricSourceActions {
 }
 
 export const useLyricsSourceStore = create<LyricsSourceStore>((set, get) => ({
-  defaultSource: 'auto', sourceOrder: null, health: {}, probes: {}, remembered: {}, candidates: [], candidateTrackKey: null, candidateToken: null,
+  defaultSource: 'auto', sourceOrder: null, health: {}, probes: {}, remembered: {}, candidates: [], candidateTrackKey: null, candidateToken: null, candidateSearch: null,
   appliedOrigin: null, requestedOrigin: 'auto', fallbackReason: null, appliedPreference: 'auto',
   setSourceOrder(order) {
     if (!Array.isArray(order) || order.length !== LYRIC_PRIORITY_SOURCES.length || new Set(order).size !== order.length
@@ -145,7 +151,7 @@ export const useLyricsSourceStore = create<LyricsSourceStore>((set, get) => ({
       const entry = remembered[key]
       if (!entry || (next && (entry.origin === next || !rememberableOrigins(key).includes(next)))) continue
       // 匹配引用只对同一平台有效，换来源后由宿主按歌名、歌手与时长重新匹配。
-      if (next) remembered[key] = { ...entry, origin: next, match: entry.match?.source === next ? entry.match : undefined }
+      if (next) remembered[key] = { ...entry, origin: next, match: entry.match?.source === next ? entry.match : undefined, search: next === 'local' ? undefined : entry.search }
       else delete remembered[key]
       changed = true
     }
@@ -168,9 +174,11 @@ export const useLyricsSourceStore = create<LyricsSourceStore>((set, get) => ({
     if (!write(get().defaultSource, {})) { useToastStore.getState().show('无法清除歌词来源选择，请重试'); return }
     set({ remembered: {} })
   },
-  async queryCandidates(key, token, requested) {
+  async queryCandidates(key, token, requested, search) {
+    const normalized = normalizeLyricSearch(search)
     if (!trackKey(key) || !validToken(token) || (requested !== undefined && !origin(requested))) throw new Error('无效的歌词查询')
-    return runtime().queryCandidates(key, token, requested)
+    if (search != null && !normalized) throw new Error('请输入有效的歌名和歌手名')
+    return runtime().queryCandidates(key, token, requested, search === null ? null : normalized)
   },
   cancelSelection(token) {
     if (!validToken(token)) throw new Error('无效的歌词选择会话')

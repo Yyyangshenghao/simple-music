@@ -22,6 +22,7 @@
 | 伴奏版本面板 | 选择模型与成品版本、发起生成；等待入队回执期间保持忙态，运行与失败任务转交专门队列 | [AccompanimentPanel](../src/components/Player/AccompanimentPanel.tsx) |
 | 后台任务队列 | 头像旁按需出现入口，面板分下载与伴奏生成两区；入队不自动弹面板，两套后台调度保持独立 | [TaskBubble](../src/components/Layout/TaskBubble.tsx)、[TaskPanel](../src/components/Layout/TaskPanel.tsx)、[task-center](../src/stores/task-center.ts) |
 | 歌词与音乐舞台 | 普通歌词和动态样式，封面、字体、氛围与演出按场景组织 | [LyricsPanel](../src/components/Lyrics/LyricsPanel.tsx)、[歌词样式目录](../src/lib/lyric-style-catalog.ts) |
+| 歌词来源 | 自动匹配之外，可输入歌名和歌手手动查找，预览后应用；下次仍使用时记住此曲的搜索信息 | [LyricsSourceDialog](../src/components/Lyrics/LyricsSourceDialog.tsx) |
 | 设置与关于 | 音源与播放、界面与窗口、歌词与特效、缓存与下载、快捷键、关于；当前是单列分组的连续长页，目录定位，窄窗口改横向分类 | [SettingsPage](../src/pages/SettingsPage.tsx)、[ReleaseHistoryPage](../src/pages/ReleaseHistoryPage.tsx) |
 | 独立桌面界面 | 桌面歌词、迷你播放条与壁纸；受平台和窗口能力限制，不能仅凭主窗口截图验收 | [悬浮窗说明](modules/overlays.md) |
 

@@ -65,6 +65,42 @@ async function open(token = 'dialog-1') {
 }
 
 describe('歌词来源：宿主命令到正式快照', () => {
+  it('手动搜索只更新候选，应用后记住关键词并支持 B 站曲目', async () => {
+    const bili = { ...track, source: 'bilibili' as const, provider: 'bilibili' as const, id: 'BV1BZbSzZEGT' }
+    const key = 'bilibili:BV1BZbSzZEGT'
+    usePlayerStore.setState({ currentTrack: bili })
+    stop = initLyricsLoader()
+    await flush()
+    const before = useLyricsStore.getState().lines
+    const search = { name: '晴天', artist: '周杰伦' }
+    await action('queryCandidates', key, 'bili-dialog', undefined, { name: ' 晴天 ', artist: '周杰伦' })
+    await flush()
+    expect(h.query).toHaveBeenCalledWith(bili, 'qq', expect.any(Array), expect.anything(), undefined, { search })
+    expect(useLyricsStore.getState().lines).toBe(before)
+    expect(useLyricsSourceStore.getState().candidateSearch).toEqual(search)
+    await action('chooseSource', key, 'bili-dialog', 'qq', true)
+    expect(useLyricsStore.getState().lines).toEqual(result('qq').main)
+    expect(useLyricsSourceStore.getState().remembered[key]?.search).toEqual(search)
+    loadLyricsSourcePreferences()
+    expect(useLyricsSourceStore.getState().remembered[key]?.search).toEqual(search)
+  })
+
+  it('新的手动搜索丢弃同一面板的晚到结果', async () => {
+    stop = initLyricsLoader()
+    await flush()
+    const older = deferred()
+    const query = h.query.getMockImplementation()!
+    h.query.mockImplementation((_track, origin, ...args) =>
+      origin === 'qq' && args[3]?.search?.name === '旧查询' ? older.promise : query(_track, origin, ...args))
+    await action('queryCandidates', 'apple:a1', 'dialog-1', undefined, { name: '旧查询', artist: '歌手' })
+    await action('queryCandidates', 'apple:a1', 'dialog-1', undefined, { name: '新查询', artist: '歌手' })
+    await flush()
+    older.resolve({ status: 'ready', result: { ...result('qq'), main: [{ time: 0, text: '过期歌词' }] } })
+    await flush()
+    expect(useLyricsSourceStore.getState().candidateSearch).toEqual({ name: '新查询', artist: '歌手' })
+    expect(useLyricsSourceStore.getState().candidates.find(row => row.origin === 'qq')?.preview[0]?.text).not.toBe('过期歌词')
+  })
+
   it('候选预览不改变正式歌词；手选原子切换、偏移归零并记住，丢弃晚到补全', async () => {
     let upgrade!: (value: LyricsResult) => void
     h.upgrade.mockReturnValueOnce(new Promise< LyricsResult>(done => { upgrade = done }))

@@ -214,7 +214,7 @@ interface KugouLyricResponse {
  * 酷狗没有可对应的平台 ID，候选以 KRC 自带的歌名（含版本标记）、歌手和时长走同曲校验，
  * 时间轴超出本曲时长同样视为错配；默认失败返回 null，严格查询则保留原因。
  */
-export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false, refresh = false): Promise<LyricsResult | null> {
+export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult, signal?: AbortSignal, strict = false, refresh = false, byMetadata = false): Promise<LyricsResult | null> {
   // 本地曲目只接受已由标签确认的身份（localLyricSource 的 identity），不按文件名回退的歌名查询。
   if ((track.source === 'local' && track.localTagged !== true) || hasTimedLyrics(result) || signal?.aborted) return null
   if (!useSettingsStore.getState().lyricsKugouFallback) return null
@@ -223,7 +223,7 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   for (const identity of lyricIdentities(track)) {
     let candidate: LyricsResult | null
     try {
-      candidate = await fetchKugouLyrics(identity, result, signal, strict, refresh)
+      candidate = await fetchKugouLyrics(identity, result, signal, strict, refresh, byMetadata)
     } catch (error) {
       if (!(error instanceof LyricMismatchError)) throw error
       mismatch = error
@@ -240,7 +240,7 @@ export async function upgradeLyricsWithKugou(track: Track, result: LyricsResult,
   return signal?.aborted ? null : matched
 }
 
-async function fetchKugouLyrics(track: Track, result: LyricsResult, signal: AbortSignal | undefined, strict: boolean, refresh: boolean): Promise<LyricsResult | null> {
+async function fetchKugouLyrics(track: Track, result: LyricsResult, signal: AbortSignal | undefined, strict: boolean, refresh: boolean, byMetadata: boolean): Promise<LyricsResult | null> {
   if (signal?.aborted) return null
   const title = String(track.name ?? '').trim()
   const duration = Number(track.duration)
@@ -248,7 +248,7 @@ async function fetchKugouLyrics(track: Track, result: LyricsResult, signal: Abor
   const names = (track.artists ?? []).map(artist => artist.name).filter(Boolean)
   const artist = (names.length ? names.join('、') : String(track.artist ?? '')).trim()
   // 酷狗自己的歌曲按文件 hash 精确查找，候选就是本曲的歌词，不再按文字做同曲校验。
-  const ownHash = track.source === 'kugou' ? String(track.id ?? '') : ''
+  const ownHash = !byMetadata && track.source === 'kugou' ? String(track.id ?? '') : ''
   let rec: KugouLyricResponse
   try {
     rec = await api.get<KugouLyricResponse>('/api/kugou/lyric', { title, artist, duration: String(Math.round(duration)), ...(ownHash ? { hash: ownHash } : {}), ...(refresh ? { refresh: '1' } : {}) }, { signal })
