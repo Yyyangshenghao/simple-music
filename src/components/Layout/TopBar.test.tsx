@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderId } from '../../providers/types'
 import type { AppView } from '../../stores/navigation'
 import { TopBar } from './TopBar'
+import styles from './TopBar.module.css'
 
 const state = vi.hoisted(() => ({ current: 'qq' as ProviderId | null, qqEnabled: true, view: 'explore' as AppView }))
 
@@ -56,5 +57,23 @@ describe('顶栏搜索入口与导航', () => {
     const active = navigation.match(/<button[^>]*aria-current="page"[^>]*>.*?<\/button>/)?.[0]
     expect(active).toContain('设置')
     expect(active).not.toContain('探索')
+  })
+})
+
+describe('顶栏为自绘窗口按钮留白', () => {
+  // Windows 和 Linux 都是无边框窗口，WindowChrome 会在右上角画最小化/最大化/关闭；
+  // 顶栏必须同时留出这段宽度，否则最右边的关闭按钮压在头像上，点头像会关掉窗口。
+  it.each([
+    ['win32', true],
+    ['linux', true],
+    ['darwin', false],
+    [undefined, false]
+  ] as const)('%s 平台是否预留窗口按钮宽度：%s', (platform, reserved) => {
+    vi.stubGlobal('window', {
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      desktop: platform ? { platform } : undefined
+    })
+    const html = renderToStaticMarkup(<TopBar />)
+    expect(html.includes(styles.barCaption)).toBe(reserved)
   })
 })

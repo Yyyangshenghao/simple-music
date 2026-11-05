@@ -1,6 +1,6 @@
 name: Package
 
-# 双平台测试与打包，供 Source checks（推送 dev/master 时试打包）和 Release（正式打包）共用同一套步骤，
+# 三平台测试与打包，供 Source checks（推送 dev/master 时试打包）和 Release（正式打包）共用同一套步骤，
 # 打包配置出错在推送 dev 时就会暴露，而不是等到发版时才失败。
 on:
   workflow_call:
@@ -30,6 +30,8 @@ jobs:
             target: mac
           - os: windows-latest
             target: win
+          - os: ubuntu-latest
+            target: linux
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -86,6 +88,8 @@ jobs:
             dist/*.dmg.blockmap
             dist/*.exe
             dist/*.exe.blockmap
+            dist/*.AppImage
+            dist/*.deb
             dist/latest*.yml
           if-no-files-found: error
           retention-days: ${{ inputs.retention-days }}

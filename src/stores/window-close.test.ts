@@ -47,7 +47,7 @@ describe('关闭窗口状态同步', () => {
     cleanup = undefined
   })
 
-  it('卸载后不接受未完成的读取回复，非 Windows 不订阅', async () => {
+  it('卸载后不接受未完成的读取回复，非 Windows/Linux 不订阅', async () => {
     let finish!: (state: WindowCloseState) => void
     getState.mockImplementation(() => new Promise((done) => { finish = done }))
     cleanup = initWindowCloseSync()
@@ -59,6 +59,14 @@ describe('关闭窗口状态同步', () => {
     window.desktop.platform = 'darwin'
     initWindowCloseSync()()
     expect(getState).toHaveBeenCalledOnce()
+  })
+
+  it('Linux 与 Windows 一样订阅关闭方式', async () => {
+    window.desktop.platform = 'linux'
+    cleanup = initWindowCloseSync()
+    await flush()
+    expect(getState).toHaveBeenCalledOnce()
+    expect(useWindowCloseStore.getState()).toMatchObject({ behavior: 'ask', initialized: true })
   })
 
   it('读取失败可重新获取主进程状态', async () => {

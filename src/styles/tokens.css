@@ -44,6 +44,9 @@
   --sm-page-inline: max(var(--sm-page-gutter), calc((100% - var(--sm-content-max-width)) / 2));
   --sm-page-top: 28px;
   --sm-page-title-size: 26px;
+  /* 无边框窗口（Windows/Linux）右上角自绘三个 44px 窗口按钮 + 8px 间隔，
+     顶栏右侧据此留白；改 WindowChrome 的按钮尺寸时同步这里。 */
+  --sm-caption-reserve: 140px;
   /* 常规对话框：圆角、内边距、标题与页脚按钮统一；宽度按任务各自决定。 */
   --sm-dialog-radius: 20px;
   --sm-dialog-padding: 24px;

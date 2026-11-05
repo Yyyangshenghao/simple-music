@@ -56,7 +56,8 @@
   color: #fff;
 }
 
-/* 仅 Windows 使用玻璃胶囊；总占位仍落在顶栏预留的 140px 内。 */
+/* 仅 Windows 使用玻璃胶囊；三个按钮总宽 132px，仍落在顶栏预留的 140px 内
+   （--sm-caption-reserve）。Linux 沿用普通按钮，同样占用这段宽度。 */
 .captionButtonsWin {
   top: 8px;
   right: 12px;

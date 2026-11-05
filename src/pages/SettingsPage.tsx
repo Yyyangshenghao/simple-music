@@ -6,7 +6,7 @@ import { logoutMusicProvider } from '../lib/provider-logout'
 import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, CONTROL_MOTION_KEYS, PERFORMANCE_PRESETS, controlMotionFlags, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { DEFAULT_MINI_PLAYER_APPEARANCE, MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
-import { useUpdateStore } from '../stores/update'
+import { supportsInAppUpdate, useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
@@ -190,9 +190,9 @@ function providerLabel(source: ProviderId): string {
 }
 
 function systemDefaultFonts(platform: string | undefined): { western: string; cjk: string } {
-  return platform === 'win32'
-    ? { western: 'Segoe UI', cjk: '微软雅黑（Microsoft YaHei）' }
-    : { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
+  if (platform === 'win32') return { western: 'Segoe UI', cjk: '微软雅黑（Microsoft YaHei）' }
+  if (platform === 'linux') return { western: 'Noto Sans', cjk: 'Noto Sans CJK SC（思源黑体）' }
+  return { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
 }
 
 /** 播放顺序只列参与播放的平台；在“音源与账户”关闭或退出的平台自动隐藏，重新启用后排到末尾。 */
@@ -757,11 +757,12 @@ function markLanded(page: HTMLElement, node: HTMLElement, waitForScroll: boolean
 export function SettingsPage() {
   const smoothScroll = useMotion('smoothScrollMotion')
   const indicatorMotion = useMotion('indicatorMotion')
-  const isWindows = window.desktop?.platform === 'win32'
+  // Windows 与 Linux 都是无边框自绘窗口 + 托盘，共用"关闭窗口"的三种行为；macOS 跟随系统习惯。
+  const hasWindowCloseSettings = window.desktop?.platform === 'win32' || window.desktop?.platform === 'linux'
   const settingsTabs = useMemo(() => SETTINGS_TABS.map(section => ({
     ...section,
-    items: section.items.filter(item => item.id !== 'window-close' || isWindows)
-  })), [isWindows])
+    items: section.items.filter(item => item.id !== 'window-close' || hasWindowCloseSettings)
+  })), [hasWindowCloseSettings])
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -1441,7 +1442,7 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
-                  {isWindows && <WindowCloseSettings />}
+                  {hasWindowCloseSettings && <WindowCloseSettings />}
                   <section id="settings-detail-appearance" className={styles.group}>
                     <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div data-setting-row className={styles.row}>
@@ -1765,9 +1766,15 @@ export function SettingsPage() {
                     ) : downloading ? (
                       <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
                     ) : updateInfo?.updateAvailable ? (
-                      <button className={`${styles.action} ${styles.actionPrimary} no-drag`} onClick={() => void startDownload()}>
-                        下载更新
-                      </button>
+                      supportsInAppUpdate() ? (
+                        <button className={`${styles.action} ${styles.actionPrimary} no-drag`} onClick={() => void startDownload()}>
+                          下载更新
+                        </button>
+                      ) : (
+                        <a className={`${styles.action} ${styles.actionPrimary} no-drag`} href={updateInfo.release.htmlUrl} target="_blank" rel="noopener noreferrer">
+                          前往下载
+                        </a>
+                      )
                     ) : (
                       <button className={`${styles.action} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
                         检查更新
