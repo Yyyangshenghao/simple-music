@@ -16,6 +16,7 @@
 
 | 需要了解 | 文档 |
 |---|---|
+| 六个在线来源与本地音乐的内容、账号、播放和保存边界 | [平台功能地图](music-sources.md)、[2.7.0 内容扩充候选](specs/2026-11-05-platform-content-2.7.0.md) |
 | 进程、数据流、启动顺序 | [架构总览](architecture.md) |
 | 文件与模块归属 | [目录结构](directory-structure.md)、[主进程](modules/electron-main.md)、[API Server](modules/server.md)、[渲染层](modules/renderer.md)、[悬浮窗](modules/overlays.md) |
 | 播放、跨源兜底与缓存 | [播放系统](playback-system.md) |
