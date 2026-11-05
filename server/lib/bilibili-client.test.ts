@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BilibiliRiskError,
   getBilibiliPlayInfo,
+  getBilibiliVideoTrack,
   isBilibiliMediaHost,
   mapPlayUrl,
   mapSearchVideo,
@@ -110,5 +111,55 @@ describe('播放地址', () => {
     expect(audioProxyHeadersFor('https://upos-sz-mirrorcos.bilivideo.com/a.m4s', '').Referer).toBe('https://www.bilibili.com/')
     expect(audioProxyHeadersFor('https://m701.music.126.net/a.mp3', '').Referer).toBe('https://music.163.com/')
     expect(audioContentTypeForUrl('https://upos-sz-mirrorcos.bilivideo.com/a.m4s', 'application/octet-stream')).toBe('audio/mp4')
+  })
+})
+
+describe('直达视频详情', () => {
+  const bvid = 'BV1BZbSzZEGT'
+  const video = {
+    bvid, cid: 42, title: '《晴天》现场翻唱', pic: '//i0.hdslb.com/a.jpg',
+    owner: { name: '投稿者' }, duration: 900, desc: '歌曲：晴天\n演唱：现场歌手',
+    pages: [{ cid: 42, duration: 180, part: '第一首' }, { cid: 43, duration: 720, part: '第二首' }],
+  }
+
+  it('从固定 view 读取第一 P 的时长，保留原题、UP主和真实分 P 数量，复用CID', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input))
+      expect(url.origin).toBe('https://api.bilibili.com')
+      if (url.pathname.includes('finger/spi')) return json({ code: 0, data: { b_3: 'buvid-x' } })
+      if (url.pathname.endsWith('/view')) {
+        expect(url.searchParams.get('bvid')).toBe(bvid)
+        return json({ code: 0, data: video })
+      }
+      expect(url.searchParams.get('cid')).toBe('42')
+      return json({ code: 0, data: { dash: { audio: [{ id: 30280, baseUrl: 'https://upos-sz-mirrorcos.bilivideo.com/a.m4s' }] } } })
+    }) as unknown as typeof fetch
+    const track = await getBilibiliVideoTrack(bvid, fetchImpl)
+    expect(track).toMatchObject({ id: bvid, bvid, source: 'bilibili', name: video.title, videoTitle: video.title,
+      artist: '投稿者', uploader: '投稿者', duration: 180000, videoPartCount: 2, cover: 'https://i0.hdslb.com/a.jpg',
+      bilibiliLyricHint: { name: '晴天', artists: ['现场歌手'] } })
+    expect(await getBilibiliVideoTrack(bvid, fetchImpl)).toEqual(track)
+    await getBilibiliPlayInfo(bvid, fetchImpl)
+    expect(vi.mocked(fetchImpl).mock.calls.filter(([input]) => String(input).includes('/view'))).toHaveLength(1)
+  })
+
+  it('错误 BV 不请求上游，不把坏详情缓存成可播放歌曲', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => String(input).includes('finger/spi')
+      ? json({ code: 0, data: { b_3: 'buvid-x' } })
+      : json({ code: 0, data: { bvid, cid: 0, title: '损坏详情' } })) as unknown as typeof fetch
+    await expect(getBilibiliVideoTrack('https://example.com/video', fetchImpl)).rejects.toThrow('INVALID_BVID')
+    expect(fetchImpl).not.toHaveBeenCalled()
+    await expect(getBilibiliVideoTrack(bvid, fetchImpl)).rejects.toThrow('BILIBILI_NO_CID')
+    await expect(getBilibiliVideoTrack(bvid, fetchImpl)).rejects.toThrow('BILIBILI_NO_CID')
+    expect(vi.mocked(fetchImpl).mock.calls).toHaveLength(3)
+  })
+
+  it('详情受风控时沿用熔断，不缓存失败', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => String(input).includes('finger/spi')
+      ? json({ code: 0, data: { b_3: 'buvid-x' } }) : json({ code: -352 })) as unknown as typeof fetch
+    await expect(getBilibiliVideoTrack(bvid, fetchImpl)).rejects.toBeInstanceOf(BilibiliRiskError)
+    const calls = vi.mocked(fetchImpl).mock.calls.length
+    await expect(getBilibiliVideoTrack(bvid, fetchImpl)).rejects.toThrow('BILIBILI_BREAKER_OPEN')
+    expect(vi.mocked(fetchImpl).mock.calls).toHaveLength(calls)
   })
 })

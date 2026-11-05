@@ -7,6 +7,17 @@ vi.mock('./api', () => ({ api: { get: h.get, post: h.post, url: (path: string) =
 
 describe('本地收藏可用性查询', () => {
   beforeEach(() => vi.clearAllMocks())
+  it('本地目录透传专辑艺人，旧索引缺字段仍可读取', async () => {
+    h.get.mockResolvedValue({ tracks: [
+      { id: '1', name: '歌曲一', artist: '演唱者', album: '合辑', albumArtist: '群星', hasCover: false },
+      { id: '2', name: '歌曲二', artist: '旧艺人', album: '旧专辑', hasCover: false },
+    ] })
+    const tracks = await localMusicService.listAllTracks()
+    expect(tracks[0]).toMatchObject({ id: '1', albumArtist: '群星', artist: '演唱者' })
+    expect(tracks[1]).toMatchObject({ id: '2', source: 'local', artist: '旧艺人' })
+    expect(tracks[1].albumArtist).toBeUndefined()
+  })
+
   it('分批检查实际存在性，保留元数据但不将缺失文件当成可播放文件', async () => {
     const tracks = Array.from({ length: 102 }, (_, index) => ({ id: String(index), name: `歌曲${index}`, artist: '', hasCover: false }))
     h.get.mockResolvedValue({ tracks })

@@ -16,6 +16,7 @@ import { isProviderId, PROVIDER_IDS, type ProviderId } from '../../providers/typ
 import { useProviderStore } from '../../stores/providers'
 import { useContentProvider } from '../../hooks/useContentProvider'
 import { providerAccountSession } from '../../lib/provider-account-session'
+import { bilibiliLinkMessage, parseBilibiliLink } from '../../lib/bilibili-link'
 import { runProviderTasks, type ProviderResult } from '../../lib/content-hub'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { drawsCaptionButtons } from './caption-buttons'
@@ -54,6 +55,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   const goForward = useNavigationStore((s) => s.goForward)
 
   const [keyword, setKeyword] = useState('')
+  const directVideo = parseBilibiliLink(keyword)
   const [searchHistory, setSearchHistory] = useState<string[]>(loadSearchHistory)
   const [searchResults, setSearchResults] = useState<Partial<Record<ProviderId, ProviderResult<SearchPayload>>>>({})
   const [searchFocused, setSearchFocused] = useState(false)
@@ -99,7 +101,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }, [])
 
   async function runSearch(q: string) {
-    if (!q) return
+    if (!q || parseBilibiliLink(q)) return
     const seq = ++searchSeq.current
     setSearchResults({})
     await runProviderTasks(
@@ -131,7 +133,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
     searchSeq.current++
     setSearchResults({})
     const q = keyword.trim()
-    if (!q) {
+    if (!q || parseBilibiliLink(q)) {
       searchSeq.current++
       setSearchResults({})
       return
@@ -186,9 +188,10 @@ export function TopBar({ hidden = false }: TopBarProps) {
   }
 
   function openSearchPage(term = keyword) {
-    const query = term.trim()
+    const direct = parseBilibiliLink(term)
+    const query = direct?.kind === 'video' ? direct.bvid : term.trim()
     if (!query) return
-    rememberSearch(query)
+    if (!direct || direct.kind === 'video') rememberSearch(query)
     navigateTo({ type: 'search', keyword: query })
     closeSearch()
   }
@@ -341,7 +344,7 @@ export function TopBar({ hidden = false }: TopBarProps) {
                   setSearchHistory(loadSearchHistory())
                 }}
                 aria-label="搜索歌曲、歌手"
-                placeholder="搜索歌曲、歌手"
+                placeholder="歌曲、歌手或 B 站视频链接"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault()
@@ -371,7 +374,16 @@ export function TopBar({ hidden = false }: TopBarProps) {
                     inputRef.current?.focus()
                   }} />
               )}
-              {showHotkeys && hotkeySource ? (
+              {directVideo ? (
+                <div className={styles.searchProvider}>
+                  {directVideo.kind === 'video' ? <>
+                    <button type="button" className={styles.searchMore} onClick={() => openSearchPage()}>
+                      打开哔哩哔哩音频 · {directVideo.bvid}
+                    </button>
+                    {!bilibiliEnabled && <p className={styles.searchHint}>请先启用哔哩哔哩音源</p>}
+                  </> : <p className={styles.searchHint}>{bilibiliLinkMessage(directVideo.reason)}</p>}
+                </div>
+              ) : showHotkeys && hotkeySource ? (
                 <SearchHotkeys key={hotkeySource} source={hotkeySource} onSelect={(term) => {
                   setKeyword(term)
                   inputRef.current?.focus()

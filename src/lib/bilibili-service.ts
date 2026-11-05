@@ -34,6 +34,10 @@ export class BilibiliMusicService implements MusicService {
     const res = await api.get<{ songs: Track[] }>('/api/bilibili/search', { keywords: keyword, mode: 'browse' }, { signal })
     return res.songs.map((track) => ({ ...track, cover: normalizeImageUrl(track.cover) || undefined }))
   }
+  async getVideoTrack(bvid: string, signal?: AbortSignal): Promise<Track> {
+    const res = await api.get<{ track: Track }>('/api/bilibili/song/detail', { bvid }, { signal })
+    return { ...res.track, cover: normalizeImageUrl(res.track.cover) || undefined }
+  }
   async searchArtists(): Promise<ArtistInfo[]> { return [] }
   async getArtistDetail(id: unknown): Promise<ArtistInfo> { return { id, name: '', avatar: '', source: 'bilibili' } }
   async getArtistSongs(): Promise<Track[]> { return [] }

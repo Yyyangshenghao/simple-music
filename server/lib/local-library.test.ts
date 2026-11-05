@@ -49,6 +49,39 @@ async function createFolder(name: string, fileName: string): Promise<string> {
 }
 
 describe('本地音乐索引快照', () => {
+  it('扫描保留专辑艺人，旧索引显式重扫时补标签并保持歌曲 ID', async () => {
+    const folder = await createFolder('compilation', 'first.mp3')
+    const original = await addLocalFolder(directory, folder)
+    const indexPath = join(directory, 'local-library.json')
+    const index = JSON.parse(await fsp.readFile(indexPath, 'utf8'))
+    delete index.tracks[0].albumArtist
+    await fsp.writeFile(indexPath, JSON.stringify(index))
+    vi.mocked(parseFile).mockResolvedValueOnce({
+      common: { title: 'First', artist: '单曲艺人', album: '合辑', albumartist: '群星' },
+      format: { duration: 1 },
+    } as Awaited<ReturnType<typeof parseFile>>)
+    const rescanned = await addLocalFolder(directory, folder)
+    expect(rescanned[0]).toMatchObject({ id: original[0].id, artist: original[0].artist, albumArtist: '群星' })
+    const calls = vi.mocked(parseFile).mock.calls.length
+    expect((await addLocalFolder(directory, folder))[0].albumArtist).toBe('群星')
+    expect(vi.mocked(parseFile).mock.calls.length).toBe(calls)
+  })
+
+  it('旧索引仅补专辑艺人失败时保留原有元数据，之后显式重扫仍可重试', async () => {
+    const folder = await createFolder('legacy-tags', 'first.mp3')
+    const original = await addLocalFolder(directory, folder)
+    const indexPath = join(directory, 'local-library.json')
+    const index = JSON.parse(await fsp.readFile(indexPath, 'utf8'))
+    delete index.tracks[0].albumArtist
+    await fsp.writeFile(indexPath, JSON.stringify(index))
+    const legacy = { ...original[0] }
+    delete legacy.albumArtist
+    vi.mocked(parseFile).mockRejectedValueOnce(new Error('标签暂不可读'))
+    expect(await addLocalFolder(directory, folder)).toEqual([legacy])
+    expect((await listLocalLibrary(directory)).tracks).toEqual([legacy])
+    expect((await addLocalFolder(directory, folder))[0].albumArtist).toBeNull()
+  })
+
   it.each(['父目录', '子目录', '带分隔符的子目录'])('移除%s 时保留其他目录覆盖的曲目和封面', async (removed) => {
     const parent = await createFolder('music', 'first.mp3')
     const child = join(parent, 'album')

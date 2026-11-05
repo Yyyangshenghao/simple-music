@@ -49,6 +49,7 @@ export interface BilibiliTrack {
   /** 原视频标题，供界面说明来源。 */
   videoTitle: string
   bilibiliLyricHint?: TitleReading
+  videoPartCount?: number
 }
 
 export interface BilibiliAudioCandidate {
@@ -85,6 +86,7 @@ const state = {
 }
 const searchCache = new Map<string, { tracks: BilibiliTrack[]; expiresAt: number }>()
 const cidCache = new Map<string, number>()
+const videoCache = new Map<string, { data: Record<string, unknown>; expiresAt: number }>()
 const playCache = new Map<string, BilibiliPlayInfo>()
 
 export function resetBilibiliState(): void {
@@ -93,6 +95,7 @@ export function resetBilibiliState(): void {
   state.buvidPending = null
   searchCache.clear()
   cidCache.clear()
+  videoCache.clear()
   playCache.clear()
 }
 
@@ -214,14 +217,47 @@ export async function searchBilibiliTracks(keyword: string, fetchImpl: typeof fe
   return uniqueTracks
 }
 
-async function cidOf(bvid: string, fetchImpl: typeof fetch, cookie: string): Promise<number> {
-  const cached = cidCache.get(bvid)
-  if (cached) return cached
+async function videoOf(bvid: string, fetchImpl: typeof fetch, cookie: string, now: number): Promise<Record<string, unknown>> {
+  const cached = videoCache.get(bvid)
+  if (cached && cached.expiresAt > now) return cached.data
   const data = await requestJson('/x/web-interface/view', { bvid }, fetchImpl, cookie)
+  videoCid(data)
+  if (typeof data.title === 'string' && data.title.trim()) remember(videoCache, bvid, { data, expiresAt: now + SEARCH_TTL_MS })
+  return data
+}
+
+function videoCid(data: Record<string, unknown>): number {
   const cid = Number(data.cid ?? asObj((data.pages as unknown[] | undefined)?.[0]).cid)
   if (!Number.isSafeInteger(cid) || cid <= 0) throw new Error('BILIBILI_NO_CID')
+  return cid
+}
+
+async function cidOf(bvid: string, fetchImpl: typeof fetch, cookie: string, now: number): Promise<number> {
+  const cached = cidCache.get(bvid)
+  if (cached) return cached
+  const cid = videoCid(await videoOf(bvid, fetchImpl, cookie, now))
   remember(cidCache, bvid, cid)
   return cid
+}
+
+/** 只读游客视频详情，链接解析后的 BV 身份仍只交给固定的 view 接口。音频始终取第一 P。 */
+export async function getBilibiliVideoTrack(bvid: string, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<BilibiliTrack> {
+  if (!isBvid(bvid)) throw new Error('INVALID_BVID')
+  const cookie = await guestCookie(fetchImpl)
+  const data = await videoOf(bvid, fetchImpl, cookie, now)
+  if (data.bvid && data.bvid !== bvid) throw new Error('BILIBILI_VIDEO_MISMATCH')
+  const pages = Array.isArray(data.pages) ? data.pages : []
+  const [track] = mapSearchVideo({
+    bvid,
+    title: data.title,
+    author: asObj(data.owner).name,
+    pic: data.pic,
+    duration: asObj(pages[0]).duration ?? data.duration,
+    description: data.desc,
+  }, 'browse')
+  if (!track) throw new Error('BILIBILI_VIDEO_NOT_FOUND')
+  remember(cidCache, bvid, videoCid(data))
+  return pages.length > 1 ? { ...track, videoPartCount: pages.length } : track
 }
 
 /** 主站 upos/cn 节点优先；mcdn 与第三方 PCDN 节点不稳定，放最后。 */
@@ -267,7 +303,7 @@ export async function getBilibiliPlayInfo(bvid: string, fetchImpl: typeof fetch 
   const cached = playCache.get(bvid)
   if (cached && cached.expiresAt > now) return cached
   const cookie = await guestCookie(fetchImpl)
-  const cid = await cidOf(bvid, fetchImpl, cookie)
+  const cid = await cidOf(bvid, fetchImpl, cookie, now)
   const data = await requestJson('/x/player/playurl', { bvid, cid: String(cid), fnval: '16', fnver: '0' }, fetchImpl, cookie)
   const info = mapPlayUrl(data, now)
   remember(playCache, bvid, info)

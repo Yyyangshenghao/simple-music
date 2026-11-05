@@ -1,6 +1,6 @@
 import { LocalTrackFolderButton } from '../components/ui/LocalTrackFolderButton'
 import { HoverTips } from '../components/ui/HoverTips'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePlaylistStore } from '../stores/playlist'
 import { useNavigationStore, type AppView } from '../stores/navigation'
 import { useRecentPlaysStore } from '../stores/recent'
@@ -9,6 +9,7 @@ import { useContentProvider } from '../hooks/useContentProvider'
 import { useToastStore } from '../stores/toast'
 import { useLikesStore } from '../stores/likes'
 import { localMusicService } from '../lib/local-music-service'
+import { groupLocalAlbums, localTracksInAlbum, matchesLocalMusic } from '../lib/local-albums'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { runProviderTasks, type ProviderResult } from '../lib/content-hub'
 import { providerFor } from '../providers/registry'
@@ -26,6 +27,8 @@ import styles from './LibraryPage.module.css'
 import { LibraryToolbar } from '../components/ui/LibraryToolbar'
 import { ActionButton } from '../components/ui/ActionButton'
 import { CloseIcon } from '../components/ui/CloseIcon'
+import { BackButton } from '../components/ui/BackButton'
+import { JellyRadio } from '../components/ui/JellyRadio'
 import { OfflineMusicTab } from './OfflineMusicTab'
 import { AppPlaylistsTab } from './AppPlaylistsTab'
 import { BatchTrackActions } from '../components/Playlist/BatchTrackActions'
@@ -471,123 +474,189 @@ function LocalSortMenu({
   )
 }
 
-/** 本地音乐 tab:选文件夹批量导入,扁平列表播放;不接入在线音源的推荐/艺人体系。 */
+/** 本地音乐索引的歌曲/专辑视图，分组和钻取均只使用本机曲目。 */
 function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
   const [folders, setFolders] = useState<string[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [keyword, setKeyword] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [view, setView] = useState<'songs' | 'albums'>('songs')
+  const [albumKey, setAlbumKey] = useState<string | null>(null)
   const [sortField, setSortField] = useState<LocalSortField>('name')
   const [sortDir, setSortDir] = useState<LocalSortDir>('asc')
   const [selecting, setSelecting] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+  const mounted = useRef(false)
+  const request = useRef(0)
+  const albumScroll = useRef(0)
+  const restoreScroll = useRef(0)
+  const busy = scanning || removing !== null
 
   async function refresh(): Promise<void> {
-    const [f, t] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
-    setFolders(f)
-    setTracks(t)
+    const current = ++request.current
+    setLoading(true)
+    setLoadFailed(false)
+    try {
+      const [nextFolders, nextTracks] = await Promise.all([localMusicService.listFolders(), localMusicService.listAllTracks()])
+      if (!mounted.current || current !== request.current) return
+      setFolders(nextFolders)
+      setTracks(nextTracks)
+    } catch {
+      if (mounted.current && current === request.current) setLoadFailed(true)
+    } finally {
+      if (mounted.current && current === request.current) setLoading(false)
+    }
   }
 
   useEffect(() => {
+    mounted.current = true
     void refresh()
+    return () => { mounted.current = false; request.current++ }
   }, [])
 
   async function handleAddFolder(): Promise<void> {
     const picker = window.desktop?.selectDirectory
-    if (!picker) return
-    const r = await picker({ title: '选择本地音乐文件夹' })
-    if (!r.ok || !r.filePath) return
+    if (!picker || busy) return
     setScanning(true)
     try {
-      await localMusicService.addFolder(r.filePath)
+      const result = await picker({ title: '选择本地音乐文件夹' })
+      if (!result.ok || !result.filePath) return
+      await localMusicService.addFolder(result.filePath)
       await refresh()
     } catch {
       useToastStore.getState().show('导入失败,请重试')
     } finally {
-      setScanning(false)
+      if (mounted.current) setScanning(false)
     }
   }
 
   async function handleRemoveFolder(folder: string): Promise<void> {
-    await localMusicService.removeFolder(folder)
-    await refresh()
+    if (busy) return
+    setRemoving(folder)
+    try {
+      await localMusicService.removeFolder(folder)
+      await refresh()
+    } catch {
+      useToastStore.getState().show('移除文件夹失败，请重试')
+    } finally {
+      if (mounted.current) setRemoving(null)
+    }
   }
 
-  // 先过滤再排序:排序在搜索之后,确保显示顺序与当前排序一致。
-  const sorted = useMemo(() => {
-    const kw = keyword.trim().toLowerCase()
-    const matched = kw
-      ? tracks.filter((t) => t.name.toLowerCase().includes(kw) || t.artist.toLowerCase().includes(kw))
-      : tracks
-    return [...matched].sort((a, b) => compareTracks(a, b, sortField, sortDir))
-  }, [tracks, keyword, sortField, sortDir])
+  const albums = useMemo(() => groupLocalAlbums(tracks), [tracks])
+  const album = albums.find(item => item.key === albumKey)
+  // 过滤后排序，专辑详情的播放和批量操作都使用同一份当前结果。
+  const sorted = useMemo(() => tracks.filter(track => matchesLocalMusic(track, keyword))
+    .sort((a, b) => compareTracks(a, b, sortField, sortDir)), [tracks, keyword, sortField, sortDir])
+  const visibleAlbums = useMemo(() => groupLocalAlbums(sorted), [sorted])
+  const visibleTracks = useMemo(() => albumKey ? localTracksInAlbum(sorted, albumKey) : sorted, [sorted, albumKey])
+  const showingTracks = view === 'songs' || !!album
   const queueRef = useRef<Track[]>([])
-  queueRef.current = sorted
+  queueRef.current = visibleTracks
   const selection = useMultiSelection({
-    enabled: selecting,
-    keys: sorted.map(appPlaylistTrackKey),
-    resetKey: `${keyword}:${sortField}:${sortDir}`,
+    enabled: selecting && showingTracks,
+    keys: visibleTracks.map(appPlaylistTrackKey),
+    resetKey: `${keyword}:${sortField}:${sortDir}:${view}:${albumKey}`,
     onExit: () => setSelecting(false),
     virtual: { listRef, rowHeight: TRACK_ROW_HEIGHT },
   })
-  const selectedTracks = sorted.filter(track => selection.selected.has(appPlaylistTrackKey(track)))
+  const selectedTracks = visibleTracks.filter(track => selection.selected.has(appPlaylistTrackKey(track)))
+
+  function openAlbum(key: string) {
+    albumScroll.current = scrollRef.current?.scrollTop ?? 0
+    restoreScroll.current = 0
+    setSelecting(false)
+    setAlbumKey(key)
+  }
+
+  function closeAlbum() {
+    restoreScroll.current = albumScroll.current
+    setSelecting(false)
+    setAlbumKey(null)
+  }
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = restoreScroll.current
+    restoreScroll.current = 0
+  }, [scrollRef, view, albumKey])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [scrollRef, keyword, sortField, sortDir])
 
+  useEffect(() => {
+    if (albumKey && !loading && !albums.some(item => item.key === albumKey)) closeAlbum()
+  }, [albumKey, albums, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const summary = !showingTracks
+    ? `${visibleAlbums.length} 张专辑 · ${sorted.length} 首`
+    : keyword ? `${visibleTracks.length} / ${album?.tracks.length ?? tracks.length} 首` : `${visibleTracks.length} 首`
+
   return (
     <div className={styles.trackList} ref={selection.rootRef} {...selection.surfaceProps}>
       <HoverTips match="[data-icon-action]" exclude="[data-library-toolbar]" />
-      <LibraryToolbar summary={keyword ? `${sorted.length} / ${tracks.length} 首` : `${tracks.length} 首`}
-        primary={<ActionButton label="播放全部" icon="play" primary disabled={!sorted.length} onClick={() => usePlaylistStore.getState().setQueue(sorted, 0)} />}
-        value={keyword} onChange={setKeyword} searchLabel="搜索本地音乐">
-        <LocalSortMenu field={sortField} dir={sortDir} onChange={(f, d) => { setSortField(f); setSortDir(d) }} />
-        <ActionButton label={scanning ? '导入中…' : '添加文件夹'} icon="folder" busy={scanning} onClick={() => void handleAddFolder()} />
-        {!selecting && <BatchTrackActions compact tracks={sorted} label="当前本地音乐列表" menuLabel="本地音乐更多操作"
+      <JellyRadio className={styles.localViewSwitch} value={view} ariaLabel="本地音乐视图"
+        items={[{ value: 'songs', label: '歌曲' }, { value: 'albums', label: '专辑' }]}
+        onChange={next => {
+          if (next === view) return
+          restoreScroll.current = 0
+          setSelecting(false)
+          setAlbumKey(null)
+          setView(next)
+        }} />
+      {view === 'albums' && album && <div className={styles.localAlbumHeader}>
+        <BackButton label="专辑" ariaLabel="返回专辑列表" onClick={closeAlbum} />
+        <div><h2>{album.name}</h2><p>{album.artist}</p></div>
+      </div>}
+      <LibraryToolbar summary={summary}
+        primary={<ActionButton label="播放全部" icon="play" primary disabled={!visibleTracks.length} onClick={() => usePlaylistStore.getState().setQueue(visibleTracks, 0)} />}
+        value={keyword} onChange={setKeyword} searchLabel={album ? '搜索专辑歌曲' : '搜索本地音乐'}>
+        {showingTracks && <LocalSortMenu field={sortField} dir={sortDir} onChange={(field, dir) => { setSortField(field); setSortDir(dir) }} />}
+        <ActionButton label={scanning ? '导入中…' : '添加文件夹'} icon="folder" busy={scanning} disabled={removing !== null} onClick={() => void handleAddFolder()} />
+        {showingTracks && !selecting && <BatchTrackActions compact tracks={visibleTracks} label={album?.name ?? '当前本地音乐列表'} menuLabel="本地音乐更多操作"
           onSelect={() => { setSelecting(true); selection.rootRef.current?.focus({ preventScroll: true }) }} />}
       </LibraryToolbar>
 
       {selecting && <BatchTrackActions tracks={selectedTracks} onDone={selection.clear}
-        selection={{ total: sorted.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
+        selection={{ total: visibleTracks.length, onSelectAll: selection.selectAll, onClear: selection.clear, onExit: selection.exit }} />}
 
-      {folders.length > 0 && (
-        <div className={styles.folderList}>
-          {folders.map((f) => (
-            <span key={f} className={styles.folderChip}>
-              <span title={f}>{f}</span>
-              <button
-                className={`${styles.folderChipRemove} no-drag`}
-                onClick={() => void handleRemoveFolder(f)}
-                aria-label={`从音乐库移除文件夹：${f}`}
-                title="仅从音乐库移除，原文件保留"
-              >
-                <CloseIcon size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {!album && folders.length > 0 && <div className={styles.folderList}>
+        {folders.map(folder => <span key={folder} className={styles.folderChip}>
+          <span title={folder}>{folder}</span>
+          <button className={`${styles.folderChipRemove} no-drag`} disabled={busy}
+            onClick={() => void handleRemoveFolder(folder)} aria-label={`从音乐库移除文件夹：${folder}`} title="仅从音乐库移除，原文件保留">
+            <CloseIcon size={12} />
+          </button>
+        </span>)}
+      </div>}
 
-      {sorted.length === 0 ? (
-        <div className={styles.emptyHint}>
-          <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>
+      {loadFailed && <div className={styles.localLoadError} role="status">
+        <span>本地音乐暂时无法读取</span><ActionButton label="重试读取" compact busy={loading} onClick={() => void refresh()} />
+      </div>}
+      {loading && !tracks.length ? <p className={styles.emptyHint} role="status">正在读取本地音乐…</p>
+        : !visibleTracks.length ? <div className={styles.emptyHint}>
+          {!loadFailed && <p>{tracks.length === 0 ? '还没有导入本地音乐,点击「添加文件夹」开始' : '没有匹配的曲目'}</p>}
         </div>
-      ) : (
-        <div ref={listRef}><VirtualList
-          total={sorted.length}
-          rowHeight={TRACK_ROW_HEIGHT}
-          scrollRef={scrollRef}
-          renderRow={(index) => {
-            const track = sorted[index]
-            const key = appPlaylistTrackKey(track)
-            return selecting ? <div className={styles.selectableRow} key={key} data-selection-key={key} data-selected={selection.selected.has(key)}>
-              <SelectionCheck label={`选择歌曲：${track.name}`} checked={selection.selected.has(key)} />
-              <TrackRow track={track} index={index} hideLikeAction hideOfflineAction onPlay={() => {}} />
-            </div> : <div className={styles.localTrackRow} key={key}><QueuedTrackRow track={track} index={index} queueRef={queueRef} /><LocalTrackFolderButton track={track} /></div>
-          }}
-        /></div>
-      )}
+          : !showingTracks ? <div className={styles.localAlbumGrid} aria-label="本地专辑">
+            {visibleAlbums.map(item => <PlaylistCard key={item.key} playlist={{
+              source: 'local', provider: 'local', type: 'album', id: item.key, name: item.name, cover: item.cover,
+              creator: item.artist, trackCount: item.tracks.length, trackCountKnown: true, playCount: 0,
+            }} meta={`${item.artist} · ${item.tracks.length} 首`} onClick={() => openAlbum(item.key)} />)}
+          </div>
+            : <div ref={listRef}><VirtualList
+              total={visibleTracks.length} rowHeight={TRACK_ROW_HEIGHT} scrollRef={scrollRef}
+              renderRow={index => {
+                const track = visibleTracks[index]
+                const key = appPlaylistTrackKey(track)
+                return selecting ? <div className={styles.selectableRow} key={key} data-selection-key={key} data-selected={selection.selected.has(key)}>
+                  <SelectionCheck label={`选择歌曲：${track.name}`} checked={selection.selected.has(key)} />
+                  <TrackRow track={track} index={index} hideLikeAction hideOfflineAction onPlay={() => {}} />
+                </div> : <div className={styles.localTrackRow} key={key}><QueuedTrackRow track={track} index={index} queueRef={queueRef} /><LocalTrackFolderButton track={track} /></div>
+              }} />
+            </div>}
       <SelectionMarquee rect={selection.marquee} />
     </div>
   )

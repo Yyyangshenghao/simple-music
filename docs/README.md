@@ -35,6 +35,7 @@
 |---|---|
 | 2.7.0 第一批平台内容的实现、真实读取与界面验收边界 | [平台内容实施与验证](reviews/2026-11-05-platform-content.md) |
 | 2.7.0 网易/QQ 评论与网易歌曲精选 | [评论与精选验证](reviews/2026-11-05-platform-comments.md) |
+| 2.7.0 B 站视频直达、本地专辑分组与验证范围 | [视频直达与本地专辑验证](reviews/2026-11-05-bilibili-local-albums.md) |
 | 下载/伴奏队列的现行实现、分阶段截图与验证边界 | [任务队列验收](reviews/2026-10-28-task-queue-verification.md)、[设计决策](specs/2026-10-28-task-queue-bubble-design.md) |
 | 伴奏、本地、离线的共用控件及最新鼠标验收缺口 | [音乐库与任务操作统一](reviews/2026-10-28-library-controls.md) |
 

@@ -1,0 +1,5 @@
+.content { padding-top: 12px; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.identity { color: var(--sm-text-secondary); font-size: 13px; overflow-wrap: anywhere; }
+.status { margin: 12px 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
+.recovery { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; color: var(--sm-text-secondary); font-size: 13px; }

@@ -1,6 +1,6 @@
 import type { RouteHandler } from '../types'
 import { sendJson } from '../lib/http'
-import { BilibiliRiskError, getBilibiliPlayInfo, isBvid, parseBilibiliKeyword, searchBilibiliTracks } from '../lib/bilibili-client'
+import { BilibiliRiskError, getBilibiliPlayInfo, getBilibiliVideoTrack, isBvid, parseBilibiliKeyword, searchBilibiliTracks } from '../lib/bilibili-client'
 
 /**
  * 哔哩哔哩搜索与音频播放（只读游客接口，见 lib/bilibili-client.ts）：
@@ -27,10 +27,14 @@ export const bilibiliRoutes: RouteHandler = async (req, res, url) => {
       sendJson(res, { songs: await searchBilibiliTracks(keyword, fetch, Date.now(), mode) })
       return true
     }
-    if (pn === '/api/bilibili/song/url' || pn === '/api/bilibili/song/qualities') {
+    if (pn === '/api/bilibili/song/detail' || pn === '/api/bilibili/song/url' || pn === '/api/bilibili/song/qualities') {
       const bvid = url.searchParams.get('bvid')
       if (!isBvid(bvid)) {
         sendJson(res, { error: 'INVALID_PARAMS' }, 400)
+        return true
+      }
+      if (pn === '/api/bilibili/song/detail') {
+        sendJson(res, { track: await getBilibiliVideoTrack(bvid) })
         return true
       }
       const info = await getBilibiliPlayInfo(bvid)

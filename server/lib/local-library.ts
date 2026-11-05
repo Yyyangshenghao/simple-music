@@ -17,6 +17,8 @@ export interface LocalTrackRecord {
   name: string
   artist: string
   album?: string
+  /** null 表示已扫描但文件没有专辑艺人标签，缺省为旧索引。 */
+  albumArtist?: string | null
   duration?: number // 毫秒,对齐全项目约定
   hasCover: boolean
   coverFormat?: string // 如 image/jpeg,serveLocalCover 用于 Content-Type
@@ -142,11 +144,12 @@ async function walkAudioFiles(dir: string): Promise<string[]> {
   return out
 }
 
-async function parseTrack(userDataDir: string, path: string, mtimeMs: number): Promise<LocalTrackRecord> {
+async function parseTrack(userDataDir: string, path: string, mtimeMs: number, previous?: LocalTrackRecord): Promise<LocalTrackRecord> {
   const id = idFor(path)
   const fallbackName = basename(path, extname(path))
   try {
     const meta = await parseFile(path)
+    if (previous?.mtimeMs === mtimeMs) return { ...previous, albumArtist: meta.common.albumartist?.trim() || null }
     const picture = meta.common.picture?.[0]
     if (picture) {
       await fsp.mkdir(join(userDataDir, 'local-covers'), { recursive: true })
@@ -158,18 +161,20 @@ async function parseTrack(userDataDir: string, path: string, mtimeMs: number): P
       name: meta.common.title || fallbackName,
       artist: meta.common.artists?.join('/') || meta.common.artist || '未知艺人',
       album: meta.common.album,
+      albumArtist: meta.common.albumartist?.trim() || null,
       duration: meta.format.duration ? Math.round(meta.format.duration * 1000) : undefined,
       hasCover: !!picture,
       coverFormat: picture?.format,
       mtimeMs,
     }
   } catch {
+    if (previous?.mtimeMs === mtimeMs) return previous
     // 标签解析失败(损坏文件等):退化为文件名,仍可播放
-    return { id, path, name: fallbackName, artist: '未知艺人', hasCover: false, mtimeMs }
+    return { id, path, name: fallbackName, artist: '未知艺人', albumArtist: null, hasCover: false, mtimeMs }
   }
 }
 
-/** 扫描指定文件夹并合并进索引;已存在且 mtime 未变的文件跳过重新解析。返回扫描后该文件夹下的曲目。 */
+/** 扫描指定文件夹并合并进索引;已存在、mtime 未变且已扫描专辑艺人字段的文件跳过重新解析。返回扫描后该文件夹下的曲目。 */
 export async function addLocalFolder(userDataDir: string, folder: string): Promise<LocalTrackRecord[]> {
   if (!isAbsolute(folder)) throw new Error('INVALID_FOLDER')
   return withMutation(userDataDir, () => scanLocalFolder(userDataDir, folder))
@@ -199,11 +204,11 @@ async function scanLocalFolder(userDataDir: string, folder: string): Promise<Loc
     const st = await fsp.stat(file).catch(() => null)
     if (!st) continue
     const existing = byPath.get(file)
-    if (existing && existing.mtimeMs === st.mtimeMs) {
+    if (existing && existing.mtimeMs === st.mtimeMs && existing.albumArtist !== undefined) {
       folderTracks.push(existing)
       continue
     }
-    const record = await parseTrack(userDataDir, file, st.mtimeMs)
+    const record = await parseTrack(userDataDir, file, st.mtimeMs, existing)
     byPath.set(file, record)
     folderTracks.push(record)
   }

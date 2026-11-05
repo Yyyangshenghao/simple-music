@@ -9,6 +9,7 @@ import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
 // 详情页同步挂载，首次打开也能接上卡片封面的共享转场。
 import { AppPlaylistPage } from '../../pages/AppPlaylistPage'
 import { initialPageTransition, isDetailView, nextPageTransition } from './page-transition-state'
+import { parseBilibiliLink } from '../../lib/bilibili-link'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
@@ -21,6 +22,7 @@ const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ 
 const AppleChartPage = lazy(() => import('../../pages/AppleChartPage').then((m) => ({ default: m.AppleChartPage })))
 const ProviderPlaylistsPage = lazy(() => import('../../pages/ProviderPlaylistsPage').then((m) => ({ default: m.ProviderPlaylistsPage })))
 const SongCommentsPage = lazy(() => import('../../pages/SongCommentsPage').then((m) => ({ default: m.SongCommentsPage })))
+const BilibiliVideoPage = lazy(() => import('../../pages/BilibiliVideoPage').then((m) => ({ default: m.BilibiliVideoPage })))
 const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 const SearchPage = lazy(() => import('../../pages/SearchPage').then((m) => ({ default: m.SearchPage })))
 
@@ -51,6 +53,7 @@ export function AppShell() {
     if (view === 'settings') return <SettingsPage />
     if (view === 'release-history') return <ReleaseHistoryPage />
     if (typeof view === 'object' && view.type === 'search') {
+      if (parseBilibiliLink(view.keyword)) return <BilibiliVideoPage input={view.keyword} />
       return <SearchPage keyword={view.keyword} initialState={view.pageState} />
     }
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage initialKind={view.chartType ?? 'playlists'} /> : <ToplistPage />
