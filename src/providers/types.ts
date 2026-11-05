@@ -58,7 +58,7 @@ export function isFallbackOnlyProvider(id: ProviderId): boolean {
   return FALLBACK_ONLY_PROVIDER_IDS.includes(id)
 }
 
-/** 有账号、可浏览内容的平台；界面里列平台（内容切换、头像、我的库）时用它。 */
+/** 有内容入口的平台；界面里列平台（内容切换、头像、我的库）时用它，游客可浏览本机内容。 */
 export const CONTENT_PROVIDER_IDS: readonly ProviderId[] = PROVIDER_IDS.filter((id) => !isFallbackOnlyProvider(id))
 
 export function providerIdOf(source: MusicSource): ProviderId | null {

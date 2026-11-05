@@ -1,6 +1,6 @@
 # 界面现状与维护地图
 
-核对日期：2026-10-28。本文描述当前工作区源码，包含尚未发布的改动；`package.json` 当前版本为 `2.5.1`，任务队列开发记录归属 `dev/2.6.0`。版本号和截图不是最新改动已经发布或全部验收的证据。
+界面地图基线核对日期为 2026-10-28，平台内容入口于 2026-11-05 更新。本文包含尚未发布的改动；`package.json` 当前版本为 `2.6.2`，平台内容扩充归属 `dev/2.7.0`，旧任务队列记录归属 `dev/2.6.0`。版本号和截图不是最新改动已经发布或全部验收的证据。
 
 设计前依次读 [产品理念](../PRODUCT.md) → [设计准则](../DESIGN.md) → 本文，再读受影响源码。技术装配详见 [渲染层](modules/renderer.md)，不要从旧截图或带日期的方案推断当前入口。
 
@@ -11,7 +11,7 @@
 | 界面 | 用户任务与现有结构 | 实现入口 |
 |---|---|---|
 | 顶栏 | 导航、全局搜索、平台与账号、按需任务入口；窄窗口仍需保留搜索和窗口操作空间。Windows/Linux 是无边框窗口，右侧必须让出 `--sm-caption-reserve`（三个自绘窗口按钮），否则关闭按钮会压住头像 | [TopBar](../src/components/Layout/TopBar.tsx) |
-| 探索 | 浏览当前内容平台的推荐、榜单与个人栏目；保留封面堆叠与横排的内容表现 | [ExplorePage](../src/pages/ExplorePage.tsx) |
+| 探索 | 浏览平台推荐、榜单与个人栏目；网易/QQ/酷狗可进入完整推荐歌单，网易有本周常听，汽水有本机继续听和应用歌单，Apple 榜单可切换歌曲/专辑/歌单；保留封面堆叠与横排 | [ExplorePage](../src/pages/ExplorePage.tsx)、[完整歌单](../src/pages/ProviderPlaylistsPage.tsx)、[个人听歌栏目](../src/components/Explore/PersonalListeningSection.tsx)、[Apple 榜单](../src/pages/AppleChartPage.tsx) |
 | 我的库 | 应用歌单、平台歌单、收藏、最近播放、离线、本地；应用歌单栏目内切换歌单与伴奏成品 | [LibraryPage](../src/pages/LibraryPage.tsx)、[LibraryTabs](../src/pages/LibraryTabs.tsx)、[CollectionKindSwitch](../src/pages/CollectionKindSwitch.tsx) |
 | 本地音乐 | 文件夹索引、筛选与播放；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |
 | 离线音乐 | 浏览播放器内已保存的离线音乐，筛选、排序、播放与多选管理，工具栏直达下载队列；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |

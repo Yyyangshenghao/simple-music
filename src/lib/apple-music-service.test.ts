@@ -40,9 +40,11 @@ describe('Apple Music service', () => {
     await service.getUserAlbums()
     await service.getRecommendPlaylists()
     await service.getChartPlaylistsPage()
+    await service.getChartSongsPage()
+    await service.getChartAlbumsPage()
     await service.getStorefrontChartPlaylists()
     await service.getRecommendationGroups()
-    expect(paths).toHaveLength(21)
+    expect(paths).toHaveLength(23)
     expect(paths.some((path) => path.includes('/artists/123/view/top-songs'))).toBe(true)
   })
 
@@ -276,6 +278,39 @@ describe('Apple Music service', () => {
     const first = chart('pl.first')
     const second = chart('pl.second')
     expect(appendUniqueAppleCharts([first], [first, second, second]).map(item => item.id)).toEqual(['pl.first', 'pl.second'])
+  })
+
+  it('热门歌曲按榜单分组读取并跟随歌曲游标，排除非歌曲资源', async () => {
+    const next = '/v1/catalog/cn/charts?types=songs&chart=most-played&offset=24'
+    get.mockResolvedValueOnce({ storefront: 'cn' })
+      .mockResolvedValueOnce({ results: { songs: [{ data: [song('1'), song('mv', 'music-videos')], next }] } })
+      .mockResolvedValueOnce({ results: { songs: [{ data: [song('2')] }] } })
+    const service = new AppleMusicService()
+    expect(await service.getChartSongsPage()).toMatchObject({ tracks: [{ id: '1', source: 'apple', catalogId: '1' }], nextCursor: next })
+    expect(await service.getChartSongsPage(next)).toMatchObject({ tracks: [{ id: '2' }], nextCursor: undefined })
+    expect(get).toHaveBeenLastCalledWith('/api/apple-music/catalog', { path: `${next}&extend=trackCount` })
+  })
+
+  it('热门专辑保留专辑类型和真实曲数，缺少榜单时返回空集合', async () => {
+    get.mockResolvedValueOnce({ storefront: 'us' })
+      .mockResolvedValueOnce({ results: { albums: [{ data: [
+        { id: 'album.1', type: 'albums', attributes: { name: '热门专辑', trackCount: 12, artistName: '歌手' } },
+        song('not-album'),
+      ] }] } })
+    expect(await new AppleMusicService().getChartAlbumsPage()).toMatchObject({ albums: [
+      { id: 'album.1', type: 'album', source: 'apple', trackCount: 12, trackCountKnown: true, creator: '歌手' },
+    ], nextCursor: undefined })
+    get.mockResolvedValueOnce({ storefront: 'us' }).mockResolvedValueOnce({ results: {} })
+    expect(await new AppleMusicService().getChartSongsPage()).toEqual({ tracks: [], nextCursor: undefined })
+  })
+
+  it('各类榜单拒绝跨类型和外部游标，且不向上游请求', async () => {
+    const service = new AppleMusicService()
+    await expect(service.getChartSongsPage('/v1/catalog/cn/charts?types=albums')).rejects.toThrow('榜单分页地址无效')
+    await expect(service.getChartAlbumsPage('/v1/catalog/cn/charts?types=playlists')).rejects.toThrow('榜单分页地址无效')
+    await expect(service.getChartPlaylistsPage('/v1/catalog/cn/charts?types=songs')).rejects.toThrow('榜单分页地址无效')
+    await expect(service.getChartSongsPage('https://evil.example/v1/catalog/cn/charts?types=songs')).rejects.toThrow('榜单分页地址无效')
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('榜单游标只能继续读取 charts', async () => {

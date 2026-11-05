@@ -8,7 +8,7 @@ import { LibraryPage } from './LibraryPage'
 import { clearProviderRequestCache, requestProviderData } from '../lib/provider-request-cache'
 import type { Playlist } from '../types/domain'
 
-const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | null, tab: 'playlists' as 'playlists' | 'app-playlists' }))
+const content = vi.hoisted(() => ({ current: null as 'apple' | 'qq' | 'qishui' | null, tab: 'playlists' as 'playlists' | 'app-playlists' }))
 // 既有平台用例模拟用户已选“歌单”；默认入口另行断言。
 vi.mock('react', async importOriginal => {
   const original = await importOriginal<typeof import('react')>()
@@ -66,6 +66,14 @@ describe('我的库账号失效提示', () => {
     expect(html).toContain('新建歌单')
     expect(html).not.toContain('打开我的伴奏')
     expect(html).not.toContain('前往设置重新登录')
+  })
+
+  it('汽水游客库说明账号能力边界，不引导到不存在的登录流程', () => {
+    content.current = 'qishui'
+    useProviderStore.setState(state => ({ byId: { ...state.byId, qishui: { enabled: true, auth: 'authenticated' } } }))
+    const html = renderToStaticMarkup(<LibraryPage />)
+    expect(html).toContain('此平台暂无账号曲库，可在「应用歌单」整理歌曲。')
+    expect(html).not.toContain('需要先登录')
   })
 
   it('选过伴奏后再进入应用歌单直接展示伴奏库', () => {

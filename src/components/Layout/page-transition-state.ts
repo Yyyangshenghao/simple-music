@@ -19,7 +19,8 @@ function pageKey(view: AppView): string {
   if (typeof view === 'string') return view
   if (view.type === 'playlist') return `playlist-${view.playlist.source}-${view.playlist.type}-${String(view.playlist.id)}`
   if (view.type === 'app-playlist') return `app-playlist-${view.id}`
-  if (view.type === 'toplist') return `toplist-${view.source}`
+  if (view.type === 'toplist') return `toplist-${view.source}-${view.chartType ?? 'playlists'}`
+  if (view.type === 'provider-playlists') return `provider-playlists-${view.source}`
   if (view.type === 'search') return `search-${view.keyword}`
   return `${view.type}-${view.source}-${String(view.id)}`
 }

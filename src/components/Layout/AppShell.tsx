@@ -19,6 +19,7 @@ const ArtistPage = lazy(() => import('../../pages/ArtistPage').then((m) => ({ de
 const ArtistSongsPage = lazy(() => import('../../pages/ArtistSongsPage').then((m) => ({ default: m.ArtistSongsPage })))
 const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
 const AppleChartPage = lazy(() => import('../../pages/AppleChartPage').then((m) => ({ default: m.AppleChartPage })))
+const ProviderPlaylistsPage = lazy(() => import('../../pages/ProviderPlaylistsPage').then((m) => ({ default: m.ProviderPlaylistsPage })))
 const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 const SearchPage = lazy(() => import('../../pages/SearchPage').then((m) => ({ default: m.SearchPage })))
 
@@ -51,7 +52,8 @@ export function AppShell() {
     if (typeof view === 'object' && view.type === 'search') {
       return <SearchPage keyword={view.keyword} initialState={view.pageState} />
     }
-    if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage /> : <ToplistPage />
+    if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage initialKind={view.chartType ?? 'playlists'} /> : <ToplistPage />
+    if (typeof view === 'object' && view.type === 'provider-playlists') return <ProviderPlaylistsPage source={view.source} />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} initialState={view.pageState} />
     }

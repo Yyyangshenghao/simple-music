@@ -26,6 +26,9 @@ interface AppleSearch { results?: { songs?: ApplePage; artists?: ApplePage; play
 export interface AppleRecommendationGroup { id: string; title: string; items: Playlist[] }
 export interface AppleRecommendationFeature { item: Playlist; groupTitle: string; moduleId: string }
 export interface AppleChartPlaylistsPage { playlists: Playlist[]; nextCursor?: string }
+export type AppleChartKind = 'playlists' | 'songs' | 'albums'
+export interface AppleChartSongsPage { tracks: Track[]; nextCursor?: string }
+export interface AppleChartAlbumsPage { albums: Playlist[]; nextCursor?: string }
 /** 目录/推荐歌单默认不带曲目数，需显式 extend；Apple 的 next 游标会丢掉它，跟页时要补回。 */
 const TRACK_COUNT_EXTEND = 'extend=trackCount'
 function withTrackCount(path: string): string {
@@ -153,15 +156,33 @@ export class AppleMusicService implements MusicService {
     return (result.results?.playlists ?? []).flatMap((chart) => chart.data ?? []).map(mapPlaylist)
   }
 
-  async getChartPlaylistsPage(cursor?: string): Promise<AppleChartPlaylistsPage> {
-    if (cursor && !/^\/v1\/catalog\/[a-z]{2}\/charts\?/.test(cursor)) throw new Error('Apple Music 榜单分页地址无效')
-    const path = cursor ?? await this.catalog('charts?types=playlists&chart=most-played&limit=24')
-    const result = await this.request<AppleSearch>(withTrackCount(path))
-    const chart = result.results?.playlists?.[0]
-    return {
-      playlists: (chart?.data ?? []).filter(item => item.type === 'playlists').map(mapPlaylist),
-      nextCursor: chart?.next,
+  private async chartPage(kind: AppleChartKind, cursor?: string): Promise<ApplePage> {
+    if (cursor) {
+      const url = new URL(cursor, 'https://api.music.apple.com')
+      if (!/^\/v1\/catalog\/[a-z]{2}\/charts\?/.test(cursor)
+        || url.searchParams.get('types') !== kind) throw new Error('Apple Music 榜单分页地址无效')
     }
+    const path = cursor ?? await this.catalog(`charts?types=${kind}&chart=most-played&limit=24`)
+    const result = await this.request<{ results?: Partial<Record<AppleChartKind, ApplePage[]>> }>(withTrackCount(path))
+    return result.results?.[kind]?.[0] ?? {}
+  }
+
+  async getChartPlaylistsPage(cursor?: string): Promise<AppleChartPlaylistsPage> {
+    const chart = await this.chartPage('playlists', cursor)
+    return {
+      playlists: (chart.data ?? []).filter(item => item.type === 'playlists').map(mapPlaylist),
+      nextCursor: chart.next,
+    }
+  }
+
+  async getChartSongsPage(cursor?: string): Promise<AppleChartSongsPage> {
+    const chart = await this.chartPage('songs', cursor)
+    return { tracks: (chart.data ?? []).filter(item => item.type === 'songs').map(mapAppleTrack), nextCursor: chart.next }
+  }
+
+  async getChartAlbumsPage(cursor?: string): Promise<AppleChartAlbumsPage> {
+    const chart = await this.chartPage('albums', cursor)
+    return { albums: (chart.data ?? []).filter(item => item.type === 'albums').map(mapPlaylist), nextCursor: chart.next }
   }
 
   async getStorefrontChartPlaylists(): Promise<Playlist[]> {

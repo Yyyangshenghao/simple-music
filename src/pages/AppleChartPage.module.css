@@ -15,3 +15,8 @@
 @container (max-width: 900px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @container (max-width: 680px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (max-width: 480px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.categories { display: flex; flex-wrap: wrap; gap: 6px; }
+.categories button { padding: 8px 16px; border: 0; border-radius: var(--sm-radius-pill); background: transparent; color: var(--sm-text-secondary); font-size: 13px; cursor: pointer; transition: background-color 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out); }
+.categories button:hover { background: var(--sm-fill-subtle); color: var(--sm-text-primary); }
+.categories button[aria-pressed="true"] { background: var(--sm-fill-hover); color: var(--sm-text-primary); }

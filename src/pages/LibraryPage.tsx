@@ -338,6 +338,8 @@ function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridPro
 
   const result = results[source]
   const playlists = result?.data ?? []
+  const library = providerFor(source).library
+  const hasAccountLibrary = mode === 'albums' ? !!library?.getUserAlbums : !!library?.getUserPlaylists
   return <>
     {creating && supportsPlatformPlaylists(source) && <PlatformPlaylistNameDialog source={source} onClose={() => setCreating(false)} onCreated={(id, name) => {
       retryProvider(source)
@@ -346,9 +348,11 @@ function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridPro
     <LibraryShelf label={`${providerFor(source).descriptor.label}音乐库`} identity={<SourceBadge source={source} displayMode="always" reveal />}
       actions={<>
         {mode === 'playlists' && supportsPlatformPlaylists(source) && <ShelfCreateButton onClick={() => setCreating(true)} />}
-        {result && result.status !== 'error' && <ShelfRefreshButton refreshing={result.status === 'loading'} onClick={() => retryProvider(source)} />}
+        {hasAccountLibrary && result && result.status !== 'error' && <ShelfRefreshButton refreshing={result.status === 'loading'} onClick={() => retryProvider(source)} />}
       </>}>
-      {result?.status === 'error' && playlists.length === 0
+      {!hasAccountLibrary
+        ? <ShelfMessage>此平台暂无账号曲库，可在「应用歌单」整理歌曲。</ShelfMessage>
+        : result?.status === 'error' && playlists.length === 0
         ? <ShelfMessage alert action={{ label: '重试', onClick: () => retryProvider(source) }}>这个平台暂时无法加载，请稍后重试。</ShelfMessage>
         : result?.status === 'empty'
           ? <ShelfMessage>{mode === 'albums' ? '还没有收藏的专辑' : mode === 'collected' ? '还没有收藏的歌单' : '这个平台暂时没有歌单，或需要先登录'}</ShelfMessage>

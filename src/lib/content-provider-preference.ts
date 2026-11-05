@@ -1,10 +1,6 @@
-import { PROVIDER_IDS, isFallbackOnlyProvider, isProviderId, type ProviderId } from '../providers/types'
+import { CONTENT_PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
 
-/** 没有推荐、榜单与账号资料库的平台（汽水游客）不作为内容平台，只参与搜索与播放；酷狗游客有推荐歌单与榜单。 */
-const BROWSELESS_PROVIDER_IDS: readonly ProviderId[] = ['qishui']
-
-/** 可作探索、我的库内容平台的音源：排除兜底平台与没有浏览内容的游客平台。 */
-export const CONTENT_PROVIDER_IDS: readonly ProviderId[] = PROVIDER_IDS.filter(id => !isFallbackOnlyProvider(id) && !BROWSELESS_PROVIDER_IDS.includes(id))
+export { CONTENT_PROVIDER_IDS } from '../providers/types'
 
 function isContentProviderId(value: unknown): value is ProviderId {
   return isProviderId(value) && CONTENT_PROVIDER_IDS.includes(value)

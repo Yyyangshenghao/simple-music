@@ -20,6 +20,7 @@ import { ToplistSection } from './ToplistSection'
 import { ProviderPlaylistRail } from './ProviderPlaylistRail'
 import { AppleHomeLibrary } from './AppleHomeLibrary'
 import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
+import { PersonalListeningSection } from './PersonalListeningSection'
 import styles from './ProviderRecommendationSection.module.css'
 import { usePageTransition } from '../../hooks/useMotion'
 
@@ -211,7 +212,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
     }
   }, [source, feedPage, pool])
   const feedPlaylists = feedPage?.content.type === 'playlists' ? feedPage.content.playlists : []
-  const showRecommendationStage = source !== 'apple' || loading || readyHeroes.length > 0 || pool.hand.length > 0
+  const showRecommendationStage = source !== 'qishui' && (source !== 'apple' || loading || readyHeroes.length > 0 || pool.hand.length > 0)
 
   return (
     <motion.section
@@ -223,6 +224,16 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
     >
       <header className={styles.header}>
         <SourceBadge source={source} displayMode="always" />
+        {(source === 'netease' || source === 'qq' || source === 'kugou') && (
+          <button type="button" className={`${styles.browseMore} no-drag`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'provider-playlists', source })}>
+            浏览全部歌单
+          </button>
+        )}
+        {source === 'apple' && (
+          <button type="button" className={`${styles.browseMore} no-drag`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'toplist', source: 'apple', chartType: 'songs' })}>
+            歌曲与专辑榜
+          </button>
+        )}
         {(loading || errors.length > 0) && (
           <div className={styles.status}>
             {loading ? <span>正在连接平台…</span> : <span>{errors.length} 个栏目暂不可用</span>}
@@ -327,6 +338,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
       </div>}
       {source === 'apple' && <ApplePlaylistRecommendations charts={feedPlaylists} onOpen={onPreview} />}
       {source === 'apple' && <AppleHomeLibrary onOpen={onPreview} />}
+      {(source === 'netease' || source === 'qishui') && <PersonalListeningSection source={source} />}
       {provider.library?.getUserPlaylists && <ProviderPlaylistRail source={source} onOpen={onPreview} />}
       {(provider.history?.getRecentPlaylists || provider.history?.getRecentTracks) && <RecentRail source={source} embedded onOpen={onPreview} />}
       {provider.toplists && <ToplistSection source={source} embedded onOpen={onPreview} />}

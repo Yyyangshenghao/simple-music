@@ -8,6 +8,20 @@ const playlist: Playlist = { source: 'netease', provider: 'netease', type: 'play
 const detail: AppView = { type: 'playlist', from: 'library', playlist }
 
 describe('歌单和专辑往返页面', () => {
+  it.each(['netease', 'qq', 'kugou'] as const)('%s 歌单浏览进入详情后保留列表实例，返回可沿用分页与滚动', source => {
+    const view: AppView = { type: 'provider-playlists', source }
+    const origin = initialPageTransition(view, 0)
+    const opened = nextPageTransition(origin, { ...detail, playlist: { ...playlist, source } }, 1, 'push')
+    expect(opened.origin).toBe(origin.current)
+    expect(nextPageTransition(opened, view, 2, 'pop').current.key).toBe(origin.current.key)
+  })
+
+  it('Apple 歌曲榜与歌单榜保持独立页面身份', () => {
+    const songs: AppView = { type: 'toplist', source: 'apple', chartType: 'songs' }
+    const playlists: AppView = { type: 'toplist', source: 'apple' }
+    expect(initialPageTransition(songs, 0).current.key).not.toBe(initialPageTransition(playlists, 0).current.key)
+  })
+
   it('应用歌单详情保留我的库分类实例，且与同 ID 的平台歌单具有独立路由', () => {
     const origin = initialPageTransition('library', 0)
     const opened = nextPageTransition(origin, { type: 'app-playlist', id: '1' }, 1, 'push')

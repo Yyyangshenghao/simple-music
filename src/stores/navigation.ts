@@ -26,7 +26,8 @@ export type AppView =
   | { type: 'artist'; id: unknown; source: ProviderId; pageState?: ArtistPageState }
   | { type: 'artistSongs'; id: unknown; source: ProviderId }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */
-  | { type: 'toplist'; source: ProviderId }
+  | { type: 'toplist'; source: ProviderId; chartType?: 'playlists' | 'songs' | 'albums' }
+  | { type: 'provider-playlists'; source: 'netease' | 'qq' | 'kugou' }
   /** 歌单详情:tracks 为可选初始数据(每日推荐/雷达已全量在手);普通歌单由详情视图懒加载。 */
   | { type: 'playlist'; from: 'explore' | 'library'; playlist: Playlist; tracks?: Track[] }
   | { type: 'app-playlist'; id: string }

@@ -1,0 +1,24 @@
+.section { width: 100%; margin-top: 28px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 18px; font-weight: 700; }
+.actions { display: flex; align-items: center; gap: 14px; }
+.more { border: 0; background: none; padding: 6px 0; color: var(--sm-text-secondary); font-size: 12px; cursor: pointer; }
+.more:hover { color: var(--sm-text-primary); }
+.tracks { container-type: inline-size; }
+.caption { margin: 5px 0 0; color: var(--sm-text-secondary); font-size: 12px; }
+.status, .message { margin: 0; padding: 12px 0; color: var(--sm-text-secondary); font-size: 13px; line-height: 1.6; }
+.message p { margin: 0; }
+.message p + p { margin-top: 4px; }
+.error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; color: var(--sm-text-secondary); font-size: 13px; }
+.rail { grid-auto-columns: 148px; }
+.card { display: flex; flex-direction: column; gap: 7px; width: 148px; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; }
+.cover { width: 148px; height: 148px; border-radius: 12px; }
+.name, .meta { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name { color: var(--sm-text-primary); font-size: 13px; font-weight: 500; }
+.meta { color: var(--sm-text-secondary); font-size: 11px; }
+.card:hover .name { color: var(--sm-accent); }
+
+@media (max-width: 640px) {
+  .header { gap: 10px; flex-wrap: wrap; }
+  .actions { gap: 10px; }
+}
