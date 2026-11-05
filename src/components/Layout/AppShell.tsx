@@ -20,6 +20,7 @@ const ArtistSongsPage = lazy(() => import('../../pages/ArtistSongsPage').then((m
 const ToplistPage = lazy(() => import('../../pages/ToplistPage').then((m) => ({ default: m.ToplistPage })))
 const AppleChartPage = lazy(() => import('../../pages/AppleChartPage').then((m) => ({ default: m.AppleChartPage })))
 const ProviderPlaylistsPage = lazy(() => import('../../pages/ProviderPlaylistsPage').then((m) => ({ default: m.ProviderPlaylistsPage })))
+const SongCommentsPage = lazy(() => import('../../pages/SongCommentsPage').then((m) => ({ default: m.SongCommentsPage })))
 const ShuangePage = lazy(() => import('../../pages/ShuangePage').then((m) => ({ default: m.ShuangePage })))
 const SearchPage = lazy(() => import('../../pages/SearchPage').then((m) => ({ default: m.SearchPage })))
 
@@ -35,7 +36,7 @@ export function AppShell() {
   const view = useNavigationStore((s) => s.currentView)
   const lastAction = useNavigationStore((s) => s.lastAction)
   const revision = useNavigationStore((s) => s.navigationRevision)
-  // 仅在详情打开期间保留一个来源页，返回时沿用其卡片、分类及滚动位置。
+  // 详情保留来源页；评论再保留当前阅读上下文，返回时沿用卡片、分类和滚动位置。
   const [transition, setTransition] = useState(() => initialPageTransition(view, revision))
   const pages = nextPageTransition(transition, view, revision, lastAction)
   if (pages !== transition) setTransition(pages)
@@ -54,6 +55,7 @@ export function AppShell() {
     }
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage initialKind={view.chartType ?? 'playlists'} /> : <ToplistPage />
     if (typeof view === 'object' && view.type === 'provider-playlists') return <ProviderPlaylistsPage source={view.source} />
+    if (typeof view === 'object' && view.type === 'song-comments') return <SongCommentsPage track={view.track} />
     if (typeof view === 'object' && view.type === 'artist') {
       return <ArtistPage id={view.id} source={view.source} initialState={view.pageState} />
     }
@@ -74,7 +76,8 @@ export function AppShell() {
           子节点层,会打断旧页 exit,旧页永久滞留盖住新页(首次导航跳转失效) */}
       <LayoutGroup>
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          {[...(pages.origin ? [{ ...pages.origin, hidden: true }] : []),
+          {[...(pages.commentOrigin?.origin ? [{ ...pages.commentOrigin.origin, hidden: true }] : []),
+            ...(pages.origin ? [{ ...pages.origin, hidden: true }] : []),
             { ...pages.current, hidden: false }].map((page) => <motion.div
             key={page.key}
             className={`${styles.page}${page.hidden ? ` ${styles.retainedPage}` : ''}`}

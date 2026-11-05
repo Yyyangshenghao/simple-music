@@ -21,6 +21,7 @@ import { ProviderPlaylistRail } from './ProviderPlaylistRail'
 import { AppleHomeLibrary } from './AppleHomeLibrary'
 import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import { PersonalListeningSection } from './PersonalListeningSection'
+import { FeaturedSongs } from './FeaturedSongs'
 import styles from './ProviderRecommendationSection.module.css'
 import { usePageTransition } from '../../hooks/useMotion'
 
@@ -338,6 +339,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
       </div>}
       {source === 'apple' && <ApplePlaylistRecommendations charts={feedPlaylists} onOpen={onPreview} />}
       {source === 'apple' && <AppleHomeLibrary onOpen={onPreview} />}
+      {source === 'netease' && <FeaturedSongs />}
       {(source === 'netease' || source === 'qishui') && <PersonalListeningSection source={source} />}
       {provider.library?.getUserPlaylists && <ProviderPlaylistRail source={source} onOpen={onPreview} />}
       {(provider.history?.getRecentPlaylists || provider.history?.getRecentTracks) && <RecentRail source={source} embedded onOpen={onPreview} />}

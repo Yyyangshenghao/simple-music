@@ -62,7 +62,7 @@
 | `GET /api/song/qualities` | 探测账号当前实际可用音质 | `id` | 顺序调用 `song_url_v1` | `{ qualities }`;试听不计入可用档,SVIP 档按登录资料过滤 | 已用 |
 | `GET /api/song/detail` | 按 id 批量补详情(歌单懒加载窗口用) | `ids`(逗号分隔,≤200) | `song_detail` | 按请求 ids 顺序重排返回 | 已用 |
 | `GET /api/lyric` | 取歌词 | `id` | 优先 `lyric_new`(取 `yrc` 逐字歌词),兜底旧版 `lyric` | `{ lyric, tlyric, romalrc, yrc, source }` | 已用 |
-| `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | 首页优先 `hotComments` | 已用 |
+| `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | `comments` 连续最新评论，`hotComments` 仅首屏；`nextOffset` 按请求页大小推进 | 已用 |
 
 ## 6. 歌单(`routes/netease.ts`)
 

@@ -1,0 +1,6 @@
+.section { width: 100%; margin-top: 28px; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.header h3 { margin: 0; color: var(--sm-text-primary); font-size: 18px; font-weight: 700; }
+.tracks { container-type: inline-size; }
+.status { margin: 0; padding: 12px 0; color: var(--sm-text-secondary); font-size: 13px; }
+.feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; color: var(--sm-text-secondary); font-size: 13px; }

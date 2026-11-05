@@ -50,7 +50,7 @@
 | `GET /api/qq/artist/albums` | 歌手专辑(分页) | `id`(singermid)、`limit`(1~80)、`offset` | `music.musichallAlbum.AlbumListServer/GetAlbumList` | `{ albums: Playlist[] }`;列表摘要的 `trackCount` 可能为 0，进入详情后按需补齐 | 已用 |
 | `GET /api/qq/album/detail` | 专辑详情 meta | `mid`(albumMid) | `music.musichallAlbum.AlbumInfoServer/GetAlbumDetail` | `{ playlist }`;映射发行日、唱片公司、简介；`trackCount: 0` 表示未知，页面曲目数以歌曲列表为准 | 已用 |
 | `GET /api/qq/album/songs` | 专辑全量曲目 | `mid`/`id`(albummid) | `music.musichallAlbum.AlbumSongList/GetAlbumSongList` | `{ total, songs: Track[] }`;当前一次取最多 300 首 | 已用 |
-| `GET /api/qq/song/comments` | 歌曲评论 | `id`/`mid`、`limit`、`offset` | `c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg` | 热评优先,分页用 `pagenum` | 已用 |
+| `GET /api/qq/song/comments` | 歌曲评论 | `id`/`mid`、`limit`、`offset` | `c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg` | 严格数字 ID 或 MID 补详情；最新评论按 `pagenum` 连续翻页，首屏另返 `hotComments` | 已用 |
 
 ## 2. 已实测上游接口与接入状态
 

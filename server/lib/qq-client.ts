@@ -704,7 +704,7 @@ function mapQQComment(raw: unknown): Record<string, unknown> {
   const timeRaw = numOf(r.time || r.commenttime || r.createTime)
   return {
     id: r.commentid || r.commentId || r.id || '',
-    content: str(r.rootcommentcontent || r.content || r.comment),
+    content: decodeHtmlEntities(str(r.rootcommentcontent || r.content || r.comment).replace(/<br\s*\/?>/gi, '\n')),
     likedCount: numOf(r.praisenum || r.praise_num || r.likedCount),
     time: timeRaw && timeRaw < 10000000000 ? timeRaw * 1000 : timeRaw,
     user: {
@@ -2144,17 +2144,16 @@ export async function handleQQSongComments(
   limit: number,
   offset: number
 ): Promise<Record<string, unknown>> {
-  let topid = String(id || '').replace(/\D/g, '')
-  if (!topid && mid) {
-    try {
-      const detail = await qqSongDetail(cookie, mid, { mid })
-      topid = String(detail.qqId || detail.id || '').replace(/\D/g, '')
-    } catch (e) {
-      console.warn('[QQComments] detail fallback failed:', (e as Error).message)
-    }
+  let songId = normalizeQQSongId(id)
+  if (!Number.isSafeInteger(songId) || songId <= 0) songId = 0
+  if (!songId && mid) {
+    const detail = await qqSongDetail(cookie, mid, { mid })
+    songId = normalizeQQSongId(detail.qqId || detail.id)
   }
-  if (!topid) return { provider: 'qq', error: 'Missing QQ song id', comments: [] }
-  const page = Math.max(0, Math.floor((offset || 0) / Math.max(1, limit || 20)))
+  if (!Number.isSafeInteger(songId) || songId <= 0) throw new Error('MISSING_QQ_SONG_ID')
+  const topid = String(songId)
+  const pageSize = Math.max(1, limit || 20)
+  const page = Math.max(0, Math.floor((offset || 0) / pageSize))
   const uin = qqCookieUin(parseCookieString(cookie)) || '0'
   const body = rec(
     await qqGetJSON(
@@ -2177,23 +2176,32 @@ export async function handleQQSongComments(
         cmd: '8',
         needmusiccrit: '0',
         pagenum: String(page),
-        pagesize: String(limit || 20),
+        pagesize: String(pageSize),
       },
       { headers: { Referer: 'https://y.qq.com/n/ryqq/songDetail/' + encodeURIComponent(mid || topid) } }
     )
   )
   const hotList = rec(body.hot_comment).commentlist
   const normalList = rec(body.comment).commentlist
-  const raw = offset === 0 && Array.isArray(hotList) && hotList.length ? hotList : (Array.isArray(normalList) ? normalList : [])
-  const comments = arr(raw).map(mapQQComment).filter((c) => c.content)
+  if ((body.code !== undefined && Number(body.code) !== 0) || !Array.isArray(normalList)) {
+    throw new Error('QQ_SONG_COMMENTS_FAILED')
+  }
+  const comments = normalList.map(mapQQComment).filter((c) => c.content)
+  const hotComments = offset === 0 ? arr(hotList).map(mapQQComment).filter((c) => c.content) : []
   const commentRec = rec(body.comment)
-  const total = numOf(commentRec.commenttotal || commentRec.comment_total) || comments.length
+  const rawTotal = commentRec.commenttotal ?? commentRec.comment_total
+  const total = (typeof rawTotal === 'number' || typeof rawTotal === 'string') && rawTotal !== ''
+    && Number.isSafeInteger(Number(rawTotal)) && Number(rawTotal) >= 0 ? Number(rawTotal) : null
+  const nextOffset = (page + 1) * pageSize
+  const hasMore = normalList.length > 0 && (total === null ? normalList.length >= pageSize : nextOffset < total)
   return {
     provider: 'qq',
     id: topid,
     total,
     comments,
-    hot: !!(offset === 0 && Array.isArray(hotList) && hotList.length),
+    hotComments,
+    nextOffset: hasMore ? nextOffset : undefined,
+    hot: hotComments.length > 0,
   }
 }
 

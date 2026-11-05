@@ -20,6 +20,7 @@ import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { useMotion } from '../../hooks/useMotion'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useSettingsStore } from '../../stores/settings'
+import { supportsSongComments } from '../../lib/song-comments'
 import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
 import type { KaraokeModelId } from '../../types/karaoke'
 import { useTaskCenterStore } from '../../stores/task-center'
@@ -502,6 +503,7 @@ export function MoreMenu() {
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
   const generating = useKaraokeStore(s => s.jobs.some(job => job.phase !== 'failed'))
+  const track = usePlayerStore(state => state.currentTrack)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
   const lyricsSourceLabel = useLyricsSourceLabel()
@@ -627,6 +629,15 @@ export function MoreMenu() {
                 <button type="button" className={`${styles.sectionHead} ${styles.headLink}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>
                   <span className={styles.textAction} title={lyricsSourceLabel}>{lyricsSourceLabel}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></span>
+                </button>
+              </section>}
+              {track && supportsSongComments(track) && <section className={styles.section}>
+                <button type="button" className={`${styles.sectionHead} ${styles.headLink}`} onClick={() => {
+                  setOpen(false)
+                  useNavigationStore.getState().navigateTo({ type: 'song-comments', track })
+                }}>
+                  <span className={styles.sectionTitle}>歌曲评论</span>
+                  <span className={styles.textAction}><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></span>
                 </button>
               </section>}
               <OfflineSection open={open} />

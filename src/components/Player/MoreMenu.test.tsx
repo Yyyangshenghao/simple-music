@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricOrigin } from '../../types/lyrics-source'
 import { MoreMenu } from './MoreMenu'
+import { useNavigationStore } from '../../stores/navigation'
 
 const h = vi.hoisted(() => ({
   track: { id: 1, source: 'netease' } as { id: unknown; source: string } | null,
@@ -24,7 +25,7 @@ vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: unknown) => unknown) => select({ jobs: [] }) }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: (select: (state: typeof h.lyrics) => unknown) => select(h.lyrics) }))
 vi.mock('../../stores/lyrics-source', () => ({ useLyricsSourceStore: (select: (state: typeof h.sources) => unknown) => select(h.sources) }))
-vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: { netease: { enabled: false } } }) }))
+vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: Object.fromEntries(['netease', 'qq', 'apple', 'kugou', 'qishui', 'bilibili'].map(source => [source, { enabled: false }])) }) }))
 vi.mock('../../stores/sleep-timer', () => ({ useSleepTimerStore: (select: (state: unknown) => unknown) => select({ phase: 'idle' }) }))
 vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore: Object.assign(() => false, { getState: () => ({ show: h.show }) }) }))
 
@@ -47,6 +48,18 @@ beforeEach(() => {
 })
 
 describe('更多菜单的当前歌词来源', () => {
+  it('当前网易歌曲可打开原平台评论，关闭更多菜单', () => {
+    const comment = nodes(MoreMenu()).find(node => node.type === 'button' && text(node.props.children) === '歌曲评论')
+    expect(comment).toBeDefined()
+    comment!.props.onClick!()
+    expect(h.setOpen).toHaveBeenCalledWith(false)
+    expect(useNavigationStore.getState().currentView).toEqual({ type: 'song-comments', track: h.track })
+  })
+
+  it.each(['apple', 'local', 'kugou', 'qishui', 'bilibili'])('%s 不显示未接入的评论入口', source => {
+    h.track = { id: 1, source }
+    expect(nodes(MoreMenu()).some(node => node.type === 'button' && text(node.props.children) === '歌曲评论')).toBe(false)
+  })
   it.each([
     ['netease', '网易云音乐'], ['qq', 'QQ 音乐'], ['apple', 'Apple Music'],
     ['local', '本地歌词'], ['amll', 'AMLL 逐字歌词库'], ['kugou', '酷狗音乐'],

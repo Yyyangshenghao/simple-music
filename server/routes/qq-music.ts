@@ -519,13 +519,17 @@ export const qqRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const id = url.searchParams.get('id') || url.searchParams.get('qqId') || ''
       const mid = url.searchParams.get('mid') || url.searchParams.get('songmid') || ''
+      if ((!/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))) && !mid.trim()) {
+        sendJson(res, { provider: 'qq', error: 'MISSING_QQ_SONG_ID', comments: [], hotComments: [], total: null }, 400)
+        return true
+      }
       const limit = Math.max(6, Math.min(50, parseInt(url.searchParams.get('limit') || '20', 10) || 20))
       const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0)
       const data = await handleQQSongComments(getCookie(ctx, 'qq'), id, mid, limit, offset)
       sendJson(res, data)
     } catch (err) {
       console.error('[QQSongComments]', err)
-      sendJson(res, { provider: 'qq', error: (err as Error).message, comments: [] }, 500)
+      sendJson(res, { provider: 'qq', error: 'QQ_SONG_COMMENTS_FAILED', comments: [], hotComments: [], total: null }, 502)
     }
     return true
   }
