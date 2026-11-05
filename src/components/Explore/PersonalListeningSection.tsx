@@ -89,7 +89,7 @@ function WeeklyListening() {
   </section>
 }
 
-function QishuiListening() {
+function QishuiListening({ section }: { section?: 'listening' | 'saved' }) {
   const enabled = useProviderStore(state => state.byId.qishui.enabled && state.byId.qishui.auth === 'authenticated')
   const recent = useRecentPlaysStore(state => state.items)
   const playlists = useAppPlaylistsStore(state => state.items)
@@ -99,11 +99,11 @@ function QishuiListening() {
   const saved = playlists.filter(playlist => playlist.tracks.some(track => track.source === 'qishui'))
 
   return <>
-    <section className={styles.section} aria-label="汽水继续听">
+    {section !== 'saved' && <section className={styles.section} aria-label="汽水继续听">
       <ListeningTracks source="qishui" title="继续听" tracks={tracks} caption="本机最近播放" />
       {tracks.length === 0 && <SearchPrompt>还没有听过汽水音乐。</SearchPrompt>}
-    </section>
-    {(saved.length > 0 || playlistError) && <section className={styles.section} aria-label="含汽水音乐的应用歌单">
+    </section>}
+    {section !== 'listening' && (saved.length > 0 || playlistError) && <section className={styles.section} aria-label="含汽水音乐的应用歌单">
       <div className={styles.header}><h3>已整理的歌单</h3></div>
       {playlistError && <div className={styles.error} role="status">
         <span>{playlistError}</span>
@@ -121,6 +121,6 @@ function QishuiListening() {
   </>
 }
 
-export function PersonalListeningSection({ source }: { source: 'netease' | 'qishui' }) {
-  return source === 'netease' ? <WeeklyListening /> : <QishuiListening />
+export function PersonalListeningSection({ source, section }: { source: 'netease' | 'qishui'; section?: 'listening' | 'saved' }) {
+  return source === 'netease' ? <WeeklyListening /> : <QishuiListening section={section} />
 }

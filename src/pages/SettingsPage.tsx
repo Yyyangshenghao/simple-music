@@ -1,3 +1,4 @@
+import { ExploreModuleSettings } from '../components/Settings/ExploreModuleSettings'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
@@ -18,7 +19,7 @@ import { LyricOriginIcon } from '../components/Lyrics/LyricOriginIcon'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicAccountInfo, AppleMusicRegionSetting, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
-import { ProviderSettingItem, ProviderSettingsButton, ProviderSettingsPlaceholder } from '../components/Settings/ProviderSettingsButton'
+import { ProviderSettingItem, ProviderSettingsButton } from '../components/Settings/ProviderSettingsButton'
 import { AccountButton } from '../components/Settings/AccountButton'
 import { AppleMusicIcon, BilibiliLogo, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
@@ -1264,15 +1265,13 @@ export function SettingsPage() {
                           </small>
                         </div>
                         <div className={styles.providerActions}>
-                          {source === 'bilibili' ? (
-                            <ProviderSettingsButton label="哔哩哔哩设置">
-                              <ProviderSettingItem label="显示专辑封面" hint="用网易云或 QQ 音乐里同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。">
-                                <Switch checked={bilibiliAlbumCover} onChange={setBilibiliAlbumCover} aria-label="哔哩哔哩显示专辑封面" />
-                              </ProviderSettingItem>
-                            </ProviderSettingsButton>
-                          ) : source === 'apple' && appleRegionSelectable ? (
-                            <ProviderSettingsButton label="Apple Music 设置"><AppleMusicRegionSetting /></ProviderSettingsButton>
-                          ) : <ProviderSettingsPlaceholder />}
+                          <ProviderSettingsButton label={`${provider.descriptor.label}设置`} disabled={!active || busy}>
+                            <ExploreModuleSettings source={source} />
+                            {source === 'bilibili' && <ProviderSettingItem label="显示专辑封面" hint="用网易云或 QQ 音乐里同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。">
+                              <Switch checked={bilibiliAlbumCover} onChange={setBilibiliAlbumCover} aria-label="哔哩哔哩显示专辑封面" />
+                            </ProviderSettingItem>}
+                            {source === 'apple' && appleRegionSelectable && <AppleMusicRegionSetting />}
+                          </ProviderSettingsButton>
                           <Switch
                             checked={active}
                             disabled={!connected || runtime.playbackAvailable === false || busy}

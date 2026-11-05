@@ -24,6 +24,8 @@ UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIG
 
 大多数页面只在访问时加载，不再启动后集中预热；专辑详情组件随主界面加载，使歌手页和搜索页首次打开专辑时能直接承接封面共享元素转场。其他页面首次挂载等待模块时，转场内部的 Suspense 显示“正在加载页面…”及静态标记，避免空白等待。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题、字体与布局仅在相关设置变化时写根节点样式。
 
+探索页模块目录由 `lib/explore-modules.ts` 定义，`ProviderRecommendationSection` 按音源配置只挂载已启用模块；推荐舞台保留在 `RecommendationStage`。设置页音源齿轮通过 `ExploreModuleSettings` 编辑、`ExplorePagePreview` 只读复用实际内容；预览按账号 session 重建并隔离封面布局组，卸载时释放尺寸观察器。`settings.setExploreLayout` 经 `playback-shared-stores.ts` 的命令白名单交给后台保存，快照同步主窗口。用户入口和存档规则见 [探索页模块设置](../explore-modules.md)。
+
 ## stores(zustand,单文件单 store)
 
 | store | 职责 |
@@ -33,7 +35,7 @@ UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIG
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
 | `app-playlists.ts` | 应用自己的跨源歌单，独立版本存档 `simplemusic-app-playlists`；包含网易/QQ/Apple/本地曲目，保存成功后才更新快照；单曲移出可短时撤销，恢复时保留期间新增歌曲，不重建已删除歌单；旧同步关联仅兼容忽略，编辑不写回平台 |
 | `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist/app-playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置，搜索页保存分类、平台筛选与页面及歌手列表的滚动位置 |
-| `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
+| `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含探索模块开关/顺序、热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |

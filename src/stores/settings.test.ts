@@ -319,3 +319,20 @@ describe('游客歌词来源设置', () => {
     expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: true })
   })
 })
+
+
+describe('探索模块持久化', () => {
+  it('排序与开关重载后保留，各音源互不覆盖，恢复默认只影响当前音源', () => {
+    let saved = ''
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().setExploreLayout('netease', [{ id: 'listening', enabled: false }])
+    useSettingsStore.getState().setExploreLayout('qq', [{ id: 'toplists', enabled: false }])
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().exploreLayouts.netease[0]).toEqual({ id: 'listening', enabled: false })
+    expect(useSettingsStore.getState().exploreLayouts.qq[0]).toEqual({ id: 'toplists', enabled: false })
+    useSettingsStore.getState().setExploreLayout('netease', [])
+    expect(useSettingsStore.getState().exploreLayouts.netease).toEqual(initialState.exploreLayouts.netease)
+    expect(useSettingsStore.getState().exploreLayouts.qq[0].enabled).toBe(false)
+  })
+})

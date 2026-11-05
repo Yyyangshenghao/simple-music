@@ -11,7 +11,7 @@
 | 界面 | 用户任务与现有结构 | 实现入口 |
 |---|---|---|
 | 顶栏 | 导航、全局搜索、平台与账号、按需任务入口；窄窗口仍需保留搜索和窗口操作空间。Windows/Linux 是无边框窗口，右侧必须让出 `--sm-caption-reserve`（三个自绘窗口按钮），否则关闭按钮会压住头像 | [TopBar](../src/components/Layout/TopBar.tsx) |
-| 探索 | 浏览平台推荐、榜单与个人栏目；网易/QQ/酷狗可进入完整推荐歌单，网易有本周常听，汽水有本机继续听和应用歌单，Apple 榜单可切换歌曲/专辑/歌单；保留封面堆叠与横排 | [ExplorePage](../src/pages/ExplorePage.tsx)、[完整歌单](../src/pages/ProviderPlaylistsPage.tsx)、[个人听歌栏目](../src/components/Explore/PersonalListeningSection.tsx)、[Apple 榜单](../src/pages/AppleChartPage.tsx) |
+| 探索 | 浏览平台推荐、榜单与个人栏目；网易/QQ/酷狗可进入完整推荐歌单，网易有本周常听，汽水有本机继续听和应用歌单，Apple 榜单可切换歌曲/专辑/歌单；保留封面堆叠与横排；现有栏目支持按音源独立开关和拖动排序（每日推荐、雷达与发现歌单仍合为“推荐与发现”，Apple 推荐与榜单精选为组合模块） | [ExplorePage](../src/pages/ExplorePage.tsx)、[完整歌单](../src/pages/ProviderPlaylistsPage.tsx)、[个人听歌栏目](../src/components/Explore/PersonalListeningSection.tsx)、[Apple 榜单](../src/pages/AppleChartPage.tsx) |
 | 我的库 | 应用歌单、平台歌单、收藏、最近播放、离线、本地；应用歌单栏目内切换歌单与伴奏成品 | [LibraryPage](../src/pages/LibraryPage.tsx)、[LibraryTabs](../src/pages/LibraryTabs.tsx)、[CollectionKindSwitch](../src/pages/CollectionKindSwitch.tsx) |
 | 本地音乐 | 文件夹索引、歌曲/专辑切换、组内筛选播放与批量整理；专辑返回恢复滚动；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |
 | 离线音乐 | 浏览播放器内已保存的离线音乐，筛选、排序、播放与多选管理，工具栏直达下载队列；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |
@@ -24,7 +24,7 @@
 | 歌词与音乐舞台 | 普通歌词和动态样式，封面、字体、氛围与演出按场景组织 | [LyricsPanel](../src/components/Lyrics/LyricsPanel.tsx)、[歌词样式目录](../src/lib/lyric-style-catalog.ts) |
 | 歌词来源 | 自动匹配之外，可输入歌名和歌手手动查找，预览后应用；可选中原题和预览文字复制；下次仍使用时记住此曲的搜索信息 | [LyricsSourceDialog](../src/components/Lyrics/LyricsSourceDialog.tsx) |
 | 歌曲评论 | 网易/QQ 歌曲右键或播放栏更多菜单进入，只读热评与分页最新评论；标题与正文共用阅读列，返回保留歌曲列表上下文 | [SongCommentsPage](../src/pages/SongCommentsPage.tsx)、[TrackActionLayer](../src/components/Playlist/TrackActionLayer.tsx) |
-| 设置与关于 | 音源与播放、界面与窗口、歌词与特效、缓存与下载、快捷键、关于；当前是单列分组的连续长页，目录定位，窄窗口改横向分类 | [SettingsPage](../src/pages/SettingsPage.tsx)、[ReleaseHistoryPage](../src/pages/ReleaseHistoryPage.tsx) |
+| 设置与关于 | 音源与播放、界面与窗口、歌词与特效、缓存与下载、快捷键、关于；当前是单列分组的连续长页，目录定位，窄窗口改横向分类；已启用音源旁的齿轮向左展开大面积设置面板，包含探索模块、只读实时探索预览与平台专属选项，停用保留配置 | [SettingsPage](../src/pages/SettingsPage.tsx)、[ReleaseHistoryPage](../src/pages/ReleaseHistoryPage.tsx) |
 | 独立桌面界面 | 桌面歌词、迷你播放条与壁纸；受平台和窗口能力限制，不能仅凭主窗口截图验收 | [悬浮窗说明](modules/overlays.md) |
 
 页面统一称“离线音乐”，任务统一称“下载队列”，播放中临时存储称“自动缓存”；主动下载会先保留离线副本，再导出下载文件。播放队列决定接下来听什么，后台任务队列管理下载和生成，两者不能混用。
@@ -43,6 +43,7 @@
 | 歌单与集合 | [LibraryShelf](../src/pages/LibraryShelf.tsx) | 复用库内集合展示，保留平台统计、账号与实际详情数量的不同口径 |
 | 歌曲行与批量操作 | [TrackRow](../src/components/Explore/TrackRow.tsx)、[BatchTrackActions](../src/components/Playlist/BatchTrackActions.tsx)、[SelectionControls](../src/components/Playlist/SelectionControls.tsx) | 按页面能力复用；多选与队列、下载等动作保留来源和可播性规则 |
 | 长列表与滚动 | [VirtualList](../src/components/ui/VirtualList.tsx)、[ScrollArea](../src/components/ui/ScrollArea.tsx)、[页面滚动样式](../src/styles/page-scroll.module.css) | 虚拟化与原生滚动条，遵守顶栏/播放栏安全区，不另造整套滚动条 |
+| 音源设置 | [ProviderSettingsButton](../src/components/Settings/ProviderSettingsButton.tsx)、[ExploreModuleSettings](../src/components/Settings/ExploreModuleSettings.tsx) | 原生顶层面板向齿轮左侧覆盖；内部分区滚动，拖动接近边缘时自动滚动。音源未启用时禁用齿轮；模块开关与顺序按音源自动保存，右侧复用真实探索组件作只读缩略预览，账号会话变化时重建 |
 | 设置控件 | [SettingSlider](../src/components/ui/SettingSlider.tsx)、[JellyRadio](../src/components/ui/JellyRadio.tsx)、[Switch](../src/components/ui/Switch.tsx)、[InfoButton](../src/components/ui/InfoButton.tsx) | 同类字段沿用组件与基线；帮助承载补充说明，不隐藏必需影响 |
 
 这是复用入口，不是强制一次性迁移清单。没有相同任务和行为时不强行合并。新增共用模式时同时更新本表，避免以后再次各写一套。
@@ -57,6 +58,8 @@
 - 鼠标与快捷键策略见 [设计准则](../DESIGN.md#操作层级)；部分历史组件仍保留键盘行为，本文不将目标策略当作所有代码已一致的事实。
 
 ## 近期实现与验收边界
+
+音源探索模块与只读实时预览已覆盖网易云、QQ、Apple、酷狗和汽水。QQ/Apple/酷狗/汽水于 2026-11-06 完成深浅主题及两种窗口尺寸的 16 场景模拟验收，包括开关、拖动和停用入口；真实账号内容与其他操作系统仍待验。详见 [验收记录](reviews/2026-11-05-explore-modules.md#实际界面与交互)。哔哩哔哩尚无探索页栏目，保留封面专属设置。
 
 以下区分“源码已有”和“真实验证过”。详细结果保留在对应记录，不把某次测试数量变成长期门槛。
 

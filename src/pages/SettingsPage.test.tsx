@@ -93,6 +93,20 @@ afterEach(() => {
 })
 
 describe('音源账户入口', () => {
+  it('所有音源都有齿轮，只有已启用且可用的音源可以设置', () => {
+    useProviderStore.setState({ byId: {
+      netease: { enabled: true, auth: 'authenticated' },
+      qq: { enabled: false, auth: 'authenticated' },
+      apple: { enabled: true, auth: 'authenticated', playbackAvailable: false },
+      kugou: { enabled: true, auth: 'authenticated' },
+      qishui: { enabled: false, auth: 'anonymous' },
+      bilibili: { enabled: true, auth: 'anonymous' },
+    } })
+    const html = renderToStaticMarkup(<SettingsPage />)
+    for (const label of ['网易云设置', '酷狗音乐设置', '哔哩哔哩设置']) expect(html).toMatch(new RegExp(`<button(?![^>]*disabled)[^>]*aria-label="${label}"`))
+    for (const label of ['QQ音乐设置', 'Apple Music设置', '汽水音乐设置']) expect(html).toMatch(new RegExp(`<button[^>]*disabled[^>]*aria-label="${label}"`))
+  })
+
   it('已登录账户提供退出入口，停用后仍可退出；未登录账户提供登录入口', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: true, auth: 'authenticated', profile: { nickname: '云音乐用户', avatar: '' } },

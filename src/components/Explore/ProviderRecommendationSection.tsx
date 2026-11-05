@@ -1,67 +1,20 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
-import { providerErrorOf, type ProviderResult } from '../../lib/content-hub'
-import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from '../../lib/provider-request-cache'
-import { createPool, needsRefill, redeal, refill, swipeTop, type StackPoolState } from '../../lib/stack-pool'
-import { springGentle } from '../../lib/motion-presets'
-import { providerFor } from '../../providers/registry'
-import type {
-  ProviderId,
-  RecommendationPage,
-  RecommendationSurface,
-} from '../../providers/types'
+import { memo } from 'react'
+import { motion } from 'motion/react'
+import { useSettingsStore } from '../../stores/settings'
 import { useNavigationStore } from '../../stores/navigation'
-import type { Playlist, Track } from '../../types/domain'
-import { HeroCard } from './HeroCard'
-import { Stack } from './Stack'
+import { providerFor } from '../../providers/registry'
+import type { ProviderId } from '../../providers/types'
+import type { Playlist } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
-import { RecentRail } from './RecentRail'
+import { RecommendationStage } from './RecommendationStage'
 import { ToplistSection } from './ToplistSection'
+import { RecentRail } from './RecentRail'
 import { ProviderPlaylistRail } from './ProviderPlaylistRail'
 import { AppleHomeLibrary } from './AppleHomeLibrary'
 import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import { PersonalListeningSection } from './PersonalListeningSection'
 import { FeaturedSongs } from './FeaturedSongs'
 import styles from './ProviderRecommendationSection.module.css'
-import { usePageTransition } from '../../hooks/useMotion'
-
-type SurfaceResult = ProviderResult<RecommendationPage> & { surface: RecommendationSurface }
-
-// 每个平台只保留最近一副牌；必须与仍有效的首页缓存对象相同才复用，最多 3 份。
-const deckSnapshots = new Map<ProviderId, { page: RecommendationPage; pool: StackPoolState<Playlist>; nextCursor?: string }>()
-
-const EMPTY_POOL: StackPoolState<Playlist> = { hand: [], reserve: [], discarded: [] }
-const qqDay = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10)
-function recommendationScope(surface: RecommendationSurface, day = qqDay()): string {
-  const suffix = surface.id === 'qq:daily' ? `:${day}`
-    : surface.id === 'netease:daily-songs' ? `:${new Date().toDateString()}` : ''
-  return `recommendation:${surface.id}:root${suffix}`
-}
-
-function discoveryPlaylists(playlists: Playlist[]): Playlist[] {
-  // 网易云私人雷达已有独立入口，不重复放入发现歌单牌堆。
-  return playlists.filter((playlist) => playlist.source !== 'netease' || String(playlist.id) !== '3136952023')
-}
-
-function isEmptyPage(page: RecommendationPage): boolean {
-  if (page.content.type === 'tracks') return page.content.tracks.length === 0
-  if (page.content.type === 'playlists') return page.content.playlists.length === 0
-  return page.content.radar === null
-}
-
-function playlistFromTracks(surface: RecommendationSurface, tracks: Track[]): Playlist {
-  return {
-    provider: surface.source,
-    source: surface.source,
-    type: 'playlist',
-    id: surface.id,
-    name: surface.title,
-    cover: tracks[0]?.cover ?? '',
-    trackCount: tracks.length,
-    playCount: 0,
-    creator: '',
-  }
-}
 
 interface ProviderRecommendationSectionProps {
   source: ProviderId
@@ -69,281 +22,30 @@ interface ProviderRecommendationSectionProps {
 }
 
 export const ProviderRecommendationSection = memo(function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
-  const pageTransition = usePageTransition()
-  const provider = providerFor(source)
-  const surfaces = source === 'apple' ? [] : provider.recommendations?.listSurfaces() ?? []
-  const [dailyDay, setDailyDay] = useState(qqDay)
-  const cachedResults = () => Object.fromEntries(surfaces.flatMap((surface) => {
-    const page = getCachedProviderData<RecommendationPage>(source, recommendationScope(surface))
-    return page ? [[surface.id, { surface, source, status: isEmptyPage(page) ? 'empty' : 'ready', data: page } as SurfaceResult]] : []
-  }))
-  const feedSurface = surfaces.find((surface) => surface.kind === 'playlist-feed')
-  const cachedFeed = feedSurface ? getCachedProviderData<RecommendationPage>(source, `recommendation:${feedSurface.id}:root`) : undefined
-  const savedDeck = deckSnapshots.get(source)
-  const initialDeck = cachedFeed && savedDeck?.page === cachedFeed ? savedDeck : undefined
-  const [results, setResults] = useState<Record<string, SurfaceResult>>(cachedResults)
-  const [pool, setPool] = useState<StackPoolState<Playlist>>(() => {
-    if (initialDeck) return initialDeck.pool
-    return cachedFeed?.content.type === 'playlists' ? createPool(discoveryPlaylists(cachedFeed.content.playlists)) : EMPTY_POOL
-  })
-  const [dealId, setDealId] = useState(0)
-  const sessionRef = useRef(0)
-  const nextCursorRef = useRef(initialDeck ? initialDeck.nextCursor : cachedFeed?.nextCursor)
-  const refilling = useRef(false)
-
-  const commit = useCallback((surface: RecommendationSurface, result: ProviderResult<RecommendationPage>) => {
-    setResults((current) => ({ ...current, [surface.id]: { ...result, surface } }))
-  }, [])
-
-  const loadSurface = useCallback(async (surface: RecommendationSurface, session: number, force = false) => {
-    const startedDay = qqDay()
-    const scope = recommendationScope(surface, startedDay)
-    const cached = !force && getCachedProviderData<RecommendationPage>(source, scope)
-    if (!cached) commit(surface, { source, status: 'loading', data: null })
-    try {
-      const page = await requestProviderData(
-        source,
-        scope,
-        () => provider.recommendations!.load(surface.id),
-        { force, maxAgeMs: BROWSE_CACHE_MAX_AGE_MS }
-      )
-      if (sessionRef.current !== session || (surface.id === 'qq:daily' && startedDay !== qqDay())) return
-      commit(surface, {
-        source,
-        status: isEmptyPage(page) ? 'empty' : 'ready',
-        data: page,
-      })
-      if (surface.kind === 'playlist-feed' && page.content.type === 'playlists') {
-        const saved = !force && deckSnapshots.get(source)
-        if (!saved || saved.page !== page) {
-          setPool(createPool(discoveryPlaylists(page.content.playlists)))
-          nextCursorRef.current = page.nextCursor
-        }
+  const layout = useSettingsStore(state => state.exploreLayouts[source])
+  const enabled = layout.filter(module => module.enabled)
+  return <motion.section className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
+    initial={false} animate={{ opacity: 1, y: 0 }} aria-label={`${providerFor(source).descriptor.label}推荐`}>
+    <header className={styles.header}>
+      <SourceBadge source={source} displayMode="always" />
+      {(source === 'netease' || source === 'qq' || source === 'kugou') && <button type="button" className={`${styles.browseMore} no-drag`}
+        onClick={() => useNavigationStore.getState().navigateTo({ type: 'provider-playlists', source })}>浏览全部歌单</button>}
+      {source === 'apple' && <button type="button" className={`${styles.browseMore} no-drag`}
+        onClick={() => useNavigationStore.getState().navigateTo({ type: 'toplist', source: 'apple', chartType: 'songs' })}>歌曲与专辑榜</button>}
+    </header>
+    {enabled.map(module => {
+      switch (module.id) {
+        case 'recommendations': return <RecommendationStage key={module.id} source={source} onPreview={onPreview} />
+        case 'featured': return <FeaturedSongs key={module.id} />
+        case 'listening': return source === 'netease' || source === 'qishui' ? <PersonalListeningSection key={module.id} source={source} section="listening" /> : null
+        case 'saved': return <PersonalListeningSection key={module.id} source="qishui" section="saved" />
+        case 'apple-recommendations': return <ApplePlaylistRecommendations key={module.id} charts={[]} onOpen={onPreview} />
+        case 'apple-library': return <AppleHomeLibrary key={module.id} onOpen={onPreview} />
+        case 'playlists': return <ProviderPlaylistRail key={module.id} source={source} onOpen={onPreview} />
+        case 'recent': return <RecentRail key={module.id} source={source} embedded onOpen={onPreview} />
+        case 'toplists': return <ToplistSection key={module.id} source={source} embedded onOpen={onPreview} />
       }
-    } catch (error) {
-      if (sessionRef.current !== session || (surface.id === 'qq:daily' && startedDay !== qqDay())) return
-      commit(surface, {
-        source,
-        status: 'error',
-        data: null,
-        error: providerErrorOf(source, error),
-      })
-    }
-  }, [commit, provider, source])
-
-  useEffect(() => {
-    const session = ++sessionRef.current
-    void Promise.all(surfaces.map((surface) => loadSurface(surface, session)))
-    return () => { sessionRef.current++ }
-    // provider 和 surfaces 由静态注册表提供，source 变化时才需重建会话。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source])
-
-  useEffect(() => {
-    if (source !== 'qq') return
-    const timer = setInterval(() => setDailyDay(qqDay()), 60_000)
-    return () => clearInterval(timer)
-  }, [source])
-
-  useEffect(() => {
-    if (source !== 'qq') return
-    const daily = surfaces.find(surface => surface.id === 'qq:daily')
-    if (daily) void loadSurface(daily, sessionRef.current)
-    // 仅日推跨日刷新，其余平台栏目与牌堆不重置。
-  }, [dailyDay, source, loadSurface])
-
-  useEffect(() => {
-    if (!feedSurface || !nextCursorRef.current || pool.hand.length === 0 || !needsRefill(pool) || refilling.current) return
-    refilling.current = true
-    const session = sessionRef.current
-    const cursor = nextCursorRef.current
-    requestProviderData(
-      source,
-      `recommendation:${feedSurface.id}:${cursor}`,
-      () => provider.recommendations!.load(feedSurface.id, cursor)
-    )
-      .then((page) => {
-        if (sessionRef.current !== session || page.content.type !== 'playlists') return
-        const playlists = discoveryPlaylists(page.content.playlists)
-        nextCursorRef.current = page.nextCursor
-        const saved = deckSnapshots.get(source)
-        if (saved) saved.nextCursor = page.nextCursor
-        setPool((current) => refill(current, playlists, (playlist) => `${playlist.source}:${String(playlist.id)}`))
-      })
-      .catch(() => {})
-      .finally(() => { refilling.current = false })
-  }, [feedSurface, pool, provider])
-
-  function openSurface(result: SurfaceResult): void {
-    const page = result.data
-    if (!page) return
-    if (page.content.type === 'tracks') {
-      const playlist = playlistFromTracks(result.surface, page.content.tracks)
-      useNavigationStore.getState().navigateTo({
-        type: 'playlist',
-        from: 'explore',
-        playlist,
-        tracks: page.content.tracks,
-      })
-    } else if (page.content.type === 'radar' && page.content.radar) {
-      useNavigationStore.getState().navigateTo({
-        type: 'playlist',
-        from: 'explore',
-        playlist: page.content.radar.playlist,
-        tracks: page.content.radar.tracks,
-      })
-    }
-  }
-
-  const heroResults = surfaces
-    .filter((surface) => surface.kind !== 'playlist-feed')
-    .map((surface) => results[surface.id])
-    .filter((result): result is SurfaceResult => !!result)
-  const readyHeroes = heroResults.filter((result) => result.status === 'ready' && result.data)
-  const errors = Object.values(results).filter((result) => result.status === 'error')
-  const loading = Object.keys(results).length < surfaces.length
-    || Object.values(results).some((result) => result.status === 'loading')
-  const top = pool.hand.at(-1) ?? null
-  const feedPage = feedSurface ? results[feedSurface.id]?.data : null
-  useLayoutEffect(() => {
-    if (feedPage && getCachedProviderData(source, `recommendation:${feedSurface?.id}:root`) === feedPage) {
-      deckSnapshots.set(source, { page: feedPage, pool, nextCursor: nextCursorRef.current })
-    } else {
-      deckSnapshots.delete(source)
-    }
-  }, [source, feedPage, pool])
-  const feedPlaylists = feedPage?.content.type === 'playlists' ? feedPage.content.playlists : []
-  const showRecommendationStage = source !== 'qishui' && (source !== 'apple' || loading || readyHeroes.length > 0 || pool.hand.length > 0)
-
-  return (
-    <motion.section
-      className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
-      initial={false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={pageTransition(springGentle)}
-      aria-label={`${provider.descriptor.label}推荐`}
-    >
-      <header className={styles.header}>
-        <SourceBadge source={source} displayMode="always" />
-        {(source === 'netease' || source === 'qq' || source === 'kugou') && (
-          <button type="button" className={`${styles.browseMore} no-drag`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'provider-playlists', source })}>
-            浏览全部歌单
-          </button>
-        )}
-        {source === 'apple' && (
-          <button type="button" className={`${styles.browseMore} no-drag`} onClick={() => useNavigationStore.getState().navigateTo({ type: 'toplist', source: 'apple', chartType: 'songs' })}>
-            歌曲与专辑榜
-          </button>
-        )}
-        {(loading || errors.length > 0) && (
-          <div className={styles.status}>
-            {loading ? <span>正在连接平台…</span> : <span>{errors.length} 个栏目暂不可用</span>}
-            {errors.length > 0 && (
-              <button
-                className="no-drag"
-                onClick={() => {
-                  const session = sessionRef.current
-                  void Promise.all(errors.map((result) => loadSurface(result.surface, session, true)))
-                }}
-              >
-                重试
-              </button>
-            )}
-          </div>
-        )}
-      </header>
-
-      {showRecommendationStage && <div className={styles.content}>
-        {readyHeroes.length > 0 && (
-          <div className={styles.heroCards}>
-            {readyHeroes.map((result) => {
-              const content = result.data!.content
-              const cover = content.type === 'tracks'
-                ? content.tracks[0]?.cover
-                : content.type === 'radar'
-                  ? content.radar?.playlist.cover
-                  : undefined
-              const count = content.type === 'tracks'
-                ? content.tracks.length
-                : content.type === 'radar'
-                  ? content.radar?.tracks.length ?? 0
-                  : 0
-              const layoutEntityId = content.type === 'radar' && content.radar
-                ? content.radar.playlist.id
-                : result.surface.id
-              return (
-                <HeroCard
-                  key={result.surface.id}
-                  title={result.surface.title}
-                  subtitle={`${count} 首 · ${result.surface.subtitle ?? '平台原生推荐'}`}
-                  source={source}
-                  cover={cover}
-                  badge={result.surface.kind === 'daily-tracks' ? <span>{new Date().getDate()}</span> : undefined}
-                  layoutId={`explore-cover-${String(layoutEntityId)}`}
-                  onClick={() => openSurface(result)}
-                />
-              )
-            })}
-          </div>
-        )}
-
-        {pool.hand.length > 0 && (
-          <div className={styles.stage}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={dealId}
-                initial={{ x: 70, opacity: 0, rotate: 4 }}
-                animate={{ x: 0, opacity: 1, rotate: 0 }}
-                exit={{ x: -90, opacity: 0, rotate: -6 }}
-                transition={pageTransition(springGentle)}
-              >
-                <Stack cards={pool.hand} onSwipe={() => setPool((current) => swipeTop(current))} onCardClick={onPreview} />
-              </motion.div>
-            </AnimatePresence>
-            {top && (
-              <div className={styles.topInfo}>
-                <p className={styles.eyebrow}>发现歌单</p>
-                <p className={styles.topName}>{top.name}</p>
-                {top.description && <p className={styles.topDesc}>{top.description}</p>}
-                <p className={styles.hint}>拖拽换一张 · 点击查看</p>
-                <button
-                  className={`${styles.redealButton} no-drag`}
-                  onClick={() => {
-                    setDealId((current) => current + 1)
-                    setPool((current) => redeal(current))
-                  }}
-                >
-                  ↻ 换一叠
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {!loading && readyHeroes.length === 0 && pool.hand.length === 0 && (
-          <div className={styles.empty}>
-            <p>{errors[0]?.error?.message ?? '这个平台暂时没有推荐内容'}</p>
-            {errors.length > 0 && (
-              <button
-                className={`${styles.retryButton} no-drag`}
-                onClick={() => {
-                  const session = ++sessionRef.current
-                  void Promise.all(surfaces.map((surface) => loadSurface(surface, session, true)))
-                }}
-              >
-                重试平台栏目
-              </button>
-            )}
-          </div>
-        )}
-      </div>}
-      {source === 'apple' && <ApplePlaylistRecommendations charts={feedPlaylists} onOpen={onPreview} />}
-      {source === 'apple' && <AppleHomeLibrary onOpen={onPreview} />}
-      {source === 'netease' && <FeaturedSongs />}
-      {(source === 'netease' || source === 'qishui') && <PersonalListeningSection source={source} />}
-      {provider.library?.getUserPlaylists && <ProviderPlaylistRail source={source} onOpen={onPreview} />}
-      {(provider.history?.getRecentPlaylists || provider.history?.getRecentTracks) && <RecentRail source={source} embedded onOpen={onPreview} />}
-      {provider.toplists && <ToplistSection source={source} embedded onOpen={onPreview} />}
-    </motion.section>
-  )
+    })}
+    {enabled.length === 0 && <p className={styles.empty}>探索页模块已全部关闭，可在设置的「音源与播放」中重新开启。</p>}
+  </motion.section>
 })

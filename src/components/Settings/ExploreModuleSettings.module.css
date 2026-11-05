@@ -1,0 +1,26 @@
+.section { display: grid; grid-template-columns: minmax(250px, .85fr) minmax(0, 1.15fr); align-items: start; gap: 24px; padding-top: 4px; }
+.editor { min-width: 0; }
+.heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.heading span, .hint, .footer { color: var(--sm-text-secondary); font-size: 12px; }
+.hint { margin: 6px 0 16px; line-height: 1.5; }
+.list { position: relative; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; gap: 12px; min-height: 56px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: var(--sm-fill-subtle); cursor: grab; touch-action: none; user-select: none; translate: 0 var(--reorder-shift, 0px); }
+.row:hover { background: var(--sm-fill-hover); }
+.row[data-reordering] { transition: translate 180ms var(--sm-ease-out); }
+.row[data-drag-placeholder] { opacity: 0; }
+.row[data-enabled='false'] .name { color: var(--sm-text-secondary); }
+.grip { display: grid; place-items: center; flex: 0 0 20px; color: var(--sm-text-muted); }
+.grip svg { width: 20px; height: 20px; }
+.name { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; color: var(--sm-text-primary); }
+.name strong { font-size: 13px; font-weight: 550; }
+.name small { font-size: 11px; line-height: 1.5; color: var(--sm-text-secondary); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0 6px; }
+.footer button { padding: 5px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--sm-text-primary); font: inherit; cursor: pointer; }
+.footer button:hover { background: var(--sm-fill-hover); }
+.footer button:active { background: var(--sm-fill-active); }
+.footer button:focus-visible { outline: 2px solid var(--sm-text-primary); outline-offset: 2px; }
+:global([data-drag-motion-off]) .row[data-reordering] { transition: none; }
+@media (prefers-reduced-motion: reduce) { .row[data-reordering] { transition: none; } }
+
+@media (max-width: 720px) { .section { grid-template-columns: 1fr; } }

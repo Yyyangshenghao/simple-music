@@ -1,0 +1,7 @@
+.preview { position: sticky; top: 0; align-self: start; min-width: 0; }
+.heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 12px; }
+.heading h4 { margin: 0; color: var(--sm-text-primary); font-size: 14px; font-weight: 600; }
+.heading span { color: var(--sm-text-secondary); font-size: 11px; }
+.viewport { height: min(420px, calc(100vh - var(--sm-player-clearance, 124px) - 200px)); min-height: 180px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--sm-border); border-radius: 12px; background: var(--sm-bg-base); }
+.spacer { position: relative; width: 100%; overflow: hidden; }
+.page { position: absolute; top: 0; left: 0; display: flow-root; padding-bottom: 20px; transform-origin: top left; pointer-events: none; user-select: none; }

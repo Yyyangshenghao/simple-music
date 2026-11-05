@@ -6,7 +6,7 @@ import { useSystemReducedMotion } from '../../hooks/useSystemReducedMotion'
 import { springSnappy } from '../../lib/motion-presets'
 import styles from './ProviderSettingsButton.module.css'
 
-const PANEL_WIDTH = 300
+const PANEL_WIDTH = 680
 const MARGIN = 8
 const GAP = 6
 
@@ -19,10 +19,10 @@ function GearIcon() {
   )
 }
 
-/** 平台专属设置：音源行里的齿轮，点开在行旁弹出可操作面板，不挤动设置页布局。 */
-export function ProviderSettingsButton({ label, children }: { label: string; children: ReactNode }) {
+/** 平台专属设置：面板从音源行的齿轮向左展开，不挤动页面布局。 */
+export function ProviderSettingsButton({ label, disabled = false, children }: { label: string; disabled?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<{ left: number; top: number; upwards: boolean } | null>(null)
+  const [position, setPosition] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const panelId = useId()
@@ -30,29 +30,40 @@ export function ProviderSettingsButton({ label, children }: { label: string; chi
   const reduced = useSystemReducedMotion()
   const animate = grow && !reduced
 
+  const visible = open && !disabled
+  const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }
+
+  useEffect(() => { if (disabled) setOpen(false) }, [disabled])
+
   useLayoutEffect(() => {
-    if (!open || !trigger.current) return
+    if (!visible || !trigger.current) return
     const place = () => {
       const rect = trigger.current!.getBoundingClientRect()
-      const height = panel.current?.offsetHeight ?? 0
-      // 底部播放条占住的区域也算不可用，避免面板压在播放条上。
       const clearance = parseFloat(getComputedStyle(trigger.current!).getPropertyValue('--sm-player-clearance')) || 0
-      const upwards = rect.bottom + GAP + height + MARGIN > window.innerHeight - clearance && rect.top - GAP - height > MARGIN
-      const left = Math.max(MARGIN, Math.min(rect.right - PANEL_WIDTH, window.innerWidth - PANEL_WIDTH - MARGIN))
-      setPosition({ left, top: upwards ? rect.top - GAP - height : rect.bottom + GAP, upwards })
+      const topBoundary = 64
+      const bottom = window.innerHeight - clearance - MARGIN
+      const maxHeight = Math.max(120, bottom - topBoundary)
+      const leftBoundary = Math.max(MARGIN, trigger.current!.closest('section')?.getBoundingClientRect().left ?? MARGIN)
+      const width = Math.max(0, rect.left - GAP - leftBoundary)
+      const height = Math.min(panel.current?.scrollHeight || maxHeight, maxHeight)
+      const top = Math.max(topBoundary, Math.min(rect.top - 18, bottom - height))
+      setPosition({ left: rect.left - GAP - width, top, width, maxHeight })
     }
     place()
-    // 首帧拿到面板高度后再定一次上下方向。
+    // 首帧拿到面板高度后重新避让顶栏与播放栏。
     const frame = requestAnimationFrame(place)
     return () => cancelAnimationFrame(frame)
-  }, [open])
+  }, [visible])
 
   useLayoutEffect(() => {
-    if (open && position && panel.current && !panel.current.matches(':popover-open')) panel.current.showPopover()
-  }, [open, position])
+    if (visible && position && panel.current && !panel.current.matches(':popover-open')) {
+      panel.current.showPopover()
+      panel.current.querySelector<HTMLButtonElement>('[data-panel-close]')?.focus({ preventScroll: true })
+    }
+  }, [visible, position])
 
   useEffect(() => {
-    if (!open) return
+    if (!visible) return
     // 面板里的下拉选项渲染在 body 上，点选项不算点外部。
     const inside = (target: EventTarget | null) => target instanceof Node && (
       !!trigger.current?.contains(target) || !!panel.current?.contains(target)
@@ -62,7 +73,7 @@ export function ProviderSettingsButton({ label, children }: { label: string; chi
       if (event.key !== 'Escape' || event.isComposing) return
       // 面板内下拉开着时 Esc 先收下拉。
       if (document.querySelector('[role="listbox"]')) return
-      setOpen(false)
+      close()
     }
     const viewport = (event: Event) => {
       if (event.type === 'scroll' && inside(event.target)) return
@@ -78,23 +89,29 @@ export function ProviderSettingsButton({ label, children }: { label: string; chi
       window.removeEventListener('resize', viewport)
       window.removeEventListener('scroll', viewport, true)
     }
-  }, [open])
+  }, [visible])
 
   return <>
-    <button ref={trigger} type="button" className={`${styles.trigger} no-drag`} data-open={open || undefined}
-      aria-label={label} title={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? panelId : undefined}
+    <button ref={trigger} type="button" className={`${styles.trigger} no-drag`} data-open={visible || undefined}
+      disabled={disabled} aria-label={label} data-tip={disabled ? '启用音源后可设置' : label} aria-haspopup="dialog" aria-expanded={visible} aria-controls={visible ? panelId : undefined}
       onClick={() => setOpen(current => !current)}>
       <GearIcon />
     </button>
     {typeof document !== 'undefined' && createPortal(<AnimatePresence initial={false} onExitComplete={() => setPosition(null)}>
-      {open && <motion.div key="panel" ref={panel} {...{ popover: 'manual' }} id={panelId} role="dialog" aria-label={label}
+      {visible && <motion.div key="panel" ref={panel} {...{ popover: 'manual' }} id={panelId} role="dialog" aria-label={label}
         className={`${styles.panel} no-drag`}
-        style={{ left: position?.left ?? -9999, top: position?.top ?? 0, width: PANEL_WIDTH, transformOrigin: position?.upwards ? 'bottom right' : 'top right' }}
-        initial={animate ? { opacity: 0, scale: .96, y: position?.upwards ? 4 : -4 } : false}
-        animate={{ opacity: 1, scale: 1, y: 0, pointerEvents: 'auto' }}
+        style={{ left: position?.left ?? -9999, top: position?.top ?? 0, width: position?.width ?? PANEL_WIDTH, maxHeight: position?.maxHeight, transformOrigin: 'right top' }}
+        initial={animate ? { opacity: 0, scale: .98, x: 8 } : false}
+        animate={{ opacity: 1, scale: 1, x: 0, pointerEvents: 'auto' }}
         exit={{ opacity: 0, scale: animate ? .98 : 1, pointerEvents: 'none' }}
         transition={animate ? springSnappy : { duration: 0 }}>
-        {children}
+        <header className={styles.heading}>
+          <h2>{label}</h2>
+          <button type="button" data-panel-close className={styles.close} aria-label={`关闭${label}`} data-tip="关闭" onClick={close}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </header>
+        <div className={styles.body} data-provider-settings-scroll>{children}</div>
       </motion.div>}
     </AnimatePresence>, document.body)}
   </>
@@ -111,9 +128,4 @@ export function ProviderSettingItem({ label, hint, children }: { label: string; 
       <div className={styles.itemControl}>{children}</div>
     </div>
   )
-}
-
-/** 没有专属设置的平台占位，保持开关与账号按钮跨行对齐。 */
-export function ProviderSettingsPlaceholder() {
-  return <span className={styles.placeholder} aria-hidden="true" />
 }
