@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
 import { logoutMusicProvider } from '../lib/provider-logout'
@@ -12,6 +12,9 @@ import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
 import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { rankStrength, useListReorder } from '../components/ui/useListReorder'
+import list from '../components/ui/OrderList.module.css'
+import { LyricOriginIcon } from '../components/Lyrics/LyricOriginIcon'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
 import { AppleMusicAccountInfo, AppleMusicRegionSetting, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
@@ -192,107 +195,41 @@ function systemDefaultFonts(platform: string | undefined): { western: string; cj
     : { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
 }
 
-function PlaybackOrderItem({
-  source,
-  index,
-  total,
-  followOrigin,
-  onMove,
-}: {
-  source: ProviderId
-  index: number
-  total: number
-  followOrigin: boolean
-  onMove: (source: ProviderId, direction: -1 | 1) => void
-}) {
-  const dragControls = useDragControls()
-  const label = providerLabel(source)
-  const role = total === 1
-    ? '唯一音源'
-    : followOrigin
-      ? `补位 ${index + 1}`
-      : index === 0 ? '首选' : `备用 ${index}`
-
-  return (
-    <Reorder.Item
-      value={source}
-      className={styles.playbackOrderItem}
-      dragListener={false}
-      dragControls={dragControls}
-      layout
-    >
-      <span className={styles.playbackOrderRank}>{index + 1}</span>
-      <SourceBadge source={source} compact displayMode="always" />
-      <span className={styles.playbackOrderName}>{label}</span>
-      <span className={styles.playbackOrderRole}>{role}</span>
-      {total > 1 && (
-        <button
-          type="button"
-          className={`${styles.playbackOrderHandle} no-drag`}
-          aria-label={`拖动${label}调整顺序，或按 Alt 加上下箭头移动`}
-          title="拖动排序 · Alt + ↑/↓"
-          onPointerDown={(event) => dragControls.start(event)}
-          onKeyDown={(event) => {
-            if (!event.altKey) return
-            if (event.key === 'ArrowUp' && index > 0) {
-              event.preventDefault()
-              onMove(source, -1)
-            }
-            if (event.key === 'ArrowDown' && index < total - 1) {
-              event.preventDefault()
-              onMove(source, 1)
-            }
-          }}
-        >
-          <span aria-hidden="true" />
-        </button>
-      )}
-    </Reorder.Item>
-  )
-}
-
+/** 播放顺序只列参与播放的平台；在“音源与账户”关闭或退出的平台自动隐藏，重新启用后排到末尾。 */
 function PlaybackOrderEditor({
   order,
-  followOrigin,
   emptyMessage,
   onChange,
 }: {
   order: ProviderId[]
-  followOrigin: boolean
   emptyMessage: string
   onChange: (order: ProviderId[]) => void
 }) {
-  const moveSource = (source: ProviderId, direction: -1 | 1): void => {
-    const from = order.indexOf(source)
-    const to = from + direction
-    if (from < 0 || to < 0 || to >= order.length) return
-    const next = [...order]
-    ;[next[from], next[to]] = [next[to], next[from]]
-    onChange(next)
-  }
+  const listRef = useRef<HTMLOListElement>(null)
+  const still = !useMotion('dragMotion')
+  // 拖动手感与播放队列一致：整行可拖，松手回落后再提交新顺序。
+  const { rowProps, ghost } = useListReorder({
+    listRef, total: order.length, orderKey: order.join(), reducedMotion: still,
+    onMove: (from, to) => {
+      const next = [...order]
+      next.splice(to, 0, ...next.splice(from, 1))
+      onChange(next)
+    },
+  })
 
-  if (order.length === 0) {
-    return <div className={styles.playbackOrderEmpty}>{emptyMessage}</div>
-  }
+  if (order.length === 0) return <div className={styles.playbackOrderEmpty}>{emptyMessage}</div>
 
   return (
-    <Reorder.Group
-      axis="y"
-      values={order}
-      onReorder={onChange}
-      className={styles.playbackOrderList}
-    >
+    <ol ref={listRef} className={list.list} data-compact data-ranked={order.length > 1 || undefined} aria-label="播放顺序">
       {order.map((source, index) => (
-        <PlaybackOrderItem
-          key={source}
-          source={source}
-          index={index}
-          total={order.length}
-          followOrigin={followOrigin}
-          onMove={moveSource}
-        />
+        <li key={source} data-setting-row {...rowProps(index, rankStrength(index, order.length))} className={list.row} data-draggable={order.length > 1 || undefined}>
+          <span className={list.rank} aria-label={`第 ${index + 1} 位`}><span className={list.dot} /></span>
+          <LyricOriginIcon origin={source} />
+          <div className={list.name}><strong data-setting-label>{providerLabel(source)}</strong></div>
+        </li>
       ))}
-    </Reorder.Group>
+      {ghost}
+    </ol>
   )
 }
 
@@ -1447,11 +1384,9 @@ export function SettingsPage() {
                               ? '当前音源'
                               : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
                           </span>
-                          {visiblePlaybackOrder.length > 1 && <small>拖动排序 · 键盘可用 Alt + ↑/↓</small>}
                         </div>
                         <PlaybackOrderEditor
                           order={visiblePlaybackOrder}
-                          followOrigin={preferOriginSource}
                           emptyMessage={playbackAuthPending ? '正在核实平台账号状态…'
                             : providerState.bilibili.enabled ? '已启用哔哩哔哩，可通过搜索点播' : '先在“音源与账户”中启用一个平台'}
                           onChange={setPlaybackOrder}

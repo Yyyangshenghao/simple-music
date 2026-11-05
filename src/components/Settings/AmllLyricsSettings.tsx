@@ -1,6 +1,5 @@
 import { Select } from '../ui/Select'
-import { useCallback, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useCallback, useRef, useState } from 'react'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useSettingsStore } from '../../stores/settings'
 import { useProviderStore } from '../../stores/providers'
@@ -11,6 +10,8 @@ import { InfoButton } from '../ui/InfoButton'
 import { Switch } from '../ui/Switch'
 import { LyricsMemoryDialog } from './LyricsMemoryDialog'
 import { LyricOriginIcon } from '../Lyrics/LyricOriginIcon'
+import { rankStrength, useListReorder } from '../ui/useListReorder'
+import list from '../ui/OrderList.module.css'
 import styles from './AmllLyricsSettings.module.css'
 
 export function AmllLyricsSettings() {
@@ -41,16 +42,6 @@ export function AmllLyricsSettings() {
     : apple?.auth === 'authenticated' ? 'Apple Music 未启用，启用后生效' : '未连接 Apple Music，连接后生效'
   const openAccounts = () => useNavigationStore.getState().requestSettingsMusic()
   const entries = Object.keys(remembered)
-  const move = (index: number, direction: number) => {
-    const other = visible[index + direction]
-    if (!other) return
-    const next = [...order]
-    const from = next.indexOf(visible[index])
-    const to = next.indexOf(other)
-    next[from] = other
-    next[to] = visible[index]
-    useLyricsSourceStore.getState().setSourceOrder(next)
-  }
   const locked = (source: LyricPrioritySource) => source === 'apple' && !appleConnected
   const isOn = (source: LyricPrioritySource) => source === 'amll' ? enabled : source === 'kugou' ? kugouEnabled : platformSources[source] && !locked(source)
   const toggle = (source: LyricPrioritySource, value: boolean) => {
@@ -64,6 +55,16 @@ export function AmllLyricsSettings() {
       if (value && !guestSources[source]) setGuestSource(source, true)
     }
   }
+  const listRef = useRef<HTMLOListElement>(null)
+  // 拖动手感与播放队列一致；未连接的 Apple Music 也能调整位置，连接后按这里的顺序生效。
+  const { rowProps, ghost } = useListReorder({
+    listRef, total: visible.length, orderKey: visible.join(), reducedMotion: reduced,
+    onMove: (from, to) => {
+      const next = [...visible]
+      next.splice(to, 0, ...next.splice(from, 1))
+      useLyricsSourceStore.getState().setSourceOrder(next)
+    },
+  })
   const test = (source: LyricPrioritySource) => {
     void useLyricsSourceStore.getState().testSource(source, sample).catch(() => {})
   }
@@ -75,7 +76,7 @@ export function AmllLyricsSettings() {
       <Select id="lyrics-test-song" className={styles.select} aria-label="测试歌曲" value={sample} onChange={setSample}
         options={LYRICS_TEST_SONGS.map(song => ({ value: song.key, label: `${song.name} · ${song.artist}` }))} />
     </div>
-    <ol className={styles.priorityList} aria-label="歌词来源优先级">
+    <ol ref={listRef} data-ranked className={`${list.list} ${styles.priorityList}`} aria-label="歌词来源优先级">
       {visible.map((source, index) => {
         const probe = probes[source]
         const suspended = health[source]?.suspended
@@ -88,26 +89,23 @@ export function AmllLyricsSettings() {
           : probe?.status === 'ready' ? `已获取歌词 · ${probe.ms} ms`
           : probe?.status === 'empty' || probe?.status === 'mismatch' ? '测试曲未收录，可换一首再试'
           : probe?.status === 'error' ? '暂时连接失败，可重新测试'
-          : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : source === 'qishui' ? '以游客身份查询' : '未登录，以游客身份查询')
-        return <motion.li data-setting-row key={source} layout={!reduced} transition={{ duration: reduced ? 0 : 0.2 }} className={styles.sourceRow} data-off={!on || undefined} data-locked={locked(source) || undefined}>
-          <span className={styles.rank} aria-label={`第 ${index + 1} 优先级`}>{index + 1}</span>
+          : probe?.message ?? (source === 'amll' || source === 'kugou' || account ? '' : '游客身份')
+        return <li data-setting-row key={source} {...rowProps(index, rankStrength(index, visible.length))} data-draggable className={list.row} data-off={!on || undefined} data-locked={locked(source) || undefined}>
+          <span className={list.rank} aria-label={`第 ${index + 1} 优先级`}><span className={list.dot} /></span>
           <LyricOriginIcon origin={source} dim={!on} />
-          <div className={styles.sourceName}><strong data-setting-label>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? styles.statusIssue : ''}>{status}</span></div>
+          <div className={list.name}><strong data-setting-label>{LYRIC_SOURCE_LABELS[source]}</strong><span role="status" className={on && suspended ? list.statusIssue : ''}>{status}</span></div>
           {locked(source)
-            ? <button type="button" className={`${styles.probe} no-drag`} onClick={openAccounts}>{appleAction}</button>
-            : <button type="button" className={`${styles.probe} no-drag`} disabled={!on || probe?.status === 'loading'} onClick={() => test(source)}>
-              {probe?.status === 'loading' ? '测试中…' : suspended ? '测试恢复' : '测试'}
-            </button>}
+            ? <button type="button" className={`${list.action} no-drag`} onClick={openAccounts}>{appleAction}</button>
+            : suspended && on
+              ? <button type="button" className={`${list.action} no-drag`} disabled={probe?.status === 'loading'} onClick={() => test(source)}>{probe?.status === 'loading' ? '测试中…' : '测试恢复'}</button>
+              : <button type="button" className={`${list.quiet} no-drag`} data-busy={probe?.status === 'loading' || undefined} disabled={!on || probe?.status === 'loading'} onClick={() => test(source)}>{probe?.status === 'loading' ? '测试中…' : '测试'}</button>}
           <Switch checked={on} disabled={locked(source)} onChange={value => toggle(source, value)} aria-label={`使用${LYRIC_SOURCE_LABELS[source]}`} />
-          <div className={styles.reorder}>
-            <button type="button" aria-label={`提高${LYRIC_SOURCE_LABELS[source]}优先级`} disabled={index === 0 || locked(source)} onClick={() => move(index, -1)}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 10 4-4 4 4" /></svg></button>
-            <button type="button" aria-label={`降低${LYRIC_SOURCE_LABELS[source]}优先级`} disabled={index === visible.length - 1 || locked(source)} onClick={() => move(index, 1)}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 6 4 4 4-4" /></svg></button>
-          </div>
-        </motion.li>
+        </li>
       })}
+      {ghost}
     </ol>
     <div data-setting-row className={styles.memoryRow}>
-      <div className={styles.sourceName}>
+      <div className={list.name}>
         <strong data-setting-label>歌曲来源记忆</strong>
         <span>{entries.length ? `${entries.length} 首歌曲使用指定来源` : '在歌词页选择来源并记住后，可在这里管理'}</span>
       </div>
