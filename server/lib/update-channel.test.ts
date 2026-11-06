@@ -24,6 +24,20 @@ async function updater(version: string) {
   return module
 }
 
+function fallbackManifest(version: string): string {
+  return `version: ${version}
+files:
+  - url: Simple-Music-${version}-${process.arch}.dmg
+    size: 123
+  - url: Simple-Music-${version}-x86_64.AppImage
+    size: 123
+  - url: Simple-Music-${version}-Setup.exe
+    size: 123
+path: Simple-Music-${version}-Setup.exe
+size: 123
+`
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -76,7 +90,7 @@ describe('根据当前安装版本选择更新通道', () => {
     const update = await updater('2.7.0-beta.2')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => url.startsWith('https://api.github.com/')
       ? new Response('', { status: 403 })
-      : new Response('version: 2.7.0\npath: Simple-Music-2.7.0-Setup.exe\nsize: 123\n')))
+      : new Response(fallbackManifest('2.7.0'))))
     expect(await update.fetchLatestUpdateInfo()).toMatchObject({ updateAvailable: true, latestVersion: '2.7.0', source: 'latest-yml' })
   })
 
@@ -84,7 +98,7 @@ describe('根据当前安装版本选择更新通道', () => {
     const update = await updater('2.7.0')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => url.startsWith('https://api.github.com/')
       ? new Response('', { status: 403 })
-      : new Response('version: 2.8.0-beta.2\npath: Simple-Music-2.8.0-beta.2-Setup.exe\n')))
+      : new Response(fallbackManifest('2.8.0-beta.2'))))
     const info = await update.fetchLatestUpdateInfo()
     expect(info.updateAvailable).toBe(false)
     expect(info.latestVersion).toBe('2.8.0-beta.2')
