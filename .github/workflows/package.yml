@@ -82,7 +82,9 @@ jobs:
 
       - name: Check Windows install and uninstall
         if: matrix.target == 'win'
-        run: node scripts/release/check-windows-installer.mjs
+        run: |
+          node scripts/release/check-windows-directory.mjs
+          node scripts/release/check-windows-installer.mjs
 
       - uses: actions/upload-artifact@v4
         with:

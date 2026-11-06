@@ -24,7 +24,7 @@ gh run list --repo Yyyangshenghao/simple-music --workflow Release --limit 1
 gh run watch <run id> --repo Yyyangshenghao/simple-music --exit-status
 ```
 
-beta 号自动递增，不用改版本文件、不用写发行说明；发为 GitHub 预发布，应用内更新看不到。
+beta 号自动递增，不用改版本文件、不用写发行说明；发为 GitHub 预发布，正式版应用看不到；包含新版更新逻辑的 beta/rc 会检查更高预发版及正式版。
 
 ### 发正式版
 
@@ -272,8 +272,9 @@ gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -
 ```
 
 - 目标版本取分支名 `X.Y.Z`，不低于分支 `package.json` 版本；`beta.N` 由工作流在远端已有预发版号上自动加一，不用手动编号，也不需要提交版本号或发行说明，CI 在构建机上把版本写入 `package.json`（测试之后）。
-- 走与正式版相同的三平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。应用内更新只读 `releases/latest`，用户看不到预发版。
-- 预发版与正式版共用 appId 和应用数据，装上即覆盖本机正式版；版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内直接升级回正式通道。
+- 走与正式版相同的三平台测试、Widevine 签名与打包，发成 GitHub「预发布」且不标记为 latest。正式版应用只读 `releases/latest`，不会收到预发版；beta/rc 应用读取最近 100 条发布记录，排除草稿和无效版本后按完整版本号选择更高的预发版或正式版，不按列表顺序选择。
+- 预发版与正式版共用 appId、安装登记和应用数据，不是隔离副本；旧安装缺少归属清单时按安全策略保留旧目录并迁移。版本比较把 `X.Y.Z-beta.N` 视为低于 `X.Y.Z`，正式版发布后可在应用内升级回正式通道。
+- 通道随当前安装版本自动决定，不提供额外开关：正式版不能更新到 beta/rc；beta/rc 可以更新到更高预发版及正式版，不能降级。旧 beta 若尚不含此逻辑，需先手动安装一次包含该逻辑的预发包。GitHub API 不可用时沿用正式版 `latest*.yml` 备用线路，此时不保证发现更新的 beta。自定义测试清单也不能绕过通道或版本先后规则。
 - 实机验收按对应版本的测试清单执行（如 `docs/reviews/<版本>-windows-test-checklist.md`），结果写入发行说明「验证情况」，注明验收所用的预发版号。
 - 修复后重新触发即得到下一个 `beta.N`；失败的运行不会占号。预发版通过不代替 0.3 的发布前检查，正式版仍走 dev → master → 发布工作流。
 - 预发版 tag 和 Release 可在正式版发布后由所有者决定是否清理，不自动删除。
@@ -337,6 +338,7 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - **win**：NSIS（`Simple-Music-<v>-Setup.exe`，非 oneClick、建快捷方式）+ portable（`Simple-Music-<v>-portable.exe`，不参与自动更新）。`allowToChangeInstallationDirectory: false` 关闭 electron-builder 自带目录页，`build/installer.nsh` 再提供品牌化的单个自定义目录页，避免重复并保留自由选盘/路径与 `/D=` 支持。
 - **Windows 安装维护流程**：`build/windows-uninstall.cjs` 在打包后生成逐文件清单，Windows VMP 签名后再次刷新。安装前统一验证最终绝对路径（包括静默 `/D=`），拒绝系统目录、共享容器根和目录联接；进程只按目标及注册表已登记的完整可执行路径检查，不强杀程序。无归属清单的非空目录不覆盖、不卸载，选用新的独立子目录并保留原文件；已有登记的卸载入口在迁移完成后同步更新。已管理的目录只允许覆盖上次清单确认的文件，先在同卷独立目录完整解压、逐文件核对 SHA-256，再由父安装器备份/替换；提交前失败恢复文件、注册表和快捷方式，恢复失败时保留备份供人工取回。升级不执行任何旧卸载器。卸载核对构建身份，并在删除前检查所有清单路径的目录联接、文件类型及占用，只移除清单文件和空目录；额外文件、旧版本独有文件和旧目录保留。依赖模板不符合预期时中止打包。
 - **Windows 验收**：`scripts/release/check-windows-installer.mjs` 仅在无已有安装的一次性 Windows CI 环境运行，覆盖中文/引号路径、实际安装重装、额外文件、无关进程、文件占用回滚、目录联接和卸载；Package 工作流在 Windows 出包后执行。源码检查或 macOS 上的 NSIS 编译不能代替这项 Windows 动态验收。
+- **Windows 位置确认**：直接进入自定义位置页，输入和浏览都会预览最终位置。盘符及普通父目录自动补 `Simple Music`，已有受管理目录和隔离迁移目录保持稳定；支持正斜杠路径。`scripts/release/check-windows-directory.mjs` 编译并运行生产 NSIS 路径及冲突解析函数，只写隔离测试文件，不安装应用、不改注册表；可在本机出包后运行，Package 工作流也会执行。完整安装验收仍只在一次性 CI 环境执行。
 - **Windows 应用内更新**：便携版只提供手动下载入口，主进程同时拒绝调用安装更新；安装版仅执行当前下载任务中 ready 的安装包，核对版本、真实路径和文件类型并重验大小/摘要。同一进程只允许一次安装交接，收到子进程 spawn 后退出应用；这表示安装器启动成功，实际安装结果由安装器处理。
 - 安装包名称显式使用连字符，避免 GitHub 上传时替换空格，导致 `latest*.yml` 中的文件名与 Release 资源不一致。
 - **Apple Music DRM**：桌面运行时使用 CastLabs ECS。发布流水线固定 Node 22.12，并在 macOS 的 `afterPack`（系统代码签名前）和 Windows 的 `afterSign`（系统代码签名后）调用 EVS，生成 streaming VMP 生产签名。CI 缺少 `EVS_ACCOUNT_NAME` 或 `EVS_PASSWD` 时必须中止，禁止发布只能使用开发 DRM 签名的安装包；本地普通打包默认跳过，设置 `VMP_SIGN=1` 可强制执行。
@@ -352,6 +354,22 @@ dev/prod 的 URL 解析在 `window-manager.ts#resolveRendererUrl`：dev 用环�
 - Release body 前几行会被 `extractReleaseNotes` 提取为更新弹窗要点（每行 ≤72 字符、最多 4 条、跳过链接和 "What's Changed" 标题）。
 - electron-builder 生成的 `latest.yml`、`latest-mac.yml` 与 `latest-linux.yml` 必须一并上传：GitHub API 被限流/失败时按平台读取对应备用清单；macOS 从清单中选择当前架构的 dmg，Linux 从 `latest-linux.yml` 里选 AppImage，并使用该文件自身的摘要和大小，没有匹配资源时不返回其他平台安装包。
 - Linux 不自动下载安装：`supportsInAppUpdate()` 对 Linux 返回 false，更新提示与设置页只给「前往下载」跳到 Release 页，由用户自行替换 AppImage 或安装 deb。
+
+## 4.1 本地跨版本验收（不发布 Release）
+
+`scripts/release/windows-update-test/` 提供可在一次性 Windows 虚拟机操作的本地测试套件。正式 2.6.2 已支持 `SIMPLEMUSIC_UPDATE_MANIFEST`，无需修改旧版程序；测试启动器只为当前进程指定回环更新源并关闭镜像展开，不修改系统环境变量。
+
+准备流程（在仓库根目录，先按 [测试套件说明](../scripts/release/windows-update-test/README.md) 放入校验过的正式 2.6.2 包）：
+
+```bash
+npx electron-vite build --config scripts/release/windows-update-test/vite.config.mjs
+node scripts/release/windows-update-test/prepare.mjs --config
+npx electron-builder --win nsis --publish never --config dist/update-test/builder.json
+node scripts/release/windows-update-test/prepare.mjs --assemble
+node scripts/release/windows-update-test/check.mjs
+```
+
+输出目录为 `dist/update-test/kit`，包含两版 Setup、临时更新源、启动/停止脚本及手工测试说明。Vite 测试配置和打包元数据都使用 2.7.0，仓库版本保持不变。实际安装、更新、卸载由维护者在 VM 内操作；本地服务检查只验证清单、完整文件摘要和读取边界，不执行安装。
 
 ## 5. 半自动更新全链路
 

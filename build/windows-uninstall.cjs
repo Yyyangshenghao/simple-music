@@ -107,7 +107,7 @@ function prepareWindowsUninstall(context) {
   section = replaceOnce(section, '!insertmacro registryAddInstallInfo',
     'ClearErrors\n!insertmacro registryAddInstallInfo\n${If} ${Errors}\n  Call SimpleMusicRollbackFiles\n  SetErrorLevel 2\n  Abort "无法写入安装信息，安装已取消。"\n${EndIf}')
   section = replaceOnce(section, '!ifmacrodef customInstall', 'Call SimpleMusicFinishTransaction\n\n!ifmacrodef customInstall')
-  section += '\n!cd "${PROJECT_DIR}/node_modules/app-builder-lib/templates/nsis"\n'
+  section += '\n!cd "${PROJECT_DIR}\\node_modules\\app-builder-lib\\templates\\nsis"\n'
   let extract = fs.readFileSync(path.join(templates, 'include/extractAppPackage.nsh'), 'utf8')
   extract = replaceOnce(extract,
     'MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDRETRY IDCANCEL AbortExtract7za',
