@@ -14,7 +14,7 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { fileURLToPath } from 'node:url'
 import type { ServerContext } from '../types'
 import { updateDownloadDir } from './update-download-dir'
-import { compareVersions, normalizeVersion } from './update-version'
+import { canUpdateTo, compareVersions, isPrereleaseVersion, normalizeReleaseVersion, normalizeVersion } from './update-version'
 import { pruneOtherInstallers } from './update-cleanup'
 // 直接读取新项目自身的 package.json；通过 unknown 转型以容忍缺失的 simplemusic 字段。
 import pkgJson from '../../package.json' with { type: 'json' }
@@ -404,6 +404,7 @@ function patchAssetVersions(name: unknown): string[] {
   return matches.map((item) => normalizeVersion(item.replace(/[._-]/g, '.'))).filter(Boolean)
 }
 function pickPatchAsset(assets: unknown, currentVersion: string, latestVersion: string): PatchAsset | null {
+  if (isPrereleaseVersion(currentVersion) || isPrereleaseVersion(latestVersion)) return null
   const list = asGithubAssets(assets)
   const current = normalizeVersion(currentVersion || APP_VERSION)
   const latest = normalizeVersion(latestVersion || '')
@@ -455,7 +456,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
   const release = asRecord(data.release)
   const asset = asRecord(release.asset || data.asset)
   const latestVersion =
-    normalizeVersion(
+    normalizeReleaseVersion(
       data.latestVersion ||
         data.version ||
         release.version ||
@@ -476,7 +477,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
       )
     : []
   const patchInfo: PatchAsset | null =
-    patch && patchRec.downloadUrl
+    patch && patchRec.downloadUrl && !isPrereleaseVersion(APP_VERSION) && !isPrereleaseVersion(latestVersion)
       ? {
           name:
             String(patchRec.name || '') ||
@@ -513,8 +514,7 @@ function normalizeManifestUpdateInfo(input: unknown): UpdateInfo {
   return {
     configured: true,
     preview: false,
-    updateAvailable:
-      data.updateAvailable != null ? !!data.updateAvailable : compareVersions(latestVersion, APP_VERSION) > 0,
+    updateAvailable: data.updateAvailable !== false && canUpdateTo(APP_VERSION, latestVersion),
     currentVersion: APP_VERSION,
     latestVersion,
     release: {
@@ -696,7 +696,7 @@ function latestYmlFiles(text: string): Array<{ url: string; sha512: string; size
   })
 }
 function githubReleaseDownloadUrl(version: string, fileName: string): string {
-  const tag = 'v' + normalizeVersion(version)
+  const tag = 'v' + normalizeReleaseVersion(version)
   const encodedOwner = encodeURIComponent(UPDATE_CONFIG.owner)
   const encodedRepo = encodeURIComponent(UPDATE_CONFIG.repo)
   const encodedName = String(fileName || '')
@@ -706,7 +706,7 @@ function githubReleaseDownloadUrl(version: string, fileName: string): string {
   return `https://github.com/${encodedOwner}/${encodedRepo}/releases/download/${tag}/${encodedName}`
 }
 function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
-  const latestVersion = normalizeVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION
+  const latestVersion = normalizeReleaseVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION
   const files = latestYmlFiles(text)
   const path = yamlScalar(text, 'path') || yamlScalar(text, 'url')
   const pathFile = files.find((file) => file.url === path)
@@ -740,7 +740,7 @@ function parseLatestYmlUpdateInfo(text: string, reason?: string): UpdateInfo {
   return {
     configured: true,
     preview: false,
-    updateAvailable: compareVersions(latestVersion, APP_VERSION) > 0,
+    updateAvailable: canUpdateTo(APP_VERSION, latestVersion),
     currentVersion: APP_VERSION,
     latestVersion,
     release: {
@@ -781,7 +781,7 @@ export async function fetchLatestUpdateInfo(): Promise<UpdateInfo> {
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') return localUpdateFallback()
   const apiUrl = `https://api.github.com/repos/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(
     UPDATE_CONFIG.repo
-  )}/releases/latest`
+  )}/releases${isPrereleaseVersion(APP_VERSION) ? '?per_page=100' : '/latest'}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 8500)
   try {
@@ -796,15 +796,24 @@ export async function fetchLatestUpdateInfo(): Promise<UpdateInfo> {
         return localUpdateFallback('GitHub Releases ' + resp.status, { configured: true })
       }
     }
-    const data = asRecord(await resp.json())
-    const latestVersion = normalizeVersion(data.tag_name || data.name || APP_VERSION) || APP_VERSION
+    const payload: unknown = await resp.json()
+    // GitHub 列表按发布时间排列，不能把第一项当作最高版本；草稿不能进入更新。
+    const releases = isPrereleaseVersion(APP_VERSION)
+      ? (Array.isArray(payload) ? payload.map(asRecord) : [])
+        .filter(item => !item.draft && canUpdateTo(APP_VERSION, item.tag_name))
+        .sort((a, b) => compareVersions(b.tag_name, a.tag_name))
+      : [asRecord(payload)].filter(item => !item.draft && !item.prerelease && !isPrereleaseVersion(item.tag_name))
+    const data = releases[0]
+    if (!data) return localUpdateFallback('', { configured: true })
+    const latestVersion = normalizeReleaseVersion(data.tag_name || data.name)
+    if (!latestVersion) return localUpdateFallback('Invalid release version', { configured: true })
     const asset = pickReleaseAsset(data.assets)
     const patch = pickPatchAsset(data.assets, APP_VERSION, latestVersion)
     const notes = extractReleaseNotes(data.body).length ? extractReleaseNotes(data.body) : UPDATE_FALLBACK_NOTES
     return {
       configured: true,
       preview: false,
-      updateAvailable: compareVersions(latestVersion, APP_VERSION) > 0,
+      updateAvailable: canUpdateTo(APP_VERSION, latestVersion),
       currentVersion: APP_VERSION,
       latestVersion,
       release: {

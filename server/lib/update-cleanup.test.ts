@@ -11,6 +11,10 @@ import {
 } from './update-cleanup'
 
 describe('installerVersion', () => {
+  it('保留 beta/rc 身份，不把架构或 Setup 当成预发版后缀', () => {
+    expect(installerVersion('Simple-Music-2.7.0-beta.10-Setup.exe')).toBe('2.7.0-beta.10')
+    expect(installerVersion('Simple-Music-2.7.0-rc.2-arm64.dmg')).toBe('2.7.0-rc.2')
+  })
   it('识别新旧两种 mac 命名与 Windows 安装包', () => {
     expect(installerVersion('Simple-Music-2.6.0-arm64.dmg')).toBe('2.6.0')
     expect(installerVersion('Simple.Music-2.0.2-arm64.dmg')).toBe('2.0.2')
@@ -20,6 +24,11 @@ describe('installerVersion', () => {
 })
 
 describe('staleUpdateFiles', () => {
+  it('beta 启动清理已安装的 beta，保留更高 beta 与同号正式版', () => {
+    const installers = ['2.7.0-beta.1', '2.7.0-beta.2', '2.7.0-beta.3', '2.7.0'].map(version => `Simple-Music-${version}-Setup.exe`)
+    expect(staleUpdateFiles(installers, '2.7.0-beta.2')).toEqual(installers.slice(0, 2))
+    expect(staleUpdateFiles(installers, '2.7.0')).toEqual(installers)
+  })
   const names = [
     'Simple.Music-2.0.2-arm64.dmg',
     'Simple-Music-2.6.0-arm64.dmg',

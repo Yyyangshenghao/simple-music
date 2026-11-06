@@ -12,6 +12,22 @@ function prereleaseOf(value: unknown): string[] {
   return match ? match[1].split('.') : []
 }
 
+/** 发布身份必须保留 beta/rc 后缀；normalizeVersion 只供旧补丁的主版本匹配。 */
+export function normalizeReleaseVersion(value: unknown): string {
+  const version = String(value || '').trim().replace(/^v/i, '').replace(/[+].*$/, '')
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version) ? version : ''
+}
+
+export function isPrereleaseVersion(value: unknown): boolean {
+  return normalizeReleaseVersion(value).includes('-')
+}
+
+export function canUpdateTo(current: unknown, candidate: unknown): boolean {
+  const from = normalizeReleaseVersion(current)
+  const to = normalizeReleaseVersion(candidate)
+  return !!from && !!to && (isPrereleaseVersion(from) || !isPrereleaseVersion(to)) && compareVersions(to, from) > 0
+}
+
 export function compareVersions(a: unknown, b: unknown): number {
   const aa = normalizeVersion(a)
     .split('.')
