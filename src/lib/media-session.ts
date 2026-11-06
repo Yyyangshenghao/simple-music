@@ -1,5 +1,6 @@
 import { usePlayerStore } from '../stores/player'
-import { trackCoverOf, useBilibiliCoverStore } from '../stores/bilibili-covers'
+import { matchedBilibiliTrack, trackCoverOf, useBilibiliCoverStore } from '../stores/bilibili-covers'
+import { bilibiliTrackDisplay } from './bilibili-track-display'
 import { stepPlayback } from './playback-controls'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
@@ -14,10 +15,12 @@ function updateMetadata(track: Track | null): void {
     return
   }
   const cover = trackCoverOf(track)
+  const matched = matchedBilibiliTrack(track)
+  const display = bilibiliTrackDisplay(track, matched)
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: track.name,
-    artist: track.artist,
-    album: typeof track.album === 'string' ? track.album : undefined,
+    title: display?.name ?? track.name,
+    artist: display?.artist ?? track.artist,
+    album: matched?.album ?? (typeof track.album === 'string' ? track.album : undefined),
     artwork: cover ? [{ src: cover }] : []
   })
 }
@@ -94,6 +97,7 @@ export function initMediaSession(): () => void {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
     if (s.currentTrack !== prev.currentTrack) {
       coverShown = trackCoverOf(s.currentTrack)
+      matchShown = matchedBilibiliTrack(s.currentTrack)
       updateMetadata(s.currentTrack)
     }
     if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration
@@ -107,13 +111,16 @@ export function initMediaSession(): () => void {
       lastPositionSync = Date.now()
     }
   })
-  // 哔哩哔哩专辑封面匹配完成后补上系统媒体信息的封面；开关切换由设置订阅处理。
+  // 身份识别完成后同步曲名、歌手及封面，封面不变也需要更新元数据。
   let coverShown = trackCoverOf(usePlayerStore.getState().currentTrack)
+  let matchShown = matchedBilibiliTrack(usePlayerStore.getState().currentTrack)
   const refreshCover = () => {
     const track = usePlayerStore.getState().currentTrack
     const cover = trackCoverOf(track)
-    if (cover === coverShown) return
+    const match = matchedBilibiliTrack(track)
+    if (cover === coverShown && match === matchShown) return
     coverShown = cover
+    matchShown = match
     if (useSettingsStore.getState().mediaKeysEnabled) updateMetadata(track)
   }
   const stopCover = useBilibiliCoverStore.subscribe(refreshCover)

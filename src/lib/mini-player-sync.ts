@@ -1,5 +1,6 @@
 import { usePlayerStore } from '../stores/player'
-import { subscribeCurrentTrackCover, trackCoverOf } from '../stores/bilibili-covers'
+import { matchedBilibiliTrack, subscribeCurrentTrackCover, trackCoverOf, useBilibiliCoverStore } from '../stores/bilibili-covers'
+import { bilibiliTrackDisplay } from './bilibili-track-display'
 import { useLyricsStore } from '../stores/lyrics'
 import { useAmbientStore } from '../stores/ambient'
 import { useSettingsStore } from '../stores/settings'
@@ -52,12 +53,13 @@ export function initMiniPlayerSync(): () => void {
     const returnShortcut = localReturn && !shortcuts.recording && !registered && !isSystemReservedAccelerator(localReturn, platform) ? localReturn : ''
     const lyrics = useLyricsStore.getState()
     const cover = trackCoverOf(player.currentTrack)
+    const display = bilibiliTrackDisplay(player.currentTrack, matchedBilibiliTrack(player.currentTrack))
     const trackKey = player.currentTrack ? `${player.currentTrack.source}:${String(player.currentTrack.id)}` : null
     const showLyrics = settings.miniPlayerAppearance.showLyrics && settings.miniPlayerWidth >= MINI_PLAYER_LYRICS_WIDTH
     const payload: MiniPlayerPayload = {
       track: player.currentTrack,
-      trackTitle: player.currentTrack?.name ?? '',
-      artistName: player.currentTrack?.artist ?? '',
+      trackTitle: display?.name ?? player.currentTrack?.name ?? '',
+      artistName: display?.artist ?? player.currentTrack?.artist ?? '',
       coverUrl: cover ? sizedImage(cover, 88) : '',
       playing: player.status === 'playing' || (player.currentTrack?.source === 'apple' && player.status === 'loading'),
       volume: player.volume,
@@ -94,6 +96,10 @@ export function initMiniPlayerSync(): () => void {
       || state.hotkeys !== previous.hotkeys || state.globalHotkeysEnabled !== previous.globalHotkeysEnabled) sync()
   })
   const stopCover = subscribeCurrentTrackCover(sync)
+  const stopIdentity = useBilibiliCoverStore.subscribe((state, previous) => {
+    const track = usePlayerStore.getState().currentTrack
+    if (matchedBilibiliTrack(track, state.entries) !== matchedBilibiliTrack(track, previous.entries)) sync()
+  })
   const stopShortcuts = useShortcutStore.subscribe((state, previous) => {
     if (state.recording !== previous.recording || state.pending !== previous.pending || state.results !== previous.results) sync()
   })
@@ -120,6 +126,7 @@ export function initMiniPlayerSync(): () => void {
     stopPlayer()
     stopSettings()
     stopCover()
+    stopIdentity()
     stopShortcuts()
     stopLyrics()
     stopAmbient()

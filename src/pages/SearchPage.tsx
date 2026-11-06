@@ -113,10 +113,9 @@ export function SearchPage({ keyword, initialState }: { keyword: string; initial
     return { tracks, catalogTracks }
   }, [songs, sources])
   // 聚合搜索已拿到各平台结果，先从中补哔哩哔哩的专辑封面，少发额外搜索。
-  const bilibiliAlbumCover = useSettingsStore(s => s.bilibiliAlbumCover)
   useEffect(() => {
-    if (bilibiliAlbumCover) void seedBilibiliCovers(bilibiliTracks.tracks, bilibiliTracks.catalogTracks).catch(() => {})
-  }, [bilibiliAlbumCover, bilibiliTracks])
+    void seedBilibiliCovers(bilibiliTracks.tracks, bilibiliTracks.catalogTracks).catch(() => {})
+  }, [bilibiliTracks])
   const visibleSongs = visibleSources.flatMap(source => source === 'bilibili' ? bilibiliTracks.tracks : songs[source]?.data ?? [])
   const visibleArtists = visibleSources.flatMap((source) => artists[source]?.data ?? [])
   const visibleAlbums = visibleSources.flatMap((source) => albums[source]?.data ?? [])

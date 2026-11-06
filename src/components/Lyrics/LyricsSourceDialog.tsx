@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import type { LyricPreviewLine } from '../../types/lyrics-source'
 import { usePlayerStore } from '../../stores/player'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
@@ -44,7 +44,7 @@ export function LyricsSourceDialog() {
 }
 
 export function LyricsSourceSelection({ track }: { track: Track }) {
-  const display = bilibiliTrackDisplay(track)
+  const display = useBilibiliTrackDisplay(track)
   const name = display?.name ?? track.name
   const artist = display?.artist ?? track.artist
   const trackKey = `${track.source}:${String(track.id)}`

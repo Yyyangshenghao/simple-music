@@ -7,6 +7,8 @@ import { useToastStore } from '../stores/toast'
 import { useSettingsStore } from '../stores/settings'
 import { usePlayerStore } from '../stores/player'
 import { useGameModeStore } from '../stores/game-mode'
+import { matchedBilibiliTrack, useBilibiliCoverStore } from '../stores/bilibili-covers'
+import { bilibiliTrackDisplay } from './bilibili-track-display'
 import type { WordLyricLine } from '../types/domain'
 
 function readWordClock(wordLine: WordLyricLine | undefined): LyricsPayload['wordClock'] {
@@ -38,6 +40,9 @@ export function initDesktopLyricsSync(): () => void {
     if (disposed) return
     const { currentIndex, lines, translation, romaji, trackKey, wordLines, loading, instrumental } = useLyricsStore.getState()
     const currentTrack = usePlayerStore.getState().currentTrack
+    const display = bilibiliTrackDisplay(currentTrack, matchedBilibiliTrack(currentTrack))
+    const trackName = display?.name ?? currentTrack?.name ?? ''
+    const artistName = display?.artist ?? currentTrack?.artist
     const fx = useVisualStore.getState().fx
     const settings = useSettingsStore.getState()
     const game = useGameModeStore.getState()
@@ -60,7 +65,7 @@ export function initDesktopLyricsSync(): () => void {
     const currentKey = currentTrack ? `${currentTrack.source}:${String(currentTrack.id)}` : null
     const matching = !!currentKey && currentKey === trackKey
     const fallback = currentTrack
-      ? loading || !matching ? '正在获取歌词…' : lines.length ? currentTrack.name : (instrumental ? '纯音乐 · ' : '暂无歌词 · ') + currentTrack.name
+      ? loading || !matching ? '正在获取歌词…' : lines.length ? trackName : (instrumental ? '纯音乐 · ' : '暂无歌词 · ') + trackName
       : '播放音乐后显示歌词'
     const hasCurrentLyric = matching && currentIndex >= 0 && !!lines[currentIndex]?.text
     const candidate = enabled && matching && wordByWord && currentIndex >= 0 ? wordLines[currentIndex] : undefined
@@ -70,11 +75,11 @@ export function initDesktopLyricsSync(): () => void {
       ? candidate : undefined
     const payload: LyricsPayload = {
       trackKey: currentKey, lineIndex: hasCurrentLyric ? currentIndex : -1, lineMode, lineMotion,
-      line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || currentTrack?.name || fallback) : fallback,
+      line: matching && currentIndex >= 0 ? (lines[currentIndex]?.text || trackName || fallback) : fallback,
       translation: matching && showTranslation && currentIndex >= 0 ? (translation[currentIndex]?.text ?? '') : '',
       roma: matching && showRoma && currentIndex >= 0 ? (romaji[currentIndex]?.text ?? '') : '',
       nextLine: lineMode === 'double'
-        ? hasCurrentLyric ? (lines[currentIndex + 1]?.text ?? '') : (currentTrack?.artist ?? '')
+        ? hasCurrentLyric ? (lines[currentIndex + 1]?.text ?? '') : (artistName ?? '')
         : '',
       autoWidth, wordLine, backgroundOpacity, backgroundStyle,
       ...(size === sizeFromWindow ? {} : { size }), fontFamily, fontFamilyCjk, color, opacity, clickThrough, highlight
@@ -117,6 +122,10 @@ export function initDesktopLyricsSync(): () => void {
   const stopPlayer = usePlayerStore.subscribe((state, previous) => {
     if (state.currentTrack !== previous.currentTrack) sync()
   })
+  const stopIdentity = useBilibiliCoverStore.subscribe((state, previous) => {
+    const track = usePlayerStore.getState().currentTrack
+    if (matchedBilibiliTrack(track, state.entries) !== matchedBilibiliTrack(track, previous.entries)) sync()
+  })
   const stopVisual = useVisualStore.subscribe((state, previous) => {
     if (state.fx !== previous.fx) sync()
   })
@@ -149,6 +158,7 @@ export function initDesktopLyricsSync(): () => void {
     clock = undefined
     stopLyrics()
     stopPlayer()
+    stopIdentity()
     stopVisual()
     stopSettings()
     stopGame()

@@ -1,6 +1,6 @@
 import type { Track } from '../types/domain'
 import { bilibiliSongReadings } from './bilibili-title'
-import { matchBestTrack } from './track-match'
+import { selectBilibiliSongMatch } from './bilibili-song-match'
 
 function originalTitle(track: Track): string {
   return typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
@@ -9,23 +9,20 @@ function originalTitle(track: Track): string {
 /** 只附加曲库确认过的读法，保留投稿标题与 UP 主供播放、匹配和存档使用。 */
 export function withBilibiliDisplayReading(track: Track, catalogTracks: Track[]): Track {
   if (track.source !== 'bilibili' || !catalogTracks.length) return track
-  const original = originalTitle(track)
-  const readings = bilibiliSongReadings(original, track.bilibiliLyricHint)
-  if (readings.length <= 1) return track
-  const ranked = readings.flatMap(reading => {
-    const match = matchBestTrack({
-      ...track, name: reading.name, artist: reading.artists.join(' / '),
-      artists: reading.artists.map(name => ({ id: null, name })), bilibiliLyricVersionTitle: original,
-    }, catalogTracks)
-    return match ? [{ reading, score: match.score }] : []
-  }).sort((a, b) => b.score - a.score)
-  const [best, next] = ranked
-  return best && (!next || best.score - next.score >= 5) ? { ...track, bilibiliDisplayReading: best.reading } : track
+  const best = selectBilibiliSongMatch(track, catalogTracks)
+  return best ? { ...track, bilibiliDisplayReading: {
+    name: best.track.name, artists: best.track.artists.length ? best.track.artists.map(artist => artist.name) : [best.track.artist],
+  } } : track
 }
 
-export function bilibiliTrackDisplay(track?: Track | null) {
+export function bilibiliTrackDisplay(track?: Track | null, matched?: Track) {
   if (track?.source !== 'bilibili') return undefined
   const original = originalTitle(track)
+  if (matched) return {
+    name: matched.name,
+    artist: matched.artist,
+    caption: matched.name !== original ? original : undefined,
+  }
   const readings = bilibiliSongReadings(original, track.bilibiliLyricHint)
   const saved = track.bilibiliDisplayReading
   const reading = readings.length === 1 ? readings[0] : readings.find(item => item.name === saved?.name

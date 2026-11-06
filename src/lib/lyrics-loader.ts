@@ -247,8 +247,8 @@ export function initLyricsLoader(): () => void {
       if (isReadyLyrics(response)) results.set(origin, response)
       else fallback(origin, response.message)
     }
-    // 本地歌曲逐个查询：本地有歌词就不向在线来源发送标签。
-    const found = cacheable
+    // 本地与 B 站逐个查询：本地有词不联网；B 站识别身份后找到可用歌词即停止。
+    const found = cacheable && track.source !== 'bilibili'
       ? await resolveLyricsParallel({
         track, origins, sources, signal, chosen, existing,
         provisionalMs: onProvisional ? LYRICS_PROVISIONAL_MS : undefined, onProvisional, onSettled,

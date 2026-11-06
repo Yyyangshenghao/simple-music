@@ -3,7 +3,7 @@ import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
-import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import { useTrackCover } from '../../hooks/useTrackCover'
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
@@ -49,7 +49,7 @@ function OfflineIcon({ downloaded }: { downloaded: boolean }) {
 }
 
 export function TrackRow({ track, index, expandedCaption = false, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
-  const display = bilibiliTrackDisplay(track)
+  const display = useBilibiliTrackDisplay(track)
   const cover = useTrackCover(hideCover ? null : track)
   const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响

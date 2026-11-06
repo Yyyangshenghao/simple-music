@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
-import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import type { ReactNode } from 'react'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import { useTrackCover } from '../../hooks/useTrackCover'
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
@@ -16,7 +16,7 @@ interface TrackInfoProps {
 /** 播放栏左侧：封面 + 曲名 + 歌手。无当前曲目时显示占位。封面可点击打开歌词面板。 */
 export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: TrackInfoProps) {
   const track = usePlayerStore((s) => s.currentTrack)
-  const display = useMemo(() => bilibiliTrackDisplay(track), [track])
+  const display = useBilibiliTrackDisplay(track)
   const cover = useTrackCover(track)
 
   return (

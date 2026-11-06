@@ -4,6 +4,8 @@ import { queryLyricsSource, candidateAvailability } from './lyrics-source-query'
 import { clearProviderRequestCache } from './provider-request-cache'
 import { advanceProviderAccountSession } from './provider-account-session'
 import { fetchLyrics } from './lyrics-fetch'
+import { clearBilibiliSongIdentityCache } from './bilibili-song-identity'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { useLyricsSourceStore } from '../stores/lyrics-source'
 import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
@@ -33,6 +35,8 @@ beforeEach(() => {
   useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   vi.resetAllMocks()
   clearProviderRequestCache()
+  clearBilibiliSongIdentityCache()
+  useBilibiliCoverStore.setState({ entries: {} })
   useLyricsSourceStore.setState({ health: {}, probes: {} })
   vi.stubGlobal('localStorage', undefined)
   useSettingsStore.setState({ lyricsAmllFallback: true, lyricsKugouFallback: true })
@@ -147,6 +151,15 @@ describe('来源锁定', () => {
     expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
     expect(h.netease).toHaveBeenCalledWith('晴天')
     expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('网易和 QQ 未收录时，仍可用酷狗可靠 KRC 兜底', async () => {
+    h.netease.mockResolvedValue([])
+    h.qq.mockResolvedValue([])
+    const track = song('bilibili', { name: '周杰伦《晴天》', artist: '上传账号' })
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', ['netease', 'qq'])).toMatchObject({ status: 'ready', result: { origin: 'kugou' } })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', expect.objectContaining({ title: '晴天', artist: '周杰伦' }), expect.anything())
   })
 
   it('选 QQ 可取原生逐字，但绝不升级成 AMLL 或酷狗', async () => {

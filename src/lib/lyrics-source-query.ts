@@ -13,6 +13,8 @@ import { lyricPlatformEnabled, lyricServiceMode } from './lyric-service'
 import { TrackMatchMismatchError } from './track-match'
 import { accompanimentOriginal } from './karaoke-library'
 import { realignCompanionLines } from './lyric-realign'
+import { resolveBilibiliSongIdentity } from './bilibili-song-identity'
+import { bilibiliCanonicalTrack } from './bilibili-song-match'
 
 export interface LyricsSourceQueryResult {
   status: LyricCandidateStatus
@@ -208,6 +210,16 @@ async function queryLyricsSourceImpl(
       return failure ?? ready(null)
     }
     if (origin === 'kugou') {
+      if (track.source === 'bilibili' && !search && matchingSources(sources, probe).length) {
+        try {
+          const identity = await resolveBilibiliSongIdentity(track, signal)
+          checkCurrent()
+          if (identity) track = bilibiliCanonicalTrack(track, identity.track)
+        } catch {
+          checkCurrent()
+          // 曲库未收录或暂时连接失败时，酷狗仍可按视频明确身份做严格兜底。
+        }
+      }
       return ready(await upgradeLyricsWithKugou(track, { ...emptyLyrics, source: track.source }, signal, true, probe, !!search))
     }
     const targets = origin === 'netease' || origin === 'qq' || origin === 'apple' || origin === 'qishui' ? await findTargets(origin) : [track]

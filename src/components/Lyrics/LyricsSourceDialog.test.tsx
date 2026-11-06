@@ -32,6 +32,9 @@ vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore
 vi.mock('../../stores/player', () => ({ usePlayerStore: vi.fn() }))
 vi.mock('../../stores/navigation', () => ({ useNavigationStore: { getState: () => ({ requestSettingsLyrics: h.requestLyrics, requestSettingsMusic: h.requestMusic, navigateTo: h.navigateTo }) } }))
 vi.mock('../../stores/toast', () => ({ useToastStore: { getState: () => ({ show: h.toast }) } }))
+vi.mock('../../hooks/useBilibiliTrackDisplay', async () => ({
+  useBilibiliTrackDisplay: (await import('../../lib/bilibili-track-display')).bilibiliTrackDisplay,
+}))
 
 import { LyricsSourceSelection } from './LyricsSourceDialog'
 

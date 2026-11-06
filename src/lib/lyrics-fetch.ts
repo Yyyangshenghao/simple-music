@@ -2,12 +2,15 @@ import { fetchNativeAppleLyrics } from './apple-lyrics'
 import { parseAppleLyrics } from './apple-lyric-parser'
 import { api } from './api'
 import { bilibiliSongReadings } from './bilibili-title'
+import { bilibiliCanonicalTrack, selectBilibiliSongMatch } from './bilibili-song-match'
+import { findBilibiliLyricMatch } from './bilibili-song-identity'
+import { matchedBilibiliTrack } from '../stores/bilibili-covers'
 import { accompanimentOriginal } from './karaoke-library'
 import { localMusicService } from './local-music-service'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { parseLrc, alignTranslation, parseYrc, parseQrc, parseKrc, isPlaceholderLyrics, isInstrumentalPlaceholder, stripLineCredits, stripWordLineCredits } from './lyric-parser'
 import { realignCompanionLines } from './lyric-realign'
-import { findEquivalentTrack, scoreTrackMatch, TrackMatchMismatchError, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
+import { findEquivalentTrack, scoreTrackMatch, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 import { BROWSE_CACHE_MAX_AGE_MS, getCachedProviderData, requestProviderData } from './provider-request-cache'
 import { providerAccountSession } from './provider-account-session'
 import { hasWordTiming } from './word-highlight-timeline'
@@ -81,6 +84,8 @@ function hasTimedLyrics(result: LyricsResult): boolean {
 /** 视频标题与 UP 主用于展示；查歌词时只使用从标题解析的歌曲信息。 */
 function lyricIdentities(track: Track): Track[] {
   if (track.source !== 'bilibili' || typeof track.bilibiliLyricVersionTitle === 'string') return [track]
+  const matched = matchedBilibiliTrack(track)
+  if (matched) return [bilibiliCanonicalTrack(track, matched)]
   const videoTitle = typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
   const readings = bilibiliSongReadings(videoTitle, track.bilibiliLyricHint)
   return readings.map(({ name, artists }) => ({
@@ -91,6 +96,10 @@ function lyricIdentities(track: Track): Track[] {
 
 /** 歌词要求同一录音与可靠时长，不能把现场、翻唱或不同 ISRC 的时间轴套进来。 */
 export function isLyricMatch(track: Track, target: Track): boolean {
+  if (track.source === 'bilibili') {
+    const matched = matchedBilibiliTrack(track)
+    return !!selectBilibiliSongMatch(matched ? bilibiliCanonicalTrack(track, matched) : track, [target])
+  }
   if (!Number.isFinite(track.duration) || !(track.duration! > 0)
     || !Number.isFinite(target.duration) || !(target.duration! > 0)) return false
   const originIsrc = String(track.isrc ?? track.ISRC ?? '').trim().toUpperCase()
@@ -99,30 +108,13 @@ export function isLyricMatch(track: Track, target: Track): boolean {
   return lyricIdentities(track).some(identity => (scoreTrackMatch(identity, target) ?? 0) >= TRACK_MATCH_THRESHOLD)
 }
 
-/** 按该平台当前的歌词模式找同曲。B 站标题有多种读法时，比较各自通过校验的最佳结果。 */
+/** B 站先识别并复用统一歌曲身份；用户手动输入的搜索保持独立。 */
 export async function findLyricMatch(track: Track, source: ProviderId, signal?: AbortSignal, strict = false, refresh = false) {
-  const mode = lyricServiceMode(source) === 'guest' ? 'guest' : 'account'
-  const query = (identity: Track) => findEquivalentTrack(identity, source, signal, Date.now(), strict, refresh, mode)
-  if (track.source !== 'bilibili') return query(track)
-
-  const matches = new Map<string, TrackMatchResult>()
-  let mismatch: TrackMatchMismatchError | undefined
-  for (const identity of lyricIdentities(track)) {
-    try {
-      const match = await query(identity)
-      if (!match || !isLyricMatch(identity, match.track)) continue
-      const id = String(match.track.mid ?? match.track.id)
-      const previous = matches.get(id)
-      if (!previous || match.score > previous.score) matches.set(id, match)
-    } catch (error) {
-      if (!(error instanceof TrackMatchMismatchError)) throw error
-      mismatch = error
-    }
+  if (track.source === 'bilibili' && typeof track.bilibiliLyricVersionTitle !== 'string') {
+    return findBilibiliLyricMatch(track, source, signal, strict, refresh)
   }
-  const [best, next] = [...matches.values()].sort((a, b) => b.score - a.score)
-  if (best && (!next || best.score - next.score >= 5)) return best
-  if (strict && (best || mismatch)) throw mismatch ?? new TrackMatchMismatchError()
-  return null
+  const mode = lyricServiceMode(source) === 'guest' ? 'guest' : 'account'
+  return findEquivalentTrack(track, source, signal, Date.now(), strict, refresh, mode)
 }
 
 /** Apple 曲目在 AMLL 中的 ID：资料库歌曲取对应的目录 ID；没有目录 ID 时不查询。 */

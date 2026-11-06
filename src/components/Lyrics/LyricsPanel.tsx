@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { bilibiliTrackDisplay } from '../../lib/bilibili-track-display'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import { useTrackCover } from '../../hooks/useTrackCover'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
@@ -333,7 +333,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
-  const trackDisplay = useMemo(() => bilibiliTrackDisplay(track), [track])
+  const trackDisplay = useBilibiliTrackDisplay(track)
   const trackCover = useTrackCover(track)
   const lines = useLyricsStore((s) => s.lines)
   const translation = useLyricsStore((s) => s.translation)
