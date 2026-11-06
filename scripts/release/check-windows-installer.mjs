@@ -34,7 +34,13 @@ let succeeded = false
 try {
   run(installer, ['/S', '/D=relative\\folder'], false)
   run(installer, ['/S', `/D=${process.env.WINDIR}\\SimpleMusicInstallerAudit`], false)
-  run(installer, ['/S', `/D=${target}`])
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  const parentFile = path.join(path.dirname(target), '已有文件.txt')
+  fs.writeFileSync(parentFile, 'keep parent')
+  // 选父目录且使用正斜杠时，程序必须实际装入 Simple Music 子目录。
+  run(installer, ['/S', `/D=${path.dirname(target).replaceAll('\\', '/')}`])
+  assert.equal(fs.readFileSync(parentFile, 'utf8'), 'keep parent')
+  assert.ok(!fs.existsSync(path.join(path.dirname(target), 'Simple Music.exe')), '程序散落到了父目录')
   fs.copyFileSync(uninstall, detachedUninstall)
   assert.ok(fs.existsSync(manifest), '首次安装缺少归属清单')
   const original = digest(path.join(target, 'Simple Music.exe'))

@@ -111,7 +111,7 @@ Simple Music 的多人协作约定：分支怎么开、代码怎么提、消息�
 
 版本元数据在对应 dev 上形成独立提交 `chore(release): 发布 vX.Y.Z`。dev 的发布 PR 验收后合入 master，再从 master 手动触发 Release 工作流：双平台测试、签名打包全部成功后，工作流才创建指向该 master 提交的 tag `vX.Y.Z` 并公开 Release。不手动创建或推送 `v*` tag。
 
-发布前需要实机验收真实安装包时，可从已推送的待发布 dev 触发预发版（`channel=beta`，`beta.N` 自动递增），CI 按正式版流程签名打包并发为 GitHub 预发布，不推送给应用内更新；预发版不升级版本文件、不合入 master，也不替代正式发布流程，细则见 [构建与发布 §0.7.1](docs/build-and-release.md#071-预发版验收真实安装包)。
+发布前需要实机验收真实安装包时，可从已推送的待发布 dev 触发预发版（`channel=beta`，`beta.N` 自动递增），CI 按正式版流程签名打包并发为 GitHub 预发布。正式版应用不接收预发版；包含新版通道逻辑的 beta/rc 可接收更高预发版或正式版。预发版不升级版本文件、不合入 master，也不替代正式发布流程，细则见 [构建与发布 §0.7.1](docs/build-and-release.md#071-预发版验收真实安装包)。
 
 PR、dev 和 master 的 CI 验收目标与当前落地状态见 [构建与发布 §0.7](docs/build-and-release.md#07-ci-与发布门禁)。触发发布后等待 Release 工作流完成并核对所有产物；失败不会留下 tag，修复后用同一版本号重新触发；已公开的 tag 不可移动或覆盖。紧急补丁也默认遵循 dev → master → 发布工作流，旧版本维护例外见 §0.8。
 
