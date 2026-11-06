@@ -731,9 +731,9 @@ export interface SongUrlResult {
   error?: string
 }
 
-// 取链风控可能按出口 IP 生效，冷却由所有曲目和账号共用，切歌不能绕过。
+// 同一通道的取链冷却由所有曲目和账号共用；客户端受限不代表网页通道也不可用。
 const SONG_URL_COOLDOWN_MS = 60_000
-let songUrlBlockedUntil = 0
+const songUrlBlockedUntil = { eapi: 0, weapi: 0 }
 
 class NeteaseRateLimitError extends Error {
   constructor() {
@@ -746,18 +746,18 @@ export function isNeteaseRateLimited(payload: unknown): boolean {
 }
 
 async function callSongUrl(name: 'song_url_v1' | 'song_url', params: NcmParams): Promise<NcmResponse> {
-  if (Date.now() < songUrlBlockedUntil) throw new NeteaseRateLimitError()
-  try {
-    const result = await call(name, params)
-    if (isNeteaseRateLimited(result)) throw result
-    return result
-  } catch (error) {
-    if (isNeteaseRateLimited(error)) {
-      songUrlBlockedUntil = Date.now() + SONG_URL_COOLDOWN_MS
-      throw new NeteaseRateLimitError()
+  for (const crypto of ['eapi', 'weapi'] as const) {
+    if (Date.now() < songUrlBlockedUntil[crypto]) continue
+    try {
+      const result = await call(name, { ...params, crypto })
+      if (isNeteaseRateLimited(result)) throw result
+      return result
+    } catch (error) {
+      if (!isNeteaseRateLimited(error)) throw error
+      songUrlBlockedUntil[crypto] = Date.now() + SONG_URL_COOLDOWN_MS
     }
-    throw error
   }
+  throw new NeteaseRateLimitError()
 }
 
 export async function handleSongUrl(

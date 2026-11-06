@@ -68,7 +68,9 @@
 | `GET /api/lyric` | 取歌词 | `id` | 优先 `lyric_new`(取 `yrc` 逐字歌词),兜底旧版 `lyric` | `{ lyric, tlyric, romalrc, yrc, source }` | 已用 |
 | `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | `comments` 连续最新评论，`hotComments` 仅首屏；`nextOffset` 按请求页大小推进 | 已用 |
 
-取链收到 `-460`、`-462` 或 `429` 时立即停止旧接口兜底与逐档重试，并对本进程所有曲目和账号的取链请求共用 60 秒冷却；冷却期不访问取链上游。音质探测保留已获得的档位并返回 `incomplete: true`。60 秒是应用的止损等待时间，不表示上游限制必定解除；其他接口不在此冷却范围内。
+播放取链和音质探测优先使用客户端 `eapi`，该通道收到 `-460`、`-462` 或 `429` 时，针对同一请求有限尝试网页 `weapi` 通道，继续携带当前账号 Cookie。两个通道分别对本进程所有曲目和账号共用 60 秒冷却：客户端受限时仍可用网页通道播放，冷却结束后重新尝试客户端以保留高音质能力；两个通道均受限才停止旧接口兜底与逐档重试。音质标签以实际返回档位为准。音质探测在两个通道均受限时保留已获得的档位并返回 `incomplete: true`。60 秒是应用的止损等待时间，不表示上游限制必定解除；其他接口不在此冷却范围内。
+
+网页取链的参考实现见 [NeriPlayer 的 getSongUrl](https://github.com/cwuom/NeriPlayer/blob/master/modules/platform/src/main/java/moe/ouom/neriplayer/platform/netease/api/client/NeteaseClient.kt#L865)；本仓库使用现有依赖支持的 `crypto` 选项，不更换整个 API 依赖，也不将试听标为完整音频。
 
 播放栏不再随网易云切歌自动预探测档位，只在打开「更多」面板时查询。`lyric_new` 明确风控时不继续请求旧歌词接口；普通网络错误仍可兜底。
 
