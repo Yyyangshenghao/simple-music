@@ -170,12 +170,13 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
 }))
 
 /**
- * 是否支持在应用内下载并安装更新：Windows 跑安装包，macOS 后台原地替换 DMG。
+ * 是否支持在应用内下载并安装更新：Windows 安装版跑安装包，macOS 后台原地替换 DMG。
+ * Windows 便携版保留手动下载入口，不能通过安装器更新成另一份安装版。
  * Linux 只发布 AppImage/deb，由用户到 Release 页手动下载，检测到新版本时只提供入口。
  */
 export function supportsInAppUpdate(): boolean {
-  const platform = typeof window !== 'undefined' ? window.desktop?.platform : undefined
-  return platform === 'win32' || platform === 'darwin'
+  const desktop = typeof window !== 'undefined' ? window.desktop : undefined
+  return desktop?.platform === 'darwin' || (desktop?.platform === 'win32' && !desktop.isPortable)
 }
 
 /** macOS 上次后台原地替换的结果，启动后提示一次；失败时替换脚本已经打开了安装包。 */

@@ -56,6 +56,7 @@ const api = {
   onKaraokeEvent: (cb: (event: KaraokeHelperEvent) => void) => on('karaoke:event', cb),
   onPlaybackSnapshot: (cb: (snapshot: unknown) => void) => on('playback:snapshot', cb),
   platform: process.platform,
+  isPortable: process.platform === 'win32' && Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE),
   serverPort: readServerPort(),
   serverToken: readServerToken(),
 

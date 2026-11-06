@@ -35,16 +35,11 @@ export interface InstallResult {
 export function installUpdateWindows(installerPath: string): Promise<InstallResult> {
   return new Promise((resolve) => {
     const child = spawn(installerPath, ['/S', '--force-run'], { detached: true, stdio: 'ignore' })
-    const timer = setTimeout(() => {
-      child.unref()
-      resolve({ ok: true })
-    }, 1500)
+    // Node 保证启动成功触发 spawn，失败触发 error；等待时间不能作为成功依据。
     child.once('error', (err) => {
-      clearTimeout(timer)
       resolve({ ok: false, error: err.message || 'SPAWN_FAILED' })
     })
     child.once('spawn', () => {
-      clearTimeout(timer)
       child.unref()
       resolve({ ok: true })
     })

@@ -10,6 +10,9 @@ const h = vi.hoisted(() => ({
   exists: vi.fn(() => true),
   findLocalTrack: vi.fn(),
   stat: vi.fn(),
+  realpath: vi.fn(async (value: string) => value),
+  jobs: new Map<string, { mode: string; status: string; filePath: string; version: string; expectedSize: number; total: number; sha256: string; sha512: string }>(),
+  verifyUpdateFile: vi.fn(async (..._args: unknown[]): Promise<void> => undefined),
   showItemInFolder: vi.fn(),
   installWindows: vi.fn(async (..._args: unknown[]) => ({ ok: true } as { ok: boolean; error?: string })),
   installMac: vi.fn(async (..._args: unknown[]) => ({ ok: true } as { ok: boolean; error?: string }))
@@ -23,14 +26,21 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs', async importOriginal => {
   const original = await importOriginal<typeof import('node:fs')>()
-  return { ...original, existsSync: h.exists, promises: { ...original.promises, stat: h.stat } }
+  return { ...original, existsSync: h.exists, promises: { ...original.promises, stat: h.stat, realpath: h.realpath } }
 })
+vi.mock('../../server/lib/update', () => ({ updateDownloadJobs: h.jobs, verifyUpdateFile: h.verifyUpdateFile }))
 vi.mock('../../server/lib/local-library', () => ({ findLocalTrack: h.findLocalTrack }))
 vi.mock('../modules/window-manager', () => ({ getMainWindow: vi.fn(), setShortcutRecording: vi.fn() }))
 vi.mock('../modules/hotkey-manager', () => ({ configureHotkeys: vi.fn() }))
 vi.mock('../modules/settings-menu', () => ({ configureSettingsMenu: vi.fn() }))
 vi.mock('../modules/font-manager', () => ({ listSystemFontsCached: vi.fn() }))
 vi.mock('../modules/update-installer', () => ({ installUpdateWindows: h.installWindows, installUpdateMac: h.installMac }))
+
+function readyInstaller(filePath: string, version = '2.6.1') {
+  const job = { mode: 'installer', status: 'ready', filePath: resolve(filePath), version, expectedSize: 12, total: 12, sha256: 'expected-digest', sha512: '' }
+  h.jobs.set(job.filePath, job)
+  return job
+}
 
 describe('应用重启和更新退出', () => {
   beforeEach(() => {
@@ -39,8 +49,15 @@ describe('应用重启和更新退出', () => {
     h.exists.mockReturnValue(true)
     h.installWindows.mockResolvedValue({ ok: true })
     h.installMac.mockResolvedValue({ ok: true })
+    h.stat.mockResolvedValue({ isFile: () => true })
+    h.realpath.mockImplementation(async value => value)
+    h.verifyUpdateFile.mockResolvedValue(undefined)
+    h.jobs.clear()
+    readyInstaller('/user-data/updates/installer')
     vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', '')
     vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', '')
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', '')
+    vi.stubEnv('PORTABLE_EXECUTABLE_FILE', '')
     registerMiscIpc()
   })
   afterEach(() => {
@@ -95,6 +112,8 @@ describe('应用重启和更新退出', () => {
     ]) {
       vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', workDir)
       vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', downloadDir)
+      readyInstaller(filePath)
+      registerMiscIpc()
       await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
       expect(installer.mock.lastCall?.[0]).toBe(resolve(filePath))
     }
@@ -119,6 +138,7 @@ describe('应用重启和更新退出', () => {
     const root = parse(resolve('installer')).root
     const filePath = join(root, 'installer')
     vi.stubEnv('SIMPLEMUSIC_UPDATE_DOWNLOAD_DIR', root)
+    readyInstaller(filePath)
 
     await expect(h.handlers.get('app:install-update')!({}, { filePath })).resolves.toEqual({ ok: true })
     expect((platform === 'win32' ? h.installWindows : h.installMac).mock.lastCall?.[0]).toBe(filePath)
@@ -138,6 +158,7 @@ describe('应用重启和更新退出', () => {
   it('自定义目录安装失败保留应用和会话', async () => {
     vi.stubGlobal('process', { ...process, platform: 'win32' })
     vi.stubEnv('SIMPLEMUSIC_UPDATE_DIR', '/custom-updates')
+    readyInstaller('/custom-updates/downloads/installer')
     h.installWindows.mockResolvedValueOnce({ ok: false, error: 'INSTALL_FAILED' })
     await expect(h.handlers.get('app:install-update')!({}, { filePath: '/custom-updates/downloads/installer' })).resolves.toEqual({ ok: false, error: 'INSTALL_FAILED' })
     expect(h.quit).not.toHaveBeenCalled()
@@ -151,6 +172,68 @@ describe('应用重启和更新退出', () => {
     await expect(h.handlers.get('app:install-update')!({}, { filePath: '/custom-downloads/installer' })).resolves.toEqual({ ok: false, error: 'UPDATE_FILE_MISSING' })
     expect(h.installWindows).not.toHaveBeenCalled()
     expect(h.quit).not.toHaveBeenCalled()
+  })
+  it.each(['PORTABLE_EXECUTABLE_DIR', 'PORTABLE_EXECUTABLE_FILE'])('便携版标记 %s 存在时不执行安装版更新', async marker => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    vi.stubEnv(marker, 'C:\\Portable\\Simple Music.exe')
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer' })).resolves.toEqual({ ok: false, error: 'PORTABLE_UPDATE_UNSUPPORTED' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it.each(['missing', 'downloading', 'error'])('Windows 只执行 ready 下载任务，拒绝 %s', async state => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    if (state === 'missing') h.jobs.clear()
+    else h.jobs.get(resolve('/user-data/updates/installer'))!.status = state
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer' })).resolves.toEqual({ ok: false, error: 'UPDATE_NOT_READY' })
+    expect(h.verifyUpdateFile).not.toHaveBeenCalled()
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it('Windows 拒绝与下载任务不一致的版本', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    await expect(h.handlers.get('app:install-update')!({}, { filePath: '/user-data/updates/installer', version: '9.9.9' })).resolves.toEqual({ ok: false, error: 'UPDATE_VERSION_MISMATCH' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it('Windows 安装前复验包内容，失败不退出且允许重试', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    h.verifyUpdateFile.mockRejectedValueOnce(new Error('UPDATE_SHA256_MISMATCH'))
+    const payload = { filePath: '/user-data/updates/installer' }
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: false, error: 'UPDATE_SHA256_MISMATCH' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+    expect(h.verifyUpdateFile).toHaveBeenCalledWith(resolve(payload.filePath), h.jobs.get(resolve(payload.filePath)))
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: true })
+    expect(h.installWindows).toHaveBeenCalledOnce()
+  })
+
+  it('Windows 拒绝指向更新目录外的链接和目录本身', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    const payload = { filePath: '/user-data/updates/installer' }
+    h.realpath.mockImplementationOnce(async () => '/elsewhere/installer')
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: false, error: 'INVALID_UPDATE_PATH' })
+    h.stat.mockResolvedValueOnce({ isFile: () => false })
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: false, error: 'INVALID_UPDATE_FILE' })
+    expect(h.installWindows).not.toHaveBeenCalled()
+    expect(h.quit).not.toHaveBeenCalled()
+  })
+
+  it('Windows 在复验和启动期间仅允许一个安装请求，启动后也不重复拉起', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    let finishVerification!: () => void
+    h.verifyUpdateFile.mockImplementationOnce(() => new Promise<void>(resolve => { finishVerification = resolve }))
+    const payload = { filePath: '/user-data/updates/installer' }
+    const first = h.handlers.get('app:install-update')!({}, payload)
+    await vi.waitFor(() => expect(h.verifyUpdateFile).toHaveBeenCalledOnce())
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: false, error: 'UPDATE_INSTALL_IN_PROGRESS' })
+    finishVerification()
+    await expect(first).resolves.toEqual({ ok: true })
+    await expect(h.handlers.get('app:install-update')!({}, payload)).resolves.toEqual({ ok: false, error: 'UPDATE_INSTALL_IN_PROGRESS' })
+    expect(h.installWindows).toHaveBeenCalledOnce()
+    expect(h.quit).toHaveBeenCalledOnce()
   })
 })
 

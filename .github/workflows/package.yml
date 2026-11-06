@@ -80,6 +80,10 @@ jobs:
       - name: Check package contents
         run: node scripts/release/check-package.mjs ${{ matrix.target }}
 
+      - name: Check Windows install and uninstall
+        if: matrix.target == 'win'
+        run: node scripts/release/check-windows-installer.mjs
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.target }}

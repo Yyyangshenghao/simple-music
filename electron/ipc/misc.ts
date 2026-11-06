@@ -8,6 +8,7 @@ import { installUpdateMac, installUpdateWindows, takeLastMacInstall } from '../m
 import { listSystemFontsCached } from '../modules/font-manager'
 import { findLocalTrack } from '../../server/lib/local-library'
 import { updateWorkDir } from '../../server/lib/update-download-dir'
+import { updateDownloadJobs, verifyUpdateFile } from '../../server/lib/update'
 import type {
   HotkeyConfiguration,
   ExportPayload,
@@ -22,6 +23,7 @@ function getUpdateDownloadDir(): string {
 }
 
 export function registerMiscIpc(): void {
+  let windowsInstallPending = false
   ipcMain.handle('hotkeys:configure', (_e, config: HotkeyConfiguration) => {
     if (typeof config?.settingsAccelerator === 'string') configureSettingsMenu(config.settingsAccelerator)
     setShortcutRecording(!!config?.recording)
@@ -131,10 +133,35 @@ export function registerMiscIpc(): void {
       if (!existsSync(target)) return { ok: false, error: 'UPDATE_FILE_MISSING' }
 
       if (process.platform === 'win32') {
-        const result = await installUpdateWindows(target)
-        if (!result.ok) return result
-        app.quit()
-        return { ok: true }
+        if (process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE) {
+          return { ok: false, error: 'PORTABLE_UPDATE_UNSUPPORTED' }
+        }
+        if (windowsInstallPending) return { ok: false, error: 'UPDATE_INSTALL_IN_PROGRESS' }
+        windowsInstallPending = true
+        let started = false
+        try {
+          const job = Array.from(updateDownloadJobs.values()).find(job =>
+            job.mode === 'installer' && job.status === 'ready' && resolve(job.filePath) === target
+          )
+          if (!job) return { ok: false, error: 'UPDATE_NOT_READY' }
+          if (typeof arg?.version === 'string' && arg.version !== job.version) {
+            return { ok: false, error: 'UPDATE_VERSION_MISMATCH' }
+          }
+          // 前缀检查不能识别目录联接/符号链接；执行前核对实际落点、文件类型和下载时的摘要。
+          const [realTarget, realUpdateDir] = await Promise.all([fs.realpath(target), fs.realpath(updateDir)])
+          const realPrefix = realUpdateDir.endsWith(sep) ? realUpdateDir : realUpdateDir + sep
+          if (!realTarget.toLowerCase().startsWith(realPrefix.toLowerCase())) return { ok: false, error: 'INVALID_UPDATE_PATH' }
+          if (!(await fs.stat(realTarget)).isFile()) return { ok: false, error: 'INVALID_UPDATE_FILE' }
+          await verifyUpdateFile(realTarget, job)
+          const result = await installUpdateWindows(realTarget)
+          if (!result.ok) return result
+          started = true
+          app.quit()
+          return { ok: true }
+        } finally {
+          // 成功启动后保持门闩，直到正常退出；失败允许重试。
+          if (!started) windowsInstallPending = false
+        }
       }
       if (process.platform === 'darwin') {
         // 原地替换（swap）由脱离的脚本等本进程退出后完成；回退成打开 dmg 时同样退出，让用户直接拖入替换。

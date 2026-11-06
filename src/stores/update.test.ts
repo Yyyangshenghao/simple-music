@@ -254,4 +254,10 @@ describe('supportsInAppUpdate', () => {
     expect(supportsInAppUpdate()).toBe(expected)
     vi.unstubAllGlobals()
   })
+
+  it.each([false, true])('Windows 便携版标记为 %s 时沿用对应更新能力', isPortable => {
+    vi.stubGlobal('window', { desktop: { platform: 'win32', isPortable } })
+    expect(supportsInAppUpdate()).toBe(!isPortable)
+    vi.unstubAllGlobals()
+  })
 })
