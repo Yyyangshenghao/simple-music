@@ -27,6 +27,7 @@ import {
   normalizeApiCode,
   normalizeApiMessage,
   isUpstreamNotFoundError,
+  isNeteaseRateLimited,
   normalizeLoginInfo,
   getLoginInfo,
   requireLogin,
@@ -824,6 +825,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       let likedIds: string[] = []
+      let checkedDirectly = false
       try {
         if (has('song_like_check')) {
           const checked = await call('song_like_check', {
@@ -832,19 +834,24 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             timestamp: Date.now(),
           })
           const cbody = asObj(checked.body)
-          const data: unknown = cbody.data || cbody.ids || cbody
-          if (Array.isArray(data)) likedIds = data.map(String)
-          else if (data && typeof data === 'object') {
+          if (isNeteaseRateLimited(checked)) throw checked
+          const data: unknown = cbody.data ?? cbody.ids ?? cbody
+          if (normalizeApiCode(checked) === 200 && Array.isArray(data)) {
+            likedIds = data.map(String)
+            checkedDirectly = true
+          } else if (normalizeApiCode(checked) === 200 && data && typeof data === 'object') {
             const dobj = data as Record<string, unknown>
-            ids.forEach((id) => {
-              if (dobj[id] || dobj[String(id)] || dobj[Number(id)]) likedIds.push(String(id))
-            })
+            if (ids.every(id => typeof dobj[id] === 'boolean' || dobj[id] === 0 || dobj[id] === 1)) {
+              likedIds = ids.filter(id => !!dobj[id])
+              checkedDirectly = true
+            }
           }
         }
       } catch (e) {
+        if (isNeteaseRateLimited(e)) throw new Error('网易云请求受限，请稍后再试')
         console.warn('[LikeCheck] direct check failed:', (e as Error).message)
       }
-      if (!likedIds.length) {
+      if (!checkedDirectly) {
         const r = await call('likelist', { uid: info.userId, cookie, timestamp: Date.now() })
         likedIds = asArr(asObj(r.body).ids).map(String)
       }
@@ -1003,7 +1010,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       success = finalCode === 200 && !asObj(finalBody).error
       attempts.push({ api: 'playlist_tracks', code: finalCode, message: finalMessage, body: finalBody })
 
-      if (!success && !res.destroyed && getCookie(ctx, 'netease') === cookie && has('playlist_track_add')) {
+      if (!success && !isNeteaseRateLimited(primary) && !res.destroyed && getCookie(ctx, 'netease') === cookie && has('playlist_track_add')) {
         try {
           const fallback = await call('playlist_track_add', { pid, ids: String(id), cookie, timestamp: Date.now() })
           finalBody = fallback.body || fallback
@@ -1143,10 +1150,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       try {
         if (has('lyric_new')) {
           const nr = await call('lyric_new', { id, cookie, timestamp: Date.now() })
+          if (isNeteaseRateLimited(nr)) throw nr
           body = asObj(nr.body)
           source = 'lyric_new'
         }
       } catch (errNew) {
+        if (isNeteaseRateLimited(errNew)) throw new Error('网易云请求受限，请稍后再试')
         console.warn('[LyricNew]', (errNew as Error).message)
       }
       if (!(asObj(body.lrc).lyric || asObj(body.yrc).lyric)) {

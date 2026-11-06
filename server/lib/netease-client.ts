@@ -570,7 +570,38 @@ const LOGGED_OUT: LoginInfo = {
   vipLabel: '无VIP',
 }
 
+const LOGIN_INFO_TTL_MS = 30_000
+const loginInfoRequests = new WeakMap<ServerContext, {
+  cookie: string
+  expiresAt: number
+  request: Promise<LoginInfo>
+}>()
+
+/** 同一服务上下文和 Cookie 合并查询；仅成功资料短暂复用，换账号立即失效。 */
 export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
+  const cookie = getCookie(ctx, 'netease')
+  if (!cookie) {
+    loginInfoRequests.delete(ctx)
+    return { ...LOGGED_OUT }
+  }
+  const cached = loginInfoRequests.get(ctx)
+  if (cached?.cookie === cookie && cached.expiresAt > Date.now()) return { ...await cached.request }
+  const entry = { cookie, expiresAt: Infinity, request: Promise.resolve(LOGGED_OUT) }
+  entry.request = fetchLoginInfo(ctx).then(info => {
+    if (loginInfoRequests.get(ctx) === entry) {
+      if (info.loggedIn && getCookie(ctx, 'netease') === cookie) entry.expiresAt = Date.now() + LOGIN_INFO_TTL_MS
+      else loginInfoRequests.delete(ctx)
+    }
+    return info
+  }).catch(error => {
+    if (loginInfoRequests.get(ctx) === entry) loginInfoRequests.delete(ctx)
+    throw error
+  })
+  loginInfoRequests.set(ctx, entry)
+  return { ...await entry.request }
+}
+
+async function fetchLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   const cookie = getCookie(ctx, 'netease')
   if (!cookie) return { ...LOGGED_OUT }
   const staleInfo = (): LoginInfo => ({ ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') })
@@ -579,18 +610,21 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   try {
     const st = await call('login_status', { cookie, timestamp: Date.now() })
     if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
+    if (isNeteaseRateLimited(st)) throw st
     const body = asObj(st.body)
     const data = isObj(body.data) ? body.data : body
     const info = normalizeLoginInfo(data.profile || body.profile, data.account || body.account, data)
     if (info.loggedIn) return info
   } catch (e) {
     console.warn('[Login] login_status failed:', (e as Error).message)
+    if (isNeteaseRateLimited(e)) throw new NeteaseRateLimitError()
   }
   if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
 
   try {
     const acc = await call('user_account', { cookie, timestamp: Date.now() })
     if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
+    if (isNeteaseRateLimited(acc)) throw acc
     const body = asObj(acc.body)
     const info = normalizeLoginInfo(body.profile, body.account, body)
     if (info.loggedIn) return info
@@ -598,6 +632,7 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
     return { ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') }
   } catch (e) {
     console.warn('[Login] account check failed:', (e as Error).message)
+    if (isNeteaseRateLimited(e)) throw new NeteaseRateLimitError()
     return staleInfo()
   }
 }
@@ -695,6 +730,36 @@ export interface SongUrlResult {
   fee?: unknown
   error?: string
 }
+
+// 取链风控可能按出口 IP 生效，冷却由所有曲目和账号共用，切歌不能绕过。
+const SONG_URL_COOLDOWN_MS = 60_000
+let songUrlBlockedUntil = 0
+
+class NeteaseRateLimitError extends Error {
+  constructor() {
+    super('NETEASE_RATE_LIMITED: 网易云请求受限，请稍后再试')
+  }
+}
+
+export function isNeteaseRateLimited(payload: unknown): boolean {
+  return [-460, -462, 429].includes(normalizeApiCode(payload)) || asObj(payload).status === 429
+}
+
+async function callSongUrl(name: 'song_url_v1' | 'song_url', params: NcmParams): Promise<NcmResponse> {
+  if (Date.now() < songUrlBlockedUntil) throw new NeteaseRateLimitError()
+  try {
+    const result = await call(name, params)
+    if (isNeteaseRateLimited(result)) throw result
+    return result
+  } catch (error) {
+    if (isNeteaseRateLimited(error)) {
+      songUrlBlockedUntil = Date.now() + SONG_URL_COOLDOWN_MS
+      throw new NeteaseRateLimitError()
+    }
+    throw error
+  }
+}
+
 export async function handleSongUrl(
   id: string,
   loginInfo: LoginInfo,
@@ -718,9 +783,10 @@ export async function handleSongUrl(
     try {
       let result: NcmResponse
       try {
-        result = await call('song_url_v1', { id, level: q.level, cookie })
-      } catch {
-        result = await call('song_url', { id, br: q.br, cookie })
+        result = await callSongUrl('song_url_v1', { id, level: q.level, cookie })
+      } catch (error) {
+        if (error instanceof NeteaseRateLimitError) throw error
+        result = await callSongUrl('song_url', { id, br: q.br, cookie })
       }
       const d = asObj(asArr(asObj(result.body).data)[0])
       if (Object.keys(d).length) lastData = d
@@ -757,6 +823,17 @@ export async function handleSongUrl(
         }
       }
     } catch (err) {
+      if (err instanceof NeteaseRateLimitError) {
+        return {
+          url: null,
+          trial: false,
+          playable: false,
+          reason: 'rate_limited',
+          message: err.message,
+          error: 'NETEASE_RATE_LIMITED',
+          requestedQuality,
+        }
+      }
       lastError = err as Error
       console.log('[SongUrl]', q.level, 'failed:', (err as Error).message)
     }
@@ -790,7 +867,7 @@ const QUALITY_PROBE_RETRY_DELAY_MS = 600
  * "请求档 ≠ 返回档"即请求档不存在,且返回档就是其下一个真实档,可直接跳到再下一档继续。
  * 必须顺序发请求:上游对同曲并发取链会去重/降级,并行探测会漏掉母带档(实测)。
  * 试听片段不算可得。
- * 单档请求出错(多为连续取链触发的 -460 风控)时稍等重试一次；仍失败则标记 incomplete，
+ * 普通瞬时错误稍等重试一次；明确风控立即停止，保留已得档并标记 incomplete，
  * 调用方不应缓存这份可能缺档的结果。
  */
 export async function handleSongQualities(
@@ -808,7 +885,7 @@ export async function handleSongQualities(
   while (i < candidates.length) {
     const q = candidates[i]
     try {
-      const result = await call('song_url_v1', { id, level: q.level, cookie })
+      const result = await callSongUrl('song_url_v1', { id, level: q.level, cookie })
       const d = asObj(asArr(asObj(result.body).data)[0])
       if (d.url && !d.freeTrialInfo) {
         const actual = String(d.level || q.level)
@@ -823,7 +900,8 @@ export async function handleSongQualities(
         }
         // 未知档(如 dolby 等设备鉴权变体)不列入选单,继续探测下一档
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof NeteaseRateLimitError) return { qualities, incomplete: true }
       if (retried !== i) {
         retried = i
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs))

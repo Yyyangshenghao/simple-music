@@ -413,7 +413,7 @@ function SleepSection() {
   )
 }
 
-/** 换曲后延迟预取实际播放源的音质档位，打开「更多」时直接显示；快速切歌时只取最后停下的那首。 */
+/** QQ 换曲后延迟预取档位；网易逐档取链开销较高，仅在打开面板时探测。 */
 const QUALITY_PREFETCH_DELAY_MS = 1200
 
 function useQualityPrefetch() {
@@ -424,7 +424,7 @@ function useQualityPrefetch() {
     return source.enabled && source.auth === 'authenticated'
   })
   useEffect(() => {
-    if (!track || !participating || (track.source !== 'netease' && track.source !== 'qq') || peekTrackQualities(track)) return
+    if (!track || !participating || track.source !== 'qq' || peekTrackQualities(track)) return
     const timer = window.setTimeout(() => { void loadTrackQualities(track).catch(() => {}) }, QUALITY_PREFETCH_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [track, participating])

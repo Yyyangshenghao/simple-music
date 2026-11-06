@@ -1,5 +1,5 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricOrigin } from '../../types/lyrics-source'
 import { MoreMenu } from './MoreMenu'
 import { useNavigationStore } from '../../stores/navigation'
@@ -9,23 +9,25 @@ const h = vi.hoisted(() => ({
   lyrics: { trackKey: 'netease:1', source: 'netease', loading: false },
   sources: { appliedOrigin: 'qq' as LyricOrigin | null, requestedOrigin: 'netease' },
   show: vi.fn(), setOpen: vi.fn(),
+  enabled: false, effects: [] as Array<() => unknown>, loadQualities: vi.fn(),
 }))
 
 vi.mock('react', async original => ({
   ...await original<typeof import('react')>(),
   useState: () => [true, h.setOpen],
   useRef: () => ({ current: null }),
-  useEffect: () => {},
+  useEffect: (effect: () => unknown) => { h.effects.push(effect) },
   useLayoutEffect: () => {},
 }))
 vi.mock('react-dom', async original => ({ ...await original<typeof import('react-dom')>(), createPortal: (node: ReactNode) => node }))
 vi.stubGlobal('document', {})
 vi.mock('../../hooks/useMotion', () => ({ useMotion: () => true }))
+vi.mock('../../lib/track-qualities', () => ({ loadTrackQualities: h.loadQualities, peekTrackQualities: () => undefined }))
 vi.mock('../../stores/player', () => ({ usePlayerStore: (select: (state: unknown) => unknown) => select({ currentTrack: h.track, rate: 1 }) }))
 vi.mock('../../stores/karaoke', () => ({ useKaraokeStore: (select: (state: unknown) => unknown) => select({ jobs: [] }) }))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: (select: (state: typeof h.lyrics) => unknown) => select(h.lyrics) }))
 vi.mock('../../stores/lyrics-source', () => ({ useLyricsSourceStore: (select: (state: typeof h.sources) => unknown) => select(h.sources) }))
-vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: Object.fromEntries(['netease', 'qq', 'apple', 'kugou', 'qishui', 'bilibili'].map(source => [source, { enabled: false }])) }) }))
+vi.mock('../../stores/providers', () => ({ useProviderStore: (select: (state: unknown) => unknown) => select({ byId: Object.fromEntries(['netease', 'qq', 'apple', 'kugou', 'qishui', 'bilibili'].map(source => [source, { enabled: h.enabled, auth: 'authenticated' }])) }) }))
 vi.mock('../../stores/sleep-timer', () => ({ useSleepTimerStore: (select: (state: unknown) => unknown) => select({ phase: 'idle' }) }))
 vi.mock('../../stores/lyrics-source-dialog', () => ({ useLyricsSourceDialogStore: Object.assign(() => false, { getState: () => ({ show: h.show }) }) }))
 
@@ -42,9 +44,27 @@ function sourceRow() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  h.enabled = false
+  h.effects = []
+  h.loadQualities.mockResolvedValue([])
+  vi.stubGlobal('document', {})
   h.track = { id: 1, source: 'netease' }
   Object.assign(h.lyrics, { trackKey: 'netease:1', source: 'netease', loading: false })
   Object.assign(h.sources, { appliedOrigin: 'qq', requestedOrigin: 'netease' })
+})
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+describe('切歌后的音质请求', () => {
+  it.each(['netease', 'qq'])('%s 仅保留 QQ 自动预取，网易不额外逐档取链', async source => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { setTimeout, clearTimeout, addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    h.enabled = true
+    h.track = { id: 1, source }
+    MoreMenu()
+    for (const effect of h.effects) effect()
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(h.loadQualities).toHaveBeenCalledTimes(source === 'qq' ? 1 : 0)
+  })
 })
 
 describe('更多菜单的当前歌词来源', () => {
