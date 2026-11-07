@@ -9,7 +9,6 @@ import { PlaylistDetailView } from '../Playlist/PlaylistDetailView'
 // 详情页同步挂载，首次打开也能接上卡片封面的共享转场。
 import { AppPlaylistPage } from '../../pages/AppPlaylistPage'
 import { initialPageTransition, isDetailView, nextPageTransition } from './page-transition-state'
-import { parseBilibiliLink } from '../../lib/bilibili-link'
 
 const ExplorePage = lazy(() => import('../../pages/ExplorePage').then((m) => ({ default: m.ExplorePage })))
 const LibraryPage = lazy(() => import('../../pages/LibraryPage').then((m) => ({ default: m.LibraryPage })))
@@ -53,9 +52,9 @@ export function AppShell() {
     if (view === 'settings') return <SettingsPage />
     if (view === 'release-history') return <ReleaseHistoryPage />
     if (typeof view === 'object' && view.type === 'search') {
-      if (parseBilibiliLink(view.keyword)) return <BilibiliVideoPage input={view.keyword} />
-      return <SearchPage keyword={view.keyword} initialState={view.pageState} />
+      return <SearchPage keyword={view.keyword} initialState={view.pageState} focusInput={view.focusInput} />
     }
+    if (typeof view === 'object' && view.type === 'bilibili-video') return <BilibiliVideoPage input={view.bvid} />
     if (typeof view === 'object' && view.type === 'toplist') return view.source === 'apple' ? <AppleChartPage initialKind={view.chartType ?? 'playlists'} /> : <ToplistPage />
     if (typeof view === 'object' && view.type === 'provider-playlists') return <ProviderPlaylistsPage source={view.source} />
     if (typeof view === 'object' && view.type === 'song-comments') return <SongCommentsPage track={view.track} />

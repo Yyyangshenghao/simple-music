@@ -113,7 +113,7 @@ export function TrackRow({ track, index, expandedCaption = false, onPlay, disabl
           ? <img className={styles.cover} src={sizedImage(cover, 96)} alt="" loading="lazy" />
           : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
         <div className={styles.info}>
-          <span className={styles.name}>{display?.name ?? track.name}</span>
+          <span className={styles.name} title={display?.name ?? track.name}>{display?.name ?? track.name}</span>
           <span className={styles.artistLine} data-caption={!!display?.caption && !expandedCaption || undefined}>
             <span className={styles.artist}>{display?.artist ?? track.artist}</span>
             {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
@@ -122,7 +122,7 @@ export function TrackRow({ track, index, expandedCaption = false, onPlay, disabl
           {expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
         </div>
         {/* 专辑列只在宽行显示（容器查询）；专辑页本身隐藏封面时不重复。 */}
-        {!hideCover && track.album && <span className={styles.album}>{track.album}</span>}
+        {!hideCover && track.album && <span className={styles.album} title={track.album}>{track.album}</span>}
         {statusLabel
           ? <span className={`${styles.status}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{statusLabel}</span>
           : track.duration ? <span className={`${styles.duration}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{formatDuration(track.duration)}</span>

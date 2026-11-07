@@ -5,6 +5,7 @@ import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { loadSongComments, mergeSongCommentsPage, songCommentKey, supportsSongComments } from '../lib/song-comments'
+import { sizedImage } from '../lib/image-size'
 import { ScrollArea } from '../components/ui/ScrollArea'
 import { BackButton } from '../components/ui/BackButton'
 import { SourceBadge } from '../components/ui/SourceBadge'
@@ -89,10 +90,13 @@ export function SongCommentsPage({ track }: { track: Track }) {
   }
 
   return <ScrollArea className={`${layout.page} ${styles.page}`}>
-    <BackButton className={layout.back} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
+    <BackButton autoHide={false} iconOnly className={layout.back} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
     <header className={`${layout.group} ${styles.header}`}>
-      <div className={styles.title}><h1>歌曲评论</h1><SourceBadge source={track.source} reveal /></div>
-      <p className={styles.track}>{track.name || '待加载歌曲'}{track.artist && <span> · {track.artist}</span>}</p>
+      {track.cover && <img className={styles.cover} src={sizedImage(track.cover, 160)} alt="" />}
+      <div className={styles.identity}>
+        <h1>{track.name || '待加载歌曲'}</h1>
+        <p className={styles.track}><span>歌曲评论</span>{track.artist && <span>{track.artist}</span>}<SourceBadge source={track.source} reveal /></p>
+      </div>
     </header>
     <div className={`${layout.group} ${styles.comments}`}>
       {!supportsSongComments(track) ? <p className={styles.status}>这个来源暂不提供歌曲评论。</p>

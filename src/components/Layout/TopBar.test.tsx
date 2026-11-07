@@ -2,22 +2,30 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderId } from '../../providers/types'
 import type { AppView } from '../../stores/navigation'
+import { useSettingsStore } from '../../stores/settings'
 import { TopBar } from './TopBar'
 import styles from './TopBar.module.css'
 
-const state = vi.hoisted(() => ({ current: 'qq' as ProviderId | null, qqEnabled: true, view: 'explore' as AppView }))
+const state = vi.hoisted(() => ({ history: [] as AppView[], current: 'qq' as ProviderId | null, qqEnabled: true, view: 'explore' as AppView }))
 
 vi.mock('../../stores/navigation', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../stores/navigation')>()
   const store = original.useNavigationStore
   return { ...original, useNavigationStore: Object.assign(
-    (selector: (value: ReturnType<typeof store.getState>) => unknown) => selector({ ...store.getState(), currentView: state.view }), store
+    (selector: (value: ReturnType<typeof store.getState>) => unknown) => selector({ ...store.getState(), currentView: state.view, history: state.history }), store
   ) }
 })
 
 vi.mock('../../hooks/useContentProvider', () => ({
   useContentProvider: () => ({ current: state.current }),
 }))
+vi.mock('../../stores/settings', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../stores/settings')>()
+  const store = original.useSettingsStore
+  return { ...original, useSettingsStore: Object.assign(
+    (selector: (value: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()), store
+  ) }
+})
 vi.mock('../../stores/providers', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../stores/providers')>()
   return { ...original, useProviderStore: Object.assign(
@@ -35,19 +43,24 @@ describe('顶栏搜索入口与导航', () => {
     state.current = 'qq'
     state.qqEnabled = true
     state.view = 'explore'
+    state.history = []
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each(['qq', 'netease', null] as const)('当前平台为 %s 时，搜索入口显示固定用途提示，不随平台变化', (source) => {
-    state.current = source
+  it('搜索入口属于主导航，顶栏无需搜索输入框', () => {
     const html = renderToStaticMarkup(<TopBar />)
-    const search = html.match(/<div[^>]*role="search"[^>]*>(.*?)<\/div>/)?.[1]
-    expect(html).toContain('aria-label="搜索歌曲、歌手"')
-    expect(search).toContain('<svg')
-    // 提示只给视觉用户，读屏沿用入口的无障碍名称，不重复朗读。
-    expect(search).toContain('aria-hidden="true">搜索歌曲、歌手</span>')
-    expect(search?.replace(/<[^>]*>/g, '').trim()).toBe('搜索歌曲、歌手')
+    const navigation = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'))
+    expect(navigation).toContain('>搜索</span>')
+    expect(html).not.toContain('role="search"')
+    expect(html).not.toContain('<input')
+  })
+
+  it('搜索打开的歌手详情保持搜索导航选中', () => {
+    state.history = [{ type: 'search', keyword: '晴天' }]
+    state.view = { type: 'artist', source: 'qq', id: '1' }
+    const html = renderToStaticMarkup(<TopBar />)
+    expect(html.match(/<button[^>]*aria-current="page"[^>]*>.*?<\/button>/)?.[0]).toContain('搜索')
   })
 
   it('更新日志页面归属设置导航，不误选探索', () => {
@@ -57,6 +70,24 @@ describe('顶栏搜索入口与导航', () => {
     const active = navigation.match(/<button[^>]*aria-current="page"[^>]*>.*?<\/button>/)?.[0]
     expect(active).toContain('设置')
     expect(active).not.toContain('探索')
+  })
+
+  it('按设置顺序展示菜单，全部关闭时仍保留账号入口', () => {
+    const { topMenu } = useSettingsStore.getState()
+    const render = () => renderToStaticMarkup(<TopBar />)
+    try {
+      useSettingsStore.setState({ topMenu: [{ id: 'library', enabled: true }, { id: 'explore', enabled: false }, { id: 'search', enabled: true }] })
+      const html = render()
+      const navigation = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'))
+      expect(navigation).toMatch(/>我的库<.*>搜索</)
+      expect(navigation).not.toContain('探索')
+      useSettingsStore.setState({ topMenu: topMenu.map(item => ({ ...item, enabled: false })) })
+      const hidden = render()
+      expect(hidden).not.toContain('aria-label="主导航"')
+      expect(hidden).toContain('aria-label="音源与账号')
+    } finally {
+      useSettingsStore.setState({ topMenu })
+    }
   })
 })
 

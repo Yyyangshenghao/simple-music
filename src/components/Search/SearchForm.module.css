@@ -1,0 +1,135 @@
+.pinned {
+  position: sticky;
+  top: calc(var(--sm-topbar-height, 0px) + 8px);
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 20px;
+  padding-bottom: 10px;
+}
+.pinned[data-scrolled='true'] { background: var(--sm-bg-base); }
+.pinned h1 {
+  margin: 0;
+  color: var(--sm-text-primary);
+  font-size: var(--sm-page-title-size);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 5px 4px 14px;
+  border: 1px solid var(--sm-border-strong);
+  border-radius: var(--sm-radius-card);
+  background: linear-gradient(var(--sm-fill-subtle), var(--sm-fill-subtle)), var(--sm-bg-base);
+  color: var(--search-secondary, var(--sm-text-secondary));
+  transition: border-color 150ms var(--sm-ease-out);
+}
+
+.form:focus-within { border-color: var(--sm-accent); }
+.glyph { flex-shrink: 0; }
+.form input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sm-text-primary);
+  caret-color: var(--sm-accent);
+  font: inherit;
+  font-size: 14px;
+}
+.form input::placeholder { color: color-mix(in srgb, var(--search-secondary, var(--sm-text-secondary)) 80%, var(--sm-text-primary)); }
+
+.form button {
+  flex-shrink: 0;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms var(--sm-ease-out), color 150ms var(--sm-ease-out);
+}
+.form .clear {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  padding: 0;
+  background: transparent;
+  color: var(--search-secondary, var(--sm-text-secondary));
+}
+.form .clear:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.form .clear:active { background: var(--sm-fill-active); }
+.submit { width: 88px; padding: 0; background: var(--sm-accent); color: var(--sm-text-on-accent); font-weight: 600; }
+.submit:hover:not(:disabled) { background: var(--sm-accent-hover); }
+.submit:active:not(:disabled) { background: var(--sm-accent-pressed); }
+.submit:disabled { background: var(--sm-fill-subtle); color: var(--search-secondary, var(--sm-text-secondary)); cursor: default; }
+
+.error {
+  grid-column: 2;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sm-bg-base);
+  color: var(--sm-color-danger);
+  font-size: 13px;
+}
+
+.current {
+  grid-column: 2;
+  margin: 0;
+  padding: 7px 12px 4px;
+  background: var(--sm-bg-base);
+  color: var(--search-secondary, var(--sm-text-secondary));
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned[data-home='true'] {
+  grid-template-columns: minmax(0, 720px);
+  align-items: start;
+  gap: 12px;
+}
+.pinned[data-home='true'] h1 {
+  font-size: clamp(var(--sm-page-title-size), 3vw, 36px);
+  letter-spacing: -0.025em;
+}
+.pinned[data-home='true'] .error { grid-column: 1; margin: 0; }
+.form .submit[aria-busy='true'] { color: var(--sm-text-primary); background: var(--sm-fill-active); }
+.suggestions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(24px, 5vw, 72px);
+  margin-top: 16px;
+}
+.suggestions > :only-child { grid-column: 1 / -1; }
+.suggestions[data-multi-hotkeys] {
+  --search-history-heading-gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 12px;
+}
+.hotkeys { min-width: 0; }
+.suggestions[data-multi-hotkeys] .hotkeys {
+  --hotkey-columns: 1;
+  --hotkey-heading-gap: 8px;
+  --hotkey-row-padding: 7px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  align-items: start;
+  gap: 20px clamp(16px, 3vw, 36px);
+}
+.suggestions > section, .hotkeys > section { min-width: 0; padding: 14px 0 0; border-top: 1px solid var(--sm-border); }
+.suggestions[data-multi-hotkeys] .hotkeys > section { padding-top: 10px; }
+.suggestions h2 { font-size: 16px; }
+@media (max-width: 760px) {
+  .suggestions { grid-template-columns: minmax(0, 1fr); }
+}

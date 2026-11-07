@@ -696,6 +696,8 @@
   .compactSubNavInner { display: flex; gap: 2px; min-height: 0; overflow-x: auto; scrollbar-width: none; }
   .compactSubNav .subTab { flex: 0 0 auto; white-space: nowrap; }
   .settingsContent [id^="settings-detail-"], .settingsSection { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 168px); }
+  .settingsContent .topMenuGroup { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 144px); }
+  .topMenuGroup .groupTitle { padding-block: 9px; }
 }
 
 .settingsLayout[data-reduced-motion='true'] .subNav,

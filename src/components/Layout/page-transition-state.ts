@@ -25,6 +25,7 @@ function pageKey(view: AppView): string {
   if (view.type === 'provider-playlists') return `provider-playlists-${view.source}`
   if (view.type === 'song-comments') return `song-comments-${view.track.source}-${String(view.track.id)}`
   if (view.type === 'search') return `search-${view.keyword}`
+  if (view.type === 'bilibili-video') return `bilibili-video-${view.bvid}`
   return `${view.type}-${view.source}-${String(view.id)}`
 }
 

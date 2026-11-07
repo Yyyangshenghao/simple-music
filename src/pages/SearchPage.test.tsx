@@ -66,24 +66,49 @@ describe('聚合搜索页面', () => {
   it('默认聚合已启用且已登录的平台，首屏提供独立加载提示', () => {
     const html = renderToStaticMarkup(<SearchPage keyword="周杰伦" />)
     expect(html).not.toContain('个音乐平台中发现')
-    expect(html.match(/<h2>.*?<\/h2>/g)).toEqual(['<h2>歌手</h2>', '<h2>歌曲</h2>', '<h2>专辑</h2>', '<h2>歌单</h2>'])
     expect(html).toContain('全部平台')
-    expect(html).toContain('专辑搜索结果')
-    expect(html).toContain('歌单搜索结果')
+    expect(html).toContain('正在搜索各平台…')
+    expect(html).toContain('value="周杰伦"')
     expect(html).not.toContain('aria-label="多选操作"')
     expect(html).not.toContain('>多选</button>')
     expect(html).not.toContain('role="checkbox"')
     expect(html).not.toContain('悬停勾选')
-    expect(html).toContain('歌曲搜索结果更多操作')
-    expect(html).toContain('专辑搜索结果更多操作')
-    expect(html).toContain('歌单搜索结果更多操作')
     expect(html).toContain('网易云')
     expect(html).toContain('QQ音乐')
     expect(html).not.toContain('Apple Music')
     expect(html).not.toContain('哔哩哔哩')
-    expect(html).toContain('正在寻找相关歌手')
-    expect(html).toContain('正在搜索各平台的歌曲')
     expect(html).not.toContain('没有找到相关歌曲')
+  })
+
+  it('空搜索页展示输入入口，不显示结果筛选和加载状态', () => {
+    const html = renderToStaticMarkup(<SearchPage keyword="" />)
+    expect(html).toContain('aria-label="搜索音乐"')
+    expect(html).not.toContain('筛选搜索')
+    expect(html).not.toContain('正在搜索')
+  })
+
+  it('首页同时展示已启用且提供热搜的平台，与当前内容平台和账号状态无关', () => {
+    const { byId } = useProviderStore.getState()
+    useProviderStore.setState({ contentSource: 'netease', byId: {
+      ...byId,
+      qq: { enabled: true, auth: 'expired' },
+      apple: { enabled: true, auth: 'authenticated' },
+      kugou: { enabled: true, auth: 'authenticated' },
+      qishui: { enabled: true, auth: 'authenticated' },
+      bilibili: { enabled: true, auth: 'anonymous' },
+    } })
+
+    const home = renderToStaticMarkup(<SearchPage keyword="" />)
+    for (const source of ['网易云', 'QQ音乐', '酷狗音乐']) {
+      expect(home).toContain(`aria-label="${source}热搜"`)
+    }
+    for (const source of ['Apple Music', '汽水音乐', '哔哩哔哩']) {
+      expect(home).not.toContain(`aria-label="${source}热搜"`)
+    }
+
+    useProviderStore.setState(state => ({ byId: { ...state.byId, qq: { ...state.byId.qq, enabled: false } } }))
+    expect(renderToStaticMarkup(<SearchPage keyword="" />)).not.toContain('aria-label="QQ音乐热搜"')
+    expect(renderToStaticMarkup(<SearchPage keyword="晴天" />)).not.toContain('热搜"')
   })
 
   it('无可用平台时引导设置，不显示误导的无结果或加载状态', () => {
@@ -93,7 +118,7 @@ describe('聚合搜索页面', () => {
       apple: { enabled: true, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     const html = renderToStaticMarkup(<SearchPage keyword="晴天" />)
-    expect(html).toContain('请先登录并启用至少一个音乐平台')
+    expect(html).toContain('请在设置中启用音源，部分平台需要先登录')
     expect(html).toContain('前往设置')
     expect(html).not.toContain('搜索中')
   })

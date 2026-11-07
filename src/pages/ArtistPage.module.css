@@ -104,3 +104,14 @@
   color: var(--sm-text-primary);
   cursor: pointer;
 }
+
+.artistStatus {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 96px;
+  margin-inline: var(--sm-page-inline);
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+}

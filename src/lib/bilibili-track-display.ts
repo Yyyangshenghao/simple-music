@@ -2,7 +2,7 @@ import type { Track } from '../types/domain'
 import { bilibiliSongReadings } from './bilibili-title'
 import { selectBilibiliSongMatch } from './bilibili-song-match'
 
-function originalTitle(track: Track): string {
+export function bilibiliVideoTitle(track: Track): string {
   return typeof track.videoTitle === 'string' && track.videoTitle.trim() ? track.videoTitle : track.name
 }
 
@@ -17,7 +17,7 @@ export function withBilibiliDisplayReading(track: Track, catalogTracks: Track[])
 
 export function bilibiliTrackDisplay(track?: Track | null, matched?: Track) {
   if (track?.source !== 'bilibili') return undefined
-  const original = originalTitle(track)
+  const original = bilibiliVideoTitle(track)
   if (matched) return {
     name: matched.name,
     artist: matched.artist,

@@ -15,6 +15,8 @@ export interface ArtistPageState {
   scrollTop: number
 }
 
+type SearchView = { type: 'search'; keyword: string; pageState?: SearchPageState; focusInput?: boolean }
+
 export type AppView =
   | 'explore'
   | 'library'
@@ -22,7 +24,8 @@ export type AppView =
   | 'shuange'
   | 'settings'
   | 'release-history'
-  | { type: 'search'; keyword: string; pageState?: SearchPageState }
+  | SearchView
+  | { type: 'bilibili-video'; bvid: string }
   | { type: 'artist'; id: unknown; source: ProviderId; pageState?: ArtistPageState }
   | { type: 'artistSongs'; id: unknown; source: ProviderId }
   /** 全部榜单页(探索页「榜单精选」的展开态)。 */
@@ -37,6 +40,7 @@ interface NavigationStore {
   currentView: AppView
   artistPageState: ArtistPageState
   searchPageState: SearchPageState
+  lastSearchView: SearchView | null
   navigationRevision: number
   settingsMusicRequest: number
   settingsLyricsRequest: number
@@ -51,6 +55,7 @@ interface NavigationStore {
   /** 最近一次导航方向：navigateTo/goForward 为 push，goBack 为 pop（供转场方向使用）。 */
   lastAction: 'push' | 'pop'
   navigateTo(view: AppView): void
+  openSearch(focusInput?: boolean): void
   updateArtistPageState(id: unknown, source: ProviderId, patch: Partial<ArtistPageState>): void
   updateSearchPageState(keyword: string, patch: Partial<SearchPageState>): void
   requestSettingsMusic(): void
@@ -85,7 +90,7 @@ function searchPageStateOf(view: AppView): SearchPageState {
 function snapshotView(view: AppView, artistPageState: ArtistPageState, searchPageState: SearchPageState): AppView {
   if (typeof view !== 'object') return view
   if (view.type === 'artist') return { ...view, pageState: artistPageState }
-  if (view.type === 'search') return { ...view, pageState: searchPageState }
+  if (view.type === 'search') return { type: 'search', keyword: view.keyword, pageState: searchPageState }
   return view
 }
 
@@ -93,6 +98,7 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   currentView: 'explore',
   artistPageState: DEFAULT_ARTIST_PAGE_STATE,
   searchPageState: DEFAULT_SEARCH_PAGE_STATE,
+  lastSearchView: null,
   navigationRevision: 0,
   settingsMusicRequest: 0,
   settingsLyricsRequest: 0,
@@ -105,8 +111,18 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
   lastAction: 'push',
 
   navigateTo(view) {
-    set((s) => ({ currentView: view, artistPageState: artistPageStateOf(view), searchPageState: searchPageStateOf(view), navigationRevision: s.navigationRevision + 1,
-      history: [...s.history, snapshotView(s.currentView, s.artistPageState, s.searchPageState)].slice(-MAX_HISTORY), future: [], lastAction: 'push' }))
+    set((s) => {
+      const previous = snapshotView(s.currentView, s.artistPageState, s.searchPageState)
+      return { currentView: view, artistPageState: artistPageStateOf(view), searchPageState: searchPageStateOf(view), navigationRevision: s.navigationRevision + 1,
+        lastSearchView: typeof previous === 'object' && previous.type === 'search' ? previous : s.lastSearchView,
+        history: [...s.history, previous].slice(-MAX_HISTORY), future: [], lastAction: 'push' }
+    })
+  },
+
+  openSearch(focusInput = false) {
+    const { currentView, lastSearchView, navigateTo } = get()
+    if (typeof currentView === 'object' && currentView.type === 'search') return
+    navigateTo({ ...(lastSearchView ?? { type: 'search', keyword: '' }), focusInput: focusInput || !lastSearchView })
   },
 
   updateArtistPageState(id, source, patch) {
@@ -183,13 +199,15 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     const { history, currentView, future, artistPageState, searchPageState } = get()
     if (history.length === 0) return
     const prev = history[history.length - 1]
+    const previous = snapshotView(currentView, artistPageState, searchPageState)
     set({
       currentView: prev,
       artistPageState: artistPageStateOf(prev),
       searchPageState: searchPageStateOf(prev),
       navigationRevision: get().navigationRevision + 1,
       history: history.slice(0, -1),
-      future: [snapshotView(currentView, artistPageState, searchPageState), ...future],
+      lastSearchView: typeof previous === 'object' && previous.type === 'search' ? previous : get().lastSearchView,
+      future: [previous, ...future],
       lastAction: 'pop',
     })
   },
@@ -198,13 +216,15 @@ export const useNavigationStore = create<NavigationStore>((set, get) => ({
     const { future, currentView, history, artistPageState, searchPageState } = get()
     if (future.length === 0) return
     const next = future[0]
+    const previous = snapshotView(currentView, artistPageState, searchPageState)
     set({
       currentView: next,
       artistPageState: artistPageStateOf(next),
       searchPageState: searchPageStateOf(next),
       navigationRevision: get().navigationRevision + 1,
       future: future.slice(1),
-      history: [...history, snapshotView(currentView, artistPageState, searchPageState)].slice(-MAX_HISTORY),
+      lastSearchView: typeof previous === 'object' && previous.type === 'search' ? previous : get().lastSearchView,
+      history: [...history, previous].slice(-MAX_HISTORY),
       lastAction: 'push',
     })
   },

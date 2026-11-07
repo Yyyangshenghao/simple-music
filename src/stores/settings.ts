@@ -1,3 +1,4 @@
+import { DEFAULT_TOP_MENU, normalizeTopMenu, type TopMenuId, type TopMenuItem } from '../lib/top-menu'
 import { normalizeExploreLayout, normalizeExploreLayouts, type ExploreLayouts, type ExploreModuleSetting } from '../lib/explore-modules'
 import type { ProviderId } from '../providers/types'
 import { create } from 'zustand'
@@ -170,6 +171,7 @@ interface PersistedSettings {
   accentMode: AccentMode
   accentCustom: string
   contentLayout: 'framed' | 'full'
+  topMenu: TopMenuItem[]
   contentGutter: number
   audioQuality: AudioQuality
   /** AI K 歌使用的分离模型 */
@@ -253,6 +255,9 @@ interface SettingsStore extends PersistedSettings {
   setAccent(mode: AccentMode, custom?: string): void
   setContentLayout(layout: 'framed' | 'full'): void
   setContentGutter(value: number): void
+  setTopMenuItemEnabled(id: TopMenuId, enabled: boolean): void
+  moveTopMenuItem(id: TopMenuId, to: number): void
+  resetTopMenu(): void
   setAudioQuality(q: AudioQuality): void
   setKaraokeModel(model: KaraokeModelId): void
   setKaraokeVocalMix(lead: number, backing: number): void
@@ -311,6 +316,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   accentMode: 'mono',
   accentCustom: '#6366f1',
   contentLayout: 'framed',
+  topMenu: DEFAULT_TOP_MENU,
   contentGutter: CONTENT_GUTTER_DEFAULT,
   audioQuality: 'max',
   karaokeModel: DEFAULT_KARAOKE_MODEL,
@@ -492,6 +498,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ contentLayout })
     get().saveToLocal()
   },
+  setTopMenuItemEnabled(id, enabled) {
+    const { topMenu, saveToLocal } = get()
+    if (typeof enabled !== 'boolean' || !topMenu.some(item => item.id === id && item.enabled !== enabled)) return
+    set({ topMenu: topMenu.map(item => item.id === id ? { ...item, enabled } : item) })
+    saveToLocal()
+  },
+  moveTopMenuItem(id, to) {
+    const { topMenu, saveToLocal } = get()
+    const from = topMenu.findIndex(item => item.id === id)
+    if (from < 0 || from === to || !Number.isInteger(to) || to < 0 || to >= topMenu.length) return
+    const next = [...topMenu]
+    next.splice(to, 0, ...next.splice(from, 1))
+    set({ topMenu: next })
+    saveToLocal()
+  },
+  resetTopMenu() {
+    set({ topMenu: DEFAULT_TOP_MENU })
+    get().saveToLocal()
+  },
   setKaraokeModel(model) {
     if (!isKaraokeModelId(model)) return
     set({ karaokeModel: model })
@@ -558,8 +583,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -641,6 +666,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         accentMode: ACCENT_MODES.includes(data.accentMode as AccentMode) ? data.accentMode as AccentMode : 'mono',
         accentCustom: isHexColor(data.accentCustom) ? data.accentCustom : '#6366f1',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
+        topMenu: normalizeTopMenu(data.topMenu),
         contentGutter: normalizeContentGutter(data.contentGutter),
         audioQuality: data.audioQuality ?? 'max',
         karaokeModel: isKaraokeModelId(data.karaokeModel) ? data.karaokeModel : DEFAULT_KARAOKE_MODEL,

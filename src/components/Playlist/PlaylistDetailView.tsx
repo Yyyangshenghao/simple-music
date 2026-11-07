@@ -12,7 +12,6 @@ import { useBackdropStore } from '../../stores/backdrop'
 import { serviceFor } from '../../lib/service-registry'
 import { TrackSearch } from '../ui/TrackSearch'
 import { matchingTrackIndices } from '../../lib/track-search'
-import { GradientText } from '../ui/GradientText'
 import { VirtualList } from '../ui/VirtualList'
 import { TrackRow } from '../Explore/TrackRow'
 import { SourceBadge } from '../ui/SourceBadge'
@@ -304,7 +303,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
       <motion.div layoutScroll className={`${styles.page} ${pageScroll.viewport}`} ref={pageRef}>
         <div className={styles.inner} ref={selection.rootRef} {...selection.surfaceProps}>
           <div className={styles.detailHeader}>
-            <BackButton className={styles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
+            <BackButton autoHide={false} iconOnly className={styles.backBtn} onClick={() => useNavigationStore.getState().goBack()} ariaLabel="返回上一页" />
             <div className={styles.detailMeta}>
               <motion.div
                 className={styles.detailCover}
@@ -320,7 +319,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
               </motion.div>
               <motion.div className={styles.detailInfo} variants={fadeRise} initial="hidden" animate="visible" transition={pageTransition({ ...springGentle, delay: 0.15 })}>
                 <div className={styles.titleRow}>
-                  <h1 className={styles.detailTitle}><GradientText>{displayPlaylist.name}</GradientText></h1>
+                  <h1 className={styles.detailTitle}>{displayPlaylist.name}</h1>
                   {collectable && <button type="button" className={`${styles.collectBtn} no-drag`} aria-pressed={collection.state === 'subscribed'}
                     disabled={collection.busy} onClick={() => void collection.toggle()}
                     title={collection.state === 'subscribed' ? '取消收藏' : `收藏${isAlbum ? '专辑' : '歌单'}`}
@@ -377,7 +376,7 @@ export function PlaylistDetailView({ playlist, initialTracks, layoutIdPrefix }: 
           {!loading && !error && total === 0 && canManage && <div className={styles.emptyPlaylist}><p>歌单还是空的</p><span>从歌曲的更多操作中选择「加入歌单」。</span></div>}
           {error ? (
             <div className={styles.errorHint}>
-              <p>歌单加载失败</p>
+              <p>{isAlbum ? '专辑' : '歌单'}暂时无法加载</p>
               <button className={`${styles.retryBtn} no-drag`} onClick={retry}>
                 重试
               </button>

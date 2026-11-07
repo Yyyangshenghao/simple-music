@@ -1,4 +1,4 @@
-export type ActionIconName = 'play' | 'pause' | 'refresh' | 'settings' | 'folder' | 'queue' | 'delete' | 'close' | 'more'
+export type ActionIconName = 'play' | 'pause' | 'refresh' | 'settings' | 'folder' | 'queue' | 'delete' | 'close' | 'more' | 'add'
 
 /** 库工具栏与任务队列共用的操作图标。 */
 export function ActionIcon({ name, size = 16 }: { name: ActionIconName; size?: number }) {
@@ -12,5 +12,6 @@ export function ActionIcon({ name, size = 16 }: { name: ActionIconName; size?: n
     {name === 'delete' && <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />}
     {name === 'more' && <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>}
     {name === 'close' && <path d="m6 6 12 12M18 6 6 18" />}
+    {name === 'add' && <path d="M12 5v14M5 12h14" />}
   </svg>
 }

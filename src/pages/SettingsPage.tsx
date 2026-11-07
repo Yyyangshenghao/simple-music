@@ -1,4 +1,5 @@
 import { ExploreModuleSettings } from '../components/Settings/ExploreModuleSettings'
+import { TopMenuSettings } from '../components/Settings/TopMenuSettings'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
@@ -70,7 +71,7 @@ const SETTINGS_TABS = [
   ] },
   { id: 'visual', label: '界面与窗口', items: [
     { id: 'window-close', label: '关闭窗口' },
-    { id: 'appearance', label: '主题与布局' }, { id: 'background', label: '应用背景' },
+    { id: 'appearance', label: '主题与布局' }, { id: 'top-menu', label: '顶部菜单' }, { id: 'background', label: '应用背景' },
     { id: 'interface-font', label: '界面字体' },
     { id: 'mini-player', label: '迷你播放条' }, { id: 'motion', label: '动效' },
     { id: 'game', label: '游戏模式' },
@@ -1481,6 +1482,10 @@ export function SettingsPage() {
                         />
                       </div>
                     </div>
+                  </section>
+
+                  <section id="settings-detail-top-menu" className={`${styles.group} ${styles.topMenuGroup}`}>
+                    <TopMenuSettings headingClassName={styles.groupTitle} />
                   </section>
 
                   <BackgroundSettings />

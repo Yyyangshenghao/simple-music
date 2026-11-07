@@ -10,6 +10,8 @@ interface BackButtonProps {
   className?: string
   /** 进入页面先露面，随后向左躲出视口；指针移到左上角或键盘聚焦时滑回。行内按钮组里应关闭。 */
   autoHide?: boolean
+  /** 固定宽度，适用于需要始终可见的详情页入口。 */
+  iconOnly?: boolean
 }
 
 /** 进入后停留多久再躲起来，让用户先看到返回在哪。 */
@@ -18,7 +20,7 @@ const INTRO_MS = 1400
 const LEAVE_MS = 450
 
 /** 各页面统一的返回按钮：沿用歌词页收起按钮的玻璃圆钮，悬停时向右展开文字。 */
-export function BackButton({ onClick, label = '返回', ariaLabel, className, autoHide = true }: BackButtonProps) {
+export function BackButton({ onClick, label = '返回', ariaLabel, className, autoHide = true, iconOnly = false }: BackButtonProps) {
   const dockRef = useRef<HTMLSpanElement>(null)
   const [introDone, setIntroDone] = useState(!autoHide)
   const [hovering, setHovering] = useState(false)
@@ -44,14 +46,16 @@ export function BackButton({ onClick, label = '返回', ariaLabel, className, au
       className={`${styles.backBtn} no-drag${autoHide ? '' : className ? ` ${className}` : ''}`}
       onClick={onClick}
       aria-label={ariaLabel ?? label}
-      title={label}
+      data-icon-only={iconOnly || undefined}
+      data-tip={iconOnly ? ariaLabel ?? label : undefined}
+      title={iconOnly ? undefined : label}
     >
       <span className={styles.icon}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M15 18l-6-6 6-6" />
         </svg>
       </span>
-      <span className={styles.label} aria-hidden="true"><span>{label}</span></span>
+      {!iconOnly && <span className={styles.label} aria-hidden="true"><span>{label}</span></span>}
     </button>
   )
   if (!autoHide) return button

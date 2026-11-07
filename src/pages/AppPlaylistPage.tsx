@@ -140,7 +140,7 @@ export function AppPlaylistPage({ id }: { id: string }) {
   function clearFilters() { setQuery(''); setSourceFilter(null); setOnlyUnavailable(false) }
   function goToSearch() {
     rememberTarget(id)
-    window.dispatchEvent(new Event('simplemusic:focus-search'))
+    useNavigationStore.getState().openSearch(true)
   }
   async function removeSelected() {
     const keys = selectedRows.map(row => appPlaylistTrackKey(row.track))

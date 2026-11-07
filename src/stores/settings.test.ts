@@ -336,3 +336,36 @@ describe('探索模块持久化', () => {
     expect(useSettingsStore.getState().exploreLayouts.qq[0].enabled).toBe(false)
   })
 })
+
+describe('顶部菜单持久化', () => {
+  it('重载保留顺序及开关，恢复默认只影响顶部菜单', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    const settings = useSettingsStore.getState()
+    settings.setContentGutter(48)
+    settings.setTopMenuItemEnabled('settings', false)
+    settings.moveTopMenuItem('library', 0)
+    settings.setTopMenuItemEnabled('search', false)
+    const ordered = useSettingsStore.getState().topMenu
+    expect(ordered[0].id).toBe('library')
+    expect(ordered.filter(item => !item.enabled).map(item => item.id)).toEqual(['search', 'settings'])
+    useSettingsStore.setState(initialState, true)
+    settings.loadFromLocal()
+    expect(useSettingsStore.getState().topMenu).toEqual(ordered)
+    settings.resetTopMenu()
+    expect(useSettingsStore.getState().topMenu).toEqual(initialState.topMenu)
+    expect(useSettingsStore.getState().contentGutter).toBe(48)
+  })
+
+  it('旧存档沿用默认菜单，部分配置保留有效项并补齐新入口', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().topMenu).toEqual(initialState.topMenu)
+    saved = JSON.stringify({ topMenu: [null, { id: 'removed', enabled: false }, { id: 'settings', enabled: false }, { id: 'settings', enabled: true }] })
+    useSettingsStore.getState().loadFromLocal()
+    const { topMenu } = useSettingsStore.getState()
+    expect(topMenu[0]).toEqual({ id: 'settings', enabled: false })
+    expect(topMenu.slice(1)).toEqual(initialState.topMenu.filter(item => item.id !== 'settings'))
+  })
+})

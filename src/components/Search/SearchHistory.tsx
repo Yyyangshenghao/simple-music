@@ -52,28 +52,19 @@ export function SearchHistory({ terms, onSelect, onRemove, onClear }: SearchHist
     })
   }, [visibleCount, reducedMotion])
 
-  // 借 ReactBits SpotlightCard 的思路：光斑跟随指针，委托在列表上只写当前气泡的两个变量。
-  function trackSpotlight(event: React.PointerEvent<HTMLDivElement>) {
-    const bubble = (event.target as HTMLElement).closest<HTMLElement>(`.${styles.bubble}`)
-    if (!bubble) return
-    const rect = bubble.getBoundingClientRect()
-    bubble.style.setProperty('--spot-x', `${event.clientX - rect.left}px`)
-    bubble.style.setProperty('--spot-y', `${event.clientY - rect.top}px`)
-  }
-
   if (!terms.length) return null
   return (
     <section className={`${styles.section}${expanded ? ` ${styles.sectionExpanded}` : ''}`} aria-label="搜索历史">
       <div className={styles.heading}>
         <div className={styles.title}>
           <svg className={styles.headingIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3 2" /></svg>
-          <h3>搜索历史</h3>
+          <h2>搜索历史</h2>
         </div>
         <button type="button" className={styles.clear} onClick={onClear}>清空</button>
       </div>
-      <div id={listId} ref={listRef} className={styles.terms} onPointerMove={trackSpotlight}>
-        {visibleTerms.map((term, index) => (
-          <div className={`${styles.bubble}${index >= RECENT_COUNT ? ` ${styles.bubbleReveal}` : ''}`} style={index >= RECENT_COUNT ? { animationDelay: `${180 + ((index - RECENT_COUNT) % RECENT_COUNT) * 36}ms` } : undefined} key={term}>
+      <div id={listId} ref={listRef} className={styles.terms}>
+        {visibleTerms.map(term => (
+          <div className={styles.bubble} key={term}>
             <button type="button" className={styles.term} title={term} onClick={() => onSelect(term)}>{term}</button>
             <button type="button" className={styles.remove} title={`删除：${term}`} aria-label={`删除搜索历史：${term}`} onClick={() => onRemove(term)}><CloseIcon size={12} /></button>
           </div>

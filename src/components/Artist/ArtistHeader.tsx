@@ -4,13 +4,15 @@ import styles from './ArtistHeader.module.css'
 import { sizedImage } from '../../lib/image-size'
 import { SourceBadge } from '../ui/SourceBadge'
 import { RevealText } from '../ui/RevealText'
+import { ActionButton } from '../ui/ActionButton'
 
 interface ArtistHeaderProps {
   artist: ArtistInfo
   onPlayAll(): void
+  canPlay?: boolean
 }
 
-export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
+export function ArtistHeader({ artist, onPlayAll, canPlay = true }: ArtistHeaderProps) {
   const [expanded, setExpanded] = useState(false)
   const descriptionId = useId()
   const descriptionTrigger = useRef<HTMLButtonElement>(null)
@@ -18,16 +20,15 @@ export function ArtistHeader({ artist, onPlayAll }: ArtistHeaderProps) {
     <div className={styles.header}>
       <div className={styles.content}>
         <div className={styles.identity}>
-          {artist.avatar && (
-            <img className={styles.avatar} src={sizedImage(artist.avatar, 320)} alt="" />
-          )}
+          {artist.avatar ? <img className={styles.avatar} src={sizedImage(artist.avatar, 320)} alt="" />
+            : <span className={`${styles.avatar} ${styles.avatarFallback}`} aria-hidden="true">{artist.name.slice(0, 1)}</span>}
           <div className={styles.info}>
             <h1 className={styles.name}>{artist.name}</h1>
-            <SourceBadge source={artist.source} reveal />
-            <p className={styles.meta}>
-              {artist.musicSize ? `${artist.musicSize} 首单曲` : ''}
-            </p>
-            <button className={`${styles.playAll} no-drag`} onClick={onPlayAll}>▶ 播放全部</button>
+            <div className={styles.meta}>
+              <SourceBadge source={artist.source} reveal />
+              {!!artist.musicSize && <span>{artist.musicSize} 首单曲</span>}
+            </div>
+            <ActionButton className={styles.playAll} label="播放全部" icon="play" primary disabled={!canPlay} onClick={onPlayAll} />
           </div>
         </div>
         {artist.description?.trim() && (
