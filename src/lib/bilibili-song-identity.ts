@@ -2,18 +2,19 @@ import { providerFor } from '../providers/registry'
 import type { ProviderId } from '../providers/types'
 import type { Track } from '../types/domain'
 import { matchedBilibiliTrack, useBilibiliCoverStore } from '../stores/bilibili-covers'
-import { bilibiliCanonicalTrack, bilibiliIdentityKey, bilibiliMatchQueries, selectBilibiliSongMatch } from './bilibili-song-match'
+import { bilibiliCanonicalTrack, bilibiliIdentityKey, bilibiliMatchQueries, rankBilibiliSongCandidates, selectBilibiliSongMatch } from './bilibili-song-match'
 import { bilibiliSongReadings } from './bilibili-title'
 import { lyricServiceMode, searchGuestTracks } from './lyric-service'
 import { providerAccountSession } from './provider-account-session'
 import { TrackMatchMismatchError, type TrackMatchResult } from './track-match'
 
-const CATALOGS = ['netease', 'qq', 'apple', 'qishui'] as const
+const CATALOGS = ['netease', 'qq'] as const
+const isGuestCatalog = (source: ProviderId) => source === 'netease' || source === 'qq'
 const MAX_ENTRIES = 200
 const MISS_TTL_MS = 5 * 60_000
 const HIT_TTL_MS = 30 * 24 * 60 * 60_000
 
-interface Identification { match: TrackMatchResult | null; mismatch: boolean; ambiguous?: boolean }
+interface Identification { match: TrackMatchResult | null; mismatch: boolean; ambiguous?: boolean; candidates?: Track[]; failure?: unknown }
 interface Job {
   controller: AbortController
   promise: Promise<Identification>
@@ -25,14 +26,15 @@ const cache = new Map<string, { value: Identification; expiresAt: number }>()
 const cancelled = () => new DOMException('Song identification cancelled', 'AbortError')
 
 function context(sources: readonly ProviderId[]): string {
-  return JSON.stringify(sources.map(source => [source, lyricServiceMode(source), providerAccountSession(source)]))
+  return JSON.stringify(['bilibili-guest-v1', sources.filter(source => !isGuestCatalog(source))
+    .map(source => [source, lyricServiceMode(source), providerAccountSession(source)])])
 }
 
 /** 同一识别由封面和歌词共用；只有最后一个调用者退出时才取消上游。 */
 function shared(key: string, work: (signal: AbortSignal) => Promise<Identification>, signal?: AbortSignal, refresh = false): Promise<Identification> {
   if (signal?.aborted) return Promise.reject(cancelled())
   const hit = cache.get(key)
-  if (!refresh && hit && hit.expiresAt > Date.now()) return Promise.resolve(hit.value)
+  if (!refresh && hit && !hit.value.failure && hit.expiresAt > Date.now()) return Promise.resolve(hit.value)
   let job = pending.get(key)
   if (job?.controller.signal.aborted) job = undefined
   if (!job) {
@@ -68,27 +70,41 @@ function shared(key: string, work: (signal: AbortSignal) => Promise<Identificati
 }
 
 async function search(track: Track, source: ProviderId, signal: AbortSignal, current: () => void): Promise<Identification> {
-  const mode = lyricServiceMode(source)
+  const mode = isGuestCatalog(source) ? 'guest' : lyricServiceMode(source)
   if (!mode) return { match: null, mismatch: false }
   const queries = bilibiliMatchQueries(track)
   const readings = typeof track.bilibiliLyricVersionTitle === 'string' ? [track]
     : bilibiliSongReadings(String(track.videoTitle ?? track.name), track.bilibiliLyricHint)
   const candidates: Track[] = []
-  for (const keyword of queries) {
+  let failure: unknown
+  const deadline = Date.now() + 4500
+  for (const [index, keyword] of queries.entries()) {
     current()
-    const found = mode === 'guest' && (source === 'netease' || source === 'qq')
-      ? await searchGuestTracks(source, keyword, signal)
-      : await providerFor(source).catalog.searchTracks(keyword)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let found: Track[]
+    try {
+      const request = mode === 'guest' && (source === 'netease' || source === 'qq')
+        ? searchGuestTracks(source, keyword, signal)
+        : providerFor(source).catalog.searchTracks(keyword)
+      found = await Promise.race([request, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('歌曲探测超时')), Math.max(1, deadline - Date.now()))
+      })])
+    } catch (error) {
+      current()
+      failure = error
+      break
+    } finally { clearTimeout(timer) }
     current()
-    candidates.push(...found.filter(item => item.source === source))
+    candidates.push(...found.filter(item => item.source === source).slice(0, 20))
     // 有多种读法时，两种有序组合词共用候选集，不能先搜到哪一边就采用哪一边。
-    if (readings.length <= 1) {
+    if (readings.length <= 1 || index >= 1) {
       const match = selectBilibiliSongMatch(track, candidates)
-      if (match) return { match, mismatch: false }
+      if (match && match.score >= 95) return { match, mismatch: false, candidates }
     }
   }
+  if (failure && !candidates.length) throw failure
   const match = selectBilibiliSongMatch(track, candidates)
-  return { match, mismatch: candidates.length > 0, ambiguous: !match && candidates.some(candidate => !!selectBilibiliSongMatch(track, [candidate])) }
+  return { match, candidates, failure, mismatch: candidates.length > 0, ambiguous: !match && candidates.some(candidate => !!selectBilibiliSongMatch(track, [candidate])) }
 }
 
 function identify(track: Track, signal?: AbortSignal, refresh = false): Promise<Identification> {
@@ -96,33 +112,55 @@ function identify(track: Track, signal?: AbortSignal, refresh = false): Promise<
   return shared(`identity:${bilibiliIdentityKey(track)}:${session}`, async operation => {
     const current = () => { if (operation.aborted || context(CATALOGS) !== session) throw cancelled() }
     current()
-    const saved = !refresh ? matchedBilibiliTrack(track) : undefined
-    if (saved && CATALOGS.some(source => source === saved.source && lyricServiceMode(source))) {
-      const match = selectBilibiliSongMatch(track, [saved])
+    const saved = matchedBilibiliTrack(track)
+    if (saved && (saved.bilibiliIdentityConfirmed === true || !refresh)) {
+      const match = saved.bilibiliIdentityConfirmed === true
+        ? rankBilibiliSongCandidates(track, [saved])[0] : selectBilibiliSongMatch(track, [saved])
       if (match) return { match, mismatch: false }
     }
     let mismatch = false
     let failure: unknown
-    const catalogs = CATALOGS.slice(0, 2).some(source => lyricServiceMode(source)) ? CATALOGS.slice(0, 2) : CATALOGS
-    for (const source of catalogs) {
-      if (!lyricServiceMode(source)) continue
-      try {
-        const result = await search(track, source, operation, current)
-        current()
-        if (result.match) {
-          useBilibiliCoverStore.getState().rememberIdentity(track, result.match.track)
-          return result
-        }
-        if (result.ambiguous) return result
-        mismatch ||= result.mismatch
-      } catch (error) {
-        current()
-        failure = error
-      }
+    const candidates: Track[] = []
+    const results = await Promise.allSettled(CATALOGS.map(source =>
+      search(track, source, operation, current)))
+    current()
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        candidates.push(...result.value.candidates ?? [])
+        mismatch ||= result.value.mismatch
+        failure ||= result.value.failure
+      } else failure = result.reason
     }
-    if (failure) throw failure
-    return { match: null, mismatch }
+    current()
+    const match = selectBilibiliSongMatch(track, candidates)
+    if (match) {
+      useBilibiliCoverStore.getState().rememberIdentity(track, match.track)
+      return { match, mismatch: false, candidates }
+    }
+    const ranked = rankBilibiliSongCandidates(track, candidates)
+    if (failure && !ranked.length) throw failure
+    return { match: null, mismatch, failure, ambiguous: ranked.length > 0, candidates: ranked.map(item => item.track) }
   }, signal, refresh)
+}
+
+/** 与后台自动识别共用请求和评分，已自动命中时不打扰用户。 */
+export async function getBilibiliSongCandidates(track: Track, signal?: AbortSignal, refresh = false): Promise<TrackMatchResult[]> {
+  const result = await identify(track, signal, refresh)
+  return result.match ? [] : rankBilibiliSongCandidates(track, result.candidates ?? [])
+}
+
+/** 仅接受本次上下文实际提供过的候选，确认后复用曲库 ID，不能信任界面回传的元数据。 */
+export function confirmBilibiliSongCandidate(track: Track, candidate: Track): void {
+  const key = `identity:${bilibiliIdentityKey(track)}:${context(CATALOGS)}`
+  const entry = cache.get(key)
+  const offered = entry && entry.expiresAt > Date.now() ? entry.value.candidates?.find(item =>
+    item.source === candidate.source && String(item.mid ?? item.id) === String(candidate.mid ?? candidate.id)) : undefined
+  const match = offered && rankBilibiliSongCandidates(track, [offered])[0]
+  if (!match || !isGuestCatalog(match.track.source as ProviderId)) throw new Error('歌曲候选已过期，请重新查找')
+  pending.get(key)?.controller.abort()
+  pending.delete(key)
+  cache.set(key, { value: { match, mismatch: false }, expiresAt: Date.now() + HIT_TTL_MS })
+  useBilibiliCoverStore.getState().rememberIdentity(track, match.track, true)
 }
 
 export async function resolveBilibiliSongIdentity(track: Track, signal?: AbortSignal): Promise<TrackMatchResult | null> {
@@ -157,9 +195,11 @@ export async function findBilibiliLyricMatch(track: Track, source: ProviderId, s
     if (strict && identified.mismatch) throw new TrackMatchMismatchError()
     return null
   }
-  if (!lyricServiceMode(source)) return null
+  if (!isGuestCatalog(source) && !lyricServiceMode(source)) return null
   if (identified.match.track.source === source) return identified.match
   const canonical = bilibiliCanonicalTrack(track, identified.match.track)
+  const probed = selectBilibiliSongMatch(canonical, (identified.candidates ?? []).filter(item => item.source === source))
+  if (probed) return probed
   const session = context([...CATALOGS, source])
   const result = await shared(`mapping:${bilibiliIdentityKey(canonical)}:${source}:${session}`, operation => {
     const current = () => { if (operation.aborted || context([...CATALOGS, source]) !== session) throw cancelled() }

@@ -25,8 +25,13 @@ export interface LyricsSourceQueryResult {
 
 type Availability = Pick<LyricsSourceQueryResult, 'status' | 'message'>
 
+function isBilibiliGuestSource(track: Track, origin: LyricOrigin): boolean {
+  return track.source === 'bilibili' && (origin === 'netease' || origin === 'qq')
+}
+
 /** 平台作为歌词来源是否可用：网易云、QQ 未登录时可按设置以游客身份查询；Apple Music 需要已连接且启用的账号。 */
-function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false): Availability {
+function providerAvailability(origin: ProviderId, sources: ProviderId[], probe = false, systemGuest = false): Availability {
+  if (systemGuest && (origin === 'netease' || origin === 'qq')) return { status: 'idle' }
   if (!lyricPlatformEnabled(origin)) return { status: 'disabled', message: '已在设置中关闭' }
   if (!lyricServiceMode(origin)) {
     if (useProviderStore.getState().byId[origin].auth !== 'authenticated') {
@@ -38,9 +43,10 @@ function providerAvailability(origin: ProviderId, sources: ProviderId[], probe =
   return { status: 'idle' }
 }
 
-function matchingSources(sources: ProviderId[], probe = false): Array<'netease' | 'qq'> {
+function matchingSources(sources: ProviderId[], probe = false, systemGuest = false): Array<'netease' | 'qq'> {
+  if (systemGuest) return ['netease', 'qq']
   return [...new Set(sources)].filter((source): source is 'netease' | 'qq' =>
-    (source === 'netease' || source === 'qq') && providerAvailability(source, sources, probe).status === 'idle')
+    (source === 'netease' || source === 'qq') && providerAvailability(source, sources, probe, systemGuest).status === 'idle')
 }
 
 export function candidateAvailability(track: Track, origin: LyricOrigin, sources: ProviderId[], probe = false, search?: LyricSearchInput): Availability {
@@ -48,20 +54,20 @@ export function candidateAvailability(track: Track, origin: LyricOrigin, sources
   track = accompanimentOriginal(track) ?? track
   if (track.source === 'local' && origin === 'local') return { status: 'idle' }
   if (origin === 'local') return { status: 'unavailable', message: '仅本地歌曲可用' }
-  if (!probe && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
+  if (!probe && !isBilibiliGuestSource(track, origin) && suspendedLyricsSource(origin)) return { status: 'unavailable', message: '来源连接异常，稍后自动重试；也可在设置中测试恢复' }
   const settings = useSettingsStore.getState()
   if (origin === 'amll') {
     if (!settings.lyricsAmllFallback) return { status: 'disabled', message: '已在设置中关闭' }
     // Apple 曲目可直接按自身 ID 查 AMLL 的 Apple 分区，不依赖网易云、QQ。
-    if ((search || !appleCatalogId(track)) && !matchingSources(sources, probe).length) return { status: 'unavailable', message: '需启用可匹配的平台' }
+    if ((search || !appleCatalogId(track)) && !matchingSources(sources, probe, track.source === 'bilibili').length) return { status: 'unavailable', message: '需启用可匹配的平台' }
   } else if (origin === 'kugou') {
     if (!settings.lyricsKugouFallback) return { status: 'disabled', message: '已在设置中关闭' }
   } else {
-    const availability = providerAvailability(origin, sources, probe)
+    const availability = providerAvailability(origin, sources, probe, track.source === 'bilibili')
     if (availability.status !== 'idle') return availability
   }
   const needsMatch = !!search || origin === 'kugou' || (origin === 'amll'
-    ? !appleCatalogId(track) && !matchingSources(sources, probe).includes(track.source as 'netease' | 'qq') : origin !== track.source)
+    ? !appleCatalogId(track) && !matchingSources(sources, probe, track.source === 'bilibili').includes(track.source as 'netease' | 'qq') : origin !== track.source)
   if (needsMatch && (!Number.isFinite(track.duration) || !(track.duration! > 0))) {
     return { status: 'unavailable', message: '缺少歌曲时长，无法校验匹配版本' }
   }
@@ -137,7 +143,8 @@ async function queryLyricsSourceImpl(
       return { status: 'error', message: '暂时连接失败' }
     }
   }
-  const sessions = new Map(sources.map(source => [source, providerAccountSession(source)]))
+  const systemGuest = playing.source === 'bilibili'
+  const sessions = new Map(sources.filter(source => !systemGuest || (origin === 'apple' && source === 'apple')).map(source => [source, providerAccountSession(source)]))
   const checkCurrent = () => {
     if (signal?.aborted || [...sessions].some(([source, epoch]) => providerAccountSession(source) !== epoch)) {
       throw new DOMException('Lyrics source query cancelled', 'AbortError')
@@ -147,7 +154,7 @@ async function queryLyricsSourceImpl(
   const findTargets = async (source: ProviderId): Promise<Track[]> => {
     checkCurrent()
     if (!search && track.source === source) return [track]
-    if (!probe && suspendedLyricsSource(source)) return []
+    if (!probe && !isBilibiliGuestSource(playing, source) && suspendedLyricsSource(source)) return []
     if (rememberedMatch?.source === source && isLyricMatch(track, rememberedMatch)) return [rememberedMatch]
     const match = await findLyricMatch(track, source, signal, true, probe)
     checkCurrent()
@@ -162,7 +169,7 @@ async function queryLyricsSourceImpl(
     const current = candidateAvailability(playing, origin, sources, probe, search)
     if (current.status !== 'idle') return current
     if (origin === 'amll' && match && (match.source === 'netease' || match.source === 'qq')) {
-      const mapping = providerAvailability(match.source, sources, probe)
+      const mapping = providerAvailability(match.source, sources, probe, systemGuest)
       if (mapping.status !== 'idle') return mapping
     }
     if (!result?.main.length) return { status: 'empty', message: '未找到本曲歌词' }
@@ -173,7 +180,7 @@ async function queryLyricsSourceImpl(
   try {
     checkCurrent()
     if (origin === 'amll') {
-      const targets: ProviderId[] = [...(!search && appleCatalogId(track) ? ['apple' as const] : []), ...matchingSources(sources, probe)]
+      const targets: ProviderId[] = [...(!search && appleCatalogId(track) ? ['apple' as const] : []), ...matchingSources(sources, probe, track.source === 'bilibili')]
       // 本曲平台与已核验的记忆匹配优先；不同映射 ID 不产生重复候选。
       targets.sort((a, b) => Number(b === track.source) - Number(a === track.source)
         || Number(b === rememberedMatch?.source) - Number(a === rememberedMatch?.source))
@@ -183,9 +190,9 @@ async function queryLyricsSourceImpl(
           for (const target of await findTargets(source)) {
             checkCurrent()
             // 按 Apple 自身 ID 查 AMLL 不需要 Apple 账号参与歌词来源。
-            if (source !== 'apple' && providerAvailability(source, sources, probe).status !== 'idle') break
+            if (source !== 'apple' && providerAvailability(source, sources, probe, systemGuest).status !== 'idle') break
             // 可选翻译只读取现有缓存，不能阻塞目标库或把依赖故障归给 AMLL。
-            const native = !probe ? cachedLyrics(target) : undefined
+            const native = !probe && !systemGuest ? cachedLyrics(target) : undefined
             const base = { ...(native ?? emptyLyrics), source, wordLines: [] }
             targetAccess('loading')
             let result: LyricsResult | null
@@ -210,7 +217,7 @@ async function queryLyricsSourceImpl(
       return failure ?? ready(null)
     }
     if (origin === 'kugou') {
-      if (track.source === 'bilibili' && !search && matchingSources(sources, probe).length) {
+      if (track.source === 'bilibili' && !search && matchingSources(sources, probe, track.source === 'bilibili').length) {
         try {
           const identity = await resolveBilibiliSongIdentity(track, signal)
           checkCurrent()
@@ -229,7 +236,9 @@ async function queryLyricsSourceImpl(
       checkCurrent()
       const current = candidateAvailability(playing, origin, sources, probe, search)
       if (current.status !== 'idle') return current
-      const result = await fetchLyrics(target, [], signal, origin === 'qq', true, probe)
+      const result = systemGuest && (target.source === 'netease' || target.source === 'qq')
+        ? await fetchLyrics(target, [], signal, origin === 'qq', true, probe, 'guest')
+        : await fetchLyrics(target, [], signal, origin === 'qq', true, probe)
       const candidate = ready(result, target)
       if (candidate.status !== 'ready') {
         if (outcome.status === 'empty') outcome = candidate
@@ -277,7 +286,7 @@ export async function queryLyricsSource(
     if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError')
     if (timedOut) result = { status: 'error', message: '连接超时' }
     const healthStatus = origin === 'amll' ? targetStatus === 'loading' ? 'error' : targetStatus : result.status
-    if (healthStatus) reportLyricsSource(origin, healthStatus, options.probe)
+    if (healthStatus && !isBilibiliGuestSource(track, origin)) reportLyricsSource(origin, healthStatus, options.probe)
     return result
   } finally {
     clearTimeout(timer)

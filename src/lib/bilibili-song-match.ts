@@ -1,5 +1,5 @@
 import type { Track } from '../types/domain'
-import { bilibiliSongReadings, type TitleReading } from './bilibili-title'
+import { bilibiliSongReadings, bilibiliTitleText, type TitleReading } from './bilibili-title'
 import { normalizeMatchText } from './match-text'
 import { scoreTrackMatch, TRACK_MATCH_THRESHOLD, type TrackMatchResult } from './track-match'
 
@@ -29,19 +29,18 @@ function sameRecording(a: Track, b: Track): boolean {
   return Math.abs(Number(a.duration) - Number(b.duration)) <= 1500
 }
 
-/** 同一视频的读法共用查询预算；多读法用正反组合词，避免每种读法各跑三级搜索。 */
+/** 先试组合词，再独立探测可能的歌名；每个平台最多四次查询。 */
 export function bilibiliMatchQueries(video: Track): string[] {
   const readings = readingsOf(video)
   if (!readings.length) return []
   const combined = readings.map(reading => [reading.name, ...reading.artists].join(' ').replace(/\s+/g, ' ').trim())
-  const queries = readings.length > 1 ? combined : [...combined, readings[0].name]
-  return [...new Set(queries.filter(Boolean))].slice(0, 2)
+  return [...new Set([...combined.slice(0, 2), ...readings.map(reading => reading.name)].filter(Boolean))].slice(0, 4)
 }
 
 /** 缓存只跟视频身份和核验信息走，不因封面、展示读法或临时音频 URL 变化而失效。 */
 export function bilibiliIdentityKey(video: Track): string {
   return JSON.stringify([
-    String(video.bvid ?? video.id), originalTitle(video), video.duration ?? null,
+    2, String(video.bvid ?? video.id), originalTitle(video), video.duration ?? null,
     video.bilibiliLyricHint ?? null, isrcOf(video), video.lyricSearchVersionTitle ?? null,
   ])
 }
@@ -60,16 +59,36 @@ export function bilibiliCanonicalTrack(video: Track, matched: Track): Track {
     album: matched.album,
     isrc: matched.isrc ?? matched.ISRC,
     ISRC: matched.isrc ?? matched.ISRC,
+    bilibiliRecordingDuration: matched.duration,
   }
 }
 
-/**
- * 先核验视频标题的所有读法，再比较不同录音；同录音的重复发行不会制造歧义。
- * 缺少歌手时只接受精确标题、1.5 秒内时长且候选歌手唯一的结果，UP 主不参与歌手评分。
- */
-export function selectBilibiliSongMatch(video: Track, candidates: Track[]): TrackMatchResult | null {
-  if (video.source !== 'bilibili' || !Number.isFinite(video.duration) || !(video.duration! > 0)) return null
+/** 用候选反查标题中的歌名、歌手，避免把宣传尾句当作艺人；UP 主仍不参与。 */
+function candidateReadings(video: Track, candidate: Track, manual: boolean): TitleReading[] {
   const readings = readingsOf(video)
+  if (video.bilibiliLyricHint || typeof video.bilibiliLyricVersionTitle === 'string') return readings
+  const rawTitle = bilibiliTitleText(originalTitle(video)).normalize('NFKC')
+  const title = normalizeMatchText(rawTitle)
+  const name = normalizeMatchText(candidate.name)
+  const artists = candidate.artists?.length ? candidate.artists.map(artist => artist.name) : [candidate.artist]
+  // 短名不能靠字符串包含来扩大自动识别；已有精确读法仍按原规则核验。
+  if ([...name].length < 2 || !title.includes(name)) return readings
+  const exactReading = readings.some(reading => normalizeMatchText(reading.name) === name)
+  if (/《[^》]+》|「[^」]+」|『[^』]+』/u.test(rawTitle) && !exactReading) return readings
+  if (!manual && !exactReading) return readings
+  const known = artists.filter(artist => {
+    const value = normalizeMatchText(artist)
+    const escaped = artist.normalize('NFKC').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return [...value].length >= 2 && value !== name
+      && new RegExp(`(?:^|[^\\p{L}\\p{N}'’._-])${escaped}(?=$|[^\\p{L}\\p{N}'’._-])`, 'iu').test(rawTitle)
+  })
+  if (known.length) return [...readings, { name: candidate.name, artists: known }]
+  return manual ? [...readings, { name: candidate.name, artists: [] }] : readings
+}
+
+function rank(video: Track, candidates: Track[], manual: boolean): TrackMatchResult[] {
+  const duration = typeof video.bilibiliRecordingDuration === 'number' ? video.bilibiliRecordingDuration : video.duration
+  if (video.source !== 'bilibili' || !Number.isFinite(duration) || !(duration! > 0)) return []
   const ranked: TrackMatchResult[] = []
   const seen = new Set<string>()
   for (const candidate of candidates) {
@@ -79,27 +98,49 @@ export function selectBilibiliSongMatch(video: Track, candidates: Track[]): Trac
     const key = `${candidate.source}:${String(candidate.mid ?? candidate.id)}`
     if (seen.has(key)) continue
     seen.add(key)
+    const diff = Math.abs(duration! - candidate.duration!)
+    // 人工候选允许短片头片尾；长剪辑、合集不靠标题猜单曲。
+    if (diff > (manual ? Math.min(30_000, duration! * 0.1) : 3000)) continue
     let bestScore = 0
-    for (const reading of readings) {
+    const strictReadings = candidateReadings(video, candidate, false)
+    for (const reading of candidateReadings(video, candidate, manual)) {
       const knownArtist = reading.artists.length > 0
       if (!knownArtist && (normalizeMatchText(reading.name) !== normalizeMatchText(candidate.name)
-        || Math.abs(video.duration! - candidate.duration!) > 1500)) continue
+        || (!manual && diff > 1500))) continue
       const identity: Track = {
         ...video, name: reading.name,
+        duration: manual && diff > 3000 ? candidate.duration : duration,
         artist: knownArtist ? reading.artists.join(' / ') : candidate.artist,
         artists: knownArtist ? reading.artists.map(name => ({ id: null, name })) : candidate.artists,
         bilibiliLyricVersionTitle: originalTitle(video),
       }
       const score = scoreTrackMatch(identity, candidate)
-      if (score !== null && score >= TRACK_MATCH_THRESHOLD) bestScore = Math.max(bestScore, knownArtist ? score : Math.min(score, 90))
+      if (score === null || score < TRACK_MATCH_THRESHOLD) continue
+      const inferred = !strictReadings.some(item => item.name === reading.name && item.artists.join('|') === reading.artists.join('|'))
+      const cap = diff > 3000 ? Math.max(60, 79 - Math.floor((diff - 3000) / 2000)) : inferred ? 79 : knownArtist ? 100 : 90
+      bestScore = Math.max(bestScore, Math.min(score, cap))
     }
     if (bestScore) ranked.push({ track: candidate, score: bestScore })
   }
-  ranked.sort((a, b) => b.score - a.score)
+  return ranked.sort((a, b) => b.score - a.score || Number(!!b.track.cover) - Number(!!a.track.cover))
+}
+
+/** 供人工确认的候选；同录音重复发行与跨平台副本合并，不挤占前三首。 */
+export function rankBilibiliSongCandidates(video: Track, candidates: Track[]): TrackMatchResult[] {
+  const distinct: TrackMatchResult[] = []
+  for (const item of rank(video, candidates, true)) {
+    if (!distinct.some(other => sameRecording(other.track, item.track))) distinct.push(item)
+    if (distinct.length === 3) break
+  }
+  return distinct
+}
+
+/** 高置信度才自动关联；同名异歌手、正反读法与接近的竞争录音留给用户确认。 */
+export function selectBilibiliSongMatch(video: Track, candidates: Track[]): TrackMatchResult | null {
+  const ranked = rank(video, candidates, false)
   const [best] = ranked
   if (!best) return null
-  // 只知道歌名时，不用轻微时长差替用户猜演唱者。
-  if (readings.every(reading => !reading.artists.length) && new Set(ranked.map(item => artistKey(item.track))).size > 1) return null
+  if (readingsOf(video).every(reading => !reading.artists.length) && new Set(ranked.map(item => artistKey(item.track))).size > 1) return null
   const competitor = ranked.find(item => !sameRecording(best.track, item.track))
   if (competitor && best.score - competitor.score < 5) return null
   const alternates = ranked.filter(item => item !== best && sameRecording(best.track, item.track)).slice(0, 2)

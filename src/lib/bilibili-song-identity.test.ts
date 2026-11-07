@@ -4,10 +4,13 @@ import { useProviderStore } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import { matchedBilibiliTrack, useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { advanceProviderAccountSession } from './provider-account-session'
-import { clearBilibiliSongIdentityCache, findBilibiliLyricMatch, resolveBilibiliSongIdentity } from './bilibili-song-identity'
+import { clearBilibiliSongIdentityCache, confirmBilibiliSongCandidate, getBilibiliSongCandidates, findBilibiliLyricMatch, resolveBilibiliSongIdentity } from './bilibili-song-identity'
 
 const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), qishui: vi.fn() }))
 vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple' | 'qishui') => ({ catalog: { searchTracks: h[source] } }) }))
+vi.mock('./lyric-service', async original => ({ ...(await original<typeof import('./lyric-service')>()),
+  searchGuestTracks: (source: 'netease' | 'qq', keyword: string) => h[source](keyword),
+}))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 
 const video: Track = {
@@ -49,7 +52,7 @@ describe('B 站统一歌曲识别', () => {
     expect(native).toBe(identity)
     expect(amll).toBe(identity)
     expect(h.netease.mock.calls).toEqual([['晴天 周杰伦']])
-    expect(h.qq).not.toHaveBeenCalled()
+    expect(h.qq).toHaveBeenCalledOnce()
     expect(matchedBilibiliTrack(video)).toMatchObject({ id: 186016, name: '晴天', artist: '周杰伦' })
     await resolveBilibiliSongIdentity({ ...video, url: 'https://example.com/temporary', cover: 'changed' })
     expect(h.netease).toHaveBeenCalledOnce()
@@ -63,17 +66,17 @@ describe('B 站统一歌曲识别', () => {
     expect(h.qq.mock.calls).toEqual([['晴天 周杰伦']])
   })
 
-  it('多读法每个平台最多两次搜索，空结果短期复用', async () => {
+  it('多读法每个平台最多四次搜索，空结果短期复用', async () => {
     h.netease.mockResolvedValue([])
     h.qq.mockResolvedValue([])
     const ambiguous = { ...video, name: '周杰伦 - 晴天', videoTitle: '周杰伦 - 晴天' }
     expect(await resolveBilibiliSongIdentity(ambiguous)).toBeNull()
     expect(await resolveBilibiliSongIdentity(ambiguous)).toBeNull()
-    expect(h.netease.mock.calls).toEqual([['周杰伦 晴天'], ['晴天 周杰伦']])
-    expect(h.qq).toHaveBeenCalledTimes(2)
+    expect(h.netease.mock.calls).toEqual([['周杰伦 晴天'], ['晴天 周杰伦'], ['周杰伦'], ['晴天']])
+    expect(h.qq).toHaveBeenCalledTimes(4)
   })
 
-  it('首个平台未命中再查下一个平台；歧义结果不靠换平台掩盖', async () => {
+  it('跨平台候选一起比较，歧义结果不能靠平台顺序掩盖', async () => {
     h.netease.mockResolvedValue([])
     expect((await resolveBilibiliSongIdentity(video))?.track.source).toBe('qq')
     clearBilibiliSongIdentityCache()
@@ -81,7 +84,7 @@ describe('B 站统一歌曲识别', () => {
     h.netease.mockResolvedValue([song('netease'), song('netease', { id: 'other', name: '周杰伦', artist: '晴天', artists: [{ id: 2, name: '晴天' }] })])
     h.qq.mockClear()
     await expect(findBilibiliLyricMatch({ ...video, videoTitle: '周杰伦 - 晴天' }, 'netease', undefined, true)).rejects.toThrow('TRACK_VERSION_MISMATCH')
-    expect(h.qq).not.toHaveBeenCalled()
+    expect(h.qq).toHaveBeenCalledTimes(2)
   })
 
   it('一个调用者取消不影响其他调用者，全部取消后迟到结果不入缓存', async () => {
@@ -114,27 +117,21 @@ describe('B 站统一歌曲识别', () => {
     expect(h.netease).toHaveBeenCalledTimes(3)
   })
 
-  it('账号交换或平台关闭后，旧搜索结果不能发布', async () => {
+  it.each(['账号交换', '平台关闭'])('%s 不取消独立游客探测，也不造成重复搜索', async change => {
     const upstream = deferred<Track[]>()
     h.netease.mockReturnValue(upstream.promise)
     const result = resolveBilibiliSongIdentity(video)
     await vi.waitFor(() => expect(h.netease).toHaveBeenCalledOnce())
-    advanceProviderAccountSession('netease')
+    if (change === '账号交换') advanceProviderAccountSession('netease')
+    else useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: false, apple: false, qishui: false } })
     upstream.resolve([song('netease')])
-    await expect(result).rejects.toMatchObject({ name: 'AbortError' })
-    expect(matchedBilibiliTrack(video)).toBeUndefined()
-
-    const next = deferred<Track[]>()
-    h.netease.mockReturnValue(next.promise)
-    const disabled = resolveBilibiliSongIdentity(video)
-    await vi.waitFor(() => expect(h.netease).toHaveBeenCalledTimes(2))
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: false, qishui: false } })
-    next.resolve([song('netease')])
-    await expect(disabled).rejects.toMatchObject({ name: 'AbortError' })
-    expect(matchedBilibiliTrack(video)).toBeUndefined()
+    expect((await result)?.track.id).toBe(186016)
+    expect(matchedBilibiliTrack(video)?.name).toBe('晴天')
+    expect((await resolveBilibiliSongIdentity(video))?.track.id).toBe(186016)
+    expect(h.netease).toHaveBeenCalledOnce()
   })
 
-  it.each(['apple', 'qishui'] as const)('仅启用 %s 时仍可识别并直接按该平台 ID 取词', async source => {
+  it.each(['apple', 'qishui'] as const)('仅启用 %s 时，游客识别仍运行，显式歌词来源可按规范身份映射', async source => {
     useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: false, apple: source === 'apple', qishui: source === 'qishui' } })
     useProviderStore.setState({ byId: {
       ...useProviderStore.getState().byId,
@@ -143,8 +140,8 @@ describe('B 站统一歌曲识别', () => {
     h[source].mockResolvedValue([{ ...song('netease'), id: 'only-source', source, provider: source }])
     expect((await findBilibiliLyricMatch(video, source))?.track.id).toBe('only-source')
     expect(h[source]).toHaveBeenCalledOnce()
-    expect(h.netease).not.toHaveBeenCalled()
-    expect(h.qq).not.toHaveBeenCalled()
+    expect(h.netease).toHaveBeenCalledOnce()
+    expect(h.qq).toHaveBeenCalledOnce()
   })
 
   it('网络失败不缓存为未匹配，重试可以找到歌曲', async () => {
@@ -177,4 +174,101 @@ describe('B 站统一歌曲识别', () => {
     expect((await findBilibiliLyricMatch(video, 'qishui'))?.track.source).toBe('qishui')
     expect(h.qishui).toHaveBeenCalledOnce()
   })
+})
+
+
+it('第二个平台有更高分时采用更高分歌曲，复用已探测的平台候选取歌词', async () => {
+  h.netease.mockResolvedValue([song('netease', { duration: 271_900 })])
+  const best = await resolveBilibiliSongIdentity(video)
+  expect(best?.track.source).toBe('qq')
+  expect(best?.score).toBe(100)
+  expect((await findBilibiliLyricMatch(video, 'netease'))?.track.source).toBe('netease')
+  expect(h.netease).toHaveBeenCalledTimes(2)
+})
+
+it('独立歌名探测能挽救组合词搜索不到的曲目', async () => {
+  h.netease.mockImplementation(async (query: string) => query === '晴天' ? [song('netease')] : [])
+  h.qq.mockResolvedValue([])
+  expect((await resolveBilibiliSongIdentity({ ...video, videoTitle: '《晴天》令人怀念的夏天' }))?.track.name).toBeUndefined()
+  const candidates = await getBilibiliSongCandidates({ ...video, videoTitle: '《晴天》令人怀念的夏天' })
+  expect(candidates).toHaveLength(1)
+  expect(candidates[0].track.name).toBe('晴天')
+})
+
+it('歧义候选由用户确认后歌词和封面共用同一身份，伪造候选和旧上下文均拒绝', async () => {
+  const origin = { ...video, videoTitle: '《晴天》', duration: 280_000 }
+  h.netease.mockResolvedValue([song('netease')])
+  h.qq.mockResolvedValue([song('qq')])
+  const candidates = await getBilibiliSongCandidates(origin)
+  expect(candidates).toHaveLength(1)
+  expect(matchedBilibiliTrack(origin)).toBeUndefined()
+  expect(() => confirmBilibiliSongCandidate(origin, song('netease', { id: 'forged' }))).toThrow('过期')
+  confirmBilibiliSongCandidate(origin, { ...candidates[0].track, cover: 'https://forged.test' })
+  expect(matchedBilibiliTrack(origin)).toMatchObject({ name: '晴天', cover: 'https://example.com/album.jpg', bilibiliIdentityConfirmed: true })
+  expect((await findBilibiliLyricMatch(origin, 'netease'))?.track.id).toBe(186016)
+  clearBilibiliSongIdentityCache()
+  expect((await resolveBilibiliSongIdentity(origin))?.track.id).toBe(186016)
+  expect(await getBilibiliSongCandidates(origin)).toEqual([])
+  expect(() => confirmBilibiliSongCandidate({ ...origin, duration: 281_000 }, candidates[0].track)).toThrow('过期')
+})
+
+it('跨平台同名异歌手不会因为首个平台命中而自动采用', async () => {
+  h.qq.mockResolvedValue([song('qq', { artist: '其他歌手', artists: [{ id: 2, name: '其他歌手' }] })])
+  const origin = { ...video, videoTitle: '《晴天》' }
+  expect(await resolveBilibiliSongIdentity(origin)).toBeNull()
+  const candidates = await getBilibiliSongCandidates(origin)
+  expect(candidates).toHaveLength(2)
+  confirmBilibiliSongCandidate(origin, candidates[1].track)
+  expect((await resolveBilibiliSongIdentity(origin))?.track.artist).toBe('其他歌手')
+})
+
+
+it('部分关键词网络失败不缓存为未匹配，下一次可重新探测', async () => {
+  h.netease.mockResolvedValueOnce([song('netease', { name: '无关歌曲' })]).mockRejectedValue(new Error('offline'))
+  h.qq.mockResolvedValue([])
+  await expect(getBilibiliSongCandidates(video)).rejects.toThrow('offline')
+  h.netease.mockResolvedValue([song('netease')])
+  expect((await resolveBilibiliSongIdentity(video))?.track.name).toBe('晴天')
+})
+
+it('用户确认的歌手不会因原平台停用被同名其他歌手覆盖', async () => {
+  const origin = { ...video, videoTitle: '《晴天》' }
+  const other = song('netease', { id: 'chosen', artist: '已确认歌手', artists: [{ id: 2, name: '已确认歌手' }] })
+  h.netease.mockResolvedValue([other])
+  h.qq.mockResolvedValue([song('qq')])
+  const candidates = await getBilibiliSongCandidates(origin)
+  confirmBilibiliSongCandidate(origin, candidates.find(item => item.track.id === 'chosen')!.track)
+  useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: false, qishui: false } })
+  expect((await resolveBilibiliSongIdentity(origin))?.track.artist).toBe('已确认歌手')
+  expect(await getBilibiliSongCandidates(origin, undefined, true)).toEqual([])
+  expect((await resolveBilibiliSongIdentity(origin))?.track.artist).toBe('已确认歌手')
+  expect(await findBilibiliLyricMatch(origin, 'qq')).toBeNull()
+  expect(matchedBilibiliTrack(origin)?.artist).toBe('已确认歌手')
+})
+
+it('显式重新查找绕过未匹配缓存，游客候选确认不受账号变化影响', async () => {
+  h.netease.mockResolvedValue([])
+  h.qq.mockResolvedValue([])
+  expect(await getBilibiliSongCandidates(video)).toEqual([])
+  h.netease.mockResolvedValue([song('netease')])
+  expect(await getBilibiliSongCandidates(video, undefined, true)).toEqual([])
+  expect(matchedBilibiliTrack(video)?.name).toBe('晴天')
+  clearBilibiliSongIdentityCache()
+  useBilibiliCoverStore.setState({ entries: {} })
+  const origin = { ...video, videoTitle: '《晴天》', duration: 280_000 }
+  const offered = await getBilibiliSongCandidates(origin)
+  advanceProviderAccountSession('netease')
+  expect(() => confirmBilibiliSongCandidate(origin, offered[0].track)).not.toThrow()
+  expect(matchedBilibiliTrack(origin)?.name).toBe('晴天')
+})
+
+
+it('单个平台探测超时不阻塞已成功的平台', async () => {
+  vi.useFakeTimers()
+  try {
+    h.netease.mockReturnValue(new Promise(() => {}))
+    const pending = resolveBilibiliSongIdentity(video)
+    await vi.advanceTimersByTimeAsync(4501)
+    expect((await pending)?.track.source).toBe('qq')
+  } finally { vi.useRealTimers() }
 })

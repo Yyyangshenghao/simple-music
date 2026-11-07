@@ -84,6 +84,6 @@ export const remoteActions: Record<string, readonly string[]> = {
   ambient: [], shortcuts: ['setRecording'],
   navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
-  bilibiliCovers: ['request', 'remember', 'rememberIdentity'],
+  bilibiliCovers: ['request', 'remember', 'rememberIdentity', 'querySongCandidates', 'confirmSongCandidate'],
   controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'refreshKugouAccount', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

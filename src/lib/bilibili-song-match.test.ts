@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '../types/domain'
-import { bilibiliCanonicalTrack, bilibiliIdentityKey, bilibiliMatchQueries, selectBilibiliSongMatch } from './bilibili-song-match'
+import { bilibiliCanonicalTrack, bilibiliIdentityKey, bilibiliMatchQueries, rankBilibiliSongCandidates, selectBilibiliSongMatch } from './bilibili-song-match'
 
 const song = (overrides: Partial<Track> = {}): Track => ({
   provider: 'netease', source: 'netease', type: 'song', id: 'n-1', name: '晴天',
@@ -17,10 +17,10 @@ describe('哔哩哔哩歌曲身份识别', () => {
   })
 
   it('组合词共用查询预算，不逐个读法执行三级搜索，也不将 UP 主放进关键词', () => {
-    expect(bilibiliMatchQueries(video())).toEqual(['周杰伦 晴天', '晴天 周杰伦'])
+    expect(bilibiliMatchQueries(video())).toEqual(['周杰伦 晴天', '晴天 周杰伦', '周杰伦', '晴天'])
     expect(bilibiliMatchQueries(video('【Hi-Res】《晴天》- 周杰伦'))).toEqual(['晴天 周杰伦', '晴天'])
     expect(bilibiliMatchQueries(video('晴天'))).toEqual(['晴天'])
-    expect(bilibiliMatchQueries(video('甲 - 乙 - 丙'))).toHaveLength(2)
+    expect(bilibiliMatchQueries(video('甲 - 乙 - 丙'))).toHaveLength(4)
   })
 
   it('标题只有歌名时通过精确标题、接近时长与唯一歌手识别，UP 主不当歌手', () => {
@@ -84,4 +84,48 @@ describe('哔哩哔哩歌曲身份识别', () => {
     expect(bilibiliMatchQueries(result)).toEqual(['晴天 周杰伦', '晴天'])
     expect(selectBilibiliSongMatch(result, [song({ source: 'qq', provider: 'qq', id: 'q-1' })])).toMatchObject({ track: { id: 'q-1' } })
   })
+})
+
+
+describe('B 站探测候选评分', () => {
+  it('组合词无结果后仍能按每个可能的歌名探测', () => {
+    expect(bilibiliMatchQueries(video())).toEqual(['周杰伦 晴天', '晴天 周杰伦', '周杰伦', '晴天'])
+  })
+
+  it('用曲库候选核验含宣传尾句的标题，不把宣传语当歌手', () => {
+    expect(selectBilibiliSongMatch(video('周杰伦《晴天》每次听都回到那个夏天'), [song()])).toMatchObject({ track: { name: '晴天' } })
+    expect(selectBilibiliSongMatch(video('《晴天》每次听都回到那个夏天'), [song()])).toBeNull()
+  })
+
+  it('MV 多出片头时只提供人工候选，版本冲突仍拒绝', () => {
+    const origin = video('周杰伦《晴天》', { duration: 280_000 })
+    expect(selectBilibiliSongMatch(origin, [song()])).toBeNull()
+    expect(rankBilibiliSongCandidates(origin, [song()])).toMatchObject([{ track: { name: '晴天' } }])
+    expect(rankBilibiliSongCandidates(origin, [song()])[0].score).toBeLessThan(80)
+    expect(rankBilibiliSongCandidates(video('周杰伦《晴天》Live'), [song()])).toEqual([])
+  })
+
+  it('不同平台的同录音候选合并，不占用前三首名额', () => {
+    const ranked = rankBilibiliSongCandidates(video('晴天'), [song(), song({ source: 'qq', provider: 'qq', id: 'q-1' }),
+      song({ id: 'other', artist: '其他歌手', artists: [{ id: 2, name: '其他歌手' }] })])
+    expect(ranked).toHaveLength(2)
+  })
+})
+
+
+it('候选反查不能盖过明确歌名或按歌手名子串自动关联', () => {
+  expect(selectBilibiliSongMatch(video('周杰伦《晴天之后》'), [song()])).toBeNull()
+  expect(rankBilibiliSongCandidates(video('周杰伦《晴天之后》'), [song()])).toEqual([])
+  expect(selectBilibiliSongMatch(video('周杰伦《晴天》'), [song({ artist: '周杰', artists: [{ id: 2, name: '周杰' }] })])).toBeNull()
+})
+
+
+it('候选反查不把英文艺人的连字符前缀当作完整署名', () => {
+  expect(selectBilibiliSongMatch(video('Jay-Z《Song Title》'), [song({ name: 'Song Title', artist: 'Jay', artists: [{ id: 2, name: 'Jay' }] })])).toBeNull()
+})
+
+it('人工候选按片头片尾的时长偏差继续区分分数', () => {
+  const ranked = rankBilibiliSongCandidates(video('周杰伦《晴天》', { duration: 280_000 }), [song(), song({ id: 'closer', duration: 274_000 })])
+  expect(ranked[0].track.id).toBe('closer')
+  expect(ranked[0].score).toBeGreaterThan(ranked[1].score)
 })

@@ -1,10 +1,9 @@
 import { create } from 'zustand'
 import { usePlayerStore } from './player'
 import { useSettingsStore } from './settings'
-import { useProviderStore } from './providers'
-import { providerAccountSession } from '../lib/provider-account-session'
+import type { TrackMatchResult } from '../lib/track-match'
 import type { Track } from '../types/domain'
-import { bilibiliIdentityKey, selectBilibiliSongMatch } from '../lib/bilibili-song-match'
+import { bilibiliIdentityKey, rankBilibiliSongCandidates, selectBilibiliSongMatch } from '../lib/bilibili-song-match'
 
 /** 哔哩哔哩视频 → 已核验的曲库身份与专辑封面；兼容旧版纯封面条目。 */
 const STORAGE_KEY = 'simplemusic-bilibili-covers'
@@ -38,7 +37,9 @@ function writeEntries(entries: Record<string, CoverEntry>): void {
 interface BilibiliCoverStore {
   entries: Record<string, CoverEntry>
   remember(track: Track, cover: string): void
-  rememberIdentity(track: Track, match: Track): void
+  rememberIdentity(track: Track, match: Track, confirmed?: boolean): void
+  querySongCandidates(track: Track, refresh?: boolean): Promise<TrackMatchResult[]>
+  confirmSongCandidate(track: Track, candidate: Track): Promise<void>
   /** 只识别当前播放项；列表只复用已有结果。 */
   request(track: Track): void
 }
@@ -48,11 +49,7 @@ const attempts = new Map<string, number>()
 let observers = 0
 
 function requestContext(track: Track): string {
-  const settings = useSettingsStore.getState()
-  return JSON.stringify([bilibiliIdentityKey(track), (['netease', 'qq', 'apple', 'qishui'] as const).map(source => [
-    source, useProviderStore.getState().byId[source].enabled, useProviderStore.getState().byId[source].auth,
-    providerAccountSession(source),
-  ]), settings.lyricsGuestSources, settings.lyricsPlatformSources])
+  return bilibiliIdentityKey(track)
 }
 
 function trimEntries(entries: Record<string, CoverEntry>): Record<string, CoverEntry> {
@@ -67,13 +64,14 @@ export const useBilibiliCoverStore = create<BilibiliCoverStore>((set, get) => ({
     set({ entries })
     writeEntries(entries)
   },
-  rememberIdentity(track, match) {
-    if (track?.source !== 'bilibili' || !selectBilibiliSongMatch(track, [match])) return
+  rememberIdentity(track, match, confirmed = false) {
+    if (track?.source !== 'bilibili' || !(confirmed ? rankBilibiliSongCandidates(track, [match]).length : selectBilibiliSongMatch(track, [match]))) return
     // 只持久化曲库元数据，不保留临时音频 URL 或平台响应里的其他字段。
     const snapshot: Track = {
       provider: match.provider, source: match.source, type: match.type, id: match.id,
       name: match.name, artist: match.artist, artists: match.artists,
       duration: match.duration, album: match.album, cover: match.cover,
+      ...(confirmed ? { bilibiliIdentityConfirmed: true } : {}),
     }
     for (const field of ['mid', 'songmid', 'qqId', 'catalogId', 'isrc', 'ISRC']) {
       if (typeof match[field] === 'string' || typeof match[field] === 'number') snapshot[field] = match[field]
@@ -83,6 +81,28 @@ export const useBilibiliCoverStore = create<BilibiliCoverStore>((set, get) => ({
     } })
     set({ entries })
     writeEntries(entries)
+  },
+  async querySongCandidates(track, refresh = false) {
+    const current = usePlayerStore.getState().currentTrack
+    if (!current || current.source !== 'bilibili' || bilibiliIdentityKey(current) !== bilibiliIdentityKey(track)) throw new Error('播放曲目已变化')
+    const key = requestContext(current)
+    const controller = new AbortController()
+    const stop = usePlayerStore.subscribe(state => {
+      if (!state.currentTrack || state.currentTrack.source !== 'bilibili' || requestContext(state.currentTrack) !== key) controller.abort()
+    })
+    try {
+      const { getBilibiliSongCandidates } = await import('../lib/bilibili-song-identity')
+      const result = await getBilibiliSongCandidates(current, controller.signal, refresh)
+      const playing = usePlayerStore.getState().currentTrack
+      if (controller.signal.aborted || !playing || playing.source !== 'bilibili' || requestContext(playing) !== key) throw new Error('播放曲目已变化')
+      return result
+    } finally { stop() }
+  },
+  async confirmSongCandidate(track, candidate) {
+    const { confirmBilibiliSongCandidate } = await import('../lib/bilibili-song-identity')
+    const current = usePlayerStore.getState().currentTrack
+    if (!current || current.source !== 'bilibili' || bilibiliIdentityKey(current) !== bilibiliIdentityKey(track)) throw new Error('播放曲目已变化')
+    confirmBilibiliSongCandidate(current, candidate)
   },
   request(track) {
     if (track?.source !== 'bilibili') return
@@ -155,7 +175,7 @@ export function subscribeCurrentTrackCover(listener: () => void): () => void {
     listener()
   }
   check()
-  const stops = [usePlayerStore.subscribe(check), useBilibiliCoverStore.subscribe(check), useSettingsStore.subscribe(check), useProviderStore.subscribe(check)]
+  const stops = [usePlayerStore.subscribe(check), useBilibiliCoverStore.subscribe(check), useSettingsStore.subscribe(check)]
   let stopped = false
   return () => {
     if (stopped) return

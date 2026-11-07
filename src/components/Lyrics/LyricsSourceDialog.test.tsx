@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricSourceCandidate } from '../../types/lyrics-source'
+import type { Track } from '../../types/domain'
 
 const h = vi.hoisted(() => ({
   values: [] as unknown[], stateIndex: 0, refs: [] as Array<{ current: any }>, refIndex: 0,
@@ -37,8 +38,9 @@ vi.mock('../../hooks/useBilibiliTrackDisplay', async () => ({
 }))
 
 import { LyricsSourceSelection } from './LyricsSourceDialog'
+import { BilibiliSongCandidates } from './BilibiliSongCandidates'
 
-function elements(node: unknown, type: string): ReactElement<any>[] {
+function elements(node: unknown, type: ReactElement['type']): ReactElement<any>[] {
   if (!node || typeof node !== 'object') return []
   if (Array.isArray(node)) return node.flatMap((child) => elements(child, type))
   const element = node as ReactElement<any>
@@ -46,11 +48,11 @@ function elements(node: unknown, type: string): ReactElement<any>[] {
 }
 const track = { id: 1, source: 'netease' as const, provider: 'netease' as const, type: 'song' as const, artists: [], name: '歌曲', artist: '歌手', duration: 180000, cover: '' }
 const candidate = (origin: 'netease' | 'qq'): LyricSourceCandidate => ({ origin, status: 'ready', wordTimed: false, hasTranslation: false, hasRomaji: false, preview: [{ time: 48, text: `${origin}歌词` }] })
-function render() {
+function render(playing: Track = track) {
   h.stateIndex = 0
   h.refIndex = 0
   h.effects = []
-  return LyricsSourceSelection({ track })
+  return LyricsSourceSelection({ track: playing })
 }
 function button(element: ReactElement, text: string) {
   const result = elements(element, 'button').find((element) => element.props.children === text)
@@ -69,6 +71,28 @@ beforeEach(() => {
 })
 
 describe('歌词来源选择交互', () => {
+  it('确认 B 站歌曲后清除手动草稿，重新按已确认身份查询歌词来源', async () => {
+    const video: Track = { ...track, id: 'BV1', source: 'bilibili', provider: 'bilibili' }
+    button(render(video), '手动搜索').props.onClick()
+    const [name, artist] = elements(elements(render(video), 'form')[0], 'input')
+    name.props.onChange({ target: { value: '旧歌名' } })
+    artist.props.onChange({ target: { value: '旧歌手' } })
+    elements(render(video), 'form')[0].props.onSubmit({ preventDefault() {} })
+    await elements(render(video), BilibiliSongCandidates)[0].props.onConfirmed()
+    expect(h.state.queryCandidates).toHaveBeenLastCalledWith('bilibili:BV1', 'selection-token', undefined, null)
+    expect(elements(elements(render(video), 'form')[0], 'input').map(item => item.props.value)).toEqual(['', ''])
+    expect(h.toast).toHaveBeenCalledWith('已确认歌曲，歌名、封面和歌词按此歌曲匹配')
+  })
+
+  it('关闭后不能因歌曲确认回调重新启动旧歌词会话', async () => {
+    const video: Track = { ...track, id: 'BV1', source: 'bilibili', provider: 'bilibili' }
+    const view = render(video)
+    view.props.onCancel({ preventDefault() {} })
+    await elements(view, BilibiliSongCandidates)[0].props.onConfirmed()
+    expect(h.state.queryCandidates).not.toHaveBeenCalled()
+    expect(h.toast).not.toHaveBeenCalled()
+  })
+
   it('手动输入歌名和歌手后只提交搜索，不应用候选', () => {
     button(render(), '手动搜索').props.onClick()
     const form = elements(render(), 'form')[0]

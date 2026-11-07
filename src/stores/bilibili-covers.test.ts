@@ -4,8 +4,12 @@ import { appPlaylistCovers } from '../lib/app-playlist-presentation'
 import type { Track } from '../types/domain'
 import { usePlayerStore } from './player'
 
-const h = vi.hoisted(() => ({ resolve: vi.fn() }))
-vi.mock('../lib/bilibili-song-identity', () => ({ resolveBilibiliSongIdentity: h.resolve }))
+const h = vi.hoisted(() => ({ resolve: vi.fn(), candidates: vi.fn(), confirm: vi.fn() }))
+vi.mock('../lib/bilibili-song-identity', () => ({
+  resolveBilibiliSongIdentity: h.resolve,
+  getBilibiliSongCandidates: h.candidates,
+  confirmBilibiliSongCandidate: h.confirm,
+}))
 
 const video: Track = { id: 'BV1xx', source: 'bilibili', provider: 'bilibili', type: 'track', artists: [], name: '【4K】周杰伦 - 晴天 MV', videoTitle: '【4K】周杰伦 - 晴天 MV', artist: 'UP', cover: 'https://i0.hdslb.com/video.jpg', duration: 269_000, bilibiliLyricHint: { name: '晴天', artists: ['周杰伦'] } }
 const album: Track = { id: 186016, source: 'netease', provider: 'netease', type: 'track', name: '晴天', artist: '周杰伦', artists: [{ id: 6452, name: '周杰伦' }], album: '叶惠美', cover: 'https://p1.music.126.net/album.jpg', duration: 269_000 }
@@ -15,9 +19,46 @@ beforeEach(() => {
   useBilibiliCoverStore.setState({ entries: {} })
   vi.restoreAllMocks()
   h.resolve.mockReset()
+  h.candidates.mockReset()
+  h.confirm.mockReset()
 })
 
 describe('哔哩哔哩专辑封面', () => {
+  it.each([false, true])('当前曲候选查询向识别服务透传刷新选项 %s', async refresh => {
+    const ranked = [{ track: album, score: 88 }]
+    h.candidates.mockResolvedValue(ranked)
+    usePlayerStore.setState({ currentTrack: video })
+    const result = await useBilibiliCoverStore.getState().querySongCandidates(video, refresh)
+    expect(result).toBe(ranked)
+    expect(h.candidates).toHaveBeenCalledWith(video, expect.any(AbortSignal), refresh)
+    expect((h.candidates.mock.calls[0][1] as AbortSignal).aborted).toBe(false)
+  })
+
+  it('候选查询期间切歌会取消识别，迟到候选不返回给旧曲', async () => {
+    let resolve!: (value: Array<{ track: Track; score: number }>) => void
+    h.candidates.mockReturnValue(new Promise(done => { resolve = done }))
+    usePlayerStore.setState({ currentTrack: video })
+    const pending = useBilibiliCoverStore.getState().querySongCandidates(video)
+    const rejected = expect(pending).rejects.toThrow('播放曲目已变化')
+    await vi.waitFor(() => expect(h.candidates).toHaveBeenCalledOnce())
+    const signal = h.candidates.mock.calls[0][1] as AbortSignal
+    usePlayerStore.setState({ currentTrack: { ...video, id: 'BVnext' } })
+    expect(signal.aborted).toBe(true)
+    resolve([{ track: album, score: 88 }])
+    await rejected
+  })
+
+  it('当前曲确认候选交给识别服务，切歌后的确认不再写入身份', async () => {
+    usePlayerStore.setState({ currentTrack: video })
+    await useBilibiliCoverStore.getState().confirmSongCandidate(video, album)
+    expect(h.confirm).toHaveBeenCalledWith(video, album)
+    h.confirm.mockClear()
+    const pending = useBilibiliCoverStore.getState().confirmSongCandidate(video, album)
+    usePlayerStore.setState({ currentTrack: null })
+    await expect(pending).rejects.toThrow('播放曲目已变化')
+    expect(h.confirm).not.toHaveBeenCalled()
+  })
+
   it('匹配前与关闭开关时显示视频封面，匹配后显示专辑封面', () => {
     expect(trackCoverOf(video, {}, true)).toBe(video.cover)
     useBilibiliCoverStore.getState().remember(video, album.cover as string)

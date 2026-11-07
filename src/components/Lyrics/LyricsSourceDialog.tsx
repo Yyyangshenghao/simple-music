@@ -9,6 +9,7 @@ import { useToastStore } from '../../stores/toast'
 import { LYRIC_SEARCH_MAX_LENGTH, LYRIC_SOURCE_LABELS, normalizeLyricSearch, type LyricOrigin, type LyricSourceCandidate, type LyricSearchInput } from '../../types/lyrics-source'
 import type { Track } from '../../types/domain'
 import { LyricOriginInline, LyricOriginRow } from './LyricOriginIcon'
+import { BilibiliSongCandidates } from './BilibiliSongCandidates'
 import styles from './LyricsSourceDialog.module.css'
 
 const EMPTY_CANDIDATES: LyricSourceCandidate[] = []
@@ -184,6 +185,18 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
         </form>}
       </div>
       <div className={styles.body}>
+        {track.source === 'bilibili' && <BilibiliSongCandidates track={track} disabled={busy} onBusyChange={setBusy} onConfirmed={async () => {
+          if (!active.current) return
+          ++searchSequence.current
+          settled.clear()
+          setActiveSearch(null)
+          setSearchName('')
+          setSearchArtist('')
+          setSelected('auto')
+          setError('')
+          await useLyricsSourceStore.getState().queryCandidates(trackKey, token, undefined, null)
+          if (active.current) useToastStore.getState().show('已确认歌曲，歌名、封面和歌词按此歌曲匹配')
+        }} />}
         <div className={styles.sources} role="radiogroup" aria-label="歌词来源">
           <button type="button" role="radio" aria-checked={selected === 'auto'} className={styles.source} data-selected={selected === 'auto'} disabled={busy} onClick={() => { setSelected('auto'); setError('') }}>
             <LyricOriginRow origin="auto">

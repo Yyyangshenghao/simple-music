@@ -113,7 +113,7 @@ export async function findLyricMatch(track: Track, source: ProviderId, signal?: 
   if (track.source === 'bilibili' && typeof track.bilibiliLyricVersionTitle !== 'string') {
     return findBilibiliLyricMatch(track, source, signal, strict, refresh)
   }
-  const mode = lyricServiceMode(source) === 'guest' ? 'guest' : 'account'
+  const mode = track.source === 'bilibili' || lyricServiceMode(source) === 'guest' ? 'guest' : 'account'
   return findEquivalentTrack(track, source, signal, Date.now(), strict, refresh, mode)
 }
 
@@ -338,13 +338,13 @@ export function cachedLyrics(track: Track): LyricsResult | undefined {
  * @param sources Apple 歌词允许匹配的来源
  * @param signal 当前消费者的取消信号
  */
-export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false, refresh = false): Promise<LyricsResult> {
+export async function fetchLyrics(track: Track, sources: ProviderId[] = [], signal?: AbortSignal, wordTiming = false, strict = false, refresh = false, serviceMode?: LyricServiceMode): Promise<LyricsResult> {
   track = accompanimentOriginal(track) ?? track
   if (signal?.aborted) return emptyLyrics
   if (track.source !== 'netease' && track.source !== 'qq') return loadLyrics(track, sources, signal, wordTiming, strict)
   const source = track.source
   // 未参与播放且游客关闭时沿用旧行为（账号请求），供其他调用方兼容。
-  const mode: LyricServiceMode = lyricServiceMode(source) ?? 'account'
+  const mode: LyricServiceMode = serviceMode ?? lyricServiceMode(source) ?? 'account'
   const session = providerAccountSession(source)
   // 游客模式下 QQ 只有逐字接口会返回翻译与音译，直接走逐字请求。
   const words = wordTiming || (mode === 'guest' && source === 'qq')

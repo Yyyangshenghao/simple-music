@@ -11,14 +11,14 @@ import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), qishui: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
 vi.mock('./local-music-service', () => ({ localMusicService: {
   getLyrics: h.local,
   getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
 } }))
-vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple') => ({
+vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple' | 'qishui') => ({
   catalog: { searchTracks: h[source], getTracksByIds: vi.fn() },
 }) }))
 
@@ -48,9 +48,13 @@ beforeEach(() => {
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
   h.apple.mockResolvedValue([song('apple', { id: 'a1' })])
+  h.qishui.mockResolvedValue([])
   h.native.mockResolvedValue(null)
   h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
-  vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙' })
+  vi.mocked(api.get).mockImplementation(async (path, params) => {
+    if (path === '/api/search' || path === '/api/qq/search') return { songs: await h[path === '/api/search' ? 'netease' : 'qq'](String(params?.keywords)) } as never
+    return { lyric: '[00:01.00]甲乙' } as never
+  })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -72,7 +76,7 @@ describe('来源锁定', () => {
     const options = { search: { name: '晴天', artist: '周杰伦' } }
     expect(await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, options)).toMatchObject({ status: 'mismatch' })
     expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
-    expect(api.get).not.toHaveBeenCalled()
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/lyric')).toBe(false)
   })
 
   it('用户输入无版本标注的歌名时仍保留原录音的现场标记', async () => {
@@ -124,7 +128,7 @@ describe('来源锁定', () => {
       candidates: [{ title: params?.title, artist: params?.artist, duration: 180_000, text: krc }],
     }) as never)
     expect(await queryLyricsSource(track, 'kugou', [])).toMatchObject({ status: 'mismatch' })
-    expect(api.get).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(api.get).mock.calls.filter(([path]) => path === '/api/kugou/lyric')).toHaveLength(2)
   })
 
   it.each([182_900, 180_000])('比较 B 站横线两侧的读法（第一种候选时长 %i）', async (duration) => {
@@ -135,7 +139,7 @@ describe('来源锁定', () => {
       return []
     })
     const result = await queryLyricsSource(track, 'netease', ['netease'])
-    expect(h.netease).toHaveBeenCalledTimes(2)
+    expect(h.netease).toHaveBeenCalledTimes(duration === 180_000 ? 4 : 2)
     expect(result).toMatchObject(duration === 180_000 ? { status: 'mismatch' } : { status: 'ready', match: { id: 'correct' } })
   })
 
@@ -150,7 +154,7 @@ describe('来源锁定', () => {
     const track = song('bilibili', { name, artist: '上传账号' })
     expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
     expect(h.netease).toHaveBeenCalledWith('晴天')
-    expect(api.get).not.toHaveBeenCalled()
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/lyric' || path === '/api/qq/lyric')).toBe(false)
   })
 
   it('网易和 QQ 未收录时，仍可用酷狗可靠 KRC 兜底', async () => {
@@ -496,4 +500,43 @@ describe('游客歌词来源', () => {
     expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
     useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
   })
+})
+
+
+it('B 站系统游客歌词不受播放平台、游客或歌词平台开关影响', async () => {
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false }, lyricsPlatformSources: { netease: false, qq: false, apple: false, qishui: false } })
+  useProviderStore.setState({ byId: { ...useProviderStore.getState().byId, netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' } } })
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  expect(candidateAvailability(track, 'netease', [])).toEqual({ status: 'idle' })
+  expect(candidateAvailability(track, 'qq', [])).toEqual({ status: 'idle' })
+  expect(candidateAvailability(track, 'amll', [])).toEqual({ status: 'idle' })
+})
+
+
+it('B 站原生游客取词不会因无关 Apple 账号变化丢弃响应', async () => {
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  let finish!: (value: unknown) => void
+  const original = vi.mocked(api.get).getMockImplementation()!
+  vi.mocked(api.get).mockImplementation((path, ...args) => path === '/api/lyric'
+    ? new Promise(resolve => { finish = resolve }) as never : original(path, ...args))
+  const pending = queryLyricsSource(track, 'netease', ['netease', 'qq', 'apple'])
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  advanceProviderAccountSession('apple')
+  advanceProviderAccountSession('netease')
+  finish({ lyric: '[00:01.00]系统游客歌词' })
+  expect(await pending).toMatchObject({ status: 'ready', result: { main: [{ time: 1, text: '系统游客歌词' }] } })
+  expect(api.get).toHaveBeenCalledWith('/api/lyric', expect.objectContaining({ guest: '1' }), expect.anything())
+})
+
+
+it('账号来源熔断不拦截 B 站系统游客，也不由游客结果修改账号健康状态', async () => {
+  const health = { netease: { failures: 3, suspended: true, retryAt: Date.now() + 60_000 }, qq: { failures: 3, suspended: true, retryAt: Date.now() + 60_000 } }
+  useLyricsSourceStore.setState({ health })
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  expect(candidateAvailability(song('qq'), 'netease', ['netease']).status).toBe('unavailable')
+  for (const origin of ['netease', 'qq'] as const) {
+    expect(candidateAvailability(track, origin, [])).toEqual({ status: 'idle' })
+    expect(await queryLyricsSource(track, origin, [])).toMatchObject({ status: 'ready' })
+  }
+  expect(useLyricsSourceStore.getState().health).toBe(health)
 })

@@ -1,3 +1,4 @@
+import { matchedBilibiliTrack, useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { usePlayerStore } from '../stores/player'
 import { usePlaylistStore } from '../stores/playlist'
 import { indexForPosition, useLyricsStore } from '../stores/lyrics'
@@ -19,9 +20,11 @@ import { getQueueStep } from './queue-state'
 import { lyricPlaybackPosition } from './lyric-playback-position'
 import { qqLyricIdentifiers } from './qq-lyric-identifiers'
 import { hasWordTiming } from './word-highlight-timeline'
-import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate, type RememberedLyricSource, type LyricSearchInput } from '../types/lyrics-source'
+import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricPrioritySource, type LyricSourceCandidate, type RememberedLyricSource, type LyricSearchInput } from '../types/lyrics-source'
 import type { Track } from '../types/domain'
 import { accompanimentOriginal } from './karaoke-library'
+
+const BILIBILI_LYRICS_ORDER: LyricPrioritySource[] = ['netease', 'qq', 'amll', 'kugou']
 
 function lyricTrackKey(track: Track): string {
   return `${track.source}:${String(track.id)}`
@@ -45,16 +48,18 @@ function lyricCandidateSignature(currentTrack: Track | null, resolvedTrack: Trac
 }
 
 /** 歌词可用的平台：参与播放的账号平台，以及设置允许游客查询的网易云、QQ；设置中关闭的平台除外。 */
-function participatingSources(): ProviderId[] {
-  return lyricServiceSources()
+function participatingSources(track?: Track): ProviderId[] {
+  const sources = lyricServiceSources()
+  return track?.source === 'bilibili' ? Array.from(new Set<ProviderId>(['netease', 'qq', ...sources])) : sources
 }
 
 /** 影响来源落定结果的全部条件；任一变化时跨曲缓存与预取都不能复用。 */
 function lyricsContext(track: Track, origins: LyricOrigin[], sources: ProviderId[], chosen?: RememberedLyricSource): string {
   const settings = useSettingsStore.getState()
-  return JSON.stringify([lyricCandidateSignature(track, chosen?.match ?? null), origins, sources, chosen?.search,
+  const identity = track.source === 'bilibili' ? matchedBilibiliTrack(track) : undefined
+  return JSON.stringify([identity && [identity.source, String(identity.mid ?? identity.id), identity.name, identity.artist, identity.duration], lyricCandidateSignature(track, chosen?.match ?? null), origins, sources, chosen?.search,
     settings.lyricsAmllFallback, settings.lyricsKugouFallback,
-    PROVIDER_IDS.map(source => providerAccountSession(source)), origins.map(origin => suspendedLyricsSource(origin))])
+    PROVIDER_IDS.filter(source => track.source !== 'bilibili' || (chosen?.origin === 'apple' && source === 'apple')).map(source => providerAccountSession(source)), origins.map(origin => track.source === 'bilibili' && (origin === 'netease' || origin === 'qq') ? false : suspendedLyricsSource(origin))])
 }
 
 /** 按 next 的走序取下一首；随机走序尚未建立时不预取，避免预取方替播放器生成洗牌顺序。 */
@@ -110,7 +115,7 @@ export function initLyricsLoader(): () => void {
   const lyricsEnabled = () => !useGameModeStore.getState().enabled || useVisualStore.getState().fx.desktopLyrics
   const currentTrack = () => usePlayerStore.getState().currentTrack
   const sameAccounts = (accounts: typeof activeAccounts) => accounts.every(({ source, version }) => version === providerAccountSession(source))
-  const captureAccounts = () => PROVIDER_IDS.map(source => ({ source, version: providerAccountSession(source) }))
+  const captureAccounts = (origin?: LyricOrigin | 'auto') => PROVIDER_IDS.filter(source => currentTrack()?.source !== 'bilibili' || (origin === 'apple' && source === 'apple')).map(source => ({ source, version: providerAccountSession(source) }))
   const originOf = (result: LyricsResult): LyricOrigin | null => result.main.length ? result.origin ?? result.source : null
 
   const preview = (origin: LyricOrigin, response: LyricsSourceQueryResult): LyricSourceCandidate => {
@@ -184,14 +189,14 @@ export function initLyricsLoader(): () => void {
       cancelDialog()
       selection = { key, token, controller: new AbortController(), jobs: [], pending: new Set(), active: 0, search: search ?? undefined, manualResults: new Map() }
       useLyricsSourceStore.setState({ candidateTrackKey: key, candidateToken: token, candidateSearch: search ?? null, candidates: sourceRows(track).map(origin => preview(origin, {
-        ...candidateAvailability(track, origin, participatingSources(), false, search ?? undefined),
+        ...candidateAvailability(track, origin, participatingSources(track), false, search ?? undefined),
       })) })
     }
     const dialog = selection
     const origins = sourceRows(track)
     if (requested && !origins.includes(requested)) throw new Error('此歌曲不支持该歌词来源')
     for (const origin of requested ? [requested] : origins) {
-      const available = candidateAvailability(track, origin, participatingSources(), false, dialog.search)
+      const available = candidateAvailability(track, origin, participatingSources(track), false, dialog.search)
       if (available.status !== 'idle' && available.status !== 'ready') { updateCandidate(dialog, origin, available); continue }
       const manual = dialog.manualResults.get(origin)
       const cached = dialog.search ? (manual && sameAccounts(manual.accounts) ? manual.response : undefined)
@@ -200,11 +205,11 @@ export function initLyricsLoader(): () => void {
       if (dialog.pending.has(origin)) continue
       dialog.pending.add(origin)
       updateCandidate(dialog, origin, { status: 'loading' })
-      const accounts = captureAccounts()
+      const accounts = captureAccounts(origin)
       dialog.jobs.push(async () => {
         try {
           const remembered = useLyricsSourceStore.getState().remembered[key]
-          const response = await queryLyricsSource(track, origin, participatingSources(), dialog.controller.signal,
+          const response = await queryLyricsSource(track, origin, participatingSources(track), dialog.controller.signal,
             dialog.search || remembered?.search ? undefined : remembered?.match, { search: dialog.search })
           if (selection !== dialog || dialog.controller.signal.aborted || !sameAccounts(accounts)) return
           if (response.status === 'ready') {
@@ -226,7 +231,8 @@ export function initLyricsLoader(): () => void {
     track: Track, sources: ProviderId[], signal: AbortSignal, order: NonNullable<typeof activeSourceOrder>,
     chosen?: RememberedLyricSource, onProvisional?: (found: OrderedLyricsResult) => void,
   ) => {
-    const origins = lyricsOriginOrder(track, order, chosen)
+    const automaticOrder = track.source === 'bilibili' ? order.filter(origin => BILIBILI_LYRICS_ORDER.includes(origin)) : order
+    const origins = lyricsOriginOrder(track, automaticOrder, chosen)
     const key = lyricTrackKey(track)
     const context = lyricsContext(track, origins, sources, chosen)
     const fallback = (origin: LyricOrigin, message?: string) => {
@@ -267,7 +273,7 @@ export function initLyricsLoader(): () => void {
       if (disposed || !order || !lyricsEnabled() || !currentLanded) return
       const next = nextQueueTrack()
       if (!next || next.pending || next.source === 'local' || lyricTrackKey(next) === currentKey) return
-      const sources = participatingSources()
+      const sources = participatingSources(next)
       if (!sources.includes(next.source)) return
       const chosen = useLyricsSourceStore.getState().remembered[lyricTrackKey(next)]
       const origins = lyricsOriginOrder(next, order, chosen)
@@ -304,7 +310,7 @@ export function initLyricsLoader(): () => void {
     controller = new AbortController()
     const signal = controller.signal
     // 本地歌曲也带上可用平台：本地没有歌词时按文件标签在线匹配。
-    const lyricSources = participatingSources()
+    const lyricSources = participatingSources(track)
     const candidates = [track, resolvedTrack]
       .map(item => item ? accompanimentOriginal(item) ?? item : null)
       .filter((item): item is Track => !!item && (!isProviderId(item.source) || lyricSources.includes(item.source)))
@@ -317,14 +323,17 @@ export function initLyricsLoader(): () => void {
     }
     // 手选补全与面板查询也受参与账号的会话变化约束。
     if (chosen || preferences.defaultSource !== 'auto' || previousDialog) lyricSources.forEach(source => sources.add(source))
-    const accounts = Array.from(sources, source => ({ source, version: providerAccountSession(source) }))
+    // 显式记住的 Apple 即使暂不可用也需继续观察，重新登录后才能恢复选择。
+    if (track.source === 'bilibili' && chosen?.origin === 'apple') sources.add('apple')
+    const accounts = Array.from(sources).filter(source => track.source !== 'bilibili' || (chosen?.origin === 'apple' && source === 'apple')).map(source => ({ source, version: providerAccountSession(source) }))
     activeAccounts = accounts
     const current = () => !disposed && request === session && decision === choiceVersion && !signal.aborted
     if (previousDialog?.key === key) void queryCandidates(key, previousDialog.token, undefined, previousDialog.search).catch(() => {})
     let provisional: LyricsResult | undefined
     void (async () => {
-      if (preferences.sourceOrder) {
-        const response = await resolveOrdered(track, lyricSources, signal, preferences.sourceOrder, chosen, ({ response }) => {
+      if (preferences.sourceOrder || track.source === 'bilibili') {
+        const order = preferences.sourceOrder ?? BILIBILI_LYRICS_ORDER
+        const response = await resolveOrdered(track, lyricSources, signal, order, chosen, ({ response }) => {
           if (!current() || !sameAccounts(accounts) || useLyricsStore.getState().trackKey !== key) return
           provisional = response.result
           apply(response.result!, false, response.match ?? track)
@@ -383,17 +392,17 @@ export function initLyricsLoader(): () => void {
       dialog.application?.abort()
       const application = new AbortController()
       dialog.application = application
-      const accounts = captureAccounts()
+      const accounts = captureAccounts(origin)
       const current = () => !application.signal.aborted && selection === dialog && !dialog.controller.signal.aborted
         && sameAccounts(accounts) && currentTrack() && lyricTrackKey(currentTrack()!) === key
       if (origin === 'auto') {
         const preference = useLyricsSourceStore.getState().defaultSource
-        const sources = participatingSources()
+        const sources = participatingSources(track)
         const preferred = preference === 'auto' || track.source === 'local' ? null : preference === 'origin' ? track.source : preference
         let response: LyricsSourceQueryResult | undefined
         let upgradeTrack = track
         let allowUpgrade = true
-        const order = useLyricsSourceStore.getState().sourceOrder
+        const order = useLyricsSourceStore.getState().sourceOrder ?? (track.source === 'bilibili' ? BILIBILI_LYRICS_ORDER : null)
         if (order) {
           response = await resolveOrdered(track, sources, application.signal, order)
           if (!current()) throw new Error('歌词选择已取消')
@@ -440,13 +449,13 @@ export function initLyricsLoader(): () => void {
         }).catch(() => {})
         return { saved: true, offsetReset }
       }
-      const available = candidateAvailability(track, origin, participatingSources(), false, dialog.search)
+      const available = candidateAvailability(track, origin, participatingSources(track), false, dialog.search)
       if (!sourceRows(track).includes(origin) || (available.status !== 'idle' && available.status !== 'ready')) throw new Error(available.message ?? '此歌词来源暂不可用')
       const remembered = useLyricsSourceStore.getState().remembered[key]
       const manual = dialog.manualResults.get(origin)
       const response = dialog.search ? (manual && sameAccounts(manual.accounts) ? manual.response : undefined)
         : (onceChoice?.search && onceChoice.origin === origin ? undefined : results.get(origin))
-          ?? await queryLyricsSource(track, origin, participatingSources(), application.signal, remembered?.search ? undefined : remembered?.match)
+          ?? await queryLyricsSource(track, origin, participatingSources(track), application.signal, remembered?.search ? undefined : remembered?.match)
       await Promise.resolve()
       if (!current()) throw new Error('歌词选择已取消')
       if (response?.status !== 'ready' || !response.result?.main.length) throw new Error(response?.message ?? '切换失败，仍使用原歌词')
@@ -472,7 +481,21 @@ export function initLyricsLoader(): () => void {
     const nextSignature = lyricCandidateSignature(state.currentTrack, state.resolvedTrack)
     if (nextSignature !== candidateSignature) { candidateSignature = nextSignature; sync() }
   })
+  const stopBilibiliIdentity = useBilibiliCoverStore.subscribe((state, previous) => {
+    const track = usePlayerStore.getState().currentTrack
+    if (track?.source !== 'bilibili') return
+    const next = matchedBilibiliTrack(track, state.entries)
+    if (next?.bilibiliIdentityConfirmed !== true || next === matchedBilibiliTrack(track, previous.entries)) return
+    onceChoice = undefined
+    useLyricsSourceStore.getState().forgetTrack(lyricTrackKey(track))
+    sync()
+  })
   const stopProviders = useProviderStore.subscribe((state, previous) => {
+    if (currentTrack()?.source === 'bilibili') {
+      if (activeAccounts.some(({ source, version }) => state.byId[source].enabled !== previous.byId[source].enabled
+        || state.byId[source].auth !== previous.byId[source].auth || version !== providerAccountSession(source))) sync()
+      return
+    }
     if (state.playbackOrder.length !== previous.playbackOrder.length
       || state.playbackOrder.some((source, index) => source !== previous.playbackOrder[index])
       || PROVIDER_IDS.some(source => state.byId[source].enabled !== previous.byId[source].enabled
@@ -484,6 +507,12 @@ export function initLyricsLoader(): () => void {
   })
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.playMode !== previous.playMode) schedulePrefetch()
+    if (currentTrack()?.source === 'bilibili') {
+      if (state.lyricsAmllFallback !== previous.lyricsAmllFallback || state.lyricsKugouFallback !== previous.lyricsKugouFallback
+        || (onceChoice?.origin === 'apple' && state.lyricsPlatformSources.apple !== previous.lyricsPlatformSources.apple)
+        || (onceChoice?.origin === 'qishui' && state.lyricsPlatformSources.qishui !== previous.lyricsPlatformSources.qishui)) sync()
+      return
+    }
     const guestChanged = state.lyricsGuestSources.netease !== previous.lyricsGuestSources.netease
       || state.lyricsGuestSources.qq !== previous.lyricsGuestSources.qq
       || state.lyricsPlatformSources.netease !== previous.lyricsPlatformSources.netease
@@ -508,6 +537,7 @@ export function initLyricsLoader(): () => void {
     prefetcher.clear()
     stopQueue()
     stopPlayer()
+    stopBilibiliIdentity()
     stopProviders()
     stopSettings()
     stopGame()

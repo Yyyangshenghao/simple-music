@@ -561,3 +561,10 @@ describe('游客歌词来源', () => {
     expect(new Set(vi.mocked(api.get).mock.calls.map(([path]) => path))).toEqual(new Set(['/api/search', '/api/qq/search']))
   })
 })
+
+
+it('B 站系统取词可以显式强制游客，即使目标平台账号已登录', async () => {
+  useProviderStore.setState({ byId: { ...useProviderStore.getState().byId, netease: { enabled: true, auth: 'authenticated' } } })
+  await fetchLyrics(song('netease'), [], undefined, false, true, false, 'guest')
+  expect(api.get).toHaveBeenCalledWith('/api/lyric', expect.objectContaining({ guest: '1' }), expect.anything())
+})
