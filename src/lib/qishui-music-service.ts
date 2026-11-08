@@ -9,14 +9,22 @@ export interface QishuiListeningMode {
   icon?: string
 }
 
-export type QishuiListeningTrack = Track & { vipOnly?: boolean }
-
 export async function getQishuiListeningModes(): Promise<QishuiListeningMode[]> {
   return (await api.get<{ modes: QishuiListeningMode[] }>('/api/qishui/listening-modes')).modes
 }
 
-export async function getQishuiListeningTracks(mode: string): Promise<QishuiListeningTrack[]> {
-  return (await api.get<{ songs: QishuiListeningTrack[] }>('/api/qishui/listening-modes/tracks', { mode })).songs
+/** 让服务端提前备好这个模式的歌；同一模式短时间内只发一次。失败无影响，点击时会重新请求。 */
+const preparedAt = new Map<string, number>()
+export function prepareQishuiListening(mode: string): void {
+  const now = Date.now()
+  if (now - (preparedAt.get(mode) ?? 0) < 60_000) return
+  preparedAt.set(mode, now)
+  void api.get('/api/qishui/listening-modes/prepare', { mode }).catch(() => { preparedAt.delete(mode) })
+}
+
+/** first=true 表示用户刚点开这个模式，让上游从头开始推荐。 */
+export async function getQishuiListeningTracks(mode: string, first = false): Promise<Track[]> {
+  return (await api.get<{ songs: Track[] }>('/api/qishui/listening-modes/tracks', { mode, first: first ? 1 : undefined })).songs
 }
 
 /** 汽水音乐：目录和播放走游客会话；扫码登录后开放我的歌单。 */

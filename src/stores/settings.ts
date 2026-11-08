@@ -1,5 +1,6 @@
 import { DEFAULT_TOP_MENU, normalizeTopMenu, type TopMenuId, type TopMenuItem } from '../lib/top-menu'
 import { normalizeExploreLayout, normalizeExploreLayouts, type ExploreLayouts, type ExploreModuleSetting } from '../lib/explore-modules'
+import { normalizeQishuiPinnedModes } from '../lib/qishui-mode-pins'
 import type { ProviderId } from '../providers/types'
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
@@ -133,6 +134,8 @@ interface PersistedSettings {
   unlikeConfirmation: boolean
   /** 各音源探索模块的独立开关与展示顺序。 */
   exploreLayouts: ExploreLayouts
+  /** 汽水听歌模式的常用区，在探索页直接拖动调整。 */
+  qishuiPinnedModes: string[]
   /** 哔哩哔哩曲目用匹配到的同曲专辑封面代替视频封面；未匹配到时仍显示视频封面。 */
   bilibiliAlbumCover: boolean
   liveBackgroundKeep: boolean
@@ -231,6 +234,7 @@ interface SettingsStore extends PersistedSettings {
   setShelfMergeCollections(v: boolean): void
   setUnlikeConfirmation(v: boolean): void
   setExploreLayout(source: ProviderId, layout: ExploreModuleSetting[]): void
+  setQishuiPinnedModes(modes: string[]): void
   setBilibiliAlbumCover(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: LyricsPanelMode): void
@@ -294,6 +298,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   shelfMergeCollections: false,
   unlikeConfirmation: true,
   exploreLayouts: normalizeExploreLayouts(null),
+  qishuiPinnedModes: normalizeQishuiPinnedModes(null),
   bilibiliAlbumCover: true,
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
@@ -380,6 +385,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setExploreLayout(source, layout) {
     set({ exploreLayouts: { ...get().exploreLayouts, [source]: normalizeExploreLayout(source, layout) } })
+    get().saveToLocal()
+  },
+  setQishuiPinnedModes(modes) {
+    set({ qishuiPinnedModes: normalizeQishuiPinnedModes(modes) })
     get().saveToLocal()
   },
   setBilibiliAlbumCover(v) {
@@ -583,8 +592,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, qishuiPinnedModes, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, qishuiPinnedModes, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -624,6 +633,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         unlikeConfirmation: data.unlikeConfirmation ?? true,
         exploreLayouts: normalizeExploreLayouts(data.exploreLayouts),
+        qishuiPinnedModes: normalizeQishuiPinnedModes(data.qishuiPinnedModes),
         bilibiliAlbumCover: data.bilibiliAlbumCover ?? true,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         // 旧版的跃字 / 3D 是独立模式，统一迁为「动态」，具体样式由 lyric-styles 读回。

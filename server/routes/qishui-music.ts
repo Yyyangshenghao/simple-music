@@ -1,12 +1,11 @@
 import type { RouteHandler } from '../types'
 import { sendJson } from '../lib/http'
-import { cancelQishuiLogin, completeQishuiLogin, fetchQishuiAccountPlaylist, fetchQishuiUserPlaylists, logoutQishui, pollQishuiLogin, qishuiLoginStatus, startQishuiLogin } from '../lib/qishui-account'
+import { cancelQishuiLogin, completeQishuiLogin, fetchQishuiAccountPlaylist, fetchQishuiRadioTracks, fetchQishuiUserPlaylists, logoutQishui, pollQishuiLogin, prepareQishuiRadio, qishuiLoginStatus, startQishuiLogin } from '../lib/qishui-account'
 import {
   fetchQishuiAlbum,
   fetchQishuiArtist,
   fetchQishuiArtistSongs,
   fetchQishuiListeningModes,
-  fetchQishuiListeningTracks,
   fetchQishuiPlaylist,
   fetchQishuiStreams,
   fetchQishuiTrackDetail,
@@ -35,7 +34,7 @@ function limitOf(params: URLSearchParams, fallback: number): number {
  * 汽水音乐端点。账号：/login/*、/logout、GET /user/playlists（未登录或失效 401）。
  * 目录与播放走游客会话（只读）：
  * - GET /api/qishui/search[?keywords&limit]、/search/{artists,albums,playlists}
- * - GET /api/qishui/listening-modes、/listening-modes/tracks?mode
+ * - GET /api/qishui/listening-modes、/listening-modes/{tracks?mode[&first=1],prepare?mode}
  * - GET /api/qishui/song/url?id&quality → { url, quality, level, trial, candidates }；会员曲只有试听，trial=true
  * - GET /api/qishui/song/qualities?id、/lyric?id（明文逐字 KRC 原文）
  * - GET /api/qishui/playlist/tracks?id、/album/{detail,songs}?id、/artist/{detail,songs,albums}?id
@@ -56,16 +55,16 @@ export const qishuiRoutes: RouteHandler = async (req, res, url, ctx) => {
           sendJson(res, await pollQishuiLogin(dir, key))
           break
         case 'POST /api/qishui/login/qr/complete':
-          sendJson(res, completeQishuiLogin(dir, key))
+          sendJson(res, completeQishuiLogin(dir))
           break
         case 'POST /api/qishui/login/qr/cancel':
-          sendJson(res, cancelQishuiLogin(dir, key))
+          sendJson(res, await cancelQishuiLogin(dir, key))
           break
         case 'GET /api/qishui/login/status':
           sendJson(res, await qishuiLoginStatus(dir))
           break
         case 'POST /api/qishui/logout':
-          sendJson(res, logoutQishui(dir))
+          sendJson(res, await logoutQishui(dir))
           break
         default: sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
       }
@@ -129,7 +128,11 @@ export const qishuiRoutes: RouteHandler = async (req, res, url, ctx) => {
   const mode = params.get('mode') ?? ''
   const listeningHandlers: Partial<Record<string, () => Promise<Record<string, unknown>>>> = {
     '/api/qishui/listening-modes': async () => ({ modes: await fetchQishuiListeningModes() }),
-    '/api/qishui/listening-modes/tracks': async () => ({ songs: await fetchQishuiListeningTracks(mode) }),
+    '/api/qishui/listening-modes/prepare': async () => {
+      await prepareQishuiRadio(ctx.userDataDir, mode)
+      return { ok: true }
+    },
+    '/api/qishui/listening-modes/tracks': async () => ({ songs: await fetchQishuiRadioTracks(ctx.userDataDir, mode, params.get('first') === '1') }),
   }
   const listening = listeningHandlers[pn]
   const search = searchHandlers[pn]
@@ -139,7 +142,7 @@ export const qishuiRoutes: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
   const input = search ? keywordOf(params) : String(params.get('id') ?? '')
-  const modeTracks = pn === '/api/qishui/listening-modes/tracks'
+  const modeTracks = pn === '/api/qishui/listening-modes/tracks' || pn === '/api/qishui/listening-modes/prepare'
   const read = listening
     ?? (input && search ? () => search(input) : undefined)
     ?? (input && byId && isQishuiId(input) ? () => byId(input) : undefined)

@@ -22,6 +22,7 @@ import { initDownloadQueueRuntime } from './download-queue-runtime'
 import { initKaraokeQueueRuntime, useKaraokeStore } from '../stores/karaoke'
 import { accompanimentId } from './karaoke-library'
 import { initLoginStatusSync } from './login-status-sync'
+import { initQishuiRadio } from './qishui-radio'
 import { useSleepTimerStore } from '../stores/sleep-timer'
 
 let stopRuntime: (() => void) | undefined
@@ -54,6 +55,7 @@ export function startPlaybackRuntime(): () => void {
     if (miniPlayerEnabled && !useGameModeStore.getState().enabled) void window.desktop?.setMiniPlayerEnabled(true, miniPlayerWidth).catch(() => {})
   })
   const stopLoginStatus = initLoginStatusSync()
+  const stopQishuiRadio = initQishuiRadio()
   // 初始展示读取已经恢复的暂停态，不先向系统发布空状态。
   const stopTray = initTraySync()
   const stopMedia = initMediaSession()
@@ -68,6 +70,7 @@ export function startPlaybackRuntime(): () => void {
     if (stopped) return
     stopped = true
     stopLoginStatus()
+    stopQishuiRadio()
     // 最后存档在音频与会话释放前完成；取消待写定时器，避免退出后回写。
     stopPersistence()
     useSleepTimerStore.getState().cancel()
