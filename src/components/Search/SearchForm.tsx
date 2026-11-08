@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { bilibiliLinkMessage, parseBilibiliLink } from '../../lib/bilibili-link'
 import { providerAccountSession } from '../../lib/provider-account-session'
 import { loadSearchHistory, pushTerm, removeTerm, saveSearchHistory } from '../../lib/search-history'
@@ -11,12 +11,13 @@ import { SearchHistory } from './SearchHistory'
 import { SearchHotkeys } from './SearchHotkeys'
 import styles from './SearchForm.module.css'
 
-export function SearchForm({ keyword, focusInput, busy, scrolled, onRefresh }: {
+/** 头部固定在滚动区外，历史与热搜经 children 交给页面放进滚动内容。 */
+export function SearchForm({ keyword, focusInput, busy, onRefresh, children }: {
   keyword: string
   focusInput?: boolean
   busy: boolean
-  scrolled: boolean
   onRefresh(): void
+  children(suggestions: ReactNode): ReactNode
 }) {
   const errorId = useId()
   const [draft, setDraft] = useState(keyword)
@@ -73,7 +74,7 @@ export function SearchForm({ keyword, focusInput, busy, scrolled, onRefresh }: {
   }
 
   return <>
-    <header className={styles.pinned} data-home={!keyword} data-scrolled={scrolled}>
+    <header className={styles.pinned} data-home={!keyword}>
       <h1>搜索</h1>
       <form className={styles.form} role="search" aria-label="音乐搜索" onSubmit={event => {
         event.preventDefault()
@@ -96,11 +97,11 @@ export function SearchForm({ keyword, focusInput, busy, scrolled, onRefresh }: {
       {error && <p className={styles.error} id={errorId} role="alert">{error}</p>}
       {keyword && draft.trim() !== keyword && <p className={styles.current}>当前结果 · {keyword}</p>}
     </header>
-    {!keyword && (history.length > 0 || hotkeySources.length > 0) && <div className={styles.suggestions} data-multi-hotkeys={multipleHotkeys || undefined}>
+    {children(!keyword && (history.length > 0 || hotkeySources.length > 0) && <div className={styles.suggestions} data-multi-hotkeys={multipleHotkeys || undefined}>
       <SearchHistory terms={history} onSelect={submit} onRemove={term => updateHistory(removeTerm(history, term))} onClear={() => updateHistory([])} />
       {hotkeySources.length > 0 && <div className={styles.hotkeys}>
         {hotkeySources.map(source => <SearchHotkeys key={`${source}:${providerAccountSession(source)}`} source={source} onSelect={submit} />)}
       </div>}
-    </div>}
+    </div>)}
   </>
 }

@@ -38,7 +38,6 @@ export function SearchPage({ keyword, initialState, focusInput }: { keyword: str
   const { songs, artists, albums, playlists, sources, signature, busy, refresh, retryFailed } = useSearchResults(keyword, active)
   const [selectedCategory, setCategory] = useState<Category>(initialState?.category ?? 'all')
   const [selecting, setSelecting] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<ProviderId | null>(initialState?.sourceFilter ?? null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const artistScrollRef = useRef<HTMLDivElement>(null)
@@ -183,9 +182,12 @@ export function SearchPage({ keyword, initialState, focusInput }: { keyword: str
   }
 
   return (
-    <ScrollArea className={styles.page} scrollRef={scrollRef} onScrolledChange={setScrolled}>
+    <div className={styles.shell}>
+    <SearchForm keyword={keyword} focusInput={focusInput} busy={busy} onRefresh={refresh}>
+    {suggestions => <div className={styles.scroller}>
+    <ScrollArea className={styles.page} scrollRef={scrollRef}>
       <div className={styles.content}>
-        <SearchForm keyword={keyword} focusInput={focusInput} busy={busy} scrolled={scrolled} onRefresh={refresh} />
+        {suggestions}
         <div className={styles.results} ref={selection.rootRef} {...selection.surfaceProps}>
           {keyword && sources.length > 0 && <div className={styles.toolbar}>
             {!songsOnly && <div className={styles.categories} role="group" aria-label="筛选搜索类型">
@@ -316,5 +318,8 @@ export function SearchPage({ keyword, initialState, focusInput }: { keyword: str
       </div>
       <SelectionMarquee rect={selection.marquee} />
     </ScrollArea>
+    </div>}
+    </SearchForm>
+    </div>
   )
 }

@@ -1,15 +1,22 @@
-.page {
+.shell {
+  --search-secondary: color-mix(in srgb, var(--sm-text-secondary) 80%, var(--sm-text-primary));
+  display: flex;
+  flex-direction: column;
   height: 100%;
   background: color-mix(in srgb, var(--sm-bg-base) 36%, transparent);
 }
 
-:global([data-reduce-transparency="1"]) .page { background: var(--sm-bg-base); }
+:global([data-reduce-transparency="1"]) .shell { background: var(--sm-bg-base); }
+
+.scroller { flex: 1; min-height: 0; }
+
+/* 头部已在滚动区外，顶部预留只需容纳内容淡出：内容滚到头部下方时渐隐，不盖遮罩，背景全程可见。 */
+.page { --sm-topbar-height: 20px; }
 
 .content {
-  --search-secondary: color-mix(in srgb, var(--sm-text-secondary) 80%, var(--sm-text-primary));
   width: min(var(--sm-content-max-width), calc(100% - var(--sm-page-gutter) * 2));
   margin: 0 auto;
-  padding: var(--sm-page-top) 0 64px;
+  padding-bottom: 64px;
 }
 
 .toolbar {
@@ -144,8 +151,6 @@
 }
 
 .results[data-selecting='true'] { user-select: none; }
-/* 多选工具栏接管吸顶位置，留出列表浏览空间。 */
-.content:has(.results[data-selecting='true']) > header { position: static; }
 .selectableRow { --track-row-inline: 8px; --track-meta-width: 5em; --track-status-color: var(--search-secondary); display: flex; align-items: center; gap: 10px; border-radius: 12px; transition: background 220ms var(--sm-ease-out), box-shadow 220ms var(--sm-ease-out); }
 .selectableRow > button[role='checkbox'] { margin-left: 12px; }
 .selectableRow > div { flex: 1; min-width: 0; }
