@@ -56,7 +56,7 @@ describe('歌词来源与播放平台分开', () => {
     expect(lyricServiceSources()).toEqual(['apple', 'qq', 'qishui'])
   })
 
-  it('汽水只有游客会话：参与播放按账号排序，未参与也以游客查询；设置关闭后不再参与', () => {
+  it('汽水歌词支持游客会话：参与播放按账号排序，未参与也以游客查询；设置关闭后不再参与', () => {
     providers('anonymous', 'anonymous')
     expect(lyricServiceMode('qishui')).toBe('guest')
     useProviderStore.setState({

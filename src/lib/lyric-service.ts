@@ -6,7 +6,7 @@ import type { Track } from '../types/domain'
 
 /**
  * 歌词来源与播放平台分开：网易云、QQ 已登录且参与播放时沿用账号；否则在设置允许时以游客身份查询，
- * 请求带 guest=1，服务端不附带账号 Cookie，失败也不会触发账号失效处理。汽水本身只有游客会话，未参与播放时同样按游客查询。
+ * 请求带 guest=1，服务端不附带账号 Cookie，失败也不会触发账号失效处理。汽水歌词始终按游客查询。
  * Apple Music 歌词只走账号。
  */
 export type LyricServiceMode = 'account' | 'guest'
@@ -29,7 +29,7 @@ export function lyricPlatformEnabled(source: ProviderId): boolean {
 export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
   if (!lyricPlatformEnabled(source)) return null
   if (participating(source)) return 'account'
-  // 汽水只有游客会话：未参与播放时也能按歌名、歌手搜索同曲并取逐字歌词。
+  // 汽水未参与播放时也能按歌名、歌手搜索同曲并取逐字歌词。
   if (source === 'qishui') return 'guest'
   if (source !== 'netease' && source !== 'qq') return null
   const state = useProviderStore.getState().byId[source]

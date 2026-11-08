@@ -21,7 +21,7 @@ import { useKaraokeStore } from '../stores/karaoke'
 import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { runShortcutAction } from './shortcut-actions'
 import { isShortcutAction } from './shortcuts'
-import { completeMusicProviderLogin, refreshKugouAccount } from './provider-login'
+import { completeMusicProviderLogin, refreshKugouAccount, commitQishuiLogin } from './provider-login'
 import { logoutMusicProvider } from './provider-logout'
 import { expireProviderAccount } from '../stores/provider-auth'
 import { providerAccountSession } from './provider-account-session'
@@ -55,8 +55,12 @@ export const playbackStores = {
       return completeMusicProviderLogin(source, cookie)
     },
     refreshKugouAccount() { return refreshKugouAccount() },
+    commitQishuiLogin(key: unknown) {
+      if (typeof key !== 'string') throw new Error('无效的扫码票据')
+      return commitQishuiLogin(key)
+    },
     logout(source: unknown) {
-      if (source !== 'netease' && source !== 'qq' && source !== 'kugou') throw new Error('无效的音源')
+      if (source !== 'netease' && source !== 'qq' && source !== 'kugou' && source !== 'qishui') throw new Error('无效的音源')
       return logoutMusicProvider(source)
     },
     expireAccount(source: unknown, message: unknown, epoch: unknown) {
@@ -85,5 +89,5 @@ export const remoteActions: Record<string, readonly string[]> = {
   navigation: ['navigateTo', 'openSearch', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
   bilibiliCovers: ['request', 'remember', 'rememberIdentity', 'querySongCandidates', 'confirmSongCandidate'],
-  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'refreshKugouAccount', 'logout', 'expireAccount', 'cancelLyricsSelection'],
+  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'refreshKugouAccount', 'commitQishuiLogin', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

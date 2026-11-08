@@ -14,7 +14,7 @@ function apiToken(): string | undefined {
 }
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>
-export type ApiProviderSource = 'netease' | 'qq' | 'apple' | 'kugou'
+export type ApiProviderSource = 'netease' | 'qq' | 'apple' | 'kugou' | 'qishui'
 
 let providerAuthFailureHandler: ((source: ApiProviderSource, status: 401 | 403) => void) | null = null
 
@@ -36,6 +36,7 @@ function providerSourceForApiUrl(input: string): ApiProviderSource | null {
   if (path.startsWith('/api/qq/')) return 'qq'
   // 酷狗只有账号端点会回 401/403，游客目录接口失败走 502，不会误判登录失效。
   if (path.startsWith('/api/kugou/')) return 'kugou'
+  if (path === '/api/qishui/user/playlists') return 'qishui'
   if (
     path.startsWith('/api/netease/')
     || path.startsWith('/api/song/')

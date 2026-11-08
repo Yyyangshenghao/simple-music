@@ -12,7 +12,7 @@ const fs=require('node:fs')
  await page.evaluate(async()=>{window.__exploreSmokeSettings=(await import('/src/stores/settings.ts')).useSettingsStore})
  await host.evaluate(async()=>{window.__exploreSmokeSettings=(await import('/src/stores/settings.ts')).useSettingsStore})
  const read=target=>target.evaluate(async()=>{const{useSettingsStore:s}=await import('/src/stores/settings.ts');return s.getState().exploreLayouts.qishui})
- const expected=[{id:'saved',enabled:true},{id:'listening',enabled:false},{id:'theme-playlists',enabled:true},{id:'listening-modes',enabled:true}]
+ const expected=[{id:'saved',enabled:true},{id:'listening',enabled:false},{id:'theme-playlists',enabled:true},{id:'listening-modes',enabled:true},{id:'playlists',enabled:true}]
  if(process.env.PHASE==='restart'){
   assert.deepEqual(await read(host),expected)
   assert.deepEqual(await read(page),expected)

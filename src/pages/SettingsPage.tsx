@@ -54,7 +54,7 @@ import {
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
-import { isFallbackOnlyProvider, isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { isFallbackOnlyProvider, isGuestLoginProvider, type ProviderId } from '../providers/types'
 import { useQrLoginDialog } from '../components/Settings/QrLoginDialog'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
@@ -1039,7 +1039,7 @@ export function SettingsPage() {
   const appleWaiting = useAppleMusicConnection((s) => s.phase === 'waiting')
   const appleRegionSelectable = useAppleMusicConnection((s) => s.account?.loginMode === 'web')
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
-  const changeProviderAccount = async (source: 'netease' | 'qq' | 'kugou', connected: boolean): Promise<void> => {
+  const changeProviderAccount = async (source: 'netease' | 'qq' | 'kugou' | 'qishui', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
     if (!connected) {
       // 登录统一走应用内扫码；网页登录窗作为浮层里的备用入口。
@@ -1234,17 +1234,17 @@ export function SettingsPage() {
                   {listProviders().map((provider) => {
                     const source = provider.descriptor.id
                     const runtime = providerState[source]
-                    // 无账号平台（游客、哔哩哔哩）会话始终可用，只有启用开关。
-                    const accountless = isGuestOnlyProvider(source) || source === 'bilibili'
+                    // 哔哩哔哩无需登录，只显示启用开关。
+                    const accountless = source === 'bilibili'
                     const connected = runtime.auth === 'authenticated' || isFallbackOnlyProvider(source)
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
-                    // 酷狗游客会话始终可用；账号按钮只看是否登录了账号。
+                    // 酷狗和汽水的游客会话始终可用；账号按钮只看是否登录了账号。
                     const guestLogin = isGuestLoginProvider(source)
                     const accountIn = guestLogin ? !!runtime.accountLinked : connected
                     const accountLabel = isFallbackOnlyProvider(source)
                       ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放' : '游客模式，搜索并播放音乐视频的音频'
-                      : isGuestOnlyProvider(source) || (guestLogin && !accountIn) ? '游客模式，会员歌曲仅试听'
+                      : guestLogin && !accountIn ? '游客模式，会员歌曲仅试听'
                       : source === 'apple' && appleRestoring ? '恢复登录中'
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { create } from 'zustand'
 import { QR_LOGIN_ADAPTERS, type QrLoginMethod, type QrLoginSource, type QrLoginTicket } from '../../lib/qr-login'
 import { loginMusicProvider } from '../../lib/provider-login'
@@ -29,6 +29,7 @@ const POLL_MS = 2000
 
 function QrPanel({ source, onDone }: { source: QrLoginSource; onDone(): void }) {
   const adapter = QR_LOGIN_ADAPTERS[source]
+  const isPresent = useIsPresent()
   const [method, setMethod] = useState<QrLoginMethod>(adapter.methods[0].id)
   const [image, setImage] = useState('')
   const [phase, setPhase] = useState<Phase>('loading')
@@ -36,22 +37,26 @@ function QrPanel({ source, onDone }: { source: QrLoginSource; onDone(): void }) 
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
+    if (!isPresent) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let scanned = false
+    let currentTicket: QrLoginTicket | undefined
     setImage('')
     setPhase('loading')
     setMessage('')
 
-    const finish = async (result: Parameters<typeof adapter.complete>[0]) => {
+    const active = () => !cancelled && useQrLoginDialog.getState().source === source
+
+    const finish = async (result: Parameters<typeof adapter.complete>[0], ticket: QrLoginTicket) => {
       setPhase('completing')
       try {
-        await adapter.complete(result)
-        if (cancelled) return
+        await adapter.complete(result, ticket)
+        if (!active()) return
         useToastStore.getState().show(`${SOURCE_BRAND[source].label}已登录`)
         onDone()
       } catch {
-        if (cancelled) return
+        if (!active()) return
         setPhase('failed')
         setMessage('登录信息同步失败，请重试')
       }
@@ -60,36 +65,40 @@ function QrPanel({ source, onDone }: { source: QrLoginSource; onDone(): void }) 
     const poll = async (ticket: QrLoginTicket) => {
       try {
         const res = await adapter.poll(ticket, method, scanned)
-        if (cancelled) return
+        if (!active()) return
         if (res.image) setImage(res.image)
-        if (res.status === 'confirmed') { await finish(res); return }
+        if (res.status === 'confirmed') { await finish(res, ticket); return }
         if (res.status === 'expired') { setPhase('expired'); return }
         if (res.status === 'failed') { setPhase('failed'); setMessage(res.message || ''); return }
         scanned = res.status === 'scanned'
         setPhase(scanned ? 'scanned' : 'waiting')
       } catch {
         // 单次网络失败继续轮询，二维码过期由上游状态决定。
-        if (cancelled) return
+        if (!active()) return
       }
       timer = setTimeout(() => void poll(ticket), POLL_MS)
     }
 
     adapter.start(method)
       .then((ticket) => {
-        if (cancelled) return
-        if (ticket.status === 'confirmed') { void finish(ticket); return }
+        if (!active()) {
+          if (ticket.key && source === 'qishui') adapter.cancel?.(ticket)
+          return
+        }
+        currentTicket = ticket
+        if (ticket.status === 'confirmed') { void finish(ticket, ticket); return }
         if (ticket.status === 'failed' || !ticket.image) { setPhase('failed'); setMessage(ticket.message || ''); return }
         setImage(ticket.image)
         setPhase('waiting')
         timer = setTimeout(() => void poll(ticket), POLL_MS)
       })
-      .catch(() => { if (!cancelled) setPhase('failed') })
+      .catch(() => { if (active()) setPhase('failed') })
     return () => {
       cancelled = true
       clearTimeout(timer)
-      adapter.cancel?.()
+      adapter.cancel?.(currentTicket)
     }
-  }, [adapter, attempt, method, onDone, source])
+  }, [adapter, attempt, isPresent, method, onDone, source])
 
   const stale = phase === 'expired' || phase === 'failed'
   const status = {
@@ -103,7 +112,7 @@ function QrPanel({ source, onDone }: { source: QrLoginSource; onDone(): void }) 
 
   const openWeb = () => {
     onDone()
-    if (source === 'kugou') return
+    if (source !== 'netease' && source !== 'qq') return
     loginMusicProvider(source).catch(() => useToastStore.getState().show('登录失败，请重试'))
   }
 

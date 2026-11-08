@@ -25,28 +25,20 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
-/** 只有游客能力、没有登录流程的平台（汽水）：会话视为始终可用，不显示登录入口。 */
-export const GUEST_ONLY_PROVIDER_IDS = ['qishui'] as const satisfies readonly ProviderId[]
-export type GuestOnlyProviderId = (typeof GUEST_ONLY_PROVIDER_IDS)[number]
-
-export function isGuestOnlyProvider(id: ProviderId): id is GuestOnlyProviderId {
-  return (GUEST_ONLY_PROVIDER_IDS as readonly ProviderId[]).includes(id)
-}
-
 /**
- * 不登录也能以游客身份使用、登录后再解锁账号能力的平台（酷狗）。
+ * 不登录也能以游客身份使用、登录后再解锁账号能力的平台（酷狗、汽水）。
  * 会话与游客平台一样始终可用；账号是否登录看运行态的 accountLinked。
  */
-export const GUEST_LOGIN_PROVIDER_IDS = ['kugou'] as const satisfies readonly ProviderId[]
+export const GUEST_LOGIN_PROVIDER_IDS = ['kugou', 'qishui'] as const satisfies readonly ProviderId[]
 export type GuestLoginProviderId = (typeof GUEST_LOGIN_PROVIDER_IDS)[number]
 
 export function isGuestLoginProvider(id: ProviderId): id is GuestLoginProviderId {
   return (GUEST_LOGIN_PROVIDER_IDS as readonly ProviderId[]).includes(id)
 }
 
-/** 无需登录即有可用会话的平台（纯游客 + 可选登录）。 */
+/** 无需登录即有可用会话的平台。 */
 export function hasGuestSession(id: ProviderId): boolean {
-  return isGuestOnlyProvider(id) || isGuestLoginProvider(id)
+  return isGuestLoginProvider(id)
 }
 
 /**

@@ -1,3 +1,4 @@
+import { useProviderStore } from '../stores/providers'
 import { api } from './api'
 import type { ArtistSongsPage, MusicService, PlaylistDetailMeta, PlaylistSkeleton } from './music-service'
 import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
@@ -18,8 +19,15 @@ export async function getQishuiListeningTracks(mode: string): Promise<QishuiList
   return (await api.get<{ songs: QishuiListeningTrack[] }>('/api/qishui/listening-modes/tracks', { mode })).songs
 }
 
-/** 汽水音乐游客服务：只读目录与播放，无账号、红心和歌单写入。 */
+/** 汽水音乐：目录和播放走游客会话；扫码登录后开放我的歌单。 */
 export class QishuiMusicService implements MusicService {
+  async getUserPlaylists(): Promise<Playlist[]> {
+    // 未登录账号时不请求账号端点，避免 401 被当成登录失效。
+    if (!useProviderStore.getState().byId.qishui.accountLinked) return []
+    const res = await api.get<{ playlists?: Playlist[] }>('/api/qishui/user/playlists')
+    return res.playlists ?? []
+  }
+
   async getRecommendPlaylists(): Promise<Playlist[]> {
     return []
   }

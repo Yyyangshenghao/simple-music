@@ -1,3 +1,4 @@
+import { GUEST_LOGIN_PROVIDER_IDS } from '../providers/types'
 import { api } from './api'
 import { providerAccountSession } from './provider-account-session'
 import { useSettingsStore } from '../stores/settings'
@@ -40,12 +41,12 @@ export function initLoginStatusSync(): () => void {
       }).catch(() => {})
   }
 
-  {
-    const session = providerAccountSession('kugou')
-    void api.get<LoginStatusResponse>('/api/kugou/login/status', undefined, { signal: controller.signal })
+  for (const source of GUEST_LOGIN_PROVIDER_IDS) {
+    const session = providerAccountSession(source)
+    void api.get<LoginStatusResponse>(`/api/${source}/login/status`, undefined, { signal: controller.signal })
       .then(result => {
-        if (stopped || session !== providerAccountSession('kugou')) return
-        useProviderStore.getState().setAccountState('kugou', result.loggedIn ? 'authenticated' : 'anonymous',
+        if (stopped || session !== providerAccountSession(source)) return
+        useProviderStore.getState().setAccountState(source, result.loggedIn ? 'authenticated' : 'anonymous',
           result.loggedIn ? { avatar: result.avatar || '', nickname: result.nickname || '' } : undefined)
       }).catch(() => {})
   }

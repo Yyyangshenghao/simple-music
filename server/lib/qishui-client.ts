@@ -143,6 +143,15 @@ function mapPlaylist(raw: any): Record<string, unknown> | null {
   }
 }
 
+export function mapQishuiPlaylists(raw: unknown[]) {
+  const playlists = new Map<unknown, Record<string, unknown>>()
+  for (const item of raw) {
+    const playlist = mapPlaylist(item)
+    if (playlist?.name && !playlists.has(playlist.id)) playlists.set(playlist.id, playlist)
+  }
+  return [...playlists.values()]
+}
+
 function mapAlbum(raw: any): Record<string, unknown> | null {
   const id = String(raw?.id ?? '')
   if (!isQishuiId(id)) return null

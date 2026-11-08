@@ -1,5 +1,6 @@
 import type { RouteHandler } from '../types'
 import { sendJson } from '../lib/http'
+import { cancelQishuiLogin, completeQishuiLogin, fetchQishuiAccountPlaylist, fetchQishuiUserPlaylists, logoutQishui, pollQishuiLogin, qishuiLoginStatus, startQishuiLogin } from '../lib/qishui-account'
 import {
   fetchQishuiAlbum,
   fetchQishuiArtist,
@@ -31,18 +32,61 @@ function limitOf(params: URLSearchParams, fallback: number): number {
 }
 
 /**
- * 汽水音乐游客端点（只读，无登录）：
+ * 汽水音乐端点。账号：/login/*、/logout、GET /user/playlists（未登录或失效 401）。
+ * 目录与播放走游客会话（只读）：
  * - GET /api/qishui/search[?keywords&limit]、/search/{artists,albums,playlists}
  * - GET /api/qishui/listening-modes、/listening-modes/tracks?mode
  * - GET /api/qishui/song/url?id&quality → { url, quality, level, trial, candidates }；会员曲只有试听，trial=true
  * - GET /api/qishui/song/qualities?id、/lyric?id（明文逐字 KRC 原文）
  * - GET /api/qishui/playlist/tracks?id、/album/{detail,songs}?id、/artist/{detail,songs,albums}?id
  */
-export const qishuiRoutes: RouteHandler = async (req, res, url) => {
+export const qishuiRoutes: RouteHandler = async (req, res, url, ctx) => {
   const pn = url.pathname
   if (!pn.startsWith('/api/qishui/')) return false
+  if (pn.startsWith('/api/qishui/login/') || pn === '/api/qishui/logout') {
+    res.setHeader('Cache-Control', 'no-store')
+    const dir = ctx.userDataDir
+    const key = url.searchParams.get('key')
+    try {
+      switch (`${req.method} ${pn}`) {
+        case 'POST /api/qishui/login/qr':
+          sendJson(res, await startQishuiLogin(dir))
+          break
+        case 'GET /api/qishui/login/qr/check':
+          sendJson(res, await pollQishuiLogin(dir, key))
+          break
+        case 'POST /api/qishui/login/qr/complete':
+          sendJson(res, completeQishuiLogin(dir, key))
+          break
+        case 'POST /api/qishui/login/qr/cancel':
+          sendJson(res, cancelQishuiLogin(dir, key))
+          break
+        case 'GET /api/qishui/login/status':
+          sendJson(res, await qishuiLoginStatus(dir))
+          break
+        case 'POST /api/qishui/logout':
+          sendJson(res, logoutQishui(dir))
+          break
+        default: sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
+      }
+    } catch {
+      sendJson(res, { error: '汽水音乐账号请求失败' }, 502)
+    }
+    return true
+  }
   if (req.method && req.method !== 'GET') {
     sendJson(res, { error: 'METHOD_NOT_ALLOWED' }, 405)
+    return true
+  }
+  if (pn === '/api/qishui/user/playlists') {
+    res.setHeader('Cache-Control', 'no-store')
+    try {
+      const playlists = await fetchQishuiUserPlaylists(ctx.userDataDir)
+      if (playlists) sendJson(res, { playlists })
+      else sendJson(res, { error: 'AUTH_REQUIRED' }, 401)
+    } catch {
+      sendJson(res, { error: 'UPSTREAM_FAILED' }, 502)
+    }
     return true
   }
   const params = url.searchParams
@@ -68,7 +112,12 @@ export const qishuiRoutes: RouteHandler = async (req, res, url) => {
     '/api/qishui/song/detail': async id => ({ song: (await fetchQishuiTrackDetail(id)).track }),
     '/api/qishui/lyric': async id => ({ krc: (await fetchQishuiTrackDetail(id)).lyric }),
     '/api/qishui/playlist/tracks': async id => {
-      const { playlist, tracks } = await fetchQishuiPlaylist(id)
+      res.setHeader('Cache-Control', 'no-store')
+      const { playlist, tracks } = await fetchQishuiPlaylist(id).catch(async error => {
+        const accountDetail = await fetchQishuiAccountPlaylist(ctx.userDataDir, id)
+        if (!accountDetail) throw error
+        return accountDetail
+      })
       return { playlist, tracks, trackIds: tracks.map(track => track.id) }
     },
     '/api/qishui/album/detail': async id => ({ playlist: (await fetchQishuiAlbum(id)).album }),

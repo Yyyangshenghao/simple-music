@@ -135,13 +135,15 @@ describe('头像菜单 Apple Music 直接登录', () => {
     expect(mount().button('登录Apple Music').disabled).toBe(false)
   })
 
-  it('网易、QQ、酷狗打开应用内扫码浮层，不直接弹网页登录窗', async () => {
+  it('网易、QQ、酷狗和汽水打开应用内扫码浮层，不直接弹网页登录窗', async () => {
     mount().button('登录网易云').onClick()
     expect(useQrLoginDialog.getState().source).toBe('netease')
     mount().button('登录QQ音乐').onClick()
     expect(useQrLoginDialog.getState().source).toBe('qq')
     mount().button('登录酷狗音乐').onClick()
     expect(useQrLoginDialog.getState().source).toBe('kugou')
+    mount().button('登录汽水音乐').onClick()
+    expect(useQrLoginDialog.getState().source).toBe('qishui')
     expect(loginMusicProvider).not.toHaveBeenCalled()
     expect(openAppleMusicPlayer).not.toHaveBeenCalled()
   })

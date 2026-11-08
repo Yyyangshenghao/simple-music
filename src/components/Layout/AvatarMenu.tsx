@@ -6,7 +6,7 @@ import { useAppleMusicConnection } from '../../stores/apple-music-connection'
 import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
 import { logoutMusicProvider } from '../../lib/provider-logout'
-import { isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../../providers/types'
+import { isGuestLoginProvider, type ProviderId } from '../../providers/types'
 import { useQrLoginDialog } from '../Settings/QrLoginDialog'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
@@ -41,8 +41,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const [busySource, setBusySource] = useState<ProviderId | null>(null)
 
   async function login(source: ProviderId): Promise<void> {
-    if (isGuestOnlyProvider(source)) return
-    if (source === 'kugou' || source === 'netease' || source === 'qq') {
+    if (source === 'kugou' || source === 'qishui' || source === 'netease' || source === 'qq') {
       // 应用内扫码：浮层自己管理进度，菜单先收起让出视线。
       useQrLoginDialog.getState().show(source)
       onClose()
@@ -63,7 +62,6 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   }
 
   async function logout(source: ProviderId): Promise<void> {
-    if (isGuestOnlyProvider(source)) return
     setBusySource(source)
     try {
       if (source === 'apple') {
@@ -114,20 +112,19 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
             const source = provider.descriptor.id
             // 兜底平台没有账号，只在设置的播放偏好里开关。
             if (source === 'bilibili') return null
-            const guest = isGuestOnlyProvider(source)
             const state = runtime[source]
             const guestLogin = isGuestLoginProvider(source)
-            // 酷狗不登录也有游客会话：开关看会话，账号按钮看是否登录了账号。
-            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : source === 'qq' ? qqLoggedIn : guest || guestLogin
+            // 酷狗和汽水不登录也有游客会话：开关看会话，账号按钮看是否登录了账号。
+            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : source === 'qq' ? qqLoggedIn : guestLogin
             const accountIn = guestLogin ? !!state.accountLinked : loggedIn
             const waiting = source === 'apple' && apple.phase === 'waiting'
             // 重新启用 Apple 时后台页面需要几秒静默重连；平台关着时页面已销毁，只保留登录。
             const reconnecting = source === 'apple' && !!apple.account?.restoring
             const processing = busySource === source || reconnecting || (source === 'apple' && ['opening', 'disconnecting'].includes(apple.phase))
             const accountLabel = reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
-              ? guest || (guestLogin && !accountIn) ? '游客' : source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
+              ? guestLogin && !accountIn ? '游客' : source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
               : '未登录'
-            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : guest ? '未启用' : '已登录，未启用'
+            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : guestLogin && !accountIn ? '未启用' : '已登录，未启用'
             return (
               <section className={styles.providerRow} key={source} aria-label={provider.descriptor.label}>
                 <span className={styles.providerMark} aria-hidden="true"><ProviderMark source={source} /></span>
@@ -148,7 +145,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                     }}
                     aria-label={`${loggedIn && state.enabled ? '停用' : '启用'}${provider.descriptor.label}`}
                   />
-                  {!guest && <button
+                  <button
                     type="button"
                     className={styles.accountButton}
                     disabled={busySource !== null || processing}
@@ -162,9 +159,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                         {accountIn || waiting ? <path d="m8 8-4 4 4 4M4 12h12" /> : <path d="m12 8 4 4-4 4M16 12H4" />}
                       </svg>
                     )}
-                  </button>}
-                  {/* 游客音源没有账号，占位保持开关与其他平台同一位置。 */}
-                  {guest && <span className={styles.accountButton} aria-hidden="true" style={{ visibility: 'hidden' }} />}
+                  </button>
                 </div>
               </section>
             )

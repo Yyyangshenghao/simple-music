@@ -68,12 +68,11 @@ describe('我的库账号失效提示', () => {
     expect(html).not.toContain('前往设置重新登录')
   })
 
-  it('汽水游客库说明账号能力边界，不引导到不存在的登录流程', () => {
+  it('汽水曲库走账号歌单入口，不再提示暂无账号曲库', () => {
     content.current = 'qishui'
     useProviderStore.setState(state => ({ byId: { ...state.byId, qishui: { enabled: true, auth: 'authenticated' } } }))
     const html = renderToStaticMarkup(<LibraryPage />)
-    expect(html).toContain('此平台暂无账号曲库，可在「应用歌单」整理歌曲。')
-    expect(html).not.toContain('需要先登录')
+    expect(html).not.toContain('此平台暂无账号曲库')
   })
 
   it('选过伴奏后再进入应用歌单直接展示伴奏库', () => {

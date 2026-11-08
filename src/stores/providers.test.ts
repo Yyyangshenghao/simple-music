@@ -21,7 +21,7 @@ function resetStores(): void {
     byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     },
     playbackOrder: ['netease', 'qq'],
     preferOriginSource: true,
@@ -133,13 +133,13 @@ describe('provider store', () => {
     expect(JSON.parse(storage['simplemusic-provider-settings']).providers.kugou).toEqual({ enabled: true })
   })
 
-  it('酷狗可选登录：登录只换资料，退出或失效回到游客会话且保持启用', () => {
-    useProviderStore.getState().setEnabled('kugou', true)
-    useProviderStore.getState().setAccountState('kugou', 'authenticated', { avatar: 'a', nickname: 'A.M' })
-    expect(useProviderStore.getState().byId.kugou).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: true, profile: { nickname: 'A.M' } })
-    useProviderStore.getState().setAccountState('kugou', 'expired')
-    expect(useProviderStore.getState().byId.kugou).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: false, profile: { nickname: '游客' } })
-    expect(participatingProviderIds()).toContain('kugou')
+  it.each(['kugou', 'qishui'] as const)('%s 可选登录：登录只换资料，退出或失效回到游客会话且保持启用', source => {
+    useProviderStore.getState().setEnabled(source, true)
+    useProviderStore.getState().setAccountState(source, 'authenticated', { avatar: 'a', nickname: 'A.M' })
+    expect(useProviderStore.getState().byId[source]).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: true, profile: { nickname: 'A.M' } })
+    useProviderStore.getState().setAccountState(source, 'expired')
+    expect(useProviderStore.getState().byId[source]).toMatchObject({ enabled: true, auth: 'authenticated', accountLinked: false, profile: { nickname: '游客' } })
+    expect(participatingProviderIds()).toContain(source)
   })
 
   it('未登录平台不能启用，退出登录会自动停用', () => {

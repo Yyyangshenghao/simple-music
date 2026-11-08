@@ -2,8 +2,9 @@ import { memo } from 'react'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../../stores/settings'
 import { useNavigationStore } from '../../stores/navigation'
+import { useProviderStore } from '../../stores/providers'
 import { providerFor } from '../../providers/registry'
-import type { ProviderId } from '../../providers/types'
+import { isGuestLoginProvider, type ProviderId } from '../../providers/types'
 import type { Playlist } from '../../types/domain'
 import { SourceBadge } from '../ui/SourceBadge'
 import { RecommendationStage } from './RecommendationStage'
@@ -26,6 +27,7 @@ interface ProviderRecommendationSectionProps {
 export const ProviderRecommendationSection = memo(function ProviderRecommendationSection({ source, onPreview }: ProviderRecommendationSectionProps) {
   const layout = useSettingsStore(state => state.exploreLayouts[source])
   const enabled = layout.filter(module => module.enabled)
+  const accountLinked = useProviderStore(state => state.byId[source].accountLinked)
   return <motion.section className={`${styles.section} ${source === 'apple' ? styles.appleSection : ''}`}
     initial={false} animate={{ opacity: 1, y: 0 }} aria-label={`${providerFor(source).descriptor.label}推荐`}>
     <header className={styles.header}>
@@ -45,7 +47,8 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
         case 'saved': return <PersonalListeningSection key={module.id} source="qishui" section="saved" />
         case 'apple-recommendations': return <ApplePlaylistRecommendations key={module.id} charts={[]} onOpen={onPreview} />
         case 'apple-library': return <AppleHomeLibrary key={module.id} onOpen={onPreview} />
-        case 'playlists': return <ProviderPlaylistRail key={module.id} source={source} onOpen={onPreview} />
+        // 可选登录平台在登录后才挂载，扫码完成时重新读取账号歌单。
+        case 'playlists': return isGuestLoginProvider(source) && !accountLinked ? null : <ProviderPlaylistRail key={module.id} source={source} onOpen={onPreview} />
         case 'recent': return <RecentRail key={module.id} source={source} embedded onOpen={onPreview} />
         case 'toplists': return <ToplistSection key={module.id} source={source} embedded onOpen={onPreview} />
       }

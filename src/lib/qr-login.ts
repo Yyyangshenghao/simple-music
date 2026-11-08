@@ -1,9 +1,9 @@
 import { api } from './api'
-import { applyLoginCookie, refreshKugouAccount } from './provider-login'
+import { applyLoginCookie, refreshKugouAccount, commitQishuiLogin } from './provider-login'
 import type { QrLoginPoll } from '../types/ipc'
 
 /** 支持应用内扫码登录的平台；Apple Music 只能走 Apple ID 网页授权。 */
-export type QrLoginSource = 'netease' | 'qq' | 'kugou'
+export type QrLoginSource = 'netease' | 'qq' | 'kugou' | 'qishui'
 export type QrLoginMethod = 'app' | 'qq' | 'wx'
 
 export interface QrLoginTicket extends QrLoginPoll {
@@ -20,8 +20,8 @@ export interface QrLoginAdapter {
   webFallback: boolean
   start(method: QrLoginMethod): Promise<QrLoginTicket>
   poll(ticket: QrLoginTicket, method: QrLoginMethod, scanned: boolean): Promise<QrLoginPoll>
-  cancel?(): void
-  complete(result: QrLoginPoll): Promise<void>
+  cancel?(ticket?: QrLoginTicket): void
+  complete(result: QrLoginPoll, ticket: QrLoginTicket): Promise<void>
 }
 
 const serverQr = (base: string, method: QrLoginMethod) => ({
@@ -70,5 +70,21 @@ export const QR_LOGIN_ADAPTERS: Record<QrLoginSource, QrLoginAdapter> = {
     start: (method) => serverQr('/api/kugou', method).start(),
     poll: (ticket, method, scanned) => serverQr('/api/kugou', method).poll(ticket, scanned),
     complete: () => refreshKugouAccount(),
+  },
+  qishui: {
+    title: '登录汽水音乐',
+    methods: [{ id: 'app', label: '扫码' }],
+    scanner: () => '抖音 App',
+    hint: '登录后显示账号资料和我的歌单，歌曲仍从公开曲库播放',
+    webFallback: false,
+    start: (method) => serverQr('/api/qishui', method).start(),
+    poll: (ticket, method, scanned) => serverQr('/api/qishui', method).poll(ticket, scanned),
+    cancel(ticket) {
+      if (ticket?.key) void api.post(`/api/qishui/login/qr/cancel?key=${encodeURIComponent(ticket.key)}`).catch(() => {})
+    },
+    async complete(_result, ticket) {
+      if (!ticket.key) throw new Error('无效的扫码票据')
+      await commitQishuiLogin(ticket.key)
+    },
   },
 }

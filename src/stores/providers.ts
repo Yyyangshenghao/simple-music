@@ -9,7 +9,7 @@ import {
   type ProviderPreferences,
   type SourceBadgeMode,
 } from '../lib/provider-preferences'
-import { PROVIDER_IDS, hasGuestSession, isFallbackOnlyProvider, isGuestLoginProvider, isGuestOnlyProvider, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, hasGuestSession, isFallbackOnlyProvider, isGuestLoginProvider, type ProviderId } from '../providers/types'
 import { clearProviderRequestCache } from '../lib/provider-request-cache'
 import { advanceProviderAccountSession } from '../lib/provider-account-session'
 import {
@@ -33,7 +33,7 @@ export interface ProviderRuntimeState {
   profile?: ProviderProfile
   playbackAvailable?: boolean
   lastError?: string
-  /** 可选登录平台（酷狗）是否已登录账号；未登录时仍以游客会话参与。 */
+  /** 可选登录平台（酷狗、汽水）是否已登录账号；未登录时仍以游客会话参与。 */
   accountLinked?: boolean
 }
 
@@ -60,7 +60,7 @@ function runtimeMap(
       ...(hasGuestSession(id) ? GUEST_SESSION : undefined),
       ...previous?.[id],
       enabled: preferences.providers[id].enabled,
-      // 游客平台（含可选登录的酷狗）会话始终可用；兜底平台没有账号，只用游客接口。
+      // 游客平台（含可选登录的酷狗和汽水）会话始终可用；兜底平台没有账号，只用游客接口。
       auth: hasGuestSession(id) ? 'authenticated' : isFallbackOnlyProvider(id) ? 'anonymous' : previous?.[id].auth ?? 'unknown',
     }
   }
@@ -154,7 +154,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   },
 
   setAccountState(id, auth, profile, options) {
-    if (isGuestOnlyProvider(id)) return
     if (isGuestLoginProvider(id)) {
       // 账号登出或失效只退回游客会话，平台参与与播放顺序保持不变。
       const linked = auth === 'authenticated'

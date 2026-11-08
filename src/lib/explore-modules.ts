@@ -25,7 +25,7 @@ export const EXPLORE_MODULES: Record<ProviderId, readonly ExploreModule[]> = {
   qq: [modules.recommendations, modules.playlists, { ...modules.recent, label: '最近听过' }, modules.toplists],
   apple: [modules['apple-recommendations'], modules['apple-library'], modules.playlists],
   kugou: [modules.recommendations, modules.playlists, modules.toplists],
-  qishui: [{ ...modules.listening, label: '继续听' }, modules.saved, modules['theme-playlists'], modules['listening-modes']],
+  qishui: [{ ...modules.listening, label: '继续听' }, modules.saved, modules['theme-playlists'], modules['listening-modes'], modules.playlists],
   bilibili: [],
 }
 
