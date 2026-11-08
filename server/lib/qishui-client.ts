@@ -23,19 +23,27 @@ const DETAIL_CACHE_LIMIT = 100
 const MAX_PLAYLIST_PAGES = 20
 const ID_PATTERN = /^\d{1,24}$/
 
-export type QishuiFetch = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>
+export type QishuiFetch = (url: string, init: {
+  headers: Record<string, string>
+  signal: AbortSignal
+  method?: 'POST'
+  body?: string
+}) => Promise<Response>
 
-const defaultFetch: QishuiFetch = (url, init) => fetchSafeUpstream(url, init)
+const defaultFetch: QishuiFetch = (url, init) => init.method === 'POST'
+  ? fetch(url, { ...init, redirect: 'error' })
+  : fetchSafeUpstream(url, init)
 
 export function isQishuiId(value: unknown): value is string {
   return typeof value === 'string' && ID_PATTERN.test(value)
 }
 
-async function qishuiText(url: string, fetchImpl: QishuiFetch): Promise<string> {
+async function qishuiText(url: string, fetchImpl: QishuiFetch, body?: object): Promise<string> {
   const host = new URL(url).hostname
   if (!ALLOWED_HOSTS.has(host)) throw new Error('UNSAFE_UPSTREAM')
   const res = await fetchImpl(url, {
-    headers: { 'User-Agent': UA, Accept: 'application/json, text/html' },
+    headers: { 'User-Agent': UA, Accept: 'application/json, text/html', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { method: 'POST' as const, body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`QISHUI_HTTP_${res.status}`)
@@ -44,8 +52,8 @@ async function qishuiText(url: string, fetchImpl: QishuiFetch): Promise<string> 
   return text
 }
 
-async function qishuiJson(url: string, fetchImpl: QishuiFetch): Promise<Record<string, any>> {
-  const text = await qishuiText(url, fetchImpl)
+async function qishuiJson(url: string, fetchImpl: QishuiFetch, body?: object): Promise<Record<string, any>> {
+  const text = await qishuiText(url, fetchImpl, body)
   const data = JSON.parse(text) as Record<string, any>
   // 业务错误放在 status_info / status_code 中，HTTP 仍是 200。
   const code = data.status_code ?? data.status_info?.status_code
@@ -194,6 +202,49 @@ export async function searchQishuiPlaylists(keyword: string, limit = 20, fetchIm
 
 export async function searchQishuiArtists(keyword: string, limit = 5, fetchImpl = defaultFetch) {
   return (await searchEntities('artist', keyword, limit, fetchImpl)).map(mapArtist).filter(Boolean)
+}
+
+// ---------- 听歌模式 ----------
+
+const SCENE_MODE_ID = /^[1-9]\d{0,3}$/
+const PREFERENCE_MODES = new Map([
+  ['default', '默认模式'],
+  ['familiar', '熟悉模式'],
+  ['fresh', '新鲜模式'],
+])
+
+export async function fetchQishuiListeningModes(fetchImpl = defaultFetch) {
+  const data = await qishuiJson(apiUrl('/pc/feed/mode', {}), fetchImpl)
+  const modes = new Map([...PREFERENCE_MODES].map(([id, label]) => [id, { id, label }]))
+  const blocks = Array.isArray(data.feed_mode_block) ? data.feed_mode_block : []
+  for (const block of blocks) {
+    if (block?.type !== 'scene_music' || !Array.isArray(block.feed_mode)) continue
+    for (const mode of block.feed_mode) {
+      const scene = mode?.entity?.feed_scene_mode
+      // 沉浸 0.8x 还会改变播放器速率，普通队列不能还原该场景的行为。
+      if (scene?.sub_queue_type === 'scene_mode_slow_motion') continue
+      const id = String(scene?.scene_mode_id ?? '')
+      const label = typeof mode?.text === 'string' ? mode.text.trim() : ''
+      if (mode?.type === 'scene_mode' && SCENE_MODE_ID.test(id) && label && !modes.has(id)) modes.set(id, { id, label })
+    }
+  }
+  return [...modes.values()]
+}
+
+export function isQishuiListeningMode(mode: string): boolean {
+  return PREFERENCE_MODES.has(mode) || SCENE_MODE_ID.test(mode)
+}
+
+export async function fetchQishuiListeningTracks(mode: string, fetchImpl = defaultFetch) {
+  if (!isQishuiListeningMode(mode)) throw new Error('INVALID_LISTENING_MODE')
+  const data = await qishuiJson(apiUrl('/pc/feed/song-tab', {}), fetchImpl, {
+    count: 20,
+    is_first_request: true,
+    played_media: [],
+    feed_preference: PREFERENCE_MODES.has(mode) ? { preference_mode: mode } : { scene_mode_id: Number(mode) },
+  })
+  const items = Array.isArray(data.items) ? data.items : []
+  return mapTracks(items.filter(item => item?.type === 'track').map(item => item.entity?.track_wrapper?.track))
 }
 
 // ---------- 单曲详情（歌词 + 播放信息） ----------

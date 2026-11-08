@@ -12,6 +12,12 @@ async function main() {
   page.setDefaultTimeout(10000)
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
+  await page.route(/\/api\/qishui\/listening-modes(?:\/tracks)?(?:\?|$)/, async route => {
+    const tracks = new URL(route.request().url()).pathname.endsWith('/tracks')
+    await route.fulfill({ headers: { 'access-control-allow-origin': '*' }, json: tracks
+      ? { songs: [{ id: '1', source: 'qishui', provider: 'qishui', name: '汽水听歌示例', artist: '模拟歌手', duration: 180000 }] }
+      : { modes: [{ id: 'default', label: '默认模式' }] } })
+  })
   const cdp = await page.context().newCDPSession(page)
   try {
     await page.keyboard.press('Escape')

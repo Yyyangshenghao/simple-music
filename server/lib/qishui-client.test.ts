@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractRouterData,
   fetchQishuiAlbum,
+  fetchQishuiListeningModes,
+  fetchQishuiListeningTracks,
   fetchQishuiPlaylist,
   fetchQishuiStreams,
   mapQishuiTrack,
@@ -68,6 +70,51 @@ describe('汽水音乐游客接口', () => {
     const songs = await searchQishuiTracks('晴天', 2, fetchImpl)
     expect(songs.map(song => song.id)).toEqual(['1'])
     expect(String(fetchImpl.mock.calls[0][0])).toContain('device_platform=web')
+  })
+
+  it('听歌模式保留官方场景顺序，去掉重复、异常与涉及速率的场景', async () => {
+    const scene = (scene_mode_id: unknown, text: string, sub_queue_type?: string) => ({
+      type: 'scene_mode', text, entity: { feed_scene_mode: { scene_mode_id, sub_queue_type } },
+    })
+    const fetchImpl = routed({ 'https://api.qishui.com/luna/pc/feed/mode': () => json({
+      feed_mode_block: [
+        { type: 'unknown', feed_mode: [scene(1, '其他栏目')] },
+        { type: 'scene_music', feed_mode: [null, scene(25, '轻音乐'), scene(25, '重复'),
+          scene('32', ' 古典 '), scene('a', '异常'), scene(14, '沉浸0.8x', 'scene_mode_slow_motion')] },
+      ],
+    }) })
+    await expect(fetchQishuiListeningModes(fetchImpl)).resolves.toEqual([
+      { id: 'default', label: '默认模式' }, { id: 'familiar', label: '熟悉模式' }, { id: 'fresh', label: '新鲜模式' },
+      { id: '25', label: '轻音乐' }, { id: '32', label: '古典' },
+    ])
+  })
+
+  it.each([
+    ['default', { preference_mode: 'default' }],
+    ['familiar', { preference_mode: 'familiar' }],
+    ['fresh', { preference_mode: 'fresh' }],
+    ['32', { scene_mode_id: 32 }],
+  ])('按 %s 请求游客选曲，只返回去重后的汽水歌曲', async (mode, preference) => {
+    const resource = (id: string, type = 'track') => ({
+      type, entity: { track_wrapper: { track: rawTrack(id, { label_info: { only_vip_playable: true } }) } },
+    })
+    const fetchImpl = vi.fn<QishuiFetch>(async () => json({ items: [resource('1'), resource('1'), resource('2', 'video'), resource('invalid')] }))
+    await expect(fetchQishuiListeningTracks(mode, fetchImpl)).resolves.toMatchObject([
+      { id: '1', source: 'qishui', vipOnly: true },
+    ])
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(new URL(url).pathname).toBe('/luna/pc/feed/song-tab')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body!)).toEqual({
+      count: 20, is_first_request: true, played_media: [], feed_preference: preference,
+    })
+  })
+
+  it('拒绝无效听歌模式和上游业务错误', async () => {
+    const fetchImpl = routed({ 'https://api.qishui.com/luna/pc/feed/song-tab': () => json({ status_code: 1000006 }) })
+    await expect(fetchQishuiListeningTracks('http://example.com', fetchImpl)).rejects.toThrow('INVALID_LISTENING_MODE')
+    expect(fetchImpl).not.toHaveBeenCalled()
+    await expect(fetchQishuiListeningTracks('default', fetchImpl)).rejects.toThrow('QISHUI_API_1000006')
   })
 
   it('免费曲返回整曲明文流，会员曲标为试听；带 PlayAuth 的加密流不返回', async () => {

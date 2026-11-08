@@ -2,7 +2,22 @@ import { api } from './api'
 import type { ArtistSongsPage, MusicService, PlaylistDetailMeta, PlaylistSkeleton } from './music-service'
 import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
 
-/** 汽水音乐游客服务：只读目录与播放，无账号、红心、歌单写入与推荐流。 */
+export interface QishuiListeningMode {
+  id: string
+  label: string
+}
+
+export type QishuiListeningTrack = Track & { vipOnly?: boolean }
+
+export async function getQishuiListeningModes(): Promise<QishuiListeningMode[]> {
+  return (await api.get<{ modes: QishuiListeningMode[] }>('/api/qishui/listening-modes')).modes
+}
+
+export async function getQishuiListeningTracks(mode: string): Promise<QishuiListeningTrack[]> {
+  return (await api.get<{ songs: QishuiListeningTrack[] }>('/api/qishui/listening-modes/tracks', { mode })).songs
+}
+
+/** 汽水音乐游客服务：只读目录与播放，无账号、红心和歌单写入。 */
 export class QishuiMusicService implements MusicService {
   async getRecommendPlaylists(): Promise<Playlist[]> {
     return []

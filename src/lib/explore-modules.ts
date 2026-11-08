@@ -1,6 +1,6 @@
 import { PROVIDER_IDS, type ProviderId } from '../providers/types'
 
-export type ExploreModuleId = 'recommendations' | 'featured' | 'listening' | 'saved' | 'theme-playlists' | 'apple-recommendations' | 'apple-library' | 'playlists' | 'recent' | 'toplists'
+export type ExploreModuleId = 'recommendations' | 'featured' | 'listening' | 'saved' | 'theme-playlists' | 'listening-modes' | 'apple-recommendations' | 'apple-library' | 'playlists' | 'recent' | 'toplists'
 export interface ExploreModule { id: ExploreModuleId; label: string }
 export interface ExploreModuleSetting { id: ExploreModuleId; enabled: boolean }
 export type ExploreLayouts = Record<ProviderId, ExploreModuleSetting[]>
@@ -10,6 +10,7 @@ const modules = {
   featured: { id: 'featured', label: '歌曲精选' },
   listening: { id: 'listening', label: '本周常听' },
   saved: { id: 'saved', label: '已整理的歌单' },
+  'listening-modes': { id: 'listening-modes', label: '听歌模式' },
   'theme-playlists': { id: 'theme-playlists', label: '主题歌单' },
   'apple-recommendations': { id: 'apple-recommendations', label: '推荐与榜单精选' },
   'apple-library': { id: 'apple-library', label: '个人资料库精选' },
@@ -24,7 +25,7 @@ export const EXPLORE_MODULES: Record<ProviderId, readonly ExploreModule[]> = {
   qq: [modules.recommendations, modules.playlists, { ...modules.recent, label: '最近听过' }, modules.toplists],
   apple: [modules['apple-recommendations'], modules['apple-library'], modules.playlists],
   kugou: [modules.recommendations, modules.playlists, modules.toplists],
-  qishui: [{ ...modules.listening, label: '继续听' }, modules.saved, modules['theme-playlists']],
+  qishui: [{ ...modules.listening, label: '继续听' }, modules.saved, modules['theme-playlists'], modules['listening-modes']],
   bilibili: [],
 }
 

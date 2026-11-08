@@ -4,10 +4,13 @@ import {
   fetchQishuiAlbum,
   fetchQishuiArtist,
   fetchQishuiArtistSongs,
+  fetchQishuiListeningModes,
+  fetchQishuiListeningTracks,
   fetchQishuiPlaylist,
   fetchQishuiStreams,
   fetchQishuiTrackDetail,
   isQishuiId,
+  isQishuiListeningMode,
   pickQishuiStreams,
   searchQishuiAlbums,
   searchQishuiArtists,
@@ -30,6 +33,7 @@ function limitOf(params: URLSearchParams, fallback: number): number {
 /**
  * 汽水音乐游客端点（只读，无登录）：
  * - GET /api/qishui/search[?keywords&limit]、/search/{artists,albums,playlists}
+ * - GET /api/qishui/listening-modes、/listening-modes/tracks?mode
  * - GET /api/qishui/song/url?id&quality → { url, quality, level, trial, candidates }；会员曲只有试听，trial=true
  * - GET /api/qishui/song/qualities?id、/lyric?id（明文逐字 KRC 原文）
  * - GET /api/qishui/playlist/tracks?id、/album/{detail,songs}?id、/artist/{detail,songs,albums}?id
@@ -73,19 +77,30 @@ export const qishuiRoutes: RouteHandler = async (req, res, url) => {
     '/api/qishui/artist/albums': async id => ({ albums: (await fetchQishuiArtist(id)).albums }),
     '/api/qishui/artist/songs': async id => ({ songs: await fetchQishuiArtistSongs(id) }),
   }
+  const mode = params.get('mode') ?? ''
+  const listeningHandlers: Partial<Record<string, () => Promise<Record<string, unknown>>>> = {
+    '/api/qishui/listening-modes': async () => ({ modes: await fetchQishuiListeningModes() }),
+    '/api/qishui/listening-modes/tracks': async () => ({ songs: await fetchQishuiListeningTracks(mode) }),
+  }
+  const listening = listeningHandlers[pn]
   const search = searchHandlers[pn]
   const byId = idHandlers[pn]
-  if (!search && !byId) {
+  if (!listening && !search && !byId) {
     sendJson(res, { error: 'NOT_FOUND' }, 404)
     return true
   }
   const input = search ? keywordOf(params) : String(params.get('id') ?? '')
-  if (!input || (byId && !isQishuiId(input))) {
+  const modeTracks = pn === '/api/qishui/listening-modes/tracks'
+  const read = listening
+    ?? (input && search ? () => search(input) : undefined)
+    ?? (input && byId && isQishuiId(input) ? () => byId(input) : undefined)
+  if (!read || (modeTracks && !isQishuiListeningMode(mode))) {
     sendJson(res, { error: 'INVALID_PARAMS' }, 400)
     return true
   }
   try {
-    sendJson(res, await (search ? search(input) : byId!(input)))
+    if (modeTracks) res.setHeader('Cache-Control', 'no-store')
+    sendJson(res, await read())
   } catch (err) {
     console.warn('[Qishui]', pn, err instanceof Error ? err.message : err)
     sendJson(res, { error: 'UPSTREAM_FAILED' }, 502)

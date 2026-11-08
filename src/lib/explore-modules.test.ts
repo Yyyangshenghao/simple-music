@@ -18,9 +18,9 @@ describe('探索模块配置', () => {
     expect(layout.slice(0, 2)).toEqual([{ id: 'listening', enabled: false }, { id: 'featured', enabled: true }])
     expect(layout.map(module => module.id)).toEqual(['listening', 'featured', 'recommendations', 'playlists', 'recent', 'toplists'])
   })
-  it('为旧汽水布局追加主题歌单，保留已选顺序和开关', () => {
-    const saved = [{ id: 'saved', enabled: true }, { id: 'listening', enabled: false }]
-    expect(normalizeExploreLayout('qishui', saved)).toEqual([...saved, { id: 'theme-playlists', enabled: true }])
+  it('为旧汽水布局追加听歌模式，保留已选顺序和开关', () => {
+    const saved = [{ id: 'theme-playlists', enabled: false }, { id: 'saved', enabled: true }, { id: 'listening', enabled: false }]
+    expect(normalizeExploreLayout('qishui', saved)).toEqual([...saved, { id: 'listening-modes', enabled: true }])
   })
   it('允许全部关闭，旧版和无效存档恢复默认', () => {
     const defaults = normalizeExploreLayouts(null)
