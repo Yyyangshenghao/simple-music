@@ -116,8 +116,9 @@ export function TrackRow({ track, index, expandedCaption = false, onPlay, disabl
           <span className={styles.name} title={display?.name ?? track.name}>{display?.name ?? track.name}</span>
           <span className={styles.artistLine} data-caption={!!display?.caption && !expandedCaption || undefined}>
             <span className={styles.artist}>{display?.artist ?? track.artist}</span>
-            {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
             {!expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
+            {/* 动态模式下徽标隐藏时仍占位，放在行尾才不会在歌手与原题之间留空。 */}
+            {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
           </span>
           {expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
         </div>

@@ -14,6 +14,7 @@ import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
+import { SourceFallbackBadge } from '../Player/SourceFallbackBadge'
 import { PlayerBar } from '../Player/PlayerBar'
 import { LyricStylePicker } from './LyricStylePicker'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
@@ -745,13 +746,16 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                   </div>
                   <div className={styles.trackMeta}>
                     <MarqueeTrackName text={trackDisplay?.name ?? track?.name ?? '未在播放'} />
-                    <ArtistLinks
-                      className={styles.artistName}
-                      artists={trackDisplay ? undefined : track?.artists}
-                      fallback={trackDisplay?.artist ?? track?.artist ?? '—'}
-                      source={track?.source ?? 'netease'}
-                      onBeforeNavigate={onClose}
-                    />
+                    <div className={styles.artistRow}>
+                      <ArtistLinks
+                        className={styles.artistName}
+                        artists={trackDisplay ? undefined : track?.artists}
+                        fallback={trackDisplay?.artist ?? track?.artist ?? '—'}
+                        source={track?.source ?? 'netease'}
+                        onBeforeNavigate={onClose}
+                      />
+                      <SourceFallbackBadge />
+                    </div>
                     {trackDisplay?.caption && <p className={styles.trackCaption} title={trackDisplay.caption}>{trackDisplay.caption}</p>}
                   </div>
                 </div>

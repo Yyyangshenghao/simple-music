@@ -3,6 +3,7 @@ import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import { useTrackCover } from '../../hooks/useTrackCover'
 import { usePlayerStore } from '../../stores/player'
 import { ArtistLinks } from '../ui/ArtistLinks'
+import { SourceFallbackBadge } from './SourceFallbackBadge'
 import styles from './TrackInfo.module.css'
 import { DOCK_COVER_PX, sizedImage } from '../../lib/image-size'
 
@@ -59,13 +60,16 @@ export function TrackInfo({ onCoverClick, onArtistNavigate, titleAccessory }: Tr
           </span>
           {titleAccessory}
         </div>
-        <ArtistLinks
-          className={styles.artist}
-          artists={display ? undefined : track?.artists}
-          fallback={display?.artist ?? track?.artist ?? '—'}
-          source={track?.source ?? 'netease'}
-          onBeforeNavigate={onArtistNavigate}
-        />
+        <div className={styles.artistRow}>
+          <ArtistLinks
+            className={styles.artist}
+            artists={display ? undefined : track?.artists}
+            fallback={display?.artist ?? track?.artist ?? '—'}
+            source={track?.source ?? 'netease'}
+            onBeforeNavigate={onArtistNavigate}
+          />
+          <SourceFallbackBadge />
+        </div>
       </div>
     </div>
   )

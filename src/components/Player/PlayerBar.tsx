@@ -17,7 +17,6 @@ import { HeartIcon } from '../ui/HeartIcon'
 import { PlayerGlass } from './PlayerGlass'
 import { PlayButtonGlass } from './PlayButtonGlass'
 import { TrackInfo } from './TrackInfo'
-import { SourceFallbackBadge } from './SourceFallbackBadge'
 import { QueuePanel } from './QueuePanel'
 import { MoreMenu } from './MoreMenu'
 import { AccompanimentButton } from './AccompanimentButton'
@@ -597,7 +596,6 @@ export function PlayerBar({ onOpenLyrics, onArtistNavigate, hidden, lyricsOpen, 
         <AccompanimentButton />
         <VolumeControl />
         <div className={styles.tools}>
-          <SourceFallbackBadge />
           <DesktopLyricsButton />
           <MiniPlayerButton />
           <QueuePanel align={embedded ? 'start' : 'end'} />

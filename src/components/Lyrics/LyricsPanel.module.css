@@ -502,7 +502,16 @@
   }
 }
 
+.artistRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .artistName {
+  min-width: 0;
   font: inherit;
   border: none;
   background: none;

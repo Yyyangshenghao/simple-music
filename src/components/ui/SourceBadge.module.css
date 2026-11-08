@@ -18,50 +18,31 @@
 }
 
 .dynamic {
-  max-width: 0;
-  min-height: 0;
-  padding-right: 0;
-  padding-left: 0;
-  border-width: 0;
-  gap: 0;
-  overflow: hidden;
+  /* 占位常驻，显隐只动合成属性：撑开尺寸会让同行标题瞬间重排，且尺寸变化无法与淡入同步。 */
   opacity: 0;
-  transform: translateY(-2px) scale(0.94);
-  transition: opacity 140ms ease, transform 180ms ease;
+  pointer-events: none;
+  transform: translateY(6px) scale(0.9);
+  /* 不用 --sm-ease-out：它前 70ms 就走完近九成，这么小的元素看起来等于没有动画。 */
+  transition: opacity 240ms var(--sm-ease-in-out), transform 280ms var(--sm-ease-in-out);
 }
 
 :global(button:hover) .dynamic,
 :global(button:focus-visible) .dynamic,
 :global([data-source-reveal='true']) .dynamic {
-  max-width: 160px;
-  min-height: 20px;
-  padding: 2px 8px 2px 5px;
-  border-width: 1px;
-  gap: 5px;
   opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-:global(button:hover) .dynamic.compact,
-:global(button:focus-visible) .dynamic.compact,
-:global([data-source-reveal='true']) .dynamic.compact {
-  max-width: 20px;
-  padding: 2px;
+  pointer-events: auto;
+  transform: none;
 }
 
 @media (hover: none) {
   .dynamic {
-    max-width: 160px;
-    min-height: 20px;
-    padding: 2px 8px 2px 5px;
-    border-width: 1px;
-    gap: 5px;
     opacity: 0.78;
+    pointer-events: auto;
     transform: none;
   }
-
-  .dynamic.compact { max-width: 20px; padding: 2px; }
 }
+
+:global([data-hover-lift-motion-off]) .dynamic { transition: none !important; }
 
 .icon {
   display: inline-flex;
@@ -88,15 +69,9 @@
   justify-content: center;
 }
 
-/* 滚动时不随经过的按钮反复展开尺寸；常显、显式展示和触屏标识保持原样。 */
+/* 滚动时不随经过的按钮反复显隐；常显、显式展示和触屏标识保持原样。 */
 @media (hover: hover) {
-  :global(:is([data-scrolling], [data-explore-scrolling])) .badge.dynamic,
-  :global(:is([data-scrolling], [data-explore-scrolling])) .badge.dynamic.compact {
-    max-width: 0;
-    min-height: 0;
-    padding: 0;
-    border-width: 0;
-    gap: 0;
+  :global(:is([data-scrolling], [data-explore-scrolling])) .badge.dynamic {
     opacity: 0;
     transform: none;
     transition: none;
