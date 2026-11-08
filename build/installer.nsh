@@ -91,7 +91,10 @@ Function SimpleMusicDirectoryLeave
   Call SimpleMusicSelectInstallDirectory
   ${If} $SimpleMusicDirectoryBeforeConfirm != $INSTDIR
     ; 盘符补子目录、旧版迁移或目录冲突改变目标后，留在原生页面再次确认。
-    SendMessage $mui.DirectoryPage.Directory ${WM_SETTEXT} 0 "STR:$INSTDIR"
+    ; 本文件先于 MUI 页面宏编译，不能引用 $mui.DirectoryPage.Directory；1019 是原生目录页输入框。
+    FindWindow $0 "#32770" "" $HWNDPARENT
+    GetDlgItem $0 $0 1019
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$INSTDIR"
     MessageBox MB_ICONINFORMATION|MB_OK "安装位置已调整为：$\r$\n$INSTDIR$\r$\n$\r$\n请确认后再点击安装。" /SD IDOK
     Abort
   ${EndIf}

@@ -20,7 +20,8 @@ function findCompiler(dir) {
 }
 const compiler = process.env.SIMPLEMUSIC_NSIS_PATH || findCompiler(cache)
 assert.ok(compiler, '请先打包 Windows 安装器，以下载 NSIS 工具')
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'simple-music-directory-'))
+// CI 的 TEMP 可能是 8.3 短路径，安装器会展开成长路径，期望值也要用长路径。
+const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'simple-music-directory-')))
 const require = createRequire(import.meta.url)
 const { installScripts } = require('../../build/windows-install.cjs')
 fs.writeFileSync(path.join(root, 'Simple Music.exe'), 'fixture')
