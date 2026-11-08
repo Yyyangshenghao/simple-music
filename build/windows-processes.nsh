@@ -26,7 +26,7 @@
   StrCpy $R3 0
   ${Do}
     ; -contains 为完整路径、不区分大小写的匹配，也包含使用同一 exe 的 Electron 子进程。
-    nsExec::ExecToStack /TIMEOUT=5000 `"$PowerShellPath" -NoLogo -NoProfile -NonInteractive -Command "$$ErrorActionPreference='Stop'; try { $$paths=@($$env:SIMPLE_MUSIC_INSTALL_EXE,$$env:SIMPLE_MUSIC_USER_EXE,$$env:SIMPLE_MUSIC_MACHINE_EXE); $$running=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.ExecutablePath -and ($$paths -contains $$_.ExecutablePath) }); if ($$running.Count -gt 0) { exit 1 }; exit 0 } catch { exit 2 }"`
+    nsExec::ExecToStack /TIMEOUT=30000 `"$PowerShellPath" -NoLogo -NoProfile -NonInteractive -Command "$$ErrorActionPreference='Stop'; try { $$paths=@($$env:SIMPLE_MUSIC_INSTALL_EXE,$$env:SIMPLE_MUSIC_USER_EXE,$$env:SIMPLE_MUSIC_MACHINE_EXE); $$running=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.ExecutablePath -and ($$paths -contains $$_.ExecutablePath) }); if ($$running.Count -gt 0) { exit 1 }; exit 0 } catch { exit 2 }"`
     Pop $R0
     Pop $R1
     ${If} $R0 == "0"
