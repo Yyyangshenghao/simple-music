@@ -110,6 +110,8 @@ describe('Windows 卸载文件归属', () => {
     }
     expect(script).toContain('SimpleMusicWritten_')
     expect(script).toContain('ReadINIStr $0 "$INSTDIR\\.simple-music-install.ini" "files"')
-    expect(script).toContain('StrCpy $2 "$INSTDIR\\Simple Music-${VERSION}"')
+    // 安装目录名不随版本变化，冲突时才追加序号。
+    expect(script).toContain('StrCpy $2 "$INSTDIR\\Simple Music"')
+    expect(script).not.toContain('Simple Music-${VERSION}')
   })
 })

@@ -30,8 +30,11 @@ const managed = path.join(root, '旧版自定义位置')
 fs.mkdirSync(managed)
 fs.writeFileSync(path.join(managed, '.simple-music-install.ini'), '\ufeff[application]\r\nid=com.simplemusic.desktop\r\n', 'utf16le')
 const occupied = path.join(root, '已有文件', 'Simple Music')
-fs.mkdirSync(path.join(occupied, 'Simple Music-2.6.2'), { recursive: true })
+fs.mkdirSync(path.join(occupied, 'Simple Music'), { recursive: true })
 fs.writeFileSync(path.join(occupied, '我的文件.txt'), 'keep')
+const legacy = path.join(root, '旧版位置', 'Simple Music')
+fs.mkdirSync(legacy, { recursive: true })
+fs.writeFileSync(path.join(legacy, '我的文件.txt'), 'keep')
 const cases = [
   ['D:', 'D:\\Simple Music'],
   ['D:/', 'D:\\Simple Music'],
@@ -53,8 +56,9 @@ const cases = [
   [path.join(process.env.WINDIR, 'Temp'), null],
   [os.homedir(), null],
   [path.join(root, '全新位置'), path.join(root, '全新位置', 'Simple Music'), true],
-  [occupied, path.join(occupied, 'Simple Music-2.6.2-1'), true],
-  [path.join(occupied, 'Simple Music-2.6.2-1'), path.join(occupied, 'Simple Music-2.6.2-1'), true],
+  [legacy, path.join(legacy, 'Simple Music'), true],
+  [occupied, path.join(occupied, 'Simple Music-1'), true],
+  [path.join(occupied, 'Simple Music-1'), path.join(occupied, 'Simple Music-1'), true],
   [managed, managed, true]
 ]
 const quote = value => value.replaceAll('$', '$$').replaceAll('"', '$\\"')
@@ -64,7 +68,6 @@ const script = [
   'Unicode true', 'RequestExecutionLevel user', 'SilentInstall silent',
   `OutFile "${quote(exe)}"`, '!include LogicLib.nsh', '!include FileFunc.nsh',
   '!define INSTALL_REGISTRY_KEY "Software\\SimpleMusic-Directory-Audit-Never-Written"',
-  '!define VERSION "2.6.2"',
   `!include "${quote(path.resolve('build/windows-directory.nsh'))}"`,
   '!insertmacro SimpleMusicDirectoryFunctions',
   resolver,

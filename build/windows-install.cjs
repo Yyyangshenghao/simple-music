@@ -74,7 +74,7 @@ function installScripts(files, root) {
     '  FindClose $0',
     '  ${If} $1 == ""', '    ClearErrors', '    Return', '  ${EndIf}',
     // 无所有权清单的旧版/混用目录不覆盖、不卸载，迁移到空的应用子目录。
-    '  StrCpy $2 "$INSTDIR\\Simple Music-${VERSION}"', '  StrCpy $3 0',
+    '  StrCpy $2 "$INSTDIR\\Simple Music"', '  StrCpy $3 0',
     'simple_music_choose_empty:',
     '  StrCpy $INSTDIR "$2"',
     '  ${If} $3 != 0', '    StrCpy $INSTDIR "$2-$3"', '  ${EndIf}',
