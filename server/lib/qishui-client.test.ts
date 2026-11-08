@@ -75,17 +75,19 @@ describe('汽水音乐游客接口', () => {
   it('听歌模式保留官方场景顺序，去掉重复、异常与涉及速率的场景', async () => {
     const scene = (scene_mode_id: unknown, text: string, sub_queue_type?: string) => ({
       type: 'scene_mode', text, entity: { feed_scene_mode: { scene_mode_id, sub_queue_type } },
+      url_info: scene_mode_id === 25 ? { ...cover, template_prefix: 'tplv-b829550vbb' } : undefined,
     })
     const fetchImpl = routed({ 'https://api.qishui.com/luna/pc/feed/mode': () => json({
       feed_mode_block: [
         { type: 'unknown', feed_mode: [scene(1, '其他栏目')] },
         { type: 'scene_music', feed_mode: [null, scene(25, '轻音乐'), scene(25, '重复'),
-          scene('32', ' 古典 '), scene('a', '异常'), scene(14, '沉浸0.8x', 'scene_mode_slow_motion')] },
+          { ...scene('32', ' 古典 '), url_info: { uri: 'broken', urls: 'https://example.com/' } }, scene('a', '异常'), scene(14, '沉浸0.8x', 'scene_mode_slow_motion')] },
       ],
     }) })
     await expect(fetchQishuiListeningModes(fetchImpl)).resolves.toEqual([
       { id: 'default', label: '默认模式' }, { id: 'familiar', label: '熟悉模式' }, { id: 'fresh', label: '新鲜模式' },
-      { id: '25', label: '轻音乐' }, { id: '32', label: '古典' },
+      { id: '25', label: '轻音乐', icon: 'https://p3-luna.douyinpic.com/img/tos-cn/abc~tplv-b829550vbb-resize:96:96.image' },
+      { id: '32', label: '古典' },
     ])
   })
 

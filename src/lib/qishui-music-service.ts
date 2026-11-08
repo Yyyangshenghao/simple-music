@@ -5,6 +5,7 @@ import type { ArtistInfo, LyricLine, Playlist, Track } from '../types/domain'
 export interface QishuiListeningMode {
   id: string
   label: string
+  icon?: string
 }
 
 export type QishuiListeningTrack = Track & { vipOnly?: boolean }

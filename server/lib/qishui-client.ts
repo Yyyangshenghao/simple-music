@@ -71,9 +71,10 @@ interface QishuiImage { uri?: string; urls?: string[]; template_prefix?: string 
 
 /** 按上游提供的模板缩图，旧数据缺少模板时沿用 c5。 */
 export function qishuiImageUrl(img: QishuiImage | undefined, size = 300): string {
-  const uri = img?.uri
-  const base = img?.urls?.find(item => typeof item === 'string' && item.startsWith('https://'))
-  if (!uri || !base) return ''
+  if (typeof img?.uri !== 'string' || !img.uri || !Array.isArray(img.urls)) return ''
+  const uri = img.uri
+  const base = img.urls.find(item => typeof item === 'string' && item.startsWith('https://'))
+  if (!base) return ''
   const template = img.template_prefix
   if (typeof template === 'string' && /^tplv-[a-z0-9]+$/.test(template)) {
     return `${base}${uri}~${template}-resize:${size}:${size}.image`
@@ -215,7 +216,7 @@ const PREFERENCE_MODES = new Map([
 
 export async function fetchQishuiListeningModes(fetchImpl = defaultFetch) {
   const data = await qishuiJson(apiUrl('/pc/feed/mode', {}), fetchImpl)
-  const modes = new Map([...PREFERENCE_MODES].map(([id, label]) => [id, { id, label }]))
+  const modes = new Map<string, { id: string; label: string; icon?: string }>([...PREFERENCE_MODES].map(([id, label]) => [id, { id, label }]))
   const blocks = Array.isArray(data.feed_mode_block) ? data.feed_mode_block : []
   for (const block of blocks) {
     if (block?.type !== 'scene_music' || !Array.isArray(block.feed_mode)) continue
@@ -225,7 +226,9 @@ export async function fetchQishuiListeningModes(fetchImpl = defaultFetch) {
       if (scene?.sub_queue_type === 'scene_mode_slow_motion') continue
       const id = String(scene?.scene_mode_id ?? '')
       const label = typeof mode?.text === 'string' ? mode.text.trim() : ''
-      if (mode?.type === 'scene_mode' && SCENE_MODE_ID.test(id) && label && !modes.has(id)) modes.set(id, { id, label })
+      if (mode?.type !== 'scene_mode' || !SCENE_MODE_ID.test(id) || !label || modes.has(id)) continue
+      const icon = qishuiImageUrl(mode.url_info, 96)
+      modes.set(id, { id, label, ...(icon && { icon }) })
     }
   }
   return [...modes.values()]
