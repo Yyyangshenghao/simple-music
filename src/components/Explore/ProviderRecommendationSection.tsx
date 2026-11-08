@@ -14,6 +14,7 @@ import { AppleHomeLibrary } from './AppleHomeLibrary'
 import { ApplePlaylistRecommendations } from './ApplePlaylistRecommendations'
 import { PersonalListeningSection } from './PersonalListeningSection'
 import { FeaturedSongs } from './FeaturedSongs'
+import { QishuiThemePlaylists } from './QishuiThemePlaylists'
 import styles from './ProviderRecommendationSection.module.css'
 
 interface ProviderRecommendationSectionProps {
@@ -38,6 +39,7 @@ export const ProviderRecommendationSection = memo(function ProviderRecommendatio
         case 'recommendations': return <RecommendationStage key={module.id} source={source} onPreview={onPreview} />
         case 'featured': return <FeaturedSongs key={module.id} />
         case 'listening': return source === 'netease' || source === 'qishui' ? <PersonalListeningSection key={module.id} source={source} section="listening" /> : null
+        case 'theme-playlists': return <QishuiThemePlaylists key={module.id} onOpen={onPreview} />
         case 'saved': return <PersonalListeningSection key={module.id} source="qishui" section="saved" />
         case 'apple-recommendations': return <ApplePlaylistRecommendations key={module.id} charts={[]} onOpen={onPreview} />
         case 'apple-library': return <AppleHomeLibrary key={module.id} onOpen={onPreview} />

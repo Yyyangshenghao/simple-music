@@ -59,13 +59,17 @@ function apiUrl(path: string, params: Record<string, string>): string {
 
 // ---------- 字段映射 ----------
 
-interface QishuiImage { uri?: string; urls?: string[] }
+interface QishuiImage { uri?: string; urls?: string[]; template_prefix?: string }
 
-/** 图片由域名前缀 + uri + 尺寸模板拼成；尺寸取 c5 正方形裁切。 */
+/** 按上游提供的模板缩图，旧数据缺少模板时沿用 c5。 */
 export function qishuiImageUrl(img: QishuiImage | undefined, size = 300): string {
   const uri = img?.uri
   const base = img?.urls?.find(item => typeof item === 'string' && item.startsWith('https://'))
   if (!uri || !base) return ''
+  const template = img.template_prefix
+  if (typeof template === 'string' && /^tplv-[a-z0-9]+$/.test(template)) {
+    return `${base}${uri}~${template}-resize:${size}:${size}.image`
+  }
   return `${base}${uri}~c5_${size}x${size}.jpg`
 }
 

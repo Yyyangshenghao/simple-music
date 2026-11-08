@@ -12,7 +12,7 @@ const fs=require('node:fs')
  await page.evaluate(async()=>{window.__exploreSmokeSettings=(await import('/src/stores/settings.ts')).useSettingsStore})
  await host.evaluate(async()=>{window.__exploreSmokeSettings=(await import('/src/stores/settings.ts')).useSettingsStore})
  const read=target=>target.evaluate(async()=>{const{useSettingsStore:s}=await import('/src/stores/settings.ts');return s.getState().exploreLayouts.qishui})
- const expected=[{id:'saved',enabled:true},{id:'listening',enabled:false}]
+ const expected=[{id:'saved',enabled:true},{id:'listening',enabled:false},{id:'theme-playlists',enabled:true}]
  if(process.env.PHASE==='restart'){
   assert.deepEqual(await read(host),expected)
   assert.deepEqual(await read(page),expected)
@@ -38,7 +38,7 @@ const fs=require('node:fs')
   await page.reload();await page.waitForLoadState('domcontentloaded');await page.evaluate(async()=>{window.__exploreSmokeSettings=(await import('/src/stores/settings.ts')).useSettingsStore})
   await page.waitForFunction(()=>window.__exploreSmokeSettings.getState().exploreLayouts.qishui[0].id==='saved')
   assert.deepEqual(await read(page),expected)
-  fs.writeFileSync(process.env.RESULT_PATH || 'docs/reviews/assets/2026-11-06-explore-preview/persistence.json',JSON.stringify({environment:'独立userData macOS Electron dev，真实主窗口→后台命令与存档，无mock账号/设置通道；仅启用汽水游客本地内容，不登录或播放',checks:['真实鼠标关闭继续听','真实拖动调整排序','后台快照与存档一致','主窗口重载后配置保留'],expected},null,2))
+  fs.writeFileSync(process.env.RESULT_PATH || 'docs/reviews/assets/2026-11-06-explore-preview/persistence.json',JSON.stringify({environment:'独立userData macOS Electron dev，真实主窗口→后台命令与存档，无mock账号/设置通道；仅启用汽水游客音源，不登录或播放',checks:['真实鼠标关闭继续听','真实拖动调整排序','后台快照与存档一致','主窗口重载后配置保留'],expected},null,2))
   console.log('主窗口命令、后台保存、快照回传及主窗口重载均通过')
  }
  await browser.close()

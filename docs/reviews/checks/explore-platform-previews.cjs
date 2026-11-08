@@ -49,6 +49,7 @@ async function main() {
           if (provider.history.getRecentTracks) provider.history.getRecentTracks = async () => [track(source)]
           if (provider.history.getRecentPlaylists) provider.history.getRecentPlaylists = async () => [playlist(source, '最近播放示例')]
         }
+        if (source === 'qishui') provider.catalog.searchPlaylists = async keyword => [playlist(source, `${keyword}歌单示例`)]
         const service = serviceFor(source)
         if (service.getToplists) service.getToplists = async () => [{ name: '示例榜单分组', entries: [{ playlist: playlist(source, '排行榜示例'), updateFrequency: '每日更新', preview: [{ name: '示例榜单歌曲', artist: '模拟歌手', cover: '' }] }] }]
         useSettingsStore.getState().setExploreLayout(source, [])

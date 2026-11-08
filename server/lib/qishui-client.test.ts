@@ -54,6 +54,14 @@ describe('汽水音乐游客接口', () => {
     expect(qishuiImageUrl({ uri: 'a', urls: ['http://insecure/'] })).toBe('')
   })
 
+  it('用汽水返回的图片模板生成指定大小的歌单封面', () => {
+    expect(qishuiImageUrl({
+      uri: 'tos-cn-i-b829550vbb/cover',
+      urls: ['https://p3-luna.douyinpic.com/img/'],
+      template_prefix: 'tplv-b829550vbb',
+    }, 512)).toBe('https://p3-luna.douyinpic.com/img/tos-cn-i-b829550vbb/cover~tplv-b829550vbb-resize:512:512.image')
+  })
+
   it('搜索去重并按 limit 截断（上游忽略 count）', async () => {
     const data = ['1', '1', '2', '3'].map(id => ({ entity: { track: rawTrack(id) } }))
     const fetchImpl = routed({ 'https://api.qishui.com/luna/search/track': () => json({ result_groups: [{ data }] }) })

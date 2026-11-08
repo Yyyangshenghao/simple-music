@@ -11,7 +11,7 @@
 | 界面 | 用户任务与现有结构 | 实现入口 |
 |---|---|---|
 | 顶栏 | 主导航包含独立的「搜索」入口。各页面入口可在「设置 → 界面与窗口 → 顶部菜单」拖动排序、显示或隐藏，自动保存并可恢复默认。头像中的音源设置入口仍可打开设置。Windows/Linux 是无边框窗口，右侧让出 `--sm-caption-reserve`（三个自绘窗口按钮） | [TopBar](../src/components/Layout/TopBar.tsx)、[顶部菜单设置](../src/components/Settings/TopMenuSettings.tsx) |
-| 探索 | 浏览平台推荐、榜单与个人栏目；网易/QQ/酷狗可进入完整推荐歌单，网易有本周常听，汽水有本机继续听和应用歌单，Apple 榜单可切换歌曲/专辑/歌单；保留封面堆叠与横排；现有栏目支持按音源独立开关和拖动排序（每日推荐、雷达与发现歌单仍合为“推荐与发现”，Apple 推荐与榜单精选为组合模块） | [ExplorePage](../src/pages/ExplorePage.tsx)、[完整歌单](../src/pages/ProviderPlaylistsPage.tsx)、[个人听歌栏目](../src/components/Explore/PersonalListeningSection.tsx)、[Apple 榜单](../src/pages/AppleChartPage.tsx) |
+| 探索 | 浏览平台推荐、榜单与个人栏目；网易/QQ/酷狗可进入完整推荐歌单，网易有本周常听，汽水有主题歌单、本机继续听和应用歌单，Apple 榜单可切换歌曲/专辑/歌单；保留封面堆叠与横排；现有栏目支持按音源独立开关和拖动排序（每日推荐、雷达与发现歌单仍合为“推荐与发现”，Apple 推荐与榜单精选为组合模块） | [ExplorePage](../src/pages/ExplorePage.tsx)、[完整歌单](../src/pages/ProviderPlaylistsPage.tsx)、[个人听歌栏目](../src/components/Explore/PersonalListeningSection.tsx)、[Apple 榜单](../src/pages/AppleChartPage.tsx) |
 | 我的库 | 应用歌单、平台歌单、收藏、最近播放、离线、本地；应用歌单栏目内切换歌单与伴奏成品 | [LibraryPage](../src/pages/LibraryPage.tsx)、[LibraryTabs](../src/pages/LibraryTabs.tsx)、[CollectionKindSwitch](../src/pages/CollectionKindSwitch.tsx) |
 | 本地音乐 | 文件夹索引、歌曲/专辑切换、组内筛选播放与批量整理；专辑返回恢复滚动；移除文件夹明确原音乐文件保留 | `LibraryPage.tsx` 内的 `LocalMusicTab` |
 | 离线音乐 | 浏览播放器内已保存的离线音乐，筛选、排序、播放与多选管理，工具栏直达下载队列；与歌曲下载目录分开 | [OfflineMusicTab](../src/pages/OfflineMusicTab.tsx) |
