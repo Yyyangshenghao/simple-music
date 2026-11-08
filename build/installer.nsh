@@ -31,6 +31,18 @@
 
 !macro customInit
   !ifndef BUILD_UNINSTALLER
+    ; NSIS 给 $INSTDIR 赋值时会删掉 /，并损坏其后的中文，正斜杠路径必须先从原始参数规范化。
+    Push $R0
+    !insertmacro GetDParameter $R0
+    ${If} $R0 != ""
+      Push "$R0"
+      Call SimpleMusicNormalizeInstallDir
+      Pop $R0
+      ${IfNot} ${Errors}
+        StrCpy $INSTDIR "$R0"
+      ${EndIf}
+    ${EndIf}
+    Pop $R0
     Call SimpleMusicSelectInstallDirectory
   !endif
 !macroend
