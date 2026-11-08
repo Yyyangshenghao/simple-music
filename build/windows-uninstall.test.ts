@@ -100,6 +100,14 @@ describe('Windows 卸载文件归属', () => {
     expect(script.indexOf('SHA2-256')).toBeLessThan(script.indexOf('Rename "$INSTDIR'))
     expect(script).toContain('Rename "$SimpleMusicBackupDir\\resources\\app.asar" "$INSTDIR\\resources\\app.asar"')
     expect(script).toContain('DeleteRegKey /ifempty SHELL_CONTEXT')
+    // /ifempty 只看子键：回滚恢复注册表值后，无条件删键会丢掉安装位置和卸载入口。
+    const lines = script.split('\n')
+    const deletions = lines.flatMap((line: string, index: number) => line.includes('DeleteRegKey') ? [index] : [])
+    expect(deletions).toHaveLength(2)
+    for (const index of deletions) {
+      expect(lines[index - 2]).toContain('EnumRegValue $0 SHELL_CONTEXT')
+      expect(lines[index - 1]).toContain('${If} $0 == ""')
+    }
     expect(script).toContain('SimpleMusicWritten_')
     expect(script).toContain('ReadINIStr $0 "$INSTDIR\\.simple-music-install.ini" "files"')
     expect(script).toContain('StrCpy $2 "$INSTDIR\\Simple Music-${VERSION}"')

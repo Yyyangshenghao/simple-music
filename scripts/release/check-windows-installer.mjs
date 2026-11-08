@@ -85,6 +85,8 @@ try {
   run(installer, ['/S', `/D=${target}`], false)
   assert.equal(digest(path.join(target, 'Simple Music.exe')), original, '失败后旧程序未恢复')
   assert.ok(fs.existsSync(manifest), '失败后归属清单未恢复')
+  const restored = spawnSync('reg.exe', ['query', `HKCU\\Software\\${guid}`, '/v', 'InstallLocation'], { encoding: 'utf8' })
+  assert.equal(restored.status, 0, '失败后注册表安装位置未恢复')
   locker.kill()
   await new Promise(resolve => locker.once('exit', resolve))
   locker = null

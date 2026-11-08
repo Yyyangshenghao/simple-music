@@ -198,8 +198,12 @@ function installScripts(files, root) {
       `    WriteReg${type} SHELL_CONTEXT "${key}" "${name}" $SimpleMusicReg${index}`,
       '  ${Else}', `    DeleteRegValue SHELL_CONTEXT "${key}" "${name}"`, '  ${EndIf}')
   }
-  lines.push('  DeleteRegKey /ifempty SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}"',
-    '  DeleteRegKey /ifempty SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}"')
+  // 此版本 NSIS 的 /ifempty 只看子键不看值，直接调用会连刚恢复的值一起删掉，须先确认键里没有值。
+  for (const key of ['${INSTALL_REGISTRY_KEY}', '${UNINSTALL_REGISTRY_KEY}']) {
+    lines.push(`  EnumRegValue $0 SHELL_CONTEXT "${key}" 0`,
+      '  ${If} $0 == ""', `    DeleteRegKey /ifempty SHELL_CONTEXT "${key}"`, '  ${EndIf}')
+  }
+  lines.push('  ClearErrors')
   for (const [index, link] of links.entries()) {
     lines.push(`  \${If} $SimpleMusicLinkExists${index} == "1"`,
       `    \${GetParent} "${link}" $0`, '    CreateDirectory "$0"', '    ClearErrors',
