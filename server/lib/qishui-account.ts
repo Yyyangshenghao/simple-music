@@ -1,6 +1,7 @@
-import { randomInt, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { deviceDigits } from './device-identity'
 import { fetchQishuiPlaylist, mapQishuiPlaylists } from './qishui-client'
 
 const origin = 'https://api.qishui.com'
@@ -10,25 +11,7 @@ const accountUserAgent = 'LunaPC/3.0.0(290101097)'
 const expiredCode = 1000016
 const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
 const sessionFile = (dir: string) => join(dir, 'qishui-account.json')
-const installFile = (dir: string) => join(dir, 'qishui-install.json')
-
-/** 每个安装各用一个随机 iid，不共用固定设备标识；退出账号后保留。 */
-function installIdFor(dir: string): string {
-  try {
-    const { iid } = JSON.parse(readFileSync(installFile(dir), 'utf8'))
-    if (typeof iid === 'string' && /^\d{14}$/.test(iid)) return iid
-  } catch { /* 首次使用或文件损坏时重新生成 */ }
-  const iid = String(randomInt(10_000_000_000_000, 100_000_000_000_000))
-  mkdirSync(dir, { recursive: true })
-  const temporary = `${installFile(dir)}.${randomUUID()}.tmp`
-  try {
-    writeFileSync(temporary, JSON.stringify({ iid }), { flag: 'wx', mode: 0o600 })
-    renameSync(temporary, installFile(dir))
-  } finally {
-    rmSync(temporary, { force: true })
-  }
-  return iid
-}
+const installId = () => deviceDigits('qishui:iid', 14)
 
 interface Ticket {
   key: string
@@ -95,7 +78,7 @@ export async function pollQishuiLogin(dir: string, key: string | null) {
   if (ticket.checking) return { status: 'waiting' }
   ticket.checking = true
   try {
-    const { body, cookies } = ticket.session ? {} : await request('/passport/web/check_qrconnect/', { ...passport, iid: installIdFor(dir) }, {
+    const { body, cookies } = ticket.session ? {} : await request('/passport/web/check_qrconnect/', { ...passport, iid: installId() }, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: ticket.cookies },
       body: new URLSearchParams({ ...qrParams, token: ticket.token, is_frontier: 'true' }),
@@ -173,7 +156,7 @@ export async function qishuiLoginStatus(dir: string) {
 export async function fetchQishuiUserPlaylists(dir: string) {
   const saved = readSession(dir)
   if (!saved) return null
-  const { body } = await request('/luna/pc/me/playlist', { aid: passport.aid, iid: installIdFor(dir), version_code: '30020100' }, { headers: {
+  const { body } = await request('/luna/pc/me/playlist', { aid: passport.aid, iid: installId(), version_code: '30020100' }, { headers: {
     'User-Agent': accountUserAgent, Cookie: `sessionid=${saved.session}`,
   } })
   if (readSession(dir)?.session !== saved.session) return []

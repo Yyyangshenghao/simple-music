@@ -1,6 +1,7 @@
 import * as NCM from 'NeteaseCloudMusicApi'
 import type { ServerContext } from '../types'
 import { getCookie, clearCookie } from './cookie'
+import { deviceHex } from './device-identity'
 import { installNeteaseProxy } from './netease-proxy'
 import { BILIBILI_REFERER, isBilibiliMediaHost } from './bilibili-client'
 
@@ -29,11 +30,31 @@ export function has(name: string): boolean {
   return typeof ncmTable[name] === 'function'
 }
 
+/** 游客请求带固定设备字段，否则 NCM 每次请求都会生成新的随机值；已登录账号不改动。 */
+export function withGuestDevice(params: NcmParams): NcmParams {
+  const cookie = params.cookie
+  if (typeof cookie === 'string' ? /(?:^|;\s*)MUSIC_U=/.test(cookie) : !!asObj(cookie).MUSIC_U) return params
+  const nuid = deviceHex('netease:nuid').slice(0, 32)
+  const mark = deviceHex('netease:wnmcid').slice(0, 6).replace(/\d/g, digit => 'abcdefghij'[Number(digit)])
+  const device: Record<string, string> = {
+    _ntes_nuid: nuid,
+    _ntes_nnid: `${nuid},1700000000000`,
+    WNMCID: `${mark}.1700000000000.01.0`,
+    deviceId: deviceHex('netease:device').slice(0, 32).toUpperCase(),
+  }
+  if (typeof cookie === 'string') {
+    const present = parseCookieString(cookie)
+    const added = Object.entries(device).filter(([key]) => !present[key]).map(([key, value]) => `${key}=${value}`)
+    return { ...params, cookie: [cookie, ...added].filter(Boolean).join('; ') }
+  }
+  return { ...params, cookie: { ...device, ...asObj(cookie) } }
+}
+
 /** 调用 NCM 接口；未导出时抛错（仅用于必然存在的接口）。 */
 export function call(name: string, params: NcmParams): Promise<NcmResponse> {
   const fn = ncmTable[name]
   if (typeof fn !== 'function') throw new Error(`${name} not available`)
-  return (fn as NcmFn)(params).catch((err: unknown) => {
+  return (fn as NcmFn)(withGuestDevice(params)).catch((err: unknown) => {
     // NCM 自己的 [ERR] 日志不带接口名，这里补一行便于定位风控(-460)等失败来源。
     const body = asObj(asObj(err).body)
     console.warn('[NCM]', name, 'failed:', body.code ?? asObj(err).status, 'logged-in:', /MUSIC_U=/.test(String(params.cookie ?? '')))

@@ -31,6 +31,7 @@ import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
 import { appleMusicBridgeRoutes, publicAppleMusicBridgeRoutes } from './routes/apple-music-bridge'
 import { networkRoutes } from './routes/network'
+import { setDeviceIdentityDir } from './lib/device-identity'
 import { sendError } from './lib/http'
 import { isAllowedOrigin, isAllowedToken } from './lib/security'
 
@@ -86,6 +87,7 @@ export function startServer(
     // 每次启动随机：壁纸页面只能读取壁纸目录，拿不到 API token。
     wallpaperWebToken: partial.wallpaperWebToken ?? randomBytes(32).toString('hex')
   }
+  setDeviceIdentityDir(ctx.userDataDir)
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
       let url: URL

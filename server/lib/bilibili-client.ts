@@ -1,5 +1,6 @@
 import { bilibiliTitleText, readingFromDescription, readingsFromTitle, type TitleReading } from '../../src/lib/bilibili-title'
 import { isSafeUpstreamUrl } from './security'
+import { readStoredDeviceValue, writeStoredDeviceValue } from './device-identity'
 
 /**
  * 哔哩哔哩视频音频流，支持主动搜索音乐区和跨源同曲兜底。
@@ -79,6 +80,7 @@ export class BilibiliRiskError extends Error {
   }
 }
 
+const BUVID_KEY = 'bilibiliBuvid3'
 const state = {
   breakerUntil: 0,
   buvid: '' as string,
@@ -111,6 +113,8 @@ function asObj(value: unknown): Record<string, unknown> {
 
 function trip(message: string): never {
   state.breakerUntil = Date.now() + BREAKER_MS
+  // 被风控的 buvid3 不再复用，下次启动重新申请。
+  writeStoredDeviceValue(BUVID_KEY, '')
   throw new BilibiliRiskError(message)
 }
 
@@ -130,13 +134,15 @@ async function requestJson(path: string, params: Record<string, string>, fetchIm
   return asObj(body.data)
 }
 
-/** 游客 buvid3：B 站搜索与播放接口按它识别设备，缺失时更容易触发风控。 */
+/** 游客 buvid3：B 站搜索与播放接口按它识别设备，缺失时更容易触发风控。由 B 站下发，存本地跨启动复用。 */
 async function guestCookie(fetchImpl: typeof fetch): Promise<string> {
+  state.buvid ||= readStoredDeviceValue(BUVID_KEY)
   if (!state.buvid) {
     state.buvidPending ??= requestJson('/x/frontend/finger/spi', {}, fetchImpl)
       .then((data) => String(data.b_3 ?? ''))
       .finally(() => { state.buvidPending = null })
     state.buvid = await state.buvidPending
+    if (state.buvid) writeStoredDeviceValue(BUVID_KEY, state.buvid)
   }
   return state.buvid ? `buvid3=${state.buvid}` : ''
 }

@@ -11,6 +11,7 @@
  */
 
 import { decryptQrc } from 'qrc-decoder'
+import { deviceDigits } from './device-identity'
 
 // ---------- 通用类型与取值助手 ----------
 
@@ -1956,7 +1957,7 @@ export async function handleQQSongUrl(
   const isFeeSong = feeHint === true || feeHint === '1' || Number(feeHint) === 1
   const songmid = String(mid || '').trim()
   if (!songmid) return { provider: 'qq', url: '', error: 'MISSING_MID', message: 'Missing QQ song mid' }
-  const guid = String(10000000 + Math.floor(Math.random() * 90000000))
+  const guid = deviceDigits('qq:guid', 8)
   const cookieObj = parseCookieString(cookie)
   const uin = qqCookieUin(cookieObj) || '0'
   const musicKey = qqCookieMusicKey(cookieObj)
@@ -2088,7 +2089,7 @@ export async function handleQQSongQualities(
 ): Promise<{ qualities: { level: string; label: string }[] }> {
   const songmid = String(mid || '').trim()
   if (!songmid) return { qualities: [] }
-  const guid = String(10000000 + Math.floor(Math.random() * 90000000))
+  const guid = deviceDigits('qq:guid', 8)
   const cookieObj = parseCookieString(cookie)
   const uin = qqCookieUin(cookieObj) || '0'
   const musicKey = qqCookieMusicKey(cookieObj)

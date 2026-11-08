@@ -94,14 +94,14 @@ describe('汽水扫码登录', () => {
       expect(fetch.mock.calls[0][1].headers.Cookie).toBe('sessionid=test-secret')
     })
 
-    it('每个安装使用各自的随机 iid，重启和退出账号后保持不变', async () => {
+    it('iid 由设备标识派生，退出账号和换数据目录后不变', async () => {
       const iidOf = (url: string) => new URL(url).searchParams.get('iid')
       const fetch = vi.fn(async (_url: string) => Response.json({ playlists: [] }))
       vi.stubGlobal('fetch', fetch)
       saveSession()
       await fetchQishuiUserPlaylists(dir)
       const first = iidOf(fetch.mock.calls[0][0])
-      expect(first).toMatch(/^\d{14}$/)
+      expect(first).toMatch(/^[1-9]\d{13}$/)
       expect(first).not.toBe('27960026095955')
       logoutQishui(dir)
       saveSession()
@@ -112,7 +112,7 @@ describe('汽水扫码登录', () => {
       try {
         writeFileSync(join(other, 'qishui-account.json'), JSON.stringify({ session: 'other-secret' }))
         await fetchQishuiUserPlaylists(other)
-        expect(iidOf(fetch.mock.calls[2][0])).not.toBe(first)
+        expect(iidOf(fetch.mock.calls[2][0])).toBe(first)
       } finally {
         rmSync(other, { recursive: true, force: true })
       }

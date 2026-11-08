@@ -127,7 +127,7 @@ describe('网易取链风控止损', () => {
     h.legacy.mockResolvedValue({ body: { data: [{ url: 'https://m.music/old', level: 'hires' }] } })
     expect((await handleSongUrl('1', { loggedIn: true }, 'max', 'c')).url).toBe('https://m.music/old')
     expect(h.legacy).toHaveBeenCalledTimes(1)
-    expect(h.legacy).toHaveBeenCalledWith(expect.objectContaining({ crypto: 'eapi', cookie: 'c' }))
+    expect(h.legacy).toHaveBeenCalledWith(expect.objectContaining({ crypto: 'eapi', cookie: expect.stringMatching(/^c; /) }))
   })
 
   it('旧取链接口收到风控也停止后续档位', async () => {

@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { readStoredDeviceValue, setDeviceIdentityDir } from './device-identity'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BilibiliRiskError,
@@ -88,6 +92,31 @@ describe('播放地址', () => {
     const calls = vi.mocked(fetchImpl).mock.calls.length
     await expect(searchBilibiliTracks('晴天', fetchImpl)).rejects.toThrow('BILIBILI_BREAKER_OPEN')
     expect(vi.mocked(fetchImpl).mock.calls.length).toBe(calls)
+  })
+
+  it('buvid3 存本地跨启动复用，触发风控后清除', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'simplemusic-bilibili-test-'))
+    setDeviceIdentityDir(dir)
+    try {
+      const first = vi.fn(async (input: string | URL | Request) => String(input).includes('finger/spi')
+        ? json({ code: 0, data: { b_3: 'buvid-saved' } })
+        : json({ code: 0, data: { result: [] } }))
+      await searchBilibiliTracks('歌', first as typeof fetch)
+      expect(readStoredDeviceValue('bilibiliBuvid3')).toBe('buvid-saved')
+
+      resetBilibiliState()
+      const second = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => json({ code: 0, data: { result: [] } }))
+      await searchBilibiliTracks('歌', second as typeof fetch)
+      expect(second.mock.calls.some(([input]) => String(input).includes('finger/spi'))).toBe(false)
+      expect((second.mock.calls[0][1]?.headers as Record<string, string>).Cookie).toBe('buvid3=buvid-saved')
+
+      resetBilibiliState()
+      await expect(searchBilibiliTracks('歌', (async () => json({ code: -412 })) as typeof fetch)).rejects.toThrow('BILIBILI_RISK')
+      expect(readStoredDeviceValue('bilibiliBuvid3')).toBe('')
+    } finally {
+      setDeviceIdentityDir(null)
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('搜索带游客 buvid3 与 B 站 Referer，结果短期缓存', async () => {
