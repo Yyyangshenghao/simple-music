@@ -23,7 +23,7 @@ describe('Windows 安装卸载进程边界', () => {
   })
 
   it('查询失败安全中止，静默更新只做有界等待', () => {
-    expect(source).toContain('/TIMEOUT=30000')
+    expect(source).toContain('/TIMEOUT=5000')
     expect(source).toContain('${If} $R0 != "1"')
     expect(source).toContain('${If} $R3 >= 10')
     expect(source).toContain('SetErrorLevel 2')

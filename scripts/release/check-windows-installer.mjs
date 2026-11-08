@@ -31,25 +31,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 let unrelated
 let locker
 let succeeded = false
-// 安装器用这条命令确认应用已退出，耗时超过其超时就会停止安装；失败时用耗时判断是否为此原因。
-const processCheck = () => {
-  const started = Date.now()
-  const result = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | Out-Null'], { windowsHide: true })
-  console.log(`进程检查耗时 ${Date.now() - started}ms，退出码 ${result.status}`)
-}
-const diagnose = () => {
-  processCheck()
-  let current = path.dirname(target)
-  for (;;) {
-    const attributes = spawnSync('cmd.exe', ['/d', '/c', 'dir', '/al', '/b', path.dirname(current)], { encoding: 'utf8', windowsHide: true }).stdout?.trim()
-    console.error(`${current} 同级目录链接：${attributes || '无'}`)
-    if (path.dirname(current) === current) break
-    current = path.dirname(current)
-  }
-  for (const entry of fs.readdirSync(path.dirname(target), { recursive: true }).slice(0, 40)) console.error(`现场：${entry}`)
-}
 try {
-  processCheck()
   run(installer, ['/S', '/D=relative\\folder'], false)
   run(installer, ['/S', `/D=${process.env.WINDIR}\\SimpleMusicInstallerAudit`], false)
   fs.mkdirSync(path.dirname(target), { recursive: true })
@@ -150,8 +132,5 @@ try {
   locker?.kill()
   // 只清理本脚本创建的隔离临时目录；失败时保留现场供CI日志排查。
   if (succeeded) fs.rmSync(root, { recursive: true, force: true, maxRetries: 5 })
-  else {
-    console.error(`Windows 安装验收失败，现场保留在 ${root}`)
-    diagnose()
-  }
+  else console.error(`Windows 安装验收失败，现场保留在 ${root}`)
 }
