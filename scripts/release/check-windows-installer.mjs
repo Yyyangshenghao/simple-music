@@ -14,7 +14,8 @@ for (const hive of ['HKCU', 'HKLM']) {
 }
 const installer = path.resolve('dist', fs.readdirSync('dist').find(name => /-Setup\.exe$/.test(name)) || 'missing')
 assert.ok(fs.existsSync(installer), '缺少 Setup 安装包')
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'simple-music-installer-'))
+// CI 的 TEMP 可能是 8.3 短路径，安装器会展开成长路径，比较时要用同一形式。
+const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'simple-music-installer-')))
 const target = path.join(root, "O'Brien 中文", 'Simple Music')
 const uninstall = path.join(target, 'Uninstall Simple Music.exe')
 const detachedUninstall = path.join(root, 'uninstall-test.exe')
