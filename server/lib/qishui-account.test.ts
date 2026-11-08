@@ -94,6 +94,30 @@ describe('汽水扫码登录', () => {
       expect(fetch.mock.calls[0][1].headers.Cookie).toBe('sessionid=test-secret')
     })
 
+    it('每个安装使用各自的随机 iid，重启和退出账号后保持不变', async () => {
+      const iidOf = (url: string) => new URL(url).searchParams.get('iid')
+      const fetch = vi.fn(async () => Response.json({ playlists: [] }))
+      vi.stubGlobal('fetch', fetch)
+      saveSession()
+      await fetchQishuiUserPlaylists(dir)
+      const first = iidOf(fetch.mock.calls[0][0] as unknown as string)
+      expect(first).toMatch(/^\d{14}$/)
+      expect(first).not.toBe('27960026095955')
+      logoutQishui(dir)
+      saveSession()
+      await fetchQishuiUserPlaylists(dir)
+      expect(iidOf(fetch.mock.calls[1][0] as unknown as string)).toBe(first)
+
+      const other = mkdtempSync(join(tmpdir(), 'simplemusic-qishui-test-'))
+      try {
+        writeFileSync(join(other, 'qishui-account.json'), JSON.stringify({ session: 'other-secret' }))
+        await fetchQishuiUserPlaylists(other)
+        expect(iidOf(fetch.mock.calls[2][0] as unknown as string)).not.toBe(first)
+      } finally {
+        rmSync(other, { recursive: true, force: true })
+      }
+    })
+
     it('会话失效返回 null，响应缺少歌单时报错', async () => {
       saveSession()
       vi.stubGlobal('fetch', vi.fn()
