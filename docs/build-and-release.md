@@ -297,7 +297,7 @@ gh workflow run release.yml --repo Yyyangshenghao/simple-music --ref dev/X.Y.Z -
 - **Wallpaper Engine 背景**：库探测走 Windows 注册表/PowerShell，Linux 上检测不到 Steam 库，属于已知功能差异；手动选择目录的回退照旧可用。
 - **字体列表**：Linux 通过 `fc-list` 读取，需要目标机安装 fontconfig（绝大多数桌面发行版默认有）。
 - **托盘**：Wayland 下依赖 StatusNotifier 宿主（KDE、niri+quickshell 等多数桌面自带）；没有托盘宿主时"缩回托盘"会隐藏窗口但缺少恢复入口，这类环境建议把关闭方式设为「退出应用」。
-- **Apple Music 的 DRM 未解决**：castlabs EVS 的 `sign-pkg` 只识别 macOS `.app` 与 Windows `.exe`（`_detect_pkgs` 里没有 Linux 分支），Linux 发布包拿不到生产 VMP 签名；而`modules/apple-music-chrome-page.ts` 已注明开发 VMP 签名会被 Apple 生产许可证服务拒绝。2.7.0 发 Linux 前必须二选一：Linux 打包版也走系统 Chrome 后端（依赖用户装 Google Chrome），或在 Linux 上隐藏 Apple Music 入口。
+- **Apple Music**：castlabs EVS 的 `sign-pkg` 只识别 macOS `.app` 与 Windows `.exe`，Linux 发布包没有生产 VMP 签名，CI 对 Linux 也不做签名。发布包走应用内播放窗口（不依赖系统 Chrome），Linux 安装包实机可正常播放；开发模式才使用系统 Chrome。
 - **签名**：Linux 产物不做 Widevine VMP 签名（`build/vmp-sign.cjs` 按平台跳过），也没有代码签名；deb 的 `Maintainer` 字段当前用 `linux.maintainer`（`yshAM`，无邮箱），补邮箱后要重新打包。
 
 ## 1. 常用命令
